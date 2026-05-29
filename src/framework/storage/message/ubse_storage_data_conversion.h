@@ -19,26 +19,33 @@
 #include "ubse_storage_resp_simpo.h"
 
 namespace ubse::storage::data::conversion {
-using namespace ubse::serial;
-using namespace ubse::storage::message;
+using ubse::serial::addr_len;
+using ubse::serial::alloc_addr_len_;
+using ubse::serial::enum_v;
+using ubse::serial::right_v;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialFreeFunc;
+using ubse::serial::UbseSerialization;
+using ubse::storage::message::UbseStorageReq;
+using ubse::storage::message::UbseStorageResp;
 
-inline void UbseStorageReqSerialize(UbseSerialization &out, UbseStorageReq &ubseStorageReq)
+inline void UbseStorageReqSerialize(UbseSerialization& out, UbseStorageReq& ubseStorageReq)
 {
     out << enum_v(ubseStorageReq.cmdType) << ubseStorageReq.dbName << ubseStorageReq.key;
 }
 
-inline void UbseStorageReqDeserialize(UbseDeSerialization &in, UbseStorageReq &ubseStorageReq)
+inline void UbseStorageReqDeserialize(UbseDeSerialization& in, UbseStorageReq& ubseStorageReq)
 {
     in >> enum_v(ubseStorageReq.cmdType) >> ubseStorageReq.dbName >> ubseStorageReq.key;
 }
 
-inline void KVReqSerialize(UbseSerialization &out, KV &kv)
+inline void KVReqSerialize(UbseSerialization& out, KV& kv)
 {
     out << kv.key;
     out << addr_len(kv.value, kv.valueLen);
 }
 
-inline bool KVDeserialize(UbseDeSerialization &in, KV &kv)
+inline bool KVDeserialize(UbseDeSerialization& in, KV& kv)
 {
     in >> kv.key;
     alloc_addr_len_<uint8_t> allocAddrLen;
@@ -52,7 +59,7 @@ inline bool KVDeserialize(UbseDeSerialization &in, KV &kv)
     return true;
 }
 
-inline void UbseStorageRespSerialize(UbseSerialization &out, UbseStorageResp &ubseStorageResp)
+inline void UbseStorageRespSerialize(UbseSerialization& out, UbseStorageResp& ubseStorageResp)
 {
     out << (right_v<size_t>(ubseStorageResp.kvs.size()));
     for (auto kv : ubseStorageResp.kvs) {

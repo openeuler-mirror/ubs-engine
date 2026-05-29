@@ -12,12 +12,12 @@
 
 #include "test_ubse_mem_operation_resp_handler.h"
 #include <mockcpp/mockcpp.hpp>
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "request_helper.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mmi_interface.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
+#include "request_helper.h"
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem_controller;
 using namespace ubse::adapter_plugins::mmi;

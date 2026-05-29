@@ -18,11 +18,12 @@
 namespace ubse::ut::election {
 using namespace ubse::election::message;
 using namespace ubse::context;
+using namespace ubse::com;
 void TestUbseElectionPktHandler::SetUp()
 {
     Test::SetUp();
     electionPktHandler = UbseElectionPktHandler();
-    electionPkt = { 1, "1", "2", 2, 1, 1, { "3", "4" }, 3, 4 };
+    electionPkt = {1, "1", "2", 2, 1, 1, {"3", "4"}, 3, 4};
     UbseElectionPktSimpoPtr inputElectionPktSimpo = new UbseElectionPktSimpo(electionPkt);
     inputElectionPktSimpo->Serialize();
     request =
@@ -47,7 +48,7 @@ TEST_F(TestUbseElectionPktHandler, RegElectionPktHandler_ShouldReturnError_WhenR
 {
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseElectionPktSimpo, UbseElectionReplyPktSimpo>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
     UbseResult result = UbseElectionPktHandler::RegElectionPktHandler();
@@ -58,7 +59,7 @@ TEST_F(TestUbseElectionPktHandler, RegElectionPktHandlerSuccess)
 {
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseElectionPktSimpo, UbseElectionReplyPktSimpo>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
     UbseResult result = UbseElectionPktHandler::RegElectionPktHandler();
@@ -74,4 +75,4 @@ TEST_F(TestUbseElectionPktHandler, Handle)
     auto ret = handler.Handle(req, rsp, ctx);
     EXPECT_EQ(UBSE_OK, ret);
 }
-}
+} // namespace ubse::ut::election

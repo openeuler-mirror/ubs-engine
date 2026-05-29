@@ -16,13 +16,18 @@
 #include "ubse_com_base.h"
 
 namespace ubse::storage {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseStorageOpCode;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
 class UbseStorageReqHandler : public UbseComBaseMessageHandler {
 public:
     UbseStorageReqHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
-        UbseComBaseMessageHandlerCtxPtr ctx) override;
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     inline uint16_t GetOpCode() override
     {
@@ -34,5 +39,5 @@ public:
         return static_cast<uint16_t>(UbseModuleCode::STORAGE);
     }
 };
-}
+} // namespace ubse::storage
 #endif // UBSE_STORAGE_REQ_HANDLER_H

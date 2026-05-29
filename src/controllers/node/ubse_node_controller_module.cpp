@@ -12,11 +12,10 @@
 
 #include "ubse_node_controller_module.h"
 
-#include "ubse_node_controller_agent.h"
 #include "ubse_node_api.h"
+#include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_master.h"
-#include "ubse_node_controller_agent.h"
 
 namespace ubse::nodeController {
 using namespace ubse::election;
@@ -44,7 +43,7 @@ UbseResult UbseNodeControllerModule::Initialize()
     // 注册Agent消息处理器（Agent已初始化）
     ret = RegAgentMsgHandler();
     if (ret != UBSE_OK) {
-        UbseNodeControllerAgent::GetInstance().UnInitialize();  // 回滚Agent
+        UbseNodeControllerAgent::GetInstance().UnInitialize(); // 回滚Agent
         return ret;
     }
 
@@ -86,4 +85,4 @@ void UbseNodeControllerModule::Stop()
     UbseNodeControllerAgent::GetInstance().Stop();
     UbseNodeControllerMaster::GetInstance().Stop();
 }
-}
+} // namespace ubse::nodeController

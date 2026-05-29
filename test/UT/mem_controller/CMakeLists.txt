@@ -16,6 +16,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_mem_controller_ut
         api_server
         ubse_mmi
         ubse_mem_decoder_utils
+        syssentry
+        ubse_vsock_client
 )
 target_include_directories(${CMAKE_PROJECT_NAME}_mem_controller_ut PRIVATE
         ${PROJECT_SOURCE_DIR}/src/controllers/include

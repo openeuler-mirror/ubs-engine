@@ -23,7 +23,7 @@ std::string RackCreateResourceWaterBorrowAttr::ToJson()
 {
     JSON_VEC lenderLocVec;
     JSON_VEC lenderSizeVec;
-    for (const auto &item : this->waterMallocAttr.lenderLocs) {
+    for (const auto& item : this->waterMallocAttr.lenderLocs) {
         (void)lenderLocVec.emplace_back(item.nodeId + "/" + std::to_string(item.socketId) + "/" +
                                         std::to_string(item.numaId));
     }
@@ -75,7 +75,7 @@ std::string RackCreateResourceWaterBorrowAttr::ToJson()
     return res;
 }
 
-bool RackCreateResourceWaterBorrowAttr::ParseJsonString(const std::string &jsonString, JSON_MAP &strMap)
+bool RackCreateResourceWaterBorrowAttr::ParseJsonString(const std::string& jsonString, JSON_MAP& strMap)
 {
     (void)strMap.emplace("numaPresentId", "");
     (void)strMap.emplace("type", "");
@@ -94,7 +94,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseJsonString(const std::string &jsonS
     return true;
 }
 
-bool RackCreateResourceWaterBorrowAttr::ParseBasicAttributes(JSON_MAP &strMap)
+bool RackCreateResourceWaterBorrowAttr::ParseBasicAttributes(JSON_MAP& strMap)
 {
     int64_t pLev;
     if (!StrToULong(strMap["size"], this->size) || !StrToULong(strMap["highWatermark"], this->highWatermark) ||
@@ -111,7 +111,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseBasicAttributes(JSON_MAP &strMap)
     return true;
 }
 
-bool RackCreateResourceWaterBorrowAttr::ParseWaterMallocAttr(JSON_MAP &strMap, JSON_MAP &waterMallocAttrMap)
+bool RackCreateResourceWaterBorrowAttr::ParseWaterMallocAttr(JSON_MAP& strMap, JSON_MAP& waterMallocAttrMap)
 {
     (void)waterMallocAttrMap.emplace("srcNid", "");
     (void)waterMallocAttrMap.emplace("srcSocket", "");
@@ -146,7 +146,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseWaterMallocAttr(JSON_MAP &strMap, J
     return true;
 }
 
-bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP &waterMallocAttrMap)
+bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP& waterMallocAttrMap)
 {
     JSON_VEC lenderLocsVec;
     JSON_VEC lenderSizeVec;
@@ -191,7 +191,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP &wate
     return true;
 }
 
-bool RackCreateResourceWaterBorrowAttr::FromJson(const std::string &jsonString)
+bool RackCreateResourceWaterBorrowAttr::FromJson(const std::string& jsonString)
 {
     bool ret = false;
     JSON_MAP strMap;

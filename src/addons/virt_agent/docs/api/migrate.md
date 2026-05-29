@@ -164,13 +164,13 @@ virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);
 
 ## 描述 DESCRIPTION
 
-libvirt与virtagent通信超时时间设置。
+libvirt与virt_agent通信超时时间设置。
 
 ## 参数 Parameters
 
-| name            | IN/OUT | description |
-|-----------------|--------|-------------|
-| timeout      | IN     | libvirt与virtagent超时时间，单位秒     |
+| name            | IN/OUT | description                |
+|-----------------|--------|----------------------------|
+| timeout      | IN     | libvirt与virt_agent超时时间，单位秒 |
 
 ## 返回值 RETURN VALUE
 
@@ -238,11 +238,13 @@ int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
 
 ## 参数 Parameters
 
-| name     | IN/OUT | description                  |
-|----------|--------|------------------------------|
-| request  | IN     | libvirt调用virtagent传参（json）   |
-| response | OUT    | virtagent给libvirt返回的参数（json） |
+| name     | IN/OUT | description                   |
+|----------|--------|-------------------------------|
+| request  | IN     | libvirt调用virt_agent传参（json）   |
+| response | OUT    | virt_agent给libvirt返回的参数（json） |
+
 - 数据结构说明
+
 ```c
 typedef struct {
     uint8_t *data;
@@ -275,7 +277,6 @@ typedef struct {
 
 暂无
 
-
 # 5. RackAsyncSendForHam
 
 ## 库 LIBRARY
@@ -291,15 +292,17 @@ int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
 
 ## 描述 DESCRIPTION
 
-libvirt与virtagent异步调用接口
+libvirt与virt_agent异步调用接口
 
 ## 参数 Parameters
 
-| name            | IN/OUT | description |
-|-----------------|--------|-------------|
-| request      | IN     | libvirt调用virtagent传参（json）     |
-| callback            | OUT    | libvirt调用virtagent回调函数的函数指针     |
+| name            | IN/OUT | description                  |
+|-----------------|--------|------------------------------|
+| request      | IN     | libvirt调用virt_agent传参（json）  |
+| callback            | OUT    | libvirt调用virt_agent回调函数的函数指针 |
+
 - 数据结构说明
+
 ```c
 typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
 typedef struct {
@@ -332,5 +335,3 @@ typedef struct {
 ## 附注 NOTES
 
 暂无
-
-

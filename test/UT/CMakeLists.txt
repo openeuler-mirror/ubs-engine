@@ -44,7 +44,6 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_ras
         ubse_timer
         ubse_context
-        ubse_security
         ubse_controller
         api_server
         syssentry
@@ -54,10 +53,29 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_storage
         ubse_sdk
         npu_controller
+        ubse_urma_controller
+        ubse_urma_uvs
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
         ubse_node_controller_register_config
+)
+
+include_directories(
+        ${SRC_DIR}/framework/ipc
+        ${SRC_DIR}/framework/ipc/include
+        ${SRC_DIR}/framework/ipc/server
+        ${SRC_DIR}/framework/misc
+        ${SRC_DIR}/framework/misc/lock
+        ${SRC_DIR}/framework/config
+        ${SRC_DIR}/framework/context
+        ${SRC_DIR}/framework/com
+        ${SRC_DIR}/framework/serde
+        ${SRC_DIR}/framework/security
+        ${SRC_DIR}/api_server
+        ${SRC_DIR}/controllers/include
+        ${SRC_DIR}/ras
+        ${SRC_DIR}/adapter_plugins/urma_uvs
 )
 
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
@@ -70,6 +88,7 @@ add_subdirectory(context)
 add_subdirectory(election)
 add_subdirectory(event)
 add_subdirectory(http)
+add_subdirectory(ipc)
 add_subdirectory(log)
 add_subdirectory(mem_controller)
 add_subdirectory(security)
@@ -89,6 +108,8 @@ add_subdirectory(adapter_plugins/syssentry)
 add_subdirectory(storage)
 add_subdirectory(sdk)
 add_subdirectory(npu)
+add_subdirectory(urma_controller)
+add_subdirectory(adapter_plugins/urma_uvs)
 
 add_independent_exec_ut(${UT_BINARY})
 

@@ -12,14 +12,15 @@
  */
 
 #include "mem_fragmentation_sdk_server.h"
+
 #include <ubse_api_server.h>
+#include <ubse_com.h>
 #include <ubse_logger.h>
 #include <ubse_node.h>
 #include <ubse_security.h>
 #include <map>
 #include <string>
 #include <vector>
-
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
 #include "mem_handler.h"
@@ -30,24 +31,41 @@
 #include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_def.h"
+#include "vm_http_util.h"
 #include "vm_sdk_def.h"
 #include "vm_system_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using std::string;
 using std::vector;
 using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::security;
+using namespace ubse::com;
+using namespace ubse::election;
 using namespace api::server;
 using namespace vm::mempooling;
 
 constexpr uint32_t NODE_ANTI_MIN_LENGTH = 1;
+
+/**
+ * Free function for nodeId buffer allocated in GetNumaInfoFromRemote
+ *
+ * @param data Pointer to the buffer to be freed
+ */
+static void FreeNodeIdBuffer(void* data)
+{
+    if (data != nullptr) {
+        free(data);
+    }
+}
+
 VmResult VirtMemFragSdk::QueryRegister()
 {
     auto ret = RegisterIpcHandler(UBS_VA_QUERY, UBS_VA_NUMA_INFO, GetNodeInfo, UBS_VA_QUERY_PERMISSION);
     ret |= RegisterIpcHandler(UBS_VA_QUERY, UBS_VA_VM_INFO, GetVmInfo, UBS_VA_QUERY_PERMISSION);
+    ret |= RegisterIpcHandler(UBS_VA_QUERY, UBS_VA_NODE_INFO_LIST, GetNodeInfoList, UBS_VA_QUERY_PERMISSION);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "Registration of query sdk server failed. " << FormatRetCode(ret);
         return ret;
@@ -73,6 +91,17 @@ VmResult VirtMemFragSdk::Register()
         RegisterIpcHandler(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_ROLLBACK, MemRollback, UBS_VA_FRAGMENTATION_PERMISSION);
     ret |= RegisterIpcHandler(UBS_VA_MEM_FRAGMENTATION, UBS_VA_SYNC_TASK_QUERY, MemTaskQuery,
                               UBS_VA_FRAGMENTATION_PERMISSION);
+    ret |= RegisterIpcHandler(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_BORROW, MemBorrow, UBS_VA_FRAGMENTATION_PERMISSION);
+    ret |= RegisterIpcHandler(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, PageSwapEnable,
+                              UBS_VA_FRAGMENTATION_PERMISSION);
+
+    UbseComEndpoint endpoint{
+        .moduleId = VM_MODULE_CODE,
+        .serviceId = BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_MASTER,
+    };
+    ret |= UbseRegRpcService(endpoint, GetRemoteNodeInfoMasterReceiver);
+    endpoint.serviceId = BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_DEST;
+    ret |= UbseRegRpcService(endpoint, GetRemoteNodeInfoDestReceiver);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "Registration of VirtMemFragSdk failed, " << FormatRetCode(ret);
         return ret;
@@ -81,7 +110,7 @@ VmResult VirtMemFragSdk::Register()
     return VM_OK;
 }
 
-uint32_t GetNumaInfoList(std::vector<NumaInfo> &numaInfos)
+uint32_t GetNumaInfoList(std::vector<NumaInfo>& numaInfos)
 {
     UBSE_LOG_INFO << "GetNumaInfoList start.";
     numaInfos.clear();
@@ -100,7 +129,7 @@ uint32_t GetNumaInfoList(std::vector<NumaInfo> &numaInfos)
                            << MAX_NUMA_NUM;
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSGetNumaInfoListOnNode Exception. " << e.what();
         return VM_ERROR;
     }
@@ -109,7 +138,7 @@ uint32_t GetNumaInfoList(std::vector<NumaInfo> &numaInfos)
     return VM_OK;
 }
 
-uint32_t GetVmInfoList(std::vector<mempooling::VmDomainInfo> &vmInfoList)
+uint32_t GetVmInfoList(std::vector<mempooling::VmDomainInfo>& vmInfoList)
 {
     UBSE_LOG_INFO << "GetVmInfoList start.";
     vmInfoList.clear();
@@ -129,7 +158,7 @@ uint32_t GetVmInfoList(std::vector<mempooling::VmDomainInfo> &vmInfoList)
                            << MAX_VM_NUM;
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSGetVmInfoListOnNode Exception. " << e.what();
         return VM_ERROR;
     }
@@ -138,7 +167,7 @@ uint32_t GetVmInfoList(std::vector<mempooling::VmDomainInfo> &vmInfoList)
     return VM_OK;
 }
 
-uint32_t PackNumaInfoList(const std::vector<NumaInfo> &numaInfos, UbseIpcMessage &buffer)
+uint32_t PackNumaInfoList(const std::vector<NumaInfo>& numaInfos, UbseIpcMessage& buffer)
 {
     MemFragmentationMsg msg{numaInfos};
     UBSE_LOG_DEBUG << "Start MemFragmentationMsg Serialize.";
@@ -163,7 +192,7 @@ uint32_t PackNumaInfoList(const std::vector<NumaInfo> &numaInfos, UbseIpcMessage
     return VM_OK;
 }
 
-uint32_t PackVmInfoList(const std::vector<mempooling::VmDomainInfo> &vmInfoList, UbseIpcMessage &buffer)
+uint32_t PackVmInfoList(const std::vector<mempooling::VmDomainInfo>& vmInfoList, UbseIpcMessage& buffer)
 {
     MemFragmentationVmInfoMsg msg{vmInfoList};
 
@@ -188,7 +217,7 @@ uint32_t PackVmInfoList(const std::vector<mempooling::VmDomainInfo> &vmInfoList,
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::GetNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::GetNodeInfo(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     std::vector<NumaInfo> numaInfos{};
     auto ret = GetNumaInfoList(numaInfos);
@@ -213,7 +242,7 @@ uint32_t VirtMemFragSdk::GetNodeInfo(const UbseIpcMessage &req, const UbseReques
     return ret;
 }
 
-uint32_t VirtMemFragSdk::GetVmInfo(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::GetVmInfo(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     std::vector<mempooling::VmDomainInfo> vmInfoList{};
     auto ret = GetVmInfoList(vmInfoList);
@@ -236,7 +265,7 @@ uint32_t VirtMemFragSdk::GetVmInfo(const UbseIpcMessage &req, const UbseRequestC
     return ret;
 }
 
-bool VirtMemFragSdk::ValidateRequest(const UbseIpcMessage &req)
+bool VirtMemFragSdk::ValidateRequest(const UbseIpcMessage& req)
 {
     if (req.buffer == nullptr || req.length == 0) {
         UBSE_LOG_ERROR << "Request buffer is null or empty.";
@@ -246,7 +275,7 @@ bool VirtMemFragSdk::ValidateRequest(const UbseIpcMessage &req)
 }
 
 uint32_t VirtMemFragSdk::UpdateAntiAffinityConfig(
-    const std::map<std::string, std::vector<std::string>> &nodeAntiAffinityMap)
+    const std::map<std::string, std::vector<std::string>>& nodeAntiAffinityMap)
 {
     const auto updateAntiNode = MempoolingModule::UBSRMRSUpdateAntiNode();
     if (updateAntiNode == nullptr) {
@@ -260,7 +289,7 @@ uint32_t VirtMemFragSdk::UpdateAntiAffinityConfig(
             UBSE_LOG_ERROR << "Failed to update anti-affinity configuration. " << FormatRetCode(ret);
             return ret;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSUpdateAntiNode Exception. " << e.what();
         return VM_ERROR;
     }
@@ -269,8 +298,8 @@ uint32_t VirtMemFragSdk::UpdateAntiAffinityConfig(
     return VM_OK;
 }
 
-std::pair<string, const uint8_t *> VirtMemFragSdk::ParseKey(const uint8_t *buffer, size_t buffer_size,
-                                                            const uint8_t *&ptr)
+std::pair<string, const uint8_t*> VirtMemFragSdk::ParseKey(const uint8_t* buffer, size_t buffer_size,
+                                                           const uint8_t*& ptr)
 {
     if (ptr < buffer || ptr > buffer + buffer_size) {
         UBSE_LOG_ERROR << "Pointer out of buffer range.";
@@ -297,12 +326,12 @@ std::pair<string, const uint8_t *> VirtMemFragSdk::ParseKey(const uint8_t *buffe
     }
 
     string key;
-    key.assign(reinterpret_cast<const char *>(ptr), key_length - 1);
+    key.assign(reinterpret_cast<const char*>(ptr), key_length - 1);
     ptr += key_length;
     return make_pair(key, ptr);
 }
 
-vector<string> VirtMemFragSdk::ParseValues(const uint8_t *buffer, size_t buffer_size, const uint8_t *&ptr)
+vector<string> VirtMemFragSdk::ParseValues(const uint8_t* buffer, size_t buffer_size, const uint8_t*& ptr)
 {
     if (ptr > buffer + buffer_size || buffer + buffer_size - ptr < sizeof(uint32_t)) {
         UBSE_LOG_ERROR << "Insufficient buffer to read value count.";
@@ -336,15 +365,15 @@ vector<string> VirtMemFragSdk::ParseValues(const uint8_t *buffer, size_t buffer_
             continue;
         }
         string value_str;
-        value_str.assign(reinterpret_cast<const char *>(ptr), value_length - 1);
+        value_str.assign(reinterpret_cast<const char*>(ptr), value_length - 1);
         ptr += value_length;
         values.push_back(value_str);
     }
     return values;
 }
 
-std::pair<string, vector<string>> VirtMemFragSdk::ParseEntry(const uint8_t *buffer, size_t buffer_size,
-                                                             const uint8_t *&ptr)
+std::pair<string, vector<string>> VirtMemFragSdk::ParseEntry(const uint8_t* buffer, size_t buffer_size,
+                                                             const uint8_t*& ptr)
 {
     auto [key, new_ptr] = ParseKey(buffer, buffer_size, ptr);
     if (key.empty()) {
@@ -358,14 +387,14 @@ std::pair<string, vector<string>> VirtMemFragSdk::ParseEntry(const uint8_t *buff
     return make_pair(key, values);
 }
 
-uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t *buffer, size_t buffer_size,
-                                                       std::map<std::string, std::vector<std::string>> &node_dict_map)
+uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t* buffer, size_t buffer_size,
+                                                       std::map<std::string, std::vector<std::string>>& node_dict_map)
 {
     if (buffer == nullptr || buffer_size == 0) {
         return VM_ERROR;
     }
 
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
 
     std::map<std::string, std::string> tmpNodeAntiAffinityMap;
     std::vector<UbseRoleInfo> roleInfos;
@@ -375,7 +404,7 @@ uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t *buffer, si
         return VM_ERROR;
     }
 
-    for (const auto &node : roleInfos) {
+    for (const auto& node : roleInfos) {
         UBSE_LOG_DEBUG << "Node=" << node.nodeId;
         tmpNodeAntiAffinityMap[node.nodeId] = "";
     }
@@ -402,8 +431,8 @@ uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t *buffer, si
         }
     }
 
-    for (const auto &it : tmpNodeAntiAffinityMap) {
-        const std::string &key = it.first;
+    for (const auto& it : tmpNodeAntiAffinityMap) {
+        const std::string& key = it.first;
         if (node_dict_map.find(key) == node_dict_map.end()) {
             UBSE_LOG_ERROR << "Node ID=" << key << " is not present in the deserialized data.";
             return VM_ERROR;
@@ -413,7 +442,7 @@ uint32_t VirtMemFragSdk::DeserializeNodeAntiDictionary(const uint8_t *buffer, si
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::NodeAntiAffinity(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::NodeAntiAffinity(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "NodeAntiAffinity start.";
     UbseIpcMessage resp{};
@@ -446,8 +475,8 @@ uint32_t VirtMemFragSdk::NodeAntiAffinity(const UbseIpcMessage &req, const UbseR
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::PackBorrowStrategyRsp(const MemBorrowStrategyResult &borrowStrategyResult,
-                                               UbseIpcMessage &buffer)
+uint32_t VirtMemFragSdk::PackBorrowStrategyRsp(const MemBorrowStrategyResult& borrowStrategyResult,
+                                               UbseIpcMessage& buffer)
 {
     MemFragmentationMemBorrowStrategyOutputMsg msg{};
     auto ret = msg.SetOutputMsg(borrowStrategyResult);
@@ -473,8 +502,8 @@ uint32_t VirtMemFragSdk::PackBorrowStrategyRsp(const MemBorrowStrategyResult &bo
     return VM_OK;
 }
 
-VmResult CallUBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &srcMemBorrowParam, const uint64_t &memBorrowSize,
-                                      MemBorrowStrategyResult &borrowStrategyResult)
+VmResult CallUBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam& srcMemBorrowParam, const uint64_t& memBorrowSize,
+                                      MemBorrowStrategyResult& borrowStrategyResult)
 {
     const auto UBSRMRSMemBorrowStrategy = MempoolingModule::UBSRMRSMemBorrowStrategy();
     if (UBSRMRSMemBorrowStrategy == nullptr) {
@@ -492,21 +521,21 @@ VmResult CallUBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &srcMemBorrowPa
             UBSE_LOG_ERROR << "The size of destParam is invalid.";
             return VM_INVALID_PARAM_ERROR;
         }
-        for (auto &param : borrowStrategyResult.destParam) {
+        for (auto& param : borrowStrategyResult.destParam) {
             if (param.destNumaNum != param.destNumaId.size() || param.destNumaNum != param.memSize.size() ||
                 param.destNumaNum > MAX_DEST_NUMA_NUM) {
                 UBSE_LOG_ERROR << "The destNumaNum is invalid.";
                 return VM_INVALID_PARAM_ERROR;
             }
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSMemBorrowStrategy Exception. " << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::MemBorrowStrategy(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemBorrowStrategy(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemBorrowStrategy start.";
     MemFragmentationMemBorrowStrategyInputMsg inputMsg(req.buffer, req.length);
@@ -555,7 +584,7 @@ uint32_t VirtMemFragSdk::MemBorrowStrategy(const UbseIpcMessage &req, const Ubse
  * @param borrowExecuteResult
  * @return 0 for success, non-zero for error
  */
-VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrowExecuteResult)
+VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult)
 {
     if (borrowExecuteResult.presentNumaIds.empty()) {
         UBSE_LOG_ERROR << "PresentNumaId is empty.";
@@ -577,14 +606,15 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrow
         return VM_ERROR;
     }
     // Set source node remote hugepage memory
-    for (const auto &[key, value] : numaBorrowedSizeMap) {
+    for (const auto& [key, value] : numaBorrowedSizeMap) {
         // When value is 0, no need to set hugePage.
         if (value == 0) {
             continue;
         }
         ret = HugePageHandler::SetHugePages(key, value);
         if (ret != VM_OK) {
-            UBSE_LOG_ERROR << "Failed to set hugepages" << ", remoteNumaId=" << key << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "Failed to set hugepages"
+                           << ", remoteNumaId=" << key << FormatRetCode(ret);
             (void)ChangeOverrideCapability(false);
             return ret;
         }
@@ -593,7 +623,7 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult &borrow
     return ret;
 }
 
-void FillVMMemoryBorrowParam(const borrow_strategy_c &borrowMsg, const uid_t uid, VMMemoryBorrowParam &vmParam)
+void FillVMMemoryBorrowParam(const borrow_strategy_c& borrowMsg, const uid_t uid, VMMemoryBorrowParam& vmParam)
 {
     vmParam.srcParam.srcNid = borrowMsg.src_host_id;
     vmParam.srcParam.srcSocketId = borrowMsg.src_socket_id;
@@ -617,7 +647,7 @@ void FillVMMemoryBorrowParam(const borrow_strategy_c &borrowMsg, const uid_t uid
     }
 }
 
-uint32_t PackMemBorrowRespResult(const mem_borrow_result_c &memBorrowExecuteResult, UbseIpcMessage &buffer)
+uint32_t PackMemBorrowRespResult(const mem_borrow_result_c& memBorrowExecuteResult, UbseIpcMessage& buffer)
 {
     MemBorrowExecuteResultMsg msg{memBorrowExecuteResult};
     auto ret = msg.Serialize();
@@ -638,8 +668,8 @@ uint32_t PackMemBorrowRespResult(const mem_borrow_result_c &memBorrowExecuteResu
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::PackBorrowExecuteRsp(const MemBorrowExecuteResult &memBorrowExecuteResult,
-                                              UbseIpcMessage &buffer)
+uint32_t VirtMemFragSdk::PackBorrowExecuteRsp(const MemBorrowExecuteResult& memBorrowExecuteResult,
+                                              UbseIpcMessage& buffer)
 {
     MemFragmentationMemBorrowExecuteOutputMsg msg{memBorrowExecuteResult};
     auto ret = msg.Serialize();
@@ -660,7 +690,7 @@ uint32_t VirtMemFragSdk::PackBorrowExecuteRsp(const MemBorrowExecuteResult &memB
     return VM_OK;
 }
 
-VmResult ConvertToLegacyResult(const MemBorrowExecuteResult &src, mem_borrow_result_c &dest)
+VmResult VirtMemFragSdk::ConvertToLegacyResult(const MemBorrowExecuteResult& src, mem_borrow_result_c& dest)
 {
     auto ret =
         memset_s(dest.present_numa_ids_ptr, sizeof(dest.present_numa_ids_ptr), 0, sizeof(dest.present_numa_ids_ptr));
@@ -692,7 +722,7 @@ VmResult ConvertToLegacyResult(const MemBorrowExecuteResult &src, mem_borrow_res
     return VM_OK;
 }
 
-VmResult CallUBSRMRSMemBorrowExecute(const VMMemoryBorrowParam &vmParam, MemBorrowExecuteResult &borrowExecuteResult)
+VmResult CallUBSRMRSMemBorrowExecute(const VMMemoryBorrowParam& vmParam, MemBorrowExecuteResult& borrowExecuteResult)
 {
     const auto UBSRMRSMemBorrowExecute = MempoolingModule::UBSRMRSMemBorrowExecute();
     if (UBSRMRSMemBorrowExecute == nullptr) {
@@ -710,15 +740,15 @@ VmResult CallUBSRMRSMemBorrowExecute(const VMMemoryBorrowParam &vmParam, MemBorr
             UBSE_LOG_ERROR << "The size of presentNumaIds or borrowIds is invalid.";
             return VM_INVALID_PARAM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSMemBorrowStrategy Exception. " << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::StartMemBorrowSync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                            const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::StartMemBorrowSync(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                            const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemBorrowExecuteSync start, taskId=" << taskId;
     ThreadTaskManager::GetInstance().SetTaskThreadId(taskId);
@@ -777,18 +807,18 @@ uint32_t VirtMemFragSdk::StartMemBorrowSync(const std::string &taskId, const VMM
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::StartMemBorrowAsync(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                             const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::StartMemBorrowAsync(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                             const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemBorrowExecuteAsync start, taskId=" << taskId << ", requestId=" << context.requestId;
 
     ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::RUNNING, VM_OK);
     try {
-        std::thread([](const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                       const UbseRequestContext &ctx) { ExecuteAsyncMemBorrow(taskId, vmParam, ctx); },
+        std::thread([](const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                       const UbseRequestContext& ctx) { ExecuteAsyncMemBorrow(taskId, vmParam, ctx); },
                     taskId, vmParam, context)
             .detach();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::string errorMsg = std::string("Exception in create Thread: ") + e.what();
         UBSE_LOG_ERROR << "StartMemBorrowAsync Exception, taskId=" << taskId << ", error=" << e.what();
         ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errorMsg);
@@ -823,8 +853,8 @@ uint32_t VirtMemFragSdk::StartMemBorrowAsync(const std::string &taskId, const VM
     return VM_OK;
 }
 
-void VirtMemFragSdk::ExecuteAsyncMemBorrow(const std::string &taskId, const VMMemoryBorrowParam &vmParam,
-                                           const UbseRequestContext &context)
+void VirtMemFragSdk::ExecuteAsyncMemBorrow(const std::string& taskId, const VMMemoryBorrowParam& vmParam,
+                                           const UbseRequestContext& context)
 {
     ThreadTaskManager::GetInstance().SetTaskThreadId(taskId);
     UBSE_LOG_INFO << "Start async MemBorrow operation, taskId=" << taskId << ", requestId=" << context.requestId
@@ -872,7 +902,7 @@ void VirtMemFragSdk::ExecuteAsyncMemBorrow(const std::string &taskId, const VMMe
     ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
 }
 
-uint32_t VirtMemFragSdk::MemBorrowExecute(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemBorrowExecute(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemBorrowExecute start.";
     if (!ValidateRequest(req)) {
@@ -906,7 +936,7 @@ uint32_t VirtMemFragSdk::MemBorrowExecute(const UbseIpcMessage &req, const UbseR
     }
 }
 
-VmResult ConvertTaskResult(const AsyncTaskInfo &from, async_task_info_c &to)
+VmResult ConvertTaskResult(const AsyncTaskInfo& from, async_task_info_c& to)
 {
     // 1. task_id
     VmResult ret = StringToC(to.task_id, from.taskId, MEM_TASK_ID_MAX);
@@ -967,14 +997,14 @@ VmResult ConvertTaskResult(const AsyncTaskInfo &from, async_task_info_c &to)
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemTaskQuery start.";
     if (!ValidateRequest(req)) {
         UBSE_LOG_ERROR << "Request validation failed.";
         return VM_ERROR;
     }
-    std::string taskId(reinterpret_cast<char *>(req.buffer), req.length);
+    std::string taskId(reinterpret_cast<char*>(req.buffer), req.length);
     UBSE_LOG_INFO << "MemTaskQuery taskId=" << taskId;
 
     AsyncTaskInfo taskInfo{};
@@ -1007,8 +1037,7 @@ uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage &req, const UbseReque
     MemTaskResultQueryMsg msg(taskInfoC);
     VmResult serializeRet = msg.Serialize();
     if (serializeRet != VM_OK) {
-        UBSE_LOG_ERROR << "Failed to serialize task info for taskId=" << taskId
-                       << ", " << FormatRetCode(serializeRet);
+        UBSE_LOG_ERROR << "Failed to serialize task info for taskId=" << taskId << ", " << FormatRetCode(serializeRet);
         return VM_ERROR;
     }
 
@@ -1024,8 +1053,8 @@ uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage &req, const UbseReque
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::PackMigrateStrategyRsp(const MigrateStrategyResult &migrateStrategyResult,
-                                                UbseIpcMessage &buffer)
+uint32_t VirtMemFragSdk::PackMigrateStrategyRsp(const MigrateStrategyResult& migrateStrategyResult,
+                                                UbseIpcMessage& buffer)
 {
     MemFragmentationMemMigrateStrategyOutputMsg msg{};
     auto ret = msg.SetOutputMsg(migrateStrategyResult);
@@ -1051,7 +1080,7 @@ uint32_t VirtMemFragSdk::PackMigrateStrategyRsp(const MigrateStrategyResult &mig
     return VM_OK;
 }
 
-void FillVmMigrateparam(const MemMigrateStrategySrcParam &srcParam, VMMigrateParam &vmParam)
+void FillVmMigrateparam(const MemMigrateStrategySrcParam& srcParam, VMMigrateParam& vmParam)
 {
     vmParam.borrowInNode = srcParam.borrowInNode;
     vmParam.borrowSize = srcParam.borrowSize;
@@ -1066,7 +1095,7 @@ void FillVmMigrateparam(const MemMigrateStrategySrcParam &srcParam, VMMigratePar
     }
 }
 
-VmResult CallUBSRMRSMigrateStrategy(const VMMigrateParam &vmParam, MigrateStrategyResult &migrateStrategyResult)
+VmResult CallUBSRMRSMigrateStrategy(const VMMigrateParam& vmParam, MigrateStrategyResult& migrateStrategyResult)
 {
     const auto UBSRMRSMigrateStrategy = MempoolingModule::UBSRMRSMigrateStrategy();
     if (UBSRMRSMigrateStrategy == nullptr) {
@@ -1088,14 +1117,14 @@ VmResult CallUBSRMRSMigrateStrategy(const VMMigrateParam &vmParam, MigrateStrate
                            << ", which is more than " << MAX_VM_NUM << ".";
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSMigrateStrategy Exception. ret=" << e.what();
         return VM_ERROR;
     }
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::MemMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemMigrateStrategy(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemMigrateStrategy start.";
     if (!ValidateRequest(req)) {
@@ -1135,9 +1164,9 @@ uint32_t VirtMemFragSdk::MemMigrateStrategy(const UbseIpcMessage &req, const Ubs
     return VM_OK;
 }
 
-uint32_t MigrateExecuteParamResolve(const MemMigrateExecuteSrcParam &srcParam, uint64_t &waitingTime,
-                                    std::vector<std::string> &borrowIds, std::string &borrowInNode,
-                                    std::vector<VMMigrateOutParam> &vmMigrateOutParamList)
+uint32_t MigrateExecuteParamResolve(const MemMigrateExecuteSrcParam& srcParam, uint64_t& waitingTime,
+                                    std::vector<std::string>& borrowIds, std::string& borrowInNode,
+                                    std::vector<VMMigrateOutParam>& vmMigrateOutParamList)
 {
     waitingTime = srcParam.waitingTime;
     for (uint32_t i = 0; i < srcParam.borrowIdsCount; i++) {
@@ -1155,7 +1184,7 @@ uint32_t MigrateExecuteParamResolve(const MemMigrateExecuteSrcParam &srcParam, u
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::MemMigrateExecute(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemMigrateExecute(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemMigrateExecute start.";
     if (!ValidateRequest(req)) {
@@ -1190,7 +1219,7 @@ uint32_t VirtMemFragSdk::MemMigrateExecute(const UbseIpcMessage &req, const Ubse
             UBSE_LOG_ERROR << "Call UBSRMRSMigrateExecute fail. ret=" << ret;
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSMigrateExecute Exception. ret=" << e.what();
         return VM_ERROR;
     }
@@ -1205,7 +1234,7 @@ uint32_t VirtMemFragSdk::MemMigrateExecute(const UbseIpcMessage &req, const Ubse
     return VM_OK;
 }
 
-bool PackTaskIdToResponse(const std::string &taskId, UbseIpcMessage &resp)
+bool PackTaskIdToResponse(const std::string& taskId, UbseIpcMessage& resp)
 {
     if (taskId.length() > std::numeric_limits<uint32_t>::max()) {
         UBSE_LOG_ERROR << "taskId length is out of range.";
@@ -1226,12 +1255,12 @@ bool PackTaskIdToResponse(const std::string &taskId, UbseIpcMessage &resp)
         return false;
     }
 
-    reinterpret_cast<char *>(resp.buffer)[resp.length] = '\0';
+    reinterpret_cast<char*>(resp.buffer)[resp.length] = '\0';
     return true;
 }
 
-void VirtMemFragSdk::ExecuteAsyncMemReturn(const std::string &taskId, const std::string &nodeId,
-                                           const UbseRequestContext &context)
+void VirtMemFragSdk::ExecuteAsyncMemReturn(const std::string& taskId, const std::string& nodeId,
+                                           const UbseRequestContext& context)
 {
     ThreadTaskManager::GetInstance().SetTaskThreadId(taskId);
     UBSE_LOG_INFO << "Start async MemFree operation, taskId=" << taskId << ", nodeId=" << nodeId;
@@ -1253,19 +1282,19 @@ void VirtMemFragSdk::ExecuteAsyncMemReturn(const std::string &taskId, const std:
             UBSE_LOG_INFO << "Async MemFree operation completed successfully";
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         errorMsg = std::string("Exception in UBSRMRSMemFree: ") + e.what();
         UBSE_LOG_ERROR << "Call UBSRMRSMemFree Exception. " << e.what();
         ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errorMsg);
     }
 }
 
-uint32_t VirtMemFragSdk::StartMemReturnAsync(const std::string &taskId, const std::string &nodeId,
-                                             const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::StartMemReturnAsync(const std::string& taskId, const std::string& nodeId,
+                                             const UbseRequestContext& context)
 {
     try {
         std::thread([taskId, nodeId, context]() { ExecuteAsyncMemReturn(taskId, nodeId, context); }).detach();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::string errorMsg = std::string("Exception in create Thread: ") + e.what();
         UBSE_LOG_ERROR << "StartMemReturnAsync Exception, taskId=" << taskId << ", error=" << e.what();
         ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errorMsg);
@@ -1285,8 +1314,8 @@ uint32_t VirtMemFragSdk::StartMemReturnAsync(const std::string &taskId, const st
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::StartMemReturnSync(const std::string &taskId, const std::string &nodeId,
-                                            const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::StartMemReturnSync(const std::string& taskId, const std::string& nodeId,
+                                            const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Executing MemReturn synchronously for nodeId=" << nodeId << ", taskId=" << taskId;
 
@@ -1308,7 +1337,7 @@ uint32_t VirtMemFragSdk::StartMemReturnSync(const std::string &taskId, const std
             UBSE_LOG_INFO << "Sync MemReturn operation completed successfully for nodeId=" << nodeId;
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         errorMsg = std::string("Exception in UBSRMRSMemFree: ") + e.what();
         UBSE_LOG_ERROR << "Call UBSRMRSMemFree Exception. " << e.what();
         resultCode = VM_ERROR;
@@ -1330,7 +1359,7 @@ uint32_t VirtMemFragSdk::StartMemReturnSync(const std::string &taskId, const std
     return VM_OK;
 }
 
-uint32_t VirtMemFragSdk::MemReturn(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemReturn(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemReturn start.";
     UbseIpcMessage resp{};
@@ -1347,7 +1376,7 @@ uint32_t VirtMemFragSdk::MemReturn(const UbseIpcMessage &req, const UbseRequestC
 
     bool isAsync = false;
     if (req.buffer != nullptr) {
-        isAsync = *reinterpret_cast<const bool *>(req.buffer);
+        isAsync = *reinterpret_cast<const bool*>(req.buffer);
     }
 
     auto nodeId = VmConfiguration::GetInstance().GetNodeId();
@@ -1371,7 +1400,7 @@ uint32_t VirtMemFragSdk::MemReturn(const UbseIpcMessage &req, const UbseRequestC
     }
 }
 
-uint32_t VirtMemFragSdk::MemRollback(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMemFragSdk::MemRollback(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "MemRollback start.";
     if (!ValidateRequest(req)) {
@@ -1404,7 +1433,7 @@ uint32_t VirtMemFragSdk::MemRollback(const UbseIpcMessage &req, const UbseReques
             UBSE_LOG_ERROR << "Call UBSRMRSMemBorrowRollback fail, " << ret;
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Call UBSRMRSMemBorrowRollback Exception. ret=" << e.what();
         return VM_ERROR;
     }
@@ -1417,4 +1446,551 @@ uint32_t VirtMemFragSdk::MemRollback(const UbseIpcMessage &req, const UbseReques
     return VM_OK;
 }
 
+VmResult VirtMemFragSdk::NodeInfoListSerialize(const std::vector<mem_fragmentation::NodeInfo>& nodeInfoList,
+                                               UbseIpcMessage& resp)
+{
+    mem_fragmentation::MemFragmentationNodeInfoListMsg repMsg(nodeInfoList);
+    if (const auto ret = repMsg.Serialize(); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseGetNodeInfoList fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    resp.buffer = repMsg.SerializedData();
+    resp.length = repMsg.SerializedDataSize();
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::GetNumaInfoFromRemote(const std::string& nodeId,
+                                               std::vector<mem_fragmentation::NodeInfo>& numaInfoList)
+{
+    UBSE_LOG_INFO << "GetNumaInfoFromRemote start. nodeId=" + nodeId;
+    UbseRoleInfo masterRole{};
+    auto ret = UbseGetMasterInfo(masterRole);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseGetMasterInfo fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    const UbseComEndpoint masterEndpoint{
+        .moduleId = VM_MODULE_CODE,
+        .serviceId = BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_MASTER,
+        .address = masterRole.nodeId,
+    };
+    const auto nodeIdPtr = static_cast<char*>(malloc(nodeId.length()));
+    if (const auto err = memcpy_s(nodeIdPtr, nodeId.length(), nodeId.c_str(), nodeId.length()); err != EOK) {
+        UBSE_LOG_ERROR << "NodeIdPtr mem cpy failed.";
+        free(nodeIdPtr);
+        return VM_ERROR;
+    }
+    const UbseByteBuffer reqData{
+        .data = reinterpret_cast<uint8_t*>(nodeIdPtr),
+        .len = nodeId.length(),
+        .freeFunc = FreeNodeIdBuffer,
+    };
+    ret = UbseRpcSend(masterEndpoint, reqData, &numaInfoList, GetRemoteNodeInfoSrcHandler);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseRpcSend fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    UBSE_LOG_INFO << "GetNumaInfoFromRemote end.";
+    return VM_OK;
+}
+
+void VirtMemFragSdk::GetRemoteNodeInfoSrcHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
+{
+    UBSE_LOG_INFO << "GetRemoteNodeInfoSrcHandler start.";
+    if (ctx == nullptr) {
+        UBSE_LOG_ERROR << "Ctx is nullptr.";
+        return;
+    }
+    if (resCode != VM_OK) {
+        UBSE_LOG_ERROR << "Send rpc fail, " << FormatRetCode(resCode);
+        // Clean up the copied data even on error
+        if (respData.freeFunc != nullptr && respData.data != nullptr) {
+            respData.freeFunc(const_cast<uint8_t*>(respData.data));
+        }
+        return;
+    }
+    mem_fragmentation::MemFragmentationNodeInfoListMsg repMsg(respData.data, respData.len);
+    if (const auto ret = repMsg.Deserialize(); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Remote node numa info deserialize fail, " << FormatRetCode(ret);
+        // Clean up the copied data on deserialization failure
+        if (respData.freeFunc != nullptr && respData.data != nullptr) {
+            respData.freeFunc(const_cast<uint8_t*>(respData.data));
+        }
+        return;
+    }
+    const auto nodeInfos = repMsg.GetNodeInfoList();
+    const auto nodeInfoListPtr = static_cast<std::vector<mem_fragmentation::NodeInfo>*>(ctx);
+    nodeInfoListPtr->clear();
+    nodeInfoListPtr->emplace_back(*nodeInfos.begin());
+    // Clean up the copied data after successful use
+    if (respData.freeFunc != nullptr && respData.data != nullptr) {
+        respData.freeFunc(const_cast<uint8_t*>(respData.data));
+    }
+    UBSE_LOG_INFO << "GetRemoteNodeInfoSrcHandler end.";
+}
+
+VmResult VirtMemFragSdk::GetRemoteNodeInfoMasterReceiver(const UbseByteBuffer& req, UbseByteBuffer& rep)
+{
+    UBSE_LOG_INFO << "GetRemoteNodeInfoMasterReceiver start.";
+    if (req.data == nullptr || req.len == 0) {
+        UBSE_LOG_ERROR << "Request data is invalid.";
+        HttpUtil::SetResp(rep, VM_ERROR_INVAL, "");
+        return VM_ERROR;
+    }
+    const std::string destNodeId(reinterpret_cast<char*>(req.data), req.len);
+    const UbseComEndpoint destEndpoint{
+        .moduleId = VM_MODULE_CODE,
+        .serviceId = BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_DEST,
+        .address = destNodeId,
+    };
+    if (const auto ret = UbseRpcSend(destEndpoint, req, &rep, GetRemoteNodeInfoMasterHandler); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseRpcSend fail.";
+        return VM_ERROR;
+    }
+    UBSE_LOG_INFO << "GetRemoteNodeInfoMasterReceiver end.";
+    return VM_OK;
+}
+
+void VirtMemFragSdk::GetRemoteNodeInfoMasterHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
+{
+    UBSE_LOG_INFO << "GetRemoteNodeInfoMasterHandler start.";
+    if (ctx == nullptr) {
+        UBSE_LOG_ERROR << "Ctx is nullptr.";
+        return;
+    }
+    if (resCode != VM_OK) {
+        UBSE_LOG_ERROR << "Send rpc fail, " << FormatRetCode(resCode);
+        return;
+    }
+    const auto respPtr = static_cast<UbseByteBuffer*>(ctx);
+    if (respData.data != nullptr && respData.len > 0) {
+        const auto copiedData = new (std::nothrow) uint8_t[respData.len];
+        if (copiedData == nullptr) {
+            UBSE_LOG_ERROR << "Failed to allocate memory for response data copy.";
+            return;
+        }
+        if (const errno_t ret = memcpy_s(copiedData, respData.len, respData.data, respData.len); ret != EOK) {
+            UBSE_LOG_ERROR << "Failed to copy response data, ret=" << ret;
+            delete[] copiedData;
+            return;
+        }
+        respPtr->data = copiedData;
+        respPtr->len = respData.len;
+        respPtr->freeFunc = [](void* data) {
+            if (data != nullptr) {
+                delete[] static_cast<uint8_t*>(data);
+            }
+        };
+    } else {
+        respPtr->data = nullptr;
+        respPtr->len = 0;
+        respPtr->freeFunc = nullptr;
+    }
+    UBSE_LOG_INFO << "GetRemoteNodeInfoMasterHandler end.";
+}
+
+VmResult VirtMemFragSdk::GetRemoteNodeInfoDestReceiver(const UbseByteBuffer& req, UbseByteBuffer& rep)
+{
+    UBSE_LOG_INFO << "GetRemoteNodeInfoDestReceiver start.";
+    // param should be empty, no need to validate
+    std::vector<NumaInfo> numaInfoList{};
+    auto ret = GetNumaInfoList(numaInfoList);
+    std::string curNodeId{};
+    ret = UbseGetCurrentNodeId(curNodeId);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseGetCurrentNodeId fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    const std::vector nodeInfoList{mem_fragmentation::NodeInfo{
+        .nodeId = curNodeId,
+        .numaInfos = numaInfoList,
+        .isCurrent = false,
+    }};
+    mem_fragmentation::MemFragmentationNodeInfoListMsg repMsg(nodeInfoList);
+    ret = repMsg.Serialize();
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Node info serialize fail. " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    rep.data = std::move(repMsg.SerializedData());
+    rep.len = std::move(repMsg.SerializedDataSize());
+    UBSE_LOG_INFO << "GetRemoteNodeInfoDestReceiver end.";
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::GetNodeInfoList(const UbseIpcMessage& req, const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "GetNodeInfoList start.";
+    // no param need handler
+    // get node list
+    std::vector<UbseRoleInfo> roleInfos{};
+    auto ret = UbseGetAllNodeInfos(roleInfos);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseGetAllNodeInfos fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+    std::string curNodeId{};
+    ret = UbseGetCurrentNodeId(curNodeId);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Call UbseGetCurrentNodeId fail, " << FormatRetCode(ret);
+        return VM_ERROR;
+    }
+
+    // get numa info
+    std::vector<mem_fragmentation::NodeInfo> nodeInfoList{};
+    for (auto roleInfo : roleInfos) {
+        std::vector<NumaInfo> numaInfoList{};
+        std::vector<mem_fragmentation::NodeInfo> remoteNodeInfo{};
+        if (roleInfo.nodeId == curNodeId) {
+            ret = GetNumaInfoList(numaInfoList);
+        } else {
+            ret = GetNumaInfoFromRemote(roleInfo.nodeId, remoteNodeInfo);
+        }
+        if (ret != VM_OK) {
+            UBSE_LOG_ERROR << "Call GetNumaInfoList fail, nodeId=" << roleInfo.nodeId << ", " << FormatRetCode(ret);
+            return VM_ERROR;
+        }
+        if (roleInfo.nodeId == curNodeId) {
+            nodeInfoList.emplace_back(mem_fragmentation::NodeInfo{
+                .nodeId = roleInfo.nodeId,
+                .numaInfos = std::move(numaInfoList),
+                .isCurrent = true,
+            });
+        } else if (!remoteNodeInfo.empty()) {
+            nodeInfoList.emplace_back(std::move(remoteNodeInfo.front()));
+        }
+    }
+
+    // handler response message
+    UbseIpcMessage resp{};
+    ret = NodeInfoListSerialize(nodeInfoList, resp);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+    ret = SendResponse(VM_OK, context.requestId, resp);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << " GetNodeInfoList response send failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "GetNodeInfoList end.";
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::BorrowParamDeserialize(const UbseIpcMessage& req, mem_fragmentation::BorrowParam& borrowParam,
+                                                bool& isAsync)
+{
+    // req validate and parse
+    if (!ValidateRequest(req)) {
+        UBSE_LOG_ERROR << "Request validation failed.";
+        return VM_ERROR;
+    }
+    // req deserialize
+    mem_fragmentation::MemFragmentationMemBorrowParamMsg reqMsg(req.buffer, req.length);
+    if (const auto ret = reqMsg.Deserialize(); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Mem borrow message deserialize failed. " << FormatRetCode(ret);
+        return VM_ERROR_DESERIALIZE_ERROR;
+    }
+    borrowParam = reqMsg.GetBorrowParam();
+    isAsync = reqMsg.GetIsAsync();
+    UBSE_LOG_INFO << "Borrow param is " << borrowParam.ToString() << ", isAsync=" << isAsync;
+    // param validate
+    if (borrowParam.borrowSize <= 0 || borrowParam.nodeId.empty() || borrowParam.numaMetaInfos.empty()) {
+        UBSE_LOG_ERROR << "BorrowInfoValidate failed. ";
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::MemBorrowStrategyByRMRS(const mem_fragmentation::BorrowParam& borrowParam,
+                                                 vector<MemBorrowStrategyResult>& borrowResult)
+{
+    const auto UBSRMRSBatchBorrowStrategy = MempoolingModule::UBSRMRSBatchBorrowStrategy();
+    if (UBSRMRSBatchBorrowStrategy == nullptr) {
+        UBSE_LOG_ERROR << "UBSRMRSBatchBorrowStrategy ptr is nullptr.";
+        return VM_ERROR;
+    }
+    std::vector<int16_t> numaIds{};
+    for (const auto& [socketId, numaId] : borrowParam.numaMetaInfos) {
+        numaIds.emplace_back(numaId);
+    }
+    const BatchSrcMemoryBorrowParam rmrsBorrowParam{
+        .srcNid = borrowParam.nodeId,
+        .srcNumaNum = static_cast<uint16_t>(numaIds.size()),
+        .srcNumaId = numaIds,
+    };
+    try {
+        if (const auto ret = UBSRMRSBatchBorrowStrategy(rmrsBorrowParam, borrowParam.borrowSize << KB2MB, borrowResult,
+                                                        BorrowStrategy::AVERAGE);
+            ret != VM_OK) {
+            UBSE_LOG_ERROR << "Call UBSRMRSBatchBorrowStrategy fail, " << ret;
+            return VM_ERROR;
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "Call UBSRMRSBatchBorrowStrategy Exception. ret=" << e.what();
+        return VM_ERROR;
+    }
+
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::RunBorrowExec(const string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
+                                       mem_borrow_result_c& memBorrowRstC)
+{
+    ThreadTaskManager::GetInstance().SetTaskThreadId(taskId);
+    UBSE_LOG_INFO << "RunBorrowExec start. taskId=" << taskId;
+    std::string errMsg{};
+    const auto UBSRMRSMemBorrowExecute = MempoolingModule::UBSRMRSMemBorrowExecute();
+    if (UBSRMRSMemBorrowExecute == nullptr) {
+        errMsg = "UBSRMRSMemBorrowExecute ptr is nullptr.";
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+        UBSE_LOG_ERROR << "RunBorrowExec failed. taskId=" << taskId << ". errMsg=" << errMsg;
+        return VM_ERROR;
+    }
+    VmResult ret{};
+    MemBorrowExecuteResult memBorrowExecRst{};
+    try {
+        ret = UBSRMRSMemBorrowExecute(memBorrowStrategyRst.srcParam, memBorrowStrategyRst.destParam, memBorrowExecRst);
+        if (ret != VM_OK) {
+            errMsg = "UBSRMRSMemBorrowExecute failed.";
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, ret, errMsg);
+            UBSE_LOG_ERROR << errMsg;
+            return VM_ERROR;
+        }
+    } catch (const std::exception& e) {
+        errMsg = "Call UBSRMRSMemBorrowExecute Exception. ret=" + std::string(e.what());
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+        UBSE_LOG_ERROR << errMsg;
+        return VM_ERROR;
+    }
+    ret = SetSrcNodeHugePage(memBorrowExecRst);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to set hugepages, numaId=" << memBorrowStrategyRst.srcParam.srcNumaId
+                       << ", taskId=" << taskId;
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, ret, "SetHugePage failed");
+        return ret;
+    }
+    ret = ConvertToLegacyResult(memBorrowExecRst, memBorrowRstC);
+    if (ret != VM_OK) {
+        errMsg = "ConvertToLegacyResult failed. taskId=" + taskId;
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, ret, errMsg);
+        UBSE_LOG_ERROR << errMsg;
+        return ret;
+    }
+    if (ret = ThreadTaskManager::GetInstance().SetMemBorrowResult(taskId, memBorrowRstC); ret != VM_OK) {
+        errMsg = "SetMemBorrowResult failed. " + FormatRetCode(ret);
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+        UBSE_LOG_ERROR << errMsg;
+        return VM_ERROR;
+    }
+    UBSE_LOG_INFO << "RunBorrowExec end. taskId=" << taskId;
+    ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::SyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,
+                                           std::vector<mem_borrow_result_c>& memBorrowRstCs)
+{
+    std::string errMsg{};
+    VmResult ret{};
+    mem_borrow_result_c memBorrowRstC{};
+    for (const auto& borrowStrategyRst : borrowStrategyRsts) {
+        const std::string taskId = ThreadTaskManager::GetInstance().AddTask("memborrow");
+        if (taskId.empty()) {
+            UBSE_LOG_ERROR << "Failed to create task for nodeId=" << borrowStrategyRst.srcParam.srcNid;
+            return VM_ERROR;
+        }
+        ret = RunBorrowExec(taskId, borrowStrategyRst, memBorrowRstC);
+        if (ret != VM_OK) {
+            errMsg = "StartMemBorrowSync failed. taskId=" + taskId + ", " + FormatRetCode(ret);
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+            UBSE_LOG_ERROR << errMsg;
+        }
+        memBorrowRstCs.emplace_back(std::move(memBorrowRstC));
+    }
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult>& borrowStrategyRsts,
+                                            std::vector<mem_borrow_result_c>& memBorrowRstCs)
+{
+    for (const auto& borrowStrategyRst : borrowStrategyRsts) {
+        const std::string taskId = ThreadTaskManager::GetInstance().AddTask("memborrow");
+        if (taskId.empty()) {
+            UBSE_LOG_ERROR << "Failed to create task for nodeId=" << borrowStrategyRst.srcParam.srcNid;
+            return VM_ERROR;
+        }
+        UBSE_LOG_INFO << "AsyncMemBorrow start, taskId=" << taskId;
+        try {
+            std::thread(
+                [](const std::string& localTaskId, const MemBorrowStrategyResult& localBorrowStrategyRst) {
+                    mem_borrow_result_c _memBorrowRstC{};
+                    RunBorrowExec(localTaskId, localBorrowStrategyRst, _memBorrowRstC);
+                },
+                taskId, borrowStrategyRst)
+                .detach();
+            mem_borrow_result_c memBorrowRstC{};
+            if (const auto ret = StringToC(memBorrowRstC.task_id, taskId, MEM_TASK_ID_MAX); ret != VM_OK) {
+                const std::string errMsg = "Task id convert to c failed.";
+                ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+                UBSE_LOG_ERROR << "StartMemBorrowAsync Exception, taskId=" << taskId << ", error=" << errMsg;
+                return VM_ERROR;
+            }
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::RUNNING, VM_OK);
+            memBorrowRstCs.emplace_back(std::move(memBorrowRstC));
+        } catch (const std::exception& e) {
+            const std::string errMsg = std::string("Exception in create Thread: ") + e.what();
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+            UBSE_LOG_ERROR << "StartMemBorrowAsync Exception, taskId=" << taskId << ", error=" << e.what();
+            return VM_ERROR;
+        }
+    }
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::BorrowResultSerialize(const std::vector<mem_borrow_result_c>& memBorrowRstCs,
+                                               UbseIpcMessage& resp)
+{
+    mem_fragmentation::MemFragmentationMemBorrowResultMsg repMsg(memBorrowRstCs);
+    if (const auto ret = repMsg.Serialize(); ret != VM_OK) {
+        return VM_ERROR;
+    }
+    resp.buffer = std::move(repMsg.SerializedData());
+    resp.length = std::move(repMsg.SerializedDataSize());
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::MemBorrow(const UbseIpcMessage& req, const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "MemBorrow start.";
+    // handler request message
+    mem_fragmentation::BorrowParam borrowParam{};
+    bool isAsync{};
+    auto ret = BorrowParamDeserialize(req, borrowParam, isAsync);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+
+    // borrow strategy and exec
+    std::vector<MemBorrowStrategyResult> borrowResult;
+    ret = MemBorrowStrategyByRMRS(borrowParam, borrowResult);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+    ThreadTaskManager::GetInstance().CleanupCompletedTasks();
+    std::vector<mem_borrow_result_c> memBorrowRstCs{};
+    if (isAsync) {
+        ret = AsyncMemBorrowExec(borrowResult, memBorrowRstCs);
+    } else {
+        ret = SyncMemBorrowExec(borrowResult, memBorrowRstCs);
+    }
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+
+    // handler response message
+    UbseIpcMessage resp{};
+    ret = BorrowResultSerialize(memBorrowRstCs, resp);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+    ret = SendResponse(VM_OK, context.requestId, resp);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << " MemBorrow response send failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "MemBorrow end.";
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::PageSwapEnableParamSerialize(const UbseIpcMessage& req, pid_t& pid,
+                                                      vector<mem_fragmentation::PageSwapPair>& pageSwapPairs)
+{
+    // req validate and parse
+    if (!ValidateRequest(req)) {
+        UBSE_LOG_ERROR << "Request validation failed.";
+        return VM_ERROR;
+    }
+    mem_fragmentation::MemFragmentationPageSwapEnableMsg reqMsg(req.buffer, req.length);
+    if (const auto ret = reqMsg.Deserialize(); ret != VM_OK) {
+        UBSE_LOG_ERROR << "Mem page swap enable message deserialize failed. " << FormatRetCode(ret);
+        return VM_ERROR_DESERIALIZE_ERROR;
+    }
+    pid = reqMsg.GetPid();
+    UBSE_LOG_INFO << "pid=" << pid;
+    pageSwapPairs = reqMsg.GetPageSwapPair();
+    for (const auto& pageSwapPair : pageSwapPairs) {
+        UBSE_LOG_INFO << "pageSwapEnableParam=" << pageSwapPair.ToString() << ",";
+    }
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::PageSwapEnableByRMRS(const pid_t& pid,
+                                              const std::vector<mem_fragmentation::PageSwapPair>& pageSwapPairs)
+{
+    const auto UBSRMRSSmapEnableProcessMigrateGrouped = MempoolingModule::UBSRMRSSmapEnableProcessMigrateGrouped();
+    if (UBSRMRSSmapEnableProcessMigrateGrouped == nullptr) {
+        UBSE_LOG_ERROR << "UBSRMRSSmapEnableProcessMigrateGrouped ptr is nullptr.";
+        return VM_ERROR;
+    }
+
+    try {
+        std::vector<vm::mempooling::PageSwapPair> rmrsPageSwapPairs{};
+        for (const auto& [localNumaQuotas, remoteNumaQuotas] : pageSwapPairs) {
+            std::vector<vm::mempooling::NumaQuota> localNumas{};
+            std::vector<vm::mempooling::NumaQuota> remoteNumas{};
+            for (const auto& [numaId, quota] : localNumaQuotas) {
+                localNumas.push_back(vm::mempooling::NumaQuota{
+                    .numaId = numaId,
+                    .quota = quota << KB2MB,
+                });
+            }
+            for (const auto& [numaId, quota] : remoteNumaQuotas) {
+                remoteNumas.push_back(vm::mempooling::NumaQuota{
+                    .numaId = numaId,
+                    .quota = quota << KB2MB,
+                });
+            }
+            rmrsPageSwapPairs.emplace_back(vm::mempooling::PageSwapPair{
+                .localNumas = std::move(localNumas),
+                .remoteNumas = std::move(remoteNumas),
+            });
+        }
+        if (const auto ret = UBSRMRSSmapEnableProcessMigrateGrouped(pid, rmrsPageSwapPairs); ret != VM_OK) {
+            UBSE_LOG_ERROR << "Call UBSRMRSSmapEnableProcessMigrateGrouped fail, " << ret;
+            return VM_ERROR;
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "Call UBSRMRSSmapEnableProcessMigrateGrouped Exception. ret=" << e.what();
+        return VM_ERROR;
+    }
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::PageSwapEnable(const UbseIpcMessage& req, const UbseRequestContext& context)
+{
+    UBSE_LOG_INFO << "PageSwapEnable start.";
+    // handler request params
+    pid_t pid{};
+    std::vector<mem_fragmentation::PageSwapPair> pageSwapPairs{};
+    auto ret = PageSwapEnableParamSerialize(req, pid, pageSwapPairs);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+
+    // enable page swap
+    ret = PageSwapEnableByRMRS(pid, pageSwapPairs);
+    if (ret != VM_OK) {
+        return VM_ERROR;
+    }
+
+    // handler response params
+    UbseIpcMessage resp{};
+    ret = SendResponse(VM_OK, context.requestId, resp);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << " PageSwapEnable response send failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "PageSwapEnable end.";
+    return VM_OK;
+}
 } // namespace vm

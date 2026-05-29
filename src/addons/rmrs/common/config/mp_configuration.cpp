@@ -52,7 +52,7 @@ uint32_t MpConfiguration::LoadConfig()
         LOG_WARN << "Get config failed, key=rmrs.ipc.timeout.";
     }
     uint32_t rawSceneType{2};
-    ret = UbseGetUInt("plugin_vm", "virt.sceneType", rawSceneType);
+    ret = UbseGetUInt("plugin_virt_agent", "virt.sceneType", rawSceneType);
     if (ret != MEM_POOLING_OK) {
         LOG_WARN << "Get config failed, key=virt.sceneType.";
     }
@@ -65,7 +65,7 @@ uint32_t MpConfiguration::LoadConfig()
 
     LOG_DEBUG << "Before, pageType=" << static_cast<int>(pageType) << ".";
     uint32_t rawPageType{2};
-    ret = UbseGetUInt("plugin_vm", "virt.pageType", rawPageType);
+    ret = UbseGetUInt("plugin_virt_agent", "virt.pageType", rawPageType);
     if (ret != MEM_POOLING_OK) {
         LOG_WARN << "Get config failed, key=virt.pageType.";
     }
@@ -88,6 +88,12 @@ uint32_t MpConfiguration::LoadConfig()
         LOG_WARN << "Get config failed, key=rmrs.fragment.enableBorrowSplit.";
     }
     LOG_DEBUG << "Param: enableBorrowSplit=" << enableBorrowSplit << " .";
+
+    ret = UbseGetBool("plugin_mempooling", "rmrs.fault.simplified", faultSimplified_);
+    if (ret != MEM_POOLING_OK) {
+        LOG_WARN << "Get config failed, key=rmrs.fault.simplified.";
+    }
+    LOG_DEBUG << "Param: faultSimplified_=" << faultSimplified_ << " .";
 
     LoadUCacheConfig();
 
@@ -150,13 +156,12 @@ std::vector<std::string> MpConfiguration::GetNodeIds() const
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNodeIds failed, UbseGetAllNodeInfos ret: " << ret;
         return ids;
     }
-    for (auto &role : roleInfos) {
+    for (auto& role : roleInfos) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "NodeIds: " << role.nodeId;
         ids.push_back(role.nodeId);
     }
     return ids;
 }
-
 
 bool MpConfiguration::GetUcacheEnable() const
 {

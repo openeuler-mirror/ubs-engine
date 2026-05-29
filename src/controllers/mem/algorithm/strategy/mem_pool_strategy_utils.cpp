@@ -12,11 +12,11 @@
 
 #include <securec.h>
 #include <algorithm>
+#include "ubse_logger.h"
+#include "ubse_mem_configuration.h"
 #include "borrow_decision_maker.h"
 #include "mem_pool_strategy_impl.h"
 #include "share_decision_maker.h"
-#include "ubse_logger.h"
-#include "ubse_mem_configuration.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
@@ -33,7 +33,7 @@ int MemPoolStrategyImpl::GetWaterLine(MemLoc targetLoc, RequestUrgentLevel urgen
     }
 }
 
-BResult MemPoolStrategyImpl::BorrowParamCheck(const BorrowRequest &borrowRequest)
+BResult MemPoolStrategyImpl::BorrowParamCheck(const BorrowRequest& borrowRequest)
 {
     if (IsHostIdInvalid(borrowRequest) || IsInvalidRequest(borrowRequest) || CheckMaxBorrowHosts(borrowRequest)) {
         UBSE_LOG_ERROR << "Error! Borrow requestLoc is invalid!";
@@ -47,7 +47,7 @@ BResult MemPoolStrategyImpl::BorrowParamCheck(const BorrowRequest &borrowRequest
     return UBSE_OK;
 }
 
-BResult MemPoolStrategyImpl::ShareParamCheck(const ShareRequest &shareRequest)
+BResult MemPoolStrategyImpl::ShareParamCheck(const ShareRequest& shareRequest)
 {
     if (shareRequest.region.type == ShmRegionType::ONE2ALL_SHARE &&
         (shareRequest.srcLoc.hostId < 0 || shareRequest.srcLoc.hostId >= NUM_HOSTS)) {
@@ -70,17 +70,17 @@ BResult MemPoolStrategyImpl::ShareParamCheck(const ShareRequest &shareRequest)
     return UBSE_OK;
 }
 
-double MemPoolStrategyImpl::GetRegionStatus(const SysStatus &sysStatus, RegionStatus &regionStatus) const
+double MemPoolStrategyImpl::GetRegionStatus(const SysStatus& sysStatus, RegionStatus& regionStatus) const
 {
     // 统计每行、每列节点的内存状态
     NumaStatus rowStatus[NUM_HOST_PER_COL];
     NumaStatus colStatus[NUM_HOST_PER_ROW];
-    for (auto &status : rowStatus) {
+    for (auto& status : rowStatus) {
         status.memFree = 0;
         status.memUsed = 0;
         status.memTotal = 0;
     }
-    for (auto &status : colStatus) {
+    for (auto& status : colStatus) {
         status.memFree = 0;
         status.memUsed = 0;
         status.memTotal = 0;
@@ -119,7 +119,7 @@ double MemPoolStrategyImpl::GetRegionStatus(const SysStatus &sysStatus, RegionSt
 }
 
 bool MemPoolStrategyImpl::MaxOutFilter(MemLoc targetLoc, int32_t requestSize, RequestMode requestMode,
-                                       const SysStatus &sysStatus)
+                                       const SysStatus& sysStatus)
 {
     uint64_t requestSizeByte = static_cast<uint64_t>(requestSize) * MB_TO_B;
     // 判断借用, 共享后是否超过节点借用上限, 节点共享上限, 节点提供内存上限
@@ -134,14 +134,14 @@ bool MemPoolStrategyImpl::MaxOutFilter(MemLoc targetLoc, int32_t requestSize, Re
     }
     if (memOut + requestSizeByte > memOutLimit) {
         UBSE_LOG_WARN << "\t\tmemLent/memShared + requestSize > maxMemLent/maxMemShared: " << memOut / MB_TO_B << " + "
-                       << requestSizeByte / MB_TO_B << " > " << memOutLimit / MB_TO_B;
+                      << requestSizeByte / MB_TO_B << " > " << memOutLimit / MB_TO_B;
         return false;
     }
     memOut = sysStatus.hostStatus[targetLoc.hostId].memLent + sysStatus.hostStatus[targetLoc.hostId].memShared;
     memOutLimit = static_cast<uint64_t>(mConfig_->memStaticParam.maxMemOut[targetLoc.hostId]) * MB_TO_B;
     if (memOut + requestSizeByte > memOutLimit) {
         UBSE_LOG_WARN << "\t\tmemOut + requestSize > maxMemOut: " << memOut / MB_TO_B << " + "
-                       << requestSizeByte / MB_TO_B << " > " << memOutLimit / MB_TO_B;
+                      << requestSizeByte / MB_TO_B << " > " << memOutLimit / MB_TO_B;
         return false;
     }
 
@@ -150,7 +150,7 @@ bool MemPoolStrategyImpl::MaxOutFilter(MemLoc targetLoc, int32_t requestSize, Re
 }
 
 TargetSocket MemPoolStrategyImpl::NumaMemFree(MemLoc targetLoc, RequestUrgentLevel urgentLevel,
-                                              const SysStatus &sysStatus) const
+                                              const SysStatus& sysStatus) const
 {
     // 根据紧急程度, 选择水线值
     int waterLine = GetWaterLine(targetLoc, urgentLevel);
@@ -159,7 +159,7 @@ TargetSocket MemPoolStrategyImpl::NumaMemFree(MemLoc targetLoc, RequestUrgentLev
 
     TargetSocket numaList; // target上的numa位置, 以及各numa的剩余内存
     numaList.resLen = 0;
-    int *idx = mConfig_->GetNumaListInSocket(targetLoc.hostId, targetLoc.socketId);
+    int* idx = mConfig_->GetNumaListInSocket(targetLoc.hostId, targetLoc.socketId);
     for (int i = 0; i < NUM_NUMA_PER_SOCKET; i++) {
         if (idx[i] < 0) {
             continue;
@@ -175,7 +175,7 @@ TargetSocket MemPoolStrategyImpl::NumaMemFree(MemLoc targetLoc, RequestUrgentLev
                                 sysStatus.numaStatus[idx[i]].memLocal * waterLine / HUNDRED;
         uint64_t memUsed = sysStatus.numaStatus[idx[i]].memUsed;
         uint64_t memFree = (memTotal >= memUsed) ? (memTotal - memUsed) / unitMem * unitMem : 0;
-        auto &config = UbseMemConfiguration::GetInstance();
+        auto& config = UbseMemConfiguration::GetInstance();
         auto allocator = config.GetAllocatorFromLenderNode();
         if (!allocator.has_value()) {
             UBSE_LOG_WARN << "Get obmm allocator is invalid, use default BUDDY_HIGHMEM allocator.";
@@ -197,7 +197,7 @@ TargetSocket MemPoolStrategyImpl::NumaMemFree(MemLoc targetLoc, RequestUrgentLev
         // 3. numa内存余量是水线下内存、剩余预留内存的最小值
         numaList.resSizes[numaList.resLen] = static_cast<int32_t>(std::min(memFree, memReserve) / MB_TO_B);
         UBSE_LOG_INFO << "\t\tfree memory of numa" << i << ": " << numaList.resSizes[numaList.resLen]
-                       << " | free = " << memFree / MB_TO_B << " | reserve = " << memReserve / MB_TO_B;
+                      << " | free = " << memFree / MB_TO_B << " | reserve = " << memReserve / MB_TO_B;
 
         numaList.resLen += 1;
     }
@@ -206,7 +206,7 @@ TargetSocket MemPoolStrategyImpl::NumaMemFree(MemLoc targetLoc, RequestUrgentLev
 }
 
 bool MemPoolStrategyImpl::MemFreeFilter(MemLoc targetLoc, int32_t requestSize, RequestUrgentLevel urgentLevel,
-                                        const SysStatus &sysStatus, TargetSocket &numaList) const
+                                        const SysStatus& sysStatus, TargetSocket& numaList) const
 {
     // 根据紧急程度, 选择水线值
     int waterLine = GetWaterLine(targetLoc, urgentLevel);
@@ -218,7 +218,7 @@ bool MemPoolStrategyImpl::MemFreeFilter(MemLoc targetLoc, int32_t requestSize, R
         uint64_t hostMemUsed = sysStatus.hostStatus[targetLoc.hostId].memUsed + requestSizeByte;
         if (hostMemUsed >= hostMemTotal) {
             UBSE_LOG_WARN << "\t\tborrow waterLine is " << mConfig_->memStaticParam.memHighLineL0[targetLoc.hostId]
-                           << " / " << mConfig_->memStaticParam.memHighLineL1[targetLoc.hostId];
+                          << " / " << mConfig_->memStaticParam.memHighLineL1[targetLoc.hostId];
             return false;
         }
     }
@@ -252,17 +252,17 @@ bool MemPoolStrategyImpl::CheckMem(uint64_t memTotal, uint64_t memUsed, uint64_t
     return (memUsed + memFree >= memTotal && memFree > 0);
 }
 
-bool MemPoolStrategyImpl::IsHostIdInvalid(const BorrowRequest &borrowRequest)
+bool MemPoolStrategyImpl::IsHostIdInvalid(const BorrowRequest& borrowRequest)
 {
     return (borrowRequest.requestLoc.hostId < 0 || borrowRequest.requestLoc.hostId >= NUM_HOSTS);
 }
 
-bool MemPoolStrategyImpl::IsInvalidRequest(const BorrowRequest &borrowRequest)
+bool MemPoolStrategyImpl::IsInvalidRequest(const BorrowRequest& borrowRequest)
 {
     return (borrowRequest.requestLoc.socketId == -1 && borrowRequest.requestLoc.numaId != -1);
 }
 
-bool MemPoolStrategyImpl::CheckMaxBorrowHosts(const BorrowRequest &borrowRequest)
+bool MemPoolStrategyImpl::CheckMaxBorrowHosts(const BorrowRequest& borrowRequest)
 {
     return (mBorrowDecisionMaker_->memConfig_->memStaticParam.maxBorrowHosts[borrowRequest.requestLoc.hostId] == 0);
 }

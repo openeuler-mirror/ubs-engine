@@ -25,7 +25,7 @@
 #include "vm_string_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace rapidjson;
 using namespace ubse::log;
 using namespace ubse::event;
@@ -59,8 +59,8 @@ VmResult AlarmHandler::Init()
     return VM_OK;
 }
 
-VmResult AlarmHandler::GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
-                                        AlarmNumaInfo &alarmNumaInfo)
+VmResult AlarmHandler::GenAlarmNumaInfo(const Notify& notify, std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
+                                        AlarmNumaInfo& alarmNumaInfo)
 {
     UBSE_LOG_DEBUG << "AlarmNumaInfo generated start.";
     // get hostname
@@ -71,7 +71,7 @@ VmResult AlarmHandler::GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVir
         return VM_ERROR;
     }
 
-    for (auto &numaNodeInfo : numaNodeInfoList) {
+    for (auto& numaNodeInfo : numaNodeInfoList) {
         if (numaNodeInfo.numaId == notify.numaId) {
             alarmNumaInfo.numaLoc.hostName = numaNodeInfo.hostName;
         }
@@ -80,7 +80,7 @@ VmResult AlarmHandler::GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVir
     alarmNumaInfo.numaLoc.socketId = notify.socketId;
     alarmNumaInfo.numaLoc.numaId = notify.numaId;
     // get borrowItemInfo
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         if (debtInfo.numaId == notify.numaId) {
             BorrowItem borrowItem{};
             borrowItem.requestSize.push_back(debtInfo.size);
@@ -94,13 +94,13 @@ VmResult AlarmHandler::GenAlarmNumaInfo(const Notify &notify, std::vector<UbsVir
     return VM_OK;
 }
 
-VmResult AlarmHandler::ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos,
-                                                           std::vector<UbsVirtNumaMemoryDebtInfo> &virtDebtInfos)
+VmResult AlarmHandler::ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos,
+                                                           std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos)
 {
     try {
         virtDebtInfos.reserve(debtInfos.size());
         size_t i = 0;
-        for (const auto &debtInfo : debtInfos) {
+        for (const auto& debtInfo : debtInfos) {
             int16_t tempNumaId;
             // Copy first 2 bytes from usrInfo to tempNumaId (business logic alignment with rmrs)
             if (memcpy_s(&tempNumaId, sizeof(tempNumaId), debtInfo.usrInfo, sizeof(tempNumaId)) != EOK) {
@@ -111,7 +111,7 @@ VmResult AlarmHandler::ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<Ubs
             virtDebtInfos.emplace_back(debtInfo, tempNumaId);
             i++;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Failed to convert debt infos. Error is " << e.what();
         return VM_ERROR;
     }
@@ -120,7 +120,7 @@ VmResult AlarmHandler::ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<Ubs
     return VM_OK;
 }
 
-VmResult AlarmHandler::GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo> &virtDebtInfos)
+VmResult AlarmHandler::GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos)
 {
     std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
     auto res = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
@@ -136,7 +136,7 @@ VmResult AlarmHandler::GetVirtDebtInfos(std::vector<UbsVirtNumaMemoryDebtInfo> &
     return VM_OK;
 }
 
-VmResult AlarmHandler::MemNotifyEventHandler(std::string &eventId, std::string &eventMessage)
+VmResult AlarmHandler::MemNotifyEventHandler(std::string& eventId, std::string& eventMessage)
 {
     WatermarkWarningType eventType;
     if (eventId == UBSE_MEM_RETURN_EVENT_ID) {
@@ -191,7 +191,7 @@ VmResult AlarmHandler::MemNotifyEventHandler(std::string &eventId, std::string &
     return AlarmEventHandler(alarmNumaInfo, virtDebtInfos, eventType);
 }
 
-VmResult AlarmHandler::BorrowClearEventHandler(const AlarmNumaInfo &alarmNumaInfo)
+VmResult AlarmHandler::BorrowClearEventHandler(const AlarmNumaInfo& alarmNumaInfo)
 {
     EscapeAction escapeAction;
     escapeAction.actionType = EscapeActionType::RETURN;
@@ -212,7 +212,7 @@ VmResult AlarmHandler::BorrowClearEventHandler(const AlarmNumaInfo &alarmNumaInf
     return VM_OK;
 }
 
-bool AlarmHandler::HandlerNoUsedBorrowIds(const AlarmNumaInfo &alarmNumaInfo, WatermarkWarningType eventType)
+bool AlarmHandler::HandlerNoUsedBorrowIds(const AlarmNumaInfo& alarmNumaInfo, WatermarkWarningType eventType)
 {
     if (eventType == WatermarkWarningType::CLEAR_BORROW) {
         return true;
@@ -225,7 +225,7 @@ bool AlarmHandler::HandlerNoUsedBorrowIds(const AlarmNumaInfo &alarmNumaInfo, Wa
     // Resolve the problem that the recorded status is inconsistent with the actual status during the first startup.
     // Perform a memory migration.
     bool isFirstMig = (eventType == WatermarkWarningType::HIGH_WATERMARK && StatusManager::isFirstMigOperation());
-    for (auto &[borrowId, borrowIdStatus] : borrowMap) {
+    for (auto& [borrowId, borrowIdStatus] : borrowMap) {
         if (borrowIdStatus.nodeLocInfo.hostId == alarmNumaLoc.hostId &&
             borrowIdStatus.nodeLocInfo.numaId == alarmNumaLoc.numaId &&
             std::find(borrowIdsInMem.begin(), borrowIdsInMem.end(), borrowId) != borrowIdsInMem.end()) {
@@ -258,18 +258,18 @@ bool AlarmHandler::HandlerNoUsedBorrowIds(const AlarmNumaInfo &alarmNumaInfo, Wa
     return false;
 }
 
-std::vector<std::string> AlarmHandler::GenVectorByBorrowItem(const AlarmNumaInfo &alarmNumaInfo)
+std::vector<std::string> AlarmHandler::GenVectorByBorrowItem(const AlarmNumaInfo& alarmNumaInfo)
 {
     std::vector<std::string> result;
-    for (const auto &[exportLocNum, exportLocInfo, requestSize, exportMemId, importMemId, name] :
+    for (const auto& [exportLocNum, exportLocInfo, requestSize, exportMemId, importMemId, name] :
          alarmNumaInfo.borrowItemInfo.borrowItem) {
         result.emplace_back(name);
     }
     return result;
 }
 
-VmResult AlarmHandler::AlarmEventHandler(AlarmNumaInfo &alarmNumaInfo,
-                                         std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
+VmResult AlarmHandler::AlarmEventHandler(AlarmNumaInfo& alarmNumaInfo,
+                                         std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
                                          WatermarkWarningType eventType)
 {
     bool isMemReturn = eventType == WatermarkWarningType::LOW_WATERMARK;
@@ -313,8 +313,8 @@ VmResult AlarmHandler::AlarmEventHandler(AlarmNumaInfo &alarmNumaInfo,
     return VM_OK;
 }
 
-GlobalNumaInfoMap AlarmHandler::GetGlobalResource(const AlarmNumaInfo &alarmNumaInfo,
-                                                  std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos)
+GlobalNumaInfoMap AlarmHandler::GetGlobalResource(const AlarmNumaInfo& alarmNumaInfo,
+                                                  std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos)
 {
     vector<HostVmDomainInfo> hostVmDomainInfoList{};
     vector<HostNumaCpuInfo> hostNumaCpuInfoList{};
@@ -334,9 +334,9 @@ GlobalNumaInfoMap AlarmHandler::GetGlobalResource(const AlarmNumaInfo &alarmNuma
     return *globalNumaInfo;
 }
 
-void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo &alarmNumaInfo,
-                                             std::vector<UbsVirtNumaMemoryDebtInfo> &debtInfos,
-                                             GlobalNumaInfoMap &globalNumaInfoMapIn)
+void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
+                                             std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
+                                             GlobalNumaInfoMap& globalNumaInfoMapIn)
 {
     if (alarmNumaInfo.numaLoc.hostId == "") {
         UBSE_LOG_ERROR << "alarmNumaInfo is invalid.";
@@ -382,13 +382,14 @@ void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo &alarmNumaInfo,
                    << "byte, numaMemLend=" << globalNumaInfoMapIn[alarmNumaLoc].numaMemLend << "byte.";
 }
 
-enum NodeLocLevel : uint32_t {
+enum NodeLocLevel : uint32_t
+{
     HOSTID = 0,
     SOCKETID,
     NUMAID
 };
 
-VmResult ParseNodeLocInfo(const std::string &nodeLocInfoStr, Notify &notify)
+VmResult ParseNodeLocInfo(const std::string& nodeLocInfoStr, Notify& notify)
 {
     std::stringstream ss(nodeLocInfoStr);
     std::string level;
@@ -411,7 +412,7 @@ VmResult ParseNodeLocInfo(const std::string &nodeLocInfoStr, Notify &notify)
                 UBSE_LOG_WARN << "invalid nodeLoc str=" << nodeLocInfoStr;
                 break;
             }
-        } catch (std::exception &e) {
+        } catch (std::exception& e) {
             UBSE_LOG_ERROR << "VM parse nodeLoc info failed, error=" << e.what();
             return VM_ERROR;
         }
@@ -421,7 +422,7 @@ VmResult ParseNodeLocInfo(const std::string &nodeLocInfoStr, Notify &notify)
     return VM_OK;
 }
 
-VmResult ParseNodeLocInfoJson(Value &pstJson, const std::string &key, Notify &notify)
+VmResult ParseNodeLocInfoJson(Value& pstJson, const std::string& key, Notify& notify)
 {
     if (!pstJson.HasMember(key.c_str()) || !pstJson[key.c_str()].IsString()) {
         UBSE_LOG_ERROR << "Failed to get " << key;
@@ -437,7 +438,7 @@ VmResult ParseNodeLocInfoJson(Value &pstJson, const std::string &key, Notify &no
     return VM_OK;
 }
 
-VmResult AlarmHandler::ParseOomMessage(const std::string &eventMessage, Notify &notify)
+VmResult AlarmHandler::ParseOomMessage(const std::string& eventMessage, Notify& notify)
 {
     Document msgBody;
     msgBody.Parse(eventMessage.c_str());

@@ -11,12 +11,12 @@
  */
 
 #include "mempool_migrate_helper.h"
+#include "ubse_com.h"
 #include "mempool_migrate_module.h"
 #include "mempooling_message.h"
 #include "mp_mem_json_util.h"
 #include "rmrs_serialize.h"
 #include "turbo_def.h"
-#include "ubse_com.h"
 
 namespace mempooling {
 using namespace ubse::com;
@@ -29,7 +29,7 @@ MpResult ValidBorrowIdPidMap(std::map<std::string, std::set<BorrowIdInfo>> borro
         return MEM_POOLING_OK;
     }
     auto it = borrowIdsPidsMap.begin();
-    const auto &baseSet = it->second;
+    const auto& baseSet = it->second;
     ++it;
     for (; it != borrowIdsPidsMap.end(); ++it) {
         if (it->second != baseSet) {
@@ -41,12 +41,12 @@ MpResult ValidBorrowIdPidMap(std::map<std::string, std::set<BorrowIdInfo>> borro
     return MEM_POOLING_OK;
 }
 
-MpResult FilterBorrowIds(const std::vector<std::string> &borrowIdsList,
-                         std::map<std::string, std::set<BorrowIdInfo>> &borrowIdsPidsMap,
-                         std::map<std::string, std::set<BorrowIdInfo>> &validBorrowIdsPidsMap)
+MpResult FilterBorrowIds(const std::vector<std::string>& borrowIdsList,
+                         std::map<std::string, std::set<BorrowIdInfo>>& borrowIdsPidsMap,
+                         std::map<std::string, std::set<BorrowIdInfo>>& validBorrowIdsPidsMap)
 {
     size_t existCount = 0;
-    for (const std::string &borrowId : borrowIdsList) {
+    for (const std::string& borrowId : borrowIdsList) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Input borrowId: " << borrowId << ".";
         if (borrowIdsPidsMap.find(borrowId) != borrowIdsPidsMap.end()) {
             validBorrowIdsPidsMap[borrowId] = borrowIdsPidsMap[borrowId];
@@ -66,7 +66,7 @@ MpResult FilterBorrowIds(const std::vector<std::string> &borrowIdsList,
 }
 
 MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<BorrowIdInfo>> validBorrowIdsPidsMap,
-                             bool &allNotExist)
+                             bool& allNotExist)
 {
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().CollectBorrowRecords(nodeId, borrowRecords);
@@ -76,9 +76,27 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
     }
 
     bool find = false;
+    bool findRedirect = false;
 
-    for (auto &pair : validBorrowIdsPidsMap) {
+    for (auto& pair : validBorrowIdsPidsMap) {
         std::string inputBorrowId = pair.first;
+        std::string redirectNameKey = inputBorrowId;
+        std::string redirectNameVal = inputBorrowId;
+        do {
+            redirectNameKey = redirectNameVal;
+            redirectNameVal.clear();
+            MpResult retDirect = BorrowIdRedirection::Instance().Query(redirectNameKey, redirectNameVal);
+            if (retDirect != MEM_POOLING_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << inputBorrowId << " failed.";
+                return retDirect;
+            }
+        } while (!redirectNameVal.empty());
+        if (redirectNameKey != inputBorrowId) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] BorrowId=" << inputBorrowId
+                                                             << " rediects to borrow_id=" << redirectNameKey << ".";
+            findRedirect = true;
+        }
 
         for (auto record : borrowRecords) {
             if (inputBorrowId == record.name) {
@@ -88,12 +106,12 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
                 break;
             }
         }
-        if (find) {
+        if (find || findRedirect) {
             break;
         }
     }
 
-    if (find) {
+    if (find || findRedirect) {
         allNotExist = false;
     } else {
         allNotExist = true;
@@ -102,8 +120,8 @@ MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<
     return MEM_POOLING_OK;
 }
 
-MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &entry,
-                                std::vector<std::string> borrowIdsList, bool &inputBorrowIdsAllNotExist)
+MpResult GetRollBackBorrowIdPid(const std::string& nodeId, RollBackBorrowIdPid& entry,
+                                std::vector<std::string> borrowIdsList, bool& inputBorrowIdsAllNotExist)
 {
     // 持久化处取borrowId与pid的映射
     std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap;
@@ -126,7 +144,7 @@ MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &
     // 2. 如果交集为空则手动填充
     if (validBorrowIdsPidsMap.empty()) {
         // 手动填充borrow映射
-        for (const std::string &borrowId : borrowIdsList) {
+        for (const std::string& borrowId : borrowIdsList) {
             (void)validBorrowIdsPidsMap[borrowId].insert(BorrowIdInfo{-1, 0});
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Manual fill pid " << borrowId << ".";
         }
@@ -144,7 +162,7 @@ MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &
     std::vector<BorrowIdInfo> pidList;
     for (auto borrowIdPidsEntry : validBorrowIdsPidsMap) {
         if (pidList.empty()) {
-            for (auto &item : borrowIdPidsEntry.second) {
+            for (auto& item : borrowIdPidsEntry.second) {
                 pidList.push_back(item);
             }
         }
@@ -155,7 +173,7 @@ MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &
     return MEM_POOLING_OK;
 }
 
-MpResult PersistentBorrowIdPid(std::string &nodeId, RollBackBorrowIdPid &entry)
+MpResult PersistentBorrowIdPid(std::string& nodeId, RollBackBorrowIdPid& entry)
 {
     std::map<std::string, std::set<BorrowIdInfo>> queryMap;
     if (mempooling::Name2VmInfo::Instance().Query(nodeId, queryMap)) {
@@ -187,7 +205,7 @@ MpResult PersistentBorrowIdPid(std::string &nodeId, RollBackBorrowIdPid &entry)
     return MEM_POOLING_OK;
 }
 
-MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string> &borrowIdsList)
+MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string>& borrowIdsList)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemRollback] Master to invoke the slave MemBorrow Rollback.";
     RollBackBorrowIdPid inEntry;
@@ -300,7 +318,7 @@ MpResult RollBackMigratedVmsInStandbyToMasterEvent()
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MpElection][StandbyToMaster][MigrateExecute] The number of vms need to migrate back is "
         << pidListNeedToMigrateBack.size() << ".";
-    for (const auto &pair : pidListNeedToMigrateBack) {
+    for (const auto& pair : pidListNeedToMigrateBack) {
         if (pair.second.empty()) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MpElection][StandbyToMaster][MigrateExecute] The value of key " << pair.first << " is empty.";

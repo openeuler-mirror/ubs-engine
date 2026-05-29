@@ -10,4 +10,6 @@ add_library(ubse_utils STATIC
 )
 target_link_libraries(ubse_utils PUBLIC rapidjson boundscheck)
 
-target_include_directories(ubse_utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ubse_utils PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/lock)

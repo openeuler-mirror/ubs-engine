@@ -16,7 +16,7 @@
 #include <ubse_logger.h>
 
 namespace vm::overcommit {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
 VmMemManager::VmMemManager(MemOpStruct memOpStruct) : memOpStruct(std::move(memOpStruct)) {}
@@ -28,7 +28,7 @@ bool VmMemManager::RunPreflight(MemOpType type) const
     return check;
 }
 
-VmResult VmMemManager::RunMemBorrow(MemBorrowExecuteResult &borrowResult)
+VmResult VmMemManager::RunMemBorrow(MemBorrowExecuteResult& borrowResult)
 {
     MemOpMetadata borrowData = memOpStruct.memOpMetadata;
 
@@ -58,7 +58,7 @@ VmResult VmMemManager::RunMemBorrow(MemBorrowExecuteResult &borrowResult)
             UBSE_LOG_ERROR << "[borrow] borrow result is empty, borrow memory failed, task end.";
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[borrow] run UBSRMRSMemBorrow failed, task end. Error message: " << e.what();
         return VM_ERROR;
     }
@@ -89,7 +89,7 @@ VmResult VmMemManager::OutMemMigrate()
             UBSE_LOG_ERROR << "[migrate] migrate failed, start to rollback borrow mem. " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[migrate] run UBSRMRSMemMigrate failed. Error message: " << e.what();
         return VM_ERROR;
     }
@@ -121,7 +121,7 @@ VmResult VmMemManager::OutMemReturn()
             UBSE_LOG_ERROR << "[return] return memory failed, " << FormatRetCode(ret);
             return VM_ERROR;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[return] run UBSRMRSMemReturn failed. Error message: " << e.what();
         return VM_ERROR;
     }
@@ -130,7 +130,7 @@ VmResult VmMemManager::OutMemReturn()
     return VM_OK;
 }
 
-void VmMemManager::CleanEmptyBorrowRes(MemBorrowExecuteResult &result)
+void VmMemManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
 {
     // Create a temporary storage vector
     std::vector<std::string> newBorrowIds;

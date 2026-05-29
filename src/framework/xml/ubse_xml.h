@@ -22,7 +22,8 @@
 #include <libxml/xmlsave.h>
 
 namespace ubse::utils {
-enum class UbseXmlError {
+enum class UbseXmlError
+{
     OK = 0,
     NULLPTR,
     NOT_FOUND,
@@ -32,14 +33,14 @@ enum class UbseXmlError {
 class ListNode {
     // 头指针移动的链表
 public:
-    xmlNode *node{};
+    xmlNode* node{};
     std::shared_ptr<ListNode> next;
     int depth{};
 };
 
 class UbseXml : public std::enable_shared_from_this<UbseXml> {
 public:
-    explicit UbseXml(const std::string &xml);
+    explicit UbseXml(const std::string& xml);
 
     UbseXml();
 
@@ -47,10 +48,10 @@ public:
 
     UbseXmlError Parse();
 
-    void Printer(std::string &outputString, bool includeXmlDeclaration = true);
+    void Printer(std::string& outputString, bool includeXmlDeclaration = true);
 
     // 头指针向下寻找
-    std::shared_ptr<UbseXml> Next(const std::string &name, int num = 0);
+    std::shared_ptr<UbseXml> Next(const std::string& name, int num = 0);
 
     UbseXmlError Previous();
 
@@ -58,28 +59,28 @@ public:
     void Back();
 
     // 运算子节点
-    std::shared_ptr<UbseXml> Child(const std::string &name, int num = 0);
+    std::shared_ptr<UbseXml> Child(const std::string& name, int num = 0);
 
     // 子节点操作
     // name
     std::string Text();
-    void Text(const std::string &text);
+    void Text(const std::string& text);
 
     // name
     std::string Name();
-    void Name(const std::string &name);
+    void Name(const std::string& name);
 
     void SetXmlns(const std::string& uri);
 
     // attribute 增删改查
-    std::string Attr(const std::string &key);
-    void Attr(const std::string &key, const std::string &value);
+    std::string Attr(const std::string& key);
+    void Attr(const std::string& key, const std::string& value);
 
     // 增加节点
-    void AddNode(const std::string &name, bool isFirst = false);
+    void AddNode(const std::string& name, bool isFirst = false);
 
     // 删除节点
-    UbseXmlError DeleteNode(const std::string &name, int num = 0);
+    UbseXmlError DeleteNode(const std::string& name, int num = 0);
 
     // 获得当前节点的深度
     int GetDeepth();
@@ -88,14 +89,13 @@ private:
     xmlNode* FindNthChildByName(xmlNode* child, const std::string& name, int num) const;
     std::shared_ptr<UbseXml> UpdateToNode(xmlNode* nodePtr);
 
-    xmlDoc *doc{};
+    xmlDoc* doc{};
 
     std::string xmlString;
     std::shared_ptr<ListNode> listNode{}; // 走过的路径
-    xmlNode *rootNode{};              // 根节点
-    xmlNode *curNode{};            // 当前操作的xmlelement
-    xmlNode *node{};               // 当前的xmlelement
+    xmlNode* rootNode{};                  // 根节点
+    xmlNode* curNode{};                   // 当前操作的xmlelement
+    xmlNode* node{};                      // 当前的xmlelement
 };
 } // namespace ubse::utils
 #endif
-

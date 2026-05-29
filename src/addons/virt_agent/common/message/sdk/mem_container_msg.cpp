@@ -13,8 +13,8 @@
 
 #include "mem_container_msg.h"
 
-#include "vm_serial_util.h"
 #include "msg_utils.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult MemContainerPidMemInfoInputMsg::Serialize()
@@ -94,12 +94,12 @@ VmResult MemContainerPidMemInfoOutputMsg::Serialize()
     VmSerialization out;
     auto size = pidInfos_.size();
     out << size;
-    for (auto &info : pidInfos_) {
+    for (auto& info : pidInfos_) {
         out << info.pid;
         out << info.localUsedMem;
         auto numaIdsCount = info.localNumaIds.size();
         out << numaIdsCount;
-        for (auto &localNumaId : info.localNumaIds) {
+        for (auto& localNumaId : info.localNumaIds) {
             out << localNumaId;
         }
         out << info.remoteUsedMem;
@@ -154,7 +154,7 @@ VmResult MemContainerPidMemInfoOutputMsg::Deserialize()
 std::vector<pid_mem_info_for_c> MemContainerPidMemInfoOutputMsg::GetPidInfos()
 {
     std::vector<pid_mem_info_for_c> pidInfo{};
-    for (auto &info : pidInfos_) {
+    for (auto& info : pidInfos_) {
         pid_mem_info_for_c data{};
         data.pid = info.pid;
         data.localUsedMem = info.localUsedMem;
@@ -219,7 +219,7 @@ container_id_list_for_c ContainerIdListForCInputMsg::GetContainerPidInfo()
     size_t listSize = std::min(containerIdListForC_.containerIdSize, maxSize);
     for (size_t i = 0; i < listSize; ++i) {
         auto ret = StringToC(containerIdListForC.containerId[i], std::string(containerIdListForC_.containerId[i]),
-            sizeof(containerIdListForC.containerId[i]));
+                             sizeof(containerIdListForC.containerId[i]));
         if (ret != VM_OK) {
             return {};
         }
@@ -282,7 +282,7 @@ VmResult ContainerIdListForCInputMsg::Deserialize()
 std::vector<container_pid_info_for_c> ContainerPidsForCInputMsg::GetContainerPidInfos()
 {
     std::vector<container_pid_info_for_c> containerPidInfos{};
-    for (auto &info : containerPidInfos_) {
+    for (auto& info : containerPidInfos_) {
         container_pid_info_for_c data{};
         data.containerId = info.containerId;
         const size_t maxSize = sizeof(info.pids) / sizeof(info.pids[0]);
@@ -301,7 +301,7 @@ VmResult ContainerPidsForCInputMsg::Serialize()
     VmSerialization out;
     auto size = containerPidInfos_.size();
     out << size;
-    for (auto &info : containerPidInfos_) {
+    for (auto& info : containerPidInfos_) {
         out << info.containerId;
         size = std::min(info.pidsCount, sizeof(info.pids) / sizeof(info.pids[0]));
         out << size;
@@ -412,8 +412,8 @@ VmResult MemContainerWaterLineMemBorrowInputMsg::Deserialize()
     }
     std::string tempSrcNid;
     in >> tempSrcNid;
-    auto ret = StringToC(memBorrowRequest_.borrowParam.srcNid, tempSrcNid,
-                         sizeof(memBorrowRequest_.borrowParam.srcNid));
+    auto ret =
+        StringToC(memBorrowRequest_.borrowParam.srcNid, tempSrcNid, sizeof(memBorrowRequest_.borrowParam.srcNid));
     if (ret != VM_OK) {
         return ret;
     }
@@ -445,9 +445,8 @@ VmResult MemContainerWaterLineMemBorrowInputMsg::Deserialize()
     return VM_OK;
 }
 
-VmResult MemContainerWaterLineMemBorrowInputMsg::GetParams(NodeLocInfo &nodeLocInfo,
-                                                           std::vector<uint64_t> &borrowSizes,
-                                                           WaterMark &waterMark)
+VmResult MemContainerWaterLineMemBorrowInputMsg::GetParams(NodeLocInfo& nodeLocInfo, std::vector<uint64_t>& borrowSizes,
+                                                           WaterMark& waterMark)
 {
     // Get nodeLocInfo
     std::string hostId = memBorrowRequest_.borrowParam.srcNid;
@@ -481,7 +480,7 @@ VmResult MemContainerWaterLineMemBorrowOutputMsg::Serialize()
     VmSerialization out;
     size_t size = borrowIds_.size();
     out << size;
-    for (auto &borrowId : borrowIds_) {
+    for (auto& borrowId : borrowIds_) {
         out << borrowId;
     }
 
@@ -619,9 +618,9 @@ VmResult MemContainerWaterLineMemMigrateInputMsg::Deserialize()
     return VM_OK;
 }
 
-VmResult MemContainerWaterLineMemMigrateInputMsg::GetParams(NodeLocInfo &nodeLocInfo,
-                                                            std::unordered_set<std::string> &borrowIdSet,
-                                                            std::vector<VMPresetParam> &vmPresetParamList)
+VmResult MemContainerWaterLineMemMigrateInputMsg::GetParams(NodeLocInfo& nodeLocInfo,
+                                                            std::unordered_set<std::string>& borrowIdSet,
+                                                            std::vector<VMPresetParam>& vmPresetParamList)
 {
     // Get nodeLocInfo
     std::string hostId = memMigrateRequest_.borrowParam.srcNid;
@@ -756,9 +755,9 @@ VmResult MemContainerWaterLineMemReturnInputMsg::Deserialize()
     return VM_OK;
 }
 
-VmResult MemContainerWaterLineMemReturnInputMsg::GetParams(NodeLocInfo &nodeLocInfo,
-                                                           std::vector<std::string> &borrowIds,
-                                                           std::vector<pid_t> &pids)
+VmResult MemContainerWaterLineMemReturnInputMsg::GetParams(NodeLocInfo& nodeLocInfo,
+                                                           std::vector<std::string>& borrowIds,
+                                                           std::vector<pid_t>& pids)
 {
     // Get nodeLocInfo
     std::string hostId = memReturnRequest_.borrowParam.srcNid;

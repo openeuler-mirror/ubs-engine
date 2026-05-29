@@ -18,31 +18,32 @@
 #include "ubse_node_controller.h"
 
 namespace usbe::mem::api {
-using namespace ubse::common::def;
-using namespace ubse::ipc;
-using namespace ubse::nodeController;
+using ::api::server::UbseApiServerModule;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::common::def::UbseResult;
 
 class UbseMemApi {
 public:
     static UbseResult Register();
 
 private:
-    static uint32_t UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseCheckMemoryStatus(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseNodeMemConfigHandle(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseNumaStatusHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t QueryNumaStateHandler(const UbseIpcMessage &request, const UbseRequestContext &context);
+    static uint32_t UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseCheckMemoryStatus(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t QueryNumaStateHandler(const UbseIpcMessage& request, const UbseRequestContext& context);
 
-    static uint32_t UbseMemCliNumaInfoGetByName(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseMemCliFdInfoGetByName(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseMemCliFdCreate(const UbseIpcMessage &buffer, const UbseRequestContext &context);
+    static uint32_t UbseMemCliNumaInfoGetByName(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseMemCliFdInfoGetByName(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseMemCliNumaCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseMemCliFdCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context);
 
-    static uint32_t UbseCliShmCreateDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseCliShmAttachDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseCliShmDetachDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static uint32_t UbseCliShmGetDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context);
-    static UbseResult UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule> &apiServerModule);
+    static uint32_t UbseCliShmCreateDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseCliShmAttachDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseCliShmDetachDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static uint32_t UbseCliShmGetDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
+    static UbseResult UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule>& apiServerModule);
 };
 } // namespace usbe::mem::api
 #endif

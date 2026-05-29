@@ -18,13 +18,12 @@
 #include <sstream>
 #include <string>
 
-#include "securec.h"
+#include "ubse_error.h"
 #include "ubse_logger.h"
+#include "securec.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_string_util.h"
-#include "ubse_error.h"
-
 
 namespace ucache {
 namespace borrow_action {
@@ -54,7 +53,7 @@ constexpr int RANDOM_BYTE_MIN = 0;
 constexpr int RANDOM_BYTE_MAX = 255;
 constexpr int HEX_WIDTH = 2;
 
-void GenerateUniqueId(std::string &str)
+void GenerateUniqueId(std::string& str)
 {
     std::random_device rd;
     std::stringstream ss;
@@ -67,7 +66,7 @@ void GenerateUniqueId(std::string &str)
 
 constexpr char RESOURCE_KIND[] = "MEM";
 
-uint32_t ExecuteBorrowMem(const std::string &from, const std::string &to)
+uint32_t ExecuteBorrowMem(const std::string& from, const std::string& to)
 {
     uint32_t ret = UCACHE_OK;
     std::string memName;
@@ -121,7 +120,7 @@ uint32_t ExecuteBorrowMem(const std::string &from, const std::string &to)
     return ret;
 }
 
-uint32_t ExecuteReturnMem(const std::string &from, const std::string &to)
+uint32_t ExecuteReturnMem(const std::string& from, const std::string& to)
 {
     std::string memName;
     int numaId;
@@ -150,7 +149,7 @@ uint32_t ExecuteReturnMem(const std::string &from, const std::string &to)
     return ret;
 }
 
-uint32_t ProcessOneBorrowAction(const BorrowAction &action)
+uint32_t ProcessOneBorrowAction(const BorrowAction& action)
 {
     uint32_t ret = UCACHE_OK;
     if (action.type == ActionType::BORROW) {
@@ -174,14 +173,14 @@ uint32_t ProcessOneBorrowAction(const BorrowAction &action)
     return ret;
 }
 
-uint32_t ExecuteBorrowActions(const std::vector<BorrowAction> &actionSet)
+uint32_t ExecuteBorrowActions(const std::vector<BorrowAction>& actionSet)
 {
     uint32_t ret = UCACHE_OK;
     if (actionSet.empty()) {
         UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Execute action failed: empty action set.";
         return ret;
     }
-    for (const auto &action : actionSet) {
+    for (const auto& action : actionSet) {
         ret = ProcessOneBorrowAction(action);
         if (ret != UCACHE_OK) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Execute action failed: " << action.ToString();

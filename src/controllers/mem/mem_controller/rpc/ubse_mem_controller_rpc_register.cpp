@@ -11,21 +11,41 @@
  */
 
 #include "ubse_mem_controller_rpc_register.h"
+
+#include "ubse_com_base.h"
+#include "ubse_com_module.h"
+#include "ubse_context.h"
+#include "ubse_mem_agent_update_obj_state.h"
+#include "ubse_mem_debt_info_query_handler.h"
+#include "ubse_mem_update_obj_state.simpo.h"
 #include "message/node_mem_debtInfo_query_req_simpo.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "message/ubse_mem_debt_info_partial_fetch_res.h"
-#include "ubse_com_base.h"
-#include "ubse_com_module.h"
-#include "ubse_context.h"
-#include "ubse_mem_debt_info_query_handler.h"
 
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::mem::controller::message;
-UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule> &comModule);
+using namespace ubse::com;
+using namespace ubse::log;
+UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule>& comModule);
+
+UbseResult RegAgentUpdateHandler(const std::shared_ptr<com::UbseComModule>& comModule)
+{
+    UbseComBaseMessageHandlerPtr updateHandler = new (std::nothrow) UbseMemAgentUpdateObjState();
+    if (updateHandler == nullptr) {
+        UBSE_LOG_ERROR << "new register UbseMemAgentUpdateObjState failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto retCode = comModule->RegRpcService<UbseMemUpdateObjState, UbseMemUpdateObjStateReply>(updateHandler);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "updateHandler register fail," << FormatRetCode(retCode);
+        return UBSE_ERROR;
+    }
+    return retCode;
+}
 
 UbseResult RegMemControllerHandler()
 {
@@ -37,10 +57,15 @@ UbseResult RegMemControllerHandler()
     if (auto ret = RegisterMemDebtInfoQueryHandlers(comModule); ret != UBSE_OK) {
         return UBSE_ERROR;
     }
+
+    if (auto ret = RegAgentUpdateHandler(comModule); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Unable to register agent update handler, " << FormatRetCode(ret);
+        return ret;
+    }
     return UBSE_OK;
 }
 
-UbseResult RegPartialDebtFetchHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegPartialDebtFetchHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr partialDebtFetchHandler = new (std::nothrow) UbseMemDebtInfoPartialFetchHandler();
     if (partialDebtFetchHandler == nullptr) {
@@ -55,7 +80,7 @@ UbseResult RegPartialDebtFetchHandler(const std::shared_ptr<com::UbseComModule> 
     return retCode;
 }
 
-UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr fdGetHandler = new (std::nothrow) UbseMemDebtInfoFdGetHandler();
     if (fdGetHandler == nullptr) {
@@ -80,7 +105,7 @@ UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule> &com
     }
     return UBSE_OK;
 }
-UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr numaGetHandler = new (std::nothrow) UbseMemDebtInfoNumaGetHandler();
     if (numaGetHandler == nullptr) {
@@ -117,7 +142,7 @@ UbseResult RegisterNumaQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     }
     return UBSE_OK;
 }
-UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr shmDescHandler = new (std::nothrow) UbseMemDebtInfoShmGetHandler();
     if (shmDescHandler == nullptr) {
@@ -153,7 +178,7 @@ UbseResult RegisterShmQueryHandler(const std::shared_ptr<com::UbseComModule> &co
     }
     return UBSE_OK;
 }
-UbseResult RegisterAddrQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegisterAddrQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr addrGetHandler = new (std::nothrow) UbseMemDebtInfoAddrGetHandler();
     if (addrGetHandler == nullptr) {
@@ -168,7 +193,7 @@ UbseResult RegisterAddrQueryHandler(const std::shared_ptr<com::UbseComModule> &c
     return UBSE_OK;
 }
 
-UbseResult RegNodeBorrowQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegNodeBorrowQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr nodeBorrowQueryHandler = new (std::nothrow) UbseMemNodeBorrowQueryHandler();
     if (nodeBorrowQueryHandler == nullptr) {
@@ -183,15 +208,14 @@ UbseResult RegNodeBorrowQueryHandler(const std::shared_ptr<com::UbseComModule> &
     return retCode;
 }
 
-UbseResult RegMemIdQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegMemIdQueryHandler(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr memIdInfoGetHandler = new (std::nothrow) UbseMemIdInfoGetHandler();
     if (memIdInfoGetHandler == nullptr) {
         UBSE_LOG_ERROR << "new register UbseMemIdInfoGetHandler failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
-    auto retCode =
-        comModule->RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>(memIdInfoGetHandler);
+    auto retCode = comModule->RegRpcService<UbseMemIdQueryRequestSimpo, UbseMemExportMemDescSimpo>(memIdInfoGetHandler);
     if (retCode != UBSE_OK) {
         UBSE_LOG_ERROR << "memIdInfoGetHandler register fail," << FormatRetCode(retCode);
         return UBSE_ERROR;
@@ -199,7 +223,7 @@ UbseResult RegMemIdQueryHandler(const std::shared_ptr<com::UbseComModule> &comMo
     return retCode;
 }
 
-UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule> &comModule)
+UbseResult RegisterMemDebtInfoQueryHandlers(const std::shared_ptr<com::UbseComModule>& comModule)
 {
     UbseComBaseMessageHandlerPtr debtInfoQueryHandler = new (std::nothrow) UbseMemDebtInfoQueryHandler();
     if (debtInfoQueryHandler == nullptr) {

@@ -20,8 +20,8 @@
 #include "ubse_module.h"
 
 namespace api::server {
-using namespace ubse::module;
-using namespace ubse::ipc;
+using ubse::ipc::UbseAsyncResponseHandler;
+using ubse::module::UbseModule;
 
 class UbseApiServerModule final : public UbseModule {
 public:
@@ -36,7 +36,7 @@ public:
     void Stop() override;
 
     UbseResult RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler,
-                                  const std::string &object = "");
+                                  const std::string& object = "");
 
     /* *
      * @brief 发送响应
@@ -44,11 +44,12 @@ public:
      * @param response
      * @return
      */
-    uint32_t SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response);
+    uint32_t SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response);
 
-    uint32_t AsyncSendLongLink([[maybe_unused]] UbseRequestMessage requestMessage, [[maybe_unused]] void *ctx,
+    uint32_t AsyncSendLongLink([[maybe_unused]] UbseRequestMessage requestMessage,
+                               [[maybe_unused]] const UbseClientInfo& clientInfo, [[maybe_unused]] void* ctx,
                                [[maybe_unused]] UbseAsyncResponseHandler handler,
-                               [[maybe_unused]] std::vector<uint64_t> &reqList);
+                               [[maybe_unused]] std::vector<uint64_t>& reqList) const;
 
 private:
     struct HandlerRegistration {

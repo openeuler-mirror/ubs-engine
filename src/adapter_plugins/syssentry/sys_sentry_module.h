@@ -17,8 +17,8 @@
 #include "ubse_context.h"
 
 namespace syssentry {
-using namespace ubse::common::def;
-using namespace ubse::context;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class SysSentryModule : public UbseModule {
 public:
@@ -34,6 +34,5 @@ public:
 };
 
 UbseResult SetSysSentryFaultReporter();
-UbseResult SetSysSentryFaultEventOn();
 } // namespace syssentry
 #endif // UBSE_MANAGER_SYS_SENTRY_MODULE_H

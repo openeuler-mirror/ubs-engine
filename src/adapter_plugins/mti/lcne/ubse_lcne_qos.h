@@ -22,13 +22,13 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::adapter_plugins::mti;
+using common::def::UbseResult;
+using ubse::adapter_plugins::mti::UbseMtiFeInfo;
+using ubse::adapter_plugins::mti::UbseMtiQosProfile;
 
 class UbseLcneQos {
 public:
-    static UbseLcneQos &GetInstance()
+    static UbseLcneQos& GetInstance()
     {
         static UbseLcneQos instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8088;
         return instance;
@@ -39,20 +39,20 @@ public:
     // 删除Qos Profile模板信息
     UbseResult DeleteQosProfile(std::string proflieName);
     // 查询Qos Profile模板信息
-    UbseResult QueryQosProfile(std::string proflieName, UbseMtiQosProfile &ubseLcneQosProfile);
+    UbseResult QueryQosProfile(std::string proflieName, UbseMtiQosProfile& ubseLcneQosProfile);
     // 应用Qos Profile到vfe上
     UbseResult ApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName);
     // 删除vfe上的Qos Profile
     UbseResult DeleteVfeQos(UbseMtiFeInfo ubseFeInfo);
     // 查询vfe上的Qos Profile
-    UbseResult QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName);
+    UbseResult QueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName);
 
 private:
     UbseLcneQos(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string &xmlStr);
-    UbseResult BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string &xmlStr);
-    UbseResult ParseQosProfileResponse(std::string body, UbseMtiQosProfile &ubseLcneQosProfile);
-    UbseResult ParseVfeQosResponse(std::string body, std::string &proflieName);
+    UbseResult BuildQoSProfileXml(UbseMtiQosProfile ubseLcneQosProfile, std::string& xmlStr);
+    UbseResult BuildQoSXml(UbseMtiFeInfo ubseFeInfo, std::string profileName, std::string& xmlStr);
+    UbseResult ParseQosProfileResponse(std::string body, UbseMtiQosProfile& ubseLcneQosProfile);
+    UbseResult ParseVfeQosResponse(std::string body, std::string& proflieName);
     std::string host;
     int port;
 };

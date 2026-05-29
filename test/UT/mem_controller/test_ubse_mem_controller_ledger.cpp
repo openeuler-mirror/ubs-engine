@@ -12,25 +12,51 @@
 
 #include "test_ubse_mem_controller_ledger.h"
 
+#include <mockcpp/ProcStub.h>
 #include <ubse_node.h>
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "debt/ubse_mem_debt_ledger.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_mem_agent_task_manager.h"
-#include "ubse_mem_controller_ledger.cpp"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_util.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "ubse_mem_controller_ledger.cpp"
+
+// 用于mock的全局变量
+std::map<std::string, ubse::nodeController::PhysicalLink> g_mockLinkInfos;
+
+// mock UbseGetDirConnectInfo函数 - 正常情况
+std::map<std::string, ubse::nodeController::PhysicalLink> MockUbseGetDirConnectInfo_Normal()
+{
+    std::map<std::string, ubse::nodeController::PhysicalLink> linkInfos;
+    ubse::nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+    linkInfos["link1"] = link1;
+
+    ubse::nodeController::PhysicalLink link2;
+    link2.slotId = 2;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+    linkInfos["link2"] = link2;
+
+    return linkInfos;
+}
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::mem::def;
 using namespace nodeController;
 using namespace ubse::mem::util;
 using namespace ubse::context;
@@ -38,13 +64,13 @@ using namespace ubse::config;
 using namespace ubse::election;
 
 template <typename T>
-void PutDebtObj(const std::string &nodeId, const std::string &key, const T &obj)
+void PutDebtObj(const std::string& nodeId, const std::string& key, const T& obj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<T>().PutResource(nodeId, key, std::make_shared<T>(obj));
 }
 
 template <typename T>
-std::shared_ptr<const T> GetDebtObj(const std::string &nodeId, const std::string &key)
+std::shared_ptr<const T> GetDebtObj(const std::string& nodeId, const std::string& key)
 {
     return UbseMemDebtLedger::GetInstance().GetDebtMap<T>().GetResource(nodeId, key);
 }
@@ -497,11 +523,13 @@ TEST_F(TestUbseMemControllerLedger, IsFdImportRunningObjExcess)
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     fdBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key,
+                                                                                        fdBorrowExportObj);
     EXPECT_TRUE(IsFdImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     fdBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key, fdBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().PutResource("node1", key,
+                                                                                        fdBorrowExportObj);
     EXPECT_FALSE(IsFdImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -521,11 +549,13 @@ TEST_F(TestUbseMemControllerLedger, IsNumaImportRunningObjExcess)
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_TRUE(IsNumaImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_FALSE(IsNumaImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -545,11 +575,13 @@ TEST_F(TestUbseMemControllerLedger, IsAddrImportRunningObjExcess)
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     numaBorrowExportObj.req.name = "test1";
     std::string key = obj.req.name + "_" + nodeId;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_TRUE(IsAddrImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     numaBorrowExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key, numaBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource("node1", key,
+                                                                                          numaBorrowExportObj);
     EXPECT_FALSE(IsAddrImportRunningObjExcess(nodeId, obj));
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 }
@@ -1149,4 +1181,587 @@ TEST_F(TestUbseMemControllerLedger, AgentDiffNumaImportHandler)
     MOCKER_CPP(&AddNumaExport).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(AgentDiffNumaImportHandler(nodeId, objs), UBSE_OK);
 }
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus)
+{
+    std::string nodeId = "1";
+
+    // 准备mock数据
+    g_mockLinkInfos.clear();
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+    g_mockLinkInfos["link1"] = link1;
+
+    nodeController::PhysicalLink link2;
+    link2.slotId = 2;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+    g_mockLinkInfos["link2"] = link2;
+
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    auto connectInfoBak = UbseNodeController::GetInstance().devDirConnectInfo;
+
+    UbseNodeController::GetInstance().devDirConnectInfo["test"] = link1;
+
+    // 直接设置devDirConnectInfo成员变量，避免mockcpp的比较问题
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_EmptyNumaStatus)
+{
+    std::string nodeId = "1";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_InvalidRemoteNuma)
+{
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+    UbseMemNumaBorrowImportObj importObj;
+    importObj.algoResult.importNumaInfos.push_back({});
+    importObj.algoResult.importNumaInfos[0].chipId = 0;
+    importObj.algoResult.importNumaInfos[0].portId = 1;
+    importObj.algoResult.exportNumaInfos.push_back({});
+    importObj.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj.status.importResults.push_back({});
+    importObj.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj;
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_MultipleNuma)
+{
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    nodeController::PhysicalLink link2;
+    link2.slotId = 1;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "eth1";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+
+    UbseMemNumaBorrowImportObj importObj1;
+    importObj1.algoResult.importNumaInfos.push_back({});
+    importObj1.algoResult.importNumaInfos[0].chipId = 0;
+    importObj1.algoResult.importNumaInfos[0].portId = 1;
+    importObj1.algoResult.importNumaInfos[0].numaId = 10;
+    importObj1.algoResult.exportNumaInfos.push_back({});
+    importObj1.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj1.status.importResults.push_back({});
+    importObj1.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj1;
+
+    UbseMemNumaBorrowImportObj importObj2;
+    importObj2.algoResult.importNumaInfos.push_back({});
+    importObj2.algoResult.importNumaInfos[0].chipId = 1;
+    importObj2.algoResult.importNumaInfos[0].portId = 2;
+    importObj2.algoResult.importNumaInfos[0].numaId = 20;
+    importObj2.algoResult.exportNumaInfos.push_back({});
+    importObj2.algoResult.exportNumaInfos[0].nodeId = "3";
+    importObj2.status.importResults.push_back({});
+    importObj2.status.importResults[0].numaId = 20;
+    targetNodeDebt.numaImportObjMap["res2"] = importObj2;
+
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    NodeMemDebtInfo exportNodeDebt1;
+    UbseMemNumaBorrowExportObj exportObj1;
+    exportNodeDebt1.numaExportObjMap["res1"] = exportObj1;
+    allDebtInfoMap["2"] = exportNodeDebt1;
+
+    NodeMemDebtInfo exportNodeDebt2;
+    UbseMemNumaBorrowExportObj exportObj2;
+    exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
+    allDebtInfoMap["3"] = exportNodeDebt2;
+
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
+
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterNotifySmapNumaStatus_PartialLinkDown)
+{
+    std::string nodeId = "1";
+
+    nodeController::PhysicalLink link1;
+    link1.slotId = 1;
+    link1.chipId = 0;
+    link1.portId = 1;
+    link1.interfaceName = "eth0";
+
+    nodeController::PhysicalLink link2;
+    link2.slotId = 1;
+    link2.chipId = 1;
+    link2.portId = 2;
+    link2.interfaceName = "";
+
+    auto& nodeController = UbseNodeController::GetInstance();
+    nodeController.devDirConnectInfo.clear();
+    nodeController.devDirConnectInfo["link1"] = link1;
+    nodeController.devDirConnectInfo["link2"] = link2;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+
+    NodeMemDebtInfo targetNodeDebt;
+
+    UbseMemNumaBorrowImportObj importObj1;
+    importObj1.algoResult.importNumaInfos.push_back({});
+    importObj1.algoResult.importNumaInfos[0].chipId = 0;
+    importObj1.algoResult.importNumaInfos[0].portId = 1;
+    importObj1.algoResult.importNumaInfos[0].numaId = 10;
+    importObj1.algoResult.exportNumaInfos.push_back({});
+    importObj1.algoResult.exportNumaInfos[0].nodeId = "2";
+    importObj1.status.importResults.push_back({});
+    importObj1.status.importResults[0].numaId = 10;
+    targetNodeDebt.numaImportObjMap["res1"] = importObj1;
+
+    UbseMemNumaBorrowImportObj importObj2;
+    importObj2.algoResult.importNumaInfos.push_back({});
+    importObj2.algoResult.importNumaInfos[0].chipId = 1;
+    importObj2.algoResult.importNumaInfos[0].portId = 2;
+    importObj2.algoResult.importNumaInfos[0].numaId = 20;
+    importObj2.algoResult.exportNumaInfos.push_back({});
+    importObj2.algoResult.exportNumaInfos[0].nodeId = "3";
+    importObj2.status.importResults.push_back({});
+    importObj2.status.importResults[0].numaId = 20;
+    targetNodeDebt.numaImportObjMap["res2"] = importObj2;
+
+    allDebtInfoMap[nodeId] = targetNodeDebt;
+
+    NodeMemDebtInfo exportNodeDebt1;
+    UbseMemNumaBorrowExportObj exportObj1;
+    exportNodeDebt1.numaExportObjMap["res1"] = exportObj1;
+    allDebtInfoMap["2"] = exportNodeDebt1;
+
+    NodeMemDebtInfo exportNodeDebt2;
+    UbseMemNumaBorrowExportObj exportObj2;
+    exportNodeDebt2.numaExportObjMap["res2"] = exportObj2;
+    allDebtInfoMap["3"] = exportNodeDebt2;
+
+    MOCKER_CPP(NotifyRemoteNumaStatus).stubs().with(eq(nodeId), any()).will(returnValue(UBSE_OK));
+
+    MasterNotifyRemoteNumaStatus(nodeId, allDebtInfoMap);
+
+    SUCCEED();
+}
+
+TEST_F(TestUbseMemControllerLedger, GetDebtTypeName_AllTypes)
+{
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::FD_BORROW), "fd");
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::NUMA_BORROW), "numa");
+    EXPECT_EQ(GetDebtTypeName(UbseMemBorrowType::SHM_BORROW), "share");
+    EXPECT_EQ(GetDebtTypeName(static_cast<UbseMemBorrowType>(99)), "unknown");
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_ShareType_Found)
+{
+    std::unordered_map<std::string, UbseMemShareBorrowExportObj> exportObjMap;
+    exportObjMap["testName"] = UbseMemShareBorrowExportObj{};
+
+    UbseMemShareBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_FALSE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_ShareType_NotFound)
+{
+    std::unordered_map<std::string, UbseMemShareBorrowExportObj> exportObjMap;
+    UbseMemShareBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_TRUE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_FdType_Found)
+{
+    std::unordered_map<std::string, UbseMemFdBorrowExportObj> exportObjMap;
+    exportObjMap["testName_1"] = UbseMemFdBorrowExportObj{};
+
+    UbseMemFdBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_FALSE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, IsSingleImportDebt_NumaType_NotFound)
+{
+    std::unordered_map<std::string, UbseMemNumaBorrowExportObj> exportObjMap;
+    UbseMemNumaBorrowImportObj importObj{};
+    std::string name = "testName";
+    std::string nodeId = "1";
+    EXPECT_TRUE(IsSingleImportDebt(importObj, exportObjMap, name, nodeId));
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_ShareType)
+{
+    UbseMemShareBorrowImportObj importObj{};
+    importObj.req.name = "shareTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 200});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "shareTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::SHM_BORROW);
+
+    ASSERT_EQ(handles.shareVec.size(), 1);
+    EXPECT_EQ(handles.shareVec[0].name, "shareTest");
+    EXPECT_EQ(handles.shareVec[0].memIds.size(), 2);
+    EXPECT_TRUE(handles.shareVec[0].memIds.count(100) > 0);
+    EXPECT_TRUE(handles.shareVec[0].memIds.count(200) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_NumaType)
+{
+    UbseMemNumaBorrowImportObj importObj{};
+    importObj.req.name = "numaTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100, .numaId = 5});
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 200, .numaId = 10});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "numaTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::NUMA_BORROW);
+
+    ASSERT_EQ(handles.numaVec.size(), 1);
+    EXPECT_EQ(handles.numaVec[0].name, "numaTest");
+    EXPECT_EQ(handles.numaVec[0].numaIds.size(), 2);
+    EXPECT_TRUE(handles.numaVec[0].numaIds.count(5) > 0);
+    EXPECT_TRUE(handles.numaVec[0].numaIds.count(10) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, CollectSingleImportHandleInfo_FdType)
+{
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.udsInfo.uid = 1000;
+    importObj.req.udsInfo.gid = 1000;
+    importObj.req.udsInfo.pid = 1;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 300});
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    ubse::mem::def::NumaHandleInfoVec numaVec;
+    ubse::mem::def::FdHandleInfoVec fdVec;
+    ubse::mem::def::DebtHandleInfos handles{shareVec, numaVec, fdVec};
+    std::string name = "fdTest";
+    CollectSingleImportHandleInfo(importObj, name, handles, UbseMemBorrowType::FD_BORROW);
+
+    ASSERT_EQ(handles.fdVec.size(), 1);
+    EXPECT_EQ(handles.fdVec[0].name, "fdTest");
+    EXPECT_EQ(handles.fdVec[0].memIds.size(), 1);
+    EXPECT_TRUE(handles.fdVec[0].memIds.count(300) > 0);
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_FdType_SingleDebtFound)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    UbseMemFdBorrowExportObj exportObj{};
+    exportObj.req.name = "fdTest";
+    exportDebtInfo.fdExportObjMap["fdTest_2"] = exportObj;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV;
+    ubse::mem::def::NumaHandleInfoVec nV;
+    ubse::mem::def::FdHandleInfoVec fV;
+    ubse::mem::def::DebtHandleInfos handles{sV, nV, fV};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles);
+
+    EXPECT_TRUE(handles.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_FdType_NoExportObj_SingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV2;
+    ubse::mem::def::NumaHandleInfoVec nV2;
+    ubse::mem::def::FdHandleInfoVec fV2;
+    ubse::mem::def::DebtHandleInfos handles2{sV2, nV2, fV2};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles2);
+
+    ASSERT_EQ(handles2.fdVec.size(), 1);
+    EXPECT_EQ(handles2.fdVec[0].name, "fdTest");
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ShareType_SingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemShareBorrowImportObj importObj{};
+    importObj.req.name = "shareTest";
+    importObj.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.shareImportObjMap["shareTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    NodeMemDebtInfo exportDebtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV3;
+    ubse::mem::def::NumaHandleInfoVec nV3;
+    ubse::mem::def::FdHandleInfoVec fV3;
+    ubse::mem::def::DebtHandleInfos handles3{sV3, nV3, fV3};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.shareImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.shareExportObjMap; },
+        UbseMemBorrowType::SHM_BORROW, handles3);
+
+    ASSERT_EQ(handles3.shareVec.size(), 1);
+    EXPECT_EQ(handles3.shareVec[0].name, "shareTest");
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_EmptyExportNumaInfos)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.algoResult.exportNumaInfos.clear();
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV4;
+    ubse::mem::def::NumaHandleInfoVec nV4;
+    ubse::mem::def::FdHandleInfoVec fV4;
+    ubse::mem::def::DebtHandleInfos handles4{sV4, nV4, fV4};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles4);
+
+    EXPECT_TRUE(handles4.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ExportNodeMismatch)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"3", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV5;
+    ubse::mem::def::NumaHandleInfoVec nV5;
+    ubse::mem::def::FdHandleInfoVec fV5;
+    ubse::mem::def::DebtHandleInfos handles5{sV5, nV5, fV5};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles5);
+
+    EXPECT_TRUE(handles5.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, ProcessSingleImportDebtWithType_ExportNodeNotFound)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"99", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    DebtProcessContext ctx{allDebtInfoMap, "1", "2"};
+    ubse::mem::def::ShareHandleInfoVec sV6;
+    ubse::mem::def::NumaHandleInfoVec nV6;
+    ubse::mem::def::FdHandleInfoVec fV6;
+    ubse::mem::def::DebtHandleInfos handles6{sV6, nV6, fV6};
+
+    ProcessSingleImportDebtWithType(
+        debtInfo.fdImportObjMap, ctx,
+        [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+        UbseMemBorrowType::FD_BORROW, handles6);
+
+    EXPECT_TRUE(handles6.fdVec.empty());
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_WithSingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    importObj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+
+    MOCKER(UbseMemFaultManager::ReportSingleImportDebt).stubs().will(returnValue(UBSE_OK));
+
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_EmptyMap)
+{
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerLedger, MasterHandleSingleImportDebtWithExportNode_NoSingleDebt)
+{
+    NodeMemDebtInfo debtInfo;
+
+    UbseMemFdBorrowImportObj importObj{};
+    importObj.req.name = "fdTest";
+    importObj.req.importNodeId = "2";
+    importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo{"1", 36, 0};
+    importObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    debtInfo.fdImportObjMap["fdTest"] = importObj;
+
+    NodeMemDebtInfo exportDebtInfo;
+    UbseMemFdBorrowExportObj exportObj{};
+    exportObj.req.name = "fdTest";
+    exportDebtInfo.fdExportObjMap["fdTest_2"] = exportObj;
+
+    std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
+    allDebtInfoMap["2"] = debtInfo;
+    allDebtInfoMap["1"] = exportDebtInfo;
+
+    auto ret = MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, "1");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
 } // namespace ubse::mem_controller::ut

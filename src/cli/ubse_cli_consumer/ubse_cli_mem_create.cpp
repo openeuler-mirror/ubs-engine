@@ -31,18 +31,22 @@ class UbseCliMemCreate::UbseCliMemCreateImpl {
 public:
     UbseCliMemCreateImpl()
     {
-        queryFuncMap_[static_cast<uint16_t>(UBSE_MEM_CLI_NUMA_CREATE)] = [this](const std::string &name,
-            UbseCliMemQuery::WaitType b) { return this->query.UbseCliGetNumaMemByName(name, b); };
+        queryFuncMap_[static_cast<uint16_t>(UBSE_MEM_CLI_NUMA_CREATE)] = [this](const std::string& name,
+                                                                                UbseCliMemQuery::WaitType b) {
+            return this->query.UbseCliGetNumaMemByName(name, b);
+        };
         // Fixed: Ensure the lambda matches the expected return type
-        queryFuncMap_[static_cast<uint16_t>(UBSE_MEM_CLI_FD_CREATE)] = [this](const std::string &name,
-            UbseCliMemQuery::WaitType b) { return this->query.UbseCliGetFdMemByName(name, b); };
+        queryFuncMap_[static_cast<uint16_t>(UBSE_MEM_CLI_FD_CREATE)] = [this](const std::string& name,
+                                                                              UbseCliMemQuery::WaitType b) {
+            return this->query.UbseCliGetFdMemByName(name, b);
+        };
     }
 
     template <typename T, uint16_t ModuleCode, uint16_t Opcode>
-    bool UbseCliMemCreateRequest(UbseSerialization &ubse_req_serial, T &container)
+    bool UbseCliMemCreateRequest(UbseSerialization& ubse_req_serial, T& container)
     {
-        ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-            static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+        ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
+                                          static_cast<uint32_t>(ubse_req_serial.GetLength())};
         ubse_api_buffer_t ubse_res_buffer{};
         UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
         if (uint32_t ret = ubse_invoke_call(ModuleCode, Opcode, &ubse_req_buffer, &ubse_res_buffer); ret != UBSE_OK) {
@@ -55,17 +59,29 @@ public:
             errorMsg_ = data::error::RES_INFO_DESER_FAILED;
             return false;
         }
+        if (container.errorCode != UBSE_OK) {
+            callErrorCode_ = container.errorCode;
+            errorMsg_ = container.errMsg;
+            return false;
+        }
         return true;
     }
 
     template <uint16_t ModuleCode, uint16_t Opcode>
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateMemImpl(UbseSerialization &ubse_req_serial,
-        const std::string &name)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateMemImpl(UbseSerialization& ubse_req_serial,
+                                                                       const std::string& name)
     {
         UbseCliMemOperationResp resp{};
         UbseCliWaitIndicator waitIndicator("Creating memory");
         auto ret = UbseCliMemCreateRequest<UbseCliMemOperationResp, ModuleCode, Opcode>(ubse_req_serial, resp);
-        if (ret || this->callErrorCode_ == UBSE_ERR_TIMED_OUT) {
+        if (ret) {
+            auto it = queryFuncMap_.find(Opcode);
+            if (it != queryFuncMap_.end()) {
+                return it->second(name, UbseCliMemQuery::WaitType::WAIT_CREATING);
+            } else {
+                return UbseCliRegModule::UbseCliStringPromptReply("ERROR: Unsupported opcode.");
+            }
+        } else if (this->callErrorCode_ == UBSE_ERR_TIMED_OUT) {
             auto it = queryFuncMap_.find(Opcode);
             if (it != queryFuncMap_.end()) {
                 return it->second(name, UbseCliMemQuery::WaitType::WAIT_CREATING);
@@ -77,8 +93,8 @@ public:
         }
     }
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateShareMemImpl(const std::string &name, size_t size,
-                                                                            const std::vector<uint32_t> &region)
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateShareMemImpl(const std::string& name, size_t size,
+                                                                            const std::vector<uint32_t>& region)
     {
         // 序列化
         UbseSerialization serial;
@@ -113,11 +129,11 @@ public:
 
 private: // Basic Verification
     std::string errorMsg_{};
-    uint32_t callErrorCode_{ UBSE_OK };
+    uint32_t callErrorCode_{UBSE_OK};
 
 private: // API Validation
     using queryFuncType =
-        std::function<std::shared_ptr<framework::UbseCliResultEcho>(const std::string &, UbseCliMemQuery::WaitType)>;
+        std::function<std::shared_ptr<framework::UbseCliResultEcho>(const std::string&, UbseCliMemQuery::WaitType)>;
     std::map<uint16_t, queryFuncType> queryFuncMap_;
     UbseCliMemQuery query;
 };
@@ -128,8 +144,9 @@ UbseCliMemCreate::UbseCliMemCreate()
 }
 UbseCliMemCreate::~UbseCliMemCreate() noexcept = default;
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateNumaMem(const std::string &name,
-    size_t size, const std::string &linkInfo)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateNumaMem(const std::string& name,
+                                                                                     size_t size,
+                                                                                     const std::string& linkInfo)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
@@ -141,10 +158,10 @@ std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateNum
     }
     return this->pImpl_
         ->UbseCliCreateMemImpl<static_cast<uint16_t>(UBSE_MEM), static_cast<uint16_t>(UBSE_MEM_CLI_NUMA_CREATE)>(
-        ubse_req_serial, name);
+            ubse_req_serial, name);
 }
 
-std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateFdMem(const std::string &name, size_t size)
+std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateFdMem(const std::string& name, size_t size)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);
@@ -156,10 +173,10 @@ std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateFdM
     }
     return this->pImpl_
         ->UbseCliCreateMemImpl<static_cast<uint16_t>(UBSE_MEM), static_cast<uint16_t>(UBSE_MEM_CLI_FD_CREATE)>(
-        ubse_req_serial, name);
+            ubse_req_serial, name);
 }
 std::shared_ptr<framework::UbseCliResultEcho> UbseCliMemCreate::UbseCliCreateShareMem(
-    const std::string &name, size_t size, const std::vector<uint32_t> &region)
+    const std::string& name, size_t size, const std::vector<uint32_t>& region)
 {
     if (this->pImpl_ == nullptr) {
         return UbseCliRegModule::UbseCliStringPromptReply(systemd::error::ALLOCATION_ERROR);

@@ -13,15 +13,15 @@
 #ifndef RMRS_RESOURCE_QUERY_H
 #define RMRS_RESOURCE_QUERY_H
 
-#include <vector>
 #include <sstream>
+#include <vector>
 
+#include "ubse_logger.h"
 #include "exporter.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
 #include "mp_module.h"
 #include "numa_info.h"
-#include "ubse_logger.h"
 #include "turbo_rmrs_interface.h"
 
 namespace mempooling {
@@ -30,8 +30,8 @@ struct MetaNumaInfo {
     uint16_t numaId{};      // numaId
     uint64_t numaUsedMem{}; // 该numaId上使用的内存
     bool isLocalNuma{true}; // 是否本地numa
-    int socketId{-1};         // numaId对应的socketId
- 
+    int socketId{-1};       // numaId对应的socketId
+
     std::string ToString() const
     {
         std::ostringstream oss;
@@ -44,13 +44,13 @@ struct MetaNumaInfo {
         return oss.str();
     }
 };
- 
+
 struct RmrsPidInfo {
-    pid_t pid{};                             // 进程id
-    std::vector<uint16_t> localNumaIds{};    // 本地numaId集合
-    uint64_t totalLocalUsedMem{};            // 本地numa上使用的总内存大小
-    uint64_t totalRemoteUsedMem{};           // 远端numa使用的总内存大小
-    uint16_t remoteNumaId{};                 // 远端numaId（仅在容器场景下有效）
+    pid_t pid{};                               // 进程id
+    std::vector<uint16_t> localNumaIds{};      // 本地numaId集合
+    uint64_t totalLocalUsedMem{};              // 本地numa上使用的总内存大小
+    uint64_t totalRemoteUsedMem{};             // 远端numa使用的总内存大小
+    uint16_t remoteNumaId{};                   // 远端numaId（仅在容器场景下有效）
     std::vector<MetaNumaInfo> metaNumaInfos{}; // pid进程元信息集合
 
     std::string ToString() const
@@ -60,7 +60,8 @@ struct RmrsPidInfo {
         oss << "pid:" << pid;
         oss << ",localNumaIds:[";
         for (size_t i = 0; i < localNumaIds.size(); ++i) {
-            if (i) oss << ", ";
+            if (i)
+                oss << ", ";
             oss << localNumaIds[i];
         }
         oss << "]";
@@ -71,7 +72,8 @@ struct RmrsPidInfo {
 
         oss << ",metaNumaInfos:[";
         for (size_t i = 0; i < metaNumaInfos.size(); ++i) {
-            if (i) oss << ", ";
+            if (i)
+                oss << ", ";
             oss << metaNumaInfos[i].ToString();
         }
         oss << "]";
@@ -80,19 +82,19 @@ struct RmrsPidInfo {
     }
 };
 
-MpResult HelpGetVmInfoListOnNode(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos);
-MpResult HelpGetNumaInfoListOnNode(std::vector<mempooling::exportV2::NumaInfo> &numaInfos);
+MpResult HelpGetVmInfoListOnNode(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos);
+MpResult HelpGetNumaInfoListOnNode(std::vector<mempooling::exportV2::NumaInfo>& numaInfos);
 
 class ResourceQuery {
 public:
-    static MpResult HelpGetContainerPidNumaInfo(const std::string &srcNid, const std::vector<pid_t> &pids,
-                                                std::vector<RmrsPidInfo> &pidInfos);
-    static MpResult HelpGetNumaMemInfoCollect(const std::string &srcNid, const int &numaId,
-                                              mempooling::NumaMetaData &numaInfo);
-    static MpResult HelpGetContainerPidNumaInfoByLocalNode(const std::string &srcNid, const std::vector<pid_t> &pidList,
-                                                           std::vector<RmrsPidInfo> &pidInfos);
+    static MpResult HelpGetContainerPidNumaInfo(const std::string& srcNid, const std::vector<pid_t>& pids,
+                                                std::vector<RmrsPidInfo>& pidInfos);
+    static MpResult HelpGetNumaMemInfoCollect(const std::string& srcNid, const int& numaId,
+                                              mempooling::NumaMetaData& numaInfo);
+    static MpResult HelpGetContainerPidNumaInfoByLocalNode(const std::string& srcNid, const std::vector<pid_t>& pidList,
+                                                           std::vector<RmrsPidInfo>& pidInfos);
     static MpResult ConvertMetaNumaInfos(std::vector<turbo::rmrs::MetaNumaInfo> metaNumaInfos,
-                                         mempooling::RmrsPidInfo &pidInfo);
+                                         mempooling::RmrsPidInfo& pidInfo);
 
 private:
     static std::string addTag;

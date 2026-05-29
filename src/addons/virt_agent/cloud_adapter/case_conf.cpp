@@ -14,17 +14,20 @@
 #include "case_conf.h"
 
 #include <string>
-#include <securec.h>                 // for memcpy_s, EOK, errno_t
+
+#include <securec.h> // for memcpy_s, EOK, errno_t
+
 #include <ubse_storage.h>
+
 #include "mempooling_module.h"
-#include "vm_configuration.h"
 #include "pointer_process.h"
+#include "rack_vm_plugin.h"
+#include "vm_configuration.h"
 #include "vm_json_util.h"
 #include "vm_string_util.h"
-#include "rack_vm_plugin.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::storage;
 using namespace mempooling;
 
@@ -32,7 +35,7 @@ uint64_t CaseConf::index = 0;
 
 UbseByteBuffer CaseConf::caseConfBuffer{};
 
-CaseConf &CaseConf::GetInstance()
+CaseConf& CaseConf::GetInstance()
 {
     static CaseConf gInstance;
     return gInstance;
@@ -54,7 +57,7 @@ VmResult CaseConf::Init()
         std::string tmpStr("caseType:" + caseConf.curCase +
                            ";overCommitment:" + std::to_string(caseConf.overCommitmentRatio));
         size_t len = tmpStr.size();
-        auto *tmpPtr = new (std::nothrow) uint8_t[len];
+        auto* tmpPtr = new (std::nothrow) uint8_t[len];
         if (tmpPtr == nullptr) {
             UBSE_LOG_ERROR << "CaseConf init failed.";
             return VM_ERROR;
@@ -71,7 +74,7 @@ VmResult CaseConf::Init()
     return VM_OK;
 }
 
-VmResult CaseConf::QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio &caseConf)
+VmResult CaseConf::QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio& caseConf)
 {
     auto res = UbseStorageQueryData(CASE_CONF_KEY_PREFIX, CASE_CONF_KEY, &caseConf, UbseStorageDealData);
     if (res != VM_OK) {
@@ -81,10 +84,10 @@ VmResult CaseConf::QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio &c
     return VM_OK;
 }
 
-void CaseConf::UbseStorageDealData(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                   void *ctx)
+void CaseConf::UbseStorageDealData(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                   void* ctx)
 {
-    auto *caseAndOvercommitmentRatio = static_cast<CaseAndOvercommitmentRatio *>(ctx);
+    auto* caseAndOvercommitmentRatio = static_cast<CaseAndOvercommitmentRatio*>(ctx);
     if (caseAndOvercommitmentRatio == nullptr || buff.data == nullptr) {
         UBSE_LOG_WARN << "[dbquery] ctx or buff is nullptr.";
         return;
@@ -99,7 +102,7 @@ bool IsGreaterForFloat(float_t a, float_t b, float_t ratioEpsilon = 0.00001f)
     return (a - b) > ratioEpsilon;
 }
 
-bool CaseConf::ConvertOverCommitmentRatioToFloat(const std::string &ratioStr, float_t &ratio)
+bool CaseConf::ConvertOverCommitmentRatioToFloat(const std::string& ratioStr, float_t& ratio)
 {
     try {
         auto tmpRatio = VmStringUtil::SafeStof(ratioStr);
@@ -110,7 +113,7 @@ bool CaseConf::ConvertOverCommitmentRatioToFloat(const std::string &ratioStr, fl
             return false;
         }
         ratio = tmpRatio;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "The ratioStr to float failed." << e.what();
         return false;
     }
@@ -118,15 +121,15 @@ bool CaseConf::ConvertOverCommitmentRatioToFloat(const std::string &ratioStr, fl
 }
 
 // data = "caseType:overCommitment;overCommitment:1.25"
-VmResult CaseConf::CaseAndOvercommitmentRatioDeserial(const std::string &data,
-                                                      CaseAndOvercommitmentRatio &caseAndOvercommitmentRatio)
+VmResult CaseConf::CaseAndOvercommitmentRatioDeserial(const std::string& data,
+                                                      CaseAndOvercommitmentRatio& caseAndOvercommitmentRatio)
 {
     std::vector<std::string> caseconfs;
     VmStringUtil::StrSplit(data, ";", caseconfs);
 
     bool ratioFlag = false;
     bool caseFlag = false;
-    for (const auto &it : caseconfs) {
+    for (const auto& it : caseconfs) {
         std::vector<std::string> curConf;
         VmStringUtil::StrSplit(it, ":", curConf);
         if (curConf.size() != NO_2) {
@@ -205,7 +208,7 @@ void CaseConf::RunQueryCaseConf()
  *
  * @param curCase overCommitment/memFragmentation
  */
-void CaseConf::SetMemPoolingParams(const std::string &curCase)
+void CaseConf::SetMemPoolingParams(const std::string& curCase)
 {
     bool runMode = false;
     bool waterMark = false;
@@ -233,7 +236,7 @@ void CaseConf::SetMemPoolingParams(const std::string &curCase)
  *
  * @param curCase overCommitment/memFragmentation
  */
-bool CaseConf::SetMemPoolingRunMode(const std::string &curCase)
+bool CaseConf::SetMemPoolingRunMode(const std::string& curCase)
 {
     const auto UBSRMRSSetRunMode = MempoolingModule::UBSRMRSSetRunMode();
     if (UBSRMRSSetRunMode == nullptr) {
@@ -255,7 +258,7 @@ bool CaseConf::SetMemPoolingRunMode(const std::string &curCase)
             UBSE_LOG_INFO << "Set RMRS runMode successfully, runMode=" << curCase;
             return true;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Set RMRS runMode failed, maybe RMRS is not ready. "
                        << "Exception: " << e.what();
         return false;
@@ -289,18 +292,18 @@ bool CaseConf::SetMemPoolingWaterMark()
                           << ", lowWaterMark=" << waterMark.lowWaterMark;
             return true;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Set MemPooling WaterMark failed, " << e.what();
         return false;
     }
 }
 
-VmResult SetCaseConfToDB(CaseConfParam &caseParam)
+VmResult SetCaseConfToDB(CaseConfParam& caseParam)
 {
     const std::string tmpStr =
         "caseType:" + caseParam.caseType + ";overCommitment:" + std::to_string(caseParam.overCommitmentRatio) + ";";
     const size_t len = tmpStr.size();
-    auto *tmpPtr = new (std::nothrow) uint8_t[len];
+    auto* tmpPtr = new (std::nothrow) uint8_t[len];
     if (tmpPtr == nullptr) {
         UBSE_LOG_ERROR << "SetCaseConf new failed.";
         return VM_ERROR;
@@ -337,7 +340,7 @@ std::string CaseConfResultParam::ToJson()
     return result;
 }
 
-bool CaseConfParam::FromJson(const std::string &jsonString)
+bool CaseConfParam::FromJson(const std::string& jsonString)
 {
     JSON_MAP caseConfParamMap;
     caseConfParamMap.emplace("caseType", "");
@@ -353,11 +356,11 @@ bool CaseConfParam::FromJson(const std::string &jsonString)
     float_t tmpCommitmentRatio;
     try {
         tmpCommitmentRatio = VmStringUtil::SafeStof(caseConfParamMap["overCommitment"]);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "str to float error. " << e.what();
         return false;
     }
     this->overCommitmentRatio = tmpCommitmentRatio;
     return true;
 }
-}
+} // namespace vm

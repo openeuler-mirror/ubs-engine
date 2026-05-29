@@ -14,8 +14,8 @@
 #ifndef UBS_VIRT_AGENT_CASE_CONF_H
 #define UBS_VIRT_AGENT_CASE_CONF_H
 
-#include "ubs_virt_agent_base.h"
 #include "case_conf_msg.h"
+#include "ubs_virt_agent_base.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,7 +28,7 @@ using namespace vm;
  * @param case_conf_info [OUT] case configuration information returned by the interface
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);
+virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t* case_conf_info);
 
 /**
  * @brief  set case configuration information
@@ -36,7 +36,7 @@ virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);
  * @param case_conf_set_info    [OUT] result of the case configuration set operation
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_info_t *case_conf_set_info);
+virt_agent_ret_t ubs_virt_agent_case_conf_set(const char* param, case_conf_set_info_t* case_conf_set_info);
 
 #ifdef __cplusplus
 }

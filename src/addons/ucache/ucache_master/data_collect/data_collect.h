@@ -13,11 +13,11 @@
 #ifndef UCACHE_DATA_COLLECT_H
 #define UCACHE_DATA_COLLECT_H
 
-#include <map>
-#include <vector>
-#include <string>
-#include <queue>
 #include <iostream>
+#include <map>
+#include <queue>
+#include <string>
+#include <vector>
 #include "deserialize.h"
 
 namespace ucache {
@@ -26,9 +26,10 @@ namespace data_collect {
 
 using namespace ucache::deserialize;
 
-enum class PhyNodeStat {
-    ACTIVE, // 活跃
-    FAULT, // 故障
+enum class PhyNodeStat
+{
+    ACTIVE,  // 活跃
+    FAULT,   // 故障
     RECOVER, // 恢复中
 };
 
@@ -41,18 +42,19 @@ struct MemInfo {
 
 struct BorrowStrategyRawData {
     std::string nodeId;
-    int pagecacheAppNums;                      // pagecache紧缺型app数量
-    uint64_t freeMemMin;                         // 节点空闲内存最小值
-    MemInfo localMemInfo;                      // 节点本地内存信息
-    std::map<int, MemInfo> remoteNumaMemInfo;  // 节点远端numa内存信息
+    int pagecacheAppNums;                     // pagecache紧缺型app数量
+    uint64_t freeMemMin;                      // 节点空闲内存最小值
+    MemInfo localMemInfo;                     // 节点本地内存信息
+    std::map<int, MemInfo> remoteNumaMemInfo; // 节点远端numa内存信息
 };
 
 struct NodeMemBorrowInfo {
-    uint64_t totalSize;               // in bytes
+    uint64_t totalSize; // in bytes
     std::string srcNodeId;
     std::string destNodeId;
-    std::map<int, std::map<std::string, uint64_t>> numaNodeBorrowSize;   // 每个借出方numa node借出的内存，由策略执行模块维护
-    int dstNumaId;                              // 借入方生成的远端numa node，由策略执行模块维护
+    std::map<int, std::map<std::string, uint64_t>>
+        numaNodeBorrowSize; // 每个借出方numa node借出的内存，由策略执行模块维护
+    int dstNumaId;          // 借入方生成的远端numa node，由策略执行模块维护
 };
 
 struct NodeMemoryInfo {
@@ -68,7 +70,7 @@ struct NodeMemoryInfo {
 
 struct CgroupInfo {
     uint64_t pageCacheIn;     // pagecache 生成速度，单位KB/s
-    uint64_t ioReadBandwidth;      // pagecache 生成速度，单位KB/s
+    uint64_t ioReadBandwidth; // pagecache 生成速度，单位KB/s
 };
 
 //    Key: DockerId (string)
@@ -86,17 +88,17 @@ public:
     static uint32_t CollectData();
 
     // 获取和设置借用策略用数据
-    static void GetBorrowStrategyRawData(std::vector<BorrowStrategyRawData> &rawData);
-    static void GetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>> &rawMap);
-    static void GetPhysicalTopo(std::map<std::string, std::vector<std::string>> &topo);
-    static void GetNumaSocketMap(std::map<std::string, std::map<int, int>> &socketMap);
-    static void GetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &lendMap);
-    static void SetBorrowStrategyRawData(std::vector<BorrowStrategyRawData> &rawData);
-    static void SetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>> &rawMap);
-    static void SetPhysicalTopo(std::map<std::string, std::vector<std::string>> &topo);
-    static void SetNumaSocketMap(std::map<std::string, std::map<int, int>> &socketMap);
-    static void SetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &lendMap);
-    
+    static void GetBorrowStrategyRawData(std::vector<BorrowStrategyRawData>& rawData);
+    static void GetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>>& rawMap);
+    static void GetPhysicalTopo(std::map<std::string, std::vector<std::string>>& topo);
+    static void GetNumaSocketMap(std::map<std::string, std::map<int, int>>& socketMap);
+    static void GetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& lendMap);
+    static void SetBorrowStrategyRawData(std::vector<BorrowStrategyRawData>& rawData);
+    static void SetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>>& rawMap);
+    static void SetPhysicalTopo(std::map<std::string, std::vector<std::string>>& topo);
+    static void SetNumaSocketMap(std::map<std::string, std::map<int, int>>& socketMap);
+    static void SetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& lendMap);
+
     // 获取和设置迁移策略用数据
     static void GetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo>& nodes);
     static void SetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo>& nodes);
@@ -106,12 +108,12 @@ public:
     static uint32_t GeneratelendMemMap();
 
     // 获取和设置借用和迁移策略共用数据
-    static void GetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &borrowMap);
-    static void SetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &borrowMap);
+    static void GetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap);
+    static void SetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap);
 
     // 获取和设置应用瓶颈识别分类用数据
-    static void GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>> &cgInfos);
-    static void SetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>> &cgInfos);
+    static void GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>>& cgInfos);
+    static void SetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>>& cgInfos);
 
     // 打印cgoupInfo信息
     static std::string PrintCgroupInfo(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo);
@@ -126,14 +128,14 @@ private:
     static uint32_t GeneratePhysicalTopo();
     static uint32_t GenerateNumaSocketMap();
     static uint32_t GenerateBorrow();
-    static void GenerateLendMap(const BorrowMemInfo &borrowMemInfo, const std::string &lendId,
-                            std::map<std::string, std::vector<NodeMemBorrowInfo>> &MemMap);
-    static void GenerateBorrowMap(const BorrowMemInfo &borrowMemInfo, const std::string &borrowId,
-                            std::map<std::string, std::vector<NodeMemBorrowInfo>> &MemMap);
-    
+    static void GenerateLendMap(const BorrowMemInfo& borrowMemInfo, const std::string& lendId,
+                                std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap);
+    static void GenerateBorrowMap(const BorrowMemInfo& borrowMemInfo, const std::string& borrowId,
+                                  std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap);
+
     // 生成迁移策略用数据
     static uint32_t GenerateNodeMemoryInfo();
-    
+
     // 生成应用瓶颈识别分类数据
     static uint32_t GenerateCgroupInfo();
 

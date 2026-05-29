@@ -16,32 +16,40 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "src/framework/ipc/client/ubse_uds_client.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
-#include "src/framework/ipc/ubse_ipc_socket.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_ut_dir.h"
+#include "src/framework/ipc/client/ubse_uds_client.h"
+#include "src/framework/ipc/include/ubse_ipc_common.h"
+#include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
-const std::string SOCKET_PATH = std::string(UT_DIRECTORY) + "ubse.sock";
-const uint32_t TIMEOUT = 5;
+using namespace ubse::security;
+using namespace ubse::utils;
+
+// 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
+static std::string GetSocketPath()
+{
+    return "/tmp/ubse_uds_" + std::to_string(getpid()) + ".sock";
+}
+
+const uint32_t TIMEOUT = 5; // 超时时间，单位秒
+
 TestUbseUdsServer::TestUbseUdsServer() = default;
 void TestUbseUdsServer::SetUp()
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
         std::make_shared<ubse::security::UbseSecurityModule>();
-    UbseUDSConfig udsConfig{
-        .socketPath = SOCKET_PATH
-    };
+    UbseUDSConfig udsConfig{.socketPath = GetSocketPath()};
     server = std::make_unique<UbseUDSServer>(udsConfig);
     Test::SetUp();
 }
@@ -49,6 +57,7 @@ void TestUbseUdsServer::SetUp()
 void TestUbseUdsServer::TearDown()
 {
     server->Stop();
+    unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
     GlobalMockObject::verify();
     Test::TearDown();
@@ -56,7 +65,6 @@ void TestUbseUdsServer::TearDown()
 
 TEST_F(TestUbseUdsServer, StartSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
 }
@@ -85,10 +93,8 @@ TEST_F(TestUbseUdsServer, StartWhenSetSockPathTooLong)
     for (size_t i = 0; i < sizeof(struct sockaddr_un); ++i) {
         longPath += 'a';
     }
-    UbseUDSConfig config{
-        .socketPath = longPath
-    };
-    UbseUDSServer testServer{ config };
+    UbseUDSConfig config{.socketPath = longPath};
+    UbseUDSServer testServer{config};
     EXPECT_EQ(testServer.Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(testServer.running_);
     testServer.Stop();
@@ -100,25 +106,18 @@ TEST_F(TestUbseUdsServer, StartWhenChmodFailed)
     MOCKER(chmod).stubs().will(returnValue(-1));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态
+    MOCKER(chmod).reset();
 }
 
 // 测试Start方法在配置权限失败时的行为
 TEST_F(TestUbseUdsServer, StartWhenModifyEffectiveCapabilitiesFailed)
 {
-    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).reset();
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
     EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
-    EXPECT_EQ(server->Start(), UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED);
-    EXPECT_FALSE(server->running_);
+    server->Stop(); // 清理状态，确保后续测试安全
 }
 
 // 测试Start方法在listen失败时的行为
@@ -148,10 +147,9 @@ TEST_F(TestUbseUdsServer, StartWhenEpollCtlFailed)
 // 测试新连接成功
 TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     udsClient.Disconnect();
 }
@@ -159,15 +157,14 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionSuccess)
 // 测试建链超过最大连接数失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenMaxConnections)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     server->globalTransient_ = server->config_.maxTransientConnections;
     server->globalPersistent_ = server->config_.maxPersistentConnections;
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
-    UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
+    UbseRequestMessage requestMessage{{1, 1}, nullptr};
     UbseResponseMessage responseMessage{};
     EXPECT_NE(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_OK);
     udsClient.Disconnect();
@@ -176,14 +173,13 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenMaxConnections)
 // 测试建链getSockOpt失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenGetsockoptFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     MOCKER(getsockopt).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
-    UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
+    UbseRequestMessage requestMessage{{1, 1}, nullptr};
     UbseResponseMessage responseMessage{};
     EXPECT_NE(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_OK);
     udsClient.Disconnect();
@@ -192,14 +188,13 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenGetsockoptFailed)
 // 测试建链epoll_ctl失败
 TEST_F(TestUbseUdsServer, HandleNewConnectionWhenEpollCtlFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     MOCKER(epoll_ctl).stubs().will(returnValue(-1));
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
-    UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
+    UbseRequestMessage requestMessage{{1, 1}, nullptr};
     UbseResponseMessage responseMessage{};
     EXPECT_NE(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_OK);
     udsClient.Disconnect();
@@ -208,14 +203,13 @@ TEST_F(TestUbseUdsServer, HandleNewConnectionWhenEpollCtlFailed)
 // 测试处理请求没有handler
 TEST_F(TestUbseUdsServer, HandlerRequestWhenNoHandler)
 {
-    GTEST_SKIP();
     server->requestHandler_ = nullptr;
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
-    UbseRequestMessage requestMessage{ { 1, 1 }, nullptr };
+    UbseRequestMessage requestMessage{{1, 1}, nullptr};
     UbseResponseMessage responseMessage{};
     EXPECT_EQ(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_OK);
     EXPECT_EQ(responseMessage.header.statusCode, UBSE_ERR_DAEMON_UNREACHABLE);
@@ -225,16 +219,15 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenNoHandler)
 // 测试处理请求存在handler
 TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerExist)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
-    server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) {});
+    server->RegisterHandler([](const UbseRequestMessage&, const UbseRequestContext&) {});
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
-    auto *data = new uint8_t[len];
-    UbseRequestMessage requestMessage{ { 1, 1, len }, data };
+    auto* data = new uint8_t[len];
+    UbseRequestMessage requestMessage{{1, 1, len}, data};
     UbseResponseMessage responseMessage{};
     EXPECT_EQ(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_ERR_TIMED_OUT);
     delete[] data;
@@ -244,16 +237,15 @@ TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerExist)
 // 测试处理请求时抛出异常
 TEST_F(TestUbseUdsServer, HandlerRequestWhenHandlerException)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_TRUE(server->running_);
-    server->RegisterHandler([](const UbseRequestMessage &, const UbseRequestContext &) { std::stoul("a"); });
+    server->RegisterHandler([](const UbseRequestMessage&, const UbseRequestContext&) { std::stoul("a"); });
     sleep(1);
-    UbseUDSClient udsClient{ SOCKET_PATH };
+    UbseUDSClient udsClient{GetSocketPath()};
     EXPECT_EQ(udsClient.Connect(), UBSE_OK);
     uint32_t len = 10;
-    auto *data = new uint8_t[len];
-    UbseRequestMessage requestMessage{ { 1, 1, len }, data };
+    auto* data = new uint8_t[len];
+    UbseRequestMessage requestMessage{{1, 1, len}, data};
     UbseResponseMessage responseMessage{};
     EXPECT_EQ(udsClient.Send(requestMessage, responseMessage, TIMEOUT), UBSE_OK);
     EXPECT_EQ(responseMessage.header.statusCode, UBSE_ERR_DAEMON_UNREACHABLE);
@@ -313,7 +305,8 @@ TEST_F(TestUbseUdsServer, AsyncSendLongLink_MessageTooLarge)
 
     // 调用函数
     std::vector<uint64_t> reqList;
-    uint32_t ret = server->AsyncSendLongLink(requestMessage, nullptr, nullptr, reqList);
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
+    uint32_t ret = server->AsyncSendLongLink(requestMessage, clientInfo, nullptr, nullptr, reqList);
 
     // 验证结果
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
@@ -326,12 +319,14 @@ TEST_F(TestUbseUdsServer, AsyncSendLongLink_SendFailed)
     requestMessage.header.moduleCode = 1;
     requestMessage.header.opCode = 1;
     requestMessage.header.bodyLen = 100; // 数据长度100
-    std::unordered_set<int> fds = { 123 };
-    server->clientMap_[{ requestMessage.header.moduleCode, requestMessage.header.opCode }] = fds;
+    std::unordered_set<int> fds = {123};
+    server->clientMap_[{requestMessage.header.moduleCode, requestMessage.header.opCode}] = fds;
+    MOCKER_CPP(&UbseUDSServer::GetClientInfoByFd).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseUDSServer::SendReq).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     // 调用函数
     std::vector<uint64_t> reqList;
-    uint32_t ret = server->AsyncSendLongLink(requestMessage, nullptr, nullptr, reqList);
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
+    uint32_t ret = server->AsyncSendLongLink(requestMessage, clientInfo, nullptr, nullptr, reqList);
 
     // 验证结果
     EXPECT_NE(ret, UBSE_OK);

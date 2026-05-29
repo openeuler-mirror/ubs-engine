@@ -15,8 +15,8 @@
 
 #include <string>
 
-#include "event_handler.h"
 #include "ubse_logger.h"
+#include "event_handler.h"
 #include "mp_module.h"
 
 namespace mempooling::event {
@@ -37,7 +37,7 @@ public:
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {
@@ -45,5 +45,5 @@ public:
     }
 };
 
-}
+} // namespace mempooling::event
 #endif

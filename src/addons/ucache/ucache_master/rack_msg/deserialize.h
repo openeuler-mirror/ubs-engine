@@ -13,16 +13,16 @@
 #ifndef MSG_SERIALIZE_H
 #define MSG_SERIALIZE_H
 
+#include <cstdint>
 #include <iostream>
 #include <map>
 #include <queue>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <cstdint>
 #include "ubse_mem_controller.h"
-#include "ucache_json_util.h"
 #include "turbo_ucache_interface.h"
+#include "ucache_json_util.h"
 
 namespace ucache {
 namespace deserialize {
@@ -64,7 +64,7 @@ struct BorrowMemInfo {
         oss << "size:[" << size << "],";
         oss << "lentNodeId:[" << lentNodeId << "],";
         oss << "lentNumaInfos:[";
-        for (const auto &numaInfo : lentNumaInfos) {
+        for (const auto& numaInfo : lentNumaInfos) {
             oss << numaInfo.ToString() << ",";
         }
         oss << "],";
@@ -72,12 +72,12 @@ struct BorrowMemInfo {
         oss << "borrowLocalNuma:[" << borrowLocalNuma << "],";
         oss << "borrowRemoteNuma:[" << borrowRemoteNuma << "],";
         oss << "lentMemId:[";
-        for (const auto &memid : lentMemId) {
+        for (const auto& memid : lentMemId) {
             oss << memid << ",";
         }
         oss << "],";
         oss << "borrowMemId:[";
-        for (const auto &memid : borrowMemId) {
+        for (const auto& memid : borrowMemId) {
             oss << memid << ",";
         }
         oss << "]";
@@ -88,17 +88,17 @@ struct BorrowMemInfo {
 
 class Deserialize {
 public:
-    static uint32_t GetBorrowMemInfo(const std::string &nodeId, std::vector<BorrowMemInfo> &borrowMem);
-    static uint32_t GetNodeMemInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList);
-    static uint32_t GetNumaInfos(std::map<std::string, std::map<std::string, NodeInfo>> &nodeInfos);
+    static uint32_t GetBorrowMemInfo(const std::string& nodeId, std::vector<BorrowMemInfo>& borrowMem);
+    static uint32_t GetNodeMemInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList);
+    static uint32_t GetNumaInfos(std::map<std::string, std::map<std::string, NodeInfo>>& nodeInfos);
     static uint32_t GetCgroupInfos(
-        std::queue<std::map<std::string, uint64_t>> &timeStampsCgroup,
-        std::queue<std::map<std::string, std::map<std::string, CgroupInfos>>> &cgroupInfosQueue);
-    static uint32_t GetMemWaterMark(std::map<std::string, uint64_t> &memWaterMarkInfos);
+        std::queue<std::map<std::string, uint64_t>>& timeStampsCgroup,
+        std::queue<std::map<std::string, std::map<std::string, CgroupInfos>>>& cgroupInfosQueue);
+    static uint32_t GetMemWaterMark(std::map<std::string, uint64_t>& memWaterMarkInfos);
 
 private:
-    static uint32_t ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDebtInfo> &extInfos);
-    static void ParseNodeNumaMemInfo(const std::vector<UbseNodeNumaInfo> &extInfos);
+    static uint32_t ParseBorrowLendMemInfo(const std::vector<UbseNumaMemoryDebtInfo>& extInfos);
+    static void ParseNodeNumaMemInfo(const std::vector<UbseNodeNumaInfo>& extInfos);
 
     static std::vector<BorrowMemInfo> borrowMemInfos;
 };

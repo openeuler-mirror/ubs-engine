@@ -11,7 +11,6 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
 #ifndef HAM_MIGRATE_DST_INFO_MESSAGE_H
 #define HAM_MIGRATE_DST_INFO_MESSAGE_H
 
@@ -28,8 +27,10 @@ class HamMigrateDstInfoMessage : public BaseMessage {
 public:
     HamMigrateDstInfoMessage() = default;
     explicit HamMigrateDstInfoMessage(HamMigrateDstInfo hamMigrateDstInfoInput)
-        : hamMigrateDstInfo(std::move(hamMigrateDstInfoInput)) {}
-    explicit HamMigrateDstInfoMessage(uint8_t *rawData, uint32_t size)
+        : hamMigrateDstInfo(std::move(hamMigrateDstInfoInput))
+    {
+    }
+    explicit HamMigrateDstInfoMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -43,7 +44,7 @@ public:
         return hamMigrateDstInfo;
     }
 
-    inline void SetHamMigrateDstInfo(int dstPid, const std::string &dstNodeId)
+    inline void SetHamMigrateDstInfo(int dstPid, const std::string& dstNodeId)
     {
         hamMigrateDstInfo.dstPid = dstPid;
         hamMigrateDstInfo.dstNodeId = dstNodeId;
@@ -57,5 +58,5 @@ public:
 private:
     HamMigrateDstInfo hamMigrateDstInfo{};
 };
-}
+} // namespace vm
 #endif // HAM_MIGRATE_DST_INFO_MESSAGE_H

@@ -12,8 +12,8 @@
  */
 
 #include "ham_migrate_vm_info_message.h"
-#include "vm_serial_util.h"
 #include "vm_def.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult HamMigrateVmInfoMessage::Serialize()
@@ -21,9 +21,9 @@ VmResult HamMigrateVmInfoMessage::Serialize()
     VmSerialization out;
     auto size = hamMigrateVmInfos_.size();
     out << size;
-    for (auto &hamMigrateVmInfo : hamMigrateVmInfos_) {
+    for (auto& hamMigrateVmInfo : hamMigrateVmInfos_) {
         int64_t timeoutMs =
-        std::chrono::duration_cast<milliseconds>(hamMigrateVmInfo.timeout.time_since_epoch()).count();
+            std::chrono::duration_cast<milliseconds>(hamMigrateVmInfo.timeout.time_since_epoch()).count();
         if (timeoutMs < 0) {
             return VM_ERROR_INVAL;
         }
@@ -86,4 +86,4 @@ VmResult HamMigrateVmInfoMessage::Deserialize()
     }
     return VM_OK;
 }
-}
+} // namespace vm

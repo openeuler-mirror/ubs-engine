@@ -10,7 +10,4 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
-static void Hello()
-{
-}
+static void Hello() {}

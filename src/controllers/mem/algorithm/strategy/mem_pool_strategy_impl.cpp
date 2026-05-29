@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "mem_pool_strategy_impl.h"
 #include <securec.h>
 #include <algorithm>
-#include "borrow_decision_maker.h"
-#include "mem_pool_strategy_impl.h"
-#include "share_decision_maker.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
+#include "borrow_decision_maker.h"
+#include "share_decision_maker.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-BResult MemPoolStrategyImpl::Init(const StrategyParam &param)
+BResult MemPoolStrategyImpl::Init(const StrategyParam& param)
 {
     try {
         if (mBorrowDecisionMaker_ == nullptr) {
@@ -51,14 +51,14 @@ BResult MemPoolStrategyImpl::Init(const StrategyParam &param)
         // 检查变量是否为0
         IsArgumentZero();
         return UBSE_OK;
-    } catch (const std::exception &exp) {
+    } catch (const std::exception& exp) {
         UBSE_LOG_ERROR << exp.what();
         return UBSE_ERROR;
     }
 }
 
-BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                                          BorrowResult &result)
+BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                                          BorrowResult& result)
 {
     if (mBorrowDecisionMaker_ == nullptr || mBorrowDecisionMaker_->memConfig_ == nullptr) {
         UBSE_LOG_ERROR << "Error! mBorrowDecisionMaker is nullptr!";
@@ -78,7 +78,7 @@ BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest &borrowRequest, co
                 res = mBorrowDecisionMaker_->SingleMemBorrow(borrowRequest, ubseStatus, result);
                 break;
         }
-    } catch (const std::exception &exp) {
+    } catch (const std::exception& exp) {
         res = UBSE_ERROR;
         UBSE_LOG_ERROR << exp.what();
     }
@@ -86,8 +86,8 @@ BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest &borrowRequest, co
     return res;
 }
 
-BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
-                                         ShareResult &result)
+BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus,
+                                         ShareResult& result)
 {
     if (ShareParamCheck(shareRequest) == UBSE_ERROR) {
         return UBSE_ERROR;
@@ -115,7 +115,7 @@ BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest &shareRequest, const
                 res = mShareDecisionMaker_->MemoryShare(shareRequest, ubseStatus, result);
                 break;
         }
-    } catch (const std::exception &exp) {
+    } catch (const std::exception& exp) {
         res = UBSE_ERROR;
         UBSE_LOG_ERROR << exp.what();
     }
@@ -123,20 +123,20 @@ BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest &shareRequest, const
     return res;
 }
 
-BResult MemPoolStrategyImpl::InitDebtInfo(const UbseStatus &ubseStatus)
+BResult MemPoolStrategyImpl::InitDebtInfo(const UbseStatus& ubseStatus)
 {
     mDebtDetail_ = ubseStatus.debtDetail;
     memSysStatus_.debtInfo.lenderNumaToBorrowNode.clear();
     // 基于debtDetail统计每一对节点之间的借用内存量, 存储与mSysStatus中
-    for (auto &row : memSysStatus_.debtInfo.debtSize) {
-        for (int &item : row) {
+    for (auto& row : memSysStatus_.debtInfo.debtSize) {
+        for (int& item : row) {
             item = 0;
         }
     }
     for (int i = 0; i < mConfig_->memStaticParam.numAvailNumas; i++) {
-        const MemLoc &borrower = mConfig_->memStaticParam.availNumas[i];
-        for (auto &item : mDebtDetail_.numaDebts[i]) {
-            const MemLoc &lender = mConfig_->memStaticParam.availNumas[item.first];
+        const MemLoc& borrower = mConfig_->memStaticParam.availNumas[i];
+        for (auto& item : mDebtDetail_.numaDebts[i]) {
+            const MemLoc& lender = mConfig_->memStaticParam.availNumas[item.first];
             memSysStatus_.debtInfo.debtSize[borrower.hostId][lender.hostId] += static_cast<int>(item.second / MB_TO_B);
             if (item.second != 0) {
                 memSysStatus_.debtInfo.lenderNumaToBorrowNode[lender].insert(borrower.hostId);
@@ -146,10 +146,10 @@ BResult MemPoolStrategyImpl::InitDebtInfo(const UbseStatus &ubseStatus)
     return UBSE_OK;
 }
 
-BResult MemPoolStrategyImpl::InitSysStatus(const UbseStatus &ubseStatus)
+BResult MemPoolStrategyImpl::InitSysStatus(const UbseStatus& ubseStatus)
 {
     // 初始化mSysStatus中的numaStatus, socketStatus, hostStatus
-    for (auto &tmp : memSysStatus_.numaStatus) {
+    for (auto& tmp : memSysStatus_.numaStatus) {
         tmp.memFree = 0;
         tmp.memUsed = 0;
         tmp.memLocal = 0;
@@ -157,7 +157,7 @@ BResult MemPoolStrategyImpl::InitSysStatus(const UbseStatus &ubseStatus)
         tmp.memBorrowed = 0;
         tmp.memShared = 0;
     }
-    for (auto &tmp : memSysStatus_.socketStatus) {
+    for (auto& tmp : memSysStatus_.socketStatus) {
         tmp.memFree = 0;
         tmp.memUsed = 0;
         tmp.memLocal = 0;
@@ -165,7 +165,7 @@ BResult MemPoolStrategyImpl::InitSysStatus(const UbseStatus &ubseStatus)
         tmp.memBorrowed = 0;
         tmp.memShared = 0;
     }
-    for (auto &tmp : memSysStatus_.hostStatus) {
+    for (auto& tmp : memSysStatus_.hostStatus) {
         tmp.memFree = 0;
         tmp.memUsed = 0;
         tmp.memLocal = 0;
@@ -187,7 +187,7 @@ BResult MemPoolStrategyImpl::InitSysStatus(const UbseStatus &ubseStatus)
     return UBSE_OK;
 }
 
-void MemPoolStrategyImpl::OperateMemStatus(const UbseStatus &ubseStatus, int i, MemLoc numa, time_t timeStamp)
+void MemPoolStrategyImpl::OperateMemStatus(const UbseStatus& ubseStatus, int i, MemLoc numa, time_t timeStamp)
 {
     memSysStatus_.numaStatus[mConfig_->GetNumaIndex(numa)].loc = numa;
     memSysStatus_.numaStatus[mConfig_->GetNumaIndex(numa)].timeStamp = timeStamp;
@@ -208,7 +208,7 @@ void MemPoolStrategyImpl::OperateMemStatus(const UbseStatus &ubseStatus, int i, 
     memSysStatus_.hostStatus[numa.hostId].memFree += ubseStatus.numaStatus[i].memFree;
 }
 
-void MemPoolStrategyImpl::OperateLedgerStatus(const UbseStatus &ubseStatus, int i, MemLoc numa)
+void MemPoolStrategyImpl::OperateLedgerStatus(const UbseStatus& ubseStatus, int i, MemLoc numa)
 {
     memSysStatus_.numaStatus[mConfig_->GetNumaIndex(numa)].memBorrowed = ubseStatus.numaLedgerStatus[i].memBorrowed;
     memSysStatus_.numaStatus[mConfig_->GetNumaIndex(numa)].memLent = ubseStatus.numaLedgerStatus[i].memLent;
@@ -222,7 +222,7 @@ void MemPoolStrategyImpl::OperateLedgerStatus(const UbseStatus &ubseStatus, int 
     memSysStatus_.hostStatus[numa.hostId].memShared += ubseStatus.numaLedgerStatus[i].memShared;
 }
 
-void sortTargetSocketByResSizes(TargetSocket &numaList)
+void sortTargetSocketByResSizes(TargetSocket& numaList)
 {
     // 创建一个索引数组，用于排序
     std::vector<int32_t> indices(numaList.resLen);
@@ -269,8 +269,8 @@ TargetSocket MemPoolStrategyImpl::TargetSocket2Numa(TargetSocket numaList, int32
     return result;
 }
 
-void FillTmpSocket(uint32_t index, TargetSocket numaList, int32_t &lentSize, std::unordered_set<uint32_t> &lentNumas,
-                   TargetSocket &tmpSocket)
+void FillTmpSocket(uint32_t index, TargetSocket numaList, int32_t& lentSize, std::unordered_set<uint32_t>& lentNumas,
+                   TargetSocket& tmpSocket)
 {
     if (index >= MAX_NUM_SRC_PER_REQUEST || tmpSocket.resLen >= MAX_NUM_SRC_PER_REQUEST) {
         return;
@@ -290,12 +290,12 @@ void FillTmpSocket(uint32_t index, TargetSocket numaList, int32_t &lentSize, std
     }
 }
 
-void MemPoolStrategyImpl::SplitNumaWithVector(const std::vector<uint32_t> &numaVector, TargetSocket numaList,
-                                              int32_t &lentSize, std::unordered_set<uint32_t> &lentNumas,
-                                              TargetSocket &tmpSocket)
+void MemPoolStrategyImpl::SplitNumaWithVector(const std::vector<uint32_t>& numaVector, TargetSocket numaList,
+                                              int32_t& lentSize, std::unordered_set<uint32_t>& lentNumas,
+                                              TargetSocket& tmpSocket)
 {
     auto unitMem = static_cast<uint64_t>(mConfig_->memStaticParam.unitMemSize);
-    for (const auto &index : numaVector) {
+    for (const auto& index : numaVector) {
         if (lentSize == 0) {
             break;
         }
@@ -306,7 +306,7 @@ void MemPoolStrategyImpl::SplitNumaWithVector(const std::vector<uint32_t> &numaV
     }
 }
 
-void GetBorrowedNumaByNumaId(std::vector<uint32_t> &borrowedNuma, const MemLoc &lendLoc, const TargetSocket &numaList)
+void GetBorrowedNumaByNumaId(std::vector<uint32_t>& borrowedNuma, const MemLoc& lendLoc, const TargetSocket& numaList)
 {
     for (int i = 0; i < numaList.resLen; ++i) {
         if (lendLoc.numaId == numaList.resLocs[i].numaId) {
@@ -315,10 +315,10 @@ void GetBorrowedNumaByNumaId(std::vector<uint32_t> &borrowedNuma, const MemLoc &
     }
 }
 
-void GetLentAndNeverLentNuma(const MemLoc &requestLoc, const SysStatus &sysStatus, const TargetSocket &numaList,
-                             std::vector<uint32_t> &borrowedNuma, std::vector<uint32_t> &numaWithNeverBorrow)
+void GetLentAndNeverLentNuma(const MemLoc& requestLoc, const SysStatus& sysStatus, const TargetSocket& numaList,
+                             std::vector<uint32_t>& borrowedNuma, std::vector<uint32_t>& numaWithNeverBorrow)
 {
-    for (const auto &[lendLoc, hostSets] : sysStatus.debtInfo.lenderNumaToBorrowNode) {
+    for (const auto& [lendLoc, hostSets] : sysStatus.debtInfo.lenderNumaToBorrowNode) {
         if (lendLoc.hostId == numaList.socketLoc.hostId && hostSets.count(requestLoc.hostId) != 0) {
             GetBorrowedNumaByNumaId(borrowedNuma, lendLoc, numaList);
         }
@@ -332,8 +332,8 @@ void GetLentAndNeverLentNuma(const MemLoc &requestLoc, const SysStatus &sysStatu
     }
 }
 
-void SplitNumaWithBorrowedNuma(const TargetSocket &numaList, const SysStatus &sysStatus,
-                               const std::unordered_set<uint32_t> &lentNumas, std::vector<uint32_t> &sortNumas)
+void SplitNumaWithBorrowedNuma(const TargetSocket& numaList, const SysStatus& sysStatus,
+                               const std::unordered_set<uint32_t>& lentNumas, std::vector<uint32_t>& sortNumas)
 {
     for (int i = 0; i < numaList.resLen; ++i) {
         if (lentNumas.count(i) != 0) {
@@ -371,8 +371,8 @@ void SplitNumaWithBorrowedNuma(const TargetSocket &numaList, const SysStatus &sy
     });
 }
 
-TargetSocket MemPoolStrategyImpl::TargetSocket2NumaByReliable(const MemLoc &requestLoc, const TargetSocket &numaList,
-                                                              const SysStatus &sysStatus, int32_t requestSize)
+TargetSocket MemPoolStrategyImpl::TargetSocket2NumaByReliable(const MemLoc& requestLoc, const TargetSocket& numaList,
+                                                              const SysStatus& sysStatus, int32_t requestSize)
 {
     // 通过账本获取当前socket已经借出的numa集合
     // 先判断原节点原numa是否能够借用成功
@@ -399,7 +399,7 @@ TargetSocket MemPoolStrategyImpl::TargetSocket2NumaByReliable(const MemLoc &requ
     return tmpSocket;
 }
 
-void MemPoolStrategyImpl::CleanUpBorrowDecisionMaker(BorrowDecisionMaker *decisionMaker)
+void MemPoolStrategyImpl::CleanUpBorrowDecisionMaker(BorrowDecisionMaker* decisionMaker)
 {
     if (decisionMaker) {
         // 释放 mParentStat

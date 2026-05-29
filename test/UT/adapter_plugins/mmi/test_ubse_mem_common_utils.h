@@ -12,8 +12,8 @@
 
 #ifndef TEST_UBSE_MEM_COMMON_UTILS_H
 #define TEST_UBSE_MEM_COMMON_UTILS_H
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
 namespace ubse::ut::mmi {
@@ -29,6 +29,6 @@ class TestUbseMemCommonUtils : public testing::Test {
         GlobalMockObject::verify();
     }
 };
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi
 
-#endif  // TEST_UBSE_MEM_COMMON_UTILS_H
+#endif // TEST_UBSE_MEM_COMMON_UTILS_H

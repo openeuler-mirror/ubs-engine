@@ -15,14 +15,43 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::strategy {
+using namespace ubse::log;
+using namespace ubse::config;
+using namespace ubse::nodeController;
 
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
+
+namespace {
+uint16_t ParseRadiusConfig(const std::string& configKey, const std::string& configName, uint16_t defaultValue)
+{
+    std::string radiusStr;
+    auto ret = GetUbseConf(UBSE_MEMORY, configKey, radiusStr);
+    if (ret == UBSE_OK) {
+        try {
+            int radius = std::stoi(radiusStr);
+            if (radius >= 0 && radius <= defaultValue) {
+                UBSE_LOG_INFO << "Set " << configName << " to " << radius;
+                return static_cast<uint16_t>(radius);
+            }
+            UBSE_LOG_WARN << configKey << " value=" << radius
+                          << " is out of range [0, 7], Use default value=" << defaultValue;
+        } catch (const std::exception& e) {
+            UBSE_LOG_WARN << "Convert " << configKey << " failed: " << e.what()
+                          << ", Use default value=" << defaultValue;
+        }
+    } else {
+        UBSE_LOG_WARN << "Get " << configKey << " failed, Use default value=" << defaultValue;
+    }
+    return defaultValue;
+}
+} // namespace
 void UbseMemConfiguration::Init()
 {
-    setPageType();
+    SetPageType();
+    SetMemoryRadius();
 }
 
-void UbseMemConfiguration::setPageType()
+void UbseMemConfiguration::SetPageType()
 {
     std::string osPageSize;
     auto ret = GetUbseConf("os", "page_size", osPageSize);
@@ -31,51 +60,57 @@ void UbseMemConfiguration::setPageType()
         osPageSize = PAGE_SIZE_4K;
     }
     if (osPageSize == PAGE_SIZE_64K) {
-        pageType = PageSizeType::Page64K;
+        pageType_ = PageSizeType::Page64K;
     } else if (osPageSize == PAGE_SIZE_4K) {
-        pageType = PageSizeType::Page4K;
+        pageType_ = PageSizeType::Page4K;
     } else {
         UBSE_LOG_WARN << "Get os page_size type is invalid, Use default value 4096";
-        pageType = PageSizeType::Page4K;
+        pageType_ = PageSizeType::Page4K;
     }
 }
 
-void UbseMemConfiguration::SetConfig(const NodeInfoMap &nodeMap)
+void UbseMemConfiguration::SetMemoryRadius()
 {
-    nodeConfigs.clear();
+    lenderRadius_ = ParseRadiusConfig("radius.lender", "lender radius", DEFAULT_LENDER_RADIUS);
+    borrowRadius_ = ParseRadiusConfig("radius.borrow", "borrow radius", DEFAULT_BORROW_RADIUS);
+}
 
-    for (const auto &[nodeId, nodeInfo] : nodeMap) {
+void UbseMemConfiguration::SetConfig(const NodeInfoMap& nodeMap)
+{
+    nodeConfigs_.clear();
+
+    for (const auto& [nodeId, nodeInfo] : nodeMap) {
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
             nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
             continue;
         }
-        nodeConfigs.insert(
+        nodeConfigs_.insert(
             {nodeInfo.nodeId, {nodeInfo.isLender, nodeInfo.allocator, nodeInfo.blockSize, nodeInfo.pmdMapping}});
     }
 }
 
-std::optional<uint32_t> UbseMemConfiguration::GetPmdMappingById(const std::string &nodeId) const
+std::optional<uint32_t> UbseMemConfiguration::GetPmdMappingById(const std::string& nodeId) const
 {
-    auto nodeConfig = nodeConfigs.find(nodeId);
-    if (nodeConfig == nodeConfigs.end()) {
+    auto nodeConfig = nodeConfigs_.find(nodeId);
+    if (nodeConfig == nodeConfigs_.end()) {
         return std::nullopt;
     }
     return nodeConfig->second.pmdMapping;
 }
 
-std::optional<UbseAllocator> UbseMemConfiguration::GetObmmAllocatorById(const std::string &nodeId) const
+std::optional<UbseAllocator> UbseMemConfiguration::GetObmmAllocatorById(const std::string& nodeId) const
 {
-    auto nodeConfig = nodeConfigs.find(nodeId);
-    if (nodeConfig == nodeConfigs.end()) {
+    auto nodeConfig = nodeConfigs_.find(nodeId);
+    if (nodeConfig == nodeConfigs_.end()) {
         return std::nullopt;
     }
     return nodeConfig->second.allocator;
 }
 
-std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string &nodeId) const
+std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string& nodeId) const
 {
-    auto nodeConfig = nodeConfigs.find(nodeId);
-    if (nodeConfig == nodeConfigs.end()) {
+    auto nodeConfig = nodeConfigs_.find(nodeId);
+    if (nodeConfig == nodeConfigs_.end()) {
         return std::nullopt;
     }
     return nodeConfig->second.blockSize;
@@ -83,7 +118,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeById(const std::string
 
 std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs) {
+    for (const auto& [_, config] : nodeConfigs_) {
         if (config.isLender) {
             return config.blockSize;
         }
@@ -93,7 +128,7 @@ std::optional<uint32_t> UbseMemConfiguration::GetBlockSizeFromLenderNode() const
 
 std::optional<UbseAllocator> UbseMemConfiguration::GetAllocatorFromLenderNode() const
 {
-    for (const auto &[_, config] : nodeConfigs) {
+    for (const auto& [_, config] : nodeConfigs_) {
         if (config.isLender) {
             return config.allocator;
         }
@@ -101,9 +136,9 @@ std::optional<UbseAllocator> UbseMemConfiguration::GetAllocatorFromLenderNode() 
     return std::nullopt;
 }
 
-std::unordered_map<std::string, NodeConfig> UbseMemConfiguration::GetAllConfigs() const
+const std::unordered_map<std::string, NodeConfig>& UbseMemConfiguration::GetAllConfigs() const
 {
-    return nodeConfigs;
+    return nodeConfigs_;
 }
 
 bool UbseMemConfiguration::IsLenderBalance()

@@ -12,18 +12,20 @@
 
 #include "ubse_conf_module.h"
 
-#include <cstddef>                // for size_t
+#include <cstddef> // for size_t
+#include <fstream>
 #include <regex>
 #include <vector>
 
-#include "ubse_common_def.h"      // for UbseResult
+#include "ubse_common_def.h"   // for UbseResult
+#include "ubse_conf_manager.h" // for UbseConfigManager
+#include "ubse_context.h"      // for UbseContext, ProcessMode
+#include "ubse_logger.h"       // for UbseLoggerEntry, UBSE_D...
 #include "ubse_security_module.h"
-#include "ubse_conf_manager.h"    // for UbseConfigManager
-#include "ubse_context.h"         // for UbseContext, ProcessMode
-#include "ubse_logger.h"          // for UbseLoggerEntry, UBSE_D...
 #include "ubse_str_util.h"
 
 namespace ubse::config {
+using namespace ubse::module;
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ubse::common::def;
@@ -33,6 +35,7 @@ BASE_DYNAMIC_CREATE(UbseConfModule, ubse::security::UbseSecurityModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string CONFIG_DEFAULT_DIR = "/etc/ubse";
+const std::string UB_FEATURE_PATH = "/sys/bus/ub/ub_feature";
 
 std::tuple<std::string, std::string, std::string> TrimConf(const std::string& section, const std::string& configKey,
                                                            const std::string& configVal = "");
@@ -44,8 +47,9 @@ public:
         static RegisterFunc _ins;
         return _ins;
     }
+
 public:
-    void push(register_config_func &f)
+    void push(register_config_func& f)
     {
         funcs_.push_back(std::move(f));
     }
@@ -54,6 +58,7 @@ public:
     {
         return funcs_;
     }
+
 private:
     RegisterFunc() = default;
     std::vector<register_config_func> funcs_;
@@ -74,22 +79,21 @@ UbseResult UbseConfModule::Initialize()
     }
 
     ctxRef.GetArgStr("f", confCliDir_);
-    ret = confMgrRef.Init(confCliDir_);  // 允许命令行不传配置目录文件
+    ret = confMgrRef.Init(confCliDir_); // 允许命令行不传配置目录文件
     if (ret != UBSE_OK && ret != UBSE_CONF_ERROR_KEY_OFFSETDIR_OPEN_ERROR) {
         return ret;
     }
-    for (auto &f : RegisterFunc::GetInstance().GetFuncs()) {
+    for (auto& f : RegisterFunc::GetInstance().GetFuncs()) {
         auto result = f();
         if (result.has_value()) {
             confMgrRef.AddConfig(result->section, result->key, result->value);
         }
     }
+    LoadUbFeature();
     return UBSE_OK;
 }
 
-void UbseConfModule::UnInitialize()
-{
-}
+void UbseConfModule::UnInitialize() {}
 
 UbseResult UbseConfModule::Start()
 {
@@ -106,6 +110,85 @@ UbseResult UbseConfModule::GetAllConfigWithPrefix(const std::string& sectionPref
 {
     auto trimPrefix = Trim(sectionPrefix);
     return UbseConfigManager::GetInstance().GetAllConf(trimPrefix, configVals);
+}
+
+void UbseConfModule::LoadUbFeature()
+{
+    ubFeature_.store(UB_FEATURE_ALL_MASK);
+    std::ifstream featureFile(UB_FEATURE_PATH);
+    if (!featureFile.is_open()) {
+        UBSE_LOG_WARN << "Unable to open " << UB_FEATURE_PATH << ", use default all ub features.";
+        return;
+    }
+
+    std::string featureValue;
+    if (!std::getline(featureFile, featureValue)) {
+        UBSE_LOG_WARN << "Unable to read " << UB_FEATURE_PATH << ", use default all ub features.";
+        return;
+    }
+
+    featureValue = Trim(featureValue);
+    try {
+        size_t pos = 0;
+        const uint64_t value = std::stoull(featureValue, &pos, 0);
+        if (pos != featureValue.size()) {
+            UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
+            return;
+        }
+        ubFeature_.store(value);
+        UBSE_LOG_INFO << "Load ub feature success, value=" << value;
+    } catch (const std::invalid_argument&) {
+        UBSE_LOG_WARN << "Invalid ub feature value=" << featureValue << ", use default all ub features.";
+    } catch (const std::out_of_range&) {
+        UBSE_LOG_WARN << "Ub feature value out of range=" << featureValue << ", use default all ub features.";
+    }
+}
+
+bool UbseConfModule::IsUbFeatureSupported(uint64_t featureMask) const
+{
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & featureMask) == featureMask;
+}
+
+bool UbseConfModule::IsUrmaSupported() const
+{
+    const auto ubFeature = ubFeature_.load();
+    return (ubFeature & UB_URMA_ALL_MASK) != 0;
+}
+
+bool UbseConfModule::IsMemBorrowNcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_BORROW_NC_MASK);
+}
+
+bool UbseConfModule::IsMemBorrowCcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_BORROW_CC_MASK);
+}
+
+bool UbseConfModule::IsMemShareNcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_SHARE_NC_MASK);
+}
+
+bool UbseConfModule::IsMemShareCcSupported() const
+{
+    return IsUbFeatureSupported(UB_MEM_SHARE_CC_MASK);
+}
+
+bool UbseConfModule::IsMemBorrowSupported() const
+{
+    return IsMemBorrowNcSupported() || IsMemBorrowCcSupported();
+}
+
+bool UbseConfModule::IsMemShareSupported() const
+{
+    return IsMemShareNcSupported() || IsMemShareCcSupported();
+}
+
+bool UbseConfModule::IsMemSupported() const
+{
+    return IsMemBorrowSupported() || IsMemShareSupported();
 }
 
 template <typename T>
@@ -227,7 +310,7 @@ void PrintConfLog(ErrorType type, const std::string& section, const std::string&
             break;
         case ErrorType::CONFIG_CONVERSION_FAILED:
             UBSE_LOG_WARN << errorMessage << "the query result can't be converted to specified type, "
-                        << FormatRetCode(result);
+                          << FormatRetCode(result);
             break;
         case ErrorType::CONFIG_OUT_RANGE:
             UBSE_LOG_WARN << errorMessage << "the query result exceeds the range, " << FormatRetCode(result);
@@ -244,5 +327,4 @@ std::tuple<std::string, std::string, std::string> TrimConf(const std::string& se
     return {Trim(section), Trim(configKey), Trim(configVal)};
 }
 
-
-}  // namespace ubse::config
+} // namespace ubse::config

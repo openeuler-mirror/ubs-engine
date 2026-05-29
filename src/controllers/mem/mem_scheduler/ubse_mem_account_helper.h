@@ -19,24 +19,24 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::strategy {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAlgoResult;
+using ubse::adapter_plugins::mmi::UbseMemState;
 
 class UbseMemAccountHelper {
 public:
-    static UbseMemAccountHelper &GetInstance()
+    static UbseMemAccountHelper& GetInstance()
     {
         static UbseMemAccountHelper instance;
         return instance;
     }
-    UbseMemAccountHelper(const UbseMemAccountHelper &other) = delete;
-    UbseMemAccountHelper(UbseMemAccountHelper &&other) = delete;
-    UbseMemAccountHelper &operator=(const UbseMemAccountHelper &other) = delete;
-    UbseMemAccountHelper &operator=(UbseMemAccountHelper &&other) noexcept = delete;
+    UbseMemAccountHelper(const UbseMemAccountHelper& other) = delete;
+    UbseMemAccountHelper(UbseMemAccountHelper&& other) = delete;
+    UbseMemAccountHelper& operator=(const UbseMemAccountHelper& other) = delete;
+    UbseMemAccountHelper& operator=(UbseMemAccountHelper&& other) noexcept = delete;
 
     // 更新借用缓存的状态
-    static void UpdateAlgoAccountState(const std::string &name, UbseMemState state, const UbseMemAlgoResult &algoResult,
-        BorrowedType type);
+    static void UpdateAlgoAccountState(const std::string& name, UbseMemState state, const UbseMemAlgoResult& algoResult,
+                                       BorrowedType type);
 
 private:
     UbseMemAccountHelper() = default;

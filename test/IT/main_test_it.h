@@ -25,7 +25,8 @@ const std::string IT_AGENT_NODE_ID = "Node1";
 const std::string IT_MOCK_ALLNODES = "NodeIT,127.0.0.1:1901";
 
 /* 命令类型 */
-enum class TagTestCmdInfo {
+enum class TagTestCmdInfo
+{
     CMD_INIT = 0,
     CMD_SERVER_START,
     CMD_CLI_START,
@@ -74,43 +75,43 @@ struct ProcessMmap {
     pid_t fpid[260];
 };
 
-using FuncPtrp = int32_t (*)(ProcessMmap *);
+using FuncPtrp = int32_t (*)(ProcessMmap*);
 
 struct UbseCmdAndFunc {
     TagTestCmdInfo enCmd;
     FuncPtrp pFunc;
 };
 
-using FuncPtr = void (*)(ProcessMmap *);
+using FuncPtr = void (*)(ProcessMmap*);
 
-ProcessMmap *MemoryMapping();
+ProcessMmap* MemoryMapping();
 
 void ITestResourceInit();
 
-void ITestCliStart(ProcessMmap *pMmap);
+void ITestCliStart(ProcessMmap* pMmap);
 
-void ITestServerStart(ProcessMmap *pMmap);
+void ITestServerStart(ProcessMmap* pMmap);
 
-uint32_t ITestSetSubProcess(FuncPtr *opt, ProcessMmap *pMmap, pid_t *pid, const std::string &procName);
+uint32_t ITestSetSubProcess(FuncPtr* opt, ProcessMmap* pMmap, pid_t* pid, const std::string& procName);
 
-uint32_t ITestSetProcess(ProcessMmap *pMmap);
+uint32_t ITestSetProcess(ProcessMmap* pMmap);
 
 void ITestCmdAndFuncRegister(TagTestCmdInfo enCmd, FuncPtrp pFunc, ProcessMode processMode = ProcessMode::MANAGER);
 
-void ITestGetCliResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatus);
+void ITestGetCliResult(ProcessMmap* pMmap, uint32_t uiTime, int32_t* psiStatus);
 
-void ITestGetServerResult(ProcessMmap *pMmap, uint32_t uiTime, int32_t *psiStatus);
+void ITestGetServerResult(ProcessMmap* pMmap, uint32_t uiTime, int32_t* psiStatus);
 
-int32_t ITestCmdServerStart(ProcessMmap *pMmap);
+int32_t ITestCmdServerStart(ProcessMmap* pMmap);
 
-int32_t ITestCmdCliStart(ProcessMmap *pMmap);
+int32_t ITestCmdCliStart(ProcessMmap* pMmap);
 
-void ITestQuitProcess(ProcessMmap *pMmap);
+void ITestQuitProcess(ProcessMmap* pMmap);
 
-void ITestClearResource(ProcessMmap *pMmap);
+void ITestClearResource(ProcessMmap* pMmap);
 
-int32_t ITestCmdServerStop(ProcessMmap *pMmap);
+int32_t ITestCmdServerStop(ProcessMmap* pMmap);
 
-int32_t ITestCmdCliStop([[maybe_unused]] ProcessMmap *pMmap);
+int32_t ITestCmdCliStop([[maybe_unused]] ProcessMmap* pMmap);
 } // namespace ubse::it
 #endif // UBSE_MANAGER_MANAGER_TEST_IT_H

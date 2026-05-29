@@ -14,11 +14,11 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 #include <securec.h>
-#include "mem_container_msg.h"
-#include "ubs_virt_agent_container.h"
 #include "ubse_api_server.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
+#include "mem_container_msg.h"
+#include "ubs_virt_agent_container.h"
 #include "vm_error.h"
 
 using namespace vm;
@@ -36,8 +36,8 @@ void TestContainerSDKService::TearDown()
     GlobalMockObject::verify();
 }
 
-uint32_t test_ubse_invoke_call_pidInfos(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                                        ubse_api_buffer_t *response_data)
+uint32_t test_ubse_invoke_call_pidInfos(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                        ubse_api_buffer_t* response_data)
 {
     std::vector<PidInfo> pidInfos{};
     PidInfo pidInfo;
@@ -56,7 +56,7 @@ uint32_t test_ubse_invoke_call_pidInfos(uint16_t module_code, uint16_t op_code, 
 }
 
 uint32_t test_ubse_invoke_call_pidInfos_failed(uint16_t module_code, uint16_t op_code,
-                                               const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                               const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     std::vector<PidInfo> pidInfos{};
     PidInfo pidInfo;
@@ -75,8 +75,8 @@ uint32_t test_ubse_invoke_call_pidInfos_failed(uint16_t module_code, uint16_t op
 }
 
 uint32_t test_ubse_invoke_call_inject_waterLine_failed(uint16_t module_code, uint16_t op_code,
-                                                       const ubse_api_buffer_t *request_data,
-                                                       ubse_api_buffer_t *response_data)
+                                                       const ubse_api_buffer_t* request_data,
+                                                       ubse_api_buffer_t* response_data)
 {
     response_data->buffer = nullptr;
     response_data->length = 0;
@@ -84,7 +84,7 @@ uint32_t test_ubse_invoke_call_inject_waterLine_failed(uint16_t module_code, uin
 }
 
 uint32_t test_ubse_invoke_call_inject_waterLine(uint16_t module_code, uint16_t op_code,
-                                                const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     response_data->buffer = nullptr;
     response_data->length = 0;
@@ -92,8 +92,8 @@ uint32_t test_ubse_invoke_call_inject_waterLine(uint16_t module_code, uint16_t o
 }
 
 uint32_t test_ubse_invoke_call_get_container_pids(uint16_t module_code, uint16_t op_code,
-                                                  const ubse_api_buffer_t *request_data,
-                                                  ubse_api_buffer_t *response_data)
+                                                  const ubse_api_buffer_t* request_data,
+                                                  ubse_api_buffer_t* response_data)
 {
     std::vector<container_pid_info_for_c> responseData;
     container_pid_info_for_c pidInfo;
@@ -110,8 +110,8 @@ uint32_t test_ubse_invoke_call_get_container_pids(uint16_t module_code, uint16_t
 }
 
 uint32_t test_ubse_invoke_call_get_container_pids_failed(uint16_t module_code, uint16_t op_code,
-                                                         const ubse_api_buffer_t *request_data,
-                                                         ubse_api_buffer_t *response_data)
+                                                         const ubse_api_buffer_t* request_data,
+                                                         ubse_api_buffer_t* response_data)
 {
     std::vector<container_pid_info_for_c> responseData;
     container_pid_info_for_c pidInfo;
@@ -133,7 +133,7 @@ TEST_F(TestContainerSDKService, testConvertPidParamFromCToGoSDK)
     snprintf_s(param.srcNid, sizeof(param.srcNid), sizeof(param.srcNid), "2");
     param.pids[0] = 71685;
     param.pids_size = 1;
-    pid_mem_info *infos = NULL;
+    pid_mem_info* infos = NULL;
     uint32_t infoSize = 0;
 
     MOCKER(ubse_invoke_call).stubs().will(invoke(test_ubse_invoke_call_pidInfos));
@@ -147,7 +147,7 @@ TEST_F(TestContainerSDKService, testConvertPidParamFromCToGoSDK2)
     snprintf_s(param.srcNid, sizeof(param.srcNid), sizeof(param.srcNid), "2");
     param.pids[0] = 71685;
     param.pids_size = 1;
-    pid_mem_info *infos = NULL;
+    pid_mem_info* infos = NULL;
     uint32_t infoSize = 0;
     MOCKER(ubse_invoke_call).stubs().will(invoke(test_ubse_invoke_call_pidInfos_failed));
     auto ret = ubs_container_info_query(&param, &infos, &infoSize);
@@ -160,7 +160,7 @@ TEST_F(TestContainerSDKService, testConvertPidParamFromCToGoSDK3)
     snprintf_s(param.srcNid, sizeof(param.srcNid), sizeof(param.srcNid), "2");
     param.pids[0] = 71685;
     param.pids_size = 1;
-    pid_mem_info *infos = NULL;
+    pid_mem_info* infos = NULL;
     uint32_t infoSize = 0;
     auto ret = ubs_container_info_query(&param, &infos, &infoSize);
     EXPECT_EQ(ret, VM_ERROR);
@@ -194,7 +194,7 @@ TEST_F(TestContainerSDKService, testUbsContainerGetContainerPids)
     strcpy_s(container_list.containerId[0], maxSize, data.c_str());
     container_list.containerIdSize = 1;
 
-    container_pid_info *infos = NULL;
+    container_pid_info* infos = NULL;
     uint32_t infoSize = 0;
     MOCKER(ubse_invoke_call).stubs().will(invoke(test_ubse_invoke_call_get_container_pids));
     auto ret = ubs_container_get_container_pids(&container_list, &infos, &infoSize);
@@ -209,7 +209,7 @@ TEST_F(TestContainerSDKService, testUbsContainerGetContainerPids2)
     strcpy_s(container_list.containerId[0], maxSize, data.c_str());
     container_list.containerIdSize = 1;
 
-    container_pid_info *infos = NULL;
+    container_pid_info* infos = NULL;
     uint32_t infoSize = 0;
     MOCKER(ubse_invoke_call).stubs().will(invoke(test_ubse_invoke_call_get_container_pids_failed));
     auto ret = ubs_container_get_container_pids(&container_list, &infos, &infoSize);
@@ -218,15 +218,15 @@ TEST_F(TestContainerSDKService, testUbsContainerGetContainerPids2)
 
 TEST_F(TestContainerSDKService, ubs_virt_agent_waterline_mem_borrow_InvalidParameters)
 {
-    char **borrowIds = nullptr;
+    char** borrowIds = nullptr;
     uint32_t idsSize = 0;
     int32_t ret = ubs_virt_agent_waterline_mem_borrow(nullptr, &borrowIds, &idsSize);
     EXPECT_EQ(ret, VM_ERROR);
 }
 
 uint32_t test_ubse_invoke_call_waterline_mem_borrow(uint16_t module_code, uint16_t op_code,
-                                                    const ubse_api_buffer_t *request_data,
-                                                    ubse_api_buffer_t *response_data)
+                                                    const ubse_api_buffer_t* request_data,
+                                                    ubse_api_buffer_t* response_data)
 {
     std::vector<std::string> borrowIds{"0", "1"};
     MemContainerWaterLineMemBorrowOutputMsg outputInfo{borrowIds};
@@ -240,7 +240,7 @@ TEST_F(TestContainerSDKService, ubs_virt_agent_waterline_mem_borrow_Success)
 {
     GTEST_SKIP();
     mem_borrow_request_t request{{"0", {{0, 0}, {1, 1}}, 2}, {100, 200}, 2, {80, 60}};
-    char **borrowIds = nullptr;
+    char** borrowIds = nullptr;
     uint32_t idsSize = 0;
     testing::internal::CaptureStdout();
     MOCKER(ubse_invoke_call).stubs().will(invoke(test_ubse_invoke_call_waterline_mem_borrow));

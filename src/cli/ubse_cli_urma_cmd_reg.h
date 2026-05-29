@@ -18,8 +18,9 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
-using namespace ubse::serial;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::serial::UbseDeSerialization;
 class UbseCliRegUrmaModule : public UbseCliRegModule {
 public:
     void UbseCliSignUp() override;
@@ -27,21 +28,21 @@ public:
 private:
     static UbseCliCommandInfo UbseCliQueryUrmaQos();
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaQosFunc(
-        [[maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(UbseDeSerialization &ubse_de_serial,
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaQosTable(UbseDeSerialization& ubse_de_serial,
                                                                          uint32_t urma_size);
     static UbseCliCommandInfo UbseCliQueryUrmaDevInfo();
-    static std::vector<std::string> ParseCommaSeparatedDeviceList(const std::string &deviceStr);
+    static std::vector<std::string> ParseCommaSeparatedDeviceList(const std::string& deviceStr);
     static UbseCliCommandInfo UbseCliActivateUrmaDevInfo();
     static std::shared_ptr<UbseCliResultEcho> ParseAndValidateUrmaParams(
-        const std::map<std::string, std::string> &params, uint32_t &nodeId, std::vector<std::string> &deviceNameList);
+        const std::map<std::string, std::string>& params, uint32_t& nodeId, std::vector<std::string>& deviceNameList);
     static std::shared_ptr<UbseCliResultEcho> UbseQueryUrmaDevInfoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string> &params);
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
     static std::shared_ptr<UbseCliResultEcho> UbseActivateUrmaDevInfoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaDevInfoTable(UbseDeSerialization &ubse_de_serial,
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessUrmaDevInfoTable(UbseDeSerialization& ubse_de_serial,
                                                                              uint32_t urma_size);
 };
-}  // namespace ubse::cli::reg
+} // namespace ubse::cli::reg
 
 #endif

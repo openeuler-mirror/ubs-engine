@@ -13,9 +13,9 @@
 #ifndef TEST_UBSE_EVENT_DISTRIBUTE_H
 #define TEST_UBSE_EVENT_DISTRIBUTE_H
 
+#include "ubse_event.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_event.h"
 #include "src/framework/event/ubse_event_distribute.h"
 
 namespace ubse::event::ut {

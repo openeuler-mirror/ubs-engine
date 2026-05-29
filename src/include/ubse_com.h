@@ -12,8 +12,8 @@
 
 #ifndef UBSE_COM_H
 #define UBSE_COM_H
-#include <vector>
 #include <functional>
+#include <vector>
 #include "ubse_def.h"
 
 namespace ubse::com {
@@ -25,7 +25,7 @@ struct UbseComEndpoint {
     std::string address; // 通信地址
 };
 
-using UbseComServiceHandler = std::function<void(const UbseByteBuffer &req, UbseByteBuffer &resp)>;
+using UbseComServiceHandler = std::function<void(const UbseByteBuffer& req, UbseByteBuffer& resp)>;
 
 /**
  * @brief 注册跨节点通信消息处理函数，适用于Master与Agent间的通信
@@ -36,9 +36,9 @@ using UbseComServiceHandler = std::function<void(const UbseByteBuffer &req, Ubse
  * @return #UBSE_COM_ERROR_GET_ENGINE_FAIL 0x1001-100E 获取通信引擎失败
  * @return #UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE 0x1001-1003 非法操作码
  */
-uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler);
+uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler);
 
-using UbseComRespHandler = std::function<void(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)>;
+using UbseComRespHandler = std::function<void(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)>;
 
 /**
  * @brief 同步发消息
@@ -52,8 +52,8 @@ using UbseComRespHandler = std::function<void(void *ctx, const UbseByteBuffer &r
  * @return #UBSE_ERROR 1 失败
  * @return #UBSE_COM_ERROR_SYNC_CALL_FAIL 0x1001-100A 失败
  */
-uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler);
+uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                     const UbseComRespHandler& handler);
 
 /**
  * @brief 异步发消息
@@ -67,7 +67,7 @@ uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqD
  * @return #UBSE_ERROR 1 失败
  * @return #其他非零值 失败
  */
-uint32_t UbseRpcAsyncSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-    const UbseComRespHandler &handler);
-}
+uint32_t UbseRpcAsyncSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                          const UbseComRespHandler& handler);
+} // namespace ubse::com
 #endif // UBSE_COM_H

@@ -38,25 +38,54 @@ void UbseEventThreadPool::Stop()
     lowPriorityQueue_.StopQueue();
     if (threads_ != nullptr) {
         for (uint32_t i = 0; i < threadsNums_; i++) {
-            pthread_join(threads_[i], nullptr);  // 循环调用pthread_join等待所有线程结束
+            pthread_join(threads_[i], nullptr); // 循环调用pthread_join等待所有线程结束
         }
         delete[] threads_;
     }
     pthread_barrier_destroy(&initBarrier_);
 }
 
-static void SetThreadPriority(pthread_t &pthread, uint32_t priority)  // 设置线程的调度策略和优先级
+static void SetThreadPriority(pthread_t& pthread, uint32_t priority) // 设置线程的调度策略和优先级
 {
     if (priority == 0) {
         return;
     }
-    struct sched_param sParam {};
+    struct sched_param sParam {
+    };
     sParam.sched_priority = static_cast<int>(priority);
     auto ret = pthread_setschedparam(pthread, SCHED_FIFO, &sParam);
     if (ret != static_cast<int>(UBSE_OK)) {
         UBSE_LOG_WARN << "set thread priority with " << FormatRetCode(ret) << "-" << strerror(errno);
         return;
     }
+}
+
+UbseEventQueue* UbseEventThreadPool::GetQueueByIndex(size_t index)
+{
+    if (index < numHighPriorityThreads_) {
+        return &highPriorityQueue_;
+    }
+    if (index < numHighPriorityThreads_ + numMediumPriorityThreads_) {
+        return &mediumPriorityQueue_;
+    }
+    return &lowPriorityQueue_;
+}
+
+UbseResult UbseEventThreadPool::CleanupInitFailure(size_t createdCount)
+{
+    isThreadsRunning_.store(false);
+    if (createdCount > 0 && createdCount < threadsNums_) {
+        for (size_t i = 0; i < threadsNums_ + 1 - createdCount; ++i) {
+            pthread_barrier_wait(&initBarrier_);
+        }
+    }
+    for (size_t i = 0; i < createdCount; ++i) {
+        pthread_join(threads_[i], nullptr);
+    }
+    pthread_barrier_destroy(&initBarrier_);
+    delete[] threads_;
+    threads_ = nullptr;
+    return UBSE_ERROR;
 }
 
 UbseResult UbseEventThreadPool::Init(uint32_t hPriority, uint32_t mPriority, uint32_t lPriority)
@@ -75,56 +104,51 @@ UbseResult UbseEventThreadPool::Init(uint32_t hPriority, uint32_t mPriority, uin
     if (ret != static_cast<int>(UBSE_OK)) {
         UBSE_LOG_ERROR << "Failed to init thread barrier, " << FormatRetCode(ret);
         delete[] threads_;
+        threads_ = nullptr;
         return UBSE_ERROR;
     }
-    // 创建和设置线程优先级
+
+    size_t createdThreads = 0;
     for (size_t i = 0; i < threadsNums_; ++i) {
-        auto *params = new (std::nothrow) ThreadParams{this, nullptr};
+        auto* params = new (std::nothrow) ThreadParams{this, nullptr};
         if (params == nullptr) {
             UBSE_LOG_ERROR << "Create params failed.";
-            return UBSE_ERROR_NULLPTR;
+            return CleanupInitFailure(createdThreads);
         }
-        if (i < numHighPriorityThreads_) {
-            params->ubseEventQueue = &highPriorityQueue_;
-        } else if (i < numHighPriorityThreads_ + numMediumPriorityThreads_) {
-            params->ubseEventQueue = &mediumPriorityQueue_;
-        } else {
-            params->ubseEventQueue = &lowPriorityQueue_;
-        }
+        params->ubseEventQueue = GetQueueByIndex(i);
 
         ret = pthread_create(&(threads_[i]), nullptr, Worker, params);
         if (ret != static_cast<int>(UBSE_OK)) {
             UBSE_LOG_ERROR << "Failed to create thread, " << FormatRetCode(ret);
-            // 清理已经创建的线程参数
-            delete[] threads_;
-            pthread_barrier_destroy(&initBarrier_);
-            return UBSE_ERROR;
+            delete params;
+            return CleanupInitFailure(createdThreads);
         }
 
-        SetThreadPriority(threads_[i], i < numHighPriorityThreads_                             ? highPriority_ :
-                                       i < numHighPriorityThreads_ + numMediumPriorityThreads_ ? mediumPriority_ :
-                                                                                                 lowPriority_);
+        uint32_t priority = (i < numHighPriorityThreads_)                             ? highPriority_ :
+                            (i < numHighPriorityThreads_ + numMediumPriorityThreads_) ? mediumPriority_ :
+                                                                                        lowPriority_;
+        SetThreadPriority(threads_[i], priority);
+        ++createdThreads;
     }
+
     ret = pthread_barrier_wait(&initBarrier_);
     if (ret != PTHREAD_BARRIER_SERIAL_THREAD && ret != static_cast<int>(UBSE_OK)) {
         UBSE_LOG_ERROR << "Failed to wait thread barrier done, " << FormatRetCode(ret);
-        delete[] threads_;
-        pthread_barrier_destroy(&initBarrier_);
-        return UBSE_ERROR;
+        return CleanupInitFailure(createdThreads);
     }
     return UBSE_OK;
 }
 
-void *UbseEventThreadPool::Worker(void *paramsData)
+void* UbseEventThreadPool::Worker(void* paramsData)
 {
-    auto *poolP = static_cast<struct ThreadParams *>(paramsData);
+    auto* poolP = static_cast<struct ThreadParams*>(paramsData);
     if (poolP == nullptr || poolP->ubseEventThreadPool == nullptr) {
         // 防止内存泄漏
         delete poolP;
         return nullptr;
     }
 
-    auto ret = pthread_barrier_wait(&(poolP->ubseEventThreadPool->initBarrier_));  // 等待所有线程初始化完成
+    auto ret = pthread_barrier_wait(&(poolP->ubseEventThreadPool->initBarrier_)); // 等待所有线程初始化完成
     if (ret != PTHREAD_BARRIER_SERIAL_THREAD && ret != static_cast<int>(UBSE_OK)) {
         UBSE_LOG_ERROR << "Thread barrier wait failed, " << FormatRetCode(ret);
         return nullptr;
@@ -151,4 +175,4 @@ void *UbseEventThreadPool::Worker(void *paramsData)
     poolP = nullptr;
     return nullptr;
 }
-}  // namespace ubse::event
+} // namespace ubse::event

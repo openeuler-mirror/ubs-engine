@@ -16,7 +16,7 @@
 #include <ubse_logger.h>
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 using namespace libvirt;
 
@@ -57,7 +57,7 @@ VmResult LibvirtHelper::Connect()
             return VM_ERROR;
         }
         return VM_OK;
-    } catch (std::exception &e) {
+    } catch (std::exception& e) {
         UBSE_LOG_ERROR << "[LibvirtHelper] Connect libvirt failed. err: " << e.what();
         return VM_ERROR;
     }
@@ -79,7 +79,7 @@ VmResult LibvirtHelper::CloseConn()
     return VM_OK;
 }
 
-void LibvirtHelper::FreeDomain(void *domain)
+void LibvirtHelper::FreeDomain(void* domain)
 {
     if (domain == nullptr) {
         UBSE_LOG_ERROR << "Domain ptr is already empty.";
@@ -93,7 +93,7 @@ void LibvirtHelper::FreeDomain(void *domain)
     virDomainFree(domain);
 }
 
-VmResult LibvirtHelper::DomainAbortJobFlags(const string &uuid, VirDomainAbortJobFlagsValues flags, int tryTimes)
+VmResult LibvirtHelper::DomainAbortJobFlags(const string& uuid, VirDomainAbortJobFlagsValues flags, int tryTimes)
 {
     libvirt::VirDomainLookupByUUIDStringFunc virDomainLookupByUuidString = LibvirtModule::VirDomainLookupByUuidString();
     if (virDomainLookupByUuidString == nullptr) {
@@ -101,7 +101,7 @@ VmResult LibvirtHelper::DomainAbortJobFlags(const string &uuid, VirDomainAbortJo
         return VM_ERROR;
     }
 
-    void *domain = virDomainLookupByUuidString(virConnect, uuid.c_str());
+    void* domain = virDomainLookupByUuidString(virConnect, uuid.c_str());
     if (domain == nullptr) {
         UBSE_LOG_ERROR << "Failed to get vmDomain info, uuid = " << uuid;
         return VM_ERROR;
@@ -134,4 +134,4 @@ VmResult LibvirtHelper::DomainAbortJobFlags(const string &uuid, VirDomainAbortJo
     FreeDomain(domain);
     return ret;
 }
-}
+} // namespace vm

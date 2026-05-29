@@ -12,12 +12,12 @@
 
 #include "over_commit_msg.h"
 
+#include "ubse_election.h"
 #include "ubse_logger.h"
+#include "exporter.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "numa_info.h"
-#include "exporter.h"
-#include "ubse_election.h"
 #include "over_commit_storage.h"
 
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -32,12 +32,11 @@ using namespace turbo::rmrs;
 
 // rpc消息向agent获取node本地的虚拟机信息
 MpResult OverCommitMsg::GetVmNumaInfoMapRpc(std::string importNodeId,
-                                            std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+                                            std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                             uint16_t localNumaId)
 {
-    LOG_DEBUG
-        << "[OverCommit][MsgHandler] Master to invoke the slave GetVmNumaInfoMapRpc. NodeId=" << importNodeId
-        << ", localNumaId=" << localNumaId << ".";
+    LOG_DEBUG << "[OverCommit][MsgHandler] Master to invoke the slave GetVmNumaInfoMapRpc. NodeId=" << importNodeId
+              << ", localNumaId=" << localNumaId << ".";
     UbseComEndpoint endpoint_get_vm_info = {.moduleId = MP_MODULE_CODE,
                                             .serviceId = message::OPCODE_OVER_COMMIT_MIGRATE_GET_LOCAL_VM_INFO,
                                             .address = importNodeId};
@@ -45,7 +44,7 @@ MpResult OverCommitMsg::GetVmNumaInfoMapRpc(std::string importNodeId,
     RmrsOutStream builder;
     builder << vmNumaInfoParam;
     UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
-    reqData.freeFunc = [](uint8_t *data) {
+    reqData.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &vmNumaInfoWithSocketList, GetVmNumaInfoMapResHandler);
@@ -61,30 +60,27 @@ MpResult OverCommitMsg::GetVmNumaInfoMapRpc(std::string importNodeId,
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsg::GetVmNumaInfoMapLocal(std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList,
+MpResult OverCommitMsg::GetVmNumaInfoMapLocal(std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList,
                                               uint16_t localNumaId)
 {
-    LOG_DEBUG
-        << "[OverCommit][MsgHandler] GetVmNumaInfoMapRpc by local node." << " localNumaId=" << localNumaId << ".";
+    LOG_DEBUG << "[OverCommit][MsgHandler] GetVmNumaInfoMapRpc by local node."
+              << " localNumaId=" << localNumaId << ".";
     auto ret = GetLocalNumaVms(localNumaId, vmNumaInfoWithSocketList);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR
-            << "[OverCommit][MsgHandler] GetVmNumaInfoMapResHandler failed.";
+        LOG_ERROR << "[OverCommit][MsgHandler] GetVmNumaInfoMapResHandler failed.";
         return MEM_POOLING_ERROR;
     }
     if (vmNumaInfoWithSocketList.size() == 0) {
-        LOG_ERROR
-            << "[OverCommit][MsgHandler] GetVmNumaInfoMapResHandler failed.";
+        LOG_ERROR << "[OverCommit][MsgHandler] GetVmNumaInfoMapResHandler failed.";
         return MEM_POOLING_ERROR;
     }
     LOG_INFO << "[OverCommit][MsgHandler] GetVmNumaInfoMapResHandler success.";
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsg::GetVmNumaInfoMapRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsg::GetVmNumaInfoMapRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    LOG_INFO
-        << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler start.";
+    LOG_INFO << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler start.";
 
     if (req.data == nullptr || req.len == 0) {
         LOG_ERROR << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler req.data is nullptr.";
@@ -101,20 +97,18 @@ MpResult OverCommitMsg::GetVmNumaInfoMapRecvHandler(const UbseByteBuffer &req, U
     outBuilder << result;
     resp.len = outBuilder.GetSize();
     resp.data = outBuilder.GetBufferPointer();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (MEM_POOLING_OK != ret) {
-        LOG_ERROR
-            << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler failed res=" << ret << ".";
+        LOG_ERROR << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler failed res=" << ret << ".";
     }
-    LOG_INFO
-        << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler end.";
+    LOG_INFO << "[OverCommit][FaultManagement] GetVmNumaInfoMapRecvHandler end.";
     return ret;
 }
 
 MpResult OverCommitMsg::GetLocalNumaVms(uint16_t localNumaId,
-                                        std::vector<VmNumaInfoWithSocket> &vmNumaInfoWithSocketList)
+                                        std::vector<VmNumaInfoWithSocket>& vmNumaInfoWithSocketList)
 {
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
     MpResult ret = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
@@ -139,11 +133,11 @@ MpResult OverCommitMsg::GetLocalNumaVms(uint16_t localNumaId,
         return MEM_POOLING_OK;
     }
 
-    for (const mempooling::exportV2::VmDomainInfo &vmDomainInfo : vmDomainInfos) {
+    for (const mempooling::exportV2::VmDomainInfo& vmDomainInfo : vmDomainInfos) {
         VmNumaInfoWithSocket info{};
         info.pid = vmDomainInfo.metaData.pid;
         info.localNumaId = 0;
-        for (const auto &[numaId, numaInfo] : vmDomainInfo.numaInfo) {
+        for (const auto& [numaId, numaInfo] : vmDomainInfo.numaInfo) {
             if (numaInfo.isLocal) {
                 // 本地 NUMA
                 info.localNumaId = numaInfo.numaId;
@@ -171,14 +165,14 @@ MpResult OverCommitMsg::GetLocalNumaVms(uint16_t localNumaId,
     return MEM_POOLING_OK;
 }
 
-void OverCommitMsg::GetVmNumaInfoMapResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void OverCommitMsg::GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         LOG_WARN << "[OverCommit][FaultManagement] GetVmNumaInfoMapResHandler ctx or respData is null.";
         return;
     }
     OverCommitFaultVmNumaInfoResult result;
-    auto *overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult *>(ctx);
+    auto* overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         LOG_ERROR << "[OverCommit] Send error " << resCode << ".";
     } else {
@@ -188,7 +182,7 @@ void OverCommitMsg::GetVmNumaInfoMapResHandler(void *ctx, const UbseByteBuffer &
     *overCommitFaultVmNumaInfoResult = result;
 }
 
-uint32_t OverCommitMsg::NumaMemInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t OverCommitMsg::NumaMemInfoCollectRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "[NumaMemInfoCollect] NumaMemInfoCollectRecvHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -202,8 +196,7 @@ uint32_t OverCommitMsg::NumaMemInfoCollectRecvHandler(const UbseByteBuffer &req,
 
     auto ret = MempoolingMessage::rmrsNumaMemInfoCollect(numaMemInfoCollectParam, responseInfoSimpo);
     if (ret != MEM_POOLING_OK) {
-        LOG_ERROR
-            << "[NumaMemInfoCollectRecv] NumaMemInfoCollectRecvHandler failed res=" << ret << ".";
+        LOG_ERROR << "[NumaMemInfoCollectRecv] NumaMemInfoCollectRecvHandler failed res=" << ret << ".";
         return MEM_POOLING_ERROR;
     }
 
@@ -215,15 +208,15 @@ uint32_t OverCommitMsg::NumaMemInfoCollectRecvHandler(const UbseByteBuffer &req,
         return MEM_POOLING_ERROR;
     }
     resp.len = builderOut.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     LOG_INFO << "[PidNumaInfoCollect] PidNumaInfoCollect sucess.";
     return MEM_POOLING_OK;
 }
 
-void OverCommitMsg::SetResponse(ResponseInfoSimpo &response, const MpResult &retCode, const std::string &msg,
-                                UbseByteBuffer &resBuffer)
+void OverCommitMsg::SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
+                                UbseByteBuffer& resBuffer)
 {
     response.SetResponseInfo(retCode, msg);
     RmrsOutStream builder;
@@ -234,8 +227,8 @@ void OverCommitMsg::SetResponse(ResponseInfoSimpo &response, const MpResult &ret
     resBuffer.freeFunc = DefaultFreeFunc;
 }
 
-MpResult OverCommitMsg::SyncDataToStandByNode(ResponseInfoSimpo& response, const UbseByteBuffer &req,
-                                              UbseByteBuffer &resp, const std::string& currentNodeId)
+MpResult OverCommitMsg::SyncDataToStandByNode(ResponseInfoSimpo& response, const UbseByteBuffer& req,
+                                              UbseByteBuffer& resp, const std::string& currentNodeId)
 {
     // 查询当前节点是否主节点，如果是，则备节点也要存
     std::string masterNodeId;
@@ -266,7 +259,7 @@ MpResult OverCommitMsg::SyncDataToStandByNode(ResponseInfoSimpo& response, const
     return MEM_POOLING_OK;
 }
 
-bool ValidateSyncBindTypeDataBuffer(const UbseByteBuffer &req)
+bool ValidateSyncBindTypeDataBuffer(const UbseByteBuffer& req)
 {
     if (req.data == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Empty request buffer!";
@@ -287,7 +280,7 @@ bool ValidateSyncBindTypeDataBuffer(const UbseByteBuffer &req)
     return true;
 }
 
-uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     LOG_DEBUG << "[MpElection][SyncData] SyncBindTypeDataRecvHandler start.";
     std::string currentNodeId;
@@ -307,7 +300,7 @@ uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer &req, U
 
     // 更新内存值
     auto& nodeNumaBindMap = OverCommitStorage::Instance().getNodeNumaBindMap();
-    for (auto &[k, v] : jsonMap) {
+    for (auto& [k, v] : jsonMap) {
         auto it = STR_TO_BIND_TYPE_MAP.find(v);
         if (it == STR_TO_BIND_TYPE_MAP.end()) {
             LOG_ERROR << "[MpElection][SyncData] Invalid bind type, key=" << k << ", value=" << v << ".";
@@ -327,8 +320,8 @@ uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer &req, U
     uint32_t ret = ubse::storage::UbseStoragePutData("over_commit_", "numa_bind_type", &buffer);
     delete[] buffer.data;
     if (ret != 0) {
-        LOG_ERROR << "[MpElection][SyncData] UbseStoragePutData failed, nodeId="
-                  << currentNodeId << ", ret=" << ret << ".";
+        LOG_ERROR << "[MpElection][SyncData] UbseStoragePutData failed, nodeId=" << currentNodeId << ", ret=" << ret
+                  << ".";
         OverCommitMsg::SetResponse(response, MEM_POOLING_ERROR, "UbseStoragePutData failed.", resp);
         return MEM_POOLING_ERROR;
     }

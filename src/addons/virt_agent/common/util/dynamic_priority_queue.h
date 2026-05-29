@@ -40,9 +40,7 @@ public:
 
     void Update(T& t)
     {
-        auto it = std::find_if(elements.begin(), elements.end(), [t](const T& item) {
-            return item == t;
-        });
+        auto it = std::find_if(elements.begin(), elements.end(), [t](const T& item) { return item == t; });
         if (it == elements.end()) {
             return;
         }

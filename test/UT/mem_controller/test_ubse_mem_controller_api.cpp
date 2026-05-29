@@ -14,14 +14,6 @@
 
 #include <mockcpp/mokc.h>
 
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
 #include "ubse_base_message.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -30,19 +22,28 @@
 #include "ubse_error.h"
 #include "ubse_mem_api.h"
 #include "ubse_mem_buffer_convert.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info.h"
+#include "ubse_mem_def.h"
 #include "ubse_mem_scheduler.h"
+#include "ubse_mem_util.h"
+#include "ubse_mmi_interface_impl.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_mem_util.h"
 #include "ubse_timer.h"
-#include "ubse_mmi_interface_impl.h"
-#include "ubse_mem_def.h"
 #include "ubse_topo_util.h"
-#include "ubse_mem_controller_api_common.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
+#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
+
 namespace ubse::mem_controller::ut {
 using namespace ubse::task_executor;
 using namespace ubse::context;
@@ -58,6 +59,7 @@ using namespace ubse::mmi;
 using namespace ubse::mem::util;
 using namespace ubse::timer;
 using namespace ubse::utils;
+using namespace api::server;
 
 const int BORROW_SIZE = 128;
 void TestUbseMemControllerApi::SetUp()
@@ -93,9 +95,6 @@ TEST_F(TestUbseMemControllerApi, Init)
 {
     MOCKER_CPP(ubse::mem::scheduler::Init).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_TRUE(UBSE_ERROR == ubse::mem::controller::Init());
-    MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&usbe::mem::api::UbseMemApi::Register).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == ubse::mem::controller::Init());
     EXPECT_TRUE(UBSE_OK == ubse::mem::controller::Init());
 }
 
@@ -105,29 +104,25 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowDispatchCheckParameterFail)
     UbseRequestContext context{};
     UbseMemFdBorrowReq req{};
     MOCKER_CPP(&UbseMemCreateReqUnpack).expects(once()).with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context),
-              UBSE_ERROR);
+    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context), UBSE_ERROR);
 
     req.name = "UbseMemFdBorrowDispatchCheckParameterFail";
     MOCKER_CPP(&UbseMemCreateReqUnpack).reset();
     MOCKER_CPP(&UbseMemCreateReqUnpack).expects(once()).with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context),
-              UBSE_ERROR);
+    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context), UBSE_ERROR);
 
     req.size = 128ULL * 1024ULL * 1024ULL;
     req.distance = ubse::adapter_plugins::mmi::MEM_DISTANCE_L1;
     MOCKER_CPP(&UbseMemCreateReqUnpack).reset();
     MOCKER_CPP(&UbseMemCreateReqUnpack).expects(once()).with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context),
-              UBSE_ERROR);
+    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context), UBSE_ERROR);
 
     req.distance = ubse::adapter_plugins::mmi::MEM_DISTANCE_L0;
     req.lenderLocs = {ubse::adapter_plugins::mmi::UbseNumaLocation{}, ubse::adapter_plugins::mmi::UbseNumaLocation{},
                       ubse::adapter_plugins::mmi::UbseNumaLocation{}};
     MOCKER_CPP(&UbseMemCreateReqUnpack).reset();
     MOCKER_CPP(&UbseMemCreateReqUnpack).expects(once()).with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context),
-              UBSE_ERROR);
+    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context), UBSE_ERROR);
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowDispatchRpcFail)
@@ -147,10 +142,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowDispatchRpcFail)
 
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>)
-        .stubs()
-        .will(returnValue(nullModule))
-        .then(returnValue(module));
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
     EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(buffer, context), UBSE_ERROR_NULLPTR);
 
     const auto func1 = &UbseComModule::RpcSend<UbseMemFdBorrowReqSimpoPtr, UbseBaseMessagePtr>;
@@ -169,20 +161,17 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowWithLenderDispatch)
     req.lenderLocs = {ubse::adapter_plugins::mmi::UbseNumaLocation{}, ubse::adapter_plugins::mmi::UbseNumaLocation{}};
     req.lenderSizes = {0};
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR ==
-                UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
+    EXPECT_TRUE(UBSE_ERROR == UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
 
     req.lenderSizes = {0, 0};
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).reset();
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR ==
-                UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
+    EXPECT_TRUE(UBSE_ERROR == UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
 
     req.lenderSizes = {128ULL * 1024ULL * 1024ULL, 2 * 128ULL * 1024ULL * 1024ULL};
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).reset();
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR ==
-                UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
+    EXPECT_TRUE(UBSE_ERROR == UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(buffer, context));
 
     req.lenderSizes = {128ULL * 1024ULL * 1024ULL, 128ULL * 1024ULL * 1024ULL};
     MOCKER_CPP(&UbseMemCreateWithLenderReqUnpack).reset();
@@ -487,9 +476,7 @@ TEST_F(TestUbseMemControllerApi, LoadLocalAllObjs)
         .then(returnValue(module));
     EXPECT_EQ(LoadLocalAllObjs(info), UBSE_ERROR_NULLPTR);
 
-    MOCKER_CPP(&mmi::UbseMmiModule::UbseMemGetObjData).stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+    MOCKER_CPP(&mmi::UbseMmiModule::UbseMemGetObjData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(LoadLocalAllObjs(info), UBSE_ERROR);
     EXPECT_EQ(LoadLocalAllObjs(info), UBSE_OK);
 
@@ -1625,7 +1612,8 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaReturnRespHandler)
     auto ret = UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(resp);
     EXPECT_NE(ret, UBSE_OK);
     MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
-        .stubs().will(returnValue(std::make_shared<UbseApiServerModule>()));
+        .stubs()
+        .will(returnValue(std::make_shared<UbseApiServerModule>()));
     ret = UbseMemControllerDispatcher::UbseMemNumaReturnRespHandler(resp);
     EXPECT_NE(ret, UBSE_OK);
     MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
@@ -1730,8 +1718,7 @@ TEST_F(TestUbseMemControllerApi, LoadObjState)
     nodeMemDebtInfo.numaExportObjMap["test"] = numaExportObj;
     nodeMemDebtInfo.fdImportObjMap["test"] = fdImportObj;
     nodeMemDebtInfo.numaImportObjMap["test"] = numaImportObj;
-    MOCKER(&UbseMmiModule::UbseMemGetObjData)
-        .stubs().with(outBound(nodeMemDebtInfo)).will(returnValue(UBSE_OK));
+    MOCKER(&UbseMmiModule::UbseMemGetObjData).stubs().with(outBound(nodeMemDebtInfo)).will(returnValue(UBSE_OK));
     auto ret = LoadLocalAllObjs(node);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -1746,14 +1733,12 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdReturnDispatch)
     EXPECT_NE(ret, UBSE_OK);
     MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     UbseMemReturnReq req{};
-    MOCKER(UbseMemFdDeleteReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemFdDeleteReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemFdReturnDispatch(buffer, context);
     EXPECT_NE(ret, UBSE_OK);
     MOCKER(UbseMemFdDeleteReqUnpack).reset();
     req.name = "test";
-    MOCKER(UbseMemFdDeleteReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemFdDeleteReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemFdReturnDispatch(buffer, context);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
@@ -1777,15 +1762,13 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaCreateHandlerAsync)
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateHandler(buffer, context);
     EXPECT_NE(ret, UBSE_OK);
     UbseMemNumaBorrowReq req{};
-    MOCKER(UbseMemNumaCreateReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemNumaCreateReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateHandler(buffer, context);
     EXPECT_EQ(ret, UBSE_ERROR);
     MOCKER(UbseMemNumaCreateReqUnpack).reset();
     req.name = "test";
     req.size = 128 * 1024; // 128*1024为测试数据
-    MOCKER(UbseMemNumaCreateReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemNumaCreateReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateHandler(buffer, context);
     EXPECT_EQ(ret, UBSE_ERROR);
     UbseRoleInfo currentRole{};
@@ -1814,8 +1797,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaCreateWithLender)
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(buffer, context);
     EXPECT_NE(ret, UBSE_OK);
     UbseMemNumaBorrowReq req{};
-    MOCKER(UbseMemNumaCreateLenderReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemNumaCreateLenderReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(buffer, context);
     EXPECT_EQ(ret, UBSE_ERROR);
     req.name = "test";
@@ -1823,8 +1805,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaCreateWithLender)
     UbseRoleInfo currentRole{};
     currentRole.nodeId = "1";
     MOCKER(UbseMemNumaCreateLenderReqUnpack).reset();
-    MOCKER(UbseMemNumaCreateLenderReqUnpack).stubs()
-        .with(any(), outBound(req)).will(returnValue(UBSE_OK));
+    MOCKER(UbseMemNumaCreateLenderReqUnpack).stubs().with(any(), outBound(req)).will(returnValue(UBSE_OK));
     MOCKER(UbseGetCurrentNodeInfo).reset();
     MOCKER(UbseGetCurrentNodeInfo).stubs().with(outBound(currentRole)).will(returnValue(UBSE_OK));
     ret = UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(buffer, context);
@@ -1900,10 +1881,7 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoForNumaBorrow)
     cnaOutput.borrowSocketId = "0";
     cnaOutput.exportSocketId = "1";
     cnaOutput.portGroupId = "0";
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo)
-        .stubs()
-        .with(any(), outBound(cnaOutput))
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().with(any(), outBound(cnaOutput)).will(returnValue(UBSE_OK));
     EXPECT_EQ(GetCnaInfoForNumaBorrow(exportNodeId, importNodeId, importObj), UBSE_OK);
     UbseMemObmmInfo obmmInfo;
     importObj.exportObmmInfo.emplace_back(obmmInfo);
@@ -1938,7 +1916,7 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImport)
     MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_ERROR);
     MOCKER(UbseNodeMemGetTopologyCnaInfo).reset();
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_OK);
     // importObj.exportObmmInfo不为空，cnaInput信息无效
@@ -1951,11 +1929,8 @@ TEST_F(TestUbseMemControllerApi, GetCnaInfoWhenImport)
     cnaOutput.borrowSocketId = "0";
     cnaOutput.exportSocketId = "1";
     cnaOutput.portGroupId = "0";
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo).reset();
-    MOCKER(ubse::mem::controller::UbseNodeMemGetTopologyCnaInfo)
-        .stubs()
-        .with(any(), outBound(cnaOutput))
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).reset();
+    MOCKER(UbseNodeMemGetTopologyCnaInfo).stubs().with(any(), outBound(cnaOutput)).will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::GetEid).reset();
     MOCKER(&UbseNodeController::GetEid).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(GetCnaInfoWhenImport(exportNodeId, importNodeId, importObj, true), UBSE_OK);
@@ -1965,7 +1940,8 @@ TEST_F(TestUbseMemControllerApi, ClearNodeMap)
 {
     EXPECT_NO_THROW(ClearNodeMap());
     MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs().will(returnValue(std::make_shared<UbseElectionModule>()));
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     EXPECT_NO_THROW(ClearNodeMap());
     MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true)).then(returnValue(false));
     EXPECT_NO_THROW(ClearNodeMap());
@@ -1985,4 +1961,4 @@ TEST_F(TestUbseMemControllerApi, ClearNodeMap)
     MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_OK));
     EXPECT_NO_THROW(ClearNodeMap());
 }
-}  // namespace ubse::mem_controller::ut
+} // namespace ubse::mem_controller::ut

@@ -19,6 +19,7 @@
 #include "ubse_thread_pool_module.h"
 
 namespace ubse::ut::api::server {
+using namespace ubse::ipc;
 TestUbseApiServerModule::TestUbseApiServerModule() = default;
 void TestUbseApiServerModule::SetUp()
 {
@@ -41,8 +42,7 @@ TEST_F(TestUbseApiServerModule, InitializeSuccessfully)
 TEST_F(TestUbseApiServerModule, StartSuccessfully)
 {
     // 预注册一个处理程序
-    apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
+    apiServerModule.RegisterIpcHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; });
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
         std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
@@ -50,7 +50,7 @@ TEST_F(TestUbseApiServerModule, StartSuccessfully)
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
     // 注册一个已存在处理程序
     apiServerModule.RegisterIpcHandler(
-        1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_ERR_DAEMON_UNREACHABLE; });
+        1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_ERR_DAEMON_UNREACHABLE; });
     apiServerModule.Stop();
 }
 
@@ -58,8 +58,7 @@ TEST_F(TestUbseApiServerModule, StartSuccessfully)
 TEST_F(TestUbseApiServerModule, StartWithHandlerRegistrationFailed)
 {
     // 预注册一个处理程序
-    apiServerModule.RegisterIpcHandler(1, 1,
-                                       [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; });
+    apiServerModule.RegisterIpcHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; });
     // 启动服务器
     MOCKER(&UbseIpcServer::Start).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
@@ -127,7 +126,8 @@ TEST_F(TestUbseApiServerModule, AsyncSendLongLinkError)
 {
     UbseRequestMessage message{};
     std::vector<uint64_t> reqList;
-    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
+    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, clientInfo, nullptr, nullptr, reqList), UBSE_OK);
 
     // 模拟ipcServer->AsyncSendLongLink()返回失败
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
@@ -139,7 +139,7 @@ TEST_F(TestUbseApiServerModule, AsyncSendLongLinkError)
     MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
-    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
+    EXPECT_NE(apiServerModule.AsyncSendLongLink(message, clientInfo, nullptr, nullptr, reqList), UBSE_OK);
 }
 
 // 测试AsyncSendLongLink成功
@@ -147,6 +147,7 @@ TEST_F(TestUbseApiServerModule, AsyncSendLongLinkSuccess)
 {
     UbseRequestMessage message{};
     std::vector<uint64_t> reqList;
+    UbseClientInfo clientInfo{.uid = 0, .gid = 0, .pid = 0};
 
     // 模拟ipcServer->AsyncSendLongLink()返回成功
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
@@ -158,6 +159,6 @@ TEST_F(TestUbseApiServerModule, AsyncSendLongLinkSuccess)
     MOCKER(&UbseApiServerAuthManager::LoadAuthConfig).stubs().will(returnValue(UBSE_OK));
     MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(apiServerModule.Start(), UBSE_OK);
-    EXPECT_EQ(apiServerModule.AsyncSendLongLink(message, nullptr, nullptr, reqList), UBSE_OK);
+    EXPECT_EQ(apiServerModule.AsyncSendLongLink(message, clientInfo, nullptr, nullptr, reqList), UBSE_OK);
 }
 } // namespace ubse::ut::api::server

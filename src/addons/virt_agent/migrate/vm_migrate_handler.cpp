@@ -11,18 +11,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
 #include "vm_migrate_handler.h"
 
-#include <thread>
 #include <chrono>
+#include <thread>
 
 #include <ubse_logger.h>
 #include "resource_collect.h"
 #include "vm_http_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 std::atomic<bool> VmMigrateHandler::exitFlag(false);
 constexpr uint64_t MIGRATE_TIME_MAX_LIMIT = 10800;
@@ -44,7 +43,7 @@ VmResult vm::VmMigrateHandler::InitVmMigrateData()
     if (this->init) {
         return VM_OK;
     }
-    auto &vmResourceCollect = ResourceCollect::GetInstance();
+    auto& vmResourceCollect = ResourceCollect::GetInstance();
     VmResult ret = vmResourceCollect.LoadVmMigrateData();
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "[flush vm] init vm status cache failed, " << FormatRetCode(ret);
@@ -63,7 +62,7 @@ void vm::VmMigrateHandler::FlushExpireData()
             std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
             continue;
         }
-        auto &vmResourceCollect = ResourceCollect::GetInstance();
+        auto& vmResourceCollect = ResourceCollect::GetInstance();
         NumaVMInfoMap globalNumaVMInfoMap{};
         {
             std::lock_guard lockGuard(ResourceCollect::mAllLock);
@@ -71,7 +70,7 @@ void vm::VmMigrateHandler::FlushExpireData()
         }
         time_t currentTime = std::time(nullptr);
 
-        for (const auto &[nodeLoc, vmMap] : globalNumaVMInfoMap) {
+        for (const auto& [nodeLoc, vmMap] : globalNumaVMInfoMap) {
             FlushExpireVm(nodeLoc, vmMap, currentTime);
         }
         // Thread sleeps to control task frequency and prevent CPU overload
@@ -79,10 +78,10 @@ void vm::VmMigrateHandler::FlushExpireData()
     }
 }
 
-void VmMigrateHandler::FlushExpireVm(const VMNodeLocInfo &nodeLoc,
-                                     const std::unordered_map<std::string, VMBasicInfo> &vmMap, time_t currentTime)
+void VmMigrateHandler::FlushExpireVm(const VMNodeLocInfo& nodeLoc,
+                                     const std::unordered_map<std::string, VMBasicInfo>& vmMap, time_t currentTime)
 {
-    for (const auto &[uuid, vmInfo] : vmMap) {
+    for (const auto& [uuid, vmInfo] : vmMap) {
         if (vmInfo.VMBasicInfoToKeep::vmMigrateStatus != VmMigrateStatus::MIGRATING) {
             continue;
         }
@@ -106,7 +105,7 @@ void VmMigrateHandler::FlushExpireVm(const VMNodeLocInfo &nodeLoc,
             continue;
         }
         // update VM status
-        auto &vmResourceCollect = ResourceCollect::GetInstance();
+        auto& vmResourceCollect = ResourceCollect::GetInstance();
         ret = vmResourceCollect.UpdateVMStatus(vmInfo.numaMemInfo, vmInfo.VMBasicInfoCollected::uuid,
                                                static_cast<int>(vmInfo.VMBasicInfoCollected::pid),
                                                VmMigrateStatus::MIGRATEABLE);
@@ -118,4 +117,4 @@ void VmMigrateHandler::FlushExpireVm(const VMNodeLocInfo &nodeLoc,
         UBSE_LOG_INFO << "[flush vm] clear vm status successfully, pid = " << vmInfo.VMBasicInfoCollected::pid;
     }
 }
-}
+} // namespace vm

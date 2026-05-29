@@ -26,24 +26,24 @@ using namespace ubse::common::def;
 static bool g_isOpenAudit{false};
 constexpr int AUDIT_RESULT_SUCCESS = 1; // success
 static bool g_loaded{false};            // 标识 libaudit 是否已成功加载
-static void *g_auditLibHandle{nullptr}; // 动态加载的 libaudit 库的句柄
+static void* g_auditLibHandle{nullptr}; // 动态加载的 libaudit 库的句柄
 int g_auditfd = -1;
 
 template <typename T>
-inline int AuditDlsym(void *handle, T &ptr, std::string sym)
+inline int AuditDlsym(void* handle, T& ptr, std::string sym)
 {
     auto ptr1 = dlsym(handle, sym.c_str());
     if (ptr1 == nullptr) {
         return -1;
     }
-    ptr = reinterpret_cast<T>(ptr1);
+    ptr = reinterpret_cast<T>(ptr1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return 0;
 }
 
 // 定义 audit 函数指针类
 using FuncAuditOpen = int (*)();
 using FuncAuditClose = void (*)(int);
-using FuncAuditLogUserMsg = int (*)(int, int, const char *, const char *, const char *, const char *, int);
+using FuncAuditLogUserMsg = int (*)(int, int, const char*, const char*, const char*, const char*, int);
 
 // 静态成员变量保存 audit 库句柄和函数指针
 static FuncAuditOpen g_auditOpenFunc = nullptr;
@@ -60,14 +60,14 @@ void InitializeAuditFunctions()
     // 尝试加载 libaudit.so
     g_auditLibHandle = dlopen("libaudit.so", RTLD_LAZY);
     if (!g_auditLibHandle) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         std::cerr << "dlopen unable to load libaudit: " << error << std::endl;
         return; // 无法加载，跳过初始化
     }
 
     // 加载 audit_open 函数
     auto ret = AuditDlsym<FuncAuditOpen>(g_auditLibHandle, g_auditOpenFunc, "audit_open");
-    const char *error = dlerror();
+    const char* error = dlerror();
     if (ret != 0) {
         dlclose(g_auditLibHandle);
         g_auditLibHandle = nullptr;
@@ -122,7 +122,7 @@ OperateLoggerEntry::OperateLoggerEntry(std::string interface, RecordType type) :
 RuntimeLoggerEntry::RuntimeLoggerEntry(RecordType type) : type_(type) {}
 SecurityLoggerEntry::SecurityLoggerEntry(std::string interface, RecordType type) : interface_(interface), type_(type) {}
 AuditLoggerEntry::~AuditLoggerEntry() {}
-int AuditLoggerEntry::RecordToAudit(RecordType &recordType)
+int AuditLoggerEntry::RecordToAudit(RecordType& recordType)
 {
     if (recordType == RecordType::AUDIT_OPERATE) {
         return AuditType_["AUDIT_USER_CMD"];
@@ -138,7 +138,7 @@ int AuditLoggerEntry::RecordToAudit(RecordType &recordType)
     }
     return AuditType_["AUDIT_USER_CMD"];
 }
-std::string AuditLoggerEntry::RecordToString(RecordType &recordType)
+std::string AuditLoggerEntry::RecordToString(RecordType& recordType)
 {
     if (recordType == RecordType::AUDIT_OPERATE) {
         return "OperateLog";
@@ -154,7 +154,7 @@ std::string AuditLoggerEntry::RecordToString(RecordType &recordType)
     }
     return "OperateLog";
 }
-void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string &logMessage, int result)
+void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string& logMessage, int result)
 {
     // libaudit.so加载失败
     if (!g_loaded) {
@@ -170,7 +170,7 @@ void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string &logM
         }
     }
 }
-void OperateLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
+void OperateLoggerEntry::Sendlog(AuditLoggerEntry& auditLoggerEntry)
 {
     std::ostringstream oss;
     oss << "[" << interface_ << "]"
@@ -179,7 +179,7 @@ void OperateLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
     std::string logMessage = oss.str();
     SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
-void RuntimeLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
+void RuntimeLoggerEntry::Sendlog(AuditLoggerEntry& auditLoggerEntry)
 {
     std::ostringstream oss;
     oss << " [type: " << RecordToString(type_) << "]"
@@ -187,7 +187,7 @@ void RuntimeLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
     std::string logMessage = oss.str();
     SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
-void SecurityLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
+void SecurityLoggerEntry::Sendlog(AuditLoggerEntry& auditLoggerEntry)
 {
     std::ostringstream oss;
     oss << " [type: " << RecordToString(type_) << "]"
@@ -196,7 +196,7 @@ void SecurityLoggerEntry::Sendlog(AuditLoggerEntry &auditLoggerEntry)
     SendAuditMessage(type_, logMessage, AUDIT_RESULT_SUCCESS);
 }
 
-bool UbseAuditlog::operator==(AuditLoggerEntry &auditloggerEntry)
+bool UbseAuditlog::operator==(AuditLoggerEntry& auditloggerEntry)
 {
     auditloggerEntry.Sendlog(auditloggerEntry);
     return true;

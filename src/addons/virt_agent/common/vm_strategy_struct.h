@@ -14,12 +14,13 @@
 #ifndef VM_STRATEGY_STRUCT_H
 #define VM_STRATEGY_STRUCT_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace vm {
-enum VmMigrateStatus {
+enum VmMigrateStatus
+{
     MIGRATEABLE = 0,
     MIGRATING,
     MIGRATEUNABLE
@@ -33,7 +34,8 @@ enum VmMigrateStatus {
  * Memory Borrow Tip: Free remote memory > Expected borrowed memory for this session
  * Memory Borrow Tip: Borrowed memory has reached the memory borrowing limit of this node
  */
-enum class StrategyTip : int {
+enum class StrategyTip : int
+{
     NOPE = 0,
     RET_BORROW_LEGER_EMPTY,
     RET_BAN_RET_TOO_LARGE_MEM,
@@ -42,7 +44,7 @@ enum class StrategyTip : int {
 };
 
 struct StrategyTipInfo {
-    static std::string StrategyTipToString(const StrategyTip &strategyTip)
+    static std::string StrategyTipToString(const StrategyTip& strategyTip)
     {
         std::ostringstream oss;
         if (strategyTip == StrategyTip::NOPE) {
@@ -59,7 +61,7 @@ struct StrategyTipInfo {
         return oss.str();
     }
 
-    static std::string StrategyTips(const std::vector<StrategyTip> &strategyTips)
+    static std::string StrategyTips(const std::vector<StrategyTip>& strategyTips)
     {
         std::ostringstream oss;
         oss << "\"strategyTip\": [";
@@ -85,7 +87,7 @@ struct VMNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator < (const VMNodeLocInfo &a) const
+    bool operator<(const VMNodeLocInfo& a) const
     {
         if (hostId != a.hostId) {
             return hostId < a.hostId;
@@ -98,7 +100,7 @@ struct VMNodeLocInfo {
         }
     }
 
-    bool operator == (const VMNodeLocInfo &a) const
+    bool operator==(const VMNodeLocInfo& a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }
@@ -121,5 +123,5 @@ struct NumaInfoCollected {
     uint64_t numaVMMemAllocated{};      // from Collected
     std::vector<uint16_t> idleCpuIds{}; // from Collected
 };
-}
+} // namespace vm
 #endif // VM_STRATEGY_STRUCT_H

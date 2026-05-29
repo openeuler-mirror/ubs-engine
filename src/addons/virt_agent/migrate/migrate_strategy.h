@@ -22,14 +22,16 @@
 namespace vm {
 using namespace api::server;
 
-enum class MigrateStrategy : uint32_t {
+enum class MigrateStrategy : uint32_t
+{
     MULTICOPY_MIGRATE_POLICY = 0,
     ONECOPY_MIGRATE_POLICY = 1,
     HAM_MIGRATE_POLICY = 2,
     CROSS_RACK_MULTICOPY_MIGRATE_POLICY = 3,
 };
 
-enum class UbseVmResult : uint32_t {
+enum class UbseVmResult : uint32_t
+{
     // Basic values of VM error codes
     VM_ERROR_BASE = 2000,
     VM_DRIVER_NOT_FIND = VM_ERROR_BASE + 1,
@@ -77,20 +79,21 @@ const std::string UB_VM_MEMORY_BOUNDARY_KEY = "mig.migrateOneCopyMemoryBound";
 
 class VirtMigrateStrategy {
 public:
-   static VmResult Register();
+    static VmResult Register();
 
 private:
-    static uint32_t GetMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
-        const std::string &destHostName, uint32_t destNumaId, uint32_t *migrateStrategy);
+    static uint32_t GetMigrateStrategy(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string& uuid,
+                                                const std::string& destHostName, uint32_t destNumaId,
+                                                uint32_t* migrateStrategy);
     static uint32_t GetMigrateOneCopyMemoryBound();
-    static uint32_t MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
-                                           uint32_t destNumaId, uint32_t *migrateStrategy);
-    static uint32_t GetLocalMigrateInfo(MigrateInfoBase &migrateInfoLocal, const std::string &uuid);
-    static uint32_t GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoRemote, const std::string &destHostName,
-                                         uint32_t destNumaId, const std::string &dstNid);
-    static uint32_t GetMigrateInfo(MigrateInfoBase &migrateInfoLocal, MigrateInfoBase &migrateInfoRemote,
-                                   const std::string &uuid, const std::string &destHostName, uint32_t destNumaId);
+    static uint32_t MakeHamMigrateDecision(const std::string& uuid, const std::string& destHostName,
+                                           uint32_t destNumaId, uint32_t* migrateStrategy);
+    static uint32_t GetLocalMigrateInfo(MigrateInfoBase& migrateInfoLocal, const std::string& uuid);
+    static uint32_t GetRemoteMigrateInfo(MigrateInfoBase& migrateInfoRemote, const std::string& destHostName,
+                                         uint32_t destNumaId, const std::string& dstNid);
+    static uint32_t GetMigrateInfo(MigrateInfoBase& migrateInfoLocal, MigrateInfoBase& migrateInfoRemote,
+                                   const std::string& uuid, const std::string& destHostName, uint32_t destNumaId);
 };
 } // namespace vm
 

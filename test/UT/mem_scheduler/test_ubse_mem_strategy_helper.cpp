@@ -11,11 +11,11 @@
  */
 
 #include "test_ubse_mem_strategy_helper.h"
+#include "ubse_mem_strategy_helper.h"
+#include "ubse_mmi_interface.h"
 #include "borrow_decision_maker.h"
 #include "src/controllers/mem/algorithm/strategy/mem_pool_strategy_impl.h"
 #include "ubse_mem_strategy_helper.cpp"
-#include "ubse_mem_strategy_helper.h"
-#include "ubse_mmi_interface.h"
 
 namespace ubse::mem_scheduler::ut {
 using namespace ubse::mem::strategy;
@@ -52,8 +52,7 @@ TEST_F(TestUbseMemStrategy, TestNumaMemoryBorrowGetWaterBorrowParamFail)
     UbseMemAlgoResult algoResult;
     uint64_t checkMaskCode;
     MOCKER_CPP(&tc::rs::mem::MemPoolStrategyImpl::IsArgumentZero).stubs().will(invoke(MockVoid));
-    EXPECT_NE(UbseMemStrategyHelper::GetInstance().NumaMemoryBorrow(req, algoResult, checkMaskCode),
-              UBSE_OK);
+    EXPECT_NE(UbseMemStrategyHelper::GetInstance().NumaMemoryBorrow(req, algoResult, checkMaskCode), UBSE_OK);
     MOCKER_CPP(&tc::rs::mem::MemPoolStrategyImpl::IsArgumentZero).reset();
 }
 
@@ -64,8 +63,7 @@ TEST_F(TestUbseMemStrategy, TestNumaMemoryBorrowWhenGetSocketCnaInfoFailed)
     uint64_t checkMaskCode;
     MOCKER_CPP(&tc::rs::mem::MemPoolStrategyImpl::IsArgumentZero).stubs().will(invoke(MockVoid));
     MOCKER_CPP(GetNumaBorrowParam).stubs().will(returnValue(UBSE_OK));
-    EXPECT_NE(UbseMemStrategyHelper::GetInstance().NumaMemoryBorrow(req, algoResult, checkMaskCode),
-              UBSE_OK);
+    EXPECT_NE(UbseMemStrategyHelper::GetInstance().NumaMemoryBorrow(req, algoResult, checkMaskCode), UBSE_OK);
     MOCKER_CPP(&tc::rs::mem::MemPoolStrategyImpl::IsArgumentZero).reset();
     MOCKER_CPP(GetNumaBorrowParam).reset();
 }
@@ -112,7 +110,7 @@ TEST_F(TestUbseMemStrategy, TestFdMemoryBorrowMemoryBorrowFailed)
     MOCKER_CPP(GetFdBorrowParam).reset();
 }
 
-UbseResult MockGetFdBorrowParam(const UbseMemFdBorrowReq &req, tc::rs::mem::BorrowRequest &borrowRequest)
+UbseResult MockGetFdBorrowParam(const UbseMemFdBorrowReq& req, tc::rs::mem::BorrowRequest& borrowRequest)
 {
     borrowRequest.requestSize = 256;
     borrowRequest.requestLoc.hostId = 0;
@@ -121,8 +119,8 @@ UbseResult MockGetFdBorrowParam(const UbseMemFdBorrowReq &req, tc::rs::mem::Borr
     return UBSE_OK;
 }
 
-BResult MockSingleMemBorrow(BorrowDecisionMaker *, const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                            BorrowResult &borrowResult)
+BResult MockSingleMemBorrow(BorrowDecisionMaker*, const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                            BorrowResult& borrowResult)
 {
     borrowResult.lenderLength = 256;
     return UBSE_OK;
@@ -381,7 +379,7 @@ TEST_F(TestUbseMemStrategy, TestAddSocketCnaSize)
 }
 
 static UbseMemStrategyHelper instance;
-UbseMemStrategyHelper &MockGetInstance(UbseMemStrategyHelper *)
+UbseMemStrategyHelper& MockGetInstance(UbseMemStrategyHelper*)
 {
     return instance;
 }

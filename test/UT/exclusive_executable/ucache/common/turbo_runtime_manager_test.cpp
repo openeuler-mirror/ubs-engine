@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "turbo_runtime_manager.h"
 #include <dlfcn.h>
 #include <gtest/gtest.h>
 #include "mockcpp/mokc.h"
-#include "turbo_runtime_manager.h"
 #include "ucache_error.h"
 
 // mock
-void *dlopen(const char *d_file, int d_mode);
-int dlclose(void *d_handle);
-void *dlsym(void *__restrict d_handle, const char *__restrict d_name);
+void* dlopen(const char* d_file, int d_mode);
+int dlclose(void* d_handle);
+void* dlsym(void* __restrict d_handle, const char* __restrict d_name);
 
 using namespace ucache;
 
@@ -45,23 +45,23 @@ TEST_F(UcacheRuntimeManagerTest, InitTest)
     uint32_t ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 
-    MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void *>(HandleFuncMock)));
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(HandleFuncMock)));
+    MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
     ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_OK);
 
     GlobalMockObject::verify();
-    MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void *>(HandleFuncMock)));
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
 
 TEST_F(UcacheRuntimeManagerTest, DeinitTest)
 {
-    TurboRuntimeManager::osturboClientHandle = (void *)HandleFuncMock;
+    TurboRuntimeManager::osturboClientHandle = (void*)HandleFuncMock;
     MOCKER(dlclose).stubs().will(returnValue(-1));
     TurboRuntimeManager::Deinit();
 }
 
-}  // namespace turbo::ucache
+} // namespace turbo::ucache

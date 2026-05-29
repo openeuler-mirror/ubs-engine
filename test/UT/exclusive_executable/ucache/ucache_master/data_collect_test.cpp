@@ -15,9 +15,9 @@
 #include "mockcpp/mokc.h"
 
 #define private public
+#include "ubse_node.h"
 #include "data_collect.h"
 #include "deserialize.h"
-#include "ubse_node.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 
@@ -31,12 +31,12 @@ using namespace ucache::data_collect;
 constexpr double GB_TO_BYTE = 1024 * 1024 * 1024;
 
 namespace ucache::data_collect {
-uint32_t ParseRackNodeId(const std::string &originNodeId, std::string &nodeId);
-void SetCgroupInfoDefault(CgroupInfo &cgInfo);
-void PrintPhysicalTopo(const std::map<std::string, std::vector<std::string>> &physicalTopo);
-uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::MemNodeData> &memNodeDataVec,
-                                      std::map<std::string, std::map<int, int>> &tmpMap);
-void PrintNumaSocketMap(const std::map<std::string, std::map<int, int>> &numaSocketMap);
+uint32_t ParseRackNodeId(const std::string& originNodeId, std::string& nodeId);
+void SetCgroupInfoDefault(CgroupInfo& cgInfo);
+void PrintPhysicalTopo(const std::map<std::string, std::vector<std::string>>& physicalTopo);
+uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::MemNodeData>& memNodeDataVec,
+                                      std::map<std::string, std::map<int, int>>& tmpMap);
+void PrintNumaSocketMap(const std::map<std::string, std::map<int, int>>& numaSocketMap);
 } // namespace ucache::data_collect
 
 class DataCollectTest : public ::testing::Test {
@@ -182,7 +182,7 @@ TEST_F(DataCollectTest, GenerateBorrowStrategyRawData_Success)
     EXPECT_EQ(ret, UCACHE_OK);
     EXPECT_EQ(DataCollect::borrowStrategyRawData.size(), 1);
 
-    BorrowStrategyRawData &rawData = DataCollect::borrowStrategyRawData[0];
+    BorrowStrategyRawData& rawData = DataCollect::borrowStrategyRawData[0];
 
     EXPECT_EQ(rawData.nodeId, testNodeId);
     EXPECT_EQ(rawData.freeMemMin, 128);
@@ -251,7 +251,7 @@ TEST_F(DataCollectTest, GenerateBorrowStrategyRawData_MultipleNumaNodes)
     EXPECT_EQ(ret, UCACHE_OK);
     EXPECT_EQ(DataCollect::borrowStrategyRawData.size(), 1);
 
-    BorrowStrategyRawData &rawData = DataCollect::borrowStrategyRawData[0];
+    BorrowStrategyRawData& rawData = DataCollect::borrowStrategyRawData[0];
 
     ASSERT_EQ(rawData.remoteNumaMemInfo.size(), 2);
     EXPECT_EQ(rawData.remoteNumaMemInfo[1].total, 2048);
@@ -303,7 +303,7 @@ TEST_F(DataCollectTest, GenerateNodeMemoryInfoTest)
     EXPECT_EQ(ret, UCACHE_OK);
 
     // 确保统计正确
-    auto &nodeMemInfo = DataCollect::nodeMemInfos["node1"];
+    auto& nodeMemInfo = DataCollect::nodeMemInfos["node1"];
     EXPECT_EQ(nodeMemInfo.minFreeKbytes, 1024);
     EXPECT_EQ(nodeMemInfo.totalMemory, 8192);
     EXPECT_EQ(nodeMemInfo.freeMemory, 4096);
@@ -370,7 +370,7 @@ TEST_F(DataCollectTest, TestGenerateLendMap_InsertData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 1);
     EXPECT_EQ(nodeMemBorrowInfos[0].srcNodeId, "node2");
     EXPECT_EQ(nodeMemBorrowInfos[0].destNodeId, "node1");
@@ -399,7 +399,7 @@ TEST_F(DataCollectTest, TestGenerateBorrowMap_InsertData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 1);
     EXPECT_EQ(nodeMemBorrowInfos[0].srcNodeId, "node2");
     EXPECT_EQ(nodeMemBorrowInfos[0].destNodeId, "node1");
@@ -437,7 +437,7 @@ TEST_F(DataCollectTest, TestGenerateLendMap_UpdateData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 1);
     EXPECT_EQ(nodeMemBorrowInfos[0].totalSize, 1024 + 2048); // 应该合并 size
     EXPECT_EQ(nodeMemBorrowInfos[0].numaNodeBorrowSize[0]["mem1"], 512);
@@ -474,7 +474,7 @@ TEST_F(DataCollectTest, TestGenerateBorrowMap_UpdateData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 1);
     EXPECT_EQ(nodeMemBorrowInfos[0].totalSize, 1024 + 2048); // 应该合并 size
     EXPECT_EQ(nodeMemBorrowInfos[0].numaNodeBorrowSize[0]["mem1"], 512);
@@ -510,7 +510,7 @@ TEST_F(DataCollectTest, TestGenerateLendMap_AddNewData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 2); // 第二个条目应该被添加
     EXPECT_EQ(nodeMemBorrowInfos[1].srcNodeId, "node4");
     EXPECT_EQ(nodeMemBorrowInfos[1].destNodeId, "node3");
@@ -547,7 +547,7 @@ TEST_F(DataCollectTest, TestGenerateBorrowMap_AddNewData)
     EXPECT_EQ(memMap.size(), 1);
     EXPECT_TRUE(memMap.find(keyId) != memMap.end());
 
-    auto &nodeMemBorrowInfos = memMap[keyId];
+    auto& nodeMemBorrowInfos = memMap[keyId];
     EXPECT_EQ(nodeMemBorrowInfos.size(), 2); // 第二个条目应该被添加
     EXPECT_EQ(nodeMemBorrowInfos[1].srcNodeId, "node4");
     EXPECT_EQ(nodeMemBorrowInfos[1].destNodeId, "node3");
@@ -834,7 +834,7 @@ TEST_F(DataCollectTest, PrintCgroupInfo_SingleRackNodeSingleDocker)
                       "}\n");
 }
 
-void GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>> &cgroupInfo)
+void GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo)
 {
     std::map<std::string, std::map<std::string, CgroupInfo>> info = {
         {"rack1",
@@ -1048,7 +1048,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, BasicFunctionalityTest)
     numa2_2.numaId = "4";
     testNodeData2.socket.numas.push_back(numa2_2);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1, testNodeData2 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1, testNodeData2};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1084,7 +1084,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, InvalidSocketIdTest)
     numa1_1.numaId = "0";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1102,7 +1102,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, InvalidNumaIdTest)
     numa1_1.numaId = "invalid_numa";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1120,7 +1120,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, NegativeSocketIdTest)
     numa1_1.numaId = "0";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1139,7 +1139,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, NegativeNumaIdTest)
     numa1_1.numaId = "-1";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1158,7 +1158,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, LargeSocketIdTest)
     numa1_1.numaId = "0";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1177,7 +1177,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, ZeroSocketIdTest)
     numa1_1.numaId = "0";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1196,7 +1196,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, ZeroNumaIdTest)
     numa1_1.numaId = "0";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1223,7 +1223,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, DuplicateNodeIdTest)
     numa2_1.numaId = "1";
     testNodeData2.socket.numas.push_back(numa2_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1, testNodeData2 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1, testNodeData2};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1253,7 +1253,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, SingleNodeMultipleNumaTest)
     numa1_4.numaId = "3";
     testNodeData1.socket.numas.push_back(numa1_4);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1282,7 +1282,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, SameSocketDiffNumaTest)
     numa1_3.numaId = "2";
     testNodeData1.socket.numas.push_back(numa1_3);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1329,7 +1329,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, MultiNodeMultiNumaTest)
     numa3_1.numaId = "5";
     testNodeData3.socket.numas.push_back(numa3_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1, testNodeData2, testNodeData3 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1, testNodeData2, testNodeData3};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1354,7 +1354,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, EmptyNumaVectorTest)
     testNodeData1.isRegisterRm = false;
     testNodeData1.socket.numas.clear();
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1372,7 +1372,7 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, MaxValueTest)
     numa1_1.numaId = "2147483647";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
 
@@ -1391,11 +1391,11 @@ TEST_F(GeneratePerNodeNumaSocketMapTest, NonNumericStringTest)
     numa1_1.numaId = "def";
     testNodeData1.socket.numas.push_back(numa1_1);
 
-    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = { testNodeData1 };
+    std::vector<ubse::nodeController::MemNodeData> memNodeDataVec = {testNodeData1};
 
     // 调用被测试函数
     uint32_t result = GeneratePerNodeNumaSocketMap(memNodeDataVec, numaSocketMap);
-    
+
     // 验证结果
     EXPECT_EQ(result, INVALID_ARGUMENT);
     EXPECT_TRUE(numaSocketMap.empty());

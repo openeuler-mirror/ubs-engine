@@ -18,7 +18,7 @@
 #include "vm_string_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 ReadWriteLock VmConfiguration::waterConfigLock{};
 using namespace ubse::config;
 using namespace ubse::log;
@@ -26,7 +26,7 @@ using namespace ubse::election;
 
 std::atomic<bool> VmConfiguration::exitFlag(false);
 
-VmConfiguration &VmConfiguration::GetInstance()
+VmConfiguration& VmConfiguration::GetInstance()
 {
     static VmConfiguration gInstance;
     return gInstance;
@@ -53,17 +53,17 @@ VmResult VmConfiguration::LoadConfig()
     }
     nodeId = currentNode.nodeId;
 
-    GetConfigWithCheckRange(ubseGetUintFuncPtr, EXPORT_INTERVAL, "plugin_vm", "ubse.plugin.vm.export.interval",
+    GetConfigWithCheckRange(ubseGetUintFuncPtr, EXPORT_INTERVAL, PLUGIN_VM_NAME, "ubse.plugin.vm.export.interval",
                             exportInterval);
-    GetConfigWithCheckRange(ubseGetUintFuncPtr, HAM_MIGRATION_MAX_TIMEOUT, "plugin_vm", HAM_MIGRATION_MAX_TIMEOUT_KEY,
-                            hamMigrateMaxTimeout);
-    ret = UbseGetUInt("plugin_vm", "virt.sceneType", virtSceneType);
+    GetConfigWithCheckRange(ubseGetUintFuncPtr, HAM_MIGRATION_MAX_TIMEOUT, PLUGIN_VM_NAME,
+                            HAM_MIGRATION_MAX_TIMEOUT_KEY, hamMigrateMaxTimeout);
+    ret = UbseGetUInt(PLUGIN_VM_NAME, "virt.sceneType", virtSceneType);
     if (ret != VM_OK) {
         virtSceneType = DEFAULT_VIRT_SCENE_TYPE;
         UBSE_LOG_WARN << "The value of the key does not exist or is invalid, key=virt.sceneType, ret=" << ret
                       << ", use default_value=" << DEFAULT_VIRT_SCENE_TYPE;
     }
-    ret = UbseGetStr("plugin_vm", "escape.algorithm.dir", escapeAlgorithmDir);
+    ret = UbseGetStr(PLUGIN_VM_NAME, "escape.algorithm.dir", escapeAlgorithmDir);
     if (ret != VM_OK) {
         escapeAlgorithmDir = DEFAULT_ESCAPE_ALGORITHM_DIR;
         UBSE_LOG_WARN << "The value of the key does not exist or is invalid, key=escape.algorithm.dir, ret=" << ret
@@ -77,13 +77,13 @@ void VmConfiguration::LoadStrategyConfig()
 {
     InitMaxBorrow();
 
-    GetConfigWithCheckEnum(ubseGetULongFuncPtr, MAX_MEM_PERBORROW_MB, "plugin_vm", "borrow.maxMemPerBorrowSize",
+    GetConfigWithCheckEnum(ubseGetULongFuncPtr, MAX_MEM_PERBORROW_MB, PLUGIN_VM_NAME, "borrow.maxMemPerBorrowSize",
                            maxMemPerBorrowSize);
 
-    GetConfigWithCheckEnum(ubseGetULongFuncPtr, MIN_MEM_PERBORROW_MB, "plugin_vm", "borrow.minMemPerBorrowSize",
+    GetConfigWithCheckEnum(ubseGetULongFuncPtr, MIN_MEM_PERBORROW_MB, PLUGIN_VM_NAME, "borrow.minMemPerBorrowSize",
                            minMemPerBorrowSize);
 
-    GetConfigWithCheckRange(ubseGetULongFuncPtr, OOM_BORROW_MEM_SIZE, "plugin_vm", "borrow.oomBorrowMemSize",
+    GetConfigWithCheckRange(ubseGetULongFuncPtr, OOM_BORROW_MEM_SIZE, PLUGIN_VM_NAME, "borrow.oomBorrowMemSize",
                             oomBorrowMemSize);
 
     CheckConfigValidity();
@@ -155,7 +155,7 @@ uint64_t VmConfiguration::GetMaxPerTotalMemBorrowBytes() const
 
 void VmConfiguration::InitMaxBorrow()
 {
-    GetConfigWithCheckRange(ubseGetULongFuncPtr, MAX_PER_TOTAL_MEMBORROW_SIZE, "plugin_vm",
+    GetConfigWithCheckRange(ubseGetULongFuncPtr, MAX_PER_TOTAL_MEMBORROW_SIZE, PLUGIN_VM_NAME,
                             MAX_PER_TOTAL_MEMBORROW_SIZE_KEY, maxPerTotalMemBorrowSize);
 }
 
@@ -192,8 +192,8 @@ VmResult VmConfiguration::LoadWatermarkConf()
     return VerifyWaterConfig();
 }
 
-VmResult VmConfiguration::CheckWaterConfRange(const float_t &borrowWater, const float_t &migrateWater,
-                                              const float_t &returnWater)
+VmResult VmConfiguration::CheckWaterConfRange(const float_t& borrowWater, const float_t& migrateWater,
+                                              const float_t& returnWater)
 {
     // The range of the borrow water line is [70, 95]
     if (borrowWater < 70 || borrowWater > 95) {
@@ -231,7 +231,7 @@ VmResult VmConfiguration::VerifyWaterConfig()
         borrowWater = VmStringUtil::SafeStof(borrowWatermark);
         migrateWater = VmStringUtil::SafeStof(highWatermark);
         returnWater = VmStringUtil::SafeStof(lowWatermark);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         // In the default configuration, input parameters will be printed.
         return SetDefaultWaterConf();
     }

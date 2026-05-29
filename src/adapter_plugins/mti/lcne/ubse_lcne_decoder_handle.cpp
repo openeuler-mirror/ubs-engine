@@ -23,10 +23,11 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace rapidjson;
+using namespace ubse::http;
 const std::string KEY_QUERY = "huawei-vbussw-service:ub-memory-handle";
 const std::string DECODER_HANDLE_URL = "/restconf/operations/huawei-vbussw-service:ub-memory-handle";
 
-UbseResult BuildReqStr(const UbseMamiMemHandleQueryInfo &queryInfo, std::string &body)
+UbseResult BuildReqStr(const UbseMamiMemHandleQueryInfo& queryInfo, std::string& body)
 {
     election::UbseRoleInfo curNodeInfo{};
     if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
@@ -71,28 +72,28 @@ bool ConvertToUint64(const std::string& str, uint64_t& value)
     return false;
 }
 
-UbseResult ParseHandleValueArray(const Value &handleArray, std::vector<UbseMamiMemHandleValue> &handleValuse)
+UbseResult ParseHandleValueArray(const Value& handleArray, std::vector<UbseMamiMemHandleValue>& handleValuse)
 {
     for (SizeType i = 0; i < handleArray.Size(); i++) {
         UbseMamiMemHandleValue memHandleValue{};
-        const auto &handleValue = handleArray[i];
+        const auto& handleValue = handleArray[i];
         if (std::string handle{}; UbseJsonUtil::GetStrFromJsonPtr(handleValue, "handle", handle) != UBSE_OK ||
-            !ConvertToUint64(handle, memHandleValue.handle)) {
+                                  !ConvertToUint64(handle, memHandleValue.handle)) {
             UBSE_LOG_ERROR << "[MTI_MEM] Parse handle failed, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;
         }
 
         if (std::string hpa{}; UbseJsonUtil::GetStrFromJsonPtr(handleValue, "hpa", hpa) != UBSE_OK ||
-            !ConvertToUint64(hpa, memHandleValue.hpa)) {
+                               !ConvertToUint64(hpa, memHandleValue.hpa)) {
             UBSE_LOG_ERROR << "[MTI_MEM] Parse hpa failed, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;
         }
 
         if (std::string size{}; UbseJsonUtil::GetStrFromJsonPtr(handleValue, "size", size) != UBSE_OK ||
-            !ConvertToUint64(size, memHandleValue.size)) {
+                                !ConvertToUint64(size, memHandleValue.size)) {
             UBSE_LOG_ERROR << "[MTI_MEM] Parse size failed, " << FormatRetCode(UBSE_ERROR);
             return UBSE_ERROR;
-            }
+        }
 
         if (UbseJsonUtil::GetUint16FromJsonPtr(handleValue, "entry-start-index", memHandleValue.entryStartIdx) !=
             UBSE_OK) {
@@ -126,7 +127,7 @@ UbseResult ParseHandleValueArray(const Value &handleArray, std::vector<UbseMamiM
     return UBSE_OK;
 }
 
-UbseResult ParseRespBody(const std::string &responseStr, std::vector<UbseMamiMemHandleValue> &handleValuse)
+UbseResult ParseRespBody(const std::string& responseStr, std::vector<UbseMamiMemHandleValue>& handleValuse)
 {
     UBSE_LOG_INFO << "[MTI_MEM] Response is " << responseStr;
 
@@ -141,19 +142,19 @@ UbseResult ParseRespBody(const std::string &responseStr, std::vector<UbseMamiMem
         return UBSE_ERROR;
     }
 
-    const Value &root = doc["huawei-vbussw-service:ub-memory-handle"];
+    const Value& root = doc["huawei-vbussw-service:ub-memory-handle"];
     if (!root.IsObject() || !root.HasMember("huawei-vbussw-service:output")) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse output object failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
-    const Value &output = root["huawei-vbussw-service:output"];
+    const Value& output = root["huawei-vbussw-service:output"];
     if (!output.IsObject() || !output.HasMember("ub-memory-handles")) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse handles object failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
 
-    const Value &handles = output["ub-memory-handles"];
+    const Value& handles = output["ub-memory-handles"];
 
     if (handles.IsObject() && handles.MemberCount() == 0) {
         return UBSE_OK;
@@ -164,12 +165,12 @@ UbseResult ParseRespBody(const std::string &responseStr, std::vector<UbseMamiMem
         return UBSE_ERROR;
     }
 
-    const Value &handleArray = handles["ub-memory-handle"];
+    const Value& handleArray = handles["ub-memory-handle"];
     return ParseHandleValueArray(handleArray, handleValuse);
 }
 
-UbseResult UbseLcneDecoderHandle::GetAllMemHandles(const UbseMamiMemHandleQueryInfo &queryInfo,
-                                                   std::vector<UbseMamiMemHandleValue> &handleValues) const
+UbseResult UbseLcneDecoderHandle::GetAllMemHandles(const UbseMamiMemHandleQueryInfo& queryInfo,
+                                                   std::vector<UbseMamiMemHandleValue>& handleValues) const
 {
     // // 1. 构建请求体
     std::string reqJson{};
@@ -195,4 +196,4 @@ UbseResult UbseLcneDecoderHandle::GetAllMemHandles(const UbseMamiMemHandleQueryI
     }
     return UBSE_OK;
 }
-}
+} // namespace ubse::lcne

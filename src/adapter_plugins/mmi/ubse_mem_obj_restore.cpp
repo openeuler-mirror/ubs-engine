@@ -12,17 +12,18 @@
 
 #include "ubse_mem_obj_restore.h"
 
-#include "securec.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_instance_inner.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
+#include "securec.h"
 
 namespace ubse::mmi::restore {
 UBSE_DEFINE_THIS_MODULE("ubse");
-void ConstructSingleFdImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &fdImportLocalObmmMetaDatas,
-    UbseMemFdBorrowImportObj &ubseMemFdBorrowImportObj, bool &isNormal)
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
+void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
+                                UbseMemFdBorrowImportObj& ubseMemFdBorrowImportObj, bool& isNormal)
 {
     if (fdImportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -90,14 +91,13 @@ void ConstructSingleFdImportObj(
     isNormal = status.importResults.size() == obmmMetaData.customMeta.memidCount;
 }
 
-UbseResult ConstructFdImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &fdImportLocalObmmMetaDatas,
-    UbseMemFdImportObjMap &normalFdImportObjMap)
+UbseResult ConstructFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdImportLocalObmmMetaDatas,
+                                UbseMemFdImportObjMap& normalFdImportObjMap)
 {
     UbseMemFdImportObjMap abnormalFdImportObjMap{};
     UbseResult ret = UBSE_OK;
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> fdBorrowImportObjMap{};
-    for (auto &localObmmMetaDatasItem : fdImportLocalObmmMetaDatas) {
+    for (auto& localObmmMetaDatasItem : fdImportLocalObmmMetaDatas) {
         std::string name = localObmmMetaDatasItem.customMeta.name;
         if (fdBorrowImportObjMap.find(name) != fdBorrowImportObjMap.end()) {
             fdBorrowImportObjMap[name].push_back(localObmmMetaDatasItem);
@@ -105,7 +105,7 @@ UbseResult ConstructFdImportObj(
             fdBorrowImportObjMap[name] = {localObmmMetaDatasItem};
         }
     }
-    for (auto &fdBorrowImportItem : fdBorrowImportObjMap) {
+    for (auto& fdBorrowImportItem : fdBorrowImportObjMap) {
         UbseMemFdBorrowImportObj ubseMemFdBorrowImportObj{};
         bool isNormal = true;
         ConstructSingleFdImportObj(fdBorrowImportItem.second, ubseMemFdBorrowImportObj, isNormal);
@@ -115,17 +115,12 @@ UbseResult ConstructFdImportObj(
             abnormalFdImportObjMap.emplace(fdBorrowImportItem.first, ubseMemFdBorrowImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalFdImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalFdImportObjMap);
-        return ret;
-    }
+    normalFdImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalFdImportObjMap));
     return ret;
 }
 
-void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemFdBorrowExportObj &ubseMemFdBorrowExportObj, bool &isNormal)
+void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                UbseMemFdBorrowExportObj& ubseMemFdBorrowExportObj, bool& isNormal)
 {
     if (exportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -192,13 +187,13 @@ void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
     isNormal = status.exportObmmInfo.size() == obmmMetaData.customMeta.memidCount;
 }
 
-UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemFdExportObjMap &normalFdExportObjMap)
+UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                UbseMemFdExportObjMap& normalFdExportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemFdExportObjMap abnormalFdExportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
-    for (auto &localObmmMetaDatasItem : exportLocalObmmMetaDatas) {
+    for (auto& localObmmMetaDatasItem : exportLocalObmmMetaDatas) {
         std::string name = localObmmMetaDatasItem.customMeta.name;
         if (exportObjMap.find(name) != exportObjMap.end()) {
             exportObjMap[name].push_back(localObmmMetaDatasItem);
@@ -207,7 +202,7 @@ UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
         }
     }
     // 芯片表项碎片，导入一半的时候，进程挂掉了，从obmm获取数据前等3s,保证单次最大1G执行完成
-    for (auto &exportItem : exportObjMap) {
+    for (auto& exportItem : exportObjMap) {
         UbseMemFdBorrowExportObj ubseMemFdBorrowExportObj{};
         bool isNormal = true;
         ConstructSingleFdExportObj(exportItem.second, ubseMemFdBorrowExportObj, isNormal);
@@ -217,18 +212,12 @@ UbseResult ConstructFdExportObj(const std::vector<UbseMemLocalObmmMetaData> &exp
             abnormalFdExportObjMap.emplace(exportItem.first, ubseMemFdBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalFdExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalFdExportObjMap);
-        return ret;
-    }
+    normalFdExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalFdExportObjMap));
     return ret;
 }
 
-void ConstructSingleNumaImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-    UbseMemNumaBorrowImportObj &ubseMemNumaBorrowImportObj, bool &isNormal)
+void ConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemNumaBorrowImportObj& ubseMemNumaBorrowImportObj, bool& isNormal)
 {
     if (importLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -236,12 +225,13 @@ void ConstructSingleNumaImportObj(
     }
     UbseMemLocalObmmMetaData obmmMetaData = importLocalObmmMetaDatas[0];
     UbseMemNumaBorrowReq req{};
-    auto &meta = obmmMetaData.customMeta;
+    auto& meta = obmmMetaData.customMeta;
     std::string lendNode = std::string(meta.exportNodeId);
     BuildSingleNumaImportReq(meta, req, lendNode);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name
-                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -252,8 +242,8 @@ void ConstructSingleNumaImportObj(
         if (meta.numaSizes[i] != NO_0) {
             algoResult.exportNumaInfos.push_back(
                 {lendNode, meta.exportSocket, meta.exportNumaIds[i], meta.numaSizes[i]});
-            algoResult.importNumaInfos.push_back(
-                {req.importNodeId, meta.importSocket, meta.importNumaIds[i], meta.numaSizes[i]});
+            algoResult.importNumaInfos.push_back({req.importNodeId, meta.importSocket, meta.importNumaIds[i],
+                                                  meta.numaSizes[i], meta.portId, meta.chipId});
         }
     }
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
@@ -275,8 +265,7 @@ void ConstructSingleNumaImportObj(
     ubseMemNumaBorrowImportObj.exportObmmInfo = exportObmmInfo;
     isNormal = status.importResults.size() == meta.memidCount;
 }
-void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNumaBorrowReq &req,
-    std::string &lendNode)
+void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta& meta, UbseMemNumaBorrowReq& req, std::string& lendNode)
 {
     req.name = std::string(meta.name);
     req.requestNodeId = std::string(meta.requestNodeId); // 需要额外加
@@ -293,8 +282,9 @@ void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNum
             bool isOverflow = false;
             resourceMemSize = RmCommonUtils::GetInstance().SafeAdd(resourceMemSize, meta.numaSizes[i], isOverflow);
             if (isOverflow) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Overflow occurred during addition. resourceMemSize=" <<
-                        resourceMemSize << ", numaSize=" << meta.numaSizes[i];
+                UBSE_LOG_ERROR << MMI_LOG_INFO
+                               << "Overflow occurred during addition. resourceMemSize=" << resourceMemSize
+                               << ", numaSize=" << meta.numaSizes[i];
                 return;
             }
         }
@@ -307,15 +297,15 @@ void BuildSingleNumaImportReq(const UbseMemLocalObmmCustomMeta &meta, UbseMemNum
     }
 }
 
-UbseResult ConstructNumaImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas, UbseMemNumaImportObjMap &normalImportObjMap)
+UbseResult ConstructNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemNumaImportObjMap& normalImportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemNumaImportObjMap abnormalImportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> importObjMap{};
     GetBorrowObjMap(importLocalObmmMetaDatas, importObjMap);
     // 芯片表项碎片，导入一半的时候，进程挂掉了，从obmm获取数据前等3s,保证单次最大1G执行完成
-    for (auto &importObjItem : importObjMap) {
+    for (auto& importObjItem : importObjMap) {
         UbseMemNumaBorrowImportObj ubseMemImportObj{};
         bool isNormal = true;
         ConstructSingleNumaImportObj(importObjItem.second, ubseMemImportObj, isNormal);
@@ -325,23 +315,18 @@ UbseResult ConstructNumaImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, ubseMemImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
-UbseResult ConstructNumaExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas, UbseMemNumaExportObjMap &normalExportObjMap)
+UbseResult ConstructNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemNumaExportObjMap& normalExportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemNumaExportObjMap abnormalExportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
     GetBorrowObjMap(exportLocalObmmMetaDatas, exportObjMap);
-    for (auto &exportItem : exportObjMap) {
+    for (auto& exportItem : exportObjMap) {
         UbseMemNumaBorrowExportObj ubseMemNumaBorrowExportObj{};
         bool isNormal = true;
         ConstructSingleNumaExportObj(exportItem.second, ubseMemNumaBorrowExportObj, isNormal);
@@ -351,19 +336,14 @@ UbseResult ConstructNumaExportObj(
             abnormalExportObjMap.emplace(exportItem.first, ubseMemNumaBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
-static bool AfterConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-                                              UbseMemNumaBorrowExportObj &mxeMemNumaBorrowExportObj,
-                                              const UbseMemLocalObmmMetaData &obmmMetaData,
-                                              const UbseMemNumaBorrowReq &req, const UbseMemAlgoResult &algoResult)
+static bool AfterConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                              UbseMemNumaBorrowExportObj& mxeMemNumaBorrowExportObj,
+                                              const UbseMemLocalObmmMetaData& obmmMetaData,
+                                              const UbseMemNumaBorrowReq& req, const UbseMemAlgoResult& algoResult)
 {
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     for (size_t i = 0; i < exportLocalObmmMetaDatas.size(); i++) {
@@ -381,9 +361,8 @@ static bool AfterConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmm
     return status.exportObmmInfo.size() == obmmMetaData.customMeta.memidCount;
 }
 
-void ConstructSingleNumaExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemNumaBorrowExportObj &ubseMemNumaBorrowExportObj, bool &isNormal)
+void ConstructSingleNumaExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemNumaBorrowExportObj& ubseMemNumaBorrowExportObj, bool& isNormal)
 {
     if (exportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -394,8 +373,9 @@ void ConstructSingleNumaExportObj(
     UbseMemNumaBorrowReq req{};
     BuildSingleNumaExportReq(obmmMetaData, lendNode, req);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -415,8 +395,7 @@ void ConstructSingleNumaExportObj(
     isNormal = AfterConstructSingleNumaExportObj(exportLocalObmmMetaDatas, ubseMemNumaBorrowExportObj, obmmMetaData,
                                                  req, algoResult);
 }
-void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData &obmmMetaData,
-    std::string &lendNode, UbseMemNumaBorrowReq &req)
+void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData& obmmMetaData, std::string& lendNode, UbseMemNumaBorrowReq& req)
 {
     req.name = std::string(obmmMetaData.customMeta.name);
     size_t pos = req.name.find_last_of('_');
@@ -454,14 +433,14 @@ void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData &obmmMetaData,
     }
 }
 
-UbseResult ConstructShareImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas, UbseMemShareImportObjMap &normalImportObjMap)
+UbseResult ConstructShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                   UbseMemShareImportObjMap& normalImportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemShareImportObjMap abnormalImportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> importObjMap{};
     GetBorrowObjMap(importLocalObmmMetaDatas, importObjMap);
-    for (auto &importObjItem : importObjMap) {
+    for (auto& importObjItem : importObjMap) {
         UbseMemShareBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleShareImportObj(importObjItem.second, mxeMemImportObj, isNormal);
@@ -471,19 +450,14 @@ UbseResult ConstructShareImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
         }
     }
-    ret = ProcessAbnormalImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
-static bool AfterConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-                                               UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj,
-                                               const UbseMemLocalObmmMetaData &obmmMetaData,
-                                               const UbseMemShareBorrowReq &req, const UbseMemAlgoResult &algoResult)
+static bool AfterConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                               UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj,
+                                               const UbseMemLocalObmmMetaData& obmmMetaData,
+                                               const UbseMemShareBorrowReq& req, const UbseMemAlgoResult& algoResult)
 {
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
@@ -508,9 +482,9 @@ static bool AfterConstructSingleShareImportObj(const std::vector<UbseMemLocalObm
 }
 
 static bool AfterConstructSingleShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, const UbseMemLocalObmmMetaData &obmmMetaData,
-    const UbseMemShareBorrowReq &req, const UbseMemAlgoResult &algoResult)
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+    UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, const UbseMemLocalObmmMetaData& obmmMetaData,
+    const UbseMemShareBorrowReq& req, const UbseMemAlgoResult& algoResult)
 {
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
     std::vector<UbseMemImportResult> importResults{};
@@ -533,9 +507,8 @@ static bool AfterConstructSingleShareImportObjFromExportMetaData(
     return status.importResults.size() == obmmMetaData.customMeta.memidCount;
 }
 
-void ConstructSingleShareImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-    UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, bool &isNormal)
+void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                   UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal)
 {
     if (importLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -556,8 +529,7 @@ void ConstructSingleShareImportObj(
     UbseShmRegionDesc shmRegions{0};
     for (uint32_t i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "region mask is " << obmmMetaData.customMeta.regionMask << ", index="
-                          << i;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "region mask is " << obmmMetaData.customMeta.regionMask << ", index=" << i;
             shmRegions.nodeNum++;
             shmRegions.nodelist.push_back({i});
         }
@@ -584,8 +556,9 @@ void ConstructSingleShareImportObj(
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "req size is " << resourceMemSize;
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -606,13 +579,12 @@ void ConstructSingleShareImportObj(
 }
 
 UbseResult ConstructShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas, UbseMemShareImportObjMap &importObjMap)
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas, UbseMemShareImportObjMap& importObjMap)
 {
     UbseResult ret = UBSE_OK;
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
     GetBorrowObjMap(exportLocalObmmMetaDatas, exportObjMap);
-    for (auto &exportObjItem : exportObjMap) {
-        //
+    for (auto& exportObjItem : exportObjMap) {
         UbseMemShareBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleShareImportObjFromExportMetaData(exportObjItem.second, mxeMemImportObj, isNormal);
@@ -624,8 +596,8 @@ UbseResult ConstructShareImportObjFromExportMetaData(
 }
 
 void ConstructSingleShareImportObjFromExportMetaData(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemShareBorrowImportObj &mxeMemShareBorrowImportObj, bool &isNormal)
+    const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+    UbseMemShareBorrowImportObj& mxeMemShareBorrowImportObj, bool& isNormal)
 {
     if (exportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -642,8 +614,9 @@ void ConstructSingleShareImportObjFromExportMetaData(
     AssignReqValue(obmmMetaData, req, numaCount);
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -665,15 +638,14 @@ void ConstructSingleShareImportObjFromExportMetaData(
         exportLocalObmmMetaDatas, mxeMemShareBorrowImportObj, obmmMetaData, req, algoResult);
 }
 
-UbseResult ConstructShareExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemShareExportObjMap &normalExportObjMap)
+UbseResult ConstructShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                   UbseMemShareExportObjMap& normalExportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemShareExportObjMap abnormalExportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
     GetBorrowObjMap(exportLocalObmmMetaDatas, exportObjMap);
-    for (auto &exportItem : exportObjMap) {
+    for (auto& exportItem : exportObjMap) {
         UbseMemShareBorrowExportObj mxeMemNumaBorrowExportObj{};
         bool isNormal = true;
         ConstructSingleShareExportObj(exportItem.second, mxeMemNumaBorrowExportObj, isNormal);
@@ -683,16 +655,11 @@ UbseResult ConstructShareExportObj(
             abnormalExportObjMap.emplace(exportItem.first, mxeMemNumaBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info = "
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
-void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq &req, int &numaCount)
+void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq& req, int& numaCount)
 {
     req.name = std::string(obmmMetaData.customMeta.name);
     req.requestNodeId = std::string(obmmMetaData.customMeta.requestNodeId); // 需要额外加
@@ -706,8 +673,7 @@ void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq
     shmRegions.nodeNum = 0;
     for (int i = 0; i < MAX_NODE_NUM; i++) {
         if (IsBitSet(obmmMetaData.customMeta.regionMask, i)) {
-            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask is " << obmmMetaData.customMeta.regionMask << ", index="
-                          << i;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "Region mask is " << obmmMetaData.customMeta.regionMask << ", index=" << i;
             shmRegions.nodeNum++;
             UbseNodeInfo mxeNodeInfo{};
             mxeNodeInfo.index = i;
@@ -723,9 +689,8 @@ void AssignReqValue(UbseMemLocalObmmMetaData obmmMetaData, UbseMemShareBorrowReq
     req.size = obmmMetaData.customMeta.requestSize;
     req.shmRegion = shmRegions;
 }
-void ConstructSingleShareExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemShareBorrowExportObj &mxeMemShareBorrowExportObj, bool &isNormal)
+void ConstructSingleShareExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                   UbseMemShareBorrowExportObj& mxeMemShareBorrowExportObj, bool& isNormal)
 {
     if (exportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -738,8 +703,9 @@ void ConstructSingleShareExportObj(
     AssignReqValue(obmmMetaData, req, numaCount);
 
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name
-                       << ", usrInfo=" << reinterpret_cast<char *>(obmmMetaData.customMeta.usrInfo);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name is " << req.name << ", usrInfo="
+                       << reinterpret_cast<char*>(
+                              obmmMetaData.customMeta.usrInfo); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         isNormal = false;
         return;
     }
@@ -769,16 +735,15 @@ void ConstructSingleShareExportObj(
     isNormal = status.exportObmmInfo.size() == obmmMetaData.customMeta.memidCount;
 }
 
-UbseResult ConstructAddrImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-    UbseMemAddrImportObjMap &normalImportObjMap)
+UbseResult ConstructAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemAddrImportObjMap& normalImportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemAddrImportObjMap abnormalImportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> importObjMap{};
     GetBorrowObjMap(importLocalObmmMetaDatas, importObjMap);
     // 芯片表项碎片，导入一半的时候，进程挂掉了，从obmm获取数据前等3s,保证单次最大1G执行完成
-    for (auto &importObjItem : importObjMap) {
+    for (auto& importObjItem : importObjMap) {
         UbseMemAddrBorrowImportObj mxeMemImportObj{};
         bool isNormal = true;
         ConstructSingleAddrImportObj(importObjItem.second, mxeMemImportObj, isNormal);
@@ -788,16 +753,11 @@ UbseResult ConstructAddrImportObj(
             abnormalImportObjMap.emplace(importObjItem.first, mxeMemImportObj);
         }
     }
-    ret = ProcessAbnormalAddrImportObjMap(abnormalImportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalImportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromImportObjMap(abnormalImportObjMap);
-        return ret;
-    }
+    normalImportObjMap.merge(ProcessAbnormalAddrImportObjMap(abnormalImportObjMap));
     return ret;
 }
 
-void SetAddrReqInfo(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaData obmmMetaData)
+void SetAddrReqInfo(UbseMemAddrBorrowReq& req, const UbseMemLocalObmmMetaData obmmMetaData)
 {
     req.name = std::string(obmmMetaData.customMeta.name);
     req.requestNodeId = std::string(obmmMetaData.customMeta.requestNodeId); // 需要额外加
@@ -813,9 +773,8 @@ void SetAddrReqInfo(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaData ob
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
 }
 
-void ConstructSingleAddrImportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &importLocalObmmMetaDatas,
-    UbseMemAddrBorrowImportObj &mxeMemAddrBorrowImportObj, bool &isNormal)
+void ConstructSingleAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
+                                  UbseMemAddrBorrowImportObj& mxeMemAddrBorrowImportObj, bool& isNormal)
 {
     if (importLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -840,7 +799,7 @@ void ConstructSingleAddrImportObj(
     std::vector<UbseMemImportResult> importResults{};
     UbseMemImportStatus status{};
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
-    for (const auto &item : importLocalObmmMetaDatas) {
+    for (const auto& item : importLocalObmmMetaDatas) {
         addrList.push_back({item.customMeta.virAddr, item.totalSize});
         exportObmmInfo.push_back({item.customMeta.exportMemid, item.obmmMemExportInfo});
         importResults.push_back({item.localMemId, item.remoteNumaId});
@@ -857,16 +816,15 @@ void ConstructSingleAddrImportObj(
     isNormal = (addrList.size() == obmmMetaData.customMeta.memidCount);
 }
 
-UbseResult ConstructAddrExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemAddrExportObjMap &normalExportObjMap)
+UbseResult ConstructAddrExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemAddrExportObjMap& normalExportObjMap)
 {
     UbseResult ret = UBSE_OK;
     UbseMemAddrExportObjMap abnormalExportObjMap{};
     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> exportObjMap{};
     GetBorrowObjMap(exportLocalObmmMetaDatas, exportObjMap);
     // 芯片表项碎片，导入一半的时候，进程挂掉了，从obmm获取数据前等3s,保证单次最大1G执行完成
-    for (auto &exportItem : exportObjMap) {
+    for (auto& exportItem : exportObjMap) {
         UbseMemAddrBorrowExportObj mxeMemAddrBorrowExportObj{};
         bool isNormal = true;
         ConstructSingleAddrExportObj(exportItem.second, mxeMemAddrBorrowExportObj, isNormal);
@@ -876,16 +834,11 @@ UbseResult ConstructAddrExportObj(
             abnormalExportObjMap.emplace(exportItem.first, mxeMemAddrBorrowExportObj);
         }
     }
-    ret = ProcessAbnormalExportObjMap(abnormalExportObjMap);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "ProcessAbnormalExportObjMap failed, name and memId info="
-                       << GetNameAndMemIdFromExportObjMap(abnormalExportObjMap);
-        return ret;
-    }
+    normalExportObjMap.merge(ProcessAbnormalExportObjMap(abnormalExportObjMap));
     return ret;
 }
 
-void SetAddrReqByMetaData(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaData &obmmMetaData)
+void SetAddrReqByMetaData(UbseMemAddrBorrowReq& req, const UbseMemLocalObmmMetaData& obmmMetaData)
 {
     req.name = std::string(obmmMetaData.customMeta.name);
     size_t pos = req.name.find_last_of('_');
@@ -905,9 +858,8 @@ void SetAddrReqByMetaData(UbseMemAddrBorrowReq &req, const UbseMemLocalObmmMetaD
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
 }
 
-void ConstructSingleAddrExportObj(
-    const std::vector<UbseMemLocalObmmMetaData> &exportLocalObmmMetaDatas,
-    UbseMemAddrBorrowExportObj &mxeMemAddrBorrowExportObj, bool &isNormal)
+void ConstructSingleAddrExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
+                                  UbseMemAddrBorrowExportObj& mxeMemAddrBorrowExportObj, bool& isNormal)
 {
     if (exportLocalObmmMetaDatas.empty()) {
         isNormal = false;
@@ -925,7 +877,7 @@ void ConstructSingleAddrExportObj(
     std::vector<UbseMemDebtNumaInfo> exportNumaInfos{};
     UbseMemExportStatus status{};
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
-    for (const auto &item : exportLocalObmmMetaDatas) {
+    for (const auto& item : exportLocalObmmMetaDatas) {
         addrList.push_back({item.customMeta.virAddr, item.totalSize});
         exportObmmInfo.push_back({item.localMemId, item.obmmMemExportInfo});
     }
@@ -952,11 +904,10 @@ void ConstructSingleAddrExportObj(
     isNormal = (addrList.size() == obmmMetaData.customMeta.memidCount);
 }
 
-void GetBorrowObjMap(
-    const std::vector<UbseMemLocalObmmMetaData> &localObmmMetaDatas,
-    std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>> &borrowObjMap)
+void GetBorrowObjMap(const std::vector<UbseMemLocalObmmMetaData>& localObmmMetaDatas,
+                     std::unordered_map<std::string, std::vector<UbseMemLocalObmmMetaData>>& borrowObjMap)
 {
-    for (auto &localObmmMetaDatasItem : localObmmMetaDatas) {
+    for (auto& localObmmMetaDatasItem : localObmmMetaDatas) {
         std::string name = localObmmMetaDatasItem.customMeta.name;
         if (borrowObjMap.find(name) != borrowObjMap.end()) {
             borrowObjMap[name].push_back(localObmmMetaDatasItem);
@@ -966,8 +917,8 @@ void GetBorrowObjMap(
     }
 }
 
-static void ClassifyLocalObmmMetaData(LocalObmmMetaData &localObmmMetaData,
-                                      const std::vector<UbseMemLocalObmmMetaData> &ubseMemLocalObmmMetaDatas)
+static void ClassifyLocalObmmMetaData(LocalObmmMetaData& localObmmMetaData,
+                                      const std::vector<UbseMemLocalObmmMetaData>& ubseMemLocalObmmMetaDatas)
 {
     for (size_t i = 0; i < ubseMemLocalObmmMetaDatas.size(); i++) {
         if (ubseMemLocalObmmMetaDatas[i].memIdType == static_cast<uint8_t>(UbseObmmType::IMPORT) &&
@@ -1006,8 +957,7 @@ static void ClassifyLocalObmmMetaData(LocalObmmMetaData &localObmmMetaData,
     }
 }
 
-UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData> &allObmmDatas,
-    LocalObmmMetaData &localObmmMetaData)
+UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData>& allObmmDatas, LocalObmmMetaData& localObmmMetaData)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "GetLocalObmmMeta start.";
     allObmmDatas.clear();
@@ -1023,25 +973,37 @@ UbseResult GetLocalObmmMeta(std::vector<UbseMemLocalObmmMetaData> &allObmmDatas,
     return UBSE_OK;
 }
 
-UbseResult ProcessAbnormalAddrImportObjMap(const UbseMemAddrImportObjMap &importObjMap)
+UbseMemAddrImportObjMap ProcessAbnormalAddrImportObjMap(UbseMemAddrImportObjMap& importObjMap)
 {
+    UbseMemAddrImportObjMap faultObjMap{};
     if (importObjMap.empty()) {
-        UBSE_LOG_WARN << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
-        return UBSE_OK;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "ImportObjMap is empty, not need process";
+        return faultObjMap;
     }
-    UbseResult ret = UBSE_OK;
-    for (auto &item : importObjMap) {
-        auto importResults = item.second.status.importResults;
-        for (int i = 0; i < importResults.size(); i++) {
-            ret = RmObmmExecutor::GetInstance().ObmmUnImport(importResults[i].memId);
+    for (auto& item : importObjMap) {
+        auto& importObj = item.second;
+        auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
+        auto& importResults = importObj.status.importResults;
+        bool hasFault = false;
+        for (size_t i = 0; i < importResults.size(); i++) {
+            auto ret = RmObmmExecutor::GetInstance().ObmmUnImport(importResults[i].memId, timeoutMs);
             if (UBSE_RESULT_FAIL(ret)) {
-                UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid=" << importResults[i].memId;
-                return ret;
+                UBSE_LOG_ERROR << MMI_LOG_INFO
+                               << "Obmm unimport failed, mark as faulty, memid=" << importResults[i].memId
+                               << ", errCode=" << ret;
+                importObj.errorCode = ret;
+                importObj.status.errCode = ret;
+                hasFault = true;
+                break;
             }
             UBSE_LOG_DEBUG << MMI_LOG_INFO << "Obmm unImport memid success, memid=" << importResults[i].memId;
             MemInstanceInnerAddrBorrow::GetInstance().DeleteAddrRemoteNuma(importResults[i].numaId);
         }
+        if (hasFault) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Move faulty obj to fault map, name=" << item.first;
+            faultObjMap.emplace(item.first, importObj);
+        }
     }
-    return ret;
+    return faultObjMap;
 }
 } // namespace ubse::mmi::restore

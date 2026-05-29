@@ -11,8 +11,23 @@
 #include "ubse_error.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemAddrImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemFdImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemNumaImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareExportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemShareImportObjMap;
+using ubse::adapter_plugins::mmi::UbseMemState;
 
 std::string TransState(UbseMemState state);
 
@@ -26,51 +41,51 @@ std::string TransState(UbseMemState state);
 */
 void FilterRunningFdExport(std::vector<UbseMemFdBorrowExportObj> masterExportObjs,
                            std::vector<UbseMemFdBorrowExportObj> agentExportObjs,
-                           std::vector<UbseMemFdBorrowExportObj> &masterRunningExportObjs,
-                           std::vector<UbseMemFdBorrowExportObj> &masterFilterRunningExportObjs,
-                           std::vector<UbseMemFdBorrowExportObj> &agentFilterRunningExportObjs);
+                           std::vector<UbseMemFdBorrowExportObj>& masterRunningExportObjs,
+                           std::vector<UbseMemFdBorrowExportObj>& masterFilterRunningExportObjs,
+                           std::vector<UbseMemFdBorrowExportObj>& agentFilterRunningExportObjs);
 
 void FilterRunningFdImport(std::vector<UbseMemFdBorrowImportObj> masterImportObjs,
                            std::vector<UbseMemFdBorrowImportObj> agentImportObjs,
-                           std::vector<UbseMemFdBorrowImportObj> &masterRunningImportObjs,
-                           std::vector<UbseMemFdBorrowImportObj> &masterFilterRunningImportObjs,
-                           std::vector<UbseMemFdBorrowImportObj> &agentFilterRunningImportObjs);
+                           std::vector<UbseMemFdBorrowImportObj>& masterRunningImportObjs,
+                           std::vector<UbseMemFdBorrowImportObj>& masterFilterRunningImportObjs,
+                           std::vector<UbseMemFdBorrowImportObj>& agentFilterRunningImportObjs);
 
 void FilterRunningNumaExport(std::vector<UbseMemNumaBorrowExportObj> masterExportObjs,
                              std::vector<UbseMemNumaBorrowExportObj> agentExportObjs,
-                             std::vector<UbseMemNumaBorrowExportObj> &masterRunningExportObjs,
-                             std::vector<UbseMemNumaBorrowExportObj> &masterFilterRunningExportObjs,
-                             std::vector<UbseMemNumaBorrowExportObj> &agentFilterRunningExportObjs);
+                             std::vector<UbseMemNumaBorrowExportObj>& masterRunningExportObjs,
+                             std::vector<UbseMemNumaBorrowExportObj>& masterFilterRunningExportObjs,
+                             std::vector<UbseMemNumaBorrowExportObj>& agentFilterRunningExportObjs);
 
 void FilterRunningNumaImport(std::vector<UbseMemNumaBorrowImportObj> masterImportObjs,
                              std::vector<UbseMemNumaBorrowImportObj> agentImportObjs,
-                             std::vector<UbseMemNumaBorrowImportObj> &masterRunningImportObjs,
-                             std::vector<UbseMemNumaBorrowImportObj> &masterFilterRunningImportObjs,
-                             std::vector<UbseMemNumaBorrowImportObj> &agentFilterRunningImportObjs);
+                             std::vector<UbseMemNumaBorrowImportObj>& masterRunningImportObjs,
+                             std::vector<UbseMemNumaBorrowImportObj>& masterFilterRunningImportObjs,
+                             std::vector<UbseMemNumaBorrowImportObj>& agentFilterRunningImportObjs);
 
 void FilterRunningAddrExport(std::vector<UbseMemAddrBorrowExportObj> masterExportObjs,
                              std::vector<UbseMemAddrBorrowExportObj> agentExportObjs,
-                             std::vector<UbseMemAddrBorrowExportObj> &masterRunningExportObjs,
-                             std::vector<UbseMemAddrBorrowExportObj> &masterFilterRunningExportObjs,
-                             std::vector<UbseMemAddrBorrowExportObj> &agentFilterRunningExportObjs);
+                             std::vector<UbseMemAddrBorrowExportObj>& masterRunningExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj>& masterFilterRunningExportObjs,
+                             std::vector<UbseMemAddrBorrowExportObj>& agentFilterRunningExportObjs);
 
 void FilterRunningAddrImport(std::vector<UbseMemAddrBorrowImportObj> masterImportObjs,
                              std::vector<UbseMemAddrBorrowImportObj> agentImportObjs,
-                             std::vector<UbseMemAddrBorrowImportObj> &masterRunningImportObjs,
-                             std::vector<UbseMemAddrBorrowImportObj> &masterFilterRunningImportObjs,
-                             std::vector<UbseMemAddrBorrowImportObj> &agentFilterRunningImportObjs);
+                             std::vector<UbseMemAddrBorrowImportObj>& masterRunningImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj>& masterFilterRunningImportObjs,
+                             std::vector<UbseMemAddrBorrowImportObj>& agentFilterRunningImportObjs);
 
 void FilterRunningShareExport(std::vector<UbseMemShareBorrowExportObj> masterExportObjs,
                               std::vector<UbseMemShareBorrowExportObj> agentExportObjs,
-                              std::vector<UbseMemShareBorrowExportObj> &masterRunningExportObjs,
-                              std::vector<UbseMemShareBorrowExportObj> &masterFilterRunningExportObjs,
-                              std::vector<UbseMemShareBorrowExportObj> &agentFilterRunningExportObjs);
+                              std::vector<UbseMemShareBorrowExportObj>& masterRunningExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj>& masterFilterRunningExportObjs,
+                              std::vector<UbseMemShareBorrowExportObj>& agentFilterRunningExportObjs);
 
 void FilterRunningShareImport(std::vector<UbseMemShareBorrowImportObj> masterImportObjs,
                               std::vector<UbseMemShareBorrowImportObj> agentImportObjs,
-                              std::vector<UbseMemShareBorrowImportObj> &masterRunningImportObjs,
-                              std::vector<UbseMemShareBorrowImportObj> &masterFilterRunningImportObjs,
-                              std::vector<UbseMemShareBorrowImportObj> &agentFilterRunningImportObjs);
+                              std::vector<UbseMemShareBorrowImportObj>& masterRunningImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj>& masterFilterRunningImportObjs,
+                              std::vector<UbseMemShareBorrowImportObj>& agentFilterRunningImportObjs);
 
 std::vector<UbseMemFdBorrowExportObj> FilterBothExistsFdExport(std::vector<UbseMemFdBorrowExportObj> masterExportObjs,
                                                                std::vector<UbseMemFdBorrowExportObj> agentExportObjs);
@@ -83,43 +98,43 @@ std::vector<UbseMemAddrBorrowExportObj> FilterBothExistsAddrExport(
 
 void FilterFdDifferentExportSet(std::vector<UbseMemFdBorrowExportObj> masterExportObjs,
                                 std::vector<UbseMemFdBorrowExportObj> agentExportObjs,
-                                std::vector<UbseMemFdBorrowExportObj> &masterDiffExportObjs,
-                                std::vector<UbseMemFdBorrowExportObj> &agentDiffExportObjs);
+                                std::vector<UbseMemFdBorrowExportObj>& masterDiffExportObjs,
+                                std::vector<UbseMemFdBorrowExportObj>& agentDiffExportObjs);
 
 void FilterFdDifferentImportSet(std::vector<UbseMemFdBorrowImportObj> masterImportObjs,
                                 std::vector<UbseMemFdBorrowImportObj> agentImportObjs,
-                                std::vector<UbseMemFdBorrowImportObj> &masterDiffImportObjs,
-                                std::vector<UbseMemFdBorrowImportObj> &agentDiffImportObjs);
+                                std::vector<UbseMemFdBorrowImportObj>& masterDiffImportObjs,
+                                std::vector<UbseMemFdBorrowImportObj>& agentDiffImportObjs);
 
 void FilterNumaDifferentExportSet(std::vector<UbseMemNumaBorrowExportObj> masterExportObjs,
                                   std::vector<UbseMemNumaBorrowExportObj> agentExportObjs,
-                                  std::vector<UbseMemNumaBorrowExportObj> &masterDiffExportObjs,
-                                  std::vector<UbseMemNumaBorrowExportObj> &agentDiffExportObjs);
+                                  std::vector<UbseMemNumaBorrowExportObj>& masterDiffExportObjs,
+                                  std::vector<UbseMemNumaBorrowExportObj>& agentDiffExportObjs);
 
 void FilterNumaDifferentImportSet(std::vector<UbseMemNumaBorrowImportObj> masterImportObjs,
                                   std::vector<UbseMemNumaBorrowImportObj> agentImportObjs,
-                                  std::vector<UbseMemNumaBorrowImportObj> &masterDiffImportObjs,
-                                  std::vector<UbseMemNumaBorrowImportObj> &agentDiffImportObjs);
+                                  std::vector<UbseMemNumaBorrowImportObj>& masterDiffImportObjs,
+                                  std::vector<UbseMemNumaBorrowImportObj>& agentDiffImportObjs);
 
 void FilterShareDifferentExportSet(std::vector<UbseMemShareBorrowExportObj> masterExportObjs,
                                    std::vector<UbseMemShareBorrowExportObj> agentExportObjs,
-                                   std::vector<UbseMemShareBorrowExportObj> &masterDiffExportObjs,
-                                   std::vector<UbseMemShareBorrowExportObj> &agentDiffExportObjs);
+                                   std::vector<UbseMemShareBorrowExportObj>& masterDiffExportObjs,
+                                   std::vector<UbseMemShareBorrowExportObj>& agentDiffExportObjs);
 
 void FilterShareDifferentImportSet(std::vector<UbseMemShareBorrowImportObj> masterImportObjs,
                                    std::vector<UbseMemShareBorrowImportObj> agentImportObjs,
-                                   std::vector<UbseMemShareBorrowImportObj> &masterDiffImportObjs,
-                                   std::vector<UbseMemShareBorrowImportObj> &agentDiffImportObjs);
+                                   std::vector<UbseMemShareBorrowImportObj>& masterDiffImportObjs,
+                                   std::vector<UbseMemShareBorrowImportObj>& agentDiffImportObjs);
 
 void FilterAddrDifferentExportSet(std::vector<UbseMemAddrBorrowExportObj> masterExportObjs,
                                   std::vector<UbseMemAddrBorrowExportObj> agentExportObjs,
-                                  std::vector<UbseMemAddrBorrowExportObj> &masterDiffExportObjs,
-                                  std::vector<UbseMemAddrBorrowExportObj> &agentDiffExportObjs);
+                                  std::vector<UbseMemAddrBorrowExportObj>& masterDiffExportObjs,
+                                  std::vector<UbseMemAddrBorrowExportObj>& agentDiffExportObjs);
 
 void FilterAddrDifferentImportSet(std::vector<UbseMemAddrBorrowImportObj> masterImportObjs,
                                   std::vector<UbseMemAddrBorrowImportObj> agentImportObjs,
-                                  std::vector<UbseMemAddrBorrowImportObj> &masterDiffImportObjs,
-                                  std::vector<UbseMemAddrBorrowImportObj> &agentDiffImportObjs);
+                                  std::vector<UbseMemAddrBorrowImportObj>& masterDiffImportObjs,
+                                  std::vector<UbseMemAddrBorrowImportObj>& agentDiffImportObjs);
 
 std::vector<UbseMemFdBorrowExportObj> TransFdExportList(UbseMemFdExportObjMap exportObjMap);
 

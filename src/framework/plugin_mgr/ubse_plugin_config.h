@@ -19,7 +19,7 @@
 #include "ubse_common_def.h"
 
 namespace ubse::plugin {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 struct UbsePluginInfo {
     /* *
@@ -31,7 +31,7 @@ struct UbsePluginInfo {
      */
     std::string pkg;
 
-    bool operator == (const UbsePluginInfo &other) const
+    bool operator==(const UbsePluginInfo& other) const
     {
         return name == other.name && pkg == other.pkg;
     }
@@ -42,10 +42,10 @@ public:
     UbseResult LoadPluginConfigs();
     ;
     // 增删改查方法
-    const std::map<std::string, UbsePluginInfo> &GetAllPluginConfigs() const;
+    const std::map<std::string, UbsePluginInfo>& GetAllPluginConfigs() const;
 
 private:
-    UbseResult VerifyConfig(const UbsePluginInfo &pluginInfo, const std::string &fileName);
+    UbseResult VerifyConfig(const UbsePluginInfo& pluginInfo, const std::string& fileName);
     mutable std::shared_mutex pluginConfigsMutex_;
     std::map<std::string, UbsePluginInfo> pluginConfigs_; // 存储所有插件的配置信息
 };

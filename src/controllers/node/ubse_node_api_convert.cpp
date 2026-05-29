@@ -14,11 +14,12 @@
 
 #include <netinet/in.h>
 
-#include "ubs_engine_mem.h"
-#include "ubse_ipc_common.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
+#include "ubs_engine_mem.h"
 
 namespace ubse::node::api {
+using namespace ubse::utils;
 const uint32_t BITS_PER_HALF_UINT64 = 32;
 // 自定义64位网络字节序转换
 uint64_t HtonllCustom(uint64_t host_value)
@@ -35,7 +36,7 @@ uint64_t NtohllCustom(uint64_t net_value)
     return ((static_cast<uint64_t>(low) << BITS_PER_HALF_UINT64) | high);
 }
 
-size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
+size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
@@ -43,7 +44,7 @@ size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
     return len;
 }
 
-size_t UbseNodeCalcSize(const UbseNode &node)
+size_t UbseNodeCalcSize(const UbseNode& node)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
@@ -54,17 +55,17 @@ size_t UbseNodeCalcSize(const UbseNode &node)
     return len;
 }
 
-size_t UbseNodeListCalcSize(const std::vector<UbseNode> &nodeList)
+size_t UbseNodeListCalcSize(const std::vector<UbseNode>& nodeList)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         len += UbseNodeCalcSize(node);
     }
     return len;
 }
 
-size_t UbseCpuLinkListCalcSize(const std::vector<UbseCpuLink> &cpuLinkList)
+size_t UbseCpuLinkListCalcSize(const std::vector<UbseCpuLink>& cpuLinkList)
 {
     size_t cpuLinkSize = sizeof(uint32_t) * 6;
     size_t len = 0;
@@ -73,7 +74,7 @@ size_t UbseCpuLinkListCalcSize(const std::vector<UbseCpuLink> &cpuLinkList)
     return len;
 }
 
-uint32_t UbseStringUnpack(const ipc::UbseIpcMessage &buffer, std::string &str, uint32_t maxLen)
+uint32_t UbseStringUnpack(const ipc::UbseIpcMessage& buffer, std::string& str, uint32_t maxLen)
 {
     UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
     if (!unpackUtil.UnpackString(str, maxLen)) {
@@ -82,7 +83,7 @@ uint32_t UbseStringUnpack(const ipc::UbseIpcMessage &buffer, std::string &str, u
     return UBSE_OK;
 }
 
-uint32_t UbseSlotIdUnpack(const ipc::UbseIpcMessage &buffer, uint32_t &slotId)
+uint32_t UbseSlotIdUnpack(const ipc::UbseIpcMessage& buffer, uint32_t& slotId)
 {
     UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
     if (!unpackUtil.UnpackUint32(slotId)) {
@@ -91,7 +92,7 @@ uint32_t UbseSlotIdUnpack(const ipc::UbseIpcMessage &buffer, uint32_t &slotId)
     return UBSE_OK;
 }
 
-uint32_t UbseBaseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil)
+uint32_t UbseBaseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil)
 {
     // 打包slotId
     packUtil.UbsePackUint32(node.slotId);
@@ -100,8 +101,8 @@ uint32_t UbseBaseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil)
         packUtil.UbsePackUint32(socketId);
     }
     // 打包numaIds
-    for (auto &socket : node.numaIds) {
-        for (auto &numaId : socket) {
+    for (auto& socket : node.numaIds) {
+        for (auto& numaId : socket) {
             packUtil.UbsePackUint32(numaId);
         }
     }
@@ -112,25 +113,28 @@ uint32_t UbseBaseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil)
     return UBSE_OK;
 }
 
-uint32_t UbseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil)
+uint32_t UbseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil)
 {
     auto ret = UbseBaseNodePackInner(node, packUtil);
     if (ret != UBSE_OK) {
         return ret;
     }
     // 打包ips
-    for (const ubs_topo_ip_address_t &ipAddr : node.ips) {
+    for (const ubs_topo_ip_address_t& ipAddr : node.ips) {
         packUtil.UbsePackInt32(ipAddr.af);
         struct in_addr ipv4 = ipAddr.ipv4;
-        packUtil.UbsePackUint32(*reinterpret_cast<uint32_t *>(&ipv4));
+        packUtil.UbsePackUint32(
+            *reinterpret_cast<uint32_t*>(&ipv4)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         struct in6_addr ipv6 = ipAddr.ipv6;
-        packUtil.UbsePackUint64(*(reinterpret_cast<uint64_t *>(&ipv6)));
-        packUtil.UbsePackUint64(*(reinterpret_cast<uint64_t *>(&ipv6) + 1));
+        packUtil.UbsePackUint64(
+            *(reinterpret_cast<uint64_t*>(&ipv6))); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        packUtil.UbsePackUint64(
+            *(reinterpret_cast<uint64_t*>(&ipv6) + 1)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
     return UBSE_OK;
 }
 
-uint32_t UbseNodePack(const UbseNode &node, ipc::UbseIpcMessage &buffer)
+uint32_t UbseNodePack(const UbseNode& node, ipc::UbseIpcMessage& buffer)
 {
     // 申请内存
     auto size = UbseNodeCalcSize(node);
@@ -150,7 +154,7 @@ uint32_t UbseNodePack(const UbseNode &node, ipc::UbseIpcMessage &buffer)
     return ret;
 }
 
-static uint32_t UbseCpuLinkPackInner(const UbseCpuLink &ubseCpuLink, UbsePackUtil &packUtil)
+static uint32_t UbseCpuLinkPackInner(const UbseCpuLink& ubseCpuLink, UbsePackUtil& packUtil)
 {
     auto ret = true;
     // 打包slotId
@@ -168,7 +172,7 @@ static uint32_t UbseCpuLinkPackInner(const UbseCpuLink &ubseCpuLink, UbsePackUti
     return ret ? UBSE_OK : UBSE_ERROR_SERIALIZE_FAILED;
 }
 
-uint32_t UbseNodeListPack(const std::vector<UbseNode> &nodeList, ipc::UbseIpcMessage &buffer)
+uint32_t UbseNodeListPack(const std::vector<UbseNode>& nodeList, ipc::UbseIpcMessage& buffer)
 {
     // 申请内存
     auto size = UbseNodeListCalcSize(nodeList);
@@ -181,7 +185,7 @@ uint32_t UbseNodeListPack(const std::vector<UbseNode> &nodeList, ipc::UbseIpcMes
     // 打包count
     packUtil.UbsePackUint32(nodeList.size());
     // 打包nodeList
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         auto ret = UbseNodePackInner(node, packUtil);
         if (ret != UBSE_OK) {
             delete[] buffer.buffer;
@@ -193,7 +197,7 @@ uint32_t UbseNodeListPack(const std::vector<UbseNode> &nodeList, ipc::UbseIpcMes
     return UBSE_OK;
 }
 
-uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink> &cpuLinkList, ipc::UbseIpcMessage &buffer)
+uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink>& cpuLinkList, ipc::UbseIpcMessage& buffer)
 {
     size_t totalSize = UbseCpuLinkListCalcSize(cpuLinkList);
     buffer.buffer = new (std::nothrow) uint8_t[totalSize];
@@ -206,7 +210,7 @@ uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink> &cpuLinkList, ipc::U
     // 打包count
     packUtil.UbsePackUint32(cpuLinkList.size());
     // 打包cpuLinkList
-    for (const auto &cpuLink : cpuLinkList) {
+    for (const auto& cpuLink : cpuLinkList) {
         auto ret = UbseCpuLinkPackInner(cpuLink, packUtil);
         if (ret != UBSE_OK) {
             delete[] buffer.buffer;
@@ -219,12 +223,12 @@ uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink> &cpuLinkList, ipc::U
     return UBSE_OK;
 }
 
-static uint32_t UbseNumaInfoPack(const UbseNumaNodeInfo &numaInfo, UbsePackUtil &packUtil)
+static uint32_t UbseNumaInfoPack(const UbseNumaNodeInfo& numaInfo, UbsePackUtil& packUtil)
 {
     try {
         uint32_t slotId = std::stoul(numaInfo.nodeId);
         packUtil.UbsePackUint32(slotId);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
     packUtil.UbsePackUint32(numaInfo.socketId);
@@ -242,7 +246,7 @@ static uint32_t UbseNumaInfoPack(const UbseNumaNodeInfo &numaInfo, UbsePackUtil 
     return UBSE_OK;
 }
 
-uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo> &numaInfoList, ipc::UbseIpcMessage &buffer)
+uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo>& numaInfoList, ipc::UbseIpcMessage& buffer)
 {
     size_t numaInfoSize = sizeof(uint32_t) * 9 + sizeof(uint64_t) * 4;
     size_t totalSize = sizeof(uint32_t) + numaInfoSize * numaInfoList.size();
@@ -256,7 +260,7 @@ uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo> &numaInfoList,
     // 打包count
     packUtil.UbsePackUint32(numaInfoList.size());
     // 打包cpuLinkList
-    for (const auto &numaInfo : numaInfoList) {
+    for (const auto& numaInfo : numaInfoList) {
         auto ret = UbseNumaInfoPack(numaInfo, packUtil);
         if (ret != UBSE_OK) {
             delete[] buffer.buffer;

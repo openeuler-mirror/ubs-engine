@@ -17,12 +17,12 @@
 #include "vm_mem_adapter.h"
 
 namespace vm::overcommit {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 void ContainerService::Run() {}
 
-VmResult ContainerService::MemBorrow(const NodeLocInfo &nodeLocInfo, const std::vector<uint64_t> &borrowSizes,
-                                     const WaterMark &waterMark, const UserInfo &userInfo,
-                                     MemBorrowExecuteResult &borrowResult)
+VmResult ContainerService::MemBorrow(const NodeLocInfo& nodeLocInfo, const std::vector<uint64_t>& borrowSizes,
+                                     const WaterMark& waterMark, const UserInfo& userInfo,
+                                     MemBorrowExecuteResult& borrowResult)
 {
     BuildBorrowTask(nodeLocInfo, borrowSizes, waterMark, userInfo);
     if (!RunPreflight(MemOpType::BORROW)) {
@@ -33,9 +33,9 @@ VmResult ContainerService::MemBorrow(const NodeLocInfo &nodeLocInfo, const std::
     return RunMemBorrow(borrowResult);
 }
 
-VmResult ContainerService::MemMigrate(const NodeLocInfo &nodeLocInfo,
-                                      const std::unordered_set<std::string> &borrowIdSet,
-                                      const std::vector<VMPresetParam> &vmPresetParamList)
+VmResult ContainerService::MemMigrate(const NodeLocInfo& nodeLocInfo,
+                                      const std::unordered_set<std::string>& borrowIdSet,
+                                      const std::vector<VMPresetParam>& vmPresetParamList)
 {
     std::unordered_map<std::string, uint16_t> borrowRemoteMaps;
     auto ret = VmMemAdapter::GetMemoryRemoteNumaIds(borrowIdSet, borrowRemoteMaps);
@@ -44,7 +44,7 @@ VmResult ContainerService::MemMigrate(const NodeLocInfo &nodeLocInfo,
     }
     std::vector<std::string> borrowIds;
     std::vector<uint16_t> presentNumaIds;
-    for (const auto &borrow : borrowRemoteMaps) {
+    for (const auto& borrow : borrowRemoteMaps) {
         borrowIds.push_back(borrow.first);
         presentNumaIds.push_back(borrow.second);
     }
@@ -58,8 +58,8 @@ VmResult ContainerService::MemMigrate(const NodeLocInfo &nodeLocInfo,
     return OutMemMigrate();
 }
 
-VmResult ContainerService::MemReturn(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                                     const std::vector<pid_t> &pids)
+VmResult ContainerService::MemReturn(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                                     const std::vector<pid_t>& pids)
 {
     BuildReturnTask(nodeLocInfo, borrowIds, pids);
     if (!RunPreflight(MemOpType::RETURN)) {
@@ -70,8 +70,8 @@ VmResult ContainerService::MemReturn(const NodeLocInfo &nodeLocInfo, const std::
     return OutMemReturn();
 }
 
-void ContainerService::BuildBorrowTask(const NodeLocInfo &nodeLocInfo, const std::vector<uint64_t> &borrowSizes,
-                                       const WaterMark &waterMark, const UserInfo &userInfo)
+void ContainerService::BuildBorrowTask(const NodeLocInfo& nodeLocInfo, const std::vector<uint64_t>& borrowSizes,
+                                       const WaterMark& waterMark, const UserInfo& userInfo)
 {
     this->memOpStruct.type = MemOpType::BORROW;
     this->memOpStruct.nodeLoc = nodeLocInfo;
@@ -80,9 +80,9 @@ void ContainerService::BuildBorrowTask(const NodeLocInfo &nodeLocInfo, const std
     this->memOpStruct.memOpMetadata.userInfo = userInfo;
 }
 
-void ContainerService::BuildMigrateTask(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                                        const std::vector<uint16_t> &presentNumaIds,
-                                        const std::vector<VMPresetParam> &vmPresetParam)
+void ContainerService::BuildMigrateTask(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                                        const std::vector<uint16_t>& presentNumaIds,
+                                        const std::vector<VMPresetParam>& vmPresetParam)
 {
     this->memOpStruct.type = MemOpType::MIGRATE;
     this->memOpStruct.nodeLoc = nodeLocInfo;
@@ -91,8 +91,8 @@ void ContainerService::BuildMigrateTask(const NodeLocInfo &nodeLocInfo, const st
     this->memOpStruct.memOpMetadata.vmPresetParam = vmPresetParam;
 }
 
-void ContainerService::BuildReturnTask(const NodeLocInfo &nodeLocInfo, const std::vector<std::string> &borrowIds,
-                                       const std::vector<pid_t> &pids)
+void ContainerService::BuildReturnTask(const NodeLocInfo& nodeLocInfo, const std::vector<std::string>& borrowIds,
+                                       const std::vector<pid_t>& pids)
 {
     this->memOpStruct.type = MemOpType::RETURN;
     this->memOpStruct.nodeLoc = nodeLocInfo;

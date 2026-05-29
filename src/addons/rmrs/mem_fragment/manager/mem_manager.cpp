@@ -22,12 +22,19 @@
 #include <string>
 #include <thread>
 
+#include <rapidjson/document.h>
 #include <atomic>
 #include <condition_variable>
 #include <iostream>
 #include <mutex>
 #include <vector>
-#include <rapidjson/document.h>
+#include "ubse_def.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_mem_controller.h"
+#include "ubse_node.h"
+#include "ubse_pointer_process.h"
+#include "ubse_storage.h"
 #include "mempooling_return_module.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
@@ -36,15 +43,8 @@
 #include "mp_parse_util.h"
 #include "mp_sync_data_helper.h"
 #include "over_commit_msg_handler.h"
-#include "ubse_pointer_process.h"
 #include "rmrs_serialize.h"
 #include "securec.h"
-#include "ubse_def.h"
-#include "ubse_logger.h"
-#include "ubse_mem_controller.h"
-#include "ubse_node.h"
-#include "ubse_storage.h"
-#include "ubse_error.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -88,13 +88,13 @@ MpResult BorrowRecordHelper::Init()
         return ret;
     }
     LOG_DEBUG << "MemManager init success. gBorrowRecords size: " << gBorrowRecords.size();
-    for (const auto &record : gBorrowRecords) {
+    for (const auto& record : gBorrowRecords) {
         LOG_DEBUG << "" << record.ToString();
     }
     return MEM_POOLING_OK;
 }
 
-MpResult MemManager::GetNodeMemInfo(const std::string &nodeId, NodeMemInfo &outInfo) const
+MpResult MemManager::GetNodeMemInfo(const std::string& nodeId, NodeMemInfo& outInfo) const
 {
     std::lock_guard<std::mutex> lock(mtx);
     MpResult ret = MemManager::Instance().InitBorrowableInfo();
@@ -112,7 +112,7 @@ MpResult MemManager::GetNodeMemInfo(const std::string &nodeId, NodeMemInfo &outI
     return MEM_POOLING_OK;
 }
 
-MpResult MemManager::GetNodeMemMap(std::unordered_map<std::string, NodeMemInfo> &outMap) const
+MpResult MemManager::GetNodeMemMap(std::unordered_map<std::string, NodeMemInfo>& outMap) const
 {
     std::lock_guard<std::mutex> lock(mtx);
     auto start = std::chrono::steady_clock::now();
@@ -132,7 +132,7 @@ MpResult MemManager::GetNodeMemMap(std::unordered_map<std::string, NodeMemInfo> 
     return MEM_POOLING_OK;
 }
 
-MpResult AntiNode::BuildSyncAntiNode(const UbseByteBuffer &buffer, UbseByteBuffer &syncData)
+MpResult AntiNode::BuildSyncAntiNode(const UbseByteBuffer& buffer, UbseByteBuffer& syncData)
 {
     // 直接构造 syncData，避免 GetAntiNodeRawData 再去读
     syncData.len = buffer.len;
@@ -151,7 +151,7 @@ MpResult AntiNode::BuildSyncAntiNode(const UbseByteBuffer &buffer, UbseByteBuffe
     return MEM_POOLING_OK;
 }
 
-MpResult AntiNode::Update(const std::map<std::string, std::vector<std::string>> &nodeAntiMap)
+MpResult AntiNode::Update(const std::map<std::string, std::vector<std::string>>& nodeAntiMap)
 {
     std::unique_lock<std::mutex> lock(mtxAnti);
     UbseByteBuffer antiData;
@@ -165,7 +165,7 @@ MpResult AntiNode::Update(const std::map<std::string, std::vector<std::string>> 
         antiData.len = 0;
         return MEM_POOLING_ERROR;
     }
-    antiData.freeFunc = [](uint8_t *data) {
+    antiData.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     errno_t err = memcpy_s(antiData.data, antiData.len, tempNodeAntiMapStr.c_str(), tempNodeAntiMapStr.length());
@@ -210,7 +210,7 @@ MpResult AntiNode::Update(const std::map<std::string, std::vector<std::string>> 
     return MEM_POOLING_OK;
 }
 
-MpResult AntiNode::Query(const std::string &srcNid, std::vector<std::string> &antiNodeMemVec)
+MpResult AntiNode::Query(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec)
 {
     std::lock_guard<std::mutex> lock(mtxAnti);
 
@@ -232,7 +232,7 @@ MpResult AntiNode::Query(const std::string &srcNid, std::vector<std::string> &an
     return MEM_POOLING_OK;
 }
 
-MpResult AntiNode::GetRawData(UbseByteBuffer &buffer, bool needLock)
+MpResult AntiNode::GetRawData(UbseByteBuffer& buffer, bool needLock)
 {
     LOG_DEBUG << "[MemBorrow][AntiAffinity] GetAntiNodeRawData start.";
     std::unique_lock<std::mutex> locker(mtxAnti, std::defer_lock);
@@ -256,7 +256,7 @@ MpResult AntiNode::GetRawData(UbseByteBuffer &buffer, bool needLock)
     return MEM_POOLING_OK;
 }
 
-MpResult AntiNode::PutRawData(UbseByteBuffer &buffer)
+MpResult AntiNode::PutRawData(UbseByteBuffer& buffer)
 {
     LOG_DEBUG << "PutAntiNodeRawData start.";
     std::lock_guard<std::mutex> locker(mtxAnti);
@@ -270,7 +270,7 @@ MpResult AntiNode::PutRawData(UbseByteBuffer &buffer)
         LOG_ERROR << "buffer.data is nullptr.";
         return MEM_POOLING_ERROR;
     }
-    std::string jsonStr(static_cast<char *>(static_cast<void *>(buffer.data)), buffer.len);
+    std::string jsonStr(static_cast<char*>(static_cast<void*>(buffer.data)), buffer.len);
     MpUpdateAntiNodeParam param;
     bool flag = param.FromJson(jsonStr);
     if (!flag) {
@@ -319,13 +319,13 @@ MpResult BorrowIdsCompleted::Update(const std::string borrowId)
     std::unique_lock<std::mutex> lock(mtxBorrowIdsCompleted);
     RmrsOutStream builder;
     LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] Old BorrowIdsCompleted size = " << borrowIdsCompleted.size();
-    for (const auto &item : borrowIdsCompleted) {
+    for (const auto& item : borrowIdsCompleted) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] Old borrowIdsCompleted  = " << item;
     }
     (void)borrowIdsCompleted.insert(borrowId);
     builder << borrowIdsCompleted;
     LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] New BorrowIdsCompleted size = " << borrowIdsCompleted.size();
-    for (const auto &item : borrowIdsCompleted) {
+    for (const auto& item : borrowIdsCompleted) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] New borrowIdsCompleted  = " << item;
     }
     UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
@@ -356,14 +356,14 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
     RmrsOutStream builder;
     LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] Old smapEnableCompleted size = " << smapEnableCompleted.size()
               << ".";
-    for (const auto &item : smapEnableCompleted) {
+    for (const auto& item : smapEnableCompleted) {
         LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] Old smapEnableCompleted  = " << item;
     }
     smapEnableCompleted.insert(numaId);
     builder << smapEnableCompleted;
     LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] New smapEnableCompleted size = " << smapEnableCompleted.size()
               << ".";
-    for (const auto &item : smapEnableCompleted) {
+    for (const auto& item : smapEnableCompleted) {
         LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] New smapEnableCompleted  = " << item << ".";
     }
     UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
@@ -387,21 +387,21 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
 
 MpResult BorrowIdInFaultProcess::Update(const std::string borrowId)
 {
-    LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] Update of completed smapEnable started, numaId=" << borrowId
+    LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] Update of borrowId in fault started, numaId=" << borrowId
               << ".";
 
     std::unique_lock<std::mutex> lock(mtxBorrowIdInFaultProcess);
     RmrsOutStream builder;
-    LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old smapEnableCompleted size = "
+    LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old BorrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size() << ".";
-    for (const auto &item : borrowIdInFaultProcess) {
+    for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old BorrowIdInFaultProcess  = " << item;
     }
     borrowIdInFaultProcess.insert(borrowId);
     builder << borrowIdInFaultProcess;
     LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] New borrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size() << ".";
-    for (const auto &item : borrowIdInFaultProcess) {
+    for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] New borrowIdInFaultProcess  = " << item << ".";
     }
     UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
@@ -427,19 +427,19 @@ MpResult RemovePidCompleted::Update(const uint16_t numaId, const std::vector<pid
 {
     for (auto pid : pids) {
         LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Update of completed removePid started, pid=" << pid
-            << ", numaId=" << numaId << ".";
+                  << ", numaId=" << numaId << ".";
     }
 
     std::unique_lock<std::mutex> lock(mtxRemovePidCompleted);
 
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Old map size=" << removePidCompleted.size() << ".";
-    for (const auto &kv : removePidCompleted) {
+    for (const auto& kv : removePidCompleted) {
         for (auto pid : kv.second) {
             LOG_DEBUG << "[PersistentStore][RemovePidCompleted] OldEntry numa=" << kv.first << " pid=" << pid << ".";
         }
     }
 
-    auto &setRef = removePidCompleted[numaId];
+    auto& setRef = removePidCompleted[numaId];
     for (auto pid : pids) {
         setRef.insert(pid);
     }
@@ -447,7 +447,7 @@ MpResult RemovePidCompleted::Update(const uint16_t numaId, const std::vector<pid
     RmrsOutStream builder;
     builder << removePidCompleted;
     LOG_DEBUG << "[PersistentStore] [RemovePidCompleted]  New map size=" << removePidCompleted.size() << ".";
-    for (const auto &kv : removePidCompleted) {
+    for (const auto& kv : removePidCompleted) {
         for (auto pid : kv.second) {
             LOG_DEBUG << "[PersistentStore][RemovePidCompleted] NewEntry numa=" << kv.first << " pid=" << pid << ".";
         }
@@ -478,7 +478,7 @@ MpResult SmapEnableCompleted::Remove(const int16_t numaId)
     std::unique_lock<std::mutex> lock(mtxSmapEnableCompleted);
     LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] Old smapEnableCompleted size = "
               << smapEnableCompleted.size();
-    for (const auto &item : smapEnableCompleted) {
+    for (const auto& item : smapEnableCompleted) {
         LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] Old smapEnableCompleted  = " << item << ".";
     }
     auto it = smapEnableCompleted.find(numaId);
@@ -487,7 +487,7 @@ MpResult SmapEnableCompleted::Remove(const int16_t numaId)
     }
     LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] New smapEnableCompleted size = "
               << smapEnableCompleted.size();
-    for (const auto &item : smapEnableCompleted) {
+    for (const auto& item : smapEnableCompleted) {
         LOG_DEBUG << "[PersistentStore] [SmapEnableCompleted] New smapEnableCompleted  = " << item << ".";
     }
     RmrsOutStream builder;
@@ -514,7 +514,7 @@ MpResult BorrowIdInFaultProcess::Remove(const std::string borrowId)
     std::unique_lock<std::mutex> lock(mtxBorrowIdInFaultProcess);
     LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old borrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size();
-    for (const auto &item : borrowIdInFaultProcess) {
+    for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old borrowIdInFaultProcess  = " << item << ".";
     }
     auto it = borrowIdInFaultProcess.find(borrowId);
@@ -523,7 +523,7 @@ MpResult BorrowIdInFaultProcess::Remove(const std::string borrowId)
     }
     LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] New borrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size();
-    for (const auto &item : borrowIdInFaultProcess) {
+    for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] New borrowIdInFaultProcess  = " << item << ".";
     }
     RmrsOutStream builder;
@@ -549,7 +549,7 @@ MpResult BorrowIdInFaultProcess::Clear()
     std::unique_lock<std::mutex> lock(mtxBorrowIdInFaultProcess);
     LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old borrowIdInFaultProcess size = "
               << borrowIdInFaultProcess.size();
-    for (const auto &item : borrowIdInFaultProcess) {
+    for (const auto& item : borrowIdInFaultProcess) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdInFaultProcess] Old borrowIdInFaultProcess  = " << item << ".";
     }
 
@@ -575,8 +575,8 @@ MpResult BorrowIdInFaultProcess::Clear()
 MpResult RemovePidCompleted::Remove(const uint16_t numaId, const std::vector<pid_t> pids)
 {
     for (auto pid : pids) {
-        LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Remove start" << " numa=" << numaId << " pid="
-            << pid << ".";
+        LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Remove start"
+                  << " numa=" << numaId << " pid=" << pid << ".";
     }
     std::unique_lock<std::mutex> lock(mtxRemovePidCompleted);
 
@@ -597,7 +597,7 @@ MpResult RemovePidCompleted::Remove(const uint16_t numaId, const std::vector<pid
     }
 
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] New map size=" << removePidCompleted.size() << ".";
-    for (const auto &kv : removePidCompleted) {
+    for (const auto& kv : removePidCompleted) {
         for (auto pid : kv.second) {
             LOG_DEBUG << "[PersistentStore][RemovePidCompleted] NewEntry numa=" << kv.first << " pid=" << pid << ".";
         }
@@ -625,7 +625,7 @@ MpResult BorrowIdsCompleted::Remove(const std::string borrowId)
 
     std::unique_lock<std::mutex> lock(mtxBorrowIdsCompleted);
     LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] Old BorrowIdsCompleted size = " << borrowIdsCompleted.size();
-    for (const auto &item : borrowIdsCompleted) {
+    for (const auto& item : borrowIdsCompleted) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] Old borrowIdsCompleted  = " << item;
     }
     auto it = borrowIdsCompleted.find(borrowId);
@@ -633,7 +633,7 @@ MpResult BorrowIdsCompleted::Remove(const std::string borrowId)
         borrowIdsCompleted.erase(borrowId);
     }
     LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] New BorrowIdsCompleted size = " << borrowIdsCompleted.size();
-    for (const auto &item : borrowIdsCompleted) {
+    for (const auto& item : borrowIdsCompleted) {
         LOG_DEBUG << "[PersistentStore] [BorrowIdsCompleted] New borrowIdsCompleted  = " << item;
     }
     RmrsOutStream builder;
@@ -660,13 +660,13 @@ MpResult VmInfosCompleted::Update(const pid_t pid, std::string remoteNumaId, std
 
     std::string value = borrowInNode + "-" + remoteNumaId;
     LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] Old VmInfosCompleted size = " << vmMap.size();
-    for (const auto &item : vmMap) {
+    for (const auto& item : vmMap) {
         LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] Old pid  = " << item.first << ", value = " << item.second
                   << ".";
     }
     vmMap[pid] = value;
     LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] New VmInfosCompleted size = " << vmMap.size();
-    for (const auto &item : vmMap) {
+    for (const auto& item : vmMap) {
         LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] New pid  = " << item.first << ", value = " << item.second
                   << ".";
     }
@@ -700,7 +700,7 @@ MpResult VmInfosCompleted::Remove(const pid_t pid)
 
     std::unique_lock<std::mutex> lock(mtxVmInfosCompleted);
     LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] Old VmInfosCompleted size = " << vmMap.size();
-    for (const auto &item : vmMap) {
+    for (const auto& item : vmMap) {
         LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] Old pid  = " << item.first << ", value = " << item.second
                   << ".";
     }
@@ -709,7 +709,7 @@ MpResult VmInfosCompleted::Remove(const pid_t pid)
         vmMap.erase(pid);
     }
     LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] New VmInfosCompleted size = " << vmMap.size();
-    for (const auto &item : vmMap) {
+    for (const auto& item : vmMap) {
         LOG_DEBUG << "[PersistentStore] [VmInfosCompleted] New pid  = " << item.first << ", value = " << item.second
                   << ".";
     }
@@ -730,7 +730,7 @@ MpResult VmInfosCompleted::Remove(const pid_t pid)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdRedirection::Query(const std::string key, std::string &value)
+MpResult BorrowIdRedirection::Query(const std::string key, std::string& value)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdRedirection] GetBorrowIdRedirection start.";
     std::lock_guard<std::mutex> lock(mtxBorrowIdRedirect);
@@ -744,20 +744,20 @@ MpResult BorrowIdRedirection::Query(const std::string key, std::string &value)
     return MEM_POOLING_OK;
 }
 
-void GetBorrowIdCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                               void *ctx)
+void GetBorrowIdCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                               void* ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
         LOG_WARN << "Ctx or respData is null.";
         return;
     }
-    std::unordered_set<std::string> &borrowIdsCompleted = *(static_cast<std::unordered_set<std::string> *>(ctx));
+    std::unordered_set<std::string>& borrowIdsCompleted = *(static_cast<std::unordered_set<std::string>*>(ctx));
     RmrsInStream builder(buff.data, buff.len);
     builder >> borrowIdsCompleted;
     return;
 }
 
-MpResult BorrowIdsCompleted::Query(std::vector<std::string> &borrowIdsCompletedList)
+MpResult BorrowIdsCompleted::Query(std::vector<std::string>& borrowIdsCompletedList)
 {
     std::lock_guard<std::mutex> lock(mtxBorrowIdsCompleted);
     std::unordered_set<std::string> borrowIdsCompleted;
@@ -768,26 +768,26 @@ MpResult BorrowIdsCompleted::Query(std::vector<std::string> &borrowIdsCompletedL
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &borrowId : borrowIdsCompleted) {
+    for (const auto& borrowId : borrowIdsCompleted) {
         borrowIdsCompletedList.push_back(borrowId);
     }
     return MEM_POOLING_OK;
 }
 
-void GetSmapEnableCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                 void *ctx)
+void GetSmapEnableCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                 void* ctx)
 {
     if (ctx == nullptr) {
         LOG_ERROR << "GetSmapEnableCompletedValue: ctx is null!";
         return;
     }
-    std::unordered_set<int16_t> &smapEnableCompleted = *(static_cast<std::unordered_set<int16_t> *>(ctx));
+    std::unordered_set<int16_t>& smapEnableCompleted = *(static_cast<std::unordered_set<int16_t>*>(ctx));
     RmrsInStream builder(buff.data, buff.len);
     builder >> smapEnableCompleted;
     return;
 }
 
-MpResult SmapEnableCompleted::Query(std::vector<int16_t> &smapEnableCompletedList)
+MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedList)
 {
     std::lock_guard<std::mutex> lock(mtxSmapEnableCompleted);
     std::unordered_set<int16_t> smapEnableCompleted;
@@ -798,26 +798,26 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t> &smapEnableCompletedLis
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &numaId : smapEnableCompleted) {
+    for (const auto& numaId : smapEnableCompleted) {
         smapEnableCompletedList.push_back(numaId);
     }
     return MEM_POOLING_OK;
 }
 
-void GetFaultProcessBorrowIdValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                  void *ctx)
+void GetFaultProcessBorrowIdValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                  void* ctx)
 {
     if (ctx == nullptr) {
         LOG_ERROR << "GetSmapEnableCompletedValue: ctx is null!";
         return;
     }
-    std::unordered_set<std::string> &borrowIdInFaultProcess = *(static_cast<std::unordered_set<std::string> *>(ctx));
+    std::unordered_set<std::string>& borrowIdInFaultProcess = *(static_cast<std::unordered_set<std::string>*>(ctx));
     RmrsInStream builder(buff.data, buff.len);
     builder >> borrowIdInFaultProcess;
     return;
 }
 
-MpResult BorrowIdInFaultProcess::Query(std::vector<std::string> &borrowIdInFaultProcessList)
+MpResult BorrowIdInFaultProcess::Query(std::vector<std::string>& borrowIdInFaultProcessList)
 {
     std::lock_guard<std::mutex> lock(mtxBorrowIdInFaultProcess);
     std::unordered_set<std::string> borrowIdInFaultProcess;
@@ -828,27 +828,27 @@ MpResult BorrowIdInFaultProcess::Query(std::vector<std::string> &borrowIdInFault
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &borrowId : borrowIdInFaultProcess) {
+    for (const auto& borrowId : borrowIdInFaultProcess) {
         borrowIdInFaultProcessList.push_back(borrowId);
     }
     return MEM_POOLING_OK;
 }
 
-void GetRemovePidCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                void *ctx)
+void GetRemovePidCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                void* ctx)
 {
     if (ctx == nullptr) {
         LOG_ERROR << "[PersistentStore][RemovePidCompleted] ctx is null!";
         return;
     }
 
-    auto &removePidCompleted = *(static_cast<std::unordered_map<uint16_t, std::unordered_set<pid_t>> *>(ctx));
+    auto& removePidCompleted = *(static_cast<std::unordered_map<uint16_t, std::unordered_set<pid_t>>*>(ctx));
     RmrsInStream builder(buff.data, buff.len);
     builder >> removePidCompleted;
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Loaded map size=" << removePidCompleted.size() << ".";
 }
 
-MpResult RemovePidCompleted::Query(std::unordered_map<uint16_t, std::unordered_set<pid_t>> &removePidCompletedList)
+MpResult RemovePidCompleted::Query(std::unordered_map<uint16_t, std::unordered_set<pid_t>>& removePidCompletedList)
 {
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query start.";
     std::lock_guard<std::mutex> lock(mtxRemovePidCompleted);
@@ -857,13 +857,13 @@ MpResult RemovePidCompleted::Query(std::unordered_map<uint16_t, std::unordered_s
     removePidCompletedList = removePidCompleted;
 
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query result size=" << removePidCompletedList.size() << ".";
-    for (const auto &[numaId, pidSet] : removePidCompletedList) {
-        LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query success, numa=" << numaId << " pidCount="
-            << pidSet.size() << ".";
+    for (const auto& [numaId, pidSet] : removePidCompletedList) {
+        LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query success, numa=" << numaId
+                  << " pidCount=" << pidSet.size() << ".";
 
         for (auto pid : pidSet) {
-            LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query success, numa=" << numaId << ", pid="
-                << pid << ".";
+            LOG_DEBUG << "[PersistentStore][RemovePidCompleted] Query success, numa=" << numaId << ", pid=" << pid
+                      << ".";
         }
     }
 
@@ -871,20 +871,20 @@ MpResult RemovePidCompleted::Query(std::unordered_map<uint16_t, std::unordered_s
     return MEM_POOLING_OK;
 }
 
-void GetVmInfosCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                              void *ctx)
+void GetVmInfosCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                              void* ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
         LOG_WARN << "Ctx or respData is null.";
         return;
     }
-    std::unordered_map<pid_t, std::string> &vmMap = *(static_cast<std::unordered_map<pid_t, std::string> *>(ctx));
+    std::unordered_map<pid_t, std::string>& vmMap = *(static_cast<std::unordered_map<pid_t, std::string>*>(ctx));
     RmrsInStream builder(buff.data, buff.len);
     builder >> vmMap;
     return;
 }
 
-MpResult VmInfosCompleted::Query(std::unordered_map<pid_t, std::string> &vmInfosCompletedMap)
+MpResult VmInfosCompleted::Query(std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
 {
     std::lock_guard<std::mutex> lock(mtxVmInfosCompleted);
     std::unordered_map<pid_t, std::string> vmMap;
@@ -894,13 +894,13 @@ MpResult VmInfosCompleted::Query(std::unordered_map<pid_t, std::string> &vmInfos
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &vmInfo : vmMap) {
+    for (const auto& vmInfo : vmMap) {
         vmInfosCompletedMap[vmInfo.first] = vmInfo.second;
     }
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdRedirection::PutRawData(UbseByteBuffer &buffer)
+MpResult BorrowIdRedirection::PutRawData(UbseByteBuffer& buffer)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdRedirection] PutBorrowIdRedirectionRawData start.";
     std::lock_guard<std::mutex> locker(mtxBorrowIdRedirect);
@@ -916,7 +916,7 @@ MpResult BorrowIdRedirection::PutRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdsCompleted::PutRawData(UbseByteBuffer &data)
+MpResult BorrowIdsCompleted::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdsCompleted] PutBorrowIdsCompletedRawData start.";
 
@@ -934,7 +934,7 @@ MpResult BorrowIdsCompleted::PutRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult SmapEnableCompleted::PutRawData(UbseByteBuffer &data)
+MpResult SmapEnableCompleted::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] PutSmapEnableCompletedRawData start.";
 
@@ -952,7 +952,7 @@ MpResult SmapEnableCompleted::PutRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdInFaultProcess::PutRawData(UbseByteBuffer &data)
+MpResult BorrowIdInFaultProcess::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] PutBorrowIdInFaultProcessRawData start.";
 
@@ -970,7 +970,7 @@ MpResult BorrowIdInFaultProcess::PutRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult RemovePidCompleted::PutRawData(UbseByteBuffer &data)
+MpResult RemovePidCompleted::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] PutRemovePidCompletedRawData start.";
 
@@ -988,7 +988,7 @@ MpResult RemovePidCompleted::PutRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult VmInfosCompleted::PutRawData(UbseByteBuffer &data)
+MpResult VmInfosCompleted::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][VmInfosCompleted] Put VmInfosCompleted start.";
 
@@ -1007,7 +1007,7 @@ MpResult VmInfosCompleted::PutRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdRedirection::GetRawData(UbseByteBuffer &buffer)
+MpResult BorrowIdRedirection::GetRawData(UbseByteBuffer& buffer)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdRedirection] GetBorrowIdRedirectionRawData start.";
     std::lock_guard<std::mutex> locker(mtxBorrowIdRedirect);
@@ -1023,7 +1023,7 @@ MpResult BorrowIdRedirection::GetRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdsCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
+MpResult BorrowIdsCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdsCompleted] GetBorrowIdsCompletedRawData start.";
 
@@ -1063,7 +1063,7 @@ MpResult BorrowIdsCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
     return MEM_POOLING_OK;
 }
 
-MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
+MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 {
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] GetSmapEnableCompletedRawData start.";
     std::unique_lock<std::mutex> locker(mtxSmapEnableCompleted, std::defer_lock);
@@ -1094,7 +1094,7 @@ MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowIdInFaultProcess::GetRawData(UbseByteBuffer &data, bool needLock)
+MpResult BorrowIdInFaultProcess::GetRawData(UbseByteBuffer& data, bool needLock)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] GetBorrowIdInFaultProcessRawData start.";
     std::unique_lock<std::mutex> locker(mtxBorrowIdInFaultProcess, std::defer_lock);
@@ -1125,7 +1125,7 @@ MpResult BorrowIdInFaultProcess::GetRawData(UbseByteBuffer &data, bool needLock)
     return MEM_POOLING_OK;
 }
 
-MpResult RemovePidCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
+MpResult RemovePidCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 {
     LOG_DEBUG << "[PersistentStore][RemovePidCompleted] GetRemovePidCompletedRawData start.";
 
@@ -1151,7 +1151,7 @@ MpResult RemovePidCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
     return MEM_POOLING_OK;
 }
 
-MpResult VmInfosCompleted::GetRawData(UbseByteBuffer &data, bool needLock)
+MpResult VmInfosCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
 {
     LOG_DEBUG << "[PersistentStore][VmInfosCompleted] GetVmInfosCompletedRawData start.";
 
@@ -1215,15 +1215,15 @@ MpResult BorrowIdRedirection::Remove(const std::string key)
     return MEM_POOLING_OK;
 }
 
-MpResult MemRequestHelper::ParseMemIdArray(const rapidjson::Value &doc, BorrowRecord &record)
+MpResult MemRequestHelper::ParseMemIdArray(const rapidjson::Value& doc, BorrowRecord& record)
 {
     auto ret = MEM_POOLING_ERROR;
     if (!doc.HasMember("lentMemId") || !doc.HasMember("borrowMemId")) {
         LOG_ERROR << "[MemLedger] [BorrowRecords] Failed to get memId array, no member named lentMemId or borrowMemId.";
         return ret;
     }
-    const rapidjson::Value &lentMemId = doc["lentMemId"];
-    const rapidjson::Value &borrowMemId = doc["borrowMemId"];
+    const rapidjson::Value& lentMemId = doc["lentMemId"];
+    const rapidjson::Value& borrowMemId = doc["borrowMemId"];
     if (!lentMemId.IsArray() || !borrowMemId.IsArray()) {
         LOG_ERROR << "[MemLedger] [BorrowRecords] Failed to get memId array, parament is not array.";
         return ret;
@@ -1251,20 +1251,20 @@ MpResult MemRequestHelper::ParseMemIdArray(const rapidjson::Value &doc, BorrowRe
     return MEM_POOLING_OK;
 }
 
-MpResult MemRequestHelper::ParseLentNumaArray(const rapidjson::Value &doc, std::vector<LentNuma> &lentNumaVec)
+MpResult MemRequestHelper::ParseLentNumaArray(const rapidjson::Value& doc, std::vector<LentNuma>& lentNumaVec)
 {
     auto ret = MEM_POOLING_ERROR;
     if (!doc.HasMember("lentNuma")) {
         LOG_ERROR << "[MemLedger] [BorrowRecords] Failed to get memId array, no member named lentNuma.";
         return ret;
     }
-    const rapidjson::Value &lentNumaInfos = doc["lentNuma"];
+    const rapidjson::Value& lentNumaInfos = doc["lentNuma"];
     if (!lentNumaInfos.IsArray()) {
         LOG_ERROR << "[MemLedger] [BorrowRecords] Failed to get lentNuma array, parament is not array.";
         return ret;
     }
     for (rapidjson::SizeType i = 0; i < lentNumaInfos.Size(); ++i) {
-        const rapidjson::Value &lentNumaInfo = lentNumaInfos[i];
+        const rapidjson::Value& lentNumaInfo = lentNumaInfos[i];
         LentNuma lentNuma;
         uint16_t numaId;
         uint64_t lentSize;
@@ -1281,7 +1281,7 @@ MpResult MemRequestHelper::ParseLentNumaArray(const rapidjson::Value &doc, std::
     return MEM_POOLING_OK;
 }
 
-MpResult MemRequestHelper::ParseBorrowRecordFields(const rapidjson::Value &doc, BorrowRecord &record)
+MpResult MemRequestHelper::ParseBorrowRecordFields(const rapidjson::Value& doc, BorrowRecord& record)
 {
     auto ret = MEM_POOLING_ERROR;
     std::string collectName;
@@ -1313,7 +1313,7 @@ MpResult MemRequestHelper::ParseBorrowRecordFields(const rapidjson::Value &doc, 
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::GenBorrowRecords(const rapidjson::Value &doc, std::vector<BorrowRecord> &borrowRecords)
+MpResult BorrowRecordHelper::GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords)
 {
     auto ret = MEM_POOLING_ERROR;
     if (!doc.IsArray()) {
@@ -1322,7 +1322,7 @@ MpResult BorrowRecordHelper::GenBorrowRecords(const rapidjson::Value &doc, std::
     }
     borrowRecords.clear();
     for (rapidjson::SizeType i = 0; i < doc.Size(); ++i) {
-        const rapidjson::Value &borrowRecordInfo = doc[i];
+        const rapidjson::Value& borrowRecordInfo = doc[i];
         BorrowRecord record;
         ret = MemRequestHelper::ParseLentNumaArray(borrowRecordInfo, record.lentNuma);
         ret |= MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
@@ -1336,7 +1336,7 @@ MpResult BorrowRecordHelper::GenBorrowRecords(const rapidjson::Value &doc, std::
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+MpResult BorrowRecordHelper::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     LOG_DEBUG << "[MemLedger][BorrowRecords] GetDebtInfosWithRetry start.";
     constexpr int maxRetryTimes = 30;
@@ -1366,7 +1366,7 @@ MpResult BorrowRecordHelper::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDeb
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     LOG_DEBUG << "[MemLedger][BorrowRecords] GetDebtInfosWithRetry start.";
     constexpr int maxRetryTimes = 30;
@@ -1389,7 +1389,7 @@ MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemo
         } else if (ret != UBSE_OK && !debtInfos.empty()) {
             bool hasInvalidRemoteNuma =
                 std::any_of(debtInfos.begin(), debtInfos.end(),
-                    [](const UbseNumaMemoryDebtInfo &info) { return info.remoteNumaId < 0; });
+                            [](const UbseNumaMemoryDebtInfo& info) { return info.remoteNumaId < 0; });
             LOG_WARN << "[GetValidDebtInfosWithRetry] GetDebtInfos Failed, ret=" << ret
                      << ", has remoteNumaId < 0, need Retry.";
             if (hasInvalidRemoteNuma) {
@@ -1398,9 +1398,8 @@ MpResult BorrowRecordHelper::GetValidDebtInfosWithRetry(std::vector<UbseNumaMemo
         }
 
         if (needRetry) {
-            LOG_WARN << "[MemLedger][BorrowRecords] UbseGetNumaMemDebtInfo retry="
-                    << (curRetryTimes + 1)
-                    << ", ret=" << static_cast<uint32_t>(ret);
+            LOG_WARN << "[MemLedger][BorrowRecords] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
+                     << ", ret=" << static_cast<uint32_t>(ret);
             std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
             curRetryTimes++;
             continue;
@@ -1428,13 +1427,13 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
     } else {
         ret = GetValidDebtInfosWithRetry(debtInfos);
     }
-    
+
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[MemLedger][BorrowRecords] GetDebtInfosWithRetry failed.";
         return MEM_POOLING_ERROR;
     }
     gBorrowRecords.clear();
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         BorrowRecord record;
         record.name = debtInfo.name;
         record.username = debtInfo.username;
@@ -1443,11 +1442,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1465,9 +1465,108 @@ MpResult BorrowRecordHelper::UpdateBorrowRecords(bool isFilter)
         record.borrowMemId = debtInfo.borrowMemId;
         gBorrowRecords.push_back(record);
     }
-    for (auto &record : gBorrowRecords) {
+    for (auto& record : gBorrowRecords) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecords: " << record.ToString() << ".";
     }
+    return MEM_POOLING_OK;
+}
+
+// 更新传入的nodeId以及集群中可见的nodeId的账本信息
+MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string nodeId)
+{
+    // 目前架构能查到的所有的节点都可以借用 查询所有节点
+    std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
+    if (allNodeIdList.empty()) {
+        return MEM_POOLING_ERROR;
+    }
+
+    // 查找nodeId是否在列表中，不存在则添加
+    auto iter = std::find(allNodeIdList.begin(), allNodeIdList.end(), nodeId);
+    if (iter == allNodeIdList.end()) {
+        allNodeIdList.push_back(nodeId);
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] NodeId: " << nodeId << " not in cluster node list, add it to update list.";
+    }
+
+    gBorrowRecordsFragmentFault.clear();
+    for (std::string nodeId : allNodeIdList) {
+        std::vector<UbseNumaMemoryDebtInfo> debtInfos;
+        auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
+        if (ret == UBSE_ERR_INTERNAL) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret="
+                      << static_cast<uint32_t>(ret) << ".";
+            return MEM_POOLING_ERROR;
+        }
+        std::vector<BorrowRecord> recordVec;
+        for (auto& debtInfo : debtInfos) {
+            BorrowRecord record;
+            // 最小化修改：调用子函数完成转换
+            if (!ConvertDebtToRecord(debtInfo, record)) {
+                return MEM_POOLING_ERROR;
+            }
+            if (record.borrowRemoteNuma < 0) {
+                continue;
+            }
+            recordVec.push_back(record);
+        }
+        for (auto& record : recordVec) {
+            LOG_DEBUG << "[MemLedger] [BorrowRecords][FaultManager] Collected borrowRecords: " << record.ToString()
+                      << ".";
+        }
+        gBorrowRecordsFragmentFault[nodeId] = recordVec;
+    }
+
+    return MEM_POOLING_OK;
+}
+
+bool BorrowRecordHelper::ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord)
+{
+    outRecord.name = debtInfo.name;
+    outRecord.username = debtInfo.username;
+    outRecord.uid = debtInfo.uid;
+    outRecord.size = debtInfo.size / KB_TO_BYTES;
+    outRecord.lentNode = debtInfo.lentNodeId;
+    outRecord.lentMemId = debtInfo.lentMemId;
+
+    // lentSocketIdList加上空校验
+    if (debtInfo.lentSocketIdList.empty() || debtInfo.borrowSocketIdList.empty()) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
+        return false;
+    }
+    outRecord.lentSocketId = debtInfo.lentSocketIdList[0];
+    outRecord.borrowSocketId = debtInfo.borrowSocketIdList[0];
+
+    size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
+    for (size_t i = 0; i < n; ++i) {
+        LentNuma ln;
+        ln.numaId = static_cast<uint16_t>(debtInfo.lentNumaIdList[i]);
+        ln.lentSize = debtInfo.lentNumaSizeList[i];
+        outRecord.lentNuma.push_back(ln);
+    }
+
+    outRecord.borrowNode = debtInfo.borrowNodeId;
+    errno_t res = memcpy_s(&outRecord.borrowLocalNuma, sizeof(outRecord.borrowLocalNuma), debtInfo.usrInfo,
+                           sizeof(outRecord.borrowLocalNuma));
+    if (res != EOK) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] memcpy_s failed.";
+        return false;
+    }
+
+    outRecord.borrowRemoteNuma = static_cast<int16_t>(debtInfo.remoteNumaId);
+    outRecord.borrowMemId = debtInfo.borrowMemId;
+
+    // 非法条目日志
+    if (outRecord.borrowRemoteNuma < 0) {
+        LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] BorrowRemoteNuma is invalid, record: "
+                  << outRecord.ToString() << ".";
+    }
+    return true;
+}
+
+MpResult BorrowRecordHelper::GetFragmentFaultBorrowRecords(std::string nodeId,
+                                                           std::vector<BorrowRecord>& fragMentFaultBorrowRecords)
+{
+    fragMentFaultBorrowRecords = gBorrowRecordsFragmentFault[nodeId];
     return MEM_POOLING_OK;
 }
 
@@ -1481,7 +1580,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
         return MEM_POOLING_ERROR;
     }
     gBorrowRecords.clear();
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         BorrowRecord record;
         record.name = debtInfo.name;
         record.username = debtInfo.username;
@@ -1490,11 +1589,12 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1512,14 +1612,14 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsAllWithFault()
         record.borrowMemId = debtInfo.borrowMemId;
         gBorrowRecords.push_back(record);
     }
-    for (auto &record : gBorrowRecords) {
+    for (auto& record : gBorrowRecords) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecords: " << record.ToString() << ".";
     }
     return MEM_POOLING_OK;
 }
 
 MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFault(const std::string nodeId,
-                                                          std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+                                                          std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     constexpr int maxRetryTimes = 30;
     constexpr int sleepSeconds = 1;
@@ -1549,7 +1649,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFault(const std::string node
 }
 
 MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nodeId,
-                                                           std::vector<BorrowRecord> &borrowRecords)
+                                                           std::vector<BorrowRecord>& borrowRecords)
 {
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Start to collect borrow records of node_id=" << nodeId.c_str() << ".";
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
@@ -1559,7 +1659,7 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
         return ret;
     }
 
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         BorrowRecord record;
         record.name = debtInfo.name;
         record.username = debtInfo.username;
@@ -1568,11 +1668,12 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
         record.lentNode = debtInfo.lentNodeId;
         record.lentMemId = debtInfo.lentMemId;
         // lentSocketIdList加上空校验
-        if (debtInfo.lentSocketIdList.size() == 0) {
-            LOG_ERROR << "[MemLedger] [BorrowRecords] lentSocketIdList is empty.";
+        if (debtInfo.lentSocketIdList.size() == 0 || debtInfo.borrowSocketIdList.size() == 0) {
+            LOG_ERROR << "[MemLedger] [BorrowRecords] SocketIdList is empty.";
             return MEM_POOLING_ERROR;
         }
         record.lentSocketId = debtInfo.lentSocketIdList[0];
+        record.borrowSocketId = debtInfo.borrowSocketIdList[0];
         size_t n = std::min(debtInfo.lentNumaIdList.size(), debtInfo.lentNumaSizeList.size());
         for (size_t i = 0; i < n; ++i) {
             LentNuma ln;
@@ -1593,14 +1694,14 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsWithFault(const std::string nod
 
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Collect borrow records with nodeId=" << nodeId.c_str()
               << " finished, get " << borrowRecords.size() << " records.";
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecords: " << record.ToString() << ".";
     }
 
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord> &borrowRecords)
+MpResult BorrowRecordHelper::CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords)
 {
     auto ret = BorrowRecordHelper::Instance().UpdateBorrowRecords();
     if (ret != MEM_POOLING_OK) {
@@ -1609,21 +1710,21 @@ MpResult BorrowRecordHelper::CollectBorrowRecords(const std::string nodeId, std:
     }
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Start to collect borrow records of node_id=" << nodeId.c_str() << ".";
     borrowRecords.clear();
-    for (const auto &record : gBorrowRecords) {
+    for (const auto& record : gBorrowRecords) {
         if (record.borrowNode == nodeId || record.lentNode == nodeId) {
             borrowRecords.push_back(record);
         }
     }
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Collect borrow records finished, get " << borrowRecords.size()
               << " records.";
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] Collected borrowRecord: " << record.ToString() << ".";
     }
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn(const std::string nodeId, const int &numaId,
-                                                              std::vector<BorrowRecord> &borrowRecords)
+MpResult BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn(const std::string nodeId, const int& numaId,
+                                                              std::vector<BorrowRecord>& borrowRecords)
 {
     LOG_DEBUG << "[MemLedger][BorrowRecords] CollectBorrowRecordsOnlyBorrowIn start, nodeId=" << nodeId
               << ", numaId=" << numaId << ".";
@@ -1640,11 +1741,11 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn(const std::string 
     MemReturnManager::Instance().QueryAll(timeoutNodeInfo);
     std::unordered_set<std::string> timeoutBorrowIdSet;
     // 排除归还超时的borrowId
-    for (const auto &[borrowId, _] : timeoutNodeInfo) {
+    for (const auto& [borrowId, _] : timeoutNodeInfo) {
         LOG_DEBUG << "[MemLedger][BorrowRecords] borrowId=" << borrowId << " is timeout, need to be ignored.";
         timeoutBorrowIdSet.insert(borrowId);
     }
-    for (auto &record : borrowRecords) {
+    for (auto& record : borrowRecords) {
         if (record.borrowNode == nodeId && !timeoutBorrowIdSet.count(record.name) &&
             (numaId == -1 ||
              MemManager::Instance().JudgeSampPlane(nodeId, socketId, record.lentNode, record.lentSocketId))) {
@@ -1656,7 +1757,7 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsOnlyBorrowIn(const std::string 
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::CollectBorrowRecordsAll(std::vector<BorrowRecord> &borrowRecords, bool isFault,
+MpResult BorrowRecordHelper::CollectBorrowRecordsAll(std::vector<BorrowRecord>& borrowRecords, bool isFault,
                                                      bool isFilter)
 {
     LOG_INFO << "[MemLedger] [BorrowRecords] Collect all borrowRecords, isFault=" << isFault << ".";
@@ -1672,13 +1773,13 @@ MpResult BorrowRecordHelper::CollectBorrowRecordsAll(std::vector<BorrowRecord> &
         return ret;
     }
     borrowRecords.clear();
-    for (const auto &record : gBorrowRecords) {
+    for (const auto& record : gBorrowRecords) {
         borrowRecords.push_back(record);
     }
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId,
+MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string>& borrowIds, const uint16_t numaId,
                                                  const std::string nodeId)
 {
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Start to get borrowIds by NumaId: " << numaId << "on Node: " << nodeId
@@ -1689,7 +1790,7 @@ MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string> &borro
         LOG_ERROR << "[MemLedger] [BorrowRecords] CollectBorrowRecords failed.";
         return ret;
     }
-    for (const auto &record : borrowRecords) {
+    for (const auto& record : borrowRecords) {
         if (record.borrowRemoteNuma == numaId) {
             borrowIds.push_back(record.name);
         }
@@ -1699,13 +1800,13 @@ MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string> &borro
                  << " on node: " << nodeId.c_str() << ".";
     }
     LOG_DEBUG << "[MemLedger] [BorrowRecords] Get " << borrowIds.size() << " borrowIds by NumaId: " << numaId << ".";
-    for (const auto &borrowId : borrowIds) {
+    for (const auto& borrowId : borrowIds) {
         LOG_DEBUG << "[MemLedger] [BorrowRecords] NumaId: " << numaId << ", borrowId: " << borrowId << ".";
     }
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::Update(const std::string &borrowId, BorrowItem &value)
+MpResult MemReturnManager::Update(const std::string& borrowId, BorrowItem& value)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[PersistentStore][MemReturnManager] Update of return timeout borrowId= " << borrowId << " start.";
@@ -1732,7 +1833,7 @@ MpResult MemReturnManager::Update(const std::string &borrowId, BorrowItem &value
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::Remove(const std::string &borrowId)
+MpResult MemReturnManager::Remove(const std::string& borrowId)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[PersistentStore][MemReturnManager] Remove return timeout record start, borrowId=" << borrowId;
@@ -1763,7 +1864,7 @@ MpResult MemReturnManager::Remove(const std::string &borrowId)
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::Query(const std::string &borrowId, BorrowItem &value)
+MpResult MemReturnManager::Query(const std::string& borrowId, BorrowItem& value)
 {
     std::shared_lock<std::shared_mutex> lock(mtxMemReturnManager);
 
@@ -1776,14 +1877,14 @@ MpResult MemReturnManager::Query(const std::string &borrowId, BorrowItem &value)
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::QueryAll(std::unordered_map<std::string, BorrowItem> &borrowCacheAll)
+MpResult MemReturnManager::QueryAll(std::unordered_map<std::string, BorrowItem>& borrowCacheAll)
 {
     std::shared_lock<std::shared_mutex> lock(mtxMemReturnManager);
     borrowCacheAll = borrowCache;
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::GetRawData(UbseByteBuffer &buffer)
+MpResult MemReturnManager::GetRawData(UbseByteBuffer& buffer)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PersistentStore][MemReturnManager] Get borrowCache start.";
     std::shared_lock<std::shared_mutex> lock(mtxMemReturnManager);
@@ -1800,7 +1901,7 @@ MpResult MemReturnManager::GetRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-MpResult MemReturnManager::PutRawData(UbseByteBuffer &buffer)
+MpResult MemReturnManager::PutRawData(UbseByteBuffer& buffer)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PersistentStore][MemReturnManager] Put borrowCache start.";
     std::unique_lock<std::shared_mutex> lock(mtxMemReturnManager);
@@ -1818,11 +1919,11 @@ MpResult MemReturnManager::PutRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-bool MemReturnManager::IsAllReturned(const std::string &srcNid, const uint16_t &srcRemoteNumaId)
+bool MemReturnManager::IsAllReturned(const std::string& srcNid, const uint16_t& srcRemoteNumaId)
 {
     std::shared_lock<std::shared_mutex> lock(mtxMemReturnManager);
-    for (const auto &kv : borrowCache) {
-        const BorrowItem &item = kv.second;
+    for (const auto& kv : borrowCache) {
+        const BorrowItem& item = kv.second;
         if (item.srcNid == srcNid && item.srcRemoteNumaId == srcRemoteNumaId) {
             return false;
         }
@@ -1830,7 +1931,7 @@ bool MemReturnManager::IsAllReturned(const std::string &srcNid, const uint16_t &
     return true;
 }
 
-MpResult Name2VmInfo::Update(const std::string &nodeId, std::map<std::string, std::set<BorrowIdInfo>> &value)
+MpResult Name2VmInfo::Update(const std::string& nodeId, std::map<std::string, std::set<BorrowIdInfo>>& value)
 {
     std::unique_lock<std::mutex> lock(mtx);
     LOG_DEBUG << "[PersistentStore][Name2Pids] Update operation.";
@@ -1851,7 +1952,7 @@ MpResult Name2VmInfo::Update(const std::string &nodeId, std::map<std::string, st
     return MEM_POOLING_OK;
 }
 
-MpResult Name2VmInfo::Query(const std::string &nodeId, std::map<std::string, std::set<BorrowIdInfo>> &value)
+MpResult Name2VmInfo::Query(const std::string& nodeId, std::map<std::string, std::set<BorrowIdInfo>>& value)
 {
     std::lock_guard<std::mutex> lock(mtx);
     if (vmInfoData.find(nodeId) != vmInfoData.end()) {
@@ -1860,7 +1961,7 @@ MpResult Name2VmInfo::Query(const std::string &nodeId, std::map<std::string, std
     return MEM_POOLING_OK;
 }
 
-MpResult Name2VmInfo::GetRawData(UbseByteBuffer &buffer)
+MpResult Name2VmInfo::GetRawData(UbseByteBuffer& buffer)
 {
     LOG_DEBUG << "[PersistentStore][Name2Pids] Start.";
     std::lock_guard<std::mutex> locker(mtx);
@@ -1876,7 +1977,7 @@ MpResult Name2VmInfo::GetRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-MpResult Name2VmInfo::PutRawData(UbseByteBuffer &buffer)
+MpResult Name2VmInfo::PutRawData(UbseByteBuffer& buffer)
 {
     LOG_DEBUG << "[PersistentStore][Name2Pids] PutName2VmInfoRawData start.";
     std::lock_guard<std::mutex> locker(mtx);
@@ -1891,17 +1992,17 @@ MpResult Name2VmInfo::PutRawData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemoryInfoWithReservedMem> &srcMap)
+void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemoryInfoWithReservedMem>& srcMap)
 {
     nodeMemMap.clear();
-    for (const auto &[nodeId, info] : srcMap) {
-        auto &dst = nodeMemMap[nodeId];
+    for (const auto& [nodeId, info] : srcMap) {
+        auto& dst = nodeMemMap[nodeId];
         dst.totalReservedMem = info.reservedMem * KB_TO_BYTES;
         dst.totalBorrowableMem = (info.reservedMem - info.lentMemory - info.sharedMem) * KB_TO_BYTES;
         dst.totalLentMem = info.lentMemory * KB_TO_BYTES;
         dst.timestamp = info.timestamp;
 
-        for (const auto &numa : info.numaMemInfo) {
+        for (const auto& numa : info.numaMemInfo) {
             NumaMemInfo mem{};
             mem.numaId = numa.numaId;
             mem.socketId = numa.socketId;
@@ -1913,35 +2014,35 @@ void MemManager::UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemo
             (void)dst.localnumaMemInfo.emplace_back(mem);
         }
     }
-    for (const auto &[nodeId, memInfo] : nodeMemMap) {
+    for (const auto& [nodeId, memInfo] : nodeMemMap) {
         LOG_DEBUG << "[MemManager] NodeId=" << nodeId << ".";
         LOG_DEBUG << "[MemManager] " << memInfo.ToString();
     }
 }
 
-void GetAllNodeInfoImmediatelyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void GetAllNodeInfoImmediatelyResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "Ctx or respData is null.";
         return;
     }
-    std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> &nodeInfoMap =
-        *(static_cast<std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> *>(ctx));
+    std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>>& nodeInfoMap =
+        *(static_cast<std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>>*>(ctx));
     RmrsInStream builder(respData.data, respData.len);
     builder >> nodeInfoMap;
     return;
 }
 
 void FillNodeMemoryInfoWithReservedMem(
-    const std::unordered_map<std::string, std::vector<mempooling::exportV2::NumaInfoWithReservedMem>>
-        &nodeInfoMapWithReservedMem,
-    std::unordered_map<std::string, NodeMemoryInfoWithReservedMem> &nodeMemoryInfoWithReservedMemList)
+    const std::unordered_map<std::string, std::vector<mempooling::exportV2::NumaInfoWithReservedMem>>&
+        nodeInfoMapWithReservedMem,
+    std::unordered_map<std::string, NodeMemoryInfoWithReservedMem>& nodeMemoryInfoWithReservedMemList)
 {
     long basePageSize = MpConfiguration::GetInstance().GetBasePageSize();
     uint64_t hugePageNumToKb = (basePageSize == PAGE_64K_BYTES) ? HUGE_PAGE_NUM_64K_TO_KB : HUGE_PAGE_NUM_4K_TO_KB;
-    for (const auto &kv : nodeInfoMapWithReservedMem) {
-        const std::string &nodeId = kv.first;
-        const auto &numaInfos = kv.second;
+    for (const auto& kv : nodeInfoMapWithReservedMem) {
+        const std::string& nodeId = kv.first;
+        const auto& numaInfos = kv.second;
 
         if (numaInfos.empty()) {
             continue; // 没有NUMA信息则跳过
@@ -1960,7 +2061,7 @@ void FillNodeMemoryInfoWithReservedMem(
         nodeInfo.canBorrowMem = 0;
         nodeInfo.numaMemInfo.clear();
 
-        for (const auto &numa : numaInfos) {
+        for (const auto& numa : numaInfos) {
             RackNumaMemInfo rack;
 
             rack.numaId = numa.metaData.numaId;
@@ -2016,9 +2117,9 @@ MpResult MemManager::InitBorrowableInfo()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "UbseRpcSend failed , get all nodeInfo failed.";
         return MEM_POOLING_ERROR;
     }
-    for (auto &[nodeId, numaList] : nodeInfoMap) {
+    for (auto& [nodeId, numaList] : nodeInfoMap) {
         LOG_DEBUG << "[MemManager][nodeInfoMap] NodeId=" << nodeId;
-        for (const auto &numaInfo : numaList) {
+        for (const auto& numaInfo : numaList) {
             LOG_DEBUG << "[MemManager][nodeInfoMap]" << numaInfo.ToString();
         }
     }
@@ -2036,20 +2137,20 @@ MpResult MemManager::InitBorrowableInfo()
     // 1. 构建辅助索引 (nodeId + "_" + numaId) → 保留相关信息
     std::unordered_map<std::string, ReservedInfo> reservedInfoMap;
     reservedInfoMap.reserve(numaNodeInfoList.size());
-    for (const auto &node : numaNodeInfoList) {
+    for (const auto& node : numaNodeInfoList) {
         std::string key = node.nodeId + "_" + std::to_string(node.numaId);
         reservedInfoMap[key] = {node.mReservedMemRatio, node.memLent, node.memShared};
     }
     // 2. 遍历 nodeInfoMap，构建带 reservedMem 的新表
-    for (const auto &pair : nodeInfoMap) {
-        const std::string &nodeKey = pair.first;
-        const auto &numaInfoVec = pair.second;
+    for (const auto& pair : nodeInfoMap) {
+        const std::string& nodeKey = pair.first;
+        const auto& numaInfoVec = pair.second;
 
         std::vector<mempooling::exportV2::NumaInfoWithReservedMem> extendedVec;
         extendedVec.reserve(numaInfoVec.size());
 
-        for (const auto &info : numaInfoVec) {
-            const auto &meta = info.metaData;
+        for (const auto& info : numaInfoVec) {
+            const auto& meta = info.metaData;
             std::string key = meta.nodeId + "_" + std::to_string(meta.numaId);
             uint64_t reservedMem = 0;
             uint64_t borrowableMem = 0;
@@ -2057,7 +2158,7 @@ MpResult MemManager::InitBorrowableInfo()
             uint64_t sharedMem = 0;
             auto it = reservedInfoMap.find(key);
             if (it != reservedInfoMap.end()) {
-                const auto &ri = it->second;
+                const auto& ri = it->second;
                 // 基础保留内存 = 大页数量 × 2MB × 比例
                 lentMem = ri.memLent / MB_TO_KBYTES;
                 sharedMem = ri.memShared / MB_TO_KBYTES;
@@ -2077,7 +2178,7 @@ MpResult MemManager::InitBorrowableInfo()
     }
     std::unordered_map<std::string, NodeMemoryInfoWithReservedMem> nodeMemoryInfoWithReservedMemList;
     FillNodeMemoryInfoWithReservedMem(nodeInfoMapWithReservedMem, nodeMemoryInfoWithReservedMemList);
-    for (auto &[nodeId, info] : nodeMemoryInfoWithReservedMemList) {
+    for (auto& [nodeId, info] : nodeMemoryInfoWithReservedMemList) {
         LOG_DEBUG << "[MemManager] NodeId=" << nodeId << ".";
         LOG_DEBUG << "[MemManager] " << info.ToString();
     }
@@ -2085,8 +2186,8 @@ MpResult MemManager::InitBorrowableInfo()
     return MEM_POOLING_OK;
 }
 
-MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string &nodeId,
-                                                   NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem)
+MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string& nodeId,
+                                                   NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem)
 {
     std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> nodeInfoMap;
     UbseRoleInfo roleInfo;
@@ -2117,22 +2218,22 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string &nodeId,
     // 1. 构建辅助索引 (nodeId + "_" + numaId) → 保留相关信息
     std::unordered_map<std::string, ReservedInfo> reservedInfoMap;
     reservedInfoMap.reserve(numaNodeInfoList.size());
-    for (const auto &node : numaNodeInfoList) {
+    for (const auto& node : numaNodeInfoList) {
         std::string key = node.nodeId + "_" + std::to_string(node.numaId);
         reservedInfoMap[key] = {node.mReservedMemRatio, node.memLent, node.memShared};
     }
     long basePageSize = MpConfiguration::GetInstance().GetBasePageSize();
     uint64_t hugePageNumToKb = (basePageSize == PAGE_64K_BYTES) ? HUGE_PAGE_NUM_64K_TO_KB : HUGE_PAGE_NUM_4K_TO_KB;
     // 2. 遍历 nodeInfoMap，构建带 reservedMem 的新表
-    for (const auto &pair : nodeInfoMap) {
-        const std::string &nodeKey = pair.first;
-        const auto &numaInfoVec = pair.second;
+    for (const auto& pair : nodeInfoMap) {
+        const std::string& nodeKey = pair.first;
+        const auto& numaInfoVec = pair.second;
 
         std::vector<mempooling::exportV2::NumaInfoWithReservedMem> extendedVec;
         extendedVec.reserve(numaInfoVec.size());
 
-        for (const auto &info : numaInfoVec) {
-            const auto &meta = info.metaData;
+        for (const auto& info : numaInfoVec) {
+            const auto& meta = info.metaData;
             std::string key = meta.nodeId + "_" + std::to_string(meta.numaId);
             uint64_t reservedMem = 0;
             uint64_t borrowableMem = 0;
@@ -2140,7 +2241,7 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string &nodeId,
             uint64_t sharedMem = 0;
             auto it = reservedInfoMap.find(key);
             if (it != reservedInfoMap.end()) {
-                const auto &ri = it->second;
+                const auto& ri = it->second;
                 // 基础保留内存 = 大页数量 × 2MB × 比例
                 lentMem = ri.memLent / MB_TO_KBYTES;
                 sharedMem = ri.memShared / MB_TO_KBYTES;
@@ -2172,7 +2273,7 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string &nodeId,
     return MEM_POOLING_OK;
 }
 
-MpResult MemManager::GetCanBorrowMemFromUb(RackNumaMemInfo numaMemInfo, uint64_t &canBorrowMem)
+MpResult MemManager::GetCanBorrowMemFromUb(RackNumaMemInfo numaMemInfo, uint64_t& canBorrowMem)
 {
     uint64_t calMemFree = numaMemInfo.reservedMem - numaMemInfo.sharedMem - numaMemInfo.lentMem;
     uint64_t hugePageFreeMem = numaMemInfo.vmMemFree;
@@ -2182,10 +2283,10 @@ MpResult MemManager::GetCanBorrowMemFromUb(RackNumaMemInfo numaMemInfo, uint64_t
 }
 
 MpResult MemManager::ResolveUbBorrowableInfoList(NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem,
-                                                 std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList)
+                                                 std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList)
 {
     std::set<uint16_t> socketIdSet;
-    for (auto &numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
+    for (auto& numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
         (void)socketIdSet.insert(numaMemInfo.socketId);
         if (GetCanBorrowMemFromUb(numaMemInfo, numaMemInfo.canBorrowMem)) {
             return MEM_POOLING_ERROR;
@@ -2198,7 +2299,7 @@ MpResult MemManager::ResolveUbBorrowableInfoList(NodeMemoryInfoWithReservedMem n
         socketMem.sharedMem = 0;
         socketMem.lentMemory = 0;
         socketMem.numaMemInfo.clear();
-        for (auto &numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
+        for (auto& numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
             if (numaMemInfo.socketId == socketId) {
                 socketMem.reservedMem += numaMemInfo.reservedMem;
                 socketMem.sharedMem += numaMemInfo.sharedMem;
@@ -2212,22 +2313,22 @@ MpResult MemManager::ResolveUbBorrowableInfoList(NodeMemoryInfoWithReservedMem n
     return MEM_POOLING_OK;
 }
 
-void MemManager::ResolveHccsBorrowableInfoList(NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem)
+void MemManager::ResolveHccsBorrowableInfoList(NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem)
 {
     nodeMemoryInfoWithReservedMem.canBorrowMem =
         std::min(nodeMemoryInfoWithReservedMem.freeMemory, nodeMemoryInfoWithReservedMem.reservedMem -
                                                                nodeMemoryInfoWithReservedMem.sharedMem -
                                                                nodeMemoryInfoWithReservedMem.lentMemory);
-    for (RackNumaMemInfo &numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
+    for (RackNumaMemInfo& numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
         numaMemInfo.canBorrowMem =
             std::min(numaMemInfo.memFree, numaMemInfo.reservedMem - numaMemInfo.sharedMem - numaMemInfo.lentMem);
     }
 }
 
-MpResult BorrowRecordHelper::CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
-                                                       std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList)
+MpResult BorrowRecordHelper::CollectBorrowableInfoList(const std::vector<std::string>& nodeId,
+                                                       std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList)
 {
-    for (auto &node : nodeId) {
+    for (auto& node : nodeId) {
         NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem;
         auto ret = CollectBorrowableInfo(node, nodeMemoryInfoWithReservedMem);
         if (ret != MEM_POOLING_OK) {
@@ -2249,28 +2350,28 @@ MpResult BorrowRecordHelper::CollectBorrowableInfoList(const std::vector<std::st
     return MEM_POOLING_OK;
 }
 
-uint32_t GeneratePerNodeNumaSocketMap(const std::vector<MemNodeData> &memNodeDataVec,
-                                      std::map<std::string, std::map<int, uint16_t>> &numaSocketMap)
+uint32_t GeneratePerNodeNumaSocketMap(const std::vector<MemNodeData>& memNodeDataVec,
+                                      std::map<std::string, std::map<int, uint16_t>>& numaSocketMap)
 {
-    for (const auto &memNodeData : memNodeDataVec) {
+    for (const auto& memNodeData : memNodeDataVec) {
         uint16_t socketId;
         try {
             socketId = std::stoi(memNodeData.socket.socketId);
-        } catch (const std::invalid_argument &e) {
+        } catch (const std::invalid_argument& e) {
             LOG_ERROR << "Invalid argument, socket_id=" << memNodeData.socket.socketId;
             return MEM_POOLING_ERROR;
-        } catch (const std::out_of_range &e) {
+        } catch (const std::out_of_range& e) {
             LOG_ERROR << "Out of range, socket_id=" << memNodeData.socket.socketId;
             return MEM_POOLING_ERROR;
         }
-        for (const auto &numa : memNodeData.socket.numas) {
+        for (const auto& numa : memNodeData.socket.numas) {
             int numaId;
             try {
                 numaId = std::stoi(numa.numaId);
-            } catch (const std::invalid_argument &e) {
+            } catch (const std::invalid_argument& e) {
                 LOG_ERROR << "Invalid argument, numa_id=" << numa.numaId;
                 return MEM_POOLING_ERROR;
-            } catch (const std::out_of_range &e) {
+            } catch (const std::out_of_range& e) {
                 LOG_ERROR << "Out of range, numa_id=" << numa.numaId;
                 return MEM_POOLING_ERROR;
             }
@@ -2282,17 +2383,17 @@ uint32_t GeneratePerNodeNumaSocketMap(const std::vector<MemNodeData> &memNodeDat
     return MEM_POOLING_OK;
 }
 
-void PrintNumaSocketMap(const std::map<std::string, std::map<int, uint16_t>> &numaSocketMap)
+void PrintNumaSocketMap(const std::map<std::string, std::map<int, uint16_t>>& numaSocketMap)
 {
-    for (auto &pair1 : numaSocketMap) {
-        for (const auto &pair2 : pair1.second) {
+    for (auto& pair1 : numaSocketMap) {
+        for (const auto& pair2 : pair1.second) {
             LOG_DEBUG << "Node_id=" << pair1.first << "numa_id=" << pair2.first << " socket_id=" << pair2.second;
         }
     }
 }
 
-bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>> &numaSocketMap, const std::string &nodeId,
-                   int numaId, uint16_t &socketId)
+bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>>& numaSocketMap, const std::string& nodeId,
+                   int numaId, uint16_t& socketId)
 {
     auto outerIt = numaSocketMap.find(nodeId);
     if (outerIt == numaSocketMap.end()) {
@@ -2300,7 +2401,7 @@ bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>> &numaSoc
         return false;
     }
 
-    const auto &innerMap = outerIt->second;
+    const auto& innerMap = outerIt->second;
     auto innerIt = innerMap.find(numaId);
     if (innerIt == innerMap.end()) {
         LOG_ERROR << "NumaId : " << numaId << " in nodeId : " << nodeId << " does not exist";
@@ -2311,7 +2412,7 @@ bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>> &numaSoc
     return true;
 }
 
-MpResult MemManager::GenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>> &numaSocketMap)
+MpResult MemManager::GenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>>& numaSocketMap)
 {
     numaSocketMap.clear();
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
@@ -2320,7 +2421,7 @@ MpResult MemManager::GenerateNumaSocketMap(std::map<std::string, std::map<int, u
         LOG_ERROR << "Get topo from rack failed!";
         return MEM_POOLING_ERROR;
     }
-    for (const auto &pair : nodeTopology) {
+    for (const auto& pair : nodeTopology) {
         ret = GeneratePerNodeNumaSocketMap(pair.second, numaSocketMap);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "Generate per node numa socket map failed!";
@@ -2331,7 +2432,7 @@ MpResult MemManager::GenerateNumaSocketMap(std::map<std::string, std::map<int, u
     return MEM_POOLING_OK;
 }
 
-MpResult MemManager::GetSocketId(const std::string &nodeId, const int &numaId, uint16_t &socketId)
+MpResult MemManager::GetSocketId(const std::string& nodeId, const int& numaId, uint16_t& socketId)
 {
     std::map<std::string, std::map<int, uint16_t>> numaSocketMap;
     MpResult ret = GenerateNumaSocketMap(numaSocketMap);
@@ -2346,8 +2447,8 @@ MpResult MemManager::GetSocketId(const std::string &nodeId, const int &numaId, u
     return MEM_POOLING_OK;
 }
 
-bool MemManager::JudgeSampPlane(const std::string &srcNid, const uint16_t &srcSocketId, const std::string &dstNid,
-                                const uint16_t &dstSocketId)
+bool MemManager::JudgeSampPlane(const std::string& srcNid, const uint16_t& srcSocketId, const std::string& dstNid,
+                                const uint16_t& dstSocketId)
 {
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
     uint32_t ret = UbseMemGetTopologyInfo(nodeTopology);
@@ -2363,7 +2464,7 @@ bool MemManager::JudgeSampPlane(const std::string &srcNid, const uint16_t &srcSo
     }
     std::vector<MemNodeData> foundNodeData = it->second;
     std::unordered_map<std::string, std::unordered_set<std::string>> nodeToSocketSet;
-    for (const auto &foundNode : foundNodeData) {
+    for (const auto& foundNode : foundNodeData) {
         (void)nodeToSocketSet[foundNode.nodeId].insert(foundNode.socket.socketId);
     }
     std::string socketStr = std::to_string(dstSocketId);
@@ -2373,11 +2474,11 @@ bool MemManager::JudgeSampPlane(const std::string &srcNid, const uint16_t &srcSo
         return false; // key不存在
     }
     // 在对应的set里查找socketStr
-    const auto &socketSet = ix->second;
+    const auto& socketSet = ix->second;
     return socketSet.find(socketStr) != socketSet.end();
 }
 
-void LoadDataBase(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+void LoadDataBase(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     if (ctx == nullptr) {
         LOG_ERROR << "Ctx ptr is null.";
@@ -2394,7 +2495,7 @@ void LoadDataBase(const std::string &keyPrefix, const std::string &key, const Ub
         return;
     }
 
-    UbseByteBuffer &value = *(static_cast<UbseByteBuffer *>(ctx));
+    UbseByteBuffer& value = *(static_cast<UbseByteBuffer*>(ctx));
     value.len = buff.len;
     value.data = new (std::nothrow) uint8_t[value.len];
     if (value.data == nullptr) {
@@ -2426,7 +2527,7 @@ uint32_t AntiDataReload()
         LOG_DEBUG << "queryed anti data is empty.";
         return MEM_POOLING_OK;
     }
-    std::string jsonStr(static_cast<char *>(static_cast<void *>(antiData.data)), antiData.len);
+    std::string jsonStr(static_cast<char*>(static_cast<void*>(antiData.data)), antiData.len);
     MpUpdateAntiNodeParam param;
     bool flag = param.FromJson(jsonStr);
     if (!flag) {
@@ -2439,7 +2540,7 @@ uint32_t AntiDataReload()
     return MEM_POOLING_OK;
 }
 
-void ResetAndDeleteBuffer(UbseByteBuffer &buffer)
+void ResetAndDeleteBuffer(UbseByteBuffer& buffer)
 {
     if (buffer.data != nullptr) {
         delete[] buffer.data;
@@ -2449,7 +2550,7 @@ void ResetAndDeleteBuffer(UbseByteBuffer &buffer)
     return;
 }
 
-uint32_t SmapEnableCompletedInit(UbseByteBuffer &buffer)
+uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
 {
     MpResult ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_SMAPENABLE_COMPLETED, &buffer, LoadDataBase);
     if (ret != MEM_POOLING_OK) {
@@ -2475,7 +2576,7 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer &buffer)
     if (numaIds.size() != 0) {
         LOG_DEBUG << "[PluginInit][SmapEnableCompleted] numaIds.size=" << numaIds.size()
                   << ", Start to execute SmapEnable.";
-        for (auto &numaId : numaIds) {
+        for (auto& numaId : numaIds) {
             EnableNodeMsg enableMsg;
             enableMsg.nid = static_cast<int>(numaId);
             enableMsg.enable = SMAP_ENABLE_NUMA;
@@ -2502,7 +2603,7 @@ uint32_t BorrowIdInFaultProcessInit()
     return MEM_POOLING_OK;
 }
 
-uint32_t RemovePidCompletedInit(UbseByteBuffer &buffer)
+uint32_t RemovePidCompletedInit(UbseByteBuffer& buffer)
 {
     MpResult ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_REMOVEPID_COMPLETED, &buffer, LoadDataBase);
     if (ret != MEM_POOLING_OK) {
@@ -2526,14 +2627,14 @@ uint32_t RemovePidCompletedInit(UbseByteBuffer &buffer)
     }
 
     LOG_DEBUG << "[PluginInit][RemovePidCompleted] RemovePidCompleted.size=" << numa2RemovePidMap.size()
-        << ", Start to RemovePid.";
+              << ", Start to RemovePid.";
     if (numa2RemovePidMap.size() != 0) {
-        for (const auto &[numaId, pidSet] : numa2RemovePidMap) {
+        for (const auto& [numaId, pidSet] : numa2RemovePidMap) {
             std::vector<pid_t> pids(pidSet.begin(), pidSet.end());
             ret = OverCommitMsgHandler::RemoveLocalHandler(numaId, pids);
             if (ret != MEM_POOLING_OK) {
-                LOG_WARN << "[PluginInit][RemovePidCompleted] Remove pids failed, numaId="
-                    << numaId << ", ret=" << ret << ".";
+                LOG_WARN << "[PluginInit][RemovePidCompleted] Remove pids failed, numaId=" << numaId << ", ret=" << ret
+                         << ".";
             }
         }
     }
@@ -2541,7 +2642,7 @@ uint32_t RemovePidCompletedInit(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-uint32_t Name2VmInfoInit(UbseByteBuffer &buffer)
+uint32_t Name2VmInfoInit(UbseByteBuffer& buffer)
 {
     MpResult ret = UbseStorageQueryData("mempooling", "_name2vminfo", &buffer, LoadDataBase);
     if (ret != MEM_POOLING_OK) {
@@ -2560,7 +2661,7 @@ uint32_t Name2VmInfoInit(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-uint32_t BorrowIdRedirectionInit(UbseByteBuffer &buffer)
+uint32_t BorrowIdRedirectionInit(UbseByteBuffer& buffer)
 {
     MpResult ret = UbseStorageQueryData("mempooling", "_borrowidredirection", &buffer, LoadDataBase);
     if (ret != MEM_POOLING_OK) {
@@ -2606,7 +2707,7 @@ uint32_t DataReloadInit()
     if (BorrowIdInFaultProcessInit() != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
-    
+
     MpResult ret = UbseStorageQueryData("mempooling", "_returnrecords", &buffer, LoadDataBase);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit] Failed to query database.";

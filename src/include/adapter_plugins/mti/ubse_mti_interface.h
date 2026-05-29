@@ -87,9 +87,9 @@ public:
      * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
      * @return UBSE_ERROR 表示失败
      */
-    virtual common::def::UbseResult AddDecoderEntry(const mami::UbseMamiMemImportInfo& importInfo,
-                                                    mami::UbseMamiMemImportResult& importResult,
-                                                    const ubse::adapter_plugins::mti::UbseDecoderTrustRingData &trustRingData = {}) = 0;
+    virtual common::def::UbseResult AddDecoderEntry(
+        const mami::UbseMamiMemImportInfo& importInfo, mami::UbseMamiMemImportResult& importResult,
+        const ubse::adapter_plugins::mti::UbseDecoderTrustRingData& trustRingData = {}) = 0;
 
     /**
      * 删除表项信息
@@ -126,21 +126,21 @@ public:
      * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)  = 0;
+    virtual common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上创建QosProfile
      * @param [in] ubseLcneQosProfile：待创建profile信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile)  = 0;
+    virtual common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上删除QosProfile
      * @param [in] proflieName：待删除profile名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseDeleteQosProfile(std::string proflieName)  = 0;
+    virtual common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上查询QosProfile的具体参数
@@ -148,7 +148,8 @@ public:
      * @param [out] ubseLcneQosProfile：查询到的profile信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryQosProfile(std::string proflieName, UbseMtiQosProfile &ubseLcneQosProfile)  = 0;
+    virtual common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
+                                                        UbseMtiQosProfile& ubseLcneQosProfile) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上使能应用QosProfile
@@ -156,14 +157,14 @@ public:
      * @param [in] proflieName：待生效profile名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName)  = 0;
+    virtual common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上删除Vfe上的QosProfile应用
      * @param [in] ubseFeInfo：待删除的Vfe
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo)  = 0;
+    virtual common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) = 0;
 
     /**
      * @brief 下发xml消息到Lcne上查询Vfe上的QosProfile应用
@@ -171,7 +172,7 @@ public:
      * @param [out] proflieName：查询到的profile名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string &proflieName)  = 0;
+    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName) = 0;
 };
-}  // namespace ubse::adapter_plugins::mti
-#endif  // UBSE_MTI_INTERFACE_H
+} // namespace ubse::adapter_plugins::mti
+#endif // UBSE_MTI_INTERFACE_H

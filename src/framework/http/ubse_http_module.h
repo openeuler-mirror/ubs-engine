@@ -16,13 +16,14 @@
 #include <httplib.h>
 #include <cstdint> // for uint32_t, uint8_t
 #include <cstring> // for size_t
-#include <string>        // for string, allocator, basic_string
+#include <string>  // for string, allocator, basic_string
 
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpResponse (ptr only), UbseHttpRe...
 #include "ubse_module.h"      // for UbseModule
 namespace ubse::http {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 const size_t MAX_TOTAL_HEADERS_SIZE = 8 * 1024; // 8KB
 
 class UbseHttpModule : public UbseModule {
@@ -35,16 +36,16 @@ public:
 
     void Stop() override;
 
-    static UbseResult RegHttpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func);
+    static UbseResult RegHttpService(UbseHttpMethod method, const std::string& url, UbseHttpHandlerFunc func);
 
-    static UbseResult HttpSend(UbseHttpRequest &request, UbseHttpResponse &response);
+    static UbseResult HttpSend(UbseHttpRequest& request, UbseHttpResponse& response);
 
-    static UbseResult UbseHttpPostJsonRequest(const std::string &path, const std::string &body, std::string &jsonRsp);
+    static UbseResult UbseHttpPostJsonRequest(const std::string& path, const std::string& body, std::string& jsonRsp);
 
 private:
     static UbseResult MakeError(uint32_t code);
-    static bool TcpSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
-    static void UdsSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
+    static bool TcpSend(httplib::Request& req, httplib::Response& rsp, httplib::Error& error);
+    static void UdsSend(httplib::Request& req, httplib::Response& rsp, httplib::Error& error);
     static bool isTcpServer;
     static int port;
 };

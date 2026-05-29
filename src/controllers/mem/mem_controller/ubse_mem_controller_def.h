@@ -14,14 +14,19 @@
 #define UBSE_MEM_CONTROLLER_DEF_H
 #include <cstdint>
 #include <string>
+#include <unordered_set>
 #include <vector>
-#include "ubs_engine_mem.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller_def.h"
+#include "ubs_engine_mem.h"
 namespace ubse::mem::def {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::nodeController::def;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::adapter_plugins::mmi::UbMemFaultType;
+using ubse::adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
+using ubse::nodeController::def::UbseNode;
+
 struct UbseMemFdDesc {
     std::string name;
     std::vector<uint64_t> memIds;
@@ -89,7 +94,7 @@ struct UbseMemIdQueryRequest {
     std::string name{};         // 账本名称
     std::string importNodeId{}; // 导入节点
     uint64_t importMemId{};     // 导入内存id
-    uint32_t borrowType{}; // 借用类型
+    uint32_t borrowType{};      // 借用类型
     UbseUdsInfo udsInfo{};      // 调用用户信息, 用于权限校验
 };
 
@@ -109,6 +114,29 @@ struct LedgerResp {
 struct UbseExportMemDesc {
     uint32_t exportSlotId;
     uint64_t exportMemId;
+};
+
+struct ShareHandleInfo {
+    std::string name;
+    std::unordered_set<uint64_t> memIds;
+    UbseUdsInfo udsInfo{};
+};
+using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
+
+using FdHandleInfo = ShareHandleInfo;
+using FdHandleInfoVec = std::vector<FdHandleInfo>;
+
+struct NumaHandleInfo {
+    std::string name;
+    std::unordered_set<int64_t> numaIds;
+    UbseUdsInfo udsInfo{};
+};
+using NumaHandleInfoVec = std::vector<NumaHandleInfo>;
+
+struct DebtHandleInfos {
+    ShareHandleInfoVec& shareVec;
+    NumaHandleInfoVec& numaVec;
+    FdHandleInfoVec& fdVec;
 };
 } // namespace ubse::mem::def
 

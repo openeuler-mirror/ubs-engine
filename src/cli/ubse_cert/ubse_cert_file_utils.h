@@ -22,20 +22,20 @@ public:
      * @param filePath raw file path
      * @return
      */
-    static bool IsSymlink(const std::string &filePath);
+    static bool IsSymlink(const std::string& filePath);
 
     /** Check whether the destination path is a hard link
      * @param filePath raw file path
      * @return
      */
-    static bool IsHardLink(const std::string &filePath);
+    static bool IsHardLink(const std::string& filePath);
 
     /** Check whether the destination path is canonical.
      * @param filePath raw file path
      * @param errMsg the err msg
      * @return
      */
-    static bool IsCanonicalPath(const std::string &filePath, std::string &errMsg);
+    static bool IsCanonicalPath(const std::string& filePath, std::string& errMsg);
 };
-}
+} // namespace ubse::cli::cert
 #endif // UBSE_CERT_FILE_UTIL_H

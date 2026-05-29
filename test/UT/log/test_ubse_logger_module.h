@@ -13,10 +13,10 @@
 #ifndef UBSE_MANAGER_UBSE_LOGGER_MODULE_H
 #define UBSE_MANAGER_UBSE_LOGGER_MODULE_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_logger_manager.h"
 #include "ubse_logger_module.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::log {
 class TestUbseLoggerModule : public testing::Test {
@@ -27,5 +27,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::log
 #endif // UBSE_MANAGER_UBSE_LOGGER_MODULE_H

@@ -43,10 +43,13 @@
         CON ? ubse::context::UbseContext::GetInstance().RegisterBaseModule<MODULE_NAME, ##__VA_ARGS__>( \
             ubse::module::UbseModule::CreateModule<MODULE_NAME>) : UBSE_OK
 namespace ubse::context {
-using namespace ubse::module;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+
 using ModulerCreatorFunc = std::function<std::shared_ptr<UbseModule>()>;
 
-enum class ProcessMode {
+enum class ProcessMode
+{
     MANAGER, // manager启动
     CLI,     // cli启动
     DEFAULT  // 默认启动方式, manager启动
@@ -64,21 +67,21 @@ SceneType GetSceneType();
 
 class UbseContext {
 public:
-    static UbseContext &GetInstance()
+    static UbseContext& GetInstance()
     {
         static UbseContext instance;
         return instance;
     }
 
-    UbseContext(const UbseContext &) = delete;
+    UbseContext(const UbseContext&) = delete;
 
-    UbseContext &operator=(const UbseContext &) = delete;
+    UbseContext& operator=(const UbseContext&) = delete;
 
     // 运行上下文
-    UbseResult Run(int argc, char *argv[], ProcessMode = ProcessMode::MANAGER);
+    UbseResult Run(int argc, char* argv[], ProcessMode = ProcessMode::MANAGER);
 
     template <typename T, typename... Dependencies>
-    UbseResult RegisterModule(const ModulerCreatorFunc &creator)
+    UbseResult RegisterModule(const ModulerCreatorFunc& creator)
     {
         // 静态断言：确保类型T完整且是UbseModule派生类
         static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
@@ -93,7 +96,7 @@ public:
     }
 
     template <typename T, typename... Dependencies>
-    UbseResult RegisterBaseModule(const ModulerCreatorFunc &creator)
+    UbseResult RegisterBaseModule(const ModulerCreatorFunc& creator)
     {
         // 静态断言：确保类型T完整且是UbseModule派生类
         static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
@@ -128,7 +131,7 @@ public:
         return nullptr;
     }
 
-    UbseResult GetArgStr(const std::string &argName, std::string &argValue);
+    UbseResult GetArgStr(const std::string& argName, std::string& argValue);
 
     ProcessMode GetProcessMode() const;
 
@@ -145,7 +148,7 @@ public:
     }
 
     // 获取 cmdArgv
-    char **GetArgv() const
+    char** GetArgv() const
     {
         return cmdArgv_;
     }
@@ -164,30 +167,30 @@ private:
 
     UbseResult CreateModules();
 
-    UbseResult CreateModules(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                             std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult CreateModules(const std::unordered_map<std::type_index, ModuleEntry>& creatorMap,
+                             std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
     void SetProcessMode(ProcessMode mode);
 
-    std::vector<std::type_index> TopologicalSort(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap);
+    std::vector<std::type_index> TopologicalSort(const std::unordered_map<std::type_index, ModuleEntry>& creatorMap);
 
-    bool TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                             const std::type_index &moduleName, std::unordered_set<std::type_index> &visited,
-                             std::unordered_set<std::type_index> &visiting, std::vector<std::type_index> &sorted);
+    bool TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry>& creatorMap,
+                             const std::type_index& moduleName, std::unordered_set<std::type_index>& visited,
+                             std::unordered_set<std::type_index>& visiting, std::vector<std::type_index>& sorted);
 
     UbseResult GetExecutablePath();
 
-    UbseResult InitModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult InitModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult StartModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult StartModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult StopModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult StopModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult DestroyModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult DestroyModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
     UbseResult RegisterArg();
 
-    UbseResult ParserArgs(int argc, char *argv[]);
+    UbseResult ParserArgs(int argc, char* argv[]);
 
     UbseResult InitAndStartModule();
 
@@ -206,7 +209,7 @@ private:
     }
 
     int cmdArgc_ = 0;
-    char **cmdArgv_ = nullptr;
+    char** cmdArgv_ = nullptr;
     std::string ubseRunPath_{};
     ProcessMode processMode_ = ProcessMode::DEFAULT;
     // 命令行参数

@@ -14,9 +14,9 @@
 
 #include "mockcpp/mockcpp.hpp"
 
+#include "ubse_error.h"
 #include "message/ubse_mem_controller_serial.h"
 #include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "ubse_error.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::message;

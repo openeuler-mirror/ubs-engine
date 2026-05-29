@@ -15,6 +15,7 @@
 
 namespace ubse::ut::utils {
 using namespace ubse::utils;
+using namespace ubse::nodeController;
 void TestUbseTopoUtil::SetUp()
 {
     Test::SetUp();
@@ -46,4 +47,4 @@ TEST_F(TestUbseTopoUtil, TestIsMultiPortTopo_WhenTwoPortsSameRemoteSlotAndChip_E
     EXPECT_TRUE(IsMultiPortTopo(ubseCpuInfo));
 }
 
-}
+} // namespace ubse::ut::utils

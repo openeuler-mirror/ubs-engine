@@ -11,20 +11,22 @@
  */
 
 #include "test_ubse_election_role_master.h"
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_context.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::event::election {
 using namespace ubse::election;
 using namespace ubse::context;
-ubse::election::UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr *pthis, Node &myself);
+using namespace ubse::com;
+using namespace ubse::common::def;
+ubse::election::UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr* pthis, Node& myself);
 
-UbseResult MockGetAllNode(UbseElectionNodeMgr *pthis, std::vector<Node> &allNodes)
+UbseResult MockGetAllNode(UbseElectionNodeMgr* pthis, std::vector<Node>& allNodes)
 {
-    std::vector<Node> allNodes_ = { Node{ "NODE1", "192.168.0.1", 10004 }, Node{ "NODE2", "192.168.0.2", 10005 },
-                                   Node{ "NODE3", "192.168.0.3", 10006 } };
+    std::vector<Node> allNodes_ = {Node{"NODE1", "192.168.0.1", 10004}, Node{"NODE2", "192.168.0.2", 10005},
+                                   Node{"NODE3", "192.168.0.3", 10006}};
     allNodes = allNodes_;
     return UBSE_OK;
 }
@@ -35,8 +37,8 @@ TEST_F(TestUbseElectionRoleMaster, Construct_ShouldReturnMaster_WhenMasterInit)
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode0));
 
     auto role = RoleMgr::GetInstance().GetRole();
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2" };
-    std::vector<UBSE_ID_TYPE> allConnectNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE0", "NODE1", "NODE2"};
+    std::vector<UBSE_ID_TYPE> allConnectNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(&UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)0));
 
@@ -58,8 +60,8 @@ TEST_F(TestUbseElectionRoleMaster, ProcTimer_ShouldReturnMaster_WhenMasterSendHe
     GTEST_SKIP();
     // given
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode0));
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2" };
-    std::vector<UBSE_ID_TYPE> allConnectNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE0", "NODE1", "NODE2"};
+    std::vector<UBSE_ID_TYPE> allConnectNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allConnectNodes));
     RoleContext ctx;
     ctx.masterId = "NODE0";
@@ -120,8 +122,8 @@ TEST_F(TestUbseElectionRoleMaster, RecvPkt_ShouldReturnReject_WhenMasterReciveSe
 {
     // given
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode0));
-    std::vector<UBSE_ID_TYPE> allNodes = { "NODE0", "NODE1", "NODE2" };
-    std::vector<UBSE_ID_TYPE> allConnectNodes = { "NODE1", "NODE2" };
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE0", "NODE1", "NODE2"};
+    std::vector<UBSE_ID_TYPE> allConnectNodes = {"NODE1", "NODE2"};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allConnectNodes));
     MOCKER(&UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)0));
     RoleContext ctx;
@@ -152,7 +154,7 @@ TEST_F(TestUbseElectionRoleMaster, dealNodeUpdate_ShouldBroadcastAdd_WhenNodeAdd
     Master master(ctx);
     master.stopping_ = false;
     master.activeCount_ = 0;
-    master.preNodes_ = { "Node1", "Node2" };
+    master.preNodes_ = {"Node1", "Node2"};
     master.DealNodeUpdate();
 }
 
@@ -165,7 +167,7 @@ TEST_F(TestUbseElectionRoleMaster, dealNodeUpdate_ShouldBroadcastRemove_WhenNode
     Master master(ctx);
     master.stopping_ = false;
     master.activeCount_ = 0;
-    master.preNodes_ = { "Node1", "Node2", "Node3", "Node4" };
+    master.preNodes_ = {"Node1", "Node2", "Node3", "Node4"};
     master.DealNodeUpdate();
 }
 
@@ -227,7 +229,6 @@ TEST_F(TestUbseElectionRoleMaster, GetStandbyStatus_ShouldReturnStatus_WhenCalle
     EXPECT_EQ(master.standbyStatus_, actualStatus);
 }
 
-
 TEST_F(TestUbseElectionRoleMaster, SetNodeDownStatus_ShouldSetNodeOffline_WhenNodeIsOnline)
 {
     RoleContext ctx;
@@ -277,7 +278,7 @@ TEST_F(TestUbseElectionRoleMaster, HandleSplitBrainMerge_ShouldAccpt)
     ElectionReplyPkt reply;
     rcvPkt.masterId = "Node0";
     rcvPkt.standbyId = "Node2";
-    rcvPkt.agentIds = { "Node3" };
+    rcvPkt.agentIds = {"Node3"};
     rcvPkt.turnId = 1;
     RoleContext ctx;
     Master master(ctx);
@@ -285,7 +286,7 @@ TEST_F(TestUbseElectionRoleMaster, HandleSplitBrainMerge_ShouldAccpt)
     master.activeCount_ = 0;
     master.masterId_ = "Node1";
     master.standbyId_ = "Node4";
-    std::vector<UBSE_ID_TYPE> agentIds = { "Node5" };
+    std::vector<UBSE_ID_TYPE> agentIds = {"Node5"};
     MOCKER(&ubse::election::Master::GetAllAgentIDs).stubs().will(returnValue(agentIds));
     master.HandleSplitBrainMerge(rcvPkt, reply);
     EXPECT_EQ(reply.replyResult, ELECTION_PKT_RESULT_ACCEPT);
@@ -297,7 +298,7 @@ TEST_F(TestUbseElectionRoleMaster, SendHeartBeat_ShouldReturnError)
     ElectionReplyPkt reply;
     pkt.masterId = "Node0";
     pkt.standbyId = "Node2";
-    pkt.agentIds = { "Node3" };
+    pkt.agentIds = {"Node3"};
     pkt.turnId = 1;
     RoleContext ctx;
     Master master(ctx);
@@ -349,4 +350,39 @@ TEST_F(TestUbseElectionRoleMaster, UpdateBroadcastStatus_WhenNodeLost)
     ubse::election::UpdateBroadcastStatus(nodeId, reply, broad, status, mtx);
     EXPECT_EQ(broad[nodeId].activeStatus, HeartBeatState::LOST);
 }
+
+TEST_F(TestUbseElectionRoleMaster, ProcessReply_ShouldReturn_WhenResultNotZero)
+{
+    CallbackCtx context;
+    context.destId = "NODE1";
+    std::mutex mtx;
+    context.mtx = &mtx;
+    std::map<UBSE_ID_TYPE, BroadcastStatus> broad;
+    context.broadcast = &broad;
+    uint8_t status = 0;
+    context.standbyStatus = &status;
+
+    EXPECT_NO_THROW(ubse::election::ProcessReply(&context, -1, nullptr, 0));
 }
+
+TEST_F(TestUbseElectionRoleMaster, AsyncDealReply_ShouldReturn_WhenContextIsNull)
+{
+    EXPECT_NO_THROW(ubse::election::AsyncDealReply(nullptr, nullptr, 0, 0));
+}
+
+TEST_F(TestUbseElectionRoleMaster, AsyncDealReply_ShouldProcessReply_WhenStoppingFalse)
+{
+    auto context = new CallbackCtx();
+    context->destId = "NODE1";
+    context->mtx = new std::mutex();
+    context->broadcast = new std::map<UBSE_ID_TYPE, BroadcastStatus>();
+    context->standbyStatus = new uint8_t(0);
+    context->stopping = new std::atomic<bool>(false);
+    context->activeCount = new std::atomic<int>(0);
+
+    MOCKER(&UbseBaseMessage::SetInputRawData).stubs().will(returnValue(UBSE_ERROR));
+
+    uint8_t data[10] = {0};
+    EXPECT_NO_THROW(ubse::election::AsyncDealReply(context, data, 10, 0));
+}
+} // namespace ubse::event::election

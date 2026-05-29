@@ -13,8 +13,7 @@
 #include <gtest/gtest.h>
 #include "test_it_utils.h"
 
-
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     ubse::it::utils::SetArgv(argv);
     testing::InitGoogleTest(&argc, argv);

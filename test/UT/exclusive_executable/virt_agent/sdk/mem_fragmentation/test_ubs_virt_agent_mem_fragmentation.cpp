@@ -16,9 +16,9 @@
 #include <mockcpp/mokc.h>
 
 #include <securec.h>
+#include "ubse_ipc_client.h"
 #include "ubs_virt_agent_mem_fragmentation.h"
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
-#include "ubse_ipc_client.h"
 #include "vm_serial_util.h"
 
 using namespace vm;
@@ -41,7 +41,7 @@ void TestLibvirtAgentMemFragmentation::TearDown()
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_info_InvalidParameters)
 {
-    numa_info_t *node_list = nullptr;
+    numa_info_t* node_list = nullptr;
     uint32_t node_cnt = 0;
 
     auto ret = ubs_virt_agent_mem_fragmentation_node_info(nullptr, &node_cnt);
@@ -53,7 +53,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_i
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_info_InvokeCallFailed)
 {
-    numa_info_t *node_list{};
+    numa_info_t* node_list{};
     uint32_t node_cnt = 0;
 
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_info(&node_list, &node_cnt);
@@ -63,7 +63,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_i
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_info_unpack_fail)
 {
-    numa_info_t *node_list{};
+    numa_info_t* node_list{};
     uint32_t node_cnt = 0;
     MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_info(&node_list, &node_cnt);
@@ -73,7 +73,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_i
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_info)
 {
-    numa_info_t *node_list{};
+    numa_info_t* node_list{};
     uint32_t node_cnt = 0;
     MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
     MOCKER(ubse_node_info_unpack).stubs().will(returnValue(0));
@@ -84,7 +84,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_i
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_info_InvalidParameters)
 {
-    vm_domain_info_t *node_list = nullptr;
+    vm_domain_info_t* node_list = nullptr;
     uint32_t node_cnt = 0;
 
     auto ret = ubs_virt_agent_mem_fragmentation_vm_info(nullptr, &node_cnt);
@@ -96,7 +96,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_inf
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_info_fail)
 {
-    vm_domain_info_t *node_list{};
+    vm_domain_info_t* node_list{};
     uint32_t node_cnt = 0;
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_vm_info(&node_list, &node_cnt);
     EXPECT_EQ(ret, VA_ERROR_BASE);
@@ -105,7 +105,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_inf
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_info_unpack_fail)
 {
-    vm_domain_info_t *node_list{};
+    vm_domain_info_t* node_list{};
     uint32_t node_cnt = 0;
     MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_vm_info(&node_list, &node_cnt);
@@ -115,7 +115,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_inf
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_vm_info)
 {
-    vm_domain_info_t *node_list{};
+    vm_domain_info_t* node_list{};
     uint32_t node_cnt = 0;
     MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
     MOCKER(ubse_vm_info_unpack).stubs().will(returnValue(0));
@@ -132,12 +132,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_a
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_anti_affinity_fail)
 {
-    NodeAntiDictionary dict = {
-        .entries = {
-            {.key = "1", .value = {"2"}, .value_count = 1}
-        },
-        .entry_count = 1
-    };
+    NodeAntiDictionary dict = {.entries = {{.key = "1", .value = {"2"}, .value_count = 1}}, .entry_count = 1};
     MOCKER(ubse_invoke_call).stubs().will(returnValue(1));
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_anti_affinity(&dict);
     EXPECT_EQ(ret, VA_ERROR_BASE);
@@ -146,14 +141,9 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_a
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_fragmentation_node_anti_affinity_AllocateMemoryFailed)
 {
-    NodeAntiDictionary dict = {
-        .entries = {
-            {.key = "1", .value = {"2"}, .value_count = 1}
-        },
-        .entry_count = 1
-    };
+    NodeAntiDictionary dict = {.entries = {{.key = "1", .value = {"2"}, .value_count = 1}}, .entry_count = 1};
 
-    MOCKER(allocate_memory).stubs().will(returnValue(static_cast<uint8_t *>(nullptr)));
+    MOCKER(allocate_memory).stubs().will(returnValue(static_cast<uint8_t*>(nullptr)));
     virt_agent_ret_t ret = ubs_virt_agent_mem_fragmentation_node_anti_affinity(&dict);
     EXPECT_EQ(ret, VA_ERROR_MEM_ALLOCATE_FAILED);
     GlobalMockObject::verify();
@@ -205,9 +195,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy_Inv
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy)
 {
-    MemMigrateStrategySrcParam param = {
-        .borrowInNode = "node0"
-    };
+    MemMigrateStrategySrcParam param = {.borrowInNode = "node0"};
     param.borrowSize = 0;
     param.vmInfoListSize = 2;
     param.vmInfoList[0].pid = 1234;
@@ -223,9 +211,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy)
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy_InvokeFail)
 {
-    MemMigrateStrategySrcParam param = {
-        .borrowInNode = "node0"
-    };
+    MemMigrateStrategySrcParam param = {.borrowInNode = "node0"};
     param.borrowSize = 0;
     param.vmInfoListSize = 2;
     param.vmInfoList[0].pid = 1234;
@@ -240,9 +226,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy_Inv
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_strategy_UnpackFail)
 {
-    MemMigrateStrategySrcParam param = {
-        .borrowInNode = "node0"
-    };
+    MemMigrateStrategySrcParam param = {.borrowInNode = "node0"};
     param.borrowSize = 0;
     param.vmInfoListSize = 2;
     param.vmInfoList[0].pid = 1234;
@@ -304,10 +288,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_execute_Inva
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_execute)
 {
-    MemMigrateExecuteSrcParam param = {
-        .borrowInNode = "node0",
-        .borrowIds = {"id1", "id2"}
-    };
+    MemMigrateExecuteSrcParam param = {.borrowInNode = "node0", .borrowIds = {"id1", "id2"}};
     param.borrowIdsCount = 2;
     param.vmInfoListSize = 2;
     param.vmInfoList[0].destNumaId = 1;
@@ -324,10 +305,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_execute)
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_execute_InvokeFail)
 {
-    MemMigrateExecuteSrcParam param = {
-        .borrowInNode = "node0",
-        .borrowIds = {"id1"}
-    };
+    MemMigrateExecuteSrcParam param = {.borrowInNode = "node0", .borrowIds = {"id1"}};
     param.borrowIdsCount = 1;
     param.vmInfoListSize = 2;
     param.vmInfoList[0].destNumaId = 1;
@@ -341,20 +319,14 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_migrate_execute_Invo
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_rollback_InvalidParameters)
 {
-    RollbackSrcParam srcParam{
-        .borrow_id_size = 0
-    };
+    RollbackSrcParam srcParam{.borrow_id_size = 0};
     virt_agent_ret_t ret = ubs_virt_agent_mem_rollback(&srcParam);
     EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
 }
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_rollback)
 {
-    RollbackSrcParam srcParam{
-        .node_id = "test_node",
-        .borrow_id_list = {"id1", "id2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam srcParam{.node_id = "test_node", .borrow_id_list = {"id1", "id2"}, .borrow_id_size = 2};
     MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
     virt_agent_ret_t ret = ubs_virt_agent_mem_rollback(&srcParam);
     EXPECT_EQ(ret, VA_SUCCESS);
@@ -363,11 +335,7 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_rollback)
 
 TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_rollback_InvokeFail)
 {
-    RollbackSrcParam srcParam{
-        .node_id = "test_node",
-        .borrow_id_list = {"id1", "id2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam srcParam{.node_id = "test_node", .borrow_id_list = {"id1", "id2"}, .borrow_id_size = 2};
     MOCKER(ubse_invoke_call).stubs().will(returnValue(1));
     virt_agent_ret_t ret = ubs_virt_agent_mem_rollback(&srcParam);
     EXPECT_EQ(ret, VA_ERROR_BASE);

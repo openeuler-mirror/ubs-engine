@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::algorithm
 
 #endif // UBS_ENGINE_TEST_MEM_POOL_CONFIG_H

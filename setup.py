@@ -29,7 +29,7 @@ shutil.copytree("src/addons/virt_agent/sdk/python/models", TEMP_MODELS_DIR, dirs
 
 setup(
     name="ubse",
-    version="1.0.0",
+    version="1.0.1",
     package_dir={"ubse": TEMP_DIR,
                  "ubse.ffi": TEMP_FFI_DIR,
                  "ubse.models": TEMP_MODELS_DIR},

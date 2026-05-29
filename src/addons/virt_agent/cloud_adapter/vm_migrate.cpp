@@ -11,17 +11,17 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "vm_migrate.h"
-#include <ubse_logger.h>
 #include <ubse_api_server.h>
-#include "resource_query.h"
-#include "vm_http_util.h"
+#include <ubse_logger.h>
 #include "resource_collect.h"
+#include "resource_query.h"
+#include "ubs_virt_agent_object_def.h"
+#include "vm_http_util.h"
 #include "vm_json_util.h"
 #include "vm_sdk_def.h"
-#include "ubs_virt_agent_object_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace api::server;
 using namespace ubse::log;
 
@@ -36,7 +36,7 @@ VmResult VmMigrate::Register()
     return VM_OK;
 }
 
-uint32_t VmMigrate::UpdatePageFlowAndStatus(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VmMigrate::UpdatePageFlowAndStatus(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr || req.length == 0) {
         UBSE_LOG_ERROR << "req.buffer is null or req.length is zero.";
@@ -66,7 +66,7 @@ uint32_t VmMigrate::UpdatePageFlowAndStatus(const UbseIpcMessage &req, const Ubs
     return sendRet;
 }
 
-VmResult VmMigrate::ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMessage &response)
+VmResult VmMigrate::ProcessRequest(MemMigrateInputParams& inputParams, UbseIpcMessage& response)
 {
     std::string opt = inputParams.opt;
     std::string uuid = inputParams.uuid;
@@ -76,7 +76,7 @@ VmResult VmMigrate::ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMe
     NumaMemInfoMap numaMemInfomap{};
     PageFlowResultParam pageFlowRes{};
     auto ret = FindNodeIdPid(uuid, nodeId, pid, numaMemInfomap);
-    if (ret != VM_OK || pid <=0) {
+    if (ret != VM_OK || pid <= 0) {
         UBSE_LOG_ERROR << "Find pid failed.";
         return VM_ERROR;
     }
@@ -101,12 +101,12 @@ VmResult VmMigrate::ProcessRequest(MemMigrateInputParams &inputParams, UbseIpcMe
     return ret;
 }
 
-VmResult VmMigrate::ToUpdateVmStatus(const NumaMemInfoMap &numaMemInfoMap, const std::string &uuid, pid_t pid,
+VmResult VmMigrate::ToUpdateVmStatus(const NumaMemInfoMap& numaMemInfoMap, const std::string& uuid, pid_t pid,
                                      VmMigrateStatus vmMigrateStatus)
 {
     VmResult ret = VM_ERROR;
     int times = RETRY_TIMES;
-    auto &vmResourceCollect = ResourceCollect::GetInstance();
+    auto& vmResourceCollect = ResourceCollect::GetInstance();
     while (ret && times > 0) {
         ret = vmResourceCollect.UpdateVMStatus(numaMemInfoMap, uuid, pid, vmMigrateStatus);
         if (ret != VM_OK) {
@@ -121,14 +121,14 @@ VmResult VmMigrate::ToUpdateVmStatus(const NumaMemInfoMap &numaMemInfoMap, const
     return VM_OK;
 }
 
-VmResult VmMigrate::FindNodeIdPid(const std::string &uuid, std::string &nodeId, pid_t &pid,
-                                  NumaMemInfoMap &numaMemInfoMap)
+VmResult VmMigrate::FindNodeIdPid(const std::string& uuid, std::string& nodeId, pid_t& pid,
+                                  NumaMemInfoMap& numaMemInfoMap)
 {
     HostVmDomainInfo hostVmDomainInfo{};
     if (auto ret = ResourceQuery::GetVmDomainInfosFromGlobal(hostVmDomainInfo); ret != VM_OK) {
         return ret;
     }
-    for (const auto &vmDomainInfo : hostVmDomainInfo.vmDomainInfos) {
+    for (const auto& vmDomainInfo : hostVmDomainInfo.vmDomainInfos) {
         if (vmDomainInfo.uuid == uuid) {
             nodeId = hostVmDomainInfo.nodeId;
             pid = vmDomainInfo.pid;
@@ -154,7 +154,7 @@ std::string PageFlowResultParam::ToJson()
     return result;
 }
 
-VmResult VmMigrate::BuildIpcResponse(const std::string &message, UbseIpcMessage &resp)
+VmResult VmMigrate::BuildIpcResponse(const std::string& message, UbseIpcMessage& resp)
 {
     resp.length = message.length();
     resp.buffer = new (std::nothrow) uint8_t[resp.length];
@@ -171,8 +171,8 @@ VmResult VmMigrate::BuildIpcResponse(const std::string &message, UbseIpcMessage 
     return VM_OK;
 }
 
-VmResult VmMigrate::UpdateVmStatusByMigrateStatus(const std::string &opt, const NumaMemInfoMap &numaMemInfoMap,
-                                                  const std::string &uuid, pid_t pid, UbseIpcMessage &response)
+VmResult VmMigrate::UpdateVmStatusByMigrateStatus(const std::string& opt, const NumaMemInfoMap& numaMemInfoMap,
+                                                  const std::string& uuid, pid_t pid, UbseIpcMessage& response)
 {
     VmResult ret = VM_OK;
     std::string message = "";

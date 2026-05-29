@@ -13,6 +13,7 @@
 #include "ubse_urma_controller_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -31,6 +32,7 @@ using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
+using namespace ubse::config;
 
 std::atomic<uint32_t> g_asyncHandlerCnt{0};
 std::set<std::string> g_RegTimerNames;
@@ -45,7 +47,7 @@ AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
 
-AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
+AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t>& cnt) : guardCnt(cnt)
 {
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
@@ -116,20 +118,26 @@ UbseResult RpcReg()
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
+    enabled_ = UbseIsUrmaSupported();
+    auto ret = UbseUrmaControllerApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
+        return ret;
+    }
+    if (!enabled_) {
+        UBSE_LOG_INFO << "URMA feature is unsupported, skip urma controller background initialization.";
+        return UBSE_OK;
+    }
+
     // 注册消息处理函数,监听 topo变化事件
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
+    ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
-    }
-    ret = UbseUrmaControllerApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
-        return ret;
     }
     if (RpcReg() != UBSE_OK) {
         return UBSE_ERROR;
@@ -158,13 +166,13 @@ void UbseUrmaControllerModule::UnInitialize() {}
 
 void DisconnectAllNormalLink()
 {
-    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
     if (comModule == nullptr) {
         UBSE_LOG_WARN << "Failed to get com module";
         return;
     }
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
     }
 }
@@ -176,6 +184,9 @@ UbseResult UbseUrmaControllerModule::Start()
 
 void UbseUrmaControllerModule::Stop()
 {
+    if (!enabled_) {
+        return;
+    }
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
                                            ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
@@ -195,7 +206,7 @@ void UbseUrmaControllerModule::Stop()
         sleep(1);
     }
     std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    for (const auto &timerName : g_RegTimerNames) {
+    for (const auto& timerName : g_RegTimerNames) {
         UBSE_LOG_INFO << "Unregister timer=" << timerName;
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
@@ -208,10 +219,10 @@ void UbseUrmaControllerModule::Stop()
     return;
 }
 
-UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
+UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTaskHandler task)
 {
     AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
         ubse::timer::UbseTimerHandlerUnregister(timerName);
         return UBSE_OK;
@@ -223,19 +234,19 @@ UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTa
         return UBSE_OK;
     }
     UBSE_LOG_WARN << "Do timer task failed, timer name=" << timerName << ", retry later";
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
     return ret;
 }
 
-UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
+UbseResult HandleTaskWithRetry(const std::string& executorName, const std::string& taskName, uint32_t timerInterval,
                                UbseUrmaRetryTaskHandler task)
 {
     UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
     AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
         return UBSE_OK;
     }
@@ -244,7 +255,7 @@ UbseResult HandleTaskWithRetry(const std::string &executorName, const std::strin
         return UBSE_OK;
     }
     std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    if (g_globalStop) {
+    if (context::g_globalStop) {
         UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
         return UBSE_OK;
     }
@@ -254,7 +265,7 @@ UbseResult HandleTaskWithRetry(const std::string &executorName, const std::strin
         taskName,
         [executorName, taskName, task]() {
             AsyncHandlerGuard innerCntGuard;
-            if (g_globalStop) {
+            if (context::g_globalStop) {
                 UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
                 ubse::timer::UbseTimerHandlerUnregister(taskName);
                 return UBSE_OK;

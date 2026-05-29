@@ -1,12 +1,12 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_ras_com_handler.h"
-#include "message/ubse_ras_message.h"
-#include "message/ubse_ras_oom_message.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 #include "ubse_election_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_ras_handler.h"
+#include "message/ubse_ras_message.h"
+#include "message/ubse_ras_oom_message.h"
+#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 #include "water_process/resource_analysis.h"
 
 namespace ubse::ras {
@@ -14,9 +14,13 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
 using namespace ubse::election;
 using namespace ubse::mem::strategy;
+using namespace ubse::log;
+using namespace ubse::com;
+using namespace ubse::common::def;
 
-static std::unordered_map<std::string, std::string> g_nodeBmcFaultMsgId; // <nodeId, msgId>，记录nodeId上一次BMC处理的msgId
-UbseResult HandleBmcFaultPreSet(const UbseRasMessagePtr &request, const UbseRasMessagePtr &response)
+static std::unordered_map<std::string, std::string>
+    g_nodeBmcFaultMsgId; // <nodeId, msgId>，记录nodeId上一次BMC处理的msgId
+UbseResult HandleBmcFaultPreSet(const UbseRasMessagePtr& request, const UbseRasMessagePtr& response)
 {
     LogMemDebtInfoWithNode(ALARM_REBOOT_EVENT, request->GetData());
     auto nodeId = request->GetData();
@@ -27,8 +31,8 @@ UbseResult HandleBmcFaultPreSet(const UbseRasMessagePtr &request, const UbseRasM
         ClearFaultHandlerResult("BMC-" + nodeId + "-" + msgId);
     }
     // 调用node ctrl 回调，尝试进入pre bmc状态，超时则返回失败
-    auto ret = UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE,
-                                                            request->GetData());
+    auto ret =
+        UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE, request->GetData());
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Pre fault state handler failed, " << FormatRetCode(ret);
         response->SetResult(ret);
@@ -42,7 +46,7 @@ UbseResult HandleBmcFaultPreSet(const UbseRasMessagePtr &request, const UbseRasM
     return UBSE_OK;
 }
 
-UbseResult UbseRasComHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseRasComHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                      UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
@@ -58,19 +62,18 @@ UbseResult UbseRasComHandler::Handle(const UbseBaseMessagePtr &req, const UbseBa
     }
     // 检查节点是否已经处于fault状态，如果是则直接返回成功，使其BMC下电
     if (UbseNodeController::GetInstance().GetNodeById(request->GetData()).clusterState ==
-            UbseNodeClusterState::UBSE_NODE_FAULT) {
+        UbseNodeClusterState::UBSE_NODE_FAULT) {
         response->SetResult(UBSE_OK);
         UBSE_LOG_INFO << "nodeId=" << request->GetData() << " is already fault";
         return UBSE_OK;
     }
-    if (auto ret = HandleBmcFaultPreSet(request, response); ret  != UBSE_OK) {
+    if (auto ret = HandleBmcFaultPreSet(request, response); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Handler bmc fault preset failed, " << FormatRetCode(ret);
         response->SetResult(ret);
         return ret;
     }
     std::string uniqueId = "BMC-" + request->GetData() + "-" + request->GetMsg();
-    auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_REBOOT_EVENT, request->GetData(),
-                                                                 uniqueId);
+    auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_REBOOT_EVENT, request->GetData(), uniqueId);
     response->SetResult(UBSE_ERROR_AGAIN); // 默认失败，状态成功置为fault以及清理操作成功时才改为UBSE_OK
     if (ret == UBSE_OK) {
         // 故障处理成功后，先进入node fault状态，再进行对账等清理动作
@@ -99,7 +102,7 @@ UbseResult UbseRasComHandler::Handle(const UbseBaseMessagePtr &req, const UbseBa
     return UBSE_OK;
 }
 
-UbseResult UbseRasSwitchRoleHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseRasSwitchRoleHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                             UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<UbseElectionModule>();
@@ -111,7 +114,7 @@ UbseResult UbseRasSwitchRoleHandler::Handle(const UbseBaseMessagePtr &req, const
     return UBSE_OK;
 }
 
-UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UbseRasOomMessagePtr request = UbseBaseMessage::DeConvert<UbseRasOomMessage>(req);
@@ -138,9 +141,8 @@ UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseM
         return UBSE_ERROR;
     }
     auto numaInfo = nodeInfo.numaInfos[numaLocation];
-    UbseMemNumaLoc warningNumaLoc{.nodeId = nodeId,
-                                  .socketId = static_cast<int>(numaInfo.socketId),
-                                  .numaId = static_cast<int64_t>(numaId)};
+    UbseMemNumaLoc warningNumaLoc{
+        .nodeId = nodeId, .socketId = static_cast<int>(numaInfo.socketId), .numaId = static_cast<int64_t>(numaId)};
 
     auto res = WaterWarningProcess(WatermarkWarningType::HIGH_WATERMARK, warningNumaLoc, true);
     if (res != UBSE_OK) {

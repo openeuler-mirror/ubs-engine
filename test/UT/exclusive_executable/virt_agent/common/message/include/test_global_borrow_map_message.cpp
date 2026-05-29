@@ -17,13 +17,11 @@ void TestGlobalBorrowMapMessage::TearDown() {}
 TEST_F(TestGlobalBorrowMapMessage, DeserializeSuccess)
 {
     GlobalBorrowMapMessage borrowMapMessage{};
-    VMNodeLocInfo vmNodeLocInfo{ "compute01", "1", 1, 2 };
-    const BorrowIdStatus borrowIdStatus = {
-        .borrowId = "id1",
-        .presentNumaId = 4,
-        .memMigrateStatus = MemMigrateStatus::READY_TO_MIGRATE,
-        .nodeLocInfo = vmNodeLocInfo
-    };
+    VMNodeLocInfo vmNodeLocInfo{"compute01", "1", 1, 2};
+    const BorrowIdStatus borrowIdStatus = {.borrowId = "id1",
+                                           .presentNumaId = 4,
+                                           .memMigrateStatus = MemMigrateStatus::READY_TO_MIGRATE,
+                                           .nodeLocInfo = vmNodeLocInfo};
     GlobalBorrowMap globalBorrowMap{{"id1", borrowIdStatus}};
     borrowMapMessage.SetGlobalBorrowMap(globalBorrowMap, 0);
     const std::unordered_map<std::string, BorrowIdStatus> map = borrowMapMessage.GetGlobalBorrowMap();
@@ -36,4 +34,4 @@ TEST_F(TestGlobalBorrowMapMessage, DeserializeSuccess)
     EXPECT_EQ(borrowMapMessage.GetGlobalBorrowMap().size(), 1);
     EXPECT_EQ(borrowMapMessage.GetIndex(), 0);
 }
-}
+} // namespace ubse::ut::vm

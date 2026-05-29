@@ -20,14 +20,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "vm_strategy_struct.h"
-#include "vm_mem.h"
 #include "vm_info.h"
+#include "vm_mem.h"
+#include "vm_strategy_struct.h"
 
 namespace std {
 template <>
 struct hash<vm::NodeLocInfo> {
-    size_t operator()(const vm::NodeLocInfo &key) const noexcept
+    size_t operator()(const vm::NodeLocInfo& key) const noexcept
     {
         // Use the hash combination method recommended by Huawei BoostKit.
         size_t seed = 0;
@@ -44,26 +44,30 @@ struct hash<vm::NodeLocInfo> {
 
 namespace vm {
 
-enum NumaMigrateStatus {
+enum NumaMigrateStatus
+{
     NORMAL = 0,
     MIGRATEIN,
     MIGRATEOUT,
     MIGRATINGIN,
     MIGRATINGOUT
 };
-enum EscapeActionType {
+enum EscapeActionType
+{
     BORROW = 0,
     RETURN,
     NOPE
 };
 
-enum ConnectionState {
+enum ConnectionState
+{
     UP,
     DOWN,
     NONE
 };
 
-enum class NumaStatus : int {
+enum class NumaStatus : int
+{
     NORMAL = 0,
     FAULT,
     UNKNOWN,
@@ -74,7 +78,7 @@ struct NumaInfoToKeep {
     time_t numaMigrateLastTime = 0;
 };
 
-inline NumaStatus MapStringToNumaStatus(const std::string &status)
+inline NumaStatus MapStringToNumaStatus(const std::string& status)
 {
     if (status == "normal") {
         return NumaStatus::NORMAL;
@@ -85,7 +89,9 @@ inline NumaStatus MapStringToNumaStatus(const std::string &status)
     return NumaStatus::UNKNOWN;
 }
 
-struct GlobalNumaInfo : NumaInfoCollected, NumaInfoToKeep {
+struct GlobalNumaInfo
+    : NumaInfoCollected
+    , NumaInfoToKeep {
     uint64_t numaMemBorrow = 0; // from mem
     uint64_t numaMemLend = 0;   // from mem
     VMNodeLocInfo numaLoc{};
@@ -135,14 +141,16 @@ struct VMBasicInfoCollected {
 
 // VM information maintained by VirtAgent
 struct VMBasicInfoToKeep {
-    time_t vmMigrateInTime = 0;        // update after migration
-    uint16_t vmMigrateCount = 0;       // update after migration
+    time_t vmMigrateInTime = 0;  // update after migration
+    uint16_t vmMigrateCount = 0; // update after migration
     VmMigrateStatus vmMigrateStatus{};
 };
 
-struct VMBasicInfo : VMBasicInfoCollected, VMBasicInfoToKeep {
+struct VMBasicInfo
+    : VMBasicInfoCollected
+    , VMBasicInfoToKeep {
     uint64_t remoteUsedMem{}; // Total number of used remote memory
-    time_t vmSampleTime = 0; // vm collection time
+    time_t vmSampleTime = 0;  // vm collection time
     std::string toString() const
     {
         std::ostringstream oss;
@@ -152,7 +160,7 @@ struct VMBasicInfo : VMBasicInfoCollected, VMBasicInfoToKeep {
         oss << "  remoteUsedMem:" << remoteUsedMem << std::endl;
         oss << "  vmCreateTime:" << vmCreateTime << std::endl;
         oss << "  numaMemInfo:[";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << "]";
@@ -203,7 +211,7 @@ struct EscapeAction {
             << "    },";
         return oss.str();
     }
-    void GetEscapeActionType(std::ostringstream &oss) const
+    void GetEscapeActionType(std::ostringstream& oss) const
     {
         oss << "\"escapeActionType\": ";
         if (actionType == EscapeActionType::BORROW) {
@@ -216,7 +224,8 @@ struct EscapeAction {
     }
 };
 
-enum class MemMigrateStatus : uint8_t {
+enum class MemMigrateStatus : uint8_t
+{
     READY_TO_MIGRATE = 0,
     MIGRATE_SUCCESS = 1
 };
@@ -229,7 +238,7 @@ struct BorrowIdStatus {
     MemMigrateStatus memMigrateStatus = MemMigrateStatus::READY_TO_MIGRATE;
     VMNodeLocInfo nodeLocInfo{};
 
-    bool operator==(const BorrowIdStatus &borrowIdStatus) const
+    bool operator==(const BorrowIdStatus& borrowIdStatus) const
     {
         if (this->borrowId == borrowIdStatus.borrowId) {
             return true;
@@ -254,10 +263,13 @@ using VMInfoToKeepMap = std::unordered_map<std::string, VMBasicInfoToKeep>;
 using NumaInfoToKeepMap = std::map<VMNodeLocInfo, NumaInfoToKeep>;
 using GlobalBorrowMap = std::unordered_map<std::string, BorrowIdStatus>;
 
-template <typename T> void SortByNodeId(std::vector<T> &items)
+template <typename T>
+void SortByNodeId(std::vector<T>& items)
 {
     // Define a lambda expression as a comparator
-    auto comparator = [](const T &pre, const T &curr) { return pre.nodeId < curr.nodeId; };
+    auto comparator = [](const T& pre, const T& curr) {
+        return pre.nodeId < curr.nodeId;
+    };
     // Using std::sort for sorting, passing a custom comparator.
     std::sort(items.begin(), items.end(), comparator);
 }
@@ -278,16 +290,17 @@ struct AlarmNumaInfo {
         oss << "  isMemReturn: " << isMemReturn << std::endl;
         oss << "  oomEventFlag: " << oomEventFlag << std::endl;
         oss << "  vmBasicInfos:[" << std::endl;
-        for (auto &vmBasicInfo : vmBasicInfos) {
+        for (auto& vmBasicInfo : vmBasicInfos) {
             oss << vmBasicInfo.second.toString() << "," << std::endl;
         }
         oss << "  borrowItemInfo:[" << std::endl;
         oss << "    borrowItem.size():" << borrowItemInfo.borrowItem.size() << std::endl;
         oss << "    BorrowItem:[" << std::endl;
-        for (auto &borrowItem : borrowItemInfo.borrowItem) {
+        for (auto& borrowItem : borrowItemInfo.borrowItem) {
             oss << "      importMemId:" << borrowItem.importMemId << ";";
-            for (uint16_t i = 0; i < borrowItem.exportLocNum && i < borrowItem.exportLocInfo.size()
-                && i < borrowItem.requestSize.size(); i++) {
+            for (uint16_t i = 0; i < borrowItem.exportLocNum && i < borrowItem.exportLocInfo.size() &&
+                                 i < borrowItem.requestSize.size();
+                 i++) {
                 oss << "[" << borrowItem.exportLocInfo[i].toString() << "," << borrowItem.requestSize[i] << "],";
             }
             oss << std::endl;
@@ -310,5 +323,5 @@ struct HugePageInfo {
         return oss.str();
     }
 };
-}
+} // namespace vm
 #endif // UBSE_MANAGER_UBSE_VM_STRUCT_H

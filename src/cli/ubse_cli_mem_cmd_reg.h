@@ -17,26 +17,27 @@
 #include "ubse_cli_reg_builder.h"
 #include "ubse_serial_util.h"
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
-using namespace ubse::serial;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::serial::UbseDeSerialization;
 class UbseCliRegMemModule : public UbseCliRegModule {
 public:
     void UbseCliSignUp() override;
 
 private:
     static UbseCliCommandInfo UbseCliQueryMem();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliMemQueryFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliMemQueryFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
     static UbseCliCommandInfo UbseCliCheckMemoryStatus();
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeLendInfo();
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeBorrowInfo();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCheckMemoryStatusFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCheckMemoryStatusFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial, size_t size);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization &deSerialization,
-        size_t numaInfoSize);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization& ubse_de_serial, size_t size);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization& deSerialization,
+                                                                           size_t numaInfoSize);
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNumaStatus();
     static std::shared_ptr<UbseCliResultEcho> QueryMemConfig();
 
@@ -48,14 +49,26 @@ private:
 
     UbseCliCommandInfo ShmMemoryAttach();
 
-    static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string> &params);
+    UbseCliCommandInfo ChangeMemory();
 
-    static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string> &params);
+    UbseCliCommandInfo RemoveMemory();
 
-    static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string> &params);
+    static UbseCliCommandInfo DisplayProcessMem();
+    static std::shared_ptr<UbseCliResultEcho> DisplayProcessMemFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
-    static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> DeleteMemoryFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryAttachFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> ShmMemoryDetachFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> CreateMemoryFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> PidSetThresholdFunc(const std::map<std::string, std::string>& params);
+
+    static std::shared_ptr<UbseCliResultEcho> PidUnSetFunc(const std::map<std::string, std::string>& params);
 };
-bool CheckName(const std::string &name);
+bool CheckName(const std::string& name);
 } // namespace ubse::cli::reg
 #endif

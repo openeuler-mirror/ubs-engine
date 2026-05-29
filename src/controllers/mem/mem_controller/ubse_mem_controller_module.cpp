@@ -6,54 +6,60 @@
 #include <atomic>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
-#include "rpc/ubse_mem_controller_rpc_register.h"
-#include "rpc/ubse_mem_get_opt_result_handler.h"
-#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "ubse_conf.h"
+#include "ubse_mem_api.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_mem_controller_fault_handle.h"
+#include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_timer.h"
+#include "rpc/ubse_mem_controller_rpc_register.h"
+#include "rpc/ubse_mem_get_opt_result_handler.h"
+#include "src/adapter_plugins/mmi/ubse_mmi_module.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::controller::agent;
 using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
+using namespace ubse::config;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
+using namespace ubse::log;
+
 CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseMemControllerModule, UbseMmiModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t CYCLE_CHECK_TIME_S = 300;
 static std::atomic<bool> g_startCheckDecoderHandle{false};
 
-void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap &allHandleValues,
-                        const mem::decoder::utils::DecoderLocTohandleMap &handleMap,
-                        std::vector<UbseMamiMemWithdraw> &faultInfo)
+void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap& allHandleValues,
+                        const mem::decoder::utils::DecoderLocTohandleMap& handleMap,
+                        std::vector<UbseMamiMemWithdraw>& faultInfo)
 {
     UBSE_LOG_INFO << "DelHandleByMapDiff Begin";
     std::vector<UbseMamiMemWithdraw> diffHandleInfo{};
-    for (const auto &[loc, hanValues] : allHandleValues) {
-        for (const auto &handValue : hanValues) {
+    for (const auto& [loc, hanValues] : allHandleValues) {
+        for (const auto& handValue : hanValues) {
             if (handleMap.find(loc) == handleMap.end() || handleMap.at(loc).count(handValue.handle) != 1) {
                 UbseMamiMemWithdraw tmpDelInfo{.ubpuId = loc.ubpuId,
-                                                     .iouId = loc.iouId,
-                                                     .marId = loc.marId,
-                                                     .decoderIdx = loc.decoderId,
-                                                     .handle = handValue.handle};
+                                               .iouId = loc.iouId,
+                                               .marId = loc.marId,
+                                               .decoderIdx = loc.decoderId,
+                                               .handle = handValue.handle};
                 diffHandleInfo.push_back(tmpDelInfo);
             }
         }
     }
 
     UbseResult res = UBSE_OK;
-    for (const auto &delInfo : diffHandleInfo) {
+    for (const auto& delInfo : diffHandleInfo) {
         UBSE_LOG_INFO << "one diff handle, ubpuId is " << delInfo.ubpuId << " iouId is " << delInfo.iouId
                       << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx << "handle is "
                       << delInfo.handle;
@@ -76,10 +82,13 @@ UbseResult CycleCheckDecoderHandle()
         return res;
     }
     decoder::utils::DecoderLocTohandleValueMap allHandleValues{};
-    res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
-    for (const auto &[loc, handles] : allHandleValues) {
+    {
+        std::unique_lock lock(GetDecoderImportMutex());
+        res = decoder::utils::MemDecoderUtils::GetAllHandles(UB_MEMORY_HANDLE_DEFAULT_USED_NODE, allHandleValues);
+    }
+    for (const auto& [loc, handles] : allHandleValues) {
         UBSE_LOG_INFO << "allHandleValues size is " << handles.size();
-        for (const auto &handle : handles) {
+        for (const auto& handle : handles) {
             UBSE_LOG_INFO << "handles value is " << handle.handle;
         }
     }
@@ -109,14 +118,14 @@ UbseResult CycleCheckDecoderHandle()
     return UBSE_OK;
 }
 
-uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo &node)
+uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo& node)
 {
-    if (node.localState == UbseNodeLocalState::UBSE_NODE_READY) {
+    if (node.localState == nodeController::UbseNodeLocalState::UBSE_NODE_READY) {
         CycleCheckDecoderHandle();
         g_startCheckDecoderHandle.store(true);
     }
 
-    if (node.localState == UbseNodeLocalState::UBSE_NODE_RESTORE) {
+    if (node.localState == nodeController::UbseNodeLocalState::UBSE_NODE_RESTORE) {
         g_startCheckDecoderHandle.store(false);
     }
 
@@ -125,9 +134,15 @@ uint32_t EnableCycleCheck(const ubse::nodeController::UbseNodeInfo &node)
 
 UbseResult UbseMemControllerModule::Initialize()
 {
+    enabled_ = UbseIsMemSupported();
     auto ret = CreateTaskExecutor();
     if (ret != UBSE_OK) {
         return ret;
+    }
+    if (!enabled_) {
+        UBSE_LOG_INFO
+            << "Memory borrow and share features are unsupported, keep mem executor and skip background init.";
+        return UBSE_OK;
     }
     RegisterNodeCtlNotify();
     UbseNodeController::GetInstance().RegLocalStateNotifyHandler(EnableCycleCheck);
@@ -145,18 +160,27 @@ UbseResult UbseMemControllerModule::Initialize()
 
 void UbseMemControllerModule::UnInitialize()
 {
+    if (!enabled_) {
+        return;
+    }
     ubse::mem::controller::UnInit();
     ubse::timer::UbseTimerHandlerUnregister("handleCheckTimer");
 }
 
 UbseResult UbseMemControllerModule::Start()
 {
-    ubse::mem::controller::Init();
-    if (auto ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
+    UbseResult ret = UBSE_OK;
+    RegUbseMemControllerHandler();
+    ret = usbe::mem::api::UbseMemApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register UbseMem IPC-API failed," << FormatRetCode(ret);
+        return ret;
+    }
+    if (ret = MemScheduleHandler::RegHandler(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg mem schedule handler.";
         return ret;
     }
-    UbseResult ret = RegMemControllerHandler();
+    ret = RegMemControllerHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to reg MemControllerHandler.";
         return ret;
@@ -166,22 +190,38 @@ UbseResult UbseMemControllerModule::Start()
         UBSE_LOG_ERROR << "Failed to reg UbseMemControllerDispatcher.";
         return ret;
     }
-    ret = UbseMemFaultManager::InitMemFaultManager();
+
+    ret = ubse::mem::controller::agent::Init();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
         return ret;
     }
 
-    ret = UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to reg UbseMemGetOptResultHandler.";
-        return ret;
+    if (enabled_) {
+        ret = ubse::mem::controller::Init();
+        if (ret != UBSE_OK) {
+            return ret;
+        }
+
+        ret = UbseMemFaultManager::InitMemFaultManager();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
+            return ret;
+        }
+
+        ret = UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to reg UbseMemGetOptResultHandler.";
+            return ret;
+        }
     }
-    return ubse::mem::controller::agent::Init();
+    return UBSE_OK;
 }
 
 void UbseMemControllerModule::Stop()
 {
+    if (!enabled_) {
+        return;
+    }
     auto ret = UbseMemFaultManager::DeInitMemFaultManager();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to delete mem fault handler.";
@@ -189,7 +229,7 @@ void UbseMemControllerModule::Stop()
     ubse::mem::controller::Stop();
 }
 
-uint32_t UbseGetMemDebtInfo(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t UbseGetMemDebtInfo(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     return UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap);
 }

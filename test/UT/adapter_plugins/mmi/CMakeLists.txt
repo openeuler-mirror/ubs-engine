@@ -7,8 +7,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_mmi_ut
         ubse_security
         ubse_http
         ubse_mem_scheduler
-        ubse_rpc_client
-        ubse_rpc
+        ubse_node_controller
+        syssentry
 )
 target_include_directories(${CMAKE_PROJECT_NAME}_ubse_mmi_ut PRIVATE ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mmi
         ${PROJECT_SOURCE_DIR}/src/include)

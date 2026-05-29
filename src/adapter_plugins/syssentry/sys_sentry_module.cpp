@@ -10,21 +10,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "sentry_observer.h"
-#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "sys_sentry_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_os_util.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "sentry_observer.h"
+#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::context;
+using namespace ubse::common::def;
+using namespace ubse::module;
+using namespace ubse::task_executor;
 CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, SysSentryModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -65,9 +69,9 @@ void SysSentryModule::Stop()
     UbseRasObserver::GetInstance().Stop();
 }
 
-void LinkStrings(std::string &result, const std::string linkSymbol, const std::vector<std::string> strings)
+void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings)
 {
-    for (const auto &item : strings) {
+    for (const auto& item : strings) {
         if (!result.empty()) {
             result += linkSymbol;
         }
@@ -75,7 +79,7 @@ void LinkStrings(std::string &result, const std::string linkSymbol, const std::v
     }
 }
 
-std::vector<std::string> SplitString(const std::string &str, char delimiter)
+std::vector<std::string> SplitString(const std::string& str, char delimiter)
 {
     std::vector<std::string> result;
     std::istringstream iss(str);
@@ -88,8 +92,8 @@ std::vector<std::string> SplitString(const std::string &str, char delimiter)
     return result;
 }
 
-UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketComEid,
-                       const std::string& nodeId, std::unordered_map<std::string, std::vector<std::string>>& eids,
+UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo>& allSocketComEid, const std::string& nodeId,
+                       std::unordered_map<std::string, std::vector<std::string>>& eids,
                        std::vector<std::string>& eidGroup)
 {
     for (const auto& info : allSocketComEid) {
@@ -102,16 +106,15 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketCo
         }
         eids[devVec[0]].emplace_back(info.second.primaryEid);
     }
-    for (auto &e : eids[nodeId]) {
+    for (auto& e : eids[nodeId]) {
         eidGroup.emplace_back(e);
     }
-    for (const auto &eidPair : eids) {
+    for (const auto& eidPair : eids) {
         for (size_t i = 0; i < eidPair.second.size(); i++) {
             if (eidPair.second[i].empty()) {
                 continue;
             }
-            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) !=
-                eids[nodeId].end()) {
+            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) != eids[nodeId].end()) {
                 continue;
             }
             if (i >= eidGroup.size()) {
@@ -128,7 +131,7 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo> &allSocketCo
     return UBSE_OK;
 }
 
-UbseResult GetEids(std::string &clientEid, std::string &serverEids)
+UbseResult GetEids(std::string& clientEid, std::string& serverEids)
 {
     std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
     auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
@@ -161,7 +164,7 @@ UbseResult GetEids(std::string &clientEid, std::string &serverEids)
 }
 
 // 对动态参数转义, 用引号把数据“包裹”起来，shell 不会解析内部的 ;、`
-std::string ShellEscape(const std::string &str)
+std::string ShellEscape(const std::string& str)
 {
     if (str.empty()) {
         return "''";
@@ -179,7 +182,7 @@ std::string ShellEscape(const std::string &str)
     return result;
 }
 
-UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
+UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas)
 {
     UbseMtiCpuTopoInfoMap topo;
     auto ret = UbseMtiInterface::GetInstance().GetClusterCpuTopo(topo);
@@ -193,7 +196,7 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
         UBSE_LOG_ERROR << "Failed to get local node info";
         return ret;
     }
-    for (auto &devCputopo : topo) {
+    for (auto& devCputopo : topo) {
         auto devName = devCputopo.first;
         std::string devNodeId{};
         std::string devSocketId{};
@@ -202,41 +205,15 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
             continue;
         }
 
-        auto &cpuTopo = devCputopo.second;
+        auto& cpuTopo = devCputopo.second;
         if (std::to_string(cpuTopo.slotId) == localNodeInfo.nodeId) {
-            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna
-                          << ", slotId=" << cpuTopo.slotId;
+            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna << ", slotId=" << cpuTopo.slotId;
             busNodeCnas.push_back(std::to_string(cpuTopo.busNodeCna));
         }
     }
     if (busNodeCnas.empty()) {
         UBSE_LOG_ERROR << "Failed to get current node cna";
         return UBSE_ERROR_AGAIN;
-    }
-    return UBSE_OK;
-}
-
-UbseResult SetSysSentryFaultEventOn()
-{
-    std::string commandSetPanicReporter = "sentryctl set sentry_remote_reporter --panic=on 2>&1";
-    std::string commandSetKernelRebootReporter = "sentryctl set sentry_remote_reporter --kernel_reboot=on 2>&1";
-    std::string commandSetBmcReporter = "sentryctl set sentry_reporter --power_off=on 2>&1";
-    std::string commandSetMemFaultReporter = "sentryctl set sentry_reporter --ub_mem_fault=on 2>&1";
-    std::string commandSetOomFaultReporter = "sentryctl set sentry_reporter --oom=on 2>&1";
-    using CommandDescList = std::vector<std::pair<std::string, std::string>>;
-    CommandDescList tasks = {{commandSetPanicReporter, "commandSetPanicReporter"},
-                             {commandSetKernelRebootReporter, "commandSetKernelRebootReporter"},
-                             {commandSetBmcReporter, "commandSetBmcReporter"},
-                             {commandSetMemFaultReporter, "commandSetMemFaultReporter"},
-                             {commandSetOomFaultReporter, "commandSetOomFaultReporter"}};
-    std::string commandResult;
-    for (const auto &[command, desc] : tasks) {
-        commandResult = "";
-        auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
-        if (result != UBSE_OK) {
-            UBSE_LOG_DEBUG << "Failed to execute: " << desc;
-            return UBSE_RAS_ERROR_SET_FAULT_EVENT_ON;
-        }
     }
     return UBSE_OK;
 }
@@ -269,7 +246,7 @@ UbseResult SetSysSentryFaultReporter()
         {commandMonitorSetCna, "commandMonitorSetCna"},
         {commandSetServerEid, "commandSetServerEid"},
     };
-    for (const auto &[command, desc] : tasks) {
+    for (const auto& [command, desc] : tasks) {
         commandResult = "";
         auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
         if (result != UBSE_OK) {

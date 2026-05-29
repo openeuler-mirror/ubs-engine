@@ -19,7 +19,7 @@
 #include "mp_error.h"
 
 namespace mempooling::smap {
-const char *const SMAP_LIBSMAPSO_PATH = "/usr/lib64/libubturbo_client.so";
+const char* const SMAP_LIBSMAPSO_PATH = "/usr/lib64/libubturbo_client.so";
 const uint32_t PAGE_TYPE = 1;
 const int RUN_MODE_VM = 0;
 const int RUN_MODE_MP = 1;
@@ -35,6 +35,10 @@ constexpr uint32_t GET_RET_TIME = 1;
 constexpr uint32_t RETRY_MAX_COUNT = 20;
 constexpr uint16_t FAIL_RETRY_COUNT = 10;
 const int MAX_NR_MIGOUT = 40;
+constexpr int MAX_NR_GROUPED_MIGOUT = MAX_NR_MIGOUT;
+constexpr int MAX_MIGRATION_GROUP_NUM = 8;
+constexpr int MAX_GROUP_LOCAL_NUMA = 4;
+constexpr int MAX_GROUP_REMOTE_NUMA = REMOTE_NUMA_NUM;
 
 // 迁出接口超时返回码
 const int MIGRATEOUT_TIMEOUT_RES = -16;
@@ -46,15 +50,16 @@ const int SMAP_BACK_ERROR_NOIPC = -16;
 const int SMAP_BACK_ERROR_INVAL = -22;
 const int SMAP_BACK_ERROR_AGAIN = -11;
 
-typedef enum {
+typedef enum
+{
     MIG_RATIO_MODE = 0, // 按照比例迁移
-    MIG_MEMSIZE_MODE,  // 按照内存大小迁移
+    MIG_MEMSIZE_MODE,   // 按照内存大小迁移
 } MigrateMode;
 
 struct MigrateOutPayloadInner {
-    int destNid{};          // remoteNumaId
+    int destNid{};             // remoteNumaId
     int ratio = SMAP_RATIO_MP; // 默认冷数据迁移比例
-    uint64_t memSize;           // 新增字段： 内存迁移大小(KB)
+    uint64_t memSize;          // 新增字段： 内存迁移大小(KB)
     MigrateMode migrateMode;   // 新增字段： 内存迁移模式，按照比例或是大小
 };
 
@@ -162,13 +167,15 @@ struct EnableNodeRes {
     uint32_t result;
 };
 
-enum NumaEnable : int32_t {
+enum NumaEnable : int32_t
+{
     SMAP_DISABLE_NUMA = 0,
     SMAP_ENABLE_NUMA = 1,
     SMAP_BUTT
 };
 
-enum SampTaskResult : uint16_t {
+enum SampTaskResult : uint16_t
+{
     MB_TASK_CREATED = 0,
     MB_TASK_WAITING = 1,
     MB_TASK_DONE = 2,
@@ -195,14 +202,14 @@ struct MigrateNumaMsg {
 };
 
 struct NumaPayload {
-    uint8_t local;   // L1 NUMA ID，0-255
-    uint8_t remote;  // L2 NUMA ID，0-255
-    uint32_t size;   // Available size, unit is MB
+    uint8_t local;  // L1 NUMA ID，0-255
+    uint8_t remote; // L2 NUMA ID，0-255
+    uint32_t size;  // Available size, unit is MB
 };
 
 struct ProcessPayload {
     pid_t pid;
-    uint8_t ratio; // remote ratio set by upstream component
+    uint8_t ratio;    // remote ratio set by upstream component
     uint8_t scanType; // 0 Ham 确定性热迁移， 1 smap migrateout
     uint8_t type;
     uint8_t state;
@@ -218,7 +225,7 @@ struct MigrateEscapePayload {
     int srcNid;
     int destNid;
     int ratio;
-    uint64_t memSize; // 内存迁移大小(KB)
+    uint64_t memSize;        // 内存迁移大小(KB)
     MigrateMode migrateMode; // 内存迁移模式，按照比例或是大小
 };
 
@@ -227,22 +234,43 @@ struct MigrateEscapeMsg {
     struct MigrateEscapePayload payload[MAX_NR_MIGOUT];
 };
 
-using SmapInitFunc = int (*)(const uint32_t, void(int, const char *, const char *));
-using SmapMigrateOutFunc = int (*)(MigrateOutMsg *, int);
-using SmapMigrateOutSyncFunc = int (*)(MigrateOutMsg *, int, uint64_t);
-using SmapQueryVmFreqFunc = int (*)(int, uint16_t *, uint32_t, uint32_t &, int);
-using SetSmapRemoteNumaInfoFunc = int (*)(RemoteNumaInfo *);
+struct MigrationNode {
+    int nid;
+    uint64_t size; // local: reserve size in KB; target: quota size in KB
+};
+struct MigrationGroup {
+    int localCount;
+    struct MigrationNode locals[MAX_GROUP_LOCAL_NUMA];
+    int targetCount;
+    struct MigrationNode targets[MAX_GROUP_REMOTE_NUMA];
+};
+struct GroupedMigrateOutPayload {
+    pid_t pid;
+    int groupCount;
+    struct MigrationGroup groups[MAX_MIGRATION_GROUP_NUM];
+};
+struct GroupedMigrateOutMsg {
+    int count;
+    struct GroupedMigrateOutPayload payload[MAX_NR_GROUPED_MIGOUT];
+};
+
+using SmapInitFunc = int (*)(const uint32_t, void(int, const char*, const char*));
+using SmapMigrateOutFunc = int (*)(MigrateOutMsg*, int);
+using SmapMigrateOutSyncFunc = int (*)(MigrateOutMsg*, int, uint64_t);
+using SmapQueryVmFreqFunc = int (*)(int, uint16_t*, uint32_t, uint32_t&, int);
+using SetSmapRemoteNumaInfoFunc = int (*)(RemoteNumaInfo*);
 using SetSmapRunModeFunc = int (*)(int);
-using SmapRemoveFunc = int (*)(RemoveMsg *, int);
-using SmapMigrateBackFunc = int (*)(MigrateBackMsg *);
-using SmapEnableNodeFunc = int (*)(EnableNodeMsg *);
-using SmapMigrateRemoteNumaFunc = int (*)(MigrateNumaMsg *);
-using SmapMigratePidRemoteNumaFunc = int (*)(MigrateEscapeMsg *);
-using SmapEnableProcessMigrateFunc = int (*)(pid_t *, int, int, int);
-using SmapGetRemotePidsFunc = int (*)(int, struct ProcessPayload *, int, int *);
-using SmapAddProcessTrackingFunc = int (*)(pid_t *, uint32_t *, uint32_t *, int, int);
-using SmapRemoveProcessTrackingFunc = int (*)(pid_t *, int, int);
-using SmapQueryProcessConfigFunc = int (*)(int, ProcessPayload *, int, int *);
+using SmapRemoveFunc = int (*)(RemoveMsg*, int);
+using SmapMigrateBackFunc = int (*)(MigrateBackMsg*);
+using SmapEnableNodeFunc = int (*)(EnableNodeMsg*);
+using SmapMigrateRemoteNumaFunc = int (*)(MigrateNumaMsg*);
+using SmapMigratePidRemoteNumaFunc = int (*)(MigrateEscapeMsg*);
+using SmapEnableProcessMigrateFunc = int (*)(pid_t*, int, int, int);
+using SmapGetRemotePidsFunc = int (*)(int, struct ProcessPayload*, int, int*);
+using SmapAddProcessTrackingFunc = int (*)(pid_t*, uint32_t*, uint32_t*, int, int);
+using SmapRemoveProcessTrackingFunc = int (*)(pid_t*, int, int);
+using SmapQueryProcessConfigFunc = int (*)(int, ProcessPayload*, int, int*);
+using SmapMigrateOutGroupedFunc = int (*)(GroupedMigrateOutMsg*, int);
 class SmapModule {
 public:
     static MpResult Init();
@@ -259,7 +287,7 @@ public:
 
     static void CloseSmapHandle();
 
-    static void RackVmLog(int level, const char *str, const char *moduleName);
+    static void RackVmLog(int level, const char* str, const char* moduleName);
 
     static SetSmapRunModeFunc GetSetSmapRunModeFunc();
 
@@ -283,8 +311,10 @@ public:
 
     static SmapQueryProcessConfigFunc GetSmapQueryProcessConfigFunc();
 
+    static SmapMigrateOutGroupedFunc GetSmapMigrateOutGroupedFunc();
+
 private:
-    static void *smapHandle;
+    static void* smapHandle;
     static SmapInitFunc smapInitFunc;
     static SmapMigrateOutFunc smapMigrateOutFunc;
     static SmapMigrateOutSyncFunc smapMigrateOutSyncFunc;
@@ -301,6 +331,7 @@ private:
     static SmapAddProcessTrackingFunc smapAddProcessTrackingFunc;
     static SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc;
     static SmapQueryProcessConfigFunc smapQueryProcessConfigFunc;
+    static SmapMigrateOutGroupedFunc smapMigrateOutGroupedFunc;
 };
-}  // namespace mempooling::smap
-#endif  // RACK_MANAGER_SMAP_MODULE_H
+} // namespace mempooling::smap
+#endif // RACK_MANAGER_SMAP_MODULE_H

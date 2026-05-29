@@ -54,7 +54,7 @@ public:
 
     explicit MemContainerPidMemInfoInputMsg(pid_param_fo_c pidParamForC) : pidParamForC_(std::move(pidParamForC)){};
 
-    explicit MemContainerPidMemInfoInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerPidMemInfoInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -81,12 +81,12 @@ public:
 
     explicit MemContainerPidMemInfoOutputMsg(std::vector<PidInfo> pidInfos) : pidInfos_(std::move(pidInfos)){};
 
-    explicit MemContainerPidMemInfoOutputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerPidMemInfoOutputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetPidInfos(const std::vector<PidInfo> &pidInfos)
+    void SetPidInfos(const std::vector<PidInfo>& pidInfos)
     {
         pidInfos_ = pidInfos;
     }
@@ -107,7 +107,7 @@ public:
 
     explicit UpdateWaterLineForCInputMsg(WaterMark waterMark) : waterMark_(std::move(waterMark)){};
 
-    explicit UpdateWaterLineForCInputMsg(uint8_t *rawData, uint32_t size)
+    explicit UpdateWaterLineForCInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -134,12 +134,12 @@ public:
     explicit ContainerIdListForCInputMsg(container_id_list_for_c containerIdListForC)
         : containerIdListForC_(std::move(containerIdListForC)){};
 
-    explicit ContainerIdListForCInputMsg(uint8_t *rawData, uint32_t size)
+    explicit ContainerIdListForCInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetInputInfos(const container_id_list_for_c &containerPidInfos)
+    void SetInputInfos(const container_id_list_for_c& containerPidInfos)
     {
         containerIdListForC_ = containerPidInfos;
     }
@@ -161,12 +161,12 @@ public:
     explicit ContainerPidsForCInputMsg(std::vector<container_pid_info_for_c> containerPidInfos)
         : containerPidInfos_(std::move(containerPidInfos)){};
 
-    explicit ContainerPidsForCInputMsg(uint8_t *rawData, uint32_t size)
+    explicit ContainerPidsForCInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetInputInfos(const std::vector<container_pid_info_for_c> &containerPidInfos)
+    void SetInputInfos(const std::vector<container_pid_info_for_c>& containerPidInfos)
     {
         containerPidInfos_ = containerPidInfos;
     }
@@ -209,9 +209,11 @@ public:
     MemContainerWaterLineMemBorrowInputMsg() = default;
 
     explicit MemContainerWaterLineMemBorrowInputMsg(MemBorrowRequestC memBorrowRequest)
-        : memBorrowRequest_(std::move(memBorrowRequest)) {}
+        : memBorrowRequest_(std::move(memBorrowRequest))
+    {
+    }
 
-    explicit MemContainerWaterLineMemBorrowInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerWaterLineMemBorrowInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -220,7 +222,7 @@ public:
 
     VmResult Deserialize() override;
 
-    VmResult GetParams(NodeLocInfo &nodeLocInfo, std::vector<uint64_t> &borrowSizes, WaterMark &waterMark);
+    VmResult GetParams(NodeLocInfo& nodeLocInfo, std::vector<uint64_t>& borrowSizes, WaterMark& waterMark);
 
 private:
     MemBorrowRequestC memBorrowRequest_{};
@@ -231,9 +233,11 @@ public:
     MemContainerWaterLineMemBorrowOutputMsg() = default;
 
     explicit MemContainerWaterLineMemBorrowOutputMsg(std::vector<std::string> borrowIds)
-        : borrowIds_(std::move(borrowIds)) {}
+        : borrowIds_(std::move(borrowIds))
+    {
+    }
 
-    explicit MemContainerWaterLineMemBorrowOutputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerWaterLineMemBorrowOutputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -269,9 +273,11 @@ public:
     MemContainerWaterLineMemMigrateInputMsg() = default;
 
     explicit MemContainerWaterLineMemMigrateInputMsg(MemMigrateRequestC memMigrateRequest)
-        : memMigrateRequest_(std::move(memMigrateRequest)) {}
+        : memMigrateRequest_(std::move(memMigrateRequest))
+    {
+    }
 
-    explicit MemContainerWaterLineMemMigrateInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerWaterLineMemMigrateInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -280,8 +286,9 @@ public:
 
     VmResult Deserialize() override;
 
-    VmResult GetParams(NodeLocInfo &nodeLocInfo, std::unordered_set<std::string> &borrowIdSet,
-                       std::vector<VMPresetParam> &vmPresetParamList);
+    VmResult GetParams(NodeLocInfo& nodeLocInfo, std::unordered_set<std::string>& borrowIdSet,
+                       std::vector<VMPresetParam>& vmPresetParamList);
+
 private:
     MemMigrateRequestC memMigrateRequest_{};
 };
@@ -299,9 +306,11 @@ public:
     MemContainerWaterLineMemReturnInputMsg() = default;
 
     explicit MemContainerWaterLineMemReturnInputMsg(MemReturnRequestC memReturnRequest)
-        : memReturnRequest_(std::move(memReturnRequest)) {}
+        : memReturnRequest_(std::move(memReturnRequest))
+    {
+    }
 
-    explicit MemContainerWaterLineMemReturnInputMsg(uint8_t *rawData, uint32_t size)
+    explicit MemContainerWaterLineMemReturnInputMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -310,7 +319,7 @@ public:
 
     VmResult Deserialize() override;
 
-    VmResult GetParams(NodeLocInfo &nodeLocInfo, std::vector<std::string> &borrowIds, std::vector<pid_t> &pids);
+    VmResult GetParams(NodeLocInfo& nodeLocInfo, std::vector<std::string>& borrowIds, std::vector<pid_t>& pids);
 
 private:
     MemReturnRequestC memReturnRequest_{};

@@ -28,16 +28,17 @@ namespace ubse::mem::controller {
 using namespace ubse::log;
 using namespace ubse::mem::def;
 using namespace ubse::serial;
+using namespace ubse::utils;
 using namespace api::server;
 using namespace ubse::mem::controller::message;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-const char *UbseMemNumaCreateOperation::GetOperationName() const
+const char* UbseMemNumaCreateOperation::GetOperationName() const
 {
     return "NumaCreate";
 }
-uint32_t UbseMemNumaCreateOperation::Execute(UbseMemOperationResp &resp)
+uint32_t UbseMemNumaCreateOperation::Execute(UbseMemOperationResp& resp)
 {
     req_.importNodeId = req_.requestNodeId;
     if (uint32_t ret = agent::UbseMemNumaBorrow(req_, resp) != UBSE_OK) {
@@ -47,46 +48,13 @@ uint32_t UbseMemNumaCreateOperation::Execute(UbseMemOperationResp &resp)
     this->resp = resp;
     return UBSE_OK;
 }
-bool UbseMemNumaCreateOperation::BuildResponseData(UbseIpcMessage &responseMessage)
+bool UbseMemNumaCreateOperation::BuildResponseData(UbseIpcMessage& responseMessage)
 {
     UbseSerialization serialization{};
-    serialization << resp.name << resp.requestNodeId << resp.errorCode << resp.errMsg << resp.realSize <<
-        resp.memIdList << resp.remoteNumaId << resp.requestId;
-    UBSE_LOG_INFO << "name: " << resp.name << "  requestNodeId: " << resp.requestNodeId << "  errorCode: " <<
-        resp.errorCode << "  errMsg: " << resp.errMsg << "  realSize: " << resp.realSize << "  remoteNumaId: " <<
-        resp.remoteNumaId << "  requestId: " << resp.requestId;
-    if (!serialization.Check()) {
-        UBSE_LOG_ERROR << "Failed to serialize response information.";
-        return false;
-    }
-    responseMessage.buffer = serialization.GetBuffer(true);
-    responseMessage.length = static_cast<uint32_t>(serialization.GetLength());
-    return true;
-}
-
-const char *UbseMemCliFdCreateDispatch::GetOperationName() const
-{
-    return "FdCreate";
-}
-
-uint32_t UbseMemCliFdCreateDispatch::Execute(UbseMemOperationResp &resp)
-{
-    req_.importNodeId = req_.requestNodeId;
-    if (uint32_t ret = agent::UbseMemFdBorrow(req_, resp) != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseMemFdBorrow failed," << FormatRetCode(ret);
-        return ret;
-    }
-    this->resp = resp;
-    return UBSE_OK;
-}
-
-bool UbseMemCliFdCreateDispatch::BuildResponseData(UbseIpcMessage &responseMessage)
-{
-    UbseSerialization serialization{};
-    serialization << resp.name << resp.requestNodeId << resp.errorCode << resp.errMsg << resp.realSize <<
-        resp.memIdList << resp.remoteNumaId << resp.requestId;
-    UBSE_LOG_INFO << "name: " << resp.name << "  requestNodeId: " << resp.requestNodeId << "  errorCode: " <<
-        resp.errorCode << "  errMsg: " << resp.errMsg << "  realSize: " << resp.realSize << "  memIdStr: "
+    serialization << resp.name << resp.requestNodeId << resp.errorCode << resp.errMsg << resp.realSize << resp.memIdList
+                  << resp.remoteNumaId << resp.requestId;
+    UBSE_LOG_INFO << "name: " << resp.name << "  requestNodeId: " << resp.requestNodeId
+                  << "  errorCode: " << resp.errorCode << "  errMsg: " << resp.errMsg << "  realSize: " << resp.realSize
                   << "  remoteNumaId: " << resp.remoteNumaId << "  requestId: " << resp.requestId;
     if (!serialization.Check()) {
         UBSE_LOG_ERROR << "Failed to serialize response information.";
@@ -97,18 +65,52 @@ bool UbseMemCliFdCreateDispatch::BuildResponseData(UbseIpcMessage &responseMessa
     return true;
 }
 
-const char *UbseMemShmCreateOperation::GetOperationName() const
+const char* UbseMemCliFdCreateDispatch::GetOperationName() const
+{
+    return "FdCreate";
+}
+
+uint32_t UbseMemCliFdCreateDispatch::Execute(UbseMemOperationResp& resp)
+{
+    req_.importNodeId = req_.requestNodeId;
+    if (uint32_t ret = agent::UbseMemFdBorrow(req_, resp) != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseMemFdBorrow failed," << FormatRetCode(ret);
+        return ret;
+    }
+    this->resp = resp;
+    return UBSE_OK;
+}
+
+bool UbseMemCliFdCreateDispatch::BuildResponseData(UbseIpcMessage& responseMessage)
+{
+    UbseSerialization serialization{};
+    serialization << resp.name << resp.requestNodeId << resp.errorCode << resp.errMsg << resp.realSize << resp.memIdList
+                  << resp.remoteNumaId << resp.requestId;
+    UBSE_LOG_INFO << "name: " << resp.name << "  requestNodeId: " << resp.requestNodeId
+                  << "  errorCode: " << resp.errorCode << "  errMsg: " << resp.errMsg << "  realSize: " << resp.realSize
+                  << "  memIdStr: "
+                  << "  remoteNumaId: " << resp.remoteNumaId << "  requestId: " << resp.requestId;
+    if (!serialization.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize response information.";
+        return false;
+    }
+    responseMessage.buffer = serialization.GetBuffer(true);
+    responseMessage.length = static_cast<uint32_t>(serialization.GetLength());
+    return true;
+}
+
+const char* UbseMemShmCreateOperation::GetOperationName() const
 {
     return "Create";
 }
 
-uint32_t UbseMemShmCreateOperation::Execute(UbseMemOperationResp &resp)
+uint32_t UbseMemShmCreateOperation::Execute(UbseMemOperationResp& resp)
 {
     req_.baseNodeId = req_.requestNodeId;
     return agent::UbseMemShareBorrow(req_, resp);
 }
 
-bool BuildShmResponse(const std::string &name, const std::string &nodeId, UbseIpcMessage &msg)
+bool BuildShmResponse(const std::string& name, const std::string& nodeId, UbseIpcMessage& msg)
 {
     ubse::mem::def::UbseMemShmDesc shmDesc{};
     UBSE_LOG_INFO << "UbseMemShmGet, name=" << name;
@@ -129,39 +131,39 @@ bool BuildShmResponse(const std::string &name, const std::string &nodeId, UbseIp
     return true;
 }
 
-bool UbseMemShmCreateOperation::BuildResponseData(UbseIpcMessage &responseMessage)
+bool UbseMemShmCreateOperation::BuildResponseData(UbseIpcMessage& responseMessage)
 {
     return BuildShmResponse(GetName(), GetRequestNodeId(), responseMessage);
 }
 
-const char *UbseMemShmAttachOperation::GetOperationName() const
+const char* UbseMemShmAttachOperation::GetOperationName() const
 {
     return "Attach";
 }
 
-uint32_t UbseMemShmAttachOperation::Execute(UbseMemOperationResp &resp)
+uint32_t UbseMemShmAttachOperation::Execute(UbseMemOperationResp& resp)
 {
     req_.importNodeId = req_.requestNodeId;
     return agent::UbseMemShareAttach(req_, resp);
 }
 
-bool UbseMemShmAttachOperation::BuildResponseData(UbseIpcMessage &responseMessage)
+bool UbseMemShmAttachOperation::BuildResponseData(UbseIpcMessage& responseMessage)
 {
     return BuildShmResponse(GetName(), GetRequestNodeId(), responseMessage);
 }
 
-const char *UbseMemShmDetachOperation::GetOperationName() const
+const char* UbseMemShmDetachOperation::GetOperationName() const
 {
     return "Detach";
 }
 
-uint32_t UbseMemShmDetachOperation::Execute(UbseMemOperationResp &resp)
+uint32_t UbseMemShmDetachOperation::Execute(UbseMemOperationResp& resp)
 {
     req_.unImportNodeId = req_.requestNodeId;
     return agent::UbseMemShareDetach(req_, resp);
 }
 
-bool UbseMemShmDetachOperation::BuildResponseData(UbseIpcMessage &responseMessage)
+bool UbseMemShmDetachOperation::BuildResponseData(UbseIpcMessage& responseMessage)
 {
     // Detach 不需要返回数据
     return true;
@@ -179,8 +181,8 @@ void UbseMemTaskExecutor::ExecuteTask(std::shared_ptr<UbseMemOperation> operatio
     UbseIpcMessage responseMessage{nullptr, 0};
     UbseMemOperationResp resp{};
 
-    const char *opName = operation->GetOperationName();
-    const std::string &name = operation->GetName();
+    const char* opName = operation->GetOperationName();
+    const std::string& name = operation->GetName();
 
     UBSE_LOG_INFO << "UbseMemShare" << opName << ", name=" << name << ", requestId=" << requestId;
 
@@ -213,7 +215,7 @@ void UbseMemTaskExecutor::ExecuteTask(std::shared_ptr<UbseMemOperation> operatio
         delete[] responseMessage.buffer;
     }
 }
-uint32_t UbseMemTaskExecutor::PrepareRequest(const UbseRequestContext &context, UbseMemBaseBorrowReq &req)
+uint32_t UbseMemTaskExecutor::PrepareRequest(const UbseRequestContext& context, UbseMemBaseBorrowReq& req)
 {
     // 获取当前节点信息
     ubse::election::UbseRoleInfo currentRoleInfo{};
@@ -252,7 +254,7 @@ uint32_t UbseMemTaskExecutor::ExecuteOperationAsync(uint64_t requestId, std::uni
     }
     auto sharedOp = std::shared_ptr<UbseMemOperation>(std::move(operation));
     if (!resourceExecutor->Execute(
-        [sharedOp, requestId]() { UbseMemTaskExecutor::ExecuteTask(std::move(sharedOp), requestId); })) {
+            [sharedOp, requestId]() { UbseMemTaskExecutor::ExecuteTask(std::move(sharedOp), requestId); })) {
         UBSE_LOG_ERROR << "Submit task fail";
         return UBSE_ERROR;
     }

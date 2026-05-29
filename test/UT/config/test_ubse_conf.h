@@ -25,6 +25,6 @@ public:
 
     void TearDown();
 };
-}
+} // namespace ubse::ut::config
 
 #endif // TEST_UBSE_CONF_H

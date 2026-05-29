@@ -14,14 +14,16 @@
 #include "vm_json_util.h"
 
 #include <string>
+
 #include <rapidjson/document.h>
-#include <rapidjson/stringbuffer.h>
 #include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
+
 #include <ubse_logger.h>
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
-VmResult VMJsonUtil::GetString(const Value &pstJson, const std::string &key, std::string &value)
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
+VmResult VMJsonUtil::GetString(const Value& pstJson, const std::string& key, std::string& value)
 {
     if (!pstJson.HasMember(key.c_str()) || !pstJson[key.c_str()].IsString()) {
         return VM_ERROR;
@@ -30,7 +32,7 @@ VmResult VMJsonUtil::GetString(const Value &pstJson, const std::string &key, std
     return VM_OK;
 }
 
-VmResult VMJsonUtil::GetNumber(const Value &pstJson, const std::string &key, double &value)
+VmResult VMJsonUtil::GetNumber(const Value& pstJson, const std::string& key, double& value)
 {
     auto ret = pstJson.HasMember(key.c_str()) && pstJson[key.c_str()].IsNumber();
     if (!ret) {
@@ -40,14 +42,14 @@ VmResult VMJsonUtil::GetNumber(const Value &pstJson, const std::string &key, dou
     return VM_OK;
 }
 
-bool VMJsonUtil::VMGetJsonItemStr(const Value &pstJson, const std::string &key, JSON_STR &jsonStr)
+bool VMJsonUtil::VMGetJsonItemStr(const Value& pstJson, const std::string& key, JSON_STR& jsonStr)
 {
     auto ret = pstJson.HasMember(key.c_str());
     if (!ret) {
         UBSE_LOG_ERROR << "Key " << key << " not found in JSON object.";
         return false;
     }
-    const auto &valBody = pstJson[key.c_str()];
+    const auto& valBody = pstJson[key.c_str()];
     StringBuffer buffer;
     PrettyWriter<StringBuffer> writer(buffer);
     valBody.Accept(writer);
@@ -55,12 +57,12 @@ bool VMJsonUtil::VMGetJsonItemStr(const Value &pstJson, const std::string &key, 
     return true;
 }
 
-bool VMJsonUtil::VMConvertMap2JsonStr(const JSON_MAP &strMap, JSON_STR &jsonStr)
+bool VMJsonUtil::VMConvertMap2JsonStr(const JSON_MAP& strMap, JSON_STR& jsonStr)
 {
     Document pJson;
     pJson.SetObject();
-    auto &allocator = pJson.GetAllocator();
-    for (const auto &[fst, snd] : strMap) {
+    auto& allocator = pJson.GetAllocator();
+    for (const auto& [fst, snd] : strMap) {
         Document pTmpJson;
         pTmpJson.Parse(snd.c_str());
         if (pTmpJson.HasParseError()) {
@@ -78,7 +80,7 @@ bool VMJsonUtil::VMConvertMap2JsonStr(const JSON_MAP &strMap, JSON_STR &jsonStr)
     return true;
 }
 
-bool VMJsonUtil::VMConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strMap)
+bool VMJsonUtil::VMConvertJsonStr2Map(const JSON_STR& jsonStr, JSON_MAP& strMap)
 {
     Document pJson;
     pJson.Parse(jsonStr.c_str());
@@ -90,14 +92,14 @@ bool VMJsonUtil::VMConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strMap)
         UBSE_LOG_ERROR << "Json string is not object.";
         return false;
     }
-    for (auto &[fst, snd] : strMap) {
+    for (auto& [fst, snd] : strMap) {
         if (!pJson.HasMember(fst.c_str())) {
             return false;
         }
         if (pJson[fst.c_str()].IsString()) {
             snd = pJson[fst.c_str()].GetString();
         } else {
-            const auto &pcVal = pJson[fst.c_str()];
+            const auto& pcVal = pJson[fst.c_str()];
             StringBuffer buffer;
             PrettyWriter<StringBuffer> writer(buffer);
             pcVal.Accept(writer);
@@ -107,12 +109,12 @@ bool VMJsonUtil::VMConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strMap)
     return true;
 }
 
-bool VMJsonUtil::VMConvertVector2JsonStr(const JSON_VEC &strVec, JSON_STR &jsonStr)
+bool VMJsonUtil::VMConvertVector2JsonStr(const JSON_VEC& strVec, JSON_STR& jsonStr)
 {
     Document pJson;
     pJson.SetArray();
-    auto &allocator = pJson.GetAllocator();
-    for (const auto &item : strVec) {
+    auto& allocator = pJson.GetAllocator();
+    for (const auto& item : strVec) {
         Document pTmpJson;
         pTmpJson.Parse(item.c_str());
         if (pTmpJson.HasParseError()) {
@@ -131,7 +133,7 @@ bool VMJsonUtil::VMConvertVector2JsonStr(const JSON_VEC &strVec, JSON_STR &jsonS
     return true;
 }
 
-bool VMJsonUtil::VMConvertJsonStr2Vec(const JSON_STR &jsonStr, JSON_VEC &strVec)
+bool VMJsonUtil::VMConvertJsonStr2Vec(const JSON_STR& jsonStr, JSON_VEC& strVec)
 {
     Document pJson;
     pJson.Parse(jsonStr.c_str());
@@ -143,7 +145,7 @@ bool VMJsonUtil::VMConvertJsonStr2Vec(const JSON_STR &jsonStr, JSON_VEC &strVec)
         UBSE_LOG_ERROR << "json str is not array.";
         return false;
     }
-    for (auto &item : pJson.GetArray()) {
+    for (auto& item : pJson.GetArray()) {
         if (item.IsString()) {
             strVec.emplace_back(item.GetString());
             continue;
@@ -156,12 +158,12 @@ bool VMJsonUtil::VMConvertJsonStr2Vec(const JSON_STR &jsonStr, JSON_VEC &strVec)
     return true;
 }
 
-VmResult VMJsonUtil::GetJsonString(const Value &pstJson, const std::string &key, std::string &value, bool bVerifyExist)
+VmResult VMJsonUtil::GetJsonString(const Value& pstJson, const std::string& key, std::string& value, bool bVerifyExist)
 {
     if (!pstJson.HasMember(key.c_str())) {
         return bVerifyExist ? VM_ERROR : VM_OK;
     }
-    const auto &valBody = pstJson[key.c_str()];
+    const auto& valBody = pstJson[key.c_str()];
     if (valBody.IsString()) {
         value = valBody.GetString();
     } else {
@@ -173,7 +175,7 @@ VmResult VMJsonUtil::GetJsonString(const Value &pstJson, const std::string &key,
     return VM_OK;
 }
 
-bool VMJsonUtil::GetJsonStringNotValid(const Value &jsonBody, const std::string &key, std::string &value)
+bool VMJsonUtil::GetJsonStringNotValid(const Value& jsonBody, const std::string& key, std::string& value)
 {
     bool ret = false;
     if (GetJsonString(jsonBody, key, value, true) != VM_OK) {

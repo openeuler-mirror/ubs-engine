@@ -15,79 +15,86 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 #define private public
-#include "ucache_config.h"
-#include "ucache_error.h"
 #include "data_collect.h"
 #include "mem_borrow.h"
+#include "ucache_config.h"
+#include "ucache_error.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 using namespace std;
 using namespace ucache;
 using namespace ucache::data_collect;
 using namespace ucache::mem_borrow;
-uint32_t DeleteFromMap(const std::string &from, const std::string &to, const std::string &memName, const int fromNumaId,
-                       const uint32_t size, std::map<std::string, std::vector<NodeMemBorrowInfo>>::iterator &mapIter,
-                       std::vector<NodeMemBorrowInfo>::iterator &mapInfoIter);
+uint32_t DeleteFromMap(const std::string& from, const std::string& to, const std::string& memName, const int fromNumaId,
+                       const uint32_t size, std::map<std::string, std::vector<NodeMemBorrowInfo>>::iterator& mapIter,
+                       std::vector<NodeMemBorrowInfo>::iterator& mapInfoIter);
 // 以下rawData、physicalTopo、loanableMemRawData组成默认topo
 // 按稀缺度排序：Node1 < Node 2 < Node3
-static std::vector<BorrowStrategyRawData> rawData = {
-    {
-        .nodeId = "Node1",
-        .pagecacheAppNums = 0,
-        .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 400,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
-                .total = 1000,
-                .available = 500,
-                .used = 500,
-                .pagecache = 400,
-            }},
-        },
-    },
-    {
-        .nodeId = "Node2",
-        .pagecacheAppNums = 6,
-        .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 300,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
-                .total = 1000,
-                .available = 500,
-                .used = 500,
-                .pagecache = 300,
-            }},
-        },
-    },
-    {
-        .nodeId = "Node3",
-        .pagecacheAppNums = 15,
-        .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 200,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
-                .total = 1000,
-                .available = 500,
-                .used = 500,
-                .pagecache = 200,
-            }},
-        },
-    }
-};
+static std::vector<BorrowStrategyRawData> rawData = {{
+                                                         .nodeId = "Node1",
+                                                         .pagecacheAppNums = 0,
+                                                         .freeMemMin = 100,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 1000,
+                                                                 .available = 500,
+                                                                 .used = 500,
+                                                                 .pagecache = 400,
+                                                             },
+                                                         .remoteNumaMemInfo =
+                                                             {
+                                                                 {5,
+                                                                  {
+                                                                      .total = 1000,
+                                                                      .available = 500,
+                                                                      .used = 500,
+                                                                      .pagecache = 400,
+                                                                  }},
+                                                             },
+                                                     },
+                                                     {
+                                                         .nodeId = "Node2",
+                                                         .pagecacheAppNums = 6,
+                                                         .freeMemMin = 100,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 1000,
+                                                                 .available = 500,
+                                                                 .used = 500,
+                                                                 .pagecache = 300,
+                                                             },
+                                                         .remoteNumaMemInfo =
+                                                             {
+                                                                 {5,
+                                                                  {
+                                                                      .total = 1000,
+                                                                      .available = 500,
+                                                                      .used = 500,
+                                                                      .pagecache = 300,
+                                                                  }},
+                                                             },
+                                                     },
+                                                     {
+                                                         .nodeId = "Node3",
+                                                         .pagecacheAppNums = 15,
+                                                         .freeMemMin = 100,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 1000,
+                                                                 .available = 500,
+                                                                 .used = 500,
+                                                                 .pagecache = 200,
+                                                             },
+                                                         .remoteNumaMemInfo =
+                                                             {
+                                                                 {5,
+                                                                  {
+                                                                      .total = 1000,
+                                                                      .available = 500,
+                                                                      .used = 500,
+                                                                      .pagecache = 200,
+                                                                  }},
+                                                             },
+                                                     }};
 
 static std::map<std::string, std::vector<std::string>> physicalTopo = {
     {"Node1", {"Node2"}},
@@ -141,26 +148,29 @@ TEST_F(BorrowNodeStatTest, SortNodeByScarcityTest)
     int pageCache = nodeStats[0]->GetPagecacheAppNums();
 }
 
-void GetData4InsertBorrowNodeStatTest(BorrowStrategyRawData &data)
+void GetData4InsertBorrowNodeStatTest(BorrowStrategyRawData& data)
 {
     BorrowStrategyRawData MyData = {
         .nodeId = "Node4",
         .pagecacheAppNums = 0,
         .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 300,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
+        .localMemInfo =
+            {
                 .total = 1000,
                 .available = 500,
                 .used = 500,
                 .pagecache = 300,
-            }},
-        },
+            },
+        .remoteNumaMemInfo =
+            {
+                {5,
+                 {
+                     .total = 1000,
+                     .available = 500,
+                     .used = 500,
+                     .pagecache = 300,
+                 }},
+            },
     };
     data = MyData;
 }
@@ -188,20 +198,23 @@ TEST_F(BorrowNodeStatTest, InsertBorrowNodeStatTest)
         .nodeId = "Node5",
         .pagecacheAppNums = 0,
         .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 350,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
+        .localMemInfo =
+            {
                 .total = 1000,
                 .available = 500,
                 .used = 500,
                 .pagecache = 350,
-            }},
-        },
+            },
+        .remoteNumaMemInfo =
+            {
+                {5,
+                 {
+                     .total = 1000,
+                     .available = 500,
+                     .used = 500,
+                     .pagecache = 350,
+                 }},
+            },
     };
     BorrowNodeStat nodeStat5(data5);
     BorrowNodeStat::InsertBorrowNodeStat(&nodeStat5, nodeStats);
@@ -221,7 +234,7 @@ TEST_F(BorrowNodeStatTest, EraseBorrowNodeStatTest)
     }
     BorrowNodeStat::SortNodeByScarcity(nodeStats);
 
-    BorrowNodeStat::EraseBorrowNodeStat(nodeStats[nodeStats.size()-2], nodeStats);
+    BorrowNodeStat::EraseBorrowNodeStat(nodeStats[nodeStats.size() - 2], nodeStats);
     EXPECT_EQ(nodeStats.size(), 2);
 
     BorrowNodeStat::ClearBorrowNodeStat();
@@ -266,40 +279,46 @@ TEST_F(BorrowNodeStatTest, CalKTest)
         .nodeId = "Node",
         .pagecacheAppNums = 0,
         .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 500,
-            .used = 500,
-            .pagecache = 30,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
+        .localMemInfo =
+            {
                 .total = 1000,
-                .available = 900,
-                .used = 100,
-                .pagecache = 50,
-            }},
-        },
+                .available = 500,
+                .used = 500,
+                .pagecache = 30,
+            },
+        .remoteNumaMemInfo =
+            {
+                {5,
+                 {
+                     .total = 1000,
+                     .available = 900,
+                     .used = 100,
+                     .pagecache = 50,
+                 }},
+            },
     };
     BorrowNodeStat nodeStat1(data);
     BorrowStrategyRawData data2 = {
         .nodeId = "Node",
         .pagecacheAppNums = 0,
         .freeMemMin = 100,
-        .localMemInfo = {
-            .total = 1000,
-            .available = 50,
-            .used = 950,
-            .pagecache = 900,
-        },
-        .remoteNumaMemInfo = {
-            {5, {
+        .localMemInfo =
+            {
                 .total = 1000,
                 .available = 50,
                 .used = 950,
                 .pagecache = 900,
-            }},
-        },
+            },
+        .remoteNumaMemInfo =
+            {
+                {5,
+                 {
+                     .total = 1000,
+                     .available = 50,
+                     .used = 950,
+                     .pagecache = 900,
+                 }},
+            },
     };
     BorrowNodeStat nodeStat2(data2);
 }
@@ -471,12 +490,12 @@ TEST_F(MemBorrowTopoTest, HasAvailableMemToBorrowTest)
 
     retBool = MemBorrowTopo::globalMemBorrowTopo.HasAvailableMemToBorrow("Node1");
     EXPECT_EQ(retBool, false);
-    
+
     rawData[0].nodeId = tmpName;
     DataCollect::SetBorrowStrategyRawData(rawData);
     ret = BorrowNodeStat::InitBorrowNodeStat();
     EXPECT_EQ(ret, UCACHE_OK);
-    
+
     uint64_t tmpFree = rawData[0].localMemInfo.available;
     rawData[0].localMemInfo.available = 2 * UcacheConfig::GetInstance().GetBorrowSize();
     DataCollect::SetBorrowStrategyRawData(rawData);
@@ -620,10 +639,10 @@ TEST_F(MemBorrowTopoTest, ErrorHandlingTest)
     EXPECT_EQ(ret, UCACHE_OK);
 
     ret = MemBorrowTopo::globalMemBorrowTopo.AddNodeMemBorrowInfo("Node1", "Node3");
-    EXPECT_EQ(ret, BORROW_TOPO_ERROR);  // Node3不在物理拓扑中
+    EXPECT_EQ(ret, BORROW_TOPO_ERROR); // Node3不在物理拓扑中
 
     ret = MemBorrowTopo::globalMemBorrowTopo.AddNodeMemBorrowInfo("Node3", "Node1");
-    EXPECT_EQ(ret, BORROW_TOPO_ERROR);  // Node3不在物理拓扑中
+    EXPECT_EQ(ret, BORROW_TOPO_ERROR); // Node3不在物理拓扑中
 
     ret = MemBorrowTopo::globalMemBorrowTopo.DeleteNodeMemBorrowInfo("Node1", "Node3");
     EXPECT_EQ(ret, BORROW_TOPO_ERROR);

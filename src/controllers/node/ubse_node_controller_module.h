@@ -13,22 +13,17 @@
 #ifndef UBSE_NODE_CONTROLLER_MODULE_H
 #define UBSE_NODE_CONTROLLER_MODULE_H
 
-#include "ubse_module.h"
-#include "ubse_timer.h"
 #include "ubse_context.h" // for context
 #include "ubse_election.h"
 #include "ubse_logger_module.h"
 #include "ubse_module.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_node_controller.h"
+#include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::nodeController {
-using namespace ubse::mti;
-using namespace ubse::context;
-using namespace ubse::log;
-using namespace ubse::module;
-using namespace ubse::timer;
-using namespace ubse::election;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseNodeControllerModule : public UbseModule {
 public:

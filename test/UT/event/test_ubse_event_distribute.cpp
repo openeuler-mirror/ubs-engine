@@ -14,8 +14,9 @@
 
 namespace ubse::event::ut {
 using namespace ubse::event;
+using namespace ubse::common::def;
 
-uint32_t HandleEvent(std::string &eventId, std::string &eventMessage)
+uint32_t HandleEvent(std::string& eventId, std::string& eventMessage)
 {
     std::cout << "Event ID: " << eventId << ", Event Message: " << eventMessage << std::endl;
     // 处理逻辑
@@ -30,7 +31,6 @@ void TestUbseEventDistribute::TearDown()
     GlobalMockObject::verify();
 }
 
-
 /*
  * 用例描述：
  * 测试事件RegisterSubscribe的情况
@@ -41,10 +41,10 @@ void TestUbseEventDistribute::TearDown()
  */
 TEST_F(TestUbseEventDistribute, RegisterSubscribeExpectNoThrow)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     EXPECT_NO_THROW(eventDistribute.RegisterSubscribe("eventId", HIGH, nullptr));
 }
@@ -59,10 +59,10 @@ TEST_F(TestUbseEventDistribute, RegisterSubscribeExpectNoThrow)
  */
 TEST_F(TestUbseEventDistribute, UnRegisterSubscribeExpectNothrow)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     eventDistribute.RegisterSubscribe("eventId", HIGH, HandleEvent);
     EXPECT_NO_THROW(eventDistribute.UnRegisterSubscribe("eventId", HandleEvent));
@@ -81,10 +81,10 @@ TEST_F(TestUbseEventDistribute, UnRegisterSubscribeExpectNothrow)
  */
 TEST_F(TestUbseEventDistribute, PubEventExpectNothrow)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     eventDistribute.RegisterSubscribe("eventId", HIGH, HandleEvent);
     EXPECT_NO_THROW(eventDistribute.PubEvent("eventId", "eventMessage"));
@@ -102,10 +102,10 @@ TEST_F(TestUbseEventDistribute, PubEventExpectNothrow)
  */
 TEST_F(TestUbseEventDistribute, EventDistributeSuccess)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     eventDistribute.RegisterSubscribe("eventId", HIGH, HandleEvent);
     eventDistribute.PubEvent("eventId", "eventMessage");
@@ -124,12 +124,12 @@ TEST_F(TestUbseEventDistribute, EventDistributeSuccess)
  */
 TEST_F(TestUbseEventDistribute, EventDistributeWarn)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
-    auto handler = [](std::string &eventId, std::string &eventMessage) {
+    auto handler = [](std::string& eventId, std::string& eventMessage) {
         return uint32_t(UBSE_OK);
     };
     eventDistribute.RegisterSubscribe("eventId", MEDIUM, handler);
@@ -147,12 +147,12 @@ TEST_F(TestUbseEventDistribute, EventDistributeWarn)
  */
 TEST_F(TestUbseEventDistribute, DistributeHigh)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
-    EventTask task{ "eventId", "eventMessage", HIGH, nullptr };
+    EventTask task{"eventId", "eventMessage", HIGH, nullptr};
     eventDistribute.Init();
     eventDistribute.Start();
     EXPECT_NO_THROW(eventDistribute.Distribute(task));
@@ -168,12 +168,12 @@ TEST_F(TestUbseEventDistribute, DistributeHigh)
  */
 TEST_F(TestUbseEventDistribute, DistributeMedium)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
-    EventTask task{ "eventId", "eventMessage", MEDIUM, nullptr };
+    EventTask task{"eventId", "eventMessage", MEDIUM, nullptr};
     eventDistribute.Init();
     eventDistribute.Start();
     EXPECT_NO_THROW(eventDistribute.Distribute(task));
@@ -189,12 +189,12 @@ TEST_F(TestUbseEventDistribute, DistributeMedium)
  */
 TEST_F(TestUbseEventDistribute, DistributeLow)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
-    EventTask task{ "eventId", "eventMessage", LOW, nullptr };
+    EventTask task{"eventId", "eventMessage", LOW, nullptr};
     eventDistribute.Init();
     eventDistribute.Start();
     EXPECT_NO_THROW(eventDistribute.Distribute(task));
@@ -211,10 +211,10 @@ TEST_F(TestUbseEventDistribute, DistributeLow)
 TEST_F(TestUbseEventDistribute, InitError)
 {
     MOCKER(&UbseEventThreadPool::Init).stubs().will(returnValue(UBSE_ERROR));
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 10 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 2 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{10};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{2};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     auto ret = eventDistribute.Init();
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -227,14 +227,14 @@ TEST_F(TestUbseEventDistribute, InitError)
  */
 TEST_F(TestUbseEventDistribute, FrequentEventTrigger1)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 0 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 0 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{0};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{0};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     std::string eventId = "eventId";
     std::string eventMsg = "eventMsg";
-    auto handler = [&eventDistribute, &eventId, &eventMsg](const std::string &, const std::string &) {
+    auto handler = [&eventDistribute, &eventId, &eventMsg](const std::string&, const std::string&) {
         usleep(NO_128);
         eventDistribute.PubEvent(eventId, eventMsg);
         return uint32_t(UBSE_OK);
@@ -259,14 +259,14 @@ TEST_F(TestUbseEventDistribute, FrequentEventTrigger1)
  */
 TEST_F(TestUbseEventDistribute, FrequentEventTrigger2)
 {
-    uint32_t capacity{ 1024 };
-    uint32_t numsHighThs{ 0 };
-    uint32_t numsMidThs{ 5 };
-    uint32_t numsLowThs{ 0 };
+    uint32_t capacity{1024};
+    uint32_t numsHighThs{0};
+    uint32_t numsMidThs{5};
+    uint32_t numsLowThs{0};
     UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
     std::string eventId = "eventId";
     std::string eventMsg = "eventMsg";
-    auto handler = [&eventDistribute, &eventId, &eventMsg](const std::string &, const std::string &) {
+    auto handler = [&eventDistribute, &eventId, &eventMsg](const std::string&, const std::string&) {
         usleep(NO_128);
         eventDistribute.PubEvent(eventId, eventMsg);
         return uint32_t(UBSE_OK);

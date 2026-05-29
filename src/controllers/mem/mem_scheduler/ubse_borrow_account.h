@@ -14,12 +14,12 @@
 #include "ubse_mem_algo_account.h"
 #include "ubse_mem_constants.h"
 namespace ubse::mem::account {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class BorrowAccount {
 public:
     BorrowAccount() = default;
-    BorrowAccount(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo> &importNumaLocs,
-                  const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo> &exportNumaLocs,
+    BorrowAccount(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo>& importNumaLocs,
+                  const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo>& exportNumaLocs,
                   int64_t attachSocketId, int64_t exportSocketId, uint64_t totalBorrowSize, uint64_t blockSize)
         : importNumaLocs_(std::move(importNumaLocs)),
           exportNumaLocs_(std::move(exportNumaLocs)),
@@ -32,7 +32,7 @@ public:
     }
 
     void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     void UpdateBorrowNumaInfo(bool isAdd);
 
@@ -46,7 +46,7 @@ public:
 
     void UpdateStateByBothExist(ubse::adapter_plugins::mmi::UbseMemState state);
 
-    UbseResult UpdateBorrowDebtDetail(const bool &isAdd);
+    UbseResult UpdateBorrowDebtDetail(const bool& isAdd);
 
     strategy::AccountState GetAccountState()
     {

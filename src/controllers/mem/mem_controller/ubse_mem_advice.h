@@ -13,11 +13,22 @@
 #ifndef UBS_ENGINE_UBSE_MEM_ADVICE_H
 #define UBS_ENGINE_UBSE_MEM_ADVICE_H
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace ubse::mem::controller {
-enum class MemAdvice {
+enum class ProcessType
+{
+    BORROW_FAILED = 0,
+    IMPORT_FAILED = 1,
+    EXPORT_FAILED = 2,
+    RETURN_FAILED = 3,
+    UNIMPORT_FAILED = 4,
+    UNEXPORT_FAILED = 5,
+};
+
+enum class MemAdvice
+{
     INTERNAL_FAILED = 0,
     CHECK_FAILED = 1,
     COMM_FAILED = 2,
@@ -25,13 +36,13 @@ enum class MemAdvice {
     OBMM_FAILED = 4,
     RESOURCE_EXIST = 5,
     TIME_OUT = 6,
-    NODE_IN_MAITENANCE = 7,
+    NODE_IN_MAINTENANCE = 7,
     RESOURCE_NOT_EXIST = 8,
     RESOURCE_OPERATION_CONFLICT = 9,
     UBSE_NO_OPERATION_PERMISSION = 10,
 };
 
-void BorrowFailedAdvice(std::string prefix, std::string name, std::string borrowType, size_t size,
+void BorrowFailedAdvice(ProcessType processType, std::string name, std::string borrowType, size_t size,
                         std::string exportNode, std::string importNode, uint32_t errorCode, MemAdvice advice);
 } // namespace ubse::mem::controller
 

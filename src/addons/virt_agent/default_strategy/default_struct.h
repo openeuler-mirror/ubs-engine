@@ -36,7 +36,8 @@ const uint32_t DS_ERR_RET_MEM_LINE = 6;    // memory waterline exceeds the retur
 const uint32_t DS_ERR_BOR_MEM_RETMOTE = 7; // remote node of borrowed memory not found in GlobalNumaInfoMap
 const uint32_t DS_ERR_SET_INVAL = 8;       // invalid strategy parameter setting
 
-enum class StrategyTip : int {
+enum class StrategyTip : int
+{
     NOPE = 0,                  // no status code
     RET_BORROW_LEGER_EMPTY,    // memory return hint: borrow ledger is empty
     RET_BAN_RET_TOO_LARGE_MEM, // memory return hint: return is forbidden as it would cause high memory waterline
@@ -46,7 +47,8 @@ enum class StrategyTip : int {
 };
 
 // log level of default strategy
-enum class StrategyLogLevel : uint32_t {
+enum class StrategyLogLevel : uint32_t
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -54,7 +56,8 @@ enum class StrategyLogLevel : uint32_t {
     CRIT = 4
 };
 
-enum class NumaMigrateStatus : int {
+enum class NumaMigrateStatus : int
+{
     NORMAL = 0,
     MIGRATEIN,
     MIGRATEOUT,
@@ -62,25 +65,29 @@ enum class NumaMigrateStatus : int {
     MIGRATINGOUT
 };
 
-enum class ConnectionState : int {
+enum class ConnectionState : int
+{
     UP = 0,
     DOWN,
     NONE
 };
 
-enum class VmMigrateStatus : int {
+enum class VmMigrateStatus : int
+{
     MIGRATEABLE = 0,
     MIGRATING,
     MIGRATEUNABLE
 };
 
-enum class EscapeActionType : int {
+enum class EscapeActionType : int
+{
     BORROW = 0,
     RETURN,
     NOPE
 };
 
-enum class NumaStatus : int {
+enum class NumaStatus : int
+{
     NORMAL = 0,
     FAULT,
     UNKNOWN,
@@ -92,7 +99,7 @@ struct VMNodeLocInfo {
     int16_t socketId{};
     int16_t numaId{};
 
-    bool operator<(const VMNodeLocInfo &a) const
+    bool operator<(const VMNodeLocInfo& a) const
     {
         if (hostId != a.hostId) {
             return hostId < a.hostId;
@@ -105,7 +112,7 @@ struct VMNodeLocInfo {
         }
     }
 
-    bool operator==(const VMNodeLocInfo &a) const
+    bool operator==(const VMNodeLocInfo& a) const
     {
         return (hostId == a.hostId && socketId == a.socketId && numaId == a.numaId);
     }
@@ -132,10 +139,12 @@ struct NumaInfoCollected {
 struct NumaInfoToKeep {
     NumaMigrateStatus numaMigrateStatus = NumaMigrateStatus::NORMAL; // Maintained and updated by Mgr: NORMAL MIGRATEIN,
                                                                      // MIGRATEOUT, MIGRATINGIN, MIGRATINGOUT
-    time_t numaMigrateLastTime = 0; // Maintained and updated by Mgr, after migrating
+    time_t numaMigrateLastTime = 0;                                  // Maintained and updated by Mgr, after migrating
 };
 
-struct GlobalNumaInfo: NumaInfoCollected, NumaInfoToKeep {
+struct GlobalNumaInfo
+    : NumaInfoCollected
+    , NumaInfoToKeep {
     uint64_t numaMemBorrow{}; // from mem
     uint64_t numaMemLend{};   // from mem
     VMNodeLocInfo numaLoc{};
@@ -208,14 +217,16 @@ struct VMBasicInfoCollected {
 
 // VM information maintained by ubsemanager
 struct VMBasicInfoToKeep {
-    time_t vmMigrateInTime = 0;        // update after migration
-    uint16_t vmMigrateCount = 0;       // update after migration
+    time_t vmMigrateInTime = 0;  // update after migration
+    uint16_t vmMigrateCount = 0; // update after migration
     VmMigrateStatus vmMigrateStatus{};
 };
 
-struct VMBasicInfo: VMBasicInfoCollected, VMBasicInfoToKeep {
+struct VMBasicInfo
+    : VMBasicInfoCollected
+    , VMBasicInfoToKeep {
     uint64_t remoteUsedMem{}; // Total number of used remote memory
-    time_t vmSampleTime = 0; // vm collection time
+    time_t vmSampleTime = 0;  // vm collection time
 
     std::string ToString() const
     {
@@ -225,7 +236,7 @@ struct VMBasicInfo: VMBasicInfoCollected, VMBasicInfoToKeep {
         oss << R"("remoteUsedMem":)" << remoteUsedMem << R"(,)";
         oss << R"("vmCreateTime":)" << vmCreateTime << R"(,)";
         oss << R"("numaMemInfo":[)";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << R"(],)";
@@ -354,7 +365,7 @@ struct AlarmNumaInfo {
         oss << R"("numaLoc":)" << numaLoc.ToString() << R"(,)";
         oss << R"("vmBasicInfos":{)";
         size_t count = 0;
-        for (auto &vmBasicInfo : vmBasicInfos) {
+        for (auto& vmBasicInfo : vmBasicInfos) {
             if (count != 0) {
                 oss << R"(,)";
             }
@@ -371,7 +382,7 @@ struct AlarmNumaInfo {
 using GlobalNumaInfoMap = std::map<VMNodeLocInfo, GlobalNumaInfo>;
 
 struct StrategyTipInfo {
-    static std::string StrategyTipToString(const StrategyTip &strategyTip)
+    static std::string StrategyTipToString(const StrategyTip& strategyTip)
     {
         std::ostringstream oss;
         if (strategyTip == StrategyTip::NOPE) {
@@ -388,7 +399,7 @@ struct StrategyTipInfo {
         return oss.str();
     }
 
-    static std::string StrategyTips(const std::vector<StrategyTip> &strategyTips)
+    static std::string StrategyTips(const std::vector<StrategyTip>& strategyTips)
     {
         std::ostringstream oss;
         oss << R"("strategyTip": [)";
@@ -439,7 +450,7 @@ struct EscapeAction {
         oss << "]}";
         return oss.str();
     }
-    void GetEscapeActionType(std::ostringstream &oss) const
+    void GetEscapeActionType(std::ostringstream& oss) const
     {
         oss << R"("escapeActionType": )";
         if (actionType == EscapeActionType::BORROW) {
@@ -451,5 +462,5 @@ struct EscapeAction {
         }
     }
 };
-}
+} // namespace default_strategy
 #endif // DEFAULT_STRUCT_H

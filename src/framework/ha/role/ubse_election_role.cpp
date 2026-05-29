@@ -17,18 +17,21 @@
 #include "ubse_election_role_mgr.h"
 
 namespace ubse::election {
+using namespace ubse::module;
+using namespace ::ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 constexpr size_t MIN_NODES_FOR_COMPARISON = 2;
 constexpr size_t SECOND_SMALLEST_INDEX = 1;
 
-UbseResult GetBootTime(uint64_t &bootTime)
+UbseResult GetBootTime(uint64_t& bootTime)
 {
-    struct timespec ts{};
+    struct timespec ts {
+    };
     if (clock_gettime(CLOCK_BOOTTIME, &ts) == 0) {
         uint64_t seconds = ts.tv_sec;
         uint64_t milliseconds = ts.tv_nsec / 1000000; // 纳秒转换为毫秒
-        bootTime = (seconds * 1000) + milliseconds; // 1000,转换单位
+        bootTime = (seconds * 1000) + milliseconds;   // 1000,转换单位
         return UBSE_OK;
     }
     return UBSE_ERROR;
@@ -60,7 +63,7 @@ UbseResult ConnectAllNodes()
         return UBSE_ERROR_NULLPTR;
     }
 
-    for (const auto &it : allNodes) {
+    for (const auto& it : allNodes) {
         if (it.ip != myselfNode.ip) {
             taskExecutor->Execute([it]() -> void { RoleMgr::GetInstance().GetCommMgr()->Connect(it.ip); });
         }
@@ -70,11 +73,11 @@ UbseResult ConnectAllNodes()
     return UBSE_OK;
 }
 
-UBSE_ID_TYPE FindSmallestId(const std::vector<UBSE_ID_TYPE> &allNodes)
+UBSE_ID_TYPE FindSmallestId(const std::vector<UBSE_ID_TYPE>& allNodes)
 {
     UBSE_ID_TYPE smallestId = INVALID_NODE_ID;
 
-    for (const auto &nodeId : allNodes) {
+    for (const auto& nodeId : allNodes) {
         if (smallestId.empty() || nodeId < smallestId) {
             smallestId = nodeId;
         }
@@ -83,16 +86,16 @@ UBSE_ID_TYPE FindSmallestId(const std::vector<UBSE_ID_TYPE> &allNodes)
     return smallestId;
 }
 
-bool IsSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
+bool IsSmallestNode(const Node& myself, const std::vector<Node>& allNodes)
 {
     if (allNodes.size() < 2) { // 2,节点数小于2
         return true;
     }
     return std::all_of(allNodes.begin(), allNodes.end(),
-                       [&myself](const Node &node) { return node.id.empty() || myself.id <= node.id; });
+                       [&myself](const Node& node) { return node.id.empty() || myself.id <= node.id; });
 }
 
-bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
+bool IsSecondSmallestNode(const Node& myself, const std::vector<Node>& allNodes)
 {
     if (allNodes.size() < MIN_NODES_FOR_COMPARISON) {
         return true;
@@ -100,7 +103,7 @@ bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
 
     // 过滤掉 id 为空的节点
     std::vector<Node> validNodes;
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         if (!node.id.empty()) {
             validNodes.push_back(node);
         }
@@ -116,11 +119,11 @@ bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes)
     return validNodes[SECOND_SMALLEST_INDEX] == myself;
 }
 
-UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const std::vector<UBSE_ID_TYPE> &allNodes)
+UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE& masterId, const std::vector<UBSE_ID_TYPE>& allNodes)
 {
     UBSE_ID_TYPE smallestId = INVALID_NODE_ID;
 
-    for (const auto &nodeId : allNodes) {
+    for (const auto& nodeId : allNodes) {
         if (nodeId != masterId) {
             if (smallestId.empty() || nodeId < smallestId) {
                 smallestId = nodeId;
@@ -130,12 +133,12 @@ UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const s
 
     return smallestId;
 }
-UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYPE> &allNodes,
-    const UBSE_ID_TYPE &masterId, const UBSE_ID_TYPE &agentId)
+UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYPE>& allNodes,
+                                                   const UBSE_ID_TYPE& masterId, const UBSE_ID_TYPE& agentId)
 {
     UBSE_ID_TYPE smallestId = INVALID_NODE_ID;
 
-    for (const auto &nodeId : allNodes) {
+    for (const auto& nodeId : allNodes) {
         if (nodeId != masterId && nodeId != agentId) {
             if (smallestId == INVALID_NODE_ID || nodeId < smallestId) {
                 smallestId = nodeId;
@@ -222,4 +225,4 @@ bool IsHeartBeatEnabled(HeartBeatStatus status)
 {
     return status == HeartBeatStatus::ENABLED;
 }
-}
+} // namespace ubse::election

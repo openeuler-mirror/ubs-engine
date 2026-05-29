@@ -36,7 +36,8 @@ constexpr ALARM_FAULT_TYPE ALARM_NET_FAULT = 110;             // 网络故障
  */
 using AlarmFaultHandler = std::function<uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)>;
 
-enum class AlarmHandlerPriority {
+enum class AlarmHandlerPriority
+{
     HIGH = 0,
     MEDIUM = 1,
     LOW = 2
@@ -67,7 +68,7 @@ uint32_t RegisterAlarmFaultHandler(AlarmHandler alarmHandler);
 uint32_t RegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
                                    AlarmHandlerPriority priority = AlarmHandlerPriority::MEDIUM);
 
-uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string &name);
+uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string& name);
 } // namespace ubse::ras
 
 #endif // UBSE_MANAGER_UBSE_RAS_H

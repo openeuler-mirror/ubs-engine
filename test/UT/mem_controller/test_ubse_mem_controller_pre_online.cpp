@@ -13,12 +13,12 @@
 #include "test_ubse_mem_controller_pre_online.h"
 #include <mockcpp/mockcpp.hpp>
 #include "ubse_com.h"
+#include "ubse_conf_module.h"
 #include "ubse_election.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
-#include "ubse_conf_module.h"
 #include "ubse_mem_controller_pre_online.cpp"
 
 namespace ubse::mem_controller::ut {
@@ -113,14 +113,11 @@ TEST_F(TestUbseMemControllerPreOnline, GeneratePreOnLineCna)
     cpuInfo.socketId = 36;
     cpuInfo.busNodeCna = 1;
     cpuInfo.eid = "1A";
-    UbseCpuLocation location{
-        .nodeId = "1",
-        .chipId = 1
-    };
+    UbseCpuLocation location{.nodeId = "1", .chipId = 1};
     nodeInfo.cpuInfos[location] = cpuInfo;
     ubse::nodeController::UbseNodeInfo remoteNode{};
     remoteNode.nodeId = "2";
-    UbseCpuLocation location1{ remoteNode.nodeId, 1 };
+    UbseCpuLocation location1{remoteNode.nodeId, 1};
     UbseCpuInfo remoteCpuInfo{};
     remoteCpuInfo.busNodeCna = 1;
     remoteCpuInfo.eid = "1A";
@@ -143,14 +140,11 @@ TEST_F(TestUbseMemControllerPreOnline, FilterLcneRemote)
     cpuInfo.socketId = 36;
     cpuInfo.busNodeCna = 1;
     cpuInfo.eid = "1A";
-    UbseCpuLocation location{
-        .nodeId = "1",
-        .chipId = 1
-    };
+    UbseCpuLocation location{.nodeId = "1", .chipId = 1};
     nodeInfo.cpuInfos[location] = cpuInfo;
     ubse::nodeController::UbseNodeInfo remoteNode{};
     remoteNode.nodeId = "2";
-    UbseCpuLocation location1{ remoteNode.nodeId, 1 };
+    UbseCpuLocation location1{remoteNode.nodeId, 1};
     UbseCpuInfo remoteCpuInfo{};
     remoteCpuInfo.busNodeCna = 1;
     remoteCpuInfo.eid = "1A";
@@ -200,10 +194,7 @@ TEST_F(TestUbseMemControllerPreOnline, PreOnLineSize)
     EXPECT_NE(PreOnLineSize(), UBSE_OK);
 
     uint64_t invalid = 127; // 127为非法值
-    MOCKER(&UbseConfModule::GetConf<uint64_t>)
-        .stubs()
-        .with(any(), any(), outBound(invalid))
-        .will(returnValue(UBSE_OK));
+    MOCKER(&UbseConfModule::GetConf<uint64_t>).stubs().with(any(), any(), outBound(invalid)).will(returnValue(UBSE_OK));
     EXPECT_NE(PreOnLineSize(), UBSE_OK);
 }
 
@@ -413,4 +404,4 @@ TEST_F(TestUbseMemControllerPreOnline, HandlePreOnLineTask_TaskSucceeded)
         EXPECT_EQ(nodePreOnLine["1"], PreOnLineState::ONLINE);
     }
 }
-}
+} // namespace ubse::mem_controller::ut

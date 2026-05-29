@@ -21,7 +21,7 @@
 #include "vm_string_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
 std::string OsHelper::procPathPrefix = "/proc";
@@ -33,15 +33,15 @@ std::string OsHelper::procPathPrefix = "/proc";
  * @param containerInfos [OUT] mapping from container ID to a list of process IDss
  * @return 0 for success, non-zero for error
  */
-VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string> &containerIds,
-                                         std::unordered_map<std::string, std::vector<pid_t>> &containerInfos)
+VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string>& containerIds,
+                                         std::unordered_map<std::string, std::vector<pid_t>>& containerInfos)
 {
-    DIR *dir = opendir(OsHelper::procPathPrefix.c_str());
+    DIR* dir = opendir(OsHelper::procPathPrefix.c_str());
     if (dir == nullptr) {
         UBSE_LOG_ERROR << "Read " << OsHelper::procPathPrefix << " failed.";
         return VM_ERROR;
     }
-    const struct dirent *ent;
+    const struct dirent* ent;
     while ((ent = readdir(dir)) != nullptr) {
         // Only process directories that start with a digit (i.e., PID directories)
         if (ent->d_type != DT_DIR || !isdigit(ent->d_name[0])) {
@@ -57,7 +57,7 @@ VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string> &
             try {
                 auto pid = VmStringUtil::SafeNotEmptyStopid(pidStr);
                 containerInfos[containerId].emplace_back(pid);
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 UBSE_LOG_ERROR << "containerInfos emplace failed: " << e.what();
                 closedir(dir);
                 return VM_ERROR;
@@ -68,7 +68,7 @@ VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string> &
     return VM_OK;
 }
 
-std::string OsHelper::ParseContainerFile(const std::string &cgroupPath)
+std::string OsHelper::ParseContainerFile(const std::string& cgroupPath)
 {
     std::ifstream file(cgroupPath);
     if (!file.is_open()) {
@@ -97,4 +97,4 @@ std::string OsHelper::ParseContainerFile(const std::string &cgroupPath)
     return "";
 }
 
-} // vm
+} // namespace vm

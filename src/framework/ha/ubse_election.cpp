@@ -12,20 +12,20 @@
 
 #include "ubse_election.h"
 
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::election {
 using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-uint32_t UbseGetNodeCount(uint32_t &count)
+uint32_t UbseGetNodeCount(uint32_t& count)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -49,9 +49,9 @@ uint32_t UbseGetNodeCount(uint32_t &count)
     return UBSE_OK;
 }
 
-uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
+uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo>& roleInfos, uint32_t& count)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -72,7 +72,7 @@ uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
     if (!standby.id.empty()) {
         allRoleInfos.emplace_back(standby.id, ELECTION_ROLE_STANDBY, ELECTION_NODE_ONLINE);
     }
-    for (const auto &agent : agents) {
+    for (const auto& agent : agents) {
         allRoleInfos.emplace_back(agent.id, ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
     }
     roleInfos = allRoleInfos;
@@ -81,9 +81,9 @@ uint32_t UbseGetRoleInfos(std::vector<UbseRoleInfo> &roleInfos, uint32_t &count)
     return UBSE_OK;
 }
 
-uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId)
+uint32_t UbseGetRoleInfo(UbseRoleInfo& roleInfo, const std::string& nodeId)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -100,11 +100,11 @@ uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId)
     std::vector<UbseRoleInfo> allRoleInfos;
     allRoleInfos.emplace_back(master.id, ELECTION_ROLE_MASTER);
     allRoleInfos.emplace_back(standby.id, ELECTION_ROLE_STANDBY);
-    for (const auto &agent : agents) {
+    for (const auto& agent : agents) {
         allRoleInfos.emplace_back(agent.id, ELECTION_ROLE_AGENT);
     }
 
-    for (const auto &item : allRoleInfos) {
+    for (const auto& item : allRoleInfos) {
         if (item.nodeId == nodeId) {
             roleInfo.nodeId = item.nodeId;
             roleInfo.nodeRole = item.nodeRole;
@@ -118,11 +118,11 @@ uint32_t UbseGetRoleInfo(UbseRoleInfo &roleInfo, const std::string &nodeId)
 
 bool IsValidElectionEventType(UbseElectionEventType type)
 {
-    const auto &validTypes = GetEleEventTypes();
+    const auto& validTypes = GetEleEventTypes();
     return std::find(validTypes.begin(), validTypes.end(), type) != validTypes.end();
 }
 
-uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler& handler)
 {
     if (!IsValidElectionEventType(handler.type)) {
         UBSE_LOG_ERROR << "[ELECTION] Invalid election event type";
@@ -135,7 +135,7 @@ uint32_t UbseElectionChangeAttachHandler(const UbseElectionHandler &handler)
     return RoleMgr::GetInstance().RoleChangeAttach(handler.type, handler);
 }
 
-uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
+uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler& handler)
 {
     if (!IsValidElectionEventType(handler.type)) {
         UBSE_LOG_WARN << "[ELECTION] Invalid election event type";
@@ -144,9 +144,9 @@ uint32_t UbseElectionChangeDeAttachHandler(const UbseElectionHandler &handler)
     return RoleMgr::GetInstance().RoleChangeDeAttach(handler.type, handler);
 }
 
-uint32_t UbseGetMasterInfo(UbseRoleInfo &roleInfo)
+uint32_t UbseGetMasterInfo(UbseRoleInfo& roleInfo)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -168,9 +168,9 @@ uint32_t UbseGetMasterInfo(UbseRoleInfo &roleInfo)
     return UBSE_OK;
 }
 
-uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo)
+uint32_t UbseGetStandbyInfo(UbseRoleInfo& roleInfo)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -192,9 +192,9 @@ uint32_t UbseGetStandbyInfo(UbseRoleInfo &roleInfo)
     return UBSE_OK;
 }
 
-uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo>& roleInfos)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -209,22 +209,22 @@ uint32_t UbseGetAllNodeInfos(std::vector<UbseRoleInfo> &roleInfos)
         return ret;
     }
     if (!masterNode.id.empty()) {
-        UbseRoleInfo masterNodeInfo = { masterNode.id, ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE };
+        UbseRoleInfo masterNodeInfo = {masterNode.id, ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE};
         roleInfos.push_back(masterNodeInfo);
     }
     if (!standbyNode.id.empty()) {
-        UbseRoleInfo standbyNodeInfo = { standbyNode.id, ELECTION_ROLE_STANDBY, ELECTION_NODE_ONLINE };
+        UbseRoleInfo standbyNodeInfo = {standbyNode.id, ELECTION_ROLE_STANDBY, ELECTION_NODE_ONLINE};
         roleInfos.push_back(standbyNodeInfo);
     }
-    for (const auto &node : agentNodes) {
+    for (const auto& node : agentNodes) {
         roleInfos.emplace_back(node.id, ELECTION_ROLE_AGENT, ELECTION_NODE_ONLINE);
     }
     return UBSE_OK;
 }
 
-uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status)
+uint32_t UbseGetNodeStatus(const std::string& role, uint8_t& status)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -244,7 +244,7 @@ uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status)
             return ret;
         }
     } else if (role == ELECTION_ROLE_AGENT) {
-        auto &ubseContext = ubse::context::UbseContext::GetInstance();
+        auto& ubseContext = ubse::context::UbseContext::GetInstance();
         currentStatus = ubseContext.GetWorkReadiness();
     } else {
         UBSE_LOG_WARN << "[ELECTION] Invalid role";
@@ -254,9 +254,9 @@ uint32_t UbseGetNodeStatus(const std::string &role, uint8_t &status)
     return UBSE_OK;
 }
 
-uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo &currentNode)
+uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo& currentNode)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -284,9 +284,9 @@ uint32_t UbseGetCurrentNodeInfo(UbseRoleInfo &currentNode)
     return UBSE_OK;
 }
 
-uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds)
+uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE>& nodeIds)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -298,15 +298,15 @@ uint32_t UbseGetNodeIds(std::vector<UBSE_ID_TYPE> &nodeIds)
         UBSE_LOG_WARN << "[ELECTION] Get all nodeIds failed";
         return ret;
     }
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         nodeIds.push_back(node.id);
     }
     return UBSE_OK;
 }
 
-uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
+uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo>& roleInfos)
 {
-    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto& ubseContext = ubse::context::UbseContext::GetInstance();
     auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
     if (electionModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
@@ -334,9 +334,9 @@ uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
     allNodesCluster.push_back(standbyNode);
 
     // 遍历所有物理节点，如果在集群节点中，则设置为在线，否则设置为离线
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         auto it = std::find_if(allNodesCluster.begin(), allNodesCluster.end(),
-            [&node](const Node &n) { return n.id == node.id; });
+                               [&node](const Node& n) { return n.id == node.id; });
         if (it != allNodesCluster.end()) {
             if (it->id == masterNode.id) {
                 roleInfos.emplace_back(node.id, ELECTION_ROLE_MASTER, ELECTION_NODE_ONLINE);
@@ -353,7 +353,7 @@ uint32_t UbseGetAllNodeStatusInfo(std::vector<UbseRoleInfo> &roleInfos)
     return ret;
 }
 
-uint32_t UbseGetRole(std::string &role)
+uint32_t UbseGetRole(std::string& role)
 {
     UbseRoleInfo currentNode;
     auto ret = UbseGetCurrentNodeInfo(currentNode);
@@ -365,7 +365,7 @@ uint32_t UbseGetRole(std::string &role)
     return ret;
 }
 
-uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
+uint32_t UbseGetMasterNodeId(std::string& masterNodeId)
 {
     UbseRoleInfo roleInfo;
     auto ret = UbseGetMasterInfo(roleInfo);
@@ -377,7 +377,7 @@ uint32_t UbseGetMasterNodeId(std::string &masterNodeId)
     return ret;
 }
 
-uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
+uint32_t UbseGetCurrentNodeId(std::string& currentNodeId)
 {
     UbseRoleInfo currentNode;
     auto ret = UbseGetCurrentNodeInfo(currentNode);
@@ -388,4 +388,4 @@ uint32_t UbseGetCurrentNodeId(std::string &currentNodeId)
     currentNodeId = currentNode.nodeId;
     return ret;
 }
-}
+} // namespace ubse::election

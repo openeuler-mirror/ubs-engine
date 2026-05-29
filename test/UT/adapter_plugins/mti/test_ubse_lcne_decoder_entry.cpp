@@ -14,15 +14,16 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "lcne/ubse_lcne_decoder_entry.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "lcne/ubse_lcne_decoder_entry.h"
 #include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
 using namespace ubse::context;
+using namespace ubse::http;
 
 void TestUbseLcneDecoderEntry ::SetUp()
 {
@@ -299,4 +300,4 @@ TEST_F(TestUbseLcneDecoderEntry, DeleteDecoderEntrySuccess)
     auto ret = UbseLcneDecoderEntry::DeleteDecoderEntry(drawInfo);
     EXPECT_EQ(ret, UBSE_OK);
 }
-}
+} // namespace ubse::ut::lcne

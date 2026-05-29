@@ -15,12 +15,14 @@
 
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
-#include "ubse_node_controller.h"
 #include "ubse_conf_module.h"
+#include "ubse_lcne_module.h"
 #include "ubse_net_util.h"
+#include "ubse_node_controller.h"
 
 namespace ubse::node_controller::ut {
 using namespace ubse::nodeController;
+using namespace ubse::mti;
 class TestUbseNodeController : public testing::Test {
 public:
     TestUbseNodeController() = default;

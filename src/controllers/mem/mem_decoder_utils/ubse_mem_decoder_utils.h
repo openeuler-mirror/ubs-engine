@@ -14,23 +14,24 @@
 
 #include <unordered_map>
 #include <unordered_set>
-#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 #include "ubse_common_def.h"
 #include "ubse_mmi_interface.h"
+#include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::mem::decoder::utils {
-using namespace common::def;
-using namespace adapter_plugins::mti::mami;
+using adapter_plugins::mti::mami::UbseMamiMemHandleValue;
+using adapter_plugins::mti::mami::UbseMamiMemImportResult;
+using common::def::UbseResult;
 
 struct ImportDecoderParam {
     uint8_t importType;
     uint8_t decoderIdx;
     uint32_t portSet;
-    uint32_t flag;   // 指定decoder表属性
-    uint64_t handle; // 预引入需要传入预引入的handle
+    uint32_t flag;             // 指定decoder表属性
+    uint64_t handle;           // 预引入需要传入预引入的handle
     bool isHighSafety = false; // 是否为高安配置
     adapter_plugins::mmi::UbseTrustRingData trustRingData{};
-    std::string type;  // 借用类型
+    std::string type; // 借用类型
 };
 
 struct PreImportDecoderParam {
@@ -50,21 +51,21 @@ struct DecoderEntryLoc {
     uint8_t decoderId{}; // 指定decoder表索引
 
     struct Hash {
-        std::size_t operator()(const DecoderEntryLoc &loc) const
+        std::size_t operator()(const DecoderEntryLoc& loc) const
         {
             std::size_t seed = 0;
             auto hashUint32 = std::hash<uint32_t>{};
             auto hashUint8 = std::hash<uint8_t>{};
             const uint32_t randValue = 0x9e3779b9;
-            seed ^= hashUint32(loc.ubpuId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint32(loc.iouId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint32(loc.marId) + randValue + (seed << NO_6) + (seed >> NO_2);
-            seed ^= hashUint8(loc.decoderId) + randValue + (seed << NO_6) + (seed >> NO_2);
+            seed ^= hashUint32(loc.ubpuId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint32(loc.iouId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint32(loc.marId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
+            seed ^= hashUint8(loc.decoderId) + randValue + (seed << common::def::NO_6) + (seed >> common::def::NO_2);
             return seed;
         }
     };
     struct Equal {
-        bool operator()(const DecoderEntryLoc &lhs, const DecoderEntryLoc &rhs) const
+        bool operator()(const DecoderEntryLoc& lhs, const DecoderEntryLoc& rhs) const
         {
             return lhs.ubpuId == rhs.ubpuId && lhs.iouId == rhs.iouId && lhs.marId == rhs.marId &&
                    lhs.decoderId == rhs.decoderId;
@@ -82,19 +83,19 @@ using DecoderLocTohandleDcnaMap = std::unordered_map<DecoderEntryLoc, std::vecto
 class MemDecoderUtils {
 public:
     static std::unordered_map<uint32_t, uint32_t> portToPortSet;
-    static UbseResult GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair);
-    static UbseResult GetAllHandles(uint8_t type, DecoderLocTohandleValueMap &handleValues);
-    static UbseResult GetCurNodeSocketInfo(std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> &outSocketInfo);
+    static UbseResult GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t>& chipDiePair);
+    static UbseResult GetAllHandles(uint8_t type, DecoderLocTohandleValueMap& handleValues);
+    static UbseResult GetCurNodeSocketInfo(std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>& outSocketInfo);
     static UbseResult SetParamMarId(uint32_t slotId, uint32_t remoteSlotId, uint32_t chipId, uint32_t remoteChipId,
-                                    ImportDecoderParam &importParam);
-    static UbseResult GetAllHandleFromImportObj(DecoderLocTohandleMap &handleMap);
-    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam &importParam);
-    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam &importParam,
-                                      const ubse::adapter_plugins::mmi::UbseMemPrivData &privData);
-    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam &importParam, uint16_t wrDelayComp);
-    static uint32_t PreImportDecoderEntry(const decoder::utils::PreImportDecoderParam &importDecoderParam,
-                                          UbseMamiMemImportResult &outValue);
-    static UbseResult GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap &handleMap);
+                                    ImportDecoderParam& importParam);
+    static UbseResult GetAllHandleFromImportObj(DecoderLocTohandleMap& handleMap);
+    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam);
+    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam,
+                                      const ubse::adapter_plugins::mmi::UbseMemPrivData& privData);
+    static void SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam, uint16_t wrDelayComp);
+    static uint32_t PreImportDecoderEntry(const decoder::utils::PreImportDecoderParam& importDecoderParam,
+                                          UbseMamiMemImportResult& outValue);
+    static UbseResult GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap& handleMap);
 };
 } // namespace ubse::mem::decoder::utils
 

@@ -42,7 +42,7 @@ struct CountMember<T, std::void_t<decltype(T{{Args{}}...})>, Args...> {
 template <class T, size_t N>
 struct MemberTupleHelper {
     template <class U>
-    inline constexpr static auto GetTuple(U &u)
+    inline constexpr static auto GetTuple(U& u)
     {
         static_assert(sizeof(U) < 0);
         return std::tie();
@@ -71,9 +71,9 @@ struct MemberTupleHelper {
     template <class T>                              \
     struct MemberTupleHelper<T, n> {                \
         template <class U>                          \
-        inline constexpr static auto GetTuple(U &u) \
+        inline constexpr static auto GetTuple(U& u) \
         {                                           \
-            auto &&[RMRS_EXPAND(n)] = u;            \
+            auto&& [RMRS_EXPAND(n)] = u;            \
             return std::tie(RMRS_EXPAND(n));        \
         }                                           \
     }
@@ -98,18 +98,18 @@ RMRS_MEMBER_TUPLE_HELPER(16);
 class RmrsOutStream {
 public:
     template <typename T>
-    RmrsOutStream &operator<<(const T &data);
+    RmrsOutStream& operator<<(const T& data);
     template <typename T>
-    RmrsOutStream &operator<<(const std::vector<T> &data);
+    RmrsOutStream& operator<<(const std::vector<T>& data);
     template <typename T>
-    RmrsOutStream &operator<<(const std::set<T> &data);
+    RmrsOutStream& operator<<(const std::set<T>& data);
     template <typename T>
-    RmrsOutStream &operator<<(const std::unordered_set<T> &data);
+    RmrsOutStream& operator<<(const std::unordered_set<T>& data);
     template <typename K, typename V>
-    RmrsOutStream &operator<<(const std::map<K, V> &data);
+    RmrsOutStream& operator<<(const std::map<K, V>& data);
     template <typename K, typename V>
-    RmrsOutStream &operator<<(const std::unordered_map<K, V> &data);
-    void Write(const char *data, size_t len)
+    RmrsOutStream& operator<<(const std::unordered_map<K, V>& data);
+    void Write(const char* data, size_t len)
     {
         outStream.append(data, len);
     }
@@ -119,7 +119,7 @@ public:
         return outStream;
     }
 
-    uint8_t *GetBufferPointer()
+    uint8_t* GetBufferPointer()
     {
         if (ptr != nullptr) {
             return ptr;
@@ -143,30 +143,30 @@ public:
 
 public:
     std::string outStream;
-    uint8_t *ptr{};
+    uint8_t* ptr{};
     bool mFlag{true};
 };
 
 class RmrsInStream {
 public:
-    RmrsInStream(const std::string &s) : inStream(s) {}
-    RmrsInStream(const uint8_t *s, size_t len)
+    RmrsInStream(const std::string& s) : inStream(s) {}
+    RmrsInStream(const uint8_t* s, size_t len)
     {
-        inStream = std::string(reinterpret_cast<const char *>(s), len);
+        inStream = std::string(reinterpret_cast<const char*>(s), len);
     }
     template <typename T>
-    RmrsInStream &operator>>(T &data);
+    RmrsInStream& operator>>(T& data);
     template <typename T>
-    RmrsInStream &operator>>(std::vector<T> &data);
+    RmrsInStream& operator>>(std::vector<T>& data);
     template <typename T>
-    RmrsInStream &operator>>(std::set<T> &data);
+    RmrsInStream& operator>>(std::set<T>& data);
     template <typename T>
-    RmrsInStream &operator>>(std::unordered_set<T> &data);
+    RmrsInStream& operator>>(std::unordered_set<T>& data);
     template <typename K, typename V>
-    RmrsInStream &operator>>(std::map<K, V> &data);
+    RmrsInStream& operator>>(std::map<K, V>& data);
     template <typename K, typename V>
-    RmrsInStream &operator>>(std::unordered_map<K, V> &data);
-    void Read(char *data, size_t len)
+    RmrsInStream& operator>>(std::unordered_map<K, V>& data);
+    void Read(char* data, size_t len)
     {
         if (!mFlag || inStream.length() - offset < len) {
             mFlag = false;
@@ -199,36 +199,38 @@ private:
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 template <typename T>
-RmrsOutStream &RmrsOutStream::operator<<(const T &data)
+RmrsOutStream& RmrsOutStream::operator<<(const T& data)
 {
     if constexpr (std::is_trivially_copyable_v<T>) {
-        this->Write(reinterpret_cast<const char *>(&data), sizeof(T));
+        this->Write(reinterpret_cast<const char*>(&data), sizeof(T));
     } else {
         constexpr auto n = CountMember<T>::value;
         auto members = MemberTupleHelper<T, n>::GetTuple(data);
-        [&]<std::size_t... index>(std::index_sequence<index...>) {
+        [&]<std::size_t... index>(std::index_sequence<index...>)
+        {
             ((*this << std::get<index>(members)), ...);
-        }(std::make_index_sequence<n>{});
+        }
+        (std::make_index_sequence<n>{});
     }
     return *this;
 }
 
 template <>
-inline RmrsOutStream &RmrsOutStream::operator<< <std::string>(const std::string &data)
+inline RmrsOutStream& RmrsOutStream::operator<<<std::string>(const std::string& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     this->Write(data.c_str(), len);
     return *this;
 }
 
 template <typename K, typename V>
-RmrsOutStream &RmrsOutStream::operator<<(const std::map<K, V> &data)
+RmrsOutStream& RmrsOutStream::operator<<(const std::map<K, V>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     // 遍历 map，逐个序列化 key 和 value
-    for (const auto &pair : data) {
+    for (const auto& pair : data) {
         *this << pair.first;  // 序列化 key
         *this << pair.second; // 序列化 value
     }
@@ -236,12 +238,12 @@ RmrsOutStream &RmrsOutStream::operator<<(const std::map<K, V> &data)
 }
 
 template <typename K, typename V>
-RmrsOutStream &RmrsOutStream::operator<<(const std::unordered_map<K, V> &data)
+RmrsOutStream& RmrsOutStream::operator<<(const std::unordered_map<K, V>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     // 遍历 map，逐个序列化 key 和 value
-    for (const auto &pair : data) {
+    for (const auto& pair : data) {
         *this << pair.first;  // 序列化 key
         *this << pair.second; // 序列化 value
     }
@@ -249,64 +251,66 @@ RmrsOutStream &RmrsOutStream::operator<<(const std::unordered_map<K, V> &data)
 }
 
 template <typename T>
-RmrsOutStream &RmrsOutStream::operator<<(const std::vector<T> &data)
+RmrsOutStream& RmrsOutStream::operator<<(const std::vector<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-RmrsOutStream &RmrsOutStream::operator<<(const std::set<T> &data)
+RmrsOutStream& RmrsOutStream::operator<<(const std::set<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-RmrsOutStream &RmrsOutStream::operator<<(const std::unordered_set<T> &data)
+RmrsOutStream& RmrsOutStream::operator<<(const std::unordered_set<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-RmrsInStream &RmrsInStream::operator>>(T &data)
+RmrsInStream& RmrsInStream::operator>>(T& data)
 {
     if (!mFlag) {
         return *this;
     }
     if constexpr (std::is_trivially_copyable_v<T>) {
-        this->Read(reinterpret_cast<char *>(&data), sizeof(T));
+        this->Read(reinterpret_cast<char*>(&data), sizeof(T));
     } else {
         constexpr auto n = CountMember<T>::value;
         auto members = MemberTupleHelper<T, n>::GetTuple(data);
-        [&]<std::size_t... index>(std::index_sequence<index...>) {
+        [&]<std::size_t... index>(std::index_sequence<index...>)
+        {
             ((*this >> std::get<index>(members)), ...);
-        }(std::make_index_sequence<n>{});
+        }
+        (std::make_index_sequence<n>{});
     }
     return *this;
 }
 
 template <>
-inline RmrsInStream &RmrsInStream::operator>> <std::string>(std::string &data)
+inline RmrsInStream& RmrsInStream::operator>><std::string>(std::string& data)
 {
     if (!mFlag) {
         return *this;
     }
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     if (len > MAX_STRING_LEN || inStream.length() - offset < len) {
         mFlag = false;
         return *this;
@@ -317,14 +321,14 @@ inline RmrsInStream &RmrsInStream::operator>> <std::string>(std::string &data)
 }
 
 template <typename K, typename V>
-RmrsInStream &RmrsInStream::operator>>(std::map<K, V> &data)
+RmrsInStream& RmrsInStream::operator>>(std::map<K, V>& data)
 {
     if (!mFlag) {
         return *this;
     }
     data.clear();
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     for (size_t i = 0; i < len; ++i) {
         if (!mFlag) {
             return *this;
@@ -339,14 +343,14 @@ RmrsInStream &RmrsInStream::operator>>(std::map<K, V> &data)
 }
 
 template <typename K, typename V>
-RmrsInStream &RmrsInStream::operator>>(std::unordered_map<K, V> &data)
+RmrsInStream& RmrsInStream::operator>>(std::unordered_map<K, V>& data)
 {
     if (!mFlag) {
         return *this;
     }
     data.clear();
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     for (size_t i = 0; i < len; ++i) {
         if (!mFlag) {
             return *this;
@@ -361,14 +365,14 @@ RmrsInStream &RmrsInStream::operator>>(std::unordered_map<K, V> &data)
 }
 
 template <typename T>
-RmrsInStream &RmrsInStream::operator>>(std::vector<T> &data)
+RmrsInStream& RmrsInStream::operator>>(std::vector<T>& data)
 {
     if (!mFlag) {
         return *this;
     }
     data.clear();
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     for (size_t i = 0; i < len; ++i) {
         if (!mFlag) {
             return *this;
@@ -381,14 +385,14 @@ RmrsInStream &RmrsInStream::operator>>(std::vector<T> &data)
 }
 
 template <typename T>
-RmrsInStream &RmrsInStream::operator>>(std::set<T> &data)
+RmrsInStream& RmrsInStream::operator>>(std::set<T>& data)
 {
     if (!mFlag) {
         return *this;
     }
     data.clear();
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     for (size_t i = 0; i < len; ++i) {
         if (!mFlag) {
             return *this;
@@ -401,14 +405,14 @@ RmrsInStream &RmrsInStream::operator>>(std::set<T> &data)
 }
 
 template <typename T>
-RmrsInStream &RmrsInStream::operator>>(std::unordered_set<T> &data)
+RmrsInStream& RmrsInStream::operator>>(std::unordered_set<T>& data)
 {
     if (!mFlag) {
         return *this;
     }
     data.clear();
     size_t len = 0;
-    this->Read(reinterpret_cast<char *>(&len), sizeof(len));
+    this->Read(reinterpret_cast<char*>(&len), sizeof(len));
     for (size_t i = 0; i < len; ++i) {
         if (!mFlag) {
             return *this;

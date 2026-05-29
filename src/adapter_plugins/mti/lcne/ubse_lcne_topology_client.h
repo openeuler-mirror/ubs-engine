@@ -12,34 +12,33 @@
 
 #ifndef UBSE_LCNE_TOPOLOGY_CLIENT_H
 #define UBSE_LCNE_TOPOLOGY_CLIENT_H
-#include "src/framework/http/ubse_http_module.h"
-#include "ubse_lcne_topology.h"
 #include "ubse_lcne_def.h"
+#include "ubse_lcne_topology.h"
+#include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::lcne {
-using namespace ubse::http;
-using namespace ubse::mti;
+using ubse::mti::LcneNodeInfo;
 
 class UbseLcneTopologyClient {
 public:
-    static UbseLcneTopologyClient &GetInstance()
+    static UbseLcneTopologyClient& GetInstance()
     {
         static UbseLcneTopologyClient instance("127.0.0.1",
-            LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
+                                               LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
 
     // 初始化时调用lcne接口获得拓扑
-    uint32_t GetTopology(std::vector<LcneNodeInfo> &lcneNodes);
+    uint32_t GetTopology(std::vector<LcneNodeInfo>& lcneNodes);
 
 private:
-    UbseLcneTopologyClient(const std::string &host, int port) : host(host), port(port) {}
+    UbseLcneTopologyClient(const std::string& host, int port) : host(host), port(port) {}
 
-    uint32_t ParseData(std::string &resBody, std::vector<LcneNodeInfo> &lcneNodes);
+    uint32_t ParseData(std::string& resBody, std::vector<LcneNodeInfo>& lcneNodes);
 
-    std::string GetLcneNodeInfoString(const LcneNodeInfo &node);
+    std::string GetLcneNodeInfoString(const LcneNodeInfo& node);
 
-    std::string GetLcneNodesString(const std::vector<LcneNodeInfo> &lcneNodes);
+    std::string GetLcneNodesString(const std::vector<LcneNodeInfo>& lcneNodes);
 
     std::string host;
     int port;

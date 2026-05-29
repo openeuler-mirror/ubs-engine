@@ -11,12 +11,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <securec.h>
 #include "msg_utils.h"
+#include <securec.h>
 
 namespace vm {
 
-VmResult StringToC(char *dest, const std::string &src, size_t maxSize)
+VmResult StringToC(char* dest, const std::string& src, size_t maxSize)
 {
     if (dest == nullptr || maxSize == 0) {
         return VM_INVALID_PARAM_ERROR;
@@ -30,4 +30,4 @@ VmResult StringToC(char *dest, const std::string &src, size_t maxSize)
     return VM_OK;
 }
 
-}
+} // namespace vm

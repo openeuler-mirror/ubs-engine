@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::storage
 #endif // TEST_UBSE_STORAGE_RESP_SIMPO_H

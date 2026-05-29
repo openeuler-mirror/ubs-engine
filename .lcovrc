@@ -1,6 +1,6 @@
 # Header text to use at top of each page
 # Default is "LCOV - coverage report"
-genhtml_header = Coverage report for RackManager
+genhtml_header = Coverage report for ubs-engine
 
 # Footer text to use at the bottom of each page
 # Default is LCOV tool version
@@ -177,10 +177,3 @@ lcov_branch_coverage = 1
 
 # Specify JSON module to use, or choose best available if set to auto
 lcov_json_module = auto
-
-include = src/
-exclude = .h
-exclude = src/main/
-exclude = src/pro/
-exclude = test/
-exclude = cmake-build-debug/

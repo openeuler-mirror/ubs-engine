@@ -13,28 +13,38 @@
 #ifndef TEST_SYS_SENTRY_MODULE_H
 #define TEST_SYS_SENTRY_MODULE_H
 
-#include <functional>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "ubse_context.h"
-#include "mockcpp/mockcpp.hpp"
+#include <gtest/gtest.h>
+#include <functional>
 #include "ubse_conf.h"
-#include "sentry_observer.h"
-#include "sys_sentry_module.h"
-#include "dlfcn.h"
-#include "ubse_pointer_process.h"
-#include "securec.h"
-#include "ubse_ras_handler.h"
-#include "ubse_os_util.h"
+#include "ubse_context.h"
 #include "ubse_lcne_module.h"
+#include "ubse_os_util.h"
+#include "ubse_pointer_process.h"
+#include "ubse_ras_handler.h"
+#include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "dlfcn.h"
+#include "mockcpp/mockcpp.hpp"
+#include "securec.h"
+#include "sentry_observer.h"
+#include "src/adapter_plugins/mti/ubse_mti_interface_default.h"
+#include "sys_sentry_module.h"
 
 namespace syssentry {
 extern std::vector<std::string> SplitString(const std::string& str, char delimiter);
 extern UbseResult GetEids(std::string& clientEid, std::string& serverEids);
-extern UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas);
+extern UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
-extern UbseResult SetSysSentryFaultEventOn();
-}  // namespace syssentry
+extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
+extern std::string ShellEscape(const std::string& str);
+extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseDevName,
+                                             ubse::adapter_plugins::mti::UbseUrmaEidInfo>& allSocketComEid,
+                              const std::string& nodeId,
+                              std::unordered_map<std::string, std::vector<std::string>>& eids,
+                              std::vector<std::string>& eidGroup);
+} // namespace syssentry
 namespace syssentry::ut {
 using namespace ubse::context;
 using namespace syssentry;
@@ -47,5 +57,5 @@ public:
 
     void TearDown() override;
 };
-}  // namespace syssentry::ut
-#endif  // TEST_SYS_SENTRY_MODULE_H
+} // namespace syssentry::ut
+#endif // TEST_SYS_SENTRY_MODULE_H

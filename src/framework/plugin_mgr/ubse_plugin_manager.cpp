@@ -16,10 +16,10 @@
 #include <securec.h>
 #include <iostream>
 
+#include "ubse_error.h"
 #include "ubse_file_util.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
-#include "ubse_error.h"
 
 namespace ubse::plugin {
 using namespace ubse::context;
@@ -27,7 +27,7 @@ using namespace ubse::log;
 using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-static const std::unordered_set<std::string> g_pluginCannotFail{"mempooling", "vm"};
+static const std::unordered_set<std::string> g_pluginCannotFail{"mempooling", "virt_agent"};
 
 /**
  * 加载并初始化准入插件
@@ -181,7 +181,7 @@ UbseResult UbsePluginManager::LoadPluginModule(const std::string& pluginName, co
 {
     if (loadedPluginModules_.find(pluginName) != loadedPluginModules_.end()) {
         UBSE_LOG_INFO << "The plugin: " << pluginName << " has been loaded and does not need to be loaded again.";
-        return UBSE_PLUGIN_ERROR_LOAD_AGAIN;  // 插件已经加载
+        return UBSE_PLUGIN_ERROR_LOAD_AGAIN; // 插件已经加载
     }
 
     void* handle = dlopen(fileName.c_str(), RTLD_LAZY);
@@ -201,7 +201,8 @@ UbsePluginInitFunc UbsePluginManager::GetInitFunction(const std::string& pluginN
         return nullptr;
     }
 
-    auto func = reinterpret_cast<UbsePluginInitFunc>(dlsym(handle, funcName.c_str()));
+    auto func = reinterpret_cast<UbsePluginInitFunc>(
+        dlsym(handle, funcName.c_str())); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (func == nullptr) {
         UBSE_LOG_WARN << "Failed to get UbsePluginInit for plugin: " << pluginName;
     }
@@ -226,4 +227,4 @@ void* UbsePluginManager::GetLoadedPlugin(const string& pluginName)
     return loadedPluginModules_[pluginName];
 }
 
-}  // namespace ubse::plugin
+} // namespace ubse::plugin

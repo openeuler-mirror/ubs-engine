@@ -33,9 +33,10 @@
     ubse::ipc::Log() == ubse::ipc::UbseIpcLogEntry(ubse::ipc::UbseIpcLogLevel::DEBUG, FILENAME, __func__, __LINE__)
 
 namespace ubse::ipc {
-using UbseIpcLogFunc = void (*)(uint32_t, const char *);
+using UbseIpcLogFunc = void (*)(uint32_t, const char*);
 
-enum class UbseIpcLogLevel : uint32_t {
+enum class UbseIpcLogLevel : uint32_t
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -44,11 +45,11 @@ enum class UbseIpcLogLevel : uint32_t {
 
 class UbseIpcLogEntry {
 public:
-    UbseIpcLogEntry(UbseIpcLogLevel level, const char *file, const char *func, uint32_t line);
+    UbseIpcLogEntry(UbseIpcLogLevel level, const char* file, const char* func, uint32_t line);
     ~UbseIpcLogEntry() = default;
 
     template <typename T>
-    UbseIpcLogEntry &operator<<(T data)
+    UbseIpcLogEntry& operator<<(T data)
     {
         oss_ << data;
         return *this;
@@ -65,16 +66,16 @@ class UbseIpcLog {
 public:
     static void SetLogFunc(UbseIpcLogFunc func);
 
-    static void Print(uint32_t level, const char *msg);
+    static void Print(uint32_t level, const char* msg);
 
-    static void OutPutLog(UbseIpcLogLevel level, const char *msg);
+    static void OutPutLog(UbseIpcLogLevel level, const char* msg);
 
 private:
     static UbseIpcLogFunc logFunc_;
 };
 
 struct Log {
-    bool operator==(UbseIpcLogEntry &loggerEntry);
+    bool operator==(UbseIpcLogEntry& loggerEntry);
 };
 } // namespace ubse::ipc
 

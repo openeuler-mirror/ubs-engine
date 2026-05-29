@@ -11,15 +11,15 @@
  */
 
 #include "test_ubse_cert.h"
-#include <mockcpp/mockcpp.hpp>
 #include <filesystem>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <mockcpp/mockcpp.hpp>
 #include <sstream>
 #include <string>
 
-#include "ubse_error.h"
 #include "ubse_cert_cli_import.h"
+#include "ubse_error.h"
 
 namespace ubse::ut::cert {
 using namespace ubse::cli::cert;
@@ -44,7 +44,7 @@ int crate_cert_demo()
             std::filesystem::create_directories(certDir);
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
         return 1;
     }
@@ -124,4 +124,4 @@ TEST_F(TestUbseCert, Import_cert_valid)
     bool ret = ImportCertSet(serverPath, trustPath, serverKeyPath, "", errMsg);
     EXPECT_FALSE(ret);
 }
-}
+} // namespace ubse::ut::cert

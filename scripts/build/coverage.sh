@@ -12,7 +12,9 @@
 #
 
 # Generate code coverage report using fastcov and lcov
-# Usage: ./coverage.sh [build_dir] [lcovrc_path]
+# Usage: ./coverage.sh [build_dir]
+# Environment variables:
+#   COVERAGE_MODULE - module name for filter selection (base|rmrs|ucache|virt-agent)
 
 set -o errexit    # Exit immediately on any command failure
 set -o nounset    # Treat unset variables as errors
@@ -25,34 +27,34 @@ declare -r DEFAULT_BUILD_DIR="${PWD}/cmake-build-debug"
 declare -r DEFAULT_LCOVRC="${PWD}/.lcovrc"
 declare -r coverage_dir="${1:-${DEFAULT_BUILD_DIR}}/coverage"
 declare -r FASTCOV_PATH="${HOME}/.local/bin/fastcov"
-declare -A lcov_filters=([include]="" [exclude]="")
 
 # --------------------------
-# Function definitions
+# Module mapping table
 # --------------------------
+declare -A MODULE_INCLUDE=(
+    ["ut"]="src/"
+    ["ubs-engine_ut_independent_ut"]="src/"
+    ["ubs-engine_virtagent_ut_independent_ut"]="src/addons/virt_agent"
+    ["ubs-engine_rmrs_plugin_ut_independent_ut"]="src/addons/rmrs"
+    ["ubs-engine_ucache_plugin_ut_independent_ut"]="src/addons/ucache"
+)
 
-##
-# Parse include/exclude patterns from .lcovrc file
-# Globals:
-#   lcov_filters (output)
-# Arguments:
-#   $1 - path to .lcovrc configuration file
-##
-function parse_lcov_filters() {
-    local config_file="${1}"
-    while IFS= read -r line; do
-        line="$(sed -E 's/^\s*|\s*$//g; s/\s*=\s*/ /' <<< "${line}")"
-        [[ -z "${line}" ]] && continue
+COMMON_EXCLUDE=".h src/main/ test/ cmake-build-debug/"
+ADDON_EXCLUDE="src/addons/rmrs src/addons/ucache src/addons/virt_agent"
 
-        local filter_type="${line%% *}"
-        local pattern="${line#* }"
+declare -A MODULE_EXCLUDE=(
+    ["ut"]="${COMMON_EXCLUDE}"
+    ["ubs-engine_ut_independent_ut"]="${COMMON_EXCLUDE} ${ADDON_EXCLUDE}"
+    ["ubs-engine_virtagent_ut_independent_ut"]="${COMMON_EXCLUDE}"
+    ["ubs-engine_rmrs_plugin_ut_independent_ut"]="${COMMON_EXCLUDE}"
+    ["ubs-engine_ucache_plugin_ut_independent_ut"]="${COMMON_EXCLUDE}"
+)
 
-        case "${filter_type}" in
-            include|exclude)
-                lcov_filters["${filter_type}"]+="${pattern} "
-                ;;
-        esac
-    done < <(grep -E '^(include|exclude)' "${config_file}")
+function resolve_coverage_filters() {
+    # 从环境变量 COVERAGE_MODULE 获取模块名称，若未设置则使用默认值 "ut"
+    local module="${COVERAGE_MODULE:-ut}"
+    include_patterns="${MODULE_INCLUDE[${module}]:-}"
+    exclude_patterns="${MODULE_EXCLUDE[${module}]:-}"
 }
 
 ##
@@ -73,13 +75,32 @@ function generate_coverage_report() {
 
     # Generate intermediate coverage info
     "${FASTCOV_PATH}" -b -n -p \
-        --include ${lcov_filters[include]} \
-        --exclude ${lcov_filters[exclude]} \
+        --include ${include_patterns} \
+        --exclude ${exclude_patterns} \
         --lcov -o "${output_dir}/fastcov.info"
 
     # Generate HTML report
     "${genhtml_path}" -q --config-file "${lcovrc_file}" \
         -o "${output_dir}" "${output_dir}/fastcov.info"
+}
+
+##
+# Print coverage summary to console
+# Arguments:
+#   $1 - path to coverage info file
+#   $2 - path to .lcovrc configuration file
+##
+function print_coverage_summary() {
+    local info_file="$1"
+    local lcovrc_file="$2"
+    local lcov_path="$(command -v lcov)" || error_exit "lcov not found in PATH"
+
+    echo ""
+    echo "=========================================="
+    echo "         Coverage Summary Report"
+    echo "=========================================="
+    "${lcov_path}" --summary --config-file "${lcovrc_file}" "${info_file}" 2>&1 | grep -E "(lines|functions|branches)" || true
+    echo "=========================================="
 }
 
 ##
@@ -102,7 +123,10 @@ ensure_fastcov_installed() {
     if ! command -v fastcov >/dev/null 2>&1 && \
        [[ ! -f "${FASTCOV_PATH}" ]]; then
         echo "Installing fastcov via pip..."
-        if ! pip3 install fastcov; then
+        if ! pip3 install fastcov \
+               --disable-pip-version-check \
+               --user \
+        ; then
             error_exit "Failed to install fastcov. Check network connection."
         fi
     fi
@@ -112,17 +136,21 @@ ensure_fastcov_installed() {
 # Main execution
 # --------------------------
 function main() {
-    local lcovrc_file="${2:-${DEFAULT_LCOVRC}}"
+    local lcovrc_file="${DEFAULT_LCOVRC}"
+    local include_patterns=""
+    local exclude_patterns=""
 
     ensure_fastcov_installed || error_exit "Missing fastcov installed"
 
-    # Validate configuration files
     [[ -f "${lcovrc_file}" ]] || error_exit "Missing lcovrc file: ${lcovrc_file}"
     [[ -f "${FASTCOV_PATH}" ]] || error_exit "Missing fastcov script: ${FASTCOV_PATH}"
 
-    parse_lcov_filters "${lcovrc_file}"
+    resolve_coverage_filters
     generate_coverage_report "${coverage_dir}" "${lcovrc_file}"
 
+    print_coverage_summary "${coverage_dir}/fastcov.info" "${lcovrc_file}"
+    echo ""
+    echo "Coverage module: ${COVERAGE_MODULE:-base}"
     echo "Coverage report generated at: ${coverage_dir}/index.html"
 }
 

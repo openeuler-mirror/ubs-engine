@@ -32,7 +32,7 @@ constexpr float MIN_BALANCE_THRESHOLD = 1.0f;
 
 class UcacheConfig {
 public:
-    static UcacheConfig &GetInstance()
+    static UcacheConfig& GetInstance()
     {
         // 使用 C++11 的局部静态变量特性，线程安全
         static UcacheConfig instance;
@@ -61,8 +61,8 @@ public:
     uint32_t GetMasterInterval() const;
     uint64_t GetMasterMaxBorrowSize() const;
 
-    UcacheConfig(const UcacheConfig &) = delete;
-    UcacheConfig &operator=(const UcacheConfig &) = delete;
+    UcacheConfig(const UcacheConfig&) = delete;
+    UcacheConfig& operator=(const UcacheConfig&) = delete;
 
 private:
     UcacheConfig() = default;
@@ -72,9 +72,9 @@ private:
     uint32_t LoadStrategyConfig();
     uint32_t LoadMasterConfig();
     uint32_t LoadBottleneckConfig();
-    uint32_t RackGetUInt32AndCheck(const std::string &key, uint32_t &val);
+    uint32_t RackGetUInt32AndCheck(const std::string& key, uint32_t& val);
     template <typename Func, typename ValueType>
-    uint32_t GetConfigValue(Func &&func, const std::string &section, const std::string &key, ValueType &value)
+    uint32_t GetConfigValue(Func&& func, const std::string& section, const std::string& key, ValueType& value)
     {
         uint32_t ret = func(section, key, value);
         if (ret != UCACHE_OK) {

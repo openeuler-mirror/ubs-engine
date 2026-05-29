@@ -19,8 +19,11 @@
 #include "src/include/ubse_base_message.h"
 
 namespace ubse::ras {
-using namespace ubse::message;
-using namespace ubse::serial;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
+using ubse::utils::Ref;
 
 struct RasData {
     std::string msgId;
@@ -64,9 +67,9 @@ public:
     UbseResult Deserialize() override;
 
 private:
-    static void Serialization(UbseSerialization &out, RasData &serialData);
+    static void Serialization(UbseSerialization& out, RasData& serialData);
 
-    static UbseResult Deserialization(UbseDeSerialization &in, RasData &deSerialData);
+    static UbseResult Deserialization(UbseDeSerialization& in, RasData& deSerialData);
 
 private:
     RasData data;

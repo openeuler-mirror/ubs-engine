@@ -23,6 +23,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
 |node_cnt| OUT| 列表大小        |
 
 - 数据结构说明
+
 ```c
 VIRT_MAX_NODE_ID_LENGTH = 48
 VIRT_MAX_UUID_LENGTH = 37
@@ -121,6 +122,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_
 | vm_info_cnt  | OUT    | 列表大小        |
 
 - 数据结构说明
+
 ```c
 typedef struct {
     char nodeId[VIRT_MAX_NODE_ID_LENGTH]; // Physical node ID (from control-plane configuration file)
@@ -139,6 +141,7 @@ typedef struct {
     uint64_t numaInfoCount;
 } vm_domain_info_t;
 ```
+
 ## 返回值 RETURN VALUE
 
 返回 `VA_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`

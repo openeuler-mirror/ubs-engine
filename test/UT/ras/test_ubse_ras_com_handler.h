@@ -13,16 +13,16 @@
 #ifndef TEST_UBSE_RAS_COM_HANDLER_H
 #define TEST_UBSE_RAS_COM_HANDLER_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "message/ubse_ras_message.h"
+#include <gtest/gtest.h>
 #include "ubse_context.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_ras_handler.h"
+#include "message/ubse_ras_message.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ras {
-UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>> &messageValue,
-                            const std::string &eventMessage);
+UbseResult CheckCommonParam(std::map<std::string, std::variant<uint64_t, long, int, std::vector<int>>>& messageValue,
+                            const std::string& eventMessage);
 }
 
 namespace ubse::ras::ut {
@@ -36,5 +36,5 @@ public:
 
     void TearDown() override;
 };
-}
-#endif  // TEST_UBSE_RAS_COM_HANDLER_H
+} // namespace ubse::ras::ut
+#endif // TEST_UBSE_RAS_COM_HANDLER_H

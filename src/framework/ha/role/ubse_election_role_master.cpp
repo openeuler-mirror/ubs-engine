@@ -22,32 +22,38 @@
 #include <vector>
 
 #include "ubse_context.h"
+#include "ubse_election_def.h"
 #include "ubse_election_node_mgr.h"
-#include "ubse_election_role_mgr.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
-#include "ubse_election_def.h"
+#include "ubse_election_role_mgr.h"
 
 namespace ubse::election {
+using namespace ubse::module;
+using namespace ubse::message;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::election::message;
+using namespace ::ubse::common::def;
+using ::ubse::com::UbseChannelType;
+using ::ubse::com::UbseComModule;
+using ::ubse::log::FormatRetCode;
 void SwitchStandbyNode(UBSE_ID_TYPE standbyId)
 {
     RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_SWITCH_TO_STANDBY, standbyId);
 }
 
-void Master::InitNodesStatus(const std::vector<UBSE_ID_TYPE> &allNodes)
+void Master::InitNodesStatus(const std::vector<UBSE_ID_TYPE>& allNodes)
 {
     std::vector<UBSE_ID_TYPE> allNeighbourNodes{};
     GetAllNeighbourNode(allNeighbourNodes);
     std::map<UBSE_ID_TYPE, BroadcastStatus> result;
-    for (const auto &nodeId : allNeighbourNodes) {
+    for (const auto& nodeId : allNeighbourNodes) {
         broadcast_[nodeId] = BroadcastStatus::Default();
     }
 }
 
-Master::Master(RoleContext &ctx) : turnId_(0), sequenceId_(), workStatus_(IS_READY)
+Master::Master(RoleContext& ctx) : turnId_(0), sequenceId_(), workStatus_(IS_READY)
 {
     Node myself;
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
@@ -69,7 +75,7 @@ std::vector<UBSE_ID_TYPE> Master::GetAllAgentIDs()
 {
     std::vector<UBSE_ID_TYPE> result;
 
-    for (const auto &node : broadcast_) {
+    for (const auto& node : broadcast_) {
         if (node.second.activeStatus == HeartBeatState::ACTIVE && node.first != masterId_ && node.first != standbyId_) {
             result.push_back(node.first);
         }
@@ -78,7 +84,7 @@ std::vector<UBSE_ID_TYPE> Master::GetAllAgentIDs()
     return result;
 }
 
-void Master::DealBroadcast(ElectionReplyPkt &reply, const UBSE_ID_TYPE &id)
+void Master::DealBroadcast(ElectionReplyPkt& reply, const UBSE_ID_TYPE& id)
 {
     if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
         broadcast_[id].heartBeatLossCnt = 0;
@@ -93,14 +99,15 @@ void Master::DealBroadcast(ElectionReplyPkt &reply, const UBSE_ID_TYPE &id)
     }
 }
 
-void Master::DealHbCnt(const UBSE_ID_TYPE &id)
+void Master::DealHbCnt(const UBSE_ID_TYPE& id)
 {
     broadcast_[id].heartBeatLossCnt++;
     if (broadcast_[id].heartBeatLossCnt > GetHbLostTimes()) {
         broadcast_[id].activeStatus = HeartBeatState::LOST;
         broadcast_[id].masterOnlineBcStatus = NotifyStatus::NOT_BROADCAST;
         broadcast_[id].masterOnlineBcTimes = 0;
-        if (broadcast_[id].heartBeatLossCnt <= GetHbLostTimes()*NO_10 || broadcast_[id].heartBeatLossCnt % NO_15 ==0) {
+        if (broadcast_[id].heartBeatLossCnt <= GetHbLostTimes() * NO_10 ||
+            broadcast_[id].heartBeatLossCnt % NO_15 == 0) {
             UBSE_LOG_WARN << "[ELECTION] nodeId=" << id << ", nodeStatus=" << int(broadcast_[id].activeStatus)
                           << ", heartBeatLossCnt=" << broadcast_[id].heartBeatLossCnt;
         }
@@ -120,31 +127,31 @@ void Master::DealNodeUpdate()
     }
 
     // 找到增加的元素
-    for (const auto &nodeId : currentNodes) {
+    for (const auto& nodeId : currentNodes) {
         if (std::find(preNodes_.begin(), preNodes_.end(), nodeId) == preNodes_.end()) {
             addNodes.push_back(nodeId);
         }
     }
 
     // 找到删除的元素
-    for (const auto &nodeId : preNodes_) {
+    for (const auto& nodeId : preNodes_) {
         if (std::find(currentNodes.begin(), currentNodes.end(), nodeId) == currentNodes.end()) {
             removeNodes.push_back(nodeId);
         }
     }
 
-    for (const auto &nodeId : addNodes) {
+    for (const auto& nodeId : addNodes) {
         UBSE_LOG_INFO << "[ELECTION] Master NodeAdded: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_UP, nodeId);
     }
 
-    for (const auto &nodeId : removeNodes) {
+    for (const auto& nodeId : removeNodes) {
         UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_DOWN, nodeId);
     }
 }
 
-void Master::PrepareElectionPkt(ElectionPkt &pkt)
+void Master::PrepareElectionPkt(ElectionPkt& pkt)
 {
     pkt.type = ELECTION_PKT_TYPE_HEART;
     pkt.masterId = masterId_;
@@ -158,7 +165,7 @@ void Master::PrepareElectionPkt(ElectionPkt &pkt)
     pkt.standbyStatus = standbyStatus_;
 }
 
-void Master::ReplaceStandbyNode(ElectionPkt &pkt)
+void Master::ReplaceStandbyNode(ElectionPkt& pkt)
 {
     if (standbyId_ != INVALID_NODE_ID && broadcast_[standbyId_].heartBeatLossCnt >= GetHbLostTimes()) {
         // 更换备节点
@@ -172,7 +179,7 @@ void Master::ReplaceStandbyNode(ElectionPkt &pkt)
     }
 }
 
-void Master::GetAllNeighbourNode(std::vector<UBSE_ID_TYPE> &allNodes)
+void Master::GetAllNeighbourNode(std::vector<UBSE_ID_TYPE>& allNodes)
 {
     std::vector<Node> neighbourNodes{};
     auto result = UbseElectionNodeMgr::GetInstance().GetAllNeighbourNode(neighbourNodes);
@@ -181,7 +188,7 @@ void Master::GetAllNeighbourNode(std::vector<UBSE_ID_TYPE> &allNodes)
         return;
     }
 
-    for (const auto &node :neighbourNodes) {
+    for (const auto& node : neighbourNodes) {
         allNodes.push_back(node.id);
     }
 }
@@ -207,15 +214,16 @@ void Master::ProcTimer()
         PrepareElectionPkt(pkt);
         ReplaceStandbyNode(pkt);
         std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
-        for (const auto &id : allNodes) {
+        for (const auto& id : allNodes) {
             UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id=" << id;
             pkt.broadcast = static_cast<uint8_t>(broadcast_[id].masterOnlineBcStatus);
-            lock.unlock();
-            auto ret = SendHeartBeat(id, pkt);
-            if (ret !=UBSE_OK) {
-                UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId="<< id << " failed";
+            {
+                UnlockGuard unlockGuard(lock);
+                auto ret = SendHeartBeat(id, pkt);
+                if (ret != UBSE_OK) {
+                    UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId=" << id << " failed";
+                }
             }
-            lock.lock();
             DealHbCnt(id);
             TraceContext::Clear();
         }
@@ -227,8 +235,8 @@ void Master::ProcTimer()
     }
 }
 
-void UpdateBroadcastStatus(const std::string &nodeId, const ElectionReplyPkt &reply,
-                           std::map<UBSE_ID_TYPE, BroadcastStatus> &broad, uint8_t &status, std::mutex &mtx)
+void UpdateBroadcastStatus(const std::string& nodeId, const ElectionReplyPkt& reply,
+                           std::map<UBSE_ID_TYPE, BroadcastStatus>& broad, uint8_t& status, std::mutex& mtx)
 {
     std::lock_guard<std::mutex> lock(mtx);
     if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
@@ -240,10 +248,8 @@ void UpdateBroadcastStatus(const std::string &nodeId, const ElectionReplyPkt &re
             broad[nodeId].masterOnlineBcTimes += 1;
         }
     }
-    UBSE_LOG_DEBUG << "[ELECTION] nodeId=" << nodeId
-                   << ", nodeStatus="<< int(broad[nodeId].activeStatus)
-                   << ", heartBeatLossCnt=" << broad[nodeId].heartBeatLossCnt
-                   << ", reply=" << reply.replyResult;
+    UBSE_LOG_DEBUG << "[ELECTION] nodeId=" << nodeId << ", nodeStatus=" << int(broad[nodeId].activeStatus)
+                   << ", heartBeatLossCnt=" << broad[nodeId].heartBeatLossCnt << ", reply=" << reply.replyResult;
     status = reply.standbyStatus;
 }
 
@@ -256,8 +262,7 @@ void ProcessReply(CallbackCtx* context, int32_t result, void* recv, uint32_t len
     auto& broad = *context->broadcast;
     auto& status = *context->standbyStatus;
     if (result != 0) {
-        UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << nodeId
-                       << ", ErrorCode=" << result;
+        UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << nodeId << ", ErrorCode=" << result;
         return;
     }
     UbseBaseMessagePtr respMsg = new (std::nothrow) UbseElectionReplyPktSimpo();
@@ -296,29 +301,29 @@ void AsyncDealReply(void* ctx, void* recv, uint32_t len, int32_t result)
         return;
     }
     auto& stopping = *context->stopping;
+    auto& activeCount = *context->activeCount;
     const auto& nodeId = context->destId;
     if (stopping.load()) {
         UBSE_LOG_INFO << "[ELECTION] Master has stopped, skipping callback; nodeId=" << nodeId;
+        activeCount.fetch_sub(1);
         SafeDelete(context);
         return;
     }
-    auto& activeCount = *context->activeCount;
     UBSE_LOG_DEBUG << "[ELECTION] Asynchronous reply, nodeId=" << nodeId;
-    activeCount.fetch_add(1);
     ProcessReply(context, result, recv, len);
     activeCount.fetch_sub(1);
     SafeDelete(context);
 }
 
-uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
+uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt& pkt)
 {
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     auto rackComModule = ubseContext.GetModule<UbseComModule>();
     if (rackComModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] get rackComModule failed";
         return UBSE_ERROR;
     }
-    ElectionPkt electionPkt{ pkt };
+    ElectionPkt electionPkt{pkt};
     UbseBaseMessagePtr electionSimpoPtr = new (std::nothrow) UbseElectionPktSimpo(electionPkt);
     if (electionSimpoPtr == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Newing RackElectionPktSimpo failed.";
@@ -332,26 +337,33 @@ uint32_t Master::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
         return UBSE_ERROR_NULLPTR;
     }
     std::unique_lock<std::mutex> lock(mtx_);
+    if (stopping_.load()) {
+        UBSE_LOG_WARN << "[ELECTION] Master is stopping, skip heartbeat to nodeId=" << destID;
+        SafeDelete(context);
+        return UBSE_ERROR;
+    }
     context->broadcast = &broadcast_;
     context->destId = destID;
     context->standbyStatus = &standbyStatus_;
     context->mtx = &mtx_;
     context->stopping = &stopping_;
     context->activeCount = &activeCount_;
+    activeCount_.fetch_add(1);
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealReply;
-    callback.cbCtx = reinterpret_cast<void *>(context);
+    callback.cbCtx = reinterpret_cast<void*>(context); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     lock.unlock();
     auto retCode = rackComModule->RpcAsyncSend(sendParam, electionSimpoPtr, callback);
     if (retCode != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << destID;
+        activeCount_.fetch_sub(1);
         SafeDelete(context);
         return retCode;
     }
     return UBSE_OK;
 }
 
-void Master::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+void Master::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     // turnId相同，比较masterId大小
     UBSE_ID_TYPE newMasterId = masterId_ < rcvPkt.masterId ? masterId_ : rcvPkt.masterId;
@@ -370,7 +382,7 @@ void Master::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt &r
     }
 }
 
-void acceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UBSE_ID_TYPE masterId)
+void acceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt& reply, const UBSE_ID_TYPE masterId)
 {
     if (rcvPkt.standbyId == masterId) {
         RoleContext ctx;
@@ -387,7 +399,7 @@ void acceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UB
     reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
 }
 
-uint32_t Master::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Master::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     std::vector<UBSE_ID_TYPE> agentIds = GetAllAgentIDs();
     if (standbyId_ != INVALID_NODE_ID) {
@@ -426,7 +438,7 @@ uint32_t Master::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Elec
     return 0;
 }
 
-uint32_t Master::RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Master::RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
     reply.replyId = masterId_;
@@ -435,7 +447,7 @@ uint32_t Master::RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, E
     return UBSE_OK;
 }
 
-uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
+uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
     if (g_globalStop.load()) {
         UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId=" << srcID;
@@ -485,7 +497,7 @@ uint8_t Master::GetStandbyStatus()
 std::vector<UBSE_ID_TYPE> Master::GetActiveNodes()
 {
     std::vector<UBSE_ID_TYPE> activeNodes{};
-    for (const auto &node : broadcast_) {
+    for (const auto& node : broadcast_) {
         if (node.second.activeStatus == HeartBeatState::ACTIVE) {
             activeNodes.push_back(node.first);
         }
@@ -495,7 +507,7 @@ std::vector<UBSE_ID_TYPE> Master::GetActiveNodes()
 
 void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
 {
-    std::lock_guard<std::mutex> lock(mtx_);  // 加锁
+    std::lock_guard<std::mutex> lock(mtx_); // 加锁
     if (broadcast_[nodeId].activeStatus == HeartBeatState::ACTIVE) {
         UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_DOWN, nodeId);
@@ -511,4 +523,4 @@ void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
         standbyId_ = INVALID_NODE_ID;
     }
 }
-}
+} // namespace ubse::election

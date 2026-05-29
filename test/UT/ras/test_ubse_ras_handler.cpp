@@ -12,11 +12,11 @@
 
 #include "test_ubse_ras_handler.h"
 #include <ubse_event.h>
+#include "ubse_com_module.h"
 #include "ubse_error.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_ras_handler.cpp"
-#include "ubse_mmi_interface.h"
-#include "ubse_com_module.h"
 
 namespace ubse::ras::ut {
 using namespace ubse::com;
@@ -34,8 +34,8 @@ void TestUbseRasHandler::TearDown()
 
 TEST_F(TestUbseRasHandler, GetInstanceSame)
 {
-    auto &instance1 = UbseRasHandler::GetInstance();
-    auto &instance2 = UbseRasHandler::GetInstance();
+    auto& instance1 = UbseRasHandler::GetInstance();
+    auto& instance2 = UbseRasHandler::GetInstance();
     ASSERT_EQ(&instance1, &instance2);
 }
 
@@ -49,8 +49,8 @@ TEST_F(TestUbseRasHandler, ReportAckToSysSentryWhenStrncpyFail)
 }
 
 std::shared_ptr<int> dummyPtr = std::make_shared<int>(1234);
-void *xalarmHandle = static_cast<void *>(dummyPtr.get());
-void *nullVoid = static_cast<char *>(nullptr);
+void* xalarmHandle = static_cast<void*>(dummyPtr.get());
+void* nullVoid = static_cast<char*>(nullptr);
 TEST_F(TestUbseRasHandler, ReportAckToSysSentryWhenDlopenFail)
 {
     MOCKER_CPP(dlopen).stubs().will(returnValue(nullVoid));
@@ -95,7 +95,7 @@ TEST_F(TestUbseRasHandler, ReportAckToSysSentryReportWhenReportFuncSuccess)
 
 TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetMasterInfoFail)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(IsMemInitFinished).stubs().will(returnValue(false));
     MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
@@ -106,7 +106,7 @@ TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetMasterInfoFail)
 
 TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetCurrentInfoFail)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(IsMemInitFinished).stubs().will(returnValue(false));
     UbseRoleInfo masterInfo{};
@@ -118,7 +118,7 @@ TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetCurrentInfoFail)
 
 TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetElectionModuleFail)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
@@ -133,7 +133,7 @@ TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultWhenGetElectionModuleFail)
 
 TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultSuccess)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
@@ -147,7 +147,7 @@ TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultSuccess)
 
 TEST_F(TestUbseRasHandler, StartRasHandlerWhenComModuleIsNull)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule));
     auto res = handler.StartRasHandler();
@@ -156,10 +156,10 @@ TEST_F(TestUbseRasHandler, StartRasHandlerWhenComModuleIsNull)
 
 TEST_F(TestUbseRasHandler, StartRasHandlerWhenRegRpcServiceFail)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseRasMessage, UbseRasMessage>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
     auto res = handler.StartRasHandler();
@@ -168,10 +168,10 @@ TEST_F(TestUbseRasHandler, StartRasHandlerWhenRegRpcServiceFail)
 
 TEST_F(TestUbseRasHandler, StartRasHandlerSuccess)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr&) =
         &ubse::com::UbseComModule::RegRpcService<UbseRasMessage, UbseRasMessage>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(event::UbseSubEvent).stubs().will(returnValue(UBSE_OK));
@@ -181,7 +181,7 @@ TEST_F(TestUbseRasHandler, StartRasHandlerSuccess)
 
 TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWhenNoHandlerRegister)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
     std::string faultInfo = "1";
     handler.faultHandlerMap.clear();
@@ -191,7 +191,7 @@ TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWhenNoHandlerRegister)
 
 TEST_F(TestUbseRasHandler, ExecuteFaultHandlerSuccess)
 {
-    auto &handler = UbseRasHandler::GetInstance();
+    auto& handler = UbseRasHandler::GetInstance();
     ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
     std::string faultInfo = "1";
     handler.faultHandlerMap.clear();
@@ -323,7 +323,7 @@ TEST_F(TestUbseRasHandler, QueryNodeIdByEidSuccess)
 /*
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetCurrentNodeInfoFail)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = ALARM_REBOOT_EVENT, .pucParas = "123456"};
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     auto res = handle.NodeFaultHandle(&msg);
@@ -332,7 +332,7 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetCurrentNodeInfoFail)
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetMasterInfoFail)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
     alarm_msg msg{.usAlarmId = ALARM_REBOOT_EVENT, .pucParas = "123456"};
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
@@ -343,7 +343,7 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetMasterInfoFail)
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetComModuleFail)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = ALARM_REBOOT_EVENT, .pucParas = "123456"};
     UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
@@ -358,7 +358,7 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenGetComModuleFail)
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultSuccess)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = ALARM_REBOOT_EVENT, .pucParas = "123456"};
     UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
@@ -375,7 +375,7 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultSuccess)
 
 TEST_F(TestUbseRasHandler, HandleBMCFaultWhenMsgDuplication)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = ALARM_REBOOT_EVENT, .pucParas = "123456"};
     UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
@@ -395,24 +395,24 @@ TEST_F(TestUbseRasHandler, HandleBMCFaultWhenMsgDuplication)
 
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgIsNull)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg *nullMsg = nullptr;
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg* nullMsg = nullptr;
     auto res = handle.HandleOomFault(nullMsg);
     ASSERT_EQ(res, UBSE_ERROR_NULLPTR);
 }
 /*
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgVecSizeError)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM, .pucParas = "HandleOomFaultMsgVecSizeError"};
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT, .pucParas = "HandleOomFaultMsgVecSizeError"};
     auto res = handle.NodeFaultHandle(&msg);
     ASSERT_EQ(res, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseRasHandler, HandleOomFaultSuccess)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM,
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
                   .pucParas = "1652_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2}"};
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     auto res = handle.NodeFaultHandle(&msg);
@@ -421,8 +421,8 @@ TEST_F(TestUbseRasHandler, HandleOomFaultSuccess)
 
 TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgDuplication)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::OOM,
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
                   .pucParas = "1653_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2}"};
 
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
@@ -436,9 +436,8 @@ TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgDuplication)
 
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenHandleCnaFail)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
-                  .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT, .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_ERROR));
     auto res = handle.NodeFaultHandle(&msg);
     ASSERT_EQ(res, UBSE_ERROR);
@@ -446,9 +445,8 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenHandleCnaFail)
 
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenGetCurrentNodeInfoFail)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
-                  .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT, .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
@@ -458,9 +456,8 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenGetCurrentNodeInfoFail)
 
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenNodeIsNotMaster)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
-                  .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT, .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_STANDBY, 1);
@@ -471,15 +468,14 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenNodeIsNotMaster)
 
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultSuccess)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
-                  .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT, .pucParas = "1_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_MASTER, 1);
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
     MOCKER_CPP(IsMemInitFinished).stubs().will(returnValue(true));
-    handle.nodeStateHandler = [](const std::string &faultInfo) {
+    handle.nodeStateHandler = [](const std::string& faultInfo) {
     };
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseNodeControllerModule>)
@@ -491,15 +487,15 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultSuccess)
 
 TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenMsgDuplication)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::PANIC,
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_PANIC_EVENT,
                   .pucParas = "123_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_MASTER, 1);
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
     MOCKER_CPP(IsMemInitFinished).stubs().will(returnValue(true));
-    handle.nodeStateHandler = [](const std::string &faultInfo) {
+    handle.nodeStateHandler = [](const std::string& faultInfo) {
     };
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseNodeControllerModule>)
@@ -516,15 +512,15 @@ TEST_F(TestUbseRasHandler, HandlePanicAndRebootFaultWhenMsgDuplication)
 
 TEST_F(TestUbseRasHandler, HandleRebootFaultSuccess)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg msg{.usAlarmId = TOPOLOGY_FAULT_TYPE::KERNEL_REBOOT,
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_KERNEL_REBOOT_EVENT,
                   .pucParas = "12334_{cna:1,eid:0000:0000:0000:1000:0010:0000:DF00:0460}"};
     MOCKER_CPP(HandleCnaAndEidMsg).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(SwitchRoleWhenMasterFault).stubs();
     UbseRoleInfo currentInfo("2", ELECTION_ROLE_MASTER, 1);
     MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
     MOCKER_CPP(IsMemInitFinished).stubs().will(returnValue(true));
-    handle.nodeStateHandler = [](const std::string &faultInfo) {
+    handle.nodeStateHandler = [](const std::string& faultInfo) {
     };
     MOCKER_CPP(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseNodeControllerModule>)
@@ -538,15 +534,15 @@ TEST_F(TestUbseRasHandler, HandleRebootFaultSuccess)
 */
 TEST_F(TestUbseRasHandler, NodeFaultHandleWhenMsgIsNull)
 {
-    auto &handle = UbseRasHandler::GetInstance();
-    alarm_msg *msg = nullptr;
+    auto& handle = UbseRasHandler::GetInstance();
+    alarm_msg* msg = nullptr;
     auto res = handle.NodeFaultHandle(msg);
     ASSERT_EQ(res, UBSE_ERROR_NULLPTR);
 }
 
 TEST_F(TestUbseRasHandler, NodeFaultHandleWhenDefaultCase)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = 0};
     auto res = handle.NodeFaultHandle(&msg);
     ASSERT_EQ(res, UBSE_ERROR);
@@ -554,13 +550,13 @@ TEST_F(TestUbseRasHandler, NodeFaultHandleWhenDefaultCase)
 
 TEST_F(TestUbseRasHandler, TestLogMemDebtInfo)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     EXPECT_NO_THROW(LogMemDebtInfoWithNode(1003, "1"));
 }
 
 TEST_F(TestUbseRasHandler, TestLogMemDebtInfo2)
 {
-    auto &handle = UbseRasHandler::GetInstance();
+    auto& handle = UbseRasHandler::GetInstance();
     MOCKER(IsNodeInStaticList).stubs().will(returnValue(true));
     EXPECT_NO_THROW(LogMemDebtInfoWithNode(1003, "1"));
 }
@@ -649,7 +645,9 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenRpcSendFailed)
     info.nodeRole = ELECTION_ROLE_MASTER;
     g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenRpcSendFailed");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
     UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
@@ -665,7 +663,9 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
     info.nodeRole = ELECTION_ROLE_MASTER;
     g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenSuccess");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
     UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
@@ -674,4 +674,117 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
     auto ret = SendSwitchRoleToStandby(info, "SendSwitchRoleToStandbyWhenSuccess");
     ASSERT_EQ(ret, UBSE_RAS_ERROR_SWITCH_ROLE);
 }
-}  // namespace ubse::ras::ut
+
+UbseResult MockOnlyOneNodeUbseGetAllNodes(UbseElectionModule*, Node& master, Node& standby, std::vector<Node>& agents)
+{
+    master = {"1"};
+    standby = {};
+    agents = {};
+    return UBSE_OK;
+}
+
+UbseResult MockOnlyOneNodeGetCurrentNode(UbseElectionModule*, Node& currentNode)
+{
+    currentNode = {"1"};
+    return UBSE_OK;
+}
+
+UbseResult MockEmptyIdGetCurrentNode(UbseElectionModule*, Node& currentNode)
+{
+    currentNode = {""};
+    return UBSE_OK;
+}
+
+UbseResult MockNode2GetCurrentNode(UbseElectionModule*, Node& currentNode)
+{
+    currentNode = {"2"};
+    return UBSE_OK;
+}
+
+UbseResult MockMasterAndStandbyUbseGetAllNodes(UbseElectionModule*, Node& master, Node& standby,
+                                               std::vector<Node>& agents)
+{
+    master = {"1"};
+    standby = {"2"};
+    agents = {};
+    return UBSE_OK;
+}
+
+UbseResult MockMasterAndAgentUbseGetAllNodes(UbseElectionModule*, Node& master, Node& standby,
+                                             std::vector<Node>& agents)
+{
+    master = {"1"};
+    standby = {};
+    agents = {{"3"}};
+    return UBSE_OK;
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenElectionModuleNull)
+{
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenGetAllNodesFail)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(returnValue(UBSE_ERROR));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenGetCurrentNodeFail)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(returnValue(UBSE_ERROR));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenCurrentNodeIdEmpty)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockEmptyIdGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenCurrentNodeIsNotMaster)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockNode2GetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenStandbyExists)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockMasterAndStandbyUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterWhenAgentsExist)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockMasterAndAgentUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_FALSE(IsOnlyOneNodeInCluster());
+}
+
+TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterSuccess)
+{
+    auto module = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
+    MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
+    MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
+    ASSERT_TRUE(IsOnlyOneNodeInCluster());
+}
+} // namespace ubse::ras::ut

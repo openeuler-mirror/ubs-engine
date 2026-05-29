@@ -26,5 +26,5 @@ class MockDependencyModule : public UbseModule {
 
     void Stop() override;
 };
-}
+} // namespace ubse::mock
 #endif // UBSE_MANAGER_MOCK_DEPENDENCY_MODULE_H

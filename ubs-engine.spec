@@ -5,10 +5,11 @@
 # -*- rpm-spec -*-
 Summary:        RPM package
 Name:           ubs-engine
-Version:        1.0.0
+Version:        1.0.1
 Release:        1
-License:        MIT
-Source0:        %{name}.tar.gz
+License:        Mulan PSL v2
+URL:            https://atomgit.com/openeuler/ubs-engine
+Source0:        %{name}-%{version}.tar.gz
 Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
@@ -19,8 +20,13 @@ BuildRequires:  systemd-devel >= 249
 BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.27.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.0-15
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
-Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl >= 3.0 cpp-httplib >= 0.27.0 ubs-comm-lib >= 1.0.0-15 tar obmm
-
+BuildRequires:  libvirt-devel >= 9.0
+Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.27.0 ubs-comm-lib >= 1.0.0-15 obmm
+Requires: tar systemd
+Requires(pre): coreutils shadow systemd glibc-common
+Requires(post): coreutils gawk util-linux systemd grep sed
+Requires(preun): systemd grep
+Requires(postun): coreutils gawk util-linux systemd shadow glibc-common
 %define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
 %define _unpackaged_files_terminate_build 0
@@ -28,6 +34,14 @@ Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 
 %description
 UBS Engine
 
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-process-mem
+# ========================================================
+%package processmem
+Summary: processmem plugin
+Requires: %{name} = %{version}-%{release}
+%description processmem
+Development package for processmem plugin
 
 # ========================================================
 #                   SUBPACKAGE: ubs-engine-client-libs
@@ -77,7 +91,7 @@ Development package for UBSE python SDK
 Summary: virtagent plugin
 Requires: %{name} = %{version}-%{release}
 %description virtagent
-Development package for virtagent plugin
+Package for virt_agent plugin
 
 # ========================================================
 #                   SUBPACKAGE: ubs-engine-ucache
@@ -94,6 +108,7 @@ Development package for ucache plugin
 %package rmrs
 Summary: rmrs plugin
 Requires: %{name} = %{version}-%{release}
+Requires(post): coreutils shadow
 %description rmrs
 Development package for rmrs plugin
 %post rmrs
@@ -158,14 +173,14 @@ fi
     if grep -q '^# mempooling=777' "$config_file"; then \
         sed -i 's/^# mempooling=777/mempooling=777/' "$config_file" \
     fi \
-    if grep -q '^# vm=205' "$config_file"; then \
-        sed -i 's/^# vm=205/vm=205/' "$config_file" \
+    if grep -q '^# virt_agent=205' "$config_file"; then \
+        sed -i 's/^# virt_agent=205/virt_agent=205/' "$config_file" \
     fi \
     if ! grep -q 'mempooling=777' "$config_file"; then \
         echo "mempooling=777" >> "$config_file" \
     fi \
-    if ! grep -q 'vm=205' "$config_file"; then \
-        echo "vm=205" >> "$config_file" \
+    if ! grep -q 'virt_agent=205' "$config_file"; then \
+        echo "virt_agent=205" >> "$config_file" \
     fi \
 }
 
@@ -203,22 +218,25 @@ cp -f %{_builddir}/%{project_dir}/scripts/command_completion/cli_commands.sh %{b
 mkdir -p %{buildroot}/usr/lib64
 
 #install virtagent
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libvm.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libvirtagent.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libstrategy.so %{buildroot}/usr/lib64/
-cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/plugin_vm.conf %{buildroot}/etc/ubse/plugins/
-cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/auth-virtagent.conf %{buildroot}/etc/ubse/plugins/
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/
-ln -sf libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/libubs-virt-agent.so.1
+cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/plugin_virt_agent.conf %{buildroot}/etc/ubse/plugins/
+cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/auth-virt_agent.conf %{buildroot}/etc/ubse/plugins/
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/
+ln -sf libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/libubs-virt-agent.so.1
 ln -sf libubs-virt-agent.so.1 %{buildroot}/usr/lib64/libubs-virt-agent.so
-mkdir -p %{buildroot}/usr/include/virtagent
-cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virtagent/
+mkdir -p %{buildroot}/usr/include/virt_agent
+cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virt_agent/
 
+#install processmem
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libprocess_mem.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/conf/plugin_process_mem.conf %{buildroot}/etc/ubse/plugins/
 
 #install client-libs
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
     --component ubse_sdk \
     --prefix %{buildroot}/usr
-ln -sf libubse-client.so.1.0.0 %{buildroot}/usr/lib64/libubse-client.so.1
+ln -sf libubse-client.so.%{version} %{buildroot}/usr/lib64/libubse-client.so.1
 
 #install client-devel
 ln -sf libubse-client.so.1 %{buildroot}/usr/lib64/libubse-client.so
@@ -316,11 +334,10 @@ fi
 create_user
 
 if getent group %{ubm_group} > /dev/null; then
-    sudo usermod -aG %{ubm_group} %{system_user}
+    usermod -aG %{ubm_group} %{system_user}
 else
-    echo "[WARN] Group '%{ubm_group}' does not exist. Skipping usermod for '%{system_user}'."
+    echo "[WARN] Group '%{ubm_group}' not found. User '%{system_user}' was not added to this group. If UBM is required, please install the corresponding package and run: usermod -aG %{ubm_group} %{system_user}"
 fi
-
 
 %post
 set -e
@@ -397,7 +414,7 @@ fi
 
 %files client-libs
 %defattr(755,root,root,-)
-/usr/lib64/libubse-client.so.1.0.0
+/usr/lib64/libubse-client.so.%{version}
 %defattr(-,root,root,-)
 /usr/lib64/libubse-client.so.1
 
@@ -414,17 +431,17 @@ fi
 
 %files virtagent
 %defattr(644,root,root,-)
-%config(noreplace) /etc/ubse/plugins/plugin_vm.conf
-%config(noreplace) /etc/ubse/plugins/auth-virtagent.conf
+%config(noreplace) /etc/ubse/plugins/plugin_virt_agent.conf
+%config(noreplace) /etc/ubse/plugins/auth-virt_agent.conf
 %defattr(755,root,root,-)
-/usr/lib64/libvm.so
+/usr/lib64/libvirtagent.so
 /usr/lib64/libstrategy.so
-/usr/lib64/libubs-virt-agent.so.1.0.0
+/usr/lib64/libubs-virt-agent.so.%{version}
 %defattr(-,root,root,-)
 /usr/lib64/libubs-virt-agent.so.1
 /usr/lib64/libubs-virt-agent.so
 %defattr(644,root,root,755)
-/usr/include/virtagent/
+/usr/include/virt_agent/
 
 %files ucache
 %defattr(644,root,root,-)
@@ -439,3 +456,7 @@ fi
 /usr/lib64/libmempooling.so
 %defattr(644,root,root,755)
 /usr/local/mempooling/include/mempooling/
+
+%files processmem
+%config(noreplace) %{_sysconfdir}/ubse/plugins/plugin_process_mem.conf
+%{_libdir}/libprocess_mem.so

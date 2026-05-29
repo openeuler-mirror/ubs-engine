@@ -11,35 +11,21 @@
  */
 
 #include "rpc/ubse_rpc_server.h"
+#include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 namespace ubse::com {
-UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::module;
 using namespace ubse::config;
 using namespace ubse::context;
+using namespace ubse::log;
+using namespace ubse::common::def;
 const std::string WorkGroup = "server";
-
-UbseResult GetUBEnableForRpc(bool &ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
-    return UBSE_OK;
-}
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRpcServer::Start()
 {
-    auto ret = GetUBEnableForRpc(ubEnable_);
+    auto ret = UbseGetUBEnable(ubEnable_);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get config ubEnable";
         return UBSE_ERROR_CONF_INVALID;
@@ -88,7 +74,7 @@ void UbseRpcServer::Stop()
     UbseCommunication::DeleteUbseComEngine(name_);
 }
 
-UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &remoteNodeId)
+UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string& remoteNodeId)
 {
     UbseResult ret = UBSE_ERROR;
     if (option.channelType == UbseChannelType::NORMAL) {
@@ -100,7 +86,7 @@ UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &r
     return ret;
 }
 
-UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t &hcomHbTimeout)
+UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t& hcomHbTimeout)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (module == nullptr) {
@@ -149,4 +135,4 @@ UbseResult UbseRpcServer::RegBrokenChannelCb(UbseComCallBackForHA func)
     return UBSE_OK;
 }
 
-}
+} // namespace ubse::com

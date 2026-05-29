@@ -14,6 +14,7 @@
 #define UBSE_CLI_WHITELIST
 
 #include <string>
+#include <vector>
 
 namespace ubse::cli::framework {
 constexpr size_t UBSE_CLI_ASCII_NUMS = 256;
@@ -32,14 +33,14 @@ public:
         whitelist_[static_cast<unsigned char>(c)] = true;
     }
 
-    void UbseCliAddChars(const std::string &chars)
+    void UbseCliAddChars(const std::string& chars)
     {
         for (char c : chars) {
             UbseCliAddChar(c);
         }
     }
 
-    [[nodiscard]] bool UbseCliIsAllowed(const std::string &input) const
+    [[nodiscard]] bool UbseCliIsAllowed(const std::string& input) const
     {
         for (unsigned char c : input) {
             if (c >= whitelist_.size() || !whitelist_[c]) {
@@ -95,9 +96,9 @@ private:
     void UbseCliSetDefaultWhitelist()
     {
         UbseCliAddChars("abcdefghijklmnopqrstuvwxyz"
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "0123456789"
-            "-._/");
+                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                        "0123456789"
+                        "-._/");
     }
 
 private:

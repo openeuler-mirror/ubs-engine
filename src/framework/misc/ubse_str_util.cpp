@@ -18,7 +18,7 @@
 #include <regex>
 
 namespace ubse::utils {
-void Split(const std::string &src, const std::string &sep, std::vector<std::string> &out)
+void Split(const std::string& src, const std::string& sep, std::vector<std::string>& out)
 {
     if (sep.empty()) {
         return;
@@ -40,7 +40,7 @@ void Split(const std::string &src, const std::string &sep, std::vector<std::stri
     }
 }
 
-void Split(const std::string &src, const std::string &sep, std::set<std::string> &out)
+void Split(const std::string& src, const std::string& sep, std::set<std::string>& out)
 {
     if (sep.empty()) {
         return;
@@ -63,7 +63,7 @@ void Split(const std::string &src, const std::string &sep, std::set<std::string>
 }
 
 // 函数用于从字符串中提取指定键的值
-std::string ExtractValue(const std::string &input, const std::string &key)
+std::string ExtractValue(const std::string& input, const std::string& key)
 {
     size_t keyPos = input.find(key + ":");
     if (keyPos == std::string::npos) {
@@ -75,8 +75,8 @@ std::string ExtractValue(const std::string &input, const std::string &key)
 }
 
 const size_t VALUE_COUNT = 2;
-common::def::UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint64_t &msgId, std::string &cna,
-                                          std::string &eid)
+common::def::UbseResult SplitSysSentryMsg(const std::string& faultInfo, uint64_t& msgId, std::string& cna,
+                                          std::string& eid)
 {
     std::vector<std::string> strVec;
     ubse::utils::Split(faultInfo, "_", strVec);
@@ -92,7 +92,7 @@ common::def::UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint64_t
     return UBSE_OK;
 }
 
-common::def::UbseResult ConvertStrToInt(const std::string &str, int &outValue)
+common::def::UbseResult ConvertStrToInt(const std::string& str, int& outValue)
 {
     try {
         outValue = std::stoi(str);
@@ -102,7 +102,7 @@ common::def::UbseResult ConvertStrToInt(const std::string &str, int &outValue)
     }
 }
 
-common::def::UbseResult ConvertStrToLong(const std::string &str, long &outValue)
+common::def::UbseResult ConvertStrToLong(const std::string& str, long& outValue)
 {
     try {
         outValue = std::stol(str);
@@ -112,7 +112,7 @@ common::def::UbseResult ConvertStrToLong(const std::string &str, long &outValue)
     }
 }
 
-common::def::UbseResult ConvertStrToUint16(const std::string &str, uint16_t &outValue, const int base)
+common::def::UbseResult ConvertStrToUint16(const std::string& str, uint16_t& outValue, const int base)
 {
     try {
         unsigned long value = std::stoul(str, nullptr, base);
@@ -127,7 +127,7 @@ common::def::UbseResult ConvertStrToUint16(const std::string &str, uint16_t &out
     }
 }
 
-common::def::UbseResult ConvertStrToUint32(const std::string &str, uint32_t &outValue, const int base)
+common::def::UbseResult ConvertStrToUint32(const std::string& str, uint32_t& outValue, const int base)
 {
     try {
         unsigned long value = std::stoul(str, nullptr, base);
@@ -142,7 +142,7 @@ common::def::UbseResult ConvertStrToUint32(const std::string &str, uint32_t &out
     }
 }
 
-common::def::UbseResult ConvertStrToUint64(const std::string &str, uint64_t &outValue)
+common::def::UbseResult ConvertStrToUint64(const std::string& str, uint64_t& outValue)
 {
     try {
         unsigned long long value = std::stoull(str);
@@ -152,9 +152,9 @@ common::def::UbseResult ConvertStrToUint64(const std::string &str, uint64_t &out
         }
         outValue = static_cast<uint64_t>(value);
         return UBSE_OK;
-    } catch (const std::invalid_argument &) {
+    } catch (const std::invalid_argument&) {
         return UBSE_ERROR; // 输入无效
-    } catch (const std::out_of_range &) {
+    } catch (const std::out_of_range&) {
         return UBSE_ERROR; // 超出范围
     }
 }
@@ -172,7 +172,7 @@ std::string GenerateRandomStr(uint32_t size)
     return randomID;
 }
 
-void StrSplit(const std::string &src, const std::string &sep, std::vector<std::string> &out)
+void StrSplit(const std::string& src, const std::string& sep, std::vector<std::string>& out)
 {
     std::string::size_type startPos = 0;
     std::string::size_type endPos = src.find(sep);
@@ -189,9 +189,9 @@ void StrSplit(const std::string &src, const std::string &sep, std::vector<std::s
     }
 }
 
-bool StrToULong(const std::string &src, uint64_t &value)
+bool StrToULong(const std::string& src, uint64_t& value)
 {
-    char *remain = nullptr;
+    char* remain = nullptr;
     errno = 0;
     value = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
     if ((value == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE) {
@@ -200,9 +200,9 @@ bool StrToULong(const std::string &src, uint64_t &value)
     return true;
 }
 
-bool StrToUint(const std::string &src, uint32_t &value)
+bool StrToUint(const std::string& src, uint32_t& value)
 {
-    char *remain = nullptr;
+    char* remain = nullptr;
     errno = 0;
     value = std::strtoul(src.c_str(), &remain, 10L); // 10 is decimal digits
     if ((value == 0 && src != "0") || remain == nullptr || strlen(remain) > 0 || errno == ERANGE) {
@@ -211,7 +211,7 @@ bool StrToUint(const std::string &src, uint32_t &value)
     return true;
 }
 
-std::string Trim(const std::string &str, const std::locale &loc)
+std::string Trim(const std::string& str, const std::locale& loc)
 {
     std::string s = str;
     s.erase(s.begin(), std::find_if(s.begin(), s.end(), [&loc](char ch) { return !std::isspace(ch, loc); }));

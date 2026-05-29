@@ -12,13 +12,13 @@
 
 #include "ubse_security_module.h"
 
-#include <iostream>                // for char_traits, basic_ostream
+#include <iostream> // for char_traits, basic_ostream
 
-#include "ubse_security_manager.h" // for UbseSecurityManager
-#include "ubse_context.h"          // for DYNAMIC_CREATE
-#include "ubse_env_util.h"         // for GetEnv
-#include "ubse_error.h"            // for UBSE_OK, UBSE_ERROR
+#include "ubse_context.h"  // for DYNAMIC_CREATE
+#include "ubse_env_util.h" // for GetEnv
+#include "ubse_error.h"    // for UBSE_OK, UBSE_ERROR
 #include "ubse_logger.h"
+#include "ubse_security_manager.h" // for UbseSecurityManager
 
 namespace ubse::security {
 BASE_DYNAMIC_CREATE(UbseSecurityModule);
@@ -56,7 +56,7 @@ void UbseSecurityModule::Stop()
     // Do Nothing
 }
 
-UbseResult UbseSecurityModule::ModifyEffectiveCapabilities(std::vector<__u32> &caps, bool isAdd)
+UbseResult UbseSecurityModule::ModifyEffectiveCapabilities(std::vector<__u32>& caps, bool isAdd)
 {
     return UbseSecurityManager::ModifyEffectiveCapabilities(caps, isAdd);
 }

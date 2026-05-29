@@ -52,7 +52,7 @@ static const std::string DISPLAY_NODE_PARAM_INVALID = "ERROR: Invalid node ID. P
 constexpr size_t NODE_LENGTH = 80; // hostname(slot_id), hostname最长为64
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliProcessClusterDataTable(
-    UbseDeSerialization &ubse_de_serial, size_t size)
+    UbseDeSerialization& ubse_de_serial, size_t size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_4, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -81,8 +81,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliProcessClusterDa
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseSerialization ubse_req_serial(UBSE_CLI_NUM_8);
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
@@ -104,11 +104,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliQueryClusterInfo
     return UbseCliProcessClusterDataTable(ubse_de_serial, size);
 }
 
-uint32_t ParseCliPhysicalLink(CliPhysicalLink &link, UbseDeSerialization &inStream)
+uint32_t ParseCliPhysicalLink(CliPhysicalLink& link, UbseDeSerialization& inStream)
 {
-    inStream
-        >> link.node >> link.socketId >> link.portId >> link.interfaceName
-        >> link.peerNode >> link.peerSocketId >> link.peerPortId >> link.peerInterfaceName  >> link.linkId;
+    inStream >> link.node >> link.socketId >> link.portId >> link.interfaceName >> link.peerNode >> link.peerSocketId >>
+        link.peerPortId >> link.peerInterfaceName >> link.linkId;
 
     if (!inStream.Check()) {
         return UBSE_ERROR;
@@ -116,13 +115,15 @@ uint32_t ParseCliPhysicalLink(CliPhysicalLink &link, UbseDeSerialization &inStre
     return UBSE_OK;
 }
 
-uint32_t DeSerializePhysicalLinks(std::vector<CliPhysicalLink> &links, uint8_t *buffer, size_t size)
+uint32_t DeSerializePhysicalLinks(std::vector<CliPhysicalLink>& links, uint8_t* buffer, size_t size)
 {
     UbseResult ret = UBSE_OK;
     UbseDeSerialization inStream(buffer, size);
     size_t num = 0;
     inStream >> num;
-    if (!inStream.Check() || num > SIZE_MAX) {return UBSE_ERROR;}
+    if (!inStream.Check() || num > SIZE_MAX) {
+        return UBSE_ERROR;
+    }
     links.reserve(num);
     for (size_t i = 0; i < num; i++) {
         UbseDeSerialization item;
@@ -140,7 +141,7 @@ uint32_t DeSerializePhysicalLinks(std::vector<CliPhysicalLink> &links, uint8_t *
     return UBSE_OK;
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildCpuTopoTable(const std::vector<CliPhysicalLink> &links)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildCpuTopoTable(const std::vector<CliPhysicalLink>& links)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_9, NODE_LENGTH);
 
@@ -167,7 +168,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildCpuTopoTable(const
 
     for (size_t i = 0; i < links.size(); ++i) {
         row = variable_cell_builder.UbseCliAddRow();
-        const auto &link = links[i];
+        const auto& link = links[i];
 
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, link.linkId);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, link.node);
@@ -195,8 +196,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildCpuTopoTable(const
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliSDKQueryCpuTopoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliSDKQueryCpuTopoFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     auto it_type = params.find(DISPLAY_TOPO_T_OPTION);
     if (it_type == params.end()) {
@@ -260,7 +261,7 @@ UbseCliCommandInfo UbseCliRegNodeModule::UbseCliQueryCpuTopology()
 }
 
 // display node 命令相关函数
-bool UbseCliRegNodeModule::ValidateNodeId(const std::string &nodeId, uint32_t &parsedId)
+bool UbseCliRegNodeModule::ValidateNodeId(const std::string& nodeId, uint32_t& parsedId)
 {
     // 检查是否为纯数字
     if (nodeId.empty() || !std::all_of(nodeId.begin(), nodeId.end(), ::isdigit)) {
@@ -273,15 +274,17 @@ bool UbseCliRegNodeModule::ValidateNodeId(const std::string &nodeId, uint32_t &p
             return false;
         }
         parsedId = static_cast<uint32_t>(temp);
-    } catch (const std::exception &) {
+    } catch (const std::exception&) {
         return false;
     }
     // 检查范围 1-255
     return parsedId >= 1 && parsedId <= 255;
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildNodeInfoTable(
-    const std::string &node, const std::string &role, const std::string &bondingEid, const std::string &guid)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::BuildNodeInfoTable(const std::string& node,
+                                                                            const std::string& role,
+                                                                            const std::string& bondingEid,
+                                                                            const std::string& guid)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_4, NODE_LENGTH);
 
@@ -315,12 +318,13 @@ std::string ExtractNodeId(const std::string& nodeName)
     return nodeName;
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::ProcessNodeInfoResponse(UbseDeSerialization &ubse_de_serial)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::ProcessNodeInfoResponse(UbseDeSerialization& ubse_de_serial)
 {
     // 读取错误码
     uint32_t errorCode = 0;
     ubse_de_serial >> errorCode;
-    if (!ubse_de_serial.Check()) return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+    if (!ubse_de_serial.Check())
+        return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
     // 读取节点信息
     std::string node;
     std::string role;
@@ -341,11 +345,13 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::ProcessNodeInfoResponse
         return UbseCliStringPromptReply(errorMsg);
     } else if (errorCode == UBSE_ERR_NODE_NOT_ACTIVE) {
         std::string nodeId = ExtractNodeId(node);
-        if (nodeId.empty()) nodeId = node;
+        if (nodeId.empty())
+            nodeId = node;
         errorMsg = "ERROR: Node " + nodeId + " is not active";
     } else if (errorCode == UBSE_ERR_NODE_NOT_RESPONDING) {
         std::string nodeId = ExtractNodeId(node);
-        if (nodeId.empty()) nodeId = node;
+        if (nodeId.empty())
+            nodeId = node;
         errorMsg = "ERROR: Node " + nodeId + " is not responding";
     } else {
         return UbseCliStringPromptReply("ERROR: Unknown error code " + std::to_string(errorCode));
@@ -386,13 +392,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::QueryNodeInfo(const std
         return UbseCliStringPromptReply("ERROR: Request serialization failed");
     }
 
-    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(),
-                                      static_cast<uint32_t>(ubse_req_serial.GetLength())};
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
 
     // 使用UBSE_NODE_CLI_NODE_INFO操作码
-    uint32_t ret = ubse_invoke_call(UBSE_NODE, UBSE_NODE_CLI_NODE_INFO,
-                                    &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_NODE, UBSE_NODE_CLI_NODE_INFO, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
 
     // 处理IPC错误
@@ -414,7 +418,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::QueryNodeInfo(const std
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliQueryNodeInfoFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     auto it_node = params.find(DISPLAY_NODE_N_OPTION);
     std::string nodeIdStr = "";

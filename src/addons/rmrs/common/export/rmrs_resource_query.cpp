@@ -14,6 +14,7 @@
 
 #include <rmrs_serialize.h>
 #include <securec.h>
+#include "ubse_com.h"
 #include "common_delete_func.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
@@ -23,7 +24,6 @@
 #include "numa_memInfo_send.h"
 #include "over_commit_msg_handler.h"
 #include "over_commit_serializer.h"
-#include "ubse_com.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -35,11 +35,11 @@ const std::string SUB_MODULE_NAME = "[ResourceQuery] ";
 #define LOG_INFO UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_WARN UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
 
-MpResult HelpGetVmInfoListOnNode(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+MpResult HelpGetVmInfoListOnNode(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     try {
         return mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "HelpGetVmInfoListOnNode caught std::exception from Exporter: " << e.what();
         return MEM_POOLING_ERROR;
     } catch (...) {
@@ -48,11 +48,11 @@ MpResult HelpGetVmInfoListOnNode(std::vector<mempooling::exportV2::VmDomainInfo>
     }
 }
 
-MpResult HelpGetNumaInfoListOnNode(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
+MpResult HelpGetNumaInfoListOnNode(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
 {
     try {
         return mempooling::exportV2::Exporter::GetNumaInfoImmediately(numaInfos);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         LOG_ERROR << "HelpGetNumaInfoListOnNode caught std::exception from Exporter: " << e.what();
         return MEM_POOLING_ERROR;
     } catch (...) {
@@ -61,10 +61,10 @@ MpResult HelpGetNumaInfoListOnNode(std::vector<mempooling::exportV2::NumaInfo> &
     }
 }
 
-MpResult FillNumaInfo(mempooling::NumaMetaData &numaInfo, JSON_MAP numaInfoStrMap)
+MpResult FillNumaInfo(mempooling::NumaMetaData& numaInfo, JSON_MAP numaInfoStrMap)
 {
     LOG_INFO << "[FillNumaInfo] FillNumaInfo start.";
-    
+
     auto iter = numaInfoStrMap.find("MemTotal");
     if (iter == numaInfoStrMap.end()) {
         LOG_ERROR << "[NumaMemInfoCollect] Json no MemTotal.";
@@ -119,8 +119,8 @@ MpResult FillNumaInfo(mempooling::NumaMetaData &numaInfo, JSON_MAP numaInfoStrMa
     return MEM_POOLING_OK;
 }
 
-MpResult ResourceQuery::HelpGetNumaMemInfoCollect(const std::string &srcNid, const int &numaId,
-                                                  mempooling::NumaMetaData &numaInfo)
+MpResult ResourceQuery::HelpGetNumaMemInfoCollect(const std::string& srcNid, const int& numaId,
+                                                  mempooling::NumaMetaData& numaInfo)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[GetNumaMemInfoCollect] Master invoke the slave to collect pid numa info numaid = " << numaId << ".";
@@ -134,7 +134,7 @@ MpResult ResourceQuery::HelpGetNumaMemInfoCollect(const std::string &srcNid, con
     JSON_MAP numaInfoStrMap;
     static const std::vector<std::string> requiredKeys = {"MemTotal", "MemFree", "HugePages_Total", "HugePages_Free",
                                                           "SocketId"};
-    for (auto const &str : requiredKeys) {
+    for (auto const& str : requiredKeys) {
         numaInfoStrMap[str] = {};
     }
     if (!JsonUtil::RackMemConvertJsonStr2Map(numaMemInfoSend.resJson_, numaInfoStrMap)) {
@@ -152,9 +152,9 @@ MpResult ResourceQuery::HelpGetNumaMemInfoCollect(const std::string &srcNid, con
 }
 
 MpResult ResourceQuery::ConvertMetaNumaInfos(std::vector<turbo::rmrs::MetaNumaInfo> metaNumaInfos,
-                                             mempooling::RmrsPidInfo &pidInfo)
+                                             mempooling::RmrsPidInfo& pidInfo)
 {
-    for (auto &metaNumaInfo : metaNumaInfos) {
+    for (auto& metaNumaInfo : metaNumaInfos) {
         mempooling::MetaNumaInfo out{metaNumaInfo.numaId, metaNumaInfo.numaUsedMem, metaNumaInfo.isLocalNuma,
                                      metaNumaInfo.socketId};
         pidInfo.metaNumaInfos.push_back(out);
@@ -163,8 +163,8 @@ MpResult ResourceQuery::ConvertMetaNumaInfos(std::vector<turbo::rmrs::MetaNumaIn
     return MEM_POOLING_OK;
 }
 
-MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string &srcNid, const std::vector<pid_t> &pidList,
-                                                    std::vector<RmrsPidInfo> &pidInfos)
+MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string& srcNid, const std::vector<pid_t>& pidList,
+                                                    std::vector<RmrsPidInfo>& pidInfos)
 {
     if (pidList.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidList id empty, skip collect.";
@@ -200,13 +200,13 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string &srcNid, c
         return MEM_POOLING_ERROR;
     }
     // vector 转成内部PidInfo
-    for (auto &pidInfo : pidNumaInfoCollectResult.pidInfoList) {
+    for (auto& pidInfo : pidNumaInfoCollectResult.pidInfoList) {
         RmrsPidInfo innerPidInfo;
         innerPidInfo.pid = pidInfo.pid;
         innerPidInfo.totalLocalUsedMem = pidInfo.totalLocalUsedMem;
         innerPidInfo.totalRemoteUsedMem = pidInfo.totalRemoteUsedMem;
         ConvertMetaNumaInfos(pidInfo.metaNumaInfos, innerPidInfo);
-        for (auto &localNumaId : pidInfo.localNumaIds) {
+        for (auto& localNumaId : pidInfo.localNumaIds) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[PidNumaInfoCollect] Fill outerPidInfo pid=" << pidInfo.pid << ", localNumaId=" << localNumaId
                 << ".";
@@ -218,9 +218,9 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string &srcNid, c
     return MEM_POOLING_OK;
 }
 
-MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string &srcNid,
-                                                               const std::vector<pid_t> &pidList,
-                                                               std::vector<RmrsPidInfo> &pidInfos)
+MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string& srcNid,
+                                                               const std::vector<pid_t>& pidList,
+                                                               std::vector<RmrsPidInfo>& pidInfos)
 {
     if (pidList.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidList id empty, skip collect.";
@@ -245,15 +245,15 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string
     }
 
     // vector 转成内部PidInfo
-    for (auto &pidInfo : pidNumaInfoCollectResult.pidInfoList) {
+    for (auto& pidInfo : pidNumaInfoCollectResult.pidInfoList) {
         RmrsPidInfo innerPidInfo;
         innerPidInfo.pid = pidInfo.pid;
         innerPidInfo.totalLocalUsedMem = pidInfo.totalLocalUsedMem;
         innerPidInfo.totalRemoteUsedMem = pidInfo.totalRemoteUsedMem;
- 
+
         innerPidInfo.metaNumaInfos.clear();
         innerPidInfo.metaNumaInfos.reserve(pidInfo.metaNumaInfos.size());
-        for (const auto &meta : pidInfo.metaNumaInfos) {
+        for (const auto& meta : pidInfo.metaNumaInfos) {
             mempooling::MetaNumaInfo dst;
             dst.numaId = meta.numaId;
             dst.numaUsedMem = meta.numaUsedMem;
@@ -263,14 +263,14 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string
                 // 仅在容器场景下有意义
                 innerPidInfo.remoteNumaId = meta.numaId;
             }
- 
+
             innerPidInfo.metaNumaInfos.push_back(dst);
         }
-        for (auto &localNumaId : pidInfo.localNumaIds) {
+        for (auto& localNumaId : pidInfo.localNumaIds) {
             innerPidInfo.localNumaIds.push_back(localNumaId);
         }
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[PidNumaInfoCollect] Collect RmrsPidInfo: " << innerPidInfo.ToString() << ".";
+            << "[PidNumaInfoCollect] Collect RmrsPidInfo: " << innerPidInfo.ToString() << ".";
         pidInfos.push_back(innerPidInfo);
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Container PidNumaInfoCollect success.";
@@ -281,8 +281,7 @@ MpResult ExportV2Init()
 {
     auto res = mempooling::exportV2::Exporter::Init();
     if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[ExportInit] Failed to init exporter, res=" << res << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[ExportInit] Failed to init exporter, res=" << res << ".";
         return res;
     }
     return MEM_POOLING_OK;

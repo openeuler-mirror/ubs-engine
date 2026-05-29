@@ -28,49 +28,43 @@ struct RangeCheck {
 
 // 配置项范围检查。具体说明，见 plugin_ucache.conf
 const std::map<std::string, RangeCheck<uint32_t>> Uint32RangeCheck = {
-    {
-        "bottleneck.threshold", {
-            .defaultValue = 10240,
-            .minValue = 1,
-            .maxValue = 10*1024*1024,
-        }
-    },
-    {
-        "bottleneck.short.size", {
-            .defaultValue = 180,
-            .minValue = 30,
-            .maxValue = 1200,
-        }
-    },
-    {
-        "bottleneck.short.threshold", {
-            .defaultValue = 70,
-            .minValue = 0,
-            .maxValue = 100,
-        }
-    },
-    {
-        "bottleneck.long.size", {
-            .defaultValue = 600,
-            .minValue = 90,
-            .maxValue = 3600,
-        }
-    },
-    {
-        "bottleneck.long.threshold", {
-            .defaultValue = 30,
-            .minValue = 0,
-            .maxValue = 100,
-        }
-    },
-    {
-        "strategy.maxReliableTimes", {
-            .defaultValue = 3,
-            .minValue = 1,
-            .maxValue = 10,
-        }
-    },
+    {"bottleneck.threshold",
+     {
+         .defaultValue = 10240,
+         .minValue = 1,
+         .maxValue = 10 * 1024 * 1024,
+     }},
+    {"bottleneck.short.size",
+     {
+         .defaultValue = 180,
+         .minValue = 30,
+         .maxValue = 1200,
+     }},
+    {"bottleneck.short.threshold",
+     {
+         .defaultValue = 70,
+         .minValue = 0,
+         .maxValue = 100,
+     }},
+    {"bottleneck.long.size",
+     {
+         .defaultValue = 600,
+         .minValue = 90,
+         .maxValue = 3600,
+     }},
+    {"bottleneck.long.threshold",
+     {
+         .defaultValue = 30,
+         .minValue = 0,
+         .maxValue = 100,
+     }},
+    {"strategy.maxReliableTimes",
+     {
+         .defaultValue = 3,
+         .minValue = 1,
+         .maxValue = 10,
+     }},
 };
 
-}
+} // namespace ucache
 #endif

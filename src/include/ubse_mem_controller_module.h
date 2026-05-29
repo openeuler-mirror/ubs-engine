@@ -17,8 +17,9 @@
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller {
-using namespace ubse::context;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseMemControllerModule : public UbseModule {
 public:
@@ -29,6 +30,9 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+
+private:
+    bool enabled_ = true;
 };
 
 /**
@@ -37,7 +41,7 @@ public:
 * @param memDebtInfoMap [out] 借用账本对象集合
 * @return 成功返回0, 失败返回非0
 */
-uint32_t UbseGetMemDebtInfo(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap);
+uint32_t UbseGetMemDebtInfo(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap);
 
 } // namespace ubse::mem::controller
 

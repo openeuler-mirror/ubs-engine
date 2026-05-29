@@ -18,11 +18,12 @@
 #include <new>       // for nothrow
 #include <stdexcept> // for runtime_error
 
-#include "ubse_common_def.h"   // for NO_2, UBSE_UNLIKELY
-#include "ubse_error.h"        // for UBSE_TASK_EXECUTOR_MID
-#include "ubse_logger.h"       // for UbseLoggerEntry, UBSE_D...
+#include "ubse_common_def.h" // for NO_2, UBSE_UNLIKELY
+#include "ubse_error.h"      // for UBSE_TASK_EXECUTOR_MID
+#include "ubse_logger.h"     // for UbseLoggerEntry, UBSE_D...
 
 namespace ubse::task_executor {
+using namespace ubse::utils;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 void UbseRunnable::Run()
@@ -41,7 +42,7 @@ UbseRunnableType UbseRunnable::Type() const
     return mType;
 }
 
-Ref<UbseTaskExecutor> UbseTaskExecutor::Create(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
+Ref<UbseTaskExecutor> UbseTaskExecutor::Create(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
 {
     if (threadNum > ES_MAX_THR_NUM || threadNum == 0) {
         UBSE_LOG_ERROR << "The num of thread must 1-" << ES_MAX_THR_NUM;
@@ -58,7 +59,7 @@ UbseTaskExecutor::~UbseTaskExecutor()
     }
 }
 
-bool UbseTaskExecutor::Execute(const UbseRunnablePtr &runnable)
+bool UbseTaskExecutor::Execute(const UbseRunnablePtr& runnable)
 {
     std::unique_lock<std::mutex> lock(mtx);
     auto tmp = runnable.Get();
@@ -72,21 +73,21 @@ bool UbseTaskExecutor::Execute(const UbseRunnablePtr &runnable)
         ++pending;
         return true;
     } else {
-        UBSE_LOG_WARN << "This executor is full." << " The executor mThreadName is " << mThreadName
-                      << " and The mThreadNum of this executor is " << mThreadNum
-                      << " and The mCapacity of this executor is " << mCapacity
+        UBSE_LOG_WARN << "This executor is full."
+                      << " The executor mThreadName is " << mThreadName << " and The mThreadNum of this executor is "
+                      << mThreadNum << " and The mCapacity of this executor is " << mCapacity
                       << " .Now The Number of total Submitted is " << totalSubmitted << " Number of total Completed is "
                       << totalCompleted;
         return false;
     }
 }
 
-bool UbseTaskExecutor::Execute(const std::function<void()> &task)
+bool UbseTaskExecutor::Execute(const std::function<void()>& task)
 {
     return Execute(MakeRef<UbseRunnable>(task));
 }
 
-void UbseTaskExecutor::SetThreadName(const std::string &name)
+void UbseTaskExecutor::SetThreadName(const std::string& name)
 {
     mThreadName = name;
 }
@@ -96,7 +97,7 @@ void UbseTaskExecutor::SetCpuSetStartIndex(int16_t idx)
     mCpuSetStartIdx = idx;
 }
 
-UbseTaskExecutor::UbseTaskExecutor(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
+UbseTaskExecutor::UbseTaskExecutor(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
     : mThreadName(name),
       mRunnableQueue(queueCapacity),
       mThreadNum(threadNum),
@@ -126,10 +127,10 @@ bool UbseTaskExecutor::Start()
         std::unique_ptr<std::thread> thr;
         try {
             thr = std::make_unique<std::thread>([cpuId, this]() { UbseTaskExecutor::RunInThread(cpuId); });
-        } catch (const std::bad_alloc &e) {
+        } catch (const std::bad_alloc& e) {
             // 内存不足
             UBSE_LOG_ERROR << "Failed to allocate memory for thread: " << e.what();
-        } catch (const std::system_error &e) {
+        } catch (const std::system_error& e) {
             // 创建线程失败
             UBSE_LOG_ERROR << "Failed to create thread: " << e.what();
         }
@@ -166,7 +167,7 @@ void UbseTaskExecutor::Stop()
         }
         stopTask->Type(UbseRunnableType::STOP);
 
-        UbseRunnable *tmp = stopTask.Get();
+        UbseRunnable* tmp = stopTask.Get();
         tmp->IncreaseRef();
         while (!mRunnableQueue.EnqueueFirst(tmp)) {
             UBSE_LOG_DEBUG << "Failed to enqueue stop task";
@@ -175,7 +176,7 @@ void UbseTaskExecutor::Stop()
     }
 
     UBSE_LOG_INFO << "Start waiting for the thread to exit. ";
-    for (auto &thr : mThreads) {
+    for (auto& thr : mThreads) {
         if (thr != nullptr && thr->joinable()) {
             thr->join();
         }
@@ -194,10 +195,10 @@ void UbseTaskExecutor::Wait()
     done.wait(lock, [this] { return pending == 0; });
 }
 
-void UbseTaskExecutor::DoRunnable(bool &flag)
+void UbseTaskExecutor::DoRunnable(bool& flag)
 {
     try {
-        UbseRunnable *task = nullptr;
+        UbseRunnable* task = nullptr;
         mRunnableQueue.Dequeue(
             task); // The queue has tasks; dequeue and execute them. Otherwise, Blocking wait for ringbuffer semaphore
         if (task == nullptr) {
@@ -209,7 +210,8 @@ void UbseTaskExecutor::DoRunnable(bool &flag)
         if (runnable->Type() == UbseRunnableType::NORMAL) {
             runnable->Run();
             totalCompleted++;
-            if (pending.fetch_sub(1) == 1) { // 注意，比较操作过程也要注意竞争，fetch_sub返回之前的值，这个之前的值不会出问题
+            if (pending.fetch_sub(1) ==
+                1) { // 注意，比较操作过程也要注意竞争，fetch_sub返回之前的值，这个之前的值不会出问题
                 std::unique_lock<std::mutex> lock(cvMtx);
                 done.notify_all();
             }
@@ -218,7 +220,7 @@ void UbseTaskExecutor::DoRunnable(bool &flag)
         } else {
             UBSE_LOG_ERROR << "Un-reachable path";
         }
-    } catch (std::runtime_error &ex) {
+    } catch (std::runtime_error& ex) {
         UBSE_LOG_ERROR << "Caught error " << ex.what() << " when execute a task, continue";
     } catch (...) {
         UBSE_LOG_ERROR << "Caught unknown error when execute a task, continue";

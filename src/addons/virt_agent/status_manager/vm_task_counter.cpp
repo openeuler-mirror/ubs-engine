@@ -16,18 +16,18 @@
 #include <ubse_logger.h>
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
 std::atomic<int> VmTaskCounter::count(0);
 
-void VmTaskCounter::StartTask(const std::string &name)
+void VmTaskCounter::StartTask(const std::string& name)
 {
     UBSE_LOG_INFO << "start task, task = " << name;
     count.fetch_add(1);
 }
 
-void VmTaskCounter::CompleteTask(const std::string &name)
+void VmTaskCounter::CompleteTask(const std::string& name)
 {
     UBSE_LOG_INFO << "complete task, task = " << name;
     count.fetch_sub(1);
@@ -39,4 +39,4 @@ int VmTaskCounter::GetTaskCount()
     UBSE_LOG_INFO << "task_count = " << taskCount;
     return taskCount;
 }
-}
+} // namespace vm

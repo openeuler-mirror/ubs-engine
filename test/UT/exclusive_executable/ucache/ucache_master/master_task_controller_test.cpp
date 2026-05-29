@@ -17,10 +17,10 @@
 #define private public
 #include "ubse_com.h"
 #include "ubse_logger.h"
+#include "master_task_controller.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_serialize.h"
-#include "master_task_controller.h"
 
 using namespace ubse::log;
 using namespace ubse::com;
@@ -30,7 +30,7 @@ using namespace ucache;
 using namespace turbo::ucache;
 
 namespace ucache::master {
-    void OnTaskResult(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+void OnTaskResult(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 }
 
 class master_task_controllerTest : public ::testing::Test {
@@ -131,9 +131,7 @@ TEST_F(master_task_controllerTest, DispatchTask_Valid_01)
     TaskResponse tResp;
     std::string destNode;
 
-    MOCKER(UbseRpcSend)
-        .stubs()
-        .will(returnValue(0));
+    MOCKER(UbseRpcSend).stubs().will(returnValue(0));
 
     uint32_t ret = ucache::master::DispatchTask(tReq, tResp, destNode);
     EXPECT_EQ(ret, UCACHE_OK);
@@ -146,9 +144,7 @@ TEST_F(master_task_controllerTest, DispatchTask_Valid_02)
     TaskResponse tResp;
     std::string destNode;
 
-    MOCKER(UbseRpcSend)
-        .stubs()
-        .will(returnValue(0));
+    MOCKER(UbseRpcSend).stubs().will(returnValue(0));
 
     uint32_t ret = ucache::master::DispatchTask(tReq, tResp, destNode);
     EXPECT_EQ(ret, UCACHE_OK);

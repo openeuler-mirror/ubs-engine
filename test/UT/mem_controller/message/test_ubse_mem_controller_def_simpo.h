@@ -15,12 +15,12 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 namespace ubse::mem::controller::message::ut {
-    class TestUbseMemControllerDefSimpo : public testing::Test {
-    public:
-        void SetUp() override;
+class TestUbseMemControllerDefSimpo : public testing::Test {
+public:
+    void SetUp() override;
 
-        void TearDown() override;
-    };
-}
+    void TearDown() override;
+};
+} // namespace ubse::mem::controller::message::ut
 
 #endif // TEST_UBSE_MEM_CONTROLLER_DEF_SIMPO_H

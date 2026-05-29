@@ -12,8 +12,8 @@
 
 #include "test_ubse_mem_topology_info_manager.h"
 #include "ubse_error.h"
-#include "ubse_mem_topology_info_manager.cpp"
 #include "ubse_mem_topology_info_manager.h"
+#include "ubse_mem_topology_info_manager.cpp"
 
 namespace ubse::mem_scheduler::ut {
 using namespace ubse::mem::strategy;
@@ -285,7 +285,7 @@ TEST_F(TestUbseMemTopologyInfoManager, TestSetMemOutHardLimit4)
     MOCKER_CPP(&mem::strategy::MemNodeInfo::GetMCurNumaIndex).reset();
 }
 
-uint32_t MockUbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+uint32_t MockUbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     nodeTopology["1"] = {{}};
     return 0;

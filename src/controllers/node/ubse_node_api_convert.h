@@ -21,9 +21,10 @@
 #include "ubse_pack_util.h"
 
 namespace ubse::node::api {
-using namespace ubse::nodeController::def;
-using namespace ubse::utils;
-using namespace ubse::mem::account;
+using ubse::mem::account::UbseNumaNodeInfo;
+using ubse::nodeController::def::UbseCpuLink;
+using ubse::nodeController::def::UbseNode;
+using ubse::utils::UbsePackUtil;
 
 const size_t UBSE_NODE_SIZE =
     sizeof(uint32_t) + sizeof(uint32_t) * UBS_TOPO_SOCKET_NUM + HOST_NAME_MAX; // ubse_node_t size
@@ -34,25 +35,25 @@ uint64_t HtonllCustom(uint64_t host_value);
 
 uint64_t NtohllCustom(uint64_t net_value);
 
-size_t UbseStringCalcSize(const std::string &str, size_t maxLen);
+size_t UbseStringCalcSize(const std::string& str, size_t maxLen);
 
-size_t UbseNodeCalcSize(const UbseNode &node);
+size_t UbseNodeCalcSize(const UbseNode& node);
 
-uint32_t UbseStringUnpack(const ipc::UbseIpcMessage &buffer, std::string &str, uint32_t maxLen);
+uint32_t UbseStringUnpack(const ipc::UbseIpcMessage& buffer, std::string& str, uint32_t maxLen);
 
-uint32_t UbseSlotIdUnpack(const ipc::UbseIpcMessage &buffer, uint32_t &slotId);
+uint32_t UbseSlotIdUnpack(const ipc::UbseIpcMessage& buffer, uint32_t& slotId);
 
-uint32_t UbseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil);
+uint32_t UbseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil);
 
-uint32_t UbseBaseNodePackInner(const UbseNode &node, UbsePackUtil &packUtil);
+uint32_t UbseBaseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil);
 
-uint32_t UbseNodePack(const UbseNode &node, ipc::UbseIpcMessage &buffer);
+uint32_t UbseNodePack(const UbseNode& node, ipc::UbseIpcMessage& buffer);
 
-uint32_t UbseNodeListPack(const std::vector<UbseNode> &ubseNodeList, ipc::UbseIpcMessage &buffer);
+uint32_t UbseNodeListPack(const std::vector<UbseNode>& ubseNodeList, ipc::UbseIpcMessage& buffer);
 
-uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink> &cpuLinkList, ipc::UbseIpcMessage &buffer);
+uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink>& cpuLinkList, ipc::UbseIpcMessage& buffer);
 
-uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo> &numaInfoList, ipc::UbseIpcMessage &buffer);
+uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo>& numaInfoList, ipc::UbseIpcMessage& buffer);
 } // namespace ubse::node::api
 
 #endif // UBSE_NODE_API_CONVERT_H

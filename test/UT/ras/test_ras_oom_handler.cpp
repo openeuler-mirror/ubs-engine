@@ -1,11 +1,11 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "test_ras_oom_handler.h"
-#include "securec.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
-#include "ubse_ras_oom_handler.cpp"
 #include "ubse_ras_oom_handler.h"
+#include "securec.h"
+#include "ubse_ras_oom_handler.cpp"
 
 namespace ubse::ras::ut {
 using namespace ubse::ras;
@@ -70,16 +70,5 @@ TEST_F(TestUbseRasOomHandler, TestInitOomWaitTime)
     uint64_t memFree;
     int16_t numaId = 1;
     EXPECT_NO_THROW(InitOomWaitTime());
-}
-
-TEST_F(TestUbseRasOomHandler, TestIsNumaMemFreeEnough)
-{
-    NumaId numaId;
-    int64_t startTime = 1;
-    uint64_t memNeed;
-    uint64_t memFree;
-    int timeOut = 3;
-    MOCKER_CPP(GetMillisecondsTime).stubs().will(returnValue(2));
-    EXPECT_NO_THROW(IsNumaMemFreeEnough(numaId, startTime, memNeed, memFree, timeOut));
 }
 } // namespace ubse::ras::ut

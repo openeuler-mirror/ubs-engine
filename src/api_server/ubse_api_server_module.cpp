@@ -25,6 +25,7 @@ namespace api::server {
 using namespace ubse::ipc;
 using namespace ubse::config;
 using namespace ubse::log;
+using namespace ubse::common::def;
 
 BASE_DYNAMIC_CREATE(UbseApiServerModule, UbseConfModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -33,11 +34,11 @@ const uint16_t UDS_PERM = 0660;             // uds最小权限
 const uint16_t THREAD_POOL_SIZE = 8;        // 线程池size
 const uint16_t THREAD_POOL_QUEUE_SIZE = 16; // 线程池队列size
 
-static UbseIpcHandler DecorateHandlerWithReadinessCheck(const UbseIpcHandler &originalHandler,
-                                                        std::shared_ptr<UbseApiServerAuthManager> &authManager)
+static UbseIpcHandler DecorateHandlerWithReadinessCheck(const UbseIpcHandler& originalHandler,
+                                                        std::shared_ptr<UbseApiServerAuthManager>& authManager)
 {
     return
-        [originalHandler, authManager](const UbseIpcMessage &request, const UbseRequestContext &context) -> uint32_t {
+        [originalHandler, authManager](const UbseIpcMessage& request, const UbseRequestContext& context) -> uint32_t {
             if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
                 UBSE_LOG_ERROR << "Daemon is not ready";
                 return UBSE_ERR_DAEMON_UNREACHABLE;
@@ -79,11 +80,11 @@ UbseResult UbseApiServerModule::Start()
     }
 
     // 注册所有预加载的处理程序
-    for (const auto &reg : pendingHandlers_) {
+    for (const auto& reg : pendingHandlers_) {
         ret = ipcServer_->RegisterHandler(reg.moduleCode, reg.opCode, reg.handler);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to register pre-registered handler: " << "Module: " << reg.moduleCode
-                           << ", OP: " << reg.opCode;
+            UBSE_LOG_ERROR << "Failed to register pre-registered handler: "
+                           << "Module: " << reg.moduleCode << ", OP: " << reg.opCode;
         }
     }
     pendingHandlers_.clear(); // 清空预注册队列
@@ -105,7 +106,7 @@ void UbseApiServerModule::Stop()
 }
 
 UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler,
-                                                   const std::string &object)
+                                                   const std::string& object)
 {
     // 注册object
     authManager_->AddObjectMapping(moduleCode, opCode, object);
@@ -114,11 +115,11 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
     if (ipcServer_ != nullptr) {
         return ipcServer_->RegisterHandler(moduleCode, opCode, handler);
     }
-    pendingHandlers_.push_back({ moduleCode, opCode, handler });
+    pendingHandlers_.push_back({moduleCode, opCode, handler});
     return UBSE_OK;
 }
 
-uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &response)
+uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)
 {
     if (ipcServer_ == nullptr) {
         UBSE_LOG_ERROR << "Ipc service not start";
@@ -128,14 +129,16 @@ uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t request
     return ipcServer_->SendResponse(statusCode, requestId, response);
 }
 
-uint32_t UbseApiServerModule::AsyncSendLongLink(UbseRequestMessage request, void *ctx, UbseAsyncResponseHandler handler,
-                                                std::vector<uint64_t> &reqList)
+uint32_t UbseApiServerModule::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo,
+                                                void* ctx, UbseAsyncResponseHandler handler,
+                                                std::vector<uint64_t>& reqList) const
 {
     if (ipcServer_ == nullptr) {
         UBSE_LOG_ERROR << "Ipc service not start";
         return UBSE_ERROR_NULLPTR;
     }
-    UBSE_LOG_INFO << "Async Send, moduleCode=" << request.header.moduleCode << ", opCode=" << request.header.opCode;
-    return ipcServer_->AsyncSendLongLink(request, ctx, handler, reqList);
+    UBSE_LOG_INFO << "Async Send, moduleCode=" << requestMessage.header.moduleCode
+                  << ", opCode=" << requestMessage.header.opCode;
+    return ipcServer_->AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList);
 }
 } // namespace api::server

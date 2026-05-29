@@ -12,9 +12,9 @@
 
 #include "ubse_event_module.h"
 
-#include <referable/ubse_ref.h>       // for Ref
-#include <cstdint>                    // for uint32_t
-#include <new>                        // for nothrow
+#include <referable/ubse_ref.h> // for Ref
+#include <cstdint>              // for uint32_t
+#include <new>                  // for nothrow
 
 #include "ubse_conf_module.h"      // for UbseConfModule
 #include "ubse_context.h"          // for UbseContext, ProcessMode
@@ -29,13 +29,16 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::log;
 
+using namespace ubse::module;
+using namespace ubse::utils;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 BASE_DYNAMIC_CREATE(UbseEventModule, UbseConfModule, UbseLoggerModule);
 
 class UbseEventModule::Impl {
 public:
-    void UbseEventConfigCheck(uint32_t &queueMaxItem, uint32_t &highThreadMaxItem, uint32_t &mediumThreadMaxItem,
-                              uint32_t &lowThreadMaxItem);
+    void UbseEventConfigCheck(uint32_t& queueMaxItem, uint32_t& highThreadMaxItem, uint32_t& mediumThreadMaxItem,
+                              uint32_t& lowThreadMaxItem);
     UbseResult InitDistributePtr();
 
     UbseEventDistributePtr distributePtr_ = nullptr;
@@ -95,7 +98,7 @@ void UbseEventModule::Stop()
 
 void UbseEventModule::UnInitialize() {}
 
-UbseResult UbseEventModule::UbseSubEvent(const std::string &eventId, UbseEventHandler registerFunc,
+UbseResult UbseEventModule::UbseSubEvent(const std::string& eventId, UbseEventHandler registerFunc,
                                          UbseEventPriority priority)
 {
     if (pImpl_->distributePtr_ == nullptr) {
@@ -106,7 +109,7 @@ UbseResult UbseEventModule::UbseSubEvent(const std::string &eventId, UbseEventHa
     return UBSE_OK;
 }
 
-UbseResult UbseEventModule::UbsePubEvent(const std::string &eventId, std::string &eventMessage)
+UbseResult UbseEventModule::UbsePubEvent(const std::string& eventId, std::string& eventMessage)
 {
     if (pImpl_->distributePtr_ == nullptr) {
         UBSE_LOG_ERROR << "get distributePtr failed, SubEvent failed";
@@ -116,7 +119,7 @@ UbseResult UbseEventModule::UbsePubEvent(const std::string &eventId, std::string
     return UBSE_OK;
 }
 
-UbseResult UbseEventModule::UbseUnSubEvent(const std::string &eventId, UbseEventHandler registerFunc)
+UbseResult UbseEventModule::UbseUnSubEvent(const std::string& eventId, UbseEventHandler registerFunc)
 {
     if (pImpl_ == nullptr) {
         UBSE_LOG_ERROR << "pImpl is null, UnSubEvent failed";
@@ -134,7 +137,7 @@ UbseResult UbseEventModule::UbseUnSubEvent(const std::string &eventId, UbseEvent
 
 UbseResult UbseEventModule::Impl::InitDistributePtr()
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto confRef = ctxRef.GetModule<UbseConfModule>();
     if (confRef == nullptr) {
         UBSE_LOG_ERROR << "get confRef failed, Initialize failed";
@@ -149,26 +152,26 @@ UbseResult UbseEventModule::Impl::InitDistributePtr()
     UbseResult res = confRef->GetConf<uint32_t>(UBSE_EVENT_SECTION, UBSE_EVENT_QUEUE_MAX_ITEM, queueMaxItem);
     if (res != UBSE_OK) {
         UBSE_LOG_WARN << "get event queue.maxItem from config failed, " << FormatRetCode(res)
-                    << ", will use default value : " << queueMaxItem;
+                      << ", will use default value : " << queueMaxItem;
     }
     res = confRef->GetConf<uint32_t>(UBSE_EVENT_SECTION, UBSE_EVENT_HIGH_THREAD_MAX_ITEM, highThreadMaxItem);
     if (res != UBSE_OK) {
         UBSE_LOG_WARN << "get event highThreadMaxItem from config failed, " << FormatRetCode(res)
-                    << ", will use default value : " << highThreadMaxItem;
+                      << ", will use default value : " << highThreadMaxItem;
     }
     res = confRef->GetConf<uint32_t>(UBSE_EVENT_SECTION, UBSE_EVENT_MEDIUM_THREAD_MAX_ITEM, mediumThreadMaxItem);
     if (res != UBSE_OK) {
         UBSE_LOG_WARN << "get event mediumThreadMaxItem from config failed, " << FormatRetCode(res)
-                    << ", will use default value : " << mediumThreadMaxItem;
+                      << ", will use default value : " << mediumThreadMaxItem;
     }
     res = confRef->GetConf<uint32_t>(UBSE_EVENT_SECTION, UBSE_EVENT_LOW_THREAD_MAX_ITEM, lowThreadMaxItem);
     if (res != UBSE_OK) {
         UBSE_LOG_WARN << "get event lowThreadMaxItem from config failed, " << FormatRetCode(res)
-                    << ", will use default value : " << lowThreadMaxItem;
+                      << ", will use default value : " << lowThreadMaxItem;
     }
     UbseEventConfigCheck(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem);
     distributePtr_.Set(new (std::nothrow)
-                          UbseEventDistribute(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem));
+                           UbseEventDistribute(queueMaxItem, highThreadMaxItem, mediumThreadMaxItem, lowThreadMaxItem));
     if (distributePtr_ == nullptr) {
         UBSE_LOG_ERROR << "new distribute failed";
         return UBSE_ERROR_NULLPTR;
@@ -177,8 +180,8 @@ UbseResult UbseEventModule::Impl::InitDistributePtr()
     return UBSE_OK;
 }
 
-void UbseEventModule::Impl::UbseEventConfigCheck(uint32_t &queueMaxItem, uint32_t &highThreadMaxItem,
-                                                 uint32_t &mediumThreadMaxItem, uint32_t &lowThreadMaxItem)
+void UbseEventModule::Impl::UbseEventConfigCheck(uint32_t& queueMaxItem, uint32_t& highThreadMaxItem,
+                                                 uint32_t& mediumThreadMaxItem, uint32_t& lowThreadMaxItem)
 {
     if (queueMaxItem < 64 || queueMaxItem > 4096) { // 事件队列长度在64到4096之间
         queueMaxItem = 1024;                        // 1024为默认值

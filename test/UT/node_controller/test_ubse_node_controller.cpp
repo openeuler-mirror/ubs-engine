@@ -11,12 +11,12 @@
  */
 
 #include "test_ubse_node_controller.h"
-#include "ubse_node_controller_module.h"
-#include "ubse_node_controller.cpp"
-#include "ubse_node_controller.h"
 #include "ubse_lcne_module.h"
+#include "ubse_node_controller.h"
+#include "ubse_node_controller_module.h"
 #include "ubse_os_util.h"
 #include "sentry_observer.h"
+#include "ubse_node_controller.cpp"
 
 namespace ubse::node_controller::ut {
 
@@ -93,13 +93,13 @@ TEST_F(TestUbseNodeController, GetStaticNodeInfo)
     EXPECT_EQ(UbseNodeController::GetInstance().GetStaticNodeInfo().size(), 0);
 }
 
-UbseResult MockUbseNodeUbseGetMasterNode(UbseElectionModule *, Node &masterNode)
+UbseResult MockUbseNodeUbseGetMasterNode(UbseElectionModule*, Node& masterNode)
 {
     masterNode.id = "2";
     return UBSE_OK;
 }
 
-UbseResult MockGetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseNodeInfo> &infos)
+UbseResult MockGetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseNodeInfo>& infos)
 {
     UbseNodeInfo nodeInfo{};
     nodeInfo.nodeId = "1";
@@ -127,7 +127,7 @@ TEST_F(TestUbseNodeController, GetAllNodes)
     EXPECT_EQ(UbseNodeController::GetInstance().GetAllNodes()["1"].nodeId, "1");
 }
 
-void MockGetCurNodeInfo(UbseNodeInfo &info)
+void MockGetCurNodeInfo(UbseNodeInfo& info)
 {
     info.nodeId = "2";
     info.slotId = 2;
@@ -182,12 +182,12 @@ TEST_F(TestUbseNodeController, GetEid)
     EXPECT_EQ(UbseNodeController::GetInstance().GetEid("3", 3, eid), UBSE_OK);
 }
 
-uint32_t MockLocalHandler(const UbseNodeInfo &node)
+uint32_t MockLocalHandler(const UbseNodeInfo& node)
 {
     return UBSE_OK;
 }
 
-uint32_t MockClusterHandler(const UbseNodeInfo &node)
+uint32_t MockClusterHandler(const UbseNodeInfo& node)
 {
     return UBSE_OK;
 }
@@ -345,7 +345,7 @@ TEST_F(TestUbseNodeController, GetUbseCpuInfoOffset)
 TEST_F(TestUbseNodeController, SerializeUbseNode)
 {
     UbseNodeInfo info{};
-    uint8_t *buffer = nullptr;
+    uint8_t* buffer = nullptr;
     size_t size = 0;
     EXPECT_EQ(SerializeUbseNode(UbseNodeController::GetInstance().nodeInfos["1"], buffer, size), UBSE_OK);
     EXPECT_EQ(DeSerializeUbseNode(info, buffer, size), UBSE_OK);
@@ -356,9 +356,9 @@ TEST_F(TestUbseNodeController, SerializeUbseNode)
 TEST_F(TestUbseNodeController, SerializeUbseNodeList)
 {
     std::vector<UbseNodeInfo> infos{};
-    uint8_t *buffer = nullptr;
+    uint8_t* buffer = nullptr;
     size_t size = 0;
-    for (auto &info : UbseNodeController::GetInstance().nodeInfos) {
+    for (auto& info : UbseNodeController::GetInstance().nodeInfos) {
         infos.push_back(info.second);
     }
     EXPECT_EQ(SerializeUbseNodeList(infos, buffer, size), UBSE_OK);
@@ -522,8 +522,8 @@ TEST_F(TestUbseNodeController, UbseGetDirConnectInfoWhenCurrentIsLeader)
 TEST_F(TestUbseNodeController, UbseGetDirConnectInfoWhenCurrentIsNotLeader)
 {
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
-            .stubs()
-            .will(returnValue(std::make_shared<UbseElectionModule>()));
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
     MOCKER_CPP(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
     MOCKER_CPP(&UbseElectionModule::UbseGetMasterNode).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseGetDirConnectInfoFromRemote).stubs().will(returnValue(UBSE_ERROR));
@@ -536,7 +536,7 @@ TEST_F(TestUbseNodeController, SerializeDevDirConnectInfoWhenCheckFail)
     MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
     PhysicalLink pLink1{.slotId = 0, .chipId = 0, .portId = 0, .peerSlotId = 1, .peerChipId = 1, .peerPortId = 1};
     std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
-    uint8_t *buf;
+    uint8_t* buf;
     size_t size;
     auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
     ASSERT_EQ(ret, UBSE_ERROR);
@@ -547,7 +547,7 @@ TEST_F(TestUbseNodeController, SerializeDevDirConnectInfoWhenSuccess)
     MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
     PhysicalLink pLink1{.slotId = 0, .chipId = 0, .portId = 0, .peerSlotId = 1, .peerChipId = 1, .peerPortId = 1};
     std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
-    uint8_t *buf;
+    uint8_t* buf;
     size_t size;
     auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
     ASSERT_EQ(ret, UBSE_OK);
@@ -564,7 +564,7 @@ TEST_F(TestUbseNodeController, SetUbseIpAddrV4)
     std::vector<uint8_t> ipv4AddrVec;
     UbseSerialization seri;
     seri << enum_v(nodeController::UbseIpType::UBSE_IP_V4);
-    for (auto &&addr : ipv4Addr.ipv4.addr) {
+    for (auto&& addr : ipv4Addr.ipv4.addr) {
         ipv4AddrVec.push_back(addr);
     }
     seri << ipv4AddrVec;
@@ -586,7 +586,7 @@ TEST_F(TestUbseNodeController, SetUbseIpAddrV6)
     UbseSerialization seri;
     seri << enum_v(nodeController::UbseIpType::UBSE_IP_V6);
     std::vector<uint8_t> ipv6AddrVec;
-    for (auto &&addr : ipv6Addr.ipv6.addr) {
+    for (auto&& addr : ipv6Addr.ipv6.addr) {
         ipv6AddrVec.push_back(addr);
     }
     seri << ipv6AddrVec;
@@ -605,19 +605,17 @@ TEST_F(TestUbseNodeController, DeSerializeDevDirConnectInfo)
     GTEST_SKIP();
     MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
     // 必须包含新增的2个字段
-    PhysicalLink pLink1{
-        .slotId = 0,
-        .chipId = 0,
-        .portId = 0,
-        .interfaceName = "",
-        .peerSlotId = 1,
-        .peerChipId = 1,
-        .peerPortId = 1,
-        .peerInterfaceName = "",
-        .linkStatus = LinkStatus::available
-    };
+    PhysicalLink pLink1{.slotId = 0,
+                        .chipId = 0,
+                        .portId = 0,
+                        .interfaceName = "",
+                        .peerSlotId = 1,
+                        .peerChipId = 1,
+                        .peerPortId = 1,
+                        .peerInterfaceName = "",
+                        .linkStatus = LinkStatus::available};
     std::map<std::string, PhysicalLink> connectInfo{{"test", pLink1}};
-    uint8_t *buf;
+    uint8_t* buf;
     size_t size;
     auto ret = SerializeDevDirConnectInfo(connectInfo, buf, size);
     ASSERT_EQ(ret, UBSE_OK);
@@ -688,7 +686,10 @@ TEST_F(TestUbseNodeController, UbseGetNodeIdByAttrValue)
     UbseCpuLocation location{"1", 1};
     UbseCpuInfo cpuInfo{};
     cpuInfo.guid = "1";
-    UbseNodeInfo info1{.nodeId = "01234", .slotId = 0, .hostName = "ho0", .ipList = {ipv4Addr},
+    UbseNodeInfo info1{.nodeId = "01234",
+                       .slotId = 0,
+                       .hostName = "ho0",
+                       .ipList = {ipv4Addr},
                        .cpuInfos = {{location, cpuInfo}, {location, cpuInfo}}};
     std::unordered_map<std::string, UbseNodeInfo> nodeInfoMap{{"0", info1}};
     MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfoMap));

@@ -26,9 +26,9 @@ class MemMigrateMsg : public BaseMessage {
 public:
     MemMigrateMsg() = default;
 
-    explicit MemMigrateMsg(MemMigrateInputParams &inputParams) : inputParams_(std::move(inputParams)) {}
+    explicit MemMigrateMsg(MemMigrateInputParams& inputParams) : inputParams_(std::move(inputParams)) {}
 
-    explicit MemMigrateMsg(uint8_t *rawData, uint32_t size)
+    explicit MemMigrateMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -45,6 +45,6 @@ public:
 private:
     MemMigrateInputParams inputParams_{};
 };
-} // vm
+} // namespace vm
 
 #endif // MEM_MIGRATE_MSG_H

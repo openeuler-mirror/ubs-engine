@@ -12,17 +12,17 @@
  */
 #include "resource_collect.h"
 
-#include <ubse_storage.h>
 #include <ubse_logger.h>
+#include <ubse_storage.h>
 #include "global_borrow_map_message.h"
 #include "migrate_state_storage.h"
-#include "vm_task_counter.h"
-#include "vm_vector_util.h"
 #include "resource_query.h"
 #include "vm_configuration.h"
+#include "vm_task_counter.h"
+#include "vm_vector_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 using namespace ubse::storage;
 
@@ -47,8 +47,8 @@ VmResult ResourceCollect::Init()
     return VM_OK;
 }
 
-VmResult ResourceCollect::VmResourceCollectInfoHandle(vector<HostVmDomainInfo> &vmDomainInfoCollectList,
-                                                      vector<HostNumaCpuInfo> &numaInfoCollectList)
+VmResult ResourceCollect::VmResourceCollectInfoHandle(vector<HostVmDomainInfo>& vmDomainInfoCollectList,
+                                                      vector<HostNumaCpuInfo>& numaInfoCollectList)
 {
     if (vmDomainInfoCollectList.empty() && numaInfoCollectList.empty()) {
         UBSE_LOG_ERROR << "vm domain info is empty.";
@@ -83,16 +83,15 @@ void ResourceCollect::KeepVMBasicInfo()
     }
     ClearVMInfoToKeep();
     std::lock_guard<std::mutex> keepInfoGuard(mKeepInfoLock);
-    for (auto &numaInfoIter : globalNumaVMInfoMap) {
-        for (auto &VMInfoIter : numaInfoIter.second) {
+    for (auto& numaInfoIter : globalNumaVMInfoMap) {
+        for (auto& VMInfoIter : numaInfoIter.second) {
             const VMBasicInfoToKeep infoToKeep = {
                 .vmMigrateInTime = VMInfoIter.second.vmMigrateInTime,
                 .vmMigrateCount = VMInfoIter.second.vmMigrateCount,
                 .vmMigrateStatus = VMInfoIter.second.vmMigrateStatus,
             };
             UBSE_LOG_DEBUG << "KeepVMBasicInfo vmMigrateStatus = " << VMInfoIter.second.vmMigrateStatus
-                           << ", uuid = " << VMInfoIter.second.uuid
-                           << ", size = " << numaInfoIter.second.size()
+                           << ", uuid = " << VMInfoIter.second.uuid << ", size = " << numaInfoIter.second.size()
                            << ", vmMigrateInTime = " << VMInfoIter.second.vmMigrateInTime
                            << ", vmMigrateCount = " << VMInfoIter.second.vmMigrateCount;
             VMInfoToKeep.emplace(VMInfoIter.second.uuid, infoToKeep);
@@ -106,7 +105,7 @@ void ResourceCollect::KeepNumaInfo()
     ClearNumaToKeep();
     std::lock_guard<std::mutex> numaInfoGuard(mGlobalNumaLock);
     std::lock_guard<std::mutex> keepInfoGuard(mKeepInfoLock);
-    for (auto &numaInfoIter : globalNumaInfoMap) {
+    for (auto& numaInfoIter : globalNumaInfoMap) {
         const NumaInfoToKeep infoToKeep = {
             .numaMigrateStatus = numaInfoIter.second.numaMigrateStatus,
             .numaMigrateLastTime = numaInfoIter.second.numaMigrateLastTime,
@@ -117,13 +116,13 @@ void ResourceCollect::KeepNumaInfo()
     }
 }
 
-void ResourceCollect::AddVmDomainInfoCollectToVmMap(const HostVmDomainInfo &vmDomainInfoCollect)
+void ResourceCollect::AddVmDomainInfoCollectToVmMap(const HostVmDomainInfo& vmDomainInfoCollect)
 {
     UBSE_LOG_INFO << "Transfer sample vm info to vmBasic info in vm.manager.";
-    for (const auto &vmDomainInfo : vmDomainInfoCollect.vmDomainInfos) {
+    for (const auto& vmDomainInfo : vmDomainInfoCollect.vmDomainInfos) {
         VMBasicInfo tempVMBasicInfo{};
         VMDomainInfoToVmBasicInfo(tempVMBasicInfo, vmDomainInfo);
-        for (const auto &[numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+        for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
             VMNodeLocInfo tempNodeLoc{};
             tempNodeLoc.hostId = vmDomainInfo.nodeId;
             tempNodeLoc.hostName = vmDomainInfo.hostName;
@@ -134,15 +133,15 @@ void ResourceCollect::AddVmDomainInfoCollectToVmMap(const HostVmDomainInfo &vmDo
     }
 }
 
-void ResourceCollect::AddToGlobalVmMap(const VmDomainInfo &ele, VMNodeLocInfo &tempNodeLoc,
-                                       VMBasicInfo &tempVmBasicInfo)
+void ResourceCollect::AddToGlobalVmMap(const VmDomainInfo& ele, VMNodeLocInfo& tempNodeLoc,
+                                       VMBasicInfo& tempVmBasicInfo)
 {
     std::lock_guard<std::mutex> lockGuard(mVMInfoLock);
     auto VMNumaInfoIter = globalNumaVMInfoMap.find(tempNodeLoc);
     if (VMNumaInfoIter != globalNumaVMInfoMap.end()) {
         auto VMInfoIter = VMNumaInfoIter->second.find(ele.uuid);
         if (VMInfoIter != VMNumaInfoIter->second.end()) {
-            auto &vmBasicInfo = VMInfoIter->second;
+            auto& vmBasicInfo = VMInfoIter->second;
             VMDomainInfoToVmBasicInfo(vmBasicInfo, ele);
         } else {
             VMNumaInfoIter->second.emplace(ele.uuid, tempVmBasicInfo);
@@ -154,7 +153,7 @@ void ResourceCollect::AddToGlobalVmMap(const VmDomainInfo &ele, VMNodeLocInfo &t
     }
 }
 
-void ResourceCollect::VMDomainInfoToVmBasicInfo(VMBasicInfo &vmBasicInfoIn, const VmDomainInfo &vmDomainInfo)
+void ResourceCollect::VMDomainInfoToVmBasicInfo(VMBasicInfo& vmBasicInfoIn, const VmDomainInfo& vmDomainInfo)
 {
     vmBasicInfoIn.uuid = vmDomainInfo.uuid;
     vmBasicInfoIn.pid = vmDomainInfo.pid;
@@ -162,8 +161,8 @@ void ResourceCollect::VMDomainInfoToVmBasicInfo(VMBasicInfo &vmBasicInfoIn, cons
     vmBasicInfoIn.numaMemInfo = vmDomainInfo.numaMemInfo;
     vmBasicInfoIn.nodeId = vmDomainInfo.nodeId;
     vmBasicInfoIn.hostName = vmDomainInfo.hostName;
-    if (vmDomainInfo.maxMem > (std::numeric_limits<uint64_t>::max() / NO_1024)
-        || vmDomainInfo.remoteUsedMem > (std::numeric_limits<uint64_t>::max() / NO_1024)) {
+    if (vmDomainInfo.maxMem > (std::numeric_limits<uint64_t>::max() / NO_1024) ||
+        vmDomainInfo.remoteUsedMem > (std::numeric_limits<uint64_t>::max() / NO_1024)) {
         vmBasicInfoIn.maxMem = std::numeric_limits<uint64_t>::max();
         vmBasicInfoIn.remoteUsedMem = std::numeric_limits<uint64_t>::max();
     } else {
@@ -183,7 +182,7 @@ void ResourceCollect::VMDomainInfoToVmBasicInfo(VMBasicInfo &vmBasicInfoIn, cons
     }
 }
 
-std::unordered_map<std::string, VMBasicInfo> ResourceCollect::GetVMInfo(VMNodeLocInfo &nodeLocInfo)
+std::unordered_map<std::string, VMBasicInfo> ResourceCollect::GetVMInfo(VMNodeLocInfo& nodeLocInfo)
 {
     std::unordered_map<std::string, VMBasicInfo> emptyMap;
     std::lock_guard<std::mutex> lockGuard(mVMInfoLock);
@@ -196,10 +195,10 @@ std::unordered_map<std::string, VMBasicInfo> ResourceCollect::GetVMInfo(VMNodeLo
     return emptyMap;
 }
 
-void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
+void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo& numaInfoIn)
 {
     UBSE_LOG_INFO << "Set numa info in vm.manager.";
-    for (auto &ele : numaInfoIn.numaCpuInfos) {
+    for (auto& ele : numaInfoIn.numaCpuInfos) {
         UBSE_LOG_INFO << "Set numa info for numa nodeId = " << numaInfoIn.nodeId << ", socketId = " << ele.socketId
                       << ", numaId = " << ele.numaId << ", hostName = " << ele.hostName
                       << ", numaStatus = " << ele.status;
@@ -213,8 +212,8 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
         uint64_t hugePageTotal = std::min(ele.nrHugePage, std::numeric_limits<uint64_t>::max() >> BYTE2MB / NO_2);
         uint64_t hugePageUsed = 0;
         if (ele.nrHugePage >= ele.freeHugePage) {
-            hugePageUsed = std::min((ele.nrHugePage - ele.freeHugePage),
-                                    (std::numeric_limits<uint64_t>::max() >> BYTE2MB) / NO_2);
+            hugePageUsed =
+                std::min((ele.nrHugePage - ele.freeHugePage), (std::numeric_limits<uint64_t>::max() >> BYTE2MB) / NO_2);
         }
 
         std::lock_guard<std::mutex> lockGuard(mGlobalNumaLock);
@@ -227,7 +226,7 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
             it->second.numaCpuUsedCounts = ele.numaVmCpuAllocated;
             it->second.numaVMMemAllocated = numaVmMemAllocated * NO_1024;
             it->second.numaMemTotal = (hugePageTotal << BYTE2MB) * 2; // 2 2M hugepage
-            it->second.numaMemUsed = (hugePageUsed << BYTE2MB) * 2; // 2 2M hugepage
+            it->second.numaMemUsed = (hugePageUsed << BYTE2MB) * 2;   // 2 2M hugepage
             it->second.idleCpuIds = ele.freeCPUIds;
             it->second.cpuIds = ele.cpuIds;
             it->second.numaStatus = MapStringToNumaStatus(ele.status);
@@ -240,7 +239,7 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
             temp.numaCpuUsedCounts = ele.numaVmCpuAllocated;
             temp.numaVMMemAllocated = numaVmMemAllocated * NO_1024;
             temp.numaMemTotal = (hugePageTotal << BYTE2MB) * 2; // 2 2M hugepage
-            temp.numaMemUsed = (hugePageUsed << BYTE2MB) * 2; // 2 2M hugepage
+            temp.numaMemUsed = (hugePageUsed << BYTE2MB) * 2;   // 2 2M hugepage
             temp.idleCpuIds = ele.freeCPUIds;
             temp.cpuIds = ele.cpuIds;
             temp.numaStatus = MapStringToNumaStatus(ele.status);
@@ -250,7 +249,7 @@ void ResourceCollect::AddNumaInfo(const HostNumaCpuInfo &numaInfoIn)
     }
 }
 
-void ResourceCollect::InheritNumaInfo(GlobalNumaInfo &numaInfo, VMNodeLocInfo &tempNodeLoc)
+void ResourceCollect::InheritNumaInfo(GlobalNumaInfo& numaInfo, VMNodeLocInfo& tempNodeLoc)
 {
     auto keptIter = NumaToKeep.find(tempNodeLoc);
     if (keptIter != NumaToKeep.end()) {
@@ -259,7 +258,7 @@ void ResourceCollect::InheritNumaInfo(GlobalNumaInfo &numaInfo, VMNodeLocInfo &t
     }
 }
 
-std::vector<pid_t> ResourceCollect::GetPidsOnNuma(const VMNodeLocInfo &nodeLocInfo, const std::string &flag)
+std::vector<pid_t> ResourceCollect::GetPidsOnNuma(const VMNodeLocInfo& nodeLocInfo, const std::string& flag)
 {
     std::vector<pid_t> pids{};
     std::lock_guard lockGuard(mVMInfoLock);
@@ -268,7 +267,7 @@ std::vector<pid_t> ResourceCollect::GetPidsOnNuma(const VMNodeLocInfo &nodeLocIn
         return pids;
     }
     auto vmInfoOnNode = globalNumaVMInfoMap[nodeLocInfo];
-    for (auto &[fst, snd] : vmInfoOnNode) {
+    for (auto& [fst, snd] : vmInfoOnNode) {
         UBSE_LOG_DEBUG << "VmInfoOnNode uuid = " << snd.uuid << ", pid = " << snd.pid << ", maxMem = " << snd.maxMem
                        << "byte, status = " << snd.vmMigrateStatus;
         if (flag == "withOutMigrating" && snd.vmMigrateStatus != MIGRATING) {
@@ -285,7 +284,7 @@ std::vector<pid_t> ResourceCollect::GetPidsOnNuma(const VMNodeLocInfo &nodeLocIn
 void ResourceCollect::PrintSetInfo()
 {
     std::lock_guard<std::mutex> numaInfoGuard(mGlobalNumaLock);
-    for (auto &ele : globalNumaInfoMap) {
+    for (auto& ele : globalNumaInfoMap) {
         UBSE_LOG_DEBUG << "NodeNumaInfo info for numa node in manager, hostId = " << ele.first.hostId
                        << ", socketId = " << ele.first.socketId << ", numaId = " << ele.first.numaId
                        << ", hostName = " << ele.first.hostName;
@@ -300,10 +299,10 @@ void ResourceCollect::PrintSetInfo()
                        << ", numaMigrateLastTime = " << ele.second.numaMigrateLastTime;
     }
     std::lock_guard<std::mutex> vmInfoGuard(mVMInfoLock);
-    for (auto &numaInfoIter : globalNumaVMInfoMap) {
+    for (auto& numaInfoIter : globalNumaVMInfoMap) {
         UBSE_LOG_DEBUG << "NodeNumaInfo info for numa node in manager, hostId = " << numaInfoIter.first.hostId
                        << ", socketId = " << numaInfoIter.first.socketId << ", numaId = " << numaInfoIter.first.numaId;
-        for (auto &VMInfoIter : numaInfoIter.second) {
+        for (auto& VMInfoIter : numaInfoIter.second) {
             UBSE_LOG_DEBUG << "Get the vm infos from class vm_resource_collect, name = " << VMInfoIter.second.name
                            << ", uuid = " << VMInfoIter.second.uuid
                            << ", vmCreateTime = " << VMInfoIter.second.vmCreateTime
@@ -316,8 +315,8 @@ void ResourceCollect::PrintSetInfo()
     }
 }
 
-VmResult ResourceCollect::UpdateVMStatus(const NumaMemInfoMap &numaMemInfoMap, const std::string &uuid,
-                                         const pid_t &pid, const VmMigrateStatus &vmMigrateStatus)
+VmResult ResourceCollect::UpdateVMStatus(const NumaMemInfoMap& numaMemInfoMap, const std::string& uuid,
+                                         const pid_t& pid, const VmMigrateStatus& vmMigrateStatus)
 {
     VmTaskCounter::StartTask("UpdateVMStatus");
     std::lock_guard<std::mutex> lockGuard(mVMInfoLock);
@@ -370,13 +369,13 @@ void ResourceCollect::ClearNumaToKeep()
     NumaToKeep.clear();
 }
 
-void ResourceCollect::UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus> &borrowIdStatuses)
+void ResourceCollect::UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus>& borrowIdStatuses)
 {
     GlobalBorrowMapMessage globalBorrowMapMessage{};
     {
         WriteLocker lock(&globalBorrowLock);
         UBSE_LOG_DEBUG << "[UpdateGlobalBorrowMap] start.";
-        for (const auto &borrowIdStatus : borrowIdStatuses) {
+        for (const auto& borrowIdStatus : borrowIdStatuses) {
             globalBorrowMap_[borrowIdStatus.borrowId] = borrowIdStatus;
         }
         globalBorrowMapMessage.SetGlobalBorrowMap(globalBorrowMap_, globalBorrowMapIndex_);
@@ -396,14 +395,14 @@ void ResourceCollect::UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus> &b
     UBSE_LOG_DEBUG << "[UpdateGlobalBorrowMap] end.";
 }
 
-void ResourceCollect::DeleteGlobalBorrowMap(const std::vector<std::string> &borrowIds)
+void ResourceCollect::DeleteGlobalBorrowMap(const std::vector<std::string>& borrowIds)
 {
     VmResult ret{};
     GlobalBorrowMapMessage globalBorrowMapMessage{};
     {
         WriteLocker lock(&globalBorrowLock);
         UBSE_LOG_DEBUG << "[DeleteGlobalBorrowMap] start.";
-        for (const auto &borrowId : borrowIds) {
+        for (const auto& borrowId : borrowIds) {
             globalBorrowMap_.erase(borrowId);
         }
         globalBorrowMapMessage.SetGlobalBorrowMap(globalBorrowMap_, globalBorrowMapIndex_);
@@ -422,7 +421,7 @@ void ResourceCollect::DeleteGlobalBorrowMap(const std::vector<std::string> &borr
     UBSE_LOG_DEBUG << "[DeleteGlobalBorrowMap] end.";
 }
 
-VmResult ResourceCollect::SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos)
+VmResult ResourceCollect::SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
 {
     GlobalBorrowMapMessage globalBorrowMapMessage{};
     {
@@ -430,7 +429,7 @@ VmResult ResourceCollect::SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryIm
         UBSE_LOG_DEBUG << "[SyncGlobalBorrowMap] start.";
         GlobalBorrowMap tmpGlobalBorrowMap = globalBorrowMap_;
         globalBorrowMap_.clear();
-        for (const auto &debtInfo : debtInfos) {
+        for (const auto& debtInfo : debtInfos) {
             uint16_t tempNumaId;
             // Copy first 2 bytes from usrInfo to tempNumaId (business logic alignment with rmrs)
             if (memcpy_s(&tempNumaId, sizeof(tempNumaId), debtInfo.usrInfo, sizeof(tempNumaId)) != EOK) {
@@ -454,7 +453,7 @@ VmResult ResourceCollect::SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryIm
                 borrowIdStatus.memMigrateStatus = tmpGlobalBorrowMap[borrowIdStatus.borrowId].memMigrateStatus;
             } else if (borrowIdStatus.borrowId.length() >= MEM_REPLACE_FLAG.length() &&
                        borrowIdStatus.borrowId.substr(borrowIdStatus.borrowId.length() - MEM_REPLACE_FLAG.length()) ==
-                       MEM_REPLACE_FLAG) {
+                           MEM_REPLACE_FLAG) {
                 // The fault handling logic of rmrs is not perceived by Virt.
                 // Therefore, the borrowId (including the suffix '-req') of the memory to be replaced needs to be
                 // separately marked as MIGRATE_SUCCESS in the Virt ledger.
@@ -487,10 +486,10 @@ VmResult ResourceCollect::InitGlobalBorrowMap()
     return ret;
 }
 
-void ResourceCollect::QueryHandler(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                   void *ctx)
+void ResourceCollect::QueryHandler(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                   void* ctx)
 {
-    const auto globalBorrowMapMessage = static_cast<GlobalBorrowMapMessage *>(ctx);
+    const auto globalBorrowMapMessage = static_cast<GlobalBorrowMapMessage*>(ctx);
     if (globalBorrowMapMessage == nullptr) {
         UBSE_LOG_ERROR << "ctx is nullptr.";
         return;
@@ -521,8 +520,8 @@ VmResult ResourceCollect::LoadVmMigrateData()
     return ret;
 }
 
-VmResult ResourceCollect::UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo &hostVmDomainInfo,
-                                                                        HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult ResourceCollect::UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo& hostVmDomainInfo,
+                                                                        HostNumaCpuInfo& hostNumaCpuInfo)
 {
     vector<HostVmDomainInfo> hostVmDomainInfoList{};
     vector<HostNumaCpuInfo> hostNumaCpuInfoList{};

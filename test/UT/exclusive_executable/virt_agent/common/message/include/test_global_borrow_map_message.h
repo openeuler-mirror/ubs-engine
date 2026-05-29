@@ -16,5 +16,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // UBSE_MANAGER_TEST_GLOBAL_BORROW_MAP_MESSAGE_H

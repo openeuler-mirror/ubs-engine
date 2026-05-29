@@ -18,21 +18,22 @@
 #include "ubse_serial_util.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
-using namespace ubse::serial;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
+using ubse::serial::UbseDeSerialization;
 
 struct CliPhysicalLink {
-    std::string node;              // hostname+节点id
-    std::string socketId;          // socket id
-    std::string portId;            // 端口id
-    std::string interfaceName;     // 端口name
+    std::string node;          // hostname+节点id
+    std::string socketId;      // socket id
+    std::string portId;        // 端口id
+    std::string interfaceName; // 端口name
 
     std::string peerNode;          // 对端节点id
     std::string peerSocketId;      // 对端socket id
     std::string peerPortId;        // 对端端口id
     std::string peerInterfaceName; // 对端端口name
 
-    std::string linkId;            // link id
+    std::string linkId; // link id
 };
 
 class UbseCliRegNodeModule : public UbseCliRegModule {
@@ -42,37 +43,34 @@ public:
 private:
     static UbseCliCommandInfo UbseCliQueryClusterInfo();
     static UbseCliCommandInfo UbseCliQueryCpuTopology();
-    static UbseCliCommandInfo UbseCliQueryNodeInfo();  // 新增
+    static UbseCliCommandInfo UbseCliQueryNodeInfo(); // 新增
 
     // 表格处理函数
-    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessClusterDataTable(
-        UbseDeSerialization &ubse_de_serial, size_t size);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessClusterDataTable(UbseDeSerialization& ubse_de_serial,
+                                                                             size_t size);
 
-    static std::shared_ptr<UbseCliResultEcho> BuildCpuTopoTable(
-        const std::vector<CliPhysicalLink> &links);
+    static std::shared_ptr<UbseCliResultEcho> BuildCpuTopoTable(const std::vector<CliPhysicalLink>& links);
 
-    static std::shared_ptr<UbseCliResultEcho> BuildNodeInfoTable(
-        const std::string &node, const std::string &role, const std::string &bondingEid, const std::string &guid);
+    static std::shared_ptr<UbseCliResultEcho> BuildNodeInfoTable(const std::string& node, const std::string& role,
+                                                                 const std::string& bondingEid,
+                                                                 const std::string& guid);
 
     // 命令处理函数
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryClusterInfoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string> &params);
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
     static std::shared_ptr<UbseCliResultEcho> UbseCliSDKQueryCpuTopoFunc(
-        [[maybe_unused]] const std::map<std::string, std::string> &params);
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 
     static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNodeInfoFunc(
-        const std::map<std::string, std::string> &params);
+        const std::map<std::string, std::string>& params);
 
     // 辅助函数
-    static bool ValidateNodeId(
-        const std::string &nodeId, uint32_t &parsedId);
+    static bool ValidateNodeId(const std::string& nodeId, uint32_t& parsedId);
 
-    static std::shared_ptr<UbseCliResultEcho> QueryNodeInfo(
-        const std::string& nodeId);
+    static std::shared_ptr<UbseCliResultEcho> QueryNodeInfo(const std::string& nodeId);
 
-    static std::shared_ptr<UbseCliResultEcho> ProcessNodeInfoResponse(
-        UbseDeSerialization &ubse_de_serial);
+    static std::shared_ptr<UbseCliResultEcho> ProcessNodeInfoResponse(UbseDeSerialization& ubse_de_serial);
 };
-}
+} // namespace ubse::cli::reg
 #endif // UBSE_CLI_NODE_CMD_REG_H

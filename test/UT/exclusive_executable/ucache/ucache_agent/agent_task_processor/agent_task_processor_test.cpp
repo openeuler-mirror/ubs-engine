@@ -23,9 +23,9 @@
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
-void *dlopen(const char *d_file, int d_mode);
-int dlclose(void *d_handle);
-void *dlsym(void *__restrict d_handle, const char *__restrict d_name);
+void* dlopen(const char* d_file, int d_mode);
+int dlclose(void* d_handle);
+void* dlsym(void* __restrict d_handle, const char* __restrict d_name);
 
 using namespace ubse::com;
 using namespace turbo::ucache;
@@ -47,8 +47,8 @@ protected:
 };
 
 namespace ucache::agent {
-uint32_t FillErrorResp(const std::string &requestType, const UbseByteBuffer &req, UbseByteBuffer &resp);
-void FreeMemory(uint8_t *data);
+uint32_t FillErrorResp(const std::string& requestType, const UbseByteBuffer& req, UbseByteBuffer& resp);
+void FreeMemory(uint8_t* data);
 } // namespace ucache::agent
 
 TEST_F(AgentTaskProcessorTest, InitAgentTaskProcessor_TESTOK)
@@ -105,13 +105,13 @@ TEST_F(AgentTaskProcessorTest, ProcessTask_TEST_Invalid_TaskType)
     delete[] req.data;
 }
 
-uint32_t MockUCacheExecuteTaskReturnOK(const TaskRequest &tReq, TaskResponse &tResp)
+uint32_t MockUCacheExecuteTaskReturnOK(const TaskRequest& tReq, TaskResponse& tResp)
 {
     tResp.resCode = UCACHE_OK;
     return UCACHE_OK;
 }
 
-uint32_t MockUCacheExecuteTaskReturnERR(const TaskRequest &tReq, TaskResponse &tResp)
+uint32_t MockUCacheExecuteTaskReturnERR(const TaskRequest& tReq, TaskResponse& tResp)
 {
     return TURBO_EXECUTE_ERROR;
 }

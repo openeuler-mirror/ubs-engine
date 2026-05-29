@@ -16,9 +16,9 @@
 
 #include <ubse_api_server_def.h>
 
-#include "vm_error.h"
 #include "case_conf.h"
 #include "case_conf_msg.h"
+#include "vm_error.h"
 
 namespace vm {
 using namespace api::server;
@@ -28,16 +28,16 @@ public:
     static VmResult Register();
 
 private:
-    static uint32_t GetCaseConfHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t SetCaseConfHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t GetCaseConfHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t SetCaseConfHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
 
-    static uint32_t GetCaseConf(CaseConfInfo &caseConfInfo);
-    static uint32_t SetCaseConf(const std::string &reqBodyStr, CaseConfParam &caseParam,
-                                CaseConfResultParam &caseResult);
-    static uint32_t PackGetCaseConfRsp(CaseConfInfo &caseConf, UbseIpcMessage &buffer);
-    static uint32_t PackSetCaseConfRsp(const CaseConfSetInfo &caseConfSetInfo, UbseIpcMessage &buffer);
-    static uint32_t SetCaseConfCheckReq(const std::string &reqBodyStr, CaseConfParam &caseParam,
-                                        CaseConfResultParam &caseResult);
+    static uint32_t GetCaseConf(CaseConfInfo& caseConfInfo);
+    static uint32_t SetCaseConf(const std::string& reqBodyStr, CaseConfParam& caseParam,
+                                CaseConfResultParam& caseResult);
+    static uint32_t PackGetCaseConfRsp(CaseConfInfo& caseConf, UbseIpcMessage& buffer);
+    static uint32_t PackSetCaseConfRsp(const CaseConfSetInfo& caseConfSetInfo, UbseIpcMessage& buffer);
+    static uint32_t SetCaseConfCheckReq(const std::string& reqBodyStr, CaseConfParam& caseParam,
+                                        CaseConfResultParam& caseResult);
 };
 } // namespace vm
 

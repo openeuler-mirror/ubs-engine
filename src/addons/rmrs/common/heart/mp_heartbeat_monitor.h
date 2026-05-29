@@ -13,19 +13,19 @@
 #ifndef MP_HEART_H
 #define MP_HEART_H
 
-#include <vector>
-#include <string>
-#include <mutex>
-#include <thread>
 #include <atomic>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include "ubse_com.h"
 #include "ubse_logger.h"
+#include "mempooling_message.h"
+#include "mp_configuration.h"
 #include "mp_error.h"
 #include "mp_module.h"
-#include "mp_configuration.h"
 #include "mp_sync_data_helper.h"
-#include "mempooling_message.h"
 
 namespace mempooling::heart {
 
@@ -35,15 +35,16 @@ using namespace mempooling::message;
 
 class MpHeartBeatMonitor {
 public:
-    static MpHeartBeatMonitor &Instance();
+    static MpHeartBeatMonitor& Instance();
     MpResult Init();
-    MpResult AddFaultNode(const std::string &nodeId);
-    MpResult DelFaultNode(const std::string &nodeId);
+    MpResult AddFaultNode(const std::string& nodeId);
+    MpResult DelFaultNode(const std::string& nodeId);
     void CurrentNodeFault();
     void CurrentNodeRecover();
     std::vector<std::string> GetFaultNodeVec();
-    bool FromJson(const std::string &jsonStr);
+    bool FromJson(const std::string& jsonStr);
     std::string ToJson();
+
 private:
     void ListenLoop();
     void GetHeartBeat();
@@ -53,16 +54,16 @@ private:
     int retry = 3;
     std::atomic<bool> running;
     bool fault = false;
-    std::thread *pThread = nullptr;
+    std::thread* pThread = nullptr;
 };
 
-uint32_t FaultNodeNotify(UbseByteBuffer &buffer);
-uint32_t FaultNodeGetData(UbseByteBuffer &buffer);
+uint32_t FaultNodeNotify(UbseByteBuffer& buffer);
+uint32_t FaultNodeGetData(UbseByteBuffer& buffer);
 
-uint32_t AddFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void AddFaultNodeResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-uint32_t DelFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void DelFaultNodeResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+uint32_t AddFaultNodeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void AddFaultNodeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+uint32_t DelFaultNodeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void DelFaultNodeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 class MpHeartBeatSubModule : public MpSubModule {
 public:
@@ -91,7 +92,7 @@ public:
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {
@@ -99,6 +100,6 @@ public:
     }
 };
 
-}
+} // namespace mempooling::heart
 
 #endif

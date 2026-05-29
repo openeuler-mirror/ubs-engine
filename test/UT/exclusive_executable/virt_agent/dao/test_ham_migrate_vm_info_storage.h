@@ -6,7 +6,6 @@
 
 #include "gtest/gtest.h"
 
-using namespace vm;
 namespace ubse::ut::vm {
 class TestHamMigrateVmInfoStorage : public testing::Test {
 public:
@@ -16,6 +15,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_HAM_MIGRATE_VM_INFO_STORAGE_H

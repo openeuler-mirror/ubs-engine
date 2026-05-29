@@ -21,13 +21,13 @@
 #include "ubse_common_def.h"
 
 namespace ubse::timer {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 using UbseTimerHandler = std::function<UbseResult()>;
 
-uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval);
+uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler handler, uint32_t interval);
 
-void UbseTimerHandlerUnregister(const std::string &name);
+void UbseTimerHandlerUnregister(const std::string& name);
 
 class UbseTimerController {
 public:

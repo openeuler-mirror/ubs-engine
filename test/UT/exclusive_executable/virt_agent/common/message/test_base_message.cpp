@@ -55,4 +55,4 @@ TEST_F(TestBaseMessage, SetInputRawDataTest)
     EXPECT_EQ(baseMessage.SetInputRawData(data, len, true), VM_OK);
     EXPECT_EQ(baseMessage.SetInputRawData(data, len, false), VM_OK);
 }
-}
+} // namespace ubse::ut::vm

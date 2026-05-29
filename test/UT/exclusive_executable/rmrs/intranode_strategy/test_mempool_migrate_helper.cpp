@@ -15,11 +15,11 @@
 #include <iostream>
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
- 
+
 #include "mempool_migrate_helper.cpp"
- 
+
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
- 
+
 namespace mempooling {
 using namespace ubse::com;
 using namespace std;
@@ -64,25 +64,22 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid1)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(1));
     std::vector<std::string> borrowIdList;
     // auto res = GetRollBackBorrowIdPid("1", entry, borrowIdList);
     // ASSERT_EQ(res, 1);
 }
- 
+
 TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid2)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> & value))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> borrowIdList;
@@ -91,8 +88,8 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid2)
     // ASSERT_EQ(res, 0);
 }
 
-MpResult TestGetName2VmInfo(Name2VmInfo* module, const std::string &nodeId,
-    std::map<std::string, std::set<BorrowIdInfo>> &borrowIdsPidsMap)
+MpResult TestGetName2VmInfo(Name2VmInfo* module, const std::string& nodeId,
+                            std::map<std::string, std::set<BorrowIdInfo>>& borrowIdsPidsMap)
 {
     std::map<std::string, std::set<BorrowIdInfo>> tmp;
     std::set<BorrowIdInfo> pidSet;
@@ -106,14 +103,12 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid3)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-            MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-            std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> borrowIdList;
@@ -126,14 +121,12 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid4)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> borrowIdList;
@@ -147,14 +140,12 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotValidBorrow
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> borrowIdList;
@@ -168,18 +159,15 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotSameBatch)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ValidBorrowIdPidMap,
-               MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap))
+    MOCKER_CPP(&ValidBorrowIdPidMap, MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap))
         .stubs()
         .will(returnValue(1));
     std::vector<std::string> borrowIdList;
@@ -192,18 +180,15 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidSuccess)
 {
     GTEST_SKIP();
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&ValidBorrowIdPidMap,
-               MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap))
+    MOCKER_CPP(&ValidBorrowIdPidMap, MpResult(*)(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap))
         .stubs()
         .will(returnValue(0));
     std::vector<std::string> borrowIdList;
@@ -215,9 +200,8 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidSuccess)
 TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed1)
 {
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(1));
     std::string nodeId("1");
@@ -228,14 +212,12 @@ TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed1)
 TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed2)
 {
     RollBackBorrowIdPid entry;
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(1));
     std::string nodeId("1");
@@ -247,14 +229,12 @@ TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdSucceed)
 {
     RollBackBorrowIdPid entry;
     entry.borrowIdList = {"0", "1"};
-    MOCKER_CPP(&mempooling::Name2VmInfo::Query,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Query, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                            std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(invoke(TestGetName2VmInfo));
-    MOCKER_CPP(&mempooling::Name2VmInfo::Update,
-               MpResult(*)(Name2VmInfo* module, const std::string &nodeId,
-               std::map<std::string, std::set<BorrowIdInfo>> & value))
+    MOCKER_CPP(&mempooling::Name2VmInfo::Update, MpResult(*)(Name2VmInfo * module, const std::string& nodeId,
+                                                             std::map<std::string, std::set<BorrowIdInfo>>& value))
         .stubs()
         .will(returnValue(0));
     std::string nodeId("1");
@@ -267,10 +247,12 @@ TEST_F(TestMemPoolMigrateHelper, RpcMemBorrowRollback1)
     GTEST_SKIP();
     std::string nodeId;
     std::vector<std::string> borrowIdsList;
-    MOCKER_CPP(&GetRollBackBorrowIdPid, MpResult(*)(const std::string &, RollBackBorrowIdPid & entry,
-        std::vector<std::string> borrowIdList)).stubs().will(returnValue(0));
-    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                         const UbseComRespHandler &handler))
+    MOCKER_CPP(&GetRollBackBorrowIdPid,
+               MpResult(*)(const std::string&, RollBackBorrowIdPid& entry, std::vector<std::string> borrowIdList))
+        .stubs()
+        .will(returnValue(0));
+    MOCKER_CPP(UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                        const UbseComRespHandler& handler))
         .stubs()
         .will(returnValue(1));
     auto res = RpcMemBorrowRollback(nodeId, borrowIdsList);
@@ -280,7 +262,7 @@ TEST_F(TestMemPoolMigrateHelper, RpcMemBorrowRollback1)
 TEST_F(TestMemPoolMigrateHelper, InitSuccess)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     mempooling::MpMigrateSubModule subModule;
@@ -291,7 +273,7 @@ TEST_F(TestMemPoolMigrateHelper, InitSuccess)
 TEST_F(TestMemPoolMigrateHelper, InitFailed0)
 {
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
-               uint32_t(*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+               uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::MpMigrateSubModule subModule;
@@ -299,7 +281,7 @@ TEST_F(TestMemPoolMigrateHelper, InitFailed0)
     ASSERT_EQ(res, 1);
 }
 
-MpResult GetVmInfosCompletedMapMock(VmInfosCompleted *This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap)
+MpResult GetVmInfosCompletedMapMock(VmInfosCompleted* This, std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
 {
     std::string value = "Node0-5";
     pid_t pid = 1234;
@@ -308,8 +290,8 @@ MpResult GetVmInfosCompletedMapMock(VmInfosCompleted *This, std::unordered_map<p
     return 0;
 }
 
-MpResult GetVmInfosCompletedMapMockEmpty(VmInfosCompleted *This,
-    std::unordered_map<pid_t, std::string> &vmInfosCompletedMap)
+MpResult GetVmInfosCompletedMapMockEmpty(VmInfosCompleted* This,
+                                         std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
 {
     std::string value = "";
     pid_t pid = 1234;
@@ -318,8 +300,8 @@ MpResult GetVmInfosCompletedMapMockEmpty(VmInfosCompleted *This,
     return 0;
 }
 
-MpResult GetVmInfosCompletedMapMockGetLineFailed1(VmInfosCompleted *This,
-                                                  std::unordered_map<pid_t, std::string> &vmInfosCompletedMap)
+MpResult GetVmInfosCompletedMapMockGetLineFailed1(VmInfosCompleted* This,
+                                                  std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
 {
     std::string value = "Node0";
     pid_t pid = 1234;
@@ -328,8 +310,8 @@ MpResult GetVmInfosCompletedMapMockGetLineFailed1(VmInfosCompleted *This,
     return 0;
 }
 
-MpResult GetVmInfosCompletedMapMockGetLineFailed2(VmInfosCompleted *This,
-                                                  std::unordered_map<pid_t, std::string> &vmInfosCompletedMap)
+MpResult GetVmInfosCompletedMapMockGetLineFailed2(VmInfosCompleted* This,
+                                                  std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
 {
     std::string value = "Node0-";
     pid_t pid = 1234;
@@ -341,7 +323,7 @@ MpResult GetVmInfosCompletedMapMockGetLineFailed2(VmInfosCompleted *This,
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_get_info_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -352,7 +334,7 @@ TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_get_i
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_get_empty_info_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(GetVmInfosCompletedMapMockEmpty));
 
@@ -363,7 +345,7 @@ TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_get_e
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_getline1_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(GetVmInfosCompletedMapMockGetLineFailed1));
 
@@ -374,7 +356,7 @@ TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_getli
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_getline2_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(GetVmInfosCompletedMapMockGetLineFailed2));
 
@@ -385,7 +367,7 @@ TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_getli
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_migrate_execute_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted *obj, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * obj, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(GetVmInfosCompletedMapMock));
 
@@ -401,7 +383,7 @@ TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_migra
 TEST_F(TestMemPoolMigrateHelper, RollBackMigratedVmsInStandbyToMasterEvent_remove_info_failed)
 {
     MOCKER_CPP(&VmInfosCompleted::Query,
-               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> &vmInfosCompletedMap))
+               MpResult(*)(VmInfosCompleted * This, std::unordered_map<pid_t, std::string> & vmInfosCompletedMap))
         .stubs()
         .will(invoke(GetVmInfosCompletedMapMock));
     MOCKER_CPP(&MigrateExecuteInStandbyToMasterEvent,

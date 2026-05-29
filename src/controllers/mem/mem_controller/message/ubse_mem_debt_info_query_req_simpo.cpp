@@ -11,9 +11,9 @@
  */
 
 #include "ubse_mem_debt_info_query_req_simpo.h"
-#include "src/framework/serde/ubse_serial_util.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "src/framework/serde/ubse_serial_util.h"
 
 namespace ubse::mem::controller::message {
 UBSE_DEFINE_THIS_MODULE("ubse");

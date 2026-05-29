@@ -12,15 +12,17 @@
 
 #include "test_ubse_lcne_node_info.h"
 #include <mockcpp/mockcpp.hpp>
-#include "ubse_http_module.h"
-#include "lcne/ubse_lcne_node_info.h"
-#include "ubse_xml.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_http_module.h"
+#include "ubse_xml.h"
+#include "lcne/ubse_lcne_node_info.h"
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
 using namespace ubse::context;
+using namespace ubse::http;
+using namespace ubse::mti;
 
 void TestUbseLcneNodeInfo ::SetUp()
 {
@@ -163,4 +165,4 @@ TEST_F(TestUbseLcneNodeInfo, QueryAllLcneIODieInfo_ParseFailed)
     UbseResult ret = UbseLcneNodeInfo::GetGetInstance().QueryAllLcneIODieInfo(ubseLcneIODieInfoMap);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
-}  // namespace ubse::ut::lcne
+} // namespace ubse::ut::lcne

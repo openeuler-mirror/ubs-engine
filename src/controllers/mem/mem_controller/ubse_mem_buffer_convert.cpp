@@ -12,10 +12,9 @@
 
 #include "ubse_mem_buffer_convert.h"
 
-#include "ubse_mem_configuration.h"
-#include "securec.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_mem_configuration.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_util.h"
@@ -24,6 +23,7 @@
 #include "ubse_pack_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
+#include "securec.h"
 
 constexpr uint32_t MAX_MEM_RESOURCE_NAME_LENGTH = 48;
 constexpr uint32_t MAX_LENDER_CNT = TOPOLOGY_MAX_NUMA_PER_SOCKET;
@@ -35,6 +35,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::utils;
 using namespace ubse::nodeController::def;
 using namespace ubse::node::api;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::log;
 
 // 定义位掩码和位移常量
 constexpr uint16_t ONE_PTH_MASK = 0x1;
@@ -58,7 +60,7 @@ constexpr uint16_t UBSE_MEM_PRIV_DATA_CACHEABLE_FLAG_SHIFT = 9;
 constexpr uint16_t UBSE_MEM_PRIV_DATA_MAR_ID_SHIFT = 6;
 constexpr uint16_t UBSE_MEM_PRIV_DATA_RSV0_SHIFT = 0;
 constexpr uint32_t HIGH_WATER_MARK = 100;
-bool UbseOwnerUnpack(UbseUnpackUtil &unpackUtil, FdOwner &owner)
+bool UbseOwnerUnpack(UbseUnpackUtil& unpackUtil, FdOwner& owner)
 {
     if (!unpackUtil.UnpackUint32(owner.uid)) {
         UBSE_LOG_ERROR << "unpack owner uid failed.";
@@ -68,7 +70,8 @@ bool UbseOwnerUnpack(UbseUnpackUtil &unpackUtil, FdOwner &owner)
         UBSE_LOG_ERROR << "unpack owner gid failed.";
         return false;
     }
-    if (!unpackUtil.UnpackUint32(reinterpret_cast<uint32_t &>(owner.pid))) {
+    if (!unpackUtil.UnpackUint32(
+            reinterpret_cast<uint32_t&>(owner.pid))) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         UBSE_LOG_ERROR << "unpack owner pid failed.";
         return false;
     }
@@ -79,7 +82,7 @@ bool UbseOwnerUnpack(UbseUnpackUtil &unpackUtil, FdOwner &owner)
     return true;
 }
 
-static uint32_t UbseMemFdDescPackInner(const ubse::mem::def::UbseMemFdDesc &fdDesc, UbsePackUtil &packUtil)
+static uint32_t UbseMemFdDescPackInner(const ubse::mem::def::UbseMemFdDesc& fdDesc, UbsePackUtil& packUtil)
 {
     // 参数校验
     if (fdDesc.memIds.size() > UBS_MEM_MAX_MEMID_NUM) {
@@ -117,7 +120,7 @@ static uint32_t UbseMemFdDescPackInner(const ubse::mem::def::UbseMemFdDesc &fdDe
     packUtil.UbsePackUint32(static_cast<uint32_t>(fdDesc.state));
     return UBSE_OK;
 }
-static uint32_t UbseMemShmImportDescPackInner(const def::UbseMemShmImportDesc &importDesc, UbsePackUtil &packUtil)
+static uint32_t UbseMemShmImportDescPackInner(const def::UbseMemShmImportDesc& importDesc, UbsePackUtil& packUtil)
 {
     // 打包memid_num
     packUtil.UbsePackUint32(importDesc.memIds.size());
@@ -135,7 +138,7 @@ static uint32_t UbseMemShmImportDescPackInner(const def::UbseMemShmImportDesc &i
     packUtil.UbsePackUint32(static_cast<uint32_t>(importDesc.state));
     return UBSE_OK;
 }
-static uint32_t UbseMemShmDescPackInner(const def::UbseMemShmDesc &shmDesc, UbsePackUtil &packUtil)
+static uint32_t UbseMemShmDescPackInner(const def::UbseMemShmDesc& shmDesc, UbsePackUtil& packUtil)
 {
     // 打包importDesc size
     packUtil.UbsePackUint32(shmDesc.importDesc.size());
@@ -178,7 +181,7 @@ static uint32_t UbseMemShmDescPackInner(const def::UbseMemShmDesc &shmDesc, Ubse
     return UBSE_OK;
 }
 
-static uint32_t UnpackNodeList(def::UbseMemShmRegion &region, UbseUnpackUtil &unPackUtil)
+static uint32_t UnpackNodeList(def::UbseMemShmRegion& region, UbseUnpackUtil& unPackUtil)
 {
     if (!unPackUtil.UnpackUint32(region.nodeCnt)) {
         UBSE_LOG_WARN << "unpack region nodeCnt failed.";
@@ -198,7 +201,7 @@ static uint32_t UnpackNodeList(def::UbseMemShmRegion &region, UbseUnpackUtil &un
     return UBSE_OK;
 }
 
-static uint32_t UnpackshmRegionList(UbseShmRegionDesc &region, UbseUnpackUtil &unPackUtil)
+static uint32_t UnpackshmRegionList(UbseShmRegionDesc& region, UbseUnpackUtil& unPackUtil)
 {
     region.nodelist.clear();
     if (!unPackUtil.UnpackUint32(region.nodeNum)) {
@@ -225,8 +228,8 @@ static uint32_t UnpackshmRegionList(UbseShmRegionDesc &region, UbseUnpackUtil &u
     return UBSE_OK;
 }
 
-static uint32_t LenderInfoUnpack(UbseUnpackUtil &unpackUtil, UbseNumaLocation &loc, uint64_t &lenderSize,
-                                 uint32_t &socketId, uint32_t &portId)
+static uint32_t LenderInfoUnpack(UbseUnpackUtil& unpackUtil, UbseNumaLocation& loc, uint64_t& lenderSize,
+                                 uint32_t& socketId, uint32_t& portId)
 {
     if (!unpackUtil.UnpackUint64(lenderSize)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
@@ -250,7 +253,7 @@ static uint32_t LenderInfoUnpack(UbseUnpackUtil &unpackUtil, UbseNumaLocation &l
     return UBSE_OK;
 }
 
-uint32_t UnpackMemName(std::string &name, UbseUnpackUtil &unpackUtil)
+uint32_t UnpackMemName(std::string& name, UbseUnpackUtil& unpackUtil)
 {
     // 解包 name
     if (!unpackUtil.UnpackString(name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
@@ -264,7 +267,7 @@ uint32_t UnpackMemName(std::string &name, UbseUnpackUtil &unpackUtil)
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmCreateReqUnpack(const UbseIpcMessage &buffer, def::UbseMemShmDispatcher &memShmDispatcher)
+uint32_t UbseMemShmCreateReqUnpack(const UbseIpcMessage& buffer, def::UbseMemShmDispatcher& memShmDispatcher)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -307,8 +310,8 @@ uint32_t UbseMemShmCreateReqUnpack(const UbseIpcMessage &buffer, def::UbseMemShm
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmCreateWithAffinityReqUnpack(const UbseIpcMessage &buffer,
-                                               def::UbseMemShmDispatcher &memShmDispatcher)
+uint32_t UbseMemShmCreateWithAffinityReqUnpack(const UbseIpcMessage& buffer,
+                                               def::UbseMemShmDispatcher& memShmDispatcher)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -358,8 +361,8 @@ uint32_t UbseMemShmCreateWithAffinityReqUnpack(const UbseIpcMessage &buffer,
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseMemShareBorrowReq &memShmBorrowReq,
-                                             uint64_t &flag)
+uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemShareBorrowReq& memShmBorrowReq,
+                                             uint64_t& flag)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     if (auto ret = UnpackMemName(memShmBorrowReq.name, unpackUtil); ret != UBSE_OK) {
@@ -401,7 +404,7 @@ uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseM
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmAttachReqUnpack(const UbseIpcMessage &buffer, UbseMemShareAttachReq &memShareAttachReq)
+uint32_t UbseMemShmAttachReqUnpack(const UbseIpcMessage& buffer, UbseMemShareAttachReq& memShareAttachReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包name
@@ -417,7 +420,7 @@ uint32_t UbseMemShmAttachReqUnpack(const UbseIpcMessage &buffer, UbseMemShareAtt
     }
     return UBSE_OK;
 }
-uint32_t UbseMemNameUnpack(const UbseIpcMessage &buffer, std::string &name)
+uint32_t UbseMemNameUnpack(const UbseIpcMessage& buffer, std::string& name)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -427,24 +430,24 @@ uint32_t UbseMemNameUnpack(const UbseIpcMessage &buffer, std::string &name)
     }
     return UBSE_OK;
 }
-uint32_t UbseMemShmGetReqUnpack(const UbseIpcMessage &buffer, std::string &name)
+uint32_t UbseMemShmGetReqUnpack(const UbseIpcMessage& buffer, std::string& name)
 {
     return UbseMemNameUnpack(buffer, name);
 }
-uint32_t UbseMemShmDetachReqUnpack(const UbseIpcMessage &buffer, UbseMemShareDetachReq &memShareDetachReq)
+uint32_t UbseMemShmDetachReqUnpack(const UbseIpcMessage& buffer, UbseMemShareDetachReq& memShareDetachReq)
 {
     return UbseMemNameUnpack(buffer, memShareDetachReq.name);
 }
-uint32_t UbseMemShmDeleteReqUnpack(const UbseIpcMessage &buffer, UbseMemReturnReq &memReturnReq)
+uint32_t UbseMemShmDeleteReqUnpack(const UbseIpcMessage& buffer, UbseMemReturnReq& memReturnReq)
 {
     return UbseMemNameUnpack(buffer, memReturnReq.name);
 }
-uint32_t UbseMemShmAttachResponsePack(def::UbseMemShmDesc &shmDesc, UbseIpcMessage &buffer)
+uint32_t UbseMemShmAttachResponsePack(def::UbseMemShmDesc& shmDesc, UbseIpcMessage& buffer)
 {
     return UbseMemShmGetResponsePack(shmDesc, buffer);
 }
 
-size_t UbseMemNodeCalcSize(const def::UbseNode &node)
+size_t UbseMemNodeCalcSize(const def::UbseNode& node)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
@@ -454,7 +457,7 @@ size_t UbseMemNodeCalcSize(const def::UbseNode &node)
     return len;
 }
 
-size_t UbseMemShmImportDescCalSize(const def::UbseMemShmImportDesc &importDesc)
+size_t UbseMemShmImportDescCalSize(const def::UbseMemShmImportDesc& importDesc)
 {
     size_t len = sizeof(uint32_t);                      // memIds size = memid_cnt
     len += sizeof(uint64_t) * importDesc.memIds.size(); // memIds
@@ -468,12 +471,12 @@ size_t UbseMemShmImportDescListCalSize(std::vector<def::UbseMemShmImportDesc> im
         return 0;
     }
     size_t len = 0;
-    for (const auto &importDesc : importDescs) {
+    for (const auto& importDesc : importDescs) {
         len += UbseMemShmImportDescCalSize(importDesc);
     }
     return len;
 }
-size_t UbseMemShmDescCalcSize(const def::UbseMemShmDesc &shmDesc)
+size_t UbseMemShmDescCalcSize(const def::UbseMemShmDesc& shmDesc)
 {
     // import_node_cnt放首位，方便解包时，取出import_node_cnt,然后分配全量内存
     return sizeof(uint32_t) +                                                   // import_node_cnt
@@ -485,7 +488,7 @@ size_t UbseMemShmDescCalcSize(const def::UbseMemShmDesc &shmDesc)
            sizeof(uint32_t) +                                                   // state
            UbseMemShmImportDescListCalSize(shmDesc.importDesc);                 // importDesc
 }
-size_t UbseMemShmDescListCalcSize(const std::vector<def::UbseMemShmDesc> &shmDescs)
+size_t UbseMemShmDescListCalcSize(const std::vector<def::UbseMemShmDesc>& shmDescs)
 {
     uint32_t len = 0;
     // desc数量
@@ -498,7 +501,7 @@ size_t UbseMemShmDescListCalcSize(const std::vector<def::UbseMemShmDesc> &shmDes
     }
     return len;
 }
-uint32_t UbseMemShmGetResponsePack(def::UbseMemShmDesc &shmDesc, UbseIpcMessage &buffer)
+uint32_t UbseMemShmGetResponsePack(def::UbseMemShmDesc& shmDesc, UbseIpcMessage& buffer)
 {
     // 计算总需求长度
     const size_t requiredLength = UbseMemShmDescCalcSize(shmDesc);
@@ -516,7 +519,7 @@ uint32_t UbseMemShmGetResponsePack(def::UbseMemShmDesc &shmDesc, UbseIpcMessage 
     }
     return UBSE_OK;
 }
-size_t UbseMemShmMemStatusDescCalcSize(const def::UbseMemShmMemStatusDesc &shmDesc)
+size_t UbseMemShmMemStatusDescCalcSize(const def::UbseMemShmMemStatusDesc& shmDesc)
 {
     uint32_t len = 0;
     len += sizeof(uint32_t);
@@ -527,8 +530,8 @@ size_t UbseMemShmMemStatusDescCalcSize(const def::UbseMemShmMemStatusDesc &shmDe
     }
     return len;
 }
-static uint32_t UbseMemShmMemFaultGetResponsePackInner(const def::UbseMemShmMemStatusDesc &statusDesc,
-                                                       UbsePackUtil &packUtil)
+static uint32_t UbseMemShmMemFaultGetResponsePackInner(const def::UbseMemShmMemStatusDesc& statusDesc,
+                                                       UbsePackUtil& packUtil)
 {
     if (statusDesc.memIds.size() > UBS_MEM_MAX_MEMID_NUM) {
         return UBSE_ERROR_SERIALIZE_FAILED;
@@ -540,7 +543,7 @@ static uint32_t UbseMemShmMemFaultGetResponsePackInner(const def::UbseMemShmMemS
     }
     return UBSE_OK;
 }
-uint32_t UbseMemShmMemFaultGetResponsePack(def::UbseMemShmMemStatusDesc &statusDesc, UbseIpcMessage &buffer)
+uint32_t UbseMemShmMemFaultGetResponsePack(def::UbseMemShmMemStatusDesc& statusDesc, UbseIpcMessage& buffer)
 {
     const size_t requiredLength = UbseMemShmMemStatusDescCalcSize(statusDesc);
 
@@ -559,7 +562,7 @@ uint32_t UbseMemShmMemFaultGetResponsePack(def::UbseMemShmMemStatusDesc &statusD
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmtatusGetReqUnPack(const UbseIpcMessage &buffer, std::string &name)
+uint32_t UbseMemShmtatusGetReqUnPack(const UbseIpcMessage& buffer, std::string& name)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -569,7 +572,7 @@ uint32_t UbseMemShmtatusGetReqUnPack(const UbseIpcMessage &buffer, std::string &
     }
     return UBSE_OK;
 }
-uint32_t UbseMemShmListResponsePack(const std::vector<def::UbseMemShmDesc> &shmDescs, UbseIpcMessage &buffer)
+uint32_t UbseMemShmListResponsePack(const std::vector<def::UbseMemShmDesc>& shmDescs, UbseIpcMessage& buffer)
 {
     const uint32_t requiredLength = UbseMemShmDescListCalcSize(shmDescs);
     buffer.length = requiredLength;
@@ -581,11 +584,11 @@ uint32_t UbseMemShmListResponsePack(const std::vector<def::UbseMemShmDesc> &shmD
     // 打包 desc 数量
     packUtil.UbsePackUint32(shmDescs.size());
     // 打包每个desc中的import_desc数量
-    for (const auto &shmDesc : shmDescs) {
+    for (const auto& shmDesc : shmDescs) {
         packUtil.UbsePackUint32(shmDesc.importDesc.size());
     }
     // 循环打包每个 desc
-    for (const auto &shmDesc : shmDescs) {
+    for (const auto& shmDesc : shmDescs) {
         if (const auto ret = UbseMemShmDescPackInner(shmDesc, packUtil); ret != UBSE_OK) {
             delete[] buffer.buffer;
             buffer.buffer = nullptr;
@@ -596,7 +599,7 @@ uint32_t UbseMemShmListResponsePack(const std::vector<def::UbseMemShmDesc> &shmD
     return UBSE_OK;
 }
 
-uint32_t UbseMemCreateReqUnpack(const UbseIpcMessage &buffer, UbseMemFdBorrowReq &memFdBorrowReq)
+uint32_t UbseMemCreateReqUnpack(const UbseIpcMessage& buffer, UbseMemFdBorrowReq& memFdBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -619,7 +622,7 @@ uint32_t UbseMemCreateReqUnpack(const UbseIpcMessage &buffer, UbseMemFdBorrowReq
     return UBSE_OK;
 }
 
-static bool CandidateInfoUnpack(UbseUnpackUtil &unpackUtil, std::vector<std::string> &candidateNodeList)
+static bool CandidateInfoUnpack(UbseUnpackUtil& unpackUtil, std::vector<std::string>& candidateNodeList)
 {
     // 解包slotId
     uint32_t slotIdCount;
@@ -641,7 +644,7 @@ static bool CandidateInfoUnpack(UbseUnpackUtil &unpackUtil, std::vector<std::str
     return true;
 }
 
-uint32_t UbseMemCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseMemFdBorrowReq &memFdBorrowReq)
+uint32_t UbseMemCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemFdBorrowReq& memFdBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -679,7 +682,7 @@ uint32_t UbseMemCreateWithLenderReqUnpack(const UbseIpcMessage &buffer, UbseMemF
     return UBSE_OK;
 }
 
-uint32_t UbseMemCreateWithCandidateReqUnpack(const UbseIpcMessage &buffer, UbseMemFdBorrowReq &memFdBorrowReq)
+uint32_t UbseMemCreateWithCandidateReqUnpack(const UbseIpcMessage& buffer, UbseMemFdBorrowReq& memFdBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -702,7 +705,7 @@ uint32_t UbseMemCreateWithCandidateReqUnpack(const UbseIpcMessage &buffer, UbseM
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdPermissionReqUnpack(const UbseIpcMessage &buffer, UbseMemFdPermissionReq &memFdPermissionReq)
+uint32_t UbseMemFdPermissionReqUnpack(const UbseIpcMessage& buffer, UbseMemFdPermissionReq& memFdPermissionReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -717,7 +720,7 @@ uint32_t UbseMemFdPermissionReqUnpack(const UbseIpcMessage &buffer, UbseMemFdPer
     return UBSE_OK;
 }
 
-size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
+size_t UbseStringCalcSize(const std::string& str, size_t maxLen)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
@@ -725,8 +728,8 @@ size_t UbseStringCalcSize(const std::string &str, size_t maxLen)
     return len;
 }
 
-size_t UbseMemFdDescCalcSize(const UbseMemOperationResp &memOperationResp, const UbseNode &exportNode,
-                             const UbseNode &importNode)
+size_t UbseMemFdDescCalcSize(const UbseMemOperationResp& memOperationResp, const UbseNode& exportNode,
+                             const UbseNode& importNode)
 {
     return UbseStringCalcSize(memOperationResp.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
            sizeof(uint32_t) +                                                            // memid_cnt
@@ -737,7 +740,7 @@ size_t UbseMemFdDescCalcSize(const UbseMemOperationResp &memOperationResp, const
            UbseMemNodeCalcSize(importNode);                                              // importNode
 }
 
-size_t UbseMemFdDescCalcSize(const ubse::mem::def::UbseMemFdDesc &fdDesc)
+size_t UbseMemFdDescCalcSize(const ubse::mem::def::UbseMemFdDesc& fdDesc)
 {
     return UbseStringCalcSize(fdDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
            sizeof(uint32_t) +                                                  // memid_cnt
@@ -749,17 +752,17 @@ size_t UbseMemFdDescCalcSize(const ubse::mem::def::UbseMemFdDesc &fdDesc)
            sizeof(uint32_t);                                                   // state
 }
 
-size_t UbseMemFdDescListCalcSize(const std::vector<ubse::mem::def::UbseMemFdDesc> &fdDescList)
+size_t UbseMemFdDescListCalcSize(const std::vector<ubse::mem::def::UbseMemFdDesc>& fdDescList)
 {
     uint32_t len = 0;
     len += sizeof(uint32_t);
-    for (const auto &fdDesc : fdDescList) {
+    for (const auto& fdDesc : fdDescList) {
         len += UbseMemFdDescCalcSize(fdDesc);
     }
     return len;
 }
 
-size_t UbseMemNumaDescCalcSize(const ubse::mem::def::UbseMemNumaDesc &numaDesc)
+size_t UbseMemNumaDescCalcSize(const ubse::mem::def::UbseMemNumaDesc& numaDesc)
 {
     return UbseStringCalcSize(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1) + // name
            sizeof(int64_t) +                                                     // numaId
@@ -770,17 +773,17 @@ size_t UbseMemNumaDescCalcSize(const ubse::mem::def::UbseMemNumaDesc &numaDesc)
            UBSE_MAX_USR_INFO_LENGTH;                                             // usrInfo
 }
 
-size_t UbseMemNumaDescListCalcSize(const std::vector<ubse::mem::def::UbseMemNumaDesc> &numaDescList)
+size_t UbseMemNumaDescListCalcSize(const std::vector<ubse::mem::def::UbseMemNumaDesc>& numaDescList)
 {
     uint32_t len = 0;
     len += sizeof(uint32_t);
-    for (const auto &numaDesc : numaDescList) {
+    for (const auto& numaDesc : numaDescList) {
         len += UbseMemNumaDescCalcSize(numaDesc);
     }
     return len;
 }
 
-uint32_t UbseMemFdDeleteReqUnpack(const UbseIpcMessage &buffer, UbseMemReturnReq &req)
+uint32_t UbseMemFdDeleteReqUnpack(const UbseIpcMessage& buffer, UbseMemReturnReq& req)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -791,7 +794,7 @@ uint32_t UbseMemFdDeleteReqUnpack(const UbseIpcMessage &buffer, UbseMemReturnReq
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaCreateReqUnpack(const UbseIpcMessage &buffer, UbseMemNumaBorrowReq &memNumaBorrowReq)
+uint32_t UbseMemNumaCreateReqUnpack(const UbseIpcMessage& buffer, UbseMemNumaBorrowReq& memNumaBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -810,7 +813,7 @@ uint32_t UbseMemNumaCreateReqUnpack(const UbseIpcMessage &buffer, UbseMemNumaBor
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage &buffer, UbseMemNumaBorrowReq &memNumaBorrowReq)
+uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemNumaBorrowReq& memNumaBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -858,7 +861,7 @@ uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage &buffer, UbseMemN
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaCreateWithCandidateReqUnpack(const UbseIpcMessage &buffer, UbseMemNumaBorrowReq &memNumaBorrowReq)
+uint32_t UbseMemNumaCreateWithCandidateReqUnpack(const UbseIpcMessage& buffer, UbseMemNumaBorrowReq& memNumaBorrowReq)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -877,7 +880,7 @@ uint32_t UbseMemNumaCreateWithCandidateReqUnpack(const UbseIpcMessage &buffer, U
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaDeleteUnpack(const UbseIpcMessage &buffer, UbseMemReturnReq &req)
+uint32_t UbseMemNumaDeleteUnpack(const UbseIpcMessage& buffer, UbseMemReturnReq& req)
 {
     UbseUnpackUtil unpackUtil(buffer.buffer, buffer.length);
     // 解包 name
@@ -888,7 +891,7 @@ uint32_t UbseMemNumaDeleteUnpack(const UbseIpcMessage &buffer, UbseMemReturnReq 
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdDescPack(const ubse::mem::def::UbseMemFdDesc &fdDesc, UbseIpcMessage &buffer)
+uint32_t UbseMemFdDescPack(const ubse::mem::def::UbseMemFdDesc& fdDesc, UbseIpcMessage& buffer)
 {
     // 参数校验
     if (fdDesc.memIds.size() > UBS_MEM_MAX_MEMID_NUM) {
@@ -913,7 +916,7 @@ uint32_t UbseMemFdDescPack(const ubse::mem::def::UbseMemFdDesc &fdDesc, UbseIpcM
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdDescListPack(const std::vector<ubse::mem::def::UbseMemFdDesc> &fdDescList, UbseIpcMessage &buffer)
+uint32_t UbseMemFdDescListPack(const std::vector<ubse::mem::def::UbseMemFdDesc>& fdDescList, UbseIpcMessage& buffer)
 {
     // 计算总需求长度
     const size_t requiredLength = UbseMemFdDescListCalcSize(fdDescList);
@@ -926,7 +929,7 @@ uint32_t UbseMemFdDescListPack(const std::vector<ubse::mem::def::UbseMemFdDesc> 
     // 打包count
     packUtil.UbsePackUint32(fdDescList.size());
     // 打包fdDescList
-    for (const auto &fdDesc : fdDescList) {
+    for (const auto& fdDesc : fdDescList) {
         auto ret = UbseMemFdDescPackInner(fdDesc, packUtil);
         if (ret != UBSE_OK) {
             delete[] buffer.buffer;
@@ -939,7 +942,7 @@ uint32_t UbseMemFdDescListPack(const std::vector<ubse::mem::def::UbseMemFdDesc> 
     return UBSE_OK;
 }
 
-static uint32_t UbseMemNumaDescPackInner(const ubse::mem::def::UbseMemNumaDesc &numaDesc, UbsePackUtil &packUtil)
+static uint32_t UbseMemNumaDescPackInner(const ubse::mem::def::UbseMemNumaDesc& numaDesc, UbsePackUtil& packUtil)
 {
     // 打包name
     if (!packUtil.UbsePackString(numaDesc.name, MAX_MEM_RESOURCE_NAME_LENGTH - 1)) {
@@ -966,13 +969,13 @@ static uint32_t UbseMemNumaDescPackInner(const ubse::mem::def::UbseMemNumaDesc &
     packUtil.UbsePackUint32(static_cast<uint32_t>(numaDesc.state));
 
     // 打包usrInfo
-    for (const uint8_t &i : numaDesc.usrInfo) {
+    for (const uint8_t& i : numaDesc.usrInfo) {
         packUtil.UbsePackUint8(i);
     }
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaDescPack(const ubse::mem::def::UbseMemNumaDesc &numaDesc, UbseIpcMessage &buffer)
+uint32_t UbseMemNumaDescPack(const ubse::mem::def::UbseMemNumaDesc& numaDesc, UbseIpcMessage& buffer)
 {
     // 计算总需求长度
     const size_t requiredLength = UbseMemNumaDescCalcSize(numaDesc);
@@ -993,8 +996,8 @@ uint32_t UbseMemNumaDescPack(const ubse::mem::def::UbseMemNumaDesc &numaDesc, Ub
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDesc> &numaDescList,
-                                 UbseIpcMessage &buffer)
+uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDesc>& numaDescList,
+                                 UbseIpcMessage& buffer)
 {
     // 计算总需求长度
     const size_t requiredLength = UbseMemNumaDescListCalcSize(numaDescList);
@@ -1007,7 +1010,7 @@ uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDe
     // 打包count
     packUtil.UbsePackUint32(numaDescList.size());
     // 打包fdDescList
-    for (const auto &numaDesc : numaDescList) {
+    for (const auto& numaDesc : numaDescList) {
         auto ret = UbseMemNumaDescPackInner(numaDesc, packUtil);
         if (ret != UBSE_OK) {
             delete[] buffer.buffer;
@@ -1020,7 +1023,7 @@ uint32_t UbseMemNumaDescListPack(const std::vector<ubse::mem::def::UbseMemNumaDe
     return UBSE_OK;
 }
 
-uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage &buffer, def::UbseMemIdQueryRequest &req)
+uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage& buffer, def::UbseMemIdQueryRequest& req)
 {
     if (!buffer.buffer) {
         UBSE_LOG_ERROR << "buffer.buffer is null";
@@ -1039,13 +1042,13 @@ uint32_t UbseMemGetMemIdByImportReqUnpack(const UbseIpcMessage &buffer, def::Ubs
     }
     return UBSE_OK;
 }
- 
-uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc &memDesc, UbseIpcMessage &buffer)
+
+uint32_t UbseMemGetMemIdByImportResponsePack(const def::UbseExportMemDesc& memDesc, UbseIpcMessage& buffer)
 {
     uint32_t len = 0;
     len += sizeof(uint32_t); // for exportSlotId
     len += sizeof(uint64_t); // for exportMemId
- 
+
     buffer.length = len;
     buffer.buffer = new (std::nothrow) uint8_t[len];
 

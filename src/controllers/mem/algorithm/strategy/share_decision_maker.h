@@ -13,10 +13,10 @@
 #ifndef RS_MEM_ALGO_MEM_POOL_SHARE_STRATEGY_H
 #define RS_MEM_ALGO_MEM_POOL_SHARE_STRATEGY_H
 #include <cstring>
+#include "ubse_logger.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
-#include "ubse_logger.h"
 
 namespace tc::rs::mem {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
@@ -32,20 +32,21 @@ struct TmpResult {
     uint64_t maxNumaFreeSizeBytes = 0;
 };
 
-enum class DebugStep {
+enum class DebugStep
+{
     STEP1 = 1,
     STEP2 = 2,
 };
 
 class ShareDecisionMaker {
 public:
-    explicit ShareDecisionMaker(MemPoolStrategyImpl *strategyImpl)
+    explicit ShareDecisionMaker(MemPoolStrategyImpl* strategyImpl)
     {
         mStrategyImpl_ = strategyImpl;
     };
 
-    MemPoolStrategyImpl *mStrategyImpl_ = nullptr;
-    MemPoolConfig *memConfig_{};
+    MemPoolStrategyImpl* mStrategyImpl_ = nullptr;
+    MemPoolConfig* memConfig_{};
 
     /**
     * @brief 共享决策-自研算法
@@ -55,7 +56,7 @@ public:
     * @param result [OUT] 共享请求决策结果
     * @return
     */
-    BResult MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus, ShareResult &result) const;
+    BResult MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus, ShareResult& result) const;
 
     /**
     * @brief 候选集筛选函数完成后，针对Socket拆分为Numa节点，进行分数的计算和结果的更新
@@ -67,8 +68,8 @@ public:
     * @param result [OUT] 共享请求决策结果
     * @return
     */
-    BResult ShareScoreAndFilter(const ShareRequest &shareRequest, MemLoc targetLoc, const RegionStatus &regionStatus,
-                                struct TmpResult &tmpInfo, ShareResult &result) const;
+    BResult ShareScoreAndFilter(const ShareRequest& shareRequest, MemLoc targetLoc, const RegionStatus& regionStatus,
+                                struct TmpResult& tmpInfo, ShareResult& result) const;
 
     /**
     * @brief 共享决策-Greedy算法
@@ -78,15 +79,15 @@ public:
     * @param result [OUT] 共享请求决策结果
     * @return
     */
-    BResult MemoryShareGreedy(const ShareRequest &shareRequest, const UbseStatus &ubseStatus,
-                              ShareResult &result) const;
+    BResult MemoryShareGreedy(const ShareRequest& shareRequest, const UbseStatus& ubseStatus,
+                              ShareResult& result) const;
     /**
     * @brief 获取单Host中的Numa个数
     *
     * @param numaList [IN] 根据Host ID获得的numa list
     * @return 单Host中Numa个数
     */
-    int GetNumbNumaInHost(int *numaList) const;
+    int GetNumbNumaInHost(int* numaList) const;
 
     /**
     * @brief 获取单Host中的Socket个数
@@ -96,8 +97,8 @@ public:
     */
     int GetNumbSocket(int16_t hostId) const;
 
-    void ShareOperator(const ShareRequest &shareRequest, const RegionStatus &regionStatus, MemLoc targetLoc,
-                       TmpResult &shareCurrentResult, ShareResult &result) const;
+    void ShareOperator(const ShareRequest& shareRequest, const RegionStatus& regionStatus, MemLoc targetLoc,
+                       TmpResult& shareCurrentResult, ShareResult& result) const;
 };
 #undef MODULE_LOG_NAME
 } // namespace tc::rs::mem

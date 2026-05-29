@@ -19,7 +19,14 @@
 #include "ubse_thread_pool_module.h"
 #include "trace_context.h"
 
-using namespace ubse::message;
+using ubse::message::UbseBaseMessage;
+
+using ubse::common::def::MASTER_RPC_SERVER_NAME;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
+using ubse::utils::ReadWriteLock;
+using ubse::utils::Ref;
+using ubse::utils::WriteLocker;
 
 namespace ubse::com {
 #define MODULE_LOG_NAME "ubse"
@@ -33,7 +40,7 @@ struct HandlerInput {
 struct UbseMqHandler {
     uint16_t moduleCode; // 模块编码
     uint16_t opCode;     // 操作码
-    void (*handler)(HandlerInput &input);
+    void (*handler)(HandlerInput& input);
 };
 
 class UbseInterCom {
@@ -57,13 +64,13 @@ public:
         UbseMqHandler hdl{};
         hdl.opCode = handlerPtr->GetOpCode();
         hdl.moduleCode = handlerPtr->GetModuleCode();
-        hdl.handler = [](HandlerInput &input) {
+        hdl.handler = [](HandlerInput& input) {
             MqHandleRequest<TReq, TRsp>(input);
         };
         WriteLocker<ReadWriteLock> lock(&rwLock_);
         if (hdl.moduleCode >= MODULES_SIZE || hdl.opCode >= OP_CODE_SIZE) {
             UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << hdl.moduleCode << ", op code is "
-                         << hdl.opCode;
+                           << hdl.opCode;
             return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
         }
         handlerMap_[hdl.moduleCode][hdl.opCode] = hdl;
@@ -71,7 +78,7 @@ public:
     }
 
     template <class TReq, class TRsp>
-    UbseResult Send(const SendParam &param, TReq &request, TRsp &response, const bool withCopy = false)
+    UbseResult Send(const SendParam& param, TReq& request, TRsp& response, const bool withCopy = false)
     {
         if (request == nullptr || response == nullptr) {
             UBSE_LOG_ERROR << "Request or response id nullptr. ";
@@ -96,7 +103,7 @@ public:
         auto ret = TransResponse(UbseBaseMessage::Convert<TRsp>(response), input.retData, withCopy);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "node " << param.GetRemoteId() << " trans " << param.GetRemoteId() << " response failed,"
-                         << FormatRetCode(ret);
+                           << FormatRetCode(ret);
         }
         UbseComMessage::FreeMessage(msg);
         UbseComMessage::FreeMessage(input.retData.data);
@@ -104,7 +111,7 @@ public:
     }
 
     template <class TReq>
-    UbseResult AsynSend(const SendParam &sendParam, TReq &request, const UbseComCallback &usrCb)
+    UbseResult AsynSend(const SendParam& sendParam, TReq& request, const UbseComCallback& usrCb)
     {
         if (request == nullptr) {
             UBSE_LOG_ERROR << "Request is nullptr. ";
@@ -133,9 +140,9 @@ public:
     }
 
     template <class TReq, class TRsp>
-    static void MqHandleRequest(HandlerInput &input)
+    static void MqHandleRequest(HandlerInput& input)
     {
-        auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(input.messageCtx.GetMessage()));
+        auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(input.messageCtx.GetMessage()));
         if (ucMsg == nullptr) {
             UBSE_LOG_ERROR << "Convert ubse com message ptr failed. ";
             return;
@@ -173,7 +180,7 @@ public:
         auto handlerRet = handler->Handle(reqPtr, respPtr, ctx);
         if (handlerRet != UBSE_OK) {
             UBSE_LOG_ERROR << "module " << handler->GetModuleCode() << " opCode " << handler->GetOpCode()
-                         << " exec failed," << FormatRetCode(handlerRet);
+                           << " exec failed," << FormatRetCode(handlerRet);
             respPtr->SetErrCode(handlerRet);
         }
         ret = respPtr->Serialize();
@@ -186,7 +193,7 @@ public:
     }
 
     template <class TRsp>
-    static void MqReply(HandlerInput &input, TRsp response)
+    static void MqReply(HandlerInput& input, TRsp response)
     {
         if (response == nullptr) {
             UBSE_LOG_ERROR << "Response is nullptr. ";

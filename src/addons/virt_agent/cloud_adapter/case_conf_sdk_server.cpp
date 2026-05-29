@@ -15,12 +15,12 @@
 
 #include <ubse_api_server.h>
 #include <ubse_logger.h>
+#include "ubs_virt_agent_object_def.h"
 #include "vm_configuration.h"
 #include "vm_sdk_def.h"
-#include "ubs_virt_agent_object_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 using namespace api::server;
 
@@ -37,7 +37,7 @@ VmResult VirtCaseConfSdk::Register()
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::GetCaseConf(CaseConfInfo &caseConfInfo)
+uint32_t VirtCaseConfSdk::GetCaseConf(CaseConfInfo& caseConfInfo)
 {
     UBSE_LOG_INFO << "Get caseConf and overCommitment start.";
     CaseAndOvercommitmentRatio caseConf{};
@@ -51,8 +51,8 @@ uint32_t VirtCaseConfSdk::GetCaseConf(CaseConfInfo &caseConfInfo)
         UBSE_LOG_ERROR << "Query caseConf from db is empty, curCase is empty.";
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "Query caseConf from db, curCase=" << caseConf.curCase << ", overCommitmentRatio="
-                  << std::to_string(caseConf.overCommitmentRatio);
+    UBSE_LOG_INFO << "Query caseConf from db, curCase=" << caseConf.curCase
+                  << ", overCommitmentRatio=" << std::to_string(caseConf.overCommitmentRatio);
     caseConfInfo.curCase = caseConf.curCase;
     caseConfInfo.overCommitmentRatio = std::to_string(caseConf.overCommitmentRatio);
     caseConfInfo.index = caseConf.index;
@@ -61,7 +61,7 @@ uint32_t VirtCaseConfSdk::GetCaseConf(CaseConfInfo &caseConfInfo)
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::PackGetCaseConfRsp(CaseConfInfo &caseConf, UbseIpcMessage &buffer)
+uint32_t VirtCaseConfSdk::PackGetCaseConfRsp(CaseConfInfo& caseConf, UbseIpcMessage& buffer)
 {
     CaseConfGetMsg msg{caseConf};
     auto ret = msg.Serialize();
@@ -84,7 +84,7 @@ uint32_t VirtCaseConfSdk::PackGetCaseConfRsp(CaseConfInfo &caseConf, UbseIpcMess
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::GetCaseConfHandler(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtCaseConfSdk::GetCaseConfHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     CaseConfInfo caseConf{};
     std::string migrateWaterLine{};
@@ -112,8 +112,8 @@ uint32_t VirtCaseConfSdk::GetCaseConfHandler(const UbseIpcMessage &req, const Ub
     return ret;
 }
 
-uint32_t VirtCaseConfSdk::SetCaseConfCheckReq(const std::string &reqBodyStr, CaseConfParam &caseParam,
-                                              CaseConfResultParam &caseResult)
+uint32_t VirtCaseConfSdk::SetCaseConfCheckReq(const std::string& reqBodyStr, CaseConfParam& caseParam,
+                                              CaseConfResultParam& caseResult)
 {
     if (reqBodyStr.empty()) {
         UBSE_LOG_ERROR << "RequestBody is null.";
@@ -138,8 +138,8 @@ uint32_t VirtCaseConfSdk::SetCaseConfCheckReq(const std::string &reqBodyStr, Cas
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::SetCaseConf(const std::string &reqBodyStr, CaseConfParam &caseParam,
-                                      CaseConfResultParam &caseResult)
+uint32_t VirtCaseConfSdk::SetCaseConf(const std::string& reqBodyStr, CaseConfParam& caseParam,
+                                      CaseConfResultParam& caseResult)
 {
     auto res = SetCaseConfCheckReq(reqBodyStr, caseParam, caseResult);
     if (res != VM_OK) {
@@ -163,7 +163,7 @@ uint32_t VirtCaseConfSdk::SetCaseConf(const std::string &reqBodyStr, CaseConfPar
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::PackSetCaseConfRsp(const CaseConfSetInfo &caseConfSetInfo, UbseIpcMessage &buffer)
+uint32_t VirtCaseConfSdk::PackSetCaseConfRsp(const CaseConfSetInfo& caseConfSetInfo, UbseIpcMessage& buffer)
 {
     CaseConfSetMsg caseConfSetMsg{caseConfSetInfo};
     auto ret = caseConfSetMsg.Serialize();
@@ -188,7 +188,7 @@ uint32_t VirtCaseConfSdk::PackSetCaseConfRsp(const CaseConfSetInfo &caseConfSetI
     return VM_OK;
 }
 
-uint32_t VirtCaseConfSdk::SetCaseConfHandler(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtCaseConfSdk::SetCaseConfHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Set caseConf and overCommitment start.";
     if (req.buffer == nullptr) {
@@ -197,7 +197,7 @@ uint32_t VirtCaseConfSdk::SetCaseConfHandler(const UbseIpcMessage &req, const Ub
     }
     CaseConfParam caseParam;
     CaseConfResultParam caseResult;
-    std::string reqBodyStr(reinterpret_cast<const char *>(req.buffer), req.length);
+    std::string reqBodyStr(reinterpret_cast<const char*>(req.buffer), req.length);
     auto ret = SetCaseConf(reqBodyStr, caseParam, caseResult);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "SetCaseConf failed, " << FormatRetCode(ret);
@@ -219,4 +219,4 @@ uint32_t VirtCaseConfSdk::SetCaseConfHandler(const UbseIpcMessage &req, const Ub
     UBSE_LOG_INFO << "Set caseConf and overCommitment end.";
     return ret;
 }
-} // vm
+} // namespace vm

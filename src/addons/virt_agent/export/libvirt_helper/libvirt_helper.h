@@ -15,8 +15,8 @@
 #define VM_LIBVIRT_HELPER_H
 #include <string>
 
-#include "vm_error.h"
 #include "libvirt_module.h"
+#include "vm_error.h"
 
 namespace vm {
 using std::string;
@@ -24,25 +24,25 @@ using std::string;
 class LibvirtHelper {
 public:
     LibvirtHelper() = default;
-    LibvirtHelper(const LibvirtHelper &) = delete;
-    LibvirtHelper &operator = (const LibvirtHelper &) = delete;
+    LibvirtHelper(const LibvirtHelper&) = delete;
+    LibvirtHelper& operator=(const LibvirtHelper&) = delete;
 
-    static inline LibvirtHelper &GetInstance()
+    static inline LibvirtHelper& GetInstance()
     {
         static LibvirtHelper instance;
         return instance;
     }
-    static void FreeDomain(void *domain);
+    static void FreeDomain(void* domain);
 
     VmResult Init();
     void DeInit();
     VmResult Connect();
     VmResult CloseConn();
-    VmResult DomainAbortJobFlags(const string &uuid, libvirt::VirDomainAbortJobFlagsValues flags, int tryTimes = 1);
+    VmResult DomainAbortJobFlags(const string& uuid, libvirt::VirDomainAbortJobFlagsValues flags, int tryTimes = 1);
 
 private:
     libvirt::VirConnectPtr virConnect{};
 };
-} // vm
+} // namespace vm
 
 #endif // VM_LIBVIRT_HELPER_H

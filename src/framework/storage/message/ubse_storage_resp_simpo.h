@@ -13,10 +13,12 @@
 #ifndef UBSE_STORAGE_RESP_SIMPO_H
 #define UBSE_STORAGE_RESP_SIMPO_H
 #include <vector>
-#include "ubse_storage.h"
 #include "ubse_base_message.h"
+#include "ubse_storage.h"
 namespace ubse::storage::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 struct UbseStorageResp {
     std::vector<KV> kvs;
@@ -27,14 +29,14 @@ public:
     ~UbseStorageRespSimpo() override;
     UbseStorageRespSimpo() = default;
 
-    explicit UbseStorageRespSimpo(const UbseStorageResp &resp);
+    explicit UbseStorageRespSimpo(const UbseStorageResp& resp);
 
-    explicit UbseStorageRespSimpo(uint8_t *data, uint32_t size)
+    explicit UbseStorageRespSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    void SetStorageResp(const UbseStorageResp &resp);
+    void SetStorageResp(const UbseStorageResp& resp);
 
     UbseStorageResp GetStorageResp();
 
@@ -46,8 +48,8 @@ public:
 
 private:
     UbseStorageResp storageResp_{};
-    bool hasObj_{ false };
+    bool hasObj_{false};
 };
 using UbseStorageRespSimpoPtr = Ref<UbseStorageRespSimpo>;
-}
+} // namespace ubse::storage::message
 #endif // UBSE_STORAGE_RESP_SIMPO_H

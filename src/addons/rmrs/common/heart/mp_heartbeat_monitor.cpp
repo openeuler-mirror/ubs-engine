@@ -15,13 +15,13 @@
 #include <chrono>
 #include <thread>
 
-#include "securec.h"
-#include "ubse_election.h"
 #include "ubse_com.h"
-#include "mp_error.h"
-#include "mp_configuration.h"
-#include "mp_json_util.h"
+#include "ubse_election.h"
 #include "mempooling_message.h"
+#include "mp_configuration.h"
+#include "mp_error.h"
+#include "mp_json_util.h"
+#include "securec.h"
 
 namespace mempooling::heart {
 using namespace ubse::election;
@@ -45,9 +45,7 @@ MpResult MpHeartBeatMonitor::Init()
     }
     this->currentNode = currentNodeInfo.nodeId;
     running = true;
-    pThread = new std::thread([this]() {
-        this->ListenLoop();
-    });
+    pThread = new std::thread([this]() { this->ListenLoop(); });
     pThread->detach();
     return MEM_POOLING_OK;
 }
@@ -111,10 +109,10 @@ void MpHeartBeatMonitor::ListenLoop()
         GetHeartBeat();
         std::this_thread::sleep_for(std::chrono::seconds(HEARTBEAT_CYCLE));
     }
-    return ;
+    return;
 }
 
-MpResult MpHeartBeatMonitor::AddFaultNode(const std::string &nodeId)
+MpResult MpHeartBeatMonitor::AddFaultNode(const std::string& nodeId)
 {
     std::unique_lock<std::mutex> locker(mutex);
     for (auto it = faultNodeVec.begin(); it != faultNodeVec.end(); it++) {
@@ -126,7 +124,7 @@ MpResult MpHeartBeatMonitor::AddFaultNode(const std::string &nodeId)
     return MEM_POOLING_OK;
 }
 
-MpResult MpHeartBeatMonitor::DelFaultNode(const std::string &nodeId)
+MpResult MpHeartBeatMonitor::DelFaultNode(const std::string& nodeId)
 {
     std::unique_lock<std::mutex> locker(mutex);
     for (auto it = faultNodeVec.begin(); it != faultNodeVec.end(); it++) {
@@ -146,7 +144,7 @@ void MpHeartBeatMonitor::CurrentNodeFault()
     UbseRoleInfo roleInfo;
     if (UbseGetMasterInfo(roleInfo) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] UbseGetMasterInfo failed.";
-        return ;
+        return;
     }
 
     UbseComEndpoint endpoint_ms = {
@@ -159,7 +157,7 @@ void MpHeartBeatMonitor::CurrentNodeFault()
     if (!JsonUtil::RackMemConvertVector2JsonStr(vec, jsonStr)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpHeartBeat][MpHeartBeat] RackMemConvertVector2JsonStr failed.";
-        return ;
+        return;
     }
     reqData.len = jsonStr.length();
     reqData.data = new (std::nothrow) uint8_t[reqData.len];
@@ -170,15 +168,15 @@ void MpHeartBeatMonitor::CurrentNodeFault()
     if (memcpy_s(reqData.data, reqData.len, jsonStr.c_str(), reqData.len) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] Memcpy_s failed.";
         delete[] reqData.data;
-        return ;
+        return;
     }
-    void *ctx;
+    void* ctx;
     auto ret = UbseRpcSend(endpoint_ms, reqData, ctx, AddFaultNodeResHandler);
     delete[] reqData.data;
     if (ret != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] UbseRpcSend failed.";
     }
-    return ;
+    return;
 }
 
 void MpHeartBeatMonitor::CurrentNodeRecover()
@@ -189,7 +187,7 @@ void MpHeartBeatMonitor::CurrentNodeRecover()
     UbseRoleInfo roleInfo;
     if (UbseGetMasterInfo(roleInfo) != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] UbseGetMasterInfo failed.";
-        return ;
+        return;
     }
 
     UbseComEndpoint endpoint_ms = {
@@ -201,7 +199,7 @@ void MpHeartBeatMonitor::CurrentNodeRecover()
     std::string jsonStr;
     if (!JsonUtil::RackMemConvertVector2JsonStr(vec, jsonStr)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] UbseRpcSend failed.";
-        return ;
+        return;
     }
     reqData.len = jsonStr.length();
     reqData.data = new (std::nothrow) uint8_t[reqData.len];
@@ -211,16 +209,15 @@ void MpHeartBeatMonitor::CurrentNodeRecover()
     }
     if (memcpy_s(reqData.data, reqData.len, jsonStr.c_str(), reqData.len) != 0) {
         delete[] reqData.data;
-        return ;
+        return;
     }
-    void *ctx;
+    void* ctx;
     auto ret = UbseRpcSend(endpoint_ms, reqData, ctx, DelFaultNodeResHandler);
     delete[] reqData.data;
     if (ret != 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpHeartBeat][MpHeartBeat] UbseRpcSend failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpHeartBeat][MpHeartBeat] UbseRpcSend failed.";
     }
-    return ;
+    return;
 }
 
 std::vector<std::string> MpHeartBeatMonitor::GetFaultNodeVec()
@@ -254,13 +251,13 @@ std::string MpHeartBeatMonitor::ToJson()
     return jsonStr;
 }
 
-uint32_t FaultNodeNotify(UbseByteBuffer &buffer)
+uint32_t FaultNodeNotify(UbseByteBuffer& buffer)
 {
-    std::string jsonStr(reinterpret_cast<char *>(buffer.data), buffer.len);
+    std::string jsonStr(reinterpret_cast<char*>(buffer.data), buffer.len);
     return MpHeartBeatMonitor::Instance().FromJson(jsonStr);
 }
 
-uint32_t FaultNodeGetData(UbseByteBuffer &buffer)
+uint32_t FaultNodeGetData(UbseByteBuffer& buffer)
 {
     std::string jsonStr = MpHeartBeatMonitor::Instance().ToJson();
     if (jsonStr.length() == 0) {
@@ -276,7 +273,7 @@ uint32_t FaultNodeGetData(UbseByteBuffer &buffer)
         return MEM_POOLING_ERROR;
     }
 
-    buffer.freeFunc = [](uint8_t *data) {
+    buffer.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     if (memcpy_s(buffer.data, buffer.len, jsonStr.c_str(), buffer.len) != EOK) {
@@ -289,14 +286,14 @@ uint32_t FaultNodeGetData(UbseByteBuffer &buffer)
     return MEM_POOLING_OK;
 }
 
-uint32_t AddFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t AddFaultNodeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    std::string jsonStr((char *)req.data, req.len);
+    std::string jsonStr((char*)req.data, req.len);
     std::vector<std::string> vec;
     if (!JsonUtil::RackMemConvertJsonStr2Vec(jsonStr, vec)) {
         return MEM_POOLING_ERROR;
     }
-    for (const auto &nodeId : vec) {
+    for (const auto& nodeId : vec) {
         mempooling::heart::MpHeartBeatMonitor::Instance().AddFaultNode(nodeId);
     }
     jsonStr = mempooling::heart::MpHeartBeatMonitor::Instance().ToJson();
@@ -307,25 +304,25 @@ uint32_t AddFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Failed to allocate memory, size=" << resp.len << ".";
         return MEM_POOLING_ERROR;
     }
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     return MEM_POOLING_OK;
 }
 
-void AddFaultNodeResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void AddFaultNodeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     return;
 }
 
-uint32_t DelFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t DelFaultNodeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    std::string jsonStr((char *)req.data, req.len);
+    std::string jsonStr((char*)req.data, req.len);
     std::vector<std::string> vec;
     if (!JsonUtil::RackMemConvertJsonStr2Vec(jsonStr, vec)) {
         return MEM_POOLING_ERROR;
     }
-    for (const auto &nodeId : vec) {
+    for (const auto& nodeId : vec) {
         mempooling::heart::MpHeartBeatMonitor::Instance().DelFaultNode(nodeId);
     }
     jsonStr = mempooling::heart::MpHeartBeatMonitor::Instance().ToJson();
@@ -335,15 +332,15 @@ uint32_t DelFaultNodeRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Failed to allocate memory, size=" << resp.len << ".";
         return MEM_POOLING_ERROR;
     }
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     return MEM_POOLING_OK;
 }
 
-void DelFaultNodeResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void DelFaultNodeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     return;
 }
 
-}
+} // namespace mempooling::heart

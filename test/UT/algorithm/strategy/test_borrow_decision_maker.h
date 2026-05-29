@@ -16,11 +16,11 @@
 #include <gtest/gtest.h>
 #include <iomanip>
 #include <mockcpp/mockcpp.hpp>
+#include "ubse_common_def.h"
 #include "borrow_decision_maker.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy_impl.h"
 #include "mock_init.h"
-#include "ubse_common_def.h"
 
 namespace ubse::ut::algorithm {
 using namespace tc::rs::mem;
@@ -184,7 +184,7 @@ public:
             mRackStatus.debtDetail.numaDebts[1 * NO_4 + j].insert({NO_3 * NO_4 + j, (0L + 15.8) * GB_TO_B});
         }
     }
-    BorrowDecisionMaker *mBorrowDecisionMaker = nullptr;
+    BorrowDecisionMaker* mBorrowDecisionMaker = nullptr;
     UbseStatus mRackStatus{};
 
 protected:

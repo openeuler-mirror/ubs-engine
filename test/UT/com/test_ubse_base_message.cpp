@@ -27,7 +27,7 @@ void TestUbseBaseMessage::TearDown()
 TEST_F(TestUbseBaseMessage, TestSetInputRawDataSizeIsZero)
 {
     MockUbseMessage ubseMessage;
-    uint8_t *testRawData = new uint8_t[0];
+    uint8_t* testRawData = new uint8_t[0];
     uint32_t size = 0;
     EXPECT_EQ(UBSE_ERROR, ubseMessage.SetInputRawData(testRawData, size));
     delete[] testRawData;
@@ -36,7 +36,7 @@ TEST_F(TestUbseBaseMessage, TestSetInputRawDataSizeIsZero)
 TEST_F(TestUbseBaseMessage, TestSetInputRawDataSizeIsOutBound)
 {
     MockUbseMessage ubseMessage;
-    uint8_t *testRawData = new uint8_t[1];
+    uint8_t* testRawData = new uint8_t[1];
     uint32_t size = MAX_IPC_DATA_PACKAGE_LEN + 1;
     EXPECT_EQ(UBSE_ERROR, ubseMessage.SetInputRawData(testRawData, size));
     delete[] testRawData;
@@ -45,7 +45,7 @@ TEST_F(TestUbseBaseMessage, TestSetInputRawDataSizeIsOutBound)
 TEST_F(TestUbseBaseMessage, TestSetInputRawDataCopyIsTrue)
 {
     MockUbseMessage ubseMessage;
-    uint8_t *testRawData = new uint8_t[1];
+    uint8_t* testRawData = new uint8_t[1];
     uint32_t size = 1;
     EXPECT_EQ(UBSE_OK, ubseMessage.SetInputRawData(testRawData, size, true));
     delete[] testRawData;
@@ -54,7 +54,7 @@ TEST_F(TestUbseBaseMessage, TestSetInputRawDataCopyIsTrue)
 TEST_F(TestUbseBaseMessage, TestSetInputRawDatamInputRawDataIsNull)
 {
     MockUbseMessage ubseMessage;
-    uint8_t *testRawData = new uint8_t[1];
+    uint8_t* testRawData = new uint8_t[1];
     uint32_t size = 1;
     std::shared_ptr<uint8_t[]> sharedTestRawData(testRawData, std::default_delete<uint8_t[]>());
 
@@ -66,7 +66,7 @@ TEST_F(TestUbseBaseMessage, TestSetInputRawDatamInputRawDataIsNull)
 TEST_F(TestUbseBaseMessage, TestSetInputRawDatMemcpyFail)
 {
     MockUbseMessage ubseMessage;
-    uint8_t *testRawData = new uint8_t[1];
+    uint8_t* testRawData = new uint8_t[1];
     uint32_t size = 1;
     MOCKER(memcpy_s).stubs().will(returnValue(1));
     EXPECT_EQ(UBSE_ERROR, ubseMessage.SetInputRawData(testRawData, size, true));

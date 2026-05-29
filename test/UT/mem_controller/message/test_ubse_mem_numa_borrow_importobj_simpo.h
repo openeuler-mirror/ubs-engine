@@ -28,6 +28,6 @@ public:
 private:
     UbseMemNumaBorrowImportobjSimpoPtr obj;
 };
-} // ubse::mem::controller::message::ut
+} // namespace ubse::mem::controller::message::ut
 
 #endif // UBSE_MANAGER_TEST_MXE_MEM_NUMA_BORROW_IMPORTOBJ_SIMPO_H

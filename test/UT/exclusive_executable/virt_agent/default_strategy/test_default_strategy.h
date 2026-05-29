@@ -15,6 +15,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::df
 
 #endif // TEST_DEFAULT_STRATEGY_H

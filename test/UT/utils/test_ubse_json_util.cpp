@@ -129,7 +129,7 @@ TEST_F(TestUbseJsonUtil, GetArrayFromJsonPtr)
     rapidjson::Document doc;
     doc.Parse(str.c_str());
     rapidjson::Document pJson(rapidjson::kObjectType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     rapidjson::Value value{};
     EXPECT_EQ(UbseJsonUtil::GetArrayFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
     EXPECT_TRUE(value.IsArray());
@@ -145,12 +145,12 @@ TEST_F(TestUbseJsonUtil, GetObjectFromJsonPtr)
     rapidjson::Document doc;
     doc.Parse(str.c_str());
     rapidjson::Document pJson(rapidjson::kObjectType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     rapidjson::Value value{};
     EXPECT_EQ(UbseJsonUtil::GetObjectFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
     EXPECT_TRUE(value.IsObject());
 
-    str =  R"({"test": ["test"]})";
+    str = R"({"test": ["test"]})";
     doc.Parse(str.c_str());
     EXPECT_NE(UbseJsonUtil::GetObjectFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
 }
@@ -184,4 +184,132 @@ TEST_F(TestUbseJsonUtil, ConvertVector2JsonStr)
     EXPECT_EQ(value, R"(["test"])");
 }
 
+TEST_F(TestUbseJsonUtil, GetJsonItemStrStringValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": "hello world"})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "hello world");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrNumberValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": 12345})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "12345");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrDoubleValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": 3.14})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_TRUE(value.find("3.14") != std::string::npos);
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrBoolValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": true})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "true");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrNullValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": null})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "null");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrObjectValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": {"inner": "value"}})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, R"({"inner":"value"})");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrArrayValue)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": [1, 2, 3]})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "[1,2,3]");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrEmptyArray)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": []})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, "[]");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrStringArray)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"test": ["a", "b", "c"]})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+    EXPECT_EQ(value, R"(["a","b","c"])");
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStrFailedNoKey)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"other": "value"})");
+    std::string value{};
+    EXPECT_FALSE(UbseJsonUtil::GetJsonItemStr(doc, "test", value));
+}
+
+TEST_F(TestUbseJsonUtil, GetJsonItemStr_EmptyKey)
+{
+    rapidjson::Document doc;
+    doc.Parse(R"({"": "empty_key_value"})");
+    std::string value{};
+    EXPECT_TRUE(UbseJsonUtil::GetJsonItemStr(doc, "", value));
+    EXPECT_EQ(value, "empty_key_value");
+}
+
+TEST_F(TestUbseJsonUtil, ConvertMapAndJsonStr)
+{
+    std::map<std::string, std::string> originalMap;
+    originalMap["key1"] = "value1";
+    originalMap["key2"] = "value2";
+
+    std::string jsonStr;
+    EXPECT_TRUE(UbseJsonUtil::ConvertMap2JsonStr(originalMap, jsonStr));
+
+    std::map<std::string, std::string> parsedMap;
+    parsedMap["key1"] = "";
+    parsedMap["key2"] = "";
+    EXPECT_TRUE(UbseJsonUtil::ConvertJsonStr2Map(jsonStr, parsedMap));
+    EXPECT_EQ(parsedMap["key1"], "value1");
+    EXPECT_EQ(parsedMap["key2"], "value2");
+}
+
+TEST_F(TestUbseJsonUtil, ConvertVectorAndJsonStr)
+{
+    std::vector<std::string> originalVec = {"item1", "item2", "item3"};
+    std::string jsonStr;
+    EXPECT_TRUE(UbseJsonUtil::ConvertVector2JsonStr(originalVec, jsonStr));
+
+    std::vector<std::string> parsedVec;
+    EXPECT_TRUE(UbseJsonUtil::ConvertJsonStr2Vec(jsonStr, parsedVec));
+    EXPECT_EQ(parsedVec.size(), originalVec.size());
+    for (size_t i = 0; i < originalVec.size(); ++i) {
+        EXPECT_EQ(parsedVec[i], originalVec[i]);
+    }
+}
 } // namespace ubse::ut::utils

@@ -24,6 +24,6 @@ private:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::security
 
 #endif // TEST_UBSE_SECURITY_MANAGER_H

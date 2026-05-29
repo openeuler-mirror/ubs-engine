@@ -15,7 +15,10 @@
 namespace ubse::event::ut {
 using namespace ubse::event;
 
-void TestUbseEventQueue::SetUp() { Test::SetUp(); }
+void TestUbseEventQueue::SetUp()
+{
+    Test::SetUp();
+}
 
 void TestUbseEventQueue::TearDown()
 {

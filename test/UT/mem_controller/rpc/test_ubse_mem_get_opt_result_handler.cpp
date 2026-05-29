@@ -11,13 +11,13 @@
  */
 
 #include "test_ubse_mem_get_opt_result_handler.h"
+#include "ubse_com_module.h"
+#include "ubse_context.h"
+#include "ubse_mem_controller.h"
+#include "ubse_module.h"
 #include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "message/ubse_mem_opt_req_simpo.h"
 #include "message/ubse_mem_opt_result_simpo.h"
-#include "ubse_com_module.h"
-#include "ubse_context.h"
-#include "ubse_module.h"
-#include "ubse_mem_controller.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;

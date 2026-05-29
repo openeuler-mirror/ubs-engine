@@ -142,11 +142,7 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowExecuteOutputMsg_GetMem
 
 TEST_F(TestMemFragmentationMsg, MemRollbackMsg_Serialize_Deserialize)
 {
-    RollbackSrcParam rollBackSrcParam{
-        .node_id = "0",
-        .borrow_id_list = {"1", "2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam rollBackSrcParam{.node_id = "0", .borrow_id_list = {"1", "2"}, .borrow_id_size = 2};
     RollbackParams rollbackParams(&rollBackSrcParam);
     MemRollbackMsg msg{rollbackParams};
     auto ret = msg.Serialize();
@@ -158,11 +154,7 @@ TEST_F(TestMemFragmentationMsg, MemRollbackMsg_Serialize_Deserialize)
 
 TEST_F(TestMemFragmentationMsg, MemRollbackMsg_GetRollbackParams)
 {
-    RollbackSrcParam rollBackSrcParam{
-        .node_id = "0",
-        .borrow_id_list = {"1", "2"},
-        .borrow_id_size = 2
-    };
+    RollbackSrcParam rollBackSrcParam{.node_id = "0", .borrow_id_list = {"1", "2"}, .borrow_id_size = 2};
     RollbackParams rollbackParams(&rollBackSrcParam);
     MemRollbackMsg msg{rollbackParams};
     auto info = msg.GetRollbackParams();
@@ -302,7 +294,7 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize_Failed
     strcpy_s(setting.borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "test_host_1");
     setting.borrow_strategy.src_socket_id = 0;
     setting.borrow_strategy.src_numa_id = 1;
-    setting.borrow_strategy.borrow_size = 1024 * 1024;  // 1MB
+    setting.borrow_strategy.borrow_size = 1024 * 1024; // 1MB
 
     setting.borrow_strategy.dest_numa_infos_size = 2;
     for (uint32_t i = 0; i < 2; i++) {
@@ -330,7 +322,7 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize2)
     strcpy_s(setting.borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH, "test_host_1");
     setting.borrow_strategy.src_socket_id = 0;
     setting.borrow_strategy.src_numa_id = 1;
-    setting.borrow_strategy.borrow_size = 1024 * 1024;  // 1MB
+    setting.borrow_strategy.borrow_size = 1024 * 1024; // 1MB
 
     setting.borrow_strategy.dest_numa_infos_size = 2;
     for (uint32_t i = 0; i < 2; i++) {
@@ -349,6 +341,291 @@ TEST_F(TestMemFragmentationMsg, MemBorrowSettingMsg_Serialize_Deserialize2)
     MemBorrowSettingMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
     ret = dmsg.Deserialize();
     EXPECT_EQ(ret, VM_ERROR_NULLPTR);
+}
+
+// Tests for MemFragmentationNodeInfoListMsg
+TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Serialize_Deserialize)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    std::vector<NodeInfo> nodeInfoList;
+    NodeInfo node1;
+    node1.nodeId = "node1";
+    node1.isCurrent = true;
+    NumaInfo numa1;
+    numa1.timestamp = 1000;
+    numa1.metaData.nodeId = "node1";
+    numa1.metaData.hostName = "host1";
+    numa1.metaData.numaId = 0;
+    numa1.metaData.socketId = 0;
+    numa1.metaData.isLocal = true;
+    numa1.metaData.memTotal = 100000;
+    numa1.metaData.memFree = 50000;
+    numa1.metaData.numaPageInfo[4096] = {4096, 100, 50};
+    node1.numaInfos.push_back(numa1);
+    nodeInfoList.push_back(node1);
+
+    NodeInfo node2;
+    node2.nodeId = "node2";
+    node2.isCurrent = false;
+    NumaInfo numa2;
+    numa2.timestamp = 2000;
+    numa2.metaData.nodeId = "node2";
+    numa2.metaData.hostName = "host2";
+    numa2.metaData.numaId = 1;
+    numa2.metaData.socketId = 1;
+    numa2.metaData.isLocal = false;
+    numa2.metaData.memTotal = 200000;
+    numa2.metaData.memFree = 100000;
+    numa2.metaData.numaPageInfo[2048] = {2048, 200, 100};
+    node2.numaInfos.push_back(numa2);
+    nodeInfoList.push_back(node2);
+
+    MemFragmentationNodeInfoListMsg msg{nodeInfoList};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationNodeInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto result = dmsg.GetNodeInfoList();
+    EXPECT_EQ(result.size(), 2);
+    EXPECT_EQ(result[0].nodeId, "node1");
+    EXPECT_EQ(result[0].isCurrent, true);
+    EXPECT_EQ(result[1].nodeId, "node2");
+    EXPECT_EQ(result[1].isCurrent, false);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationNodeInfoListMsg_Empty_List)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    std::vector<NodeInfo> nodeInfoList;
+    MemFragmentationNodeInfoListMsg msg{nodeInfoList};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationNodeInfoListMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto result = dmsg.GetNodeInfoList();
+    EXPECT_EQ(result.size(), 0);
+}
+
+// Tests for MemFragmentationMemBorrowParamMsg
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Deserialize)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    BorrowParam param;
+    param.nodeId = "node1";
+    param.borrowSize = 1024; // 1GB
+
+    NumaMetaInfo numaMeta1;
+    numaMeta1.socketId = 0;
+    numaMeta1.numaId = 0;
+    param.numaMetaInfos.push_back(numaMeta1);
+
+    NumaMetaInfo numaMeta2;
+    numaMeta2.socketId = 1;
+    numaMeta2.numaId = 1;
+    param.numaMetaInfos.push_back(numaMeta2);
+
+    MemFragmentationMemBorrowParamMsg msg{param, true};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto resultParam = dmsg.GetBorrowParam();
+    EXPECT_EQ(resultParam.nodeId, "node1");
+    EXPECT_EQ(resultParam.borrowSize, 1024);
+    EXPECT_EQ(resultParam.numaMetaInfos.size(), 2);
+    EXPECT_EQ(dmsg.GetIsAsync(), true);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Sync_Mode)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    BorrowParam param;
+    param.nodeId = "node2";
+    param.borrowSize = 2048;
+
+    MemFragmentationMemBorrowParamMsg msg{param, false};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+    EXPECT_EQ(dmsg.GetIsAsync(), false);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Empty_NumaMetaInfos)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    BorrowParam param;
+    param.nodeId = "node3";
+    param.borrowSize = 512;
+
+    MemFragmentationMemBorrowParamMsg msg{param, true};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationMemBorrowParamMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto resultParam = dmsg.GetBorrowParam();
+    EXPECT_EQ(resultParam.numaMetaInfos.size(), 0);
+}
+
+// Tests for MemFragmentationMemBorrowResultMsg
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Serialize_Deserialize)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    std::vector<mem_borrow_result_c> results;
+    mem_borrow_result_c result1;
+    result1.task_id[0] = '\0';
+    result1.borrow_ids_size = 2;
+    result1.present_numa_ids_size = 1;
+    strcpy_s(result1.task_id, MEM_TASK_ID_MAX, "task1");
+    strcpy_s(result1.borrow_ids_ptr[0], MAX_BORROW_ID_LENGTH, "borrow1");
+    strcpy_s(result1.borrow_ids_ptr[1], MAX_BORROW_ID_LENGTH, "borrow2");
+    result1.present_numa_ids_ptr[0] = 0;
+    results.push_back(result1);
+
+    MemFragmentationMemBorrowResultMsg msg{results};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationMemBorrowResultMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowResultMsg_Empty_Result)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    std::vector<mem_borrow_result_c> results;
+    MemFragmentationMemBorrowResultMsg msg{results};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationMemBorrowResultMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+}
+
+// Tests for MemFragmentationPageSwapEnableMsg
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Serialize_Deserialize)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    pid_t pid = 12345;
+    std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
+
+    ::mem_fragmentation::PageSwapPair pair1;
+    ::mem_fragmentation::NumaQuota localQuota1;
+    localQuota1.numaId = 0;
+    localQuota1.quota = 1024;
+    pair1.localNumaQuotas.push_back(localQuota1);
+
+    ::mem_fragmentation::NumaQuota remoteQuota1;
+    remoteQuota1.numaId = 1;
+    remoteQuota1.quota = 2048;
+    pair1.remoteNumaQuotas.push_back(remoteQuota1);
+    pageSwapPairs.push_back(pair1);
+
+    ::mem_fragmentation::PageSwapPair pair2;
+    ::mem_fragmentation::NumaQuota localQuota2;
+    localQuota2.numaId = 2;
+    localQuota2.quota = 4096;
+    pair2.localNumaQuotas.push_back(localQuota2);
+
+    ::mem_fragmentation::NumaQuota remoteQuota2;
+    remoteQuota2.numaId = 3;
+    remoteQuota2.quota = 8192;
+    pair2.remoteNumaQuotas.push_back(remoteQuota2);
+    pageSwapPairs.push_back(pair2);
+
+    MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    EXPECT_EQ(dmsg.GetPid(), pid);
+    auto resultPairs = dmsg.GetPageSwapPair();
+    EXPECT_EQ(resultPairs.size(), 2);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Empty_Pairs)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    pid_t pid = 67890;
+    std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
+
+    MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    EXPECT_EQ(dmsg.GetPid(), pid);
+    EXPECT_EQ(dmsg.GetPageSwapPair().size(), 0);
+}
+
+TEST_F(TestMemFragmentationMsg, MemFragmentationPageSwapEnableMsg_Multiple_Quotas_Per_Pair)
+{
+    using namespace ::vm::mem_fragmentation;
+
+    pid_t pid = 11111;
+    std::vector<::mem_fragmentation::PageSwapPair> pageSwapPairs;
+
+    ::mem_fragmentation::PageSwapPair pair1;
+    // Multiple local quotas
+    for (uint32_t i = 0; i < 3; i++) {
+        ::mem_fragmentation::NumaQuota localQuota;
+        localQuota.numaId = i;
+        localQuota.quota = 1024 * (i + 1);
+        pair1.localNumaQuotas.push_back(localQuota);
+    }
+
+    // Multiple remote quotas
+    for (uint32_t i = 0; i < 2; i++) {
+        ::mem_fragmentation::NumaQuota remoteQuota;
+        remoteQuota.numaId = i + 10;
+        remoteQuota.quota = 2048 * (i + 1);
+        pair1.remoteNumaQuotas.push_back(remoteQuota);
+    }
+    pageSwapPairs.push_back(pair1);
+
+    MemFragmentationPageSwapEnableMsg msg{pid, pageSwapPairs};
+    auto ret = msg.Serialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    MemFragmentationPageSwapEnableMsg dmsg{msg.SerializedData(), msg.SerializedDataSize()};
+    ret = dmsg.Deserialize();
+    EXPECT_EQ(ret, VM_OK);
+
+    auto resultPairs = dmsg.GetPageSwapPair();
+    EXPECT_EQ(resultPairs.size(), 1);
+    EXPECT_EQ(resultPairs[0].localNumaQuotas.size(), 3);
+    EXPECT_EQ(resultPairs[0].remoteNumaQuotas.size(), 2);
 }
 
 } // namespace ubse::vm::ut

@@ -1,13 +1,13 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
 #include "test_alarm_handler.h"
 
-#include "alarm_handler.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
-#include "mem_handler.h"
+#include "alarm_handler.h"
 #include "escape_algorithm_helper.h"
-#include "status_manager.h"
+#include "mem_handler.h"
 #include "resource_collect.h"
+#include "status_manager.h"
 
 using namespace vm;
 namespace ubse::vm::ut {
@@ -36,7 +36,6 @@ TEST_F(TestAlarmHandler, InitSuccess)
     EXPECT_EQ(ret, VM_ERROR);
     MOCKER(&ubse::event::UbseSubEvent).reset();
 }
-
 
 std::string eventMessage =
     "{\"allNumaInfo\": [{\"mMemTotal\": 127257280512,\"mMemUsed\": 127257280512,\"mMemFree\": 0,\"mMemBorrowed\": "
@@ -102,8 +101,7 @@ TEST_F(TestAlarmHandler, MemNotifyEventHandlerMemNotify)
     MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
 }
 
-UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string &nodeId,
-                                           std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     numaNodeInfoList.push_back(UbseNodeNumaInfo{});
     return UBSE_OK;
@@ -111,10 +109,7 @@ UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string &nodeId,
 
 TEST_F(TestAlarmHandler, GenAlarmNumaInfo)
 {
-    Notify notify{
-        .nodeId = "node",
-        .numaId = 1
-    };
+    Notify notify{.nodeId = "node", .numaId = 1};
     std::vector<UbsVirtNumaMemoryDebtInfo> debtInfos{};
     AlarmNumaInfo alarmNumaInfo{};
     UbsVirtNumaMemoryDebtInfo debtInfo{};
@@ -183,8 +178,8 @@ TEST_F(TestAlarmHandler, TestBorrowClearEventHandler)
     EXPECT_EQ(ret, VM_OK);
 }
 
-int MyEscapeAlgorithmOK(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                        EscapeAction &action)
+int MyEscapeAlgorithmOK(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                        EscapeAction& action)
 {
     return 0;
 }
@@ -194,8 +189,8 @@ EscapeAlgorithmFunc MockGetStrategyAlgorithmReturnOK()
     return MyEscapeAlgorithmOK;
 }
 
-int MyEscapeAlgorithmWarn(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                          EscapeAction &action)
+int MyEscapeAlgorithmWarn(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                          EscapeAction& action)
 {
     return 1;
 }
@@ -210,7 +205,7 @@ EscapeAlgorithmFunc MockGetStrategyAlgorithmReturnNull()
     return nullptr;
 }
 
-VMNodeLocInfo expectedNodeLocInfo = { "node0", "testHostId", {0}, {0}}; // 告警节点位置
+VMNodeLocInfo expectedNodeLocInfo = {"node0", "testHostId", {0}, {0}}; // 告警节点位置
 NodeLocInfo curNodeLoc = NodeLocInfo{
     .hostId = expectedNodeLocInfo.hostId,
     .socketId = expectedNodeLocInfo.socketId,
@@ -221,7 +216,6 @@ NodeLocInfo nodeLocInfo = {
     .socketId = 1,
     .numaId = 3,
 };
-
 
 GlobalBorrowMap MockGetGlobalBorrowMap()
 {
@@ -354,7 +348,7 @@ TEST_F(TestAlarmHandler, HandlerNoUsedBorrowIdsTrue4)
     MOCKER_CPP(&ResourceCollect::GetGlobalBorrowMap, GlobalBorrowMap(ResourceCollect::*)()).reset();
 }
 
-std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo &alarmNumaInfo)
+std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo& alarmNumaInfo)
 {
     std::string borrowId = "host1";
     std::vector<std::string> borrowIdsInMem{borrowId};
@@ -414,9 +408,7 @@ TEST_F(TestAlarmHandler, HandlerNoUsedBorrowIdsFalse2)
         .stubs()
         .will(invoke(MockGetGlobalBorrowMap));
     MOCKER(AlarmHandler::GenVectorByBorrowItem).stubs().will(invoke(MockGenVectorByBorrowItem));
-    MOCKER(StatusManager::MigrateByBorrowIdStatus)
-        .stubs()
-        .will(returnValue(VM_OK));
+    MOCKER(StatusManager::MigrateByBorrowIdStatus).stubs().will(returnValue(VM_OK));
     const auto ret = AlarmHandler::HandlerNoUsedBorrowIds(alarmNumaInfo, type);
     EXPECT_FALSE(ret);
     MOCKER(AlarmHandler::GenVectorByBorrowItem).reset();

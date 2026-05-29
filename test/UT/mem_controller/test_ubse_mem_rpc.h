@@ -23,5 +23,5 @@ public:
 
     void TearDown() override;
 };
-} //
+} // namespace ubse::mem_controller::ut
 #endif // TEST_UBSE_MEM_RPC_H

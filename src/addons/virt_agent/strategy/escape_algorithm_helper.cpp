@@ -11,14 +11,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "escape_algorithm_helper.h"
-#include "vm_error.h"
 #include "vm_configuration.h"
+#include "vm_error.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
-EscapeAlgorithmHelper &EscapeAlgorithmHelper::GetInstance()
+EscapeAlgorithmHelper& EscapeAlgorithmHelper::GetInstance()
 {
     static EscapeAlgorithmHelper gInstance;
     return gInstance;
@@ -44,9 +44,9 @@ VmResult EscapeAlgorithmHelper::Init()
     return VM_OK;
 }
 
-void EscapeAlgorithmHelper::GetStrategyConf(StrategyConfig &strategyConf)
+void EscapeAlgorithmHelper::GetStrategyConf(StrategyConfig& strategyConf)
 {
-    auto &vmConfig = VmConfiguration::GetInstance();
+    auto& vmConfig = VmConfiguration::GetInstance();
     strategyConf.borrowWatermark = vmConfig.GetBorrowWatermark();
     strategyConf.lowWatermark = vmConfig.GetLowWatermark();
     strategyConf.highWatermark = vmConfig.GetHighWatermark();

@@ -13,13 +13,13 @@
 
 #include "router.h"
 #include <ubse_logger.h>
-#include "vm_migrate.h"
-#include "mem_fragmentation_sdk_server.h"
 #include "case_conf_sdk_server.h"
 #include "container_sdk_server.h"
+#include "mem_fragmentation_sdk_server.h"
+#include "vm_migrate.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 VmResult VMCommonSdkServerInit()
 {

@@ -23,13 +23,13 @@
 #include <type_traits> // for enable_if, is_same
 
 namespace ubse::log {
-    
+
 /**
  * @brief 定义Module名，为调试日志写入的文件名
  * @param mn [in] Module名，如ubse
  */
 #ifndef UBSE_DEFINE_THIS_MODULE
-#define UBSE_DEFINE_THIS_MODULE(mn) constexpr const char *MODULE_LOG_NAME = (mn)
+#define UBSE_DEFINE_THIS_MODULE(mn) constexpr const char* MODULE_LOG_NAME = (mn)
 #endif
 
 /**
@@ -90,7 +90,8 @@ namespace ubse::log {
 #define UBSE_LOG_INFO UBSE_LOGGER_INFO(MODULE_LOG_NAME, gModuleId)
 #define UBSE_LOG_DEBUG UBSE_LOGGER_DEBUG(MODULE_LOG_NAME, gModuleId)
 
-enum class UbseLogLevel : uint32_t {
+enum class UbseLogLevel : uint32_t
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
@@ -104,7 +105,7 @@ enum class UbseLogLevel : uint32_t {
  * @param level [in] 日志级别
  * @param msg [in] 日志内容
  */
-void UbseLogOutput(const char *moduleName, UbseLogLevel level, const char *msg);
+void UbseLogOutput(const char* moduleName, UbseLogLevel level, const char* msg);
 
 /**
  * @brief 格式化错误码
@@ -113,7 +114,8 @@ void UbseLogOutput(const char *moduleName, UbseLogLevel level, const char *msg);
  */
 std::string FormatRetCode(uint32_t retCode);
 
-enum class UbseLoggerTypeId : uint8_t {
+enum class UbseLoggerTypeId : uint8_t
+{
     CHAR = 0,
     UINT32,
     UINT64,
@@ -125,45 +127,45 @@ enum class UbseLoggerTypeId : uint8_t {
 
 class UbseLoggerEntry {
 public:
-    UbseLoggerEntry(const char *gModuleName, UbseLogLevel level, const char *file, const char *func, uint32_t line);
+    UbseLoggerEntry(const char* gModuleName, UbseLogLevel level, const char* file, const char* func, uint32_t line);
     ~UbseLoggerEntry() = default;
 
     UbseLoggerEntry() = default;
-    UbseLoggerEntry(const UbseLoggerEntry &other);
-    UbseLoggerEntry &operator=(const UbseLoggerEntry &other);
-    UbseLoggerEntry(UbseLoggerEntry &&) = default;
-    UbseLoggerEntry &operator=(UbseLoggerEntry &&) = default;
+    UbseLoggerEntry(const UbseLoggerEntry& other);
+    UbseLoggerEntry& operator=(const UbseLoggerEntry& other);
+    UbseLoggerEntry(UbseLoggerEntry&&) = default;
+    UbseLoggerEntry& operator=(UbseLoggerEntry&&) = default;
 
-    void OutPutLog(std::ostream &os);
-    void FormatSyslog(std::ostream &os);
+    void OutPutLog(std::ostream& os);
+    void FormatSyslog(std::ostream& os);
 
     UbseLogLevel GetLogLevel();
-    const char *GetModuleName();
-    const char *GetFile();
+    const char* GetModuleName();
+    const char* GetFile();
     uint32_t GetLine();
-    char *GetMessage(size_t &length);
+    char* GetMessage(size_t& length);
     uint64_t GetEntryTimeStamp();
 
-    UbseLoggerEntry &operator<<(char data);
-    UbseLoggerEntry &operator<<(int32_t data);
-    UbseLoggerEntry &operator<<(uint32_t data);
-    UbseLoggerEntry &operator<<(int64_t data);
-    UbseLoggerEntry &operator<<(uint64_t data);
-    UbseLoggerEntry &operator<<(double data);
-    UbseLoggerEntry &operator<<(const std::string &data);
-    UbseLoggerEntry &operator<<(const char *data);
+    UbseLoggerEntry& operator<<(char data);
+    UbseLoggerEntry& operator<<(int32_t data);
+    UbseLoggerEntry& operator<<(uint32_t data);
+    UbseLoggerEntry& operator<<(int64_t data);
+    UbseLoggerEntry& operator<<(uint64_t data);
+    UbseLoggerEntry& operator<<(double data);
+    UbseLoggerEntry& operator<<(const std::string& data);
+    UbseLoggerEntry& operator<<(const char* data);
 
 private:
     uint32_t ResizeBuffer(size_t addSize);
 
-    char *GetBuffer();
+    char* GetBuffer();
 
-    void EncodeString(const char *data, size_t length);
+    void EncodeString(const char* data, size_t length);
 
     template <typename T>
     void EncodeData(T data)
     {
-        *reinterpret_cast<T *>(GetBuffer()) = data;
+        *reinterpret_cast<T*>(GetBuffer()) = data; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
         currentSize += sizeof(T);
     }
 
@@ -178,24 +180,24 @@ private:
         EncodeData<T>(data);
     }
 
-    void EncodeData(const char *data);
-    char *DecodeChar(std::ostream &os, char *buffer);
-    char *DecodeUint(std::ostream &os, char *buffer);
-    char *DecodeUlong(std::ostream &os, char *buffer);
-    char *DecodeInt(std::ostream &os, char *buffer);
-    char *DecodeLong(std::ostream &os, char *buffer);
-    char *DecodeDouble(std::ostream &os, char *buffer);
-    char *DecodeString(std::ostream &os, char *buffer);
-    void DecodeData(std::ostream &os, char *start, const char *end);
+    void EncodeData(const char* data);
+    char* DecodeChar(std::ostream& os, char* buffer);
+    char* DecodeUint(std::ostream& os, char* buffer);
+    char* DecodeUlong(std::ostream& os, char* buffer);
+    char* DecodeInt(std::ostream& os, char* buffer);
+    char* DecodeLong(std::ostream& os, char* buffer);
+    char* DecodeDouble(std::ostream& os, char* buffer);
+    char* DecodeString(std::ostream& os, char* buffer);
+    void DecodeData(std::ostream& os, char* start, const char* end);
 
-    const char *moduleName;
+    const char* moduleName;
     uint64_t timeStamp;
     pid_t pid;
     std::thread::id tid;
     UbseLogLevel level;
     std::string traceId;
-    const char *file;
-    const char *func;
+    const char* file;
+    const char* func;
     uint32_t line;
 
     size_t maxSize;
@@ -207,7 +209,7 @@ private:
 bool UbseIsLog(UbseLogLevel level);
 
 struct UbseLog {
-    bool operator==(UbseLoggerEntry &loggerEntry);
+    bool operator==(UbseLoggerEntry& loggerEntry);
 };
 } // namespace ubse::log
 #endif // UBSE_LOGGER_H

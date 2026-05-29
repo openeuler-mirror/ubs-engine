@@ -11,10 +11,11 @@
  */
 
 #include "test_ubse_election_node_mgr.h"
-#include "ubse_election_node_mgr.cpp"
 #include "ubse_election_node_mgr.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_lcne_module.h"
+#include "ubse_mti_interface_default.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "ubse_election_node_mgr.cpp"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -33,8 +34,8 @@ void TestUbseElectionNodeMgr::TearDown()
 
 TEST_F(TestUbseElectionNodeMgr, getInstance_ShouldReturnSameInstance_WhenCalledMultipleTimes)
 {
-    UbseElectionNodeMgr &instance1 = UbseElectionNodeMgr::GetInstance();
-    UbseElectionNodeMgr &instance2 = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& instance1 = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& instance2 = UbseElectionNodeMgr::GetInstance();
     EXPECT_EQ(&instance1, &instance2);
 }
 
@@ -117,12 +118,11 @@ TEST_F(TestUbseElectionNodeMgr, GetAllNeighbourNode_ShouldReturnError_WhenMyself
 {
     std::vector<Node> neighbourNodes;
     UbseElectionNodeMgr rn;
-    rn.currentAllNodes_ = { { "1", "127.0.0.1", 5003 }, { "2", "127.0.0.2", 5003 } };
-    rn.currentNode_ = { "1", "127.0.0.1", 5003 };
+    rn.currentAllNodes_ = {{"1", "127.0.0.1", 5003}, {"2", "127.0.0.2", 5003}};
+    rn.currentNode_ = {"1", "127.0.0.1", 5003};
     UbseResult result = rn.GetAllNeighbourNode(neighbourNodes);
     EXPECT_EQ(result, UBSE_OK);
 }
-
 
 TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnError_WhenNoNodeFound)
 {
@@ -138,7 +138,7 @@ TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnOK_WhenNodeFound)
     UbseElectionNodeMgr nodeMgr;
     std::string ip;
     uint16_t port;
-    nodeMgr.currentAllNodes_ = { { "1", "127.0.0.1", 8080 } }; // 8080，端口信息
+    nodeMgr.currentAllNodes_ = {{"1", "127.0.0.1", 8080}}; // 8080，端口信息
     UbseResult result = nodeMgr.GetNodeInfoByID("1", ip, port);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(ip, "127.0.0.1");
@@ -149,7 +149,7 @@ TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnError_WhenIDNotFound
 {
     std::string ip;
     uint16_t port;
-    nodeMgr.currentAllNodes_ = { { "1", "127.0.0.1", 8080 } };
+    nodeMgr.currentAllNodes_ = {{"1", "127.0.0.1", 8080}};
     UbseResult result = nodeMgr.GetNodeInfoByID("2", ip, port);
     EXPECT_EQ(result, UBSE_ERROR);
 }
@@ -257,7 +257,558 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge2)
     MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(allNodesVec));
     std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
     MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
     uint32_t result = nodeMgr.LoadConfig();
     EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldReturnModuleLoadFailed_WhenConfModuleIsNull)
+{
+    bool ubEnable = true;
+    std::shared_ptr<UbseConfModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
+    UbseResult result = ubse::config::UbseGetUBEnable(ubEnable);
+    EXPECT_EQ(result, UBSE_ERROR_MODULE_LOAD_FAILED);
+    EXPECT_TRUE(ubEnable);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldSetUbEnableTrue_WhenGetConfFailed)
+{
+    bool ubEnable = false;
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+    UbseResult result = ubse::config::UbseGetUBEnable(ubEnable);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(ubEnable);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldSetUbEnableFalse_WhenGetConfSuccess)
+{
+    bool ubEnable = true;
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    std::string ipList = "192.168.0.1,192.168.0.2";
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), mockcpp::outBound(ipList))
+        .will(returnValue(UBSE_OK));
+    UbseResult result = ubse::config::UbseGetUBEnable(ubEnable);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(ubEnable);
+}
+
+TEST_F(TestUbseElectionNodeMgr, BuildEdgeInfo_ShouldFillPortInfoCorrectly)
+{
+    adapter_plugins::mti::UbseDevPortName devPortName("port1");
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo mtiPortInfo;
+    mtiPortInfo.portId = "port001";
+    mtiPortInfo.ifName = "eth0";
+    mtiPortInfo.portRole = "internal";
+    mtiPortInfo.portStatus = adapter_plugins::mti::UbseMtiCpuTopoPortStatus::UP;
+    mtiPortInfo.portCna = 1;
+    mtiPortInfo.urmaEid = "eid001";
+    mtiPortInfo.remoteSlotId = "slot01";
+    mtiPortInfo.remoteChipId = "chip01";
+    mtiPortInfo.remoteCardId = "card01";
+    mtiPortInfo.remoteIfName = "eth1";
+    mtiPortInfo.remotePortId = "port002";
+
+    std::pair<const adapter_plugins::mti::UbseDevPortName, adapter_plugins::mti::UbseMtiCpuTopoPortInfo> portPair(
+        devPortName, mtiPortInfo);
+    UbsePortInfo portInfo;
+    BuildEdgeInfo(portPair, portInfo);
+
+    EXPECT_EQ(portInfo.portId, "port001");
+    EXPECT_EQ(portInfo.ifName, "eth0");
+    EXPECT_EQ(portInfo.portRole, "internal");
+    EXPECT_EQ(portInfo.portStatus, PortStatus::UP);
+    EXPECT_EQ(portInfo.portCna, 1);
+    EXPECT_EQ(portInfo.urmaEid, "eid001");
+    EXPECT_EQ(portInfo.remoteSlotId, "slot01");
+    EXPECT_EQ(portInfo.remoteChipId, "chip01");
+    EXPECT_EQ(portInfo.remoteCardId, "card01");
+    EXPECT_EQ(portInfo.remoteIfName, "eth1");
+    EXPECT_EQ(portInfo.remotePortId, "port002");
+}
+
+TEST_F(TestUbseElectionNodeMgr, CollectCpuInfo_ShouldReturnError_WhenGetClusterCpuTopoFailed)
+{
+    UbseNodeInfo ubseNodeInfo;
+    std::string nodeId = "node01";
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    UbseResult result = CollectCpuInfo(ubseNodeInfo, nodeId);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, CollectCpuInfo_ShouldReturnOk_WhenNodeIdNotMatch)
+{
+    UbseNodeInfo ubseNodeInfo;
+    std::string nodeId = "node02";
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("node01", "socket0");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.slotId = 1;
+    cpuTopoInfo.socketId = 0;
+    cpuTopoInfo.primaryEid = "primaryEid001";
+    cpuTopoInfo.chipId = "chip01";
+    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.eid = "eid001";
+    cpuTopoInfo.guid = "guid001";
+    cpuTopoInfo.busNodeCna = 1;
+    cpuTopoInfos[devName] = cpuTopoInfo;
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
+    UbseResult result = CollectCpuInfo(ubseNodeInfo, nodeId);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(ubseNodeInfo.cpuInfos.empty());
+}
+
+TEST_F(TestUbseElectionNodeMgr, CollectCpuInfo_ShouldReturnOk_WhenNodeIdMatch)
+{
+    UbseNodeInfo ubseNodeInfo;
+    std::string nodeId = "node01";
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("node01", "socket0");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.slotId = 1;
+    cpuTopoInfo.socketId = 0;
+    cpuTopoInfo.primaryEid = "primaryEid001";
+    cpuTopoInfo.chipId = "chip01";
+    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.eid = "eid001";
+    cpuTopoInfo.guid = "guid001";
+    cpuTopoInfo.busNodeCna = 1;
+
+    adapter_plugins::mti::UbseDevPortName devPortName("port1");
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.portId = "port001";
+    portInfo.ifName = "eth0";
+    portInfo.portRole = "internal";
+    portInfo.portStatus = adapter_plugins::mti::UbseMtiCpuTopoPortStatus::UP;
+    portInfo.portCna = 1;
+    portInfo.urmaEid = "eid001";
+    portInfo.remoteSlotId = "slot02";
+    portInfo.remoteChipId = "chip02";
+    portInfo.remoteCardId = "card02";
+    portInfo.remoteIfName = "eth1";
+    portInfo.remotePortId = "port002";
+    cpuTopoInfo.portInfos[devPortName] = portInfo;
+
+    cpuTopoInfos[devName] = cpuTopoInfo;
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
+    UbseResult result = CollectCpuInfo(ubseNodeInfo, nodeId);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(ubseNodeInfo.cpuInfos.size(), 1);
+}
+
+TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddNodeToCurrentAllNodes_WhenUbEnableTrueAndRemoteSlotIdNotDash)
+{
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseNodeInfo curNode;
+    curNode.nodeId = "node01";
+    std::string bondingEid = "eid001";
+    strcpy_s(curNode.bondingEid, sizeof(curNode.bondingEid), bondingEid.c_str());
+    MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+
+    std::vector<UbseNodeInfo> staticNodes;
+    UbseNodeInfo node1;
+    node1.nodeId = "node01";
+    strcpy_s(node1.bondingEid, sizeof(node1.bondingEid), bondingEid.c_str());
+    staticNodes.push_back(node1);
+
+    UbseNodeInfo node2;
+    node2.nodeId = "node02";
+    std::string bondingEid2 = "eid002";
+    strcpy_s(node2.bondingEid, sizeof(node2.bondingEid), bondingEid2.c_str());
+    staticNodes.push_back(node2);
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("node01", "socket0");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.slotId = 1;
+    cpuTopoInfo.socketId = 0;
+    cpuTopoInfo.primaryEid = "primaryEid001";
+    cpuTopoInfo.chipId = "chip01";
+    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.eid = "eid001";
+    cpuTopoInfo.guid = "guid001";
+    cpuTopoInfo.busNodeCna = 1;
+
+    adapter_plugins::mti::UbseDevPortName devPortName("port1");
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.portId = "port001";
+    portInfo.ifName = "eth0";
+    portInfo.portRole = "internal";
+    portInfo.portStatus = adapter_plugins::mti::UbseMtiCpuTopoPortStatus::UP;
+    portInfo.portCna = 1;
+    portInfo.urmaEid = "eid001";
+    portInfo.remoteSlotId = "node02";
+    portInfo.remoteChipId = "chip02";
+    portInfo.remoteCardId = "card02";
+    portInfo.remoteIfName = "eth1";
+    portInfo.remotePortId = "port002";
+    cpuTopoInfo.portInfos[devPortName] = portInfo;
+    cpuTopoInfos[devName] = cpuTopoInfo;
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
+
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+
+    UbseResult result = nodeMgr.LoadConfig();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeMgr.currentNode_.id, "node01");
+    EXPECT_EQ(nodeMgr.currentNode_.ip, "eid001");
+    EXPECT_EQ(nodeMgr.currentAllNodes_.size(), 2);
+    EXPECT_EQ(nodeMgr.nodeIpMap_.size(), 2);
+    EXPECT_NE(nodeMgr.nodeIpMap_.find("eid001"), nodeMgr.nodeIpMap_.end());
+    EXPECT_NE(nodeMgr.nodeIpMap_.find("eid002"), nodeMgr.nodeIpMap_.end());
+}
+
+TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldNotAddNodeToCurrentAllNodes_WhenUbEnableTrueAndRemoteSlotIdIsDash)
+{
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseNodeInfo curNode;
+    curNode.nodeId = "node01";
+    std::string bondingEid = "eid001";
+    strcpy_s(curNode.bondingEid, sizeof(curNode.bondingEid), bondingEid.c_str());
+    MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+
+    std::vector<UbseNodeInfo> staticNodes;
+    UbseNodeInfo node1;
+    node1.nodeId = "node01";
+    strcpy_s(node1.bondingEid, sizeof(node1.bondingEid), bondingEid.c_str());
+    staticNodes.push_back(node1);
+
+    UbseNodeInfo node2;
+    node2.nodeId = "node02";
+    std::string bondingEid2 = "eid002";
+    strcpy_s(node2.bondingEid, sizeof(node2.bondingEid), bondingEid2.c_str());
+    staticNodes.push_back(node2);
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("node01", "socket0");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.slotId = 1;
+    cpuTopoInfo.socketId = 0;
+    cpuTopoInfo.primaryEid = "primaryEid001";
+    cpuTopoInfo.chipId = "chip01";
+    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.eid = "eid001";
+    cpuTopoInfo.guid = "guid001";
+    cpuTopoInfo.busNodeCna = 1;
+
+    adapter_plugins::mti::UbseDevPortName devPortName("port1");
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.portId = "port001";
+    portInfo.ifName = "eth0";
+    portInfo.portRole = "internal";
+    portInfo.portStatus = adapter_plugins::mti::UbseMtiCpuTopoPortStatus::UP;
+    portInfo.portCna = 1;
+    portInfo.urmaEid = "eid001";
+    portInfo.remoteSlotId = "-";
+    portInfo.remoteChipId = "chip02";
+    portInfo.remoteCardId = "card02";
+    portInfo.remoteIfName = "eth1";
+    portInfo.remotePortId = "port002";
+    cpuTopoInfo.portInfos[devPortName] = portInfo;
+    cpuTopoInfos[devName] = cpuTopoInfo;
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
+
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+
+    UbseResult result = nodeMgr.LoadConfig();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeMgr.currentNode_.id, "node01");
+    EXPECT_EQ(nodeMgr.currentNode_.ip, "eid001");
+    EXPECT_EQ(nodeMgr.currentAllNodes_.size(), 1);
+    EXPECT_EQ(nodeMgr.nodeIpMap_.size(), 1);
+    EXPECT_NE(nodeMgr.nodeIpMap_.find("eid001"), nodeMgr.nodeIpMap_.end());
+    EXPECT_EQ(nodeMgr.nodeIpMap_.find("eid002"), nodeMgr.nodeIpMap_.end());
+}
+
+TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldAddCurrentNode_WhenNotInTopoLinkedNodes)
+{
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseNodeInfo curNode;
+    curNode.nodeId = "node01";
+    std::string bondingEid = "eid001";
+    strcpy_s(curNode.bondingEid, sizeof(curNode.bondingEid), bondingEid.c_str());
+    MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+
+    std::vector<UbseNodeInfo> staticNodes;
+    UbseNodeInfo node1;
+    node1.nodeId = "node01";
+    strcpy_s(node1.bondingEid, sizeof(node1.bondingEid), bondingEid.c_str());
+    staticNodes.push_back(node1);
+
+    UbseNodeInfo node2;
+    node2.nodeId = "node02";
+    std::string bondingEid2 = "eid002";
+    strcpy_s(node2.bondingEid, sizeof(node2.bondingEid), bondingEid2.c_str());
+    staticNodes.push_back(node2);
+    MOCKER(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
+
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("node01", "socket0");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.slotId = 1;
+    cpuTopoInfo.socketId = 0;
+    cpuTopoInfo.primaryEid = "primaryEid001";
+    cpuTopoInfo.chipId = "chip01";
+    cpuTopoInfo.cardId = "card01";
+    cpuTopoInfo.eid = "eid001";
+    cpuTopoInfo.guid = "guid001";
+    cpuTopoInfo.busNodeCna = 1;
+
+    adapter_plugins::mti::UbseDevPortName devPortName("port1");
+    adapter_plugins::mti::UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.portId = "port001";
+    portInfo.ifName = "eth0";
+    portInfo.portRole = "internal";
+    portInfo.portStatus = adapter_plugins::mti::UbseMtiCpuTopoPortStatus::UP;
+    portInfo.portCna = 1;
+    portInfo.urmaEid = "eid001";
+    portInfo.remoteSlotId = "node03";
+    portInfo.remoteChipId = "chip03";
+    portInfo.remoteCardId = "card03";
+    portInfo.remoteIfName = "eth1";
+    portInfo.remotePortId = "port002";
+    cpuTopoInfo.portInfos[devPortName] = portInfo;
+    cpuTopoInfos[devName] = cpuTopoInfo;
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
+
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+
+    UbseResult result = nodeMgr.LoadConfig();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeMgr.currentNode_.id, "node01");
+    EXPECT_EQ(nodeMgr.currentAllNodes_.size(), 1);
+    EXPECT_EQ(nodeMgr.currentAllNodes_[0].id, "node01");
+    EXPECT_EQ(nodeMgr.nodeIpMap_.size(), 1);
+}
+
+TEST_F(TestUbseElectionNodeMgr, LoadConfig_ShouldUseIpList_WhenUbEnableFalse)
+{
+    nodeMgr.currentAllNodes_.clear();
+    nodeMgr.nodeIpMap_.clear();
+
+    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
+    std::string ipListConf = "192.168.0.1,192.168.0.2";
+    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), mockcpp::outBound(ipListConf))
+        .will(returnValue(UBSE_OK));
+
+    UbseNodeInfo curNode;
+    curNode.nodeId = "node01";
+    std::string bondingEid = "eid001";
+    strcpy_s(curNode.bondingEid, sizeof(curNode.bondingEid), bondingEid.c_str());
+    MOCKER(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+
+    std::string localIp = "192.168.0.1";
+    std::vector<std::string> clusterIpList = {"192.168.0.1", "192.168.0.2"};
+
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetLocalIp)
+        .stubs()
+        .with(outBound(localIp))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterIpList)
+        .stubs()
+        .with(outBound(clusterIpList))
+        .will(returnValue(UBSE_OK));
+
+    std::shared_ptr<mti::UbseLcneModule> lcneModule = std::make_shared<mti::UbseLcneModule>();
+    MOCKER(&UbseContext::GetModule<mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
+
+    UbseResult result = nodeMgr.LoadConfig();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeMgr.currentNode_.id, "node01");
+    EXPECT_EQ(nodeMgr.currentNode_.ip, "192.168.0.1");
+    EXPECT_EQ(nodeMgr.currentAllNodes_.size(), 2);
+    EXPECT_EQ(nodeMgr.currentAllNodes_[0].ip, "192.168.0.1");
+    EXPECT_EQ(nodeMgr.currentAllNodes_[0].id, "node01");
+    EXPECT_EQ(nodeMgr.currentAllNodes_[1].ip, "192.168.0.2");
+    EXPECT_EQ(nodeMgr.nodeIpMap_.size(), 2);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetPortByIp_ShouldReturnError_WhenIpEmpty)
+{
+    uint16_t port;
+    UbseResult result = nodeMgr.GetPortByIp("", port);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetPortByIp_ShouldReturnError_WhenCurrentAllNodesEmpty)
+{
+    nodeMgr.currentAllNodes_.clear();
+    uint16_t port;
+    UbseResult result = nodeMgr.GetPortByIp("192.168.0.1", port);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetPortByIp_ShouldReturnOk_WhenIpFound)
+{
+    nodeMgr.currentAllNodes_ = {{"node01", "192.168.0.1", 1901}};
+    uint16_t port;
+    UbseResult result = nodeMgr.GetPortByIp("192.168.0.1", port);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(port, 1901);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetPortByIp_ShouldReturnError_WhenIpNotFound)
+{
+    nodeMgr.currentAllNodes_ = {{"node01", "192.168.0.1", 1901}};
+    uint16_t port;
+    UbseResult result = nodeMgr.GetPortByIp("192.168.0.2", port);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnError_WhenIpEmpty)
+{
+    UbseResult result = nodeMgr.UpdateNodeIdWithConnect("", "node01");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnError_WhenIdEmpty)
+{
+    nodeMgr.currentAllNodes_ = {{"", "192.168.0.1", 1901}};
+    UbseResult result = nodeMgr.UpdateNodeIdWithConnect("192.168.0.1", "");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnError_WhenCurrentAllNodesEmpty)
+{
+    nodeMgr.currentAllNodes_.clear();
+    UbseResult result = nodeMgr.UpdateNodeIdWithConnect("192.168.0.1", "node01");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnError_WhenIpNotFound)
+{
+    nodeMgr.currentAllNodes_ = {{"node01", "192.168.0.1", 1901}};
+    UbseResult result = nodeMgr.UpdateNodeIdWithConnect("192.168.0.2", "node02");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnOk_WhenIpFound)
+{
+    nodeMgr.currentAllNodes_ = {{"", "192.168.0.1", 1901}};
+    nodeMgr.nodeIpMap_.clear();
+    UbseResult result = nodeMgr.UpdateNodeIdWithConnect("192.168.0.1", "node01");
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeMgr.currentAllNodes_[0].id, "node01");
+    EXPECT_EQ(nodeMgr.nodeIpMap_["192.168.0.1"], "node01");
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIdByIp_ShouldReturnError_WhenIpEmpty)
+{
+    std::string id;
+    UbseResult result = nodeMgr.GetNodeIdByIp("", id);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIdByIp_ShouldReturnOk_WhenIpFound)
+{
+    nodeMgr.nodeIpMap_ = {{"192.168.0.1", "node01"}, {"192.168.0.2", "node02"}};
+    std::string id;
+    UbseResult result = nodeMgr.GetNodeIdByIp("192.168.0.1", id);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(id, "node01");
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIdByIp_ShouldReturnError_WhenIpNotFound)
+{
+    nodeMgr.nodeIpMap_ = {{"192.168.0.1", "node01"}};
+    std::string id;
+    UbseResult result = nodeMgr.GetNodeIdByIp("192.168.0.2", id);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIpById_ShouldReturnError_WhenIdEmpty)
+{
+    std::string ip;
+    UbseResult result = nodeMgr.GetNodeIpById("", ip);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIpById_ShouldReturnOk_WhenIdFound)
+{
+    nodeMgr.nodeIpMap_ = {{"192.168.0.1", "node01"}, {"192.168.0.2", "node02"}};
+    std::string ip;
+    UbseResult result = nodeMgr.GetNodeIpById("node01", ip);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(ip, "192.168.0.1");
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIpById_ShouldReturnError_WhenIdNotFound)
+{
+    nodeMgr.nodeIpMap_ = {{"192.168.0.1", "node01"}};
+    std::string ip;
+    UbseResult result = nodeMgr.GetNodeIpById("node02", ip);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIpMap_ShouldReturnError_WhenNodeIpMapEmpty)
+{
+    nodeMgr.nodeIpMap_.clear();
+    std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap;
+    UbseResult result = nodeMgr.GetNodeIpMap(nodeIpMap);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionNodeMgr, GetNodeIpMap_ShouldReturnOk_WhenNodeIpMapNotEmpty)
+{
+    nodeMgr.nodeIpMap_ = {{"192.168.0.1", "node01"}, {"192.168.0.2", "node02"}};
+    std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap;
+    UbseResult result = nodeMgr.GetNodeIpMap(nodeIpMap);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nodeIpMap.size(), 2);
+    EXPECT_EQ(nodeIpMap["192.168.0.1"], "node01");
+    EXPECT_EQ(nodeIpMap["192.168.0.2"], "node02");
 }
 } // namespace ubse::ut::election

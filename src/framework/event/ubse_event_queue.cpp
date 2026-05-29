@@ -14,7 +14,7 @@
 namespace ubse::event {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
-void UbseEventQueue::AddEventTask(EventTask &eventTask)
+void UbseEventQueue::AddEventTask(EventTask& eventTask)
 {
     std::unique_lock<std::mutex> lock(eventQueueMutex_);
     notFull_.wait(lock, [this]() { return queue_.size() < capacity_ || !isQueueRunning_.load(); });
@@ -46,4 +46,4 @@ void UbseEventQueue::StopQueue()
     notFull_.notify_all();
     notEmpty_.notify_all();
 }
-}
+} // namespace ubse::event

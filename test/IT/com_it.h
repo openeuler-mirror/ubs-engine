@@ -16,10 +16,10 @@
 
 namespace ubse::it::com {
 using namespace ubse::it;
-int32_t ITestCmdRpcSend(ProcessMmap *);
-int32_t ITestCmdSendUseUbseCom(ProcessMmap *);
-int32_t ITestCmdItCliSend(ProcessMmap *);
-int32_t ITestCmdItManagerSend(ProcessMmap *);
-}
+int32_t ITestCmdRpcSend(ProcessMmap*);
+int32_t ITestCmdSendUseUbseCom(ProcessMmap*);
+int32_t ITestCmdItCliSend(ProcessMmap*);
+int32_t ITestCmdItManagerSend(ProcessMmap*);
+} // namespace ubse::it::com
 
 #endif // COM_IT_H

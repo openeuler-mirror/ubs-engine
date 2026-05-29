@@ -18,7 +18,7 @@ namespace ubse::mti {
  * @param[out] rackNodeInfo: 当前节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &rackNodeInfo)
+uint32_t UbseGetLocalNodeInfo(MtiNodeInfo& rackNodeInfo)
 {
     return 0;
 }
@@ -28,7 +28,7 @@ uint32_t UbseGetLocalNodeInfo(MtiNodeInfo &rackNodeInfo)
  * @param[out] rackNodeInfos: 整个集群节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo> &rackNodeInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<MtiNodeInfo>& rackNodeInfos)
 {
     return 0;
 }

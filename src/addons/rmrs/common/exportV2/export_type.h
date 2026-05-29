@@ -15,8 +15,8 @@
 
 #include <sstream>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace mempooling::exportV2 {
 
@@ -72,9 +72,9 @@ struct VmDomainNumaInfo {
 struct VmDomainInfo {
     VmDomainInfo() = default;
 
-    VmMetaData metaData{};   // 元信息
+    VmMetaData metaData{};                                    // 元信息
     std::unordered_map<int16_t, VmDomainNumaInfo> numaInfo{}; // 虚机使用numa信息,key为numaId
-    time_t timestamp{};      // 时间戳
+    time_t timestamp{};                                       // 时间戳
 
     std::string ToString() const
     {
@@ -85,7 +85,7 @@ struct VmDomainInfo {
         oss << "metaData:[" << metaData.ToString() << "],";
         oss << "numaInfo:[";
         bool first = true;
-        for (const auto &it : numaInfo) {
+        for (const auto& it : numaInfo) {
             if (!first) {
                 oss << ",";
             }
@@ -116,13 +116,13 @@ struct NumaPageData {
 struct NumaMetaData {
     NumaMetaData() = default;
 
-    std::string nodeId{};     // 节点Id
-    std::string hostName{};   // 节点HostName
-    int16_t numaId{};         // numaId
-    int16_t socketId{};       // 该numa绑定cpu映射socketId
-    bool isLocal;             // 是否是本地numa  0：非本地  1：本地
-    uint64_t memTotal{};      // 该numa节点内存总量(包含)，系统文件采集，kb
-    uint64_t memFree{};       // 该numa上空闲内存，系统文件采集，kb
+    std::string nodeId{};   // 节点Id
+    std::string hostName{}; // 节点HostName
+    int16_t numaId{};       // numaId
+    int16_t socketId{};     // 该numa绑定cpu映射socketId
+    bool isLocal;           // 是否是本地numa  0：非本地  1：本地
+    uint64_t memTotal{};    // 该numa节点内存总量(包含)，系统文件采集，kb
+    uint64_t memFree{};     // 该numa上空闲内存，系统文件采集，kb
     std::unordered_map<uint64_t, NumaPageData> numaPageInfo; // 该numa上页信息，key为该numaId上页类型
     std::string ToString() const
     {
@@ -138,7 +138,7 @@ struct NumaMetaData {
         oss << "memFree:" << memFree << ",";
         oss << "numaPageInfo:[";
         bool first = true;
-        for (const auto &it : numaPageInfo) {
+        for (const auto& it : numaPageInfo) {
             if (!first) {
                 oss << ",";
             }
@@ -173,7 +173,7 @@ struct NumaInfoWithReservedMem : public NumaInfo {
 
     NumaInfoWithReservedMem() = default;
 
-    NumaInfoWithReservedMem(const NumaInfo &base, uint64_t reserved, uint64_t borrowable, uint64_t lent,
+    NumaInfoWithReservedMem(const NumaInfo& base, uint64_t reserved, uint64_t borrowable, uint64_t lent,
                             uint64_t shared)
         : NumaInfo(base),
           reservedMem(reserved),

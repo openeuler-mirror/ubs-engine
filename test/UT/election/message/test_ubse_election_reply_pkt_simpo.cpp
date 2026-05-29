@@ -21,7 +21,7 @@ using namespace ubse::election;
 
 void TestUbseElectionReplyPktSimpo::SetUp()
 {
-    electionReplyPkt = { 0, "Node2", 24434, "Node0", 5, 0, 3, 0 };
+    electionReplyPkt = {0, "Node2", 24434, "Node0", 5, 0, 3, 0};
     ubseElectionReplyPktSimpoPtr = new (std::nothrow) UbseElectionReplyPktSimpo(electionReplyPkt);
     Test::SetUp();
 }
@@ -74,4 +74,4 @@ TEST_F(TestUbseElectionReplyPktSimpo, DeserializeSuccess)
         ubseElectionReplyPktSimpoPtr->SerializedData(), ubseElectionReplyPktSimpoPtr->SerializedDataSize());
     EXPECT_EQ(pUbseElectionReplyPktSimpo->Deserialize(), UBSE_OK);
 }
-}
+} // namespace ubse::ut::election::message

@@ -1,6 +1,15 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
-*/
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #include "ubse_mem_controller_fault_handle.h"
 
 #include <chrono>
@@ -8,11 +17,11 @@
 #include <future>
 #include <mutex>
 #include <set>
-#include <thread>
 #include <unordered_map>
 
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_str_util.h"
 
 #include "ubse_api_server_module.h"
 #include "ubse_conf_module.h"
@@ -21,13 +30,15 @@
 #include "ubse_mmi_interface.h"
 
 #include "ubse_com_op_code.h"
+#include "ubse_event.h"
 #include "ubse_ipc_common_def.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_json_util.h"
 #include "ubse_mem_controller_share_api.h"
-#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_single_import_message.h"
 #include "ubse_serial_util.h"
+#include "ubse_timer.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
@@ -36,58 +47,41 @@ using namespace ubse::utils;
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::ipc;
-using namespace api::server;
+using namespace ::api::server;
 using namespace ubse::config;
 using namespace ubse::com;
 using namespace ubse::serial;
+using namespace ubse::ras;
+using namespace ubse::common::def;
+using namespace ubse::task_executor;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-struct ThreadControl {
-    std::mutex mtx;
-    std::condition_variable cv;
-    bool ready = false;
-    std::set<std::string> replyNodes;
-};
-
 const std::string MEM_FAULT_ALAUBSE_NAME = "MemFaultAlarm";
+const std::string BMC_FAULT_ALARM_NAME = "BmcFaultAlarm";
 const std::string MEM_FAULT_DELIVER_TASK_PREFIX = "MemFaultDeliver";
 const std::string MEM_FAULT_INFO_JSON_MEM_ID = "memid";
 const std::string MEM_FAULT_INFO_JSON_RAS_TYPE = "raw_ubus_mem_err_type";
-const uint8_t RAS_REPORT_RETRY_TIME = 5;
-const uint8_t RAS_REPORT_WAIT_TIME = 3;
-const uint8_t RAS_NOTIFY_WAIT_TIME = 5;
-const uint8_t CHECK_INTERVAL = 1;
-const uint8_t REPORT_RETRY_TIMES = 5;    // 内存故障场景，故障节点向主节点上报故障最大重试次数
-const uint8_t REPORT_WAIT_INTERVAL = 20; // 内存故障场景，故障节点向主节点上报故障重试间隔，单位秒
+const std::string PANIC_REBOOT_FAULT_LOCAL_EVENT_ID = "UbsePanicAndRebootFaultLocalEvent";
+const std::string BMC_FAULT_TIMER_NAME = "BmcFaultTimer";
+const uint32_t BMC_FAULT_MAX_RETRY_COUNT = 5;
+const uint32_t BMC_FAULT_TIMEOUT_SECONDS = 60;
+const uint32_t BMC_FAULT_TIMER_INTERVAL_SECONDS = 5;
+
+struct BmcFaultEvent {
+    std::string faultNodeId;
+    uint32_t faultTypeValue;
+    std::set<std::string> sentNodeIds;
+    uint32_t retryCount;
+    std::chrono::steady_clock::time_point createTime;
+};
+
+static std::unordered_map<std::string, BmcFaultEvent> g_pendingBmcFaultEvents;
+static std::mutex g_bmcFaultMutex;
 
 UbseTaskExecutorPtr UbseMemFaultManager::executorPtr = nullptr;
-std::unordered_map<std::string, ThreadControl> g_reportTaskCtrlMap; // memName, ctrlInfo
-std::shared_mutex g_reportTaskCtrlMapMtx;
 
-// 调用前需加锁
-template <typename value>
-static void SafeDeleteMapElem(const std::string &key, std::unordered_map<std::string, value> &map)
-{
-    auto itor = map.find(key);
-    if (itor != map.end()) {
-        map.erase(itor);
-    }
-}
-
-static UbseResult GetCurrentNodeRole(std::string &role)
-{
-    UbseRoleInfo curNodeInfo{};
-    auto ret = UbseGetCurrentNodeInfo(curNodeInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get the information of current node.";
-        return UBSE_ERROR;
-    }
-    role = curNodeInfo.nodeRole;
-    return ret;
-}
-
-static UbseResult GetCurrentNodeId(std::string &nodeId)
+static UbseResult GetCurrentNodeId(std::string& nodeId)
 {
     UbseRoleInfo curNodeInfo{};
     auto ret = UbseGetCurrentNodeInfo(curNodeInfo);
@@ -99,19 +93,7 @@ static UbseResult GetCurrentNodeId(std::string &nodeId)
     return ret;
 }
 
-static UbseResult GetMasterNodeId(std::string &nodeId)
-{
-    UbseRoleInfo masterInfo{};
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get the information of master node.";
-        return UBSE_ERROR;
-    }
-    nodeId = masterInfo.nodeId;
-    return ret;
-}
-
-static UbseComEndpoint GetMemFaultComEndpoint(uint16_t opCode, const std::string &nodeId)
+static UbseComEndpoint GetMemFaultComEndpoint(uint16_t opCode, const std::string& nodeId)
 {
     return UbseComEndpoint{
         .moduleId = static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_FAULT),
@@ -120,334 +102,288 @@ static UbseComEndpoint GetMemFaultComEndpoint(uint16_t opCode, const std::string
     };
 }
 
-static UbseResult GetFaultTypeFromMsg(const UbseMemFaultMsg &msg, UbMemFaultType &type)
+static void PushBmcFaultEvent(const std::string& faultNodeId, uint32_t faultTypeValue)
 {
-    rapidjson::Document doc;
-    doc.Parse(msg.info.faultInfo_.c_str());
-    if (doc.HasParseError()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to parse fault info which memName=" << msg.info.memName_ << ", "
-                       << FormatRetCode(UBSE_ERROR);
-        return UBSE_ERROR;
+    std::lock_guard<std::mutex> lock(g_bmcFaultMutex);
+
+    auto it = g_pendingBmcFaultEvents.find(faultNodeId);
+    if (it != g_pendingBmcFaultEvents.end()) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event already exists for faultNodeId=" << faultNodeId
+                      << ", updating createTime.";
+        it->second.createTime = std::chrono::steady_clock::now();
+        it->second.retryCount = 0;
+        return;
     }
 
-    uint32_t faultType = UB_MEM_HEALTHY;
-    auto ret = UbseJsonUtil::GetUintFromJsonPtr(doc, MEM_FAULT_INFO_JSON_RAS_TYPE, faultType);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get fault type from json which memName=" << msg.info.memName_
-                       << ", " << FormatRetCode(UBSE_ERROR);
-        return UBSE_ERROR;
-    }
+    BmcFaultEvent event;
+    event.faultNodeId = faultNodeId;
+    event.faultTypeValue = faultTypeValue;
+    event.retryCount = 0;
+    event.createTime = std::chrono::steady_clock::now();
 
-    type = static_cast<UbMemFaultType>(faultType);
-    return UBSE_OK;
+    g_pendingBmcFaultEvents[faultNodeId] = event;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Pushed BMC fault event to pending queue, faultNodeId=" << faultNodeId
+                  << ", pendingCount=" << g_pendingBmcFaultEvents.size();
 }
 
-template <typename ObjType, typename InfoType>
-static std::string QueryMemNameById(const std::unordered_map<std::string, ObjType> &objMap, uint64_t memId,
-                                    const std::function<const std::vector<InfoType> &(const ObjType &)> getInfoVec)
+static UbseResult SendBmcFaultToNode(const std::string& nodeId, const std::string& faultNodeId, uint32_t faultTypeValue)
 {
-    auto searchIdLambda = [memId, &getInfoVec](const auto &objPair) -> bool {
-        const auto &infoVec = getInfoVec(objPair.second);
-        auto target = std::find_if(infoVec.begin(), infoVec.end(),
-                                   [memId](const InfoType &info) -> bool { return info.memId == memId; });
-        return target != infoVec.end();
-    };
-    auto itor = std::find_if(objMap.begin(), objMap.end(), searchIdLambda);
-    return itor == objMap.end() ? "" : itor->first;
-}
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Sending BMC fault notify to nodeId=" << nodeId
+                  << ", faultNodeId=" << faultNodeId;
 
-static std::string QueryMemNameByIdFromShareMemImport(
-    const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &objMap, uint64_t memId)
-{
-    return QueryMemNameById<UbseMemShareBorrowImportObj, UbseMemImportResult>(
-        objMap, memId, [](const UbseMemShareBorrowImportObj &obj) -> const auto& { return obj.status.importResults; });
-}
-
-static std::string QueryMemNameByIdFromShareMemExport(
-    const std::unordered_map<std::string, UbseMemShareBorrowExportObj> &objMap, uint64_t memId)
-{
-    return QueryMemNameById<UbseMemShareBorrowExportObj, UbseMemObmmInfo>(
-        objMap, memId,
-        [](const UbseMemShareBorrowExportObj &obj) -> const auto& { return obj.status.exportObmmInfo; });
-}
-
-static UbseResult SerializeMemFaultMsg(const UbseMemFaultMsg &msg, UbseByteBuffer &outData)
-{
     UbseSerialization output;
-    output << msg.info.memId_ << msg.nodeNum << msg.info.memName_ << msg.faultNode << msg.notifiedNode
-           << msg.info.faultInfo_;
+    output << faultNodeId << faultTypeValue;
     if (!output.Check()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to serialize mem fault info, "
-                       << FormatRetCode(UBSE_ERROR_SERIALIZE_FAILED);
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to serialize BMC fault notify message.";
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
-    outData = UbseByteBuffer{
-        .data = output.GetBuffer(true), .len = output.GetLength(), .freeFunc = [](uint8_t *data) -> void {
-            UbseSerialFreeFunc(data);
-        }};
-    return UBSE_OK;
-}
-
-static UbseResult DeserializeMemFaultMsg(const UbseByteBuffer &outData, UbseMemFaultMsg &msg)
-{
-    UbseDeSerialization input(outData.data, outData.len);
-    input >> msg.info.memId_ >> msg.nodeNum >> msg.info.memName_ >> msg.faultNode >> msg.notifiedNode >>
-        msg.info.faultInfo_;
-    if (!input.Check()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deserialize mem fault info, "
-                       << FormatRetCode(UBSE_ERROR_DESERIALIZE_FAILED);
-        return UBSE_ERROR_DESERIALIZE_FAILED;
-    }
-    return UBSE_OK;
-}
-
-static UbseResult SendMemFaultInfo(const UbseMemFaultMsg &msg, const std::string &nodeId, uint16_t opType)
-{
-    UbseByteBuffer request{};
-    auto ret = SerializeMemFaultMsg(msg, request);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-
-    auto respHandler = [](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
-        return;
+    // 异步回调不处理
+    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t statusCode) -> void {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault notify response, statusCode=" << statusCode;
     };
-    return UbseRpcAsyncSend(GetMemFaultComEndpoint(opType, nodeId), request, nullptr, respHandler);
+    auto endpoint =
+        GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_BMC_AGENTS), nodeId);
+    UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
+    return UbseRpcAsyncSend(endpoint, request, nullptr, respHandler);
 }
 
-static std::vector<std::string> GetFaultMemUsers(const std::string &memName)
+static bool GetAllNodeIds(std::set<std::string>& allNodeIds)
 {
-    auto debt = GetNodeMemDebtInfoMap();
-    std::vector<std::string> memUsers{};
-
-    for (auto [nodeId, nodeDebt] : debt) {
-        if (nodeDebt.shareImportObjMap.find(memName) != nodeDebt.shareImportObjMap.end() &&
-            nodeDebt.shareImportObjMap[memName].status.state != UBSE_MEM_IMPORT_DESTROYED &&
-            nodeDebt.shareImportObjMap[memName].status.state != UBSE_MEM_IMPORT_DESTROYING &&
-            nodeDebt.shareImportObjMap[memName].status.state != UBSE_MEM_IMPORT_DESTROYING_WAIT) {
-            memUsers.emplace_back(nodeId);
-        }
-    }
-    return memUsers;
-}
-
-static UbseResult GenerateLongLinkRequst(const UbseMemFaultMsg &msg, UbseRequestMessage &req)
-{
-    req.header.opCode = UBSE_LONGLINK_FAULT;
-    req.header.moduleCode = ubse_ipc_module_code_t::UBSE_LONG_LINK_REGISTER;
-
-    UbMemFaultType faultType = UB_MEM_HEALTHY;
-    auto ret = GetFaultTypeFromMsg(msg, faultType);
+    std::vector<UbseRoleInfo> roleInfos;
+    auto ret = UbseGetAllNodeInfos(roleInfos);
     if (ret != UBSE_OK) {
-        return ret;
-    }
-
-    UbseShmFault shmFault{
-        .shmName = msg.info.memName_,
-        .memId = msg.info.memId_,
-        .type = static_cast<UbseIpcMemFaultType>(faultType),
-    };
-
-    uint8_t *buffer = nullptr;
-    size_t size = 0;
-    ret = SerializeShmFault(shmFault, buffer, size);
-    if (ret != UBSE_OK || buffer == nullptr) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate share memory fault message which memName="
-                       << shmFault.shmName << ", " << FormatRetCode(ret);
-        return ret;
-    }
-
-    req.body = buffer;
-    req.header.bodyLen = size;
-    return UBSE_OK;
-}
-
-static void WaitLongLinkResponse(const UbseMemFaultMsg &faultMsg, const std::vector<uint64_t> reqList, uint32_t *count)
-{
-    std::atomic<bool> stopFlag{false};
-    auto fut = std::async(
-        std::launch::async,
-        [reqList](uint32_t *ctx, std::atomic<bool> &flag) -> bool {
-            while (!flag.load()) {
-                std::this_thread::sleep_for(std::chrono::seconds(CHECK_INTERVAL));
-                if (ctx == nullptr) {
-                    UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get ctx pointer when check long link response.";
-                    return false;
-                }
-                uint32_t *msgCount = static_cast<uint32_t *>(ctx);
-                if (*msgCount >= reqList.size()) {
-                    return true;
-                }
-            }
-            return false;
-        },
-        count, std::ref(stopFlag));
-
-    std::string masterNode;
-    auto ret = GetMasterNodeId(masterNode);
-    if (ret != UBSE_OK) {
-        return;
-    }
-    if (fut.wait_for(std::chrono::seconds(RAS_NOTIFY_WAIT_TIME)) == std::future_status::timeout) {
-        stopFlag.store(true);
-    }
-    bool asyncRet = fut.get();
-    if (asyncRet) {
-        SendMemFaultInfo(faultMsg, masterNode,
-                         static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY));
-        return;
-    }
-    UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to reply notification to master which memName=" << faultMsg.info.memName_
-                   << ".";
-}
-
-static void StartResponseCheckTask(const UbseMemFaultMsg &msg)
-{
-    std::thread(
-        [](UbseMemFaultMsg faultMsg) -> void {
-            // 调用长连接发送消息
-            std::vector<uint64_t> reqList;
-            auto &ctxRef = UbseContext::GetInstance();
-            auto apiServerPtr = ctxRef.GetModule<UbseApiServerModule>();
-            if (apiServerPtr == nullptr) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get api server module."
-                               << FormatRetCode(UBSE_ERROR_NULLPTR);
-                return;
-            }
-
-            auto respHandler = [](void *ctx, const UbseResponseMessage &resp) -> void {
-                if (ctx == nullptr) {
-                    UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get ctx pointer from long link handler.";
-                    return;
-                }
-                uint32_t *count = static_cast<uint32_t *>(ctx);
-                (*count) += 1;
-            };
-            uint32_t *respCount = new (std::nothrow) uint32_t;
-            if (respCount == nullptr) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to create response counter.";
-                return;
-            }
-            *respCount = 0;
-
-            UbseRequestMessage longLinkReq{};
-            auto ret = GenerateLongLinkRequst(faultMsg, longLinkReq);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate long link request." << FormatRetCode(ret);
-                SafeDelete(respCount);
-                return;
-            }
-
-            ret = apiServerPtr->AsyncSendLongLink(longLinkReq, static_cast<void *>(respCount), respHandler, reqList);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send long link message." << FormatRetCode(ret);
-                SafeDelete(respCount);
-                return;
-            }
-            WaitLongLinkResponse(faultMsg, reqList, respCount);
-            SafeDelete(respCount);
-        },
-        msg)
-        .detach();
-}
-
-static bool ValidateAndGetShareHandleInfo(const std::string &faultId,
-                                          std::shared_ptr<UbseApiServerModule> &apiServerPtr,
-                                          debt::ShareHandleInfoVec &handleInfo)
-{
-    auto &ctxRef = UbseContext::GetInstance();
-    apiServerPtr = ctxRef.GetModule<UbseApiServerModule>();
-    if (apiServerPtr == nullptr) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get api server module." << FormatRetCode(UBSE_ERROR_NULLPTR);
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get all node infos.";
         return false;
     }
-
-    std::string currentNodeId;
-    auto ret = UbseGetCurrentNodeId(currentNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get current node id, ret=" << ret;
-        return false;
+    for (const auto& roleInfo : roleInfos) {
+        allNodeIds.insert(roleInfo.nodeId);
     }
-    if (currentNodeId == faultId) {
-        UBSE_LOG_INFO << "Current node id is faultId, stop reporting.";
-        return false;
-    }
-
-    ret = UbseQueryShareImportHandleByExportNodeId(currentNodeId, faultId, handleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get share handle info in faultId." << FormatRetCode(ret);
-        return false;
-    }
-    if (handleInfo.empty()) {
-        UBSE_LOG_INFO << "[MEM_CONTROLLER] Share handle vec is empty in faultId, stop reporting.";
-        return false;
-    }
+    UBSE_LOG_DEBUG << "[MEM_CONTROLLER] GetAllNodeIds success, nodeCount=" << allNodeIds.size();
     return true;
 }
 
-static void SendFaultShareHandleMessages(std::shared_ptr<UbseApiServerModule> &apiServerPtr,
-    const debt::ShareHandleInfoVec &handleInfo,
-    std::shared_ptr<std::atomic<uint32_t>> respCount)
+static void SendBmcFaultToPendingNodes(const std::string& faultNodeId, BmcFaultEvent& event,
+                                       const std::set<std::string>& allNodeIds)
 {
-    UbseRequestMessage longLinkReq{};
-    longLinkReq.header.opCode = UBSE_LONGLINK_FAULT;
-    longLinkReq.header.moduleCode = ubse_ipc_module_code_t::UBSE_LONG_LINK_REGISTER;
-    std::vector<uint64_t> reqList;
+    uint32_t sentCount = 0;
+    uint32_t failedCount = 0;
+    for (const auto& nodeId : allNodeIds) {
+        if (event.sentNodeIds.find(nodeId) != event.sentNodeIds.end()) {
+            continue;
+        }
+        auto ret = SendBmcFaultToNode(nodeId, faultNodeId, event.faultTypeValue);
+        if (ret == UBSE_OK) {
+            event.sentNodeIds.insert(nodeId);
+            sentCount++;
+            UBSE_LOG_INFO << "[MEM_CONTROLLER] Sent BMC fault to nodeId=" << nodeId << ", faultNodeId=" << faultNodeId;
+        } else {
+            failedCount++;
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send BMC fault to nodeId=" << nodeId
+                           << ", faultNodeId=" << faultNodeId;
+        }
+    }
+    if (sentCount > 0 || failedCount > 0) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] SendBmcFaultToPendingNodes done, faultNodeId=" << faultNodeId
+                      << ", sentCount=" << sentCount << ", failedCount=" << failedCount;
+    }
+}
 
-    auto respHandler = [respCount](void *, const UbseResponseMessage &) {
-        respCount->fetch_add(1);
-    };
+static bool ProcessSingleBmcFaultEvent(const std::string& faultNodeId, BmcFaultEvent& event,
+                                       const std::set<std::string>& allNodeIds,
+                                       const std::chrono::steady_clock::time_point& now)
+{
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - event.createTime).count();
+    if (elapsed > BMC_FAULT_TIMEOUT_SECONDS || event.retryCount >= BMC_FAULT_MAX_RETRY_COUNT) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event timeout or max retry reached, faultNodeId=" << faultNodeId
+                      << ", elapsed=" << elapsed << "s, retryCount=" << event.retryCount
+                      << ", sentNodeCount=" << event.sentNodeIds.size();
+        return true; // 防止主备倒换集群节点不全，结束条件为达到最大次数，或者超时
+    }
 
-    for (const auto &info : handleInfo) {
-        for (const auto &memId : info.memIds) {
-            UbseShmFault shmFault{
-                .shmName = info.name,
-                .memId = memId,
-                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_FAULT),
-            };
-            uint8_t *buffer = nullptr;
-            size_t size = 0;
-            auto ret = SerializeShmFault(shmFault, buffer, size);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to generate share handle info message, "
-                               << FormatRetCode(ret);
-                continue;
+    SendBmcFaultToPendingNodes(faultNodeId, event, allNodeIds);
+
+    event.retryCount++;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] BMC fault event processed, faultNodeId=" << faultNodeId
+                  << ", sentCount=" << event.sentNodeIds.size() << ", totalNodeCount=" << allNodeIds.size()
+                  << ", retryCount=" << event.retryCount;
+    return false;
+}
+
+static void ProcessBmcFaultEvents()
+{
+    UbseRoleInfo curNodeInfo{};
+    auto ret = UbseGetCurrentNodeInfo(curNodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get current node info in ProcessBmcFaultEvents.";
+        return;
+    }
+
+    if (curNodeInfo.nodeRole != ELECTION_ROLE_MASTER) {
+        std::scoped_lock lock(g_bmcFaultMutex);
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Master node has been switched to another node, clearing all pending BMC "
+                         "fault events, count="
+                      << g_pendingBmcFaultEvents.size();
+        if (!g_pendingBmcFaultEvents.empty()) {
+            g_pendingBmcFaultEvents.clear();
+        }
+        return;
+    }
+
+    std::set<std::string> allNodeIds;
+    if (!GetAllNodeIds(allNodeIds)) {
+        return;
+    }
+
+    std::vector<std::string> eventsToRemove;
+    auto now = std::chrono::steady_clock::now();
+
+    {
+        std::scoped_lock lock(g_bmcFaultMutex);
+        if (g_pendingBmcFaultEvents.empty()) {
+            return;
+        }
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] ProcessBmcFaultEvents, pendingCount=" << g_pendingBmcFaultEvents.size();
+        for (auto& [faultNodeId, event] : g_pendingBmcFaultEvents) {
+            if (ProcessSingleBmcFaultEvent(faultNodeId, event, allNodeIds, now)) {
+                eventsToRemove.push_back(faultNodeId);
             }
-            longLinkReq.body = buffer;
-            longLinkReq.header.bodyLen = size;
-            ret = apiServerPtr->AsyncSendLongLink(longLinkReq, nullptr, respHandler, reqList);
-            SafeDelete(buffer);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send long link message." << FormatRetCode(ret);
-                return;
-            }
+        }
+        for (const auto& faultNodeId : eventsToRemove) {
+            g_pendingBmcFaultEvents.erase(faultNodeId);
+            UBSE_LOG_WARN << "[MEM_CONTROLLER] Removed completed BMC fault event, faultNodeId=" << faultNodeId;
         }
     }
 }
 
-static void StartFaultMemResponseCheckTask(const std::string &faultId)
+template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode>
+static UbseResult SendSingleFaultMemBlockMessage(const std::string& handleType, const UbseMemFault& faultMem,
+                                                 const UbseUdsInfo& udsInfo)
 {
-    std::thread([faultId] {
-        std::shared_ptr<UbseApiServerModule> apiServerPtr;
-        debt::ShareHandleInfoVec handleInfo;
-        if (!ValidateAndGetShareHandleInfo(faultId, apiServerPtr, handleInfo)) {
-            return;
-        }
-        auto respCount = std::make_shared<std::atomic<uint32_t>>(0);
-        SendFaultShareHandleMessages(apiServerPtr, handleInfo, respCount);
-    }).detach();
+    auto& ctxRef = UbseContext::GetInstance();
+    std::shared_ptr<UbseApiServerModule> apiServerPtr = ctxRef.GetModule<UbseApiServerModule>();
+    if (apiServerPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get api server module when sending " << handleType
+                       << " fault message, memName=" << faultMem.memName << ", handleId=" << faultMem.handleId << "."
+                       << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+    uint8_t* buffer = nullptr;
+    size_t size = 0;
+    auto ret = SerializeMemFault(faultMem, buffer, size);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to serialize " << handleType
+                       << " fault message, memName=" << faultMem.memName << ", handleId=" << faultMem.handleId << "."
+                       << FormatRetCode(ret);
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    UbseRequestMessage longLinkReq{};
+    longLinkReq.header.opCode = OpCode;
+    longLinkReq.header.moduleCode = ModuleCode;
+    longLinkReq.body = buffer;
+    longLinkReq.header.bodyLen = size;
+    std::vector<uint64_t> reqList;
+    const UbseAsyncResponseHandler respHandler = [](void*, const UbseResponseMessage& resp) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Received long link response, retCode=" << resp.header.statusCode;
+    };
+    UbseClientInfo clientInfo{.uid = udsInfo.uid, .gid = udsInfo.gid, .pid = udsInfo.pid};
+    ret = apiServerPtr->AsyncSendLongLink(longLinkReq, clientInfo, nullptr, respHandler, reqList);
+    SafeDelete(buffer);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send " << handleType
+                       << " fault long link message, memName=" << faultMem.memName << ", handleId=" << faultMem.handleId
+                       << "." << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
 }
 
-UbseResult UbseMemFaultManager::CreateTaskExecutor(const std::string &name)
+template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode, typename HandleInfoVec, typename IdGetter>
+static UbseResult ExtractFaultMemBlockInVecAndCallSengFunc(const HandleInfoVec& handleInfo,
+                                                           const std::string& handleType, IdGetter&& getIdList)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    uint32_t sentCount = 0;
+    for (const auto& info : handleInfo) {
+        for (const auto& id : getIdList(info)) {
+            UbseMemFault fault{
+                .memName = info.name,
+                .handleId = static_cast<uint64_t>(id),
+                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_FAULT),
+            };
+            auto ret = SendSingleFaultMemBlockMessage<OpCode, ModuleCode>(handleType, fault, info.udsInfo);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send " << handleType
+                               << " fault message at memName=" << info.name << ", handleId=" << id
+                               << ", sentCount=" << sentCount << "." << FormatRetCode(ret);
+                continue;
+            }
+            sentCount++;
+        }
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Successfully sent " << handleType << " fault messages, total=" << sentCount
+                  << ".";
+    return UBSE_OK;
+}
+
+template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode, typename HandleInfoVec, typename QueryFunc,
+          typename IdGetter>
+static UbseResult ReportPanicRebootBmcHandles(const std::string& faultId, const std::string& currentNodeId,
+                                              const std::string& handleType, QueryFunc queryFunc, IdGetter getIdList)
+{
+    HandleInfoVec handleInfo;
+    auto ret = queryFunc(currentNodeId, faultId, handleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to query " << handleType << " handle info, faultId=" << faultId
+                       << ", exportNodeId=" << currentNodeId << "." << FormatRetCode(ret);
+        return ret;
+    }
+
+    return ExtractFaultMemBlockInVecAndCallSengFunc<OpCode, ModuleCode>(handleInfo, handleType, getIdList);
+}
+
+void SubmitMemReportTaskWhenNodeStopsMemoryService(const std::string& faultId)
+{
+    std::string currentNodeId;
+    auto ret = UbseGetCurrentNodeId(currentNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get current node id for faultId=" << faultId << "."
+                       << FormatRetCode(ret);
+        return;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Start fault handle report, faultId=" << faultId
+                  << ", currentNodeId=" << currentNodeId << ".";
+    ret = ReportPanicRebootBmcHandles<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER, debt::ShareHandleInfoVec>(
+        faultId, currentNodeId, "share", debt::UbseQueryShareImportHandleByExportNodeId,
+        [](const auto& info) -> const auto& { return info.memIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to report panic reboot share handles, faultId=" << faultId << "."
+                       << FormatRetCode(ret);
+    }
+    ret = ReportPanicRebootBmcHandles<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER, debt::NumaHandleInfoVec>(
+        faultId, currentNodeId, "numa", debt::UbseQueryNumaImportHandleByExportNodeId,
+        [](const auto& info) -> const auto& { return info.numaIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to report panic reboot numa handles, faultId=" << faultId << "."
+                       << FormatRetCode(ret);
+    }
+    ret = ReportPanicRebootBmcHandles<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER, debt::FdHandleInfoVec>(
+        faultId, currentNodeId, "fd", debt::UbseQueryFdImportHandleByExportNodeId,
+        [](const auto& info) -> const auto& { return info.memIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to report panic reboot fd handles, faultId=" << faultId << "."
+                       << FormatRetCode(ret);
+    }
+}
+
+UbseResult UbseMemFaultManager::CreateTaskExecutor(const std::string& name)
+{
+    auto& ctxRef = UbseContext::GetInstance();
     auto taskExec = ctxRef.GetModule<UbseTaskExecutorModule>();
     if (taskExec == nullptr) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get task executor module, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
 
-    auto ret = taskExec->Create(name, NO_10, NO_1000);
+    auto ret = taskExec->Create(name, NO_1, NO_1000);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to create executor tasks which memName=" << name << "."
                        << FormatRetCode(ret);
@@ -458,9 +394,9 @@ UbseResult UbseMemFaultManager::CreateTaskExecutor(const std::string &name)
     return ret;
 }
 
-UbseResult UbseMemFaultManager::RemoveTaskExecutor(const std::string &name)
+UbseResult UbseMemFaultManager::RemoveTaskExecutor(const std::string& name)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto taskExec = ctxRef.GetModule<UbseTaskExecutorModule>();
     if (taskExec == nullptr) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get task executor module, " << FormatRetCode(UBSE_ERROR_NULLPTR);
@@ -471,108 +407,90 @@ UbseResult UbseMemFaultManager::RemoveTaskExecutor(const std::string &name)
     return UBSE_OK;
 }
 
-void UbseMemFaultManager::ShareMemFaultReportTask(UbseMemFaultMsg msg)
-{
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to report mem fault to master.";
-    // 记录任务信息
-    {
-        std::unique_lock lock(g_reportTaskCtrlMapMtx);
-        g_reportTaskCtrlMap[msg.info.memName_];
-    }
-
-    // 重发机制
-    auto retryTime = REPORT_RETRY_TIMES;
-    for (uint32_t i = 0; i < retryTime; i++) {
-        UBSE_LOG_INFO << "[MEM_CONTROLLER] Had sent for " << (i + 1) << " times.";
-        std::string master;
-        auto ret = GetMasterNodeId(master);
-        if (ret != UBSE_OK) {
-            continue;
-        }
-        ret = SendMemFaultInfo(msg, master,
-                               static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT));
-        if (ret != UBSE_OK) {
-            std::this_thread::sleep_for(std::chrono::seconds(REPORT_WAIT_INTERVAL));
-            // 发送失败重试
-            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to report mem fault to master node. "
-                           << "Retry time is " << i;
-            continue;
-        }
-        {
-            UBSE_LOG_INFO << "[MEM_CONTROLLER] start to wait fault handler " << (i + 1) << " times.";
-            std::shared_lock mapLock(g_reportTaskCtrlMapMtx);
-            if (g_reportTaskCtrlMap.find(msg.info.memName_) == g_reportTaskCtrlMap.end()) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get thread info for memName=" << msg.info.memName_
-                               << ".";
-                break;
-            }
-            auto &ctrl = g_reportTaskCtrlMap[msg.info.memName_];
-            std::unique_lock<std::mutex> ctrlLock(ctrl.mtx);
-            // 超时等待
-            ctrl.cv.wait_for(ctrlLock, std::chrono::seconds(REPORT_WAIT_INTERVAL), [&ctrl] { return ctrl.ready; });
-            if (ctrl.ready) {
-                UBSE_LOG_INFO << "[MEM_CONTROLLER] The report thread of memName=" << msg.info.memName_ << " is ready.";
-                break;
-            } else {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] wait timeout. " << (i + 1) << " times.";
-            }
-        }
-    }
-    // 执行完毕删除任务
-    std::unique_lock lock(g_reportTaskCtrlMapMtx);
-    SafeDeleteMapElem(msg.info.memName_, g_reportTaskCtrlMap);
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] The process of reporting mem fault is over. Fault information is : memId="
-                  << msg.info.memId_ << ", memName=" << msg.info.memName_ << ".";
-}
-
 UbseResult UbseMemFaultManager::InitMemFaultManager()
 {
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to register mem fault alarm.";
-    auto ret = RegisterAlarmFaultHandler(ALARM_MEM_FAULT, MEM_FAULT_ALAUBSE_NAME, ShareMemFaultHandler);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register mem fault alarm.";
-        return UBSE_ERROR;
-    }
-    ret = CreateTaskExecutor(MEM_FAULT_DELIVER_TASK_PREFIX);
+    auto ret = CreateTaskExecutor(MEM_FAULT_DELIVER_TASK_PREFIX);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to create task executors. " << FormatRetCode(ret);
         return ret;
     }
+
     std::vector<UbseResult> regRets;
-    // 主节点上报处理函数
-    regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT), ""),
-        ShareMemFaultReportHandler));
-    // 主节点故障通知回复处理函数
-    regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY_REPLY), ""),
-        ShareMemFaultNotifyReplyHandler));
-    // 故障内存借入节点通知处理函数
-    regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY), ""),
-        ShareMemFaultNotifyHandler));
-    // 故障内存发生节点上报回复函数
-    regRets.emplace_back(UbseRegRpcService(GetMemFaultComEndpoint(
-        static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT_REPLY), ""),
-        ShareMemFaultReportReplyHandler));
+    // BMC故障通知处理函数（agent节点接收主节点转发）
+    regRets.emplace_back(UbseRegRpcService(
+        GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_MEM_FAULT_BMC_AGENTS), ""),
+        BmcFaultAgentsHandler));
+    // 单导入债务通知处理函数（agent节点接收主节点通知）
+    regRets.emplace_back(UbseRegRpcService(
+        GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SINGLE_IMPORT_DEBT_NOTIFY), ""),
+        SingleImportDebtNotifyHandler));
     for (auto regRet : regRets) {
         if (regRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register handlers. " << FormatRetCode(ret);
-            return ret;
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register handlers. " << FormatRetCode(regRet);
+            return regRet;
         }
     }
+
+    ret = RegisterAlarmFaultHandler(ALARM_MEM_FAULT, MEM_FAULT_ALAUBSE_NAME, MemFaultHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register mem fault alarm. " << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = RegisterAlarmFaultHandler(ALARM_REBOOT_EVENT, BMC_FAULT_ALARM_NAME, BmcFaultHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register BMC fault alarm. " << FormatRetCode(ret);
+        return ret;
+    }
+
+    std::string eventId = PANIC_REBOOT_FAULT_LOCAL_EVENT_ID;
+    ret = event::UbseSubEvent(eventId, PanicRebootFaultEventHandler, event::HIGH);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to subscribe panic reboot fault event. " << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = timer::UbseTimerHandlerRegister(BMC_FAULT_TIMER_NAME, BmcFaultTimerHandler, BMC_FAULT_TIMER_INTERVAL_SECONDS);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register BMC fault timer. " << FormatRetCode(ret);
+        return ret;
+    }
+
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Succeed to register mem fault alarm.";
     return ret;
 }
 
 UbseResult UbseMemFaultManager::DeInitMemFaultManager()
 {
+    timer::UbseTimerHandlerUnregister(BMC_FAULT_TIMER_NAME);
+
+    {
+        std::lock_guard<std::mutex> lock(g_bmcFaultMutex);
+        g_pendingBmcFaultEvents.clear();
+    }
+
     std::string alarmName = MEM_FAULT_ALAUBSE_NAME;
     auto ret = UnRegisterAlarmFaultHandler(ALARM_MEM_FAULT, alarmName);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister mem fault alarm.";
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister mem fault alarm. " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
+
+    alarmName = BMC_FAULT_ALARM_NAME;
+    ret = UnRegisterAlarmFaultHandler(ALARM_REBOOT_EVENT, alarmName);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister BMC fault alarm. " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    std::string eventId = PANIC_REBOOT_FAULT_LOCAL_EVENT_ID;
+    ret = event::UbseUnSubEvent(eventId, PanicRebootFaultEventHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unsubscribe panic reboot fault event. " << FormatRetCode(ret);
+        return ret;
+    }
+
     ret = RemoveTaskExecutor(MEM_FAULT_DELIVER_TASK_PREFIX);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to remove task executors. " << FormatRetCode(ret);
@@ -581,7 +499,92 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Succeed to unregister mem fault alarm.";
     return ret;
 }
-UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string &faultId)
+
+uint32_t UbseMemFaultManager::PanicRebootFaultEventHandler(std::string& eventId, std::string& eventMessage)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received panic reboot fault event, eventId=" << eventId
+                  << ", eventMessage=" << eventMessage;
+    if (eventMessage.empty()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Event message is empty.";
+        return UBSE_ERROR_INVAL;
+    }
+
+    size_t pos = eventMessage.find('_');
+    if (pos == std::string::npos) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid event message format, expected 'nodeId_faultType'.";
+        return UBSE_ERROR_INVAL;
+    }
+
+    std::string faultNodeId = eventMessage.substr(0, pos);
+    std::string faultTypeStr = eventMessage.substr(pos + 1);
+
+    uint32_t faultTypeValue = 0;
+    if (utils::ConvertStrToUint32(faultTypeStr, faultTypeValue) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to parse fault type, faultTypeStr=" << faultTypeStr;
+        return UBSE_ERROR_INVAL;
+    }
+
+    ALARM_FAULT_TYPE faultType = static_cast<ALARM_FAULT_TYPE>(faultTypeValue);
+    return MemReportWhenExportNodeOnFault(faultType, faultNodeId);
+}
+
+uint32_t UbseMemFaultManager::BmcFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultInfo)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received BMC fault event, faultInfo=" << faultInfo;
+
+    UbseRoleInfo curNodeInfo{};
+    auto ret = UbseGetCurrentNodeInfo(curNodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get current node info. " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    if (curNodeInfo.nodeRole != ELECTION_ROLE_MASTER) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Current node is not master, skip BMC fault handling.";
+        return UBSE_OK;
+    }
+
+    std::string faultNodeId = faultInfo;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Master node received BMC fault, pushing to pending queue. faultNodeId="
+                  << faultNodeId;
+
+    PushBmcFaultEvent(faultNodeId, static_cast<uint32_t>(alarmFaultEvent));
+
+    ProcessBmcFaultEvents();
+    return UBSE_OK;
+}
+
+uint32_t UbseMemFaultManager::BmcFaultTimerHandler()
+{
+    if (UbseMemFaultManager::executorPtr != nullptr) {
+        UbseMemFaultManager::executorPtr->Execute([] { ProcessBmcFaultEvents(); });
+    } else {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null in BmcFaultTimerHandler.";
+    }
+    return UBSE_OK;
+}
+
+void UbseMemFaultManager::BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received BMC fault notify from master.";
+
+    UbseDeSerialization input(req.data, req.len);
+    std::string faultNodeId;
+    uint32_t faultTypeValue = 0;
+    input >> faultNodeId >> faultTypeValue;
+    if (!input.Check()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deserialize BMC fault notify message.";
+        return;
+    }
+
+    ALARM_FAULT_TYPE faultType = static_cast<ALARM_FAULT_TYPE>(faultTypeValue);
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Processing BMC fault notify, faultNodeId=" << faultNodeId
+                  << ", faultType=" << faultTypeValue;
+
+    MemReportWhenExportNodeOnFault(faultType, faultNodeId);
+}
+
+UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE faultType, std::string& faultId)
 {
     if (faultId.empty()) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] faultNodeId is empty..";
@@ -589,61 +592,161 @@ UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE 
     }
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Starting to handle mem reports caused by export node failures, faultId="
                   << faultId << ".";
-    StartFaultMemResponseCheckTask(faultId);
+    if (executorPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit task.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    std::string faultIdCopy = faultId;
+    executorPtr->Execute([faultIdCopy] { SubmitMemReportTaskWhenNodeStopsMemoryService(faultIdCopy); });
     return UBSE_OK;
 }
 
-UbseResult UbseMemFaultManager::GetMemNameById(uint64_t memId, std::string &memName)
+UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string& targetNodeId,
+                                                       const def::ShareHandleInfoVec& shareHandleInfoVec,
+                                                       const def::NumaHandleInfoVec& numaHandleInfoVec,
+                                                       const def::FdHandleInfoVec& fdHandleInfoVec)
 {
-    std::string nodeId;
-    auto ret = GetCurrentNodeId(nodeId);
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] ReportSingleImportDebt called, targetNodeId=" << targetNodeId
+                  << ", shareCount=" << shareHandleInfoVec.size() << ", numaCount=" << numaHandleInfoVec.size()
+                  << ", fdCount=" << fdHandleInfoVec.size();
+
+    if (shareHandleInfoVec.empty() && numaHandleInfoVec.empty() && fdHandleInfoVec.empty()) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] No single import debt to report for targetNodeId=" << targetNodeId;
+        return UBSE_OK;
+    }
+
+    message::UbseMemSingleImportMessage notifyMsg;
+    notifyMsg.SetShareHandleInfoVec(shareHandleInfoVec);
+    notifyMsg.SetNumaHandleInfoVec(numaHandleInfoVec);
+    notifyMsg.SetFdHandleInfoVec(fdHandleInfoVec);
+    auto ret = notifyMsg.Serialize();
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to serialize single import debt message for targetNodeId="
+                       << targetNodeId << "." << FormatRetCode(ret);
         return ret;
     }
 
-    NodeMemDebtInfo debtInfo = GetNodeMemDebtInfoById(nodeId);
-    // 需要保证memId对应的Name唯一性
-    memName = QueryMemNameByIdFromShareMemExport(debtInfo.shareExportObjMap, memId);
-    if (memName.empty()) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] Failed to get mem name form Export";
-        memName = QueryMemNameByIdFromShareMemImport(debtInfo.shareImportObjMap, memId);
+    const UbseByteBuffer request{
+        .data = notifyMsg.SerializedData(), .len = notifyMsg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {
+        }};
+    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t) -> void {
+    };
+    ret = UbseRpcAsyncSend(
+        GetMemFaultComEndpoint(static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SINGLE_IMPORT_DEBT_NOTIFY), targetNodeId),
+        request, nullptr, respHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send single import debt notify to targetNodeId=" << targetNodeId
+                       << "." << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Sent single import debt notify to targetNodeId=" << targetNodeId
+                      << ", shareCount=" << shareHandleInfoVec.size() << ", numaCount=" << numaHandleInfoVec.size()
+                      << ", fdCount=" << fdHandleInfoVec.size();
     }
-    if (memName.empty()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get mem name. Query result is empty.";
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] YWT memName" << memName;
     return ret;
 }
 
-void UbseMemFaultManager::StartMemFaultReportTask(const UbseMemFaultMsg &msg)
+void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
-    try {
-        std::thread([=]() { ShareMemFaultReportTask(msg); }).detach();
-    } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Exception message is " << e.what();
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received single import debt notify from master.";
+
+    message::UbseMemSingleImportMessage simpo{req.data, static_cast<uint32_t>(req.len)};
+    auto ret = simpo.Deserialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deserialize single import debt message." << FormatRetCode(ret);
+        return;
     }
+
+    auto shareHandleInfoVec = simpo.GetShareHandleInfoVec();
+    auto numaHandleInfoVec = simpo.GetNumaHandleInfoVec();
+    auto fdHandleInfoVec = simpo.GetFdHandleInfoVec();
+
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Processing single import debt, shareCount=" << shareHandleInfoVec.size()
+                  << ", numaCount=" << numaHandleInfoVec.size() << ", fdCount=" << fdHandleInfoVec.size();
+
+    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER>(
+        shareHandleInfoVec, "share", [](const auto& info) -> const auto& { return info.memIds; });
+    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER>(
+        numaHandleInfoVec, "numa", [](const auto& info) -> const auto& { return info.numaIds; });
+    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER>(
+        fdHandleInfoVec, "fd", [](const auto& info) -> const auto& { return info.memIds; });
 }
 
-void UbseMemFaultManager::StartMemFaultDeliverTask(const std::vector<std::string> &users, const UbseMemFaultMsg &msg)
+template <typename ImportObjType>
+static bool DoFindInImportMap(debt::UbseMemTypeDebtMap<ImportObjType>& importMap, const std::string& nodeId,
+                              uint64_t memId, std::string& memName, UbseUdsInfo& udsInfo, uint64_t& handleId,
+                              const std::string& memTypeStr)
 {
-    for (auto &user : users) {
-        executorPtr->Execute([=]() -> void {
-            // 记录通知的节点
-            UbseMemFaultMsg updatedMsg(msg);
-            updatedMsg.notifiedNode = user;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Searching in " << memTypeStr << " import map for memId=" << memId;
 
-            auto sendRet = SendMemFaultInfo(updatedMsg, user,
-                                            static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_NOTIFY));
-            if (sendRet != UBSE_OK) {
-                UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deliver mem fault to nodeId=" << user << ".";
+    auto nodeMap = importMap.FindNodeMap(nodeId);
+    if (!nodeMap) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] No " << memTypeStr << " import map found for nodeId=" << nodeId;
+        return false;
+    }
+
+    for (const auto& [name, objPtr] : nodeMap->GetAll()) {
+        if (!objPtr) {
+            continue;
+        }
+        auto obj = *objPtr;
+        for (auto& info : obj.status.importResults) {
+            if (info.memId == memId) {
+                importMap.PutResource(nodeId, name, obj);
+                memName = name;
+                udsInfo = obj.req.udsInfo;
+                handleId = (memTypeStr == "numa") ? static_cast<uint64_t>(info.numaId) : info.memId;
+                UBSE_LOG_INFO << "[MEM_CONTROLLER] Found and updated memName=" << memName << " from " << memTypeStr
+                              << " import by memId=" << memId << ", handleId=" << handleId;
+                return true;
             }
-        });
+        }
     }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] memId=" << memId << " not found in " << memTypeStr << " import map.";
+    return false;
 }
 
-uint32_t UbseMemFaultManager::ShareMemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
+UbseResult FindNameByMemIdInImportObj(uint64_t memId, std::string& memName, std::string& memType, UbseUdsInfo& udsInfo,
+                                      uint64_t& handleId)
 {
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle ras fault report. faultInfo =" << faultInfo << ".";
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Finding import object by memId=" << memId;
+
+    std::string nodeId;
+    auto ret = GetCurrentNodeId(nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get current node id.";
+        return ret;
+    }
+
+    auto& ledger = debt::UbseMemDebtLedger::GetInstance();
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemShareBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
+                          "share")) {
+        memType = "share";
+        return UBSE_OK;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Not found in share import, trying fd import. memId=" << memId;
+
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemFdBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
+                          "fd")) {
+        memType = "fd";
+        return UBSE_OK;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Not found in fd import, trying numa import. memId=" << memId;
+
+    if (DoFindInImportMap(ledger.GetDebtMap<UbseMemNumaBorrowImportObj>(), nodeId, memId, memName, udsInfo, handleId,
+                          "numa")) {
+        memType = "numa";
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to find import object by memId=" << memId << " in all import types.";
+    memType = "unknown";
+    return UBSE_ERROR;
+}
+
+static UbseResult ParseFaultInfo(const std::string& faultInfo, uint64_t& memId, UbMemFaultType& type)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Parsing fault info.";
+
     rapidjson::Document doc(rapidjson::kObjectType);
     doc.Parse(faultInfo.c_str());
     if (doc.HasParseError() || !doc.IsObject()) {
@@ -651,161 +754,103 @@ uint32_t UbseMemFaultManager::ShareMemFaultHandler(ubse::ras::ALARM_FAULT_TYPE a
         return UBSE_ERROR;
     }
 
-    uint64_t memId = 0;
     auto ret = UbseJsonUtil::GetUint64FromJsonPtr(doc, MEM_FAULT_INFO_JSON_MEM_ID, memId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Json content is [" << faultInfo << "].";
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get memId from json, content is [" << faultInfo << "].";
         return ret;
     }
 
-    std::string memName;
-    // 将memId转换为memName
-    GetMemNameById(memId, memName);
-    if (memName.empty()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get mem name by id.";
+    uint32_t faultType = UB_MEM_HEALTHY;
+    ret = UbseJsonUtil::GetUintFromJsonPtr(doc, MEM_FAULT_INFO_JSON_RAS_TYPE, faultType);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get fault type from json, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
     }
-    auto msg = UbseMemFaultMsg(memId, memName, faultInfo);
 
-    // 获取故障类型
+    type = static_cast<UbMemFaultType>(faultType);
+    UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Parsed fault info success. memId=" << memId << ", faultType=" << faultType;
+    return UBSE_OK;
+}
+
+uint32_t UbseMemFaultManager::MemFaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle ras fault report. faultInfo=" << faultInfo << ".";
+
+    uint64_t memId = 0;
     UbMemFaultType type;
-    ret = GetFaultTypeFromMsg(msg, type);
+    auto ret = ParseFaultInfo(faultInfo, memId, type);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to parse fault info.";
+        return ret;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Parsed fault info: memId=" << memId
+                  << ", faultType=" << static_cast<uint16_t>(type);
+
+    std::string memName;
+    std::string memType;
+    UbseUdsInfo udsInfo;
+    uint64_t handleId = 0;
+    ret = FindNameByMemIdInImportObj(memId, memName, memType, udsInfo, handleId);
+    if (ret != UBSE_OK || memName.empty()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to find and update import object by memId=" << memId << ".";
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Found import object: memName=" << memName << ", memType=" << memType
+                  << ", handleId=" << handleId;
+
+    ret = SendMemFaultMessageByType(memType, handleId, memName, udsInfo, type);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send fault message. memId=" << memId << ", memName=" << memName;
         return ret;
     }
 
-    // 记录故障信息
-    std::string nodeId;
-    ret = GetCurrentNodeId(nodeId);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    msg.faultNode = nodeId;
-    ret = UpdateFaultShareExportObj(nodeId, memId, memName, static_cast<UbMemFaultType>(type));
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to update object info for memory fault.";
-    }
-    // 启动异步线程任务进行故障上报
-    StartMemFaultReportTask(msg);
-    return ret;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Successfully handled memory fault. memId=" << memId << ", memName=" << memName
+                  << ", memType=" << memType << ", handleId=" << handleId
+                  << ", faultType=" << static_cast<uint16_t>(type);
+    return UBSE_OK;
 }
 
-void UbseMemFaultManager::ShareMemFaultReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& memType, uint64_t handleId,
+                                                          const std::string& memName, const UbseUdsInfo& udsInfo,
+                                                          ubse::adapter_plugins::mmi::UbMemFaultType type)
 {
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle mem fault report.";
-    // 确定是主节点才能执行
-    std::string role;
-    auto ret = GetCurrentNodeRole(role);
-    if (ret != UBSE_OK || role != ELECTION_ROLE_MASTER) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get node info or current node is not master.";
-        return;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Sending fault message. memType=" << memType << ", handleId=" << handleId
+                  << ", memName=" << memName;
+
+    if (UbseMemFaultManager::executorPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit task.";
+        return UBSE_ERROR_NULLPTR;
     }
 
-    UbseMemFaultMsg msg;
-    ret = DeserializeMemFaultMsg(req, msg);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to deserialize mem fault report message.";
-        return;
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Mem fault report message is : memId=" << msg.info.memId_
-                   << ", memName=" << msg.info.memName_ << ".";
+    UbseMemFault fault{
+        .memName = memName,
+        .handleId = handleId,
+        .type = static_cast<UbseIpcMemFaultType>(type),
+    };
 
-    // 主节点记录故障信息
-    UbMemFaultType type;
-    ret = GetFaultTypeFromMsg(msg, type);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get fault type from fault report message.";
-        return;
-    }
+    UbseMemFaultManager::executorPtr->Execute([memType, fault, udsInfo] {
+        UbseResult ret;
+        if (memType == "share") {
+            ret = SendSingleFaultMemBlockMessage<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER>("share", fault,
+                                                                                                   udsInfo);
+        } else if (memType == "fd") {
+            ret = SendSingleFaultMemBlockMessage<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER>("fd", fault, udsInfo);
+        } else if (memType == "numa") {
+            ret = SendSingleFaultMemBlockMessage<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER>("numa", fault,
+                                                                                                    udsInfo);
+        } else {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Unknown mem type=" << memType << " for memId=" << fault.handleId;
+            return;
+        }
 
-    ret = UpdateFaultShareExportObj(msg.faultNode, msg.info.memId_, msg.info.memName_, type);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to update object info for memory fault.";
-    }
-    // 根据name查找共享内存使用方
-    auto users = GetFaultMemUsers(msg.info.memName_);
-    if (users.empty()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get any fault memory user.";
-        return;
-    }
-    msg.nodeNum = users.size();
-
-    // 异步发送通知借入端
-    StartMemFaultDeliverTask(users, msg);
-}
-
-static bool IsReportReplyOver(const UbseMemFaultMsg &msg, ThreadControl &ctrl)
-{
-    ctrl.replyNodes.insert(msg.notifiedNode);
-    return ctrl.replyNodes.size() == msg.nodeNum;
-}
-
-void UbseMemFaultManager::ShareMemFaultReportReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
-{
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Started to handle mem fault report back.";
-    UbseMemFaultMsg msg;
-    auto ret = DeserializeMemFaultMsg(req, msg);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to handle report reply due to deserialization error.";
-        return;
-    }
-
-    // 唤醒指定wait的线程
-    std::shared_lock ctrlLock(g_reportTaskCtrlMapMtx);
-    auto ctrlItor = g_reportTaskCtrlMap.find(msg.info.memName_);
-    if (ctrlItor == g_reportTaskCtrlMap.end()) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get thread info for memName=" << msg.info.memName_ << ".";
-        return;
-    }
-    if (!IsReportReplyOver(msg, ctrlItor->second)) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] Waiting for all fault memory user reply to memName=" << msg.info.memName_
-                       << ".";
-        return;
-    }
-    if (ctrlItor != g_reportTaskCtrlMap.end()) {
-        ctrlItor->second.ready = true;
-        ctrlItor->second.cv.notify_one();
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Finished handle mem fault report back.";
-}
-
-void UbseMemFaultManager::ShareMemFaultNotifyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
-{
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received notification from master.";
-    UbseMemFaultMsg msg;
-    auto ret = DeserializeMemFaultMsg(req, msg);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] Failed to deserialize notification.";
-        return;
-    }
-    try {
-        StartResponseCheckTask(msg);
-    } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Exception message is " << e.what();
-    }
-}
-
-void UbseMemFaultManager::ShareMemFaultNotifyReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
-{
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] Received reply from notified node.";
-    // 确定是主节点才能执行
-    std::string role;
-    auto ret = GetCurrentNodeRole(role);
-    if (ret != UBSE_OK || role != ELECTION_ROLE_MASTER) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to get node info or current node is not master.";
-        return;
-    }
-    UbseMemFaultMsg msg;
-    ret = DeserializeMemFaultMsg(req, msg);
-    if (ret != UBSE_OK) {
-        return;
-    }
-
-    ret = SendMemFaultInfo(msg, msg.faultNode,
-                           static_cast<uint16_t>(UbseMemFaultOpCode::UBSE_SHARE_MEM_FAULT_REPORT_REPLY));
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to reply to mem fault node=" << msg.faultNode << ", "
-                       << FormatRetCode(UBSE_ERROR_NULLPTR);
-    }
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to send fault message, memName=" << fault.memName
+                           << ", handleId=" << fault.handleId << "." << FormatRetCode(ret);
+            return;
+        }
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Successfully sent fault message. memType=" << memType
+                      << ", memId=" << fault.handleId;
+    });
+    return UBSE_OK;
 }
 } // namespace ubse::mem::controller

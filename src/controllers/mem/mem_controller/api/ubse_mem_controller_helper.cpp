@@ -26,8 +26,8 @@ using namespace ubse::utils;
 const uint8_t UBSE_MAX_LENDER_CNT = 2;
 const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 128 MB
 
-UbseResult UbseMemCreateWithLenderReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                             const std::vector<UbseMemNumaLender> &lenders)
+UbseResult UbseMemCreateWithLenderReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                             const std::vector<UbseMemNumaLender>& lenders)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -69,10 +69,10 @@ static uint64_t GenRequestId()
     return requestIdUtil.GenerateRequestId(slotId);
 }
 
-UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string &name, const UbseMemBorrower &borrower,
-                                                 const std::vector<UbseMemNumaLender> &lenders,
+UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string& name, const UbseMemBorrower& borrower,
+                                                 const std::vector<UbseMemNumaLender>& lenders,
                                                  uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN],
-                                                 UbseMemNumaBorrowReq &numaBorrowReq)
+                                                 UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -95,8 +95,8 @@ UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string &name, const 
     return UBSE_OK;
 }
 
-UbseResult UbseMemCreateReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                   const UbseMemNumaCreateOpt &opt)
+UbseResult UbseMemCreateReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                   const UbseMemNumaCreateOpt& opt)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -112,8 +112,8 @@ UbseResult UbseMemCreateReqIsValid(const std::string &name, const UbseMemBorrowe
     return UBSE_OK;
 }
 
-UbseResult ConvertUbseMemNumaCreateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                       const UbseMemNumaCreateOpt &opt, UbseMemNumaBorrowReq &numaBorrowReq)
+UbseResult ConvertUbseMemNumaCreateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                       const UbseMemNumaCreateOpt& opt, UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -134,8 +134,8 @@ UbseResult ConvertUbseMemNumaCreateReq(const std::string &name, const UbseMemBor
     return UBSE_OK;
 }
 
-UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                                const UbseMemNumaCandidateOpt &opt)
+UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                                const UbseMemNumaCandidateOpt& opt)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -155,9 +155,9 @@ UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string &name, const U
     return UBSE_OK;
 }
 
-UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                                    const UbseMemNumaCandidateOpt &opt,
-                                                    UbseMemNumaBorrowReq &numaBorrowReq)
+UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                                    const UbseMemNumaCandidateOpt& opt,
+                                                    UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -179,7 +179,7 @@ UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string &name, con
     return UBSE_OK;
 }
 
-UbseResult UbseMemDeleteReqIsValid(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemDeleteReqIsValid(const std::string& name, const UbseMemBorrower& borrower)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -191,7 +191,7 @@ UbseResult UbseMemDeleteReqIsValid(const std::string &name, const UbseMemBorrowe
     return UBSE_OK;
 }
 
-void ConvertUbseMemDeleteReq(const std::string &name, const UbseMemBorrower &borrower, UbseMemReturnReq &returnReq)
+void ConvertUbseMemDeleteReq(const std::string& name, const UbseMemBorrower& borrower, UbseMemReturnReq& returnReq)
 {
     returnReq.name = name;
     returnReq.requestNodeId = GetCurNodeId();
@@ -222,8 +222,8 @@ UbseResult UbseMemAddrCreateReqIsValid(const std::string& name, const UbseMemBor
     return UBSE_OK;
 }
 
-void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                 const UbseMemProcessLender &lender, uint32_t flag, UbseMemAddrBorrowReq &addrBorrowReq)
+void ConvertUbseMemAddrCreateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                 const UbseMemProcessLender& lender, uint32_t flag, UbseMemAddrBorrowReq& addrBorrowReq)
 {
     addrBorrowReq.name = name;
     addrBorrowReq.requestNodeId = GetCurNodeId();

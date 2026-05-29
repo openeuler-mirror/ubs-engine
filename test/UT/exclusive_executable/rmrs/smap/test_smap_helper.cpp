@@ -22,10 +22,10 @@
 #include "mockcpp/mockcpp.hpp"
 #include "mockcpp/mokc.h"
 
+#include "ubse_storage.h"
 #include "fault_memid_module.h"
 #include "mp_smap_controller.h"
 #include "mp_smap_module.h"
-#include "ubse_storage.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -51,13 +51,13 @@ protected:
     }
 
     // 辅助函数：模拟成功的SmapInitFunc
-    static int MockSuccessSmapInit(uint32_t, void(int, const char *, const char *))
+    static int MockSuccessSmapInit(uint32_t, void(int, const char*, const char*))
     {
         return MEM_POOLING_OK;
     }
 
     // 辅助函数：模拟失败的SmapInitFunc
-    static int MockFailedSmapInit(uint32_t, void(int, const char *, const char *))
+    static int MockFailedSmapInit(uint32_t, void(int, const char*, const char*))
     {
         return -2;
     }
@@ -75,7 +75,7 @@ TEST_F(TestSmapHelper, InitFail_01)
     ret = MpSmapHelper::GetInstance().Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 
-    smapInitFunc = [](const uint32_t _, void(int, const char *, const char *)) -> int {
+    smapInitFunc = [](const uint32_t _, void(int, const char*, const char*)) -> int {
         return -2;
     };
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_OK));
@@ -86,7 +86,7 @@ TEST_F(TestSmapHelper, InitFail_01)
 
 TEST_F(TestSmapHelper, InitFail_03)
 {
-    SmapInitFunc smapInitFunc = [](const uint32_t _, void(int, const char *, const char *)) -> int {
+    SmapInitFunc smapInitFunc = [](const uint32_t _, void(int, const char*, const char*)) -> int {
         return -2;
     };
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_OK));
@@ -196,10 +196,10 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Success)
     uint16_t dataIn = 0;
     uint32_t lengthIn;
     uint32_t lengthOut;
-    uint16_t *dataInPtr = &dataIn;
+    uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t *param2, uint32_t param3, uint32_t &param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
                                                  int param5) -> int {
         return 0;
     };
@@ -223,7 +223,7 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_Nullptr)
     uint16_t dataIn = 0;
     uint32_t lengthIn;
     uint32_t lengthOut;
-    uint16_t *dataInPtr = &dataIn;
+    uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
     SmapQueryVmFreqFunc smapQueryVmFreqFunc = nullptr;
@@ -247,10 +247,10 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M1)
     uint16_t dataIn = 0;
     uint32_t lengthIn;
     uint32_t lengthOut;
-    uint16_t *dataInPtr = &dataIn;
+    uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t *param2, uint32_t param3, uint32_t &param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
                                                  int param5) -> int {
         return -1;
     };
@@ -273,10 +273,10 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M22)
     uint16_t dataIn = 0;
     uint32_t lengthIn;
     uint32_t lengthOut;
-    uint16_t *dataInPtr = &dataIn;
+    uint16_t* dataInPtr = &dataIn;
     int scanType = 2;
 
-    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t *param2, uint32_t param3, uint32_t &param4,
+    SmapQueryVmFreqFunc smapQueryVmFreqFunc = [](int param1, uint16_t* param2, uint32_t param3, uint32_t& param4,
                                                  int param5) -> int {
         return -22;
     };
@@ -400,7 +400,7 @@ TEST_F(TestSmapHelper, SmapMigrateRemoteNuma_Success)
     msg.destNid = 5;
     msg.memids[0] = 1;
 
-    SmapMigrateRemoteNumaFunc smapMigrateRemoteNumaFunc = [](MigrateNumaMsg *param1) -> int {
+    SmapMigrateRemoteNumaFunc smapMigrateRemoteNumaFunc = [](MigrateNumaMsg* param1) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSmapMigrateRemoteNumaFunc).stubs().will(returnValue(smapMigrateRemoteNumaFunc));
@@ -448,7 +448,7 @@ TEST_F(TestSmapHelper, SmapMigrateRemoteNuma_Faild_M22)
     msg.destNid = 5;
     msg.memids[0] = 1;
 
-    SmapMigrateRemoteNumaFunc smapMigrateRemoteNumaFunc = [](MigrateNumaMsg *param1) -> int {
+    SmapMigrateRemoteNumaFunc smapMigrateRemoteNumaFunc = [](MigrateNumaMsg* param1) -> int {
         return -22;
     };
     MOCKER(&SmapModule::GetSmapMigrateRemoteNumaFunc).stubs().will(returnValue(smapMigrateRemoteNumaFunc));
@@ -468,7 +468,7 @@ TEST_F(TestSmapHelper, SmapMigrateRemoteNuma_Faild_M22)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Ratio_failed)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -476,7 +476,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Ratio_failed)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -496,7 +496,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Ratio_failed)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_Nullptr)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -522,7 +522,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_Nullptr)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M1)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -530,7 +530,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M1)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return -1;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -550,7 +550,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M1)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M22)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -558,7 +558,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M22)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return -22;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -578,7 +578,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M22)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M110)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -586,7 +586,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M110)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return -110;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -606,7 +606,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M110)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M5)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -614,7 +614,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M5)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return -5;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -634,7 +634,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M5)
 TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M6)
 {
     // 动态分配一个 pid_t 数组，包含 3 个元素
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -642,7 +642,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M6)
     int srcNid = 4;
     int destNid = 5;
 
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg *) -> int {
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = [](MigrateEscapeMsg*) -> int {
         return -6;
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
@@ -661,7 +661,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M6)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Success)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -669,7 +669,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Success)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -688,7 +688,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Success)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_Nullptr)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -713,7 +713,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_Nullptr)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M1)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -721,7 +721,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M1)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -1;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -740,7 +740,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M1)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M22)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -748,7 +748,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M22)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -22;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -767,7 +767,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M22)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M12)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -775,7 +775,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M12)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -12;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -794,7 +794,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M12)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M34)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -802,7 +802,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M34)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -34;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -821,7 +821,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M34)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M9)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -829,7 +829,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M9)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -9;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -848,7 +848,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M9)
  */
 TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M10)
 {
-    pid_t *pidArr = new pid_t[3];
+    pid_t* pidArr = new pid_t[3];
     pidArr[0] = 1234;
     pidArr[1] = 5678;
     pidArr[2] = 91011;
@@ -856,7 +856,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M10)
     int enable = 1;
     int flags = 0;
 
-    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t *p1, int p2, int p3, int p4) -> int {
+    SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = [](pid_t* p1, int p2, int p3, int p4) -> int {
         return -10;
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
@@ -883,7 +883,7 @@ TEST_F(TestSmapHelper, SetSmapRemoteNumaInfo_Success)
     std::vector<over_commit::MemBorrowInfoWithSrc> memBorrowInfosWithSrc;
     memBorrowInfosWithSrc.push_back(borrowInfo);
 
-    SetSmapRemoteNumaInfoFunc setSmapRemoteNumaInfo = [](RemoteNumaInfo *p1) -> int {
+    SetSmapRemoteNumaInfoFunc setSmapRemoteNumaInfo = [](RemoteNumaInfo* p1) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSetSmapRemoteNumaInfo).stubs().will(returnValue(setSmapRemoteNumaInfo));
@@ -931,7 +931,7 @@ TEST_F(TestSmapHelper, MigrateOutInOverCommit_Success)
     memMigrateResults.push_back(migrateResults);
     uint16_t ratio = 25;
 
-    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg *p1, int p2) -> int {
+    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg* p1, int p2) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSmapMigrateOut).stubs().will(returnValue(smapMigrateOutFunc));
@@ -959,7 +959,7 @@ TEST_F(TestSmapHelper, MigrateOutInOverCommit_Failed)
     memMigrateResults.push_back(migrateResults);
     uint16_t ratio = 25;
 
-    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg *p1, int p2) -> int {
+    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg* p1, int p2) -> int {
         return 1;
     };
     MOCKER(&SmapModule::GetSmapMigrateOut).stubs().will(returnValue(smapMigrateOutFunc));
@@ -987,7 +987,7 @@ TEST_F(TestSmapHelper, MigrateOutInOverCommit_Success1)
     memMigrateResults.push_back(migrateResults);
     uint16_t ratio = 25;
 
-    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg *p1, int p2) -> int {
+    SmapMigrateOutFunc smapMigrateOutFunc = [](MigrateOutMsg* p1, int p2) -> int {
         return -3;
     };
     MOCKER(&SmapModule::GetSmapMigrateOut).stubs().will(returnValue(smapMigrateOutFunc));
@@ -1153,14 +1153,14 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_01)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-uint32_t GetRunMode(const std::string &keyPrefix, const std::string &value, const UbseByteBuffer &buff, void *ctx)
+uint32_t GetRunMode(const std::string& keyPrefix, const std::string& value, const UbseByteBuffer& buff, void* ctx)
 {
-    int *runModePtr = static_cast<int *>(ctx);
+    int* runModePtr = static_cast<int*>(ctx);
     *runModePtr = 1;
     return 0;
 }
 
-uint32_t RackStorageQueryDataForTest01(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t RackStorageQueryDataForTest01(const std::string& keyPrefix, const std::string& key, void* ctx,
                                        UbseStorageDealDataFunc func)
 {
     std::cout << "======= mytest =========" << std::endl;
@@ -1174,12 +1174,12 @@ uint32_t RackStorageQueryDataForTest01(const std::string &keyPrefix, const std::
 
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_02)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string &keyPrefix, const std::string &key, void *ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                 UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataForTest01));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1187,12 +1187,12 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_02)
 
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t (*)(const std::string &keyPrefix, const std::string &key, void *ctx,
-                                                  UbseStorageDealDataFunc func))
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                                 UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataForTest01));
 
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1200,7 +1200,7 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_01)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(0);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1208,7 +1208,7 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_01)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(1);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1216,10 +1216,10 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
 
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t (*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(1));
 
@@ -1229,10 +1229,10 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Success_01)
 {
-    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t (*)(int runMode)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(0));
 
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t (*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(0));
 
@@ -1247,13 +1247,12 @@ TEST_F(TestSmapHelper, SmapAddProcessTrackingHelper_Success)
     int scanType = 2;
     std::vector<uint32_t> durationVec = {1};
 
-    SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = [](pid_t *, uint32_t *, uint32_t *, int, int) -> int {
+    SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = [](pid_t*, uint32_t*, uint32_t*, int, int) -> int {
         return 0;
     };
 
     MOCKER(&SmapModule::GetSmapAddProcessTrackingFunc).stubs().will(returnValue(smapAddProcessTrackingFunc));
-    MpResult ret =
-        MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
+    MpResult ret = MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
     EXPECT_EQ(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
@@ -1267,8 +1266,7 @@ TEST_F(TestSmapHelper, SmapAddProcessTrackingHelper_Nullptr)
 
     SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = nullptr;
     MOCKER(&SmapModule::GetSmapAddProcessTrackingFunc).stubs().will(returnValue(smapAddProcessTrackingFunc));
-    MpResult ret =
-        MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
+    MpResult ret = MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
     GlobalMockObject::verify();
 }
@@ -1280,13 +1278,12 @@ TEST_F(TestSmapHelper, SmapAddProcessTrackingHelper_Param_ERROR)
     int scanType = 2;
     std::vector<uint32_t> durationVec = {1, 1};
 
-    SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = [](pid_t *, uint32_t *, uint32_t *, int, int) -> int {
+    SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = [](pid_t*, uint32_t*, uint32_t*, int, int) -> int {
         return 0;
     };
 
     MOCKER(&SmapModule::GetSmapAddProcessTrackingFunc).stubs().will(returnValue(smapAddProcessTrackingFunc));
-    MpResult ret =
-        MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
+    MpResult ret = MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
     GlobalMockObject::verify();
 }
@@ -1296,7 +1293,7 @@ TEST_F(TestSmapHelper, SmapRemoveProcessTrackingHelper_Success)
     std::vector<pid_t> pidVec = {111};
     int flags = 0;
 
-    SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc = [](pid_t *, int, int) -> int {
+    SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc = [](pid_t*, int, int) -> int {
         return 0;
     };
 
@@ -1320,7 +1317,7 @@ TEST_F(TestSmapHelper, SmapRemoveProcessTrackingHelper_Nullptr)
 
 TEST_F(TestSmapHelper, SubModuleInitFailed0)
 {
-    MOCKER_CPP(&MpSmapHelper::Init, uint32_t (*)()).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSmapHelper::Init, uint32_t(*)()).stubs().will(returnValue(1));
     MpSmapSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1328,8 +1325,8 @@ TEST_F(TestSmapHelper, SubModuleInitFailed0)
 
 TEST_F(TestSmapHelper, SubModuleInitSucceed)
 {
-    MOCKER_CPP(&MpSmapHelper::Init, uint32_t (*)()).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseRegRpcService, uint32_t (*)(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler))
+    MOCKER_CPP(&MpSmapHelper::Init, uint32_t(*)()).stubs().will(returnValue(0));
+    MOCKER_CPP(&UbseRegRpcService, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler))
         .stubs()
         .will(returnValue(0));
     MpSmapSubModule obj;
@@ -1337,19 +1334,19 @@ TEST_F(TestSmapHelper, SubModuleInitSucceed)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-MpResult MockSmapGetBackResultSmapBackRetIsTaskDone(uint64_t taskId, uint16_t &ret)
+MpResult MockSmapGetBackResultSmapBackRetIsTaskDone(uint64_t taskId, uint16_t& ret)
 {
     ret = MB_TASK_DONE;
     return MEM_POOLING_OK;
 }
 
-MpResult MockSmapGetBackResultSmapBackRetIsTaskWaiting(uint64_t taskId, uint16_t &ret)
+MpResult MockSmapGetBackResultSmapBackRetIsTaskWaiting(uint64_t taskId, uint16_t& ret)
 {
     ret = MB_TASK_WAITING;
     return MEM_POOLING_OK;
 }
 
-MpResult MockSmapGetBackResultSmapGetBackResultReturnsError(uint64_t taskId, uint16_t &ret)
+MpResult MockSmapGetBackResultSmapGetBackResultReturnsError(uint64_t taskId, uint16_t& ret)
 {
     ret = MB_TASK_ERR;
     return MEM_POOLING_OK;
@@ -1359,7 +1356,7 @@ MpResult MockSmapGetBackResultSmapGetBackResultReturnsError(uint64_t taskId, uin
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingOk_WhenSmapGetBackResultReturnsOkAndSmapBackRetIsTaskDone)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t &))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskDone));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1371,7 +1368,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingOk_WhenSmapGetBackResultReturnsOkAn
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsOkAndSmapBackRetIsTaskWaiting)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t &))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapBackRetIsTaskWaiting));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1383,7 +1380,7 @@ TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsO
 TEST_F(TestSmapHelper, ShouldReturnMemPoolingError_WhenSmapGetBackResultReturnsError)
 {
     uint64_t taskId = 12345;
-    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t &))
+    MOCKER_CPP(&MpSmapHelper::SmapGetBackResult, MpResult(*)(uint64_t, uint16_t&))
         .stubs()
         .will(invoke(MockSmapGetBackResultSmapGetBackResultReturnsError));
     MpResult result = MpSmapHelper::GetInstance().GetLocalSmapBackResult(taskId);
@@ -1396,7 +1393,7 @@ TEST_F(TestSmapHelper, ShouldReturnOk_WhenFileIsOpenedAndReadFails)
 {
     uint16_t ret;
 
-    MOCKER_CPP((bool(std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream *))
+    MOCKER_CPP((bool (std::ifstream::*)())(&std::ifstream::is_open), bool (*)(std::ifstream*))
         .stubs()
         .will(returnValue(false));
 
@@ -1419,7 +1416,7 @@ TEST_F(TestSmapHelper, TestSmapMigrateBack_Failure_dlsym_nullptr)
 // 模拟 setSmapRunMode 返回0，表示成功
 TEST_F(TestSmapHelper, TestSmapMigrateBack_OK_SetSmapRunMode_Success)
 {
-    SmapMigrateBackFunc smapMigrateBackFunc = [](MigrateBackMsg *migrateBackMsg) -> int {
+    SmapMigrateBackFunc smapMigrateBackFunc = [](MigrateBackMsg* migrateBackMsg) -> int {
         return 0;
     };
     MOCKER(&SmapModule::GetSmapMigrateBackFunc).stubs().will(returnValue(smapMigrateBackFunc));
@@ -1431,7 +1428,7 @@ TEST_F(TestSmapHelper, TestSmapMigrateBack_OK_SetSmapRunMode_Success)
 // 模拟 setSmapRunMode 返回-1，表示失败
 TEST_F(TestSmapHelper, TestSmapMigrateBack_Failed_SetSmapRunMode_Failed)
 {
-    SmapMigrateBackFunc smapMigrateBackFunc = [](MigrateBackMsg *migrateBackMsg) -> int {
+    SmapMigrateBackFunc smapMigrateBackFunc = [](MigrateBackMsg* migrateBackMsg) -> int {
         return -1;
     };
     MOCKER(&SmapModule::GetSmapMigrateBackFunc).stubs().will(returnValue(smapMigrateBackFunc));

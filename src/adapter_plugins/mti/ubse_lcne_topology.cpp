@@ -15,14 +15,14 @@
 #include <shared_mutex>
 #include <thread>
 
-#include "ubse_event_module.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
+#include "ubse_event.h"
 #include "ubse_http_module.h"
+#include "ubse_logger.h"
 #include "lcne/ubse_lcne_sub_topo_change_info.h"
 #include "lcne/ubse_lcne_topology_client.h"
 #include "lcne/ubse_topo_cna.h"
-#include "ubse_conf_module.h"
-#include "ubse_context.h"
-#include "ubse_logger.h"
 
 namespace ubse::mti {
 using namespace ubse::log;
@@ -30,11 +30,14 @@ using namespace ubse::context;
 using namespace ubse::http;
 using namespace ubse::config;
 using namespace ubse::lcne;
+using namespace ubse::event;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 std::string UbseLcneTopology::urlLinkUpAndDown{"/topolink/change/"};
+std::string g_ubseEventPortUpDown = "topology.port.linkupdown";
 
 UbseResult UbseLcneTopology::Start()
 {
@@ -50,23 +53,53 @@ UbseResult UbseLcneTopology::Start()
     return UBSE_OK;
 }
 
-UbseResult UbseLcneTopology::PubUbseTopoChangeEvent(std::string &eventMessage) const
+UbseResult UbseLcneTopology::PubPortUpDownEvent(const std::string& linkUpDown, const std::string& interfaceName)
 {
-    auto &ctxRef = UbseContext::GetInstance();
-    auto eventPtr = ctxRef.GetModule<ubse::event::UbseEventModule>();
-    if (eventPtr == nullptr) {
-        UBSE_LOG_WARN << "Can not get event module";
+    if (interfaceName.empty()) {
+        UBSE_LOG_WARN << "[MTI] interfaceName is empty.";
         return UBSE_ERROR;
     }
-    auto ret = eventPtr->UbsePubEvent(UBSE_EVENT_TOPOLOGY_CHANGE, eventMessage);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "pub event UbseTopologyChangeEvent is failed";
+    std::string slotId;
+    std::string chipId;
+    std::string portId;
+    bool found = false;
+    UbseDevTopology devTopology;
+    if (UbseGetDevTopology(devTopology) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to get devTopology.";
+        return UBSE_ERROR;
+    }
+    for (auto& devTopo : devTopology) {
+        auto& [deviceInfo, portMap] = devTopo.second;
+        for (auto& [portName, portInfo] : portMap) {
+            if (portInfo.ifName == interfaceName) {
+                slotId = deviceInfo.slotId;
+                chipId = deviceInfo.chipId;
+                portId = portInfo.portId;
+                found = true;
+                break;
+            }
+        }
+        if (found)
+            break;
+    }
+    if (!found || slotId.empty() || chipId.empty() || portId.empty()) {
+        UBSE_LOG_WARN << "[MTI] Topology information corresponding to interface=" << interfaceName << " not found.";
+        return UBSE_ERROR;
+    }
+    const std::string status = (linkUpDown == "link-down") ? "DOWN" : "UP";
+    std::string eventMessage = status + ";" + slotId + ":" + chipId + ":" + portId + ":" + interfaceName;
+
+    UBSE_LOG_INFO << "[MTI] Pub event=" << g_ubseEventPortUpDown << ", eventMessage=" << eventMessage;
+
+    if (UbsePubEvent(g_ubseEventPortUpDown, eventMessage) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to pub event=" << g_ubseEventPortUpDown << ", interfaceName=" << interfaceName
+                      << ", status=" << status;
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult UbseLcneTopology::UbseGetDevTopology(UbseDevTopology &devTopology)
+UbseResult UbseLcneTopology::UbseGetDevTopology(UbseDevTopology& devTopology)
 {
     std::shared_lock<std::shared_mutex> lock(mtx);
     devTopology = this->ubseTopologyInfo;
@@ -79,22 +112,21 @@ UbseResult UbseLcneTopology::RegHttpHandler()
     UbseHttpHandlerFunc portUpDownFunc =
         std::bind(&UbseLcneTopology::PortUpDownFunc, this, std::placeholders::_1, std::placeholders::_2);
 
-    auto ret = UbseHttpModule::RegHttpService(UbseHttpMethod::UBSE_HTTP_METHOD_POST,
-                                              urlLinkUpAndDown, portUpDownFunc);
+    auto ret = UbseHttpModule::RegHttpService(UbseHttpMethod::UBSE_HTTP_METHOD_POST, urlLinkUpAndDown, portUpDownFunc);
     return ret;
 }
 
 // 一次发送可能有多次改变，需要考虑同步性
 void UbseLcneTopology::IdentifyTopoChange(
     std::unordered_map<UbseDevName, std::unordered_set<UbseDevName, UbseDevNameHash>, UbseDevNameHash> peerDevMapOld,
-    std::string &eventMessage)
+    std::string& eventMessage)
 {
     // 端口Down
-    for (auto &peerInfo : peerDevMapOld) {
+    for (auto& peerInfo : peerDevMapOld) {
         auto devNameOld = peerInfo.first;
         auto itNow = peerDevMap.find(devNameOld);
         // 老设备全部不连 || 老对端在新的不存在
-        for (auto &peerDevOld : peerInfo.second) {
+        for (auto& peerDevOld : peerInfo.second) {
             if (itNow == peerDevMap.end() || itNow->second.find(peerDevOld) == itNow->second.end()) {
                 std::string message = "DOWN;" + devNameOld.devName + ":" + peerDevOld.devName + "|";
                 eventMessage += message;
@@ -102,11 +134,11 @@ void UbseLcneTopology::IdentifyTopoChange(
         }
     }
     // 端口UP
-    for (auto &peerInfo : peerDevMap) {
+    for (auto& peerInfo : peerDevMap) {
         auto devNameNew = peerInfo.first;
         auto itOld = peerDevMapOld.find(devNameNew);
         // 新设备连接上线 || 新对端在老的不存在
-        for (auto &peerDevNew : peerInfo.second) {
+        for (auto& peerDevNew : peerInfo.second) {
             if (itOld == peerDevMapOld.end() || itOld->second.find(peerDevNew) == itOld->second.end()) {
                 std::string message = "UP;" + devNameNew.devName + ":" + peerDevNew.devName + "|";
                 eventMessage += message;
@@ -116,9 +148,17 @@ void UbseLcneTopology::IdentifyTopoChange(
     return;
 }
 
-uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest &req, UbseHttpResponse &resp)
+uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
-    UBSE_LOG_INFO << "[MTI] Received topology change message reported by lcne";
+    UBSE_LOG_INFO << "[MTI] Received notification message reported by lcne";
+    std::string linkUpDown{};
+    std::string interfaceName{};
+    if (UbseLcneLinkInfo::GetInstance().ParseLinkUpDownReq(req.body, linkUpDown, interfaceName) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to parse notification request, skip this request.";
+        resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
+        return UBSE_OK;
+    }
+
     std::string eventMessage{};
     // 必须重新获取拓扑，避免连线对端变化的情况，然后识别存在的变化并发事件
     std::unordered_map<UbseDevName, std::unordered_set<UbseDevName, UbseDevNameHash>, UbseDevNameHash> peerDevMapOld;
@@ -130,8 +170,11 @@ uint32_t UbseLcneTopology::PortUpDownFunc(const UbseHttpRequest &req, UbseHttpRe
     IdentifyTopoChange(peerDevMapOld, eventMessage);
     UBSE_LOG_INFO << "[MTI] Topo Change eventMessage is " << eventMessage << " .";
 
-    if (PubUbseTopoChangeEvent(eventMessage) != UBSE_OK) {
+    if (UbsePubEvent(UBSE_EVENT_TOPOLOGY_CHANGE, eventMessage) != UBSE_OK) {
         UBSE_LOG_WARN << "[MTI] pub event UbseTopologyChangeEvent is failed! eventMessage is " << eventMessage;
+    }
+    if (PubPortUpDownEvent(linkUpDown, interfaceName) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to pub event, interfaceName=" << interfaceName << ", status=" << linkUpDown;
     }
 
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -144,7 +187,7 @@ void UbseLcneTopology::ClearUbseTopologyInfo()
     ubseTopologyInfo.clear();
 }
 
-void UbseLcneTopology::UbseAddNodeAndEdge(const UbseDeviceInfo &nodeInfo, const UbseMtiCpuTopoPortInfo &portInfo)
+void UbseLcneTopology::UbseAddNodeAndEdge(const UbseDeviceInfo& nodeInfo, const UbseMtiCpuTopoPortInfo& portInfo)
 {
     UbseDevName devName(nodeInfo.slotId, nodeInfo.chipId);
     UbseDevPortName portName;
@@ -165,9 +208,9 @@ void UbseLcneTopology::UbseAddNodeAndEdge(const UbseDeviceInfo &nodeInfo, const 
     }
 }
 
-void UbseLcneTopology::UbseAddNodeAndEdgeCna(const std::vector<LcneNodeCnaInfo> &lcneCnaInfos)
+void UbseLcneTopology::UbseAddNodeAndEdgeCna(const std::vector<LcneNodeCnaInfo>& lcneCnaInfos)
 {
-    for (const auto &lcneCnaInfo : lcneCnaInfos) {
+    for (const auto& lcneCnaInfo : lcneCnaInfos) {
         std::string slotId = lcneCnaInfo.slotId;
         std::string chipId = lcneCnaInfo.chipId;
         UbseDevName localDevName(slotId, chipId);
@@ -175,7 +218,7 @@ void UbseLcneTopology::UbseAddNodeAndEdgeCna(const std::vector<LcneNodeCnaInfo> 
         if (it != ubseTopologyInfo.end()) {
             UBSE_LOG_DEBUG << "[MTI] Cna devName" << localDevName.devName << "exist in lcne cna.";
             it->second.first.busNodeCna = lcneCnaInfo.busNodeCnaUint32;
-            auto &portInfo = it->second.second;
+            auto& portInfo = it->second.second;
             AddPortCnaInfo(lcneCnaInfo, localDevName, portInfo);
         } else {
             UBSE_LOG_INFO << "[MTI] Cna devName" << localDevName.devName << "does not exist in ubseTopologyInfo.";
@@ -199,7 +242,7 @@ void UbseLcneTopology::AddPortCnaInfo(
     }
 }
 
-void UbseLcneTopology::UbseEraseEdge(const UbseDevName &dev, const UbseDevPortName &port)
+void UbseLcneTopology::UbseEraseEdge(const UbseDevName& dev, const UbseDevPortName& port)
 {
     auto it = ubseTopologyInfo.find(dev);
     if (it != ubseTopologyInfo.end()) {
@@ -213,7 +256,7 @@ void UbseLcneTopology::UbseEraseEdge(const UbseDevName &dev, const UbseDevPortNa
     }
 }
 
-static UbseMtiCpuTopoPortStatus StringToPortStatus(const std::string &str)
+static UbseMtiCpuTopoPortStatus StringToPortStatus(const std::string& str)
 {
     if (str == "up") {
         return UbseMtiCpuTopoPortStatus::UP;
@@ -248,9 +291,9 @@ UbseResult UbseLcneTopology::UbseDevGetTopology()
     return UBSE_OK;
 }
 
-void UbseLcneTopology::UbseNodeAddTopology(std::vector<LcneNodeInfo> &lcneNodes)
+void UbseLcneTopology::UbseNodeAddTopology(std::vector<LcneNodeInfo>& lcneNodes)
 {
-    for (const auto &node : lcneNodes) {
+    for (const auto& node : lcneNodes) {
         // 节点信息
         UbseDeviceInfo nodeInfo;
         nodeInfo.slotId = node.slotId;
@@ -262,7 +305,7 @@ void UbseLcneTopology::UbseNodeAddTopology(std::vector<LcneNodeInfo> &lcneNodes)
         nodeInfo.devName = devName;
 
         // 边信息
-        for (const auto &port : node.ports) {
+        for (const auto& port : node.ports) {
             UbseMtiCpuTopoPortInfo portInfo;
             portInfo.portId = port.portId;
             portInfo.ifName = port.ifName;
@@ -309,7 +352,7 @@ UbseResult UbseLcneTopology::CreateDevTopology()
     return UBSE_OK;
 }
 
-DevType StringToDevType(const std::string &str)
+DevType StringToDevType(const std::string& str)
 {
     if (str == "SSU") {
         return DevType::SSU;

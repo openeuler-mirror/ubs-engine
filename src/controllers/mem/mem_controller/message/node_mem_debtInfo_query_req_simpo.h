@@ -14,11 +14,13 @@
 #define UBSE_MANAGER_NODE_MEM_DEBTINFO_QUERY_REQ_SIMPO_H
 #include "ubse_base_message.h"
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class NodeMemDebtInfoQueryReqSimpo : public UbseBaseMessage {
 public:
     NodeMemDebtInfoQueryReqSimpo() = default;
-    explicit NodeMemDebtInfoQueryReqSimpo(uint8_t *data, uint32_t size)
+    explicit NodeMemDebtInfoQueryReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

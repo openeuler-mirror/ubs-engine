@@ -15,21 +15,27 @@
 #include "securec.h"
 
 namespace ubse::serial {
-enum class HeadBlockIndex { CTRL_CODE_IDX = 0, ALIGN_CODE_IDX, LEN_CODE_ID, MAX_CODE_NUMS };
+enum class HeadBlockIndex
+{
+    CTRL_CODE_IDX = 0,
+    ALIGN_CODE_IDX,
+    LEN_CODE_ID,
+    MAX_CODE_NUMS
+};
 constexpr common_len HEAD_BLOCK_NUMS = static_cast<common_len>(HeadBlockIndex::MAX_CODE_NUMS);
 
 // 由调用方控制安全性
 void SetCode(base_ptr_type* buf, HeadBlockIndex idx, serial_head value)
 {
     auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
-    *reinterpret_cast<serial_head*>(buf + offset) = value;
+    *reinterpret_cast<serial_head*>(buf + offset) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 }
 
 // 由调用方控制安全性
 serial_head GetCode(base_ptr_type* buf, HeadBlockIndex idx)
 {
     auto offset = static_cast<serial_head>(idx) * sizeof(serial_head);
-    return *reinterpret_cast<serial_head*>(buf + offset);
+    return *reinterpret_cast<serial_head*>(buf + offset); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
 }
 
 inline bool isValidAlign(ALIGN_BASE align)
@@ -100,7 +106,7 @@ UbseSerialization::UbseSerialization(common_len cap, ALIGN_BASE align)
     }
 }
 
-UbseSerialization::UbseSerialization(UbseSerialization &&other) noexcept
+UbseSerialization::UbseSerialization(UbseSerialization&& other) noexcept
     : mBuf_(other.mBuf_),
       mAlignOffset_(other.mAlignOffset_),
       mCap_(other.mCap_),
@@ -112,7 +118,7 @@ UbseSerialization::UbseSerialization(UbseSerialization &&other) noexcept
     other.mFlag_ = true;
 }
 
-base_ptr_type *UbseSerialization::GetBuffer(bool bGetCtrl)
+base_ptr_type* UbseSerialization::GetBuffer(bool bGetCtrl)
 {
     if (Unlikely(mBuf_ == nullptr)) {
         return nullptr;
@@ -128,7 +134,7 @@ base_ptr_type *UbseSerialization::GetBuffer(bool bGetCtrl)
     return tmp;
 }
 
-UbseSerialization &UbseSerialization::operator=(UbseSerialization &&other) noexcept
+UbseSerialization& UbseSerialization::operator=(UbseSerialization&& other) noexcept
 {
     mBuf_ = other.mBuf_;
     other.mBuf_ = nullptr;
@@ -140,7 +146,7 @@ UbseSerialization &UbseSerialization::operator=(UbseSerialization &&other) noexc
     return *this;
 }
 
-UbseSerialization &UbseSerialization::operator<<(array_len_insert arrayLenInsert)
+UbseSerialization& UbseSerialization::operator<<(array_len_insert arrayLenInsert)
 {
     if (Unlikely(!mFlag_)) {
         return *this;
@@ -154,13 +160,13 @@ UbseSerialization &UbseSerialization::operator<<(array_len_insert arrayLenInsert
         return *this;
     }
     writeTypeAndLen(mBuf_ + mLen_, static_cast<serial_type>(CTRL_TYPE::ARRAY_CTRL_CODE),
-        static_cast<serial_len>(arrayLenInsert.len));
+                    static_cast<serial_len>(arrayLenInsert.len));
     mLen_ += alignedHeadLen;
     return *this;
 }
 
 template <>
-UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>& vec)
+UbseSerialization& UbseSerialization::operator<<<bool>(const std::vector<bool>& vec)
 {
     *this << array_len_insert(vec.size());
     if (vec.empty()) {
@@ -170,33 +176,35 @@ UbseSerialization& UbseSerialization::operator<< <bool>(const std::vector<bool>&
     for (size_t i = 0; i < bytes.size(); i++) {
         bytes[i] = vec[i] ? 1 : 0;
     }
-    add(reinterpret_cast<const base_ptr_type*>(bytes.data()), bytes.size(), GetTypePointerId<std::_Bit_reference>());
+    add(reinterpret_cast<const base_ptr_type*>(bytes.data()), bytes.size(),
+        GetTypePointerId<std::_Bit_reference>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
-UbseSerialization &UbseSerialization::operator<<(const std::string &str)
+UbseSerialization& UbseSerialization::operator<<(const std::string& str)
 {
-    add(reinterpret_cast<const base_ptr_type *>(str.c_str()), str.size() + 1,
-        GetTypePointerId<std::string>());
+    add(reinterpret_cast<const base_ptr_type*>(str.c_str()), str.size() + 1,
+        GetTypePointerId<std::string>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
-UbseSerialization &UbseSerialization::operator<<(std::string &&str)
+UbseSerialization& UbseSerialization::operator<<(std::string&& str)
 {
     return *this << str;
 }
 
-UbseSerialization &UbseSerialization::operator<<(const char *str)
+UbseSerialization& UbseSerialization::operator<<(const char* str)
 {
     if (str == nullptr) {
         mFlag_ = false;
         return *this;
     }
-    add(reinterpret_cast<const base_ptr_type *>(str), strlen(str) + 1, GetTypePointerId<std::string>());
+    add(reinterpret_cast<const base_ptr_type*>(str), strlen(str) + 1,
+        GetTypePointerId<std::string>()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
-UbseSerialization &UbseSerialization::operator<<(UbseSerialization &kid)
+UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
 {
     if (!kid.Check()) {
         mFlag_ = false;
@@ -251,7 +259,7 @@ bool UbseSerialization::expandCapacity(common_len len)
     return true;
 }
 
-void UbseSerialization::add(const base_ptr_type *addr, common_len len, serial_type type)
+void UbseSerialization::add(const base_ptr_type* addr, common_len len, serial_type type)
 {
     if (Unlikely(!mFlag_)) {
         return;
@@ -274,7 +282,7 @@ void UbseSerialization::add(const base_ptr_type *addr, common_len len, serial_ty
     mLen_ += alignedParamLen;
 }
 
-bool UbseDeSerialization::Set(base_ptr_type *buf, common_len len, bool bNew)
+bool UbseDeSerialization::Set(base_ptr_type* buf, common_len len, bool bNew)
 {
     if (mBuf_ != nullptr || buf == nullptr || len < sizeof(serial_head) * HEAD_BLOCK_NUMS || len >= MAX_CAPACITY) {
         mFlag_ = false;
@@ -318,13 +326,24 @@ bool UbseDeSerialization::Set(base_ptr_type *buf, common_len len, bool bNew)
 }
 
 UbseDeSerialization::UbseDeSerialization()
-    : mBuf_(nullptr), mPos_(mBuf_), mLen_(0), mFlag_(true), mGetBufCtrl_(false), mAlignOffset_(sizeof(serial_len) - 1)
-{}
-
-UbseDeSerialization::UbseDeSerialization(const base_ptr_type *buf, common_len len, bool bNew)
-    : mBuf_(nullptr), mPos_(mBuf_), mLen_(0), mFlag_(true), mGetBufCtrl_(false), mAlignOffset_(sizeof(serial_len) - 1)
+    : mBuf_(nullptr),
+      mPos_(mBuf_),
+      mLen_(0),
+      mFlag_(true),
+      mGetBufCtrl_(false),
+      mAlignOffset_(sizeof(serial_len) - 1)
 {
-    Set(const_cast<base_ptr_type *>(buf), len, bNew);
+}
+
+UbseDeSerialization::UbseDeSerialization(const base_ptr_type* buf, common_len len, bool bNew)
+    : mBuf_(nullptr),
+      mPos_(mBuf_),
+      mLen_(0),
+      mFlag_(true),
+      mGetBufCtrl_(false),
+      mAlignOffset_(sizeof(serial_len) - 1)
+{
+    Set(const_cast<base_ptr_type*>(buf), len, bNew);
 }
 
 UbseDeSerialization::~UbseDeSerialization()
@@ -334,7 +353,7 @@ UbseDeSerialization::~UbseDeSerialization()
     }
 }
 
-uint8_t *UbseDeSerialization::GetBuffer(bool bGetCtrl)
+uint8_t* UbseDeSerialization::GetBuffer(bool bGetCtrl)
 {
     auto tmp = mBuf_;
     if (bGetCtrl) {
@@ -384,7 +403,7 @@ UbseDeSerialization& UbseDeSerialization::operator>><bool>(std::vector<bool>& ve
     return *this;
 }
 
-UbseDeSerialization &UbseDeSerialization::operator>>(std::string &str)
+UbseDeSerialization& UbseDeSerialization::operator>>(std::string& str)
 {
     base_ptr_type* addr;
     common_len len;
@@ -395,11 +414,11 @@ UbseDeSerialization &UbseDeSerialization::operator>>(std::string &str)
         mFlag_ = false;
         return *this;
     }
-    str = std::string(reinterpret_cast<char*>(addr), len - 1);
+    str = std::string(reinterpret_cast<char*>(addr), len - 1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     return *this;
 }
 
-UbseDeSerialization &UbseDeSerialization::operator>>(char *&str)
+UbseDeSerialization& UbseDeSerialization::operator>>(char*& str)
 {
     base_ptr_type* addr;
     common_len len;
@@ -423,7 +442,7 @@ UbseDeSerialization &UbseDeSerialization::operator>>(char *&str)
     return *this;
 }
 
-UbseDeSerialization &UbseDeSerialization::operator>>(UbseDeSerialization &kid)
+UbseDeSerialization& UbseDeSerialization::operator>>(UbseDeSerialization& kid)
 {
     base_ptr_type* addr;
     common_len len;
@@ -438,7 +457,7 @@ UbseDeSerialization &UbseDeSerialization::operator>>(UbseDeSerialization &kid)
     return *this;
 }
 
-bool UbseDeSerialization::get(base_ptr_type *&addr, common_len &len, serial_type type)
+bool UbseDeSerialization::get(base_ptr_type*& addr, common_len& len, serial_type type)
 {
     auto expectReadLen = AlignTo(sizeof(serial_head));
     if (!checkValid(expectReadLen)) {

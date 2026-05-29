@@ -32,7 +32,7 @@ MpResult SetSmapRemoteNumaInfoSend::SendMsg()
     auto ret = CreateRequestData(reqData);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SetSmapRemoveNumaInfo] "
-                                                          "Create request data failed";
+                                                             "Create request data failed";
         return ret;
     }
 
@@ -40,7 +40,7 @@ MpResult SetSmapRemoteNumaInfoSend::SendMsg()
     ret = UbseRpcSend(endpoint, reqData, this, RespHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SetSmapRemoveNumaInfo] "
-                                                          "Send request failed.";
+                                                             "Send request failed.";
         return ret;
     }
     if (sendResult_ != MEM_POOLING_OK) {
@@ -52,7 +52,7 @@ MpResult SetSmapRemoteNumaInfoSend::SendMsg()
     return MEM_POOLING_OK;
 }
 
-MpResult SetSmapRemoteNumaInfoSend::CreateRequestData(UbseByteBuffer &reqData) const
+MpResult SetSmapRemoteNumaInfoSend::CreateRequestData(UbseByteBuffer& reqData) const
 {
     // 生成overCommitMemMigrateTransMsg simpo对象并序列化
     auto setSmapRemoteNumaInfoMsg = SetSmapRemoteNumaInfoTransMsg(
@@ -72,7 +72,7 @@ MpResult SetSmapRemoteNumaInfoSend::CreateRequestData(UbseByteBuffer &reqData) c
     return MEM_POOLING_OK;
 }
 
-void SetSmapRemoteNumaInfoSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void SetSmapRemoteNumaInfoSend::RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SetSmapRemoveNumaInfo] Process response data.";
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
@@ -80,7 +80,7 @@ void SetSmapRemoteNumaInfoSend::RespHandler(void *ctx, const UbseByteBuffer &res
             << "[MemReturn][SetSmapRemoveNumaInfo] Ctx or respData is null.";
         return;
     }
-    const auto setSmapRemoteNumaInfoSend = static_cast<SetSmapRemoteNumaInfoSend *>(ctx);
+    const auto setSmapRemoteNumaInfoSend = static_cast<SetSmapRemoteNumaInfoSend*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         setSmapRemoteNumaInfoSend->sendResult_ = resCode;
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -95,12 +95,12 @@ void SetSmapRemoteNumaInfoSend::RespHandler(void *ctx, const UbseByteBuffer &res
     setSmapRemoteNumaInfoSend->sendResult_ = code;
     if (code != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][OSTurboSmap][SetSmapRemoveNumaInfo] "
-                                                          "Set smap remote numa info failed, retCode="
-                                                       << code << ".";
+                                                             "Set smap remote numa info failed, retCode="
+                                                          << code << ".";
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][OSTurboSmap][SetSmapRemoveNumaInfo] "
-                                                          "Handle result="
-                                                       << response.ToString() << ".";
+                                                             "Handle result="
+                                                          << response.ToString() << ".";
     }
 }
 } // namespace mempooling::over_commit

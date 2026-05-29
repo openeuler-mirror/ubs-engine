@@ -19,25 +19,26 @@
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum
+{
     MULTICOPY_MIGRATE = 0, // multi-copy
     ONECOPY_MIGRATE = 1,   // one-copy
     HAM_MIGRATE = 2,       // ham-copy
 } migrate_strategy_t;
 
 typedef struct {
-    uint8_t *data;
+    uint8_t* data;
     uint32_t len;
 } HamComByteBuffer;
 
-typedef void (*HamComCallbackFunc)(void *ctx, void *recv, uint32_t len, int32_t result);
+typedef void (*HamComCallbackFunc)(void* ctx, void* recv, uint32_t len, int32_t result);
 
 /*
  * @brief Definition of the asynchronous send callback structure
  */
 typedef struct {
-    HamComCallbackFunc cb;  // Callback function pointer
-    void *cbCtx;            // Pointer to the callback context
+    HamComCallbackFunc cb; // Callback function pointer
+    void* cbCtx;           // Pointer to the callback context
 } HamComCallbackDef;
 
 /**
@@ -49,8 +50,8 @@ typedef struct {
  * @param migrateStrategy [OUT] decision result;
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName,
-                                                      uint32_t destNumaId, uint32_t *migrateStrategy);
+virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char* uuid, const char* destHostName,
+                                                      uint32_t destNumaId, uint32_t* migrateStrategy);
 
 /**
  * @brief  set IPC client timeout for Rack module
@@ -64,7 +65,7 @@ virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);
  * @param response [OUT] buffer to receive the response
  * @return 0 for success, non-zero for error
  */
-int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
+int RackSyncSendForHam(HamComByteBuffer* request, HamComByteBuffer* response);
 
 /**
  * @brief  asynchronously send a request to HAM using a background thread
@@ -72,8 +73,7 @@ int RackSyncSendForHam(HamComByteBuffer *request, HamComByteBuffer *response);
  * @param callback [IN]  callback function definition to handle response (currently unused in implementation)
  * @return 0 for success, non-zero for error
  */
-int RackAsyncSendForHam(HamComByteBuffer *request, HamComCallbackDef *callback);
-
+int RackAsyncSendForHam(HamComByteBuffer* request, HamComCallbackDef* callback);
 
 #ifdef __cplusplus
 }

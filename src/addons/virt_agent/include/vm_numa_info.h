@@ -14,9 +14,9 @@
 #ifndef VM_NUMA_INFO_H
 #define VM_NUMA_INFO_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace vm {
 struct NumaCpuInfo {
@@ -63,12 +63,12 @@ struct NumaCpuInfo {
         oss << "nodeId:" << nodeId << ",";
         oss << "numaId:" << numaId << ",";
         oss << "freeCPUIds:[";
-        for (const auto &cpuId : freeCPUIds) {
+        for (const auto& cpuId : freeCPUIds) {
             oss << cpuId << ", ";
         }
         oss << "],";
         oss << "cpuIds:[";
-        for (const auto &cpuId : cpuIds) {
+        for (const auto& cpuId : cpuIds) {
             oss << cpuId << ", ";
         }
         oss << "]";
@@ -94,7 +94,7 @@ struct HostNumaCpuInfo {
         oss << "hostName:" << hostName << ",";
         oss << "timestamp:" << timestamp << ",";
         oss << "numaCpuInfos:[";
-        for (const auto &numaCpuInfo : numaCpuInfos) {
+        for (const auto& numaCpuInfo : numaCpuInfos) {
             oss << numaCpuInfo.toString() << ",";
         }
         oss << "]";
@@ -102,6 +102,6 @@ struct HostNumaCpuInfo {
         return oss.str();
     }
 };
-} // vm
+} // namespace vm
 
 #endif // VM_NUMA_INFO_H

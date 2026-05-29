@@ -25,5 +25,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // TEST_RESOURCE_QUERY_H

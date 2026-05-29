@@ -28,4 +28,4 @@ void TestRouter::TearDown()
     Test::TearDown();
 }
 
-}
+} // namespace ubse::ut::vm

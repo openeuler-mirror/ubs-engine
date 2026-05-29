@@ -15,12 +15,14 @@
 #include "ubse_base_message.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseMemShareBorrowReqSimpo : public UbseBaseMessage {
 public:
     UbseMemShareBorrowReqSimpo() = default;
-    explicit UbseMemShareBorrowReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemShareBorrowReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

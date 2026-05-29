@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::mti
+} // namespace ubse::mti
 
-#endif  // UBS_ENGINE_TEST_UBSE_LCNE_TOPOLOGY_H
+#endif // UBS_ENGINE_TEST_UBSE_LCNE_TOPOLOGY_H

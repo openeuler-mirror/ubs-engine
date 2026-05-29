@@ -372,12 +372,11 @@ UbseResult UbseMemDebtQueryRequestSimpo::Deserialize()
     return UBSE_OK;
 }
 
-
 UbseResult UbseMemIdQueryRequestSimpo::Serialize()
 {
     serial::UbseSerialization out;
-    out << memIdQueryRequest_.name << memIdQueryRequest_.importNodeId <<
-        memIdQueryRequest_.importMemId << memIdQueryRequest_.borrowType;
+    out << memIdQueryRequest_.name << memIdQueryRequest_.importNodeId << memIdQueryRequest_.importMemId
+        << memIdQueryRequest_.borrowType;
     UbseUdsInfoSerialization(out, memIdQueryRequest_.udsInfo);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize failed.";
@@ -395,8 +394,8 @@ UbseResult UbseMemIdQueryRequestSimpo::Deserialize()
         return UBSE_ERROR;
     }
     serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    in >> memIdQueryRequest_.name >> memIdQueryRequest_.importNodeId >>
-          memIdQueryRequest_.importMemId >> memIdQueryRequest_.borrowType;
+    in >> memIdQueryRequest_.name >> memIdQueryRequest_.importNodeId >> memIdQueryRequest_.importMemId >>
+        memIdQueryRequest_.borrowType;
     if (!UbseUdsInfoDeserialization(in, memIdQueryRequest_.udsInfo)) {
         UBSE_LOG_ERROR << "Failed to deserialize UbseUdsInfo";
         return UBSE_ERROR;

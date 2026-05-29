@@ -56,4 +56,4 @@ void TestSIGSYS()
 {
     SimulateSig(SIGSYS);
 }
-}
+} // namespace ubse::it::exception

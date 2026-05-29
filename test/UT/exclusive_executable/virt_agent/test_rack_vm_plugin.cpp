@@ -15,19 +15,19 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
-#include "rack_vm_plugin.h"
 #include "alarm_handler.h"
 #include "case_conf.h"
+#include "container_sdk_server.h"
 #include "escape_algorithm_helper.h"
+#include "fragmentation_vm_collection.h"
 #include "ham_migrate.h"
 #include "mem_handler.h"
+#include "rack_vm_plugin.h"
+#include "resource_collect.h"
 #include "router.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
 #include "vm_error.h"
-#include "container_sdk_server.h"
-#include "resource_collect.h"
-#include "fragmentation_vm_collection.h"
 
 using namespace vm;
 using namespace ubse::config;
@@ -35,13 +35,13 @@ namespace ubse::vm::ut {
 
 using UbsePluginInitHandle = uint32_t (*)(uint16_t);
 using UbsePluginDeInitHandle = void (*)();
-void *g_libvmHandle = nullptr;
+void* g_libvmHandle = nullptr;
 UbsePluginInitHandle g_initHandle = nullptr;
 UbsePluginDeInitHandle g_deinitHandle = nullptr;
 
 void TestDlopenUbseVmPlugin()
 {
-    g_libvmHandle = dlopen("libvm.so", RTLD_LAZY);
+    g_libvmHandle = dlopen("libvirtagent.so", RTLD_LAZY);
     if (g_libvmHandle == nullptr) {
         return;
     }

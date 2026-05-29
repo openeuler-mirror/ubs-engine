@@ -85,6 +85,132 @@ TEST(ValidIpv6AddrTest, Ipv4Address)
     std::string ipv4Address = "192.168.1.1";
     EXPECT_FALSE(UbseNetUtil::ValidIpv6Addr(ipv4Address));
 }
+
+TEST(UbseNetUtilTest, IpV4ToInt_ValidIp)
+{
+    std::string ip = "192.168.1.1";
+    uint32_t intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_OK);
+    EXPECT_EQ(intIp, 3232235777U);
+
+    ip = "255.255.255.255";
+    intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_OK);
+    EXPECT_EQ(intIp, 4294967295U);
+
+    ip = "0.0.0.0";
+    intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_OK);
+    EXPECT_EQ(intIp, 0U);
+}
+
+TEST(UbseNetUtilTest, IpV4ToInt_InvalidIp)
+{
+    std::string ip = "256.1.1.1";
+    uint32_t intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_ERROR);
+
+    ip = "192.168.1";
+    intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_ERROR);
+
+    ip = "";
+    intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_ERROR);
+
+    ip = "192:168:1:1";
+    intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(ip, intIp), UBSE_ERROR);
+}
+
+TEST(UbseNetUtilTest, IntToIpV4_Normal)
+{
+    uint32_t intIp = 3232235777U;
+    EXPECT_EQ(UbseNetUtil::IntToIpV4(intIp), "192.168.1.1");
+
+    intIp = 4294967295U;
+    EXPECT_EQ(UbseNetUtil::IntToIpV4(intIp), "255.255.255.255");
+
+    intIp = 0U;
+    EXPECT_EQ(UbseNetUtil::IntToIpV4(intIp), "0.0.0.0");
+}
+
+TEST(UbseNetUtilTest, IntToIpV4_RoundTrip)
+{
+    std::string originalIp = "10.20.30.40";
+    uint32_t intIp = 0;
+    EXPECT_EQ(UbseNetUtil::IpV4ToInt(originalIp, intIp), UBSE_OK);
+    EXPECT_EQ(UbseNetUtil::IntToIpV4(intIp), originalIp);
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_ValidRange)
+{
+    std::string range = "192.168.1.1-192.168.1.3";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_EQ(ips.size(), 3U);
+    EXPECT_EQ(ips[0], "192.168.1.1");
+    EXPECT_EQ(ips[1], "192.168.1.2");
+    EXPECT_EQ(ips[2], "192.168.1.3");
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_SingleIp)
+{
+    std::string range = "192.168.1.100-192.168.1.100";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_EQ(ips.size(), 1U);
+    EXPECT_EQ(ips[0], "192.168.1.100");
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_InvalidRange_StartGreaterThanEnd)
+{
+    std::string range = "192.168.1.10-192.168.1.5";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_InvalidFormat_NoSeparator)
+{
+    std::string range = "192.168.1.1";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_InvalidFormat_MultipleSeparators)
+{
+    std::string range = "192.168.1.1-192.168.1.10-192.168.1.20";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_InvalidStartIp)
+{
+    std::string range = "256.1.1.1-192.168.1.10";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_InvalidEndIp)
+{
+    std::string range = "192.168.1.1-256.1.1.10";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
+TEST(UbseNetUtilTest, ParseIpRangeToList_EmptyRange)
+{
+    std::string range = "";
+    std::vector<std::string> ips{};
+    UbseNetUtil::ParseIpRangeToList(range, ips);
+    EXPECT_TRUE(ips.empty());
+}
+
 TEST(UbseNetUtilTest, Ipv4StringToArr_ValidIp)
 {
     std::string ip = "192.168.1.1";
@@ -116,9 +242,33 @@ TEST(UbseNetUtilTest, Ipv4StringToArr_EmptyIp)
 TEST(UbseNetUtilTest, Ipv4StringToArr_MemoryCopyFail)
 {
     std::string ip = "192.168.1.1";
-    uint8_t *arr = nullptr;
+    uint8_t* arr = nullptr;
     EXPECT_FALSE(UbseNetUtil::Ipv4StringToArr(ip, arr));
 }
+
+TEST(UbseNetUtilTest, Ipv4ArrToString_ValidArr)
+{
+    uint8_t arr[4] = {192, 168, 1, 1};
+    EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arr), "192.168.1.1");
+
+    uint8_t arrMaxValue[4] = {255, 255, 255, 255};
+    EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arrMaxValue), "255.255.255.255");
+
+    uint8_t arrMinValue[4] = {0, 0, 0, 0};
+    EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arrMinValue), "0.0.0.0");
+
+    uint8_t* arrNullptr = nullptr;
+    EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arrNullptr), "");
+}
+
+TEST(UbseNetUtilTest, Ipv4ArrToString_RoundTrip)
+{
+    std::string originalIp = "10.20.30.40";
+    uint8_t arr[4] = {0};
+    EXPECT_TRUE(UbseNetUtil::Ipv4StringToArr(originalIp, arr));
+    EXPECT_EQ(UbseNetUtil::Ipv4ArrToString(arr), originalIp);
+}
+
 // 测试正常IPv6地址转换
 TEST(UbseNetUtilTest, Ipv6ArrToString_Normal)
 {
@@ -135,11 +285,72 @@ TEST(UbseNetUtilTest, Ipv6ArrToString_AllZero)
     ASSERT_EQ(UbseNetUtil::Ipv6ArrToString(arr), expected);
 }
 
+TEST(UbseNetUtilTest, IsSpecialIP)
+{
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("0.0.0.0"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("127.0.0.1"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("127.0.0.255"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("127.255.255.255"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("169.254.0.1"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("169.254.100.200"));
+    EXPECT_TRUE(UbseNetUtil::IsSpecialIP("169.254.255.255"));
+
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("192.168.1.1"));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("10.0.0.1"));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("172.16.0.1"));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("8.8.8.8"));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP(""));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("invalid"));
+    EXPECT_FALSE(UbseNetUtil::IsSpecialIP("256.256.256.256"));
+}
+
 // 测试获取地址
 TEST(UbseNetUtilTest, GetIpInfo)
 {
     std::vector<std::string> ips{};
     EXPECT_EQ(UbseNetUtil::GetIpInfo(ips), UBSE_OK);
     EXPECT_TRUE(!ips.empty());
+}
+
+TEST(ParseIpStringTest, ValidIpv4)
+{
+    std::string ipStr = "192.168.1.1";
+    ubse::nodeController::UbseIpAddr out{};
+    EXPECT_TRUE(parseIpString(ipStr, out));
+    EXPECT_EQ(out.type, ubse::nodeController::UbseIpType::UBSE_IP_V4);
+    EXPECT_EQ(out.ipv4.addr[0], 192);
+    EXPECT_EQ(out.ipv4.addr[1], 168);
+    EXPECT_EQ(out.ipv4.addr[2], 1);
+    EXPECT_EQ(out.ipv4.addr[3], 1);
+}
+
+TEST(ParseIpStringTest, ValidIpv6)
+{
+    std::string ipStr = "2001:db8::1";
+    ubse::nodeController::UbseIpAddr out{};
+    EXPECT_TRUE(parseIpString(ipStr, out));
+    EXPECT_EQ(out.type, ubse::nodeController::UbseIpType::UBSE_IP_V6);
+}
+
+TEST(ParseIpStringTest, ValidIpv6Full)
+{
+    std::string ipStr = "2001:0db8:85a3:0000:0000:8a2e:0370:7334";
+    ubse::nodeController::UbseIpAddr out{};
+    EXPECT_TRUE(parseIpString(ipStr, out));
+    EXPECT_EQ(out.type, ubse::nodeController::UbseIpType::UBSE_IP_V6);
+}
+
+TEST(ParseIpStringTest, InvalidIp)
+{
+    std::string ipStr = "invalid-ip";
+    ubse::nodeController::UbseIpAddr out{};
+    EXPECT_FALSE(parseIpString(ipStr, out));
+}
+
+TEST(ParseIpStringTest, EmptyString)
+{
+    std::string ipStr = "";
+    ubse::nodeController::UbseIpAddr out{};
+    EXPECT_FALSE(parseIpString(ipStr, out));
 }
 } // namespace ubse::ut::utils

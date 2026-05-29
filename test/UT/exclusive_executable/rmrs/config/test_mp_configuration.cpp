@@ -9,12 +9,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+
 #include <gmock/gmock.h>
+#include "ubse_conf.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "mp_error.h"
-#include "ubse_conf.h"
 
 #define private public
 #include "mp_configuration.h"
@@ -22,7 +22,7 @@
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 using namespace std;
- 
+
 namespace mempooling {
 
 class TestMpConfigration : public ::testing::Test {
@@ -40,14 +40,14 @@ public:
     }
 };
 
-uint32_t MockUbseGetUIntForLoadUCacheOK(const std::string &section, const std::string &configKey, uint32_t &configValue)
+uint32_t MockUbseGetUIntForLoadUCacheOK(const std::string& section, const std::string& configKey, uint32_t& configValue)
 {
     configValue = 25;
     return 0;
 }
 
-uint32_t MockUbseGetUIntForLoadUCacheOutOfRange(const std::string &section, const std::string &configKey,
-                                                uint32_t &configValue)
+uint32_t MockUbseGetUIntForLoadUCacheOutOfRange(const std::string& section, const std::string& configKey,
+                                                uint32_t& configValue)
 {
     configValue = -1;
     return 0;
@@ -69,28 +69,24 @@ TEST_F(TestMpConfigration, GetInstance)
     std::vector<std::string> str2 = mpConfiguration.GetNodeIds();
 
     uint16_t modCode = 0;
-    MOCKER(ubse::config::UbseGetStr)
-        .stubs()
-        .will(returnValue(1));
-    MOCKER(ubse::config::UbseGetUInt)
-        .stubs()
-        .will(returnValue(1));
+    MOCKER(ubse::config::UbseGetStr).stubs().will(returnValue(1));
+    MOCKER(ubse::config::UbseGetUInt).stubs().will(returnValue(1));
     uint32_t result = mpConfiguration.Initialize(modCode);
 }
 
-uint32_t UbseGetUIntZero(const std::string &section, const std::string &configKey, uint32_t &configValue)
+uint32_t UbseGetUIntZero(const std::string& section, const std::string& configKey, uint32_t& configValue)
 {
     configValue = 0;
     return 0;
 }
 
-uint32_t UbseGetUIntReturnError(const std::string &section, const std::string &configKey, uint32_t &configValue)
+uint32_t UbseGetUIntReturnError(const std::string& section, const std::string& configKey, uint32_t& configValue)
 {
     configValue = 0;
     return 1;
 }
 
-uint32_t UbseGetBoolReturnError(const std::string &section, const std::string &configKey, bool &configValue)
+uint32_t UbseGetBoolReturnError(const std::string& section, const std::string& configKey, bool& configValue)
 {
     configValue = false;
     return 0;
@@ -103,10 +99,8 @@ TEST_F(TestMpConfigration, InitializeWithVIRTUAL_SCENE)
     mpConfiguration.nodeIds = "0,1";
 
     uint16_t modCode = 0;
-    MOCKER(ubse::config::UbseGetUInt)
-        .stubs()
-        .will(invoke(UbseGetUIntZero));
+    MOCKER(ubse::config::UbseGetUInt).stubs().will(invoke(UbseGetUIntZero));
     uint32_t result = mpConfiguration.Initialize(modCode);
     EXPECT_EQ(result, MEM_POOLING_OK);
 }
-}
+} // namespace mempooling

@@ -38,13 +38,15 @@ extern "C" {
 #define UBSE_MEM_ATTACH_TYPE "ATTACH"
 #define UBSE_MEM_DETACH_TYPE "DETACH"
 
-typedef enum tag_ubse_mem_perf_level {
+typedef enum tag_ubse_mem_perf_level
+{
     UBSE_MEM_PERF_LEVEL0, // 对应直连
     UBSE_MEM_PERF_LEVEL1, // 对应1跳节点
     UBSE_MEM_PERF_LEVEL2, // 对应超过一跳节点
 } ubse_mem_perf_level;
 
-typedef enum tag_ubse_mem_shm_region_type {
+typedef enum tag_ubse_mem_shm_region_type
+{
     UBSE_MEM_ALL2ALL_SHARE, /* *SHM域类型为域内任何节点提供内存都可以被域内所有节点共享访问 */
     UBSE_MEM_ONE2ALL_SHARE, /* *SHM域类型为域内单一节点作为提供方都可以被域内所有节点共享访问 */
 } ubse_mem_shm_region_type;

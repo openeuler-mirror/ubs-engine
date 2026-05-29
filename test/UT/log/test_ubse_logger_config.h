@@ -13,9 +13,9 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_LOG_CONFIG_H
 #define UBSE_MANAGER_TEST_UBSE_LOG_CONFIG_H
 
+#include "ubse_logger_config.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_logger_config.h"
 
 namespace ubse::ut::log {
 class TestUbseLoggerConfig : public testing::Test {
@@ -27,6 +27,6 @@ public:
 protected:
     std::string confFile;
 };
-}
+} // namespace ubse::ut::log
 
 #endif // UBSE_MANAGER_TEST_UBSE_LOG_CONFIG_H

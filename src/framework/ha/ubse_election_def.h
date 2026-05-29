@@ -13,15 +13,15 @@
 #ifndef UBSE_MANAGER_UBSE_ELECTION_DEF_H
 #define UBSE_MANAGER_UBSE_ELECTION_DEF_H
 
+#include <atomic>
 #include <cstdint>
-#include <string>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <atomic>
+#include <string>
+#include <vector>
 
 namespace ubse::election {
-constexpr const char *INVALID_NODE_ID = "";
+constexpr const char* INVALID_NODE_ID = "";
 constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 2000;
 constexpr const uint32_t DEFAULT_HEART_BEAT_LOST = 3;
 const uint32_t MAX_HEART_BEAT_LOST = 20;
@@ -30,19 +30,22 @@ constexpr const int NOT_READY = 0;
 using UBSE_ID_TYPE = std::string;
 constexpr const char* NODE_IP_NULL = "";
 constexpr const uint16_t NODE_PORT_NULL = 0;
-enum class RoleType {
+enum class RoleType
+{
     MASTER,
     STANDBY,
     AGENT,
     INITIALIZER
 };
 
-enum class UbseElectionPktType {
+enum class UbseElectionPktType
+{
     HEART_BEAT_PKT,
     BE_MASTER
 };
 
-enum class UbseNodeChangeState {
+enum class UbseNodeChangeState
+{
     INIT,
     UNCHANGED,
     ADD,
@@ -55,17 +58,17 @@ struct Node {
     uint16_t port;
     UbseNodeChangeState state = UbseNodeChangeState::UNCHANGED; // 节点变化Add, Delete, UnChanged
 
-    bool operator < (const Node &other) const
+    bool operator<(const Node& other) const
     {
         return id < other.id;
     }
 
-    bool operator > (const Node &other) const
+    bool operator>(const Node& other) const
     {
         return id > other.id;
     }
 
-    bool operator == (const Node &other) const
+    bool operator==(const Node& other) const
     {
         return id == other.id;
     }
@@ -75,12 +78,14 @@ constexpr int ELECTION_PKT_TYPE_HEART = 1;
 constexpr uint8_t NEED_SWITCH_OVER = 1;
 constexpr uint8_t NO_SWITCH_OVER = 0;
 
-enum class NotifyStatus : uint8_t {
+enum class NotifyStatus : uint8_t
+{
     NOT_BROADCAST = 0,
     BROADCAST = 1
 };
 
-enum class HeartBeatState : uint8_t {
+enum class HeartBeatState : uint8_t
+{
     LOST = 0,
     ACTIVE = 1
 };
@@ -102,7 +107,8 @@ struct BroadcastStatus {
     }
 };
 
-enum class HeartBeatStatus : uint8_t {
+enum class HeartBeatStatus : uint8_t
+{
     DISABLED = 0,
     ENABLED = 1
 };
@@ -149,12 +155,12 @@ struct ElectionReplyPkt {
 };
 
 struct CallbackCtx {
-    std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::map<UBSE_ID_TYPE, BroadcastStatus>* broadcast;
     std::string destId{};
-    uint8_t *standbyStatus;
-    std::mutex *mtx = nullptr;
-    std::atomic<bool> *stopping;
-    std::atomic<int> *activeCount;
+    uint8_t* standbyStatus;
+    std::mutex* mtx = nullptr;
+    std::atomic<bool>* stopping;
+    std::atomic<int>* activeCount;
 };
 } // namespace ubse::election
 #endif // UBSE_MANAGER_UBSE_ELECTION_DEF_H

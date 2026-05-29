@@ -378,7 +378,7 @@ TEST_F(TestUbseConfModule, GetConfWithUnit)
     EXPECT_EQ(UBSE_CONF_ERROR_KEY_OFFSETCONVERT_ERROR, result);
 }
 
-UbseResult MockGetArgStr(ubse::context::UbseContext *, const std::string &, std::string &argValue)
+UbseResult MockGetArgStr(ubse::context::UbseContext*, const std::string&, std::string& argValue)
 {
     argValue = "1";
     return UBSE_OK;
@@ -411,4 +411,4 @@ TEST_F(TestUbseConfModule, Stop)
 {
     confModulePtr->Stop();
 }
-}
+} // namespace ubse::ut::config

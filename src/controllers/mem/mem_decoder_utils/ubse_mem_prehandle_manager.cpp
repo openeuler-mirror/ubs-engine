@@ -3,20 +3,20 @@
  */
 #include "ubse_mem_prehandle_manager.h"
 
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
-#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
 namespace ubse::mem::decoder::utils {
 using namespace common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-void CompareByHandleValue(const std::pair<uint32_t, uint64_t> &value, const DecoderEntryLoc &loc,
-                          DecoderLocToIsUsehandleValueMap &preHandleMap)
+void CompareByHandleValue(const std::pair<uint32_t, uint64_t>& value, const DecoderEntryLoc& loc,
+                          DecoderLocToIsUsehandleValueMap& preHandleMap)
 {
     if (preHandleMap.find(loc) != preHandleMap.end()) {
-        for (auto &handleInfo : preHandleMap[loc]) {
+        for (auto& handleInfo : preHandleMap[loc]) {
             if (handleInfo.importResult.handle == value.second) {
                 UBSE_LOG_INFO << "already used handle is " << value.second;
                 handleInfo.dcna = value.first;
@@ -26,21 +26,21 @@ void CompareByHandleValue(const std::pair<uint32_t, uint64_t> &value, const Deco
     }
 }
 
-void CompareHandleValue(DecoderLocToIsUsehandleValueMap &preHandleMap,
-                        const decoder::utils::DecoderLocTohandleDcnaMap &importValue)
+void CompareHandleValue(DecoderLocToIsUsehandleValueMap& preHandleMap,
+                        const decoder::utils::DecoderLocTohandleDcnaMap& importValue)
 {
-    for (const auto &[loc, values] : importValue) {
-        for (const auto &value : values) {
+    for (const auto& [loc, values] : importValue) {
+        for (const auto& value : values) {
             CompareByHandleValue(value, loc, preHandleMap);
         }
     }
 }
 
-void InitAllEntryBlock(const decoder::utils::DecoderLocTohandleValueMap &tmpValue,
-                       DecoderLocToIsUsehandleValueMap &preHandleMap)
+void InitAllEntryBlock(const decoder::utils::DecoderLocTohandleValueMap& tmpValue,
+                       DecoderLocToIsUsehandleValueMap& preHandleMap)
 {
-    for (const auto &[loc, values] : tmpValue) {
-        for (const auto &value : values) {
+    for (const auto& [loc, values] : tmpValue) {
+        for (const auto& value : values) {
             UbseMamiMemImportResult tmpValue;
             tmpValue.handle = value.handle;
             tmpValue.hpa = value.hpa;
@@ -54,11 +54,11 @@ void InitAllEntryBlock(const decoder::utils::DecoderLocTohandleValueMap &tmpValu
     }
 }
 
-void InitDcnaByPreImportInfo(const mmi::BasicPreImportInfo &preImportInfo,
-                             DecoderLocToIsUsehandleValueMap &preHandleMap, DcnaToSize &dcnaToSize)
+void InitDcnaByPreImportInfo(const mmi::BasicPreImportInfo& preImportInfo,
+                             DecoderLocToIsUsehandleValueMap& preHandleMap, DcnaToSize& dcnaToSize)
 {
-    for (auto &[loc, values] : preHandleMap) {
-        for (auto &value : values) {
+    for (auto& [loc, values] : preHandleMap) {
+        for (auto& value : values) {
             if (value.importResult.hpa == preImportInfo.pa) {
                 value.dcna = preImportInfo.dcna;
                 value.isPreImport = true;
@@ -70,7 +70,7 @@ void InitDcnaByPreImportInfo(const mmi::BasicPreImportInfo &preImportInfo,
 void UbseMemPrehandleManager::PrintPreHandleMap()
 {
     for (const auto [loc, value] : preHandleMap) {
-        for (const auto &handle : value) {
+        for (const auto& handle : value) {
             UBSE_LOG_DEBUG << "entry loc: ubpuId is " << loc.ubpuId << ", iouId is " << loc.iouId << ", marId is "
                            << loc.marId << ", decoderId is " << loc.decoderId << "pa is " << handle.importResult.hpa
                            << "dcna is " << handle.dcna << ", preImport is " << handle.isPreImport;
@@ -90,21 +90,21 @@ UbseResult UbseMemPrehandleManager::InitPreHandle(std::vector<mmi::BasicPreImpor
     }
     InitAllEntryBlock(tmpValue, preHandleMap);
 
-    for (const auto &preImportInfo : preImportInfos) {
+    for (const auto& preImportInfo : preImportInfos) {
         InitDcnaByPreImportInfo(preImportInfo, preHandleMap, dcnaToSize);
     }
     return UBSE_OK;
 }
 
-UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
-                                                         UbseMamiMemImportResult &handleValue)
+UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const decoder::utils::DecoderEntryLoc& loc, uint32_t dcna,
+                                                         UbseMamiMemImportResult& handleValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     if (preHandleMap.find(loc) == preHandleMap.end()) {
         UBSE_LOG_ERROR << "no handle in this loc, loc is ";
         return UBSE_ERROR;
     }
-    for (auto &value : preHandleMap[loc]) {
+    for (auto& value : preHandleMap[loc]) {
         if (value.dcna == dcna && value.isPreImport) {
             handleValue = value.importResult;
             UBSE_LOG_INFO << "Get one has preImport but no import memory, hpa is " << handleValue.hpa;
@@ -115,8 +115,8 @@ UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const decoder::utils::D
     return UBSE_ERROR;
 }
 
-uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
-                                                     UbseMamiMemImportResult &handleValue)
+uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::DecoderEntryLoc& loc, uint32_t dcna,
+                                                     UbseMamiMemImportResult& handleValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     if (preHandleMap.find(loc) == preHandleMap.end()) {
@@ -124,7 +124,7 @@ uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::Decod
                        << ", loc iouId : " << loc.iouId << ", loc marId : " << loc.marId;
         return UBSE_ERROR;
     }
-    for (auto &value : preHandleMap[loc]) {
+    for (auto& value : preHandleMap[loc]) {
         if (value.dcna == dcna && value.isPreImport) {
             handleValue = value.importResult;
             UBSE_LOG_INFO << "Get one has preImport but no import memory, hpa is " << handleValue.hpa;
@@ -135,8 +135,8 @@ uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::Decod
     return UBSE_ERROR;
 }
 
-void UbseMemPrehandleManager::CreatePreHandle(const decoder::utils::DecoderEntryLoc &loc,
-                                              const UbseMamiMemImportResult &handleValue, uint32_t dcna,
+void UbseMemPrehandleManager::CreatePreHandle(const decoder::utils::DecoderEntryLoc& loc,
+                                              const UbseMamiMemImportResult& handleValue, uint32_t dcna,
                                               uint32_t importSize)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -147,11 +147,11 @@ void UbseMemPrehandleManager::CreatePreHandle(const decoder::utils::DecoderEntry
     preHandleMap[loc].emplace_back(tmpInfo);
 }
 
-void UbseMemPrehandleManager::GetOneUnPreImportHandle(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
-                                                      UbseMamiMemImportResult &outValue)
+void UbseMemPrehandleManager::GetOneUnPreImportHandle(const decoder::utils::DecoderEntryLoc& loc, uint32_t dcna,
+                                                      UbseMamiMemImportResult& outValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
-    for (auto &value : preHandleMap[loc]) {
+    for (auto& value : preHandleMap[loc]) {
         if (value.dcna == 0 && !value.isPreImport) {
             outValue = value.importResult;
             value.isPreImport = true;
@@ -166,8 +166,8 @@ void UbseMemPrehandleManager::GetOneUnPreImportHandle(const decoder::utils::Deco
                   << ", marId" << loc.marId;
 }
 
-bool UbseMemPrehandleManager::IsNeedPreOnline(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
-                                              UbseMamiMemImportResult &outValue)
+bool UbseMemPrehandleManager::IsNeedPreOnline(const decoder::utils::DecoderEntryLoc& loc, uint32_t dcna,
+                                              UbseMamiMemImportResult& outValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     outValue.hpa = 0;
@@ -177,7 +177,7 @@ bool UbseMemPrehandleManager::IsNeedPreOnline(const decoder::utils::DecoderEntry
         return true;
     }
 
-    for (auto &value : preHandleMap[loc]) {
+    for (auto& value : preHandleMap[loc]) {
         if (value.dcna == dcna && value.isPreImport) {
             outValue = value.importResult;
             return false;
@@ -202,12 +202,12 @@ uint64_t UbseMemPrehandleManager::GetPresizeByDcna(uint32_t dcna)
     return dcnaToSize[dcna];
 }
 
-void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc &loc,
-                                             const std::vector<uint64_t> &handles)
+void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc& loc,
+                                             const std::vector<uint64_t>& handles)
 {
     std::lock_guard<std::mutex> lock(handleLock);
-    for (const auto &handle : handles) {
-        for (auto &preInfo : preHandleMap[loc]) {
+    for (const auto& handle : handles) {
+        for (auto& preInfo : preHandleMap[loc]) {
             if (preInfo.importResult.handle == handle) {
                 continue;
             }
@@ -215,20 +215,20 @@ void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryL
     }
 }
 
-void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc &loc, uint64_t handle)
+void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc& loc, uint64_t handle)
 {
     std::lock_guard<std::mutex> lock(handleLock);
-    for (auto &preInfo : preHandleMap[loc]) {
+    for (auto& preInfo : preHandleMap[loc]) {
         if (preInfo.importResult.handle == handle) {
             continue;
         }
     }
 }
 
-void UbseMemPrehandleManager::RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc &loc)
+void UbseMemPrehandleManager::RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc& loc)
 {
     std::lock_guard<std::mutex> lock(handleLock);
-    for (auto &preInfo : preHandleMap[loc]) {
+    for (auto& preInfo : preHandleMap[loc]) {
         preInfo.dcna = 0;
         preInfo.isPreImport = false;
     }

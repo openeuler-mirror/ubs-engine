@@ -16,11 +16,9 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "src/framework/ipc/client/ubse_uds_client.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
-#include "src/framework/ipc/ubse_ipc_socket.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
@@ -29,19 +27,29 @@
 #include "ubse_ipc_utils.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_ut_dir.h"
+#include "src/framework/ipc/client/ubse_uds_client.h"
+#include "src/framework/ipc/include/ubse_ipc_common.h"
+#include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
-const std::string SOCKET_PATH = std::string(UT_DIRECTORY) + "ubse.sock";
-const uint32_t TIMEOUT = 5;
+using namespace ubse::security;
+
+// 使用 /tmp 短路径，避免 Jenkins 工作目录路径过长导致 socket path 超过 sun_path 限制 (107 字节)
+static std::string GetSocketPath()
+{
+    return "/tmp/ubse_ipc_" + std::to_string(getpid()) + ".sock";
+}
+
+const uint32_t TIMEOUT = 5; // 超时时间，单位秒
 TestUbseIpcServer::TestUbseIpcServer() = default;
 void TestUbseIpcServer::SetUp()
 {
+    MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
     context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
         std::make_shared<ubse::security::UbseSecurityModule>();
-    UbseUDSConfig udsConfig{.socketPath = SOCKET_PATH};
+    UbseUDSConfig udsConfig{.socketPath = GetSocketPath()};
     server = std::make_unique<UbseIpcServer>(udsConfig);
     Test::SetUp();
 }
@@ -49,6 +57,7 @@ void TestUbseIpcServer::SetUp()
 void TestUbseIpcServer::TearDown()
 {
     server->Stop();
+    unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
     GlobalMockObject::verify();
     Test::TearDown();
@@ -56,32 +65,28 @@ void TestUbseIpcServer::TearDown()
 
 TEST_F(TestUbseIpcServer, StartSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
 }
 
 TEST_F(TestUbseIpcServer, RegisterHandler)
 {
-    EXPECT_EQ(
-        server->RegisterHandler(1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; }),
-        UBSE_OK);
-    EXPECT_EQ(
-        server->RegisterHandler(1, 1, [](const UbseIpcMessage &, const UbseRequestContext &) { return UBSE_OK; }),
-        UBSE_ERR_DAEMON_UNREACHABLE);
+    EXPECT_EQ(server->RegisterHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; }),
+              UBSE_OK);
+    EXPECT_EQ(server->RegisterHandler(1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_OK; }),
+              UBSE_ERR_DAEMON_UNREACHABLE);
     server->apiInterfaceMap_.clear();
 }
 
 // 测试处理没有注册回调的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     sleep(1);
     uint32_t len = 10;
-    auto *data = new uint8_t[len];
+    auto* data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
@@ -91,17 +96,16 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenNotRegInterface)
 // 测试回调处理失败的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
-    EXPECT_EQ(server->RegisterHandler(1, 1,
-        [](const UbseIpcMessage &, const UbseRequestContext &) {return UBSE_ERR_DAEMON_UNREACHABLE;}),
-        UBSE_OK);
+    EXPECT_EQ(server->RegisterHandler(
+                  1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_ERR_DAEMON_UNREACHABLE; }),
+              UBSE_OK);
     sleep(1);
     uint32_t len = 10;
-    auto *data = new uint8_t[len];
+    auto* data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_DAEMON_UNREACHABLE);
     ubse_api_buffer_free(&responseData);
@@ -111,17 +115,16 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerFailed)
 // 测试请求数据异常的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenRequestDataInvailed)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
-    EXPECT_EQ(server->RegisterHandler(1, 1,
-        [](const UbseIpcMessage &, const UbseRequestContext &) {return UBSE_ERR_DAEMON_UNREACHABLE;}),
-        UBSE_OK);
+    EXPECT_EQ(server->RegisterHandler(
+                  1, 1, [](const UbseIpcMessage&, const UbseRequestContext&) { return UBSE_ERR_DAEMON_UNREACHABLE; }),
+              UBSE_OK);
     sleep(1);
     uint32_t len = 10;
-    auto *data = new uint8_t[len];
+    auto* data = new uint8_t[len];
     ubse_api_buffer_t requestData{nullptr, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERROR_SERIALIZE_FAILED);
     ubse_api_buffer_free(&responseData);
@@ -139,27 +142,26 @@ TEST_F(TestUbseIpcServer, SendResponse)
 // 测试最大消息传输
 TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
-        [this](const UbseIpcMessage &, const UbseRequestContext &ctx) {
-            uint32_t len = 10 * 1024 * 1024;
-            auto *data = new uint8_t[len];
-            UbseIpcMessage response{data, len};
-            auto ret = server->SendResponse(UBSE_OK, ctx.requestId, response);
-            delete[] data;
-            return ret;
-        }),
-        UBSE_OK);
+                                      [this](const UbseIpcMessage&, const UbseRequestContext& ctx) {
+                                          uint32_t len = 10 * 1024 * 1024; // 10MB，测试大消息传输
+                                          auto* data = new uint8_t[len];
+                                          UbseIpcMessage response{data, len};
+                                          auto ret = server->SendResponse(UBSE_OK, ctx.requestId, response);
+                                          delete[] data;
+                                          return ret;
+                                      }),
+              UBSE_OK);
     sleep(1);
-    uint32_t len = 10 * 1024 * 1024;
-    auto *data = new uint8_t[len];
+    uint32_t len = 10 * 1024 * 1024; // 10MB，测试大消息传输
+    auto* data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(requestData.length, 10 * 1024 * 1024); // 数据长度为10*1024*1024
+    EXPECT_EQ(requestData.length, 10 * 1024 * 1024); // 10MB
     ubse_api_buffer_free(&responseData);
     delete[] data;
 }
@@ -167,24 +169,23 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenBigMessage)
 // 测试回调处理成功的请求
 TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
 {
-    GTEST_SKIP();
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(server->RegisterHandler(1, 1,
-        [this](const UbseIpcMessage &, const UbseRequestContext &ctx) {
-            uint32_t len = 10; // 数据长度为10
-            auto *data = new uint8_t[len];
-            UbseIpcMessage response{data, len};
-            auto ret = server->SendResponse(UBSE_OK, ctx.requestId, response);
-            delete[] data;
-            return ret;
-        }),
-        UBSE_OK);
+                                      [this](const UbseIpcMessage&, const UbseRequestContext& ctx) {
+                                          uint32_t len = 10; // 数据长度为10
+                                          auto* data = new uint8_t[len];
+                                          UbseIpcMessage response{data, len};
+                                          auto ret = server->SendResponse(UBSE_OK, ctx.requestId, response);
+                                          delete[] data;
+                                          return ret;
+                                      }),
+              UBSE_OK);
     sleep(1);
     uint32_t len = 10; // 数据长度为10
-    auto *data = new uint8_t[len];
+    auto* data = new uint8_t[len];
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
-    ubse_socket_path_set(SOCKET_PATH.c_str());
+    ubse_socket_path_set(GetSocketPath().c_str());
     auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(requestData.length, 10); // 数据长度为10
@@ -194,73 +195,74 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
 
 TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
 {
-    GTEST_SKIP();
-    UbseShmFault shmFault{
-        .shmName = "name",
-        .memId = 1,
+    UbseMemFault shmFault{
+        .memName = "name",
+        .handleId = 1,
         .type = UbseIpcMemFaultType::UB_MEM_HEALTHY,
     };
 
-    uint8_t *buffer = nullptr;
+    uint8_t* buffer = nullptr;
     size_t size = 0;
-    auto ret = SerializeShmFault(shmFault, buffer, size);
+    auto ret = SerializeMemFault(shmFault, buffer, size);
     EXPECT_EQ(ret, UBSE_OK);
     UbseRequestMessage requestMessage{};
     requestMessage.header.moduleCode = UBSE_LONG_LINK_REGISTER;
-    requestMessage.header.opCode = UBSE_LONGLINK_FAULT;
+    requestMessage.header.opCode = UBSE_LONGLINK_FAULT_SHM;
     requestMessage.header.bodyLen = size;
     requestMessage.body = buffer;
-    void *ctx;
-    UbseAsyncResponseHandler handler = [](void *ctx, const UbseResponseMessage &resp) -> void {
+    void* ctx;
+    UbseAsyncResponseHandler handler = [](void* ctx, const UbseResponseMessage& resp) -> void {
         return;
     };
     std::vector<uint64_t> reqList{};
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
-    ubs_mem_shm_fault_handler faultHandler = [](const char *name, uint64_t memid,
+    ubs_mem_shm_fault_handler faultHandler = [](const char* name, uint64_t memid,
                                                 ubs_mem_fault_type_t type) -> int32_t {
         return 0;
     };
     EXPECT_EQ(ubse_shm_fault_register(faultHandler), UBSE_OK);
-    EXPECT_EQ(server->AsyncSendLongLink(requestMessage, ctx, handler, reqList), UBSE_OK);
+    UbseClientInfo clientInfo{.uid = getuid(), .gid = 0, .pid = 0};
+    EXPECT_EQ(server->AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList), UBSE_OK);
     delete[] buffer;
-    sleep(2); // 2s等待一次通信完成
+    sleep(2);
     UbseUDSClient::GetInstance().Stop();
 }
 
 TEST_F(TestUbseIpcServer, AsyncSendLongLink_WhenClientDestory)
 {
     GTEST_SKIP();
-    UbseShmFault shmFault{
-        .shmName = "name",
-        .memId = 1,
+    UbseMemFault shmFault{
+        .memName = "name",
+        .handleId = 1,
         .type = UbseIpcMemFaultType::UB_MEM_HEALTHY,
     };
 
-    uint8_t *buffer = nullptr;
+    uint8_t* buffer = nullptr;
     size_t size = 0;
-    auto ret = SerializeShmFault(shmFault, buffer, size);
+    auto ret = SerializeMemFault(shmFault, buffer, size);
     EXPECT_EQ(ret, UBSE_OK);
     UbseRequestMessage requestMessage{};
     requestMessage.header.moduleCode = UBSE_LONG_LINK_REGISTER;
-    requestMessage.header.opCode = UBSE_LONGLINK_FAULT;
+    requestMessage.header.opCode = UBSE_LONGLINK_FAULT_SHM;
     requestMessage.header.bodyLen = size;
     requestMessage.body = buffer;
-    void *ctx;
-    UbseAsyncResponseHandler handler = [](void *ctx, const UbseResponseMessage &resp) -> void {
+    void* ctx;
+    UbseAsyncResponseHandler handler = [](void* ctx, const UbseResponseMessage& resp) -> void {
         return;
     };
     std::vector<uint64_t> reqList{};
     EXPECT_EQ(server->Start(), UBSE_OK);
     EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
-    ubs_mem_shm_fault_handler faultHandler = [](const char *name, uint64_t memid,
+    ubs_mem_shm_fault_handler faultHandler = [](const char* name, uint64_t memid,
                                                 ubs_mem_fault_type_t type) -> int32_t {
         return 0;
     };
     EXPECT_EQ(ubse_shm_fault_register(faultHandler), UBSE_OK);
     UbseUDSClient::GetInstance().Stop();
-    sleep(1); // 等待断链完成
-    EXPECT_EQ(server->AsyncSendLongLink(requestMessage, ctx, handler, reqList), UBSE_OK);
+    sleep(1);
+    UbseClientInfo clientInfo{.uid = getuid(), .gid = 0, .pid = 0};
+    EXPECT_EQ(server->AsyncSendLongLink(requestMessage, clientInfo, ctx, handler, reqList), UBSE_OK);
     delete[] buffer;
 }
 } // namespace ubse::ut::ipc

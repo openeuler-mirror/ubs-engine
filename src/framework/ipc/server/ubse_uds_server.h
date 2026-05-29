@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "ubse_api_server.h"
 #include "ubse_api_server_def.h"
 #include "ubse_ipc_message.h"
 #include "ubse_map_util.h"
@@ -27,7 +28,9 @@
 #include "ubse_election.h"
 
 namespace ubse::ipc {
-using namespace api::server;
+using api::server::SendResponse;
+using api::server::UbseClientInfo;
+using api::server::UbseRequestContext;
 struct UbseUDSConfig {
     std::string socketPath;
     uint32_t socketPermissions = 0660;
@@ -39,14 +42,14 @@ struct UbseUDSConfig {
     uint32_t maxPersistentConnectionsPerUser = 128;
 };
 
-using UbseAsyncResponseHandler = std::function<void(void *ctx, const UbseResponseMessage &)>;
+using UbseAsyncResponseHandler = std::function<void(void* ctx, const UbseResponseMessage&)>;
 
 struct UbseAsyncCallBack {
     UbseAsyncResponseHandler handler;
-    void *ctx;
+    void* ctx;
 };
 
-using UbseRequestHandler = std::function<void(const UbseRequestMessage &, const UbseRequestContext &)>;
+using UbseRequestHandler = std::function<void(const UbseRequestMessage&, const UbseRequestContext&)>;
 // 长连接场景下，客户端在建立长连接后，向服务端注册监听的事件；服务端在收到对应的事件后选择fd进行通知;
 using UbseIpcLongLinkClientMap = ubse::utils::PairMap<uint16_t, uint16_t, std::unordered_set<int>>;
 
@@ -63,15 +66,16 @@ public:
 
     void Stop();
 
-    uint32_t SendResponse(uint64_t requestId, const UbseResponseMessage &response);
+    uint32_t SendResponse(uint64_t requestId, const UbseResponseMessage& response);
 
     void RegisterHandler(UbseRequestHandler handler);
 
-    uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler,
-                               std::vector<uint64_t> &reqList);
+    uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo, void* ctx,
+                               UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList);
 
 private:
-    enum class SessionState {
+    enum class SessionState
+    {
         CONNECT,
         READING,
         PROCESSING,
@@ -80,7 +84,8 @@ private:
         CLOSING
     };
 
-    enum class SessionType {
+    enum class SessionType
+    {
         PENDING,   // 待定
         TRANSIENT, // 短链接
         PERSISTENT // 长连接
@@ -146,24 +151,25 @@ private:
     void EventLoopThread();
     void HandleNewConnection();
     void HandleClientEvent(int fd, uint32_t events);
-    void HandleRequest(int fd, const UbseRequestHeader &header, const std::vector<uint8_t> &buffer,
-                       const UbseRequestContext &context);
+    void HandleRequest(int fd, const UbseRequestHeader& header, const std::vector<uint8_t>& buffer,
+                       const UbseRequestContext& context);
     void CloseSession(int fd);
-    void HandleRead(ClientSession *session);
-    void HandleWrite(ClientSession *session);
+    void HandleRead(ClientSession* session);
+    void HandleWrite(ClientSession* session);
     uint32_t CreateServerSocket();
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
-    void ProcessRequest(ClientSession *session, const UbseRequestHeader &header, std::vector<uint8_t> &&bodyData);
+    void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);
     void RegisterLongLinkAsyncCallback(uint64_t reqId, UbseAsyncCallBack callBack);
 
-    void HandleRequest(ClientSession *session);
-    uint32_t SendReq(int fd, UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler);
-    void ReceiveResponse(const ClientSession *session);
-    void ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage &response);
+    void HandleRequest(ClientSession* session);
+    bool GetClientInfoByFd(int fd, UbseClientInfo& clientInfo);
+    uint32_t SendReq(int fd, UbseRequestMessage requestMessage, void* ctx, UbseAsyncResponseHandler handler);
+    void ReceiveResponse(const ClientSession* session);
+    void ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage& response);
 
     void CheckAndCloseTimeoutSessions();
-    void HandlePersistentSession(const UbseRequestHeader &header, int fd, uint64_t requestId);
+    void HandlePersistentSession(const UbseRequestHeader& header, int fd, uint64_t requestId);
     uint8_t GetSlotId(ubse::election::UbseRoleInfo &roleInfo) const;
 };
 } // namespace ubse::ipc

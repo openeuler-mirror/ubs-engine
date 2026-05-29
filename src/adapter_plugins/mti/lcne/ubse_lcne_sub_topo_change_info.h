@@ -16,11 +16,10 @@
 #include "ubse_lcne_def.h"
 
 namespace ubse::lcne {
-using namespace ubse::http;
 
 class UbseLcneLinkInfo {
 public:
-    static UbseLcneLinkInfo &GetInstance()
+    static UbseLcneLinkInfo& GetInstance()
     {
         static UbseLcneLinkInfo instance("127.0.0.1",
                                          LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
@@ -29,10 +28,11 @@ public:
 
     // 初始化时订阅拓扑信息
     uint32_t SubLcneLinkInfo();
+    uint32_t ParseLinkUpDownReq(const std::string& reqBody, std::string& linkUpDown, std::string& interfaceName);
 
 private:
-    UbseLcneLinkInfo(const std::string &host, int port) : host(host), port(port) {}
-    uint32_t ParseMonitorData(std::string &resBody);
+    UbseLcneLinkInfo(const std::string& host, int port) : host(host), port(port) {}
+    uint32_t ParseMonitorData(std::string& resBody);
     std::string host;
     int port;
 };

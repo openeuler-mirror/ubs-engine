@@ -13,10 +13,10 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_LOGGER_MANAGER_H
 #define UBSE_MANAGER_TEST_UBSE_LOGGER_MANAGER_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_logger_config.h"
 #include "ubse_logger_manager.h"
+#include "gtest/gtest.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::log {
 using namespace ubse::log;
@@ -32,5 +32,5 @@ public:
 private:
     std::string currentPath;
 };
-}
+} // namespace ubse::ut::log
 #endif // UBSE_MANAGER_TEST_UBSE_LOGGER_MANAGER_H

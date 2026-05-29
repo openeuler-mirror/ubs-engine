@@ -16,14 +16,14 @@
 #include <cstdint>
 #include <functional>
 
-using TurboByteBufferFreeFunc = std::function<void(uint8_t *data)>;
+using TurboByteBufferFreeFunc = std::function<void(uint8_t* data)>;
 
 struct TurboByteBuffer {
-    uint8_t *data = nullptr;  // 数据指针
-    size_t len = 0;   // 数据长度
-    TurboByteBufferFreeFunc freeFunc;  // 非空代表接收方需要释放内存；空代表接收方不需要释放内存
+    uint8_t* data = nullptr;          // 数据指针
+    size_t len = 0;                   // 数据长度
+    TurboByteBufferFreeFunc freeFunc; // 非空代表接收方需要释放内存；空代表接收方不需要释放内存
 };
 
-using IpcHandlerFunc = std::function<uint32_t(const TurboByteBuffer &inputBuffer, TurboByteBuffer &outputBuffer)>;
+using IpcHandlerFunc = std::function<uint32_t(const TurboByteBuffer& inputBuffer, TurboByteBuffer& outputBuffer)>;
 
 #endif

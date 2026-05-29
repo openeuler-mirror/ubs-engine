@@ -12,15 +12,17 @@
 
 #include "test_ubse_lcne_host_info.h"
 #include <mockcpp/mockcpp.hpp>
-#include "lcne/ubse_lcne_host_info.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_http_module.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "lcne/ubse_lcne_host_info.h"
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
 using namespace ubse::context;
+using namespace ubse::http;
+using namespace ubse::mti;
 
 void TestUbseLcneHostInfo ::SetUp()
 {
@@ -180,4 +182,4 @@ TEST_F(TestUbseLcneHostInfo, QueryLcneHostInfo_ParseFailed)
     UbseResult ret = UbseLcneHostInfo::GetGetInstance().QueryLcneHostInfo(ubseLcneOSInfo);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
-}  // namespace ubse::ut::lcne
+} // namespace ubse::ut::lcne

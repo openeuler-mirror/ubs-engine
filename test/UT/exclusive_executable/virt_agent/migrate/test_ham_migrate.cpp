@@ -12,29 +12,29 @@
 
 #include "test_ham_migrate.h"
 
-#include <regex>
-#include <fstream>
-#include <securec.h>
 #include <gmock/gmock-function-mocker.h>
+#include <securec.h>
+#include <fstream>
+#include <regex>
 
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
-#include <ubse_error.h>
-#include <ubse_election.h>
-#include <ubse_ras.h>
-#include <ubse_com.h>
-#include <ubse_node.h>
 #include <ubse_api_server.h>
-#include <ubse_ut_dir.h>
+#include <ubse_com.h>
+#include <ubse_election.h>
+#include <ubse_error.h>
 #include <ubse_mem_controller.h>
-#include "ham_migrate_vm_info_storage.h"
-#include "resource_query.h"
-#include "vm_configuration.h"
-#include "libvirt_helper.h"
+#include <ubse_node.h>
+#include <ubse_ras.h>
+#include <ubse_ut_dir.h>
 #include "ham_migrate.h"
-#include "migrate_strategy.h"
 #include "ham_migrate_dst_info_message.h"
+#include "ham_migrate_vm_info_storage.h"
+#include "libvirt_helper.h"
+#include "migrate_strategy.h"
+#include "resource_query.h"
 #include "response_info_message.h"
+#include "vm_configuration.h"
 
 using namespace vm;
 using namespace ubse::mem::controller;
@@ -55,12 +55,11 @@ TestHamMigrate::TestHamMigrate() = default;
 
 UbseIpcMessage response{};
 
-uint32_t GetSendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &sendResponse)
+uint32_t GetSendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& sendResponse)
 {
     response.length = sendResponse.length;
-    response.buffer =  new (std::nothrow) uint8_t[sendResponse.length];
-    memcpy_s(response.buffer, response.length,
-             sendResponse.buffer, response.length);
+    response.buffer = new (std::nothrow) uint8_t[sendResponse.length];
+    memcpy_s(response.buffer, response.length, sendResponse.buffer, response.length);
     return VM_OK;
 }
 
@@ -75,7 +74,7 @@ void freeResponse()
 
 std::string GetSendResponseString()
 {
-    return std::string {response.buffer, response.buffer + response.length};
+    return std::string{response.buffer, response.buffer + response.length};
 }
 
 void TestHamMigrate::SetUp()
@@ -93,9 +92,9 @@ void TestHamMigrate::TearDown()
 }
 
 // 读Json文件
-VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
+VmResult ReadJsonFile(const std::string& filename, std::string& jsonString)
 {
-    std::string caseDir = std::string(UT_DIRECTORY) + "/virt_agent/migrate/case/";
+    std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/migrate/case/";
     std::ifstream file(caseDir + filename);
     if (!file.is_open()) {
         UBSE_LOGGER_ERROR(VM_MODULE_NAME, VM_MODULE_CODE) << "Failed to open file: " << filename;
@@ -109,10 +108,10 @@ VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
     return VM_OK;
 }
 
-VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
+VmResult setUbseByteBuffer(const std::string& bodyString, UbseByteBuffer& resp)
 {
     size_t len = bodyString.size();
-    auto *body = new(std::nothrow) uint8_t[len];
+    auto* body = new (std::nothrow) uint8_t[len];
     if (body == nullptr) {
         UBSE_LOGGER_ERROR(VM_MODULE_NAME, VM_MODULE_CODE) << "new response body error";
         return VM_ERROR;
@@ -124,7 +123,7 @@ VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
     }
     resp.data = body;
     resp.len = len;
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         if (data != nullptr) {
             delete[] data;
         }
@@ -132,13 +131,13 @@ VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
     return VM_OK;
 }
 
-uint32_t UbseNodeGetNodeIdByHostname(const std::string &hostname, std::string &nodeId)
+uint32_t UbseNodeGetNodeIdByHostname(const std::string& hostname, std::string& nodeId)
 {
     nodeId = hostname;
     return VM_OK;
 }
 
-UbseResult UbseNodeGetDebt(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos)
+UbseResult UbseNodeGetDebt(const std::string& nodeId, std::vector<UbseMemAddrDesc>& debtInfos)
 {
     UbseMemAddrDesc memDebtInfoMap;
     UbseTopoNode ubseTopoNode;
@@ -149,7 +148,7 @@ UbseResult UbseNodeGetDebt(const std::string &nodeId, std::vector<UbseMemAddrDes
     return UBSE_OK;
 }
 
-VmResult GetHostVmDomainInfo(const uint64_t &remoteUsedMem, HostVmDomainInfo &hostVmDomainInfo)
+VmResult GetHostVmDomainInfo(const uint64_t& remoteUsedMem, HostVmDomainInfo& hostVmDomainInfo)
 {
     VmDomainInfo vmDomainInfo;
     mempooling::VmDomainNumaInfo vmDomainNumaInfo{0, 0, 0, 0, 0};
@@ -176,7 +175,7 @@ VmResult GetHostVmDomainInfoNoBorrow(HostVmDomainInfo& hostVmDomainInfo)
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfo(HamMigrateVmInfo &hamMigrateVmInfo, const std::string &nodeId, int pid, VmState vmState)
+VmResult GetHamMigrateVmInfo(HamMigrateVmInfo& hamMigrateVmInfo, const std::string& nodeId, int pid, VmState vmState)
 {
     hamMigrateVmInfo.pid = pid;
     hamMigrateVmInfo.nodeId = nodeId;
@@ -189,21 +188,19 @@ VmResult GetHamMigrateVmInfo(HamMigrateVmInfo &hamMigrateVmInfo, const std::stri
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfoBorrow(const std::string &nodeId, int pid,
-                                   HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult GetHamMigrateVmInfoBorrow(const std::string& nodeId, int pid, HamMigrateVmInfo& hamMigrateVmInfo)
 {
     GetHamMigrateVmInfo(hamMigrateVmInfo, NODE, PID, VmState::BORROWED_NOMIGRATE);
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfoNoBorrow(const std::string &nodeId, int pid,
-                                     HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult GetHamMigrateVmInfoNoBorrow(const std::string& nodeId, int pid, HamMigrateVmInfo& hamMigrateVmInfo)
 {
     GetHamMigrateVmInfo(hamMigrateVmInfo, NODE, PID, VmState::NOBORROW_NOMIGRATE);
     return VM_OK;
 }
 
-VmResult GetHamMigrateVmInfos(const std::string &nodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult GetHamMigrateVmInfos(const std::string& nodeId, std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     HamMigrateVmInfo hamMigrateVmInfo1;
     GetHamMigrateVmInfo(hamMigrateVmInfo1, NODE, PID, VmState::BORROWED_NOMIGRATE);
@@ -216,18 +213,18 @@ VmResult GetHamMigrateVmInfos(const std::string &nodeId, std::vector<HamMigrateV
     return VM_OK;
 }
 
-VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     return GetHamMigrateVmInfos("", hamMigrateVmInfos);
 }
 
-VmResult GetHamMigrateVmInfoByUUID(const std::string &uuid, HamMigrateVmInfo &hamMigrateVmInfo)
+VmResult GetHamMigrateVmInfoByUUID(const std::string& uuid, HamMigrateVmInfo& hamMigrateVmInfo)
 {
     hamMigrateVmInfo.vmState = VmState::BORROWED_NOMIGRATE;
     return VM_OK;
 }
 
-VmResult VmInfosByDstNodeIdNotMigrating(const std::string &dstNodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult VmInfosByDstNodeIdNotMigrating(const std::string& dstNodeId, std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.vmOpState = VmOpState::BORROWED_ADDRESS;
@@ -236,7 +233,7 @@ VmResult VmInfosByDstNodeIdNotMigrating(const std::string &dstNodeId, std::vecto
     return VM_OK;
 }
 
-VmResult VmInfosByDstNodeIdMigrating(const std::string &dstNodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult VmInfosByDstNodeIdMigrating(const std::string& dstNodeId, std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.uuid = "vm-uuid";
@@ -259,20 +256,18 @@ VmResult DoUbseBorrowAddress(const BorrowInfo& borrowInfo, BorrowResponse& borro
 }
 
 struct CheckNodeId {
-    explicit CheckNodeId(const std::string& mNodeId)
-        : nodeId(mNodeId) {}
+    explicit CheckNodeId(const std::string& mNodeId) : nodeId(mNodeId) {}
 
     std::string nodeId;
 
-    bool operator()(const std::string &checkNodeId)
+    bool operator()(const std::string& checkNodeId)
     {
         return nodeId == checkNodeId;
     }
 };
 
 struct CheckPid {
-    explicit CheckPid(const int& mPid)
-        : pid(mPid) {}
+    explicit CheckPid(const int& mPid) : pid(mPid) {}
 
     int pid;
 
@@ -283,9 +278,7 @@ struct CheckPid {
 };
 
 struct CheckVmInfo {
-    CheckVmInfo(const VmState& mVmState, const VmOpState& mVmOpState)
-        : vmState(mVmState),
-          vmOpstate(mVmOpState) {}
+    CheckVmInfo(const VmState& mVmState, const VmOpState& mVmOpState) : vmState(mVmState), vmOpstate(mVmOpState) {}
 
     VmState vmState;
     VmOpState vmOpstate;
@@ -307,9 +300,9 @@ void mock_migrate_fail_without_rollback()
     req.length = reqTmp.len;
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo).expects(never());
-    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo &hamMigrateVmInfo, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(HamMigrateVmInfo & hamMigrateVmInfo, const bool& isUpdate))
         .expects(never());
-    MOCKER(HamMigrate::EnterClearQueue, void(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos, const bool& isUpdate))
+    MOCKER(HamMigrate::EnterClearQueue, void(std::vector<HamMigrateVmInfo> & hamMigrateVmInfos, const bool& isUpdate))
         .expects(never());
 
     UbseRequestContext context;
@@ -333,20 +326,28 @@ void mock_migrate_fail_clear_success(uint64_t sleep_ms)
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoBorrow));
 
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
-    .will(returnValue(VM_OK)).id("0");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
+        .will(returnValue(VM_OK))
+        .id("0");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
-    .after("0").will(returnValue(VM_OK)).id("1");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
+        .after("0")
+        .will(returnValue(VM_OK))
+        .id("1");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
-    .after("1").will(returnValue(VM_OK)).id("2");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::DISABLE_PROCESS_MIGRATE)))
+        .after("1")
+        .will(returnValue(VM_OK))
+        .id("2");
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
-    .expects(once()).with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
-    .after("2").will(returnValue(VM_OK)).id("3");
+        .expects(once())
+        .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
+        .after("2")
+        .will(returnValue(VM_OK))
+        .id("3");
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
@@ -380,20 +381,28 @@ void mock_noborrow_migrate_fail_clear_success(uint64_t sleep_ms)
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfo).stubs().will(invoke(GetHamMigrateVmInfoNoBorrow));
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
-    .will(returnValue(VM_OK)).id("0");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)))
+        .will(returnValue(VM_OK))
+        .id("0");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
-    .after("0").will(returnValue(VM_OK)).id("1");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::PROCESS_TRACKING)))
+        .after("0")
+        .will(returnValue(VM_OK))
+        .id("1");
     MOCKER(HamMigrateVmInfoStorage::SetHamMigrateVmInfo)
-    .expects(once()).with(
-        checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::NOPE)))
-    .after("1").will(returnValue(VM_OK)).id("2");
+        .expects(once())
+        .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::NOPE)))
+        .after("1")
+        .will(returnValue(VM_OK))
+        .id("2");
     MOCKER(HamMigrateVmInfoStorage::DelHamMigrateVmInfo)
-    .expects(once()).with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
-    .after("2").will(returnValue(VM_OK)).id("3");
+        .expects(once())
+        .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(PID)))
+        .after("2")
+        .will(returnValue(VM_OK))
+        .id("3");
 
     std::thread ClearThread(&HamMigrate::ClearQueueOperation);
     ClearThread.detach();
@@ -450,32 +459,28 @@ TEST_F(TestHamMigrate, Borrow_EnableProcessMigrate_failed)
 
 constexpr int64_t srcPid = 123;
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoBorrow = {
-    {0, {0, 0, 0, 0, false}, },
-    {1, {1, 1, 1, 1, true}, }
-};
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoBorrow = {{
+                                                                                         0,
+                                                                                         {0, 0, 0, 0, false},
+                                                                                     },
+                                                                                     {
+                                                                                         1,
+                                                                                         {1, 1, 1, 1, true},
+                                                                                     }};
 
-VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo &hostVmDomainInfo)
+VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo& hostVmDomainInfo)
 {
-    VmDomainInfo vmDomainInfo{
-        .remoteUsedMem = 1,
-        .pid = srcPid
-    };
+    VmDomainInfo vmDomainInfo{.remoteUsedMem = 1, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoBorrow;
     hostVmDomainInfo.vmDomainInfos.push_back(vmDomainInfo);
     return VM_OK;
 }
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoNoBorrow = {
-    {0, {0, 0, 0, 0, true}}
-};
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoNoBorrow = {{0, {0, 0, 0, 0, true}}};
 
-VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo &hostVmDomainInfo)
+VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo& hostVmDomainInfo)
 {
-    VmDomainInfo vmDomainInfo{
-        .remoteUsedMem = 0,
-        .pid = srcPid
-    };
+    VmDomainInfo vmDomainInfo{.remoteUsedMem = 0, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoNoBorrow;
     hostVmDomainInfo.vmDomainInfos.push_back(vmDomainInfo);
     return VM_OK;
@@ -483,7 +488,6 @@ VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo &hostVmDomainInfo)
 
 TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -524,7 +528,6 @@ TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
 
 TEST_F(TestHamMigrate, Borrow_BorrowAddress_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -625,7 +628,6 @@ TEST_F(TestHamMigrate, Borrow_ExportQuery_failed)
 
 TEST_F(TestHamMigrate, Borrow_SyncData_failed)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -671,7 +673,6 @@ TEST_F(TestHamMigrate, Borrow_SyncData_failed)
 
 TEST_F(TestHamMigrate, Borrow_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -756,7 +757,6 @@ TEST_F(TestHamMigrate, Borrow_CheckPid_Failed)
 
 TEST_F(TestHamMigrate, Migrate_success_clear_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string clearJson = R"({"action": "clear", "type": 1, "srcHostname": "Node0", "srcPid": 123})";
@@ -973,7 +973,6 @@ TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
 
 TEST_F(TestHamMigrate, NoBorrow_Borrow_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     std::string borrowJson;
@@ -1103,7 +1102,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
@@ -1123,7 +1121,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_RemoveProcessTracking_fail_retry_success)
 {
-    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
     MOCKER(HamMigrate::CheckPid).stubs().will(returnValue(VM_OK));
@@ -1229,7 +1226,6 @@ TEST_F(TestHamMigrate, restart_clear_success)
 
 TEST_F(TestHamMigrate, libvirt_restart_clear_success)
 {
-    GTEST_SKIP();
     UbseIpcMessage req{};
     UbseByteBuffer reqTmp{};
     UbseByteBuffer resp{};
@@ -1287,17 +1283,19 @@ TEST_F(TestHamMigrate, start_stop)
     auto ret = HamMigrate::Start();
     EXPECT_NE(ret, VM_OK);
     MOCKER(com::UbseRegRpcService).stubs().will(returnValue(VM_OK));
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).stubs().will(returnValue(VM_ERROR));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name,
+                                               AlarmFaultHandler handler, AlarmHandlerPriority priority))
+        .stubs()
+        .will(returnValue(VM_ERROR));
     ret = HamMigrate::Start();
     EXPECT_NE(ret, VM_OK);
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).reset();
-    MOCKER(RegisterAlarmFaultHandler,
-           uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name, AlarmFaultHandler handler,
-                    AlarmHandlerPriority priority)).stubs().will(returnValue(VM_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name,
+                                               AlarmFaultHandler handler, AlarmHandlerPriority priority))
+        .reset();
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE alarmFaultEvent, std::string name,
+                                               AlarmFaultHandler handler, AlarmHandlerPriority priority))
+        .stubs()
+        .will(returnValue(VM_OK));
     MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
     ret = HamMigrate::Start();
     EXPECT_EQ(ret, VM_OK);
@@ -1420,20 +1418,9 @@ TEST_F(TestHamMigrate, PanicEventHandler)
 
 TEST_F(TestHamMigrate, Second_DoUbseBorrowAddress)
 {
-    BorrowInfo borrowInfo{
-        .srcNodeId = "1",
-        .dstNodeId = "2",
-        .dstPid = 0,
-        .dstSocket = 1,
-        .valist = {
-            {1, 2}
-        }
-    };
+    BorrowInfo borrowInfo{.srcNodeId = "1", .dstNodeId = "2", .dstPid = 0, .dstSocket = 1, .valist = {{1, 2}}};
     BorrowResponse borrowResponse{};
-    MOCKER(UbseMemAddrCreate)
-        .stubs()
-        .will(returnValue(UBSE_ERR_AUTH_FAILED))
-        .then(returnValue(UBSE_OK));
+    MOCKER(UbseMemAddrCreate).stubs().will(returnValue(UBSE_ERR_AUTH_FAILED)).then(returnValue(UBSE_OK));
     EXPECT_EQ(HamMigrate::DoUbseBorrowAddress(borrowInfo, borrowResponse), VM_ERROR);
     EXPECT_EQ(HamMigrate::DoUbseBorrowAddress(borrowInfo, borrowResponse), VM_OK);
 }
@@ -1527,8 +1514,7 @@ TEST_F(TestHamMigrate, MasterDstInfoHandler_Request)
 TEST_F(TestHamMigrate, AgentDstInfoHandler_Request)
 {
     uint64_t pid = 123;
-    const UbseByteBuffer respData = {.data = (uint8_t *)&pid,
-                                     .len = sizeof(uint64_t)};
+    const UbseByteBuffer respData = {.data = (uint8_t*)&pid, .len = sizeof(uint64_t)};
     UbseByteBuffer resp;
     HamMigrate::AgentDstInfoHandler(respData, resp);
     MOCKER(HamMigrate::PidIsVm).stubs().will(returnValue(VM_OK));
@@ -1538,11 +1524,10 @@ TEST_F(TestHamMigrate, AgentDstInfoHandler_Request)
     EXPECT_EQ(code, VM_ERROR);
 }
 
-
 TEST_F(TestHamMigrate, PidIsVm_NoHugePage)
 {
     uint64_t pid = 456;
     EXPECT_EQ(HamMigrate::PidIsVm(pid), VM_ERROR);
 }
 
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut

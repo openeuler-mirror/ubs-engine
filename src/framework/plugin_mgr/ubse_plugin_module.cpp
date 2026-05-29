@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_http_module.h"
+#include "ubse_plugin_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_http_module.h"
 #include "ubse_logger_module.h"
-#include "ubse_plugin_module.h"
 
 namespace ubse::plugin {
 DYNAMIC_CREATE(UbsePluginModule);
@@ -25,8 +25,7 @@ UbseResult UbsePluginModule::Initialize()
     return UBSE_OK;
 }
 
-void UbsePluginModule::UnInitialize() {
-}
+void UbsePluginModule::UnInitialize() {}
 
 UbseResult UbsePluginModule::Start()
 {
@@ -38,11 +37,11 @@ void UbsePluginModule::Stop()
     ubsePluginManager_.DeInitializePlugins();
 }
 
-bool UbsePluginModule::GetPluginLoaded(const std::string &pluginName)
+bool UbsePluginModule::GetPluginLoaded(const std::string& pluginName)
 {
     return ubsePluginManager_.GetLoadedPlugin(pluginName) != nullptr;
 }
-bool UbsePluginModule::GetPluginReadyStatus(const std::string &pluginName)
+bool UbsePluginModule::GetPluginReadyStatus(const std::string& pluginName)
 {
     std::shared_lock<std::shared_mutex> lock(pluginReadyMapMutex_);
     auto item = pluginReadyMap_.find(pluginName);
@@ -51,7 +50,7 @@ bool UbsePluginModule::GetPluginReadyStatus(const std::string &pluginName)
     }
     return item->second;
 }
-void UbsePluginModule::NotifyPluginReadyStatus(const std::string &pluginName, bool flag)
+void UbsePluginModule::NotifyPluginReadyStatus(const std::string& pluginName, bool flag)
 {
     std::unique_lock<std::shared_mutex> lock(pluginReadyMapMutex_);
     UBSE_LOG_DEBUG << "plugin: " << pluginName << " notify ready flag: " << flag;

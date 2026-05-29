@@ -20,6 +20,17 @@ CUR_CASE_MAX = 128
 OVERCOMMITMENT_RATIO_MAX = 128
 MIGRATE_WATER_LINE_MAX = 128
 MSG_MAX_LENGTH = 128
+VIRT_MAX_NODE_ID_LENGTH = 48
+MAX_BORROW_ID_COUNT = 2000
+MAX_VM_NUM = 300
+MAX_BORROW_ID_LENGTH = 128
+# Memory Borrow (Big Memory VM) structures from mem_fragmentation_msg.h
+MAX_NUMA_META_INFO_NUM = 32
+# Node Info List structures from mem_fragmentation_msg.h
+MAX_NODE_INFO_NUM = 32
+# Page Swap structures
+MAX_PAGE_SWAP_PAIR_NUM = 32
+MAX_NUMA_QUOTA_NUM = 32
 
 
 class NumaInfoHugePageData(ctypes.Structure):
@@ -99,12 +110,6 @@ class VmStrategyInfo(ctypes.Structure):
         ("memSize", ctypes.c_uint64),
         ("pid", ctypes.c_int32)
     ]
-
-
-VIRT_MAX_NODE_ID_LENGTH = 48
-MAX_BORROW_ID_COUNT = 2000
-MAX_VM_NUM = 300
-MAX_BORROW_ID_LENGTH = 128
 
 
 class MigrateExecuteSrcParam(ctypes.Structure):
@@ -239,4 +244,114 @@ class TaskInfo(ctypes.Structure):
         ("status", ctypes.c_int32),
         ("result_code", ctypes.c_uint32),
         ("mem_borrow_result", MemBorrowResult)
+    ]
+
+
+class NodeInfoC(ctypes.Structure):
+    """
+    C structure for node_info_s.
+
+    Represents node information including node ID, NUMA information array,
+    and a flag indicating if this is the current node.
+    Used in node info list for memory fragmentation queries.
+
+    """
+    _fields_ = [
+        ("node_id", ctypes.c_char * VIRT_MAX_NODE_ID_LENGTH),
+        ("numa_infos", ctypes.POINTER(NumaInfo)),
+        ("numa_len", ctypes.c_uint32),
+        ("is_current", ctypes.c_bool)
+    ]
+
+
+class NodeInfoListC(ctypes.Structure):
+    """
+    C structure for node_info_list_s.
+
+    Contains an array of node_info_s structures and the length.
+    Represents the result of node information list query.
+    """
+    _fields_ = [
+        ("node_infos", ctypes.POINTER(NodeInfoC)),
+        ("node_len", ctypes.c_uint32)
+    ]
+
+
+# Memory Borrow (Big Memory VM) additional structures
+class NumaMetaInfoC(ctypes.Structure):
+    """
+    C structure for numa_meta_info_s.
+
+    Represents NUMA metadata information including socket ID and NUMA ID.
+    Used in memory borrow parameter structure.
+    """
+    _fields_ = [
+        ("socket_id", ctypes.c_int16),
+        ("numa_id", ctypes.c_int16)
+    ]
+
+
+class MemBorrowParamC(ctypes.Structure):
+    """
+    C structure for mem_borrow_param_s.
+    
+    Represents memory borrow parameters including source node ID,
+    NUMA metadata information array, and borrow size.
+    """
+    _fields_ = [
+        ("src_nid", ctypes.c_char * VIRT_MAX_NODE_ID_LENGTH),
+        ("numa_meta_infos", ctypes.POINTER(NumaMetaInfoC)),
+        ("numa_len", ctypes.c_uint32),
+        ("borrow_size", ctypes.c_uint64)
+    ]
+
+
+class MemBorrowResultC(ctypes.Structure):
+    """
+    C structure for mem_borrow_result_s.
+    
+    Contains an array of mem_borrow_result_c structures and the length.
+    Represents the result of memory borrow operation.
+    """
+    _fields_ = [
+        ("mem_borrow_result_list", ctypes.POINTER(MemBorrowResult)),
+        ("mem_borrow_result_list_len", ctypes.c_uint16)
+    ]
+
+
+class NumaQuotaC(ctypes.Structure):
+    """
+    C structure for numa_quota_s.
+    
+    Represents NUMA quota information with NUMA ID and quota value.
+    """
+    _fields_ = [
+        ("numa_id", ctypes.c_uint32),
+        ("quota", ctypes.c_uint32)
+    ]
+
+
+class PageSwapPairC(ctypes.Structure):
+    """
+    C structure for page_swap_pair_s.
+    
+    Contains local and remote NUMA quota arrays for page swap configuration.
+    """
+    _fields_ = [
+        ("local_numas", ctypes.POINTER(NumaQuotaC)),
+        ("local_numa_len", ctypes.c_uint8),
+        ("remote_numas", ctypes.POINTER(NumaQuotaC)),
+        ("remote_numa_len", ctypes.c_uint8)
+    ]
+
+
+class PageSwapEnableC(ctypes.Structure):
+    """
+    C structure for page_swap_enable_s.
+    
+    Contains an array of page swap pair configurations.
+    """
+    _fields_ = [
+        ("page_swap_pairs", ctypes.POINTER(PageSwapPairC)),
+        ("page_swap_pairs_len", ctypes.c_uint8)
     ]

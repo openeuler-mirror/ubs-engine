@@ -13,12 +13,12 @@
 #ifndef MEM_POOL_STRATEGY_H
 #define MEM_POOL_STRATEGY_H
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <map>
 #include <string>
 #include <vector>
-#include <array>
 
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
@@ -48,17 +48,20 @@ const int NUM_TOTAL_NUMA_FULLY_CONNECTED =
 const float LENDER_BALANCE_RELIABILITY_COST = 0.53f;
 const float LENDER_BALANCE_BALANCE_COST = 0.13f;
 
-using ShmRegionType = enum class MemShmRegionType {
+using ShmRegionType = enum class MemShmRegionType
+{
     ALL2ALL_SHARE = 0, /* *SHM域类型为域内任何节点提供内存都可以被域内所有节点共享访问 */
     ONE2ALL_SHARE      /* *SHM域类型为域内单一节点作为提供方都可以被域内所有节点共享访问 */
 };
 
-using WatermarkGrain = enum class MemWatermarkGrainType {
+using WatermarkGrain = enum class MemWatermarkGrainType
+{
     HOST_WATERMARK = 0, /* 水线以host为粒度，触发内存借用或归还 */
     NUMA_WATERMARK      /* 水线以numa为粒度，触发内存借用或归还 */
 };
 
-enum class RequestUrgentLevel {
+enum class RequestUrgentLevel
+{
     LEVEL0 = 0, /* 紧急程度最低, 不允许内存提供方提供内存后超过memHighLineL0水线 */
     LEVEL1,     /* 紧急程度中等, 不允许内存提供方提供内存后超过memHighLineL1水线  */
     LEVEL2      /* 紧急程度最高, 允许内存提供方提供所有剩余内存 */
@@ -71,7 +74,7 @@ struct MemLoc {
     int8_t numaId{-1};   /* numa_node的ID，编号从零开始；如果不需要指定numa，设置为-1 */
 
     struct Hash {
-        std::size_t operator()(const MemLoc &loc) const
+        std::size_t operator()(const MemLoc& loc) const
         {
             std::size_t seed = 0;
             auto hashUint16 = std::hash<uint16_t>{};
@@ -86,12 +89,12 @@ struct MemLoc {
         }
     };
 
-    friend bool operator==(const MemLoc &lhs, const MemLoc &rhs)
+    friend bool operator==(const MemLoc& lhs, const MemLoc& rhs)
     {
         return (lhs.hostId == rhs.hostId && lhs.socketId == rhs.socketId && lhs.numaId == rhs.numaId);
     }
 
-    friend std::ostream &operator<<(std::ostream &os, const MemLoc &obj)
+    friend std::ostream& operator<<(std::ostream& os, const MemLoc& obj)
     {
         return os << "hostId=" << obj.hostId << " socketId=" << static_cast<int32_t>(obj.socketId)
                   << " numaId=" << static_cast<int32_t>(obj.numaId);
@@ -103,12 +106,12 @@ struct MeshLoc {
     MeshLoc() = default;
     int8_t x{-1}; /* 2D Full Mesh 拓扑中 X 轴方向的坐标，坐标值从零开始；1650代际要求X轴必须放置4台服务器 */
     int8_t y{-1}; /* 2D Full Mesh 拓扑中 Y 轴方向的坐标，坐标值从零开始；1650代际允许将Y轴的长度设置为1~4 */
-    friend bool operator==(const MeshLoc &lhs, const MeshLoc &rhs)
+    friend bool operator==(const MeshLoc& lhs, const MeshLoc& rhs)
     {
         return (lhs.x == rhs.x && lhs.y == rhs.y);
     };
 
-    bool IsNeighbor(const MeshLoc &other) const
+    bool IsNeighbor(const MeshLoc& other) const
     {
         return ((x == other.x) || (y == other.y));
     }
@@ -158,12 +161,14 @@ struct ShareAlgoParam {
     float wDivideNumaCost{0.12f};    /* 共享决策, NUMA拆分代价权重 */
 };
 
-enum class AlgoMode {
+enum class AlgoMode
+{
     GREEDY,        /* 贪心算法 */
     SELF_DEVELOPED /* 自研算法 */
 };
 
-enum class LenderNumaMode {
+enum class LenderNumaMode
+{
     NON_BALANCE,
     BALANCE,
 };
@@ -176,7 +181,7 @@ struct StrategyParam {
     /* 含义: 是否填写numaLatencies. true表示填写numaLatencies, 认为所有host全连接; false表示填写hostMeshLocs, 自动计算时延 */
     /* 配置建议: 1630代际必须配置为true, 填写numaLatencies; 1650代际建议配置为false, 填写hostMeshLocs, 自动计算链路时延信息 */
     bool enableCustomLatencies{true};
-    std::array<std::set<int16_t>, tc::rs::mem::NUM_HOSTS> neighborNodes;  /* 每个节点的邻居节点的index集合 */
+    std::array<std::set<int16_t>, tc::rs::mem::NUM_HOSTS> neighborNodes; /* 每个节点的邻居节点的index集合 */
     MeshLoc hostMeshLocs
         [NUM_HOSTS]{}; /* 1650代际host拓扑坐标, 数组下标表示hostId: x表示host所在列编号, y表示host所在行编号 */
     /* 每两个numa之间的访存时延，index与availNumas一致 */
@@ -201,7 +206,7 @@ struct StrategyParam {
     BorrowAlgoParam borrowParam{}; /* 借用算法参数 */
     ShareAlgoParam shareParam{};   /* 共享算法参数 */
 
-    friend std::ostream &operator<<(std::ostream &os, const StrategyParam &obj)
+    friend std::ostream& operator<<(std::ostream& os, const StrategyParam& obj)
     {
         return os << "numHosts: " << obj.numHosts << " usedHigh: " << obj.numAvailNumas;
     }
@@ -231,7 +236,8 @@ struct UbseStatus {
     DebtDetail debtDetail{};              /* 系统详细借用账本 */
 };
 
-using PerfLevel = enum class UbseMemPerLevel {
+using PerfLevel = enum class UbseMemPerLevel
+{
     L0, // 对应直连
     L1, // 对应1跳节点
     L2, // 对应超过一条节点
@@ -258,7 +264,8 @@ struct ShareResult {
     int32_t shareSizes[MAX_NUM_SRC_PER_REQUEST]{}; /* 共享内存量, 单位: MB */
 };
 
-enum LogLevel {
+enum LogLevel
+{
     TRACE = 0,
     DEBUG = 1,
     INFO = 2,
@@ -268,13 +275,13 @@ enum LogLevel {
     OFF = 6
 };
 
-using ExternalLog = void (*)(int level, const char *msg);
+using ExternalLog = void (*)(int level, const char* msg);
 
 class MemPoolStrategy {
 public:
-    static MemPoolStrategy &GetInstance();
+    static MemPoolStrategy& GetInstance();
 
-    virtual BResult Init(const StrategyParam &param);
+    virtual BResult Init(const StrategyParam& param);
 
     /**
     * @brief 决策单个借用请求
@@ -283,8 +290,8 @@ public:
     * @param result [OUT] 借用请求决策结果(借出numa数量, 借出numa位置, 借入numa位置, 各numa内存借用量)
     * @return
     */
-    virtual BResult MemoryBorrow(const BorrowRequest &borrowRequest, const UbseStatus &ubseStatus,
-                                 BorrowResult &result);
+    virtual BResult MemoryBorrow(const BorrowRequest& borrowRequest, const UbseStatus& ubseStatus,
+                                 BorrowResult& result);
 
     /**
     * @brief 决策共享请求
@@ -293,7 +300,7 @@ public:
     * @param result [OUT] 共享请求决策结果
     * @return
     */
-    virtual BResult MemoryShare(const ShareRequest &shareRequest, const UbseStatus &ubseStatus, ShareResult &result);
+    virtual BResult MemoryShare(const ShareRequest& shareRequest, const UbseStatus& ubseStatus, ShareResult& result);
 
     /** 配置日志打印级别, 默认OFF */
     inline void SetLogLevel(int level)
@@ -308,9 +315,9 @@ public:
     }
 
     /** 默认日志打印函数 */
-    static inline void Print(int level, const char *msg)
+    static inline void Print(int level, const char* msg)
     {
-        const char *color = "\033[0m"; // 还原颜色
+        const char* color = "\033[0m"; // 还原颜色
         if (level == LogLevel::INFO) {
             color = "\033[32m";
         }
@@ -329,10 +336,10 @@ public:
     int mLogLevel = OFF;         /* 日志打印级别, 默认为OFF */
     ExternalLog mLogFun = Print; /* 日志打印函数, 默认打印控制台 */
 
-    MemPoolStrategy(const MemPoolStrategy &other) = delete;
-    MemPoolStrategy(MemPoolStrategy &&other) noexcept = delete;
-    MemPoolStrategy &operator=(const MemPoolStrategy &other) = delete;
-    MemPoolStrategy &operator=(MemPoolStrategy &&other) noexcept = delete;
+    MemPoolStrategy(const MemPoolStrategy& other) = delete;
+    MemPoolStrategy(MemPoolStrategy&& other) noexcept = delete;
+    MemPoolStrategy& operator=(const MemPoolStrategy& other) = delete;
+    MemPoolStrategy& operator=(MemPoolStrategy&& other) noexcept = delete;
     virtual ~MemPoolStrategy() = default;
 
 protected:

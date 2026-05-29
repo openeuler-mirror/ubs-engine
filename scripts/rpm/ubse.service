@@ -27,7 +27,7 @@ ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/contr
 ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /usr/bin/sentryctl  &>/dev/null || echo 'Unable to set sentryctl acl'"
 ExecStart=/usr/bin/ubse
 Restart=on-failure
-CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE
-AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE
+CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 [Install]
 WantedBy=multi-user.target

@@ -33,15 +33,16 @@ using namespace ubse::config;
 using namespace ubse::nodeController;
 using namespace ubse::mem::strategy;
 using namespace ubse::mmi;
+using namespace ubse::adapter_plugins::mmi;
 
 constexpr uint32_t INVALID_VALUE_CNA = 0;
 constexpr int CNA_FIRST_SHIFT = 24;
 constexpr int CNA_PER_SHIFT = 8;
 
-obmm_mem_desc *ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta &customMeta, const UbMemPrivData &ubMemPrivData)
+obmm_mem_desc* ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& ubMemPrivData)
 {
     uint32_t priLen = sizeof(ubMemPrivData) + sizeof(customMeta);
-    auto obmmMemDesc = static_cast<obmm_mem_desc *>(malloc(sizeof(obmm_mem_desc) + priLen));
+    auto obmmMemDesc = static_cast<obmm_mem_desc*>(malloc(sizeof(obmm_mem_desc) + priLen));
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Malloc return null.";
         return obmmMemDesc;
@@ -72,8 +73,8 @@ obmm_mem_desc *ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta &customMe
     ret = UbseNodeController::GetInstance().GetLocalEidBySocket(customMeta.exportSocket, deid);
     if (ret != UBSE_OK) {
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "GetLocalEidBySocket error=" << ret << ", exportSocketId="
-                       << customMeta.exportSocket;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "GetLocalEidBySocket error=" << ret
+                       << ", exportSocketId=" << customMeta.exportSocket;
         return nullptr;
     }
     UBSE_LOG_INFO << "exportSocketId=" << customMeta.exportSocket << ", deid=" << deid;
@@ -86,7 +87,7 @@ obmm_mem_desc *ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta &customMe
     return obmmMemDesc;
 }
 
-obmm_mem_desc *ConstructImportMemDesc(const ObmmOpParam &opParam, const ubse_mem_obmm_mem_desc &desc)
+obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem_obmm_mem_desc& desc)
 {
     UbseMemLocalObmmCustomMeta customMeta = opParam.customMeta;
     uint16_t marId = desc.marId;
@@ -94,7 +95,7 @@ obmm_mem_desc *ConstructImportMemDesc(const ObmmOpParam &opParam, const ubse_mem
     UbMemPrivData ubMemPrivData = opParam.privData;
     ubMemPrivData.mar_id = marId;
     uint32_t priLen = sizeof(ubMemPrivData) + sizeof(customMeta);
-    auto obmmMemDesc = static_cast<obmm_mem_desc *>(malloc(sizeof(obmm_mem_desc) + priLen));
+    auto obmmMemDesc = static_cast<obmm_mem_desc*>(malloc(sizeof(obmm_mem_desc) + priLen));
     if (obmmMemDesc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Malloc return null.";
         return obmmMemDesc;
@@ -129,8 +130,8 @@ obmm_mem_desc *ConstructImportMemDesc(const ObmmOpParam &opParam, const ubse_mem
     return obmmMemDesc;
 }
 
-UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj,
-                                          UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& exportObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1;
     std::string requestNodeId = exportObj.req.requestNodeId;
@@ -140,8 +141,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &expo
     customMeta.gid = exportObj.req.udsInfo.gid;
     customMeta.pid = exportObj.req.udsInfo.pid; // 通过pid来判断是否app借用
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa exportObj name is "
-                       << exportObj.req.name;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa exportObj name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
     }
     std::string name = exportObj.req.name;
@@ -160,7 +160,7 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &expo
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << exportObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << exportObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < exportObj.algoResult.exportNumaInfos.size(); i++) {
@@ -177,8 +177,8 @@ UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &expo
     }
     return CopyUbseMemAlgoResult(exportObj.algoResult, exportObj.req.name, customMeta, true);
 }
-UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &importObj,
-                                          UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& importObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1;
     std::string requestNodeId = importObj.req.requestNodeId;
@@ -188,8 +188,7 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &impo
     customMeta.gid = importObj.req.udsInfo.gid;
     customMeta.pid = importObj.req.udsInfo.pid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa importObj name is "
-                       << importObj.req.name;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, numa importObj name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
     }
     std::string name = importObj.req.name;
@@ -203,11 +202,11 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &impo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << importObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << importObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     for (int i = 0; i < importObj.algoResult.exportNumaInfos.size(); i++) {
@@ -226,8 +225,8 @@ UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &impo
     return CopyUbseMemAlgoResult(importObj.algoResult, importObj.req.name, customMeta, false);
 }
 
-UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj &exportObj,
-                                        UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj& exportObj,
+                                        UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1;
     std::string requestNodeId = exportObj.req.requestNodeId;
@@ -247,8 +246,8 @@ UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj &exportOb
     return CopyUbseMemAlgoResult(exportObj.algoResult, exportObj.req.name, customMeta, true);
 }
 
-UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj &importObj,
-                                        UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj& importObj,
+                                        UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1;
     std::string requestNodeId = importObj.req.requestNodeId;
@@ -260,7 +259,7 @@ UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj &importOb
         strcpy_s(customMeta.username, UBSE_MEM_MAX_NAME_LENGTH, importObj.req.udsInfo.username.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
-                       << ", username=" << customMeta.username << " requestNodeId=" << customMeta.exportNodeId;
+                       << ", username=" << customMeta.username << ", requestNodeId=" << customMeta.exportNodeId;
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
@@ -268,8 +267,8 @@ UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj &importOb
     return CopyUbseMemAlgoResult(importObj.algoResult, importObj.req.name, customMeta, false);
 }
 
-UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj &exportObj,
-                                         UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& exportObj,
+                                         UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1u;
     std::string requestNodeId = exportObj.req.requestNodeId;
@@ -305,7 +304,7 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj &expo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm exportObj name=" << exportObj.req.name;
         return UBSE_ERROR_INVAL;
@@ -313,8 +312,8 @@ UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj &expo
     return CopyUbseMemAlgoResult(exportObj.algoResult, exportObj.req.name, customMeta, false);
 }
 
-UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj &importObj,
-                                         UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& importObj,
+                                         UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1u;
     std::string requestNodeId = importObj.req.requestNodeId;
@@ -348,15 +347,14 @@ UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj &impo
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
                   << ", gid=" << customMeta.gid;
     if (memcpy_s(customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN, importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm importObj name="
-                       << importObj.req.name;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, shm importObj name=" << importObj.req.name;
         return UBSE_ERROR_INVAL;
     }
     return CopyUbseMemAlgoResult(importObj.algoResult, importObj.req.name, customMeta, false);
 }
 
-UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj,
-                                          UbseMemLocalObmmCustomMeta &customMeta)
+UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& exportObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta)
 {
     customMeta.version = 1u;
     std::string requestNodeId = exportObj.req.requestNodeId;
@@ -379,7 +377,7 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &expo
         return UBSE_ERROR_INVAL;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "customMeta.username=" << customMeta.username << ", uid=" << customMeta.uid
-                  << ", gid:" << customMeta.gid;
+                  << ", gid=" << customMeta.gid;
     if (exportObj.algoResult.exportNumaInfos.size() != exportObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << exportObj.algoResult.importNumaInfos.size()
@@ -393,8 +391,8 @@ UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &expo
     }
     return UBSE_OK;
 }
-UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &importObj,
-                                          UbseMemLocalObmmCustomMeta &customMeta, int index)
+UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj& importObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta, int index)
 {
     customMeta.version = 1u;
     std::string requestNodeId = importObj.req.requestNodeId;
@@ -425,7 +423,7 @@ UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &impo
     if (importObj.algoResult.exportNumaInfos.size() != importObj.algoResult.importNumaInfos.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The sizes of importNumaInfos and exportNumaInfos are different. importSize="
                        << importObj.algoResult.importNumaInfos.size()
-                       << " exportSize=" << importObj.algoResult.exportNumaInfos.size();
+                       << ", exportSize=" << importObj.algoResult.exportNumaInfos.size();
         return UBSE_ERROR_INVAL;
     }
     customMeta.importSocket = importObj.req.srcSocket;
@@ -440,10 +438,10 @@ UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &impo
     return UBSE_OK;
 }
 
-obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreImportInfo)
+obmm_preimport_info* ConstructPreImportInfo(const BasicPreImportInfo& basicPreImportInfo)
 {
     size_t preImportInfoSize = sizeof(obmm_preimport_info) + sizeof(UbMemPrivData);
-    auto preImportInfoPtr = static_cast<obmm_preimport_info *>(malloc(preImportInfoSize));
+    auto preImportInfoPtr = static_cast<obmm_preimport_info*>(malloc(preImportInfoSize));
     if (preImportInfoPtr == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Malloc mem for preImportInfo failed, preImportInfo is nullptr.";
         return nullptr;
@@ -466,19 +464,19 @@ obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreIm
     auto ret = memcpy_s(preImportInfoPtr->priv, sizeof(UbMemPrivData), &ubMemPrivData, sizeof(UbMemPrivData));
     if (ret != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Memcpy_s failed when copy ub_mem_priv_data to obmm_preimport_info priv, error is " << ret;
+                       << "Memcpy_s failed when copy ub_mem_priv_data to obmm_preimport_info priv, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
     ret = memcpy_s(preImportInfoPtr->seid, UBSE_EID_LENGTH, &basicPreImportInfo.seid, sizeof(uint32_t));
     if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy seid to obmm_preimport_info, error is " << ret;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy seid to obmm_preimport_info, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
     ret = memcpy_s(preImportInfoPtr->deid, UBSE_EID_LENGTH, &basicPreImportInfo.deid, sizeof(uint32_t));
     if (ret != EOK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy deid to obmm_preimport_info, error is " << ret;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "Memcpy_s failed when copy deid to obmm_preimport_info, error=" << ret;
         RmCommonUtils::GetInstance().SafeFree(preImportInfoPtr);
         return nullptr;
     }
@@ -486,7 +484,7 @@ obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreIm
     return preImportInfoPtr;
 }
 
-UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicPreImportInfos)
+UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo>& basicPreImportInfos)
 {
     std::ifstream file("/proc/obmm/preimport_info");
     if (!file.is_open()) {
@@ -521,13 +519,13 @@ UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicP
     return UBSE_OK;
 }
 
-UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &basicPreImportInfos,
-                                               std::ifstream &file, const std::vector<std::string> &tokens)
+UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo>& basicPreImportInfos,
+                                               std::ifstream& file, const std::vector<std::string>& tokens)
 {
-    UBSE_LOG_INFO << MMI_LOG_INFO << "startAddr= " << tokens[START_ADDR_INDEX]
-                  << ", endAddr= " << tokens[END_ADDR_INDEX] << ", dcna= " << tokens[DCNA_INDEX]
-                  << ", scna= " << tokens[SCNA_INDEX] << ", deid= " << tokens[DEID_INDEX]
-                  << ", seid= " << tokens[SEID_INDEX] << ", numaId= " << tokens[NUMAID_INDEX];
+    UBSE_LOG_INFO << MMI_LOG_INFO << "startAddr=" << tokens[START_ADDR_INDEX] << ", endAddr=" << tokens[END_ADDR_INDEX]
+                  << ", dcna=" << tokens[DCNA_INDEX] << ", scna=" << tokens[SCNA_INDEX]
+                  << ", deid=" << tokens[DEID_INDEX] << ", seid=" << tokens[SEID_INDEX]
+                  << ", numaId=" << tokens[NUMAID_INDEX];
     uint64_t startAddr = 0u;
     uint64_t endAddr = 0u;
     uint64_t dcna = 0u;
@@ -566,7 +564,7 @@ UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &
     return UBSE_OK;
 }
 
-uint32_t RmObmmUtils::GetPreOnlineSwitch(bool &preOnlineSwitch)
+uint32_t RmObmmUtils::GetPreOnlineSwitch(bool& preOnlineSwitch)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (module == nullptr) {

@@ -14,10 +14,10 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "rmrs_serialize.h"
 #include "ubse_com.h"
 #include "ubse_common_def.h"
 #include "ubse_logger.h"
+#include "rmrs_serialize.h"
 #define private public
 #include "mempooling_message.h"
 #include "mp_configuration.h"
@@ -51,48 +51,48 @@ protected:
     }
 };
 
-uint32_t MockRackRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                         const UbseComRespHandler &handler)
+uint32_t MockRackRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                         const UbseComRespHandler& handler)
 {
-    uint32_t *result_ptr = static_cast<uint32_t *>(ctx);
+    uint32_t* result_ptr = static_cast<uint32_t*>(ctx);
     *result_ptr = MEM_POOLING_OK;
     return MEM_POOLING_OK;
 }
 
-uint32_t MockRackRpcSendReturnError(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                    const UbseComRespHandler &handler)
+uint32_t MockRackRpcSendReturnError(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                    const UbseComRespHandler& handler)
 {
-    uint32_t *result_ptr = static_cast<uint32_t *>(ctx);
+    uint32_t* result_ptr = static_cast<uint32_t*>(ctx);
     *result_ptr = MEM_POOLING_ERROR;
     return MEM_POOLING_OK;
 }
 
-uint32_t MockRackRpcSendForUsageRatioOK(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                        const UbseComRespHandler &handler)
+uint32_t MockRackRpcSendForUsageRatioOK(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                        const UbseComRespHandler& handler)
 {
     UCacheRatioRes res{};
     res.resCode = MEM_POOLING_OK;
     res.ucacheUsageRatio = 0.5f;
-    UCacheRatioRes *result_ptr = static_cast<UCacheRatioRes *>(ctx);
+    UCacheRatioRes* result_ptr = static_cast<UCacheRatioRes*>(ctx);
     *result_ptr = res;
     return MEM_POOLING_OK;
 }
 
-uint32_t MockRackRpcSendForUsageRatioERROR(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                           const UbseComRespHandler &handler)
+uint32_t MockRackRpcSendForUsageRatioERROR(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                           const UbseComRespHandler& handler)
 {
     UCacheRatioRes res{};
     res.resCode = MEM_POOLING_ERROR;
     res.ucacheUsageRatio = 0.5f;
-    UCacheRatioRes *result_ptr = static_cast<UCacheRatioRes *>(ctx);
+    UCacheRatioRes* result_ptr = static_cast<UCacheRatioRes*>(ctx);
     *result_ptr = res;
     return MEM_POOLING_OK;
 }
 
 TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnERROR_WhenRackRpcSendFailed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                         const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnError));
     UCacheMigrationStrategyParam ucacheStrategy{};
@@ -102,8 +102,8 @@ TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnERROR_WhenR
 
 TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnOK_WhenRackRpcSendSucceed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                         const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSend));
     UCacheMigrationStrategyParam ucacheStrategy{};
@@ -113,8 +113,8 @@ TEST_F(TestOverCommitUCache, SendUCacheMigrationStrategy_ShouldReturnOK_WhenRack
 
 TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnERROR_WhenRackRpcSendFailed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                         const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSendReturnError));
     std::string srcNid = "Node0";
@@ -123,44 +123,44 @@ TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnERROR_WhenR
 
 TEST_F(TestOverCommitUCache, CheckAndStopUCacheMigration_ShouldReturnOK_WhenRackRpcSendSucceed)
 {
-    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                                         const UbseComRespHandler &handler))
+    MOCKER_CPP(&UbseRpcSend, uint32_t(*)(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler))
         .stubs()
         .will(invoke(MockRackRpcSend));
     std::string srcNid = "Node0";
     CheckAndStopUCacheMigration(srcNid);
 }
 
-static uint32_t MockOsturboFunctionCallerReturn0(const std::string &function, const TurboByteBuffer &params,
-                                                 TurboByteBuffer &result)
+static uint32_t MockOsturboFunctionCallerReturn0(const std::string& function, const TurboByteBuffer& params,
+                                                 TurboByteBuffer& result)
 {
     return 0;
 }
 
-static uint32_t MockRmrsUCacheMigrateStrategySucceed(const UCacheMigrationStrategyParam &uCacheMigrationStrategyParam,
-                                                     ResCode &resCode)
+static uint32_t MockRmrsUCacheMigrateStrategySucceed(const UCacheMigrationStrategyParam& uCacheMigrationStrategyParam,
+                                                     ResCode& resCode)
 {
     return 0;
 }
 
-static uint32_t MockRmrsUCacheMigrateStrategyFailed(const UCacheMigrationStrategyParam &uCacheMigrationStrategyParam,
-                                                    ResCode &resCode)
+static uint32_t MockRmrsUCacheMigrateStrategyFailed(const UCacheMigrationStrategyParam& uCacheMigrationStrategyParam,
+                                                    ResCode& resCode)
 {
     return 1;
 }
 
-static uint32_t MockRmrsUCacheMigrateStopSucceed(ResCode &resCode)
+static uint32_t MockRmrsUCacheMigrateStopSucceed(ResCode& resCode)
 {
     return 0;
 }
 
-static uint32_t MockRmrsUCacheMigrateStopFailed(ResCode &resCode)
+static uint32_t MockRmrsUCacheMigrateStopFailed(ResCode& resCode)
 {
     return 1;
 }
 
-static uint32_t MockRmrsUpdateUCacheRatioSucceed(const MigrationInfoParam &migrationInfoParam,
-                                                 UCacheRatioRes &uCacheRatioRes)
+static uint32_t MockRmrsUpdateUCacheRatioSucceed(const MigrationInfoParam& migrationInfoParam,
+                                                 UCacheRatioRes& uCacheRatioRes)
 {
     return 0;
 }

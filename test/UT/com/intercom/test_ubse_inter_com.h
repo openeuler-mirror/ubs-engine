@@ -14,8 +14,8 @@
 #define TEST_UBSE_INTER_COM_H
 
 #include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
 #include "intercom/ubse_inter_com.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ut::com {
 using namespace ubse::com;
@@ -27,9 +27,8 @@ public:
 
     void TearDown() override;
 
-    UbseInterCom *mqPtr = nullptr;
+    UbseInterCom* mqPtr = nullptr;
 };
-}
-
+} // namespace ubse::ut::com
 
 #endif // TEST_UBSE_INTER_COM_H

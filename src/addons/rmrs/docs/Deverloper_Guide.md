@@ -6,7 +6,7 @@
 
 **根目录**
 
-```
+```shell
 sh build.sh
 ```
 
@@ -60,7 +60,7 @@ uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::stri
 
 | name        | IN/OUT | description                                                  |
 | ----------- | ------ | ------------------------------------------------------------ |
-| nodeAntiMap | IN     | 反亲和性节点映射。要求格式为“std::map<std::string, std::vector<std::string>>"，其中key代表节点且不能重复，value代表与其反亲和的节点。 |
+| nodeAntiMap | IN     | 反亲和性节点映射。要求格式为`std::map<std::string, std::vector<std::string>>`，其中key代表节点且不能重复，value代表与其反亲和的节点。 |
 | configKey   | IN     | 配置项名称。必须是在plugin_<plugin_name>.conf中存在的配置项名称。否则返回错误1。配置文件中，1<= configKey长度 <= 256。 |
 | configValue | OUT    | 配置项的值。执行成功时，configValue即为获取到的配置项的值。执行失败时，configValue不具有任何意义。配置文件中，1<= configValue长度 <= 256。 |
 
@@ -76,13 +76,9 @@ uint32_t UBSRMRSUpdateAntiNode(const std::map<std::string, std::vector<std::stri
 - 更新反亲和性配置输入{key:[value]}，其中key代表节点且不能重复，value代表与其反亲和的节点。key和value不能设置一样。
 - 需要输入不重复的rack内全部节点的反亲和性节点列表。
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSMemBorrowStrategy: 内存借用策略
 
@@ -121,13 +117,57 @@ uint32_t UBSRMRSMemBorrowStrategy(const SrcMemoryBorrowParam &outSrcParam, const
 
 - borrowSize需要为128*1024的整数倍，单位：KB。
 
-  
-
 ### 附注 NOTES
 
 暂无
 
+## UBSRMRSBatchBorrowStrategy: 批量内存借用策略
 
+### 摘要 SYNOPSIS
+
+```cpp
+#include "mempooling_interface.h"
+
+uint32_t UBSRMRSBatchBorrowStrategy(const BatchSrcMemoryBorrowParam &outSrcParam, 
+                                    const uint64_t &borrowSize,
+                                    std::vector<MemBorrowStrategyResult> &outBorrowStrategyResult,
+                                    BorrowStrategy borrowStrategy);
+```
+
+### 描述 DESCRIPTION
+
+批量内存借用策略，决策从哪些节点借用内存以及借用内存大小，返回决策结果数组。支持多个NUMA同时借用，根据借用策略将总借用大小分配到各个NUMA。
+
+### 参数 Parameters
+
+| name | IN/OUT | description |
+|------|--------|-------------|
+| outSrcParam | IN | 批量借入节点信息。包含srcNid（借入方节点Id）、srcNumaNum（借入方NUMA数量）、srcNumaId（借入方NUMA Id数组）、uid（借入方用户uid）、username（借入方用户名） |
+| borrowSize | IN | 总借用大小，需要为blockSize的整数倍。单位：KB |
+| outBorrowStrategyResult | OUT | 决策结果数组。每个NUMA对应一个MemBorrowStrategyResult，包含srcParam（借入方信息）、borrowSize（该NUMA的借用大小）、destParam（借出方信息数组） |
+| borrowStrategy | IN | 借用策略。目前支持AVERAGE（平均分配策略） |
+
+### 返回值 RETURN VALUE
+
+返回0：批量借用策略执行成功。
+
+返回1：批量借用策略执行失败。
+
+### 约束 CONSTRAINTS
+
+- 本节点调用。
+
+- 所有节点的ubse配置项须保持一致。
+
+- borrowSize需要为blockSize的整数倍，单位：KB。
+
+- srcNumaId数组不能为空，且每个NUMA Id必须 >= 0，唯一，存在于本地节点。
+
+- 单节点借用上限为1TB，单socket借用上限为512GB。
+
+### 附注 NOTES
+
+暂无
 
 ## UBSRMRSMemBorrowExecute: 内存借用执行
 
@@ -167,13 +207,9 @@ uint32_t UBSRMRSMemBorrowExecute(const SrcMemoryBorrowParam &outSrcParam,
 
 - 所有节点的ubse配置项须保持一致。
 
-  
-
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSMigrateStrategy: 内存迁出策略
 
@@ -212,8 +248,6 @@ uint32_t UBSRMRSMigrateStrategy(const std::string &borrowInNode, const std::vect
 
 暂无
 
-
-
 ## UBSRMRSMigrateExecute: 内存迁出执行
 
 ### 摘要 SYNOPSIS
@@ -251,8 +285,6 @@ uint32_t UBSRMRSMigrateExecute(const std::string &borrowInNode, const std::vecto
 
 暂无
 
-
-
 ## UBSRMRSMemFree: 内存归还策略与执行
 
 ### 摘要 SYNOPSIS
@@ -289,10 +321,6 @@ uint32_t UBSRMRSMemFree(const std::string &nodeId);
 
 暂无
 
-
-
-
-
 ## UBSRMRSMemBorrowRollback: 借用内存回滚
 
 ### 摘要 SYNOPSIS
@@ -316,7 +344,7 @@ uint32_t UBSRMRSMemBorrowRollback(const std::string &borrowInNode, const std::ve
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -328,12 +356,6 @@ uint32_t UBSRMRSMemBorrowRollback(const std::string &borrowInNode, const std::ve
 ### 附注 NOTES
 
 暂无
-
-
-
-
-
-
 
 ## UBSRMRSGetVmInfoListOnNode: 查询本节点所有虚机信息
 
@@ -357,7 +379,7 @@ uint32_t UBSRMRSGetVmInfoListOnNode(std::vector<VmDomainInfo> &outVmDomainInfos)
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -372,10 +394,6 @@ uint32_t UBSRMRSGetVmInfoListOnNode(std::vector<VmDomainInfo> &outVmDomainInfos)
 ## 附注 NOTES
 
 暂无
-
-
-
-
 
 ## UBSRMRSGetNumaInfoListOnNode: 查询本节点所有NUMA信息
 
@@ -399,7 +417,7 @@ uint32_t UBSRMRSGetNumaInfoListOnNode(std::vector<NumaInfo> &outNumaInfos);
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -410,8 +428,6 @@ uint32_t UBSRMRSGetNumaInfoListOnNode(std::vector<NumaInfo> &outNumaInfos);
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSMemBorrow: 超分内存借用
 
@@ -439,7 +455,7 @@ uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vecto
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -454,10 +470,6 @@ uint32_t UBSRMRSMemBorrow(const SrcMemoryBorrowParam &srcParam, const std::vecto
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## UBSRMRSMemMigrate: 超分内存分配（迁移）
 
@@ -484,7 +496,7 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -495,13 +507,9 @@ uint32_t UBSRMRSMemMigrate(const SrcMemoryBorrowParam &srcParam, const std::vect
 - vmPresetParams：集合大小(size)表示虚拟机数量，取值范围：[1, 100]。
 - vmPresetParams：ratio表示迁出最大比例，取值范围[0, 100]。
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSMemReturn: 超分归还请求
 
@@ -528,7 +536,7 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1：表示失败。
 
@@ -536,10 +544,6 @@ uint32_t UBSRMRSMemReturn(const SrcMemoryBorrowParam &srcParam, const std::vecto
 
 - 本节点调用
 - 超分场景调用
-
-
-
-
 
 ## UBSRMRSPidNumaInfoCollect: 容器numa信息采集
 
@@ -566,7 +570,7 @@ uint32_t UBSRMRSPidNumaInfoCollect(const SrcMemoryBorrowParam &srcParam, const s
 
 ### 返回值 RETURN VALUE
 
-返回0：表示成功。 
+返回0：表示成功。
 
 返回1，表示传入PIDs为空，或传入的PIDs全都不存在，或查询失败
 
@@ -576,13 +580,9 @@ uint32_t UBSRMRSPidNumaInfoCollect(const SrcMemoryBorrowParam &srcParam, const s
 - 超分容器场景调用
 - pids取值范围[1,300]
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSSetWaterMark: 超分场景注入水线
 
@@ -618,15 +618,9 @@ uint32_t UBSRMRSSetWaterMark(const WaterMark &waterMark);
 - highWaterMark：高水线，取值范围(0,100]。
 - lowWaterMark：低水线，取值范围[0, highWaterMark)。
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## UBSRMRSSetRunMode: 设置超分/碎片场景
 
@@ -662,13 +656,9 @@ uint32_t UBSRMRSSetRunMode(const int &runMode);
 
 - master节点调用
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
 
 ## UBSRMRSSmapAddProcessTracking: 通知SMAP添加进程扫描，并设置扫描周期参数
 
@@ -714,15 +704,9 @@ int UBSRMRSSmapAddProcessTracking(const std::vector<pid_t> &pidVec, const std::v
 - 当进程已经被SMAP纳管时，须先停止冷热迁移，然后才可以调用该接口，scanType可以传0或1。
 - scanType传1的情况为进程已被SMAP纳管，需要从只扫描状态恢复到冷热扫描加迁移状态。
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## UBSRMRSSmapQueryFreq: 查询虚拟机冷热信息
 
@@ -765,21 +749,64 @@ int UBSRMRSSmapQueryFreq(const pid_t &pid, std::vector<uint16_t> &dataVec, const
 - 当进程已经被SMAP纳管时，可以调用该接口，dataSource可以传0。
 - 当进程已经被SMAP添加进程扫描时，可以调用该接口，dataSource可以传1。
 
+### 附注 NOTES
 
+暂无
+
+
+## UBSRMRSSmapEnableProcessMigrateGrouped: 分组启用进程冷热迁移
+
+### 摘要 SYNOPSIS
+
+```cpp
+#include "mempooling_interface.h"
+
+uint32_t UBSRMRSSmapEnableProcessMigrateGrouped(pid_t pid, const std::vector<PageSwapPair> &pageSwapPairs);
+```
+
+### 描述 DESCRIPTION
+
+分组启用进程冷热迁移，每个PageSwapPair映射为一个MigrationGroup，支持多组本地NUMA与远端NUMA配对配置。
+
+### 参数 PARAMETERS
+
+| name          | IN/OUT | description                                          |
+| ------------- | ------ | ---------------------------------------------------- |
+| pid           | IN     | 进程PID                                              |
+| pageSwapPairs | IN     | 页交换配对数组，每个PageSwapPair包含localNumas和remoteNumas |
+
+**PageSwapPair结构**：
+| field       | type                  | description                      |
+| ----------- | --------------------- | -------------------------------- |
+| localNumas  | vector\<NumaQuota\>   | 本地NUMA配额数组，大小范围[1, 4] |
+| remoteNumas | vector\<NumaQuota\>   | 远端NUMA配额数组，大小范围[1, 18] |
+
+**NumaQuota结构**：
+| field  | type     | description        |
+| ------ | -------- | ------------------ |
+| numaId | uint32_t | NUMA节点ID         |
+| quota  | uint32_t | 配额，单位KB       |
+
+### 返回值 RETURN VALUE
+
+返回值0：表示成功
+
+返回非0：表示失败
+
+### 约束 CONSTRAINTS
+
+- 本节点调用
+- pageSwapPairs数组大小范围[1, 8]（MAX_MIGRATION_GROUP_NUM）
+- 每个PageSwapPair的localNumas数组大小范围[1, 4]（MAX_GROUP_LOCAL_NUMA）
+- 每个PageSwapPair的remoteNumas数组大小范围[1, 18]（REMOTE_NUMA_NUM）
+- NUMA配额需通过VM numatune XML限制校验（MpVmQuotaUtil::ValidateNumaQuota）
 
 ### 附注 NOTES
 
 暂无
 
 
-
-
-
 ## UBSRMRSSmapRemoveProcessTracking: 通知SMAP移除进程扫描
-
-### 
-
-
 
 ### 摘要 SYNOPSIS
 
@@ -818,15 +845,9 @@ int UBSRMRSSmapRemoveProcessTracking(const std::vector<pid_t> &pidVec, int flags
 - 只支持虚拟机场景。
 - pidVec的size需为[1,100]
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## UBSRMRSSmapEnableProcessMigrate: 启用/禁用PID对应虚机的冷热迁移和迁回
 
@@ -867,8 +888,6 @@ int UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t> pidVec, int enable, int f
 
 - pidVec的size需为[1,100]
 
-
-
 ### 附注 NOTES
 
 暂无
@@ -900,21 +919,13 @@ int MigrateOut(const std::vector<MigrateOutPayload> &items, int pidType);
 
 返回非0：表示失败
 
-
-
 ### 约束 CONSTRAINTS
 
 - 本节点调用
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## Remove: 移除进程的冷热页迁移
 
@@ -943,21 +954,13 @@ int Remove(const std::vector<pid_t>& pids, int pidType);
 
 返回非0：表示失败
 
-
-
 ### 约束 CONSTRAINTS
 
 - 本节点调用
 
-
-
 ### 附注 NOTES
 
 暂无
-
-
-
-
 
 ## RemoteNumaMigrate: 迁移指定进程远端内存到远端内存
 
@@ -987,13 +990,9 @@ int RemoteNumaMigrate(const std::vector<pid_t>& pids, int srcNid, int destNid);
 
 返回非0：表示失败
 
-
-
 ### 约束 CONSTRAINTS
 
 - 本节点调用
-
-
 
 ### 附注 NOTES
 

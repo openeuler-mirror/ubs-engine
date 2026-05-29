@@ -18,30 +18,28 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::nodeController {
-using namespace ubse::module;
-using namespace ubse::log;
-using namespace ubse::context;
+using ubse::common::def::UbseResult;
 
 /**
  * 采集节点基础信息：包含节点id, eid, hostname, slotId等
  * @param ubseNodeInfo [in,out] 节点对象
  * @return
  */
-UbseResult CollectNodeBaseInfo(UbseNodeInfo &ubseNodeInfo);
+UbseResult CollectNodeBaseInfo(UbseNodeInfo& ubseNodeInfo);
 
 /**
  * 采集节点拓扑信息，包含节点ipList, numa信息，cpu信息等
  * @param ubseNodeInfo [in,out] 节点对象
  * @return
  */
-UbseResult CollectNodeTopology(UbseNodeInfo &ubseNodeInfo);
+UbseResult CollectNodeTopology(UbseNodeInfo& ubseNodeInfo);
 
 /**
  * 采集节点ipList
  * @param ubseNodeInfo [in,out] 节点对象
  * @return
  */
-UbseResult CollectIpList(UbseNodeInfo &ubseNodeInfo);
+UbseResult CollectIpList(UbseNodeInfo& ubseNodeInfo);
 
 /**
  * 采集节点numa信息，通过节点id从遥测模块过滤
@@ -49,7 +47,7 @@ UbseResult CollectIpList(UbseNodeInfo &ubseNodeInfo);
  * @param nodeId [in] 当前节点id
  * @return
  */
-UbseResult CollectNumaInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId);
+UbseResult CollectNumaInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId);
 
 /**
  * 采集节点cpu信息，依赖LCNE模块，根据节点id从LCNE模块过滤
@@ -57,21 +55,21 @@ UbseResult CollectNumaInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId
  * @param nodeId [in] 当前节点id
  * @return
  */
-UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId);
+UbseResult CollectCpuInfo(UbseNodeInfo& ubseNodeInfo, const std::string& nodeId);
 
 /**
  * 通过cli采集本节点SysSentry服务状态信息
  * @param ubseNodeInfo [in,out] 节点对象
  * @return 操作结果，UBSE_OK表示成功，其他表示失败
  */
-UbseResult CollectSysSentryState(UbseNodeInfo &ubseNodeInfo);
+UbseResult CollectSysSentryState(UbseNodeInfo& ubseNodeInfo);
 
 /**
  * 通过检查内核文件路径，确认obmm内核是否已插入
  * @param ubseNodeInfo [in,out] 节点对象
  * @return 操作结果，UBSE_OK表示成功，其他表示失败
  */
-UbseResult CollectObmmKernelState(UbseNodeInfo &ubseNodeInfo);
+UbseResult CollectObmmKernelState(UbseNodeInfo& ubseNodeInfo);
 } // namespace ubse::nodeController
 
 #endif // UBSE_NODE_CONTROLLER_COLLECTOR_H

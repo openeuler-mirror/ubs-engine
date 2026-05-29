@@ -21,7 +21,7 @@ namespace vm {
 
 class FragmentationVmCollection {
 public:
-    static FragmentationVmCollection &GetInstance();
+    static FragmentationVmCollection& GetInstance();
     VmResult FragInit();
     void FragTerminate();
     /**
@@ -29,10 +29,11 @@ public:
      * @return uint32_t, 0 indicates success, and any non-zero value indicates fail or other exception
      */
     static uint32_t FragGetLocalHostVmCollectData();
+
 private:
     static std::mutex timerTaskMutex;
     static std::string timerName;
 };
-}
+} // namespace vm
 
 #endif // FRAGMENTATION_VM_COLLECTION_H

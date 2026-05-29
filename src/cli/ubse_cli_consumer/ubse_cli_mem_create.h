@@ -22,13 +22,13 @@ public:
     ~UbseCliMemCreate() noexcept;
 
     // Create NUMA-type memory allocation info at this node.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateNumaMem(const std::string &name, size_t size,
-        const std::string &linkInfo);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateNumaMem(const std::string& name, size_t size,
+                                                                       const std::string& linkInfo);
     // Create FD-type memory allocation info at this node.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateFdMem(const std::string &name, size_t size);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateFdMem(const std::string& name, size_t size);
     // Create共享内存
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateShareMem(const std::string &name, size_t size,
-                                                                        const std::vector<uint32_t> &region);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliCreateShareMem(const std::string& name, size_t size,
+                                                                        const std::vector<uint32_t>& region);
 
 private:
     class UbseCliMemCreateImpl;

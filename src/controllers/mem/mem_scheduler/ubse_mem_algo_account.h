@@ -19,15 +19,17 @@
 #include "ubse_common_def.h"
 #include "ubse_mmi_interface.h"
 namespace ubse::mem::strategy {
-using namespace ubse::common::def;
-enum class AccountState {
+
+enum class AccountState
+{
     IMPORT_EXPORT_EXIST,
     ONLY_EXPORT_EXIST,
     ONLY_IMPORT_EXIST,
     BOTH_NOT_EXIST,
 };
 
-enum class BorrowedType {
+enum class BorrowedType
+{
     FD,   // Fd借用
     NUMA, // Numa借用
     ADDR, // 指定地址借用
@@ -39,7 +41,7 @@ struct AlgoAccountID {
     std::string nodeId{};
     BorrowedType type;
 
-    bool operator < (const AlgoAccountID &other) const
+    bool operator<(const AlgoAccountID& other) const
     {
         if (requestName != other.requestName) {
             return requestName < other.requestName;
@@ -55,7 +57,7 @@ class BaseAlgoAccount {
 public:
     BaseAlgoAccount() = default;
     virtual void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                        const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult) = 0;
+                                        const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult) = 0;
 
     virtual AccountState GetAccountState() = 0;
 
@@ -72,12 +74,12 @@ template <class T>
 class AccountImpl : public BaseAlgoAccount {
 public:
     template <class... Ts>
-    explicit AccountImpl(Ts &&...ts)  : account_{std::forward<Ts>(ts)...}
+    explicit AccountImpl(Ts&&... ts) : account_(std::forward<Ts>(ts)...)
     {
     }
 
     void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult) override
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult) override
     {
         account_.UpdateAlgoAccountState(memState, algoResult);
     }
@@ -98,33 +100,33 @@ private:
 
 class AlgoAccountManger {
 public:
-    static AlgoAccountManger &GetInstance()
+    static AlgoAccountManger& GetInstance()
     {
         static AlgoAccountManger instance;
         return instance;
     }
-    AlgoAccountManger(const AlgoAccountManger &other) = delete;
-    AlgoAccountManger(AlgoAccountManger &&other) = delete;
-    AlgoAccountManger &operator=(const AlgoAccountManger &other) = delete;
-    AlgoAccountManger &operator=(AlgoAccountManger &&other) noexcept = delete;
+    AlgoAccountManger(const AlgoAccountManger& other) = delete;
+    AlgoAccountManger(AlgoAccountManger&& other) = delete;
+    AlgoAccountManger& operator=(const AlgoAccountManger& other) = delete;
+    AlgoAccountManger& operator=(AlgoAccountManger&& other) noexcept = delete;
 
     void AddAlgoAccount(const std::shared_ptr<BaseAlgoAccount>& algoAccountPtr);
 
-    std::shared_ptr<BaseAlgoAccount> GetAlgoAccount(const AlgoAccountID &algoAccountID);
+    std::shared_ptr<BaseAlgoAccount> GetAlgoAccount(const AlgoAccountID& algoAccountID);
 
     std::vector<std::shared_ptr<BaseAlgoAccount>> GetAllAlgoAccount();
 
-    std::vector<std::shared_ptr<BaseAlgoAccount>> GetAllAlgoAccountByNode(const std::string &nodeId);
+    std::vector<std::shared_ptr<BaseAlgoAccount>> GetAllAlgoAccountByNode(const std::string& nodeId);
 
     std::shared_ptr<BaseAlgoAccount> CreateAccountByAlgoResult(
-        const std::string &name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type);
+        const std::string& name, const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, BorrowedType type);
 
-    bool CheckProviderNodeHasBorrowed(const std::string &providerNodeId);
+    bool CheckProviderNodeHasBorrowed(const std::string& providerNodeId);
 
-    bool CheckBorrowNodeHasLent(const std::string &borrowNodeId);
+    bool CheckBorrowNodeHasLent(const std::string& borrowNodeId);
 
-    void UpdateAlgoAccountState(const std::string &name, ubse::adapter_plugins::mmi::UbseMemState state,
-                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult, BorrowedType type);
+    void UpdateAlgoAccountState(const std::string& name, ubse::adapter_plugins::mmi::UbseMemState state,
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult, BorrowedType type);
 
     void Clear();
 

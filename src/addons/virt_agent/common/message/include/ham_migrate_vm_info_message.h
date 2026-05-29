@@ -24,14 +24,15 @@ public:
 
     explicit HamMigrateVmInfoMessage(std::vector<HamMigrateVmInfo> hamMigrateVmInfos)
         : hamMigrateVmInfos_(std::move(hamMigrateVmInfos))
-    {}
+    {
+    }
 
-    explicit HamMigrateVmInfoMessage(uint8_t *rawData, uint32_t size)
+    explicit HamMigrateVmInfoMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetData(const std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+    void SetData(const std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
     {
         hamMigrateVmInfos_ = hamMigrateVmInfos;
     }
@@ -48,6 +49,6 @@ public:
 private:
     std::vector<HamMigrateVmInfo> hamMigrateVmInfos_{};
 };
-}
+} // namespace vm
 
 #endif // HAM_MIGRATE_VM_INFO_MESSAGE_H

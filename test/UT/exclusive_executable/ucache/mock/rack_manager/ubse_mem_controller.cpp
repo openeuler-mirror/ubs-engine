@@ -25,7 +25,7 @@ namespace ubse::mem::controller {
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     return UBSE_OK;
 }
@@ -40,7 +40,7 @@ UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector
 * @return #UBSE_PAR_SUCCESS 部分成功
 * @return #UBSE_ERR_INTERNAL 内部错误
 */
-UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     return UBSE_OK;
 }
@@ -51,7 +51,7 @@ UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos
 * @return UBSE_OK 成功
 * @return UBSE_ERR_INTERNAL 获取节点信息失败
 */
-UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     return UBSE_OK;
 }
@@ -63,7 +63,7 @@ UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoLis
 * @return UBSE_ERR_INVALID_ARG 传入值非法或指定节点不存在
 * @return UBSE_ERR_INTERNAL 获取节点信息失败
 */
-UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult UbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     return UBSE_OK;
 }
@@ -78,9 +78,9 @@ UbseResult UbseGetNodeNumaInfoByNodeId(const std::string &nodeId, std::vector<Ub
  * @param desc [OUT] 借用形成的远端numa信息
  * @return UbseResult
  */
-UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBorrower &borrower,
-                                       const std::vector<UbseMemNumaLender> &lenders,
-                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBorrower& borrower,
+                                       const std::vector<UbseMemNumaLender>& lenders,
+                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc& desc)
 {
     return UBSE_OK;
 }
@@ -92,7 +92,7 @@ UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBor
  * @param borrower  [IN] 必填，借用方信息
  * @return UbseResult
  */
-UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
     return UBSE_OK;
 }

@@ -46,7 +46,8 @@ struct ProcessMmap {
 };
 
 /* 命令类型 */
-enum TagTestCmdInfo {
+enum TagTestCmdInfo
+{
     CMD_INIT = 0,
     CMD_SERVER_START,
     CMD_CLI_START,
@@ -56,43 +57,43 @@ enum TagTestCmdInfo {
     CMD_MAX,
 };
 
-using FuncPtrp = int32_t (*)(ProcessMmap *);
+using FuncPtrp = int32_t (*)(ProcessMmap*);
 
 struct UbseCmdAndFunc {
     TagTestCmdInfo enCmd;
     FuncPtrp pFunc;
 };
 
-using FuncPtr = void (*)(ProcessMmap *);
+using FuncPtr = void (*)(ProcessMmap*);
 
-ProcessMmap *MemoryMapping();
+ProcessMmap* MemoryMapping();
 
 void PTestResourceInit();
 
-void PTestCliStart(ProcessMmap *pMmap);
+void PTestCliStart(ProcessMmap* pMmap);
 
-void PTestServerStart(ProcessMmap *pMmap);
+void PTestServerStart(ProcessMmap* pMmap);
 
-uint32_t PTestSetSubProcess(FuncPtr *opt, ProcessMmap *pMmap, pid_t *pid, const std::string &procName);
+uint32_t PTestSetSubProcess(FuncPtr* opt, ProcessMmap* pMmap, pid_t* pid, const std::string& procName);
 
-uint32_t PTestSetProcess(ProcessMmap *pMmap);
+uint32_t PTestSetProcess(ProcessMmap* pMmap);
 
 void PTestCmdAndFuncRegister(TagTestCmdInfo enCmd, FuncPtrp pFunc, ProcessMode processMode = ProcessMode::MANAGER);
 
-void PTestGetCliResult(ProcessMmap *pMmap, uint32_t PTime, int32_t *psiStatus);
+void PTestGetCliResult(ProcessMmap* pMmap, uint32_t PTime, int32_t* psiStatus);
 
-void PTestGetServerResult(ProcessMmap *pMmap, uint32_t PTime, int32_t *psiStatus);
+void PTestGetServerResult(ProcessMmap* pMmap, uint32_t PTime, int32_t* psiStatus);
 
-int32_t PTestCmdServerStart(ProcessMmap *pMmap);
+int32_t PTestCmdServerStart(ProcessMmap* pMmap);
 
-int32_t PTestCmdCliStart(ProcessMmap *pMmap);
+int32_t PTestCmdCliStart(ProcessMmap* pMmap);
 
-void PTestQuitProcess(ProcessMmap *pMmap);
+void PTestQuitProcess(ProcessMmap* pMmap);
 
-void PTestClearResource(ProcessMmap *pMmap);
+void PTestClearResource(ProcessMmap* pMmap);
 
-int32_t PTestCmdServerStop(ProcessMmap *pMmap);
+int32_t PTestCmdServerStop(ProcessMmap* pMmap);
 
-int32_t PTestCmdCliStop([[maybe_unused]] ProcessMmap *pMmap);
-} // namespace ubse: PT
+int32_t PTestCmdCliStop([[maybe_unused]] ProcessMmap* pMmap);
+} // namespace ubse::pt
 #endif // UBSE_MANAGER_MANAGER_TEST PT_H

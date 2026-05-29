@@ -19,6 +19,7 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 namespace ubse::ut::mmi {
+using namespace ubse::adapter_plugins::mmi;
 std::atomic<uint64_t> TestUbseMmiModule::mockMemId_{1};
 TEST_F(TestUbseMmiModule, UbseMemFdImportExecutor_Success)
 {
@@ -41,8 +42,8 @@ TEST_F(TestUbseMmiModule, UbseMemFdImportExecutor_Success)
     importObj.algoResult.exportNumaInfos = {{"2", 0, 0, 1 << 29}, {"2", 0, 1, 1 << 29}};
     importObj.algoResult.importNumaInfos = {{"1", 0, 0, 1 << 29}, {"1", 0, 1, 1 << 29}};
     importObj.status.decoderResult.resize(8);
-    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc *desc, unsigned long flags,
-                                                      int base_dist, int *numa) {
+    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc* desc, unsigned long flags,
+                                                      int base_dist, int* numa) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemFdImportExecutor(importObj);
@@ -71,7 +72,7 @@ TEST_F(TestUbseMmiModule, UbseMemFdExportExecutor_Success)
         .with(_, outBound(static_cast<uint32_t>(0x444)))
         .will(returnValue(static_cast<uint32_t>(0)));
     RmObmmExecutor::GetInstance().obmmExportFunc = [](const size_t length[OBMM_MAX_LOCAL_NUMA_NODES],
-                                                      unsigned long flags, struct obmm_mem_desc *desc) {
+                                                      unsigned long flags, struct obmm_mem_desc* desc) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemFdExportExecutor(exportObj);
@@ -129,7 +130,7 @@ TEST_F(TestUbseMmiModule, UbseMemFdUnImportExecutor_Success)
     importObj.status.expectState = UBSE_MEM_STATE_DESTROYING;
     importObj.status.scna = 0x401;
     importObj.status.importResults = {{1, -1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}, {6, -1}, {7, -1}, {8, -1}};
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     auto ret = module.UbseMemFdUnImportExecutor(importObj);
@@ -162,7 +163,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaExportExecutor_Success)
         .will(returnValue(static_cast<uint32_t>(0)));
 
     RmObmmExecutor::GetInstance().obmmExportFunc = [](const size_t length[OBMM_MAX_LOCAL_NUMA_NODES],
-                                                      unsigned long flags, struct obmm_mem_desc *desc) {
+                                                      unsigned long flags, struct obmm_mem_desc* desc) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
     auto ret = module.UbseMemNumaExportExecutor(exportobj);
@@ -193,8 +194,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
     importObj.algoResult.attachSocketId = 0;
     importObj.algoResult.exportNumaInfos = {{"2", 0, 0, 1 << 29}, {"2", 0, 1, 1 << 29}};
     importObj.algoResult.importNumaInfos = {{"1", 0, 0, 1 << 29}, {"1", 0, 1, 1 << 29}};
-    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc *desc, unsigned long flags,
-                                                      int base_dist, int *numa) {
+    RmObmmExecutor::GetInstance().obmmImportFunc = [](const struct obmm_mem_desc* desc, unsigned long flags,
+                                                      int base_dist, int* numa) {
         return TestUbseMmiModule::mockMemId_.fetch_add(1);
     };
 
@@ -229,8 +230,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaImportExecutor_Success)
     std::vector<mem_id> memIdList = {1};
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node1));
     MOCKER(&RmObmmExecutor::ObmmImport,
-           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                                  UbseMemImportStatus &status, int *numa))
+           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                                  UbseMemImportStatus& status, int* numa))
         .stubs()
         .will(returnValue(memIdList));
     MOCKER(&MemInstanceInnerCommon::GetNuma).stubs().will(returnValue(5));
@@ -297,7 +298,7 @@ TEST_F(TestUbseMmiModule, UbseMemNumaUnImportExecutor_Success)
     importObj.status.expectState = UBSE_MEM_STATE_DESTROYING;
     importObj.status.scna = 0x401;
     importObj.status.importResults = {{1, -1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}, {6, -1}, {7, -1}, {8, -1}};
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     auto ret = module.UbseMemNumaUnImportExecutor(importObj);
@@ -305,8 +306,8 @@ TEST_F(TestUbseMmiModule, UbseMemNumaUnImportExecutor_Success)
 }
 
 uint64_t MockReadAgentLocalObmmMetaData(uint64_t taskId,
-                                        std::vector<UbseMemLocalObmmMetaData> &ubseMemLocalObmmMetaDatas,
-                                        bool &lastPage)
+                                        std::vector<UbseMemLocalObmmMetaData>& ubseMemLocalObmmMetaDatas,
+                                        bool& lastPage)
 {
     UbseMemLocalObmmMetaData data{};
 

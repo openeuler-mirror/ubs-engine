@@ -13,18 +13,19 @@
 #ifndef UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H
 #define UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H
 
+#include <functional>
 #include <string>
 #include <unordered_map>
-#include <functional>
 #include "ubse_common_def.h"
 
 const unsigned int HTTP_ENUM_BOTTOM = 0xFFFFFFF;
 namespace ubse::http {
-using namespace ubse::common::def;
+
 /**
  * http方法
  */
-enum class UbseHttpMethod {
+enum class UbseHttpMethod
+{
     UBSE_HTTP_METHOD_GET = 3, /* *< GET方法名. */
     UBSE_HTTP_METHOD_HEAD,    /* *< HEAD方法名. */
     UBSE_HTTP_METHOD_POST,    /* *< POST方法名. */
@@ -40,7 +41,8 @@ enum class UbseHttpMethod {
  * @ingroup http_header
  * 响应状态码定义
  */
-enum class UbseHttpStatusCode {
+enum class UbseHttpStatusCode
+{
     UBSE_HTTP_STATUS_CODE_INVALID = -1,
     UBSE_HTTP_STATUS_CODE_BEGIN = 0,
 
@@ -117,12 +119,11 @@ struct UbseHttpRequest {
 /**
  * http回调函数类型
  */
-using UbseHttpHandlerFunc = std::function<uint32_t(const UbseHttpRequest &req, UbseHttpResponse &resp)>;
+using UbseHttpHandlerFunc = std::function<uint32_t(const UbseHttpRequest& req, UbseHttpResponse& resp)>;
 
 std::string UbseHttpMethodToString(UbseHttpMethod method);
 
 UbseHttpMethod StringToUbseHttpMethod(std::string method);
 } // namespace ubse::http
-
 
 #endif // UBSE_HTTP_MODULE_H_UBSE_HTTP_COMMON_H

@@ -11,8 +11,6 @@
  */
 
 #include "ubse_lcne_sub_topo_change_info.h"
-#include "securec.h" // for memcpy_s, EOK
-#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -20,6 +18,8 @@
 #include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_xml.h"
+#include "securec.h" // for memcpy_s, EOK
+#include "src/adapter_plugins/mti/ubse_lcne_topology.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -28,8 +28,10 @@ using namespace ubse::utils;
 using namespace ubse::mti;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::common::def;
+using namespace ubse::http;
 
-void GetTcpServerPort(uint32_t &port)
+void GetTcpServerPort(uint32_t& port)
 {
     port = DEFAULT_TCP_SERVER_PORT;
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
@@ -117,7 +119,7 @@ uint32_t UbseLcneLinkInfo::SubLcneLinkInfo()
     return UBSE_OK;
 }
 
-uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string &resBody)
+uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string& resBody)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
     if (ubseXml == nullptr) {
@@ -149,5 +151,41 @@ uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string &resBody)
         UBSE_LOG_INFO << "SubLcneLinkInfo failed.";
     }
     return UBSE_OK;
+}
+
+uint32_t UbseLcneLinkInfo::ParseLinkUpDownReq(const std::string& reqBody, std::string& linkUpDown,
+                                              std::string& interfaceName)
+{
+    if (reqBody.empty()) {
+        UBSE_LOG_WARN << "[MTI] req.body is empty.";
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_DEBUG << "[MTI] Received req.body " << reqBody;
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(reqBody);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_WARN << "[MTI] Get ubse xml failed, " << FormatRetCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_WARN << "[MTI] Topology reqBody parse failed, " << FormatRetCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    std::string portStatus;
+    if (ubseXml->Next("link-up") != nullptr) {
+        linkUpDown = "link-up";
+        portStatus = ubseXml->Child("oper-status")->Text();
+        interfaceName = ubseXml->Child("main-if-name")->Text();
+        UBSE_LOG_INFO << linkUpDown << ", portStatus=" << portStatus << ", interfaceName=" << interfaceName;
+        return UBSE_OK;
+    } else if (ubseXml->Next("link-down") != nullptr) {
+        linkUpDown = "link-down";
+        portStatus = ubseXml->Child("oper-status")->Text();
+        interfaceName = ubseXml->Child("main-if-name")->Text();
+        UBSE_LOG_INFO << linkUpDown << ", portStatus=" << portStatus << ", interfaceName=" << interfaceName;
+        return UBSE_OK;
+    }
+    UBSE_LOG_WARN << "[MTI] Neither link-up nor link-down is found in reqBody.";
+    return UBSE_ERROR;
 }
 } // namespace ubse::lcne

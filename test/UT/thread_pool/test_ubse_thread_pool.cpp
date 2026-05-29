@@ -98,10 +98,10 @@ TEST_F(TestTaskExecutor, testExecutorStartTwice)
  */
 TEST_F(TestTaskExecutor, testExecutorQueueInitFailed)
 {
-    MOCKER(&ubse::utils::RingBufferBlockingQueue<UbseRunnable *>::Initialize).stubs().will(returnValue(-1));
+    MOCKER(&ubse::utils::RingBufferBlockingQueue<UbseRunnable*>::Initialize).stubs().will(returnValue(-1));
     auto ret = executorPtr->Start();
     EXPECT_FALSE(ret);
-    MOCKER(&ubse::utils::RingBufferBlockingQueue<UbseRunnable *>::Initialize).reset();
+    MOCKER(&ubse::utils::RingBufferBlockingQueue<UbseRunnable*>::Initialize).reset();
 }
 
 /*

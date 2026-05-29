@@ -15,7 +15,6 @@
 #include <sys/stat.h>
 #include <csignal>
 
-#include "rpc/ubse_rpc_server.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -25,15 +24,21 @@
 #include "ubse_event_module.h"
 #include "ubse_file_util.h"
 #include "ubse_logger_module.h"
-#include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
+#include "rpc/ubse_rpc_server.h"
 
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 namespace ubse::com {
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
+using namespace ubse::module;
+using namespace ubse::utils;
+using namespace ubse::message;
+using namespace ubse::log;
+using namespace ubse::com;
 CONDITION_BASE_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COMMON, UbseComModule, UbseConfModule,
                               ubse::task_executor::UbseTaskExecutorModule, ubse::event::UbseEventModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
@@ -66,7 +71,7 @@ UbseResult CreateRpcExecutor()
     return UBSE_OK;
 }
 
-static void UbseComHandlerExecutor(const std::function<void()> &task, const executorType &type)
+static void UbseComHandlerExecutor(const std::function<void()>& task, const executorType& type)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -86,7 +91,7 @@ static void UbseComHandlerExecutor(const std::function<void()> &task, const exec
     executor->Execute(task);
 }
 
-void UbseLinkEventPub(const std::vector<UbseLinkInfo> &linkInfoList)
+void UbseLinkEventPub(const std::vector<UbseLinkInfo>& linkInfoList)
 {
     auto eventModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::event::UbseEventModule>();
     if (eventModule == nullptr) {
@@ -94,7 +99,7 @@ void UbseLinkEventPub(const std::vector<UbseLinkInfo> &linkInfoList)
         return;
     }
     std::string eventMessage{};
-    for (auto &linkInfo : linkInfoList) {
+    for (auto& linkInfo : linkInfoList) {
         std::string linkNodeId = "nodeId:" + linkInfo.GetNodeId() + ",";
         std::string linkState = "ubseLinkState:" + std::to_string(static_cast<int>(linkInfo.GetState())) + ",";
         std::string linkTimeStamp = "timeStamp:" + std::to_string(linkInfo.GetTimeStamp()) + ",";
@@ -148,7 +153,7 @@ int16_t GetHeartBeatTimeOutValue()
     return static_cast<int16_t>(time);
 }
 
-UbseResult ServerTls(UbseComBasePtr &rpcServer)
+UbseResult ServerTls(UbseComBasePtr& rpcServer)
 {
     if (rpcServer == nullptr) {
         UBSE_LOG_ERROR << "rpc server failed. ";
@@ -156,14 +161,14 @@ UbseResult ServerTls(UbseComBasePtr &rpcServer)
     }
     return UBSE_OK;
 }
-UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nodeId)
+UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nodeId)
 {
     std::vector<adapter_plugins::mti::UbseMtiNodeInfo> nodeInfos;
     if (adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterNodeInfoList(nodeInfos) != UBSE_OK) {
         UBSE_LOG_WARN << "Query eid failed";
         return UBSE_ERROR;
     }
-    for (adapter_plugins::mti::UbseMtiNodeInfo &nodeInfo : nodeInfos) {
+    for (adapter_plugins::mti::UbseMtiNodeInfo& nodeInfo : nodeInfos) {
         if (nodeId == nodeInfo.nodeId) {
             bondingEid = nodeInfo.eid;
             return UBSE_OK;
@@ -171,27 +176,12 @@ UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nod
     }
     return UBSE_ERROR;
 }
-UbseResult GetUBEnable(bool &ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
-    return UBSE_OK;
-}
-
-QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
+QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string& eid) {
     bool ubEnable;
-    GetUBEnable(ubEnable);
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get communication mode.";
+        return false;
+    }
     if (ubEnable) {
         if (GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {
             UBSE_LOG_WARN << "Query eid failed";
@@ -270,7 +260,7 @@ const std::string UbseComModule::GetCurRoleStr()
     return roleInfo.nodeRole;
 }
 
-UbseResult UbseComModule::StartComService(const std::string &localNodeId, const std::string &localIp,
+UbseResult UbseComModule::StartComService(const std::string& localNodeId, const std::string& localIp,
                                           UbseComCallBackForHA newChannelCb, UbseComCallBackForHA brokenChannelCb)
 {
     auto ret = InitUbseCom(localNodeId, localIp);
@@ -312,7 +302,7 @@ UbseResult UbseComModule::StopComService()
     return UBSE_OK;
 }
 
-bool UbseComModule::IsCurrentNode(const std::string &nodeId)
+bool UbseComModule::IsCurrentNode(const std::string& nodeId)
 {
     ubse::election::UbseRoleInfo roleInfo{};
     UbseResult ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
@@ -323,14 +313,17 @@ bool UbseComModule::IsCurrentNode(const std::string &nodeId)
     return roleInfo.nodeId == nodeId;
 }
 
-UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
+UbseResult GetNodeInfoFromMti(IpAddress& address, std::string& nodeId)
 {
-    bool ubEnable;
-    GetUBEnable(ubEnable);
     adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo;
     auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
     if (ret != UBSE_OK) {
         return ret;
+    }
+    bool ubEnable;
+    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get communication mode.";
+        return UBSE_ERROR_CONF_INVALID;
     }
     nodeId = ubseNodeInfo.nodeId;
     if (ubEnable) {
@@ -340,8 +333,7 @@ UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
         address.second = TCP_LISTEN_PORT;
     };
-    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id="
-                  << nodeId;
+    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id=" << nodeId;
     return UBSE_OK;
 }
 
@@ -363,7 +355,7 @@ UbseResult UbseComModule::RegBrokenChannelCallBack(UbseComCallBackForHA func)
     return rpcServer_->RegBrokenChannelCb(std::move(func));
 }
 
-UbseResult UbseComModule::InitUbseCom(const std::string &localNodeId, const std::string &localIp)
+UbseResult UbseComModule::InitUbseCom(const std::string& localNodeId, const std::string& localIp)
 {
     // 从lcne获取网络信息
     uint16_t port = 0;
@@ -387,7 +379,7 @@ std::vector<UbseLinkInfo> UbseComModule::GetAllServerLinkInfo()
     return rpcServer_->GetAllLinkInfo();
 }
 
-std::string UbseComModule::GetNodeIdByIp(const std::string &ip)
+std::string UbseComModule::GetNodeIdByIp(const std::string& ip)
 {
     if (rpcServer_ == nullptr) {
         UBSE_LOG_ERROR << "rpcServer is nullptr, GetNodeIdByIp fail";
@@ -396,7 +388,7 @@ std::string UbseComModule::GetNodeIdByIp(const std::string &ip)
     return rpcServer_->GetNodeIdByIp(ip);
 }
 
-void UbseComModule::AddServerLinkNotifyFunc(const LinkNotifyFunction &func)
+void UbseComModule::AddServerLinkNotifyFunc(const LinkNotifyFunction& func)
 {
     if (rpcServer_ == nullptr) {
         UBSE_LOG_ERROR << "rpcServer is nullptr, AddServerLinkNotifyFunc fail";

@@ -53,7 +53,7 @@ std::vector<std::string> MockTestGetNodeIds()
     return allNodeIdList;
 }
 
-bool MockRackMemConvertJsonStr2Map(const JSON_STR &jsonStr, JSON_MAP &strMap)
+bool MockRackMemConvertJsonStr2Map(const JSON_STR& jsonStr, JSON_MAP& strMap)
 {
     strMap["1"] = "{2}";
     strMap["2"] = "{1}";
@@ -66,13 +66,13 @@ std::vector<std::string> MockTestGetNodeIds1()
     return allNodeIdList;
 }
 
-bool MockRackMemConvertJsonStr2Map1(const JSON_STR &jsonStr, JSON_MAP &strMap)
+bool MockRackMemConvertJsonStr2Map1(const JSON_STR& jsonStr, JSON_MAP& strMap)
 {
     strMap["1"] = "{2}";
     return true;
 }
 
-bool MockRackMemConvertJsonStr2Vec1(const JSON_STR &jsonStr, JSON_VEC &strVec)
+bool MockRackMemConvertJsonStr2Vec1(const JSON_STR& jsonStr, JSON_VEC& strVec)
 {
     strVec.emplace_back("2");
     return true;
@@ -80,13 +80,11 @@ bool MockRackMemConvertJsonStr2Vec1(const JSON_STR &jsonStr, JSON_VEC &strVec)
 
 TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonSuccess)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)())
-    .stubs()
-    .will(invoke(MockTestGetNodeIds1));
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockTestGetNodeIds1));
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Map1));
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR &jsonStr, JSON_VEC &strVec))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR& jsonStr, JSON_VEC& strVec))
         .stubs()
         .will(invoke(MockRackMemConvertJsonStr2Vec1));
     MpUpdateAntiNodeParam param;
@@ -96,10 +94,8 @@ TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonSuccess)
 
 TEST_F(TestMpUpdateAntiNodeParam, AntiFromJsonFailed1)
 {
-    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)())
-    .stubs()
-    .will(invoke(MockTestGetNodeIds));
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(MockTestGetNodeIds));
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(false));
     MpUpdateAntiNodeParam param;

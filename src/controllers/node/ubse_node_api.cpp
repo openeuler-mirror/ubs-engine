@@ -11,8 +11,8 @@
  */
 #include "ubse_node_api.h"
 
-#include "ubs_engine.h"
 #include "ubse_api_server_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_logger.h"
@@ -22,6 +22,7 @@
 #include "ubse_node_controller_query_api.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
+#include "ubs_engine.h"
 
 namespace ubse::node::api {
 using namespace ubse::context;
@@ -29,13 +30,16 @@ using namespace ubse::serial;
 using namespace ubse::log;
 using namespace ::api::server;
 using namespace ubse::nodeController;
+using namespace ubse::utils;
+using namespace ubse::common::def;
+using namespace ubse::election;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string TOPO_PERMISSION = "topo";
 const std::string MEM_STAT_PERMISSION = "mem.stat";
 
-uint32_t UbseNodeApi::UbseServerNodeGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseServerNodeGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UbseNode node{};
     UbseNodeGet(node);
@@ -60,7 +64,7 @@ uint32_t UbseNodeApi::UbseServerNodeGet(const UbseIpcMessage &req, const UbseReq
     return ret;
 }
 
-uint32_t UbseNodeApi::UbseServerNodeList(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseServerNodeList(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     std::vector<UbseNode> nodeList{};
     UbseNodeList(nodeList);
@@ -85,7 +89,7 @@ uint32_t UbseNodeApi::UbseServerNodeList(const UbseIpcMessage &req, const UbseRe
     return ret;
 }
 
-uint32_t UbseNodeApi::UbseServerCpuTopoList(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseServerCpuTopoList(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     std::vector<UbseCpuLink> linkList{};
     UbseNodeCpuTopoList(linkList);
@@ -111,8 +115,12 @@ uint32_t UbseNodeApi::UbseServerCpuTopoList(const UbseIpcMessage &req, const Ubs
     return ret;
 }
 
-uint32_t UbseNodeApi::UbseServerNodeNumaMemGet(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseServerNodeNumaMemGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+
     uint32_t slotId{};
     auto ret = UbseSlotIdUnpack(req, slotId);
     if (ret != UBSE_OK) {
@@ -145,7 +153,7 @@ uint32_t UbseNodeApi::UbseServerNodeNumaMemGet(const UbseIpcMessage &req, const 
     return ret;
 }
 
-void UbseClusterList(std::vector<UbseNodeInfo> &nodeList)
+void UbseClusterList(std::vector<UbseNodeInfo>& nodeList)
 {
     std::unordered_map<std::string, UbseNodeInfo> nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     if (nodeInfos.empty()) {
@@ -154,18 +162,18 @@ void UbseClusterList(std::vector<UbseNodeInfo> &nodeList)
     std::vector<UbseNodeInfo> staticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
     nodeList.reserve(std::max(nodeInfos.size(), staticNodeInfos.size()));
     std::transform(nodeInfos.begin(), nodeInfos.end(), std::back_inserter(nodeList),
-                   [](auto &kv) { return kv.second; });
+                   [](auto& kv) { return kv.second; });
     // 加入静态节点信息
-    for (auto &nodeInfo : staticNodeInfos) {
+    for (auto& nodeInfo : staticNodeInfos) {
         if (nodeInfos.find(nodeInfo.nodeId) == nodeInfos.end()) {
             ConvertStrToUint32(nodeInfo.nodeId, nodeInfo.slotId);
             nodeList.emplace_back(nodeInfo);
         }
     }
-    std::sort(nodeList.begin(), nodeList.end(), [](UbseNodeInfo &l, UbseNodeInfo &r) { return l.slotId < r.slotId; });
+    std::sort(nodeList.begin(), nodeList.end(), [](UbseNodeInfo& l, UbseNodeInfo& r) { return l.slotId < r.slotId; });
 }
 
-std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext &context)
+std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestContext& context)
 {
     std::unordered_map<std::string, std::string> roleMap{};
     roleMap.reserve(NO_2);
@@ -195,7 +203,7 @@ std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestCon
     return roleMap;
 }
 
-uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "requestId=" << context.requestId << ", Cluster IPC request info is null.";
@@ -207,7 +215,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const Ubse
     UbseSerialization ubseSerial;
     ubseSerial << (right_v<std::size_t>(nodeList.size()));
     // hostName(slotId), role, bondingEid;
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         UBSE_LOG_INFO << "requestId=" << context.requestId << ", hostname=" << node.hostName
                       << ", slotId=" << node.slotId << ", clusterState=" << static_cast<uint32_t>(node.clusterState);
         bool isOnline = node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
@@ -246,7 +254,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage &req, const Ubse
     return UBSE_OK;
 }
 
-uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::string &errorMsg)
+uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::string& errorMsg)
 {
     UBSE_LOG_ERROR << errorMsg << ", " << FormatRetCode(errorCode);
     auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -264,8 +272,8 @@ uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::st
     return ret;
 }
 
-static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req, std::string &targetNodeId,
-                                             const UbseRequestContext &context)
+static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage& req, std::string& targetNodeId,
+                                             const UbseRequestContext& context)
 {
     // 允许空请求（查询本地节点）
     if (req.buffer != nullptr && req.length > 0) {
@@ -277,7 +285,7 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req, std::str
                 UBSE_LOG_ERROR << "Deserialize failed";
                 return SendErrorResponse(UBSE_ERROR_DESERIALIZE_FAILED, context.requestId, "Deserialize failed");
             }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             UBSE_LOG_ERROR << "Deserialize exception=" << e.what();
             return SendErrorResponse(UBSE_ERROR_DESERIALIZE_FAILED, context.requestId, "Deserialize exception");
         }
@@ -290,7 +298,7 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage &req, std::str
     return UBSE_OK;
 }
 
-static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId, const UbseRequestContext &context)
+static uint32_t EnsureTargetNodeIdStrict(std::string& targetNodeId, const UbseRequestContext& context)
 {
     if (!targetNodeId.empty()) {
         UBSE_LOG_INFO << "Querying remote node=" << targetNodeId;
@@ -315,19 +323,19 @@ static uint32_t EnsureTargetNodeIdStrict(std::string &targetNodeId, const UbseRe
     return UBSE_OK;
 }
 
-static bool FindTargetNodeStrict(const std::vector<UbseNodeInfo> &nodeList, const std::string &targetNodeId,
-                                 UbseNodeInfo &targetNode)
+static bool FindTargetNodeStrict(const std::vector<UbseNodeInfo>& nodeList, const std::string& targetNodeId,
+                                 UbseNodeInfo& targetNode)
 {
     // 将targetNodeId转换为uint32_t
     uint32_t targetSlotId = 0;
     try {
         targetSlotId = static_cast<uint32_t>(std::stoul(targetNodeId));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Invalid targetNodeId format=" << targetNodeId << ", error=" << e.what();
         return false;
     }
 
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         if (node.slotId == targetSlotId) {
             targetNode = node;
             return true;
@@ -336,13 +344,13 @@ static bool FindTargetNodeStrict(const std::vector<UbseNodeInfo> &nodeList, cons
     return false;
 }
 
-static bool IsOnlineStrict(const UbseNodeInfo &node)
+static bool IsOnlineStrict(const UbseNodeInfo& node)
 {
     return node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
            node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
 }
 
-static void SerializeNodeNotFoundStrict(UbseSerialization &ubseSerial, const std::string &targetNodeId)
+static void SerializeNodeNotFoundStrict(UbseSerialization& ubseSerial, const std::string& targetNodeId)
 {
     uint32_t errorCode = UBSE_ERR_NODE_NOT_FOUND;
     ubseSerial << errorCode;
@@ -352,9 +360,9 @@ static void SerializeNodeNotFoundStrict(UbseSerialization &ubseSerial, const std
     ubseSerial << "-"; // guid
 }
 
-static void SerializeNodeFoundStrict(UbseSerialization &ubseSerial, const UbseNodeInfo &targetNode,
-                                     const std::unordered_map<std::string, std::string> &roleMap,
-                                     std::string &nodeNameOut, std::string &roleStrOut)
+static void SerializeNodeFoundStrict(UbseSerialization& ubseSerial, const UbseNodeInfo& targetNode,
+                                     const std::unordered_map<std::string, std::string>& roleMap,
+                                     std::string& nodeNameOut, std::string& roleStrOut)
 {
     const bool isOnline = IsOnlineStrict(targetNode);
 
@@ -392,7 +400,7 @@ static void SerializeNodeFoundStrict(UbseSerialization &ubseSerial, const UbseNo
     ubseSerial << guid;
 }
 
-static uint32_t CheckSerializationStrict(UbseSerialization &ubseSerial, const UbseRequestContext &context)
+static uint32_t CheckSerializationStrict(UbseSerialization& ubseSerial, const UbseRequestContext& context)
 {
     if (!ubseSerial.Check()) {
         UBSE_LOG_ERROR << "Serialization failed";
@@ -401,9 +409,9 @@ static uint32_t CheckSerializationStrict(UbseSerialization &ubseSerial, const Ub
     return UBSE_OK;
 }
 
-static uint32_t SendSerializedResponseStrict(UbseSerialization &ubseSerial, const UbseRequestContext &context)
+static uint32_t SendSerializedResponseStrict(UbseSerialization& ubseSerial, const UbseRequestContext& context)
 {
-    uint8_t *responseBuffer = ubseSerial.GetBuffer();
+    uint8_t* responseBuffer = ubseSerial.GetBuffer();
     uint32_t responseLength = static_cast<uint32_t>(ubseSerial.GetLength());
     if (responseBuffer == nullptr && responseLength > 0) {
         UBSE_LOG_ERROR << "Buffer is null but length > 0";
@@ -425,7 +433,7 @@ static uint32_t SendSerializedResponseStrict(UbseSerialization &ubseSerial, cons
     return UBSE_OK;
 }
 
-uint32_t UbseNodeApi::UbseQueryNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseQueryNodeInfo(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseQueryNodeInfo START.";
     UBSE_LOG_INFO << "Request ID=" << context.requestId;
@@ -499,7 +507,7 @@ UbseResult UbseNodeApi::Register()
     return UBSE_OK;
 }
 
-UbseResult GetPhysicalLinkOffset(CliPhysicalLink link, UbseSerialization &outStream)
+UbseResult GetPhysicalLinkOffset(CliPhysicalLink link, UbseSerialization& outStream)
 {
     outStream << link.node << link.socketId << link.portId << link.interfaceName << link.peerNode << link.peerSocketId
               << link.peerPortId << link.peerInterfaceName << link.linkId;
@@ -510,7 +518,7 @@ UbseResult GetPhysicalLinkOffset(CliPhysicalLink link, UbseSerialization &outStr
     return UBSE_OK;
 }
 
-uint32_t SerializePhysicalLinks(std::vector<CliPhysicalLink> links, uint8_t *&buffer, size_t &size)
+uint32_t SerializePhysicalLinks(std::vector<CliPhysicalLink> links, uint8_t*& buffer, size_t& size)
 {
     UbseResult ret = UBSE_OK;
     UbseSerialization outStream;
@@ -540,34 +548,34 @@ uint32_t SerializePhysicalLinks(std::vector<CliPhysicalLink> links, uint8_t *&bu
     return UBSE_OK;
 }
 
-void ProcessNodeInfo(const std::unordered_map<std::string, UbseNodeInfo> &allNodesInfo,
-                     std::unordered_map<uint32_t, std::string> &hostMap,
-                     std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap)
+void ProcessNodeInfo(const std::unordered_map<std::string, UbseNodeInfo>& allNodesInfo,
+                     std::unordered_map<uint32_t, std::string>& hostMap,
+                     std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>>& socketMap)
 {
-    for (auto &node : allNodesInfo) {
-        auto &info = node.second;
+    for (auto& node : allNodesInfo) {
+        auto& info = node.second;
         std::ostringstream oss;
         oss << "After mapping nodeId=" << node.first;
         std::for_each(
-            info.cpuInfos.begin(), info.cpuInfos.end(), [&oss](const std::pair<UbseCpuLocation, UbseCpuInfo> &cpuInfo) {
+            info.cpuInfos.begin(), info.cpuInfos.end(), [&oss](const std::pair<UbseCpuLocation, UbseCpuInfo>& cpuInfo) {
                 oss << ", chipId=" << cpuInfo.second.chipId << " maps to socketId=" << cpuInfo.second.socketId;
             });
         UBSE_LOG_INFO << oss.str();
 
         std::stringstream ss;
         ss << info.hostName << "(" << info.slotId << ")";
-        if (info.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
+        if (!IsOnlineStrict(info)) {
             continue;
         }
         hostMap[info.slotId] = ss.str();
-        for (auto &cpu : info.cpuInfos) {
+        for (auto& cpu : info.cpuInfos) {
             auto cpuInfo = cpu.second;
             try {
                 socketMap[cpuInfo.slotId][std::stoi(cpuInfo.chipId)] = std::to_string(cpuInfo.socketId);
-            } catch (const std::invalid_argument &e) {
+            } catch (const std::invalid_argument& e) {
                 UBSE_LOG_ERROR << "cpuInfo.chipId is not number=" << cpuInfo.chipId;
                 continue;
-            } catch (const std::out_of_range &e) {
+            } catch (const std::out_of_range& e) {
                 UBSE_LOG_ERROR << "cpuInfo.chipId out of int range=" << cpuInfo.chipId;
                 continue;
             }
@@ -575,26 +583,8 @@ void ProcessNodeInfo(const std::unordered_map<std::string, UbseNodeInfo> &allNod
     }
 }
 
-bool checkIdSocketMap(const PhysicalLink &dev,
-                      std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap,
-                      const std::string &flag)
-{
-    if (flag == "both") {
-        return socketMap.count(dev.slotId) && socketMap.at(dev.slotId).count(dev.chipId) &&
-               socketMap.count(dev.peerSlotId) && socketMap.at(dev.peerSlotId).count(dev.peerChipId);
-    }
-    if (flag == "host") {
-        return socketMap.count(dev.slotId) && socketMap.at(dev.slotId).count(dev.chipId);
-    }
-    if (flag == "peer") {
-        return socketMap.count(dev.peerSlotId) && socketMap.at(dev.peerSlotId).count(dev.peerChipId);
-    }
-    UBSE_LOG_ERROR << "Invalid flag value=" << flag << ", expected 'both', 'host' or 'peer'";
-    return false;
-}
-
-static void PrepareHostSocketMaps(std::unordered_map<uint32_t, std::string> &hostMap,
-                                  std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap)
+static void PrepareHostSocketMaps(std::unordered_map<uint32_t, std::string>& hostMap,
+                                  std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>>& socketMap)
 {
     auto allNodesInfo = UbseNodeController::GetInstance().GetAllNodes();
     if (allNodesInfo.empty()) {
@@ -603,7 +593,7 @@ static void PrepareHostSocketMaps(std::unordered_map<uint32_t, std::string> &hos
     ProcessNodeInfo(allNodesInfo, hostMap, socketMap);
 }
 
-static std::string MakeUndirectedKey(const PhysicalLink &dev)
+static std::string MakeUndirectedKey(const PhysicalLink& dev)
 {
     uint32_t slot1 = dev.slotId;
     uint32_t chip1 = dev.chipId;
@@ -635,9 +625,9 @@ static std::string MakeUndirectedKey(const PhysicalLink &dev)
 }
 
 static std::tuple<std::string, std::string, std::string, std::string> GetEndInfo(
-    uint32_t slot, uint32_t chip, uint32_t port, const std::string &ifName,
-    const std::unordered_map<uint32_t, std::string> &hostMap,
-    const std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap)
+    uint32_t slot, uint32_t chip, uint32_t port, const std::string& ifName,
+    const std::unordered_map<uint32_t, std::string>& hostMap,
+    const std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>>& socketMap)
 {
     std::string host = "-";
     std::string socket = "-";
@@ -656,9 +646,9 @@ static std::tuple<std::string, std::string, std::string, std::string> GetEndInfo
     return {host, socket, portStr, interface};
 }
 
-static void ProcessOneDeviceLink(const PhysicalLink &dev, const std::unordered_map<uint32_t, std::string> &hostMap,
-                                 std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> &socketMap,
-                                 std::map<std::string, CliPhysicalLink> &linkMap)
+static void ProcessOneDeviceLink(const PhysicalLink& dev, const std::unordered_map<uint32_t, std::string>& hostMap,
+                                 std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>>& socketMap,
+                                 std::map<std::string, CliPhysicalLink>& linkMap)
 {
     // 生成无向linkKey
     std::string linkKey = MakeUndirectedKey(dev);
@@ -706,7 +696,7 @@ static void ProcessOneDeviceLink(const PhysicalLink &dev, const std::unordered_m
 }
 
 // 从node字符串提取槽位号
-static int ExtractSlotFromNode(const std::string &nodeStr)
+static int ExtractSlotFromNode(const std::string& nodeStr)
 {
     if (nodeStr == "-")
         return 9999;
@@ -724,7 +714,7 @@ static int ExtractSlotFromNode(const std::string &nodeStr)
 }
 
 // 安全转换字符串为int
-static int SafeStoi(const std::string &str)
+static int SafeStoi(const std::string& str)
 {
     if (str == "-")
         return 9999;
@@ -735,7 +725,7 @@ static int SafeStoi(const std::string &str)
     }
 }
 
-static bool CompareCliPhysicalLinks(const CliPhysicalLink &a, const CliPhysicalLink &b)
+static bool CompareCliPhysicalLinks(const CliPhysicalLink& a, const CliPhysicalLink& b)
 {
     // 提取排序信息
     int aSlot = ExtractSlotFromNode(a.node);
@@ -768,20 +758,20 @@ static bool CompareCliPhysicalLinks(const CliPhysicalLink &a, const CliPhysicalL
     return a.linkId < b.linkId;
 }
 
-void TransToPhysicalLinks(std::vector<PhysicalLink> &devDirConnectVec, std::vector<CliPhysicalLink> &cpuTopoLinks)
+void TransToPhysicalLinks(std::vector<PhysicalLink>& devDirConnectVec, std::vector<CliPhysicalLink>& cpuTopoLinks)
 {
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> socketMap{};
     std::unordered_map<uint32_t, std::string> hostMap{};
     PrepareHostSocketMaps(hostMap, socketMap);
 
     std::map<std::string, CliPhysicalLink> linkMap;
-    for (const auto &dev : devDirConnectVec) {
+    for (const auto& dev : devDirConnectVec) {
         ProcessOneDeviceLink(dev, hostMap, socketMap, linkMap);
     }
 
     cpuTopoLinks.clear();
     cpuTopoLinks.reserve(linkMap.size());
-    for (const auto &pair : linkMap) {
+    for (const auto& pair : linkMap) {
         cpuTopoLinks.push_back(pair.second);
     }
 
@@ -789,7 +779,7 @@ void TransToPhysicalLinks(std::vector<PhysicalLink> &devDirConnectVec, std::vect
     std::sort(cpuTopoLinks.begin(), cpuTopoLinks.end(), CompareCliPhysicalLinks);
 }
 
-uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
+uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink>& cpuTopoLinks)
 {
     std::map<std::string, PhysicalLink> devDirConnectMap{};
     std::vector<PhysicalLink> devDirConnectVec{};
@@ -800,10 +790,10 @@ uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
     }
     auto allNodesInfo = UbseNodeController::GetInstance().GetAllNodes();
     std::unordered_set<uint32_t> activeNodeSlots;
-    for (const auto &nodePair : allNodesInfo) {
-        const auto &node = nodePair.second;
+    for (const auto& nodePair : allNodesInfo) {
+        const auto& node = nodePair.second;
 
-        if (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        if (IsOnlineStrict(node)) {
             activeNodeSlots.insert(node.slotId);
             UBSE_LOG_INFO << "Active node: slot=" << node.slotId << ", host=" << node.hostName;
         } else {
@@ -812,8 +802,8 @@ uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
         }
     }
     devDirConnectVec.reserve(devDirConnectMap.size());
-    for (const auto &pair : devDirConnectMap) {
-        const auto &link = pair.second;
+    for (const auto& pair : devDirConnectMap) {
+        const auto& link = pair.second;
         bool sourceActive = activeNodeSlots.count(link.slotId) > 0;
         bool peerActive = activeNodeSlots.count(link.peerSlotId) > 0;
         if (sourceActive || peerActive) {
@@ -824,7 +814,7 @@ uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
     if (devDirConnectVec.empty()) {
         return UBSE_OK;
     }
-    std::sort(devDirConnectVec.begin(), devDirConnectVec.end(), [](const PhysicalLink &lhs, const PhysicalLink &rhs) {
+    std::sort(devDirConnectVec.begin(), devDirConnectVec.end(), [](const PhysicalLink& lhs, const PhysicalLink& rhs) {
         if (lhs.slotId == rhs.slotId && lhs.chipId == rhs.chipId) {
             return lhs.portId < rhs.portId;
         } else if (lhs.slotId == rhs.slotId) {
@@ -837,7 +827,7 @@ uint32_t GetCpuTopoLink(std::vector<CliPhysicalLink> &cpuTopoLinks)
     return UBSE_OK;
 }
 
-uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage &request, const UbseRequestContext &context)
+uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage& request, const UbseRequestContext& context)
 {
     (void)request;
     UBSE_LOG_INFO << "enter UbseQueryCpuTopo.";
@@ -851,7 +841,7 @@ uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage &request, const Ubse
     if (cpuTopoLinks.empty()) {
         UBSE_LOG_INFO << "cpu topology links is empty.";
     } else {
-        for (const auto &link : cpuTopoLinks) {
+        for (const auto& link : cpuTopoLinks) {
             std::ostringstream oss;
             oss << link.node << "," << link.socketId << "," << link.portId << "," << link.interfaceName << ","
                 << link.peerNode << "," << link.peerSocketId << "," << link.peerPortId << "," << link.peerInterfaceName

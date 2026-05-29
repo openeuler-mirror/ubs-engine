@@ -25,15 +25,15 @@ namespace ubse::urmaController {
 class AsyncHandlerGuard {
 public:
     AsyncHandlerGuard();
-    explicit AsyncHandlerGuard(std::atomic<uint32_t> &cnt);
+    explicit AsyncHandlerGuard(std::atomic<uint32_t>& cnt);
 
     ~AsyncHandlerGuard();
 
-    AsyncHandlerGuard(const AsyncHandlerGuard &) = delete;
-    AsyncHandlerGuard &operator=(const AsyncHandlerGuard &) = delete;
+    AsyncHandlerGuard(const AsyncHandlerGuard&) = delete;
+    AsyncHandlerGuard& operator=(const AsyncHandlerGuard&) = delete;
 
 private:
-    std::atomic<uint32_t> &guardCnt;
+    std::atomic<uint32_t>& guardCnt;
 };
 
 class UbseUrmaControllerModule : public ubse::module::UbseModule {
@@ -45,6 +45,9 @@ public:
     ubse::common::def::UbseResult Start() override;
 
     void Stop() override;
+
+private:
+    bool enabled_ = true;
 };
 
 using UbseUrmaRetryTaskHandler = std::function<ubse::common::def::UbseResult()>;
@@ -58,7 +61,7 @@ using UbseUrmaRetryTaskHandler = std::function<ubse::common::def::UbseResult()>;
  * @details 该函数首先尝试执行任务，如果失败则注册定时器进行重试。任务执行成功后，定时器会被注销。
  *          该函数要求可重入，即多个线程可以同时调用该函数。
  */
-ubse::common::def::UbseResult HandleTaskWithRetry(const std::string &taskExecutor, const std::string &taskName,
+ubse::common::def::UbseResult HandleTaskWithRetry(const std::string& taskExecutor, const std::string& taskName,
                                                   uint32_t timerInterval, UbseUrmaRetryTaskHandler task);
 } // namespace ubse::urmaController
 

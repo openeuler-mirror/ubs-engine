@@ -23,21 +23,22 @@ void TestVmConfiguration::TearDown()
 
 TEST_F(TestVmConfiguration, CheckRangeUint)
 {
-    VmConfigRange<uint32_t> vmConfigRange = {
-        .defaultValue = 3,
-        .valueRange = { 1, 60 }
-    };
+    VmConfigRange<uint32_t> vmConfigRange = {.defaultValue = 3, .valueRange = {1, 60}};
     std::string fileName = "conf file";
     std::string confName = "testConf";
     uint32_t val;
 
-    VmConfiguration::GetConfigFunc<uint32_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-        uint32_t &_) -> uint32_t { return VM_ERROR; };
+    VmConfiguration::GetConfigFunc<uint32_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint32_t& _) -> uint32_t {
+        return VM_ERROR;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 0; // 0 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint32_t &_) -> uint32_t { return VM_OK; };
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint32_t& _) -> uint32_t {
+        return VM_OK;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
@@ -53,21 +54,22 @@ TEST_F(TestVmConfiguration, CheckRangeUint)
 
 TEST_F(TestVmConfiguration, CheckRangeULong)
 {
-    VmConfigRange<uint64_t> vmConfigRange = {
-        .defaultValue = 30,
-        .valueRange = { 20, 300 }
-    };
+    VmConfigRange<uint64_t> vmConfigRange = {.defaultValue = 30, .valueRange = {20, 300}};
     std::string fileName = "conf file";
     std::string confName = "testConf";
     uint64_t val;
 
-    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-        uint64_t &_) -> uint32_t { return VM_ERROR; };
+    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint64_t& _) -> uint32_t {
+        return VM_ERROR;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 10; // 10 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint64_t &_) -> uint32_t { return VM_OK; };
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint64_t& _) -> uint32_t {
+        return VM_OK;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
@@ -83,21 +85,22 @@ TEST_F(TestVmConfiguration, CheckRangeULong)
 
 TEST_F(TestVmConfiguration, CheckRangeFloat)
 {
-    VmConfigRange<float_t> vmConfigRange = {
-        .defaultValue = 2.0,
-        .valueRange = { 2.0, 5.0 }
-    };
+    VmConfigRange<float_t> vmConfigRange = {.defaultValue = 2.0, .valueRange = {2.0, 5.0}};
     std::string fileName = "conf file";
     std::string confName = "testConf";
     float_t val;
 
-    VmConfiguration::GetConfigFunc<float_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-        float_t &_) -> uint32_t { return VM_ERROR; };
+    VmConfiguration::GetConfigFunc<float_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                            float_t& _) -> uint32_t {
+        return VM_ERROR;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
     val = 1.5; // 1.5 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, float_t &_) -> uint32_t { return VM_OK; };
+    getFuncPtr = [](const std::string& file, const std::string& conf, float_t& _) -> uint32_t {
+        return VM_OK;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckRange(getFuncPtr, vmConfigRange, fileName, confName, val);
     EXPECT_EQ(vmConfigRange.defaultValue, val);
 
@@ -113,21 +116,22 @@ TEST_F(TestVmConfiguration, CheckRangeFloat)
 
 TEST_F(TestVmConfiguration, CheckEnumULong)
 {
-    VmConfigEnum<uint64_t> vmConfigEnum = {
-        .defaultValue = 2,
-        .valueEnum = { 2, 3, 4, 5, 7 }
-    };
+    VmConfigEnum<uint64_t> vmConfigEnum = {.defaultValue = 2, .valueEnum = {2, 3, 4, 5, 7}};
     std::string fileName = "conf file";
     std::string confName = "testConf";
     uint64_t val;
 
-    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string &file, const std::string &conf,
-        uint64_t &_) -> uint32_t { return VM_ERROR; };
+    VmConfiguration::GetConfigFunc<uint64_t> getFuncPtr = [](const std::string& file, const std::string& conf,
+                                                             uint64_t& _) -> uint32_t {
+        return VM_ERROR;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckEnum(getFuncPtr, vmConfigEnum, fileName, confName, val);
     EXPECT_EQ(vmConfigEnum.defaultValue, val);
 
     val = 1; // 1 小于取值范围
-    getFuncPtr = [](const std::string &file, const std::string &conf, uint64_t &_) -> uint32_t { return VM_OK; };
+    getFuncPtr = [](const std::string& file, const std::string& conf, uint64_t& _) -> uint32_t {
+        return VM_OK;
+    };
     VmConfiguration::GetInstance().GetConfigWithCheckEnum(getFuncPtr, vmConfigEnum, fileName, confName, val);
     EXPECT_EQ(vmConfigEnum.defaultValue, val);
 

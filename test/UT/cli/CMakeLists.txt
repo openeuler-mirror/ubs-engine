@@ -2,6 +2,7 @@ add_library(ubse_cli_ut STATIC
         ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_node_cmd_reg.cpp
         ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_mem_cmd_reg.cpp
         ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_cert_cmd_reg.cpp
+        ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_urma_cmd_reg.cpp
         test_mock_invoke.cpp
 )
 target_link_libraries(ubse_cli_ut PUBLIC

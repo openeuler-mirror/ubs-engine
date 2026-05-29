@@ -28,9 +28,9 @@ using namespace turbo::rmrs;
 * @param nodeId [in] 迁移策略执行节点
 * @param ucacheStrategy [out] 生成的UCache迁移策略
 */
-void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t> &pids,
-                                const std::vector<uint16_t> &remoteNumaIds, const std::string &nodeId,
-                                UCacheMigrationStrategyParam &ucacheStrategy);
+void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t>& pids,
+                                const std::vector<uint16_t>& remoteNumaIds, const std::string& nodeId,
+                                UCacheMigrationStrategyParam& ucacheStrategy);
 
 /*
 * @brief 发送UCache迁移策略到执行节点
@@ -39,31 +39,31 @@ void GenUCacheMigrationStrategy(int16_t localNumaId, const std::vector<pid_t> &p
 * @return #MEM_POOLING_OK 策略执行成功
 * @return #RMRS_ERROR 策略执行失败
 */
-uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam &ucacheStrategy, const std::string &srcNid);
+uint32_t SendUCacheMigrationStrategy(UCacheMigrationStrategyParam& ucacheStrategy, const std::string& srcNid);
 
 // 停止迁移策略
-void CheckAndStopUCacheMigration(const std::string &srcNid);
+void CheckAndStopUCacheMigration(const std::string& srcNid);
 
 // （从节点调用）查询本节点UCache迁移比例
 float GetLocalUcacheUsageRatio();
 
 // 更新UCache迁移比例
-void UpdateUcacheUsageRatio(const std::vector<pid_t> &pids, uint64_t borrowMemKB, const std::string &nodeId);
+void UpdateUcacheUsageRatio(const std::vector<pid_t>& pids, uint64_t borrowMemKB, const std::string& nodeId);
 
 // (从节点调用)记录本节点UCache迁移比例
 void UpdateLocalUcacheUsageRatio(float ratio);
 
 // 获取指定节点UCache迁移比例
-float GetUcacheUsageRatio(const std::string &nodeId);
+float GetUcacheUsageRatio(const std::string& nodeId);
 
 uint32_t InitUCacheOverCommitReg();
 
-void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void UCacheSendMigrationStrategyResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-void UCacheStopMigrationRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void UCacheStopMigrationResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
-void UpdateUCacheRatioRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
-void UpdateUCacheRatioResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode);
+void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void UCacheSendMigrationStrategyResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void UCacheStopMigrationRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void UCacheStopMigrationResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+void UpdateUCacheRatioRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void UpdateUCacheRatioResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 } // namespace mempooling::over_commit
 

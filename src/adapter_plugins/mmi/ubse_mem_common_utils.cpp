@@ -12,10 +12,10 @@
 
 #include "ubse_mem_common_utils.h"
 #include "ubse_common_def.h"
-#include "ubse_mem_def.h"
-#include "ubse_str_util.h"
-#include "ubse_security_module.h"
 #include "ubse_logger.h"
+#include "ubse_mem_def.h"
+#include "ubse_security_module.h"
+#include "ubse_str_util.h"
 
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -24,7 +24,7 @@ constexpr uint32_t HASH_MIN_VAL = 4;
 constexpr uint32_t HASH_RANGE_SIZE = 14;
 const size_t VALUE_COUNT = 2;
 
-void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des, uint64_t hpa)
+void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc& src, obmm_mem_desc* des, uint64_t hpa)
 {
     if (des != nullptr) {
         des->addr = hpa;
@@ -41,7 +41,7 @@ void CopyObmmMemDescValue(const ubse_mem_obmm_mem_desc &src, obmm_mem_desc *des,
     }
 }
 
-bool ParsePreOnlineEidStr(const std::string &eid, uint32_t &value)
+bool ParsePreOnlineEidStr(const std::string& eid, uint32_t& value)
 {
     uint64_t temp;
     std::vector<std::string> vec;
@@ -58,7 +58,7 @@ bool ParsePreOnlineEidStr(const std::string &eid, uint32_t &value)
     return true;
 }
 
-void CopyObmmMemDescValue(const obmm_mem_desc *src, ubse_mem_obmm_mem_desc &des)
+void CopyObmmMemDescValue(const obmm_mem_desc* src, ubse_mem_obmm_mem_desc& des)
 {
     if (src != nullptr) {
         des.addr = src->addr;
@@ -75,8 +75,8 @@ void CopyObmmMemDescValue(const obmm_mem_desc *src, ubse_mem_obmm_mem_desc &des)
     }
 }
 
-UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult &algoResult,
-    const std::string &name, UbseMemLocalObmmCustomMeta &customMeta, const bool isAppendNodeId)
+UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult& algoResult, const std::string& name,
+                                 UbseMemLocalObmmCustomMeta& customMeta, const bool isAppendNodeId)
 {
     if (algoResult.exportNumaInfos.size() < algoResult.importNumaInfos.size() ||
         TOPOLOGY_MAX_NUMA_PER_SOCKET < algoResult.exportNumaInfos.size()) {
@@ -93,6 +93,8 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult &algoResult,
         customMeta.importNumaIds[i] = algoResult.importNumaInfos[i].numaId;
         customMeta.importSocket = algoResult.importNumaInfos[0].socketId;
         importNodeId = algoResult.importNumaInfos[0].nodeId;
+        customMeta.chipId = algoResult.importNumaInfos[0].chipId;
+        customMeta.portId = algoResult.importNumaInfos[0].portId;
     }
     customMeta.attachSocket = algoResult.attachSocketId;
     customMeta.exportSocket = algoResult.exportNumaInfos[0].socketId;
@@ -110,13 +112,13 @@ UbseResult CopyUbseMemAlgoResult(const UbseMemAlgoResult &algoResult,
         strcpy_s(customMeta.importNodeId, UBSE_MEM_MAX_NODE_ID_LENGTH, importNodeId.c_str()) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO
                        << "StrCopy fail when copy requestNodeId and name to meta, name=" << customMeta.name
-                       << " requestNodeId=" << customMeta.exportNodeId << ", importNodeId=" << importNodeId;
+                       << ", requestNodeId=" << customMeta.exportNodeId << ", importNodeId=" << importNodeId;
         return UBSE_ERROR_INVAL;
     }
     return UBSE_OK;
 }
 
-UbseResult RmCommonUtils::GetFileFirstLine(const std::string &path, std::string &line)
+UbseResult RmCommonUtils::GetFileFirstLine(const std::string& path, std::string& line)
 {
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
@@ -137,7 +139,7 @@ UbseResult RmCommonUtils::GetFileFirstLine(const std::string &path, std::string 
     return UBSE_OK;
 }
 
-UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t> &regionNodeIndex, uint32_t &mask)
+UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t>& regionNodeIndex, uint32_t& mask)
 {
     for (int i = 0; i < regionNodeIndex.size(); i++) {
         if (regionNodeIndex[i] >= 0 && regionNodeIndex[i] < 32u) {
@@ -148,20 +150,20 @@ UbseResult SetMaskFromRegionIndex(const std::vector<uint32_t> &regionNodeIndex, 
             return UBSE_ERROR_INVAL;
         }
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit is " << mask;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Region bit=" << mask;
     return UBSE_OK;
 }
 
 // 映射到 [4, 17] 之间，确保唯一性,生成远端numa
-int RmCommonUtils::HashStringToByte(const std::string &input)
+int RmCommonUtils::HashStringToByte(const std::string& input)
 {
     static std::hash<std::string> hasher;
     const size_t hashValue = hasher(input);
     return HASH_MIN_VAL + (hashValue % HASH_RANGE_SIZE); // 这一步很容易重复
 }
 
-void RmCommonUtils::GenerateNodeChipPortStr(const NodeId &lendNodeId, const ChipId &lendChipId, const PortId &portId,
-                                            std::string &nodeChipPortStr)
+void RmCommonUtils::GenerateNodeChipPortStr(const NodeId& lendNodeId, const ChipId& lendChipId, const PortId& portId,
+                                            std::string& nodeChipPortStr)
 {
     std::ostringstream str;
     str << lendNodeId << "-" << lendChipId << "-" << portId;

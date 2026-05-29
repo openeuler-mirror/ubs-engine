@@ -14,14 +14,14 @@
 #include <cstring>
 #include <iomanip>
 #include <set>
+#include "ubse_logger.h"
 #include "mem_pool_config.h"
 #include "mem_pool_strategy.h"
 #include "mem_pool_strategy_impl.h"
-#include "ubse_logger.h"
 
 namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
-BResult MemPoolConfig::NormalizeStrategy(StrategyParam &param)
+BResult MemPoolConfig::NormalizeStrategy(StrategyParam& param)
 {
     // 借用决策参数归一化
     float borrowSum = param.borrowParam.wLatencyCost + param.borrowParam.wRegionBalanceCost +
@@ -53,8 +53,8 @@ BResult MemPoolConfig::NormalizeStrategy(StrategyParam &param)
 
 void MemPoolConfig::MapTopologyToIndices()
 {
-    for (auto &i : memMeshLoc2HostIdx) {
-        for (int &j : i) {
+    for (auto& i : memMeshLoc2HostIdx) {
+        for (int& j : i) {
             j = -1;
         }
     }

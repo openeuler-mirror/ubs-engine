@@ -25,7 +25,7 @@
 #include "ubse_ipc_log.h"
 
 namespace ubse::ipc {
-static inline bool SetNonBlocking(int fd, int &flags)
+static inline bool SetNonBlocking(int fd, int& flags)
 {
     flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0) {
@@ -47,7 +47,7 @@ static inline void RestoreFlags(int fd, int flags)
     }
 }
 
-static inline int ComputeRemainingTime(const std::chrono::steady_clock::time_point &deadline)
+static inline int ComputeRemainingTime(const std::chrono::steady_clock::time_point& deadline)
 {
     auto ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
@@ -63,7 +63,7 @@ static inline int ComputeRemainingTime(const std::chrono::steady_clock::time_poi
  * @param [OUT] outBytes 发送的字节数
  * @return 错误码
  */
-uint32_t TrySendOnce(int fd, const uint8_t *buf, uint32_t len, int remainingMs, uint32_t &outBytes)
+uint32_t TrySendOnce(int fd, const uint8_t* buf, uint32_t len, int remainingMs, uint32_t& outBytes)
 {
     outBytes = 0;
 
@@ -113,7 +113,7 @@ uint32_t TrySendOnce(int fd, const uint8_t *buf, uint32_t len, int remainingMs, 
  * @param [OUT] outBytes 接收的字节数
  * @return 错误码
  */
-uint32_t TryRecvOnce(int fd, uint8_t *buf, uint32_t len, int remainingMs, uint32_t &outBytes)
+uint32_t TryRecvOnce(int fd, uint8_t* buf, uint32_t len, int remainingMs, uint32_t& outBytes)
 {
     outBytes = 0;
 
@@ -159,7 +159,7 @@ uint32_t TryRecvOnce(int fd, uint8_t *buf, uint32_t len, int remainingMs, uint32
     return UBSE_IPC_ERROR_RECV_FAILED;
 }
 
-uint32_t SendMsgLoop(int fd, const uint8_t *ptr, uint32_t length, int timeoutMs)
+uint32_t SendMsgLoop(int fd, const uint8_t* ptr, uint32_t length, int timeoutMs)
 {
     uint32_t sentTotal = 0;
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
@@ -182,7 +182,7 @@ uint32_t SendMsgLoop(int fd, const uint8_t *ptr, uint32_t length, int timeoutMs)
     return UBSE_OK;
 }
 
-uint32_t RecvMsgLoop(int fd, uint8_t *ptr, uint32_t length, int timeoutMs)
+uint32_t RecvMsgLoop(int fd, uint8_t* ptr, uint32_t length, int timeoutMs)
 {
     uint32_t recvTotal = 0;
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
@@ -205,7 +205,7 @@ uint32_t RecvMsgLoop(int fd, uint8_t *ptr, uint32_t length, int timeoutMs)
     return UBSE_OK;
 }
 
-uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeoutMs)
+uint32_t SendMsg(int fd, const void* buffer, uint32_t length, int timeoutMs)
 {
     if (buffer == nullptr || length == 0 || timeoutMs < 0) {
         IPC_LOG_ERROR << "SendMsg invalid argument";
@@ -218,13 +218,13 @@ uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeoutMs)
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
 
-    const auto *ptr = static_cast<const uint8_t *>(buffer);
+    const auto* ptr = static_cast<const uint8_t*>(buffer);
     auto ret = SendMsgLoop(fd, ptr, length, timeoutMs);
     RestoreFlags(fd, flags);
     return ret;
 }
 
-uint32_t RecvMsg(int fd, void *buffer, uint32_t length, int timeoutMs)
+uint32_t RecvMsg(int fd, void* buffer, uint32_t length, int timeoutMs)
 {
     if (buffer == nullptr || length == 0 || timeoutMs < 0) {
         IPC_LOG_ERROR << "RecvMsg invalid argument";
@@ -236,7 +236,7 @@ uint32_t RecvMsg(int fd, void *buffer, uint32_t length, int timeoutMs)
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
 
-    auto *ptr = static_cast<uint8_t *>(buffer);
+    auto* ptr = static_cast<uint8_t*>(buffer);
     auto ret = RecvMsgLoop(fd, ptr, length, timeoutMs);
     RestoreFlags(fd, flags);
     return ret;

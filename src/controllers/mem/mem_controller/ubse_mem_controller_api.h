@@ -14,28 +14,35 @@
 #define UBSE_MEM_CONTROLLER_API_H
 
 #include <cstdint>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "ubse_error.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_node_controller.h"
 #include "api/ubse_mem_controller_addr_api.h"
 #include "api/ubse_mem_controller_fd_api.h"
 #include "api/ubse_mem_controller_numa_api.h"
 #include "api/ubse_mem_controller_share_api.h"
-#include "ubse_error.h"
-#include "ubse_mmi_interface.h"
-#include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::nodeController;
+using ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemState;
+using ubse::nodeController::UbseNodeClusterState;
+using ubse::nodeController::UbseNodeController;
 
-enum class BorrowedType {
+enum class BorrowedType
+{
     FD,
     NUMA,
     ADDR,
     SHARED
 };
+
+std::shared_mutex& GetDecoderImportMutex();
 
 /* *
  * 初始化
@@ -51,20 +58,20 @@ void UnInit();
 
 void Stop();
 
-uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string &importNodeId,
-                              UbseMemBorrowImportBaseObj &importObj, const bool isFdOrAddr = false);
+uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string& importNodeId,
+                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr = false);
 
-uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::string &importNodeId,
-                                 UbseMemNumaBorrowImportObj &importObj);
+uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::string& importNodeId,
+                                 UbseMemNumaBorrowImportObj& importObj);
 
 /* *
  * 启动时加载所有初始对象
  * @return 0: 成功; 非0: 失败
  */
-uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo &node);
+uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo& node);
 
 template <class ObjMap>
-void GetNoStateObjMap(ObjMap &objMap, const UbseMemState &state)
+void GetNoStateObjMap(ObjMap& objMap, const UbseMemState& state)
 {
     for (auto itreator = objMap.begin(); itreator != objMap.end();) {
         if (itreator->second.status.state == state) {
@@ -76,11 +83,11 @@ void GetNoStateObjMap(ObjMap &objMap, const UbseMemState &state)
 }
 
 template <class importType, class exportType>
-UbseResult GetStateByObjExist(const bool &importObjExist, const bool &exportObjExist, const importType &importObj,
-                              const exportType &exportObj)
+UbseResult GetStateByObjExist(const bool& importObjExist, const bool& exportObjExist, const importType& importObj,
+                              const exportType& exportObj)
 {
     if (!importObjExist && exportObjExist) {
-        if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
+        if (exportObj.status.state == UbseMemState::UBSE_MEM_EXPORT_DESTROYED) {
             return UBSE_ERR_NOT_EXIST;
         }
         auto nodeId = exportObj.importNodeId;

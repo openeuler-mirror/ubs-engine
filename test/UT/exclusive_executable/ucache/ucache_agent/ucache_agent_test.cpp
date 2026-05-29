@@ -10,12 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ucache_agent.h"
+#include "agent_task_processor.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
-#include "ucache_agent.h"
-#include "ucache_error.h"
 #include "turbo_runtime_manager.h"
-#include "agent_task_processor.h"
+#include "ucache_error.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -42,12 +42,8 @@ void mockDeinit(){};
 // 测试 Init 函数成功情况
 TEST_F(UcacheAgentTest, InitSuccessTest)
 {
-    MOCKER(turbo::ucache::TurboRuntimeManager::Init)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
-    MOCKER(InitAgentTaskProcessor)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
+    MOCKER(turbo::ucache::TurboRuntimeManager::Init).stubs().will(returnValue(UCACHE_OK));
+    MOCKER(InitAgentTaskProcessor).stubs().will(returnValue(UCACHE_OK));
 
     uint32_t result = Init();
 
@@ -57,12 +53,8 @@ TEST_F(UcacheAgentTest, InitSuccessTest)
 // 测试 Init 函数 TurboRuntimeManager 初始化失败
 TEST_F(UcacheAgentTest, InitTurboRuntimeManagerFailTest)
 {
-    MOCKER(turbo::ucache::TurboRuntimeManager::Init)
-        .stubs()
-        .will(returnValue(UCACHE_ERR));
-    MOCKER(InitAgentTaskProcessor)
-        .stubs()
-        .will(returnValue(UCACHE_OK));
+    MOCKER(turbo::ucache::TurboRuntimeManager::Init).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER(InitAgentTaskProcessor).stubs().will(returnValue(UCACHE_OK));
 
     uint32_t result = Init();
 
@@ -72,12 +64,8 @@ TEST_F(UcacheAgentTest, InitTurboRuntimeManagerFailTest)
 // 测试 Init 函数 AgentTaskProcessor 初始化失败
 TEST_F(UcacheAgentTest, InitAgentTaskProcessorFailTest)
 {
-    MOCKER(turbo::ucache::TurboRuntimeManager::Init)
-        .stubs()
-        .will(returnValue(UCACHE_ERR));
-    MOCKER(InitAgentTaskProcessor)
-        .stubs()
-        .will(returnValue(UCACHE_ERR));
+    MOCKER(turbo::ucache::TurboRuntimeManager::Init).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER(InitAgentTaskProcessor).stubs().will(returnValue(UCACHE_ERR));
 
     uint32_t result = Init();
 

@@ -17,18 +17,19 @@
 #include "ubse_mem_controller.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::mem::controller;
+using ubse::mem::controller::UbseMemResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemOptResultSimpo : public UbseBaseMessage {
 public:
     UbseMemOptResultSimpo() = default;
-    explicit UbseMemOptResultSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemOptResultSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    void SetResp(const UbseMemResult &input)
+    void SetResp(const UbseMemResult& input)
     {
         resp_ = input;
     }

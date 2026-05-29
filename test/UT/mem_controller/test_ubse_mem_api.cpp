@@ -19,7 +19,6 @@
 
 #include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_mem_api.cpp"
 #include "ubse_mem_api.h"
 #include "ubse_mem_buffer_convert.h"
 #include "ubse_mem_controller_api_agent.h"
@@ -31,6 +30,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.h"
 #include "ubse_thread_pool_module.h"
+#include "ubse_mem_api.cpp"
 
 namespace ubse::mem_controller::ut {
 using namespace usbe::mem::api;
@@ -145,8 +145,7 @@ TEST_F(TestUbseMemApi, UbseServerFdList)
         .stubs()
         .will(returnValue(UBSE_ERROR_SERIALIZE_FAILED))
         .then(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdListDispatch(req, context),
-              UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemControllerDispatcher::UbseMemFdListDispatch(req, context), UBSE_ERROR_SERIALIZE_FAILED);
 
     MOCKER_CPP(&UbseMemFdDescListPack)
         .stubs()
@@ -230,10 +229,10 @@ TEST_F(TestUbseMemApi, UbseServerNumaGet)
     }
 }
 
-void SetupTestObjects(UbseMemFdBorrowReq &fdBorrowReq, UbseMemNumaBorrowReq &numaBorrowReq,
-                      UbseMemFdBorrowImportObj &fdImportObj, UbseMemFdBorrowExportObj &fdExportObj,
-                      UbseMemNumaBorrowImportObj &numaImportObj, UbseMemNumaBorrowExportObj &numaExportObj,
-                      NodeMemDebtInfoMap &nodeDebtInfoMap)
+void SetupTestObjects(UbseMemFdBorrowReq& fdBorrowReq, UbseMemNumaBorrowReq& numaBorrowReq,
+                      UbseMemFdBorrowImportObj& fdImportObj, UbseMemFdBorrowExportObj& fdExportObj,
+                      UbseMemNumaBorrowImportObj& numaImportObj, UbseMemNumaBorrowExportObj& numaExportObj,
+                      NodeMemDebtInfoMap& nodeDebtInfoMap)
 {
     UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
 
@@ -305,7 +304,7 @@ TEST_F(TestUbseMemApi, UbseClusterList)
     staticNodes.push_back(staticNodeInfo2);
 
     // 设置模拟对象
-    auto &nodeController = ubse::nodeController::UbseNodeController::GetInstance();
+    auto& nodeController = ubse::nodeController::UbseNodeController::GetInstance();
     MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(dynamicNodes));
     MOCKER_CPP(&UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(staticNodes));
 
@@ -321,7 +320,7 @@ TEST_F(TestUbseMemApi, UbseClusterList)
     EXPECT_EQ(nodeList[3].slotId, 4);
 }
 
-void MockUbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList)
+void MockUbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo>& nodeList)
 {
     ubse::nodeController::UbseNodeInfo info;
     nodeList.emplace_back(info);
@@ -539,9 +538,7 @@ TEST_F(TestUbseMemApi, QueryNumaStateHandler)
     // 场景 3: 名称无效
     MOCKER_CPP(&ubse::mem::util::CheckName).reset();
     MOCKER_CPP(&ubse::mem::util::CheckName).stubs().will(returnValue(true));
-    MOCKER(ubse::mem::controller::UbseMemNumaGet)
-        .stubs()
-        .will(returnValue(UBSE_ERR_NOT_EXIST));
+    MOCKER(ubse::mem::controller::UbseMemNumaGet).stubs().will(returnValue(UBSE_ERR_NOT_EXIST));
     EXPECT_EQ(UbseMemApi::QueryNumaStateHandler(request, context), UBSE_IPC_ERROR_QUERY_NUMA_NOT_EXIST);
 
     // 场景 4: 获取 NUMA 信息失败
@@ -602,7 +599,7 @@ TEST_F(TestUbseMemApi, UbseBorrowDetailsSendResponseToClient)
 
     // 场景 2: 获取 API 服务模块失败
 
-    uint8_t *data = new (std::nothrow) uint8_t[1];
+    uint8_t* data = new (std::nothrow) uint8_t[1];
     uint32_t size = 1;
     ubseResponsePtr = new (std::nothrow) UbseMemDebtInfoPartialFetchRes(data, size);
     EXPECT_EQ(UbseBorrowDetailsSendResponseToClient(ubseResponsePtr, context), UBSE_ERROR_NULLPTR);
@@ -670,7 +667,7 @@ TEST_F(TestUbseMemApi, UbseCliShmAttachDispatch_WhenExecutorFailed)
     auto executor = UbseTaskExecutor::Create("ubseMemController", 1, 1);
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()> &))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmAttachDispatch(req, context), UBSE_ERROR);
@@ -805,7 +802,7 @@ TEST_F(TestUbseMemApi, UbseCliShmCreateDispatch_WhenExecutorFailed)
     executor->Start();
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()> &))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmCreateDispatch(req, context), UBSE_ERROR);
@@ -927,7 +924,7 @@ TEST_F(TestUbseMemApi, UbseCliShmDetachDispatch_WhenExecutorFailed)
     executor->Start();
     MOCKER(ubse::mem::util::GetExecutor).reset();
     MOCKER(ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
-    MOCKER_CPP(&UbseTaskExecutor::Execute, bool(UbseTaskExecutor::*)(const std::function<void()> &))
+    MOCKER_CPP(&UbseTaskExecutor::Execute, bool (UbseTaskExecutor::*)(const std::function<void()>&))
         .stubs()
         .will(returnValue(false));
     EXPECT_EQ(UbseMemApi::UbseCliShmDetachDispatch(req, context), UBSE_ERROR);

@@ -20,19 +20,17 @@ namespace ubse::config {
  * @param[out] configValue: 配置参数的值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetUInt(const std::string &section, const std::string &configKey, uint32_t &configValue)
+uint32_t UbseGetUInt(const std::string& section, const std::string& configKey, uint32_t& configValue)
 {
-    const std::map<std::string, uint32_t> mockData = {
-        {
-            {"ucache.export.interval", 10},
-            {"strategy.maxActionSize", 10},
-            {"bottleneck.threshold", 10},
-            {"bottleneck.short.size", 10},
-            {"bottleneck.short.threshold", 10},
-            {"bottleneck.long.size", 10},
-            {"bottleneck.long.threshold", 10},
-        }
-    };
+    const std::map<std::string, uint32_t> mockData = {{
+        {"ucache.export.interval", 10},
+        {"strategy.maxActionSize", 10},
+        {"bottleneck.threshold", 10},
+        {"bottleneck.short.size", 10},
+        {"bottleneck.short.threshold", 10},
+        {"bottleneck.long.size", 10},
+        {"bottleneck.long.threshold", 10},
+    }};
     auto it = mockData.find(configKey);
     if (it != mockData.end()) {
         configValue = it->second;
@@ -47,7 +45,7 @@ uint32_t UbseGetUInt(const std::string &section, const std::string &configKey, u
  * @param[out] configValue: 配置参数的值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetFloat(const std::string &section, const std::string &configKey, float &configValue)
+uint32_t UbseGetFloat(const std::string& section, const std::string& configKey, float& configValue)
 {
     if (configKey == "strategy.balanceThreshold") {
         configValue = 1.5f;
@@ -62,11 +60,11 @@ uint32_t UbseGetFloat(const std::string &section, const std::string &configKey, 
  * @param[out] configValue: 配置参数的值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGeStr(const std::string &section, const std::string &configKey, std::string &configValue)
+uint32_t UbseGeStr(const std::string& section, const std::string& configKey, std::string& configValue)
 {
     if (configKey == "nodeId") {
         configValue = "NODE11347";
-    }  else if (configKey == "nodeIds") {
+    } else if (configKey == "nodeIds") {
         configValue = "NODE11347,NODE11348";
     }
     return 0;
@@ -79,7 +77,7 @@ uint32_t UbseGeStr(const std::string &section, const std::string &configKey, std
  * @param[out] configValue: 配置参数的值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetBool(const std::string &section, const std::string &configKey, bool &configValue)
+uint32_t UbseGetBool(const std::string& section, const std::string& configKey, bool& configValue)
 {
     return 0;
 }
@@ -91,7 +89,7 @@ uint32_t UbseGetBool(const std::string &section, const std::string &configKey, b
  * @param[out] configValue: 配置参数的值
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetULong(const std::string &section, const std::string &configKey, uint64_t &configValue)
+uint32_t UbseGetULong(const std::string& section, const std::string& configKey, uint64_t& configValue)
 {
     if (configKey == "strategy.borrow_size") {
         configValue = 0x40000000UL;
@@ -104,7 +102,7 @@ uint32_t UbseGetULong(const std::string &section, const std::string &configKey, 
  * @param[in] section: 配置节
  * @param[out] string, 返回配置事件ID
  */
-void RackGetConfigEventId(const std::string &section, std::string &eventId)
+void RackGetConfigEventId(const std::string& section, std::string& eventId)
 {
     return;
 }

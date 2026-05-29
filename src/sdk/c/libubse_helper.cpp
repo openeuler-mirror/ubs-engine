@@ -16,9 +16,9 @@
 #include <securec.h>
 #include <iostream>
 
-#include "ubs_engine.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_log.h"
+#include "ubs_engine.h"
 
 const uint64_t UBSE_SHM_MEM_ALIGNMENT = 2UL * 1024 * 1024;
 const int UBSE_MEM_PRIV_DATA_ONE_PTH_SHIFT = 15;
@@ -33,12 +33,12 @@ const int UBSE_MEM_PRIV_DATA_RSV0_SHIFT = 0;
 
 // 定义解包上下文结构体
 typedef struct {
-    const uint8_t *ptr; // 当前指针位置
+    const uint8_t* ptr; // 当前指针位置
     uint32_t remaining; // 剩余缓冲区长度
 } unpack_ctx_t;
 
 // 安全读取基本类型并更新上下文
-static ubs_error_t unpack_uint8(unpack_ctx_t *ctx, uint8_t *value)
+static ubs_error_t unpack_uint8(unpack_ctx_t* ctx, uint8_t* value)
 {
     if (ctx->remaining < sizeof(uint8_t)) {
         IPC_LOG_ERROR << "Buffer is too small to unpack uint8_t";
@@ -50,53 +50,53 @@ static ubs_error_t unpack_uint8(unpack_ctx_t *ctx, uint8_t *value)
     return UBS_SUCCESS;
 }
 
-static ubs_error_t unpack_uint32(unpack_ctx_t *ctx, uint32_t *value)
+static ubs_error_t unpack_uint32(unpack_ctx_t* ctx, uint32_t* value)
 {
     if (ctx->remaining < sizeof(uint32_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const uint32_t *>(ctx->ptr);
+    *value = *reinterpret_cast<const uint32_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(uint32_t);
     ctx->remaining -= sizeof(uint32_t);
     return UBS_SUCCESS;
 }
 
-static ubs_error_t unpack_int32(unpack_ctx_t *ctx, int32_t *value)
+static ubs_error_t unpack_int32(unpack_ctx_t* ctx, int32_t* value)
 {
     if (ctx->remaining < sizeof(int32_t)) {
         IPC_LOG_ERROR << "Buffer is too small to unpack int32_t";
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const int32_t *>(ctx->ptr);
+    *value = *reinterpret_cast<const int32_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(int32_t);
     ctx->remaining -= sizeof(int32_t);
     return UBS_SUCCESS;
 }
 
-static ubs_error_t unpack_uint64(unpack_ctx_t *ctx, uint64_t *value)
+static ubs_error_t unpack_uint64(unpack_ctx_t* ctx, uint64_t* value)
 {
     if (ctx->remaining < sizeof(uint64_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const uint64_t *>(ctx->ptr);
+    *value = *reinterpret_cast<const uint64_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(uint64_t);
     ctx->remaining -= sizeof(uint64_t);
     return UBS_SUCCESS;
 }
 
-static ubs_error_t unpack_int64(unpack_ctx_t *ctx, int64_t *value)
+static ubs_error_t unpack_int64(unpack_ctx_t* ctx, int64_t* value)
 {
     if (ctx->remaining < sizeof(int64_t)) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    *value = *reinterpret_cast<const int64_t *>(ctx->ptr);
+    *value = *reinterpret_cast<const int64_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     ctx->ptr += sizeof(int64_t);
     ctx->remaining -= sizeof(int64_t);
     return UBS_SUCCESS;
 }
 
 // 安全读取字符串并更新上下文
-static ubs_error_t unpack_string(unpack_ctx_t *ctx, char *dest, uint32_t max_len)
+static ubs_error_t unpack_string(unpack_ctx_t* ctx, char* dest, uint32_t max_len)
 {
     uint32_t str_len;
     ubs_error_t ret = unpack_uint32(ctx, &str_len);
@@ -118,49 +118,49 @@ static ubs_error_t unpack_string(unpack_ctx_t *ctx, char *dest, uint32_t max_len
     return UBS_SUCCESS;
 }
 
-void pack_uint8(uint8_t **ptr, uint8_t value)
+void pack_uint8(uint8_t** ptr, uint8_t value)
 {
     **ptr = value;
     *ptr += sizeof(uint8_t);
 }
 
-void pack_uint16(uint8_t **ptr, uint16_t value)
+void pack_uint16(uint8_t** ptr, uint16_t value)
 {
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint16_t *>(*ptr) = value;
+    *reinterpret_cast<uint16_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint16_t);
 }
 
-void pack_uint32(uint8_t **ptr, uint32_t value)
+void pack_uint32(uint8_t** ptr, uint32_t value)
 {
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint32_t *>(*ptr) = value;
+    *reinterpret_cast<uint32_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint32_t);
 }
 
-void pack_int32(uint8_t **ptr, int32_t value)
+void pack_int32(uint8_t** ptr, int32_t value)
 {
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<int32_t *>(*ptr) = value;
+    *reinterpret_cast<int32_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(int32_t);
 }
 
-void pack_uint64(uint8_t **ptr, uint64_t value)
+void pack_uint64(uint8_t** ptr, uint64_t value)
 {
     if (*ptr == nullptr) {
         return;
     }
-    *reinterpret_cast<uint64_t *>(*ptr) = value;
+    *reinterpret_cast<uint64_t*>(*ptr) = value; // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     *ptr += sizeof(uint64_t);
 }
 
-ubs_error_t pack_string(uint8_t **ptr, const char *str, uint32_t max_len)
+ubs_error_t pack_string(uint8_t** ptr, const char* str, uint32_t max_len)
 {
     uint32_t len = str ? strlen(str) : 0;
     if (len > max_len) {
@@ -215,7 +215,7 @@ ubs_error_t ubse_map_daemon_error(uint32_t daemon_errno)
     return UBS_ENGINE_ERR_INTERNAL; // 内部错误
 }
 
-ubs_error_t ubse_mem_create_req_is_valid(const char *name, uint64_t size)
+ubs_error_t ubse_mem_create_req_is_valid(const char* name, uint64_t size)
 {
     // 检查size参数
     if (size < UBS_MEM_MIN_SIZE) {
@@ -226,7 +226,7 @@ ubs_error_t ubse_mem_create_req_is_valid(const char *name, uint64_t size)
     return ubse_mem_name_is_valid(name);
 }
 
-ubs_error_t ubse_mem_create_with_lender_req_is_valid(const char *name, const ubs_mem_lender_t *lender,
+ubs_error_t ubse_mem_create_with_lender_req_is_valid(const char* name, const ubs_mem_lender_t* lender,
                                                      uint32_t lender_cnt)
 {
     // 检查lender参数
@@ -248,7 +248,7 @@ ubs_error_t ubse_mem_create_with_lender_req_is_valid(const char *name, const ubs
     return ubse_mem_name_is_valid(name);
 }
 
-ubs_error_t ubse_mem_name_is_valid(const char *name)
+ubs_error_t ubse_mem_name_is_valid(const char* name)
 {
     // 检查name参数
     if (name == nullptr) {
@@ -271,7 +271,7 @@ ubs_error_t ubse_mem_name_is_valid(const char *name)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_create_with_candidate_req_is_valid(const char *name, uint64_t size, const uint32_t *slot_ids,
+ubs_error_t ubse_mem_create_with_candidate_req_is_valid(const char* name, uint64_t size, const uint32_t* slot_ids,
                                                         uint32_t slot_cnt)
 {
     // size范围校验
@@ -307,7 +307,7 @@ ubs_error_t ubse_size_is_valid(const uint64_t size)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_nodes_t_is_valid(const ubs_mem_nodes_t *region)
+ubs_error_t ubse_mem_nodes_t_is_valid(const ubs_mem_nodes_t* region)
 {
     if (region == nullptr) {
         return UBS_SUCCESS;
@@ -319,8 +319,8 @@ ubs_error_t ubse_mem_nodes_t_is_valid(const ubs_mem_nodes_t *region)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_create_req_valid(const char *name, uint64_t size, const ubs_mem_nodes_t *region,
-                                          const ubs_mem_nodes_t *provider)
+ubs_error_t ubse_mem_shm_create_req_valid(const char* name, uint64_t size, const ubs_mem_nodes_t* region,
+                                          const ubs_mem_nodes_t* provider)
 {
     // name
     ubs_error_t ret = ubse_mem_name_is_valid(name);
@@ -352,8 +352,8 @@ ubs_error_t ubse_mem_shm_create_req_valid(const char *name, uint64_t size, const
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_create_with_lender_req_valid(const char *name,
-                                                      const ubs_mem_nodes_t *region, const ubs_mem_lender_t *lender)
+ubs_error_t ubse_mem_shm_create_with_lender_req_valid(const char* name, const ubs_mem_nodes_t* region,
+                                                      const ubs_mem_lender_t* lender)
 {
     ubs_error_t ret = ubse_mem_name_is_valid(name);
     if (ret != UBS_SUCCESS) {
@@ -380,7 +380,7 @@ ubs_error_t ubse_mem_shm_create_with_lender_req_valid(const char *name,
     return UBS_SUCCESS;
 }
 
-size_t ubse_mem_fd_create_req_calc_size(const char *name)
+size_t ubse_mem_fd_create_req_calc_size(const char* name)
 {
     size_t len = 0;
 
@@ -403,7 +403,7 @@ size_t ubse_mem_fd_create_req_calc_size(const char *name)
     return len;
 }
 
-ubs_error_t ubse_string_pack(const char *str, size_t max_len, uint8_t *buffer)
+ubs_error_t ubse_string_pack(const char* str, size_t max_len, uint8_t* buffer)
 {
     ubs_error_t ret = pack_string(&buffer, str, max_len);
     if (ret != UBS_SUCCESS) {
@@ -412,10 +412,10 @@ ubs_error_t ubse_string_pack(const char *str, size_t max_len, uint8_t *buffer)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_fd_create_req_pack(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                        ubs_mem_distance_t distance, uint8_t *buffer)
+ubs_error_t ubse_mem_fd_create_req_pack(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                        ubs_mem_distance_t distance, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -435,7 +435,7 @@ ubs_error_t ubse_mem_fd_create_req_pack(const char *name, uint64_t size, const u
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_lender_pack(uint8_t *ptr, const ubs_mem_lender_t *lender, uint32_t lender_cnt)
+ubs_error_t ubse_mem_lender_pack(uint8_t* ptr, const ubs_mem_lender_t* lender, uint32_t lender_cnt)
 {
     // 打包lender_cnt
     pack_uint32(&ptr, lender_cnt);
@@ -449,11 +449,11 @@ ubs_error_t ubse_mem_lender_pack(uint8_t *ptr, const ubs_mem_lender_t *lender, u
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_fd_create_with_lender_req_pack(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                                    const ubs_mem_lender_t *lender, uint32_t lender_cnt,
-                                                    uint8_t *buffer)
+ubs_error_t ubse_mem_fd_create_with_lender_req_pack(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                                    const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                                    uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -471,11 +471,11 @@ ubs_error_t ubse_mem_fd_create_with_lender_req_pack(const char *name, const ubs_
     return ubse_mem_lender_pack(ptr, lender, lender_cnt);
 }
 
-ubs_error_t ubse_mem_fd_create_with_candidate_req_pack(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner,
-                                                       mode_t mode, const uint32_t *slot_ids, uint32_t slot_cnt,
-                                                       uint8_t *buffer)
+ubs_error_t ubse_mem_fd_create_with_candidate_req_pack(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner,
+                                                       mode_t mode, const uint32_t* slot_ids, uint32_t slot_cnt,
+                                                       uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -499,10 +499,10 @@ ubs_error_t ubse_mem_fd_create_with_candidate_req_pack(const char *name, uint64_
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_fd_permission_req_pack(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                            uint8_t *buffer)
+ubs_error_t ubse_mem_fd_permission_req_pack(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                            uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -518,9 +518,9 @@ ubs_error_t ubse_mem_fd_permission_req_pack(const char *name, const ubs_mem_fd_o
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_numa_create_req_pack(const char *name, uint64_t size, ubs_mem_distance_t distance, uint8_t *buffer)
+ubs_error_t ubse_mem_numa_create_req_pack(const char* name, uint64_t size, ubs_mem_distance_t distance, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -534,10 +534,10 @@ ubs_error_t ubse_mem_numa_create_req_pack(const char *name, uint64_t size, ubs_m
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_numa_create_with_lender_req_pack(const char *name, const ubs_mem_lender_t *lender,
-                                                      uint32_t lender_cnt, uint8_t *buffer)
+ubs_error_t ubse_mem_numa_create_with_lender_req_pack(const char* name, const ubs_mem_lender_t* lender,
+                                                      uint32_t lender_cnt, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -548,10 +548,10 @@ ubs_error_t ubse_mem_numa_create_with_lender_req_pack(const char *name, const ub
     return ubse_mem_lender_pack(ptr, lender, lender_cnt);
 }
 
-ubs_error_t ubse_mem_numa_create_with_candidate_req_pack(const char *name, uint64_t size, const uint32_t *slot_ids,
-                                                         uint32_t slot_cnt, uint8_t *buffer)
+ubs_error_t ubse_mem_numa_create_with_candidate_req_pack(const char* name, uint64_t size, const uint32_t* slot_ids,
+                                                         uint32_t slot_cnt, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -568,7 +568,7 @@ ubs_error_t ubse_mem_numa_create_with_candidate_req_pack(const char *name, uint6
     }
     return UBS_SUCCESS;
 }
-void pack_mem_shm_region(uint8_t **ptr, const ubs_mem_nodes_t *region)
+void pack_mem_shm_region(uint8_t** ptr, const ubs_mem_nodes_t* region)
 {
     if (region == nullptr) {
         pack_uint32(ptr, 0);
@@ -583,11 +583,11 @@ void pack_mem_shm_region(uint8_t **ptr, const ubs_mem_nodes_t *region)
     }
 }
 
-ubs_error_t ubse_mem_shm_create_req_pack(const char *name, uint64_t size, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN],
-                                         uint64_t flag, const ubs_mem_nodes_t *region, const ubs_mem_nodes_t *provider,
-                                         uint8_t *buffer)
+ubs_error_t ubse_mem_shm_create_req_pack(const char* name, uint64_t size, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN],
+                                         uint64_t flag, const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider,
+                                         uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -613,12 +613,12 @@ ubs_error_t ubse_mem_shm_create_req_pack(const char *name, uint64_t size, uint8_
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_create_with_affinity_req_pack(const char *name, uint64_t size,
+ubs_error_t ubse_mem_shm_create_with_affinity_req_pack(const char* name, uint64_t size,
                                                        uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
-                                                       const ubs_mem_nodes_t *region, const ubs_mem_nodes_t *provider,
-                                                       uint8_t *buffer, uint32_t affinity_socket_id)
+                                                       const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider,
+                                                       uint8_t* buffer, uint32_t affinity_socket_id)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -644,10 +644,10 @@ ubs_error_t ubse_mem_shm_create_with_affinity_req_pack(const char *name, uint64_
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_attach_req_pack(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                         uint8_t *buffer)
+ubs_error_t ubse_mem_shm_attach_req_pack(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                         uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -663,9 +663,9 @@ ubs_error_t ubse_mem_shm_attach_req_pack(const char *name, const ubs_mem_fd_owne
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_common_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_shm_common_pack(const char* name, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -675,27 +675,27 @@ ubs_error_t ubse_mem_shm_common_pack(const char *name, uint8_t *buffer)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_get_req_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_shm_get_req_pack(const char* name, uint8_t* buffer)
 {
     return ubse_mem_shm_common_pack(name, buffer);
 }
 
-ubs_error_t ubse_mem_shm_detach_req_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_shm_detach_req_pack(const char* name, uint8_t* buffer)
 {
     return ubse_mem_shm_common_pack(name, buffer);
 }
 
-ubs_error_t ubse_mem_shm_delete_req_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_shm_delete_req_pack(const char* name, uint8_t* buffer)
 {
     return ubse_mem_shm_common_pack(name, buffer);
 }
 
-ubs_error_t ubse_mem_memid_status_get_req_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_memid_status_get_req_pack(const char* name, uint8_t* buffer)
 {
     return ubse_mem_shm_common_pack(name, buffer);
 }
 
-ubs_error_t ubse_base_node_unpack_inner(unpack_ctx_t *ctx, ubs_topo_node_t *node)
+ubs_error_t ubse_base_node_unpack_inner(unpack_ctx_t* ctx, ubs_topo_node_t* node)
 {
     ubs_error_t ret;
     // 解包基本字段
@@ -703,14 +703,14 @@ ubs_error_t ubse_base_node_unpack_inner(unpack_ctx_t *ctx, ubs_topo_node_t *node
         IPC_LOG_ERROR << "Failed to unpack slot_id";
         return ret;
     }
-    for (uint32_t &i : node->socket_id) {
+    for (uint32_t& i : node->socket_id) {
         if ((ret = unpack_uint32(ctx, &i)) != UBS_SUCCESS) {
             IPC_LOG_ERROR << "Failed to unpack socket_id";
             return ret;
         }
     }
-    for (auto &socket : node->numa_ids) {
-        for (auto &numa_id : socket) {
+    for (auto& socket : node->numa_ids) {
+        for (auto& numa_id : socket) {
             if ((ret = unpack_uint32(ctx, &numa_id)) != UBS_SUCCESS) {
                 IPC_LOG_ERROR << "Failed to unpack numa_id";
                 return ret;
@@ -721,14 +721,14 @@ ubs_error_t ubse_base_node_unpack_inner(unpack_ctx_t *ctx, ubs_topo_node_t *node
     return unpack_string(ctx, node->host_name, HOST_NAME_MAX - 1);
 }
 
-ubs_error_t ubse_node_unpack_inner(unpack_ctx_t *ctx, ubs_topo_node_t *node)
+ubs_error_t ubse_node_unpack_inner(unpack_ctx_t* ctx, ubs_topo_node_t* node)
 {
     ubs_error_t ret = ubse_base_node_unpack_inner(ctx, node);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack base node info";
         return ret;
     }
-    for (ubs_topo_ip_address_t &ip_addr : node->ips) {
+    for (ubs_topo_ip_address_t& ip_addr : node->ips) {
         if ((ret = unpack_int32(ctx, &ip_addr.af)) != UBS_SUCCESS) {
             IPC_LOG_ERROR << "Failed to unpack af";
             return ret;
@@ -737,11 +737,13 @@ ubs_error_t ubse_node_unpack_inner(unpack_ctx_t *ctx, ubs_topo_node_t *node)
             IPC_LOG_ERROR << "Failed to unpack ipv4";
             return ret;
         }
-        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t *>(&ip_addr.ipv6.__in6_u))) != UBS_SUCCESS) {
+        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u))) !=
+            UBS_SUCCESS) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             IPC_LOG_ERROR << "Failed to unpack ipv6";
             return ret;
         }
-        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t *>(&ip_addr.ipv6.__in6_u) + 1)) != UBS_SUCCESS) {
+        if ((ret = unpack_uint64(ctx, reinterpret_cast<uint64_t*>(&ip_addr.ipv6.__in6_u) + 1)) !=
+            UBS_SUCCESS) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             IPC_LOG_ERROR << "Failed to unpack ipv6";
             return ret;
         }
@@ -757,7 +759,7 @@ inline ubs_mem_stage uint32_to_ubs_mem_stage(uint32_t value) noexcept
     return ubs_mem_stage::UBSE_END; // 默认值
 }
 
-ubs_error_t ubse_state_unpack_inner(unpack_ctx_t *ctx, ubs_mem_fd_desc_t *fd_desc)
+ubs_error_t ubse_state_unpack_inner(unpack_ctx_t* ctx, ubs_mem_fd_desc_t* fd_desc)
 {
     uint32_t state_value;
     auto ret = unpack_uint32(ctx, &state_value);
@@ -768,7 +770,7 @@ ubs_error_t ubse_state_unpack_inner(unpack_ctx_t *ctx, ubs_mem_fd_desc_t *fd_des
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_fd_desc_unpack_inner(unpack_ctx_t *ctx, ubs_mem_fd_desc_t *fd_desc)
+ubs_error_t ubse_mem_fd_desc_unpack_inner(unpack_ctx_t* ctx, ubs_mem_fd_desc_t* fd_desc)
 {
     // 解包name
     ubs_error_t ret = unpack_string(ctx, fd_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
@@ -828,7 +830,7 @@ ubs_error_t ubse_mem_fd_desc_unpack_inner(unpack_ctx_t *ctx, ubs_mem_fd_desc_t *
     return UBS_SUCCESS;
 }
 
-size_t ubse_string_calc_size(const char *str, size_t max_len)
+size_t ubse_string_calc_size(const char* str, size_t max_len)
 {
     size_t len = 0;
     len += sizeof(uint32_t);
@@ -840,7 +842,7 @@ size_t ubse_string_calc_size(const char *str, size_t max_len)
     return len;
 }
 
-size_t ubse_mem_fd_create_with_lender_req_calc_size(const char *name, uint32_t lender_cnt)
+size_t ubse_mem_fd_create_with_lender_req_calc_size(const char* name, uint32_t lender_cnt)
 {
     size_t len = 0;
 
@@ -863,7 +865,7 @@ size_t ubse_mem_fd_create_with_lender_req_calc_size(const char *name, uint32_t l
     return len;
 }
 
-size_t ubse_mem_fd_create_with_candidate_req_calc_size(const char *name, uint32_t slot_cnt)
+size_t ubse_mem_fd_create_with_candidate_req_calc_size(const char* name, uint32_t slot_cnt)
 {
     size_t len = 0;
 
@@ -882,7 +884,7 @@ size_t ubse_mem_fd_create_with_candidate_req_calc_size(const char *name, uint32_
     return len;
 }
 
-size_t ubse_mem_fd_permission_req_calc_size(const char *name)
+size_t ubse_mem_fd_permission_req_calc_size(const char* name)
 {
     size_t len = 0;
 
@@ -897,7 +899,7 @@ size_t ubse_mem_fd_permission_req_calc_size(const char *name)
     return len;
 }
 
-size_t ubse_mem_numa_create_req_calc_size(const char *name)
+size_t ubse_mem_numa_create_req_calc_size(const char* name)
 {
     size_t len = 0;
 
@@ -912,7 +914,7 @@ size_t ubse_mem_numa_create_req_calc_size(const char *name)
     return len;
 }
 
-size_t ubse_mem_numa_create_with_lender_req_calc_size(const char *name, uint32_t lender_cnt)
+size_t ubse_mem_numa_create_with_lender_req_calc_size(const char* name, uint32_t lender_cnt)
 {
     size_t len = 0;
 
@@ -929,7 +931,7 @@ size_t ubse_mem_numa_create_with_lender_req_calc_size(const char *name, uint32_t
     return len;
 }
 
-size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char *name, uint32_t slot_cnt)
+size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char* name, uint32_t slot_cnt)
 {
     size_t len = 0;
 
@@ -942,10 +944,10 @@ size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char *name, uint3
     return len;
 }
 
- size_t ubse_mem_get_memid_by_import_req_calc_size(const char *name)
+size_t ubse_mem_get_memid_by_import_req_calc_size(const char* name)
 {
     size_t len = 0;
- 
+
     // 1. 计算name参数的长度
     len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
     // 2. 计算import_memid参数长度
@@ -953,8 +955,8 @@ size_t ubse_mem_numa_create_with_candidate_req_calc_size(const char *name, uint3
     return len;
 }
 
-size_t ubse_mem_shm_create_req_calc_size(const char *name, const ubs_mem_nodes_t *region,
-                                         const ubs_mem_nodes_t *provider)
+size_t ubse_mem_shm_create_req_calc_size(const char* name, const ubs_mem_nodes_t* region,
+                                         const ubs_mem_nodes_t* provider)
 {
     size_t len = 0;
     // 1. 计算name参数的长度
@@ -982,8 +984,8 @@ size_t ubse_mem_shm_create_req_calc_size(const char *name, const ubs_mem_nodes_t
     return len;
 }
 
-size_t ubse_mem_shm_create_with_affinity_req_calc_size(const char *name, const ubs_mem_nodes_t *region,
-                                                       const ubs_mem_nodes_t *provider)
+size_t ubse_mem_shm_create_with_affinity_req_calc_size(const char* name, const ubs_mem_nodes_t* region,
+                                                       const ubs_mem_nodes_t* provider)
 {
     size_t len = ubse_mem_shm_create_req_calc_size(name, region, provider);
     // 计算affinity_socket_id参数长度
@@ -998,8 +1000,8 @@ size_t ubse_mem_shm_create_with_affinity_req_calc_size(const char *name, const u
  * 4. 计算region参数长度
  * 5. 计算ubse_mem_lender_t长度
  */
-size_t ubse_mem_shm_create_with_lender_req_calc_size(const char *name, const ubs_mem_nodes_t *region,
-                                                     const ubs_mem_lender_t *lender)
+size_t ubse_mem_shm_create_with_lender_req_calc_size(const char* name, const ubs_mem_nodes_t* region,
+                                                     const ubs_mem_lender_t* lender)
 {
     size_t len = 0;
     len += ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1);
@@ -1015,12 +1017,12 @@ size_t ubse_mem_shm_create_with_lender_req_calc_size(const char *name, const ubs
     return len;
 }
 
-ubs_error_t ubse_mem_shm_create_with_lender_req_build(ubse_api_buffer_t *ptr, const char *name,
+ubs_error_t ubse_mem_shm_create_with_lender_req_build(ubse_api_buffer_t* ptr, const char* name,
                                                       uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
-                                                      const ubs_mem_nodes_t *region, const ubs_mem_lender_t *lender)
+                                                      const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender)
 {
     const size_t total_len = ubse_mem_shm_create_with_lender_req_calc_size(name, region, lender);
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm create with affinity request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -1028,8 +1030,7 @@ ubs_error_t ubse_mem_shm_create_with_lender_req_build(ubse_api_buffer_t *ptr, co
     }
     ptr->length = total_len;
     // 打包
-    auto ret = ubse_mem_shm_create_with_lender_req_pack(name, usr_info, flag, region, lender,
-                                                        ptr->buffer);
+    auto ret = ubse_mem_shm_create_with_lender_req_pack(name, usr_info, flag, region, lender, ptr->buffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack shm create with lender request, error" << ret;
         ubse_api_buffer_free(ptr);
@@ -1039,12 +1040,11 @@ ubs_error_t ubse_mem_shm_create_with_lender_req_build(ubse_api_buffer_t *ptr, co
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_create_with_lender_req_pack(const char *name, const uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN],
-                                                     uint64_t flag, const ubs_mem_nodes_t *region,
-                                                     const ubs_mem_lender_t *lender,
-                                                     uint8_t *buffer)
+ubs_error_t ubse_mem_shm_create_with_lender_req_pack(const char* name, const uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN],
+                                                     uint64_t flag, const ubs_mem_nodes_t* region,
+                                                     const ubs_mem_lender_t* lender, uint8_t* buffer)
 {
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to pack name. Error code: " << ret;
@@ -1065,7 +1065,7 @@ ubs_error_t ubse_mem_shm_create_with_lender_req_pack(const char *name, const uin
     return UBS_SUCCESS;
 }
 
-size_t ubse_mem_shm_attach_req_calc_size(const char *name)
+size_t ubse_mem_shm_attach_req_calc_size(const char* name)
 {
     size_t len = 0;
 
@@ -1082,11 +1082,11 @@ size_t ubse_mem_shm_attach_req_calc_size(const char *name)
     return len;
 }
 
-ubs_error_t ubse_mem_shm_create_req_build(ubse_api_buffer_t *ptr, const char *name, const ubs_mem_nodes_t *region,
-                                          const ubs_mem_nodes_t *provider)
+ubs_error_t ubse_mem_shm_create_req_build(ubse_api_buffer_t* ptr, const char* name, const ubs_mem_nodes_t* region,
+                                          const ubs_mem_nodes_t* provider)
 {
     const size_t total_len = ubse_mem_shm_create_req_calc_size(name, region, provider);
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm create request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -1096,11 +1096,11 @@ ubs_error_t ubse_mem_shm_create_req_build(ubse_api_buffer_t *ptr, const char *na
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_create_with_affinity_req_build(ubse_api_buffer_t *ptr, const char *name,
-                                                        const ubs_mem_nodes_t *region, const ubs_mem_nodes_t *provider)
+ubs_error_t ubse_mem_shm_create_with_affinity_req_build(ubse_api_buffer_t* ptr, const char* name,
+                                                        const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
 {
     const size_t total_len = ubse_mem_shm_create_with_affinity_req_calc_size(name, region, provider);
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm create with affinity request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -1110,10 +1110,10 @@ ubs_error_t ubse_mem_shm_create_with_affinity_req_build(ubse_api_buffer_t *ptr, 
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_attach_req_build(ubse_api_buffer_t *ptr, const char *name)
+ubs_error_t ubse_mem_shm_attach_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
     size_t total_len = ubse_mem_shm_attach_req_calc_size(name);
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm attach request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -1122,10 +1122,10 @@ ubs_error_t ubse_mem_shm_attach_req_build(ubse_api_buffer_t *ptr, const char *na
     ptr->length = total_len;
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_common_req_build(ubse_api_buffer_t *ptr, const char *name)
+ubs_error_t ubse_mem_shm_common_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
     size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1); // name
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm common request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -1134,29 +1134,29 @@ ubs_error_t ubse_mem_shm_common_req_build(ubse_api_buffer_t *ptr, const char *na
     ptr->length = total_len;
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_get_req_build(ubse_api_buffer_t *ptr, const char *name)
+ubs_error_t ubse_mem_shm_get_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
     return ubse_mem_shm_common_req_build(ptr, name);
 }
 
-ubs_error_t ubse_mem_shm_detach_req_build(ubse_api_buffer_t *ptr, const char *name)
+ubs_error_t ubse_mem_shm_detach_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
     return ubse_mem_shm_common_req_build(ptr, name);
 }
 
-ubs_error_t ubse_mem_shm_delete_req_build(ubse_api_buffer_t *ptr, const char *name)
+ubs_error_t ubse_mem_shm_delete_req_build(ubse_api_buffer_t* ptr, const char* name)
 {
     return ubse_mem_shm_common_req_build(ptr, name);
 }
 
-ubs_error_t ubse_mem_fd_desc_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_fd_desc_t *fd_desc)
+ubs_error_t ubse_mem_fd_desc_unpack(const uint8_t* buffer, uint32_t len, ubs_mem_fd_desc_t* fd_desc)
 {
     unpack_ctx_t ctx = {buffer, len};
     return ubse_mem_fd_desc_unpack_inner(&ctx, fd_desc);
 }
 
-ubs_error_t ubse_mem_fd_desc_list_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_fd_desc_t **fd_descs,
-                                         uint32_t *fd_desc_cnt)
+ubs_error_t ubse_mem_fd_desc_list_unpack(const uint8_t* buffer, uint32_t len, ubs_mem_fd_desc_t** fd_descs,
+                                         uint32_t* fd_desc_cnt)
 {
     unpack_ctx_t ctx = {buffer, len};
     *fd_descs = nullptr;
@@ -1178,7 +1178,7 @@ ubs_error_t ubse_mem_fd_desc_list_unpack(const uint8_t *buffer, uint32_t len, ub
         return UBS_ERR_OUT_OF_RANGE;
     }
     // 分配fd数组
-    *fd_descs = (ubs_mem_fd_desc_t *)calloc(*fd_desc_cnt, sizeof(ubs_mem_fd_desc_t));
+    *fd_descs = (ubs_mem_fd_desc_t*)calloc(*fd_desc_cnt, sizeof(ubs_mem_fd_desc_t));
     if (!(*fd_descs)) {
         IPC_LOG_ERROR << "Failed to allocate memory for fd_desc list";
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1196,7 +1196,7 @@ ubs_error_t ubse_mem_fd_desc_list_unpack(const uint8_t *buffer, uint32_t len, ub
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_numa_desc_unpack_inner(unpack_ctx_t *ctx, ubs_mem_numa_desc_t *numa_desc)
+ubs_error_t ubse_mem_numa_desc_unpack_inner(unpack_ctx_t* ctx, ubs_mem_numa_desc_t* numa_desc)
 {
     // 解包name
     ubs_error_t ret = unpack_string(ctx, numa_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
@@ -1237,7 +1237,7 @@ ubs_error_t ubse_mem_numa_desc_unpack_inner(unpack_ctx_t *ctx, ubs_mem_numa_desc
     }
     numa_desc->mem_stage = uint32_to_ubs_mem_stage(state_value);
     // 解包usrInfo
-    for (uint8_t &i : numa_desc->usrInfo) {
+    for (uint8_t& i : numa_desc->usrInfo) {
         if ((ret = unpack_uint8(ctx, &i)) != UBS_SUCCESS) {
             IPC_LOG_ERROR << "Failed to unpack socket_id";
             return ret;
@@ -1246,14 +1246,14 @@ ubs_error_t ubse_mem_numa_desc_unpack_inner(unpack_ctx_t *ctx, ubs_mem_numa_desc
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_numa_desc_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_numa_desc_t *numa_desc)
+ubs_error_t ubse_mem_numa_desc_unpack(const uint8_t* buffer, uint32_t len, ubs_mem_numa_desc_t* numa_desc)
 {
     unpack_ctx_t ctx = {buffer, len};
     return ubse_mem_numa_desc_unpack_inner(&ctx, numa_desc);
 }
 
-ubs_error_t ubse_mem_numa_desc_list_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_numa_desc_t **numa_descs,
-                                           uint32_t *numa_desc_cnt)
+ubs_error_t ubse_mem_numa_desc_list_unpack(const uint8_t* buffer, uint32_t len, ubs_mem_numa_desc_t** numa_descs,
+                                           uint32_t* numa_desc_cnt)
 {
     unpack_ctx_t ctx = {buffer, len};
     *numa_descs = nullptr;
@@ -1275,7 +1275,7 @@ ubs_error_t ubse_mem_numa_desc_list_unpack(const uint8_t *buffer, uint32_t len, 
         return UBS_ERR_OUT_OF_RANGE;
     }
     // 分配fd数组
-    *numa_descs = (ubs_mem_numa_desc_t *)calloc(*numa_desc_cnt, sizeof(ubs_mem_numa_desc_t));
+    *numa_descs = (ubs_mem_numa_desc_t*)calloc(*numa_desc_cnt, sizeof(ubs_mem_numa_desc_t));
     if (!(*numa_descs)) {
         IPC_LOG_ERROR << "Failed to allocate memory for numa_desc list";
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1293,7 +1293,7 @@ ubs_error_t ubse_mem_numa_desc_list_unpack(const uint8_t *buffer, uint32_t len, 
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_node_cpu_topo_unpack(unpack_ctx_t *ctx, ubs_topo_link_t *cpu_link)
+ubs_error_t ubse_node_cpu_topo_unpack(unpack_ctx_t* ctx, ubs_topo_link_t* cpu_link)
 {
     // 解包slot_id
     ubs_error_t ret = unpack_uint32(ctx, &cpu_link->slot_id);
@@ -1334,7 +1334,7 @@ ubs_error_t ubse_node_cpu_topo_unpack(unpack_ctx_t *ctx, ubs_topo_link_t *cpu_li
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_node_numa_mem_unpack(unpack_ctx_t *ctx, ubs_mem_numastat_t *numa_mem)
+ubs_error_t ubse_node_numa_mem_unpack(unpack_ctx_t* ctx, ubs_mem_numastat_t* numa_mem)
 {
     ubs_error_t ret;
     // 解包slot_id
@@ -1398,7 +1398,7 @@ ubs_error_t ubse_node_numa_mem_unpack(unpack_ctx_t *ctx, ubs_mem_numastat_t *num
     return unpack_uint64(ctx, &numa_mem->mem_lend);
 }
 
-ubs_error_t ubse_node_list_unpack(const uint8_t *buffer, uint32_t len, ubs_topo_node_t **node_list, uint32_t *node_cnt)
+ubs_error_t ubse_node_list_unpack(const uint8_t* buffer, uint32_t len, ubs_topo_node_t** node_list, uint32_t* node_cnt)
 {
     unpack_ctx_t ctx = {buffer, len};
     *node_list = nullptr;
@@ -1420,7 +1420,7 @@ ubs_error_t ubse_node_list_unpack(const uint8_t *buffer, uint32_t len, ubs_topo_
         return UBS_ERR_OUT_OF_RANGE;
     }
     // 分配节点数组
-    *node_list = (ubs_topo_node_t *)calloc(*node_cnt, sizeof(ubs_topo_node_t));
+    *node_list = (ubs_topo_node_t*)calloc(*node_cnt, sizeof(ubs_topo_node_t));
     if (!(*node_list)) {
         IPC_LOG_ERROR << "Failed to allocate memory for node_list list";
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1438,13 +1438,13 @@ ubs_error_t ubse_node_list_unpack(const uint8_t *buffer, uint32_t len, ubs_topo_
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_node_unpack(const uint8_t *buffer, uint32_t len, ubs_topo_node_t *node)
+ubs_error_t ubse_node_unpack(const uint8_t* buffer, uint32_t len, ubs_topo_node_t* node)
 {
     unpack_ctx_t ctx = {buffer, len};
     return ubse_node_unpack_inner(&ctx, node);
 }
 
-ubs_error_t ubse_mem_shm_import_desc_unpack(unpack_ctx_t *ctx, ubs_mem_shm_import_desc_t *import_desc)
+ubs_error_t ubse_mem_shm_import_desc_unpack(unpack_ctx_t* ctx, ubs_mem_shm_import_desc_t* import_desc)
 {
     // 解包memid_cnt
     auto ret = unpack_uint32(ctx, &import_desc->memid_cnt);
@@ -1481,7 +1481,7 @@ ubs_error_t ubse_mem_shm_import_desc_unpack(unpack_ctx_t *ctx, ubs_mem_shm_impor
     import_desc->mem_stage = uint32_to_ubs_mem_stage(state_value);
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_desc_export_unpack(unpack_ctx_t *ctx, ubs_mem_shm_desc_t *shm_desc)
+ubs_error_t ubse_mem_shm_desc_export_unpack(unpack_ctx_t* ctx, ubs_mem_shm_desc_t* shm_desc)
 {
     // 解包name
     ubs_error_t ret = unpack_string(ctx, shm_desc->name, UBS_MEM_MAX_NAME_LENGTH - 1);
@@ -1508,7 +1508,7 @@ ubs_error_t ubse_mem_shm_desc_export_unpack(unpack_ctx_t *ctx, ubs_mem_shm_desc_
         return ret;
     }
     // 解包 usr_info
-    for (unsigned char &i : shm_desc->usr_info) {
+    for (unsigned char& i : shm_desc->usr_info) {
         ret = unpack_uint8(ctx, &i);
         if (ret != UBS_SUCCESS) {
             IPC_LOG_ERROR << "Failed to unpack usr_info. Error code: " << ret;
@@ -1517,7 +1517,7 @@ ubs_error_t ubse_mem_shm_desc_export_unpack(unpack_ctx_t *ctx, ubs_mem_shm_desc_
     }
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_desc_unpack(unpack_ctx_t *ctx, ubs_mem_shm_desc_t *shm_desc)
+ubs_error_t ubse_mem_shm_desc_unpack(unpack_ctx_t* ctx, ubs_mem_shm_desc_t* shm_desc)
 {
     // 解包import_desc_cnt
     auto ret = unpack_uint32(ctx, &shm_desc->import_desc_cnt);
@@ -1554,8 +1554,8 @@ ubs_error_t ubse_mem_shm_desc_unpack(unpack_ctx_t *ctx, ubs_mem_shm_desc_t *shm_
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_node_cpu_topo_list_unpack(const uint8_t *buffer, uint32_t len, ubs_topo_link_t **cpu_links,
-                                           uint32_t *cpu_link_cnt)
+ubs_error_t ubse_node_cpu_topo_list_unpack(const uint8_t* buffer, uint32_t len, ubs_topo_link_t** cpu_links,
+                                           uint32_t* cpu_link_cnt)
 {
     unpack_ctx_t ctx = {buffer, len};
     *cpu_links = nullptr;
@@ -1577,7 +1577,7 @@ ubs_error_t ubse_node_cpu_topo_list_unpack(const uint8_t *buffer, uint32_t len, 
         return UBS_ERR_OUT_OF_RANGE;
     }
     // 分配内存
-    *cpu_links = (ubs_topo_link_t *)calloc(*cpu_link_cnt, sizeof(ubs_topo_link_t));
+    *cpu_links = (ubs_topo_link_t*)calloc(*cpu_link_cnt, sizeof(ubs_topo_link_t));
     if (*cpu_links == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for cpu_link list";
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1595,7 +1595,7 @@ ubs_error_t ubse_node_cpu_topo_list_unpack(const uint8_t *buffer, uint32_t len, 
     return UBS_SUCCESS;
 }
 
-ubs_mem_shm_desc_t *ubse_mem_shm_desc_alloc(uint8_t *buffer, uint32_t length)
+ubs_mem_shm_desc_t* ubse_mem_shm_desc_alloc(uint8_t* buffer, uint32_t length)
 {
     if (buffer == nullptr) {
         return nullptr;
@@ -1606,18 +1606,19 @@ ubs_mem_shm_desc_t *ubse_mem_shm_desc_alloc(uint8_t *buffer, uint32_t length)
     unpack_uint32(&ctx, &import_desc_cnt);
 
     if (import_desc_cnt == 0) {
-        return static_cast<ubs_mem_shm_desc_t *>(malloc(sizeof(ubs_mem_shm_desc_t)));
+        return static_cast<ubs_mem_shm_desc_t*>(malloc(sizeof(ubs_mem_shm_desc_t)));
     }
-    ubs_mem_shm_desc_t *shm_desc = static_cast<ubs_mem_shm_desc_t *>(
+    ubs_mem_shm_desc_t* shm_desc = static_cast<ubs_mem_shm_desc_t*>(
         malloc(sizeof(ubs_mem_shm_desc_t) + import_desc_cnt * sizeof(ubs_mem_shm_import_desc_t)));
     if (shm_desc) {
         shm_desc->import_desc_cnt = import_desc_cnt;
-        shm_desc->import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t *>(shm_desc + 1);
+        shm_desc->import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(
+            shm_desc + 1); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     }
     return shm_desc;
 }
 
-ubs_error_t ubse_mem_shm_attach_resp_unpack(uint8_t *buffer, uint32_t length, ubs_mem_shm_desc_t **shm_desc_ptr)
+ubs_error_t ubse_mem_shm_attach_resp_unpack(uint8_t* buffer, uint32_t length, ubs_mem_shm_desc_t** shm_desc_ptr)
 {
     // 分配内存
     *shm_desc_ptr = ubse_mem_shm_desc_alloc(buffer, length);
@@ -1636,7 +1637,7 @@ ubs_error_t ubse_mem_shm_attach_resp_unpack(uint8_t *buffer, uint32_t length, ub
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_get_resp_unpack(uint8_t *buffer, uint32_t length, ubs_mem_shm_desc_t **shm_desc_ptr)
+ubs_error_t ubse_mem_shm_get_resp_unpack(uint8_t* buffer, uint32_t length, ubs_mem_shm_desc_t** shm_desc_ptr)
 {
     // 分配内存
     *shm_desc_ptr = ubse_mem_shm_desc_alloc(buffer, length);
@@ -1656,14 +1657,14 @@ ubs_error_t ubse_mem_shm_get_resp_unpack(uint8_t *buffer, uint32_t length, ubs_m
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_list_extract_counts(unpack_ctx_t *ctx, uint32_t fd_desc_cnt, uint32_t **import_desc_counts_ptr)
+ubs_error_t ubse_mem_shm_list_extract_counts(unpack_ctx_t* ctx, uint32_t fd_desc_cnt, uint32_t** import_desc_counts_ptr)
 {
     if (fd_desc_cnt == 0) {
         *import_desc_counts_ptr = nullptr;
         return UBS_SUCCESS;
     }
     // 分配import_desc_counts数组
-    const auto import_desc_counts = static_cast<uint32_t *>(malloc(fd_desc_cnt * sizeof(uint32_t)));
+    const auto import_desc_counts = static_cast<uint32_t*>(malloc(fd_desc_cnt * sizeof(uint32_t)));
     if (!import_desc_counts) {
         return UBS_ERR_OUT_OF_MEMORY;
     }
@@ -1683,8 +1684,8 @@ ubs_error_t ubse_mem_shm_list_extract_counts(unpack_ctx_t *ctx, uint32_t fd_desc
     *import_desc_counts_ptr = import_desc_counts;
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t *import_desc_counts,
-                                           ubs_mem_shm_desc_t **shm_descs_ptr)
+ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t* import_desc_counts,
+                                           ubs_mem_shm_desc_t** shm_descs_ptr)
 {
     if (shm_desc_cnt == 0) {
         IPC_LOG_WARN << "fd desc cnt is 0";
@@ -1700,7 +1701,8 @@ ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t
     }
 
     // 2. 分配一整块内存
-    uint8_t *memory_ptr = reinterpret_cast<uint8_t *>(malloc(total_size));
+    uint8_t* memory_ptr =
+        reinterpret_cast<uint8_t*>(malloc(total_size)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     if (memory_ptr == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for shm_descs";
         *shm_descs_ptr = nullptr;
@@ -1708,13 +1710,15 @@ ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t
     }
 
     // 3. 设置 shm_descs
-    ubs_mem_shm_desc_t *shm_descs = reinterpret_cast<ubs_mem_shm_desc_t *>(memory_ptr);
-    uint8_t *current_pos = memory_ptr + shm_desc_cnt * sizeof(ubs_mem_shm_desc_t);
+    ubs_mem_shm_desc_t* shm_descs =
+        reinterpret_cast<ubs_mem_shm_desc_t*>(memory_ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    uint8_t* current_pos = memory_ptr + shm_desc_cnt * sizeof(ubs_mem_shm_desc_t);
 
     // 4. 初始化每个 desc 的 import_desc 指针
     for (size_t i = 0; i < shm_desc_cnt; i++) {
         if (import_desc_counts[i] != 0) {
-            shm_descs[i].import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t *>(current_pos);
+            shm_descs[i].import_desc = reinterpret_cast<ubs_mem_shm_import_desc_t*>(
+                current_pos); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             current_pos += import_desc_counts[i] * sizeof(ubs_mem_shm_import_desc_t);
         } else {
             shm_descs[i].import_desc = nullptr;
@@ -1725,7 +1729,7 @@ ubs_error_t ubse_mem_shm_list_alloc_memory(uint32_t shm_desc_cnt, const uint32_t
     *shm_descs_ptr = shm_descs;
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_list_unpack_data(unpack_ctx_t *ctx, ubs_mem_shm_desc_t *shm_descs_ptr, uint32_t shm_desc_cnt)
+ubs_error_t ubse_mem_shm_list_unpack_data(unpack_ctx_t* ctx, ubs_mem_shm_desc_t* shm_descs_ptr, uint32_t shm_desc_cnt)
 {
     for (size_t i = 0; i < shm_desc_cnt; i++) {
         // 解包shm_desc
@@ -1737,17 +1741,17 @@ ubs_error_t ubse_mem_shm_list_unpack_data(unpack_ctx_t *ctx, ubs_mem_shm_desc_t 
     }
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_list_resp_unpack(uint8_t *buffer, uint32_t length,
-                                          ubs_mem_shm_desc_t **shm_descs_ptr, // 改为二级指针
-                                          uint32_t *shm_desc_cnt)
+ubs_error_t ubse_mem_shm_list_resp_unpack(uint8_t* buffer, uint32_t length,
+                                          ubs_mem_shm_desc_t** shm_descs_ptr, // 改为二级指针
+                                          uint32_t* shm_desc_cnt)
 {
     if (!buffer || !shm_descs_ptr || !shm_desc_cnt) {
         return UBS_ERR_INVALID_ARG;
     }
 
     unpack_ctx_t ctx = {buffer, length};
-    uint32_t *import_desc_counts = nullptr;
-    ubs_mem_shm_desc_t *shm_descs = nullptr;
+    uint32_t* import_desc_counts = nullptr;
+    ubs_mem_shm_desc_t* shm_descs = nullptr;
 
     // 1. 解包数组长度
     ubs_error_t ret = unpack_uint32(&ctx, shm_desc_cnt);
@@ -1795,8 +1799,8 @@ ubs_error_t ubse_mem_shm_list_resp_unpack(uint8_t *buffer, uint32_t length,
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, ubs_mem_numastat_t **numa_mem_list,
-                                           uint32_t *numa_mem_cnt)
+ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t* buffer, uint32_t len, ubs_mem_numastat_t** numa_mem_list,
+                                           uint32_t* numa_mem_cnt)
 {
     unpack_ctx_t ctx = {buffer, len};
     *numa_mem_list = nullptr;
@@ -1819,7 +1823,7 @@ ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, 
         return UBS_ERR_OUT_OF_RANGE;
     }
     // 分配内存
-    *numa_mem_list = (ubs_mem_numastat_t *)calloc(*numa_mem_cnt, sizeof(ubs_mem_numastat_t));
+    *numa_mem_list = (ubs_mem_numastat_t*)calloc(*numa_mem_cnt, sizeof(ubs_mem_numastat_t));
     if (*numa_mem_list == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for numa mem list";
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1836,10 +1840,10 @@ ubs_error_t ubse_node_numa_mem_list_unpack(const uint8_t *buffer, uint32_t len, 
     }
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_fault_get_req_build(const char *name, ubse_api_buffer_t *ptr)
+ubs_error_t ubse_mem_shm_fault_get_req_build(const char* name, ubse_api_buffer_t* ptr)
 {
     size_t total_len = ubse_string_calc_size(name, UBS_MEM_MAX_NAME_LENGTH - 1); // name
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         ubse_api_buffer_free(ptr);
         return UBS_ERR_NULL_POINTER;
@@ -1847,12 +1851,12 @@ ubs_error_t ubse_mem_shm_fault_get_req_build(const char *name, ubse_api_buffer_t
     ptr->length = total_len;
     return UBS_SUCCESS;
 }
-ubs_error_t ubse_mem_shm_fault_get_req_pack(const char *name, uint8_t *buffer)
+ubs_error_t ubse_mem_shm_fault_get_req_pack(const char* name, uint8_t* buffer)
 {
     if (buffer == nullptr) {
         return UBS_ERR_NULL_POINTER;
     }
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -1862,7 +1866,7 @@ ubs_error_t ubse_mem_shm_fault_get_req_pack(const char *name, uint8_t *buffer)
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_mem_shm_fault_get_resp_unpack(uint8_t *buffer, uint32_t len, ubs_mem_memids_fault_t *shm_status)
+ubs_error_t ubse_mem_shm_fault_get_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_memids_fault_t* shm_status)
 {
     unpack_ctx_t ctx = {buffer, len};
 
@@ -1895,8 +1899,7 @@ ubs_error_t ubse_mem_shm_fault_get_resp_unpack(uint8_t *buffer, uint32_t len, ub
     return UBS_SUCCESS;
 }
 
-
-ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t *ctx, ubs_urma_dev_t *urma_dev)
+ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t* ctx, ubs_urma_dev_t* urma_dev)
 {
     ubs_error_t ret = UBS_SUCCESS;
     ret = unpack_string(ctx, urma_dev->name, UBS_URMA_NAME_MAX);
@@ -1909,7 +1912,7 @@ ubs_error_t ubse_urma_subdev_unpack(unpack_ctx_t *ctx, ubs_urma_dev_t *urma_dev)
     return ret;
 }
 
-ubs_error_t ubse_urma_dev_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_t **urma_devices, uint32_t *urma_cnt)
+ubs_error_t ubse_urma_dev_unpack(const uint8_t* buffer, uint32_t len, ubs_urma_dev_t** urma_devices, uint32_t* urma_cnt)
 {
     if (buffer == nullptr) {
         return UBS_ERR_NULL_POINTER;
@@ -1927,7 +1930,7 @@ ubs_error_t ubse_urma_dev_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_d
         return UBS_SUCCESS;
     }
 
-    *urma_devices = (ubs_urma_dev_t *)calloc(*urma_cnt, sizeof(ubs_urma_dev_t));
+    *urma_devices = (ubs_urma_dev_t*)calloc(*urma_cnt, sizeof(ubs_urma_dev_t));
     if (*urma_devices == NULL) {
         *urma_cnt = 0;
         return UBS_ERR_OUT_OF_MEMORY;
@@ -1945,7 +1948,7 @@ ubs_error_t ubse_urma_dev_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_d
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_urma_dev_info_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_dev_info_t *dev_info)
+ubs_error_t ubse_urma_dev_info_unpack(const uint8_t* buffer, uint32_t len, ubs_urma_dev_info_t* dev_info)
 {
     if (buffer == nullptr) {
         return UBS_ERR_NULL_POINTER;
@@ -1967,7 +1970,7 @@ ubs_error_t ubse_urma_dev_info_unpack(const uint8_t *buffer, uint32_t len, ubs_u
     return ret;
 }
 
-ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *minBandWidth, uint32_t *maxBandWidth)
+ubs_error_t ubse_urma_qos_unpack(const uint8_t* buffer, uint32_t len, uint32_t* minBandWidth, uint32_t* maxBandWidth)
 {
     if (len != sizeof(uint32_t) + sizeof(uint32_t)) {
         return UBS_ENGINE_ERR_INTERNAL;
@@ -1987,15 +1990,15 @@ ubs_error_t ubse_urma_qos_unpack(const uint8_t *buffer, uint32_t len, uint32_t *
     *maxBandWidth = max_net;
     return UBS_SUCCESS;
 }
- 
-ubs_error_t ubse_mem_get_memid_by_import_req_build(const char *name, ubse_api_buffer_t *ptr)
+
+ubs_error_t ubse_mem_get_memid_by_import_req_build(const char* name, ubse_api_buffer_t* ptr)
 {
     if (!ptr) {
         IPC_LOG_ERROR << "ptr is null";
         return UBS_ERR_NULL_POINTER;
     }
     size_t total_len = ubse_mem_get_memid_by_import_req_calc_size(name);
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (!ptr->buffer) {
         IPC_LOG_ERROR << "Failed to allocate memory for get memid by import request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -2004,13 +2007,13 @@ ubs_error_t ubse_mem_get_memid_by_import_req_build(const char *name, ubse_api_bu
     ptr->length = total_len;
     return UBS_SUCCESS;
 }
- 
-ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char *name, uint64_t import_memid, uint8_t *buffer)
+
+ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char* name, uint64_t import_memid, uint8_t* buffer)
 {
     if (buffer == nullptr) {
         return UBS_ERR_NULL_POINTER;
     }
-    uint8_t *ptr = buffer;
+    uint8_t* ptr = buffer;
     // 打包name
     ubs_error_t ret = pack_string(&ptr, name, UBS_MEM_MAX_NAME_LENGTH - 1);
     if (ret != UBS_SUCCESS) {
@@ -2021,8 +2024,8 @@ ubs_error_t ubse_mem_get_memid_by_import_req_pack(const char *name, uint64_t imp
     pack_uint64(&ptr, import_memid);
     return UBS_SUCCESS;
 }
- 
-ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t *buffer, uint32_t len, ubs_mem_export_memid_t *mem_info)
+
+ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t* buffer, uint32_t len, ubs_mem_export_memid_t* mem_info)
 {
     if (!buffer) {
         IPC_LOG_ERROR << "buffer is null";
@@ -2033,7 +2036,7 @@ ubs_error_t ubse_mem_get_memid_by_import_resp_unpack(uint8_t *buffer, uint32_t l
         return UBS_ERR_NULL_POINTER;
     }
     unpack_ctx_t ctx = {buffer, len};
- 
+
     // 解包export_slot_id
     ubs_error_t ret = unpack_uint32(&ctx, &mem_info->export_slot_id);
     if (ret != UBS_SUCCESS) {

@@ -27,7 +27,7 @@ using namespace ucache::fault_handler;
 
 // BorrowNodeStat
 // 按照稀缺度大小从大到小排序
-bool CmpScarcity(const BorrowNodeStat *a, const BorrowNodeStat *b)
+bool CmpScarcity(const BorrowNodeStat* a, const BorrowNodeStat* b)
 {
     if (a == nullptr || b == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "nodeStat is illegal.";
@@ -36,12 +36,12 @@ bool CmpScarcity(const BorrowNodeStat *a, const BorrowNodeStat *b)
     return a->GetScarcity() > b->GetScarcity();
 }
 
-void BorrowNodeStat::SortNodeByScarcity(std::vector<BorrowNodeStat *> &nodeStats)
+void BorrowNodeStat::SortNodeByScarcity(std::vector<BorrowNodeStat*>& nodeStats)
 {
     std::sort(nodeStats.begin(), nodeStats.end(), CmpScarcity);
 }
 
-void BorrowNodeStat::InsertBorrowNodeStat(BorrowNodeStat *nodeStat, std::vector<BorrowNodeStat *> &nodeStats)
+void BorrowNodeStat::InsertBorrowNodeStat(BorrowNodeStat* nodeStat, std::vector<BorrowNodeStat*>& nodeStats)
 {
     if (nodeStat == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "nodeStat is illegal.";
@@ -61,7 +61,7 @@ void BorrowNodeStat::InsertBorrowNodeStat(BorrowNodeStat *nodeStat, std::vector<
     nodeStats.emplace_back(nodeStat);
 }
 
-void BorrowNodeStat::EraseBorrowNodeStat(BorrowNodeStat *nodeStat, std::vector<BorrowNodeStat *> &nodeStats)
+void BorrowNodeStat::EraseBorrowNodeStat(BorrowNodeStat* nodeStat, std::vector<BorrowNodeStat*>& nodeStats)
 {
     if (nodeStat == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "nodeStat is illegal.";
@@ -161,7 +161,7 @@ void BorrowNodeStat::CalScarcity()
 
 std::map<std::string, BorrowNodeStat> BorrowNodeStat::nodeIdToNodeStatMap;
 
-BorrowNodeStat::BorrowNodeStat(BorrowStrategyRawData &borrowRawData)
+BorrowNodeStat::BorrowNodeStat(BorrowStrategyRawData& borrowRawData)
     : nodeId(borrowRawData.nodeId),
       pagecacheAppNums(borrowRawData.pagecacheAppNums),
       freeMemMin(borrowRawData.freeMemMin),
@@ -170,19 +170,19 @@ BorrowNodeStat::BorrowNodeStat(BorrowStrategyRawData &borrowRawData)
 {
     // 计算已使用的内存
     usedMem += localMemInfo.used;
-    for (const auto &kv : remoteNumaMemInfo) {
+    for (const auto& kv : remoteNumaMemInfo) {
         usedMem += kv.second.used;
     }
 
     // 计算已使用的pagecache内存
     usedPagecache += localMemInfo.pagecache;
-    for (const auto &kv : remoteNumaMemInfo) {
+    for (const auto& kv : remoteNumaMemInfo) {
         usedPagecache += kv.second.pagecache;
     }
 
     // 计算空闲内存
     freeMem += localMemInfo.available;
-    for (const auto &kv : remoteNumaMemInfo) {
+    for (const auto& kv : remoteNumaMemInfo) {
         freeMem += kv.second.available;
     }
     freeMem -= freeMemMin;
@@ -191,7 +191,7 @@ BorrowNodeStat::BorrowNodeStat(BorrowStrategyRawData &borrowRawData)
 
     uint64_t remoteTotal = 0;
     uint64_t remoteUsed = 0;
-    for (const auto &kv : remoteNumaMemInfo) {
+    for (const auto& kv : remoteNumaMemInfo) {
         remoteTotal += kv.second.total;
         remoteUsed += kv.second.used;
     }
@@ -253,7 +253,7 @@ void BorrowNodeStat::ClearBorrowNodeStat()
 std::map<std::string, std::vector<std::string>> MemBorrowTopo::physicalTopo;
 MemBorrowTopo MemBorrowTopo::globalMemBorrowTopo;
 
-bool MemBorrowTopo::HasRemoteMem(const std::string &nodeId)
+bool MemBorrowTopo::HasRemoteMem(const std::string& nodeId)
 {
     if (BorrowNodeStat::nodeIdToNodeStatMap.find(nodeId) == BorrowNodeStat::nodeIdToNodeStatMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << nodeId << ") not found.";
@@ -262,7 +262,7 @@ bool MemBorrowTopo::HasRemoteMem(const std::string &nodeId)
     return BorrowNodeStat::nodeIdToNodeStatMap[nodeId].GetRemoteNumaMemInfo().size() != 0;
 }
 
-bool MemBorrowTopo::HasLentMem(const std::string &nodeId)
+bool MemBorrowTopo::HasLentMem(const std::string& nodeId)
 {
     if (lendMap.find(nodeId) == lendMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << nodeId << ") not found.";
@@ -271,7 +271,7 @@ bool MemBorrowTopo::HasLentMem(const std::string &nodeId)
     return lendMap[nodeId].size() != 0;
 }
 
-bool MemBorrowTopo::HasBorrowedMem(const std::string &nodeId)
+bool MemBorrowTopo::HasBorrowedMem(const std::string& nodeId)
 {
     if (borrowMap.find(nodeId) == borrowMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << nodeId << ") not found.";
@@ -280,13 +280,13 @@ bool MemBorrowTopo::HasBorrowedMem(const std::string &nodeId)
     return borrowMap[nodeId].size() != 0;
 }
 
-bool MemBorrowTopo::HasLendMemExceptDst(const std::string &src, const std::string &dst)
+bool MemBorrowTopo::HasLendMemExceptDst(const std::string& src, const std::string& dst)
 {
     if (lendMap.find(src) == lendMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << src << ") not found.";
         return false;
     }
-    for (const auto &borrowInfo : lendMap[src]) {
+    for (const auto& borrowInfo : lendMap[src]) {
         if (borrowInfo.destNodeId != dst) {
             return true;
         }
@@ -294,7 +294,7 @@ bool MemBorrowTopo::HasLendMemExceptDst(const std::string &src, const std::strin
     return false;
 }
 
-bool MemBorrowTopo::HasAvailableMemToBorrow(const std::string &nodeId)
+bool MemBorrowTopo::HasAvailableMemToBorrow(const std::string& nodeId)
 {
     if (borrowMemInfoPerNodeMap.find(nodeId) == borrowMemInfoPerNodeMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << nodeId << ") not found.";
@@ -309,9 +309,9 @@ bool MemBorrowTopo::HasAvailableMemToBorrow(const std::string &nodeId)
     }
     // 该节点的每个numa的空闲内存都比借用粒度要小
     auto memInfoIter = borrowMemInfoPerNodeMap.find(nodeId);
-    BorrowMemInfoPerNode &memInfo = memInfoIter->second;
+    BorrowMemInfoPerNode& memInfo = memInfoIter->second;
     uint32_t ret = UCACHE_ERR;
-    for (const auto &kv : memInfo.numaNodeSize) {
+    for (const auto& kv : memInfo.numaNodeSize) {
         UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Node(" << nodeId << ") NumaId:" << kv.first << " FreeMem:" << kv.second;
         if (kv.second >= UcacheConfig::GetInstance().GetBorrowSize()) {
@@ -338,7 +338,7 @@ bool MemBorrowTopo::HasAvailableMemToBorrow(const std::string &nodeId)
     return true;
 }
 
-bool MemBorrowTopo::PhysicalTopoCheck(const std::string &from, const std::string &to)
+bool MemBorrowTopo::PhysicalTopoCheck(const std::string& from, const std::string& to)
 {
     if (physicalTopo.find(from) == physicalTopo.end() || physicalTopo.find(to) == physicalTopo.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -353,7 +353,7 @@ bool MemBorrowTopo::PhysicalTopoCheck(const std::string &from, const std::string
     return true;
 }
 
-bool MemBorrowTopo::LendBorrowMapCheck(const std::string &from, const std::string &to)
+bool MemBorrowTopo::LendBorrowMapCheck(const std::string& from, const std::string& to)
 {
     if (lendMap.find(from) == lendMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << from << ") not found in lend map.";
@@ -366,7 +366,7 @@ bool MemBorrowTopo::LendBorrowMapCheck(const std::string &from, const std::strin
     return true;
 }
 
-bool MemBorrowTopo::MemBorrowTopoCheck(const std::string &from, const std::string &to)
+bool MemBorrowTopo::MemBorrowTopoCheck(const std::string& from, const std::string& to)
 {
     if (!PhysicalTopoCheck(from, to) || !LendBorrowMapCheck(from, to)) {
         return false;
@@ -374,7 +374,7 @@ bool MemBorrowTopo::MemBorrowTopoCheck(const std::string &from, const std::strin
     return true;
 }
 
-uint32_t MemBorrowTopo::DeleteNodeMemBorrowInfo(const std::string &from, const std::string &to)
+uint32_t MemBorrowTopo::DeleteNodeMemBorrowInfo(const std::string& from, const std::string& to)
 {
     bool removeEdge = false;
     auto checkDestNode = [&to](NodeMemBorrowInfo info) {
@@ -428,7 +428,7 @@ uint32_t MemBorrowTopo::DeleteNodeMemBorrowInfo(const std::string &from, const s
     return 0;
 }
 
-uint32_t MemBorrowTopo::AddNodeMemBorrowInfo(const std::string &from, const std::string &to)
+uint32_t MemBorrowTopo::AddNodeMemBorrowInfo(const std::string& from, const std::string& to)
 {
     if (!PhysicalTopoCheck(from, to)) {
         return BORROW_TOPO_ERROR;
@@ -469,7 +469,7 @@ uint32_t MemBorrowTopo::AddNodeMemBorrowInfo(const std::string &from, const std:
     return UCACHE_OK;
 }
 
-uint32_t MemBorrowTopo::GetBorrowableNumaInfo(const std::string &node, int &socketId, int &numaId)
+uint32_t MemBorrowTopo::GetBorrowableNumaInfo(const std::string& node, int& socketId, int& numaId)
 {
     uint32_t ret = NO_BORROWABLE_MEM;
     auto memInfoIter = borrowMemInfoPerNodeMap.find(node);
@@ -477,12 +477,12 @@ uint32_t MemBorrowTopo::GetBorrowableNumaInfo(const std::string &node, int &sock
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Node(" << node << ") not found.";
         return EXEC_MEM_BORROW_ERROR;
     }
-    BorrowMemInfoPerNode &memInfo = memInfoIter->second;
-    for (const auto &kv : memInfo.numaNodeSize) {
+    BorrowMemInfoPerNode& memInfo = memInfoIter->second;
+    for (const auto& kv : memInfo.numaNodeSize) {
         UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Node(" << node << ") NumaId:" << kv.first << " FreeMem:" << kv.second;
     }
-    for (const auto &kv : memInfo.numaNodeSize) {
+    for (const auto& kv : memInfo.numaNodeSize) {
         if (kv.second >= UcacheConfig::GetInstance().GetBorrowSize()) {
             numaId = kv.first;
             ret = UCACHE_OK;
@@ -499,8 +499,8 @@ uint32_t MemBorrowTopo::GetBorrowableNumaInfo(const std::string &node, int &sock
     return ret;
 }
 
-uint32_t MemBorrowTopo::GetReturnableMem(const std::string &from, const std::string &to, std::string &memName,
-                                         int &numaId)
+uint32_t MemBorrowTopo::GetReturnableMem(const std::string& from, const std::string& to, std::string& memName,
+                                         int& numaId)
 {
     auto lendMapIter = lendMap.find(from);
     if (lendMapIter == lendMap.end()) {
@@ -512,7 +512,7 @@ uint32_t MemBorrowTopo::GetReturnableMem(const std::string &from, const std::str
         return NO_RETURNABLE_MEM;
     }
     auto nodeMemBorrowInfoIter = std::find_if(lendMapIter->second.begin(), lendMapIter->second.end(),
-                                              [&to](const NodeMemBorrowInfo &info) { return info.destNodeId == to; });
+                                              [&to](const NodeMemBorrowInfo& info) { return info.destNodeId == to; });
     if (nodeMemBorrowInfoIter == lendMapIter->second.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "No returnable memory between " << from << " and " << to << ".";
@@ -536,8 +536,8 @@ uint32_t MemBorrowTopo::GetReturnableMem(const std::string &from, const std::str
     return UCACHE_OK;
 }
 
-uint32_t MemBorrowTopo::SetNumaNodeBorrowSize(const std::string &memName, const std::string &from,
-                                              const std::string &to, int fromNumaId, int toNumaId)
+uint32_t MemBorrowTopo::SetNumaNodeBorrowSize(const std::string& memName, const std::string& from,
+                                              const std::string& to, int fromNumaId, int toNumaId)
 {
     // 更新全局借用内存topo，保存memid和toNumaId
     if (!MemBorrowTopoCheck(from, to)) {
@@ -548,7 +548,7 @@ uint32_t MemBorrowTopo::SetNumaNodeBorrowSize(const std::string &memName, const 
     auto borrowMapIter = borrowMap.find(to);
 
     uint64_t size = UcacheConfig::GetInstance().GetBorrowSize();
-    auto searchFunc = [&from, &to, &toNumaId](const NodeMemBorrowInfo &info) {
+    auto searchFunc = [&from, &to, &toNumaId](const NodeMemBorrowInfo& info) {
         return info.srcNodeId == from && info.destNodeId == to && info.dstNumaId == toNumaId;
     };
     auto lendMapVecIter = std::find_if(lendMapIter->second.begin(), lendMapIter->second.end(), searchFunc);
@@ -578,7 +578,7 @@ uint32_t MemBorrowTopo::SetNumaNodeBorrowSize(const std::string &memName, const 
     return UCACHE_OK;
 }
 
-void MemBorrowTopo::AddNumaSize(const std::string &nodeId, const int numaId, const uint64_t size)
+void MemBorrowTopo::AddNumaSize(const std::string& nodeId, const int numaId, const uint64_t size)
 {
     auto borrowMemInfoPerNodeIter = borrowMemInfoPerNodeMap.find(nodeId);
     if (borrowMemInfoPerNodeIter == borrowMemInfoPerNodeMap.end()) {
@@ -589,7 +589,7 @@ void MemBorrowTopo::AddNumaSize(const std::string &nodeId, const int numaId, con
     borrowMemInfoPerNodeIter->second.numaNodeSize[numaId] += size;
 }
 
-void MemBorrowTopo::SubNumaSize(const std::string &nodeId, const int numaId, const uint64_t size)
+void MemBorrowTopo::SubNumaSize(const std::string& nodeId, const int numaId, const uint64_t size)
 {
     auto borrowMemInfoPerNodeIter = borrowMemInfoPerNodeMap.find(nodeId);
     if (borrowMemInfoPerNodeIter == borrowMemInfoPerNodeMap.end()) {
@@ -600,9 +600,9 @@ void MemBorrowTopo::SubNumaSize(const std::string &nodeId, const int numaId, con
     borrowMemInfoPerNodeIter->second.numaNodeSize[numaId] -= size;
 }
 
-uint32_t DeleteFromMap(const std::string &from, const std::string &to, const std::string &memName, const int fromNumaId,
-                       const uint32_t size, std::map<std::string, std::vector<NodeMemBorrowInfo>>::iterator &mapIter,
-                       std::vector<NodeMemBorrowInfo>::iterator &mapInfoIter)
+uint32_t DeleteFromMap(const std::string& from, const std::string& to, const std::string& memName, const int fromNumaId,
+                       const uint32_t size, std::map<std::string, std::vector<NodeMemBorrowInfo>>::iterator& mapIter,
+                       std::vector<NodeMemBorrowInfo>::iterator& mapInfoIter)
 {
     if (mapInfoIter == mapIter->second.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -628,8 +628,8 @@ uint32_t DeleteFromMap(const std::string &from, const std::string &to, const std
     return UCACHE_OK;
 }
 
-uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string &memName, const std::string &from,
-                                              const std::string &to, int fromNumaId)
+uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string& memName, const std::string& from,
+                                              const std::string& to, int fromNumaId)
 {
     if (!MemBorrowTopoCheck(from, to)) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -640,7 +640,7 @@ uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string &memName, const 
     uint64_t size = UcacheConfig::GetInstance().GetBorrowSize();
 
     auto lendMapInfoIter = std::find_if(lendMapIter->second.begin(), lendMapIter->second.end(),
-                                        [&to](const NodeMemBorrowInfo &info) { return info.destNodeId == to; });
+                                        [&to](const NodeMemBorrowInfo& info) { return info.destNodeId == to; });
     if (lendMapInfoIter == lendMapIter->second.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Delete memory failed: lendMap and borrowMap are inconsistent.";
@@ -654,7 +654,7 @@ uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string &memName, const 
     }
 
     auto borrowMapInfoIter = std::find_if(borrowMapIter->second.begin(), borrowMapIter->second.end(),
-                                          [&from](const NodeMemBorrowInfo &info) { return info.srcNodeId == from; });
+                                          [&from](const NodeMemBorrowInfo& info) { return info.srcNodeId == from; });
     if (borrowMapInfoIter == borrowMapIter->second.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Delete memory failed: borrowMap and lendMap are inconsistent.";
@@ -670,7 +670,7 @@ uint32_t MemBorrowTopo::DelNumaNodeBorrowSize(const std::string &memName, const 
     return ret;
 }
 
-void MemBorrowTopo::SetTopology(std::map<std::string, std::vector<std::string>> &topo)
+void MemBorrowTopo::SetTopology(std::map<std::string, std::vector<std::string>>& topo)
 {
     physicalTopo = topo;
 }
@@ -683,10 +683,10 @@ void PrintLoanableMemRawData(const std::map<std::string, std::map<int, uint64_t>
     }
 
     std::stringstream ss;
-    
+
     for (auto nodeIt = loanableMemRawData.begin(); nodeIt != loanableMemRawData.end(); ++nodeIt) {
         ss << nodeIt->first << ":{";
-        
+
         const auto& innerMap = nodeIt->second;
         for (auto numaIt = innerMap.begin(); numaIt != innerMap.end(); ++numaIt) {
             ss << "numa " << numaIt->first << ": " << numaIt->second << " B";
@@ -717,7 +717,7 @@ uint32_t MemBorrowTopo::InitGlobalMemBorrowTopo()
     }
 
     // 根据物理拓扑填充借入借出空列表
-    for (const auto &kv : physicalTopo) {
+    for (const auto& kv : physicalTopo) {
         if (globalMemBorrowTopo.lendMap.find(kv.first) == globalMemBorrowTopo.lendMap.end()) {
             globalMemBorrowTopo.lendMap[kv.first] = std::vector<NodeMemBorrowInfo>();
         }
@@ -733,7 +733,7 @@ uint32_t MemBorrowTopo::InitGlobalMemBorrowTopo()
     uint64_t totalLoanableBorrowMem;
     for (auto rawData : loanableMemRawData) {
         totalLoanableBorrowMem = 0;
-        for (auto &kv : rawData.second) {
+        for (auto& kv : rawData.second) {
             globalMemBorrowTopo.borrowMemInfoPerNodeMap[rawData.first].numaNodeSize[kv.first] = kv.second;
             totalLoanableBorrowMem += kv.second;
         }

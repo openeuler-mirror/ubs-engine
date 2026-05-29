@@ -28,19 +28,19 @@
 #include "vm_system_util.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace api::server;
 using namespace vm::mempooling;
 using namespace ubse::log;
 using namespace ubse::nodeController;
 
-ThreadTaskManager &ThreadTaskManager::GetInstance()
+ThreadTaskManager& ThreadTaskManager::GetInstance()
 {
     static ThreadTaskManager instance;
     return instance;
 }
 
-std::string ThreadTaskManager::GenerateTaskId(const std::string &taskType)
+std::string ThreadTaskManager::GenerateTaskId(const std::string& taskType)
 {
     uint32_t count = ++taskCounter_;
     if (taskType == "memborrow") {
@@ -50,7 +50,7 @@ std::string ThreadTaskManager::GenerateTaskId(const std::string &taskType)
     }
 }
 
-std::string ThreadTaskManager::AddTask(const std::string &taskType)
+std::string ThreadTaskManager::AddTask(const std::string& taskType)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     std::string taskId = GenerateTaskId(taskType);
@@ -69,7 +69,7 @@ std::string ThreadTaskManager::AddTask(const std::string &taskType)
     return taskId;
 }
 
-void ThreadTaskManager::SetTaskThreadId(const std::string &taskId)
+void ThreadTaskManager::SetTaskThreadId(const std::string& taskId)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
@@ -78,8 +78,8 @@ void ThreadTaskManager::SetTaskThreadId(const std::string &taskId)
     }
 }
 
-void ThreadTaskManager::UpdateTaskStatus(const std::string &taskId, AsyncTaskStatus status, uint32_t resultCode,
-                                         const std::string &errorMsg)
+void ThreadTaskManager::UpdateTaskStatus(const std::string& taskId, AsyncTaskStatus status, uint32_t resultCode,
+                                         const std::string& errorMsg)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
@@ -103,7 +103,7 @@ void ThreadTaskManager::UpdateTaskStatus(const std::string &taskId, AsyncTaskSta
     }
 }
 
-AsyncTaskStatus ThreadTaskManager::GetTaskStatus(const std::string &taskId)
+AsyncTaskStatus ThreadTaskManager::GetTaskStatus(const std::string& taskId)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
@@ -113,7 +113,7 @@ AsyncTaskStatus ThreadTaskManager::GetTaskStatus(const std::string &taskId)
     return AsyncTaskStatus::NOT_EXIST;
 }
 
-uint32_t ThreadTaskManager::GetTaskInfo(const std::string &taskId, AsyncTaskInfo &asyncTaskInfo)
+uint32_t ThreadTaskManager::GetTaskInfo(const std::string& taskId, AsyncTaskInfo& asyncTaskInfo)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
@@ -126,7 +126,7 @@ uint32_t ThreadTaskManager::GetTaskInfo(const std::string &taskId, AsyncTaskInfo
 
 bool ThreadTaskManager::HasRunningTask()
 {
-    for (const auto &pair : taskMap_) {
+    for (const auto& pair : taskMap_) {
         if (pair.second.status == AsyncTaskStatus::RUNNING) {
             return true;
         }
@@ -139,7 +139,7 @@ std::vector<AsyncTaskInfo> ThreadTaskManager::GetRunningTasks()
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<AsyncTaskInfo> runningTasks;
 
-    for (const auto &pair : taskMap_) {
+    for (const auto& pair : taskMap_) {
         if (pair.second.status == AsyncTaskStatus::RUNNING) {
             runningTasks.push_back(pair.second);
         }
@@ -152,12 +152,12 @@ std::vector<AsyncTaskInfo> ThreadTaskManager::GetAllTasks()
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<AsyncTaskInfo> allTasks;
 
-    for (const auto &pair : taskMap_) {
+    for (const auto& pair : taskMap_) {
         allTasks.push_back(pair.second);
     }
 
     std::sort(allTasks.begin(), allTasks.end(),
-              [](const AsyncTaskInfo &a, const AsyncTaskInfo &b) { return a.startTime > b.startTime; });
+              [](const AsyncTaskInfo& a, const AsyncTaskInfo& b) { return a.startTime > b.startTime; });
 
     return allTasks;
 }
@@ -197,7 +197,7 @@ void ThreadTaskManager::ClearAllTasks()
     }
 }
 
-uint32_t ThreadTaskManager::SetMemBorrowResult(const std::string &taskId, const mem_borrow_result_c &result)
+uint32_t ThreadTaskManager::SetMemBorrowResult(const std::string& taskId, const mem_borrow_result_c& result)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = taskMap_.find(taskId);
@@ -213,8 +213,8 @@ uint32_t ThreadTaskManager::SetMemBorrowResult(const std::string &taskId, const 
     return VM_OK;
 }
 
-uint32_t ThreadTaskManager::PackMemBorrowResult(const mem_borrow_result_c &memBorrowExecuteResult,
-                                                AsyncTaskInfo &asyncTaskInfo)
+uint32_t ThreadTaskManager::PackMemBorrowResult(const mem_borrow_result_c& memBorrowExecuteResult,
+                                                AsyncTaskInfo& asyncTaskInfo)
 {
     MemBorrowExecuteResultMsg msg{memBorrowExecuteResult};
     auto ret = msg.Serialize();
@@ -229,7 +229,7 @@ uint32_t ThreadTaskManager::PackMemBorrowResult(const mem_borrow_result_c &memBo
         return VM_ERROR;
     }
     SafeDeleteArray(asyncTaskInfo.msgRawData);
-    uint8_t *rawData = new (std::nothrow) uint8_t[dataSize];
+    uint8_t* rawData = new (std::nothrow) uint8_t[dataSize];
     if (rawData == nullptr) {
         UBSE_LOG_ERROR << "Failed to allocate memory for serialized data.";
         return VM_ERROR;

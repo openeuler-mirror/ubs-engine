@@ -12,8 +12,8 @@
 
 #include "test_ubse_file_util.h"
 
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include "ubse_error.h"
 
 namespace ubse::ut::utils {
@@ -41,14 +41,11 @@ void TestUbseFileUtil::TearDown()
 const std::string testFilePath = "test.txt";
 
 // 测试文件内容
-const std::vector<std::string> testFileContent = {
-    "Hello, world!",
-    "This is a test file.",
-    "Goodbye, world!"
-};
+const std::vector<std::string> testFileContent = {"Hello, world!", "This is a test file.", "Goodbye, world!"};
 
 // 测试用例1：测试正常读取文件
-TEST(UbseFileUtilTest, ReadFileNormal) {
+TEST(UbseFileUtilTest, ReadFileNormal)
+{
     // 创建测试文件
     std::ofstream testFile(testFilePath);
     for (const auto& line : testFileContent) {
@@ -69,7 +66,8 @@ TEST(UbseFileUtilTest, ReadFileNormal) {
 }
 
 // 测试用例2：测试文件不存在的情况
-TEST(UbseFileUtilTest, ReadFileNotExist) {
+TEST(UbseFileUtilTest, ReadFileNotExist)
+{
     // 调用待测试函数
     std::vector<std::string> info;
     UbseResult result = UbseFileUtil::GetFileInfo("nonexistent.txt", info);
@@ -79,7 +77,8 @@ TEST(UbseFileUtilTest, ReadFileNotExist) {
 }
 
 // 测试用例3：测试文件无法打开的情况
-TEST(UbseFileUtilTest, ReadFileCannotOpen) {
+TEST(UbseFileUtilTest, ReadFileCannotOpen)
+{
     // 创建一个无法打开的文件
     std::ofstream testFile(testFilePath);
     testFile << "This file cannot be opened." << std::endl;
@@ -240,4 +239,4 @@ TEST_F(TestUbseFileUtil, SetFileAttributes)
 {
     EXPECT_NO_THROW(UbseFileUtil::SetFileAttributes(FILE_PATH, 1024, 0, 0750));
 }
-}
+} // namespace ubse::ut::utils

@@ -23,6 +23,6 @@ struct EventTask {
     UbseEventHandler registerFunc;
     std::string traceId;
 };
-}
+} // namespace ubse::event
 
 #endif // UBSE_EVENT_DEF_H

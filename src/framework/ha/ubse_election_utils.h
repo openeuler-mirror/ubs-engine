@@ -18,12 +18,10 @@
 #include "ubse_election_comm_mgr.h"
 #include "ubse_error.h"
 
-using namespace ubse::common::def;
-
 namespace ubse::election::utils {
 using ubse::election::NodeLinkInfo;
-std::vector<std::string> Split(const std::string &s, char delimiter);
-std::vector<NodeLinkInfo> ParseEventMessage(const std::string &eventMessage);
+std::vector<std::string> Split(const std::string& s, char delimiter);
+std::vector<NodeLinkInfo> ParseEventMessage(const std::string& eventMessage);
 bool parseFaultEventMsg(const std::string& msg, std::string& faultNodeId, std::string& faultType);
 } // namespace ubse::election::utils
 #endif // UBSE_MANAGER_JSONTOVEC_H

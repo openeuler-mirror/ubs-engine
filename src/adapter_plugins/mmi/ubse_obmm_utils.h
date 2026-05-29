@@ -15,66 +15,72 @@
 
 #include <ostream>
 #include "ubse_common_def.h"
-#include "ubse_mmi_interface.h"
-#include "ubse_mmi_obmm_def.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_types.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::common::def::UbseResult;
 
-obmm_mem_desc *ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta &customMeta,
-    const UbMemPrivData &ubMemPrivData);
-obmm_mem_desc *ConstructImportMemDesc(const ObmmOpParam &opParam, const ubse_mem_obmm_mem_desc &desc);
+obmm_mem_desc* ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& ubMemPrivData);
+obmm_mem_desc* ConstructImportMemDesc(const ObmmOpParam& opParam, const ubse_mem_obmm_mem_desc& desc);
 
-obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreImportInfo);
+obmm_preimport_info* ConstructPreImportInfo(const BasicPreImportInfo& basicPreImportInfo);
 
-UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj &exportObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromNumaExportObj(const UbseMemNumaBorrowExportObj& exportObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj &exportObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromFdExportObj(const UbseMemFdBorrowExportObj& exportObj,
+                                        UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj &exportObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromShmExportObj(const UbseMemShareBorrowExportObj& exportObj,
+                                         UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj &exportObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromAddrExportObj(const UbseMemAddrBorrowExportObj& exportObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj &importObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromNumaImportObj(const UbseMemNumaBorrowImportObj& importObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj &importObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromFdImportObj(const UbseMemFdBorrowImportObj& importObj,
+                                        UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj &importObj,
-    UbseMemLocalObmmCustomMeta &customMeta);
+UbseResult GetCustomMetaFromShmImportObj(const UbseMemShareBorrowImportObj& importObj,
+                                         UbseMemLocalObmmCustomMeta& customMeta);
 
-UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj &importObj,
-    UbseMemLocalObmmCustomMeta &customMeta, int index);
+UbseResult GetCustomMetaFromAddrImportObj(const UbseMemAddrBorrowImportObj& importObj,
+                                          UbseMemLocalObmmCustomMeta& customMeta, int index);
 
 class RmObmmUtils {
 public:
-    static RmObmmUtils &GetInstance()
+    static RmObmmUtils& GetInstance()
     {
         static RmObmmUtils instance;
         return instance;
     }
 
-    static UbseResult GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicPreImportInfos);
+    static UbseResult GetPreOnlineInfo(std::vector<BasicPreImportInfo>& basicPreImportInfos);
 
-    uint32_t GetPreOnlineSwitch(bool &preOnlineSwitch);
+    uint32_t GetPreOnlineSwitch(bool& preOnlineSwitch);
 
-    RmObmmUtils(const RmObmmUtils &other) = delete;
-    RmObmmUtils(RmObmmUtils &&other) = delete;
-    RmObmmUtils &operator=(const RmObmmUtils &other) = delete;
-    RmObmmUtils &operator=(RmObmmUtils &&other) noexcept = delete;
+    RmObmmUtils(const RmObmmUtils& other) = delete;
+    RmObmmUtils(RmObmmUtils&& other) = delete;
+    RmObmmUtils& operator=(const RmObmmUtils& other) = delete;
+    RmObmmUtils& operator=(RmObmmUtils&& other) noexcept = delete;
 
 private:
     RmObmmUtils() = default;
-    static UbseResult GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &basicPreImportInfos, std::ifstream &file,
-                                             const std::vector<std::string> &tokens);
+    static UbseResult GetBasicPreImportInfos(std::vector<BasicPreImportInfo>& basicPreImportInfos, std::ifstream& file,
+                                             const std::vector<std::string>& tokens);
 };
 } // namespace ubse::mmi
 

@@ -19,28 +19,35 @@
 #include "ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
-using namespace ubse::mem::def;
-uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest &request, UbseMemFdDesc &fdDesc);
+using ubse::mem::def::FdHandleInfoVec;
+using ubse::mem::def::NumaHandleInfoVec;
+using ubse::mem::def::ShareHandleInfoVec;
+using ubse::mem::def::UbseMemDebtQueryRequest;
+using ubse::mem::def::UbseMemFdDesc;
+using ubse::mem::def::UbseMemShmDesc;
+using ubse::mem::def::UbseMemShmMemStatusDesc;
+using ubse::mem::def::UbseNodeBorrowInfo;
+uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest& request, UbseMemFdDesc& fdDesc);
 
-uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseMemFdDesc> &fdDescs);
+uint32_t UbseMemFdList(const UbseMemDebtQueryRequest& request, std::vector<UbseMemFdDesc>& fdDescs);
 
-uint32_t UbseMemNumaGet(const UbseMemDebtQueryRequest &request, def::UbseMemNumaDesc &numaDesc);
+uint32_t UbseMemNumaGet(const UbseMemDebtQueryRequest& request, def::UbseMemNumaDesc& numaDesc);
 
-uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest &request, std::vector<def::UbseMemNumaDesc> &numaDescs);
+uint32_t UbseMemNumaList(const UbseMemDebtQueryRequest& request, std::vector<def::UbseMemNumaDesc>& numaDescs);
 
-uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest &request, UbseMemNumaDesc &numaDesc);
+uint32_t UbseMemNumaGetWithImportNode(const UbseMemDebtQueryRequest& request, UbseMemNumaDesc& numaDesc);
 
-uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest &request, UbseMemShmDesc &shmDesc);
+uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest& request, UbseMemShmDesc& shmDesc);
 
-uint32_t UbseMemShmList(const UbseMemDebtQueryRequest &request, std::vector<UbseMemShmDesc> &shmDescs);
+uint32_t UbseMemShmList(const UbseMemDebtQueryRequest& request, std::vector<UbseMemShmDesc>& shmDescs);
 
-uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, UbseMemShmMemStatusDesc &shmStatusDesc);
+uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest& request, UbseMemShmMemStatusDesc& shmStatusDesc);
 
-uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc &desc);
+uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest& request, UbseMemAddrDesc& desc);
 
 template <typename ImportType, typename ExportType>
-std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>> FindBorrowObjPair(
-    const std::string &name, const std::string &importNodeId)
+std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>>
+FindBorrowObjPair(const std::string& name, const std::string& importNodeId)
 {
     auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<ImportType>().GetResource(importNodeId, name);
     auto exportKey = GenerateExportObjKey(name, importNodeId);
@@ -49,7 +56,7 @@ std::pair<std::shared_ptr<const ImportType>, std::shared_ptr<const ExportType>> 
 }
 
 template <typename ImportType, typename ExportType>
-UbseMemResult GetStageByObj(const std::string &name, const std::string &importNodeId)
+UbseMemResult GetStageByObj(const std::string& name, const std::string& importNodeId)
 {
     UbseMemResult result{};
     result.name = name;
@@ -64,7 +71,7 @@ UbseMemResult GetStageByObj(const std::string &name, const std::string &importNo
     // 单导出
     if (!importObjPtr) {
         if constexpr (IsAddrTypeV<ExportType>) {
-            for (const auto &addrInfo : exportObjPtr->req.exportAddrList) {
+            for (const auto& addrInfo : exportObjPtr->req.exportAddrList) {
                 result.realSize += addrInfo.size;
             }
         } else {
@@ -75,7 +82,7 @@ UbseMemResult GetStageByObj(const std::string &name, const std::string &importNo
     }
 
     if constexpr (IsAddrTypeV<ImportType>) {
-        for (const auto &addrInfo : importObjPtr->req.exportAddrList) {
+        for (const auto& addrInfo : importObjPtr->req.exportAddrList) {
             result.realSize += addrInfo.size;
         }
     } else {
@@ -85,50 +92,60 @@ UbseMemResult GetStageByObj(const std::string &name, const std::string &importNo
     return result;
 }
 
-UbseMemResult GetFdStageByObj(const std::string &name, const std::string &importNodeId);
+UbseMemResult GetFdStageByObj(const std::string& name, const std::string& importNodeId);
 
-UbseMemResult GetNumaStageByObj(const std::string &name, const std::string &importNodeId);
+UbseMemResult GetNumaStageByObj(const std::string& name, const std::string& importNodeId);
 
-UbseMemResult GetShmExportStageByObj(const std::string &name);
+UbseMemResult GetShmExportStageByObj(const std::string& name);
 
-UbseMemResult GetShmImportStageByObj(const std::string &name, const std::string &importNodeId);
+UbseMemResult GetShmImportStageByObj(const std::string& name, const std::string& importNodeId);
 
-UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId);
+UbseMemResult GetAddrStageByObj(const std::string& name, const std::string& importNodeId);
 
-uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo> &nodeBorrowInfo);
+uint32_t UbseMemNodeBorrowQuery(std::vector<UbseNodeBorrowInfo>& nodeBorrowInfo);
 
-UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string &nodeId, const std::string &name,
-                                            const std::string &importNodeId, bool isFromTaskManager = false);
+UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string& nodeId, const std::string& name,
+                                            const std::string& importNodeId, bool isFromTaskManager = false);
 
-UbseMemNumaBorrowExportObj UbseNumaExportObjGet(const std::string &nodeId, const std::string &name,
-                                                const std::string &importNodeId, bool isFromTaskManager = false);
+UbseMemNumaBorrowExportObj UbseNumaExportObjGet(const std::string& nodeId, const std::string& name,
+                                                const std::string& importNodeId, bool isFromTaskManager = false);
 
-UbseMemShareBorrowExportObj UbseShareExportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemShareBorrowExportObj UbseShareExportObjGet(const std::string& nodeId, const std::string& name,
                                                   bool isFromTaskManager = false);
 
-UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string &nodeId, const std::string &name,
-                                                const std::string &importNodeId, bool isFromTaskManager = false);
+UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string& nodeId, const std::string& name,
+                                                const std::string& importNodeId, bool isFromTaskManager = false);
 
-UbseMemFdBorrowImportObj UbseFdImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemFdBorrowImportObj UbseFdImportObjGet(const std::string& nodeId, const std::string& name,
                                             bool isFromTaskManager = false);
 
-UbseMemNumaBorrowImportObj UbseNumaImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemNumaBorrowImportObj UbseNumaImportObjGet(const std::string& nodeId, const std::string& name,
                                                 bool isFromTaskManager = false);
 
-UbseMemShareBorrowImportObj UbseShareImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemShareBorrowImportObj UbseShareImportObjGet(const std::string& nodeId, const std::string& name,
                                                   bool isFromTaskManager = false);
 
-UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string& nodeId, const std::string& name,
                                                 bool isFromTaskManager = false);
 
-struct ShareHandleInfo {
-    std::string name;
-    std::vector<uint64_t> memIds;
-};
-using ShareHandleInfoVec = std::vector<ShareHandleInfo>;
-UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string &importNodeId, const std::string &exportNodeId,
-                                                    ShareHandleInfoVec &importHandInfo);
+UbseResult UbseQueryShareImportHandleByExportNodeId(const std::string& importNodeId, const std::string& exportNodeId,
+                                                    ShareHandleInfoVec& importHandInfo);
 
-uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &memDesc);
+UbseResult UbseQueryFdImportHandleByExportNodeId(const std::string& importNodeId, const std::string& exportNodeId,
+                                                 FdHandleInfoVec& importHandInfo);
+
+UbseResult UbseQueryNumaImportHandleByExportNodeId(const std::string& importNodeId, const std::string& exportNodeId,
+                                                   NumaHandleInfoVec& importHandInfo);
+
+UbseResult UbseQueryFdPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
+                                          const std::set<std::string>& portList, FdHandleInfoVec& importHandInfo);
+
+UbseResult UbseQuerySharePortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
+                                             const std::set<std::string>& portList, ShareHandleInfoVec& importHandInfo);
+
+UbseResult UbseQueryNumaPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
+                                            const std::set<std::string>& portList, NumaHandleInfoVec& importHandInfo);
+
+uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& memDesc);
 } // namespace ubse::mem::controller::debt
 #endif // UBS_ENGINE_UBSE_MEM_DEBT_INFO_QUERY_H

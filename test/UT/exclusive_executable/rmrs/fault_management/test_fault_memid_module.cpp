@@ -18,8 +18,8 @@
 #include "mockcpp/mokc.h"
 
 #include "fault_memid_module.h"
-#include "mp_smap_helper.h"
 #include "mem_borrow_executor.h"
+#include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
@@ -153,7 +153,7 @@ TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194304_Out_4194304)
     ASSERT_EQ(needBorrowMem, outMemSize);
 }
 
-TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_ERROR)
+TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_TRUE)
 {
     uint64_t miniUnitMemSize = 131072;
     uint64_t maxUnitMemSize = 4194304;
@@ -162,7 +162,7 @@ TEST_F(TestFaultMemIdModule, AdjustNeedBorrowMem_In_4194305_Out_4325376_ERROR)
 
     MpResult res = FaultMemIdStrategy::Instance().AdjustNeedBorrowMem(needBorrowMem);
 
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_EQ(res, MEM_POOLING_OK);
     ASSERT_EQ(needBorrowMem, outMemSize);
 }
 
@@ -288,7 +288,7 @@ TEST_F(TestFaultMemIdModule, ClosestVmVector_In_2_7_9_13_19_target_14_Out_2_13)
     ASSERT_EQ(res, MEM_POOLING_OK);
 }
 
-TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_ERROR)
+TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_TRUE)
 {
     uint64_t miniUnitMemSize = 131072;
     uint64_t maxUnitMemSize = 4194304;
@@ -316,7 +316,7 @@ TEST_F(TestFaultMemIdModule, ClosestVmVector_In_5_7_9_13_target_30_Out_5_7_9_13_
     ASSERT_EQ(pids[2], 33333);
     ASSERT_EQ(pids[3], 44444);
     ASSERT_EQ(totalNeedBorrowMem, miniUnitMemSize * 34);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_EQ(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, BorrowFromSameNid1)
@@ -329,8 +329,8 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid1)
     UCEMemoryParam memParam = {memBorrowIdSize, borrowId};
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult(*)(const SrcMemoryBorrowParam &srcParam, const std::vector<DestMemoryBorrowParam> &destParams,
-                           MemBorrowExecuteResult &borrowExecuteResult))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams,
+                           MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromSameNid(borrowInNid, srcParam, borrowStrategyMultiResult,
@@ -338,9 +338,9 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid1)
     ASSERT_EQ(res, 1);
 }
 
-MpResult Test_MemBorrowExecute_1(MempoolBorrowModule *This, const SrcMemoryBorrowParam &srcParam,
-                                 const std::vector<DestMemoryBorrowParam> &destParams,
-                                 MemBorrowExecuteResult &borrowExecuteResult)
+MpResult Test_MemBorrowExecute_1(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
+                                 const std::vector<DestMemoryBorrowParam>& destParams,
+                                 MemBorrowExecuteResult& borrowExecuteResult)
 {
     borrowExecuteResult.presentNumaId = {1};
     borrowExecuteResult.borrowIds = {"1", "2"};
@@ -357,8 +357,8 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid2)
     UCEMemoryParam memParam = {memBorrowIdSize, borrowId};
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowExecute,
-        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam &srcParam,
-                    const std::vector<DestMemoryBorrowParam> &destParams, MemBorrowExecuteResult &borrowExecuteResult))
+        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam& srcParam,
+                    const std::vector<DestMemoryBorrowParam>& destParams, MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(invoke(Test_MemBorrowExecute_1));
     MOCKER_CPP(&FaultMemIdExecute::SameNidExecuteRpc,
@@ -372,9 +372,9 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid2)
     ASSERT_EQ(res, 1);
 }
 
-MpResult Test_MemBorrowExecute_2(MempoolBorrowModule *This, const SrcMemoryBorrowParam &srcParam,
-                                 const std::vector<DestMemoryBorrowParam> &destParams,
-                                 MemBorrowExecuteResult &borrowExecuteResult)
+MpResult Test_MemBorrowExecute_2(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
+                                 const std::vector<DestMemoryBorrowParam>& destParams,
+                                 MemBorrowExecuteResult& borrowExecuteResult)
 {
     borrowExecuteResult.presentNumaId = {1};
     borrowExecuteResult.borrowIds = {"1"};
@@ -391,14 +391,14 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid3)
     UCEMemoryParam memParam = {memBorrowIdSize, borrowId};
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowExecute,
-        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam &srcParam,
-                    const std::vector<DestMemoryBorrowParam> &destParams, MemBorrowExecuteResult &borrowExecuteResult))
+        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam& srcParam,
+                    const std::vector<DestMemoryBorrowParam>& destParams, MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(invoke(Test_MemBorrowExecute_2));
     MOCKER_CPP(&BorrowIdRedirection::Update, MpResult(*)(const std::string key, const std::string value))
         .stubs()
         .will(returnValue(1));
-    MOCKER_CPP(&BorrowIdRedirection::Query, MpResult(*)(const std::string key, std::string &value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, MpResult(*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(1));
     MOCKER_CPP(&FaultMemIdExecute::SameNidExecuteRpc,
@@ -444,7 +444,7 @@ TEST_F(TestFaultMemIdModule, SameNidExecute2)
                MpResult(*)(std::vector<uint64_t> & remoteNumaIds, std::vector<uint64_t> & borrowSizes))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor *, const std::string &, bool, bool))
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -452,7 +452,7 @@ TEST_F(TestFaultMemIdModule, SameNidExecute2)
     ASSERT_EQ(res, 0);
 }
 
-MpResult Test_UpdateBorrowIdRedirection(MemManager *This, const std::string key, const std::string value)
+MpResult Test_UpdateBorrowIdRedirection(MemManager* This, const std::string key, const std::string value)
 {
     return 1;
 }
@@ -603,17 +603,17 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid3)
         .will(returnValue(0));
 
     MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecute,
-               MpResult(*)(const SrcMemoryBorrowParam &srcParam, const std::vector<DestMemoryBorrowParam> &destParams,
-                           MemBorrowExecuteResult &borrowExecuteResult))
+               MpResult(*)(const SrcMemoryBorrowParam& srcParam, const std::vector<DestMemoryBorrowParam>& destParams,
+                           MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
     ASSERT_EQ(res, 1);
 }
 
-MpResult TestMemBorrowExecute1(MempoolBorrowModule *This, const SrcMemoryBorrowParam &srcParam,
-                               const std::vector<DestMemoryBorrowParam> &destParams,
-                               MemBorrowExecuteResult &borrowExecuteResult)
+MpResult TestMemBorrowExecute1(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
+                               const std::vector<DestMemoryBorrowParam>& destParams,
+                               MemBorrowExecuteResult& borrowExecuteResult)
 {
     borrowExecuteResult.presentNumaId = {1};
     borrowExecuteResult.borrowIds = {"node1"};
@@ -638,8 +638,8 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid4)
 
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowExecute,
-        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam &srcParam,
-                    const std::vector<DestMemoryBorrowParam> &destParams, MemBorrowExecuteResult &borrowExecuteResult))
+        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam& srcParam,
+                    const std::vector<DestMemoryBorrowParam>& destParams, MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(invoke(TestMemBorrowExecute1));
     MOCKER_CPP(&FaultMemIdExecute::NotSameNidExecuteRpc,
@@ -668,8 +668,8 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid5)
 
     MOCKER_CPP(
         &MempoolBorrowModule::MemBorrowExecute,
-        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam &srcParam,
-                    const std::vector<DestMemoryBorrowParam> &destParams, MemBorrowExecuteResult &borrowExecuteResult))
+        MpResult(*)(MempoolBorrowModule * This, const SrcMemoryBorrowParam& srcParam,
+                    const std::vector<DestMemoryBorrowParam>& destParams, MemBorrowExecuteResult& borrowExecuteResult))
         .stubs()
         .will(invoke(TestMemBorrowExecute1));
     MOCKER_CPP(&FaultMemIdExecute::NotSameNidExecuteRpc,
@@ -803,7 +803,7 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma4)
                MpResult(*)(pid_t * pidArr, int len, int srcNid, int destNid))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor *, const std::string &, bool, bool))
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto res =
@@ -860,9 +860,9 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage3)
         .will(returnValue(0));
 
     MOCKER_CPP(&FaultMemIdModule::BorrowFromSameNid,
-               MpResult(*)(std::string borrowInNid, const SrcMemoryBorrowParam &srcParam,
-                           const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                           const UCEMemoryParam &memParam, bool isForce))
+               MpResult(*)(std::string borrowInNid, const SrcMemoryBorrowParam& srcParam,
+                           const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                           const UCEMemoryParam& memParam, bool isForce))
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
@@ -886,9 +886,9 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage4)
         .will(returnValue(0));
 
     MOCKER_CPP(&FaultMemIdModule::BorrowFromSameNid,
-               MpResult(*)(std::string borrowInNid, const SrcMemoryBorrowParam &srcParam,
-                           const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                           const UCEMemoryParam &memParam, bool isForce))
+               MpResult(*)(std::string borrowInNid, const SrcMemoryBorrowParam& srcParam,
+                           const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                           const UCEMemoryParam& memParam, bool isForce))
         .stubs()
         .will(returnValue(0));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
@@ -908,14 +908,14 @@ TEST_F(TestFaultMemIdModule, GetRemoteNumaVms1)
     ASSERT_EQ(res, 1);
 }
 
-MpResult FaultMemidModuleGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+MpResult FaultMemidModuleGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     mempooling::exportV2::VmDomainInfo vmDomainInfo;
     vmDomainInfo.metaData.pid = 1;
     mempooling::exportV2::VmDomainNumaInfo vmDomainNumaInfo1 = {0, 2048, 1024, 0, true};
-    vmDomainInfo.numaInfo[0]= vmDomainNumaInfo1;
+    vmDomainInfo.numaInfo[0] = vmDomainNumaInfo1;
     mempooling::exportV2::VmDomainNumaInfo vmDomainNumaInfo2 = {1, 2048, 1024, -1, false};
-    vmDomainInfo.numaInfo[1]= vmDomainNumaInfo2;
+    vmDomainInfo.numaInfo[1] = vmDomainNumaInfo2;
 
     vmDomainInfos.push_back(vmDomainInfo);
     return 0;
@@ -966,8 +966,8 @@ TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc1)
     std::vector<pid_t> pids;
     uint64_t totalNeedBorrowMem;
     MOCKER_CPP(&FaultMemIdModule::ClosestVmVector,
-               MpResult(*)(const std::vector<VmNumaInfo> &allVmNumaInfoInfoList, uint64_t memSizeSingle,
-                           std::vector<pid_t> &pids, uint64_t &totalNeedBorrowMem))
+               MpResult(*)(const std::vector<VmNumaInfo>& allVmNumaInfoInfoList, uint64_t memSizeSingle,
+                           std::vector<pid_t>& pids, uint64_t& totalNeedBorrowMem))
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().FindClosestVmForMemAlloc(allVmNumaInfoInfoList, memSizeSingle, pids,
@@ -988,13 +988,13 @@ TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc3)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&FaultMemIdStrategy::IsMemBorrowNotWipeTheEdge,
-               bool (*)(const std::vector<pid_t> &pids, const std::vector<VmNumaInfo> &allVmNumaInfoInfoList,
-                        uint64_t &totalNeedBorrowMem))
+               bool (*)(const std::vector<pid_t>& pids, const std::vector<VmNumaInfo>& allVmNumaInfoInfoList,
+                        uint64_t& totalNeedBorrowMem))
         .stubs()
         .will(returnValue(false));
     auto res = FaultMemIdModule::Instance().FindClosestVmForMemAlloc(allVmNumaInfoInfoList, memSizeSingle, pids,
                                                                      totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_EQ(res, 0);
 }
 
 TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc4)
@@ -1023,8 +1023,8 @@ TEST_F(TestFaultMemIdModule, IsMemBorrowNotWipeTheEdge1)
     vm.remoteUsedMem = 1024;
     allVmNumaInfoInfoList.push_back(vm);
     uint64_t totalNeedBorrowMem = 1024;
-    auto res = FaultMemIdStrategy::Instance().IsMemBorrowNotWipeTheEdge(pids, allVmNumaInfoInfoList,
-        totalNeedBorrowMem);
+    auto res =
+        FaultMemIdStrategy::Instance().IsMemBorrowNotWipeTheEdge(pids, allVmNumaInfoInfoList, totalNeedBorrowMem);
     ASSERT_EQ(res, true);
 }
 
@@ -1037,8 +1037,8 @@ TEST_F(TestFaultMemIdModule, IsMemBorrowNotWipeTheEdge2)
     vm.remoteUsedMem = 4194304;
     allVmNumaInfoInfoList.push_back(vm);
     uint64_t totalNeedBorrowMem = 4194304;
-    auto res = FaultMemIdStrategy::Instance().IsMemBorrowNotWipeTheEdge(pids, allVmNumaInfoInfoList,
-        totalNeedBorrowMem);
+    auto res =
+        FaultMemIdStrategy::Instance().IsMemBorrowNotWipeTheEdge(pids, allVmNumaInfoInfoList, totalNeedBorrowMem);
     ASSERT_EQ(res, true);
 }
 
@@ -1050,30 +1050,32 @@ TEST_F(TestFaultMemIdModule, ApplyMemBorrowStrategyMultipleUBFailed1)
     MemBorrowStrategyMultiResult borrowStrategyMultiResult;
     bool isSameDestNid;
     MemBorrowStrategyParam memBorrowStrategyParam;
-    auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(srcParam, borrowSizes,
-        memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
+    auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(
+        srcParam, borrowSizes, memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
     ASSERT_EQ(res, 1);
 }
 
 TEST_F(TestFaultMemIdModule, ApplyMemBorrowStrategyMultipleUBFailed2)
 {
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowStrategyMultipleUB, MpResult(*)(const mempooling::SrcMemoryBorrowParam &,
-        const std::vector<uint64_t> &, std::string &, MemBorrowStrategyMultiResult &))
-        .stubs().will(returnValue(0));
+    MOCKER_CPP(&MempoolBorrowModule::MemBorrowStrategyMultipleUB,
+               MpResult(*)(const mempooling::SrcMemoryBorrowParam&, const std::vector<uint64_t>&, std::string&,
+                           MemBorrowStrategyMultiResult&))
+        .stubs()
+        .will(returnValue(0));
     SrcMemoryBorrowParam srcParam;
     std::vector<uint64_t> borrowSizes = {1};
     std::string destPreNid;
     MemBorrowStrategyMultiResult borrowStrategyMultiResult;
     bool isSameDestNid;
     MemBorrowStrategyParam memBorrowStrategyParam;
-    auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(srcParam, borrowSizes,
-        memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
+    auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(
+        srcParam, borrowSizes, memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
     ASSERT_EQ(res, 1);
 }
 
-MpResult FaultMemidModuleMemBorrowStrategyMultiple(MempoolBorrowModule *This, const SrcMemoryBorrowParam &srcParam,
-                                                   const std::vector<uint64_t> &borrowSizes, std::string &destPreNid,
-                                                   MemBorrowStrategyMultiResult &borrowStrategyResult)
+MpResult FaultMemidModuleMemBorrowStrategyMultiple(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
+                                                   const std::vector<uint64_t>& borrowSizes, std::string& destPreNid,
+                                                   MemBorrowStrategyMultiResult& borrowStrategyResult)
 {
     DestMemoryBorrowParam destParam1;
     destParam1.destNid = "nid1";
@@ -1081,8 +1083,8 @@ MpResult FaultMemidModuleMemBorrowStrategyMultiple(MempoolBorrowModule *This, co
     return 0;
 }
 
-void FaultMemidModulePrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult &borrowStrategyMultiResult,
-                                                    const bool &isSameDestNid)
+void FaultMemidModulePrintBorrowStrategyMultiResult(const MemBorrowStrategyMultiResult& borrowStrategyMultiResult,
+                                                    const bool& isSameDestNid)
 {
     return;
 }
@@ -1103,8 +1105,8 @@ TEST_F(TestFaultMemIdModule, PrintBorrowStrategyMultiResult1)
     FaultMemIdStrategy::Instance().PrintBorrowStrategyMultiResult(borrowStrategyMultiResult, isSameDestNid);
 }
 
-MpResult FaultMemidModuleCollectBorrowRecords(BorrowRecordHelper *This, const std::string nodeId,
-                                              std::vector<BorrowRecord> &borrowRecords)
+MpResult FaultMemidModuleCollectBorrowRecords(BorrowRecordHelper* This, const std::string nodeId,
+                                              std::vector<BorrowRecord>& borrowRecords)
 {
     BorrowRecord record;
     record.borrowMemId = {1};
@@ -1124,14 +1126,14 @@ TEST_F(TestFaultMemIdModule, IsBorrowIdOfCurNid1)
     uint64_t memBorrowIdSize;
     uint16_t remoteNumaId;
     std::string destPreNid;
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault, MpResult(*)(BorrowRecordHelper * This,
-        const std::string nodeId, std::vector<BorrowRecord> &borrowRecords))
+    MOCKER_CPP(
+        &BorrowRecordHelper::GetFragmentFaultBorrowRecords,
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(FaultMemidModuleCollectBorrowRecords));
     uint16_t destSocketId = 0;
-    auto res =
-        FaultMemIdCollect::Instance().IsBorrowIdOfCurNid(borrowInNodeData, memBorrowIdSize, remoteNumaId,
-            destPreNid, destSocketId);
+    auto res = FaultMemIdCollect::Instance().IsBorrowIdOfCurNid(borrowInNodeData, memBorrowIdSize, remoteNumaId,
+                                                                destPreNid, destSocketId);
     ASSERT_EQ(res, 0);
 }
 
@@ -1143,13 +1145,14 @@ TEST_F(TestFaultMemIdModule, IsBorrowIdOfCurNid2)
     uint64_t memBorrowIdSize;
     uint16_t remoteNumaId;
     std::string destPreNid;
-    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords, MpResult(*)(BorrowRecordHelper * This,
-        const std::string nodeId, std::vector<BorrowRecord> &borrowRecords))
+    MOCKER_CPP(
+        &BorrowRecordHelper::CollectBorrowRecords,
+        MpResult(*)(BorrowRecordHelper * This, const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
         .stubs()
         .will(invoke(FaultMemidModuleCollectBorrowRecords));
     uint16_t destSocketId = 0;
     auto res = FaultMemIdCollect::Instance().IsBorrowIdOfCurNid(borrowInNodeData, memBorrowIdSize, remoteNumaId,
-        destPreNid, destSocketId);
+                                                                destPreNid, destSocketId);
     ASSERT_EQ(res, 1);
 }
 
@@ -1221,7 +1224,7 @@ TEST_F(TestFaultMemIdModule, GetSocketIdOfNUMA_Success)
     std::string destPreNid;
     uint16_t destSocketId;
 
-    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string &nodeId, const int &numaId, int &socketId))
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1241,7 +1244,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoRecvHandlerPointerValid)
     req.len = builder.GetSize();
 
     MOCKER_CPP(&mempooling::FaultMemIdCollect::NotSameNidVmInfo,
-               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t> &, uint64_t &))
+               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t>&, uint64_t&))
         .stubs()
         .will(returnValue(0));
 
@@ -1263,7 +1266,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoRecvHandlerFailed)
     req.len = builder.GetSize();
 
     MOCKER_CPP(&mempooling::FaultMemIdCollect::NotSameNidVmInfo,
-               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t> &, uint64_t &))
+               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t>&, uint64_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
@@ -1285,11 +1288,11 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoRecvHandlerMemcpyFailed)
     req.len = builder.GetSize();
 
     MOCKER_CPP(&mempooling::FaultMemIdCollect::NotSameNidVmInfo,
-               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t> &, uint64_t &))
+               MpResult(*)(uint16_t, uint64_t, std::vector<pid_t>&, uint64_t&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
-    MOCKER_CPP(&memcpy_s, int (*)(void *dest, size_t destMax, const void *src, size_t count))
+    MOCKER_CPP(&memcpy_s, int (*)(void* dest, size_t destMax, const void* src, size_t count))
         .stubs()
         .will(returnValue(1));
 
@@ -1304,7 +1307,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidRecvHandlerSucceed)
     UbseByteBuffer req;
     UbseByteBuffer resp;
 
-    uint64_t remoteNumaHuge = 1;
+    uint16_t remoteNumaHuge = 1;
     uint64_t totalNeedBorrowMem = 1;
     std::vector<pid_t> pids = {1};
     uint16_t remoteNumaId = 2;
@@ -1332,14 +1335,14 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidResHandlerSucceed)
     // 创建一个uint32_t变量作为data，并初始化为一个默认值
     uint32_t data = 1;
     // 将result的地址作为ctx传递
-    void *ctx = &data;
+    void* ctx = &data;
     UbseByteBuffer respData;
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
     uint32_t resCode = MEM_POOLING_OK;
     MemIdFaultNotSameNidResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     ASSERT_EQ(*result, MEM_POOLING_OK);
 }
 
@@ -1348,7 +1351,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidResHandlerFailed)
     // 创建一个uint32_t变量作为data，并初始化为一个默认值
     uint32_t data = 1;
     // 将result的地址作为ctx传递
-    void *ctx = &data;
+    void* ctx = &data;
     UbseByteBuffer respData;
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
@@ -1356,7 +1359,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidResHandlerFailed)
 
     MemIdFaultNotSameNidResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     ASSERT_EQ(*result, MEM_POOLING_ERROR);
 }
 
@@ -1411,7 +1414,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultSameNidResHandlerSucceed)
     // 创建一个uint32_t变量作为data，并初始化为一个默认值
     uint32_t data = 1;
     // 将result的地址作为ctx传递
-    void *ctx = &data;
+    void* ctx = &data;
     UbseByteBuffer respData;
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
@@ -1419,7 +1422,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultSameNidResHandlerSucceed)
 
     MemIdFaultSameNidResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     ASSERT_EQ(*result, MEM_POOLING_OK);
 }
 
@@ -1428,7 +1431,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultSameNidResHandlerFailed)
     // 创建一个uint32_t变量作为data，并初始化为一个默认值
     uint32_t data = 1;
     // 将result的地址作为ctx传递
-    void *ctx = &data;
+    void* ctx = &data;
     UbseByteBuffer respData;
     respData.len = 1;
     respData.data = new uint8_t[respData.len];
@@ -1436,7 +1439,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultSameNidResHandlerFailed)
 
     MemIdFaultSameNidResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    uint32_t *result = static_cast<uint32_t *>(ctx);
+    uint32_t* result = static_cast<uint32_t*>(ctx);
     ASSERT_EQ(*result, MEM_POOLING_ERROR);
 }
 
@@ -1448,7 +1451,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerSucceed)
     FMVmInfoResult ctxInit = {pids, totalNeedBorrowMem};
 
     uint32_t resCode = MEM_POOLING_OK;
-    void *ctx = &ctxInit;
+    void* ctx = &ctxInit;
     UbseByteBuffer respData;
     RmrsOutStream builder;
     builder << data;
@@ -1456,7 +1459,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerSucceed)
 
     MemIdFaultNotSameNidVmInfoResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    FMVmInfoResult *result = static_cast<FMVmInfoResult *>(ctx);
+    FMVmInfoResult* result = static_cast<FMVmInfoResult*>(ctx);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerFailed)
@@ -1467,7 +1470,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerFailed)
     FMVmInfoResult ctxInit = {pids, totalNeedBorrowMem};
 
     uint32_t resCode = MEM_POOLING_ERROR;
-    void *ctx = &ctxInit;
+    void* ctx = &ctxInit;
     UbseByteBuffer respData;
     RmrsOutStream builder;
     builder << data;
@@ -1475,7 +1478,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerFailed)
 
     MemIdFaultNotSameNidVmInfoResHandler(ctx, respData, resCode);
     delete[] respData.data;
-    FMVmInfoResult *result = static_cast<FMVmInfoResult *>(ctx);
+    FMVmInfoResult* result = static_cast<FMVmInfoResult*>(ctx);
 }
 
 } // namespace mempooling

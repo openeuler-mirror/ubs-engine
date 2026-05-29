@@ -17,14 +17,14 @@
 #include <ubse_error.h>
 #include <ubse_mem_controller.h>
 #include <ubse_timer.h>
+#include "alarm_handler.h"
+#include "resource_collect.h"
 #include "vm_configuration.h"
 #include "vm_json_util.h"
 #include "vm_string_util.h"
-#include "alarm_handler.h"
-#include "resource_collect.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 using namespace ubse::timer;
 using namespace ubse::mem::controller;
@@ -32,7 +32,7 @@ std::mutex MemHandler::timerTaskMutex;
 std::string MemHandler::timerName = "waterMarkCollectTimer";
 static const uint32_t ONE_SECOND_TO_MILLI_SECONDS = 1000;
 
-MemHandler &MemHandler::GetInstance()
+MemHandler& MemHandler::GetInstance()
 {
     static MemHandler gInstance;
     return gInstance;
@@ -51,30 +51,30 @@ void MemHandler::Terminate()
     UbseTimerHandlerUnregister(timerName);
 }
 
-bool MemHandler::IsVmExists(const NumaCpuInfo &numaCpuInfo, const HostVmDomainInfo &hostVmDomainInfo)
+bool MemHandler::IsVmExists(const NumaCpuInfo& numaCpuInfo, const HostVmDomainInfo& hostVmDomainInfo)
 {
     // Check for the presence of VM
     return std::any_of(hostVmDomainInfo.vmDomainInfos.begin(), hostVmDomainInfo.vmDomainInfos.end(),
-        [&numaCpuInfo](const VmDomainInfo &vmDomainInfo) {
-            for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
-                if (vmDomainNumaInfo.numaId == numaCpuInfo.numaId &&
-                    vmDomainNumaInfo.socketId == numaCpuInfo.socketId) {
-                    return true;
-                }
-            }
-            return false;
-        });
+                       [&numaCpuInfo](const VmDomainInfo& vmDomainInfo) {
+                           for (const auto& [numaId, vmDomainNumaInfo] : vmDomainInfo.numaMemInfo) {
+                               if (vmDomainNumaInfo.numaId == numaCpuInfo.numaId &&
+                                   vmDomainNumaInfo.socketId == numaCpuInfo.socketId) {
+                                   return true;
+                               }
+                           }
+                           return false;
+                       });
 }
 
-WatermarkWarningType MemHandler::WaterNotifyEvent(const NumaCpuInfo &numaCpuInfo, const size_t &borrowInfoSize,
-                                                  Notify &notify)
+WatermarkWarningType MemHandler::WaterNotifyEvent(const NumaCpuInfo& numaCpuInfo, const size_t& borrowInfoSize,
+                                                  Notify& notify)
 {
     int16_t highWaterMark = 0;
     int16_t lowWaterMark = 0;
     try {
         highWaterMark = VmStringUtil::SafeStoi16(VmConfiguration::GetInstance().GetBorrowWatermark());
         lowWaterMark = VmStringUtil::SafeStoi16(VmConfiguration::GetInstance().GetLowWatermark());
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Vm parse waterMark failed. error: " << e.what();
         return WatermarkWarningType::NO_WARN;
     }
@@ -132,7 +132,7 @@ VmResult MemHandler::CheckNumaWaterLine()
     if (ret != VM_OK) {
         return ret;
     }
-    for (auto &numaCpuInfo : hostNumaCpuInfo.numaCpuInfos) {
+    for (auto& numaCpuInfo : hostNumaCpuInfo.numaCpuInfos) {
         // Check whether the node is local.
         if (!numaCpuInfo.isLocal) {
             continue;
@@ -166,7 +166,7 @@ VmResult MemHandler::CheckNumaWaterLine()
     return VM_OK;
 }
 
-VmResult MemHandler::NotifyVm(WatermarkWarningType warningType, const Notify &notify)
+VmResult MemHandler::NotifyVm(WatermarkWarningType warningType, const Notify& notify)
 {
     std::string id;
     if (warningType == WatermarkWarningType::CLEAR_BORROW) {
@@ -185,11 +185,11 @@ VmResult MemHandler::NotifyVm(WatermarkWarningType warningType, const Notify &no
     return VM_OK;
 }
 
-VmResult MemHandler::GetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaIds,
-                                        std::map<uint16_t, uint64_t> &numaBorrowedSizeMap)
+VmResult MemHandler::GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
+                                        std::map<uint16_t, uint64_t>& numaBorrowedSizeMap)
 {
     // Fill the map. The value is initialized to 0.
-    for (const auto &id : remoteNumaIds) {
+    for (const auto& id : remoteNumaIds) {
         UBSE_LOG_DEBUG << "Start to get borrowd size for numa " << id;
         numaBorrowedSizeMap[id] = 0;
     }
@@ -210,7 +210,7 @@ VmResult MemHandler::GetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaI
         return VM_ERROR;
     }
     UBSE_LOG_DEBUG << "debt info num=" << debtInfos.size();
-    for (auto &debtInfo : debtInfos) {
+    for (auto& debtInfo : debtInfos) {
         UBSE_LOG_DEBUG << "borrow name=" << debtInfo.name << ", remoteNumaId=" << debtInfo.remoteNumaId
                        << ", size=" << debtInfo.size;
         if (debtInfo.remoteNumaId < 0 || debtInfo.size == 0) {
@@ -244,7 +244,7 @@ std::string MemHandler::ToString(WatermarkWarningType warning)
     return "";
 }
 
-VmResult MemHandler::TransNotify(const std::string &notifyMessage, Notify &notify)
+VmResult MemHandler::TransNotify(const std::string& notifyMessage, Notify& notify)
 {
     Document msgJson;
     msgJson.Parse(notifyMessage.c_str());
@@ -282,7 +282,7 @@ VmResult MemHandler::TransNotify(const std::string &notifyMessage, Notify &notif
 }
 
 // borrowInfo only contains the NUMA IDs on this node that still have active memory borrowings
-VmResult MemHandler::GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int> &borrowInfo)
+VmResult MemHandler::GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int>& borrowInfo)
 {
     std::vector<UbseNumaMemoryImportDebtInfo> debtInfos{};
     auto res = UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
@@ -297,7 +297,7 @@ VmResult MemHandler::GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsign
         return ret;
     }
     int i = 0;
-    for (const auto &debtInfo : debtInfos) {
+    for (const auto& debtInfo : debtInfos) {
         int16_t tempNumaId;
         // Copy first 2 bytes from usrInfo to tempNumaId (business logic alignment with rmrs)
         if (memcpy_s(&tempNumaId, sizeof(tempNumaId), debtInfo.usrInfo, sizeof(tempNumaId)) != EOK) {
@@ -312,7 +312,7 @@ VmResult MemHandler::GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsign
     return VM_OK;
 }
 
-void MemHandler::NotifyReturnMem(const NumaCpuInfo &nodeNumaInfo)
+void MemHandler::NotifyReturnMem(const NumaCpuInfo& nodeNumaInfo)
 {
     const Notify notify{
         .percent = 0,

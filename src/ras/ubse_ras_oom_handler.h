@@ -6,12 +6,12 @@
 #include "ubse_ras.h"
 
 namespace ubse::ras {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 
 UbseResult OomHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
 UbseResult InitOomHandler();
 
-}
+} // namespace ubse::ras
 
 #endif // UBSE_MANAGER_MXE_RAS_OOM_HANDLER_H

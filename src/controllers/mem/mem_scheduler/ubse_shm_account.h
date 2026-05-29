@@ -17,7 +17,7 @@ namespace ubse::mem::account {
 class ShareAlgoAccount {
 public:
     ShareAlgoAccount() = default;
-    ShareAlgoAccount(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo> &exportNumaLocs,
+    ShareAlgoAccount(const std::vector<ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo>& exportNumaLocs,
                      uint64_t totalBorrowSize, uint64_t blockSize)
         : exportNumaLocs_(std::move(exportNumaLocs)),
           totalBorrowSize_(totalBorrowSize),
@@ -27,7 +27,7 @@ public:
     }
 
     void UpdateAlgoAccountState(ubse::adapter_plugins::mmi::UbseMemState memState,
-                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     strategy::AccountState GetAccountState()
     {
@@ -46,19 +46,19 @@ public:
 
     void UpdateSharedNumaInfo(bool isAdd);
 
-    void UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+    void UpdateMapNumaInfo(bool isAdd, const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     void UpdateStateByNoExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                              const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     void UpdateStateByImportExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                  const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                                  const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     void UpdateStateByExportExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                  const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                                  const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
     void UpdateStateByBothExist(ubse::adapter_plugins::mmi::UbseMemState state,
-                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult &algoResult);
+                                const ubse::adapter_plugins::mmi::UbseMemAlgoResult& algoResult);
 
 private:
     // 借入借出关系
@@ -69,6 +69,6 @@ private:
     uint64_t totalBorrowSize_{};
     // 实际的物理连线socketId
 };
-}  // namespace ubse::mem::account
+} // namespace ubse::mem::account
 
 #endif

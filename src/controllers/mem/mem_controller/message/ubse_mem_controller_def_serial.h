@@ -15,8 +15,10 @@
 #include "ubse_mem_controller_def.h"
 #include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
-using namespace ubse::serial;
-using namespace controller;
+using controller::UbseMemAddrDesc;
+using controller::UbseMemNumaDesc;
+using ubse::serial::UbseDeSerialization;
+using ubse::serial::UbseSerialization;
 
 void UbseErrCodeSerialization(UbseSerialization& out, const uint32_t& mErrCode);
 bool UbseErrCodeDeserialization(UbseDeSerialization& in, uint32_t& mErrCode);
@@ -47,13 +49,13 @@ bool UbseMemShmDescListDeSerialization(UbseDeSerialization& in, std::vector<def:
 void UbseMemShmMemStatusDescSerialization(UbseSerialization& out, const def::UbseMemShmMemStatusDesc& desc);
 bool UbseMemShmMemStatusDescDeSerialization(UbseDeSerialization& in, def::UbseMemShmMemStatusDesc& desc);
 
-bool UbseNodeBorrowInfosSerialize(UbseSerialization &serialization,
-                                  const std::vector<def::UbseNodeBorrowInfo> &nodeBorrowInfos);
+bool UbseNodeBorrowInfosSerialize(UbseSerialization& serialization,
+                                  const std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfos);
 
-bool UbseNodeBorrowInfosDeserialize(UbseDeSerialization &deSerialization,
-                                    std::vector<def::UbseNodeBorrowInfo> &nodeBorrowInfos);
+bool UbseNodeBorrowInfosDeserialize(UbseDeSerialization& deSerialization,
+                                    std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfos);
 
-bool UbseCliShmDescSerialize(const ubse::mem::def::UbseMemShmDesc &shmDesc, const std::string &importNodeId,
-                             UbseSerialization &serialization);
+bool UbseCliShmDescSerialize(const ubse::mem::def::UbseMemShmDesc& shmDesc, const std::string& importNodeId,
+                             UbseSerialization& serialization);
 } // namespace ubse::mem::controller::message
 #endif // UBSE_MEM_CONTROLLER_DEF_SERIAL_H

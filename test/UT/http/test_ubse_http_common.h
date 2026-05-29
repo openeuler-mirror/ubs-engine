@@ -13,8 +13,8 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_HTTP_COMMON_H
 #define UBSE_MANAGER_TEST_UBSE_HTTP_COMMON_H
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 
 #include "ubse_http_common.h"
@@ -29,6 +29,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::http
 
 #endif // UBSE_MANAGER_TEST_UBSE_HTTP_COMMON_H

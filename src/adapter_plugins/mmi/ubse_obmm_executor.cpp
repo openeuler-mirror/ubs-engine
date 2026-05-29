@@ -9,20 +9,29 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "ubse_obmm_executor.h"
+#include <unistd.h>
 #include <array>
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
+#include <csignal>
+#include "ubse_conf_module.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_def.h"
-#include "ubse_obmm_executor.h"
 #include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::security;
+using namespace ubse::context;
 
 std::vector<__u32> overrideCap = {CAP_DAC_OVERRIDE};
 static const std::string OBMM_LOG_INFO = "#######UB[OBMM]########";
+static constexpr uint64_t OFFLINE_TIMEOUT_MIN_S = 10;
+static constexpr uint64_t OFFLINE_TIMEOUT_MAX_S = 1800;
+
+uint64_t RmObmmExecutor::offlineTimeoutMs_ = DEFAULT_UNIMPORT_TIMEOUT_MS;
+bool RmObmmExecutor::offlineTimeoutConfigured_ = false;
 
 UbseResult RmObmmExecutor::Init()
 {
@@ -36,7 +45,36 @@ UbseResult RmObmmExecutor::Init()
         UBSE_LOG_ERROR << MMI_LOG_INFO << "Get obmm funcs failed from libobmm.so.";
         return ret;
     }
+    uint64_t timeoutMs = DEFAULT_UNIMPORT_TIMEOUT_MS;
+    auto configModule = UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
+    if (configModule != nullptr &&
+        configModule->GetConf("ubse.memory", OBMM_OFFLINE_TIMEOUT_CONFIG_KEY, timeoutMs) == UBSE_OK) {
+        if (timeoutMs >= OFFLINE_TIMEOUT_MIN_S && timeoutMs <= OFFLINE_TIMEOUT_MAX_S) {
+            offlineTimeoutConfigured_ = true;
+            offlineTimeoutMs_ = timeoutMs * MS_PER_SECOND;
+            UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout configured, value=" << timeoutMs << "s";
+        } else {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "obmm.memory.offline.timeout=" << timeoutMs << " out of range ["
+                          << OFFLINE_TIMEOUT_MIN_S << ", " << OFFLINE_TIMEOUT_MAX_S << "], use original calculation";
+        }
+    } else {
+        UBSE_LOG_INFO << MMI_LOG_INFO << "obmm.memory.offline.timeout not configured, use original calculation";
+    }
+    RegisterSigusr1Handler();
     return UBSE_OK;
+}
+
+void RmObmmExecutor::RegisterSigusr1Handler()
+{
+    struct sigaction sa {
+    };
+    sa.sa_handler = [](int) {
+        const char msg[] = "SIGUSR1 received, obmm_unimport interrupted\n";
+        write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    };
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGUSR1, &sa, nullptr);
 }
 
 UbseResult RmObmmExecutor::Exit()
@@ -45,7 +83,7 @@ UbseResult RmObmmExecutor::Exit()
     return UBSE_OK;
 }
 
-UbseResult RmObmmExecutor::DlOpenLib(const std::string &obmmPath)
+UbseResult RmObmmExecutor::DlOpenLib(const std::string& obmmPath)
 {
     handle = dlopen(obmmPath.c_str(), RTLD_NOW);
     if (handle == nullptr) {
@@ -87,7 +125,7 @@ UbseResult RmObmmExecutor::DlOpenLib(const std::string &obmmPath)
     return UBSE_OK;
 }
 
-static std::string eid_bytes_to_hex_dwords(const uint8_t *data, size_t len)
+static std::string eid_bytes_to_hex_dwords(const uint8_t* data, size_t len)
 {
     std::ostringstream oss;
     oss << std::hex;
@@ -107,19 +145,19 @@ static std::string eid_bytes_to_hex_dwords(const uint8_t *data, size_t len)
     return oss.str();
 }
 
-static void PrintObmmMemDesc(const obmm_mem_desc &obmmMemDesc)
+static void PrintObmmMemDesc(const obmm_mem_desc& obmmMemDesc)
 {
     auto deid = eid_bytes_to_hex_dwords(obmmMemDesc.deid, UBSE_EID_LENGTH);
     auto seid = eid_bytes_to_hex_dwords(obmmMemDesc.seid, UBSE_EID_LENGTH);
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna " << obmmMemDesc.scna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.length " << obmmMemDesc.length;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.dcna " << obmmMemDesc.dcna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.tokenid " << obmmMemDesc.tokenid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.addr " << obmmMemDesc.addr;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.deid " << deid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.seid " << seid;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna " << obmmMemDesc.scna;
-    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.priv_len " << obmmMemDesc.priv_len;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna=" << obmmMemDesc.scna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.length=" << obmmMemDesc.length;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.dcna=" << obmmMemDesc.dcna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.tokenid=" << obmmMemDesc.tokenid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.addr=" << obmmMemDesc.addr;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.deid=" << deid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.seid=" << seid;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.scna=" << obmmMemDesc.scna;
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << "obmmMemDesc.priv_len=" << obmmMemDesc.priv_len;
 }
 
 /**
@@ -131,11 +169,11 @@ static void PrintObmmMemDesc(const obmm_mem_desc &obmmMemDesc)
  * @param desc 导出内存后的描述符。
  * @return 成功时返回导出的内存ID，失败时返回INVALID_MEM_ID。
  */
-mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, const ObmmOpParam &opParam,
-                                  ubse_mem_obmm_mem_desc &desc)
+mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, const ObmmOpParam& opParam,
+                                  ubse_mem_obmm_mem_desc& desc)
 {
     UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "Start to use Obmm Export interface, opParam is "
-                   << opParam.toString() << ", size list is=";
+                   << opParam.toString() << ", size list is: ";
     for (int i = 0; i < MAX_NUMA_NODES; ++i) {
         if (size[i] != 0) {
             UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO << "numaid=" << i << ", size=" << size[i];
@@ -148,7 +186,7 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
     for (int i = 0; i < MAX_NUMA_NODES; ++i) {
         if (size[i] > 0) {
             UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_export numa=" << i << ", size=" << size[i]
-                          << ", flag " << obmmFlags;
+                          << ", flag=" << obmmFlags;
         }
     }
     if (obmmExportFunc == nullptr) {
@@ -169,8 +207,8 @@ mem_id RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, co
     if (memId == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmExport error! memid="
-                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
-                       << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+                       << ", flag=" << obmmFlags << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memId;
     }
@@ -199,8 +237,8 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmUnExport error! memid=" << id << ", ret=" << ret
-                       << ", flag=" << flags << ", errno=" << errno << ", errMsg="
-                       << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+                       << ", flag=" << flags << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         return UBSE_MMI_OBMM_OP_FAILED;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unexport ok memid=" << id << ", flag=" << flags;
@@ -216,7 +254,7 @@ UbseResult RmObmmExecutor::ObmmUnExport(mem_id id)
  * @param numa 导入的NUMA节点ID。
  * @return 成功时返回导入的内存ID，失败时返回INVALID_MEM_ID。
  */
-mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa)
+mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa)
 {
     if (numa != nullptr) {
         UBSE_LOG_INFO << MMI_LOG_INFO << "numa is" << *numa;
@@ -253,15 +291,16 @@ mem_id RmObmmExecutor::ObmmImport(const ubse_mem_obmm_mem_desc &desc, const Obmm
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (memid == INVALID_MEM_ID) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
-        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport error! memid=" << memid
-                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
-                       << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "ObmmImport error! memid=" << memid << ", flag=" << obmmFlags
+                       << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
         return memid;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << " name=" <<  std::string(opParam.customMeta.name)
-                  << ", opParam=" << opParam.toString() << ", obmm importMemid=" << memid << ", obmm exportMemid="
-                  << opParam.customMeta.exportMemid << ", exportNodeId=" << opParam.customMeta.exportNodeId;
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << " name=" << std::string(opParam.customMeta.name)
+                  << ", opParam=" << opParam.toString() << ", obmm importMemid=" << memid
+                  << ", obmm exportMemid=" << opParam.customMeta.exportMemid
+                  << ", exportNodeId=" << opParam.customMeta.exportNodeId;
     RmCommonUtils::GetInstance().SafeFree(obmmMemDesc);
     return ObmmDevChangeUidGid(memid, true, opParam);
 }
@@ -289,15 +328,54 @@ UbseResult RmObmmExecutor::ObmmUnImport(mem_id id)
     if (ret && errno != ENOENT) {
         char buf[STR_ERROR_BUF_SIZE] = {0};
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid=" << id << ", ret=" << ret
-                       << ", flag=" << obmmFlags << ", errno=" << errno << ", errMsg="
-                       << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+                       << ", flag=" << obmmFlags << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
         return UBSE_MMI_OBMM_OP_FAILED;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport memid=" << id << ", ret=" << ret;
     return UBSE_OK;
 }
 
-mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam &opParam)
+UbseResult RmObmmExecutor::ObmmUnImport(mem_id id, uint64_t timeoutMs)
+{
+    UBSE_LOG_DEBUG << MMI_LOG_INFO << OBMM_LOG_INFO
+                   << "Start to use Obmm Unimport with timeout interface, mem_id=" << id << ", timeoutMs=" << timeoutMs;
+    auto obmmFlags = 0;
+    int ret;
+    errno = 0;
+    if (obmmUnimportFunc == nullptr) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmUnimportFunc is nullptr, please check.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    pthread_t targetTid = pthread_self();
+    UbseMmiTimeoutGuard guard(timeoutMs, [targetTid]() {
+        UBSE_LOG_WARN << MMI_LOG_INFO << "obmm_unimport timeout, sending SIGUSR1 to interrupt target thread.";
+        pthread_kill(targetTid, SIGUSR1);
+    });
+
+    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
+    ret = obmmUnimportFunc(id, obmmFlags);
+    UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
+
+    guard.Cancel();
+
+    if (ret && errno != ENOENT) {
+        char buf[STR_ERROR_BUF_SIZE] = {0};
+        if (errno == EINTR) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport interrupted by timeout, memid=" << id;
+            return UBSE_MMI_OBMM_OP_TIMEOUT;
+        }
+        UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport error! memid=" << id << ", ret=" << ret
+                       << ", flag=" << obmmFlags << ", errno=" << errno
+                       << ", errMsg=" << RmCommonUtils::GetInstance().GetStrError(errno, buf, STR_ERROR_BUF_SIZE);
+        return UBSE_MMI_OBMM_OP_FAILED;
+    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << OBMM_LOG_INFO << "obmm_unimport memid=" << id << ", ret=" << ret;
+    return UBSE_OK;
+}
+
+mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const ObmmOpParam& opParam)
 {
     if (opParam.borrowType == UbseBorrowType::NUMA_BORROW || opParam.borrowType == UbseBorrowType::ADDR_BORROW) {
         return memId;
@@ -320,8 +398,8 @@ mem_id RmObmmExecutor::ObmmDevChangeUidGid(uint64_t memId, bool importMem, const
     return memId;
 }
 
-std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                               UbseMemImportStatus &status, int *numa)
+std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                               UbseMemImportStatus& status, int* numa)
 {
     if (desc.empty() || desc.size() != status.decoderResult.size()) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The mem desc is invalid.";
@@ -345,7 +423,7 @@ std::vector<mem_id> RmObmmExecutor::ObmmImport(const std::vector<UbseMemObmmInfo
     return result;
 }
 
-UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id> &id)
+UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id>& id)
 {
     std::vector<uint64_t> successfulList;
     for (mem_id memId : id) {
@@ -361,8 +439,24 @@ UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id> &id)
     return UBSE_OK;
 }
 
+UbseResult RmObmmExecutor::ObmmUnImport(const std::vector<mem_id>& id, uint64_t timeoutMs)
+{
+    std::vector<uint64_t> successfulList;
+    for (mem_id memId : id) {
+        const auto ret = ObmmUnImport(memId, timeoutMs);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "All memIds=" << RmCommonUtils::GetInstance().MemToStr(id)
+                           << ", successfulList=" << RmCommonUtils::GetInstance().MemToStr(successfulList)
+                           << ", errCode=" << ret;
+            return ret;
+        }
+        successfulList.push_back(memId);
+    }
+    return UBSE_OK;
+}
+
 bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSize,
-                         std::vector<std::array<size_t, MAX_NUMA_NODES>> &result)
+                         std::vector<std::array<size_t, MAX_NUMA_NODES>>& result)
 {
     size_t blockNum[MAX_NUMA_NODES]{};
     size_t blockAll{0};
@@ -394,8 +488,8 @@ bool SplitObmmExportSize(const size_t size[MAX_NUMA_NODES], const size_t blockSi
     return !result.empty();
 }
 
-std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
-                                               std::vector<ubse_mem_obmm_mem_desc> &desc, uint64_t blockSize)
+std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,
+                                               std::vector<ubse_mem_obmm_mem_desc>& desc, uint64_t blockSize)
 {
     std::vector<std::array<size_t, MAX_NUMA_NODES>> resultTemp;
     if (!SplitObmmExportSize(size, blockSize, resultTemp)) {
@@ -431,7 +525,7 @@ std::vector<mem_id> RmObmmExecutor::ObmmExport(size_t size[MAX_NUMA_NODES], int 
     return result;
 }
 
-UbseResult RmObmmExecutor::ObmmUnExport(const std::vector<mem_id> &id)
+UbseResult RmObmmExecutor::ObmmUnExport(const std::vector<mem_id>& id)
 {
     std::vector<uint64_t> successfulList;
     for (mem_id memId : id) {
@@ -447,8 +541,8 @@ UbseResult RmObmmExecutor::ObmmUnExport(const std::vector<mem_id> &id)
     return UBSE_OK;
 }
 
-UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam &param, ubse_mem_obmm_mem_desc &desc,
-                                         const UbseMemLocalObmmCustomMeta &customMeta, const UbMemPrivData &privData)
+UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam& param, ubse_mem_obmm_mem_desc& desc,
+                                         const UbseMemLocalObmmCustomMeta& customMeta, const UbMemPrivData& privData)
 {
     UBSE_LOG_DEBUG << MMI_LOG_INFO << "ObmmExportPid start";
     auto obmmMemDesc = ConstructExportMemDesc(customMeta, privData);
@@ -456,7 +550,8 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam &param, ubse_mem_obm
         return UBSE_ERROR_NULLPTR;
     }
     auto flag = 0;
-    UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va=" << reinterpret_cast<uint64_t>(param.va)
+    UBSE_LOG_INFO << MMI_LOG_INFO << "The pid=" << param.pid << ", va="
+                  << reinterpret_cast<uint64_t>(param.va) // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
                   << ", size=" << param.size;
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, true);
     param.memid = obmmExportByPidFunc(param.pid, param.va, param.size, flag, obmmMemDesc);
@@ -480,7 +575,7 @@ UbseResult RmObmmExecutor::ObmmExportPid(ObmmPidExportParam &param, ubse_mem_obm
     return UBSE_OK;
 }
 
-UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long offset, unsigned long *pa)
+UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long offset, unsigned long* pa)
 {
     if (!pa) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << OBMM_LOG_INFO << " pa is null.";
@@ -500,15 +595,15 @@ UbseResult RmObmmExecutor::ObmmQueryUBPaByMemId(uint64_t handle, unsigned long o
     return UBSE_OK;
 }
 
-UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags)
+UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags)
 {
     if (preimport_info == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error_code=" << UBSE_ERROR_INVAL;
         return UBSE_ERROR_INVAL;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "Start to use Obmm PreImport interface, preimport_info is scna="
-                  << preimport_info->scna << ", dcna=" << preimport_info->dcna << ", length="
-                  << preimport_info->length;
+    UBSE_LOG_INFO << MMI_LOG_INFO
+                  << "Start to use Obmm PreImport interface, preimport_info is scna=" << preimport_info->scna
+                  << ", dcna=" << preimport_info->dcna << ", length=" << preimport_info->length;
     if (obmmPreImportFunc == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmmPreImportFunc is nullptr, error_code=" << UBSE_ERROR_NULLPTR;
         return UBSE_ERROR_NULLPTR;
@@ -528,11 +623,11 @@ UbseResult RmObmmExecutor::ObmmPreImport(struct obmm_preimport_info *preimport_i
                        << ", dcna=" << preimport_info->dcna << ", errno=" << errno;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    UBSE_LOG_INFO << MMI_LOG_INFO << "PreImport success, remote numa_id=" << preimport_info->numa_id << ", scna="
-                  << preimport_info->scna;
+    UBSE_LOG_INFO << MMI_LOG_INFO << "PreImport success, remote numa_id=" << preimport_info->numa_id
+                  << ", scna=" << preimport_info->scna;
     return UBSE_OK;
 }
-UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info *preimport_info, unsigned long flags)
+UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info* preimport_info, unsigned long flags)
 {
     if (preimport_info == nullptr) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The obmm_preimport_info is nullptr, error_code=" << UBSE_ERROR_INVAL;
@@ -549,13 +644,22 @@ UbseResult RmObmmExecutor::ObmmUnPreImport(struct obmm_preimport_info *preimport
     auto ret = obmmUnPreImportFunc(preimport_info, flags);
     UbseSecurityModule::ModifyEffectiveCapabilities(overrideCap, false);
     if (ret != 0) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmUnPreImportFailed, ret=" << ret << ", scna="
-                       << preimport_info->scna << ", dcna=" << preimport_info->dcna;
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "obmmUnPreImportFailed, ret=" << ret << ", scna=" << preimport_info->scna
+                       << ", dcna=" << preimport_info->dcna;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
     UBSE_LOG_INFO << MMI_LOG_INFO << "UnPreImport success, remote numa_id=" << preimport_info->numa_id
                   << ", scna=" << preimport_info->scna;
     return UBSE_OK;
+}
+
+uint64_t RmObmmExecutor::CalculateUnImportTimeout(uint64_t blockSizeMb)
+{
+    if (offlineTimeoutConfigured_) {
+        return offlineTimeoutMs_;
+    }
+    static uint64_t minTimeOutMs = 5000;
+    return minTimeOutMs + blockSizeMb;
 }
 
 } // namespace ubse::mmi

@@ -21,7 +21,7 @@
 namespace ubse::ipc {
 UbseIpcLogFunc UbseIpcLog::logFunc_ = nullptr;
 
-UbseIpcLogEntry::UbseIpcLogEntry(UbseIpcLogLevel level, const char *file, const char *func, uint32_t line)
+UbseIpcLogEntry::UbseIpcLogEntry(UbseIpcLogLevel level, const char* file, const char* func, uint32_t line)
 {
     this->level_ = level;
     oss_ << "[" << file << ':' << func << ':' << line << "] ";
@@ -38,7 +38,7 @@ void UbseIpcLog::SetLogFunc(UbseIpcLogFunc func)
     logFunc_ = func;
 }
 
-void UbseIpcLog::Print(uint32_t level, const char *msg)
+void UbseIpcLog::Print(uint32_t level, const char* msg)
 {
     constexpr std::array<std::string_view, 4> levelStr = {"DEBUG", "INFO", "WARN", "ERROR"};
     constexpr int microsecondWith = 3;
@@ -49,7 +49,8 @@ void UbseIpcLog::Print(uint32_t level, const char *msg)
         return;
     }
 
-    struct timeval tv {};
+    struct timeval tv {
+    };
     char strTime[24] = {};
 
     int ret = gettimeofday(&tv, nullptr);
@@ -57,8 +58,9 @@ void UbseIpcLog::Print(uint32_t level, const char *msg)
         std::cout << "Fail to get the current system time, " << ret << ".\n";
     }
     time_t timeStamp = tv.tv_sec;
-    struct tm localTime {};
-    struct tm *resultTime = localtime_r(&timeStamp, &localTime);
+    struct tm localTime {
+    };
+    struct tm* resultTime = localtime_r(&timeStamp, &localTime);
     if ((resultTime != nullptr) && (strftime(strTime, sizeof strTime, "%Y-%m-%d %H:%M:%S.", resultTime) != 0)) {
         std::cout << strTime << std::setw(microsecondWith) << std::setfill('0') << (tv.tv_usec / NO_1000) << " "
                   << levelStr[level] << " " << msg << '\n';
@@ -67,7 +69,7 @@ void UbseIpcLog::Print(uint32_t level, const char *msg)
     }
 }
 
-void UbseIpcLog::OutPutLog(UbseIpcLogLevel level, const char *msg)
+void UbseIpcLog::OutPutLog(UbseIpcLogLevel level, const char* msg)
 {
     if (logFunc_) {
         logFunc_(static_cast<uint32_t>(level), msg);
@@ -76,7 +78,7 @@ void UbseIpcLog::OutPutLog(UbseIpcLogLevel level, const char *msg)
     }
 }
 
-bool Log::operator==(UbseIpcLogEntry &loggerEntry)
+bool Log::operator==(UbseIpcLogEntry& loggerEntry)
 {
     loggerEntry.OutPutLog();
     return true;

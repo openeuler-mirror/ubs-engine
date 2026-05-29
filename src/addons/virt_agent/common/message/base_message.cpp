@@ -17,12 +17,12 @@
 #include "vm_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace ubse::log;
 
 BaseMessagePtr BaseMessage::gNullPtr(nullptr);
 
-VmResult BaseMessage::SetInputRawData(uint8_t *rawData, uint32_t size, bool copy)
+VmResult BaseMessage::SetInputRawData(uint8_t* rawData, uint32_t size, bool copy)
 {
     if (rawData == nullptr) {
         UBSE_LOG_ERROR << "set_input_raw_data input rawData is null.";
@@ -56,4 +56,4 @@ VmResult BaseMessage::SetInputRawData(uint8_t *rawData, uint32_t size, bool copy
     }
     return VM_OK;
 }
-}
+} // namespace vm

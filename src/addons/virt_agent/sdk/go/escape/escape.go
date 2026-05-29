@@ -13,7 +13,7 @@
 package escape
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../include
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -58,7 +58,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"ubs_virt_agent_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/addons/virt_agent/sdk/go/dlopen"
 )
 
 // WaterMark waterMark value for escape

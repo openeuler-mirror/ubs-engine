@@ -11,16 +11,13 @@
  */
 
 #include "ubse_cli_mem_cmd_reg.h"
-#include <chrono>
-#include <future>
 #include <regex>
-#include <thread>
 
-#include "src/sdk/c/include/ubs_error.h"
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_mem_attach.h"
 #include "ubse_cli_mem_create.h"
 #include "ubse_cli_mem_detach.h"
+#include "ubse_cli_mem_pid.h"
 #include "ubse_cli_mem_query.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
@@ -35,122 +32,142 @@ using namespace ubse::serial;
 using namespace ubse::mem::controller;
 
 // public option reg
-static const std::string PUBLIC_NAME_OPTION = "name";
+constexpr const char* PUBLIC_NAME_OPTION = "name";
 // public option desc
-static const std::string PUBLIC_NAME_OPTION_TIP = "Input a unique name. The name must not exceed 47 characters "
+constexpr const char* PUBLIC_NAME_OPTION_TIP =
+    "Input a unique name. The name must not exceed 47 characters "
     "and can only include English letters, numbers, dots, colons, underscores, and hyphens.";
 // public option input error
-static const std::string PUBLIC_NAME_OPTION_REQUIRED =
+constexpr const char* PUBLIC_NAME_OPTION_REQUIRED =
     "ERROR: The request option -n or --name is required, and the supported name must not exceed 47 characters and can "
     "only include English letters, numbers, dots, colons, underscores, and hyphens.";
-static const std::string PUBLIC_NAME_PARAM_INVALID =
+constexpr const char* PUBLIC_NAME_PARAM_INVALID =
     "ERROR: Invalid name. The name must not exceed 47 characters and can only include English letters, numbers, dots, "
     "colons, underscores, and hyphens.";
 
 // display memory option reg
-static const std::string DISPLAY_MEM_T_OPTION = "type";
-static const std::string DISPLAY_MEM_BT_OPTION = "borrow-type";
-static const std::string DISPLAY_MEM_N_OPTION = "name";
+constexpr const char* DISPLAY_MEM_T_OPTION = "type";
+constexpr const char* DISPLAY_MEM_BT_OPTION = "borrow-type";
+constexpr const char* DISPLAY_MEM_N_OPTION = "name";
 // display memory option desc
-static const std::string DISPLAY_MEM_TYPE_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_TYPE_OPTION_TIP =
     "Query the memory information of a specified option. The option is as follows: node_borrow, borrow_detail, "
     "node_lend, numa_status, config.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_TIP =
     "Input the borrow-type to filter memory account. The option is as follows: "
     "fd, numa, share. Supported only when the type parameter is borrow_detail.";
-static const std::string DISPLAY_MEM_NAME_OPTION_TIP =
+constexpr const char* DISPLAY_MEM_NAME_OPTION_TIP =
     "Input a unique name to filter memory account. The name must not exceed 47 characters and can only include English "
     "letters, numbers, dots, colons, underscores, and hyphens. Supported only when the type parameter is "
     "borrow_detail.";
 // display memory option input error
-static const std::string DISPLAY_MEM_TYPE_OPTION_REQUIRED =
+constexpr const char* DISPLAY_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: node_borrow, "
     "borrow_detail, node_lend, numa_status, config.";
-static const std::string DISPLAY_MEM_TYPE_PARAM_INVALID =
+constexpr const char* DISPLAY_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: node_borrow, "
     "borrow_detail, node_lend, numa_status, config.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_PARAM_INVALID =
     "ERROR: Invalid borrow-type. The supported param is as follows: numa, fd, share.";
-static const std::string DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
-static const std::string DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
+constexpr const char* DISPLAY_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+
+constexpr const char* PID_OPTION = "pid";
+constexpr const char* PID_OPTION_TIP = "PID of the target process. Range: 1-4194304";
+constexpr const char* EVICT_THRESHOLD_OPTION = "evict-thresh";
+constexpr const char* TARGET_EVICT_THRESHOLD_OPTION = "target-evict-thresh";
+constexpr const char* RECLAIM_THRESHOLD_OPTION = "reclaim-thresh";
+constexpr const char* EVICT_THRESHOLD_OPTION_TIP =
+    "Eviction threshold (%). Eviction is triggered when total memory usage exceeds this ratio. Range: 1-100";
+constexpr const char* TARGET_EVICT_THRESHOLD_OPTION_TIP =
+    "Target eviction ratio (%). Target proportion of remote memory to total memory after eviction. Range: 1-100";
+constexpr const char* RECLAIM_THRESHOLD_OPTION_TIP =
+    "Reclaim threshold (%). All remote memory is migrated back and released when total memory usage "
+    "drops below this ratio. Range: 1-100";
+constexpr const char* SRC_NUMAID_OPTION = "src-numa";
+constexpr const char* SRC_NUMAID_OPTION_TIP =
+    "Local NUMA node ID (optional). The lending socket is selected on the same plane as this NUMA node";
+constexpr const char* SIZE_OPTION = "size";
+constexpr const char* SIZE_OPTION_TIP = "Specify the size. The range is from 128M to 256G. "
+                                        "Support up to 2 decimal places. Example: 1G, 512M, 1.5G";
+constexpr const char* INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
+
+constexpr const char* DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
     "ERROR: The -n or --name option only supports when the -t or --type parameter is borrow_detail.";
-static const std::string DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
+constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
     "ERROR: The -bt or --borrow-type option only supports when the -t or --type parameter is borrow_detail.";
 
 // create memory option reg
-static const std::string CREATE_MEM_T_OPTION = "type";
-static const std::string CREATE_MEM_L_OPTION = "link";
-static const std::string CREATE_MEM_S_OPTION = "size";
-static const std::string CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
-static const std::string CREATE_MEM_R_OPTION = "region";
+constexpr const char* CREATE_MEM_T_OPTION = "type";
+constexpr const char* CREATE_MEM_L_OPTION = "link";
+constexpr const char* CREATE_MEM_S_OPTION = "size";
+constexpr const char* CREATE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* CREATE_MEM_R_OPTION = "region";
 // create memory option desc
-static const std::string CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_LINK_OPTION_TIP =
+constexpr const char* CREATE_MEM_TYPE_OPTION_TIP = "Specify the type. The option is as follows: numa, fd, share.";
+constexpr const char* CREATE_MEM_LINK_OPTION_TIP =
     "Specify the link. The format is: nodeID/socketID/portID-nodeID/socketID/portID (e.g., 1/36/0-2/36/0). Supported "
     "only when the type parameter is numa.";
-static const std::string CREATE_MEM_SIZE_OPTION_TIP =
-    "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
-static const std::string CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
-static const std::string CREATE_MEM_REGION_OPTION_TIP =
-    "Specify the shared region node IDs. The format is: node1,node2 "
-    "(e.g., 1,2). Supported only when the type parameter is share.";
+constexpr const char* CREATE_MEM_SIZE_OPTION_TIP = "Specify the size. The minimum allowed size is 4M. (e.g., 128M,1G).";
+constexpr const char* CREATE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* CREATE_MEM_REGION_OPTION_TIP = "Specify the shared region node IDs. The format is: node1,node2 "
+                                                     "(e.g., 1,2). Supported only when the type parameter is share.";
 // create memory option input error
-static const std::string CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
-static const std::string CREATE_MEM_TYPE_OPTION_REQUIRED =
+constexpr const char* CREATE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* CREATE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* CREATE_MEM_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_TYPE_PARAM_INVALID =
+constexpr const char* CREATE_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: numa, fd, share.";
-static const std::string CREATE_MEM_SIZE_OPTION_REQUIRED =
+constexpr const char* CREATE_MEM_SIZE_OPTION_REQUIRED =
     "ERROR: The request option -s or --size is required, and the minimum allowed size is 4M. (e.g., 128M,1G)";
-static const std::string CREATE_MEM_SIZE_PARAM_INVALID =
+constexpr const char* CREATE_MEM_SIZE_PARAM_INVALID =
     "ERROR: Invalid size. The minimum allowed size is 4M. (e.g., 128M,1G)";
-static const std::string CREATE_MEM_LINK_PARAM_INVALID =
+constexpr const char* CREATE_MEM_LINK_PARAM_INVALID =
     "ERROR: Invalid link. The link must be hyphen-separated nodeID/socketID/portID pairs (e.g., 1/36/0-2/36/0).";
-static const std::string CREATE_MEM_REGION_PARAM_INVALID =
+constexpr const char* CREATE_MEM_REGION_PARAM_INVALID =
     "ERROR: Invalid region. The region must be comma-separated numeric node IDs (e.g., 1,2,3).";
-static const std::string CREATE_MEM_LINK_OPTION_UNSUPPORT =
+constexpr const char* CREATE_MEM_LINK_OPTION_UNSUPPORT =
     "ERROR: The -l or --link option only supports when the -t or --type parameter is numa.";
-static const std::string CREATE_MEM_REGION_OPTION_UNSUPPORT =
+constexpr const char* CREATE_MEM_REGION_OPTION_UNSUPPORT =
     "ERROR: The -r or --region option only supports when the -t or --type parameter is share.";
 
 // delete memory option reg
-static const std::string DELETE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
-static const std::string DELETE_MEM_T_OPTION = "type";
+constexpr const char* DELETE_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* DELETE_MEM_T_OPTION = "type";
 // delete memory option desc
-static const std::string DELETE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
-static const std::string DELETE_MEM_TYPE_OPTION_TIP =
+constexpr const char* DELETE_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* DELETE_MEM_TYPE_OPTION_TIP =
     "Input the type to delete memory. The default value is numa. The option is as follows: fd, numa, share, addr.";
 // delete memory option input error
-static const std::string DELETE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string DELETE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
-static const std::string DELETE_MEM_TYPE_PARAM_INVALID =
+constexpr const char* DELETE_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* DELETE_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* DELETE_MEM_TYPE_PARAM_INVALID =
     "ERROR: Invalid type. The supported param is as follows: numa, fd, share, addr.";
 
 // attach memory option reg
-static const std::string ATTACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* ATTACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
 // attach memory option desc
-static const std::string ATTACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* ATTACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
 // attach memory option input error
-static const std::string ATTACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string ATTACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* ATTACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* ATTACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
 // detach memory option reg
-static const std::string DETACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
+constexpr const char* DETACH_MEM_N_OPTION = PUBLIC_NAME_OPTION;
 // detach memory option desc
-static const std::string DETACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
+constexpr const char* DETACH_MEM_NAME_OPTION_TIP = PUBLIC_NAME_OPTION_TIP;
 // detach memory option input error
-static const std::string DETACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
-static const std::string DETACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
+constexpr const char* DETACH_MEM_NAME_OPTION_REQUIRED = PUBLIC_NAME_OPTION_REQUIRED;
+constexpr const char* DETACH_MEM_NAME_PARAM_INVALID = PUBLIC_NAME_PARAM_INVALID;
 
-static const std::string NODE_BORROW_EMPTY = "INFO: The node borrow information is empty.";
-static const std::string BORROW_DETAIL_EMPTY = "INFO: The borrow detail information is empty.";
+constexpr const char* NODE_BORROW_EMPTY = "INFO: The node borrow information is empty.";
+constexpr const char* BORROW_DETAIL_EMPTY = "INFO: The borrow detail information is empty.";
 
-static const std::string SERIALIZATION_ERROR = "ERROR: Serialization failed.";
-static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
-static const std::string MEMORY_INTERNAL_ERROR = "ERROR: Internal error with error code ";
-static const std::string MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
-static const std::string SET_TIMER_ERROR = "ERROR: Set timer failed. ";
+constexpr const char* SERIALIZATION_ERROR = "ERROR: Serialization failed.";
+constexpr const char* DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed.";
+constexpr const char* MEMORY_INTERNAL_ERROR = "ERROR: Internal error with error code ";
+constexpr const char* MEMORY_EMPTY_ERROR = "ERROR: Failed to obtain memory information";
+constexpr const char* SET_TIMER_ERROR = "ERROR: Set timer failed. ";
 
 static const uint16_t MEM_MODULE_CODE = UBSE_MEM;
 static const uint16_t MEM_NODE_BORROW_OP_CODE = UBSE_MEM_CLI_NODE_BORROW;
@@ -162,7 +179,7 @@ const uint32_t REQUEST_BUFFER_CAPACITY = 8;
 const int8_t RETRY_WAIT_TIME = 10;
 constexpr size_t NODE_LENGTH = 80; // hostname(slot_id), hostname最长为64
 
-std::string FormatHostnameSlot(const std::string &hostname, uint32_t slotId)
+std::string FormatHostnameSlot(const std::string& hostname, uint32_t slotId)
 {
     return (hostname.empty() ? "-" : hostname) + "(" + std::to_string(slotId) + ")";
 }
@@ -170,13 +187,12 @@ std::string FormatHostnameSlot(const std::string &hostname, uint32_t slotId)
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowInfo()
 {
     UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY); // Create a blank request.
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEM_NODE_BORROW_OP_CODE, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_borrow_account_size{};
@@ -216,12 +232,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeBorrowIn
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNodeLendInfo()
 {
-    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
+    ubse_api_buffer_t ubse_req_buffer{nullptr, 0};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NODE_LEND, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_borrow_account_size{};
@@ -269,7 +285,7 @@ struct UbseNumaStatusInfo {
 };
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatusData(
-    UbseDeSerialization &deSerialization, size_t numaInfoSize)
+    UbseDeSerialization& deSerialization, size_t numaInfoSize)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_6, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -302,12 +318,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
 {
-    ubse_api_buffer_t ubse_req_buffer{ nullptr, 0 };
+    ubse_api_buffer_t ubse_req_buffer{nullptr, 0};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t numaInfoSize{};
@@ -324,13 +340,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
 {
     UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY);
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CONFIG, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t node_size;
@@ -364,13 +379,13 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-bool CheckBorrowDetailType(const std::string &type)
+bool CheckBorrowDetailType(const std::string& type)
 {
     return type == "fd" || type == "numa" || type == "share";
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     auto it_kind = params.find(DISPLAY_MEM_T_OPTION);
     auto it_borrow_type = params.find(DISPLAY_MEM_BT_OPTION);
@@ -416,17 +431,31 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
     return UbseCliStringPromptReply(DISPLAY_MEM_TYPE_PARAM_INVALID);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DisplayProcessMemFunc(
+    const std::map<std::string, std::string>& params)
+{
+    auto it = params.find("type");
+    if (it == params.end()) {
+        return UbseCliStringPromptReply(
+            "ERROR: The request option -t or --type is required, and the supported param is as follows: config.");
+    }
+    if (it->second != "config") {
+        return UbseCliStringPromptReply("ERROR: Invalid type. The supported param is as follows: config.");
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliPrintPidInfo();
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatusFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseSerialization ubse_req_serial(UBSE_CLI_NUM_8);
-    ubse_api_buffer_t ubse_req_buffer{ ubse_req_serial.GetBuffer(),
-        static_cast<uint32_t>(ubse_req_serial.GetLength()) };
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_CHECK_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(MEMORY_INTERNAL_ERROR + std::to_string(ret));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
     size_t size = 0;
@@ -440,8 +469,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliCheckMemoryStatus
     return UbseCliMemoryStatusData(ubse_de_serial, size);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemoryStatusData(UbseDeSerialization &ubse_de_serial,
-    size_t size)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemoryStatusData(UbseDeSerialization& ubse_de_serial,
+                                                                                size_t size)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_3, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -486,13 +515,13 @@ UbseCliCommandInfo UbseCliRegMemModule::UbseCliCheckMemoryStatus()
     return builder.UbseCliBuild();
 }
 
-bool LinkIsMatch(const std::string &str)
+bool LinkIsMatch(const std::string& str)
 {
     const std::regex pattern(R"(^\d+/\d+/\d+-\d+/\d+/\d+$)");
     return std::regex_match(str, pattern);
 }
 
-bool SizeIsMatch(const std::string &str, size_t &size)
+bool SizeIsMatch(const std::string& str, size_t& size)
 {
     std::regex pattern(R"(^(\d+)(G|M))");
     std::smatch match;
@@ -520,7 +549,7 @@ bool SizeIsMatch(const std::string &str, size_t &size)
     return true;
 }
 
-bool CheckName(const std::string &name)
+bool CheckName(const std::string& name)
 {
     if (name.length() > MAX_NAME_LENGTH || name.empty()) {
         return false;
@@ -533,8 +562,8 @@ bool CheckName(const std::string &name)
     return true;
 }
 
-static std::string FormatMemoryInfoReply(const std::string &name, int64_t numaId, const std::string &importNode,
-    const std::string &exportNode)
+static std::string FormatMemoryInfoReply(const std::string& name, int64_t numaId, const std::string& importNode,
+                                         const std::string& exportNode)
 {
     std::ostringstream oss;
     oss << "name:" << name << '\n'
@@ -546,7 +575,7 @@ static std::string FormatMemoryInfoReply(const std::string &name, int64_t numaId
 
 static std::string MakeInternalErrorString(uint32_t errorCode)
 {
-    return std::string("ERROR: Internal error with error code ") + std::to_string(errorCode);
+    return GetErrorMessage(errorCode);
 }
 
 struct ParsedResponse {
@@ -559,10 +588,10 @@ struct ParsedResponse {
     std::string errorMsg;
 };
 
-ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
+ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t& responseBuffer)
 {
     ParsedResponse result{};
-    UbseDeSerialization deserial{ responseBuffer.buffer, responseBuffer.length };
+    UbseDeSerialization deserial{responseBuffer.buffer, responseBuffer.length};
     std::string name;
     std::string state;
     try {
@@ -575,11 +604,11 @@ ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
         auto stageInt = std::stoi(state);
         result.stage = static_cast<UbseMemStage>(stageInt);
         result.name = std::move(name);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         result.success = false;
         result.errorMsg = "ERROR: Internal error.";
         return result;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         result.success = false;
         result.errorMsg = "ERROR: Internal error.";
         return result;
@@ -603,7 +632,7 @@ ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t &responseBuffer)
 }
 
 // 处理 IPC 超时后的轮询查询逻辑
-std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
+std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string& name)
 {
     while (true) {
         UbseSerialization timeOutSerial;
@@ -611,7 +640,7 @@ std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
         if (!timeOutSerial.Check()) {
             return UbseCliRegModule::UbseCliStringPromptReply(SERIALIZATION_ERROR);
         }
-        ubse_api_buffer_t requestBuffer{ timeOutSerial.GetBuffer(), static_cast<uint32_t>(timeOutSerial.GetLength()) };
+        ubse_api_buffer_t requestBuffer{timeOutSerial.GetBuffer(), static_cast<uint32_t>(timeOutSerial.GetLength())};
         ubse_api_buffer_t responseBuffer;
         uint32_t ret =
             ubse_invoke_call(MEM_MODULE_CODE, MEMORY_NUMA_STATE_QUERY_OP_CODE, &requestBuffer, &responseBuffer);
@@ -647,7 +676,7 @@ std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string &name)
     }
 }
 
-bool ParseRegionString(const std::string &regionStr, std::vector<uint32_t> &regions)
+bool ParseRegionString(const std::string& regionStr, std::vector<uint32_t>& regions)
 {
     if (regionStr.empty() || regionStr.front() == ',' || regionStr.back() == ',') {
         return false;
@@ -681,9 +710,9 @@ bool ParseRegionString(const std::string &regionStr, std::vector<uint32_t> &regi
     return !regions.empty();
 }
 
-static std::set<std::string> GetAllowedParams(const std::string &type)
+static std::set<std::string> GetAllowedParams(const std::string& type)
 {
-    std::set<std::string> allowed = { CREATE_MEM_T_OPTION, CREATE_MEM_N_OPTION, CREATE_MEM_S_OPTION };
+    std::set<std::string> allowed = {CREATE_MEM_T_OPTION, CREATE_MEM_N_OPTION, CREATE_MEM_S_OPTION};
 
     if (type == "numa") {
         allowed.insert(CREATE_MEM_L_OPTION);
@@ -694,10 +723,10 @@ static std::set<std::string> GetAllowedParams(const std::string &type)
     return allowed;
 }
 
-static bool ValidateParamsWhitelist(const std::map<std::string, std::string> &params,
-                                    const std::set<std::string> &allowed, std::string &errorMsg)
+static bool ValidateParamsWhitelist(const std::map<std::string, std::string>& params,
+                                    const std::set<std::string>& allowed, std::string& errorMsg)
 {
-    for (const auto &[key, value] : params) {
+    for (const auto& [key, value] : params) {
         if (allowed.find(key) != allowed.end()) {
             continue;
         } else if (key == CREATE_MEM_L_OPTION) {
@@ -711,8 +740,8 @@ static bool ValidateParamsWhitelist(const std::map<std::string, std::string> &pa
     return true;
 }
 
-static bool ValidateCommonParams(const std::map<std::string, std::string> &params, std::string &name, size_t &size,
-                                 std::string &errorMsg)
+static bool ValidateCommonParams(const std::map<std::string, std::string>& params, std::string& name, size_t& size,
+                                 std::string& errorMsg)
 {
     auto itName = params.find(CREATE_MEM_N_OPTION);
     if (itName == params.end()) {
@@ -740,7 +769,7 @@ static bool ValidateCommonParams(const std::map<std::string, std::string> &param
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -749,7 +778,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     if (it == params.end()) {
         return UbseCliStringPromptReply(CREATE_MEM_TYPE_OPTION_REQUIRED);
     }
-    const std::string &type = it->second;
+    const std::string& type = it->second;
     if (type != "numa" && type != "share" && type != "fd") {
         return UbseCliStringPromptReply(CREATE_MEM_TYPE_PARAM_INVALID);
     }
@@ -789,13 +818,65 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::CreateMemoryFunc(
     }
 }
 
-bool CheckDeleteType(const std::string &type)
+UbseCliCommandInfo UbseCliRegMemModule::DisplayProcessMem()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("display")
+        .UbseCliSetType("process-mem")
+        .UbseCliAddOption("t", "type", "Query the process memory configuration. The option is as follows: config.")
+        .UbseCliSetFunc(DisplayProcessMemFunc);
+    return builder.UbseCliBuild();
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::ChangeMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("change")
+        .UbseCliSetType("process-mem")
+        .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
+        .UbseCliAddOption("e", EVICT_THRESHOLD_OPTION, EVICT_THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("t", TARGET_EVICT_THRESHOLD_OPTION, TARGET_EVICT_THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("r", RECLAIM_THRESHOLD_OPTION, RECLAIM_THRESHOLD_OPTION_TIP)
+        .UbseCliAddOption("s", SIZE_OPTION, SIZE_OPTION_TIP)
+        .UbseCliAddOption("sn", SRC_NUMAID_OPTION, SRC_NUMAID_OPTION_TIP)
+        .UbseCliSetFunc(PidSetThresholdFunc);
+    return builder.UbseCliBuild();
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidUnSetFunc(const std::map<std::string, std::string>& params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto pid = params.find(PID_OPTION);
+    if (pid == params.end()) {
+        return UbseCliStringPromptReply("Invalid PID");
+    }
+    pid_t tmpPid = 0;
+    if (utils::ConvertStrToInt(pid->second, tmpPid) != UBSE_OK) {
+        return UbseCliStringPromptReply("Invalid PID");
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliUnsetPid(tmpPid);
+}
+
+UbseCliCommandInfo UbseCliRegMemModule::RemoveMemory()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("remove")
+        .UbseCliSetType("process-mem")
+        .UbseCliAddOption("p", PID_OPTION, PID_OPTION_TIP)
+        .UbseCliSetFunc(PidUnSetFunc);
+    return builder.UbseCliBuild();
+}
+
+bool CheckDeleteType(const std::string& type)
 {
     return type == "fd" || type == "numa" || type == "addr" || type == "share";
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -820,7 +901,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
     if (!serial.Check()) {
         return UbseCliStringPromptReply(SERIALIZATION_ERROR);
     }
-    ubse_api_buffer_t reqBuffer{ serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength()) };
+    ubse_api_buffer_t reqBuffer{serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
     ubse_api_buffer_t resBuffer{};
     UbseCliWaitIndicator waitIndicator("Deleting memory");
     uint32_t ret = ubse_invoke_call(MEM_MODULE_CODE, MEMORY_DELETE_OP_CODE, &reqBuffer, &resBuffer);
@@ -830,17 +911,20 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
         return HandleTimeoutRetry(name->second);
     }
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(std::string("ERROR: Internal error with error code " + std::to_string(ret)));
+        return UbseCliStringPromptReply(GetErrorMessage(ret));
     }
-    UbseDeSerialization deserial{ resBuffer.buffer, resBuffer.length };
+    UbseDeSerialization deserial{resBuffer.buffer, resBuffer.length};
     // 成功回显
-    uint32_t errorCode{ 0 };
+    uint32_t errorCode{0};
     std::string errMsg;
     deserial >> errorCode >> errMsg;
     if (deserial.Check() && errorCode == MEM_SUCCESS_CODE) {
         return UbseCliStringPromptReply("Delete successfully");
     }
     // 失败回显
+    if (deserial.Check() && errorCode == UBSE_ERR_NOT_SUPPORTED) {
+        return UbseCliStringPromptReply(GetErrorMessage(errorCode));
+    }
     return UbseCliStringPromptReply("ERROR: " + errMsg);
 }
 
@@ -877,10 +961,13 @@ void UbseCliRegMemModule::UbseCliSignUp()
     this->cmd_.emplace_back(DeleteMemory());
     this->cmd_.emplace_back(ShmMemoryAttach());
     this->cmd_.emplace_back(ShmMemoryDetach());
+    this->cmd_.emplace_back(ChangeMemory());
+    this->cmd_.emplace_back(RemoveMemory());
+    this->cmd_.emplace_back(DisplayProcessMem());
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -897,7 +984,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryAttachFunc(
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::ShmMemoryDetachFunc(
-    const std::map<std::string, std::string> &params)
+    const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
@@ -932,4 +1019,223 @@ UbseCliCommandInfo UbseCliRegMemModule::ShmMemoryDetach()
         .UbseCliSetFunc(ShmMemoryDetachFunc);
     return builder.UbseCliBuild();
 }
+
+// Threshold limits
+static constexpr int THRESHOLD_PERCENT_MAX = 100;
+static constexpr int PID_VALUE_MAX = 4194304;
+static constexpr int MIN_EVICT_RECLAIM_DELTA = 5;
+
+// Size conversion constants
+static constexpr uint64_t BYTES_PER_KIB = 1024ULL;
+static constexpr uint64_t BYTES_PER_MIB = BYTES_PER_KIB * BYTES_PER_KIB;
+static constexpr uint64_t BYTES_PER_GIB = BYTES_PER_KIB * BYTES_PER_KIB * BYTES_PER_KIB;
+static constexpr int DECIMAL_BASE = 10;
+static constexpr int DECIMAL_DIGITS_GROUP = 3;
+
+bool IsNonNegativeInteger(const std::string& s)
+{
+    if (s.empty()) {
+        return false;
+    }
+    if (s[0] == '0' && s.size() > 1) {
+        return false; // 禁止前导零（如 "01"）
+    }
+    for (char c : s) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+};
+
+bool CheckThreshold(const std::string& threshold)
+{
+    // 检查 threshold 是否为有效非负整数
+    // 将 threshold 转为整数（使用 strtol 避免异常）
+    if (!IsNonNegativeInteger(threshold)) {
+        return false;
+    }
+    int val = 0;
+    if (utils::ConvertStrToInt(threshold, val) != UBSE_OK) {
+        return false;
+    }
+    if (val <= 0 || val > THRESHOLD_PERCENT_MAX) {
+        return false;
+    }
+    return true;
+}
+
+bool SetPidThresholdParamCheck(const std::string& pid, const std::string& evictThreshold,
+                               const std::string& targetEvictThreshold, const std::string& reclaimThreshold)
+{
+    if (!IsNonNegativeInteger(pid)) {
+        return false;
+    }
+    int pidVal = 0;
+    if (utils::ConvertStrToInt(pid, pidVal) != UBSE_OK) {
+        return false;
+    }
+    if (pidVal <= 0 || pidVal > PID_VALUE_MAX) {
+        return false;
+    }
+    return CheckThreshold(evictThreshold) && CheckThreshold(targetEvictThreshold) && CheckThreshold(reclaimThreshold);
+}
+
+static bool CheckEvictReclaimDelta(const std::string& evictThreshold, const std::string& reclaimThreshold)
+{
+    int evict = 0;
+    int reclaim = 0;
+    if (utils::ConvertStrToInt(evictThreshold, evict) != UBSE_OK ||
+        utils::ConvertStrToInt(reclaimThreshold, reclaim) != UBSE_OK) {
+        return false;
+    }
+    return (evict - reclaim) >= MIN_EVICT_RECLAIM_DELTA;
+}
+
+static bool ConvertIntegerPart(uint64_t intPart, uint64_t unitMultiplier, uint64_t& size)
+{
+    if (unitMultiplier == 0) {
+        return false;
+    }
+    if (intPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    size = intPart * unitMultiplier;
+    return true;
+}
+
+static bool ConvertDecimalPart(uint64_t intPart, const std::sub_match<std::string::const_iterator>& decMatch,
+                               uint64_t unitMultiplier, uint64_t& size)
+{
+    if (unitMultiplier == 0) {
+        return false;
+    }
+    uint64_t decPart{0};
+    if (ubse::utils::ConvertStrToUint64(decMatch, decPart) != UBSE_OK) {
+        return false;
+    }
+    auto decPlaces = static_cast<int>(decMatch.length());
+
+    uint64_t power10 = 1;
+    for (int i = 0; i < decPlaces; ++i) {
+        power10 *= DECIMAL_BASE;
+    }
+
+    if (intPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    uint64_t intBytes = intPart * unitMultiplier;
+
+    if (decPart > SIZE_MAX / unitMultiplier) {
+        return false;
+    }
+    uint64_t decBytes = decPart * unitMultiplier / power10;
+
+    if (intBytes > SIZE_MAX - decBytes) {
+        return false;
+    }
+    size = intBytes + decBytes;
+    return true;
+}
+
+bool SizeConversion(const std::string& str, uint64_t& size)
+{
+    // 支持整数 (128M, 1G) 和小数 (1.5G, 0.25M)，小数最多2位
+    std::regex pattern(R"(^(\d+)(\.(\d{1,2}))?([BKMG])$)");
+    std::smatch match;
+    if (!std::regex_match(str, match, pattern)) {
+        return false;
+    }
+
+    uint64_t intPart{0};
+    if (ubse::utils::ConvertStrToUint64(match[1], intPart) != UBSE_OK) {
+        return false;
+    }
+    std::string unit = match[4];
+
+    uint64_t unitMultiplier = 0;
+    if (unit == "B") {
+        unitMultiplier = 1;
+    } else if (unit == "K") {
+        unitMultiplier = BYTES_PER_KIB;
+    } else if (unit == "M") {
+        unitMultiplier = BYTES_PER_MIB;
+    } else if (unit == "G") {
+        unitMultiplier = BYTES_PER_GIB;
+    } else {
+        return false;
+    }
+
+    if (!match[DECIMAL_DIGITS_GROUP].matched) {
+        return ConvertIntegerPart(intPart, unitMultiplier, size);
+    }
+    return ConvertDecimalPart(intPart, match[DECIMAL_DIGITS_GROUP], unitMultiplier, size);
+}
+
+process_mem::def::ProcessMemPidInfo SetPidManagerInfo(const std::string& pidStr, const std::string& evictThresholdStr,
+                                                      const std::string& targetEvictThresholdStr,
+                                                      const std::string& reclaimThresholdStr, uint64_t size)
+{
+    process_mem::def::ProcessMemPidInfo tmpInfo{};
+    tmpInfo.configInfo.expectedMemoryUsage = size;
+    if (utils::ConvertStrToInt(pidStr, tmpInfo.configInfo.pid) != UBSE_OK ||
+        utils::ConvertStrToInt(evictThresholdStr, tmpInfo.configInfo.evictThreshold) != UBSE_OK ||
+        utils::ConvertStrToInt(targetEvictThresholdStr, tmpInfo.configInfo.targetEvictThreshold) != UBSE_OK ||
+        utils::ConvertStrToInt(reclaimThresholdStr, tmpInfo.configInfo.reclaimThreshold) != UBSE_OK) {
+        tmpInfo.configInfo.pid = -1;
+    }
+    return tmpInfo;
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidSetThresholdFunc(
+    const std::map<std::string, std::string>& params)
+{
+    if (!UbseCliRegModule::DisableTimeoutTimer()) {
+        return UbseCliStringPromptReply(SET_TIMER_ERROR);
+    }
+    auto pid = params.find(PID_OPTION);
+    if (pid == params.end()) {
+        return UbseCliStringPromptReply("Invalid PID, the length must be lower than 10");
+    }
+    auto evictThreshold = params.find(EVICT_THRESHOLD_OPTION);
+    auto targetEvictThreshold = params.find(TARGET_EVICT_THRESHOLD_OPTION);
+    auto reclaimThreshold = params.find(RECLAIM_THRESHOLD_OPTION);
+    auto srcNumaIdParam = params.find(SRC_NUMAID_OPTION);
+    if (evictThreshold == params.end() || targetEvictThreshold == params.end() || reclaimThreshold == params.end()) {
+        return UbseCliStringPromptReply("Invalid threshold");
+    }
+
+    if (!SetPidThresholdParamCheck(pid->second, evictThreshold->second, targetEvictThreshold->second,
+                                   reclaimThreshold->second)) {
+        return UbseCliStringPromptReply("Invalid threshold");
+    }
+
+    if (!CheckEvictReclaimDelta(evictThreshold->second, reclaimThreshold->second)) {
+        return UbseCliStringPromptReply(
+            "evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation");
+    }
+
+    auto sizeParam = params.find(SIZE_OPTION);
+    uint64_t size{};
+    if (sizeParam == params.end() || !SizeConversion(sizeParam->second, size)) {
+        return UbseCliStringPromptReply(INVALID_SIZE_OPTION_TIP);
+    }
+
+    auto pidInfo = SetPidManagerInfo(pid->second, evictThreshold->second, targetEvictThreshold->second,
+                                     reclaimThreshold->second, size);
+    if (pidInfo.configInfo.pid == -1) {
+        return UbseCliStringPromptReply("Internal error");
+    }
+
+    if (srcNumaIdParam != params.end()) {
+        uint64_t srcNumaId;
+        if (utils::ConvertStrToUint64(srcNumaIdParam->second, srcNumaId) != UBSE_OK) {
+            return UbseCliStringPromptReply("Invalid --src-numa value");
+        }
+        pidInfo.configInfo.srcNumaId = srcNumaId;
+    }
+    UbseCliMemPid memPid{};
+    return memPid.UbseCliSetPidThreshold(pidInfo);
+}
+
 } // namespace ubse::cli::reg

@@ -14,8 +14,8 @@
 #define UBSE_ELECTION_ROLE_INITIALIZER_H
 
 #include <pthread.h>
-#include "../ubse_election_def.h"
 #include "ubse_election_role.h"
+#include "../ubse_election_def.h"
 
 namespace ubse::election {
 class Initializer : public ElectionRole {
@@ -24,7 +24,7 @@ public:
     ~Initializer();
     void ProcTimer() override;
 
-    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
+    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply) override;
 
     UBSE_ID_TYPE GetMasterNode() override;
 
@@ -36,10 +36,7 @@ public:
 
     uint8_t GetStandbyStatus() override;
 
-    void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override
-    {
-        nodeId = INVALID_NODE_ID;
-    };
+    void SetNodeDownStatus(UBSE_ID_TYPE) override{};
 
     RoleType GetRoleType() override
     {
@@ -50,9 +47,11 @@ public:
     {
         return turnId_;
     }
+
 private:
     void ProcRoleSwitch();
-    void CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &allNodes, RoleContext ctx);
+    void CheckAndSwitchMaster(const Node& myself, const std::vector<Node>& allNodes, RoleContext ctx);
+
 private:
     uint64_t startTimeMs_;
     uint64_t lastTimeMs_;
@@ -63,5 +62,5 @@ private:
     uint8_t standbyStatus_ = 0;
     bool isStartTimeSet_ = false;
 };
-}
+} // namespace ubse::election
 #endif // UBSE_ELECTION_ROLE_INITIALIZER_H

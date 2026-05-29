@@ -13,15 +13,15 @@
 #include "ubse_cli_mem_struct.h"
 #include <sstream>
 
-#include "src/sdk/c/include/ubs_error.h"
 #include "ubse_cli_constant.h"
 #include "ubse_error.h"
+#include "src/sdk/c/include/ubs_error.h"
 
 namespace ubse::cli::reg {
 using namespace framework;
 
 template <typename T>
-std::string JoinVector(const std::vector<T> &vec, const std::string &delimiter = ",")
+std::string JoinVector(const std::vector<T>& vec, const std::string& delimiter = ",")
 {
     if (vec.empty()) {
         return "-";
@@ -34,7 +34,7 @@ std::string JoinVector(const std::vector<T> &vec, const std::string &delimiter =
 }
 
 // UbseNumaInfo
-bool UbseNumaInfo::Deserialize(serial::UbseDeSerialization &stream)
+bool UbseNumaInfo::Deserialize(serial::UbseDeSerialization& stream)
 {
     stream >> name >> numaId >> importSlotId >> exportSlotId >> size >> ubse::serial::enum_v(state);
     return stream.Check();
@@ -51,7 +51,7 @@ std::string UbseNumaInfo::GetStringResult() const
 }
 
 // UbseFdInfo
-bool UbseFdInfo::Deserialize(serial::UbseDeSerialization &stream)
+bool UbseFdInfo::Deserialize(serial::UbseDeSerialization& stream)
 {
     stream >> name >> memIds >> importSlotId >> exportSlotId >> size >> ubse::serial::enum_v(state);
     return stream.Check();
@@ -68,13 +68,13 @@ std::string UbseFdInfo::GetStringResult() const
 }
 
 // UbseCliMemOperationResp
-bool UbseCliMemOperationResp::Deserialize(serial::UbseDeSerialization &stream)
+bool UbseCliMemOperationResp::Deserialize(serial::UbseDeSerialization& stream)
 {
     stream >> name >> requestNodeId >> errorCode >> errMsg >> realSize >> memIdList >> remoteNumaId >> requestId;
     return stream.Check();
 }
 
-bool UbseMemShmInfo::Deserialize(serial::UbseDeSerialization &deserialization)
+bool UbseMemShmInfo::Deserialize(serial::UbseDeSerialization& deserialization)
 {
     // 解析基本信息
     deserialization >> name >> size >> exportNode >> ubse::serial::enum_v(exportState) >> importNode >>
@@ -144,6 +144,8 @@ std::string GetErrorMessage(uint32_t errorCode)
             return "ERROR: Failed to allocate memory.";
         case UBS_ENGINE_ERR_SHM_NO_ATTACH:
             return "ERROR: No shared memory attached.";
+        case UBSE_ERR_NOT_SUPPORTED:
+            return "ERROR: Memory feature is not supported.";
         default:
             return "ERROR: Internal error with error code " + std::to_string(errorCode) + ".";
     }
@@ -151,7 +153,7 @@ std::string GetErrorMessage(uint32_t errorCode)
 
 // UbseBorrowDetailInfo
 std::string UbseBorrowDetailInfo::GetBorrowNodeDisplay(
-    const std::unordered_map<std::string, std::string> &node_id_with_hostname) const
+    const std::unordered_map<std::string, std::string>& node_id_with_hostname) const
 {
     if ((type == "share" && status == "single") || (type == "share" && borrowNode.empty())) {
         return "";
@@ -164,7 +166,7 @@ std::string UbseBorrowDetailInfo::GetBorrowNodeDisplay(
 }
 
 std::string UbseBorrowDetailInfo::GetLendNodeDisplay(
-    const std::unordered_map<std::string, std::string> &node_id_with_hostname) const
+    const std::unordered_map<std::string, std::string>& node_id_with_hostname) const
 {
     auto it = node_id_with_hostname.find(lendNode);
     if (it == node_id_with_hostname.end()) {
@@ -185,8 +187,8 @@ std::string UbseBorrowDetailInfo::GetStatusDisplay() const
 }
 
 framework::UbseCliVariableCellInfo UbseBorrowDetailInfo::GetVariableCellInfo(
-    std::unordered_map<std::string, UbseBorrowDetailInfo> &node_borrow_detail,
-    std::unordered_map<std::string, std::string> &node_id_with_hostname)
+    std::unordered_map<std::string, UbseBorrowDetailInfo>& node_borrow_detail,
+    std::unordered_map<std::string, std::string>& node_id_with_hostname)
 {
     UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_8, UBSE_CLI_NUM_3 * UBSE_CLI_NUM_10);
     size_t row = variable_cell_builder.UbseCliAddRow();
@@ -201,8 +203,8 @@ framework::UbseCliVariableCellInfo UbseBorrowDetailInfo::GetVariableCellInfo(
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, "handle");
     variable_cell_builder.UbseCliAddBottomlineSeparate();
 
-    for (const auto &[key, obj] : node_borrow_detail) {
-        for (const auto &item : obj.numaLendInfos) {
+    for (const auto& [key, obj] : node_borrow_detail) {
+        for (const auto& item : obj.numaLendInfos) {
             row = variable_cell_builder.UbseCliAddRow();
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, obj.name);
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, obj.type);
@@ -210,8 +212,8 @@ framework::UbseCliVariableCellInfo UbseBorrowDetailInfo::GetVariableCellInfo(
                                                      obj.GetBorrowNodeDisplay(node_id_with_hostname));
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4,
                                                      obj.GetLendNodeDisplay(node_id_with_hostname));
-            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5,
-                                                     std::to_string(item.numaId) + "(" + std::to_string(item.socketId) + ")");
+            variable_cell_builder.UbseCliSetCellData(
+                row, UBSE_CLI_NUM_5, std::to_string(item.numaId) + "(" + std::to_string(item.socketId) + ")");
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, std::to_string(item.size));
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, obj.GetStatusDisplay());
             variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, obj.handle.empty() ? "-" : obj.handle);

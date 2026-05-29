@@ -33,10 +33,10 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::common::def;
 
-UbseResult UbseOsUtil::GetUserNameById(uid_t uid, std::string &userName)
+UbseResult UbseOsUtil::GetUserNameById(uid_t uid, std::string& userName)
 {
     struct passwd pwd;
-    struct passwd *result = nullptr;
+    struct passwd* result = nullptr;
 
     // 获取推荐的缓冲区大小
     long bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
@@ -53,7 +53,7 @@ UbseResult UbseOsUtil::GetUserNameById(uid_t uid, std::string &userName)
     return UBSE_OK;
 }
 
-UbseResult UbseOsUtil::Exec(const std::string &cmd, std::string &res)
+UbseResult UbseOsUtil::Exec(const std::string& cmd, std::string& res)
 {
     std::array<char, NO_128> buffer{};
     res.clear();
@@ -72,7 +72,7 @@ UbseResult UbseOsUtil::Exec(const std::string &cmd, std::string &res)
     return UBSE_OK;
 }
 
-UbseResult UbseOsUtil::GetUidByName(const std::string &username, uid_t &uid)
+UbseResult UbseOsUtil::GetUidByName(const std::string& username, uid_t& uid)
 {
     // 参数校验
     if (username.empty()) {
@@ -80,7 +80,7 @@ UbseResult UbseOsUtil::GetUidByName(const std::string &username, uid_t &uid)
     }
 
     struct passwd pwd;
-    struct passwd *result = nullptr;
+    struct passwd* result = nullptr;
 
     // 获取推荐 buffer 大小
     long bufSize = sysconf(_SC_GETPW_R_SIZE_MAX);
@@ -97,7 +97,7 @@ UbseResult UbseOsUtil::GetUidByName(const std::string &username, uid_t &uid)
     return UBSE_OK;
 }
 
-UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
+UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t& pid, uint32_t& numaId)
 {
     auto path = "/proc/" + std::to_string(pid) + "/numa_maps";
     std::string line;

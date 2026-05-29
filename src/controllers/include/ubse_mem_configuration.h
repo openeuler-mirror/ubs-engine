@@ -22,22 +22,21 @@
 
 namespace ubse::mem::strategy {
 #define MODULE_LOG_NAME "ubse_mem_strategy"
-using namespace ubse::log;
-using namespace ubse::nodeController;
+using ubse::nodeController::UbseAllocator;
 // mem
 constexpr auto UBSE_ADMISSION_CONFIG_SECTION_NAME = "ubse_plugin_admission";
 constexpr auto MEM_LOG_CONFIG_SECTION_NAME = "ubse.log";
 constexpr auto OCK_MEM_SYSTEM_POOL_MEMORY_RATIO = "system.pool.memory.ratio";
-constexpr auto OCK_VM_ENABLE = "vm";
+constexpr auto OCK_VM_ENABLE = "virt_agent";
 constexpr auto OCK_MEM_SERVER_ALGO_LOG_LEVEL = "log.level";
 constexpr auto UBSE_MEMORY = "ubse.memory";
 constexpr auto UBSE_LENDER_BALANCE = "lender.balance";
 
 template <typename T>
-ubse::common::def::UbseResult GetUbseConf(const std::string &section, const std::string &configKey, T &configValue)
+ubse::common::def::UbseResult GetUbseConf(const std::string& section, const std::string& configKey, T& configValue)
 {
     // 调取UbseConfModule类的单例对象
-    auto &ctxRef = ubse::context::UbseContext::GetInstance();
+    auto& ctxRef = ubse::context::UbseContext::GetInstance();
     auto cfgPtr = ctxRef.GetModule<ubse::config::UbseConfModule>();
     if (cfgPtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to get configuration module instance.";
@@ -53,7 +52,8 @@ struct NodeConfig {
     uint32_t pmdMapping;
 };
 
-enum class PageSizeType  {
+enum class PageSizeType
+{
     Page4K,
     Page64K
 };
@@ -68,7 +68,7 @@ class UbseMemConfiguration {
 public:
     using NodeInfoMap = std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo>;
 
-    inline static UbseMemConfiguration &GetInstance()
+    inline static UbseMemConfiguration& GetInstance()
     {
         static UbseMemConfiguration instance;
         return instance;
@@ -76,12 +76,13 @@ public:
 
     void Init();
 
-    UbseMemConfiguration(const UbseMemConfiguration &other) = delete;
-    UbseMemConfiguration(UbseMemConfiguration &&other) = delete;
-    UbseMemConfiguration &operator=(const UbseMemConfiguration &other) = delete;
-    UbseMemConfiguration &operator=(UbseMemConfiguration &&other) noexcept = delete;
-    void SetConfig(const NodeInfoMap &nodeMap);
-    void setPageType();
+    UbseMemConfiguration(const UbseMemConfiguration& other) = delete;
+    UbseMemConfiguration(UbseMemConfiguration&& other) = delete;
+    UbseMemConfiguration& operator=(const UbseMemConfiguration& other) = delete;
+    UbseMemConfiguration& operator=(UbseMemConfiguration&& other) noexcept = delete;
+    void SetConfig(const NodeInfoMap& nodeMap);
+    void SetPageType();
+    void SetMemoryRadius();
 
     [[nodiscard]] bool GetManagerVmEnable() const
     {
@@ -95,29 +96,41 @@ public:
     /* 节点最大借用内存总量, 单位M */
     [[nodiscard]] uint64_t GetMaxBorrowSize() const
     {
-        return maxBorrowSize;
+        return maxBorrowSize_;
     }
 
     /* socket上最大导入内存总量,单位M */
     [[nodiscard]] uint64_t GetMaxSocketImportSize() const
     {
-        return maxSocketImportSize;
+        return maxSocketImportSize_;
     }
 
     /* 获取当前环境配置， 4K/64K页环境 */
     [[nodiscard]] PageSizeType GetPageType() const
     {
-        return pageType;
+        return pageType_;
+    }
+
+    /* 获取节点的lender radius配置 */
+    [[nodiscard]] uint16_t GetLenderRadius() const
+    {
+        return lenderRadius_;
+    }
+
+    /* 获取节点的borrow radius配置 */
+    [[nodiscard]] uint16_t GetBorrowRadius() const
+    {
+        return borrowRadius_;
     }
 
     /* 获取节点的pmdMapping配置，单位% */
-    std::optional<uint32_t> GetPmdMappingById(const std::string &nodeId) const;
+    std::optional<uint32_t> GetPmdMappingById(const std::string& nodeId) const;
 
     /* 获取节点的obmm allocator， */
-    std::optional<UbseAllocator> GetObmmAllocatorById(const std::string &nodeId) const;
+    std::optional<UbseAllocator> GetObmmAllocatorById(const std::string& nodeId) const;
 
     /* 获取节点的blocksize */
-    std::optional<uint32_t> GetBlockSizeById(const std::string &nodeId) const;
+    std::optional<uint32_t> GetBlockSizeById(const std::string& nodeId) const;
 
     /* 获取一个lender节点的blocksize */
     std::optional<uint32_t> GetBlockSizeFromLenderNode() const;
@@ -126,15 +139,17 @@ public:
     std::optional<UbseAllocator> GetAllocatorFromLenderNode() const;
 
     /* 获取所有节点配置 */
-    std::unordered_map<std::string, NodeConfig> GetAllConfigs() const;
+    const std::unordered_map<std::string, NodeConfig>& GetAllConfigs() const;
 
     bool IsLenderBalance();
 
 private:
-    std::unordered_map<std::string, NodeConfig> nodeConfigs;
-    uint64_t maxBorrowSize{MAX_BORROW_MEM_PER_NODE};
-    uint64_t maxSocketImportSize{MAX_IMPORT_MEM_SIZE_PER_SOCKET * ONE_M};
-    PageSizeType pageType{PageSizeType::Page4K};
+    std::unordered_map<std::string, NodeConfig> nodeConfigs_;
+    uint64_t maxBorrowSize_{MAX_BORROW_MEM_PER_NODE};
+    uint64_t maxSocketImportSize_{MAX_IMPORT_MEM_SIZE_PER_SOCKET * ONE_M};
+    uint16_t lenderRadius_{DEFAULT_LENDER_RADIUS};
+    uint16_t borrowRadius_{DEFAULT_BORROW_RADIUS};
+    PageSizeType pageType_{PageSizeType::Page4K};
     UbseMemConfiguration() = default;
 };
 #undef MODULE_LOG_NAME

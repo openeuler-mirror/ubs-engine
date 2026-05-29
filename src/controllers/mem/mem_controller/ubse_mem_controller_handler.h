@@ -17,12 +17,15 @@
 #include "ubse_com_op_code.h"
 
 namespace ubse::mem::controller::agent {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseMemRespCtrlOpCode;
+using ubse::com::UbseModuleCode;
 class UbseMemOperationRespHandler : public UbseComBaseMessageHandler {
 public:
     UbseMemOperationRespHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

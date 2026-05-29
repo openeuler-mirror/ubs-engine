@@ -14,31 +14,32 @@
 #define UBSE_NODE_COM_URMA_COLLECTOR_H
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
-#include "adapter_plugins/urma/ubse_urma_uvs.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::nodeController {
-using namespace ubse::common::def;
-using namespace ubse::urma;
-using namespace ubse::adapter_plugins::mti;
+using ubse::adapter_plugins::mti::UbseMtiIouInfo;
+using ubse::common::def::UbseResult;
+using ubse::urma::UbseUrmaUvsAggrDev;
+using ubse::urma::UbseUrmaUvsNodeInfo;
 
 class UbseNodeComUrmaCollector {
 public:
-    static UbseNodeComUrmaCollector &GetInstance()
+    static UbseNodeComUrmaCollector& GetInstance()
     {
         static UbseNodeComUrmaCollector instance;
         return instance;
     };
 
-    UbseResult GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo> &hostUrmaInfos);
+    UbseResult GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
     UbseResult FillComUrmaInfo();
 
-    UbseResult SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection);
+    UbseResult SetComUrma(std::vector<PhysicalLink>& allLinkInfo, bool isBeforeElection);
 
-    UbseResult GetCurNodeTopo(std::vector<PhysicalLink> &allLinkInfo);
+    UbseResult GetCurNodeTopo(std::vector<PhysicalLink>& allLinkInfo);
 
-    UbseResult GetCurNodeIouList(std::vector<UbseMtiIouInfo> &iouList);
+    UbseResult GetCurNodeIouList(std::vector<UbseMtiIouInfo>& iouList);
 
 private:
     std::map<std::string, UbseUrmaUvsAggrDev> comUrmaInfos;

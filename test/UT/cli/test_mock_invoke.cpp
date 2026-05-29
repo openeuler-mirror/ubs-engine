@@ -10,23 +10,24 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "test_mock_invoke.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_debt_info_partial_fetch_req.h"
 #include "ubse_mem_debt_info_partial_fetch_res.h"
 
 using namespace ubse::mem::controller::message;
 
-uint32_t mock_ubse_invoke_call_failed(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                                      ubse_api_buffer_t *response_data)
+uint32_t mock_ubse_invoke_call_failed(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                      ubse_api_buffer_t* response_data)
 {
     return UBSE_ERROR;
 }
 
-uint32_t mock_ubse_invoke_call_error_size(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                                          ubse_api_buffer_t *response_data)
+uint32_t mock_ubse_invoke_call_error_size(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                          ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     ser << std::string("5");
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -41,8 +42,107 @@ uint32_t mock_ubse_invoke_call_error_size(uint16_t module_code, uint16_t op_code
     return UBSE_OK;
 }
 
-uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t *request_data,
-                                     ubse_api_buffer_t *response_data)
+uint32_t mock_numa_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                           const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    ser << std::string("test-numa") << right_v<int64_t>(1) << right_v<uint32_t>(1) << right_v<uint32_t>(2)
+        << right_v<uint64_t>(128 * 1024 * 1024) << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_fd_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                         ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    std::vector<uint64_t> memIds{100, 200};
+    ser << std::string("test-fd") << memIds << right_v<uint32_t>(1) << right_v<uint32_t>(2)
+        << right_v<uint64_t>(256 * 1024 * 1024) << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_shm_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                          ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    ser << std::string("test-shm") << right_v<uint64_t>(512 * 1024 * 1024) << right_v<uint32_t>(1)
+        << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST) << right_v<uint32_t>(2)
+        << enum_v(ubse::mem::controller::UbseMemStage::UBSE_EXIST);
+    size_t memIdsSize = 2;
+    ser << array_len_insert(memIdsSize) << right_v<uint64_t>(100) << right_v<uint64_t>(200);
+    size_t regionSize = 2;
+    ser << array_len_insert(regionSize) << right_v<uint32_t>(1) << right_v<uint32_t>(2);
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_mem_operation_resp_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                         const ubse_api_buffer_t* request_data,
+                                                         ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    std::vector<uint64_t> memIdList{100, 200};
+    ser << std::string("test") << std::string("1") << right_v<uint32_t>(0) << std::string("") << std::string("128MB")
+        << memIdList << right_v<int64_t>(1) << right_v<uint64_t>(12345);
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_shm_detach_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                 const ubse_api_buffer_t* request_data,
+                                                 ubse_api_buffer_t* response_data)
+{
+    return UBSE_OK;
+}
+
+uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                     ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     std::vector<std::string> empty{};
@@ -51,7 +151,7 @@ uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, con
     if (!ser.Check()) {
         return UBSE_ERROR;
     }
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -67,7 +167,7 @@ uint32_t mock_ubse_invoke_call_empty(uint16_t module_code, uint16_t op_code, con
 }
 
 uint32_t mock_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                           const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                           const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 3;
@@ -75,7 +175,7 @@ uint32_t mock_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_cod
     ser << std::string("1") << std::string("36") << right_v<size_t>(1) << std::string("2") << std::string("36")
         << std::string("1") << std::string("236") << right_v<size_t>(0) << std::string("2") << std::string("36")
         << right_v<size_t>(2) << std::string("1") << std::string("36") << std::string("1") << std::string("76");
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -91,15 +191,15 @@ uint32_t mock_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_cod
 }
 
 uint32_t mock_cluster_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                              const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                              const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 4;
     ser << size;
-    ser << std::string("1") << std::string("master") << std::string("123") << std::string("2") <<
-        std::string("standby") << std::string("234") << std::string("3") << std::string("agent") <<
-        std::string("345") << std::string("4") << std::string("agent") << std::string("456");
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    ser << std::string("1") << std::string("master") << std::string("123") << std::string("2") << std::string("standby")
+        << std::string("234") << std::string("3") << std::string("agent") << std::string("345") << std::string("4")
+        << std::string("agent") << std::string("456");
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -115,16 +215,17 @@ uint32_t mock_cluster_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_
 }
 
 uint32_t mock_node_borrow_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                  const ubse_api_buffer_t* request_data,
+                                                  ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 1;
     ser << array_len_insert(size);
-    uint32_t borrowSlotId{ 1 };
-    uint32_t lendSlotId{ 3 };
-    uint64_t borrowSize{ 1024 };
+    uint32_t borrowSlotId{1};
+    uint32_t lendSlotId{3};
+    uint64_t borrowSize{1024};
     ser << borrowSlotId << std::string("3") << lendSlotId << std::string("1") << borrowSize;
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -140,7 +241,8 @@ uint32_t mock_node_borrow_ubse_invoke_call_normal(uint16_t module_code, uint16_t
 }
 
 uint32_t mock_fetch_debt_info_by_page_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                              const ubse_api_buffer_t* request_data,
+                                                              ubse_api_buffer_t* response_data)
 {
     if (response_data == nullptr) {
         return UBSE_ERROR;
@@ -154,10 +256,9 @@ uint32_t mock_fetch_debt_info_by_page_ubse_invoke_call_normal(uint16_t module_co
     PartialFetchRes res;
     res.NeedToContinue = false;
     if (debtFetchInfo.nodeId == "1" && debtFetchInfo.type == DebtFetchType::EXPORT) {
-        res.flatDebt.emplace_back(FlatDebtInformation{ "test", AccountType::ADDR, 16, "1", "1", { { 1, 1, 1 } }, "2" });
+        res.flatDebt.emplace_back(FlatDebtInformation{"test", AccountType::ADDR, 16, "1", "1", {{1, 1, 1}}, "2"});
     } else if (debtFetchInfo.nodeId == "2" && debtFetchInfo.type == DebtFetchType::IMPORT) {
-        res.flatDebt.emplace_back(
-            FlatDebtInformation{ "test", AccountType::FD, 16, "2", "3", { { 1, 1, 1 } }, "2,3,4" });
+        res.flatDebt.emplace_back(FlatDebtInformation{"test", AccountType::FD, 16, "2", "3", {{1, 1, 1}}, "2,3,4"});
     } else if (debtFetchInfo.nodeId == "3" && debtFetchInfo.type == DebtFetchType::EXPORT) {
         res.flatDebt.emplace_back();
     } else if (debtFetchInfo.nodeId == "4" && debtFetchInfo.type == DebtFetchType::IMPORT) {
@@ -167,7 +268,7 @@ uint32_t mock_fetch_debt_info_by_page_ubse_invoke_call_normal(uint16_t module_co
     if (!PartialFetchRes::Serialize(ser, res)) {
         return UBSE_ERROR;
     }
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -183,15 +284,16 @@ uint32_t mock_fetch_debt_info_by_page_ubse_invoke_call_normal(uint16_t module_co
 }
 
 uint32_t mock_get_id_with_hostname_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                           const ubse_api_buffer_t* request_data,
+                                                           ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 2;
     ser << size;
-    ser << std::string("controller(1)") << std::string("standby3") <<
-        std::string("4245:4944:0000:0000:0000:0000:0100:0000") << "guid" << std::string("node01(2)") <<
-        std::string("master") << std::string("4245:4944:0000:0000:0000:0000:0200:0000") << "guid";
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    ser << std::string("controller(1)") << std::string("standby3")
+        << std::string("4245:4944:0000:0000:0000:0000:0100:0000") << "guid" << std::string("node01(2)")
+        << std::string("master") << std::string("4245:4944:0000:0000:0000:0000:0200:0000") << "guid";
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -207,14 +309,15 @@ uint32_t mock_get_id_with_hostname_ubse_invoke_call_normal(uint16_t module_code,
 }
 
 uint32_t mock_check_memory_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                   const ubse_api_buffer_t* request_data,
+                                                   ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 4;
     ser << size;
     ser << std::string("1") << std::string("ok") << std::string("2") << std::string("ok") << std::string("3")
         << std::string("ok") << std::string("4") << std::string("nok");
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -229,39 +332,39 @@ uint32_t mock_check_memory_ubse_invoke_call_normal(uint16_t module_code, uint16_
     return UBSE_OK;
 }
 
-bool mock_import_cert_set_failed(const std::string &serverCertPath, const std::string &trustCertPath,
-                                 const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg)
+bool mock_import_cert_set_failed(const std::string& serverCertPath, const std::string& trustCertPath,
+                                 const std::string& serverKeyPath, const std::string& caCrlPath, std::string& errMsg)
 {
     return false;
 }
-bool mock_import_cert_set_success(const std::string &serverCertPath, const std::string &trustCertPath,
-                                  const std::string &serverKeyPath, const std::string &caCrlPath, std::string &errMsg)
+bool mock_import_cert_set_success(const std::string& serverCertPath, const std::string& trustCertPath,
+                                  const std::string& serverKeyPath, const std::string& caCrlPath, std::string& errMsg)
 {
     return true;
 }
 
-bool mock_import_ca_set_failed(const std::string &caCrlPath, std::string &errMsg)
+bool mock_import_ca_set_failed(const std::string& caCrlPath, std::string& errMsg)
 {
     return false;
 }
 
-bool mock_import_ca_set_success(const std::string &caCrlPath, std::string &errMsg)
+bool mock_import_ca_set_success(const std::string& caCrlPath, std::string& errMsg)
 {
     return true;
 }
 
-uint32_t mock_delete_cert_failed(std::string &errMsg)
+uint32_t mock_delete_cert_failed(std::string& errMsg)
 {
     return UBSE_ERROR;
 }
 
-uint32_t mock_delete_cert_success(std::string &errMsg)
+uint32_t mock_delete_cert_success(std::string& errMsg)
 {
     return UBSE_OK;
 }
 
 uint32_t mock_cpu_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                               const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                               const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     UbseSerialization ser1;
@@ -273,7 +376,7 @@ uint32_t mock_cpu_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op
     ser1 << node1 << node1 << node1 << node2 << node2 << node2 << node2;
     ser2 << node2 << node2 << node2 << node1 << node1 << node1 << node1;
     ser << ser1 << ser2;
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -289,16 +392,16 @@ uint32_t mock_cpu_topo_ubse_invoke_call_normal(uint16_t module_code, uint16_t op
 }
 
 uint32_t mock_node_lend_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                                const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 1;
     ser << array_len_insert(size);
-    uint32_t borrowSlotId{ 1 };
-    uint32_t lendSlotId{ 3 };
-    uint64_t borrowSize{ 1024 };
+    uint32_t borrowSlotId{1};
+    uint32_t lendSlotId{3};
+    uint64_t borrowSize{1024};
     ser << borrowSlotId << std::string("3") << lendSlotId << std::string("1") << borrowSize;
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -314,7 +417,8 @@ uint32_t mock_node_lend_ubse_invoke_call_normal(uint16_t module_code, uint16_t o
 }
 
 uint32_t mock_numa_status_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-    const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                                  const ubse_api_buffer_t* request_data,
+                                                  ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 1;
@@ -325,7 +429,7 @@ uint32_t mock_numa_status_ubse_invoke_call_normal(uint16_t module_code, uint16_t
         << "11083"
         << "53316"
         << "17.2";
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;
@@ -341,14 +445,166 @@ uint32_t mock_numa_status_ubse_invoke_call_normal(uint16_t module_code, uint16_t
 }
 
 uint32_t mock_config_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
-                                             const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data)
+                                             const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {
     UbseSerialization ser;
     size_t size = 1;
     ser << array_len_insert(size);
     ser << "controller(1)"
         << "true";
-    response_data->buffer = static_cast<uint8_t *>(malloc(ser.GetLength()));
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_dev_info_invoke_call_empty(uint16_t module_code, uint16_t op_code,
+                                              const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 0;
+    ser << urmaSize;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_dev_info_invoke_call_deserialize_failed(uint16_t module_code, uint16_t op_code,
+                                                           const ubse_api_buffer_t* request_data,
+                                                           ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 1;
+    ser << urmaSize;
+    std::string urmaName = "urma1";
+    uint32_t urmaType = 0;
+    std::string devEid = "eid1";
+    std::vector<std::string> feNames = {"dev1"};
+    std::vector<std::string> feEids = {"eid1"};
+    uint32_t urmaStatus = 0;
+    ser << urmaName << urmaType << devEid << feNames << feEids << urmaStatus;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_dev_info_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                               const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 1;
+    ser << urmaSize;
+    std::string urmaName = "urma1";
+    uint32_t urmaType = 0;
+    std::string devEid = "eid1";
+    std::vector<std::string> feNames = {"dev1", "dev2"};
+    std::vector<std::string> feEids = {"eid1", "eid2"};
+    uint32_t urmaStatus = 0;
+    ser << urmaName << urmaType << devEid << feNames << feEids << urmaStatus;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_qos_invoke_call_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                         ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 0;
+    ser << urmaSize;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_qos_invoke_call_deserialize_failed(uint16_t module_code, uint16_t op_code,
+                                                      const ubse_api_buffer_t* request_data,
+                                                      ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 1;
+    ser << urmaSize;
+    std::string urmaName = "urma1";
+    std::vector<std::string> feNames = {"dev1"};
+    uint32_t minBandWidth = 100;
+    uint32_t maxBandWidth = 1000;
+    ser << urmaName << feNames << minBandWidth << maxBandWidth;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_urma_qos_invoke_call_normal(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                          ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    uint32_t urmaSize = 1;
+    ser << urmaSize;
+    std::string urmaName = "urma1";
+    std::vector<std::string> feNames = {"dev1", "dev2"};
+    uint32_t minBandWidth = 100;
+    uint32_t maxBandWidth = 1000;
+    ser << urmaName << feNames << minBandWidth << maxBandWidth;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
     response_data->length = 0;
     if (!response_data->buffer) {
         return UBSE_ERROR;

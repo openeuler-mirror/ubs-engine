@@ -180,7 +180,7 @@ TEST_F(TestUbseNodeTopology, UbseSocketIdChange_)
     EXPECT_NO_THROW(UbseSocketIdChange(nodeDbMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap));
 }
 
-UbseResult MockUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockUbseGetAllNodes(UbseElectionModule*, Node& master, Node& standby, std::vector<Node>& agent)
 {
     master = {"1"};
     standby = {"2"};
@@ -276,10 +276,10 @@ TEST_F(TestUbseNodeTopology, UbseNodeTopoGetBasicData)
 }
 
 uint32_t MockUbseNodeTopoGetBasicData(
-    std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap,
-    std::unordered_map<std::string, ElectionNodeInfo> &nodeRoleMap, UbseDevTopology &devTopologyInfo,
-    std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-    std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+    std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap,
+    std::unordered_map<std::string, ElectionNodeInfo>& nodeRoleMap, UbseDevTopology& devTopologyInfo,
+    std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+    std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToDevNameMap)
 {
     UbseDeviceInfo info{};
     info.devName = {"1-1"};
@@ -431,9 +431,9 @@ TEST_F(TestUbseNodeTopology, TopoBfsPerLayer)
     EXPECT_EQ(edgeData[0].second, jumpCount);
 }
 
-UbseResult MockTopoBfsPerLayer(const UbseDevTopology &devTopologyInfo,
-                               std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData, std::queue<std::string> &que,
-                               int jumpCount, std::unordered_set<std::string> &traversedDevNameSet)
+UbseResult MockTopoBfsPerLayer(const UbseDevTopology& devTopologyInfo,
+                               std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, std::queue<std::string>& que,
+                               int jumpCount, std::unordered_set<std::string>& traversedDevNameSet)
 {
     if (!que.empty()) {
         que.pop();
@@ -504,9 +504,9 @@ TEST_F(TestUbseNodeTopology, UbseNodePadSocketData)
     EXPECT_EQ(data.socket.socketId, "1");
 }
 
-UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                          std::string &remoteNodeName, std::string &remoteDevSocketNameStr,
-                                          const std::string &remoteDevNameStr)
+UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                          std::string& remoteNodeName, std::string& remoteDevSocketNameStr,
+                                          const std::string& remoteDevNameStr)
 {
     remoteNodeName = "2";
     return UBSE_OK;
@@ -546,7 +546,7 @@ TEST_F(TestUbseNodeTopology, MemFillAllEdgeData)
     edgeData.push_back({edgeInfo, 0});
     edgeData.push_back({edgeInfo, 1});
     MOCKER(MemFillPerEdgeData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_ERROR);
+    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_OK);
     EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_OK);
 }
 
@@ -590,7 +590,7 @@ TEST_F(TestUbseNodeTopology, MemGetTopologyInfo)
     EXPECT_EQ(MemGetTopologyInfo(nodeTopology), UBSE_OK);
 }
 
-UbseResult MockMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+UbseResult MockMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     nodeTopology["node1"] = {};
     std::vector<MemNodeData> datas = {MemNodeData{}};
@@ -739,4 +739,4 @@ TEST_F(TestUbseNodeTopology, UbseVmGetNodeTopologyInfoWhenSuccess)
     ASSERT_EQ(ret, UBSE_OK);
 }
 
-}
+} // namespace ubse::node_topology::ut

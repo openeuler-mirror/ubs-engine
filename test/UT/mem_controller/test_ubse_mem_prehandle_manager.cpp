@@ -14,10 +14,10 @@
 
 #include <mockcpp/mokc.h>
 
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
-#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 #include "ubse_mem_configuration.h"
 
@@ -45,4 +45,4 @@ TEST_F(TestUbseMemPrehandleManager, InitPreHandleSuccess)
 {
     MOCKER_CPP(MemDecoderUtils::GetAllHandles).stubs().will(returnValue(UBSE_OK));
 }
-}
+} // namespace ubse::ut::mem::decoder::utils

@@ -13,19 +13,18 @@
 #ifndef UBSE_MANAGER_DEADLOOP_IT_H
 #define UBSE_MANAGER_DEADLOOP_IT_H
 
-#include "ubse_deadloop_module.h"
-#include "main_test_it.h"
 #include "ubse_context.h"
+#include "ubse_deadloop_module.h"
 #include "ubse_logger_module.h"
+#include "main_test_it.h"
 
 namespace ubse::it::deadloop {
-int32_t ITestCmdDeadloopEnable(ProcessMmap *pMmap);
-int32_t ITestCmdDeadloopDisable(ProcessMmap *pMmap);
+int32_t ITestCmdDeadloopEnable(ProcessMmap* pMmap);
+int32_t ITestCmdDeadloopDisable(ProcessMmap* pMmap);
 void findLogsWithGrep(const std::string& filename, std::chrono::system_clock::time_point& currentMinute,
-    const std::string& keyword, std::vector<std::string>& matchedLogs);
+                      const std::string& keyword, std::vector<std::string>& matchedLogs);
 std::chrono::system_clock::time_point ParseTimestamp(const std::string& timestamp);
 std::string GetLogPath();
-}
-
+} // namespace ubse::it::deadloop
 
 #endif // UBSE_MANAGER_DEADLOOP_IT_H

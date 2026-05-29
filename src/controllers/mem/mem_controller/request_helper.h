@@ -29,14 +29,13 @@
 
 namespace ubse::mem_controller {
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::log;
-using namespace ubse::common::def;
+
 using RequestID = std::string;
 
 class ObjPromiseBase {
 public:
     virtual ~ObjPromiseBase() = default;
-    virtual bool SetResult(const std::any &result) = 0;
+    virtual bool SetResult(const std::any& result) = 0;
 };
 
 template <typename T>
@@ -44,7 +43,7 @@ class ObjPromise : public ObjPromiseBase {
 public:
     std::promise<T> promise;
 
-    bool SetResult(const std::any &result) override
+    bool SetResult(const std::any& result) override
     {
         if (result.type() != typeid(T)) {
             return false;
@@ -53,10 +52,10 @@ public:
             T value = std::any_cast<T>(result);
             promise.set_value(value);
             return true;
-        } catch (const std::bad_any_cast &e) {
+        } catch (const std::bad_any_cast& e) {
             UBSE_LOG_ERROR << "bad cast:" << e.what();
             return false;
-        } catch (const std::future_error &e) {
+        } catch (const std::future_error& e) {
             // promise状态错误，比如重复设置，记录日志或忽略
             UBSE_LOG_ERROR << "promise status error:" << e.what();
             ;
@@ -74,7 +73,7 @@ public:
      * @param requestId
      * @return
      */
-    static std::shared_ptr<FutureMgr> CreateInstance(const std::string &requestId) __attribute__((warn_unused_result));
+    static std::shared_ptr<FutureMgr> CreateInstance(const std::string& requestId) __attribute__((warn_unused_result));
 
     /* *
      * 根据requestId，给当前的Future通知result
@@ -82,14 +81,14 @@ public:
      * @param result
      * @return
      */
-    static bool SetResult(const std::string &requestId, const std::any &result);
+    static bool SetResult(const std::string& requestId, const std::any& result);
 
     /* *
      * 查找是否存在请求
      * @param requestId
      * @return
      */
-    static bool Find(const std::string &requestId);
+    static bool Find(const std::string& requestId);
 
     /* *
      * 返回当前的请求数量，便于测试用例开发.
@@ -114,7 +113,7 @@ public:
         return future;
     }
 
-    bool SetResult(const std::any &result);
+    bool SetResult(const std::any& result);
 
 private:
     std::mutex mtx_;

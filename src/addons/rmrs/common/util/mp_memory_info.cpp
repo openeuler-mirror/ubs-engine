@@ -11,13 +11,13 @@
  */
 
 #include "mp_memory_info.h"
-#include "mp_error.h"
 #include "ubse_logger.h"
+#include "mp_error.h"
 
 namespace mempooling {
 using namespace ubse::log;
 
-uint64_t StringToKB(std::string &str)
+uint64_t StringToKB(std::string& str)
 {
     if (str.empty()) {
         return 0;
@@ -29,7 +29,7 @@ uint64_t StringToKB(std::string &str)
     double value = 0.0;
     try {
         value = std::stod(str.substr(0, unitPos));
-    } catch (const std::exception &) {
+    } catch (const std::exception&) {
         return 0;
     }
     std::string unit = str.substr(unitPos); // 提取单位部分
@@ -48,10 +48,10 @@ uint64_t StringToKB(std::string &str)
     return 0; // 未知单位，返回 0
 }
 
-bool NodeMemoryInfoList::ParseNodeMemoryInfoMap(const JSON_VEC &nodeMemoryInfoListVec, const int &i,
-                                                JSON_MAP &nodeMemoryInfoMap)
+bool NodeMemoryInfoList::ParseNodeMemoryInfoMap(const JSON_VEC& nodeMemoryInfoListVec, const int& i,
+                                                JSON_MAP& nodeMemoryInfoMap)
 {
-    for (const auto &key : {"timestamp", "nodeId", "totalMemory", "usedMemory", "freeMemory", "borrowedMemory",
+    for (const auto& key : {"timestamp", "nodeId", "totalMemory", "usedMemory", "freeMemory", "borrowedMemory",
                             "lentMemory", "numaMemInfo", "borrowedAndLentInfo"}) {
         (void)nodeMemoryInfoMap.emplace(key, "");
     }
@@ -82,13 +82,13 @@ bool NodeMemoryInfoList::ParseNodeMemoryInfoMap(const JSON_VEC &nodeMemoryInfoLi
     return MEM_POOLING_OK;
 }
 
-bool NodeMemoryInfoList::ParseNumaMemInfoMap(const JSON_VEC &numaMemInfoVec, const int &i, const int &j,
-                                             JSON_MAP &numaMemInfoMap)
+bool NodeMemoryInfoList::ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j,
+                                             JSON_MAP& numaMemInfoMap)
 {
     static const std::vector<std::string> keys = {"numaId",      "socketId",   "memTotal",  "memFree",
                                                   "memUsed",     "vmMemTotal", "vmMemFree", "vmMemUsed",
                                                   "reservedMem", "lentMem",    "sharedMem"};
-    for (const auto &key : keys) {
+    for (const auto& key : keys) {
         (void)numaMemInfoMap.emplace(key, "");
     }
     if (!JsonUtil::RackMemConvertJsonStr2Map(numaMemInfoVec[j], numaMemInfoMap)) {
@@ -133,8 +133,8 @@ bool NodeMemoryInfoList::ParseNumaMemInfoMap(const JSON_VEC &numaMemInfoVec, con
     return MEM_POOLING_OK;
 }
 
-bool NodeMemoryInfoList::CreateNodeMemoryInfoListVec(const std::string &jsonString, JSON_MAP &nodeMemoryInfoListMAP,
-                                                     JSON_VEC &nodeMemoryInfoListVec)
+bool NodeMemoryInfoList::CreateNodeMemoryInfoListVec(const std::string& jsonString, JSON_MAP& nodeMemoryInfoListMAP,
+                                                     JSON_VEC& nodeMemoryInfoListVec)
 {
     (void)nodeMemoryInfoListMAP.emplace("nodeMemoryInfoList", "");
     if (!JsonUtil::RackMemConvertJsonStr2Map(jsonString, nodeMemoryInfoListMAP)) {
@@ -149,7 +149,7 @@ bool NodeMemoryInfoList::CreateNodeMemoryInfoListVec(const std::string &jsonStri
     return MEM_POOLING_OK;
 }
 
-bool NodeMemoryInfoList::CreateNumaMemInfoVec(JSON_VEC &numaMemInfoVec, const int &i, JSON_MAP &nodeMemoryInfoMap)
+bool NodeMemoryInfoList::CreateNumaMemInfoVec(JSON_VEC& numaMemInfoVec, const int& i, JSON_MAP& nodeMemoryInfoMap)
 {
     if (!JsonUtil::RackMemConvertJsonStr2Vec(nodeMemoryInfoMap["numaMemInfo"], numaMemInfoVec)) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RackMemConvertJsonStr2Vec error.";
@@ -167,7 +167,7 @@ bool NodeMemoryInfoList::CreateNumaMemInfoVec(JSON_VEC &numaMemInfoVec, const in
     return MEM_POOLING_OK;
 }
 
-bool NodeMemoryInfoList::FromJson(const std::string &jsonString)
+bool NodeMemoryInfoList::FromJson(const std::string& jsonString)
 {
     JSON_MAP nodeMemoryInfoListMAP;
     JSON_VEC nodeMemoryInfoListVec;

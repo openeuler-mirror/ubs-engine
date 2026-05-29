@@ -30,7 +30,7 @@ public:
 
     explicit HamMakeDecisionMsg(InputParams inputParams) : inputParams_(std::move(inputParams)) {}
 
-    explicit HamMakeDecisionMsg(uint8_t *rawData, uint32_t size)
+    explicit HamMakeDecisionMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
@@ -47,6 +47,6 @@ public:
 private:
     InputParams inputParams_{};
 };
-} // vm
+} // namespace vm
 
 #endif // VM_HAM_MAKE_DECISION_MSG_H

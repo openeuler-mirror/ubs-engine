@@ -11,15 +11,17 @@
  */
 
 #include "test_ubse_election_module.h"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_conf_module.h"
-#include "ubse_election_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::com;
+using namespace ubse::common::def;
 void TestUbseElectionModule::SetUp()
 {
     Test::SetUp();
@@ -50,17 +52,22 @@ TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetMasterNode)
 TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetNodeInfoByID)
 {
     Node masterNode;
+    masterNode.ip = "192.168.1.1";
+    masterNode.port = 9999;
     UbseElectionModule module;
     RoleType roleType = RoleType::STANDBY;
     RoleContext ctx;
     ctx.masterId = "NODE0";
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
+    Node myselfNode{"NODE1", "192.168.0.2", 10005};
+    MOCKER(&UbseElectionNodeMgr::GetMyselfNode).stubs().with(outBound(myselfNode)).will(returnValue(UBSE_OK));
     RoleMgr::GetInstance().SwitchRole(roleType, ctx);
-    auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_ERROR));
     UbseResult result = module.UbseGetMasterNode(masterNode);
-    EXPECT_EQ(result, UBSE_ERROR);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(masterNode.ip, NODE_IP_NULL);
+    EXPECT_EQ(masterNode.port, NODE_PORT_NULL);
 }
 
 TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
@@ -69,16 +76,14 @@ TEST_F(TestUbseElectionModule, UbseGetMasterNodeReturnUbseERROR)
     UbseElectionModule module;
     RoleType roleType = RoleType::STANDBY;
     RoleContext ctx;
-    ctx.masterId = "NODE0";
+    ctx.masterId = "";
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     RoleMgr::GetInstance().SwitchRole(roleType, ctx);
-    auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseResult result = module.UbseGetMasterNode(masterNode);
     EXPECT_EQ(result, UBSE_ERROR);
 }
-
 
 TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetStandbyNode)
 {
@@ -92,33 +97,37 @@ TEST_F(TestUbseElectionModule, ShouldReturnUbseErrorWhenGetStandbyNode)
 
 TEST_F(TestUbseElectionModule, ShuldReturnErrorWhenGetNodeInfoByID)
 {
-    Node masterNode;
+    Node standbyNode;
+    standbyNode.ip = "192.168.1.2";
+    standbyNode.port = 8888;
     UbseElectionModule module;
     RoleType roleType = RoleType::STANDBY;
     RoleContext ctx;
     ctx.masterId = "NODE0";
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
+    Node myselfNode{"NODE1", "192.168.0.2", 10005};
+    MOCKER(&UbseElectionNodeMgr::GetMyselfNode).stubs().with(outBound(myselfNode)).will(returnValue(UBSE_OK));
     RoleMgr::GetInstance().SwitchRole(roleType, ctx);
-    auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_ERROR));
-    UbseResult result = module.UbseGetStandbyNode(masterNode);
-    EXPECT_EQ(result, UBSE_ERROR);
+    UbseResult result = module.UbseGetStandbyNode(standbyNode);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(standbyNode.ip, NODE_IP_NULL);
+    EXPECT_EQ(standbyNode.port, NODE_PORT_NULL);
 }
 
 TEST_F(TestUbseElectionModule, ShuldReturnERROR)
 {
-    Node masterNode;
+    Node standbyNode;
     UbseElectionModule module;
     RoleType roleType = RoleType::STANDBY;
     RoleContext ctx;
     ctx.masterId = "NODE0";
-    ctx.standbyId = "NODE1";
+    ctx.standbyId = "";
     ctx.turnId = 1;
     RoleMgr::GetInstance().SwitchRole(roleType, ctx);
-    auto role = RoleMgr::GetInstance().GetRole();
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
-    UbseResult result = module.UbseGetStandbyNode(masterNode);
+    UbseResult result = module.UbseGetStandbyNode(standbyNode);
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
@@ -168,10 +177,10 @@ TEST_F(TestUbseElectionModule, UbseGetAllNodes)
     ctx.standbyId = "NODE1";
     ctx.turnId = 1;
     Standby standby(ctx);
-    standby.agentIds_= {"NODE3"};
+    standby.agentIds_ = {"NODE3"};
     EXPECT_EQ(standby.GetRoleType(), RoleType::STANDBY);
-    std::vector<Node> allNodes = { Node{ "NODE0", "192.168.0.1", 10004 }, Node{ "NODE1", "192.168.0.2", 10005 },
-                                   Node{ "NODE3", "192.168.0.3", 10006 } };
+    std::vector<Node> allNodes = {Node{"NODE0", "192.168.0.1", 10004}, Node{"NODE1", "192.168.0.2", 10005},
+                                  Node{"NODE3", "192.168.0.3", 10006}};
     MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().with(outBound(allNodes)).will(returnValue(UBSE_OK));
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     UbseElectionModule module;
@@ -197,6 +206,78 @@ TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_OK_WhenRegisterHttpHandler
     EXPECT_EQ(result, UBSE_OK);
 }
 
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_WhenCommMgrIsNull)
+{
+    UbseElectionModule module;
+    std::shared_ptr<UbseElectionCommMgr> nullCommMgr = nullptr;
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(nullCommMgr));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_WhenCommMgrStartFailed)
+{
+    UbseElectionModule module;
+    auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_WhenRegElectionPktHandlerFailed)
+{
+    UbseElectionModule module;
+    auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_ERROR));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_WhenGetRoleReturnsNull)
+{
+    UbseElectionModule module;
+    auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<ElectionRole> nullRole = nullptr;
+    MOCKER(&RoleMgr::GetRole).stubs().will(returnValue(nullRole));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_MODULE_LOAD_FAILED_WhenTaskExecutorModuleIsNull)
+{
+    UbseElectionModule module;
+    auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> nullTaskModule = nullptr;
+    MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(nullTaskModule));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+
+TEST_F(TestUbseElectionModule, Start_ShouldReturnError_WhenTaskExecutorCreateFailed)
+{
+    UbseElectionModule module;
+    auto commMgr = std::make_shared<UbseElectionCommMgr>("NODE0", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+    MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
+    auto taskModule = std::make_shared<task_executor::UbseTaskExecutorModule>();
+    MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_ERROR));
+    UbseResult result = module.Start();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
 TEST_F(TestUbseElectionModule, TimerTaskCom_WhenThreadStatusIsTrue)
 {
     UbseElectionModule mockModule;
@@ -219,4 +300,58 @@ TEST_F(TestUbseElectionModule, TimerTaskElection_WhenThreadStatusIsTrue)
     g_globalStop.store(false);
 }
 
+TEST_F(TestUbseElectionModule, GetNodeIpInfoById_ShouldReturnOk_WhenGetNodeIpByIdSuccess)
+{
+    std::string nodeId = "NODE1";
+    std::string ip = "192.168.0.1";
+    UbseElectionModule module;
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpById)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::outBound(ip))
+        .will(mockcpp::returnValue(UBSE_OK));
+    std::string resultIp;
+    UbseResult result = module.GetNodeIpInfoById(nodeId, resultIp);
+    EXPECT_EQ(result, UBSE_OK);
 }
+
+TEST_F(TestUbseElectionModule, GetNodeIpInfoById_ShouldReturnError_WhenGetNodeIpByIdFailed)
+{
+    std::string nodeId = "NODE99";
+    UbseElectionModule module;
+    MOCKER(&UbseElectionNodeMgr::GetNodeIpById).stubs().will(returnValue(UBSE_ERROR));
+    std::string resultIp;
+    UbseResult result = module.GetNodeIpInfoById(nodeId, resultIp);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionModule, Stop_ShouldJoinAllThreads_WhenThreadsAreJoinable)
+{
+    UbseElectionModule module;
+    std::thread testThread([]() { std::this_thread::sleep_for(std::chrono::milliseconds(100)); });
+    module.threads_.push_back(std::move(testThread));
+    module.Stop();
+    EXPECT_TRUE(module.threads_.empty() || !module.threads_[0].joinable());
+}
+
+TEST_F(TestUbseElectionModule, Stop_ShouldRemoveTaskExecutor_WhenTaskExecutorModuleNotNull)
+{
+    UbseElectionModule module;
+    auto taskModule = std::make_shared<task_executor::UbseTaskExecutorModule>();
+    MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER(&task_executor::UbseTaskExecutorModule::Remove).stubs();
+    module.Stop();
+}
+
+TEST_F(TestUbseElectionModule, Stop_ShouldStopComService_WhenUbseComModuleNotNull)
+{
+    UbseElectionModule module;
+    auto taskModule = std::make_shared<task_executor::UbseTaskExecutorModule>();
+    auto ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER(&task_executor::UbseTaskExecutorModule::Remove).stubs();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::StopComService).stubs().will(returnValue(UBSE_OK));
+    module.Stop();
+}
+
+} // namespace ubse::ut::election

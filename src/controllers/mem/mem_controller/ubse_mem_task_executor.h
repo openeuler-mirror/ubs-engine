@@ -23,7 +23,16 @@
 #include "ubse_str_util.h"
 
 namespace ubse::mem::controller {
-using namespace ubse::mem::controller::agent;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemBaseBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemShareAttachReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowReq;
+using ubse::adapter_plugins::mmi::UbseMemShareDetachReq;
 
 // 内存操作接口定义
 class UbseMemOperation {
@@ -31,13 +40,13 @@ public:
     virtual ~UbseMemOperation() = default;
 
     // 纯虚函数
-    virtual const char *GetOperationName() const = 0;
-    virtual uint32_t Execute(UbseMemOperationResp &resp) = 0;
-    virtual bool BuildResponseData(UbseIpcMessage &responseMessage) = 0;
+    virtual const char* GetOperationName() const = 0;
+    virtual uint32_t Execute(UbseMemOperationResp& resp) = 0;
+    virtual bool BuildResponseData(UbseIpcMessage& responseMessage) = 0;
 
     // 通用属性访问（所有 req 都继承自 UbseMemBaseBorrowReq）
-    virtual const std::string &GetName() const = 0;
-    virtual const std::string &GetRequestNodeId() const = 0;
+    virtual const std::string& GetName() const = 0;
+    virtual const std::string& GetRequestNodeId() const = 0;
     virtual uint64_t GetRequestId() const = 0;
 };
 
@@ -45,15 +54,15 @@ public:
 template <typename ReqType>
 class UbseBaseMemOperation : public UbseMemOperation {
 public:
-    explicit UbseBaseMemOperation(ReqType &&req) : req_(std::move(req)) {}
+    explicit UbseBaseMemOperation(ReqType&& req) : req_(std::move(req)) {}
 
     // 统一实现通用属性访问
-    const std::string &GetName() const override
+    const std::string& GetName() const override
     {
         return req_.name;
     }
 
-    const std::string &GetRequestNodeId() const override
+    const std::string& GetRequestNodeId() const override
     {
         return req_.requestNodeId;
     }
@@ -72,9 +81,9 @@ class UbseMemNumaCreateOperation : public UbseBaseMemOperation<UbseMemNumaBorrow
 public:
     using UbseBaseMemOperation::UbseBaseMemOperation;
 
-    const char *GetOperationName() const override;
-    uint32_t Execute(UbseMemOperationResp &resp) override;
-    bool BuildResponseData(UbseIpcMessage &responseMessage) override;
+    const char* GetOperationName() const override;
+    uint32_t Execute(UbseMemOperationResp& resp) override;
+    bool BuildResponseData(UbseIpcMessage& responseMessage) override;
 
 private:
     UbseMemOperationResp resp;
@@ -85,9 +94,9 @@ class UbseMemCliFdCreateDispatch : public UbseBaseMemOperation<UbseMemFdBorrowRe
 public:
     using UbseBaseMemOperation::UbseBaseMemOperation;
 
-    const char *GetOperationName() const override;
-    uint32_t Execute(UbseMemOperationResp &resp) override;
-    bool BuildResponseData(UbseIpcMessage &responseMessage) override;
+    const char* GetOperationName() const override;
+    uint32_t Execute(UbseMemOperationResp& resp) override;
+    bool BuildResponseData(UbseIpcMessage& responseMessage) override;
 
 private:
     UbseMemOperationResp resp;
@@ -98,9 +107,9 @@ class UbseMemShmCreateOperation : public UbseBaseMemOperation<UbseMemShareBorrow
 public:
     using UbseBaseMemOperation::UbseBaseMemOperation;
 
-    const char *GetOperationName() const override;
-    uint32_t Execute(UbseMemOperationResp &resp) override;
-    bool BuildResponseData(UbseIpcMessage &responseMessage) override;
+    const char* GetOperationName() const override;
+    uint32_t Execute(UbseMemOperationResp& resp) override;
+    bool BuildResponseData(UbseIpcMessage& responseMessage) override;
 };
 
 // Attach 操作
@@ -108,9 +117,9 @@ class UbseMemShmAttachOperation : public UbseBaseMemOperation<UbseMemShareAttach
 public:
     using UbseBaseMemOperation::UbseBaseMemOperation;
 
-    const char *GetOperationName() const override;
-    uint32_t Execute(UbseMemOperationResp &resp) override;
-    bool BuildResponseData(UbseIpcMessage &responseMessage) override;
+    const char* GetOperationName() const override;
+    uint32_t Execute(UbseMemOperationResp& resp) override;
+    bool BuildResponseData(UbseIpcMessage& responseMessage) override;
 };
 
 // Detach 操作
@@ -118,9 +127,9 @@ class UbseMemShmDetachOperation : public UbseBaseMemOperation<UbseMemShareDetach
 public:
     using UbseBaseMemOperation::UbseBaseMemOperation;
 
-    const char *GetOperationName() const override;
-    uint32_t Execute(UbseMemOperationResp &resp) override;
-    bool BuildResponseData(UbseIpcMessage &responseMessage) override;
+    const char* GetOperationName() const override;
+    uint32_t Execute(UbseMemOperationResp& resp) override;
+    bool BuildResponseData(UbseIpcMessage& responseMessage) override;
 };
 
 // 任务执行器
@@ -128,14 +137,14 @@ class UbseMemTaskExecutor {
 public:
     static uint32_t ExecuteOperationAsync(uint64_t requestId, std::unique_ptr<UbseMemOperation> operation);
 
-    static uint32_t PrepareRequest(const UbseRequestContext &context, UbseMemBaseBorrowReq &req);
+    static uint32_t PrepareRequest(const UbseRequestContext& context, UbseMemBaseBorrowReq& req);
 
 private:
     static void ExecuteTask(std::shared_ptr<UbseMemOperation> operation, uint64_t requestId);
 };
 
 template <typename OpType, typename ReqType>
-uint32_t ExecuteOperationAsync(const UbseRequestContext &context, ReqType &&req)
+uint32_t ExecuteOperationAsync(const UbseRequestContext& context, ReqType&& req)
 {
     auto ret = UbseMemTaskExecutor::PrepareRequest(context, req);
     if (ret != UBSE_OK) {

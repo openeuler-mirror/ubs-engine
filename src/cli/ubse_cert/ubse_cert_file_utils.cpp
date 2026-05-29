@@ -11,30 +11,32 @@
  */
 
 #include "ubse_cert_file_utils.h"
-#include <climits>
 #include <sys/stat.h>
+#include <climits>
 
 namespace ubse::cli::cert {
 
-bool FileUtils::IsSymlink(const std::string &filePath)
+bool FileUtils::IsSymlink(const std::string& filePath)
 {
-    struct stat buf{};
+    struct stat buf {
+    };
     if (lstat(filePath.c_str(), &buf) != 0) {
         return false;
     }
     return S_ISLNK(buf.st_mode);
 }
 
-bool FileUtils::IsHardLink(const std::string &filePath)
+bool FileUtils::IsHardLink(const std::string& filePath)
 {
-    struct stat fileStat{};
+    struct stat fileStat {
+    };
     if (stat(filePath.c_str(), &fileStat) != 0) {
         return false;
     }
     return fileStat.st_nlink > 1;
 }
 
-bool FileUtils::IsCanonicalPath(const std::string &filePath, std::string &errMsg)
+bool FileUtils::IsCanonicalPath(const std::string& filePath, std::string& errMsg)
 {
     if (filePath.size() > PATH_MAX) {
         errMsg = filePath + " exceeds the maximum path length, which is " + std::to_string(PATH_MAX);
@@ -49,7 +51,7 @@ bool FileUtils::IsCanonicalPath(const std::string &filePath, std::string &errMsg
         return false;
     }
     char path[PATH_MAX + 1] = {};
-    char *ret = realpath(filePath.c_str(), path);
+    char* ret = realpath(filePath.c_str(), path);
     if (ret == nullptr) {
         errMsg = filePath + " fails to be parsed as a real path.";
         return false;

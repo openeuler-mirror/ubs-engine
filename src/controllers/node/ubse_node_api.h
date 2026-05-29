@@ -16,22 +16,23 @@
 #include "ubse_common_def.h"
 
 namespace ubse::node::api {
-using namespace ubse::common::def;
-using namespace ubse::ipc;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
+using ubse::common::def::UbseResult;
 
 class UbseNodeApi {
 public:
     static UbseResult Register();
 
 private:
-    static uint32_t UbseQueryTopologyInfoHandle(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseServerNodeGet(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseServerNodeList(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseServerCpuTopoList(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseServerNodeNumaMemGet(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseQueryClusterInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseQueryCpuTopo(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t UbseQueryNodeInfo(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t UbseQueryTopologyInfoHandle(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseServerNodeGet(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseServerNodeList(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseServerCpuTopoList(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseServerNodeNumaMemGet(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseQueryClusterInfo(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseQueryCpuTopo(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t UbseQueryNodeInfo(const UbseIpcMessage& req, const UbseRequestContext& context);
 };
 } // namespace ubse::node::api
 #endif // USBE_NODE_API_H

@@ -22,7 +22,7 @@ extern "C" {
 /**
  * 日志回调函数
  */
-typedef void (*ubs_engine_log_handler)(uint32_t level, const char *message);
+typedef void (*ubs_engine_log_handler)(uint32_t level, const char* message);
 
 /**
  * @brief  注册日志回调函数，没有注册日志函数或空指针，采用标准输出

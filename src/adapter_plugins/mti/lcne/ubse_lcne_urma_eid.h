@@ -24,12 +24,11 @@
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
+using common::def::UbseResult;
 
 class UbseLcneUrmaEid {
 public:
-    static UbseLcneUrmaEid &GetInstance()
+    static UbseLcneUrmaEid& GetInstance()
     {
         static UbseLcneUrmaEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
@@ -53,7 +52,7 @@ private:
 
     const std::string GET_URMA_EID_RESULT_SUCCESS = "Success";
 };
-bool IsValidUrmaEid(const std::string &eid);
+bool IsValidUrmaEid(const std::string& eid);
 } // namespace ubse::lcne
 
 #endif // UBSE_LCNE_URMA_EID_H

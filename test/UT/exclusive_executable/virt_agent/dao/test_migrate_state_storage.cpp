@@ -2,8 +2,8 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "migrate_state_storage.h"
 #include "migrate_state_map_message.h"
+#include "migrate_state_storage.h"
 #include "test_migrate_state_storage.h"
 
 using namespace vm;
@@ -28,19 +28,16 @@ void TestMigrateStateStorage::TearDown()
     Test::TearDown();
 }
 
-uint32_t MockUbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
-    UbseStorageDealDataFunc func)
+uint32_t MockUbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                  UbseStorageDealDataFunc func)
 {
-    auto *numaVMInfoMaps = static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    auto* numaVMInfoMaps = static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     NumaVMInfoMap numaVMInfoMap;
     numaVMInfoMaps->emplace_back(numaVMInfoMap);
     return VM_OK;
 }
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfo = {
-    {1, {1, 1, 1, 1, 1}}
-};
-
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfo = {{1, {1, 1, 1, 1, 1}}};
 
 TEST_F(TestMigrateStateStorage, SaveMigrateState_ShouldReturnSuccess)
 {
@@ -48,8 +45,8 @@ TEST_F(TestMigrateStateStorage, SaveMigrateState_ShouldReturnSuccess)
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
     NumaVMInfoMap numaVmInfoMap;
     VMBasicInfo vmBasicInfo;
-    VMNodeLocInfo vmNodeLocInfo{ "", "", 1, 1 };
-    vmBasicInfo.numaMemInfo =globalNumaMemInfo;
+    VMNodeLocInfo vmNodeLocInfo{"", "", 1, 1};
+    vmBasicInfo.numaMemInfo = globalNumaMemInfo;
     vmBasicInfo.uuid = "123456";
 
     // Act
@@ -71,7 +68,7 @@ TEST_F(TestMigrateStateStorage, DelMigrateState_ShouldReturnSuccess)
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
     NumaVMInfoMap numaVmInfoMap;
     VMBasicInfo vmBasicInfo;
-    VMNodeLocInfo vmNodeLocInfo{ "", "", 1, 1 };
+    VMNodeLocInfo vmNodeLocInfo{"", "", 1, 1};
     vmBasicInfo.numaMemInfo = globalNumaMemInfo;
     vmBasicInfo.uuid = "123456";
     numaVmInfoMap[vmNodeLocInfo][vmBasicInfo.uuid] = vmBasicInfo;
@@ -90,7 +87,7 @@ TEST_F(TestMigrateStateStorage, SaveMigrateState_ShouldReturnFailed_WhenPutDataF
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_ERROR));
     NumaVMInfoMap numaVmInfoMap;
     VMBasicInfo vmBasicInfo;
-    VMNodeLocInfo vmNodeLocInfo{ "", "", 1, 1 };
+    VMNodeLocInfo vmNodeLocInfo{"", "", 1, 1};
     vmBasicInfo.numaMemInfo = globalNumaMemInfo;
     vmBasicInfo.uuid = "123456";
 
@@ -151,7 +148,7 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenCtxIsNull)
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = 0;
-    void *ctx = nullptr;
+    void* ctx = nullptr;
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
@@ -165,11 +162,11 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsNull)
     UbseByteBuffer buff;
     buff.data = nullptr;
     buff.len = 0;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
 }
 
 TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsValid)
@@ -179,13 +176,13 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnWhenBuffDataIsValid)
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MigrateStateMapMessage migrateStateMapMessage;
     MOCKER_CPP_VIRTUAL(&migrateStateMapMessage, &MigrateStateMapMessage::Deserialize).stubs().will(returnValue(VM_OK));
 
     // Act
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 
@@ -196,10 +193,10 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnError_WhenSetInputRawDa
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MOCKER(&BaseMessage::SetInputRawData).stubs().will(returnValue(VM_ERROR));
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 
@@ -210,13 +207,14 @@ TEST_F(TestMigrateStateStorage, QueryHandler_ShouldReturnError_WhenDeserializeFa
     UbseByteBuffer buff;
     buff.data = new uint8_t[BUFF_LEN];
     buff.len = BUFF_LEN;
-    void *ctx = new std::vector<NumaVMInfoMap>();
+    void* ctx = new std::vector<NumaVMInfoMap>();
     MOCKER(&BaseMessage::SetInputRawData).stubs().will(returnValue(VM_OK));
     MigrateStateMapMessage migrateStateMapMessage;
     MOCKER_CPP_VIRTUAL(&migrateStateMapMessage, &MigrateStateMapMessage::Deserialize)
-        .stubs().will(returnValue(VM_ERROR));
+        .stubs()
+        .will(returnValue(VM_ERROR));
     MigrateStateStorage::QueryHandler(keyPrefix, key, buff, ctx);
-    delete static_cast<std::vector<NumaVMInfoMap> *>(ctx);
+    delete static_cast<std::vector<NumaVMInfoMap>*>(ctx);
     delete[] buff.data;
 }
 
@@ -230,10 +228,10 @@ TEST_F(TestMigrateStateStorage, ToString_ShouldReturnValidJson_WhenNumaVmInfoMap
     vmBasicInfo.numaMemInfo.emplace(0, vmDomainNumaInfo);
     vmBasicInfo.vmMigrateInTime = MIGRATE_TIME;
     vmBasicInfo.vmMigrateStatus = MIGRATING;
-    numaVmInfoMap[{ "Node0", "Node0", 0, 1 }][vmBasicInfo.uuid] = vmBasicInfo;
+    numaVmInfoMap[{"Node0", "Node0", 0, 1}][vmBasicInfo.uuid] = vmBasicInfo;
     std::string expected = "[{\"uuid\":\"12345\",\"pid\":1234,{\"socketId\":0,\"numaId\":0,},"
                            "\"time\":1000,\"status\":\"MIGRATING\"}]";
     std::string actual = MigrateStateStorage::ToString(numaVmInfoMap);
     EXPECT_EQ(expected, actual);
 }
-}
+} // namespace ubse::ut::vm

@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 #define UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -20,26 +21,39 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string>
-#include <atomic>
 
-#include "lock/ubse_lock.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_error.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
-#include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
-
+#include "lock/ubse_lock.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 namespace ubse::mem::controller {
-using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::utils;
+using ubse::adapter_plugins::mmi::MemOperationType;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_RUNNING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYED;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_DESTROYING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_RUNNING;
+using ubse::adapter_plugins::mmi::UBSE_MEM_IMPORT_SUCCESS;
+using ubse::adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+using ubse::adapter_plugins::mmi::UbseMemImportStatus;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
+using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemReturnReq;
+using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using ubse::adapter_plugins::mmi::UbseShmRegionDesc;
+using ubse::adapter_plugins::mmi::UbseUdsInfo;
 
 const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SLEEP_TIME = 200;
 const uint32_t ALLOCATE_RETRY_TIME = 25;
-const uint32_t RETURN_RETRY_TIME = 25;
+const uint32_t RETURN_RETRY_TIME = 150;
 extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
@@ -50,22 +64,34 @@ struct UbseMemBorrowStatus {
     bool hasExport = false;
 };
 
-uint32_t BuildOperationRespWhenFail(UbseMemOperationResp &resp, const std::string &name,
-                                    const std::string &requestNodeId, std::string errMsg, uint32_t errorCode,
+uint32_t BuildOperationRespWhenFail(UbseMemOperationResp& resp, const std::string& name,
+                                    const std::string& requestNodeId, std::string errMsg, uint32_t errorCode,
                                     MemOperationType type = MemOperationType::FD_BORROW);
 
-uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp &resp, UbseResult errorCode,
+uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp& resp, UbseResult errorCode,
                                        MemOperationType type = MemOperationType::FD_BORROW);
 
-inline std::string GenerateExportObjKey(const std::string &name, const std::string &importNodeId)
+std::shared_mutex& GetDecoderImportMutex();
+
+inline std::string GenerateExportObjKey(const std::string& name, const std::string& importNodeId)
 {
     return name + "_" + importNodeId;
 }
 
 bool IsSdkRequest(uint64_t requestId);
 
+bool IsMemBorrowFeatureSupported();
+
+bool IsMemShareFeatureSupported();
+
+bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag);
+
+uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp& resp, const std::string& name,
+                                         const std::string& requestNodeId,
+                                         MemOperationType type = MemOperationType::FD_BORROW);
+
 template <class importType>
-UbseResult GetErrorCodeByObjState(const importType &importObj, const bool &exportObjExist)
+UbseResult GetErrorCodeByObjState(const importType& importObj, const bool& exportObjExist)
 {
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_EXPORT_RUNNING ||
         importObj.status.state == UBSE_MEM_EXPORT_SUCCESS) {
@@ -95,7 +121,7 @@ UbseResult GetErrorCodeByObjState(const importType &importObj, const bool &expor
 }
 
 template <class importType>
-UbseMemStage GetOptStageByObjState(const importType &importObj, const bool &exportObjExist)
+UbseMemStage GetOptStageByObjState(const importType& importObj, const bool& exportObjExist)
 {
     if (importObj.status.state == UBSE_MEM_IMPORT_RUNNING || importObj.status.state == UBSE_MEM_EXPORT_RUNNING ||
         importObj.status.state == UBSE_MEM_EXPORT_SUCCESS) {
@@ -128,7 +154,7 @@ UbseMemStage GetOptStageByObjState(const importType &importObj, const bool &expo
 }
 
 template <class importType>
-UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool &importObjExist)
+UbseMemStage GetMemStageByImportObjState(const importType& importObj, const bool& importObjExist)
 {
     if (!importObjExist) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -145,7 +171,7 @@ UbseMemStage GetMemStageByImportObjState(const importType &importObj, const bool
 }
 
 template <class ImportType>
-UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType> &importObjPtr)
+UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType>& importObjPtr)
 {
     if (!importObjPtr) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -164,7 +190,7 @@ UbseMemStage GetMemStageByImportObjState(const std::shared_ptr<const ImportType>
 }
 
 template <class ExportType>
-UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType> &exportObjPtr)
+UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType>& exportObjPtr)
 {
     if (!exportObjPtr) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -180,11 +206,10 @@ UbseMemStage GetMemStageByExportObjState(const std::shared_ptr<const ExportType>
     return UbseMemStage::UBSE_EXIST;
 }
 
-
-UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj &importObj, const bool &importObjExist);
+UbseMemStage GetMemStageByShareImportObjState(const UbseMemShareBorrowImportObj& importObj, const bool& importObjExist);
 
 template <class exportType>
-UbseMemStage GetMemStageByExportObjState(const exportType &exportObj, const bool &exportObjExist)
+UbseMemStage GetMemStageByExportObjState(const exportType& exportObj, const bool& exportObjExist)
 {
     if (!exportObjExist) {
         return UbseMemStage::UBSE_NOT_EXIST;
@@ -200,36 +225,49 @@ UbseMemStage GetMemStageByExportObjState(const exportType &exportObj, const bool
     return UbseMemStage::UBSE_EXIST;
 }
 
-void InitializeResponse(const UbseMemReturnReq &req, UbseMemOperationResp &resp);
+void InitializeResponse(const UbseMemReturnReq& req, UbseMemOperationResp& resp);
 
-uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair,
-                                 const std::vector<UbseMemObmmInfo> &exportObmmInfo,
-                                 const decoder::utils::ImportDecoderParam &importDecoderParam,
-                                 UbseMemImportStatus &status);
+uint32_t ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair,
+                                 const std::vector<UbseMemObmmInfo>& exportObmmInfo,
+                                 const decoder::utils::ImportDecoderParam& importDecoderParam,
+                                 UbseMemImportStatus& status);
 
-void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDiePair, UbseMemImportStatus &status,
+void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId);
 
-uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus &status, uint8_t decoderId);
-
-uint32_t SetMarIdByLinkInfo(std::string &importNodeId, std::string &exportNodeId,
-                            const std::pair<uint32_t, uint32_t> &chipDiePair,
-                            const std::pair<uint32_t, uint32_t> &remoteChipDiePair,
-                            decoder::utils::ImportDecoderParam &importParam);
+uint32_t AgentInvalidateDecoderEntry(uint32_t attachSocketId, UbseMemImportStatus& status, uint8_t decoderId);
 
 void InitAgentMaxWaitTime(uint32_t timeout);
 
 uint32_t GetWaitTimeOut();
 
-bool CheckCommonReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                 const std::string &realRequestNodeId, const std::string &importNodeId,
-                                 const std::string &exportNodeId = "");
-bool CheckShareReturnPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const UbseShmRegionDesc &shareRegion);
-bool CheckShareDetachPermission(const UbseUdsInfo &memUds, const UbseUdsInfo &reqUds,
-                                const std::string &realRequestNodeId, const std::string &importNodeId);
+bool CheckCommonReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                 const std::string& realRequestNodeId, const std::string& importNodeId,
+                                 const std::string& exportNodeId = "");
+bool CheckShareReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const UbseShmRegionDesc& shareRegion);
+bool CheckShareDetachPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
+                                const std::string& realRequestNodeId, const std::string& importNodeId);
 
 uint32_t WaitNodeStateWork(const std::string& importNode);
+
+template <class ObjType>
+bool HasAgentAlreadyReported(const std::string& name, const std::string& exeNodeId, bool ObjType::*reportedFlagField)
+{
+    auto objPtr = debt::UbseMemDebtLedger::GetInstance().GetDebtMap<ObjType>().GetResource(exeNodeId, name);
+    if (!objPtr) {
+        return true;
+    } else {
+        if ((*objPtr).*reportedFlagField) {
+            return false;
+        }
+        auto copyObj = *objPtr;
+        copyObj.*reportedFlagField = true;
+        debt::UbseMemDebtLedger::GetInstance().GetDebtMap<ObjType>().PutResource(exeNodeId, name, copyObj);
+        return true;
+    }
+    return true;
+}
 } // namespace ubse::mem::controller
 
 #endif // UBS_ENGINE_UBSE_MEM_CONTROLLER_API_COMMON_H

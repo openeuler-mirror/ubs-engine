@@ -13,8 +13,8 @@
 #include "ubse_urma_uvs_module.h"
 
 #include <dlfcn.h>
-#include "ubse_context.h"
 #include "ubse_common_def.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 
@@ -30,7 +30,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseUrmaUvsModule::Initialize()
 {
     Cleanup();
-    handle = dlopen("/usr/lib64/libtpsa.so", RTLD_LAZY);
+    handle = dlopen("libtpsa.so", RTLD_LAZY);
     if (handle == nullptr) {
         UBSE_LOG_ERROR << "dlopen libtpsa.so failed";
         return UBSE_ERROR_FILE_NOT_EXIST;

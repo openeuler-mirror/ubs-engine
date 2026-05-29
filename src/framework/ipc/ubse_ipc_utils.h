@@ -27,13 +27,13 @@ namespace ubse::ipc {
  */
 uint64_t RandomId();
 
-uint32_t SerializeRequestMessage(const UbseRequestMessage &requestMessage, std::vector<uint8_t> &buffer);
+uint32_t SerializeRequestMessage(const UbseRequestMessage& requestMessage, std::vector<uint8_t>& buffer);
 
-uint32_t SerializeResponseMessage(const UbseResponseMessage &responseMessage, std::vector<uint8_t> &buffer);
+uint32_t SerializeResponseMessage(const UbseResponseMessage& responseMessage, std::vector<uint8_t>& buffer);
 
-uint32_t SerializeShmFault(const UbseShmFault &shmFault, uint8_t *&buffer, size_t &size);
+uint32_t SerializeMemFault(const UbseMemFault& memFault, uint8_t*& buffer, size_t& size);
 
-uint32_t DeSerializeShmFault(UbseShmFault &shmFault, uint8_t *buffer, size_t size);
+uint32_t DeSerializeMemFault(UbseMemFault& memFault, uint8_t* buffer, size_t size);
 } // namespace ubse::ipc
 
 #endif // UBSE_MANAGER_UBSE_IPC_UTILS_H

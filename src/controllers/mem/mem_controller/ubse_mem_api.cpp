@@ -15,10 +15,10 @@
 #include <securec.h>
 #include <regex>
 
-#include "src/sdk/c/include/ubs_engine.h"
 #include "ubse_api_server_module.h"
 #include "ubse_com_base.h"
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_logger.h"
@@ -26,6 +26,7 @@
 #include "ubse_mem_advice.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_def_serial.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
@@ -38,7 +39,7 @@
 #include "ubse_os_util.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
-#include "ubse_mem_util.h"
+#include "src/sdk/c/include/ubs_engine.h"
 
 namespace usbe::mem::api {
 using namespace ubse::context;
@@ -50,13 +51,31 @@ using namespace ubse::utils;
 using namespace ubse::mem::controller::message;
 using namespace ubse::com;
 using namespace ubse::mem::util;
+using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::mem::controller::agent;
 using UbseBorrowDetailsRequestPair = std::pair<UbseMemDebtInfoPartialFetchReqPtr, UbseMemDebtInfoPartialFetchResPtr>;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const double BYTES_PER_MB = 1024 * 1024; // 1MB = 1,048,576字节
 const int BASE_10 = 10;
 
-UbseResult UbseMemApi::UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule> &apiServerModule)
+bool IsDebtFetchFeatureSupported(AccountType borrowType)
+{
+    switch (borrowType) {
+        case AccountType::NUMA:
+        case AccountType::FD:
+        case AccountType::ADDR:
+        case AccountType::SHM:
+        case AccountType::INIT:
+            return ubse::config::UbseIsMemSupported();
+        default:
+            UBSE_LOG_WARN << "Unknown debt fetch borrow type, borrowType=" << static_cast<uint32_t>(borrowType);
+            return true;
+    }
+}
+
+UbseResult UbseMemApi::UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule>& apiServerModule)
 {
     auto ret = apiServerModule->RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_MEM),
                                                    static_cast<uint16_t>(UBSE_MEM_CLI_SHM_ATTACH),
@@ -102,10 +121,10 @@ UbseResult UbseMemApi::Register()
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATE_QUERY, QueryNumaStateHandler);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_NUMA_CREATE, UbseMemCliNumaCreate);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME,
-        UbseMemCliNumaInfoGetByName);
+                                                      UbseMemCliNumaInfoGetByName);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_FD_CREATE, UbseMemCliFdCreate);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_FD_INFO_GET_BY_NAME,
-        UbseMemCliFdInfoGetByName);
+                                                      UbseMemCliFdInfoGetByName);
     ret |= UbseRegisterShmCliInterface(ubse_api_server_module);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of mem IPC-API failed," << FormatRetCode(ret);
@@ -125,38 +144,39 @@ struct MemoryInfo {
     std::string ubseStatus;
 };
 
-static UbseBorrowDetailsRequestPair UbseBorrowDetailsPrepareRequest(const UbseIpcMessage &req)
+static UbseBorrowDetailsRequestPair UbseBorrowDetailsPrepareRequest(const UbseIpcMessage& req)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "debt fetch IPC request info is null.";
-        return { nullptr, nullptr };
+        return {nullptr, nullptr};
     }
     UbseMemDebtInfoPartialFetchReqPtr ubseRequestPtr = new (std::nothrow) UbseMemDebtInfoPartialFetchReq();
     if (ubseRequestPtr == nullptr) {
         UBSE_LOG_ERROR << "new request ptr failed";
-        return { nullptr, nullptr };
+        return {nullptr, nullptr};
     }
 
     UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr = new (std::nothrow) UbseMemDebtInfoPartialFetchRes();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "new response ptr failed";
-        return { nullptr, nullptr };
+        return {nullptr, nullptr};
     }
 
     ubseRequestPtr->SetInputRawData(req.buffer, req.length);
     if (ubseRequestPtr->Deserialize() != UBSE_OK) {
         UBSE_LOG_ERROR << "Deserialize failed.";
-        return { nullptr, nullptr };
+        return {nullptr, nullptr};
     }
-    return { ubseRequestPtr, ubseResponsePtr };
+    return {ubseRequestPtr, ubseResponsePtr};
 }
-uint32_t UbseBorrowDetailsSendRpcAndFetchResponse(const ubse::election::UbseRoleInfo &masterInfo,
-    UbseMemDebtInfoPartialFetchReqPtr ubseRequestPtr, UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr)
+uint32_t UbseBorrowDetailsSendRpcAndFetchResponse(const ubse::election::UbseRoleInfo& masterInfo,
+                                                  UbseMemDebtInfoPartialFetchReqPtr ubseRequestPtr,
+                                                  UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr)
 {
-    const SendParam sendParam{ masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
-        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_PARTIAL_FETCH) };
+    const SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+                              static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_PARTIAL_FETCH)};
 
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "Communication module not init, " << FormatRetCode(UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -172,7 +192,7 @@ uint32_t UbseBorrowDetailsSendRpcAndFetchResponse(const ubse::election::UbseRole
 }
 
 uint32_t UbseBorrowDetailsSendResponseToClient(UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr,
-    const UbseRequestContext &context)
+                                               const UbseRequestContext& context)
 {
     UbseIpcMessage partial_fetch{};
     if (ubseResponsePtr->InputRawData() == nullptr) {
@@ -200,11 +220,15 @@ uint32_t UbseBorrowDetailsSendResponseToClient(UbseMemDebtInfoPartialFetchResPtr
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     auto [ubseRequestPtr, ubseResponsePtr] = UbseBorrowDetailsPrepareRequest(req);
     if (ubseRequestPtr == nullptr || ubseResponsePtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
+    }
+    const auto debtFetchInfo = ubseRequestPtr->GetUbseMemDebtFetchInfo();
+    if (!IsDebtFetchFeatureSupported(debtFetchInfo.borrowType)) {
+        return UBSE_ERR_NOT_SUPPORTED;
     }
 
     ubse::election::UbseRoleInfo masterInfo{};
@@ -226,7 +250,7 @@ uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage &req,
     return UBSE_OK;
 }
 
-void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList)
+void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo>& nodeList)
 {
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos =
         ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
@@ -237,25 +261,25 @@ void UbseClusterList(std::vector<ubse::nodeController::UbseNodeInfo> &nodeList)
         ubse::nodeController::UbseNodeController::GetInstance().GetStaticNodeInfo();
     nodeList.reserve(std::max(nodeInfos.size(), staticNodeInfos.size()));
     std::transform(nodeInfos.begin(), nodeInfos.end(), std::back_inserter(nodeList),
-                   [](auto &kv) { return kv.second; });
+                   [](auto& kv) { return kv.second; });
     // 加入静态节点信息
-    for (auto &nodeInfo : staticNodeInfos) {
+    for (auto& nodeInfo : staticNodeInfos) {
         if (nodeInfos.find(nodeInfo.nodeId) == nodeInfos.end()) {
             ConvertStrToUint32(nodeInfo.nodeId, nodeInfo.slotId);
             nodeList.emplace_back(nodeInfo);
         }
     }
     std::sort(nodeList.begin(), nodeList.end(),
-              [](ubse::nodeController::UbseNodeInfo &l, ubse::nodeController::UbseNodeInfo &r) {
+              [](ubse::nodeController::UbseNodeInfo& l, ubse::nodeController::UbseNodeInfo& r) {
                   return l.slotId < r.slotId;
               });
 }
 
-bool CheckAllNodeMemoryConfigValid(const std::vector<ubse::nodeController::UbseNodeInfo> &nodeList)
+bool CheckAllNodeMemoryConfigValid(const std::vector<ubse::nodeController::UbseNodeInfo>& nodeList)
 {
     bool foundFirst = false;
     ubse::nodeController::UbseNodeInfo tempNode;
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         if (!node.nodeId.empty() && (node.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
                                      node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING)) {
             continue;
@@ -285,11 +309,12 @@ bool CheckAllNodeMemoryConfigValid(const std::vector<ubse::nodeController::UbseN
     return true;
 }
 
-void SerializeCheckMemoryStatus(const std::vector<ubse::nodeController::UbseNodeInfo> &nodeList, UbseSerialization &ubseSerial)
+void SerializeCheckMemoryStatus(const std::vector<ubse::nodeController::UbseNodeInfo>& nodeList,
+                                UbseSerialization& ubseSerial)
 {
     bool memConfigValid = CheckAllNodeMemoryConfigValid(nodeList);
 
-    for (const auto &node : nodeList) {
+    for (const auto& node : nodeList) {
         UBSE_LOG_INFO << "hostname=" << node.hostName << ", slotId=" << node.slotId
                       << ", clusterState=" << static_cast<uint32_t>(node.clusterState);
         std::string detail;
@@ -302,9 +327,10 @@ void SerializeCheckMemoryStatus(const std::vector<ubse::nodeController::UbseNode
         // 平滑对账和正常工作的时候ok
         ubseSerial << (memConfigValid && isOnline && isSysSentryReady && isObmmKernelInserted ? "ok" : "nok");
         std::string clusterDetail = isOnline ? "ok" : "nok";
-        std::string sysSentryDetail = node.sysSentryState == UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_OK  ? "ok" :
-                                      node.sysSentryState == UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_NOK ? "nok" :
-                                                                                                               "unknown";
+        std::string sysSentryDetail = node.sysSentryState == UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_OK ? "ok" :
+                                      node.sysSentryState == UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_NOK ?
+                                                                                                              "nok" :
+                                                                                                              "unknown";
         std::string obmmDetail = node.obmmState == UbseNodeObmmState::UBSE_NODE_OBMM_INSERTED     ? "ok" :
                                  node.obmmState == UbseNodeObmmState::UBSE_NODE_OBMM_NOT_INSERTED ? "nok" :
                                                                                                     "unknown";
@@ -313,13 +339,18 @@ void SerializeCheckMemoryStatus(const std::vector<ubse::nodeController::UbseNode
             sysSentryDetail = "unknown";
             obmmDetail = "unknown";
         }
-        detail.append("cluster state: ").append(clusterDetail).append("; obmm: ").append(obmmDetail).append("; sysSentry: ").append(sysSentryDetail);
+        detail.append("cluster state: ")
+            .append(clusterDetail)
+            .append("; obmm: ")
+            .append(obmmDetail)
+            .append("; sysSentry: ")
+            .append(sysSentryDetail);
         // detail = "cluster state: " + clusterDetail + "; obmm: " + obmmDetail + "; sysSentry: " + sysSentryDetail;
         ubseSerial << detail;
     }
 }
 
-uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Cluster IPC request info is null.";
@@ -349,8 +380,11 @@ uint32_t UbseMemApi::UbseCheckMemoryStatus(const UbseIpcMessage &req, const Ubse
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "Node mem config IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
@@ -358,7 +392,7 @@ uint32_t UbseMemApi::UbseNodeMemConfigHandle(const UbseIpcMessage &req, const Ub
     auto nodeMap = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
     UbseSerialization ubse_serial;
     ubse_serial << array_len_insert(nodeMap.size());
-    for (const auto &[_, nodeInfo] : nodeMap) {
+    for (const auto& [_, nodeInfo] : nodeMap) {
         ubse_serial << std::string(nodeInfo.hostName + "(" + std::to_string(nodeInfo.slotId) + ")");
         ubse_serial << nodeInfo.isLender;
     }
@@ -396,9 +430,12 @@ inline uint32_t UbseConvertBytesToMegabytes(uint64_t bytes)
     return static_cast<uint32_t>(mb);
 }
 
-uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
 
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
     auto ret = UbseAllNumaInfo(numaInfoList);
     if (ret != UBSE_OK) {
@@ -406,7 +443,7 @@ uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage &req, const Ubse
     }
     UbseSerialization ubse_serial;
     ubse_serial << array_len_insert(numaInfoList.size());
-    for (const auto &numaInfo : numaInfoList) {
+    for (const auto& numaInfo : numaInfoList) {
         auto memUsed = numaInfo.mMemTotal - numaInfo.mMemFree;
         std::string usedPercent = "0";
         if (numaInfo.mMemTotal != 0) {
@@ -447,8 +484,8 @@ uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage &req, const Ubse
     return UBSE_OK;
 }
 
-uint32_t SerializeNumaState(UbseSerialization &ubse_serial, const ubse::mem::def::UbseMemNumaDesc &memNumaDesc,
-                            UbseIpcMessage &res)
+uint32_t SerializeNumaState(UbseSerialization& ubse_serial, const ubse::mem::def::UbseMemNumaDesc& memNumaDesc,
+                            UbseIpcMessage& res)
 {
     ubse_serial << memNumaDesc.name << std::to_string(static_cast<uint32_t>(memNumaDesc.state));
     if (memNumaDesc.state == UbseMemStage::UBSE_EXIST || memNumaDesc.state == UbseMemStage::UBSE_ERR_ONLY_IMPORT) {
@@ -468,7 +505,7 @@ uint32_t SerializeNumaState(UbseSerialization &ubse_serial, const ubse::mem::def
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::QueryNumaStateHandler(const UbseIpcMessage &request, const UbseRequestContext &context)
+uint32_t UbseMemApi::QueryNumaStateHandler(const UbseIpcMessage& request, const UbseRequestContext& context)
 {
     std::string errorMsg{};
     UbseDeSerialization deserial{request.buffer, request.length};
@@ -515,7 +552,7 @@ uint32_t UbseMemApi::QueryNumaStateHandler(const UbseIpcMessage &request, const 
     return UBSE_OK;
 }
 
-uint32_t DeserializeAndValidateName(const UbseIpcMessage &buffer, std::string &name)
+uint32_t DeserializeAndValidateName(const UbseIpcMessage& buffer, std::string& name)
 {
     UbseDeSerialization deSerialization(buffer.buffer, buffer.length);
     deSerialization >> name;
@@ -533,8 +570,21 @@ uint32_t DeserializeAndValidateName(const UbseIpcMessage &buffer, std::string &n
     return UBSE_OK;
 }
 
-UbseResult BuildMemShareCreateReq(const UbseIpcMessage &buffer, const UbseRequestContext &context,
-                                  UbseMemShareBorrowReq &req)
+UbseResult SetCliShareCacheableFlag(UbseMemShareBorrowReq& req)
+{
+    if (ubse::config::UbseIsMemShareNcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 0;
+        return UBSE_OK;
+    }
+    if (ubse::config::UbseIsMemShareCcSupported()) {
+        req.ubseMemPrivData.cacheableFlag = 1;
+        return UBSE_OK;
+    }
+    return UBSE_ERR_NOT_SUPPORTED;
+}
+
+UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
+                                  UbseMemShareBorrowReq& req)
 {
     // 解析请求参数
     UbseDeSerialization deserialization(buffer.buffer, buffer.length);
@@ -568,10 +618,22 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage &buffer, const UbseReques
         UBSE_LOG_ERROR << "Failed to parse CLI create request, requestId: " << context.requestId;
         return UBSE_ERR_INTERNAL;
     }
+    // ubseMemPrivData 数据和SDK接口默认值一致
+    req.ubseMemPrivData.onePth = 1;
+    req.ubseMemPrivData.wrDelayComp = 0;
+    req.ubseMemPrivData.reduceDelayComp = 0;
+    req.ubseMemPrivData.cmoDelayComp = 0;
+    req.ubseMemPrivData.so = 0;
+    req.ubseMemPrivData.adTrOchip = 1;
+    auto ret = SetCliShareCacheableFlag(req);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    req.shmAnonymous = false;
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseCliShmGetDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseCliShmGetDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseCliShmGetDispatch, request_id=" << context.requestId;
     // 参数验证和解析
@@ -612,7 +674,7 @@ uint32_t UbseMemApi::UbseCliShmGetDispatch(const UbseIpcMessage &buffer, const U
     return apiServer->SendResponse(UBSE_OK, context.requestId, responseMessage);
 }
 
-uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseCliShmAttachDispatch, request_id=" << context.requestId;
     // 参数验证和解析
@@ -621,7 +683,7 @@ uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage &buffer, cons
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice("Import failed", name, "SHARE_BORROW", 0, "", currentNodeInfo.nodeId, ret,
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, name, "SHARE_BORROW", 0, "", currentNodeInfo.nodeId, ret,
                            MemAdvice::CHECK_FAILED);
         return ret;
     }
@@ -634,7 +696,7 @@ uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage &buffer, cons
     return ExecuteOperationAsync<UbseMemShmAttachOperation>(context, std::move(req));
 }
 
-uint32_t UbseMemApi::UbseCliShmDetachDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseCliShmDetachDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseCliShmDetachDispatch, request_id=" << context.requestId;
     // 参数验证和解析
@@ -652,7 +714,7 @@ uint32_t UbseMemApi::UbseCliShmDetachDispatch(const UbseIpcMessage &buffer, cons
     return ExecuteOperationAsync<UbseMemShmDetachOperation>(context, std::move(req));
 }
 
-uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "CLI shm create dispatch, requestId: " << context.requestId;
 
@@ -662,7 +724,7 @@ uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage &buffer, cons
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice("Export failed", req.name, "SHARE_BORROW", req.size, "", "", ret,
+        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", "", ret,
                            MemAdvice::CHECK_FAILED);
         return ret;
     }
@@ -670,14 +732,14 @@ uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage &buffer, cons
     // 异步执行
     return ExecuteOperationAsync<UbseMemShmCreateOperation>(context, std::move(req));
 }
-uint32_t SendResponseCommon(UbseSerialization &serial, const UbseRequestContext &context)
+uint32_t SendResponseCommon(UbseSerialization& serial, const UbseRequestContext& context)
 {
     auto apiServerModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
         UBSE_LOG_ERROR << "Get api server module failed";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseIpcMessage response{ serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength()) };
+    UbseIpcMessage response{serial.GetBuffer(), static_cast<uint32_t>(serial.GetLength())};
     if (!response.buffer) {
         UBSE_LOG_ERROR << "Serialization response failed.";
         return UBSE_ERROR_NULLPTR;
@@ -690,7 +752,7 @@ uint32_t SendResponseCommon(UbseSerialization &serial, const UbseRequestContext 
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseMemCliNumaInfoGetByName(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseMemCliNumaInfoGetByName(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemCliNumaGetInfo, request_id=" << context.requestId;
     if (buffer.buffer == nullptr) {
@@ -707,18 +769,18 @@ uint32_t UbseMemApi::UbseMemCliNumaInfoGetByName(const UbseIpcMessage &buffer, c
     UbseUdsInfo udsInfo = GenUdsInfo(context);
     ubse::mem::def::UbseMemNumaDesc memNumaDesc{};
     auto ret = ubse::mem::controller::UbseMemNumaGet(name, memNumaDesc, &udsInfo);
-    UBSE_LOG_INFO << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId <<
-        memNumaDesc.exportNode.slotId << memNumaDesc.size << static_cast<uint32_t>(memNumaDesc.state);
+    UBSE_LOG_INFO << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId
+                  << memNumaDesc.exportNode.slotId << memNumaDesc.size << static_cast<uint32_t>(memNumaDesc.state);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemNumaGet failed," << FormatRetCode(ret);
         return ret;
     }
     UbseSerialization serial{};
-    serial << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId <<
-        memNumaDesc.exportNode.slotId << memNumaDesc.size << enum_v(memNumaDesc.state);
+    serial << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId << memNumaDesc.exportNode.slotId
+           << memNumaDesc.size << enum_v(memNumaDesc.state);
 
-    UBSE_LOG_INFO << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId <<
-        memNumaDesc.exportNode.slotId << memNumaDesc.size << static_cast<uint32_t>(memNumaDesc.state);
+    UBSE_LOG_INFO << memNumaDesc.name << memNumaDesc.numaId << memNumaDesc.importNode.slotId
+                  << memNumaDesc.exportNode.slotId << memNumaDesc.size << static_cast<uint32_t>(memNumaDesc.state);
 
     if (!serial.Check()) {
         UBSE_LOG_ERROR << "Failed to serialize response information.";
@@ -727,14 +789,14 @@ uint32_t UbseMemApi::UbseMemCliNumaInfoGetByName(const UbseIpcMessage &buffer, c
     return SendResponseCommon(serial, context);
 }
 
-uint32_t UbseMemApi::UbseMemCliFdInfoGetByName(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseMemCliFdInfoGetByName(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "UbseMemCliFdGetInfo, request_id=" << context.requestId;
     if (buffer.buffer == nullptr) {
         UBSE_LOG_ERROR << "CliFdGet IPC request info is null.";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseDeSerialization deserial{ buffer.buffer, buffer.length };
+    UbseDeSerialization deserial{buffer.buffer, buffer.length};
     std::string name{};
     deserial >> name;
     if (!deserial.Check()) {
@@ -745,26 +807,26 @@ uint32_t UbseMemApi::UbseMemCliFdInfoGetByName(const UbseIpcMessage &buffer, con
     UbseUdsInfo udsInfo = GenUdsInfo(context);
     ubse::mem::def::UbseMemFdDesc fdDesc;
     auto ret = ubse::mem::controller::UbseMemFdGet(name, fdDesc, &udsInfo);
-    UBSE_LOG_INFO << fdDesc.name << " " <<
-        (fdDesc.importNode.hostName.empty() ? std::string("-") : fdDesc.importNode.hostName) << " " <<
-        std::to_string(fdDesc.importNode.slotId) << " " <<
-        (fdDesc.exportNode.hostName.empty() ? std::string("-") : fdDesc.exportNode.hostName) << " " <<
-        std::to_string(fdDesc.exportNode.slotId) << " " << fdDesc.totalMemSize << " " <<
-        static_cast<uint32_t>(fdDesc.state);
+    UBSE_LOG_INFO << fdDesc.name << " "
+                  << (fdDesc.importNode.hostName.empty() ? std::string("-") : fdDesc.importNode.hostName) << " "
+                  << std::to_string(fdDesc.importNode.slotId) << " "
+                  << (fdDesc.exportNode.hostName.empty() ? std::string("-") : fdDesc.exportNode.hostName) << " "
+                  << std::to_string(fdDesc.exportNode.slotId) << " " << fdDesc.totalMemSize << " "
+                  << static_cast<uint32_t>(fdDesc.state);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemFdGet failed," << FormatRetCode(ret);
         return ret;
     }
     UbseSerialization serial{};
-    serial << fdDesc.name << fdDesc.memIds << fdDesc.importNode.slotId << fdDesc.exportNode.slotId <<
-        fdDesc.totalMemSize << enum_v(fdDesc.state);
+    serial << fdDesc.name << fdDesc.memIds << fdDesc.importNode.slotId << fdDesc.exportNode.slotId
+           << fdDesc.totalMemSize << enum_v(fdDesc.state);
 
-    UBSE_LOG_INFO << fdDesc.name << " " <<
-        (fdDesc.importNode.hostName.empty() ? std::string("-") : fdDesc.importNode.hostName) << " " <<
-        std::to_string(fdDesc.importNode.slotId) << " " <<
-        (fdDesc.exportNode.hostName.empty() ? std::string("-") : fdDesc.exportNode.hostName) << " " <<
-        std::to_string(fdDesc.exportNode.slotId) << " " << fdDesc.totalMemSize << " " <<
-        static_cast<uint32_t>(fdDesc.state);
+    UBSE_LOG_INFO << fdDesc.name << " "
+                  << (fdDesc.importNode.hostName.empty() ? std::string("-") : fdDesc.importNode.hostName) << " "
+                  << std::to_string(fdDesc.importNode.slotId) << " "
+                  << (fdDesc.exportNode.hostName.empty() ? std::string("-") : fdDesc.exportNode.hostName) << " "
+                  << std::to_string(fdDesc.exportNode.slotId) << " " << fdDesc.totalMemSize << " "
+                  << static_cast<uint32_t>(fdDesc.state);
 
     if (!serial.Check()) {
         UBSE_LOG_ERROR << "Failed to serialize response information.";
@@ -773,8 +835,7 @@ uint32_t UbseMemApi::UbseMemCliFdInfoGetByName(const UbseIpcMessage &buffer, con
     return SendResponseCommon(serial, context);
 }
 
-
-bool CheckLinkInfo(const std::string &str)
+bool CheckLinkInfo(const std::string& str)
 {
     if (str.empty()) {
         UBSE_LOG_INFO << "link info is empty.";
@@ -789,11 +850,11 @@ bool CheckLinkInfo(const std::string &str)
     return true;
 }
 
-UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage &buffer, const UbseRequestContext &context,
-    UbseMemNumaBorrowReq &req)
+UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
+                                   UbseMemNumaBorrowReq& req)
 {
     // 解析请求参数
-    UbseDeSerialization deserialization{ buffer.buffer, buffer.length };
+    UbseDeSerialization deserialization{buffer.buffer, buffer.length};
     std::string name{};
     size_t size{};
     std::string linkInfo{};
@@ -832,7 +893,7 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage &buffer, const UbseReque
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "CLI numa create dispatch, requestId: " << context.requestId;
 
@@ -842,8 +903,8 @@ uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const Ub
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice("Import failed", req.name, "APP_NUMA_BORROW", req.size, "", currentNodeInfo.nodeId, ret,
-                           MemAdvice::CHECK_FAILED);
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_NUMA_BORROW", req.size, "",
+                           currentNodeInfo.nodeId, ret, MemAdvice::CHECK_FAILED);
         return ret;
     }
 
@@ -851,11 +912,11 @@ uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage &buffer, const Ub
     return ExecuteOperationAsync<UbseMemNumaCreateOperation>(context, std::move(req));
 }
 
-UbseResult FillFdInfoToCreateReq(const UbseIpcMessage &buffer, const UbseRequestContext &context,
-    UbseMemFdBorrowReq &req)
+UbseResult FillFdInfoToCreateReq(const UbseIpcMessage& buffer, const UbseRequestContext& context,
+                                 UbseMemFdBorrowReq& req)
 {
     // 解析请求参数
-    UbseDeSerialization deserialization{ buffer.buffer, buffer.length };
+    UbseDeSerialization deserialization{buffer.buffer, buffer.length};
     std::string name{};
     size_t size{};
     deserialization >> name >> size;
@@ -872,7 +933,7 @@ UbseResult FillFdInfoToCreateReq(const UbseIpcMessage &buffer, const UbseRequest
     return UBSE_OK;
 }
 
-uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage &buffer, const UbseRequestContext &context)
+uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "CLI fd create dispatch, requestId: " << context.requestId;
 
@@ -882,8 +943,8 @@ uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage &buffer, const Ubse
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice("Import failed", req.name, "WATER_BORROW", req.size, "", currentNodeInfo.nodeId, ret,
-                           MemAdvice::CHECK_FAILED);
+        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "WATER_BORROW", req.size, "", currentNodeInfo.nodeId,
+                           ret, MemAdvice::CHECK_FAILED);
         return ret;
     }
 

@@ -36,4 +36,4 @@ uint32_t RegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string
 {
     return 0;
 }
-}
+} // namespace ubse::ras

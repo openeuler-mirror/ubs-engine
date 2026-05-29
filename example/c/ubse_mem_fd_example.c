@@ -12,12 +12,15 @@
 
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
+#include "ubse_mem_fault_common.h"
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
-void print_mem_fd_desc(const ubs_mem_fd_desc_t *fd_desc)
+void print_mem_fd_desc(const ubs_mem_fd_desc_t* fd_desc)
 {
     printf("Memory Resource Descriptor:\n");
     printf("Resource Name: %s\n", fd_desc->name);
@@ -35,7 +38,7 @@ void print_mem_fd_desc(const ubs_mem_fd_desc_t *fd_desc)
 void ubse_mem_fd_create_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     const uint64_t mem_size = 128 * 1024 * 1024; // 200MB
     ubs_mem_fd_owner_t uds_info = {.uid = getuid(), .gid = getgid(), .pid = getpid()};
     ubs_mem_distance_t distance = MEM_DISTANCE_L0; // 直连节点
@@ -56,7 +59,7 @@ void ubse_mem_fd_create_example(void)
 void ubse_mem_fd_get_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     ubs_mem_fd_desc_t fd_desc = {0}; // 结果存储结构体
 
     // 2. 调用查询函数
@@ -73,7 +76,7 @@ void ubse_mem_fd_get_example(void)
 
 void ubse_mem_fd_list_example(void)
 {
-    ubs_mem_fd_desc_t *fd_desc_list = NULL;
+    ubs_mem_fd_desc_t* fd_desc_list = NULL;
     uint32_t fd_desc_cnt = 0;
 
     printf("Retrieving fd desc list...\n");
@@ -100,7 +103,7 @@ void ubse_mem_fd_list_example(void)
 void ubse_mem_fd_delete_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
 
     // 2. 调用删除函数
     ubs_error_t result = ubs_mem_fd_delete(mem_name);
@@ -111,6 +114,23 @@ void ubse_mem_fd_delete_example(void)
         // 错误处理
         printf("Error delete memory resource: %s\n", ubs_error_string(result));
     }
+}
+
+static int32_t fd_fault_handler(const char* name, uint64_t memid, ubs_mem_fault_type_t type)
+{
+    ubse_print_fault_info("FD", name, memid, type);
+    return 0;
+}
+
+static void ubse_mem_fd_fault_register_example(void)
+{
+    printf("=== ubs_mem_fd_fault_register_example ===\n");
+
+    ubse_setup_signal_handlers();
+
+    printf("[MAIN] Registering fd memory fault handler...\n");
+    int32_t ret = ubs_mem_fd_fault_register(fd_fault_handler);
+    ubse_start_fault_monitoring("fd", ret);
 }
 
 int main(void)
@@ -132,4 +152,7 @@ int main(void)
 
     // 测试删除fd内存
     ubse_mem_fd_delete_example();
+
+    // 测试fd内存故障上报
+    ubse_mem_fd_fault_register_example();
 }

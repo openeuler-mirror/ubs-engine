@@ -95,11 +95,11 @@ generator="Unix Makefiles"
 
 enable_coverage="OFF"
 enable_test="OFF"
-enable_fuzz="OFF"
 skip_run_tests="OFF"
 force_colored_output="OFF" # 强制启用ANSI颜色输出
 deploy_version="2.0.0.B098" # 发布版本，B098 为稳定日构建版本（OS包会取上个稳定迭代版本）
 enable_ub="ON" # 启用 UB 环境编译
+enable_pre_commit="OFF" # 启用 pre-commit 检查
 
 # 判断是否在流水线构建
 build_in_ci=false
@@ -263,6 +263,10 @@ function parse_args() {
             enable_ub='ON'
             shift
             ;;
+        --pre-commit)
+            enable_pre_commit='ON'
+            shift
+            ;;
         --)
             trans_flag=true
             shift
@@ -317,12 +321,9 @@ function clean() {
 # 执行 CMake 构建
 function build_cmake() {
     # 启用测试
-    if [[ "$build_target" == 'test' || "$build_target" == 'ut' ||  "$build_target" == 'fuzz' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" == 'pt' ]]; then
+    if [[ "$build_target" == 'test' || "$build_target" == 'ut' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" == 'pt' ]]; then
         enable_test='ON'
         build_type='Debug'
-    fi
-    if [["$build_target" == 'fuzz']]; then
-        enable_fuzz='ON'
     fi
 
     # 根据构建类型选择不同构建目录
@@ -363,9 +364,6 @@ function build_cmake() {
         -DCMAKE_BUILD_TYPE=${build_type} \
         -DCMAKE_CXX_STANDARD="${std}" \
         -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
-        -DCMAKE_RPM_INSTALL_PREFIX=/usr/local/softbus \
-        -DRPM_PACKAGE_VERSION="1.0.0" \
-        -DRPM_PACKAGE_RELEASE=1 \
         -DBUILD_TESTS=${enable_test} \
         -DENABLE_COVERAGE=${enable_coverage} \
         -DSOURCE_COMPILING=${enable_source_compiling} \
@@ -376,7 +374,12 @@ function build_cmake() {
         -DBUILD_IN_CI=${build_in_ci} \
         -DB_VERSION="${deploy_version}" \
         -DENABLE_UB="${enable_ub}" \
-        -DENABLE_FUZZ="${enable_fuzz}"
+	    -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
+
+    if [[ "$enable_pre_commit" == 'ON' ]]; then
+        log_info "Pre-commit mode: only generating compile_commands.json, skipping build."
+        return 0
+    fi
 
     # 确保先构建 Debug 版本的所有代码，生成全面覆盖率报告
     if [[ "$enable_coverage" == 'ON' && "$build_type" == 'Debug' && "$build_target" != 'all' ]]; then
@@ -388,6 +391,8 @@ function build_cmake() {
 
     # 生成覆盖率报告
     if [[ "$enable_coverage" == 'ON' ]]; then
+        export COVERAGE_MODULE="$build_target"
+        log_info "Coverage module: ${COVERAGE_MODULE}"
         # 检查是否存在 .gcda 文件
         if find "${build_dir}" -type f -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
             cmake --build "${build_dir}" --target coverage

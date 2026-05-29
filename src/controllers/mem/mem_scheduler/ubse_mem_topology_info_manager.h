@@ -15,14 +15,17 @@
 #include <shared_mutex>
 #include <unordered_map>
 
-#include "mem_pool_strategy.h"
+#include "ubse_mem_configuration.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_meta_data.h"
 #include "ubse_mem_types.h"
 #include "ubse_node_controller.h"
-#include "ubse_mem_configuration.h"
+#include "mem_pool_strategy.h"
 
 namespace ubse::mem::strategy {
+using ubse::adapter_plugins::mmi::UbseMemNumaLoc;
+using ubse::nodeController::UbseAllocator;
+using ubse::nodeController::UbseNumaInfo;
 struct SocketCnaTopoInfo {
     std::string importNodeIdSocketId{};
     std::string exportNodeIdSocketId{};
@@ -44,86 +47,86 @@ struct UbseMemCoordinateDesc {
  */
 class UbseMemTopologyInfoManager {
 public:
-    UbseMemTopologyInfoManager(const UbseMemTopologyInfoManager &other) = delete;
-    UbseMemTopologyInfoManager(UbseMemTopologyInfoManager &&other) = delete;
-    UbseMemTopologyInfoManager &operator=(const UbseMemTopologyInfoManager &other) = delete;
-    UbseMemTopologyInfoManager &operator=(UbseMemTopologyInfoManager &&other) noexcept = delete;
+    UbseMemTopologyInfoManager(const UbseMemTopologyInfoManager& other) = delete;
+    UbseMemTopologyInfoManager(UbseMemTopologyInfoManager&& other) = delete;
+    UbseMemTopologyInfoManager& operator=(const UbseMemTopologyInfoManager& other) = delete;
+    UbseMemTopologyInfoManager& operator=(UbseMemTopologyInfoManager&& other) noexcept = delete;
 
-    inline static UbseMemTopologyInfoManager &GetInstance()
+    inline static UbseMemTopologyInfoManager& GetInstance()
     {
         static UbseMemTopologyInfoManager instance;
         return instance;
     }
 
-    UbseResult NodesInit(const std::vector<strategy::NodeDataWithNumaInfo> &nodeDatas); // 节点上线增加init
+    UbseResult NodesInit(const std::vector<strategy::NodeDataWithNumaInfo>& nodeDatas); // 节点上线增加init
 
     void UpdateNodeMesgInfo(
-        const std::vector<strategy::NodeDataWithNumaInfo> &nodeDatas); // 更新节点socket信息和numa信息
+        const std::vector<strategy::NodeDataWithNumaInfo>& nodeDatas); // 更新节点socket信息和numa信息
 
     // 算法参数的填充
-    bool FillStrategyParam(tc::rs::mem::StrategyParam &strategyParam);
-    bool SetAvailNumas(tc::rs::mem::StrategyParam &strategyParam,
-                       const std::vector<std::shared_ptr<MemNumaInfo>> &numaList);
-    bool SetNumaLatencies(tc::rs::mem::StrategyParam &strategyParam);
-    bool SetNumaMemCapacities(tc::rs::mem::StrategyParam &strategyParam,
-                              const std::vector<std::shared_ptr<MemNumaInfo>> &numaList);
-    bool SetMaxMemParam(tc::rs::mem::StrategyParam &strategyParam,
-                        const std::vector<std::shared_ptr<MemNumaInfo>> &numaList);
-    bool SetMemOutHardLimit(tc::rs::mem::StrategyParam &strategyParam,
+    bool FillStrategyParam(tc::rs::mem::StrategyParam& strategyParam);
+    bool SetAvailNumas(tc::rs::mem::StrategyParam& strategyParam,
+                       const std::vector<std::shared_ptr<MemNumaInfo>>& numaList);
+    bool SetNumaLatencies(tc::rs::mem::StrategyParam& strategyParam);
+    bool SetNumaMemCapacities(tc::rs::mem::StrategyParam& strategyParam,
+                              const std::vector<std::shared_ptr<MemNumaInfo>>& numaList);
+    bool SetMaxMemParam(tc::rs::mem::StrategyParam& strategyParam,
+                        const std::vector<std::shared_ptr<MemNumaInfo>>& numaList);
+    bool SetMemOutHardLimit(tc::rs::mem::StrategyParam& strategyParam,
                             std::vector<std::shared_ptr<MemNumaInfo>> numaList);
 
-    UbseResult GetNodePoolMemSize(const NodeId &nodeId, uint64_t &nodePoolMemSize,
-                                  const std::vector<std::shared_ptr<MemNumaInfo>> &numaList);
-    UbseResult GetActualNodeMemTotal(const NodeId &nodeId, uint64_t &nodeNumaMemTotal,
-                                     const std::vector<std::shared_ptr<MemNumaInfo>> &numaList);
-    UbseResult GetAttachNodeId(std::string &borrowNodeId, const std::string &exportNodeId, int exportSocketId,
-                               uint32_t &attachSocketId);
-    bool TransferTopoToCoordinate(tc::rs::mem::StrategyParam &strategyParam);
-    bool UbseMemTransTopoToNeighborSet(std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes,
-                                       std::set<uint16_t> &nodeIndexList);
-    bool GenerateCoordinate(std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS> &neighborNodes,
-                            tc::rs::mem::StrategyParam &strategyParam, const std::set<uint16_t> &nodeIndexList);
-    void FillTopoNumaInfoByNumaLoc(const ubse::nodeController::UbseNumaInfo &numaInfo,
+    UbseResult GetNodePoolMemSize(const NodeId& nodeId, uint64_t& nodePoolMemSize,
+                                  const std::vector<std::shared_ptr<MemNumaInfo>>& numaList);
+    UbseResult GetActualNodeMemTotal(const NodeId& nodeId, uint64_t& nodeNumaMemTotal,
+                                     const std::vector<std::shared_ptr<MemNumaInfo>>& numaList);
+    UbseResult GetAttachNodeId(std::string& borrowNodeId, const std::string& exportNodeId, int exportSocketId,
+                               uint32_t& attachSocketId);
+    bool TransferTopoToCoordinate(tc::rs::mem::StrategyParam& strategyParam);
+    bool UbseMemTransTopoToNeighborSet(std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS>& neighborNodes,
+                                       std::set<uint16_t>& nodeIndexList);
+    bool GenerateCoordinate(std::array<std::set<NodeIndex>, tc::rs::mem::NUM_HOSTS>& neighborNodes,
+                            tc::rs::mem::StrategyParam& strategyParam, const std::set<uint16_t>& nodeIndexList);
+    void FillTopoNumaInfoByNumaLoc(const ubse::nodeController::UbseNumaInfo& numaInfo,
                                    ubse::nodeController::UbseAllocator allocator, uint32_t pmd_mapping);
 
     // 自规划topo和实际的topo的转换
-    NodeIndex NodeIdToIndex(const NodeId &nodeId);
+    NodeIndex NodeIdToIndex(const NodeId& nodeId);
     NodeId NodeIndexToId(NodeIndex nodeIndex);
-    std::shared_ptr<MemNodeInfo> GetNodeInfoById(const NodeId &nodeId);
+    std::shared_ptr<MemNodeInfo> GetNodeInfoById(const NodeId& nodeId);
 
-    bool ConvertNumaIndex(const UbseMemNumaIndexLoc &ubseMemNumaIndexLoc, UbseMemNumaLoc &numaLoc);
-    bool ConvertNumaLoc(const UbseMemNumaLoc &numaLoc, UbseMemNumaIndexLoc &ubseMemNumaIndexLoc);
+    bool ConvertNumaIndex(const UbseMemNumaIndexLoc& ubseMemNumaIndexLoc, UbseMemNumaLoc& numaLoc);
+    bool ConvertNumaLoc(const UbseMemNumaLoc& numaLoc, UbseMemNumaIndexLoc& ubseMemNumaIndexLoc);
 
     // 查询数据
-    std::vector<std::shared_ptr<MemNumaInfo>> GetAllNumaInfo(const NodeId &nodeId);
-    UbseResult GetSocketCnaInfo(const UbseMemNumaLoc &memIdLocBorrow, const UbseMemNumaLoc &memIdLocLend,
-                                SocketCnaTopoInfo &socketCnaTopoInfo);
+    std::vector<std::shared_ptr<MemNumaInfo>> GetAllNumaInfo(const NodeId& nodeId);
+    UbseResult GetSocketCnaInfo(const UbseMemNumaLoc& memIdLocBorrow, const UbseMemNumaLoc& memIdLocLend,
+                                SocketCnaTopoInfo& socketCnaTopoInfo);
 
-    std::shared_ptr<MemNumaInfo> GetNumaInfo(const NodeId &nodeId, NumaId numaId);
+    std::shared_ptr<MemNumaInfo> GetNumaInfo(const NodeId& nodeId, NumaId numaId);
 
-    UbseResult GetMemNumaLoc(const NodeId &nodeId, NumaId numaId, UbseMemNumaLoc &memIdLoc);
+    UbseResult GetMemNumaLoc(const NodeId& nodeId, NumaId numaId, UbseMemNumaLoc& memIdLoc);
 
-    UbseResult GetSocketTotalLentMem(const NodeId &nodeId, int socketId, uint64_t &socketTotalLentMem);
+    UbseResult GetSocketTotalLentMem(const NodeId& nodeId, int socketId, uint64_t& socketTotalLentMem);
 
-    UbseResult GetSocketTotalLentTimes(const NodeId &nodeId, int socketId, uint32_t &socketTotalLentTime);
+    UbseResult GetSocketTotalLentTimes(const NodeId& nodeId, int socketId, uint32_t& socketTotalLentTime);
 
     inline int32_t NumHosts()
     {
         return mNodeDataList_.size();
     }
 
-    inline void ChangeNodeStatus(const NodeId &nodeId, bool status)
+    inline void ChangeNodeStatus(const NodeId& nodeId, bool status)
     {
-        for (auto &nodeData : mNodeDataList_) {
+        for (auto& nodeData : mNodeDataList_) {
             if (nodeData.nodeId == nodeId) {
                 nodeData.status = status;
             }
         }
     }
 
-    inline bool CheckIsNewNode(const NodeId &nodeId)
+    inline bool CheckIsNewNode(const NodeId& nodeId)
     {
-        for (const auto &nodeData : mNodeDataList_) {
+        for (const auto& nodeData : mNodeDataList_) {
             if (nodeData.nodeId == nodeId) {
                 return false;
             }
@@ -131,9 +134,9 @@ public:
         return true;
     }
 
-    inline bool CheckNodeStatus(const NodeId &nodeId)
+    inline bool CheckNodeStatus(const NodeId& nodeId)
     {
-        for (const auto &nodeData : mNodeDataList_) {
+        for (const auto& nodeData : mNodeDataList_) {
             if (nodeData.nodeId == nodeId) {
                 return nodeData.status;
             }
@@ -144,11 +147,15 @@ public:
     void Clear();
 
 private:
-    void UpdateNumaMemoryInfo(std::shared_ptr<MemNumaInfo> numaPtr, const UbseNumaInfo &numaInfo, UbseAllocator allocator, uint32_t pmd_mapping);
-    void HandleHugeTlbPud(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal, uint64_t &memUsed, uint64_t &memFree);
-    void HandleHugeTlbPmd(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal, uint64_t &memUsed, uint64_t &memFree);
-    void HandleDefault(const UbseNumaInfo &numaInfo, long double ratio, uint64_t &memTotal, uint64_t &memUsed, uint64_t &memFree);
-    void LogNumaInfo(const UbseNumaInfo &numaInfo, UbseAllocator allocator, uint32_t pmd_mapping);
+    void UpdateNumaMemoryInfo(std::shared_ptr<MemNumaInfo> numaPtr, const UbseNumaInfo& numaInfo,
+                              UbseAllocator allocator, uint32_t pmd_mapping);
+    void HandleHugeTlbPud(const UbseNumaInfo& numaInfo, long double ratio, uint64_t& memTotal, uint64_t& memUsed,
+                          uint64_t& memFree);
+    void HandleHugeTlbPmd(const UbseNumaInfo& numaInfo, long double ratio, uint64_t& memTotal, uint64_t& memUsed,
+                          uint64_t& memFree);
+    void HandleDefault(const UbseNumaInfo& numaInfo, long double ratio, uint64_t& memTotal, uint64_t& memUsed,
+                       uint64_t& memFree);
+    void LogNumaInfo(const UbseNumaInfo& numaInfo, UbseAllocator allocator, uint32_t pmd_mapping);
 
     std::vector<NodeData> mNodeDataList_{};
     std::unordered_map<NodeId, std::shared_ptr<MemNodeInfo>> mNodeIdMap_{};
@@ -162,7 +169,7 @@ private:
 
 private:
     UbseMemTopologyInfoManager() = default;
-    bool AllocOneNode(const NodeData &nodeData);
+    bool AllocOneNode(const NodeData& nodeData);
 };
 } // namespace ubse::mem::strategy
 #endif

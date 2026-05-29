@@ -22,6 +22,7 @@ virt_agent_ret_t ubs_virt_agent_case_conf_get(case_conf_info_t *case_conf_info);
 | case_conf_info | OUT    | 场景及超分比例信息   |
 
 - 数据结构说明
+
 ```c
 typedef struct {
     char cur_case[128];
@@ -104,6 +105,7 @@ virt_agent_ret_t ubs_virt_agent_case_conf_set(const char *param, case_conf_set_i
 |case_conf_set_info| OUT | 设置结果|
 
 - 数据结构说明
+
 ```c
 typedef struct {
     uint32_t ret;

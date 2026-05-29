@@ -14,7 +14,7 @@
 package collector
 
 /*
-#cgo CFLAGS: -I/usr/include/ubse
+#cgo CFLAGS: -I/usr/include/ubse -I${SRCDIR}/../../include
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -46,7 +46,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	"ubs_virt_agent_go_sdk/dlopen"
+	"atomgit.com/openeuler/ubs-engine.git/src/addons/virt_agent/sdk/go/dlopen"
 )
 
 // ContainerMemInfo Container scenario is used to store the remote and local memory used by the collected PIDs.

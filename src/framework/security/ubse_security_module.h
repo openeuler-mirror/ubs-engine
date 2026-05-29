@@ -13,14 +13,14 @@
 #ifndef UBSE_SECURITY_MODULE_H
 #define UBSE_SECURITY_MODULE_H
 
-#include <vector>
 #include <linux/capability.h>
+#include <vector>
 #include "ubse_common_def.h"
 #include "ubse_module.h"
 #include "ubse_security_manager.h"
 
 namespace ubse::security {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
 
 class UbseSecurityModule final : public UbseModule {
@@ -31,9 +31,9 @@ public:
     void UnInitialize() override;
     UbseResult Start() override;
     void Stop() override;
-    static UbseResult ModifyEffectiveCapabilities(std::vector<__u32> &caps, bool isAdd);
+    static UbseResult ModifyEffectiveCapabilities(std::vector<__u32>& caps, bool isAdd);
 };
 
-}
+} // namespace ubse::security
 
 #endif // UBSE_SECURITY_MODULE_H

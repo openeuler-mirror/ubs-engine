@@ -14,13 +14,13 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_conf_common_def.h"
+#include "ubse_context.h"
+#include "ubse_election_module.h"
+#include "ubse_error.h"
 #include "ubse_event_module.h"
 #include "ubse_ut_dir.h"
 #include "src/framework/http/ubse_http_module.h"
-#include "ubse_error.h"
-#include "ubse_context.h"
-#include "ubse_election_module.h"
-#include "ubse_conf_common_def.h"
 
 namespace ubse::ut::config {
 using namespace ubse::common;
@@ -33,11 +33,12 @@ using namespace ubse::election;
 const std::string DEFAULT_CONFIG_DIR = "/config/test_conf/valid_conf";
 const std::string INVALID_CONFIG_DIR = "/config/test_conf/invalid_conf";
 
-UbseConfigManager &TestUbseConfManager::cfgMgr = UbseConfigManager::GetInstance();
+UbseConfigManager& TestUbseConfManager::cfgMgr = UbseConfigManager::GetInstance();
 std::string TestUbseConfManager::configDir;
 std::string TestUbseConfManager::invalidDir;
 
-template <typename T> void MockGetModule()
+template <typename T>
+void MockGetModule()
 {
     MOCKER(&UbseContext::GetModule<T>).stubs().will(returnValue(std::make_shared<T>()));
 }
@@ -175,7 +176,7 @@ TEST_F(TestUbseConfManager, GetAllConfWithPrefix)
     std::map<std::string, std::map<std::string, std::string>> configValMap;
 
     EXPECT_EQ(UBSE_CONF_ERROR_KEY_OFFSETPREFIX_TOO_LONG,
-        cfgMgr.GetAllConf(std::string(CONFIG_SECTION_MAX_FIELD_LENGTH + 1, 'p'), configValMap));
+              cfgMgr.GetAllConf(std::string(CONFIG_SECTION_MAX_FIELD_LENGTH + 1, 'p'), configValMap));
 
     EXPECT_EQ(UBSE_CONF_ERROR_KEY_OFFSETPREFIX_ILLEGAL_CHAR, cfgMgr.GetAllConf("@@@", configValMap));
 
@@ -262,4 +263,4 @@ TEST_F(TestUbseConfManager, AddConfig_success)
     EXPECT_EQ(cfgMgr.configMap_[test_section][test_key], test_value);
     cfgMgr.configMap_.clear();
 }
-}
+} // namespace ubse::ut::config

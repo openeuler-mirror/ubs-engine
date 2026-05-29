@@ -12,12 +12,15 @@
 
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
+#include "ubse_mem_fault_common.h"
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
-void print_mem_numa_desc(const ubs_mem_numa_desc_t *numa_desc)
+void print_mem_numa_desc(const ubs_mem_numa_desc_t* numa_desc)
 {
     printf("Memory Resource Descriptor:\n");
     printf("Resource Name: %s\n", numa_desc->name);
@@ -57,7 +60,7 @@ void print_mem_numa_desc(const ubs_mem_numa_desc_t *numa_desc)
 void ubse_mem_numa_create_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     const uint64_t mem_size = 200 * 1024 * 1024;   // 200MB
     ubs_mem_distance_t distance = MEM_DISTANCE_L0; // 直连节点
     ubs_mem_numa_desc_t numa_desc = {0};           // 结果存储结构体
@@ -77,7 +80,7 @@ void ubse_mem_numa_create_example(void)
 void ubse_mem_numa_get_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
     ubs_mem_numa_desc_t numa_desc = {0}; // 结果存储结构体
 
     // 2. 调用查询函数
@@ -94,7 +97,7 @@ void ubse_mem_numa_get_example(void)
 
 void ubse_mem_numa_list_example(void)
 {
-    ubs_mem_numa_desc_t *numa_desc_list = NULL;
+    ubs_mem_numa_desc_t* numa_desc_list = NULL;
     uint32_t numa_desc_cnt = 0;
 
     printf("Retrieving numa desc list...\n");
@@ -121,7 +124,7 @@ void ubse_mem_numa_list_example(void)
 void ubse_mem_numa_delete_example(void)
 {
     // 1. 准备调用参数
-    const char *mem_name = "sample_memory";
+    const char* mem_name = "sample_memory";
 
     // 2. 调用删除函数
     ubs_error_t result = ubs_mem_numa_delete(mem_name);
@@ -132,6 +135,23 @@ void ubse_mem_numa_delete_example(void)
         // 错误处理
         printf("Error delete memory resource: %s\n", ubs_error_string(result));
     }
+}
+
+static int32_t numa_fault_handler(const char* name, uint64_t numaid, ubs_mem_fault_type_t type)
+{
+    ubse_print_fault_info("NUMA", name, numaid, type);
+    return 0;
+}
+
+static void ubse_mem_numa_fault_register_example(void)
+{
+    printf("=== ubs_mem_numa_fault_register_example ===\n");
+
+    ubse_setup_signal_handlers();
+
+    printf("[MAIN] Registering numa memory fault handler...\n");
+    int32_t ret = ubs_mem_numa_fault_register(numa_fault_handler);
+    ubse_start_fault_monitoring("numa", ret);
 }
 
 int main(void)
@@ -153,4 +173,7 @@ int main(void)
 
     // 测试删除numa内存
     ubse_mem_numa_delete_example();
+
+    // 测试numa内存故障上报
+    ubse_mem_numa_fault_register_example();
 }

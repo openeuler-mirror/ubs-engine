@@ -14,16 +14,16 @@
 #include "migrate_strategy.h"
 #include <ubse_api_server.h>
 #include <ubse_conf.h>
-#include <ubse_node.h>
 #include <ubse_error.h>
-#include <ubse_mem_controller.h>
 #include <ubse_logger.h>
-#include "vm_sdk_def.h"
+#include <ubse_mem_controller.h>
+#include <ubse_node.h>
 #include "ham_make_decision_msg.h"
 #include "ubs_virt_agent_object_def.h"
+#include "vm_sdk_def.h"
 
 namespace vm {
-UBSE_DEFINE_THIS_MODULE("vm_plugin");
+UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::log;
@@ -41,7 +41,7 @@ VmResult VirtMigrateStrategy::Register()
     return VM_OK;
 }
 
-uint32_t VirtMigrateStrategy::GetMigrateStrategy(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t VirtMigrateStrategy::GetMigrateStrategy(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_DEBUG << "Ham make decision message start.";
     // Parsing input
@@ -96,7 +96,7 @@ uint32_t VirtMigrateStrategy::GetMigrateOneCopyMemoryBound()
     // Obtain the VM specification size for OneCopy migration.
     // If the retrieval fails or the value is not within the valid range, use the default value.
     uint32_t migrateOneCopyMemoryBound;
-    auto ret = UbseGetUInt("plugin_vm", UB_VM_MEMORY_BOUNDARY_KEY, migrateOneCopyMemoryBound);
+    auto ret = UbseGetUInt("plugin_virt_agent", UB_VM_MEMORY_BOUNDARY_KEY, migrateOneCopyMemoryBound);
     if (ret != VM_OK || migrateOneCopyMemoryBound < MIN_VM_MEMORY_BOUNDARY ||
         migrateOneCopyMemoryBound > MAX_VM_MEMORY_BOUNDARY) {
         UBSE_LOG_WARN << "The value of the key does not exist or is invalid, key: " << UB_VM_MEMORY_BOUNDARY_KEY
@@ -106,7 +106,7 @@ uint32_t VirtMigrateStrategy::GetMigrateOneCopyMemoryBound()
     return migrateOneCopyMemoryBound;
 }
 
-uint32_t VirtMigrateStrategy::GetLocalMigrateInfo(MigrateInfoBase &migrateInfoLocal, const std::string &uuid)
+uint32_t VirtMigrateStrategy::GetLocalMigrateInfo(MigrateInfoBase& migrateInfoLocal, const std::string& uuid)
 {
     pid_t pid = MigrateInfoUtil::GetPidByVmUUID(uuid);
     if (pid < 0) {
@@ -129,8 +129,8 @@ uint32_t VirtMigrateStrategy::GetLocalMigrateInfo(MigrateInfoBase &migrateInfoLo
     return VM_OK;
 }
 
-uint32_t VirtMigrateStrategy::GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoRemote, const std::string &destHostName,
-                                                   uint32_t destNumaId, const std::string &dstNid)
+uint32_t VirtMigrateStrategy::GetRemoteMigrateInfo(MigrateInfoBase& migrateInfoRemote, const std::string& destHostName,
+                                                   uint32_t destNumaId, const std::string& dstNid)
 {
     std::vector<UbseNodeNumaInfo> numaNodeInfoList{};
     auto res = UbseGetNodeNumaInfoByNodeId(dstNid, numaNodeInfoList);
@@ -143,7 +143,7 @@ uint32_t VirtMigrateStrategy::GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoR
     migrateInfoRemote.dstNodeId = dstNid;
     migrateInfoRemote.numaId = destNumaId;
     bool found = false;
-    for (const auto &numaNodeInfo : numaNodeInfoList) {
+    for (const auto& numaNodeInfo : numaNodeInfoList) {
         if (numaNodeInfo.numaId == destNumaId) {
             migrateInfoRemote.socketId = numaNodeInfo.socketId;
             found = true;
@@ -157,8 +157,8 @@ uint32_t VirtMigrateStrategy::GetRemoteMigrateInfo(MigrateInfoBase &migrateInfoR
     return VM_OK;
 }
 
-uint32_t VirtMigrateStrategy::GetMigrateInfo(MigrateInfoBase &migrateInfoLocal, MigrateInfoBase &migrateInfoRemote,
-                                             const std::string &uuid, const std::string &destHostName,
+uint32_t VirtMigrateStrategy::GetMigrateInfo(MigrateInfoBase& migrateInfoLocal, MigrateInfoBase& migrateInfoRemote,
+                                             const std::string& uuid, const std::string& destHostName,
                                              uint32_t destNumaId)
 {
     // Obtain local migration information
@@ -174,8 +174,8 @@ uint32_t VirtMigrateStrategy::GetMigrateInfo(MigrateInfoBase &migrateInfoLocal, 
     }
 
     std::string dstNid;
-    for (const auto &[fst, snd] : nodeData) {
-        for (const auto &elem : snd) {
+    for (const auto& [fst, snd] : nodeData) {
+        for (const auto& elem : snd) {
             if (elem.hostname == destHostName) {
                 dstNid = elem.nodeId;
                 break;
@@ -190,7 +190,7 @@ uint32_t VirtMigrateStrategy::GetMigrateInfo(MigrateInfoBase &migrateInfoLocal, 
     return GetRemoteMigrateInfo(migrateInfoRemote, destHostName, destNumaId, dstNid);
 }
 
-uint32_t IsNeighborNode(const std::string &destHostName, const uint32_t &hugePageSize, uint32_t *migrateStrategy)
+uint32_t IsNeighborNode(const std::string& destHostName, const uint32_t& hugePageSize, uint32_t* migrateStrategy)
 {
     // Obtain the topology information of the source node. If the retrieval fails, return directly.
     std::unordered_map<std::string, std::vector<VmNodeData>> nodeData;
@@ -198,8 +198,8 @@ uint32_t IsNeighborNode(const std::string &destHostName, const uint32_t &hugePag
         return static_cast<uint32_t>(UbseVmResult::VM_GET_NODE_TOPOLOGY_INFO_FAILED);
     }
     bool isNeighborNode = false;
-    for (const auto &[fst, snd] : nodeData) {
-        for (const auto &elem : snd) {
+    for (const auto& [fst, snd] : nodeData) {
+        for (const auto& elem : snd) {
             if (elem.hostname == destHostName) {
                 isNeighborNode = true;
                 break;
@@ -212,7 +212,7 @@ uint32_t IsNeighborNode(const std::string &destHostName, const uint32_t &hugePag
     return VM_OK;
 }
 
-uint32_t IsBorrowCircle(const std::string &hostname, bool &isCircle)
+uint32_t IsBorrowCircle(const std::string& hostname, bool& isCircle)
 {
     UbseRoleInfo srcNodeInfo;
     std::string dstNid;
@@ -222,8 +222,8 @@ uint32_t IsBorrowCircle(const std::string &hostname, bool &isCircle)
     if (ret != VM_OK) {
         return static_cast<uint32_t>(UbseVmResult::VM_GET_NODE_TOPOLOGY_INFO_FAILED);
     }
-    for (const auto &[fst, snd] : nodeData) {
-        for (const auto &elem : snd) {
+    for (const auto& [fst, snd] : nodeData) {
+        for (const auto& elem : snd) {
             if (elem.hostname == hostname) {
                 dstNid = elem.nodeId;
                 break;
@@ -248,7 +248,7 @@ uint32_t IsBorrowCircle(const std::string &hostname, bool &isCircle)
     return VM_OK;
 }
 
-uint32_t IsSameRack(const std::string &destHostName, bool &isSameRack)
+uint32_t IsSameRack(const std::string& destHostName, bool& isSameRack)
 {
     std::vector<NodeInfo> nodeInfos;
     auto ret = UbseGetNodeInfos(nodeInfos);
@@ -256,7 +256,7 @@ uint32_t IsSameRack(const std::string &destHostName, bool &isSameRack)
         UBSE_LOG_ERROR << "Get UbseGetNodeInfos failed. " << FormatRetCode(ret);
         return ret;
     }
-    for (auto &nodeInfo : nodeInfos) {
+    for (auto& nodeInfo : nodeInfos) {
         if (nodeInfo.hostName == destHostName) {
             isSameRack = true;
             break;
@@ -265,12 +265,12 @@ uint32_t IsSameRack(const std::string &destHostName, bool &isSameRack)
     return VM_OK;
 }
 
-uint32_t VirtMigrateStrategy::MakeHamMigrateDecision(const std::string &uuid, const std::string &destHostName,
-                                                     uint32_t destNumaId, uint32_t *migrateStrategy)
+uint32_t VirtMigrateStrategy::MakeHamMigrateDecision(const std::string& uuid, const std::string& destHostName,
+                                                     uint32_t destNumaId, uint32_t* migrateStrategy)
 {
     // Obtain the scenario; if the acquisition fails or it is not ham migration scenario, disable ham migration.
     bool isEnableHamMigrate = false;
-    auto hamMigrationRet = UbseGetBool("plugin_vm", "mig.isEnableHamMigrate", isEnableHamMigrate);
+    auto hamMigrationRet = UbseGetBool("plugin_virt_agent", "mig.isEnableHamMigrate", isEnableHamMigrate);
     if (hamMigrationRet != VM_OK || !isEnableHamMigrate) {
         return VM_OK;
     }
@@ -300,9 +300,9 @@ uint32_t VirtMigrateStrategy::MakeHamMigrateDecision(const std::string &uuid, co
     return ret;
 }
 
-uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string &uuid,
-                                                          const std::string &destHostName, uint32_t destNumaId,
-                                                          uint32_t *migrateStrategy)
+uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, const std::string& uuid,
+                                                          const std::string& destHostName, uint32_t destNumaId,
+                                                          uint32_t* migrateStrategy)
 {
     if (migrateStrategy == nullptr) {
         return static_cast<uint32_t>(UbseVmResult::VM_MIGRATE_STRATEGY_NULL_POINTER);
@@ -333,4 +333,4 @@ uint32_t VirtMigrateStrategy::MakeMigrateStrategyDecision(uint32_t vmMemoryMB, c
     }
     return MakeHamMigrateDecision(uuid, destHostName, destNumaId, migrateStrategy);
 }
-}
+} // namespace vm

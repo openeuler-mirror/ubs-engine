@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <cerrno>
-#include <dlfcn.h>
 #include "rmrs_libvirt_module.h"
+#include <dlfcn.h>
+#include <cerrno>
 #include "ubse_logger.h"
-#include "mp_error.h"
 #include "mp_configuration.h"
+#include "mp_error.h"
 
 namespace mempooling::libvirt {
 using namespace ubse::log;
 
-void *LibvirtModule::libvirtHandle = nullptr;
+void* LibvirtModule::libvirtHandle = nullptr;
 VirConnectOpenFunc LibvirtModule::virConnectOpenFunc = nullptr;
 VirConnectCloseFunc LibvirtModule::virConnectCloseFunc = nullptr;
 VirConnectListAllDomainsFunc LibvirtModule::virConnectListAllDomainsFunc = nullptr;
@@ -38,6 +38,7 @@ VirConnectDomainEventRegisterFunc LibvirtModule::virConnectDomainEventRegisterFu
 VirConnectDomainEventDeRegisterFunc LibvirtModule::virConnectDomainEventDeRegisterFunc = nullptr;
 VirConnectSetKeepAliveFunc LibvirtModule::virConnectSetKeepAliveFunc = nullptr;
 VirDomainLookupByNameFunc LibvirtModule::virDomainLookupByNameFunc = nullptr;
+VirDomainGetXMLDescFunc LibvirtModule::virDomainGetXMLDescFunc = nullptr;
 
 MpResult LibvirtModule::Init()
 {
@@ -74,6 +75,7 @@ void LibvirtModule::CloseLibvirtHandle()
     virConnectDomainEventDeRegisterFunc = nullptr;
     virConnectSetKeepAliveFunc = nullptr;
     virDomainLookupByNameFunc = nullptr;
+    virDomainGetXMLDescFunc = nullptr;
     return;
 }
 
@@ -321,5 +323,19 @@ VirDomainLookupByNameFunc LibvirtModule::VirDomainLookupByName()
         return nullptr;
     }
     return virDomainLookupByNameFunc;
+}
+
+VirDomainGetXMLDescFunc LibvirtModule::VirDomainGetXMLDesc()
+{
+    if (virDomainGetXMLDescFunc != nullptr) {
+        return virDomainGetXMLDescFunc;
+    }
+    virDomainGetXMLDescFunc = reinterpret_cast<VirDomainGetXMLDescFunc>(dlsym(libvirtHandle, "virDomainGetXMLDesc"));
+    if (virDomainGetXMLDescFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "Get virDomainGetXMLDesc ptr failed. " << std::string(strerror(errno)) << ".";
+        return nullptr;
+    }
+    return virDomainGetXMLDescFunc;
 }
 } // namespace mempooling::libvirt

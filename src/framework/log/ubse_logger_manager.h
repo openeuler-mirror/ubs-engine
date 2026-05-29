@@ -14,19 +14,18 @@
 #define UBSE_LOGGER_MANAGER_H
 
 #include "ubse_common_def.h"
-#include "sys/syslog.h"
 #include "ubse_logger.h"
 #include "ubse_logger_filesink.h"
 #include "ubse_logger_ringbuffer.h"
 #include "ubse_logger_writer.h"
+#include "sys/syslog.h"
 
 namespace ubse::log {
-using namespace ubse::common::def;
-using namespace ubse::utils;
+using ubse::common::def::UbseResult;
 
 class UbseLoggerManager {
 public:
-    static UbseLoggerManager *Instance();
+    static UbseLoggerManager* Instance();
 
     static void Destroy();
 
@@ -34,24 +33,24 @@ public:
 
     ~UbseLoggerManager() = default;
 
-    UbseResult Init(const LoggerOptions &options, UbseLoggerWriter *logWriter);
+    UbseResult Init(const LoggerOptions& options, UbseLoggerWriter* logWriter);
 
     void Exit();
 
     bool IsLog(UbseLogLevel level);
 
-    void Push(UbseLoggerEntry &&loggerEntry);
+    void Push(UbseLoggerEntry&& loggerEntry);
 
     void Pop();
-    void LogToSyslog(UbseLoggerEntry &loggerEntry);
+    void LogToSyslog(UbseLoggerEntry& loggerEntry);
 
-    static uint32_t LogToSyslogLevel(UbseLogLevel &level);
+    static uint32_t LogToSyslogLevel(UbseLogLevel& level);
 
     void SetLogLevel(UbseLogLevel level);
 
-    static UbseLogLevel StringToLogLevel(const std::string &level);
+    static UbseLogLevel StringToLogLevel(const std::string& level);
 
-    static UbseLoggerManager *gInstance;
+    static UbseLoggerManager* gInstance;
 
 private:
     static bool gInited_;
@@ -61,7 +60,7 @@ private:
     static std::atomic<bool> threadRunning_;
     std::unique_ptr<LogBuffer> logBuffer_;
     std::thread loggingThread_;
-    UbseLoggerWriter *writer_ = nullptr;
+    UbseLoggerWriter* writer_ = nullptr;
 };
 } // namespace ubse::log
 

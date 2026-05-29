@@ -14,8 +14,8 @@
 
 #include <ubse_logger.h>
 #include <algorithm>
-#include <fstream>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include "ucache_config.h"
 #include "ucache_error.h"
@@ -32,8 +32,8 @@ double BottleneckStrategy::ConvertToPercentage(uint32_t bottleneckShortThreshold
     return bottleneckShortThreshold / denominator;
 }
 
-void BottleneckStrategy::UpdateContainerHistory(const CgroupInfo &cginfo, ContainerHistory &history,
-    uint32_t bottleneckTimespan)
+void BottleneckStrategy::UpdateContainerHistory(const CgroupInfo& cginfo, ContainerHistory& history,
+                                                uint32_t bottleneckTimespan)
 {
     uint32_t shortWindowLen = UcacheConfig::GetInstance().GetBottleneckShortSize() / bottleneckTimespan;
     uint32_t longWindowLen = UcacheConfig::GetInstance().GetBottleneckLongSize() / bottleneckTimespan;
@@ -56,7 +56,7 @@ void BottleneckStrategy::UpdateContainerHistory(const CgroupInfo &cginfo, Contai
     }
 }
 
-double BottleneckStrategy::CalculateSensitivePercentage(const std::deque<PageCacheSensitiveTag> &history)
+double BottleneckStrategy::CalculateSensitivePercentage(const std::deque<PageCacheSensitiveTag>& history)
 {
     if (history.empty()) {
         return 0;
@@ -70,8 +70,8 @@ double BottleneckStrategy::CalculateSensitivePercentage(const std::deque<PageCac
     return count / history.size();
 }
 
-void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint32_t bottleneckTimespan,
-    std::string dockerId)
+void BottleneckStrategy::DetermineContainerState(ContainerHistory& history, uint32_t bottleneckTimespan,
+                                                 std::string dockerId)
 {
     // 计算短窗口和长窗口的窗口满的长度
     uint32_t shortWindowLen = UcacheConfig::GetInstance().GetBottleneckShortSize() / bottleneckTimespan;
@@ -87,7 +87,7 @@ void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint
         currentLongRatio = 1;
     }
     const double epsilon = 1e-9; // 定义容差值
-     // 获取配置中的阈值，并将其转换为百分比
+                                 // 获取配置中的阈值，并将其转换为百分比
     double bottleneckShortThresholdPercentage =
         ConvertToPercentage(UcacheConfig::GetInstance().GetBottleneckShortThreshold());
     double bottleneckLongThresholdPercentage =
@@ -97,7 +97,7 @@ void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint
         // 使用容差比较
         // 如果当前短窗口中达到敏感状态标志的比例大于瓶颈短窗口的阈值，则将状态改为敏感状态
         if (fabs(currentShortRatio - bottleneckShortThresholdPercentage) > epsilon &&
-                currentShortRatio > (bottleneckShortThresholdPercentage - epsilon)) {
+            currentShortRatio > (bottleneckShortThresholdPercentage - epsilon)) {
             history.currentState = PageCacheSensitiveTag::SENSITIVE;
             // 清理长窗口，防止识别为敏感型后又跳变回非敏感型
             history.longWindow.clear();
@@ -106,7 +106,7 @@ void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint
         }
     } else if (history.currentState == PageCacheSensitiveTag::SENSITIVE) {
         if (fabs(currentLongRatio - bottleneckLongThresholdPercentage) > epsilon &&
-                currentLongRatio < (bottleneckLongThresholdPercentage + epsilon)) {
+            currentLongRatio < (bottleneckLongThresholdPercentage + epsilon)) {
             history.currentState = PageCacheSensitiveTag::NOT_SENSITIVE;
             UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "docker id:" << dockerId << " from SENSITIVE change to NOT_SENSITIVE.";
@@ -114,12 +114,12 @@ void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint
     } else if (history.currentState == PageCacheSensitiveTag::UNKNOWN) {
         // 当还未高于短窗口或者低于长窗口阈值时,状态还为UNKNOWN
         if (fabs(currentLongRatio - bottleneckLongThresholdPercentage) > epsilon &&
-                currentLongRatio < (bottleneckLongThresholdPercentage + epsilon)) {
+            currentLongRatio < (bottleneckLongThresholdPercentage + epsilon)) {
             history.currentState = PageCacheSensitiveTag::NOT_SENSITIVE;
             UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "docker id:" << dockerId << " from UNKNOWN change to NOT_SENSITIVE.";
         } else if (fabs(currentShortRatio - bottleneckShortThresholdPercentage) > epsilon &&
-                currentShortRatio > (bottleneckShortThresholdPercentage - epsilon)) {
+                   currentShortRatio > (bottleneckShortThresholdPercentage - epsilon)) {
             history.currentState = PageCacheSensitiveTag::SENSITIVE;
             UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "docker id:" << dockerId << " from UNKNOWN change to SENSITIVE.";
@@ -127,8 +127,8 @@ void BottleneckStrategy::DetermineContainerState(ContainerHistory &history, uint
     }
 }
 
-uint32_t BottleneckStrategy::JudgeSensitive(const std::map<std::string, std::map<std::string, CgroupInfo>> &cgroupInfo,
-    uint32_t bottleneckTimespan)
+uint32_t BottleneckStrategy::JudgeSensitive(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo,
+                                            uint32_t bottleneckTimespan)
 {
     if (bottleneckTimespan == 0) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
@@ -138,8 +138,8 @@ uint32_t BottleneckStrategy::JudgeSensitive(const std::map<std::string, std::map
 
     // 清理：从 containerHistory 中删除本次 cgroupInfo 不存在的容器历史，防止无限增长
     for (auto rackIt = containerHistory.begin(); rackIt != containerHistory.end();) {
-        const std::string &rackId = rackIt->first;
-        auto &dockerHistoryMap = rackIt->second;
+        const std::string& rackId = rackIt->first;
+        auto& dockerHistoryMap = rackIt->second;
         auto cgRackIt = cgroupInfo.find(rackId);
         if (cgRackIt == cgroupInfo.end()) {
             // rack 都不存在了，整组历史直接删掉
@@ -147,10 +147,10 @@ uint32_t BottleneckStrategy::JudgeSensitive(const std::map<std::string, std::map
             continue;
         }
 
-        const auto &cgContainers = cgRackIt->second;
+        const auto& cgContainers = cgRackIt->second;
 
         for (auto dockIt = dockerHistoryMap.begin(); dockIt != dockerHistoryMap.end();) {
-            const std::string &dockerId = dockIt->first;
+            const std::string& dockerId = dockIt->first;
             if (cgContainers.find(dockerId) == cgContainers.end()) {
                 // 容器不存在，删除历史条目
                 dockIt = dockerHistoryMap.erase(dockIt);
@@ -168,9 +168,9 @@ uint32_t BottleneckStrategy::JudgeSensitive(const std::map<std::string, std::map
 
     // 正常更新与判定
     std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> newContainerState;
-    for (const auto &[rackId, containers] : cgroupInfo) {
-        for (const auto &[dockerId, cginfo] : containers) {
-            auto &history = containerHistory[rackId][dockerId];
+    for (const auto& [rackId, containers] : cgroupInfo) {
+        for (const auto& [dockerId, cginfo] : containers) {
+            auto& history = containerHistory[rackId][dockerId];
             UpdateContainerHistory(cginfo, history, bottleneckTimespan);
             DetermineContainerState(history, bottleneckTimespan, dockerId);
             newContainerState[rackId][dockerId] = history.currentState;

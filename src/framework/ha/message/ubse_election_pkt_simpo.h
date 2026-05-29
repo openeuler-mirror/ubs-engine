@@ -16,14 +16,16 @@
 #include "ubse_base_message.h"
 #include "ubse_election_def.h"
 namespace ubse::election::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseElectionPktSimpo : public UbseBaseMessage {
 public:
     UbseElectionPktSimpo() = default;
 
-    explicit UbseElectionPktSimpo(const ElectionPkt &);
+    explicit UbseElectionPktSimpo(const ElectionPkt&);
 
-    explicit UbseElectionPktSimpo(uint8_t *rawDev, uint32_t size)
+    explicit UbseElectionPktSimpo(uint8_t* rawDev, uint32_t size)
     {
         SetInputRawData(rawDev, size);
     }
@@ -43,6 +45,6 @@ private:
     ElectionPkt electionPkt_{};
 };
 using UbseElectionPktSimpoPtr = Ref<UbseElectionPktSimpo>;
-}
+} // namespace ubse::election::message
 
 #endif // UBSE_HEART_BEAT_PKT_H
