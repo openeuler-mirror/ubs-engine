@@ -819,7 +819,7 @@ void UbseUrmaControllerManager::DeleteOtherNodesUrmaInfo(const std::string &curN
 }
 
 std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseUrmaInfo, UrmaNameCompare> &urmaList,
-                                               const std::string &ubpuId, const std::string &entityId)
+                                               const std::string &ubpuId, const std::string &entityId, uint64_t &hwResId)
 {
     // 从已组建的urmaDevInfo 中寻找匹配ubpuId和entityId的feInfo，因为通信bonding肯定跟其它bonding位于同一个pfe，所以理论上应该能找到
     for (const auto &[_, urmaInfo] : urmaList) {
@@ -828,6 +828,7 @@ std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseU
                                    return eg.feInfo && eg.feInfo->ubpuId == ubpuId && eg.feInfo->entityId == entityId;
                                });
         if (it != urmaInfo.eidGroups.end()) {
+            hwResId = urmaInfo.hwResId;
             return it->feInfo;
         }
     }
@@ -891,7 +892,7 @@ UbseResult UbseUrmaControllerManager::InsertComBondingUrmaDevInner()
         .state = UrmaDevState::UNKNOWN,
     };
     for (const auto &fe : comDev.feList) {
-        auto feInfo = FindMatchingFeInfo(urmaList, fe.ubpuId, fe.entityId);
+        auto feInfo = FindMatchingFeInfo(urmaList, fe.ubpuId, fe.entityId, urmaDev.hwResId);
         if (!feInfo) {
             UBSE_LOG_ERROR << "Failed to find matching fe info for ubpuId=" << fe.ubpuId
                            << ", entityId=" << fe.entityId;
