@@ -33,22 +33,22 @@ const size_t IPV4_MAX_LEN = 4;
 const size_t IPV6_MAX_LEN = 16;
 const uint32_t IPV4_INT_MAX = 255;
 
-std::vector<std::string> UbseNetUtil::ParseIpList(const std::string &ipList)
+uint32_t UbseNetUtil::ParseIpList(const std::string &ipListStr, std::vector<std::string> &ipList)
 {
-    std::vector<std::string> result;
-    std::stringstream ss(ipList);
-    std::string token;
-
-    while (std::getline(ss, token, ',')) {
-        if (!token.empty()) {
-            if (token.find('-') == std::string::npos) {
-                result.push_back(token);
-            } else {
-                ParseIpRangeToList(token, result);
-            }
+    std::vector<std::string> tokens{};
+    Split(ipListStr, ",", tokens);
+    for (auto &token : tokens) {
+        if (token.find('-') != std::string::npos) {
+            ParseIpRangeToList(token, ipList);
+        } else if (ValidIpv4Addr(token)) {
+            ipList.push_back(token);
+        } else {
+            UBSE_LOG_ERROR << "Invalid ip range=" << token;
+            return UBSE_ERROR_INVAL;
         }
     }
-    return result;
+    std::sort(ipList.begin(), ipList.end());
+    return UBSE_OK;
 }
 
 uint32_t UbseNetUtil::FindLocalIpByRemote(const std::string &remoteIp, std::string &localIp)
@@ -96,6 +96,26 @@ uint32_t UbseNetUtil::FindLocalIpByRemote(const std::string &remoteIp, std::stri
     freeifaddrs(ifaddr);
     UBSE_LOG_ERROR << "current node are not on the same network plane with ip" << remoteIp;
     return UBSE_ERROR;
+}
+
+uint32_t UbseNetUtil::FindLocalIpInIpList(std::vector<std::string> ipList, std::string &localIp)
+{
+    std::vector<std::string> localIps{};
+    auto ret = GetIpInfo(localIps);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Collect ip list failed, " << log::FormatRetCode(ret);
+        return ret;
+    }
+    for (auto &ip : localIps) {
+        if (auto it = std::find(ipList.begin(), ipList.end(), ip); it != ipList.end()) {
+            localIp = *it;
+        }
+    }
+    if (localIp.empty()) {
+        UBSE_LOG_ERROR << "Get local ip failed";
+        return UBSE_ERROR_EMPTY;
+    }
+    return UBSE_OK;
 }
 
 bool UbseNetUtil::IsPortVaLid(const uint32_t port)

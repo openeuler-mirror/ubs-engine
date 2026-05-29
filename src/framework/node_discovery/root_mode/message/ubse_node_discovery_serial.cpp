@@ -17,7 +17,7 @@
 namespace ubse::nodeDiscovery {
 void UbseNodeDiscoverySerial::SerializeUbseNode(UbseSerialization &out, UbseNodeStaticInfo &node)
 {
-    out << node.podId << node.superPodId << node.nodeId << node.addr << node.bonding0Eid;
+    out << node.groupId << node.superPodId << node.nodeId << node.addr << node.bonding0Eid;
     out << array_len_insert(node.feEidList.size());
     for (const auto &fe : node.feEidList) {
         out << fe.first << fe.second.entityId << fe.second.primaryEid;
@@ -30,7 +30,7 @@ void UbseNodeDiscoverySerial::SerializeUbseNode(UbseSerialization &out, UbseNode
 
 UbseResult UbseNodeDiscoverySerial::DeSerializeUbseNode(UbseDeSerialization &in, UbseNodeStaticInfo &node)
 {
-    in >> node.podId >> node.superPodId >> node.nodeId >> node.addr >> node.bonding0Eid;
+    in >> node.groupId >> node.superPodId >> node.nodeId >> node.addr >> node.bonding0Eid;
     uint32_t feEidListSize = 0;
     in >> array_len_capture(feEidListSize);
     if (!in.Check()) {

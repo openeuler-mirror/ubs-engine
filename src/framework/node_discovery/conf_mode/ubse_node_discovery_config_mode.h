@@ -15,8 +15,8 @@
 
 #include <vector>
 
-#include "../ubse_node_discovery_def.h"
 #include "ubse_common_def.h"
+#include "ubse_node_discovery_def.h"
 
 namespace ubse::nodeDiscovery {
 using namespace ubse::common::def;
@@ -35,8 +35,6 @@ public:
 
 private:
     void GenerateClusterTopo(const std::vector<std::string> &clusterIpList);
-
-    UbseResult InitCurNodeInfo(UbseNodeStaticInfo &node);
 
     uint32_t podCapability_ = DEFAULT_POD_CAPABILITY;
 
