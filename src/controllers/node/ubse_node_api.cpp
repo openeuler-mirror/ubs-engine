@@ -21,6 +21,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubs_engine.h"
 
@@ -33,6 +34,7 @@ using namespace ubse::nodeController;
 using namespace ubse::utils;
 using namespace ubse::common::def;
 using namespace ubse::election;
+using namespace ubse::adapter_plugins::smbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -232,7 +234,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const Ubse
                 ubseSerial << UBSE_ROLE_AGENT;
             }
         }
-        ubseSerial << node.bondingEid;
+        ubseSerial << (UbseSmbios::GetInstance().IsClosType() ? "-" : node.bondingEid);
         ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
     }
     if (!ubseSerial.Check()) {
@@ -254,7 +256,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const Ubse
     return UBSE_OK;
 }
 
-uint32_t SendErrorResponse(uint32_t errorCode, uint32_t requestId, const std::string& errorMsg)
+uint32_t SendErrorResponse(uint32_t errorCode, uint64_t requestId, const std::string& errorMsg)
 {
     UBSE_LOG_ERROR << errorMsg << ", " << FormatRetCode(errorCode);
     auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
@@ -301,8 +303,13 @@ static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage& req, std::str
 static uint32_t EnsureTargetNodeIdStrict(std::string& targetNodeId, const UbseRequestContext& context)
 {
     if (!targetNodeId.empty()) {
-        UBSE_LOG_INFO << "Querying remote node=" << targetNodeId;
-        return UBSE_OK;
+        if (!UbseSmbios::GetInstance().IsClosType()) {
+            UBSE_LOG_INFO << "Querying remote node=" << targetNodeId;
+            return UBSE_OK;
+        } else {
+            return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
+                                     " param -n is not supported in current topo");
+        }
     }
 
     auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
@@ -377,7 +384,7 @@ static void SerializeNodeFoundStrict(UbseSerialization& ubseSerial, const UbseNo
     }
     roleStrOut = roleStr;
 
-    std::string bondingEid = targetNode.bondingEid;
+    std::string bondingEid = (UbseSmbios::GetInstance().IsClosType() ? "-" : targetNode.bondingEid);
 
     // 获取guid，如果离线或guid为空则显示"-"
     std::string guid = (!isOnline || targetNode.guid.empty()) ? "-" : targetNode.guid;
@@ -831,7 +838,10 @@ uint32_t UbseNodeApi::UbseQueryCpuTopo(const UbseIpcMessage& request, const Ubse
 {
     (void)request;
     UBSE_LOG_INFO << "enter UbseQueryCpuTopo.";
-
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return SendErrorResponse(UBSE_ERR_NOT_SUPPORTED, context.requestId,
+                                 "the command is not supported with Current topo ");
+    }
     std::vector<CliPhysicalLink> cpuTopoLinks{};
     auto result = GetCpuTopoLink(cpuTopoLinks);
     if (result != UBSE_OK) {

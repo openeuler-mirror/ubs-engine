@@ -8,9 +8,10 @@ add_library(UbseCom STATIC
 )
 
 target_include_directories(UbseCom PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR})
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${SRC_DIR}/include/adapter_plugins/smbios)
 
-target_link_libraries(UbseCom PUBLIC hcom PRIVATE ubse_context ubse_config ubse_mti ubse_http UbseLog ubse_utils trace_context ubse_security)
+target_link_libraries(UbseCom PUBLIC hcom PRIVATE ubse_context ubse_config ubse_mti ubse_http UbseLog ubse_utils trace_context ubse_security ubse_smbios)
 
 # ubse_com 内部模块
 add_library(ubse_com STATIC
@@ -19,6 +20,7 @@ add_library(ubse_com STATIC
 )
 
 target_include_directories(ubse_com PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR})
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${SRC_DIR}/include/adapter_plugins/smbios)
 
-target_link_libraries(ubse_com PUBLIC UbseCom PRIVATE ubse_context ubse_config ubse_mti ubse_http UbseLog ubse_utils ubse_election ubse_security)
+target_link_libraries(ubse_com PUBLIC UbseCom PRIVATE ubse_context ubse_config ubse_mti ubse_http UbseLog ubse_utils ubse_election ubse_security ubse_smbios)

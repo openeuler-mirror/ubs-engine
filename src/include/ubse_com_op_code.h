@@ -228,7 +228,6 @@ enum class UbseUrmaRpcOpCode
     URMA_RPC_URMA_INFO_BROADCAST = 0x0002,
     URMA_RPC_URMA_INFO_QUERY = 0x0003,
     URMA_RPC_DEV_QUERY = 0x0004,
-    URMA_RPC_DEV_ACTIVATE = 0x0005,
     BUTT = 0x0006,
 };
 } // namespace ubse::com

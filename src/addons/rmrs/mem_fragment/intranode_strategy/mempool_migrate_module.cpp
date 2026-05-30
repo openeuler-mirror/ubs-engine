@@ -382,8 +382,8 @@ MpResult MempoolMigrateModule::ValidateAllPidSamePlane(const std::vector<VMMigra
     }
 
     // 获取本节点NodeId
-    ubse::mti::MtiNodeInfo rackNodeInfo;
-    ret = UbseGetLocalNodeInfo(rackNodeInfo);
+    ubse::mti::UbseMtiNodeInfo rackNodeInfo;
+    ret = ubse::mti::UbseGetLocalNodeInfo(rackNodeInfo);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get localNodeInfo failed.";
         return MEM_POOLING_ERROR;

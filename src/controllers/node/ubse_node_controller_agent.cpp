@@ -24,6 +24,7 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_timer.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;
@@ -41,6 +42,7 @@ using namespace ubse::common::def;
 using namespace ubse::com;
 using namespace ubse::serial;
 using namespace ubse::task_executor;
+using namespace ubse::adapter_plugins::smbios;
 
 constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 const std::string UBSE_NODE_AGENT_REPORT_TIMER = "UbseNodeReport";
@@ -198,9 +200,11 @@ void UbseNodeControllerAgent::StartExec()
     // 将节点本地状态刷新至 ready，加入集群选主
     UbseNodeController::GetInstance().UpdateNodeInfoLocalState(UbseNodeLocalState::UBSE_NODE_READY);
     // 注册采集定时器并启动
-    UbseTimerHandlerRegister(
-        UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
-        UBSE_NODE_REPORT_INTERVAL);
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        UbseTimerHandlerRegister(
+            UBSE_NODE_AGENT_REPORT_TIMER, [this]() -> UbseResult { return UbseNodeInfoReportTimerHandler(); },
+            UBSE_NODE_REPORT_INTERVAL);
+    }
     // 注册LCNE变更回调
     UbseSubEvent(UBSE_TOPOLOGY_CHANGE_EVENT, UbseNodeInfoLcneNotifyHandler);
 }
@@ -598,9 +602,8 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
     return getRet;
 }
 
-UbseResult SetUrmaUvs(bool isBeforeElection = false)
+UbseResult FillLinkAndBondingFM(bool isBeforeElection, std::vector<PhysicalLink>& links)
 {
-    std::vector<PhysicalLink> links;
     if (isBeforeElection) {
         auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(links);
         if (ret != UBSE_OK) {
@@ -622,6 +625,38 @@ UbseResult SetUrmaUvs(bool isBeforeElection = false)
             links.push_back(entry.second);
         }
         UBSE_LOG_INFO << "get cur node topo success, update urma uvs";
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillLinkAndBondingClos(bool isBeforeElection = false)
+{
+    if (!isBeforeElection) {
+        return UBSE_OK;
+    }
+
+    auto ret = UbseNodeComUrmaCollector::GetInstance().FillComUrmaInfoClos();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "fill com urma info failed";
+    }
+    return ret;
+}
+
+UbseResult SetUrmaUvs(bool isBeforeElection = false)
+{
+    std::vector<PhysicalLink> links;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        auto ret = FillLinkAndBondingClos(isBeforeElection);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "fill links and bonding clos failed";
+            return ret;
+        }
+    } else {
+        auto ret = FillLinkAndBondingFM(isBeforeElection, links);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "fill links and bonding failed";
+            return ret;
+        }
     }
     auto ret = UbseNodeComUrmaCollector::GetInstance().SetComUrma(links, isBeforeElection);
     if (ret != UBSE_OK) {

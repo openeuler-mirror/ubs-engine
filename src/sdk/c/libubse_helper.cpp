@@ -31,6 +31,20 @@ const int UBSE_MEM_PRIV_DATA_CACHEABLE_FLAG_SHIFT = 9;
 const int UBSE_MEM_PRIV_DATA_MAR_ID_SHIFT = 6;
 const int UBSE_MEM_PRIV_DATA_RSV0_SHIFT = 0;
 
+// Daemon internal error code base
+const uint32_t UBSE_DAEMON_INTERNAL_ERROR_BASE = 10000;
+const uint32_t UBSE_DAEMON_ERROR_INVAL = 10003;
+const uint32_t UBSE_DAEMON_URMA_ERROR_ACCESS_MTI_FAILED = 11100;
+const uint32_t UBSE_DAEMON_URMA_ERROR_PRIO_GROUP_EXIST = 11101;
+const uint32_t UBSE_DAEMON_URMA_ERROR_TEMPLATE_NOT_EXISTED = 11102;
+const uint32_t UBSE_DAEMON_URMA_ERROR_TEMPLATE_NOT_APPLIED = 11103;
+const uint32_t UBSE_DAEMON_URMA_ERROR_QUERY_PORTS_STATUS_FAILED = 11104;
+const uint32_t UBSE_DAEMON_URMA_ERROR_GET_NODE_INFO_FAILED = 11105;
+const uint32_t UBSE_DAEMON_URMA_ERROR_CREATE_DEV_FAILED = 11106;
+const uint32_t UBSE_DAEMON_URMA_ERROR_DEV_NOT_INACTIVE = 11107;
+const uint32_t UBSE_DAEMON_URMA_ERROR_DEV_NOT_EXIST = 11108;
+const uint32_t UBSE_DAEMON_URMA_ERROR_DEV_NAME_INVALID = 11109;
+
 // 定义解包上下文结构体
 typedef struct {
     const uint8_t* ptr; // 当前指针位置
@@ -209,10 +223,36 @@ ubs_error_t ubse_map_sys_error(int sys_errno)
 
 ubs_error_t ubse_map_daemon_error(uint32_t daemon_errno)
 {
-    if (daemon_errno < 10000) { // 10000以内属于ubse对外暴露的错误码
+    if (daemon_errno < UBSE_DAEMON_INTERNAL_ERROR_BASE) {
         return static_cast<ubs_error_t>(daemon_errno);
     }
-    return UBS_ENGINE_ERR_INTERNAL; // 内部错误
+    // 内部错误码映射
+    switch (daemon_errno) {
+        case UBSE_DAEMON_ERROR_INVAL:
+            return UBS_ENGINE_ERR_INVALID_PARAM;
+        case UBSE_DAEMON_URMA_ERROR_ACCESS_MTI_FAILED:
+            return UBS_ENGINE_ERR_URMA_ACCESS_MTI_FAILED;
+        case UBSE_DAEMON_URMA_ERROR_PRIO_GROUP_EXIST:
+            return UBS_ENGINE_ERR_URMA_PRIO_GROUP_EXIST;
+        case UBSE_DAEMON_URMA_ERROR_TEMPLATE_NOT_EXISTED:
+            return UBS_ENGINE_ERR_URMA_TEMPLATE_NOT_EXISTED;
+        case UBSE_DAEMON_URMA_ERROR_TEMPLATE_NOT_APPLIED:
+            return UBS_ENGINE_ERR_URMA_TEMPLATE_NOT_APPLIED;
+        case UBSE_DAEMON_URMA_ERROR_QUERY_PORTS_STATUS_FAILED:
+            return UBS_ENGINE_ERR_URMA_QUERY_PORTS_STATUS_FAILED;
+        case UBSE_DAEMON_URMA_ERROR_GET_NODE_INFO_FAILED:
+            return UBS_ENGINE_ERR_URMA_GET_NODE_INFO_FAILED;
+        case UBSE_DAEMON_URMA_ERROR_CREATE_DEV_FAILED:
+            return UBS_ENGINE_ERR_URMA_CREATE_DEV_FAILED;
+        case UBSE_DAEMON_URMA_ERROR_DEV_NOT_INACTIVE:
+            return UBS_ENGINE_ERR_URMA_DEV_NOT_INACTIVE;
+        case UBSE_DAEMON_URMA_ERROR_DEV_NOT_EXIST:
+            return UBS_ENGINE_ERR_URMA_DEV_NOT_EXIST;
+        case UBSE_DAEMON_URMA_ERROR_DEV_NAME_INVALID:
+            return UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID;
+        default:
+            return UBS_ENGINE_ERR_INTERNAL;
+    }
 }
 
 ubs_error_t ubse_mem_create_req_is_valid(const char* name, uint64_t size)
@@ -1970,24 +2010,91 @@ ubs_error_t ubse_urma_dev_info_unpack(const uint8_t* buffer, uint32_t len, ubs_u
     return ret;
 }
 
-ubs_error_t ubse_urma_qos_unpack(const uint8_t* buffer, uint32_t len, uint32_t* minBandWidth, uint32_t* maxBandWidth)
+size_t ubse_urma_qos_create_req_calc_size(uint32_t count)
 {
-    if (len != sizeof(uint32_t) + sizeof(uint32_t)) {
-        return UBS_ENGINE_ERR_INTERNAL;
-    }
-    uint32_t min_net = 0;
-    uint32_t max_net = 0;
-    errno_t ret = memcpy_s(&min_net, sizeof(min_net), buffer, sizeof(uint32_t));
-    if (ret != EOK) {
-        return UBS_ENGINE_ERR_INTERNAL;
+    size_t len = 0;
+    len += sizeof(uint32_t);
+    len += count * (sizeof(uint32_t) + sizeof(uint32_t));
+    return len;
+}
+
+ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t* configs, uint32_t count, ubse_api_buffer_t* ptr)
+{
+    if (ptr == nullptr || configs == nullptr) {
+        IPC_LOG_ERROR << "ptr or configs is null";
+        return UBS_ERR_NULL_POINTER;
     }
 
-    ret = memcpy_s(&max_net, sizeof(max_net), buffer + sizeof(uint32_t), sizeof(uint32_t));
-    if (ret != EOK) {
-        return UBS_ENGINE_ERR_INTERNAL;
+    size_t total_len = ubse_urma_qos_create_req_calc_size(count);
+    if (total_len == 0 || total_len > UINT32_MAX) {
+        IPC_LOG_ERROR << "Invalid buffer size: " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_INVALID_ARG;
     }
-    *minBandWidth = min_net;
-    *maxBandWidth = max_net;
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
+    if (ptr->buffer == nullptr) {
+        IPC_LOG_ERROR << "Failed to allocate memory for qos create request with size " << total_len;
+        ubse_api_buffer_free(ptr);
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    ptr->length = total_len;
+
+    uint8_t* cur = ptr->buffer;
+    pack_uint32(&cur, count);
+    for (uint32_t i = 0; i < count; i++) {
+        pack_uint32(&cur, configs[i].priority);
+        pack_uint32(&cur, configs[i].bandwidth);
+    }
+    return UBS_SUCCESS;
+}
+
+ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t* buffer, uint32_t len, ubs_urma_qos_config_t** configs,
+                                          uint32_t* count)
+{
+    if (buffer == nullptr || configs == nullptr || count == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
+    *configs = nullptr;
+    *count = 0;
+    if (len < sizeof(uint32_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    unpack_ctx_t ctx = {buffer, len};
+    ubs_error_t ret = unpack_uint32(&ctx, count);
+    if (ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Failed to unpack count. Error code: " << ret;
+        return ret;
+    }
+
+    if (*count == 0) {
+        return UBS_SUCCESS;
+    }
+    *configs = (ubs_urma_qos_config_t*)calloc(*count, sizeof(ubs_urma_qos_config_t));
+    if (*configs == nullptr) {
+        IPC_LOG_ERROR << "Failed to allocate memory for qos configs";
+        *count = 0;
+        return UBS_ERR_OUT_OF_MEMORY;
+    }
+    for (uint32_t i = 0; i < *count; i++) {
+        uint32_t priorityValue;
+        ret = unpack_uint32(&ctx, &priorityValue);
+        if (ret != UBS_SUCCESS) {
+            IPC_LOG_ERROR << "Failed to unpack priority at index " << i;
+            free(*configs);
+            *configs = nullptr;
+            *count = 0;
+            return ret;
+        }
+        (*configs)[i].priority = priorityValue;
+        ret = unpack_uint32(&ctx, &(*configs)[i].bandwidth);
+        if (ret != UBS_SUCCESS) {
+            IPC_LOG_ERROR << "Failed to unpack bandwidth at index " << i;
+            free(*configs);
+            *configs = nullptr;
+            *count = 0;
+            return ret;
+        }
+    }
     return UBS_SUCCESS;
 }
 

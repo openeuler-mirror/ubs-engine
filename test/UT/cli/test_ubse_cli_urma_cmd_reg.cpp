@@ -234,92 +234,11 @@ TEST_F(TestUbseCliUrmaCmdReg, UbseQueryUrmaDevInfoFunc)
 }
 
 /*
- * 用例描述：
- * UbseActivateUrmaDevInfoFunc激活URMA设备信息测试
- * 测试步骤：
- * 1. 测试缺少node参数
- * 2. 测试无效的node参数
- * 3. 测试缺少dev参数
- * 4. 测试序列化失败
- * 5. 测试IPC调用失败（UBSE_ERROR_INVAL）
- * 6. 测试IPC调用失败（UBSE_ERROR_AGAIN）
- * 7. 测试IPC调用失败（UBSE_ERROR_DESERIALIZE_FAILED）
- * 8. 测试IPC调用失败（其他错误）
- * 9. 测试正常激活
- * 预期结果：
- * 1. 缺少node参数返回错误信息
- * 2. 无效node参数返回错误信息
- * 3. 缺少dev参数返回错误信息
- * 4. 序列化失败返回错误信息
- * 5. 返回节点状态异常错误信息
- * 6. 返回重试错误信息
- * 7. 返回反序列化失败错误信息
- * 8. 返回内部错误信息
- * 9. 返回激活成功信息
- */
-TEST_F(TestUbseCliUrmaCmdReg, UbseActivateUrmaDevInfoFunc)
-{
-    std::map<std::string, std::string> params;
-    std::shared_ptr<UbseCliResultEcho> result;
-
-    params.clear();
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-
-    params.clear();
-    params["node"] = "invalid";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-
-    params.clear();
-    params["node"] = "1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-
-    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_INVAL));
-    params.clear();
-    params["node"] = "1";
-    params["dev"] = "dev1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-    GlobalMockObject::verify();
-
-    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_AGAIN));
-    params.clear();
-    params["node"] = "1";
-    params["dev"] = "dev1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-    GlobalMockObject::verify();
-
-    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_DESERIALIZE_FAILED));
-    params.clear();
-    params["node"] = "1";
-    params["dev"] = "dev1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-    GlobalMockObject::verify();
-
-    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR));
-    params.clear();
-    params["node"] = "1";
-    params["dev"] = "dev1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-    GlobalMockObject::verify();
-
-    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_OK));
-    params.clear();
-    params["node"] = "1";
-    params["dev"] = "dev1";
-    result = UbseCliRegUrmaModule::UbseActivateUrmaDevInfoFunc(params);
-    EXPECT_NE(result, nullptr);
-    GlobalMockObject::verify();
-}
+*/
 
 /*
  * 用例描述：
- * UbseQueryUrmaQosFunc查询URMA QoS信息测试
+ * UbseDisplayUrmaQosFunc查询URMA QoS信息测试
  * 测试步骤：
  * 1. 测试缺少node参数
  * 2. 测试无效的node参数
@@ -335,45 +254,45 @@ TEST_F(TestUbseCliUrmaCmdReg, UbseActivateUrmaDevInfoFunc)
  * 5. 返回反序列化失败错误信息
  * 6. 正常返回QoS信息表格
  */
-TEST_F(TestUbseCliUrmaCmdReg, UbseQueryUrmaQosFunc)
+TEST_F(TestUbseCliUrmaCmdReg, UbseDisplayUrmaQosFunc)
 {
     std::map<std::string, std::string> params;
     std::shared_ptr<UbseCliResultEcho> result;
 
     params.clear();
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
 
     params.clear();
     params["node"] = "invalid";
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
 
     MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR));
     params.clear();
     params["node"] = "1";
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
     GlobalMockObject::verify();
 
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_urma_qos_invoke_call_empty));
     params.clear();
     params["node"] = "1";
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
     GlobalMockObject::verify();
 
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_urma_qos_invoke_call_deserialize_failed));
     params.clear();
     params["node"] = "1";
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
     GlobalMockObject::verify();
 
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_urma_qos_invoke_call_normal));
     params.clear();
     params["node"] = "1";
-    result = UbseCliRegUrmaModule::UbseQueryUrmaQosFunc(params);
+    result = UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(params);
     EXPECT_NE(result, nullptr);
     GlobalMockObject::verify();
 }

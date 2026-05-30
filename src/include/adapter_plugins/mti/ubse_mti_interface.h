@@ -35,6 +35,15 @@ public:
     virtual common::def::UbseResult GetLocalNodeInfo(UbseMtiNodeInfo& nodeInfo) = 0;
 
     /**
+     * @brief 获取当前节点LCNE感知的设备拓扑信息
+     * @param topo 当前节点LCNE感知的设备拓扑信息
+     * @return UBSE_OK 标识成功
+     * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
+     * @return UBSE_ERROR 表示失败
+     */
+    virtual common::def::UbseResult GetCurNodeTopo(UbseDevTopology& topo) = 0;
+
+    /**
     * @brief 获取集群内所有节点对应LCNE感知的节点信息
     * @param nodeInfoList 集群内所有节点对应LCNE感知的节点信息
     * @return UBSE_OK 标识成功
@@ -72,12 +81,12 @@ public:
 
     /**
      * 获取全量规划的urma通信EID（物理意义）
-     * @param socketInfoMap 全量规划的urma通信EID key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
+     * @param comUrmaInfoMap 全量规划的urma通信EID key为devName: nodeId+socketId 值为当前设备的UbseLcneSocketInfo
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR_MODULE_LOAD_FAILED mti模块未加载
      * @return UBSE_ERROR 表示失败
      */
-    virtual common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap) = 0;
+    virtual common::def::UbseResult GetMtiComEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& comUrmaInfoMap) = 0;
     /**
      * 增加Decoder表项
      * @param importInfo decoder表项内容
@@ -126,53 +135,80 @@ public:
      * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) = 0;
+    virtual common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) = 0;
+
+    /** @brief 创建ETS模板，支持携带VL和优先级组配置 */
+    virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile) = 0;
+
+    /** @brief 增量新增ETS模板VL配置 */
+    virtual common::def::UbseResult UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                           const std::vector<UbseEtsVl>& vls) = 0;
+
+    /** @brief 增量新增ETS模板优先级组配置 */
+    virtual common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups) = 0;
+
+    /** @brief 增量新增ETS模板VL和优先级组配置 */
+    virtual common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+        const std::vector<UbseEtsPriorityGroup>& priorityGroups) = 0;
+
+    /** @brief 删除ETS模板 */
+    virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string& profileName) = 0;
+
+    /** @brief 删除ETS模板VL配置 */
+    virtual common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string& profileName) = 0;
+
+    /** @brief 删除ETS模板优先级组配置 */
+    virtual common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上创建QosProfile
-     * @param [in] ubseLcneQosProfile：待创建profile信息
-     * @return 成功返回0, 失败返回非0
+     * @brief 查询ETS模板
+     * @param [in] profileName：待查询ETS模板名称
+     * @param [out] etsProfile：查询到的ETS模板配置
+     * @return 成功返回0, 模板不存在返回UBSE_MTI_ERROR_NOT_EXIST, 其他失败返回非0
      */
-    virtual common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) = 0;
+    virtual common::def::UbseResult UbseQueryEtsProfile(const std::string& profileName,
+                                                        UbseMtiEtsProfile& etsProfile) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上删除QosProfile
-     * @param [in] proflieName：待删除profile名称
+     * @brief 查询全部ETS模板
+     * @param [out] etsProfiles：查询到的ETS模板配置列表
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) = 0;
+    virtual common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上查询QosProfile的具体参数
-     * @param [in] proflieName：待查询profile名称
-     * @param [out] ubseLcneQosProfile：查询到的profile信息
+     * @brief 将ETS模板应用到接口
+     * @param [in] application：接口ETS应用配置
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
-                                                        UbseMtiQosProfile& ubseLcneQosProfile) = 0;
+    virtual common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                                   const std::string& profileName) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上使能应用QosProfile
-     * @param [in] ubseFeInfo：待生效的Vfe信息
-     * @param [in] proflieName：待生效profile名称
+     * @brief 删除接口上的ETS模板应用
+     * @param [in] interfaceName：接口名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string& interfaceName) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上删除Vfe上的QosProfile应用
-     * @param [in] ubseFeInfo：待删除的Vfe
+     * @brief 查询所有接口应用的ETS模板
+     * @param [out] applications：所有接口ETS应用配置
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) = 0;
+    virtual common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
+        std::vector<UbseMtiInterfaceEtsApplication>& applications) = 0;
 
     /**
-     * @brief 下发xml消息到Lcne上查询Vfe上的QosProfile应用
-     * @param [in] ubseFeInfo：待查询的Vfe
-     * @param [out] proflieName：查询到的profile名称
+     * @brief 查询接口应用的ETS模板名称
+     * @param [in] interfaceName：接口名称
+     * @param [out] profileName：接口应用的ETS模板名称；接口未应用ETS模板时返回空字符串
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName) = 0;
+    virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                                 std::string& profileName) = 0;
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H

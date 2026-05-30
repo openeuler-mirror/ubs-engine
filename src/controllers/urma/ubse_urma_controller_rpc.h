@@ -30,6 +30,7 @@
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
+using urma::UbseUrmaDevBrief;
 using HcomCbRecv = void*;
 using HcomCbCtx = void*;
 
@@ -49,7 +50,7 @@ struct UrmaDevQueryRpcReq {
 };
 
 struct UrmaDevQueryRpcRsp {
-    std::vector<UbseUrmaInfoForQuery> urmaInfos;
+    std::vector<UbseUrmaDevBrief> urmaInfos;
     uint32_t result;
 
     friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,

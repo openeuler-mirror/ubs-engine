@@ -22,6 +22,8 @@ public:
 
     common::def::UbseResult GetClusterNodeInfoList(std::vector<UbseMtiNodeInfo>& nodeIdList) override;
 
+    common::def::UbseResult GetCurNodeTopo(UbseDevTopology& topo) override;
+
     common::def::UbseResult GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& topo) override;
 
     common::def::UbseResult GetLocalIp(std::string& localIp) override;
@@ -38,22 +40,42 @@ public:
 
     common::def::UbseResult GetAllMemHandles(const mami::UbseMamiMemHandleQueryInfo& queryInfo,
                                              std::vector<mami::UbseMamiMemHandleValue>& handleValues) override;
-    common::def::UbseResult GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap) override;
+    common::def::UbseResult GetMtiComEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& comUrmaInfoMap) override;
 
-    common::def::UbseResult UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) override;
+    common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) override;
 
-    common::def::UbseResult UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile) override;
+    common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile) override;
 
-    common::def::UbseResult UbseDeleteQosProfile(std::string proflieName) override;
+    common::def::UbseResult UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                   const std::vector<UbseEtsVl>& vls) override;
 
-    common::def::UbseResult UbseQueryQosProfile(std::string proflieName,
-                                                UbseMtiQosProfile& ubseLcneQosProfile) override;
+    common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups) override;
 
-    common::def::UbseResult UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string proflieName) override;
+    common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+        const std::vector<UbseEtsPriorityGroup>& priorityGroups) override;
 
-    common::def::UbseResult UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo) override;
+    common::def::UbseResult UbseDeleteEtsProfile(const std::string& profileName) override;
 
-    common::def::UbseResult UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& proflieName) override;
+    common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string& profileName) override;
+
+    common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName) override;
+
+    common::def::UbseResult UbseQueryEtsProfile(const std::string& profileName, UbseMtiEtsProfile& etsProfile) override;
+
+    common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles) override;
+
+    common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                           const std::string& profileName) override;
+
+    common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string& interfaceName) override;
+
+    common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
+        std::vector<UbseMtiInterfaceEtsApplication>& applications) override;
+
+    common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                         std::string& profileName) override;
 };
 } // namespace ubse::adapter_plugins::mti
 

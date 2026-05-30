@@ -46,6 +46,7 @@ constexpr int16_t NO_13 = 13;
 constexpr int16_t NO_14 = 14;
 constexpr int16_t NO_15 = 15;
 constexpr int16_t NO_16 = 16;
+constexpr int16_t NO_20 = 20;
 constexpr int16_t NO_32 = 32;
 constexpr int16_t NO_50 = 50;
 constexpr int16_t NO_60 = 60;
@@ -68,6 +69,7 @@ constexpr uint32_t STACK_IGNORE_DEPTH = 0;
 constexpr uint32_t PRINTSIG = 35;
 constexpr uint32_t DEFAULTTIMEOUT = 60;
 constexpr uint32_t DEFAULTHBTIMEOUT = 30;
+constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 64;
 
 const uint16_t MIN_PORT = 1024;
 const uint16_t MAX_PORT = 65535;

@@ -18,6 +18,7 @@
 #include <filesystem>
 
 #include "ubse_lcne_module.h"
+#include "ubse_mti_interface_default.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_node_controller_collector.cpp"
@@ -62,40 +63,24 @@ TEST_F(TestNodeControllerCollector, CollectNodeBaseInfoWhenConfModuleIsNull)
 }
 TEST_F(TestNodeControllerCollector, CollectCpuInfo)
 {
-    std::map<std::string, std::string> portEidList;
+    adapter_plugins::mti::UbseMtiCpuTopoInfoMap cpuTopoInfos;
+    adapter_plugins::mti::UbseDevName devName("1", "2");
+    adapter_plugins::mti::UbseMtiCpuTopoInfo cpuTopoInfo;
+    cpuTopoInfo.nodeId = 1;
+    cpuTopoInfo.chipId = "2";
+    cpuTopoInfo.primaryEid = "primaryEid";
+    cpuTopoInfo.cardId = "cardId";
+    cpuTopoInfo.busNodeCna = 100;
+    cpuTopoInfo.eid = "eid";
+    cpuTopoInfo.guid = "guid";
+    cpuTopoInfos[devName] = cpuTopoInfo;
 
-    UbseDevName devName("1", "1");
-    std::string portInfo;
-    portEidList.emplace("236", portInfo);
+    adapter_plugins::mti::UbseMtiInterfaceDefault mtiDefault;
+    MOCKER_CPP_VIRTUAL(&mtiDefault, &adapter_plugins::mti::UbseMtiInterfaceDefault::GetClusterCpuTopo)
+        .stubs()
+        .with(outBound(cpuTopoInfos))
+        .will(returnValue(UBSE_OK));
 
-    UbseDeviceInfo deviceInfo;
-    deviceInfo.slotId = "1";
-    UbseMtiCpuTopoPortInfo portInfo1;
-    portInfo1.portId = "5100";
-    portInfo1.remoteSlotId = "1";
-    portInfo1.remoteChipId = "2";
-    portInfo1.remotePortId = "236";
-    std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
-    portMap[UbseDevPortName("236")] = portInfo1;
-    UbseDevTopology::mapped_type entry;
-    entry.first = deviceInfo;
-    entry.second = portMap;
-    UbseDevTopology topology{};
-    topology[devName] = entry;
-    auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
-    UbseUrmaEidInfo socketInfo;
-    std::string remotePortInfo{};
-    socketInfo.primaryEid = "1";
-    socketInfo.portEidList.emplace("236", remotePortInfo);
-
-    lcneModule->allSocketComEid.emplace(devName, socketInfo);
-    mti::UbseLcneIODieInfo info;
-    info.guid = "01-0101-0-1-0101-0101-010101-0101010101";
-    info.primaryCna = "0x0085a7";
-    info.chipType = mti::DevType::CPU;
-    lcneModule->localBoardIOInfo.emplace(devName, info);
-    MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
-    MOCKER_CPP(&mti::UbseLcneModule::UbseGetDevTopology).stubs().with(outBound(topology)).will(returnValue(UBSE_OK));
     ubse::nodeController::UbseNodeInfo ubseNodeInfo{};
     auto ret = CollectCpuInfo(ubseNodeInfo, "1");
     EXPECT_EQ(ret, UBSE_OK);

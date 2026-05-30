@@ -91,6 +91,19 @@ typedef enum
     UBS_ENGINE_ERR_NODE_NOT_EXIST = 1027,               // 节点不存在
     UBS_ENGINE_ERR_NODE_FAULT = 1028,                   // 节点故障
     UBS_ENGINE_ERR_EXPORT_LEDGERING = 1029,             // 导出节点对账中
+    UBS_ENGINE_ERR_INVALID_PARAM = 1030,                // 参数错误
+
+    /* ====================== URMA Controller错误码 (1031-1040) ====================== */
+    UBS_ENGINE_ERR_URMA_ACCESS_MTI_FAILED = 1031,         // 访问MTI接口失败
+    UBS_ENGINE_ERR_URMA_PRIO_GROUP_EXIST = 1032,          // 优先级组已存在
+    UBS_ENGINE_ERR_URMA_TEMPLATE_NOT_EXISTED = 1033,      // ETS模板未创建
+    UBS_ENGINE_ERR_URMA_TEMPLATE_NOT_APPLIED = 1034,      // ETS模板未应用
+    UBS_ENGINE_ERR_URMA_QUERY_PORTS_STATUS_FAILED = 1035, // 查询端口状态失败
+    UBS_ENGINE_ERR_URMA_GET_NODE_INFO_FAILED = 1036,      // 查询节点信息失败
+    UBS_ENGINE_ERR_URMA_CREATE_DEV_FAILED = 1037,         // 创建URMA设备失败
+    UBS_ENGINE_ERR_URMA_DEV_NOT_INACTIVE = 1038,          // URMA设备状态异常，无法分配
+    UBS_ENGINE_ERR_URMA_DEV_NOT_EXIST = 1039,             // URMA设备在内存中不存在
+    UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID = 1040,          // URMA设备名称无效
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */

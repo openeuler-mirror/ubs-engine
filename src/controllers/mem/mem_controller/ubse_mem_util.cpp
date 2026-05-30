@@ -35,7 +35,7 @@ std::string GetCurNodeId()
         UBSE_LOG_ERROR << "get the lcne module failed.";
         return "";
     }
-    MtiNodeInfo info{};
+    UbseMtiNodeInfo info{};
     auto ret = module->UbseGetLocalNodeInfo(info);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "query local info failed, " << FormatRetCode(ret);

@@ -18,9 +18,8 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
-#include "lcne/ubse_lcne_qos.h"
-#include "lcne/ubse_lcne_vfe_eid.h"
-
+#include "lcne/ubse_lcne_ets.h"
+#include "lcne/ubse_lcne_fe_eid.h"
 namespace ubse::adapter_plugins::mti {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
@@ -28,12 +27,12 @@ using namespace ubse::mti;
 using namespace context;
 using namespace ubse::lcne;
 using namespace ubse::adapter_plugins::mti::mami;
-void SwapNodeInfo(UbseMtiNodeInfo& distNodeInfo, const MtiNodeInfo& srcNodeInfo)
+void SwapNodeInfo(UbseMtiNodeInfo& distNodeInfo, const UbseMtiNodeInfo& srcNodeInfo)
 {
     distNodeInfo.eid = srcNodeInfo.eid;
     distNodeInfo.nodeId = srcNodeInfo.nodeId;
 }
-void SwapNodeInfoList(std::vector<UbseMtiNodeInfo>& distNodeInfoList, std::vector<MtiNodeInfo>& srcNodeInfoList)
+void SwapNodeInfoList(std::vector<UbseMtiNodeInfo>& distNodeInfoList, std::vector<UbseMtiNodeInfo>& srcNodeInfoList)
 {
     for (auto& nodeInfo : srcNodeInfoList) {
         UbseMtiNodeInfo ubseNodeInfo;
@@ -47,12 +46,25 @@ UbseResult UbseMtiInterfaceDefault::GetLocalNodeInfo(UbseMtiNodeInfo& nodeInfo)
     if (module == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    MtiNodeInfo tmpNodeInfo{};
+    UbseMtiNodeInfo tmpNodeInfo{};
     auto ret = module->UbseGetLocalNodeInfo(tmpNodeInfo);
     if (ret != UBSE_OK) {
         return ret;
     }
     SwapNodeInfo(nodeInfo, tmpNodeInfo);
+    return UBSE_OK;
+}
+
+UbseResult UbseMtiInterfaceDefault::GetCurNodeTopo(UbseDevTopology& topo)
+{
+    auto module = UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
+    if (module == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto ret = module->UbseGetDevTopology(topo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     return UBSE_OK;
 }
 
@@ -62,7 +74,7 @@ UbseResult UbseMtiInterfaceDefault::GetClusterNodeInfoList(std::vector<UbseMtiNo
     if (module == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    std::vector<MtiNodeInfo> nodeIdList{};
+    std::vector<UbseMtiNodeInfo> nodeIdList{};
     auto ret = module->UbseGetAllNodeInfos(nodeIdList);
     if (ret != UBSE_OK) {
         return ret;
@@ -82,28 +94,24 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
     if (ret != UBSE_OK) {
         return ret;
     }
-    std::map<UbseDevName, UbseUrmaEidInfo> allSocketComEid = module->GetAllSocketComEid();
-    std::map<UbseDevName, UbseLcneIODieInfo> localBoardIOInfo = module->GetLocalBoardIOInfo();
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> allSocketComEid = module->GetMtiComEid();
+    std::map<UbseMtiIouInfo, UbseLcneIODieInfo> localBoardIOInfo = module->GetLocalBoardIOInfo();
     for (const auto& [devName, devicInfoPair] : devTopology) {
-        std::string devNodeId, socketId;
-        devName.SplitDevName(devNodeId, socketId);
+        UbseMtiIouInfo iouInfo(devicInfoPair.first.slotId, devicInfoPair.first.chipId, devicInfoPair.first.cardId);
         UbseMtiCpuTopoInfo info{};
-        auto conver_ret_first = utils::ConvertStrToUint32(devicInfoPair.first.slotId, info.slotId);
-        auto conver_ret_last = utils::ConvertStrToUint32(socketId, info.socketId);
-        if (conver_ret_first != UBSE_OK || conver_ret_last != UBSE_OK) {
-            UBSE_LOG_ERROR << "convert str failed, "
-                           << "dev.second.first.slotId=" << devicInfoPair.first.slotId << ", socketId=" << socketId;
+        if (utils::ConvertStrToUint32(iouInfo.slotId, info.nodeId) != UBSE_OK) {
+            UBSE_LOG_ERROR << "convert str failed, slotId = " << iouInfo.slotId;
             return UBSE_ERROR;
         }
-        info.primaryEid = allSocketComEid[devName].primaryEid;
+        info.primaryEid = allSocketComEid[iouInfo].primaryEid;
         info.chipId = devicInfoPair.first.chipId;
         info.cardId = devicInfoPair.first.cardId;
         info.busNodeCna = devicInfoPair.first.busNodeCna;
-        info.eid = localBoardIOInfo[devName].ubControllerEid; // LCNE获取时能保证key存在
-        info.guid = localBoardIOInfo[devName].guid;           // LCNE获取时能保证key存在
+        info.eid = localBoardIOInfo[iouInfo].ubControllerEid; // LCNE获取时能保证key存在
+        info.guid = localBoardIOInfo[iouInfo].guid;           // LCNE获取时能保证key存在
         info.portInfos = devicInfoPair.second;
         for (auto& portInfo : info.portInfos) {
-            portInfo.second.urmaEid = allSocketComEid[devName].portEidList[portInfo.second.portId];
+            portInfo.second.urmaEid = allSocketComEid[iouInfo].portEids[portInfo.second.portId];
         }
         topo[devName] = info;
     }
@@ -152,48 +160,96 @@ UbseResult UbseMtiInterfaceDefault::GetAllMemHandles(const mami::UbseMamiMemHand
     return lcne::UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
 }
 
-UbseResult UbseMtiInterfaceDefault::GetAllSocketComEid(std::map<UbseDevName, UbseUrmaEidInfo>& socketInfoMap)
+UbseResult UbseMtiInterfaceDefault::GetMtiComEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& comUrmaInfoMap)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    socketInfoMap = module->GetAllSocketComEid();
+    comUrmaInfoMap = module->GetMtiComEid();
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseGetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
+UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    return lcne::UbseLcneVfeEid::GetInstance().GetVfeEid(iouInfo, allFeInfos);
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    iouInfo.slotId = module->GetCurSlotId();
+    return lcne::UbseLcneFeEid::GetInstance().GetFeEid(iouInfo, allFeInfos);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseCreateQosProfile(UbseMtiQosProfile ubseLcneQosProfile)
+UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile)
 {
-    return lcne::UbseLcneQos::GetInstance().CreateQosProfile(ubseLcneQosProfile);
+    return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseDeleteQosProfile(std::string profileName)
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                           const std::vector<UbseEtsVl>& vls)
 {
-    return lcne::UbseLcneQos::GetInstance().DeleteQosProfile(profileName);
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsToProfile(profileName, vls);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryQosProfile(std::string profileName, UbseMtiQosProfile& ubseLcneQosProfile)
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsPriorityGroupsToProfile(
+    const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
-    return lcne::UbseLcneQos::GetInstance().QueryQosProfile(profileName, ubseLcneQosProfile);
+    return lcne::UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile(profileName, priorityGroups);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseApplyVfeQos(UbseMtiFeInfo ubseFeInfo, std::string profileName)
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsAndPriorityGroupsToProfile(
+    const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+    const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
-    return lcne::UbseLcneQos::GetInstance().ApplyVfeQos(ubseFeInfo, profileName);
+    return lcne::UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile(profileName, vls, priorityGroups);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseDeleteVfeQos(UbseMtiFeInfo ubseFeInfo)
+UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string& profileName)
 {
-    return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
+    return lcne::UbseLcneEts::GetInstance().DeleteEtsProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryVfeQos(UbseMtiFeInfo ubseFeInfo, std::string& profileName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsVlsFromProfile(const std::string& profileName)
 {
-    return lcne::UbseLcneQos::GetInstance().DeleteVfeQos(ubseFeInfo);
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile(profileName);
 }
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile(profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string& profileName, UbseMtiEtsProfile& etsProfile)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryEtsProfile(profileName, etsProfile);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryAllEtsProfiles(etsProfiles);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                                   const std::string& profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().ApplyEtsProfileToInterface(interfaceName, profileName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileFromInterface(const std::string& interfaceName)
+{
+    return lcne::UbseLcneEts::GetInstance().RemoveEtsProfileFromInterface(interfaceName);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryAllInterfaceEtsProfile(
+    std::vector<UbseMtiInterfaceEtsApplication>& applications)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryAllInterfaceEtsProfile(applications);
+}
+
+UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                                 std::string& profileName)
+{
+    return lcne::UbseLcneEts::GetInstance().QueryInterfaceEtsProfile(interfaceName, profileName);
+}
+
 } // namespace ubse::adapter_plugins::mti

@@ -216,7 +216,7 @@ void ChangeEdgeInfo(std::unordered_map<UbseDevName, UbseDevName, UbseDevNameHash
         auto& remoteOsDevName = itRemote->second;
         std::string remoteNewNodeId;
         std::string remoteNewSocketId;
-        remoteOsDevName.SplitDevName(remoteNewNodeId, remoteNewSocketId);
+        remoteOsDevName.GetNodeIdAndChipId(remoteNewNodeId, remoteNewSocketId);
 
         portInfo.remoteDevName = remoteOsDevName;
         portInfo.remoteChipId = remoteNewSocketId;
@@ -245,7 +245,7 @@ void DevTopoChangeFunc(UbseDevTopology& devTopologyInfo,
         auto& osDevName = it->second;
         std::string newSocketId;
         std::string newNodeId;
-        osDevName.SplitDevName(newNodeId, newSocketId);
+        osDevName.GetNodeIdAndChipId(newNodeId, newSocketId);
         // a.设备信息
         auto& devInfo = devTopo.second.first;
         devInfo.devName = osDevName;
@@ -278,7 +278,7 @@ void AccessMapChangeFunc(std::unordered_map<std::string, std::string>& devNameTo
         auto& osDevName = it->second;
         std::string newSocketId;
         std::string newNodeId;
-        osDevName.SplitDevName(newNodeId, newSocketId);
+        osDevName.GetNodeIdAndChipId(newNodeId, newSocketId);
         newDevNameToNodeIdMap[osDevName.devName] = newNodeId;
     }
     devNameToNodeIdMap = newDevNameToNodeIdMap;

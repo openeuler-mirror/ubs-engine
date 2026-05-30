@@ -28,6 +28,7 @@
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
@@ -39,6 +40,7 @@ using namespace ubse::election;
 using namespace ubse::serial;
 using namespace ubse::config;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::log;
 using namespace ubse::common::def;
 using namespace ubse::utils;
@@ -593,6 +595,9 @@ void UbseNodeController::UpdateDevDirConnectInfo()
 
 void UbseNodeController::CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return;
+    }
     std::string slotId = topoInfo.first.nodeId;
     std::string chipId = topoInfo.second.chipId;
 

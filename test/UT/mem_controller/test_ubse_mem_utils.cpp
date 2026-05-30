@@ -52,7 +52,7 @@ TEST_F(TestUbseMemUtils, GetExecutor)
     EXPECT_EQ(GetExecutor(name), ubseTaskExecutorPtr);
 }
 
-UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, MtiNodeInfo& ubseNodeInfo)
+UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo& ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "1";
     return UBSE_OK;
