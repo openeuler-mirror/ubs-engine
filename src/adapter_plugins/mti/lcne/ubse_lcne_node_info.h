@@ -22,7 +22,7 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 namespace ubse::lcne {
 using common::def::UbseResult;
-using ubse::adapter_plugins::mti::UbseDevName;
+using ubse::adapter_plugins::mti::UbseMtiIouInfo;
 using ubse::mti::UbseLcneIODieInfo;
 
 using UbseLcneIODieInfoMap = std::map<UbseMtiIouInfo, UbseLcneIODieInfo>;

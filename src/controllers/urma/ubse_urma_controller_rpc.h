@@ -30,6 +30,7 @@
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
+using urma::UbseUrmaDevBrief;
 using HcomCbRecv = void*;
 using HcomCbCtx = void*;
 

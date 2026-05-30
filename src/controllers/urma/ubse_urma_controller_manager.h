@@ -31,7 +31,6 @@ using ubse::urma::UbseUrmaNodeInfo;
 using ubse::urma::UbseUrmaUvsNodeInfo;
 using ubse::urma::UrmaDevState;
 using ubse::urma::UrmaDevType;
-using ubse::urma::UrmaQosProfile;
 
 class UbseUrmaControllerManager {
 public:

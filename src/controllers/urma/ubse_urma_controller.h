@@ -28,6 +28,7 @@ using nodeController::PhysicalLink;
 using urma::UbseUrmaDevPath;
 using urma::UbseUrmaInfo;
 using urma::UbseUrmaUvsNodeInfo;
+using urma::UbseUrmaDevBrief;
 
 class UbseUrmaController {
 public:
@@ -37,8 +38,8 @@ public:
         return instance;
     }
 
-    UbseResult UbseGetLocalUrmaDevInfo(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
-                                       std::vector<uint64_t>& hwResIds);
+    UbseResult UbseUrmaGetDevs(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
+                               std::vector<uint64_t>& hwResIds);
     UbseResult UbseAllocUrmaDev(const std::string& name, UbseUrmaDevPath& devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
     UbseResult UbseGetUrmaDevsByNodeId(const uint32_t &nodeId, std::vector<UbseUrmaDevBrief> &devInfos);
