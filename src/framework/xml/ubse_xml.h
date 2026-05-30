@@ -40,9 +40,8 @@ public:
 
 class UbseXml : public std::enable_shared_from_this<UbseXml> {
 public:
-    explicit UbseXml(const std::string& xml);
-
-    UbseXml();
+    static std::shared_ptr<UbseXml> Create(const std::string& xml);
+    static std::shared_ptr<UbseXml> Create();
 
     ~UbseXml();
 
@@ -86,11 +85,13 @@ public:
     int GetDeepth();
 
 private:
+    explicit UbseXml(const std::string& xml);
+    UbseXml();
+
     xmlNode* FindNthChildByName(xmlNode* child, const std::string& name, int num) const;
     std::shared_ptr<UbseXml> UpdateToNode(xmlNode* nodePtr);
 
     xmlDoc* doc{};
-
     std::string xmlString;
     std::shared_ptr<ListNode> listNode{}; // 走过的路径
     xmlNode* rootNode{};                  // 根节点

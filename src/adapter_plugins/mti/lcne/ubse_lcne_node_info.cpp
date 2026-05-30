@@ -88,7 +88,7 @@ std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap& devMap)
 UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string& responseStr,
                                                             UbseLcneIODieInfoMap& ubseLcneIODieInfoMap)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;

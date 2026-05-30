@@ -63,7 +63,7 @@ uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo>& lcneNode
 
 uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<LcneNodeInfo>& lcneNodes)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(resBody);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }

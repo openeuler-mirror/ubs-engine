@@ -60,7 +60,7 @@ std::string BuildReqBodyStr()
     }
     std::string portStr = std::to_string(port);
     std::string udsStr = "unix://" + UBSE_UBM_UDS_ADDRESS;
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create();
     if (ubseXml == nullptr) {
         return "";
     }
@@ -121,7 +121,7 @@ uint32_t UbseLcneLinkInfo::SubLcneLinkInfo()
 
 uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string& resBody)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(resBody);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
@@ -161,7 +161,7 @@ uint32_t UbseLcneLinkInfo::ParseLinkUpDownReq(const std::string& reqBody, std::s
         return UBSE_ERROR;
     }
     UBSE_LOG_DEBUG << "[MTI] Received req.body " << reqBody;
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(reqBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(reqBody);
     if (ubseXml == nullptr) {
         UBSE_LOG_WARN << "[MTI] Get ubse xml failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;

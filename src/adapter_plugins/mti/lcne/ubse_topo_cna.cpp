@@ -108,7 +108,7 @@ UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaIn
 
 UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(resBody);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }

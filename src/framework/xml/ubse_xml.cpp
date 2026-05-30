@@ -24,6 +24,24 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 
+std::shared_ptr<UbseXml> UbseXml::Create(const std::string& xml)
+{
+    UbseXml* raw = new (std::nothrow) UbseXml(xml);
+    if (!raw) {
+        return nullptr;
+    }
+    return std::shared_ptr<UbseXml>(raw);
+}
+
+std::shared_ptr<UbseXml> UbseXml::Create()
+{
+    UbseXml* raw = new (std::nothrow) UbseXml();
+    if (!raw) {
+        return nullptr;
+    }
+    return std::shared_ptr<UbseXml>(raw);
+}
+
 UbseXml::UbseXml() {}
 
 UbseXml::UbseXml(const std::string& xml)

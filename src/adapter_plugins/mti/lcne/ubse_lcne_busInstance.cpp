@@ -85,7 +85,7 @@ UbseResult UbseLcneBusInstance::ParseQueryBusinstanceResponse(const std::string&
                                                               UbseLcneBusInstanceInfo& busInstanceInfo)
 {
     // 解析报文,获取eid,guid
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
