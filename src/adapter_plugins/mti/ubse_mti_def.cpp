@@ -68,7 +68,7 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
     return hash;
 }
 
-bool GetCurNodeId(const std::string &slotId, std::string &nodeId)
+bool GetCurNodeId(const std::string& slotId, std::string& nodeId)
 {
     if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
         nodeId = slotId;

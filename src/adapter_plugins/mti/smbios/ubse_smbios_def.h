@@ -40,8 +40,9 @@ const std::string SYS_TABLE_FILE = SYS_FIRMWARE_DIR + "/DMI";
 const uint32_t FLAG_NO_FILE_OFFSET = 1 << 0;
 const uint32_t FLAG_STOP_AT_EOT = 1 << 1;
 
-std::vector<uint8_t> LoadSysEntryFile(uint32_t &maxLen);
-enum class UbseSmbiosType {
+std::vector<uint8_t> LoadSysEntryFile(uint32_t& maxLen);
+enum class UbseSmbiosType
+{
     TYPE_1 = 1,
     SUPER_POD_BASIC_INFO_T = 131,
     TYPE_INVALID
@@ -57,13 +58,13 @@ union SmbiosOffset {
 
 class SmbiosHeader {
 public:
-    void FillHeaderFromBuf(uint8_t *buf);
+    void FillHeaderFromBuf(uint8_t* buf);
 
 public:
     uint8_t type;    // SMBIOS结构类型
     uint8_t length;  // SMBIOS结构长度
     uint16_t handle; // SMBIOS结构句柄
-    uint8_t *data;   // SMBIOS结构数据指针
+    uint8_t* data;   // SMBIOS结构数据指针
 };
 
 class SmbiosStructure {
@@ -84,7 +85,7 @@ public:
      * @return UBSE_ERROR_INVAL 表示文件长度无效
      * @return UBSE_ERROR 表示失败
      */
-    UbseResult DecodeSmbios3(std::vector<uint8_t> &entryBuf, const char *tableFile, uint32_t flags,
+    UbseResult DecodeSmbios3(std::vector<uint8_t>& entryBuf, const char* tableFile, uint32_t flags,
                              UbseSmbiosType type);
 
 protected:
@@ -92,7 +93,7 @@ protected:
 
 protected:
     SmbiosStructure() = default;
-    UbseResult DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_t flags, UbseSmbiosType type);
+    UbseResult DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_t flags, UbseSmbiosType type);
     virtual UbseResult FillSmbiosStructFromBuf()
     {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -141,7 +142,8 @@ protected:
  * @tparam Type UbseSmbiosType枚举值
  */
 template <UbseSmbiosType Type>
-struct SmbiosTypeMap {};
+struct SmbiosTypeMap {
+};
 
 /**
  * @brief SmbiosTypeMap的特化，将TYPE_1映射到SmbiosStructureType1

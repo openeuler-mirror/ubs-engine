@@ -135,32 +135,32 @@ public:
      * @param [out] allFeInfos: 本节点的Vfe及对应的Eid信息
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)  = 0;
+    virtual common::def::UbseResult UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos) = 0;
 
     /** @brief 创建ETS模板，支持携带VL和优先级组配置 */
-    virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile) = 0;
+    virtual common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile) = 0;
 
     /** @brief 增量新增ETS模板VL配置 */
-    virtual common::def::UbseResult UbseAddEtsVlsToProfile(const std::string &profileName,
-                                                           const std::vector<UbseEtsVl> &vls) = 0;
+    virtual common::def::UbseResult UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                           const std::vector<UbseEtsVl>& vls) = 0;
 
     /** @brief 增量新增ETS模板优先级组配置 */
     virtual common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
-        const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
+        const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups) = 0;
 
     /** @brief 增量新增ETS模板VL和优先级组配置 */
     virtual common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
-        const std::string &profileName, const std::vector<UbseEtsVl> &vls,
-        const std::vector<UbseEtsPriorityGroup> &priorityGroups) = 0;
+        const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+        const std::vector<UbseEtsPriorityGroup>& priorityGroups) = 0;
 
     /** @brief 删除ETS模板 */
-    virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseDeleteEtsProfile(const std::string& profileName) = 0;
 
     /** @brief 删除ETS模板VL配置 */
-    virtual common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string& profileName) = 0;
 
     /** @brief 删除ETS模板优先级组配置 */
-    virtual common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName) = 0;
 
     /**
      * @brief 查询ETS模板
@@ -168,30 +168,30 @@ public:
      * @param [out] etsProfile：查询到的ETS模板配置
      * @return 成功返回0, 模板不存在返回UBSE_MTI_ERROR_NOT_EXIST, 其他失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryEtsProfile(const std::string &profileName,
-                                                        UbseMtiEtsProfile &etsProfile) = 0;
+    virtual common::def::UbseResult UbseQueryEtsProfile(const std::string& profileName,
+                                                        UbseMtiEtsProfile& etsProfile) = 0;
 
     /**
      * @brief 查询全部ETS模板
      * @param [out] etsProfiles：查询到的ETS模板配置列表
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles) = 0;
+    virtual common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles) = 0;
 
     /**
      * @brief 将ETS模板应用到接口
      * @param [in] application：接口ETS应用配置
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string &interfaceName,
-                                                                   const std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                                   const std::string& profileName) = 0;
 
     /**
      * @brief 删除接口上的ETS模板应用
      * @param [in] interfaceName：接口名称
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string &interfaceName) = 0;
+    virtual common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string& interfaceName) = 0;
 
     /**
      * @brief 查询所有接口应用的ETS模板
@@ -199,7 +199,7 @@ public:
      * @return 成功返回0, 失败返回非0
      */
     virtual common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
-        std::vector<UbseMtiInterfaceEtsApplication> &applications) = 0;
+        std::vector<UbseMtiInterfaceEtsApplication>& applications) = 0;
 
     /**
      * @brief 查询接口应用的ETS模板名称
@@ -207,8 +207,8 @@ public:
      * @param [out] profileName：接口应用的ETS模板名称；接口未应用ETS模板时返回空字符串
      * @return 成功返回0, 失败返回非0
      */
-    virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
-                                                                 std::string &profileName) = 0;
+    virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                                 std::string& profileName) = 0;
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H

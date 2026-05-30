@@ -11,9 +11,9 @@
 */
 
 #include "ubse_cli_urma_cmd_reg.h"
-#include <map>
 #include <netinet/in.h>
 #include <securec.h>
+#include <map>
 #include <set>
 #include <sstream>
 #include "ubse_cli_buffer_guard.h"
@@ -134,7 +134,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliDisplayUrmaQos()
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevInfoTable(
-    UbseDeSerialization &ubseDeSerial, uint32_t urmaSize)
+    UbseDeSerialization& ubseDeSerial, uint32_t urmaSize)
 {
     UbseCliResBuilder variableCellBuilder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_7 * UBSE_CLI_NUM_10);
     size_t row = variableCellBuilder.UbseCliAddRow();
@@ -173,7 +173,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaDevIn
     variableCellBuilder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variableCellBuilder.UbseCliVariableCellBuild());
 }
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(UbseDeSerialization &ubseDeSerial,
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTable(UbseDeSerialization& ubseDeSerial,
                                                                                     uint32_t urmaQosSize)
 {
     UbseCliResBuilder variableCellBuilder(UBSE_CLI_NUM_2, UBSE_CLI_NUM_2 * UBSE_CLI_NUM_10);
@@ -197,7 +197,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCliProcessUrmaQosTa
     return UbseCliVariableCelReply(variableCellBuilder.UbseCliVariableCellBuild());
 }
 
-bool UbseCliRegUrmaModule::IsPositiveInteger(const std::string &str)
+bool UbseCliRegUrmaModule::IsPositiveInteger(const std::string& str)
 {
     if (str.empty()) {
         return false;
@@ -210,9 +210,9 @@ bool UbseCliRegUrmaModule::IsPositiveInteger(const std::string &str)
     return true;
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ValidateSingleQosParam(
-    const std::string &priToken, const std::string &cirToken,
-    uint32_t &priority, uint32_t &bandwidth)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ValidateSingleQosParam(const std::string& priToken,
+                                                                                const std::string& cirToken,
+                                                                                uint32_t& priority, uint32_t& bandwidth)
 {
     if (!IsPositiveInteger(priToken) || !IsPositiveInteger(cirToken)) {
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
@@ -220,7 +220,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ValidateSingleQosParam(
     try {
         priority = static_cast<uint32_t>(std::stoul(priToken));
         bandwidth = static_cast<uint32_t>(std::stoul(cirToken));
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
     }
     if (priority > UBSE_CLI_NUM_1) {
@@ -232,13 +232,14 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ValidateSingleQosParam(
     return nullptr;
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateQosParams(
-    const std::string &priStr, const std::string &cirStr,
-    std::vector<uint32_t> &priorities, std::vector<uint32_t> &bandwidths)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateQosParams(const std::string& priStr,
+                                                                                   const std::string& cirStr,
+                                                                                   std::vector<uint32_t>& priorities,
+                                                                                   std::vector<uint32_t>& bandwidths)
 {
     std::vector<std::string> priList = ParseCommaSeparatedDeviceList(priStr);
     std::vector<std::string> cirList = ParseCommaSeparatedDeviceList(cirStr);
-    
+
     if (priList.empty() || cirList.empty()) {
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
     }
@@ -273,8 +274,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::MapQosErrorToMessage(ui
         {UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED, URMA_QOS_ACCESS_MTI_ERROR},
         {UBSE_URMACONTRL_ERROR_PRIO_GROUP_EXIST, URMA_QOS_PRIO_GROUP_EXIST_ERROR},
         {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_EXISTED, URMA_QOS_TEMPLATE_NOT_EXISTED},
-        {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED, URMA_QOS_TEMPLATE_NOT_APPLIED}
-    };
+        {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED, URMA_QOS_TEMPLATE_NOT_APPLIED}};
     auto it = errorMap.find(ret);
     if (it != errorMap.end()) {
         return UbseCliStringPromptReply(it->second);
@@ -282,8 +282,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::MapQosErrorToMessage(ui
     return UbseCliStringPromptReply(URMA_QOS_INTERNAL_ERROR + std::to_string(ret));
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCreateUrmaQosFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCreateUrmaQosFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     if (params.find(URMA_NODE_OPT) != params.end()) {
         return UbseCliStringPromptReply(URMA_QOS_CLOS_NOT_SUPPORTED);
@@ -322,8 +322,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseCreateUrmaQosFunc([
     return UbseCliStringPromptReply(URMA_QOS_CREATE_SUCCESS);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDeleteUrmaQosFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDeleteUrmaQosFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     if (params.find(URMA_NODE_OPT) != params.end()) {
         return UbseCliStringPromptReply(URMA_QOS_CLOS_NOT_SUPPORTED);
@@ -339,8 +339,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDeleteUrmaQosFunc([
     return UbseCliStringPromptReply(URMA_QOS_DELETE_SUCCESS);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     if (params.find(URMA_NODE_OPT) != params.end()) {
         return UbseCliStringPromptReply(URMA_QOS_CLOS_NOT_SUPPORTED);
@@ -366,7 +366,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(
     return UbseCliProcessUrmaQosTable(ubseDeSerial, urmaQosSize);
 }
 
-std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(const std::string &deviceStr)
+std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(const std::string& deviceStr)
 {
     std::vector<std::string> result;
     if (deviceStr.empty()) {
@@ -380,7 +380,7 @@ std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(con
         // 去除首尾空格
         size_t first = token.find_first_not_of(' ');
         if (first == std::string::npos) {
-            continue;  // 整个token都是空格，跳过
+            continue; // 整个token都是空格，跳过
         }
         size_t last = token.find_last_not_of(' ');
         std::string trimmed = token.substr(first, last - first + 1);
@@ -393,23 +393,23 @@ std::vector<std::string> UbseCliRegUrmaModule::ParseCommaSeparatedDeviceList(con
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaParams(
-    const std::map<std::string, std::string> &params, uint32_t &nodeId, std::vector<std::string> &deviceNameList)
+    const std::map<std::string, std::string>& params, uint32_t& nodeId, std::vector<std::string>& deviceNameList)
 {
     auto urmaNodeCli = params.find(URMA_NODE_OPT);
     auto urmaDeviceCli = params.find(URMA_DEVICE_OPT);
     // 处理节点参数（可选）
     if (urmaNodeCli == params.end()) {
-        nodeId = UINT32_MAX;  // 默认值：表示查询本节点的 URMA 信息
+        nodeId = UINT32_MAX; // 默认值：表示查询本节点的 URMA 信息
     } else {
         try {
             nodeId = static_cast<uint32_t>(std::stoul(urmaNodeCli->second));
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
         }
     }
     // 处理设备名称参数（可选）
     if (urmaDeviceCli == params.end()) {
-        deviceNameList.clear();  // 不传设备参数，deviceNameList 为空
+        deviceNameList.clear(); // 不传设备参数，deviceNameList 为空
     } else {
         deviceNameList = ParseCommaSeparatedDeviceList(urmaDeviceCli->second);
         if (deviceNameList.empty()) {
@@ -420,11 +420,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateUrmaPar
     if (nodeId == UINT32_MAX && urmaNodeCli != params.end()) {
         return UbseCliStringPromptReply(URMA_NODE_ID_ERROR);
     }
-    return nullptr;  // 解析成功
+    return nullptr; // 解析成功
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     uint32_t nodeId{};
     std::vector<std::string> deviceNameList{};
@@ -436,7 +436,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     ubseReqSerial << nodeId;
     uint32_t deviceListSize = static_cast<uint32_t>(deviceNameList.size());
     ubseReqSerial << deviceListSize;
-    for (const auto &deviceName : deviceNameList) {
+    for (const auto& deviceName : deviceNameList) {
         ubseReqSerial << deviceName;
     }
     if (!ubseReqSerial.Check()) {
@@ -470,4 +470,4 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseQueryUrmaDevInfoFun
     return UbseCliProcessUrmaDevInfoTable(ubseDeSerial, urmaSize);
 }
 
-}  // namespace ubse::cli::reg
+} // namespace ubse::cli::reg

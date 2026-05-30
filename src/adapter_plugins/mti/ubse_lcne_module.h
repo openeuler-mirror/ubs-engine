@@ -21,9 +21,9 @@
 #include "ubse_lcne_topology.h"
 #include "ubse_logger.h"
 #include "ubse_module.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "src/framework/context/ubse_context.h"
-#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::mti {
 using ubse::module::UbseModule;
@@ -50,14 +50,14 @@ public:
      * @param[out] ubseNodeInfo: 当前节点信息
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo);
+    UbseResult UbseGetLocalNodeInfo(UbseMtiNodeInfo& ubseNodeInfo);
 
     /* *
      * @brief 获取LCNE感知的集群节点信息
      * @param[out] ubseNodeInfos: 整个集群节点信息
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos);
+    UbseResult UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo>& ubseNodeInfos);
 
     UbseResult UbseGetDevTopology(adapter_plugins::mti::UbseDevTopology& devTopology);
 
@@ -83,7 +83,7 @@ private:
 
     UbseResult FillNodeComInfo();
 
-    bool IsPrimaryEidExist(const std::string &slotId);
+    bool IsPrimaryEidExist(const std::string& slotId);
 
     void UpdateClusterIpListAndLocalIp();
 

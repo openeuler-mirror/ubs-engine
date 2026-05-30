@@ -41,7 +41,8 @@ public:
 private:
     UbseLcneUrmaEid(std::string host, int port) : host_(std::move(host)), port_(port) {}
 
-    UbseResult ParseGetUrmaEidResponse(const std::string& responseStr,
+    UbseResult ParseGetUrmaEidResponse(
+        const std::string& responseStr,
         std::map<adapter_plugins::mti::UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& ss);
 
     std::string host_;

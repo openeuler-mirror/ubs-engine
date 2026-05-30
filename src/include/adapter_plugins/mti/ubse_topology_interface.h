@@ -45,7 +45,7 @@ struct UbseLcneIODieInfo {
     std::string upi;             // IOdie的upi
     std::string primaryCna;      // IOdie的Cna
     std::string chipTypeStr;     // IOdie的设备的类型
-    UbseDevType chipType;            // IOdie的设备的类型
+    UbseDevType chipType;        // IOdie的设备的类型
     std::string chipStatusStr;   // IOdie的状态
     DevStatus chipStatus;        // IOdie的状态表示
 };
@@ -83,13 +83,13 @@ struct UbseLcneBusInstanceInfo {
  * @param [out] ubseNodeInfo: 当前节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo);
+uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo& ubseNodeInfo);
 
 /**
  * @brief 获取LCNE感知的集群信息
  * @param [out] ubseNodeInfos: 整个集群节点信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos);
+uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo>& ubseNodeInfos);
 } // namespace ubse::mti
 #endif // UBSE_TOPOLOGY_INTERFACE_H

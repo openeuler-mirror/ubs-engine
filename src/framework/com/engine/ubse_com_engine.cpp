@@ -27,10 +27,10 @@
 #include "ubse_env_util.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
-#include "ubse_str_util.h"
 #include "ubse_security_module.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_smbios.h"
+#include "ubse_str_util.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
 #include "hcom/hcom_service_context.h"
 #include "trace_context.h"
@@ -520,10 +520,10 @@ UbseResult UbseComEngine::Start()
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
         UBSE_LOG_WARN << "Create engine " << engineName << " failed, start service fail, " << FormatRetCode(ret)
-                       << ", will retry";
+                      << ", will retry";
         try {
             startRetryThread_ = std::thread([this]() { DoEngineStart(); });
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             UBSE_LOG_ERROR << "Failed to Create engine" << engineName << ", error=" << e.what();
             return UBSE_ERROR;

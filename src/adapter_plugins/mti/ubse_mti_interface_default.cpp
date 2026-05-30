@@ -107,8 +107,8 @@ UbseResult UbseMtiInterfaceDefault::GetClusterCpuTopo(UbseMtiCpuTopoInfoMap& top
         info.chipId = devicInfoPair.first.chipId;
         info.cardId = devicInfoPair.first.cardId;
         info.busNodeCna = devicInfoPair.first.busNodeCna;
-        info.eid = localBoardIOInfo[iouInfo].ubControllerEid;  // LCNE获取时能保证key存在
-        info.guid = localBoardIOInfo[iouInfo].guid;  // LCNE获取时能保证key存在
+        info.eid = localBoardIOInfo[iouInfo].ubControllerEid; // LCNE获取时能保证key存在
+        info.guid = localBoardIOInfo[iouInfo].guid;           // LCNE获取时能保证key存在
         info.portInfos = devicInfoPair.second;
         for (auto& portInfo : info.portInfos) {
             portInfo.second.urmaEid = allSocketComEid[iouInfo].portEids[portInfo.second.portId];
@@ -170,7 +170,7 @@ UbseResult UbseMtiInterfaceDefault::GetMtiComEid(std::map<UbseMtiIouInfo, UbseMt
     return UBSE_OK;
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -180,74 +180,74 @@ UbseResult UbseMtiInterfaceDefault::UbseGetFeEid(UbseMtiIouInfo iouInfo, std::ve
     return lcne::UbseLcneFeEid::GetInstance().GetFeEid(iouInfo, allFeInfos);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
+UbseResult UbseMtiInterfaceDefault::UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile)
 {
     return lcne::UbseLcneEts::GetInstance().CreateEtsProfile(etsProfile);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string &profileName,
-                                                           const std::vector<UbseEtsVl> &vls)
+UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                           const std::vector<UbseEtsVl>& vls)
 {
     return lcne::UbseLcneEts::GetInstance().AddEtsVlsToProfile(profileName, vls);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseAddEtsPriorityGroupsToProfile(
-    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+    const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     return lcne::UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile(profileName, priorityGroups);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseAddEtsVlsAndPriorityGroupsToProfile(
-    const std::string &profileName, const std::vector<UbseEtsVl> &vls,
-    const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+    const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+    const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     return lcne::UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile(profileName, vls, priorityGroups);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseDeleteEtsProfile(const std::string& profileName)
 {
     return lcne::UbseLcneEts::GetInstance().DeleteEtsProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsVlsFromProfile(const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsVlsFromProfile(const std::string& profileName)
 {
     return lcne::UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsPriorityGroupsFromProfile(const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName)
 {
     return lcne::UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile(profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)
+UbseResult UbseMtiInterfaceDefault::UbseQueryEtsProfile(const std::string& profileName, UbseMtiEtsProfile& etsProfile)
 {
     return lcne::UbseLcneEts::GetInstance().QueryEtsProfile(profileName, etsProfile);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles)
+UbseResult UbseMtiInterfaceDefault::UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles)
 {
     return lcne::UbseLcneEts::GetInstance().QueryAllEtsProfiles(etsProfiles);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseApplyEtsProfileToInterface(const std::string &interfaceName,
-                                                                   const std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                                   const std::string& profileName)
 {
     return lcne::UbseLcneEts::GetInstance().ApplyEtsProfileToInterface(interfaceName, profileName);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileFromInterface(const std::string &interfaceName)
+UbseResult UbseMtiInterfaceDefault::UbseRemoveEtsProfileFromInterface(const std::string& interfaceName)
 {
     return lcne::UbseLcneEts::GetInstance().RemoveEtsProfileFromInterface(interfaceName);
 }
 
 UbseResult UbseMtiInterfaceDefault::UbseQueryAllInterfaceEtsProfile(
-    std::vector<UbseMtiInterfaceEtsApplication> &applications)
+    std::vector<UbseMtiInterfaceEtsApplication>& applications)
 {
     return lcne::UbseLcneEts::GetInstance().QueryAllInterfaceEtsProfile(applications);
 }
 
-UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsProfile(const std::string &interfaceName,
-                                                                 std::string &profileName)
+UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                                 std::string& profileName)
 {
     return lcne::UbseLcneEts::GetInstance().QueryInterfaceEtsProfile(interfaceName, profileName);
 }

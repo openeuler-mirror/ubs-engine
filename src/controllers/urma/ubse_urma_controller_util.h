@@ -25,14 +25,14 @@ using UbseUrmaRetryTaskHandler = std::function<ubse::common::def::UbseResult()>;
 class AsyncHandlerGuard {
 public:
     AsyncHandlerGuard();
-    explicit AsyncHandlerGuard(std::atomic<uint32_t> &cnt);
+    explicit AsyncHandlerGuard(std::atomic<uint32_t>& cnt);
     ~AsyncHandlerGuard();
 
-    AsyncHandlerGuard(const AsyncHandlerGuard &) = delete;
-    AsyncHandlerGuard &operator=(const AsyncHandlerGuard &) = delete;
+    AsyncHandlerGuard(const AsyncHandlerGuard&) = delete;
+    AsyncHandlerGuard& operator=(const AsyncHandlerGuard&) = delete;
 
 private:
-    std::atomic<uint32_t> &guardCnt;
+    std::atomic<uint32_t>& guardCnt;
 };
 
 /**
@@ -45,7 +45,7 @@ private:
  * @details 该函数首先尝试执行任务，如果失败则注册定时器进行重试。任务执行成功后，定时器会被注销。
  *          该函数要求可重入，即多个线程可以同时调用该函数。
  */
-ubse::common::def::UbseResult HandleTaskWithRetry(const std::string &taskExecutor, const std::string &taskName,
+ubse::common::def::UbseResult HandleTaskWithRetry(const std::string& taskExecutor, const std::string& taskName,
                                                   uint32_t timerInterval, UbseUrmaRetryTaskHandler task);
 
 /**
@@ -58,7 +58,7 @@ ubse::common::def::UbseResult HandleTaskWithRetry(const std::string &taskExecuto
  * @details 该函数用于注册一个定时器，用于在任务执行失败时进行重试。定时器会在指定的时间间隔内触发任务处理函数。
  *          该函数要求可重入，即多个线程可以同时调用该函数。
  */
-ubse::common::def::UbseResult RegisterUrmaRetryTimer(const std::string &executorName, const std::string &taskName,
+ubse::common::def::UbseResult RegisterUrmaRetryTimer(const std::string& executorName, const std::string& taskName,
                                                      uint32_t timerInterval, UbseUrmaRetryTaskHandler task);
 
 /**
@@ -72,7 +72,7 @@ void WaitAndCleanupRetryTasks();
  * @param timerName 定时器名称
  * @return bool 返回定时器是否存在
  */
-bool IsTargetTimerExist(const std::string &timerName);
+bool IsTargetTimerExist(const std::string& timerName);
 } // namespace ubse::urmaController
 
 #endif // UBSE_URMA_CONTROLLER_UTIL_H

@@ -101,8 +101,7 @@ UbseResult LocalDevPack(std::vector<std::string>& nameInfos, std::vector<uint32_
     return UBSE_OK;
 }
 
-
-UbseResult QosGetPack(std::vector<EtsQosConfig> &configs, UbseIpcMessage &response)
+UbseResult QosGetPack(std::vector<EtsQosConfig>& configs, UbseIpcMessage& response)
 {
     uint32_t itemCount = static_cast<uint32_t>(configs.size());
     size_t rspSize = sizeof(uint32_t) + itemCount * (sizeof(uint32_t) + sizeof(uint32_t));
@@ -122,7 +121,7 @@ UbseResult QosGetPack(std::vector<EtsQosConfig> &configs, UbseIpcMessage &respon
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
-    for (const auto &config : configs) {
+    for (const auto& config : configs) {
         uint32_t priorityValue = static_cast<uint32_t>(config.priority);
         uint32_t bandwidthGbps = config.bandwidth / NO_1000;
         if (!packUtil.UbsePackUint32(priorityValue) || !packUtil.UbsePackUint32(bandwidthGbps)) {
@@ -158,7 +157,7 @@ UbseResult UbseUrmaControllerApi::Register()
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateStream(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateStream(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaQosCreateStream request info is null.";
@@ -209,7 +208,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateStream(const UbseIpcMessage &re
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     std::vector<EtsQosConfig> configs;
     auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosQuery(configs);
@@ -221,7 +220,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage &req
     UbseSerialization serializer;
     uint32_t itemCount = static_cast<uint32_t>(configs.size());
     serializer << itemCount;
-    for (const auto &config : configs) {
+    for (const auto& config : configs) {
         uint32_t priorityValue = static_cast<uint32_t>(config.priority);
         uint32_t bandwidthGbps = config.bandwidth / NO_1000;
         serializer << priorityValue << bandwidthGbps;
@@ -247,7 +246,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage &req
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaQosDelete(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosDelete(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer != nullptr || req.length != 0) {
         UBSE_LOG_ERROR << "UbseUrmaQosDelete should not have request data.";
@@ -309,7 +308,7 @@ uint32_t ParseUrmaDevGetRequest(const UbseIpcMessage& req, uint32_t& nodeId, std
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (!IsUrmaApiSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -361,7 +360,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage &req
     return UBSE_OK;
 }
 
-UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
+UbseResult AllocRspPack(UbseUrmaDevPath& pathInfos, UbseIpcMessage& response)
 {
     if (pathInfos.vfePaths.size() != NO_2) {
         UBSE_LOG_ERROR << "vfe path is not equal to 2";
@@ -398,7 +397,7 @@ UbseResult AllocRspPack(UbseUrmaDevPath &pathInfos, UbseIpcMessage &response)
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (!IsUrmaApiSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -443,7 +442,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevAlloc(const UbseIpcMessage &req, cons
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (!IsUrmaApiSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -478,7 +477,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevFree(const UbseIpcMessage &req, const
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaDevGetLocal(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaDevGetLocal(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (!IsUrmaApiSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -519,12 +518,12 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGetLocal(const UbseIpcMessage &req, c
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaQosCreateReqUnpack(const uint8_t *buffer, uint32_t len, std::vector<EtsQosConfig> &configs)
+uint32_t UbseUrmaQosCreateReqUnpack(const uint8_t* buffer, uint32_t len, std::vector<EtsQosConfig>& configs)
 {
     if (buffer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    const uint8_t *ptr = buffer;
+    const uint8_t* ptr = buffer;
     uint32_t remaining = len;
     if (remaining < sizeof(uint32_t)) {
         UBSE_LOG_ERROR << "Buffer too small for itemCount";
@@ -571,7 +570,7 @@ uint32_t UbseUrmaQosCreateReqUnpack(const uint8_t *buffer, uint32_t len, std::ve
     return UBSE_OK;
 }
 
-uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateNative(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateNative(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer == nullptr) {
         UBSE_LOG_ERROR << "UbseUrmaQosCreateNative request info is null.";
@@ -605,8 +604,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosCreateNative(const UbseIpcMessage &re
     return UBSE_OK;
 }
 
-
-uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryNative(const UbseIpcMessage &req, const UbseRequestContext &context)
+uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryNative(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     if (req.buffer != nullptr || req.length != 0) {
         UBSE_LOG_ERROR << "UbseUrmaQosQueryNative should not have request data.";

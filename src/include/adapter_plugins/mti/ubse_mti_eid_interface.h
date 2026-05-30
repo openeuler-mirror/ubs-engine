@@ -39,7 +39,7 @@ std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe
  * @param bitStr 128位bit字符串
  * @return 操作结果
  */
-uint32_t ParseBaseEid(const std::string &baseEid, std::string &bitStr);
+uint32_t ParseBaseEid(const std::string& baseEid, std::string& bitStr);
 
 /*
  * @brief CLOS组网下，重写目标节点 EID （仅用于 primaryEid 和 portEid）
@@ -48,8 +48,8 @@ uint32_t ParseBaseEid(const std::string &baseEid, std::string &bitStr);
  * @param result 重写后的 EID
  * @return 操作结果
  */
-uint32_t OverwriteEid(uint32_t serverIdx, const std::string &baseEid, std::string &result);
+uint32_t OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::string& result);
 // 考虑兼容，计划在后续版本中移除
-uint32_t OverwriteEid(uint32_t podId, uint32_t serverId, const std::string &baseEid, std::string &result);
+uint32_t OverwriteEid(uint32_t podId, uint32_t serverId, const std::string& baseEid, std::string& result);
 } // namespace ubse::utils
 #endif // UBSE_URMA_UTIL_H

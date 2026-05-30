@@ -602,7 +602,7 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
     return getRet;
 }
 
-UbseResult FillLinkAndBondingFM(bool isBeforeElection, std::vector<PhysicalLink> &links)
+UbseResult FillLinkAndBondingFM(bool isBeforeElection, std::vector<PhysicalLink>& links)
 {
     if (isBeforeElection) {
         auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodeTopo(links);

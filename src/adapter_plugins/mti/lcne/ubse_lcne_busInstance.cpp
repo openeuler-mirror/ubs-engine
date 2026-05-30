@@ -18,8 +18,8 @@
 #include "ubse_http_module.h"     // for UbseHttpModule
 #include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_pointer_process.h" // for SafeDeleteArray
-#include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "ubse_str_util.h"        // for ConvertStrToUint32
+#include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
@@ -118,7 +118,8 @@ UbseResult UbseLcneBusInstance::ParseQueryBusinstanceResponse(const std::string&
         return UBSE_ERROR;
     }
     busInstanceInfo.localNodeId = nodeId;
-    UBSE_LOG_INFO << "[MTI] " << "BusInstanceInfo.hostBusinstanceEid=" << busInstanceInfo.hostBusinstanceEid << ", "
+    UBSE_LOG_INFO << "[MTI] "
+                  << "BusInstanceInfo.hostBusinstanceEid=" << busInstanceInfo.hostBusinstanceEid << ", "
                   << "BusInstanceInfo.localSlotId=" << busInstanceInfo.localSlotId << ", "
                   << "BusInstanceInfo.localNodeId=" << busInstanceInfo.localNodeId;
     return UBSE_OK;

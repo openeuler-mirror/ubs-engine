@@ -42,7 +42,7 @@ std::string ScheduleModeToString(UbseEtsScheduleMode mode)
     return mode == UbseEtsScheduleMode::SP ? LCNE_ETS_SCHEDULE_MODE_SP : LCNE_ETS_SCHEDULE_MODE_DWRR;
 }
 
-UbseResult StringToScheduleMode(const std::string &modeStr, UbseEtsScheduleMode &mode)
+UbseResult StringToScheduleMode(const std::string& modeStr, UbseEtsScheduleMode& mode)
 {
     if (modeStr == LCNE_ETS_SCHEDULE_MODE_DWRR) {
         mode = UbseEtsScheduleMode::DWRR;
@@ -56,13 +56,13 @@ UbseResult StringToScheduleMode(const std::string &modeStr, UbseEtsScheduleMode 
     return UBSE_ERROR;
 }
 
-void AddTextNode(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, const std::string &text)
+void AddTextNode(const std::shared_ptr<UbseXml>& xml, const std::string& nodeName, const std::string& text)
 {
     xml->AddNode(nodeName);
     xml->Child(nodeName)->Text(text);
 }
 
-UbseResult ReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, std::string &text)
+UbseResult ReadChildText(const std::shared_ptr<UbseXml>& xml, const std::string& nodeName, std::string& text)
 {
     if (xml->Next(nodeName) == nullptr) {
         UBSE_LOG_ERROR << "[MTI] XML node " << nodeName << " not found.";
@@ -76,7 +76,7 @@ UbseResult ReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string 
     return UBSE_OK;
 }
 
-bool TryReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, std::string &text)
+bool TryReadChildText(const std::shared_ptr<UbseXml>& xml, const std::string& nodeName, std::string& text)
 {
     if (xml->Next(nodeName) == nullptr) {
         return false;
@@ -85,7 +85,7 @@ bool TryReadChildText(const std::shared_ptr<UbseXml> &xml, const std::string &no
     return xml->Previous() == UbseXmlError::OK;
 }
 
-UbseResult ReadChildUint32(const std::shared_ptr<UbseXml> &xml, const std::string &nodeName, uint32_t &value)
+UbseResult ReadChildUint32(const std::shared_ptr<UbseXml>& xml, const std::string& nodeName, uint32_t& value)
 {
     std::string text;
     auto ret = ReadChildText(xml, nodeName, text);
@@ -94,17 +94,17 @@ UbseResult ReadChildUint32(const std::shared_ptr<UbseXml> &xml, const std::strin
     }
     try {
         value = static_cast<uint32_t>(std::stoul(text));
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         UBSE_LOG_ERROR << "[MTI] ETS XML node " << nodeName << " invalid uint32 value.";
         return UBSE_ERROR;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         UBSE_LOG_ERROR << "[MTI] ETS XML node " << nodeName << " uint32 value out of range.";
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult ReadChildScheduleMode(const std::shared_ptr<UbseXml> &xml, UbseEtsScheduleMode &mode)
+UbseResult ReadChildScheduleMode(const std::shared_ptr<UbseXml>& xml, UbseEtsScheduleMode& mode)
 {
     std::string modeStr;
     auto ret = ReadChildText(xml, "schedule-mode", modeStr);
@@ -114,7 +114,7 @@ UbseResult ReadChildScheduleMode(const std::shared_ptr<UbseXml> &xml, UbseEtsSch
     return StringToScheduleMode(modeStr, mode);
 }
 
-void BuildVlXml(const std::shared_ptr<UbseXml> &vlXml, const UbseEtsVl &vl)
+void BuildVlXml(const std::shared_ptr<UbseXml>& vlXml, const UbseEtsVl& vl)
 {
     AddTextNode(vlXml, "vl-index", std::to_string(vl.vlIndex));
     AddTextNode(vlXml, "priority-group-id", std::to_string(vl.priorityGroupId));
@@ -122,7 +122,7 @@ void BuildVlXml(const std::shared_ptr<UbseXml> &vlXml, const UbseEtsVl &vl)
     AddTextNode(vlXml, "weight", std::to_string(vl.weight));
 }
 
-void BuildPriorityGroupXml(const std::shared_ptr<UbseXml> &priorityGroupXml, const UbseEtsPriorityGroup &priorityGroup)
+void BuildPriorityGroupXml(const std::shared_ptr<UbseXml>& priorityGroupXml, const UbseEtsPriorityGroup& priorityGroup)
 {
     AddTextNode(priorityGroupXml, "priority-group-id", std::to_string(priorityGroup.priorityGroupId));
     AddTextNode(priorityGroupXml, "schedule-mode", ScheduleModeToString(priorityGroup.scheduleMode));
@@ -131,7 +131,7 @@ void BuildPriorityGroupXml(const std::shared_ptr<UbseXml> &priorityGroupXml, con
     AddTextNode(priorityGroupXml, "cbs", std::to_string(priorityGroup.cbs));
 }
 
-UbseResult BuildEtsProfileVlsContentXml(const std::shared_ptr<UbseXml> &vlsXml, const std::vector<UbseEtsVl> &vls)
+UbseResult BuildEtsProfileVlsContentXml(const std::shared_ptr<UbseXml>& vlsXml, const std::vector<UbseEtsVl>& vls)
 {
     for (size_t i = 0; i < vls.size(); ++i) {
         vlsXml->AddNode("vl");
@@ -145,8 +145,8 @@ UbseResult BuildEtsProfileVlsContentXml(const std::shared_ptr<UbseXml> &vlsXml, 
     return UBSE_OK;
 }
 
-UbseResult BuildEtsProfilePriorityGroupsContentXml(const std::shared_ptr<UbseXml> &priorityGroupsXml,
-                                                   const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+UbseResult BuildEtsProfilePriorityGroupsContentXml(const std::shared_ptr<UbseXml>& priorityGroupsXml,
+                                                   const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     for (size_t i = 0; i < priorityGroups.size(); ++i) {
         priorityGroupsXml->AddNode("priority-group");
@@ -160,7 +160,7 @@ UbseResult BuildEtsProfilePriorityGroupsContentXml(const std::shared_ptr<UbseXml
     return UBSE_OK;
 }
 
-UbseResult BuildEtsProfileVlsNode(const std::shared_ptr<UbseXml> &etsProfileXml, const std::vector<UbseEtsVl> &vls)
+UbseResult BuildEtsProfileVlsNode(const std::shared_ptr<UbseXml>& etsProfileXml, const std::vector<UbseEtsVl>& vls)
 {
     etsProfileXml->AddNode("vls");
     auto ret = BuildEtsProfileVlsContentXml(etsProfileXml->Next("vls"), vls);
@@ -170,8 +170,8 @@ UbseResult BuildEtsProfileVlsNode(const std::shared_ptr<UbseXml> &etsProfileXml,
     return UBSE_OK;
 }
 
-UbseResult BuildEtsProfilePriorityGroupsNode(const std::shared_ptr<UbseXml> &etsProfileXml,
-                                             const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+UbseResult BuildEtsProfilePriorityGroupsNode(const std::shared_ptr<UbseXml>& etsProfileXml,
+                                             const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     etsProfileXml->AddNode("priority-groups");
     auto ret = BuildEtsProfilePriorityGroupsContentXml(etsProfileXml->Next("priority-groups"), priorityGroups);
@@ -181,7 +181,7 @@ UbseResult BuildEtsProfilePriorityGroupsNode(const std::shared_ptr<UbseXml> &ets
     return UBSE_OK;
 }
 
-UbseResult ParseVlXml(const std::shared_ptr<UbseXml> &vlXml, UbseEtsVl &vl)
+UbseResult ParseVlXml(const std::shared_ptr<UbseXml>& vlXml, UbseEtsVl& vl)
 {
     auto ret = ReadChildUint32(vlXml, "vl-index", vl.vlIndex);
     if (ret != UBSE_OK) {
@@ -198,7 +198,7 @@ UbseResult ParseVlXml(const std::shared_ptr<UbseXml> &vlXml, UbseEtsVl &vl)
     return ReadChildUint32(vlXml, "weight", vl.weight);
 }
 
-UbseResult ParsePriorityGroupXml(const std::shared_ptr<UbseXml> &priorityGroupXml, UbseEtsPriorityGroup &priorityGroup)
+UbseResult ParsePriorityGroupXml(const std::shared_ptr<UbseXml>& priorityGroupXml, UbseEtsPriorityGroup& priorityGroup)
 {
     auto ret = ReadChildUint32(priorityGroupXml, "priority-group-id", priorityGroup.priorityGroupId);
     if (ret != UBSE_OK) {
@@ -219,8 +219,8 @@ UbseResult ParsePriorityGroupXml(const std::shared_ptr<UbseXml> &priorityGroupXm
     return ReadChildUint32(priorityGroupXml, "cbs", priorityGroup.cbs);
 }
 
-UbseResult ParseEtsLists(const std::shared_ptr<UbseXml> &xml, std::vector<UbseEtsVl> &vls,
-                         std::vector<UbseEtsPriorityGroup> &priorityGroups)
+UbseResult ParseEtsLists(const std::shared_ptr<UbseXml>& xml, std::vector<UbseEtsVl>& vls,
+                         std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     if (xml->Next("vls") != nullptr) {
         int vlIndex = 0;
@@ -266,7 +266,7 @@ UbseResult ParseEtsLists(const std::shared_ptr<UbseXml> &xml, std::vector<UbseEt
     return UBSE_OK;
 }
 
-UbseResult ParseEtsProfileXml(const std::shared_ptr<UbseXml> &xml, UbseMtiEtsProfile &etsProfile)
+UbseResult ParseEtsProfileXml(const std::shared_ptr<UbseXml>& xml, UbseMtiEtsProfile& etsProfile)
 {
     auto result = ReadChildText(xml, "name", etsProfile.profileName);
     if (result != UBSE_OK) {
@@ -275,7 +275,7 @@ UbseResult ParseEtsProfileXml(const std::shared_ptr<UbseXml> &xml, UbseMtiEtsPro
     return ParseEtsLists(xml, etsProfile.vls, etsProfile.priorityGroups);
 }
 
-UbseResult ParseEtsProfilesXml(const std::shared_ptr<UbseXml> &xml, std::vector<UbseMtiEtsProfile> &etsProfiles)
+UbseResult ParseEtsProfilesXml(const std::shared_ptr<UbseXml>& xml, std::vector<UbseMtiEtsProfile>& etsProfiles)
 {
     int profileIndex = 0;
     while (xml->Next("ets-profile", profileIndex) != nullptr) {
@@ -294,7 +294,7 @@ UbseResult ParseEtsProfilesXml(const std::shared_ptr<UbseXml> &xml, std::vector<
     return UBSE_OK;
 }
 
-bool TryReadEtsApplicationProfileName(const std::shared_ptr<UbseXml> &xml, std::string &profileName)
+bool TryReadEtsApplicationProfileName(const std::shared_ptr<UbseXml>& xml, std::string& profileName)
 {
     if (xml->Next("ets-application") != nullptr) {
         const bool found = TryReadChildText(xml, "ets-profile-name", profileName);
@@ -324,8 +324,8 @@ bool TryReadEtsApplicationProfileName(const std::shared_ptr<UbseXml> &xml, std::
     return TryReadChildText(xml, "ets-profile-name", profileName);
 }
 
-UbseResult SendEtsRequest(UbseHttpRequest &req, UbseHttpResponse &rsp,
-                          const std::string &contentType = LCNE_ETS_YANG_DATA_XML)
+UbseResult SendEtsRequest(UbseHttpRequest& req, UbseHttpResponse& rsp,
+                          const std::string& contentType = LCNE_ETS_YANG_DATA_XML)
 {
     req.headers.emplace("Accept", LCNE_ETS_YANG_DATA_XML);
     req.headers.emplace("Content-Type", contentType);
@@ -336,7 +336,7 @@ UbseResult SendEtsRequest(UbseHttpRequest &req, UbseHttpResponse &rsp,
     return ret;
 }
 
-std::string BuildEtsProfilePath(const std::string &profileName)
+std::string BuildEtsProfilePath(const std::string& profileName)
 {
     return LCNE_ETS_URI + "/ets-profile=" + profileName;
 }
@@ -346,22 +346,22 @@ std::string BuildAllInterfaceEtsApplicationPath()
     return LCNE_ETS_INTERFACE_URI + LCNE_ETS_APPLICATION_SUFFIX;
 }
 
-std::string BuildInterfaceEtsApplicationPath(const std::string &interfaceName)
+std::string BuildInterfaceEtsApplicationPath(const std::string& interfaceName)
 {
     return LCNE_ETS_INTERFACE_URI + "=(" + interfaceName + ")" + LCNE_ETS_APPLICATION_SUFFIX;
 }
 
-std::string BuildEtsProfileVlsPath(const std::string &profileName)
+std::string BuildEtsProfileVlsPath(const std::string& profileName)
 {
     return LCNE_ETS_URI + "/ets-profile=" + profileName + "/vls";
 }
 
-std::string BuildEtsProfilePriorityGroupsPath(const std::string &profileName)
+std::string BuildEtsProfilePriorityGroupsPath(const std::string& profileName)
 {
     return LCNE_ETS_URI + "/ets-profile=" + profileName + "/priority-groups";
 }
 
-UbseResult SendPatchNoContent(const std::string &path, const std::string &body, const std::string &operation)
+UbseResult SendPatchNoContent(const std::string& path, const std::string& body, const std::string& operation)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -380,7 +380,7 @@ UbseResult SendPatchNoContent(const std::string &path, const std::string &body, 
     }
     return UBSE_OK;
 }
-UbseResult SendDeleteNoContent(const std::string &path, const std::string &operation)
+UbseResult SendDeleteNoContent(const std::string& path, const std::string& operation)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -400,7 +400,7 @@ UbseResult SendDeleteNoContent(const std::string &path, const std::string &opera
 }
 } // namespace
 
-UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
+UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile& etsProfile)
 {
     std::string body;
     auto ret = BuildEtsProfileXml(etsProfile, body);
@@ -411,7 +411,7 @@ UbseResult UbseLcneEts::CreateEtsProfile(const UbseMtiEtsProfile &etsProfile)
     return SendPatchNoContent(LCNE_ETS_URI, body, "CreateEtsProfile");
 }
 
-UbseResult UbseLcneEts::AddEtsVlsToProfile(const std::string &profileName, const std::vector<UbseEtsVl> &vls)
+UbseResult UbseLcneEts::AddEtsVlsToProfile(const std::string& profileName, const std::vector<UbseEtsVl>& vls)
 {
     std::string body;
     UbseMtiEtsProfile etsProfile{};
@@ -425,8 +425,8 @@ UbseResult UbseLcneEts::AddEtsVlsToProfile(const std::string &profileName, const
     return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsVlsToProfile");
 }
 
-UbseResult UbseLcneEts::AddEtsPriorityGroupsToProfile(
-    const std::string &profileName, const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+UbseResult UbseLcneEts::AddEtsPriorityGroupsToProfile(const std::string& profileName,
+                                                      const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     std::string body;
     UbseMtiEtsProfile etsProfile{};
@@ -440,9 +440,9 @@ UbseResult UbseLcneEts::AddEtsPriorityGroupsToProfile(
     return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsPriorityGroupsToProfile");
 }
 
-UbseResult UbseLcneEts::AddEtsVlsAndPriorityGroupsToProfile(
-    const std::string &profileName, const std::vector<UbseEtsVl> &vls,
-    const std::vector<UbseEtsPriorityGroup> &priorityGroups)
+UbseResult UbseLcneEts::AddEtsVlsAndPriorityGroupsToProfile(const std::string& profileName,
+                                                            const std::vector<UbseEtsVl>& vls,
+                                                            const std::vector<UbseEtsPriorityGroup>& priorityGroups)
 {
     std::string body;
     UbseMtiEtsProfile etsProfile{};
@@ -457,22 +457,22 @@ UbseResult UbseLcneEts::AddEtsVlsAndPriorityGroupsToProfile(
     return SendPatchNoContent(LCNE_ETS_URI, body, "AddEtsVlsAndPriorityGroupsToProfile");
 }
 
-UbseResult UbseLcneEts::DeleteEtsProfile(const std::string &profileName)
+UbseResult UbseLcneEts::DeleteEtsProfile(const std::string& profileName)
 {
     return SendDeleteNoContent(BuildEtsProfilePath(profileName), "DeleteEtsProfile");
 }
 
-UbseResult UbseLcneEts::RemoveEtsVlsFromProfile(const std::string &profileName)
+UbseResult UbseLcneEts::RemoveEtsVlsFromProfile(const std::string& profileName)
 {
     return SendDeleteNoContent(BuildEtsProfileVlsPath(profileName), "RemoveEtsVlsFromProfile");
 }
 
-UbseResult UbseLcneEts::RemoveEtsPriorityGroupsFromProfile(const std::string &profileName)
+UbseResult UbseLcneEts::RemoveEtsPriorityGroupsFromProfile(const std::string& profileName)
 {
     return SendDeleteNoContent(BuildEtsProfilePriorityGroupsPath(profileName), "RemoveEtsPriorityGroupsFromProfile");
 }
 
-UbseResult UbseLcneEts::QueryEtsProfile(const std::string &profileName, UbseMtiEtsProfile &etsProfile)
+UbseResult UbseLcneEts::QueryEtsProfile(const std::string& profileName, UbseMtiEtsProfile& etsProfile)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -501,7 +501,7 @@ UbseResult UbseLcneEts::QueryEtsProfile(const std::string &profileName, UbseMtiE
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::QueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsProfiles)
+UbseResult UbseLcneEts::QueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -525,7 +525,7 @@ UbseResult UbseLcneEts::QueryAllEtsProfiles(std::vector<UbseMtiEtsProfile> &etsP
     return ParseAllEtsProfilesResponse(rsp.body, etsProfiles);
 }
 
-UbseResult UbseLcneEts::ApplyEtsProfileToInterface(const std::string &interfaceName, const std::string &profileName)
+UbseResult UbseLcneEts::ApplyEtsProfileToInterface(const std::string& interfaceName, const std::string& profileName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -551,7 +551,7 @@ UbseResult UbseLcneEts::ApplyEtsProfileToInterface(const std::string &interfaceN
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::RemoveEtsProfileFromInterface(const std::string &interfaceName)
+UbseResult UbseLcneEts::RemoveEtsProfileFromInterface(const std::string& interfaceName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -570,7 +570,7 @@ UbseResult UbseLcneEts::RemoveEtsProfileFromInterface(const std::string &interfa
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::QueryAllInterfaceEtsProfile(std::vector<UbseMtiInterfaceEtsApplication> &applications)
+UbseResult UbseLcneEts::QueryAllInterfaceEtsProfile(std::vector<UbseMtiInterfaceEtsApplication>& applications)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -594,7 +594,7 @@ UbseResult UbseLcneEts::QueryAllInterfaceEtsProfile(std::vector<UbseMtiInterface
     return ParseAllInterfaceEtsProfileResponse(rsp.body, applications);
 }
 
-UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string &interfaceName, std::string &profileName)
+UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string& interfaceName, std::string& profileName)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -617,7 +617,7 @@ UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string &interfaceNam
     return ParseInterfaceEtsProfileResponse(rsp.body, profileName);
 }
 
-UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, std::string &xmlStr)
+UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile& etsProfile, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -650,7 +650,7 @@ UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile &etsProfile, 
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string &profileName, std::string &xmlStr)
+UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string& profileName, std::string& xmlStr)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
     if (ubseXml == nullptr) {
@@ -665,7 +665,7 @@ UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string &profi
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string &body, UbseMtiEtsProfile &etsProfile)
+UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string& body, UbseMtiEtsProfile& etsProfile)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -700,8 +700,8 @@ UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string &body, UbseMti
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string &body,
-                                                    std::vector<UbseMtiEtsProfile> &etsProfiles)
+UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string& body,
+                                                    std::vector<UbseMtiEtsProfile>& etsProfiles)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -737,7 +737,7 @@ UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string &body,
     return UBSE_OK;
 }
 
-UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string &body, std::string &profileName)
+UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string& body, std::string& profileName)
 {
     profileName.clear();
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
@@ -775,8 +775,8 @@ UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string &body
     return UBSE_ERROR;
 }
 
-UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string &body,
-                                                            std::vector<UbseMtiInterfaceEtsApplication> &applications)
+UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string& body,
+                                                            std::vector<UbseMtiInterfaceEtsApplication>& applications)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
     if (ubseXml == nullptr) {
@@ -790,7 +790,7 @@ UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string &b
     }
 
     std::vector<UbseMtiInterfaceEtsApplication> parsedApplications;
-    auto parseInterfaceNodes = [&parsedApplications](const std::shared_ptr<UbseXml> &xml) -> UbseResult {
+    auto parseInterfaceNodes = [&parsedApplications](const std::shared_ptr<UbseXml>& xml) -> UbseResult {
         int interfaceIndex = 0;
         while (xml->Next("interface", interfaceIndex) != nullptr) {
             UbseMtiInterfaceEtsApplication application{};

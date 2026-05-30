@@ -21,9 +21,9 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubs_engine.h"
-#include "ubse_smbios.h"
 
 namespace ubse::node::api {
 using namespace ubse::context;

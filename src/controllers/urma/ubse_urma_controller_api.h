@@ -25,27 +25,26 @@ public:
     static UbseResult Register();
 
 private:
-    static uint32_t UbseUrmaQosCreateNative(const ubse::ipc::UbseIpcMessage &req,
-                                             const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaQosQueryNative(const ubse::ipc::UbseIpcMessage &req,
-                                            const ubse::ipc::UbseRequestContext &context);
+    static uint32_t UbseUrmaQosCreateNative(const ubse::ipc::UbseIpcMessage& req,
+                                            const ubse::ipc::UbseRequestContext& context);
+    static uint32_t UbseUrmaQosQueryNative(const ubse::ipc::UbseIpcMessage& req,
+                                           const ubse::ipc::UbseRequestContext& context);
 
-    static uint32_t UbseUrmaQosCreateStream(const ubse::ipc::UbseIpcMessage &req,
-                                             const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaQosQueryStream(const ubse::ipc::UbseIpcMessage &req,
-                                            const ubse::ipc::UbseRequestContext &context);
+    static uint32_t UbseUrmaQosCreateStream(const ubse::ipc::UbseIpcMessage& req,
+                                            const ubse::ipc::UbseRequestContext& context);
+    static uint32_t UbseUrmaQosQueryStream(const ubse::ipc::UbseIpcMessage& req,
+                                           const ubse::ipc::UbseRequestContext& context);
 
-    static uint32_t UbseUrmaQosDelete(const ubse::ipc::UbseIpcMessage &req,
-                                       const ubse::ipc::UbseRequestContext &context);
+    static uint32_t UbseUrmaQosDelete(const ubse::ipc::UbseIpcMessage& req,
+                                      const ubse::ipc::UbseRequestContext& context);
 
-    static uint32_t UbseUrmaDevGetLocal(const ubse::ipc::UbseIpcMessage &req,
-                                        const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaDevGetByFilter(const ubse::ipc::UbseIpcMessage &req,
-                                           const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaDevAlloc(const ubse::ipc::UbseIpcMessage &req,
-                                      const ubse::ipc::UbseRequestContext &context);
-    static uint32_t UbseUrmaDevFree(const ubse::ipc::UbseIpcMessage &req,
-                                     const ubse::ipc::UbseRequestContext &context);
+    static uint32_t UbseUrmaDevGetLocal(const ubse::ipc::UbseIpcMessage& req,
+                                        const ubse::ipc::UbseRequestContext& context);
+    static uint32_t UbseUrmaDevGetByFilter(const ubse::ipc::UbseIpcMessage& req,
+                                           const ubse::ipc::UbseRequestContext& context);
+    static uint32_t UbseUrmaDevAlloc(const ubse::ipc::UbseIpcMessage& req,
+                                     const ubse::ipc::UbseRequestContext& context);
+    static uint32_t UbseUrmaDevFree(const ubse::ipc::UbseIpcMessage& req, const ubse::ipc::UbseRequestContext& context);
 };
 } // namespace ubse::urmaController
 #endif // UBSE_URMA_CONTROLLER_API_H

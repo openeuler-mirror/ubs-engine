@@ -27,19 +27,21 @@ using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::http;
 using namespace ::ubse::adapter_plugins::mti;
-void OutPutUrmaEidResultToLog(std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup> &urmaEidMap)
+void OutPutUrmaEidResultToLog(std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& urmaEidMap)
 {
     std::ostringstream oss;
-    for (auto &item : urmaEidMap) {
+    for (auto& item : urmaEidMap) {
         oss << "DevName=" << item.first.slotId << "-" << item.first.ubpuId << "-" << item.first.iouId << ", "
-        << "PrimaryEid=" << item.second.primaryEid << "\n";
-        for (auto &portEid : item.second.portEids) {
+            << "PrimaryEid=" << item.second.primaryEid << "\n";
+        for (auto& portEid : item.second.portEids) {
             oss << "portId=" << portEid.first << ", urmaEid=" << portEid.second << "\n";
         }
         oss << "\n";
     }
     auto result = oss.str();
-    UBSE_LOG_INFO << "[MTI] UrmaEid Info:" << "\n" << result;
+    UBSE_LOG_INFO << "[MTI] UrmaEid Info:"
+                  << "\n"
+                  << result;
 }
 
 // 校验单个 urma-eid 字符串
@@ -75,10 +77,10 @@ bool IsValidUrmaEid(const std::string& eid)
 }
 
 // 校验整个 comUrmaInfoMap
-UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup> &comUrmaInfoMap)
+UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& comUrmaInfoMap)
 {
-    for (const auto &pair : comUrmaInfoMap) {
-        const auto &socketInfo = pair.second;
+    for (const auto& pair : comUrmaInfoMap) {
+        const auto& socketInfo = pair.second;
 
         // 校验 primaryEid
         if (!socketInfo.primaryEid.empty() && !IsValidUrmaEid(socketInfo.primaryEid)) {
@@ -86,8 +88,8 @@ UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, adapter_plugins::mti
         }
 
         // 校验 portEids 中的每个 urmaEid
-        for (const auto &portPair : socketInfo.portEids) {
-            const std::string &urmaEid = portPair.second;
+        for (const auto& portPair : socketInfo.portEids) {
+            const std::string& urmaEid = portPair.second;
 
             if (!urmaEid.empty() && !IsValidUrmaEid(urmaEid)) {
                 return UBSE_ERROR_INVAL;
@@ -97,7 +99,7 @@ UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, adapter_plugins::mti
     return UBSE_OK;
 }
 
-UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup> &allMtiComEid)
+UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& allMtiComEid)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;

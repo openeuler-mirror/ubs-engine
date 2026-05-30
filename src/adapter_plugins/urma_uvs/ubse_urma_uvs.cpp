@@ -10,11 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "ubse_urma_uvs.h"
 #include <cstdint>
-#include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
-#include "ubse_module.h"     // for UbseModule
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_module.h" // for UbseModule
@@ -23,7 +22,7 @@
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
 #include "lock/ubse_lock.h"
-#include "ubse_urma_uvs.h"
+#include "securec.h"
 
 namespace ubse::urma {
 using namespace ubse::common::def;
@@ -37,12 +36,12 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 utils::ReadWriteLock g_invokeUrmaMutex;
 
-UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                           const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
-UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
+UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
+                           const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
+UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
 
-UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                       const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
+UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::vector<PhysicalLink>& allLinkInfo,
+                                       const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
     UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
@@ -318,8 +317,8 @@ UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
         }
 
         for (size_t i = 0; i < bondingDevSize; i++) {
-            auto ret = ConvertEidStrToHexCharList(info.devList[i].urmaDevEid,
-                                                  nodeMap[info.nodeId].aggr_dev[i].aggr_eid);
+            auto ret =
+                ConvertEidStrToHexCharList(info.devList[i].urmaDevEid, nodeMap[info.nodeId].aggr_dev[i].aggr_eid);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse bondingEid=" << info.devList[i].urmaDevEid;
                 return ret;
@@ -366,7 +365,7 @@ UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& node
 
     for (auto& pair : nodeMap) {
         nodeMap[pair.first].super_node_id = superNodeId;
-        nodeMap[pair.first].type = UbseSmbios::GetInstance().IsClosType() ?  1 : 0;
+        nodeMap[pair.first].type = UbseSmbios::GetInstance().IsClosType() ? 1 : 0;
     }
     return UBSE_OK;
 }

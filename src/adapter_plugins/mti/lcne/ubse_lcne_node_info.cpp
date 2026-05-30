@@ -73,11 +73,12 @@ void ParseIODieInfo(const std::shared_ptr<UbseXml>& ubseXml, UbseLcneIODieInfo& 
 std::string UbseLcneIODieInfoMapToString(const UbseLcneIODieInfoMap& devMap)
 {
     std::ostringstream oss;
-    for (const auto &[iouInfo, info] : devMap) {
-        oss << "{" << "Device= "<< iouInfo.slotId << "-" << iouInfo.ubpuId << "-" << iouInfo.iouId
-            << ", ubControllerEid= " << info.ubControllerEid
-            << ", guid= " << info.guid << ", upi= " << info.upi << ", primaryCna= " << info.primaryCna
-            << ", chipType= " << info.chipTypeStr << ", chipStatus= " << info.chipStatusStr << "} ";
+    for (const auto& [iouInfo, info] : devMap) {
+        oss << "{"
+            << "Device= " << iouInfo.slotId << "-" << iouInfo.ubpuId << "-" << iouInfo.iouId
+            << ", ubControllerEid= " << info.ubControllerEid << ", guid= " << info.guid << ", upi= " << info.upi
+            << ", primaryCna= " << info.primaryCna << ", chipType= " << info.chipTypeStr
+            << ", chipStatus= " << info.chipStatusStr << "} ";
         oss << "\n";
     }
 
@@ -112,8 +113,7 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string& r
             UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
             return UBSE_ERROR;
         }
-        UbseMtiIouInfo iouInfo(nodeId, ubseXml->Child("ubpu-id")->Text(),
-                               ubseXml->Child("iou-id")->Text());
+        UbseMtiIouInfo iouInfo(nodeId, ubseXml->Child("ubpu-id")->Text(), ubseXml->Child("iou-id")->Text());
         UbseLcneIODieInfo ubseLcneIODieInfo{};
         ParseIODieInfo(ubseXml, ubseLcneIODieInfo);
         if (ubseLcneIODieInfo.chipStatusStr != "normal") {
@@ -128,8 +128,9 @@ UbseResult UbseLcneNodeInfo::ParseIODieInfoQueryAllResponse(const std::string& r
             return UBSE_ERROR;
         }
     }
-    UBSE_LOG_DEBUG << "[MTI] IO DIE information printing: " << "\n"
-                << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
+    UBSE_LOG_DEBUG << "[MTI] IO DIE information printing: "
+                   << "\n"
+                   << UbseLcneIODieInfoMapToString(ubseLcneIODieInfoMap);
     return UBSE_OK;
 }
 } // namespace ubse::lcne
