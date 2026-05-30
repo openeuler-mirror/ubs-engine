@@ -37,7 +37,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const uint32_t RAW_DATA_SIZE = 1024;
 const uint32_t ROW_SIZE = 16;
 
-UbseResult ReadFromFileDescriptor(int fd, uint8_t *buf, size_t maxLen, const char *filePath)
+UbseResult ReadFromFileDescriptor(int fd, uint8_t* buf, size_t maxLen, const char* filePath)
 {
     int64_t readLen = 1;
     uint64_t offset = 0;
@@ -59,14 +59,14 @@ UbseResult ReadFromFileDescriptor(int fd, uint8_t *buf, size_t maxLen, const cha
     return UBSE_OK;
 }
 
-inline void CloseFd(int fd, const char *filePath)
+inline void CloseFd(int fd, const char* filePath)
 {
     if (close(fd) == -1) {
         UBSE_LOG_ERROR << "Failed to close " << filePath << ", errno=" << errno;
     }
 }
 
-UbseResult OpenSmbiosFile(const char *filePath, int &fd)
+UbseResult OpenSmbiosFile(const char* filePath, int& fd)
 {
     std::vector<__u32> caps{CAP_DAC_OVERRIDE};
     auto result = ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
@@ -100,12 +100,12 @@ UbseResult OpenSmbiosFile(const char *filePath, int &fd)
  * @return std::vector<uint8_t> 读取到的数据
  */
 constexpr uint32_t MAX_READ_SIZE = 256 * 1024 * 1024; // 256MB
-std::vector<uint8_t> ReadSmbiosFile(off_t base, const char *filePath, uint32_t &maxLen)
+std::vector<uint8_t> ReadSmbiosFile(off_t base, const char* filePath, uint32_t& maxLen)
 {
     struct stat statbuf;
     int fd;
     uint32_t bufSize = 0;
-    uint8_t *ptr = nullptr;
+    uint8_t* ptr = nullptr;
     auto ret = OpenSmbiosFile(filePath, fd);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to open " << filePath << ", ret=" << ret;
@@ -147,19 +147,19 @@ std::vector<uint8_t> ReadSmbiosFile(off_t base, const char *filePath, uint32_t &
     return buf;
 }
 
-inline uint16_t WORD(uint8_t *buf)
+inline uint16_t WORD(uint8_t* buf)
 {
-    return *reinterpret_cast<const uint16_t *>(buf);
+    return *reinterpret_cast<const uint16_t*>(buf);
 }
 
-inline uint32_t DWORD(uint8_t *buf)
+inline uint32_t DWORD(uint8_t* buf)
 {
-    return *reinterpret_cast<const uint32_t *>(buf);
+    return *reinterpret_cast<const uint32_t*>(buf);
 }
 
-inline SmbiosOffset QWORD(uint8_t *buf)
+inline SmbiosOffset QWORD(uint8_t* buf)
 {
-    return *reinterpret_cast<const SmbiosOffset *>(buf);
+    return *reinterpret_cast<const SmbiosOffset*>(buf);
 }
 
 void SmbiosStructureType1::LogSmbiosStructTypeInfo()
@@ -175,7 +175,7 @@ void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
                   << ", superPodId=" << static_cast<int>(superPodId);
 }
 
-std::vector<uint8_t> GetDmiTable(off_t base, const char *tableFile, uint32_t flags, uint32_t &len)
+std::vector<uint8_t> GetDmiTable(off_t base, const char* tableFile, uint32_t flags, uint32_t& len)
 {
     // 从文件开头读取，不加入偏移
     if (flags & FLAG_NO_FILE_OFFSET) {
@@ -189,7 +189,7 @@ std::vector<uint8_t> GetDmiTable(off_t base, const char *tableFile, uint32_t fla
     return {};
 }
 
-void SmbiosHeader::FillHeaderFromBuf(uint8_t *buf)
+void SmbiosHeader::FillHeaderFromBuf(uint8_t* buf)
 {
     type = buf[NO_0];
     length = buf[NO_1];
@@ -247,9 +247,9 @@ UbseResult SmbiosSuperPodBasicInfo::FillSmbiosStructFromBuf()
  * 按以上格式遍历dmiBuf，找到符合type的结构体，填充到this中
  */
 const size_t SMBIOS_TYPE_END = 127;
-UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_t flags, UbseSmbiosType type)
+UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_t flags, UbseSmbiosType type)
 {
-    uint8_t *cursor = dmiBuf.data();
+    uint8_t* cursor = dmiBuf.data();
     uint32_t len = dmiBuf.size();
     while (cursor - dmiBuf.data() + SMBIOS_HEADER_SIZE < len) {
         // 获取header
@@ -265,7 +265,7 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_
         // 当前的type不匹配，跳到下一个type
         if (this->header.type != static_cast<uint8_t>(type)) {
             // 跳转到字符串表
-            uint8_t *next = cursor + this->header.length;
+            uint8_t* next = cursor + this->header.length;
             // 遍历字符串表，直到连续两个符号都是'\0'，表示字符串表结束
             while (next - dmiBuf.data() + 1 < len && (*next != '\0' || *(next + 1) != '\0')) {
                 next++;
@@ -313,7 +313,7 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_
  *   uint64_t structure_table_address; // 结构表64位物理地址
  * };
  */
-UbseResult SmbiosStructure::DecodeSmbios3(std::vector<uint8_t> &entryBuf, const char *tableFile, uint32_t flags,
+UbseResult SmbiosStructure::DecodeSmbios3(std::vector<uint8_t>& entryBuf, const char* tableFile, uint32_t flags,
                                           UbseSmbiosType type)
 {
     if (entryBuf[ENTRY_POINT_LENGTH] > ENTRY_POINT_LENGTH_MAX) {
@@ -337,7 +337,7 @@ UbseResult SmbiosStructure::DecodeSmbios3(std::vector<uint8_t> &entryBuf, const 
     return this->DecodeDmiTable(table, flags | FLAG_STOP_AT_EOT, type);
 }
 
-std::vector<uint8_t> LoadSysEntryFile(uint32_t &maxLen)
+std::vector<uint8_t> LoadSysEntryFile(uint32_t& maxLen)
 {
     return ReadSmbiosFile(0, SYS_ENTRY_FILE.c_str(), maxLen);
 }

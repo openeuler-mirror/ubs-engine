@@ -12,17 +12,17 @@
 
 #include "ubse_node_com_urma_collector.h"
 #include <vector>
-#include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
+#include "ubse_mti_eid_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
 #include "ubse_smbios_impl.h"
 #include "ubse_str_util.h"
-#include "ubse_mti_eid_interface.h"
 #include "ubse_urma_uvs_module.h"
+#include "securec.h"
 
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
@@ -55,7 +55,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
         comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid = ubseNodeInfo.eid;
     }
 
-    for (const auto &socketComEid : comUrmaInfoMap) {
+    for (const auto& socketComEid : comUrmaInfoMap) {
         FillComUrmaFeInfo(socketComEid.first.slotId, socketComEid);
     }
     return UBSE_OK;
@@ -77,7 +77,7 @@ UbseResult UbseNodeComUrmaCollector::FillComUrmaInfoClos()
         UBSE_LOG_ERROR << "Get all socket eid failed, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &socketComEid : comUrmaInfoMap) {
+    for (const auto& socketComEid : comUrmaInfoMap) {
         FillComUrmaFeInfo(curNodeInfo.nodeId, socketComEid);
     }
 
@@ -98,7 +98,7 @@ void UbseNodeComUrmaCollector::FillComUrmaFeInfo(const std::string& nodeId,
     fe.ubpuId = socketComEid.first.ubpuId;
     fe.primaryEid = socketComEid.second.primaryEid;
     fe.entityId = socketComEid.second.entityId;
-    for (auto &port : socketComEid.second.portEids) {
+    for (auto& port : socketComEid.second.portEids) {
         fe.portEid[port.first] = port.second;
     }
     comUrmaInfos[nodeId].feList.push_back(fe);
@@ -134,8 +134,8 @@ UbseResult UbseNodeComUrmaCollector::ProcessClusterNode(const std::string& curNo
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t serverIdx,
-                                                     const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe)
+UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t serverIdx, const UbseUrmaUvsFe& srcFe,
+                                                     UbseUrmaUvsFe& destFe)
 {
     destFe.ubpuId = srcFe.ubpuId;
     destFe.entityId = srcFe.entityId;
@@ -151,8 +151,8 @@ UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t serverIdx,
     for (const auto& port : srcFe.portEid) {
         ret = OverwriteEid(serverIdx, port.second, destFe.portEid[port.first]);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Overwrite portEid failed, serverIdx=" << serverIdx
-                           << ", port=" << port.first << ", ret=" << ret;
+            UBSE_LOG_ERROR << "Overwrite portEid failed, serverIdx=" << serverIdx << ", port=" << port.first
+                           << ", ret=" << ret;
             return ret;
         }
     }
@@ -160,7 +160,7 @@ UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t serverIdx,
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection)
+UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLinkInfo, bool isBeforeElection)
 {
     UbseNodeInfo ubseNodeInfo = UbseNodeController::GetInstance().GetCurNode();
     if (ubseNodeInfo.nodeId.empty()) {
@@ -215,7 +215,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink>& a
         UBSE_LOG_WARN << "Get cur node ports failed, " << FormatRetCode(ret);
         return ret;
     }
-    for (auto &link : allLinks) {
+    for (auto& link : allLinks) {
         if (link.linkStatus == LinkStatus::unavailable) {
             continue;
         } else {
@@ -225,7 +225,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink>& a
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &allLinkInfo)
+UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink>& allLinkInfo)
 {
     UbseDevTopology devTopology{};
     auto ret = UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
@@ -233,14 +233,15 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &
         UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &kv : devTopology) {
+    for (const auto& kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
         kv.first.GetNodeIdAndChipId(nodeId, ubpuId);
-        for (const auto &portKv : kv.second.second) {
+        for (const auto& portKv : kv.second.second) {
             PhysicalLink link{};
-            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK || ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK
-                || ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
+            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK ||
+                ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK ||
+                ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
                 UBSE_LOG_WARN << "Failed to convert nodeId=" << nodeId << ", ubpuId=" << ubpuId
                               << ", portId=" << portKv.second.portId << ", skip this link";
                 continue;
@@ -251,9 +252,9 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &
                 if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
-                    UBSE_LOG_WARN << "Failed to convert slotId=" << portKv.second.remoteSlotId << ", ubpuId="
-                        << portKv.second.remoteChipId << ", portId=" << portKv.second.remotePortId
-                        << ", skip this link";
+                    UBSE_LOG_WARN << "Failed to convert slotId=" << portKv.second.remoteSlotId
+                                  << ", ubpuId=" << portKv.second.remoteChipId
+                                  << ", portId=" << portKv.second.remotePortId << ", skip this link";
                     continue;
                 }
             }
@@ -280,7 +281,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     iouList.clear();
     iouList.reserve(devTopology.size());
 
-    for (const auto &[devName, deviceInfo] : devTopology) {
+    for (const auto& [devName, deviceInfo] : devTopology) {
         iouList.emplace_back(deviceInfo.first.slotId, deviceInfo.first.chipId, deviceInfo.first.cardId);
     }
     return UBSE_OK;

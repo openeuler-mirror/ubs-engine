@@ -92,7 +92,7 @@ uint32_t ubs_urma_dev_free(const char* name)
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t *configs, uint32_t count)
+uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t* configs, uint32_t count)
 {
     if (configs == nullptr) {
         return UBS_ERR_NULL_POINTER;
@@ -152,7 +152,7 @@ uint32_t ubs_urma_qos_delete(void)
     return UBS_SUCCESS;
 }
 
-uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t **configs, uint32_t *count)
+uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t** configs, uint32_t* count)
 {
     if (configs == nullptr || count == nullptr) {
         return UBS_ERR_NULL_POINTER;

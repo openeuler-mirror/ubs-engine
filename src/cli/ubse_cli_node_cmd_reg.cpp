@@ -50,8 +50,7 @@ static const std::string DISPLAY_NODE_N_OPTION_TIP =
     "Parameter 'node' is not supported in CLOS mesh type topo";
 // display node input option error
 static const std::string DISPLAY_NODE_PARAM_INVALID = "ERROR: Invalid node ID. Please specify a number between 1-255.";
-static const std::string DISPLAY_NOT_SUPPORT =
-    "ERROR: this command is not supported in current topo";
+static const std::string DISPLAY_NOT_SUPPORT = "ERROR: this command is not supported in current topo";
 static const std::string DISPLAY_NODE_NOT_SUPPORT =
     "ERROR: Invalid request param, param -n is not supported in current topo";
 

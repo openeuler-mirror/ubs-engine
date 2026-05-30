@@ -43,7 +43,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const std::string PATH_PREFIX = "/dev/uburma/";
 const uint32_t BYTE_TO_BIT = 8;
 
-std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
+std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup& eidGroup)
 {
     if (eidGroup.feInfo) {
         return eidGroup.feInfo;
@@ -51,8 +51,8 @@ std::shared_ptr<UbseFeInfo> GetUrmaVfeFromEidGroup(EidGroup &eidGroup)
     return nullptr;
 }
 
-UbseResult UbseUrmaController::UbseTopoLinkChangeHandler([[maybe_unused]] std::string &eventId,
-                                                         [[maybe_unused]] const std::string &eventMessage)
+UbseResult UbseUrmaController::UbseTopoLinkChangeHandler([[maybe_unused]] std::string& eventId,
+                                                         [[maybe_unused]] const std::string& eventMessage)
 {
     // 这里要切一个线程,避免耗时操作阻塞事件回调
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
@@ -69,7 +69,7 @@ UbseResult UbseUrmaController::UbseTopoLinkChangeHandler([[maybe_unused]] std::s
     return UBSE_OK;
 }
 
-std::string GetUrmaDevEidByUrmaName(const std::string &urmaName)
+std::string GetUrmaDevEidByUrmaName(const std::string& urmaName)
 {
     UbseUrmaInfo urmaInfo;
     auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfoByName(urmaName, urmaInfo);
@@ -80,13 +80,13 @@ std::string GetUrmaDevEidByUrmaName(const std::string &urmaName)
     return urmaInfo.urmaDevEid;
 }
 
-bool IsUdmaDevHealthy(const std::string &feEid)
+bool IsUdmaDevHealthy(const std::string& feEid)
 {
     std::string dummyName;
     return UbseGetUrmaSubpathByEid(feEid, dummyName) == UBSE_OK && !dummyName.empty();
 }
 
-bool IsUrmaDevActivated(const std::string &urmaName)
+bool IsUrmaDevActivated(const std::string& urmaName)
 {
     UbseUrmaInfo urmaInfo;
     auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfoByName(urmaName, urmaInfo);
@@ -97,7 +97,7 @@ bool IsUrmaDevActivated(const std::string &urmaName)
     return true;
 }
 
-void RefreshAllUrmaDevsState(const std::string &nodeId)
+void RefreshAllUrmaDevsState(const std::string& nodeId)
 {
     /*
      * 1.先查询端口状态是否都down，若都down，则将所有urmaInfo状态设为PORT_DOWN
@@ -117,7 +117,7 @@ void RefreshAllUrmaDevsState(const std::string &nodeId)
         return;
     }
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
-    for (auto &urmaInfo : nodeInfo.urmaList) {
+    for (auto& urmaInfo : nodeInfo.urmaList) {
         auto urmaEid = urmaInfo.second.urmaDevEid;
         bool isUrmaCreated = UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo.second);
         if (isUrmaCreated) {
@@ -130,7 +130,7 @@ void RefreshAllUrmaDevsState(const std::string &nodeId)
     }
 }
 
-void RefreshUrmaDevStateByName(const std::string &nodeId, const std::string &urmaName)
+void RefreshUrmaDevStateByName(const std::string& nodeId, const std::string& urmaName)
 {
     /*
      * 1.先查询端口状态是否都down，若都down，则将所有urmaInfo状态设为PORT_DOWN
@@ -154,7 +154,7 @@ void RefreshUrmaDevStateByName(const std::string &nodeId, const std::string &urm
         UBSE_LOG_WARN << "Failed to find urma info by urmaName=" << urmaName << " for node=" << nodeId;
         return;
     }
-    auto &urmaInfo = nodeInfo.urmaList[urmaName];
+    auto& urmaInfo = nodeInfo.urmaList[urmaName];
     auto urmaEid = urmaInfo.urmaDevEid;
     bool isUrmaCreated = UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo);
     if (isUrmaCreated) {
@@ -196,7 +196,7 @@ UbseResult UbseUrmaController::HandleTopoLinkChangeWithRetry()
     return HandleTaskWithRetry(taskExecutor, taskName, NO_5, task);
 }
 
-UbseResult QueryAllPortsDown(bool &isAllPortDown)
+UbseResult QueryAllPortsDown(bool& isAllPortDown)
 {
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     std::vector<PhysicalLink> allLinkInfo;
@@ -206,7 +206,7 @@ UbseResult QueryAllPortsDown(bool &isAllPortDown)
                        << ret;
         return UBSE_URMACONTRL_ERROR_QUERY_PORTS_STATUS_FAILED;
     }
-    isAllPortDown = std::all_of(allLinkInfo.begin(), allLinkInfo.end(), [&curNode](const auto &linkInfo) {
+    isAllPortDown = std::all_of(allLinkInfo.begin(), allLinkInfo.end(), [&curNode](const auto& linkInfo) {
         return linkInfo.slotId != curNode.slotId && linkInfo.peerSlotId != curNode.slotId;
     });
     if (isAllPortDown) {
@@ -215,7 +215,7 @@ UbseResult QueryAllPortsDown(bool &isAllPortDown)
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::DoNodeJoin(const std::string &joinNodeId)
+UbseResult UbseUrmaController::DoNodeJoin(const std::string& joinNodeId)
 {
     UBSE_LOG_INFO << "Node join, joinNodeId=" << joinNodeId;
     UbseResult ret = UBSE_OK;
@@ -231,7 +231,7 @@ UbseResult UbseUrmaController::DoNodeJoin(const std::string &joinNodeId)
         return ret;
     }
     UBSE_LOG_INFO << "Get current node VFE EID";
-    for (auto &iou : iouList) {
+    for (auto& iou : iouList) {
         std::vector<UbseMtiFeInfo> tmpFeInfos;
         if (ret = UbseMtiInterface::GetInstance().UbseGetFeEid(iou, tmpFeInfos); ret != UBSE_OK) {
             UBSE_LOG_WARN << "Failed to get VFE EID for IOU, iou=" << iou.iouId;
@@ -265,7 +265,7 @@ UbseResult UbseUrmaController::DoNodeJoin(const std::string &joinNodeId)
     return ReportUrmaNodeInfoToMaster(curNode.nodeId);
 }
 
-UbseResult UbseUrmaController::HandleNodeJoinWithRetry(const std::string &joinNodeId)
+UbseResult UbseUrmaController::HandleNodeJoinWithRetry(const std::string& joinNodeId)
 {
     std::string taskExecutor = "UrmaExecutor";
     std::string taskName = "UrmaNodeJoinRetryTimer_" + joinNodeId;
@@ -276,8 +276,8 @@ UbseResult UbseUrmaController::HandleNodeJoinWithRetry(const std::string &joinNo
     return HandleTaskWithRetry(taskExecutor, taskName, NO_5, task);
 }
 
-UbseResult UbseUrmaController::UbseNodeJoinHandler([[maybe_unused]] std::string &eventId,
-                                                   const std::string &eventMesage)
+UbseResult UbseUrmaController::UbseNodeJoinHandler([[maybe_unused]] std::string& eventId,
+                                                   const std::string& eventMesage)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -295,8 +295,8 @@ UbseResult UbseUrmaController::UbseNodeJoinHandler([[maybe_unused]] std::string 
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string> &nameInfo, std::vector<uint32_t> &status,
-                                               std::vector<uint64_t> &hwResIds)
+UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
+                                               std::vector<uint64_t>& hwResIds)
 {
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     if (curNode.nodeId.empty()) {
@@ -314,10 +314,10 @@ UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string> &nameInf
     } else {
         lastQueryResult = isAllPortDown;
     }
-    for (auto &dev : urmaNodeInfo.urmaList) {
+    for (auto& dev : urmaNodeInfo.urmaList) {
         nameInfo.push_back(dev.first);
         bool health = true;
-        for (auto &eidGroup : dev.second.eidGroups) {
+        for (auto& eidGroup : dev.second.eidGroups) {
             if (isAllPortDown) {
                 health = false;
                 break;
@@ -334,7 +334,7 @@ UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string> &nameInf
     return UBSE_OK;
 }
 
-bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo &urmaInfo)
+bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo& urmaInfo)
 {
     // 判断依据为bonding的subPath、下属fe的name是否为空
     if (urmaInfo.subPath.empty()) {
@@ -350,7 +350,7 @@ bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo &urmaInfo)
         UBSE_LOG_INFO << "Urma dev not created, eidGroups is empty";
         return false;
     }
-    for (auto &eidGroup : urmaInfo.eidGroups) {
+    for (auto& eidGroup : urmaInfo.eidGroups) {
         if (eidGroup.feInfo == nullptr || eidGroup.feInfo->name.empty() ||
             UbseGetBondingActiveStateByEid(eidGroup.primaryEid, isActivate) != UBSE_OK || !isActivate) {
             UBSE_LOG_INFO << "Urma dev not created, feInfo is empty or fe name is empty";
@@ -360,7 +360,7 @@ bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo &urmaInfo)
     return true;
 }
 
-UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string &urmaName, UbseUrmaDevPath &devPaths)
+UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, UbseUrmaDevPath& devPaths)
 {
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK || isAllPortDown) {
@@ -413,7 +413,7 @@ UbseResult UbseUrmaController::UbseFreeUrmaDev([[maybe_unused]] const std::strin
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t &nodeId, std::vector<UbseUrmaDevBrief> &urmaInfo)
+UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& urmaInfo)
 {
     auto ubseComModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
@@ -460,7 +460,7 @@ UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t &nodeId, std:
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::UbseGetUrmaDevsByNodeId(const uint32_t &nodeId, std::vector<UbseUrmaDevBrief> &devInfos)
+UbseResult UbseUrmaController::UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos)
 {
     if (nodeId == UINT32_MAX) {
         this->GetLocalUrmaDevs(devInfos);
@@ -475,7 +475,7 @@ UbseResult UbseUrmaController::UbseGetUrmaDevsByNodeId(const uint32_t &nodeId, s
         return UBSE_ERROR;
     }
     if (!std::any_of(ubseStaticNodeInfos.begin(), ubseStaticNodeInfos.end(),
-                     [&](const auto &info) { return info.nodeId == std::to_string(nodeId); })) {
+                     [&](const auto& info) { return info.nodeId == std::to_string(nodeId); })) {
         UBSE_LOG_WARN << "nodeId = " << nodeId << " not in cluster.";
         return UBSE_URMACONTRL_ERROR_DEV_NOT_EXIST;
     }
@@ -520,16 +520,16 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo()
         return allLinkInfo;
     }
     allLinkInfo.reserve(allLinkMap.size());
-    for (const auto &link : allLinkMap) {
+    for (const auto& link : allLinkMap) {
         allLinkInfo.push_back(std::move(link.second));
     }
     UBSE_LOG_INFO << "GetDirConnectInfo success, size=" << allLinkInfo.size();
     return allLinkInfo;
 }
 
-UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
-                                        const std::vector<PhysicalLink> &allLinkInfo,
-                                        const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo)
+UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
+                                        const std::vector<PhysicalLink>& allLinkInfo,
+                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
     auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
     if (urmaModule == nullptr) {
@@ -548,7 +548,7 @@ UbseResult UbseUrmaControllerSetUvsInfo(const std::string &current_slot_id,
                                        bondingInfo);
 }
 
-UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev &dev)
+UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev& dev)
 {
     std::string subPath;
     if (auto ret = UbseGetUrmaSubpathByEid(dev.urmaDevEid, subPath); ret != UBSE_OK) {
@@ -556,7 +556,7 @@ UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev &dev)
         return UBSE_ERROR;
     }
     UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(dev.urmaDevEid, subPath);
-    for (auto &feInfo : dev.feList) {
+    for (auto& feInfo : dev.feList) {
         if (ubse::context::g_globalStop) {
             return UBSE_OK;
         }
@@ -571,10 +571,10 @@ UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev &dev)
     return UBSE_OK;
 }
 
-void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string &nodeId, std::vector<UbseUrmaUvsNodeInfo> &uvsInfos)
+void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
     auto it =
-        std::find_if(uvsInfos.begin(), uvsInfos.end(), [&nodeId](const auto &info) { return info.nodeId == nodeId; });
+        std::find_if(uvsInfos.begin(), uvsInfos.end(), [&nodeId](const auto& info) { return info.nodeId == nodeId; });
     if (it == uvsInfos.end()) {
         UBSE_LOG_WARN << "Failed to find nodeId=" << nodeId << " in uvsInfos";
         return;
@@ -585,7 +585,7 @@ void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string &nodeId, std::v
         UBSE_LOG_WARN << "Getting UrmaModule failed.";
         return;
     }
-    for (auto &dev : it->devList) {
+    for (auto& dev : it->devList) {
         if (ubse::context::g_globalStop) {
             return;
         }
@@ -596,7 +596,7 @@ void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string &nodeId, std::v
     return;
 }
 
-UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string &urmaName)
+UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string& urmaName)
 {
     UbseUrmaInfo urmaInfo;
     if (auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfoByName(urmaName, urmaInfo);
@@ -616,7 +616,7 @@ UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string &urmaNam
         return ret;
     }
     UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(urmaInfo.urmaDevEid, subPath);
-    for (auto &eidGroup : urmaInfo.eidGroups) {
+    for (auto& eidGroup : urmaInfo.eidGroups) {
         if (ubse::context::g_globalStop) {
             return UBSE_OK;
         }
@@ -631,7 +631,7 @@ UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string &urmaNam
     return UBSE_OK;
 }
 
-void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief> &devInfos)
+void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfos)
 {
     UbseRoleInfo currentNodeInfo{};
     if (UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
@@ -641,14 +641,14 @@ void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief> &devInfo
     const size_t feCntPerUrmaInfo = 2;
     RefreshAllUrmaDevsState(currentNodeInfo.nodeId);
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(currentNodeInfo.nodeId);
-    for (auto &info : nodeInfo.urmaList) {
+    for (auto& info : nodeInfo.urmaList) {
         UbseUrmaDevBrief urmaInfo;
         urmaInfo.urmaName = info.first;
         if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
             UBSE_LOG_WARN << "Failed to get fe info for urmaName=" << info.first << " in urmaList";
             continue;
         }
-        for (auto &eidGroup : info.second.eidGroups) {
+        for (auto& eidGroup : info.second.eidGroups) {
             urmaInfo.feEids.push_back(eidGroup.primaryEid);
             urmaInfo.feNames.push_back(eidGroup.feInfo == nullptr ? "" : eidGroup.feInfo->name);
         }

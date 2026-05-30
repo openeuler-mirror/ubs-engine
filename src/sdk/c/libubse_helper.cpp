@@ -2018,7 +2018,7 @@ size_t ubse_urma_qos_create_req_calc_size(uint32_t count)
     return len;
 }
 
-ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs, uint32_t count, ubse_api_buffer_t *ptr)
+ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t* configs, uint32_t count, ubse_api_buffer_t* ptr)
 {
     if (ptr == nullptr || configs == nullptr) {
         IPC_LOG_ERROR << "ptr or configs is null";
@@ -2031,7 +2031,7 @@ ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs,
         ubse_api_buffer_free(ptr);
         return UBS_ERR_INVALID_ARG;
     }
-    ptr->buffer = static_cast<uint8_t *>(malloc(total_len));
+    ptr->buffer = static_cast<uint8_t*>(malloc(total_len));
     if (ptr->buffer == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for qos create request with size " << total_len;
         ubse_api_buffer_free(ptr);
@@ -2039,7 +2039,7 @@ ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs,
     }
     ptr->length = total_len;
 
-    uint8_t *cur = ptr->buffer;
+    uint8_t* cur = ptr->buffer;
     pack_uint32(&cur, count);
     for (uint32_t i = 0; i < count; i++) {
         pack_uint32(&cur, configs[i].priority);
@@ -2048,8 +2048,8 @@ ubs_error_t ubse_urma_qos_create_req_build(const ubs_urma_qos_config_t *configs,
     return UBS_SUCCESS;
 }
 
-ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t *buffer, uint32_t len, ubs_urma_qos_config_t **configs,
-                                          uint32_t *count)
+ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t* buffer, uint32_t len, ubs_urma_qos_config_t** configs,
+                                          uint32_t* count)
 {
     if (buffer == nullptr || configs == nullptr || count == nullptr) {
         return UBS_ERR_NULL_POINTER;
@@ -2069,7 +2069,7 @@ ubs_error_t ubse_urma_qos_get_resp_unpack(const uint8_t *buffer, uint32_t len, u
     if (*count == 0) {
         return UBS_SUCCESS;
     }
-    *configs = (ubs_urma_qos_config_t *)calloc(*count, sizeof(ubs_urma_qos_config_t));
+    *configs = (ubs_urma_qos_config_t*)calloc(*count, sizeof(ubs_urma_qos_config_t));
     if (*configs == nullptr) {
         IPC_LOG_ERROR << "Failed to allocate memory for qos configs";
         *count = 0;

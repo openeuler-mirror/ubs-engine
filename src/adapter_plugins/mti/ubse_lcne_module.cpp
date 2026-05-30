@@ -172,8 +172,8 @@ UbseResult UbseLcneModule::GetLcneData()
     auto busInstanceRet = UbseLcneBusInstance::GetInstance().QueryBusinstance(ubseLcneBusInstanceInfo);
     auto ioDieInfoRet = UbseLcneNodeInfo::GetGetInstance().QueryAllLcneIODieInfo(localBoardIOInfo);
     auto hostInfoRet = UbseLcneHostInfo::GetGetInstance().QueryLcneHostInfo(localBoardHostInfo);
-    if (topoRet == UBSE_OK && topoChangeRet == UBSE_OK && busInstanceRet == UBSE_OK &&
-        ioDieInfoRet == UBSE_OK && hostInfoRet == UBSE_OK) {
+    if (topoRet == UBSE_OK && topoChangeRet == UBSE_OK && busInstanceRet == UBSE_OK && ioDieInfoRet == UBSE_OK &&
+        hostInfoRet == UBSE_OK) {
         return GetComUrmaEid();
     }
     return UBSE_ERROR;
@@ -202,7 +202,7 @@ UbseResult UbseLcneModule::GetComUrmaEid()
             UBSE_LOG_ERROR << "[MTI] Failed to get iou info, iou size=" << localBoardIOInfo.size();
             return UBSE_ERROR;
         }
-        for (auto &dev : localBoardIOInfo) {
+        for (auto& dev : localBoardIOInfo) {
             UbseMtiIouInfo iou(dev.first.slotId, dev.first.ubpuId, dev.first.iouId);
             iou.slotId = ubseLcneBusInstanceInfo.localSlotId;
             UbseMtiEidGroup fe;
@@ -212,7 +212,7 @@ UbseResult UbseLcneModule::GetComUrmaEid()
             }
             allSocketComEid[iou] = fe;
             UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << dev.first.ubpuId << ", entity=" << fe.entityId
-                           << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();
+                          << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();
         }
     }
     return UBSE_OK;
@@ -232,8 +232,8 @@ UbseResult UbseLcneModule::FillNodeComInfo()
         ubseNodeInfo_.eid = utils::GenerateUrmaDevEid(0, serverIdx + 1, 0, 0);
         ubseNodeInfos_.insert(ubseNodeInfos_.begin(), ubseNodeInfo_);
     } else {
-        std::string &localNodeId = ubseLcneBusInstanceInfo.localNodeId;
-        for (const auto &[iou, socketComEid] : allSocketComEid) {
+        std::string& localNodeId = ubseLcneBusInstanceInfo.localNodeId;
+        for (const auto& [iou, socketComEid] : allSocketComEid) {
             if (IsPrimaryEidExist(iou.slotId)) {
                 continue;
             }
@@ -265,7 +265,7 @@ const std::map<UbseMtiIouInfo, UbseLcneIODieInfo> UbseLcneModule::GetLocalBoardI
     return localBoardIOInfo;
 }
 
-bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
+bool UbseLcneModule::IsPrimaryEidExist(const std::string& nodeId)
 {
     for (const auto& nodeInfo : ubseNodeInfos_) {
         if (nodeId == nodeInfo.nodeId) {
@@ -275,14 +275,14 @@ bool UbseLcneModule::IsPrimaryEidExist(const std::string &nodeId)
     return false;
 }
 
-UbseResult UbseLcneModule::UbseGetLocalNodeInfo(UbseMtiNodeInfo &ubseNodeInfo)
+UbseResult UbseLcneModule::UbseGetLocalNodeInfo(UbseMtiNodeInfo& ubseNodeInfo)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfo = ubseNodeInfo_;
     return UBSE_OK;
 }
 
-UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos)
+UbseResult UbseLcneModule::UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo>& ubseNodeInfos)
 {
     std::shared_lock<std::shared_mutex> lock(rw_mutex);
     ubseNodeInfos = ubseNodeInfos_;

@@ -12,12 +12,12 @@
 
 #include "ubse_lcne_fe_eid.h" // for Lcne_urma
 #include "ubse_error.h"
-#include "ubse_http_module.h"     // for UbseHttpModule
-#include "ubse_logger.h"          // for FormatRetCode, UBSE_DEFINE_THIS_MO...
-#include "ubse_pointer_process.h" // for SafeDeleteArray
-#include "ubse_str_util.h"        // for ConvertStrToUint32
-#include "ubse_mti_eid_interface.h"       // for ParseBaseEid
-#include "ubse_xml.h"             // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "ubse_http_module.h"       // for UbseHttpModule
+#include "ubse_logger.h"            // for FormatRetCode, UBSE_DEFINE_THIS_MO...
+#include "ubse_mti_eid_interface.h" // for ParseBaseEid
+#include "ubse_pointer_process.h"   // for SafeDeleteArray
+#include "ubse_str_util.h"          // for ConvertStrToUint32
+#include "ubse_xml.h"               // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
@@ -28,9 +28,9 @@ using namespace ubse::adapter_plugins::mti;
 using namespace ubse::log;
 using namespace ubse::utils;
 
-UbseResult CheckFeEid(std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult CheckFeEid(std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    for (auto &item : allFeInfos) {
+    for (auto& item : allFeInfos) {
         std::string nodeId;
         if (!GetCurNodeId(item.slotId, nodeId)) {
             UBSE_LOG_ERROR << "[MTI] Failed to convert slotId to nodeId, slotId=" << item.slotId;
@@ -42,7 +42,7 @@ UbseResult CheckFeEid(std::vector<UbseMtiFeInfo> &allFeInfos)
             UBSE_LOG_ERROR << "[MTI] Failed to convert entityId to uint32_t. entityId=" << item.entityId;
             return UBSE_ERROR;
         }
-        for (auto &eidGroup : item.eidGroups) {
+        for (auto& eidGroup : item.eidGroups) {
             if (ConvertStrToUint32(eidGroup.entityId, entityId) != UBSE_OK) {
                 UBSE_LOG_ERROR << "[MTI] Failed to convert entityId to uint32_t. entityId=" << eidGroup.entityId;
                 return UBSE_ERROR;
@@ -52,7 +52,7 @@ UbseResult CheckFeEid(std::vector<UbseMtiFeInfo> &allFeInfos)
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::UpdateFeType(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseLcneFeEid::UpdateFeType(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -81,7 +81,7 @@ UbseResult UbseLcneFeEid::UpdateFeType(UbseMtiIouInfo &iouInfo, std::vector<Ubse
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::GetComUrmaEidClos(UbseMtiIouInfo &iouInfo, UbseMtiEidGroup &feInfo)
+UbseResult UbseLcneFeEid::GetComUrmaEidClos(UbseMtiIouInfo& iouInfo, UbseMtiEidGroup& feInfo)
 {
     std::vector<UbseMtiFeInfo> allFeInfos;
     auto ret = GetFeEid(iouInfo, allFeInfos);
@@ -98,7 +98,7 @@ UbseResult UbseLcneFeEid::GetComUrmaEidClos(UbseMtiIouInfo &iouInfo, UbseMtiEidG
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -132,7 +132,7 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiF
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml> &ubseXml, UbseMtiIouInfo &iouInfo)
+UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>& ubseXml, UbseMtiIouInfo& iouInfo)
 {
     std::string nodeId = ubseXml->Child("slot-id")->Text();
     if (nodeId.empty()) {
@@ -152,8 +152,8 @@ UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string &responseStr,
-                                                  std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr,
+                                                  std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -184,7 +184,7 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string &responseStr
     while (ubseXml->Next("mue-ue-binding", i) != nullptr) {
         if (ubseXml->Next("mue-id") != nullptr) {
             std::string entityId = ubseXml->Text();
-            UbseMtiFeInfo *ubseFeInfo = FindVfeInVector(iouInfo, entityId, allFeInfos);
+            UbseMtiFeInfo* ubseFeInfo = FindVfeInVector(iouInfo, entityId, allFeInfos);
             if (ubseFeInfo != nullptr) {
                 ubseFeInfo->fetype = UbseMtiFeType::PHYSICAL_TYPE;
             }
@@ -192,8 +192,8 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string &responseStr
         } else if (ubseXml->Next("ue-id") != nullptr) {
             std::string ueIdlist = ubseXml->Text();
             std::vector<std::string> ueId = ueIdlistSplit(ueIdlist, " ");
-            for (const auto &entityId : ueId) {
-                UbseMtiFeInfo *ubseFeInfo = FindVfeInVector(iouInfo, entityId, allFeInfos);
+            for (const auto& entityId : ueId) {
+                UbseMtiFeInfo* ubseFeInfo = FindVfeInVector(iouInfo, entityId, allFeInfos);
                 if (ubseFeInfo != nullptr) {
                     ubseFeInfo->fetype = UbseMtiFeType::VIRTUAL_TYPE;
                 }
@@ -206,7 +206,7 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string &responseStr
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string& responseStr, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
     if (ubseXml == nullptr) {
@@ -235,8 +235,7 @@ UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string &responseStr, 
     uint32_t i = 0;
     while (ubseXml->Next("urma-communication-entity-id", i) != nullptr) {
         std::string entityId = ubseXml->Child("entity-id")->Text();
-        UbseMtiFeInfo ubseFeInfo{iouInfo.slotId, iouInfo.ubpuId, iouInfo.iouId,
-                                 entityId, UbseMtiFeType::PHYSICAL_TYPE};
+        UbseMtiFeInfo ubseFeInfo{iouInfo.slotId, iouInfo.ubpuId, iouInfo.iouId, entityId, UbseMtiFeType::PHYSICAL_TYPE};
         ubseXml = ubseXml->Next("urma-communication-infos");
         if (ParseFeEidXml(ubseXml, ubseFeInfo) != UBSE_OK) {
             return UBSE_ERROR;
@@ -280,16 +279,16 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
         i++;
         ubseEidXml->Previous();
     }
-    UBSE_LOG_DEBUG << "ubpuId=" << feInfo.ubpuId<< ", entityId=" << feInfo.entityId
+    UBSE_LOG_DEBUG << "ubpuId=" << feInfo.ubpuId << ", entityId=" << feInfo.entityId
                    << ", eidGroups.size=" << eidGroups.size();
-    for (auto &group : eidGroups) {
+    for (auto& group : eidGroups) {
         group.second.entityId = feInfo.entityId;
         feInfo.eidGroups.push_back(group.second);
     }
     return UBSE_OK;
 }
 
-UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, UbseMtiEidGroup &feInfo)
+UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo>& allFeInfos, UbseMtiEidGroup& feInfo)
 {
     // 1. 筛选出fetype为PHYSICAL_TYPE的FeInfo，然后按照entityId转换为uint32_t后的值进行降序排序，取entityId最小的一组
     std::vector<UbseMtiFeInfo> phyFeInfos;
@@ -309,10 +308,10 @@ UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, 
     });
 
     // 2. 遍历排序后的 allFeInfos，找到 primaryEid 最小的一组 UbseMtiEidGroup
-    UbseMtiEidGroup *selectedGroup = nullptr;
+    UbseMtiEidGroup* selectedGroup = nullptr;
     std::string minPrimaryEid;
 
-    for (auto &eidGroup : phyFeInfos[NO_0].eidGroups) {
+    for (auto& eidGroup : phyFeInfos[NO_0].eidGroups) {
         if (selectedGroup == nullptr || eidGroup.primaryEid < minPrimaryEid) {
             selectedGroup = &eidGroup;
             minPrimaryEid = eidGroup.primaryEid;
@@ -333,20 +332,19 @@ UbseResult UbseLcneFeEid::GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, 
     return UBSE_OK;
 }
 
-
-UbseMtiFeInfo *UbseLcneFeEid::FindVfeInVector(UbseMtiIouInfo &iouInfo, std::string entityId,
-                                              std::vector<UbseMtiFeInfo> &allFeInfos)
+UbseMtiFeInfo* UbseLcneFeEid::FindVfeInVector(UbseMtiIouInfo& iouInfo, std::string entityId,
+                                              std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     for (auto& fe : allFeInfos) {
-        if ((fe.slotId == iouInfo.slotId) && (fe.ubpuId == iouInfo.ubpuId)
-            && (fe.iouId == iouInfo.iouId) && (fe.entityId == entityId)) {
+        if ((fe.slotId == iouInfo.slotId) && (fe.ubpuId == iouInfo.ubpuId) && (fe.iouId == iouInfo.iouId) &&
+            (fe.entityId == entityId)) {
             return &fe; // 返回指针
         }
     }
     return nullptr; // 明确表示未找到
 }
 
-std::vector<std::string> UbseLcneFeEid::ueIdlistSplit(const std::string &str, const std::string &delimiter)
+std::vector<std::string> UbseLcneFeEid::ueIdlistSplit(const std::string& str, const std::string& delimiter)
 {
     if (str.empty() || delimiter.empty()) {
         return {};
@@ -363,7 +361,7 @@ std::vector<std::string> UbseLcneFeEid::ueIdlistSplit(const std::string &str, co
     return tokens;
 }
 
-UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId)
+UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, uint32_t& portId)
 {
     // 接口名400GUB8/1/4， 返回最后一个/后的4-1=3
     size_t lastSlashPos = intfaceName.find_last_of('/'); // 查找最后一个'/'的位置

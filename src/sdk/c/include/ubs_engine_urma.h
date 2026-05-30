@@ -22,9 +22,9 @@ extern "C" {
 #define UBS_URMA_NAME_MAX 32        // 包含结束符长度
 #define UBS_MAX_URMA_PATH_LENGTH 64 // 包含结束符长度
 #define UBS_VFE_PATH_NUM 2
-#define UBS_URMA_QOS_CONFIG_MIN_COUNT 1  // QoS配置最小数量
-#define UBS_URMA_QOS_CONFIG_MAX_COUNT 2  // QoS配置最大数量
-#define UBS_URMA_QOS_PRIORITY_MAX 1      // QoS优先级最大值
+#define UBS_URMA_QOS_CONFIG_MIN_COUNT 1 // QoS配置最小数量
+#define UBS_URMA_QOS_CONFIG_MAX_COUNT 2 // QoS配置最大数量
+#define UBS_URMA_QOS_PRIORITY_MAX 1     // QoS优先级最大值
 
 typedef enum
 {
@@ -45,7 +45,7 @@ typedef struct {
 } ubs_urma_dev_info_t;
 
 typedef struct {
-    uint32_t priority; // 优先级，值为0或1
+    uint32_t priority;  // 优先级，值为0或1
     uint32_t bandwidth; // 带宽，单位Gbps
 } ubs_urma_qos_config_t;
 
@@ -105,7 +105,7 @@ uint32_t ubs_urma_dev_free(const char* name);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t *configs, uint32_t count);
+uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t* configs, uint32_t count);
 
 /**
  * @brief 清理所有QoS配置
@@ -130,7 +130,7 @@ uint32_t ubs_urma_qos_delete(void);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t **configs, uint32_t *count);
+uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t** configs, uint32_t* count);
 
 #ifdef __cplusplus
 }

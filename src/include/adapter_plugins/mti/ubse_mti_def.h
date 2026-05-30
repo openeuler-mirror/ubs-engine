@@ -21,8 +21,9 @@
 namespace ubse::adapter_plugins::mti {
 struct UbseMtiEidGroup {
     std::string entityId;
-    std::string primaryEid;                              // port-group-id 字段对应的 urma-eid
-    std::map<std::string, std::string> portEids; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
+    std::string primaryEid; // port-group-id 字段对应的 urma-eid
+    std::map<std::string, std::string>
+        portEids; // 此处为用于框内通信端口的eid（feid最小的部分） key为portId, value为eid
 };
 
 struct UbseDecoderTrustRingData {
@@ -121,13 +122,13 @@ struct UbseDevNameHash {
 using UbsePortMap = std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>;
 using UbseDeviceInfoPair = std::pair<UbseDeviceInfo, UbsePortMap>;
 struct UbseMtiCpuTopoInfo {
-    uint32_t nodeId;  // 节点ID
-    uint32_t busNodeCna;  // 本设备cna标识
-    std::string primaryEid;  // cpu对应的urma通信eid
-    std::string chipId;  // LCNE提供的chipid
-    std::string cardId;  // IOdie-ID
-    std::string eid;  // 本设备eid
-    std::string guid;  // 本设备guid
+    uint32_t nodeId;        // 节点ID
+    uint32_t busNodeCna;    // 本设备cna标识
+    std::string primaryEid; // cpu对应的urma通信eid
+    std::string chipId;     // LCNE提供的chipid
+    std::string cardId;     // IOdie-ID
+    std::string eid;        // 本设备eid
+    std::string guid;       // 本设备guid
     UbsePortMap portInfos;  // port信息,k:DevPortName,v:边信息
 };
 
@@ -137,8 +138,12 @@ struct UbseMtiIouInfo {
     std::string iouId;
 
     UbseMtiIouInfo() = default;
-    UbseMtiIouInfo(const std::string& slotId, const std::string& ubpuId,
-                   const std::string& iouId): slotId(slotId), ubpuId(ubpuId), iouId(iouId) {}
+    UbseMtiIouInfo(const std::string& slotId, const std::string& ubpuId, const std::string& iouId)
+        : slotId(slotId),
+          ubpuId(ubpuId),
+          iouId(iouId)
+    {
+    }
 
     bool operator==(const UbseMtiIouInfo& other) const;
     bool operator<(const UbseMtiIouInfo& other) const
@@ -170,7 +175,7 @@ struct UbseMtiQosProfile {
     uint32_t minBandWidth;
 };
 
-bool GetCurNodeId(const std::string &slotId, std::string &nodeId);
+bool GetCurNodeId(const std::string& slotId, std::string& nodeId);
 
 /**
  * 拓扑信息
@@ -178,7 +183,8 @@ bool GetCurNodeId(const std::string &slotId, std::string &nodeId);
 using UbseDevTopology = std::unordered_map<UbseDevName, UbseDeviceInfoPair, UbseDevNameHash>;
 using UbseMtiCpuTopoInfoMap = std::unordered_map<UbseDevName, UbseMtiCpuTopoInfo, UbseDevNameHash>;
 
-enum class UbseEtsScheduleMode {
+enum class UbseEtsScheduleMode
+{
     DWRR = 0,
     SP = 1,
 };

@@ -27,13 +27,15 @@
 namespace ubse::urmaController {
 const std::string ETS_QOS_PROFILE_NAME = "ETS_QOS_PROFILE";
 
-enum class EtsQosProfileState {
+enum class EtsQosProfileState
+{
     ETS_PROFILE_NOT_CREATED = 0,
     ETS_PROFILE_NOT_APPLIED = 1,
     ETS_PROFILE_APPLIED = 2,
 };
 
-enum class EtsPriority {
+enum class EtsPriority
+{
     PRI_0 = 0,
     PRI_1 = 1,
     BUTT
@@ -43,15 +45,15 @@ struct EtsQosConfig {
     EtsPriority priority;
     uint32_t bandwidth; // 单位为Mbps
 
-    friend ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
-                                                        const EtsQosConfig &config)
+    friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
+                                                       const EtsQosConfig& config)
     {
         serializer << ubse::serial::enum_v(config.priority) << config.bandwidth;
         return serializer;
     }
 
-    friend ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
-                                                          EtsQosConfig &config)
+    friend ubse::serial::UbseDeSerialization& operator>>(ubse::serial::UbseDeSerialization& deserializer,
+                                                         EtsQosConfig& config)
     {
         deserializer >> ubse::serial::enum_v(config.priority) >> config.bandwidth;
         return deserializer;
@@ -72,12 +74,12 @@ public:
     QosTemplateBase() = default;
     virtual ~QosTemplateBase() = default;
 
-    QosTemplateBase(const QosTemplateBase &) = delete;
-    QosTemplateBase &operator=(const QosTemplateBase &) = delete;
-    QosTemplateBase(QosTemplateBase &&) = delete;
-    QosTemplateBase &operator=(QosTemplateBase &&) = delete;
+    QosTemplateBase(const QosTemplateBase&) = delete;
+    QosTemplateBase& operator=(const QosTemplateBase&) = delete;
+    QosTemplateBase(QosTemplateBase&&) = delete;
+    QosTemplateBase& operator=(QosTemplateBase&&) = delete;
 
-    virtual common::def::UbseResult Create(const std::vector<Config> &configs) = 0;
+    virtual common::def::UbseResult Create(const std::vector<Config>& configs) = 0;
     virtual common::def::UbseResult Delete() = 0;
     /*
      * @brief Init：Urma controller 模块启动时，调用初始化QoS配置
@@ -85,7 +87,7 @@ public:
      *  模板初始化，确保在Create前调用。
      */
     virtual common::def::UbseResult Init() = 0;
-    virtual common::def::UbseResult Query(std::vector<Config> &configs) = 0;
+    virtual common::def::UbseResult Query(std::vector<Config>& configs) = 0;
 };
 
 /*
@@ -93,7 +95,7 @@ public:
  */
 class EtsTemplate : public QosTemplateBase<EtsQosConfig> {
 public:
-    common::def::UbseResult Create(const std::vector<EtsQosConfig> &configs) override;
+    common::def::UbseResult Create(const std::vector<EtsQosConfig>& configs) override;
     common::def::UbseResult Delete() override;
     /*
      * @brief Init：Urma controller 模块启动时，调用初始化QoS配置
@@ -103,22 +105,22 @@ public:
      *          3. 如果模板未创建，调用接口创建、应用默认ETS模板
      */
     common::def::UbseResult Init() override;
-    common::def::UbseResult Query(std::vector<EtsQosConfig> &configs) override;
+    common::def::UbseResult Query(std::vector<EtsQosConfig>& configs) override;
 
 private:
     common::def::UbseResult InitInner(bool isRetry);
-    common::def::UbseResult CreatePreset(const std::vector<EtsQosConfig> &configs);
-    common::def::UbseResult ValidateConfig(const std::vector<EtsQosConfig> &configs);
+    common::def::UbseResult CreatePreset(const std::vector<EtsQosConfig>& configs);
+    common::def::UbseResult ValidateConfig(const std::vector<EtsQosConfig>& configs);
     common::def::UbseResult InitQosEtsRetry();
     void SetEtsProfileState(EtsQosProfileState state);
     common::def::UbseResult CreateEtsProfileIfNotExist(bool isRetry);
     void ClassifyAppliedEtsInterfaces(
-        const std::vector<adapter_plugins::mti::UbseMtiInterfaceEtsApplication> &appliedEtsInterfaces,
-        std::set<std::string> &allAppliedInterfacesName, std::set<std::string> &targetEtsAppliedInterfacesName);
-    common::def::UbseResult ApplyToRemainingPorts(bool isRetry, const std::set<std::string> &allUbPorts,
-                                                  const std::set<std::string> &allAppliedInterfaceNames,
-                                                  const std::set<std::string> &targetEtsAppliedInterfaces);
-    common::def::UbseResult GetAllUbInterfaceNameFromMti(std::set<std::string> &allUbInterfaceNames);
+        const std::vector<adapter_plugins::mti::UbseMtiInterfaceEtsApplication>& appliedEtsInterfaces,
+        std::set<std::string>& allAppliedInterfacesName, std::set<std::string>& targetEtsAppliedInterfacesName);
+    common::def::UbseResult ApplyToRemainingPorts(bool isRetry, const std::set<std::string>& allUbPorts,
+                                                  const std::set<std::string>& allAppliedInterfaceNames,
+                                                  const std::set<std::string>& targetEtsAppliedInterfaces);
+    common::def::UbseResult GetAllUbInterfaceNameFromMti(std::set<std::string>& allUbInterfaceNames);
 
     std::mutex mutex_;
     EtsQosProfileState state_{EtsQosProfileState::ETS_PROFILE_NOT_CREATED};
@@ -150,20 +152,20 @@ std::unique_ptr<QosTemplateBase<EtsQosConfig>> CreateTemplate<EtsQosConfig>();
 template <typename Config>
 class UbseUrmaControllerQos {
 public:
-    static UbseUrmaControllerQos &GetInstance()
+    static UbseUrmaControllerQos& GetInstance()
     {
         static UbseUrmaControllerQos instance;
         return instance;
     }
 
     ~UbseUrmaControllerQos() = default;
-    UbseUrmaControllerQos(const UbseUrmaControllerQos &) = delete;
-    UbseUrmaControllerQos &operator=(const UbseUrmaControllerQos &) = delete;
+    UbseUrmaControllerQos(const UbseUrmaControllerQos&) = delete;
+    UbseUrmaControllerQos& operator=(const UbseUrmaControllerQos&) = delete;
 
     common::def::UbseResult UbseUrmaQosInit();
-    common::def::UbseResult UbseUrmaQosCreate(const std::vector<Config> &configs);
+    common::def::UbseResult UbseUrmaQosCreate(const std::vector<Config>& configs);
     common::def::UbseResult UbseUrmaQosDelete();
-    common::def::UbseResult UbseUrmaQosQuery(std::vector<Config> &configs);
+    common::def::UbseResult UbseUrmaQosQuery(std::vector<Config>& configs);
 
 private:
     UbseUrmaControllerQos();

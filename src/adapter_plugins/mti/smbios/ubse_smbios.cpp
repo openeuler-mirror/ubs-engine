@@ -12,8 +12,8 @@
 
 #include "ubse_smbios.h"
 #include <cstdint>
-#include "ubse_smbios_def.h"
 #include "ubse_logger.h"
+#include "ubse_smbios_def.h"
 #include "ubse_smbios_impl.h"
 
 namespace ubse::adapter_plugins::smbios {
@@ -22,7 +22,7 @@ using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult UbseSmbios::GetMeshType(UbseMeshType &meshType)
+UbseResult UbseSmbios::GetMeshType(UbseMeshType& meshType)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {
@@ -45,7 +45,7 @@ bool UbseSmbios::IsClosType()
     return meshType == UbseMeshType::CLOS;
 }
 
-UbseResult UbseSmbios::GetSuperPodId(uint16_t &superPodId)
+UbseResult UbseSmbios::GetSuperPodId(uint16_t& superPodId)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {
@@ -56,7 +56,7 @@ UbseResult UbseSmbios::GetSuperPodId(uint16_t &superPodId)
     return UBSE_OK;
 }
 
-UbseResult UbseSmbios::GetPodId(uint16_t &podId)
+UbseResult UbseSmbios::GetPodId(uint16_t& podId)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {
@@ -67,7 +67,7 @@ UbseResult UbseSmbios::GetPodId(uint16_t &podId)
     return UBSE_OK;
 }
 
-UbseResult UbseSmbios::GetServerIdx(uint32_t &serverIdx)
+UbseResult UbseSmbios::GetServerIdx(uint32_t& serverIdx)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
     if (basicInfo == nullptr) {

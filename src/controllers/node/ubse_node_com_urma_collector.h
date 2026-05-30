@@ -18,12 +18,12 @@
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::nodeController {
-using ubse::adapter_plugins::mti::UbseMtiIouInfo;
 using ubse::adapter_plugins::mti::UbseMtiEidGroup;
+using ubse::adapter_plugins::mti::UbseMtiIouInfo;
 using ubse::common::def::UbseResult;
 using ubse::urma::UbseUrmaUvsAggrDev;
-using ubse::urma::UbseUrmaUvsNodeInfo;
 using ubse::urma::UbseUrmaUvsFe;
+using ubse::urma::UbseUrmaUvsNodeInfo;
 
 class UbseNodeComUrmaCollector {
 public:
@@ -45,12 +45,11 @@ public:
     UbseResult GetCurNodeTopo(std::vector<PhysicalLink>& allLinkInfo);
 
     // 获取当前节点MTI感知的端口信息
-    UbseResult GetCurNodePorts(std::vector<PhysicalLink> &allLinkInfo);
+    UbseResult GetCurNodePorts(std::vector<PhysicalLink>& allLinkInfo);
 
     UbseResult GetCurNodeIouList(std::vector<UbseMtiIouInfo>& iouList);
 
 private:
-
     UbseResult ProcessClusterNode(const std::string& curNodeId, uint32_t serverIdx);
 
     UbseResult ProcessFeDevice(uint32_t serverIdx, const UbseUrmaUvsFe& srcFe, UbseUrmaUvsFe& destFe);

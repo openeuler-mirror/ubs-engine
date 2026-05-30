@@ -41,7 +41,7 @@ AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
 
-AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
+AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t>& cnt) : guardCnt(cnt)
 {
     guardCnt.fetch_add(1, std::memory_order_relaxed);
 }
@@ -52,7 +52,7 @@ AsyncHandlerGuard::~AsyncHandlerGuard()
 }
 
 namespace {
-UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
+UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTaskHandler task)
 {
     AsyncHandlerGuard cntGuard;
     if (context::g_globalStop) {
@@ -75,7 +75,7 @@ UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTa
 }
 } // namespace
 
-UbseResult RegisterUrmaRetryTimer(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
+UbseResult RegisterUrmaRetryTimer(const std::string& executorName, const std::string& taskName, uint32_t timerInterval,
                                   UbseUrmaRetryTaskHandler task)
 {
     std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
@@ -111,13 +111,13 @@ UbseResult RegisterUrmaRetryTimer(const std::string &executorName, const std::st
     return ret;
 }
 
-bool IsTargetTimerExist(const std::string &timerName)
+bool IsTargetTimerExist(const std::string& timerName)
 {
     std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
     return g_regTimerNames.find(timerName) != g_regTimerNames.end();
 }
 
-UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
+UbseResult HandleTaskWithRetry(const std::string& executorName, const std::string& taskName, uint32_t timerInterval,
                                UbseUrmaRetryTaskHandler task)
 {
     UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
@@ -141,7 +141,7 @@ void WaitAndCleanupRetryTasks()
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
     std::lock_guard<std::mutex> lock(g_regTimerNamesMtx);
-    for (const auto &timerName : g_regTimerNames) {
+    for (const auto& timerName : g_regTimerNames) {
         UBSE_LOG_INFO << "Unregister timer=" << timerName;
         ubse::timer::UbseTimerHandlerUnregister(timerName);
     }
