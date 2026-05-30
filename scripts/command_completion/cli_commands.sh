@@ -130,7 +130,7 @@ function _ubse_commond_completion() {
             'create')
                 case ${COMP_WORDS[2]} in
                     'memory')
-                        COMPREPLY=( $(compgen -W '--type --link --size --name --region' -- ${cur}) )
+                        COMPREPLY=( $(compgen -W '--type --link-id --size --name --region' -- ${cur}) )
                         return 0
                     ;;
                     '*')
