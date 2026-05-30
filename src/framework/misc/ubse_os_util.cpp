@@ -98,30 +98,44 @@ UbseResult UbseOsUtil::GetUidByName(const std::string &username, uid_t &uid)
 UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
 {
     auto path = "/proc/" + std::to_string(pid) + "/numa_maps";
-    std::string line;
-    std::regex keywordRegex("(/qemu.*N(\\d+)=(\\d+))"); // 正则表达式匹配关键词
-    // 操作系统5.10.0-136.12.0.86.x1.eulerx_a2
-    // 数据在同一行: N0=15232 N5=669 表示numa=0使用了15232个2M大页,numa=5使用了669个2M大页
-    // 操作系统openEuler22版本 N0=15232和N5=669 数据不在同一行
-    std::regex n1Regex("N(\\d+)=(\\d+)");
+    std::regex keywordRegexForMigration("(/qemu.*N(\\d+)=(\\d+))");
+    std::regex keywordRegexForFastRR("/qemu.*ram-node.*N\\d+=\\d+");
     std::ifstream file(path);
     if (!file.is_open()) {
         UBSE_LOG_ERROR << "open " << path << " failed, " << std::strerror(errno);
         return UBSE_ERROR;
     }
-    while (std::getline(file, line)) {
+    auto matchNumaId = [&file, &numaId, pid](const std::regex& keywordRegex) -> bool {
+        std::string line;
         std::smatch n1Match;
-        if (std::regex_search(line, keywordRegex) && std::regex_search(line, n1Match, n1Regex)) {
-            auto ret = ConvertStrToUint32(n1Match[1], numaId);
-            if (ret != UBSE_OK) {
-                UBSE_LOG_ERROR << "Convert numaId=" << n1Match[1] << "failed";
-                return UBSE_ERROR;
+        // 操作系统5.10.0-136.12.0.86.x1.eulerx_a2
+        // 数据在同一行: N0=15232 N5=669 表示numa=0使用了15232个2M大页,numa=5使用了669个2M大页
+        // 操作系统openEuler22版本 N0=15232和N5=669 数据不在同一行
+        std::regex n1Regex("N(\\d+)=(\\d+)");
+        while (std::getline(file, line)) {
+            if (std::regex_search(line, keywordRegex) && std::regex_search(line, n1Match, n1Regex)) {
+                UBSE_LOG_INFO << "get numaId from line=" << line << ", by pid=" << pid;
+                auto ret = ConvertStrToUint32(n1Match[1], numaId);
+                if (ret != UBSE_OK) {
+                    UBSE_LOG_ERROR << "Convert numaId=" << n1Match[1] << " failed, by pid=" << pid;
+                    return false;
+                }
+                UBSE_LOG_INFO << "get numaId=" << numaId << ", by pid=" << pid;
+                return true;
             }
-            UBSE_LOG_INFO << "get numaId=" << numaId << ", by pid=" << pid;
-            return UBSE_OK;
         }
+        return false;
+    };
+    if (matchNumaId(keywordRegexForFastRR)) {
+        return UBSE_OK;
     }
-    file.close();
+    // 重置文件指针到开头
+    file.clear();
+    file.seekg(0);
+    if (matchNumaId(keywordRegexForMigration)) {
+        return UBSE_OK;
+    }
+    UBSE_LOG_ERROR << "get numaId failed, by pid=" << pid;
     return UBSE_ERROR;
 }
 } // namespace ubse::utils
