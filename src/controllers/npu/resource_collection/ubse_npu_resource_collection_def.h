@@ -33,8 +33,7 @@ using namespace ubse::log;
 
 constexpr uint8_t MAX_DEVICE_NUM = 0xff;
 constexpr uint8_t SPECIAL_FE_VAL = 0xff;
-enum class CollectionDeviceType : uint8_t
-{
+enum class CollectionDeviceType : uint8_t {
     HOST_BUSINSTANCE = 0,
     VM_BUSINSTANCE = 1,
     NPU = 2,
@@ -45,8 +44,7 @@ enum class CollectionDeviceType : uint8_t
     V_IDEV = 7,
     COLLECTION_DEVICE_TYPE_COUNT = 8
 };
-enum class CollectionState
-{
+enum class CollectionState {
     WAIT_INIT, // 未初始化
     RUNNING,   // 正在采集资源
     FINISH     // 完成资源采集，可访问设备
@@ -344,8 +342,7 @@ const std::array<CollectionGetDevIdByDevLoc, GET_DEVID_FUNCTION_NUM> GET_DEVID_F
     GetDevIdByDevLocBusi,   GetDevIdByDevLocBusi,   GetDevIdByDevLocNpu,     GetDevIdByDevLocNicPfe,
     GetDevIdByDevLocNicVfe, GetDevIdByDevLocUbCtrl, GetDevIdByDevLocIdevPfe, GetDevIdByDevLocIdevVfe};
 
-enum class ProductType
-{
+enum class ProductType {
     SERVER = 0,
     POD_16_1825 = 1,
     POD_32_1825 = 2

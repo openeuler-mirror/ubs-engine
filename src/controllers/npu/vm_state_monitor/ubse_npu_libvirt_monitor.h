@@ -21,8 +21,7 @@
 
 namespace ubse::npu::vm_monitor {
 using namespace ubse::common::def;
-enum class VirDomainEventType
-{
+enum class VirDomainEventType {
     VIR_DOMAIN_EVENT_DEFINED = 0,
     VIR_DOMAIN_EVENT_UNDEFINED = 1,
     VIR_DOMAIN_EVENT_STARTED = 2,

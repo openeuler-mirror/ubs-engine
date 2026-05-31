@@ -116,8 +116,7 @@ UbseMtiDavid ConvertToUbseMtiDavid(const std::shared_ptr<CollectionDeviceDavid>&
 
 class UbseNpuManagerApi {
 public:
-    enum class NpuManagerState
-    {
+    enum class NpuManagerState {
         AVAILABLE,     // 可用
         ROLLBACK,      // 回滚
         ROLLBACK_BG,   // 后台回滚

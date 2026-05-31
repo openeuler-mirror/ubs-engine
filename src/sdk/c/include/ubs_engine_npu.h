@@ -22,8 +22,7 @@ extern "C" {
 #define MACRO_UBSE_UB_DEVICE_GUID_SIZE 32
 #define MACRO_UBSE_UB_UPI_STR_SIZE 4
 
-typedef enum
-{
+typedef enum {
     UBS_BUSI = 1,
     UBS_NPU = 2,
     UBS_NIC_PFE = 3,
