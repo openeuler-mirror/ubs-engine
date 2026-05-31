@@ -13,14 +13,14 @@
 #define UBSE_NPU_RESOURCE_COLLECTION_H
 #include <array>
 #include <map>
-#include <unordered_map>
 #include <regex>
 #include <shared_mutex>
+#include <unordered_map>
+#include "ubse_common_def.h"
+#include "ubse_npu_resource_collection_def.h"
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "ubse_common_def.h"
-#include "ubse_npu_resource_collection_def.h"
 namespace ubse::npu::controller {
 using CollectionDevIdToDevice = std::map<CollectionDevId, std::shared_ptr<CollectionDevice>>;
 using CollectionGuidToDevice = CollectionDevIdToDevice;
@@ -29,7 +29,7 @@ using Collection1825DevId = std::string;
 using CollectionDavidDevIdTo1825DevId = std::unordered_map<CollectionDavidDevId, Collection1825DevId>;
 class ResourceCollection {
 public:
-    static ResourceCollection &GetInstance();
+    static ResourceCollection& GetInstance();
     /**
      * 静态资源采集
      * @return 采集结果， UBSE_OK代表采集成功，其它代表采集失败
@@ -42,13 +42,13 @@ public:
      * @param type 设备类型
      * @return 类型对应的设备
      */
-    std::shared_ptr<CollectionDevice> GetDeviceByDevId(const CollectionDevId &devId, const CollectionDeviceType &type);
+    std::shared_ptr<CollectionDevice> GetDeviceByDevId(const CollectionDevId& devId, const CollectionDeviceType& type);
     /**
      * 通过guid查询对应设备
      * @param guid guid
      * @return guid对应设备
      */
-    std::shared_ptr<CollectionDevice> GetDeviceByGuid(const CollectionGuid &guid);
+    std::shared_ptr<CollectionDevice> GetDeviceByGuid(const CollectionGuid& guid);
 
     /**
      * 通过type查询一类设备
@@ -56,59 +56,61 @@ public:
      * @param devices 一类设备集合
      * @return 查询结果， UBSE_OK代表采集成功，其它代表采集失败
      */
-    UbseResult GetDevicesByType(const CollectionDeviceType &type, CollectionDevIdToDevice &devices);
+    UbseResult GetDevicesByType(const CollectionDeviceType& type, CollectionDevIdToDevice& devices);
     std::shared_ptr<CollectionDeviceBusi> GetDeviceHostBusInstance();
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> GetDeviceAllComSharedIdevVfe();
-    UbseResult SetDevice(std::shared_ptr<CollectionDevice> &dev);
-    UbseResult RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice> &device);
+    UbseResult SetDevice(std::shared_ptr<CollectionDevice>& dev);
+    UbseResult RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice>& device);
     /**
      * 设备相互绑定(内存概念)
      * @param dev1 需绑定设备1
      * @param dev2 需绑定设备2
      * @return 绑定结果
      */
-    static UbseResult BindDevice(const std::shared_ptr<CollectionDevice> &dev1,
-                                 const std::shared_ptr<CollectionDevice> &dev2);
+    static UbseResult BindDevice(const std::shared_ptr<CollectionDevice>& dev1,
+                                 const std::shared_ptr<CollectionDevice>& dev2);
     /**
      * 设备相互解绑(内存概念)
      * @param dev1 需解绑设备1
      * @param dev2 需解绑设备2
      * @return 解绑结果
      */
-    static UbseResult UnbindDevice(const std::shared_ptr<CollectionDevice> &dev1,
-                                   const std::shared_ptr<CollectionDevice> &dev2);
+    static UbseResult UnbindDevice(const std::shared_ptr<CollectionDevice>& dev1,
+                                   const std::shared_ptr<CollectionDevice>& dev2);
+
 private:
-    UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice> &dev);
+    UbseResult ValidateDevice(const std::shared_ptr<CollectionDevice>& dev);
     ResourceCollection();
-    UbseResult AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl> &ubCtrlDev,
-                             const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev);
-    UbseResult AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev,
-                             const std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev);
-    UbseResult AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidDevLoc, CollectDeviceLoc &pfeDevLoc);
-    UbseResult AddNicFe(const mti::_1825::UbseMti1825Pf &mti1825Pf);
+    UbseResult AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl>& ubCtrlDev,
+                             const std::shared_ptr<CollectionDeviceIdevPfe>& pfeDev);
+    UbseResult AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe>& pfeDev,
+                             const std::shared_ptr<CollectionDeviceIdevVfe>& vfeDev);
+    UbseResult AddDavidAndBindToIdevPfe(CollectDeviceLoc& davidDevLoc, CollectDeviceLoc& pfeDevLoc);
+    UbseResult AddNicFe(const mti::_1825::UbseMti1825Pf& mti1825Pf);
     UbseResult CollectUbCtrlIdev();
     UbseResult CollectIdevPfeDavid();
     UbseResult CollectNic();
-    std::shared_ptr<CollectionDeviceIdevVfe> GetIdevVfeByGuid(const std::string &guid);
-    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiGuid> &guids,
-                                   std::shared_ptr<CollectionDeviceBusi> &devBusi);
+    std::shared_ptr<CollectionDeviceIdevVfe> GetIdevVfeByGuid(const std::string& guid);
+    UbseResult QueryBusiSubDevices(const std::vector<mti::bus_instance::UbseMtiGuid>& guids,
+                                   std::shared_ptr<CollectionDeviceBusi>& devBusi);
     UbseResult CollectBusInstance();
     void ClearAllDevices();
     UbseResult BindVfeToNpu();
 
     UbseResult CollectDavidAffinityNic();
 
-    UbseResult GenerateDavidNicMap(ProductType productType, CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId);
+    UbseResult GenerateDavidNicMap(ProductType productType, CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId);
 
-    UbseResult SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId);
+    UbseResult SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId);
 
     std::vector<std::string> SplitLines(std::string result);
 
     std::vector<std::string> SplitFields(std::vector<std::string> lines);
 
-    UbseResult GetProductType(ProductType &productType);
+    UbseResult GetProductType(ProductType& productType);
 
-    UbseResult GetDavidSlotId(uint8_t &slotId);
+    UbseResult GetDavidSlotId(uint8_t& slotId);
+
 private:
     std::vector<CollectionDevIdToDevice> devIdToDevice_;
     CollectionGuidToDevice guidToDevice_;

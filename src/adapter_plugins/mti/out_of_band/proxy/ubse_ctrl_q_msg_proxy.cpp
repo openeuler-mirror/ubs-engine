@@ -14,12 +14,12 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <cstdlib>
-#include "framework/misc/ubse_sequence_counter.h"
-#include "securec.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
+#include "framework/misc/ubse_sequence_counter.h"
+#include "securec.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace ubse::common::def;
@@ -30,8 +30,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 struct BandBridgeMbuf {
     int sendBufSize{0};
     int recvBufSize{0};
-    void *sendBuf{nullptr};
-    void *recvBuf{nullptr};
+    void* sendBuf{nullptr};
+    void* recvBuf{nullptr};
 };
 
 const std::string BANDBRIDGE_DEV_NAME = "/dev/bandbridge";
@@ -42,13 +42,13 @@ constexpr char BANDBRIDGE_IOCTL_BASE = 'X';
 constexpr uint16_t SEQ_MASK = static_cast<uint16_t>(1) << (sizeof(uint16_t) * 8 - 1);
 #define BANDBRIDGE_SEND_REQUEST _IOWR(BANDBRIDGE_IOCTL_BASE, 0, struct BandBridgeMbuf)
 
-CtrlQMsgProxy &CtrlQMsgProxy::GetInstance()
+CtrlQMsgProxy& CtrlQMsgProxy::GetInstance()
 {
     static CtrlQMsgProxy instance;
     return instance;
 }
 
-static UbseResult SendCtrlQMsg(BandBridgeMbuf &msgBuf)
+static UbseResult SendCtrlQMsg(BandBridgeMbuf& msgBuf)
 {
     int fd = open(BANDBRIDGE_DEV_NAME.c_str(), O_RDWR);
     if (fd < 0) {
@@ -56,7 +56,7 @@ static UbseResult SendCtrlQMsg(BandBridgeMbuf &msgBuf)
         return UBSE_ERROR;
     }
     auto guard = SafeMakeUniqueWithFreeFunc<int>(
-        [](int *fd) {
+        [](int* fd) {
             close(*fd);
             delete fd;
         },
@@ -84,49 +84,49 @@ bool CheckSeq(uint16_t sendSeq, uint16_t recvSeq)
     return sendSeq == recvSeq;
 }
 
-UbseResult SendMsg(BandBridgeMbuf &buf, CtrlQRespMessage &respMsg)
+UbseResult SendMsg(BandBridgeMbuf& buf, CtrlQRespMessage& respMsg)
 {
     static UbseSequenceCounter<uint16_t> seqCounter(0, std::numeric_limits<uint16_t>::max() >> 1);
     auto sendSeq = seqCounter.GetNextSafe();
-    reinterpret_cast<FixedHead *>(buf.sendBuf)->seq = sendSeq;
+    reinterpret_cast<FixedHead*>(buf.sendBuf)->seq = sendSeq;
 
     if (SendCtrlQMsg(buf) != UBSE_OK) {
         return UBSE_ERROR;
     }
-    auto ret = reinterpret_cast<FixedHead *>(buf.recvBuf)->ret;
+    auto ret = reinterpret_cast<FixedHead*>(buf.recvBuf)->ret;
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Recv resp failed, seq: " << sendSeq << ", ret: " << ret;
         return UBSE_ERROR;
     }
-    auto blockNums = reinterpret_cast<FixedHead *>(buf.recvBuf)->bbNum;
+    auto blockNums = reinterpret_cast<FixedHead*>(buf.recvBuf)->bbNum;
     // 检查接收的基本块数量是否有效，如果为0或超过接收缓冲区大小，返回错误
     if (blockNums == 0 || blockNums * BASIC_BLOCK_SIZE > RECV_BUF_SIZE) {
         UBSE_LOG_ERROR << "Block nums is invalid, blockNums: " << blockNums;
         return UBSE_ERROR;
     }
-    auto recvSeq = reinterpret_cast<FixedHead *>(buf.recvBuf)->seq;
+    auto recvSeq = reinterpret_cast<FixedHead*>(buf.recvBuf)->seq;
     if (!CheckSeq(sendSeq, recvSeq)) {
         UBSE_LOG_ERROR << "Seq is invalid, sendSeq: " << sendSeq << ", recvSeq: " << recvSeq;
         return UBSE_ERROR;
     }
     respMsg.blockNums = blockNums;
     auto msgSize = blockNums * BASIC_BLOCK_SIZE;
-    respMsg.blocks = reinterpret_cast<CtrlQBasicBlock *>(buf.recvBuf);
+    respMsg.blocks = reinterpret_cast<CtrlQBasicBlock*>(buf.recvBuf);
     return UBSE_OK;
 }
 
-UbseResult CtrlQMsgProxy::SendRequest(ICtrlQReqMsg &reqMsg, ICtrlQRespMsg &respMsg)
+UbseResult CtrlQMsgProxy::SendRequest(ICtrlQReqMsg& reqMsg, ICtrlQRespMsg& respMsg)
 {
     auto ret = reqMsg.EncodeReqMsg();
     if (ret != UBSE_OK) {
         return ret;
     }
-    auto &msg = reqMsg.GetReqMsg();
+    auto& msg = reqMsg.GetReqMsg();
     if (msg.blocks.size() > MAX_BASIC_BLOCK_NUM || msg.blocks.empty()) {
         UBSE_LOG_ERROR << "Block nums is invalid, blockNums: " << msg.blocks.size();
         return UBSE_ERROR;
     }
-    auto buf = SafeMakeUniqueWithFreeFunc<BandBridgeMbuf>([](BandBridgeMbuf *buf) {
+    auto buf = SafeMakeUniqueWithFreeFunc<BandBridgeMbuf>([](BandBridgeMbuf* buf) {
         if (buf->recvBuf != nullptr) {
             free(buf->recvBuf);
             buf->recvBuf = nullptr;
@@ -134,7 +134,7 @@ UbseResult CtrlQMsgProxy::SendRequest(ICtrlQReqMsg &reqMsg, ICtrlQRespMsg &respM
         }
         delete buf;
     });
-    buf->sendBuf = const_cast<void *>(static_cast<const void *>(msg.blocks.data()));
+    buf->sendBuf = const_cast<void*>(static_cast<const void*>(msg.blocks.data()));
     buf->sendBufSize = static_cast<int>(msg.blocks.size() * sizeof(CtrlQBasicBlock));
     buf->recvBuf = malloc(RECV_BUF_SIZE);
     if (buf->recvBuf == nullptr) {

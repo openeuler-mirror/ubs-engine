@@ -30,12 +30,13 @@ struct UbseMtiUbController {
 
     UbseMtiUbController(uint8_t chipId, uint8_t dieId);
 
-    bool operator==(const UbseMtiUbController &other) const;
+    bool operator==(const UbseMtiUbController& other) const;
 
-    bool operator<(const UbseMtiUbController &other) const;
+    bool operator<(const UbseMtiUbController& other) const;
 };
 
-enum class UbseMtiBusInstanceType {
+enum class UbseMtiBusInstanceType
+{
     HOST,
     VM
 };
@@ -51,7 +52,7 @@ struct UbseMtiBusInst {
 
 class UbseMtiBusInstance {
 public:
-    static UbseMtiBusInstance &GetInstance();
+    static UbseMtiBusInstance& GetInstance();
 
     /**
     * @brief 获取BusInstance列表，包含vm和host BusInstance
@@ -59,7 +60,7 @@ public:
     *
     * @return UBSE_OK代表获取成功，UBSE_ERROR代表获取失败
     */
-    virtual UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList) = 0;
+    virtual UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst>& busInstanceList) = 0;
     /**
     * @brief 创建vm BusInstance
     * @param upi [in] upi
@@ -67,14 +68,14 @@ public:
     *
     * @return UBSE_OK代表创建成功，UBSE_ERROR代表创建失败
     */
-    virtual UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance) = 0;
+    virtual UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst& busInstance) = 0;
     /**
     * @brief 销毁vm BusInstance
     * @param busInstance [in] UbseMtiBusInst实例
     *
     * @return UBSE_OK代表销毁成功，UBSE_ERROR代表销毁失败
     */
-    virtual UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance) = 0;
+    virtual UbseResult DestroyVmBusInstance(const UbseMtiBusInst& busInstance) = 0;
 
     /**
     * @brief 查询D2H Ub Memory内存信息
@@ -85,8 +86,8 @@ public:
     *
     * @return UBSE_OK代表查询成功，UBSE_ERROR代表查询失败
     */
-    virtual UbseResult GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba,
-                                    uint64_t &size) = 0;
+    virtual UbseResult GetD2hMemory(const UbseMtiBusInst& busInstance, uint32_t& tid, uint64_t& uba,
+                                    uint64_t& size) = 0;
 };
 } // namespace ubse::mti::bus_instance
 #endif // UBSE_MTI_BUS_INSTANCE_H

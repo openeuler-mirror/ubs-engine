@@ -17,8 +17,8 @@
  * History:
  */
 
-#include <linux/delay.h>
 #include "bandbridge_ctrlq.h"
+#include <linux/delay.h>
 
 struct bandbridge_ctrlq_info g_ctrlq_info;
 void* __iomem g_ctrlq_va = NULL;

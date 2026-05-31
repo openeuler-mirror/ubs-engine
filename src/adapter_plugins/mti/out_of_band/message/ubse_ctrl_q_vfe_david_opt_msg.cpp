@@ -20,7 +20,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 static const uint8_t BIND_VFE_OP_CODE = 0x9;
 static const uint8_t UNBIND_VFE_OP_CODE = 0xA;
 constexpr uint8_t ERROR_UNBIND_REPEATED = 22; // 22: David和vfe重复解绑错误码
-constexpr uint8_t ERROR_BIND_REPEATED = 23; // 23: David和vfe重复绑定错误码
+constexpr uint8_t ERROR_BIND_REPEATED = 23;   // 23: David和vfe重复绑定错误码
 
 struct CtrlQBindVfeDavidReqMsg {
     FixedHead head;
@@ -45,13 +45,13 @@ static uint32_t CalculateTotalSize(uint32_t regInfoNum)
     return (reSize + BASIC_BLOCK_SIZE - 1) / BASIC_BLOCK_SIZE;
 }
 
-static void SetUpi(uint16_t upi, CtrlQReqMessage &msg)
+static void SetUpi(uint16_t upi, CtrlQReqMessage& msg)
 {
-    auto &ref = *reinterpret_cast<CtrlQBindVfeDavidReqMsg *>(&msg.blocks.front());
+    auto& ref = *reinterpret_cast<CtrlQBindVfeDavidReqMsg*>(&msg.blocks.front());
     ref.upi = upi;
 }
 
-static BindInfo VfeDavidPairToBindInfo(const UbseMtiIdevVfeDavidPair &pair)
+static BindInfo VfeDavidPairToBindInfo(const UbseMtiIdevVfeDavidPair& pair)
 {
     BindInfo info;
     info.fe.slotId = pair.first.ubController.slotId;
@@ -65,18 +65,18 @@ static BindInfo VfeDavidPairToBindInfo(const UbseMtiIdevVfeDavidPair &pair)
     return info;
 }
 
-UbseResult WriteReqMsg(CtrlQReqMessage &msg, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
+UbseResult WriteReqMsg(CtrlQReqMessage& msg, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList)
 {
-    auto blockStartPtr = reinterpret_cast<uint8_t *>(msg.blocks.data());
+    auto blockStartPtr = reinterpret_cast<uint8_t*>(msg.blocks.data());
     auto start = blockStartPtr + sizeof(CtrlQBindVfeDavidReqMsg);
     auto end = blockStartPtr + msg.blocks.size() * BASIC_BLOCK_SIZE;
     UbseCtrlQMsgWriteHelper writeHelper(start, end);
     try {
         writeHelper.Write<uint8_t>(vfeDavidList.size());
-        for (const auto &vfeDavid : vfeDavidList) {
+        for (const auto& vfeDavid : vfeDavidList) {
             writeHelper.Write<BindInfo>(VfeDavidPairToBindInfo(vfeDavid));
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Write vfe david req failed";
         return UBSE_ERROR;
     }
@@ -84,7 +84,7 @@ UbseResult WriteReqMsg(CtrlQReqMessage &msg, const std::vector<UbseMtiIdevVfeDav
 }
 
 UbseCtrlQBindVfeDavidReqMsg::UbseCtrlQBindVfeDavidReqMsg(uint16_t upi,
-                                                         const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
+                                                         const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList)
     : upi_(upi),
       vfeDavidList_(vfeDavidList),
       ICtrlQReqMsg(BIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
@@ -98,7 +98,7 @@ UbseResult UbseCtrlQBindVfeDavidReqMsg::EncodeReqMsg()
 }
 
 UbseCtrlQUnBindVfeDavidReqMsg::UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi,
-                                                             const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList)
+                                                             const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList)
     : upi_(upi),
       vfeDavidList_(vfeDavidList),
       ICtrlQReqMsg(UNBIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
@@ -126,11 +126,11 @@ static bool IsOperationSuccessful(uint8_t res, uint8_t opCode, uint8_t index)
     return false;
 }
 
-static UbseResult GetBatchBindVfeDavidRespResult(const CtrlQRespMessage &msg, uint8_t opCode,
-                                                 std::vector<bool> &resList)
+static UbseResult GetBatchBindVfeDavidRespResult(const CtrlQRespMessage& msg, uint8_t opCode,
+                                                 std::vector<bool>& resList)
 {
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
+    auto pos = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(RespReader);
+    auto end = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
 
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     try {
@@ -139,19 +139,19 @@ static UbseResult GetBatchBindVfeDavidRespResult(const CtrlQRespMessage &msg, ui
             auto res = readHelper.Read<uint8_t>();
             resList.push_back(IsOperationSuccessful(res, opCode, i));
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Read opt resp failed, opCode: " << opCode;
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-const std::vector<bool> &UbseCtrlQBindVfeDavidRespMsg::GetRetList() const
+const std::vector<bool>& UbseCtrlQBindVfeDavidRespMsg::GetRetList() const
 {
     return retList_;
 }
 
-UbseResult UbseCtrlQBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, BIND_VFE_OP_CODE)) {
@@ -159,12 +159,12 @@ UbseResult UbseCtrlQBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage &m
     }
     return GetBatchBindVfeDavidRespResult(msg, BIND_VFE_OP_CODE, retList_);
 }
-const std::vector<bool> &UbseCtrlQUnBindVfeDavidRespMsg::GetRetList() const
+const std::vector<bool>& UbseCtrlQUnBindVfeDavidRespMsg::GetRetList() const
 {
     return retList_;
 }
 
-UbseResult UbseCtrlQUnBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQUnBindVfeDavidRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, UNBIND_VFE_OP_CODE)) {

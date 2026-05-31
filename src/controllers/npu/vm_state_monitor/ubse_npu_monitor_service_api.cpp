@@ -12,9 +12,9 @@
 
 #include "ubse_npu_monitor_service_api.h"
 
+#include <securec.h>
 #include <mutex>
 #include <optional>
-#include <securec.h>
 #include <unordered_set>
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -28,14 +28,14 @@ using namespace ubse::log;
 using namespace ubse::common::def;
 using namespace ubse::npu::controller;
 using namespace ubse::utils;
-UBSE_DEFINE_THIS_MODULE ("ubse");
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 static LibvirtMonitor g_monitor("qemu:///system");
 constexpr char NPU_RESET_CMDS[] =
-        "ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x8f 0x5c 0x00 0x00 0x80 0xff 0x%02x 0x00 0x00 0xc0 "
-        "0x00 0x00 0x00 0x01 0xff";
+    "ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x8f 0x5c 0x00 0x00 0x80 0xff 0x%02x 0x00 0x00 0xc0 "
+    "0x00 0x00 0x00 0x01 0xff";
 
-UbseResult ResetNpu(const uint8_t &chipId)
+UbseResult ResetNpu(const uint8_t& chipId)
 {
     char realCmd[128]; // 128:数组长度
     static_assert(sizeof(NPU_RESET_CMDS) <= sizeof(realCmd) - 1);
@@ -49,7 +49,7 @@ UbseResult ResetNpu(const uint8_t &chipId)
     return ret;
 }
 
-bool QueryAndReset(const std::string &busInstance)
+bool QueryAndReset(const std::string& busInstance)
 {
     auto devPtr = ResourceCollection::GetInstance().GetDeviceByGuid(busInstance);
     if (devPtr == nullptr) {
@@ -66,14 +66,14 @@ bool QueryAndReset(const std::string &busInstance)
         UBSE_LOG_ERROR << "No sub vfe found for businstance: " << busInstance;
         return false;
     }
-    for (auto &idev : subIDevs) {
+    for (auto& idev : subIDevs) {
         if (idev == nullptr) {
             continue;
         }
         auto david = idev->GetBondingDevDavid();
         if (david == nullptr) {
-            UBSE_LOG_WARN << "Failed to get david device of vfe:" << idev->GetIdStr() << ", businstance: " <<
-                busInstance;
+            UBSE_LOG_WARN << "Failed to get david device of vfe:" << idev->GetIdStr()
+                          << ", businstance: " << busInstance;
             continue;
         }
         auto loc = david->GetDeviceLoc();
@@ -131,7 +131,7 @@ std::string GetBusInstance(std::string_view xmlStr)
     return guid;
 }
 
-static void VmStateCallback(std::string_view name, VirDomainEventType event, const std::shared_ptr<char> &xmlPtr)
+static void VmStateCallback(std::string_view name, VirDomainEventType event, const std::shared_ptr<char>& xmlPtr)
 {
     if (xmlPtr == nullptr) {
         UBSE_LOG_ERROR << "xmlPtr is nullptr.";
@@ -157,14 +157,11 @@ UbseResult StartVMMonitor()
     return UBSE_OK;
 }
 
-
-void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType event)
+void ResetNpuOfBusInstance(const std::string& busInstance, VirDomainEventType event)
 {
-    static const std::unordered_set<VirDomainEventType> handleEvents = {
-        VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
-        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
-        VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT
-    };
+    static const std::unordered_set<VirDomainEventType> handleEvents = {VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
+                                                                        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
+                                                                        VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT};
     if (handleEvents.find(event) == handleEvents.end()) {
         return;
     }
@@ -181,4 +178,4 @@ void ResetNpuOfBusInstance(const std::string &busInstance, VirDomainEventType ev
     }
     QueryAndReset(busInstance);
 }
-}
+} // namespace ubse::npu::vm_monitor

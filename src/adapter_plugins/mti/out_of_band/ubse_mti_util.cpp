@@ -11,10 +11,10 @@
  */
 #include "ubse_mti_util.h"
 #include <algorithm>
-#include "securec.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_str_util.h"
+#include "securec.h"
 
 namespace ubse::mti {
 using namespace ubse::log;
@@ -24,13 +24,13 @@ const size_t LSUB_EID_LEN = 5;
 const size_t LSUB_GUID_LEN = 32;
 const size_t LSUB_UPI_LEN = 4;
 
-bool IsValidHexString(const std::string &str, bool allowDashes = false)
+bool IsValidHexString(const std::string& str, bool allowDashes = false)
 {
     return std::all_of(str.begin(), str.end(),
                        [allowDashes](char c) { return (allowDashes && c == '-') || std::isxdigit(c); });
 }
 
-bool EidStrToArray(const std::string &eidStr, std::array<uint8_t, 16> &eid)
+bool EidStrToArray(const std::string& eidStr, std::array<uint8_t, 16>& eid)
 {
     if (eidStr.size() != LSUB_EID_LEN || !IsValidHexString(eidStr)) {
         UBSE_LOG_ERROR << "Lsub output eid invalid, eid is : " << eidStr;
@@ -53,14 +53,14 @@ bool EidStrToArray(const std::string &eidStr, std::array<uint8_t, 16> &eid)
             UBSE_LOG_ERROR << "Failed to copy EID value to array, error code: " << ret;
             return false;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Lsub output eid invalid, eid is : " << eidStr << ", error : " << e.what();
         return false;
     }
     return true;
 }
 
-bool EidArrayToStr(const std::array<uint8_t, 16> &eid, std::string &eidStr)
+bool EidArrayToStr(const std::array<uint8_t, 16>& eid, std::string& eidStr)
 {
     std::ostringstream oss;
     uint32_t eidValue = 0;
@@ -75,7 +75,7 @@ bool EidArrayToStr(const std::array<uint8_t, 16> &eid, std::string &eidStr)
     return true;
 }
 
-bool GuidStrToArray(const std::string &guidStr, std::array<uint8_t, 16> &guid)
+bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid)
 {
     if (guidStr.size() != LSUB_GUID_LEN || !IsValidHexString(guidStr)) {
         UBSE_LOG_ERROR << "Lsub output guid invalid, guid is : " << guidStr;
@@ -96,7 +96,7 @@ bool GuidStrToArray(const std::string &guidStr, std::array<uint8_t, 16> &guid)
     return true;
 }
 
-std::string GuidArrayToStr(const std::array<uint8_t, 16> &guid)
+std::string GuidArrayToStr(const std::array<uint8_t, 16>& guid)
 {
     std::ostringstream oss;
     // 格式化输出：小端序GUID，每个字节2个字符，不足补0
@@ -108,7 +108,7 @@ std::string GuidArrayToStr(const std::array<uint8_t, 16> &guid)
     return oss.str();
 }
 
-bool UpiStrToUint16(const std::string &upiStr, uint16_t &upi)
+bool UpiStrToUint16(const std::string& upiStr, uint16_t& upi)
 {
     if (upiStr.size() != LSUB_UPI_LEN || !IsValidHexString(upiStr)) {
         UBSE_LOG_ERROR << "Lsub output upi invalid, upi is : " << upiStr;
@@ -121,7 +121,7 @@ bool UpiStrToUint16(const std::string &upiStr, uint16_t &upi)
             return false;
         }
         upi = static_cast<uint16_t>(value);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Lsub output upi invalid, upi is : " << upiStr << ", error : " << e.what();
         return false;
     }

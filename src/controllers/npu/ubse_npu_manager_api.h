@@ -21,14 +21,14 @@ using ubse::common::def::UbseResult;
 
 void StartCollect();
 
-UbseResult AllocDevicesImpl(const UbseAllocRequest &requestInfo, std::string &newBusInstanceGuid,
-                            std::vector<std::shared_ptr<IResource>> &devList);
+UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& newBusInstanceGuid,
+                            std::vector<std::shared_ptr<IResource>>& devList);
 
-UbseResult FreeUbDevicesImpl(const UbseAllocRequest &requestInfo);
+UbseResult FreeUbDevicesImpl(const UbseAllocRequest& requestInfo);
 
-UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>> &devList);
+UbseResult QueryAllDevicesImpl(std::vector<std::shared_ptr<IResource>>& devList);
 
-UbseResult QueryUbaTidSizeImpl(const std::string &busInstanceGuid, UbaTidSize &info);
+UbseResult QueryUbaTidSizeImpl(const std::string& busInstanceGuid, UbaTidSize& info);
 
 } // namespace ubse::npu::controller
 

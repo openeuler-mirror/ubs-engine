@@ -42,7 +42,7 @@ TEST_F(TestUbseNpuControllerProcess, ProcessBusiResourceSuccess)
     UbseResult result = UbseNpuControllerProcess::ProcessBusiResource(requestInfo, devList, newBusInstanceGuid);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(devList.size(), 1);
-    
+
     auto busiRes = std::dynamic_pointer_cast<BusiResource>(devList[0]);
     EXPECT_NE(busiRes, nullptr);
     EXPECT_EQ(busiRes->guid_, newBusInstanceGuid);
@@ -63,7 +63,7 @@ TEST_F(TestUbseNpuControllerProcess, ProcessBusiResourceWithEmptyDevList)
     UbseResult result = UbseNpuControllerProcess::ProcessBusiResource(requestInfo, devList, newBusInstanceGuid);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(devList.size(), 1);
-    
+
     auto busiRes = std::dynamic_pointer_cast<BusiResource>(devList[0]);
     EXPECT_NE(busiRes, nullptr);
     EXPECT_EQ(busiRes->guid_, newBusInstanceGuid);
@@ -74,13 +74,13 @@ TEST_F(TestUbseNpuControllerProcess, ProcessBusiResourceWithMultipleDevices)
 {
     UbseAllocRequest requestInfo;
     requestInfo.busInstanceGuid = "test-guid";
-    
+
     UbDevice dev1;
     dev1.type = ResourceType::NPU;
     dev1.slotId = 1;
     dev1.chipId = 2;
     requestInfo.ubDevList.push_back(dev1);
-    
+
     UbDevice dev2;
     dev2.type = ResourceType::NIC_PFE;
     dev2.slotId = 1;
@@ -94,7 +94,7 @@ TEST_F(TestUbseNpuControllerProcess, ProcessBusiResourceWithMultipleDevices)
     UbseResult result = UbseNpuControllerProcess::ProcessBusiResource(requestInfo, devList, newBusInstanceGuid);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(devList.size(), 1);
-    
+
     auto busiRes = std::dynamic_pointer_cast<BusiResource>(devList[0]);
     EXPECT_NE(busiRes, nullptr);
     EXPECT_EQ(busiRes->guid_, newBusInstanceGuid);
@@ -208,7 +208,8 @@ TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithVfeIdevAndBusi)
     auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
     auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
     auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::VM_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
     auto npuRes = std::make_shared<NpuResource>();
 
     npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
@@ -343,7 +344,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceSuccess)
     busiLoc.guid = "busi-guid-12345678901234567890123456";
     busiLoc.upi = "1";
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::HOST_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
     auto busRes = std::make_shared<BusiResource>();
 
     UbseResult result = UbseNpuControllerProcess::BusInstanceToResource(busi, busRes);
@@ -364,7 +366,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithNicPfe)
     nicPfeLoc.pfeId = 3;
     nicPfeLoc.guid = "nic-guid-1234567890123456789012345";
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::HOST_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
     auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
     auto busRes = std::make_shared<BusiResource>();
 
@@ -393,7 +396,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithNicVfe)
     nicVfeLoc.vfeId = 4;
     nicVfeLoc.guid = "nic-guid-1234567890123456789012345";
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::HOST_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
     auto nicVfe = std::make_shared<CollectionDeviceNicVfe>(nicVfeLoc);
     auto busRes = std::make_shared<BusiResource>();
 
@@ -428,7 +432,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithIdevVfe)
     npuLoc.chipId = 2;
     npuLoc.dieId = 0;
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::VM_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
     auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
     auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
     auto busRes = std::make_shared<BusiResource>();
@@ -459,7 +464,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithComSharedVfe)
     idevVfeLoc.vfeId = 1;
     idevVfeLoc.guid = "idev-guid-1234567890123456789012345";
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::VM_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
     auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
     auto busRes = std::make_shared<BusiResource>();
 
@@ -478,7 +484,8 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithNullVfe)
     busiLoc.guid = "busi-guid-12345678901234567890123456";
     busiLoc.upi = "1";
 
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi, CollectionDeviceType::VM_BUSINSTANCE);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
     auto busRes = std::make_shared<BusiResource>();
 
     UbseResult result = UbseNpuControllerProcess::BusInstanceToResource(busi, busRes);

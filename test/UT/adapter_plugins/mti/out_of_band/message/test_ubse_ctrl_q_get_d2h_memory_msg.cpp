@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_ctrl_q_get_d2h_memory_msg.h"
-#include <mockcpp/mockcpp.hpp>
-#include <ubse_error.h>
 #include <securec.h>
+#include <ubse_error.h>
+#include <mockcpp/mockcpp.hpp>
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_message.h"
 
 using namespace ubse::mti::ctrl_q;
@@ -25,16 +25,16 @@ void TestUbseCtrlQGetD2hMemoryMsg::SetUp()
     // 初始化测试数据
     testUpi_ = 0x1234;
     testVendor_ = 0x5678;
-    
+
     // 初始化测试总线实例
     testBusInstance_.type = ubse::mti::bus_instance::UbseMtiBusInstanceType::HOST;
     testBusInstance_.upi = testUpi_;
     testBusInstance_.vendor = testVendor_;
-    
+
     // 设置EID和GUID
     uint32_t testEidValue = 0x12345678;
     memcpy_s(testBusInstance_.eid.data(), testBusInstance_.eid.size(), &testEidValue, sizeof(testEidValue));
-    
+
     uint8_t testGuidValue[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                                  0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
     memcpy_s(testBusInstance_.guid.data(), testBusInstance_.guid.size(), testGuidValue, sizeof(testGuidValue));
@@ -46,7 +46,8 @@ void TestUbseCtrlQGetD2hMemoryMsg::TearDown()
 }
 
 // 测试 UbseCtrlQGetD2hMemoryReqMsg
-TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryReqMsgTest) {
+TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryReqMsgTest)
+{
     // 测试构造函数
     UbseCtrlQGetD2hMemoryReqMsg reqMsg(testBusInstance_);
 
@@ -55,7 +56,8 @@ TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryReqMsgTest) {
 }
 
 // 测试 UbseCtrlQGetD2hMemoryRespMsg
-TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsgTest) {
+TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsgTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -66,9 +68,9 @@ TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsgTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // eidTid (eid: 0x12345, tid: 0x678)
     data[0] = 0x45; // eid 低8位
     data[1] = 0x23; // eid 中8位
@@ -104,7 +106,8 @@ TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsgTest) {
 }
 
 // 测试无效的 opCode
-TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidOpCode) {
+TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidOpCode)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息，使用无效的 opCode
@@ -115,7 +118,7 @@ TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidOpCode) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -126,18 +129,19 @@ TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidOpCode) {
 }
 
 // 测试无效的 bbNum
-TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidBbNum) {
+TEST_F(TestUbseCtrlQGetD2hMemoryMsg, GetD2hMemoryRespMsg_InvalidBbNum)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息，使用无效的 bbNum
     block.head.version = 1;
     block.head.serviceType = 1;
-    block.head.bbNum = 2; // 无效的 bbNum，应该为 1
+    block.head.bbNum = 2;    // 无效的 bbNum，应该为 1
     block.head.opCode = 0xD; // GET_UBA_TID_SIZE_OP_CODE
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;

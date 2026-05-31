@@ -20,8 +20,8 @@
 #ifndef BANDBRIDGE_DEVICE_H
 #define BANDBRIDGE_DEVICE_H
 
-#include "bandbridge_log.h"
 #include "bandbridge_ctrlq.h"
+#include "bandbridge_log.h"
 
 #define BANDBRIDGE_NAME "bandbridge"
 

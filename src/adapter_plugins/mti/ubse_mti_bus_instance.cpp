@@ -14,17 +14,17 @@
 namespace ubse::mti::bus_instance {
 UbseMtiUbController::UbseMtiUbController(uint8_t chipId, uint8_t dieId) : chipId(chipId), dieId(dieId) {}
 
-bool UbseMtiUbController::operator==(const UbseMtiUbController &other) const
+bool UbseMtiUbController::operator==(const UbseMtiUbController& other) const
 {
     return slotId == other.slotId && chipId == other.chipId && dieId == other.dieId;
 }
 
-bool UbseMtiUbController::operator<(const UbseMtiUbController &other) const
+bool UbseMtiUbController::operator<(const UbseMtiUbController& other) const
 {
     return std::tie(slotId, chipId, dieId) < std::tie(other.slotId, other.chipId, other.dieId);
 }
 
-UbseMtiBusInstance &UbseMtiBusInstance::GetInstance()
+UbseMtiBusInstance& UbseMtiBusInstance::GetInstance()
 {
     static UbseMtiBusInstanceOutOfBand instance;
     return instance;

@@ -14,9 +14,9 @@
 #define UBSE_POINTER_PROCESS_H
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <type_traits> // For std::is_void_v
-#include <functional>
 
 template <typename T>
 void SafeFree(T& ptr)
@@ -77,10 +77,10 @@ std::unique_ptr<T> SafeMakeUnique(Args&&... args)
 }
 
 template <typename T, typename... Args>
-std::unique_ptr<T, std::function<void(T *)>> SafeMakeUniqueWithFreeFunc(const std::function<void(T *)> &freeFunc,
-                                                                        Args &&...args)
+std::unique_ptr<T, std::function<void(T*)>> SafeMakeUniqueWithFreeFunc(const std::function<void(T*)>& freeFunc,
+                                                                       Args&&... args)
 {
-    T *raw = new (std::nothrow) T(std::forward<Args>(args)...);
+    T* raw = new (std::nothrow) T(std::forward<Args>(args)...);
     if (!raw) {
         return nullptr;
     }

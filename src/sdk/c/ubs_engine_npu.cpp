@@ -20,16 +20,16 @@
 
 #include <securec.h>
 
-#include "libubse_helper.h"
-#include "libubse_npu_helper.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_log.h"
+#include "libubse_helper.h"
+#include "libubse_npu_helper.h"
 #include "ubs_error.h"
 
 constexpr size_t GUID_SIZE = MACRO_UBSE_UB_DEVICE_GUID_SIZE;
 
-int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t *device_list)
+int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
 {
     ubse_api_buffer_t requestBuffer = {nullptr, 0};
     ubse_api_buffer_t responseBuffer = {nullptr, 0};
@@ -50,16 +50,16 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t *device_list)
     ubse_api_buffer_free(&responseBuffer);
 
     IPC_LOG_DEBUG << "Device List: UBCTRL=" << static_cast<uint32_t>(device_list->ubctrl_cnt)
-              << ", NIC_PFE=" << static_cast<uint32_t>(device_list->nic_pfe_cnt)
-              << ", NIC_VFE=" << static_cast<uint32_t>(device_list->nic_vfe_cnt)
-              << ", NPU=" << static_cast<uint32_t>(device_list->npu_cnt)
-              << ", BUSI=" << static_cast<uint32_t>(device_list->busi_cnt);
+                  << ", NIC_PFE=" << static_cast<uint32_t>(device_list->nic_pfe_cnt)
+                  << ", NIC_VFE=" << static_cast<uint32_t>(device_list->nic_vfe_cnt)
+                  << ", NPU=" << static_cast<uint32_t>(device_list->npu_cnt)
+                  << ", BUSI=" << static_cast<uint32_t>(device_list->busi_cnt);
 
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t *alloc_info, uint8_t *new_bus_instance_guid,
-                             ubs_ub_devices_list_t *device_list)
+int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
+                             ubs_ub_devices_list_t* device_list)
 {
     ubs_error_t ret = UbseNpuAllocInfoIsValid(alloc_info);
     if (ret != UBS_SUCCESS) {
@@ -92,7 +92,7 @@ int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t *alloc_info, uint8_t *n
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t *alloc_info)
+int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t* alloc_info)
 {
     ubs_error_t ret = UbseNpuAllocInfoIsValid(alloc_info);
     if (ret != UBS_SUCCESS) {
@@ -124,7 +124,7 @@ int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t *alloc_info)
     return static_cast<int32_t>(UBS_SUCCESS);
 }
 
-void ubs_npu_device_list_free(ubs_ub_devices_list_t *device_list)
+void ubs_npu_device_list_free(ubs_ub_devices_list_t* device_list)
 {
     FreeBusi(*device_list);
     FreeNpu(*device_list);
@@ -133,7 +133,7 @@ void ubs_npu_device_list_free(ubs_ub_devices_list_t *device_list)
     FreeNicVfe(*device_list);
 }
 
-int32_t ubs_uba_tid_size_query(uint8_t *bus_instance_guid, uint32_t *tid, uint64_t *uba, uint64_t *size)
+int32_t ubs_uba_tid_size_query(uint8_t* bus_instance_guid, uint32_t* tid, uint64_t* uba, uint64_t* size)
 {
     if (bus_instance_guid == nullptr) {
         return static_cast<int32_t>(UBS_ERR_NULL_POINTER);

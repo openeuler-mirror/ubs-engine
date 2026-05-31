@@ -20,7 +20,7 @@
 #ifndef BANDBRIDGE_MAIN_H
 #define BANDBRIDGE_MAIN_H
 
-#include "bandbridge_device.h"
 #include "bandbridge_ctrlq.h"
+#include "bandbridge_device.h"
 
 #endif

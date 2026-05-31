@@ -30,29 +30,29 @@ UbseMti1825Pf::UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint
 {
 }
 
-bool UbseMti1825Vf::operator==(const UbseMti1825Vf &other) const
+bool UbseMti1825Vf::operator==(const UbseMti1825Vf& other) const
 {
     return slotId == other.slotId && chipId == other.chipId && dieId == other.dieId && pfId == other.pfId &&
            vfId == other.vfId;
 }
 
-bool UbseMti1825Vf::operator<(const UbseMti1825Vf &other) const
+bool UbseMti1825Vf::operator<(const UbseMti1825Vf& other) const
 {
     return std::tie(slotId, chipId, dieId, pfId, vfId) <
            std::tie(other.slotId, other.chipId, other.dieId, other.pfId, other.vfId);
 }
 
-bool UbseMti1825Pf::operator==(const UbseMti1825Pf &other) const
+bool UbseMti1825Pf::operator==(const UbseMti1825Pf& other) const
 {
     return slotId == other.slotId && chipId == other.chipId && dieId == other.dieId && pfId == other.pfId;
 }
 
-bool UbseMti1825Pf::operator<(const UbseMti1825Pf &other) const
+bool UbseMti1825Pf::operator<(const UbseMti1825Pf& other) const
 {
     return std::tie(slotId, chipId, dieId, pfId) < std::tie(other.slotId, other.chipId, other.dieId, other.pfId);
 }
 
-UbseMti1825 &UbseMti1825::GetInstance()
+UbseMti1825& UbseMti1825::GetInstance()
 {
     static UbseMti1825OutOfBand instance;
     return instance;

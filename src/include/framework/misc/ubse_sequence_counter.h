@@ -49,17 +49,17 @@ public:
     /**
      * @brief 禁止拷贝构造
      */
-    UbseSequenceCounter(const UbseSequenceCounter &) = delete;
+    UbseSequenceCounter(const UbseSequenceCounter&) = delete;
 
     /**
      * @brief 禁止拷贝赋值
      */
-    UbseSequenceCounter &operator=(const UbseSequenceCounter &) = delete;
+    UbseSequenceCounter& operator=(const UbseSequenceCounter&) = delete;
 
     /**
      * @brief 允许移动构造
      */
-    UbseSequenceCounter(UbseSequenceCounter &&other) noexcept
+    UbseSequenceCounter(UbseSequenceCounter&& other) noexcept
         : counter_(other.counter_.load()),
           maxValue_(other.maxValue_),
           initialValue_(other.initialValue_)
@@ -69,7 +69,7 @@ public:
     /**
      * @brief 允许移动赋值
      */
-    UbseSequenceCounter &operator=(UbseSequenceCounter &&other) noexcept
+    UbseSequenceCounter& operator=(UbseSequenceCounter&& other) noexcept
     {
         if (this != &other) {
             counter_.store(other.counter_.load());

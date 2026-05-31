@@ -11,13 +11,13 @@
  */
 #include "ubse_ctrl_q_get_idev_fe_msg.h"
 #include <set>
-#include "../proxy/ubse_ctrl_q_msg_proxy.h"
 #include "ubse_ctrl_q_get_fe_guid_msg.h"
 #include "ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
 #include "ubse_ctrl_q_message.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "../proxy/ubse_ctrl_q_msg_proxy.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -34,7 +34,7 @@ UbseResult UbseCtrlQGetIdevFeReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGetIdevPfeGuidRespMsg &respMsg, UbseMtiGuid &guid)
+static UbseResult GetGuid(ICtrlQReqMsg& reqMsg, UbseCtrlQGetIdevPfeGuidRespMsg& respMsg, UbseMtiGuid& guid)
 {
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
@@ -45,9 +45,9 @@ static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGetIdevPfeGuidRespMsg &
     return UBSE_OK;
 }
 
-static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController &ubController,
-                         const std::set<UbseMtiIdevPfe> &pfeSet, std::vector<UbseMtiIdevPfe> &pfeList,
-                         UbseCtrlQMsgReadHelper &readHelper)
+static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController& ubController,
+                         const std::set<UbseMtiIdevPfe>& pfeSet, std::vector<UbseMtiIdevPfe>& pfeList,
+                         UbseCtrlQMsgReadHelper& readHelper)
 {
     for (uint8_t pfeId = 0; pfeId < pfeNum; pfeId++) {
         UbseMtiIdevPfe pfe(ubController, pfeId);
@@ -80,8 +80,8 @@ static UbseResult AddPfe(uint8_t pfeNum, const UbseMtiUbController &ubController
     return UBSE_OK;
 }
 
-static UbseResult GetRespResult(const std::set<UbseMtiIdevPfe> &pfeSet, std::vector<UbseMtiIdevPfe> &pfeList,
-                                UbseCtrlQMsgReadHelper &readHelper)
+static UbseResult GetRespResult(const std::set<UbseMtiIdevPfe>& pfeSet, std::vector<UbseMtiIdevPfe>& pfeList,
+                                UbseCtrlQMsgReadHelper& readHelper)
 {
     auto chipNum = readHelper.Read<uint8_t>();
     for (uint8_t chipIdx = 0; chipIdx < chipNum; chipIdx++) {
@@ -101,7 +101,7 @@ static UbseResult GetRespResult(const std::set<UbseMtiIdevPfe> &pfeSet, std::vec
     return UBSE_OK;
 }
 
-UbseResult GetPfeMappingDavidSet(std::set<UbseMtiIdevPfe> &pfeSet)
+UbseResult GetPfeMappingDavidSet(std::set<UbseMtiIdevPfe>& pfeSet)
 {
     UbseCtrlQGetIdevFeDavidMappingReqMsg reqMsg;
     UbseCtrlQGetIdevFeDavidMappingRespMsg respMsg;
@@ -111,26 +111,26 @@ UbseResult GetPfeMappingDavidSet(std::set<UbseMtiIdevPfe> &pfeSet)
         return ret;
     }
     auto mapping = respMsg.GetMapping();
-    for (auto &pair : mapping) {
+    for (auto& pair : mapping) {
         pfeSet.emplace(pair.second);
     }
     return UBSE_OK;
 }
 
-const std::vector<UbseMtiIdevPfe> &UbseCtrlQGetIdevFeRespMsg::GetPfeList() const
+const std::vector<UbseMtiIdevPfe>& UbseCtrlQGetIdevFeRespMsg::GetPfeList() const
 {
     return pfeList_;
 }
 
-UbseResult UbseCtrlQGetIdevFeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetIdevFeRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, GET_IDEV_FE_OP_CODE)) {
         return UBSE_ERROR;
     }
 
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
+    auto pos = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(RespReader);
+    auto end = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
 
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     std::set<UbseMtiIdevPfe> pfeSet;
@@ -140,7 +140,7 @@ UbseResult UbseCtrlQGetIdevFeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
     }
     try {
         return GetRespResult(pfeSet, pfeList_, readHelper);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Read get idev fe opt resp failed: " << e.what();
         return UBSE_ERROR;
     }

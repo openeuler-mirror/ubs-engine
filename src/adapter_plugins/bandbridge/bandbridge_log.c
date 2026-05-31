@@ -17,7 +17,7 @@
  * History:
  */
 
-#include <linux/types.h>
 #include "bandbridge_log.h"
+#include <linux/types.h>
 
 uint32_t g_bandbridge_log_level = BANDBRIDGE_LOG_LEVEL_INFO;

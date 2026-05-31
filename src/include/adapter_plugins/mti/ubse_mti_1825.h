@@ -34,9 +34,9 @@ struct UbseMti1825Vf {
 
     UbseMti1825Vf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId, uint16_t vfId);
 
-    bool operator==(const UbseMti1825Vf &other) const;
+    bool operator==(const UbseMti1825Vf& other) const;
 
-    bool operator<(const UbseMti1825Vf &other) const;
+    bool operator<(const UbseMti1825Vf& other) const;
 };
 
 struct UbseMti1825Pf {
@@ -52,21 +52,21 @@ struct UbseMti1825Pf {
 
     UbseMti1825Pf(uint8_t slotId, uint8_t chipId, uint8_t dieId, uint16_t pfId);
 
-    bool operator==(const UbseMti1825Pf &other) const;
+    bool operator==(const UbseMti1825Pf& other) const;
 
-    bool operator<(const UbseMti1825Pf &other) const;
+    bool operator<(const UbseMti1825Pf& other) const;
 };
 
 class UbseMti1825 {
 public:
-    static UbseMti1825 &GetInstance();
+    static UbseMti1825& GetInstance();
     /**
     * @brief 获取1825的Fe列表
     * @param pfList [out] pf列表
     *
     * @return UBSE_OK代表获取成功，UBSE_ERROR代表获取失败
     */
-    virtual UbseResult Get1825FeList(std::vector<UbseMti1825Pf> &pfList) = 0;
+    virtual UbseResult Get1825FeList(std::vector<UbseMti1825Pf>& pfList) = 0;
     /**
     * @brief 将1825 vf注册到Host BusInstance
     * @param busInstance [in] UbseMtiBusInst实例
@@ -75,9 +75,9 @@ public:
     *
     * @return UBSE_OK代表注册成功，UBSE_ERROR代表注册失败
     */
-    virtual UbseResult Reg1825FeToHostBusInstance(const UbseMtiBusInst &busInstance,
-                                                  const std::vector<UbseMti1825Vf> &vfList,
-                                                  std::vector<bool> &resList) = 0;
+    virtual UbseResult Reg1825FeToHostBusInstance(const UbseMtiBusInst& busInstance,
+                                                  const std::vector<UbseMti1825Vf>& vfList,
+                                                  std::vector<bool>& resList) = 0;
     /**
     * @brief 将1825 vf从Host BusInstance注销
     * @param busInstance [in] UbseMtiBusInst实例
@@ -86,9 +86,9 @@ public:
     *
     * @return UBSE_OK代表注销成功，UBSE_ERROR代表注销失败
     */
-    virtual UbseResult UnReg1825FeFromHostBusInstance(const UbseMtiBusInst &busInstance,
-                                                      const std::vector<UbseMti1825Vf> &vfList,
-                                                      std::vector<bool> &resList) = 0;
+    virtual UbseResult UnReg1825FeFromHostBusInstance(const UbseMtiBusInst& busInstance,
+                                                      const std::vector<UbseMti1825Vf>& vfList,
+                                                      std::vector<bool>& resList) = 0;
 
     /**
     * @brief 将1825 vf注册到Vm BusInstance
@@ -98,9 +98,9 @@ public:
     *
     * @return UBSE_OK代表注册成功，UBSE_ERROR代表注册失败
     */
-    virtual UbseResult Reg1825FeToVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                const std::vector<UbseMti1825Vf> &vfList,
-                                                std::vector<bool> &resList) = 0;
+    virtual UbseResult Reg1825FeToVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                const std::vector<UbseMti1825Vf>& vfList,
+                                                std::vector<bool>& resList) = 0;
     /**
     * @brief 将1825 vf从Vm BusInstance注销
     * @param busInstance [in] UbseMtiBusInst实例
@@ -109,9 +109,9 @@ public:
     *
     * @return UBSE_OK代表注销成功，UBSE_ERROR代表注销失败
     */
-    virtual UbseResult UnReg1825FeFromVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                    const std::vector<UbseMti1825Vf> &vfList,
-                                                    std::vector<bool> &resList) = 0;
+    virtual UbseResult UnReg1825FeFromVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                    const std::vector<UbseMti1825Vf>& vfList,
+                                                    std::vector<bool>& resList) = 0;
 };
 } // namespace ubse::mti::_1825
 #endif // UBSE_MTI_1825_H

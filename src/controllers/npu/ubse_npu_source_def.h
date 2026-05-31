@@ -15,10 +15,10 @@
 #include <iostream>
 #include <memory>
 #include <vector>
-#include "../../include/ubse_common_def.h"
-#include "src/framework/misc/ubse_pack_util.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "../../include/ubse_common_def.h"
+#include "src/framework/misc/ubse_pack_util.h"
 namespace ubse::npu::controller {
 constexpr uint8_t UBSE_UB_DEVICE_GUID_SIZE = 32;
 constexpr uint8_t UBSE_UB_UPI_STR_SIZE = 4;
@@ -31,7 +31,8 @@ constexpr uint8_t UB_DEVICE_ID_SIZE = 5;
 using namespace ubse::common::def;
 using namespace ubse::utils;
 // 资源类型枚举
-enum class ResourceType {
+enum class ResourceType
+{
     BUSINSTANCE = 1,
     NPU,
     NIC_PFE,
@@ -66,8 +67,8 @@ public:
     virtual ~IResource() = default;
 
     virtual size_t CalculateSize() const = 0;
-    virtual UbseResult Pack(UbsePackUtil &packUtil) = 0;
-    virtual UbseResult Unpack(UbsePackUtil &packUtil) = 0;
+    virtual UbseResult Pack(UbsePackUtil& packUtil) = 0;
+    virtual UbseResult Unpack(UbsePackUtil& packUtil) = 0;
     virtual ResourceType GetType() const = 0;
 };
 
@@ -76,8 +77,8 @@ class NpuResource : public IResource {
 public:
     NpuResource() = default;
     size_t CalculateSize() const override;
-    UbseResult Pack(UbsePackUtil &packUtil) override;
-    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    UbseResult Pack(UbsePackUtil& packUtil) override;
+    UbseResult Unpack(UbsePackUtil& packUtil) override;
     ResourceType GetType() const override;
 
     void SetLoc(uint8_t slotId, uint8_t chipId);
@@ -99,8 +100,8 @@ public:
     BusiResource() = default;
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
-    UbseResult Pack(UbsePackUtil &packUtil) override;
-    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    UbseResult Pack(UbsePackUtil& packUtil) override;
+    UbseResult Unpack(UbsePackUtil& packUtil) override;
     void SetGuid(const std::string& npuGuid);
     void AddSubDevice(const UbDevice& device);
 
@@ -115,8 +116,8 @@ public:
     NicPfeResource() = default;
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
-    UbseResult Pack(UbsePackUtil &packUtil) override;
-    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    UbseResult Pack(UbsePackUtil& packUtil) override;
+    UbseResult Unpack(UbsePackUtil& packUtil) override;
     void SetLoc(uint8_t slotId, uint8_t chipId, uint16_t pfId);
     void SetGuid(const std::string& guid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
@@ -138,8 +139,8 @@ public:
     NicVfeResource() = default;
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
-    UbseResult Pack(UbsePackUtil &packUtil) override;
-    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    UbseResult Pack(UbsePackUtil& packUtil) override;
+    UbseResult Unpack(UbsePackUtil& packUtil) override;
     void SetLoc(uint8_t slotId, uint8_t chipId, uint16_t pfId, uint16_t vfId);
     void SetGuid(const std::string& guid);
     void SetBusInstanceGuid(const std::string& busInstanceGuid);
@@ -162,8 +163,8 @@ public:
     UbCtrlResource() = default;
     ResourceType GetType() const override;
     size_t CalculateSize() const override;
-    UbseResult Pack(UbsePackUtil &packUtil) override;
-    UbseResult Unpack(UbsePackUtil &packUtil) override;
+    UbseResult Pack(UbsePackUtil& packUtil) override;
+    UbseResult Unpack(UbsePackUtil& packUtil) override;
 
 private:
     ResourceType type_ = ResourceType::UBCONTROLLER;

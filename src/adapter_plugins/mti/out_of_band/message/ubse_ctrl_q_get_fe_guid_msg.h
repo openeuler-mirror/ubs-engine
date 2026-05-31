@@ -12,16 +12,16 @@
 
 #ifndef UBSE_CTRL_Q_GET_FE_GUID_MSG_H
 #define UBSE_CTRL_Q_GET_FE_GUID_MSG_H
-#include "adapter_plugins/mti/ubse_mti_1825.h"
-#include "adapter_plugins/mti/ubse_mti_urma.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_ictrl_q_resp_msg.h"
+#include "adapter_plugins/mti/ubse_mti_1825.h"
+#include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
 using namespace mti::_1825;
 class UbseCtrlQGetIdevPfeGuidReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe);
+    explicit UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe& pfe);
 
     UbseResult EncodeReqMsg() override;
 
@@ -33,9 +33,9 @@ class UbseCtrlQGetIdevPfeGuidRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGetIdevPfeGuidRespMsg();
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const UbseMtiGuid &GetGuid() const;
+    const UbseMtiGuid& GetGuid() const;
 
 private:
     UbseMtiGuid guid_;
@@ -43,7 +43,7 @@ private:
 
 class UbseCtrlQGetIdevVfeGuidReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe);
+    explicit UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe& vfe);
 
     UbseResult EncodeReqMsg() override;
 
@@ -58,7 +58,7 @@ public:
 
 class UbseCtrlQGet1825PfGuidReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &pf);
+    explicit UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf& pf);
 
     UbseResult EncodeReqMsg() override;
 
@@ -70,9 +70,9 @@ class UbseCtrlQGet1825PfGuidRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGet1825PfGuidRespMsg();
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const UbseMtiGuid &GetGuid() const;
+    const UbseMtiGuid& GetGuid() const;
 
 private:
     UbseMtiGuid guid_;
@@ -80,7 +80,7 @@ private:
 
 class UbseCtrlQGet1825VfGuidReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &vf);
+    explicit UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf& vf);
 
     UbseResult EncodeReqMsg() override;
 

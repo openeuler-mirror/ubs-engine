@@ -17,15 +17,15 @@
  * History:
  */
 
-#include <linux/fs.h>
+#include <linux/capability.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
-#include <linux/uaccess.h>
-#include <linux/slab.h>
-#include <linux/poll.h>
-#include <linux/wait.h>
-#include <linux/capability.h>
+#include <linux/fs.h>
 #include <linux/miscdevice.h>
+#include <linux/poll.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+#include <linux/wait.h>
 
 #include "bandbridge_device.h"
 

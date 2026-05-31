@@ -17,11 +17,11 @@
 #include <csignal>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
-#include <optional>
-#include "ubse_error.h"
 #include "ubse_env_util.h"
+#include "ubse_error.h"
 namespace ubse::context {
 using namespace ubse::module;
 

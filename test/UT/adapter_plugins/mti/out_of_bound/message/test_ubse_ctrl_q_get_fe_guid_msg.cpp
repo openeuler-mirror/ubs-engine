@@ -18,14 +18,14 @@ using namespace ubse::mti::ctrl_q;
 
 // ==================== 辅助函数 ====================
 
-static CtrlQRespMessage CreateValidIdevRespMsg(const UbseMtiGuid &guid)
+static CtrlQRespMessage CreateValidIdevRespMsg(const UbseMtiGuid& guid)
 {
     CtrlQRespMessage resp;
     resp.blockNums = 1;
     resp.blocks = new CtrlQBasicBlock[1];
     std::memset(resp.blocks, 0, sizeof(CtrlQBasicBlock));
 
-    auto &head = resp.blocks[0].head;
+    auto& head = resp.blocks[0].head;
     head.version = 0;
     head.serviceType = DEFAULT_SERVICE_TYPE;
     head.bbNum = 1;
@@ -34,20 +34,20 @@ static CtrlQRespMessage CreateValidIdevRespMsg(const UbseMtiGuid &guid)
     head.seq = 0;
     head.resv = 0;
 
-    auto *guidDst = resp.blocks[0].cmdData;
+    auto* guidDst = resp.blocks[0].cmdData;
     std::memcpy(guidDst, guid.data(), 16);
 
     return resp;
 }
 
-static CtrlQRespMessage CreateValid1825RespMsg(const UbseMtiGuid &guid)
+static CtrlQRespMessage CreateValid1825RespMsg(const UbseMtiGuid& guid)
 {
     CtrlQRespMessage resp;
     resp.blockNums = 1;
     resp.blocks = new CtrlQBasicBlock[1];
     std::memset(resp.blocks, 0, sizeof(CtrlQBasicBlock));
 
-    auto &head = resp.blocks[0].head;
+    auto& head = resp.blocks[0].head;
     head.version = 0;
     head.serviceType = DEFAULT_SERVICE_TYPE;
     head.bbNum = 1;
@@ -56,13 +56,13 @@ static CtrlQRespMessage CreateValid1825RespMsg(const UbseMtiGuid &guid)
     head.seq = 0;
     head.resv = 0;
 
-    auto *guidDst = resp.blocks[0].cmdData;
+    auto* guidDst = resp.blocks[0].cmdData;
     std::memcpy(guidDst, guid.data(), 16);
 
     return resp;
 }
 
-static void FreeRespMsg(CtrlQRespMessage &resp)
+static void FreeRespMsg(CtrlQRespMessage& resp)
 {
     if (resp.blocks != nullptr) {
         delete[] resp.blocks;
@@ -95,10 +95,10 @@ TEST_F(UbseCtrlQGetIdevPfeGuidReqMsgTest, EncodeReqMsg)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
+    const auto& msg = req.GetReqMsg();
     ASSERT_FALSE(msg.blocks.empty());
 
-    auto &block = msg.blocks.front();
+    auto& block = msg.blocks.front();
     EXPECT_EQ(0x2, block.head.opCode);
     EXPECT_EQ(DEFAULT_SERVICE_TYPE, block.head.serviceType);
 }
@@ -112,10 +112,10 @@ TEST_F(UbseCtrlQGetIdevPfeGuidReqMsgTest, EncodeReqMsgFeLocFields)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
-    auto &block = msg.blocks.front();
+    const auto& msg = req.GetReqMsg();
+    auto& block = msg.blocks.front();
 
-    auto *feLoc = reinterpret_cast<const FeLoc *>(block.cmdData);
+    auto* feLoc = reinterpret_cast<const FeLoc*>(block.cmdData);
     EXPECT_EQ(3, feLoc->slotId);
     EXPECT_EQ(1, feLoc->chipId);
     EXPECT_EQ(2, feLoc->dieId);
@@ -155,7 +155,7 @@ TEST_F(UbseCtrlQGetIdevPfeGuidRespMsgTest, DecodeValidRespMsg)
     auto ret = respMsg.DecodeRespMsg(resp_);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(testGuid, guid);
 }
 
@@ -168,7 +168,7 @@ TEST_F(UbseCtrlQGetIdevPfeGuidRespMsgTest, DecodeRespMsgWithZeroGuid)
     auto ret = respMsg.DecodeRespMsg(resp_);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(zeroGuid, guid);
 }
 
@@ -181,7 +181,7 @@ TEST_F(UbseCtrlQGetIdevPfeGuidRespMsgTest, DecodeRespMsgWithMaxGuid)
     auto ret = respMsg.DecodeRespMsg(resp_);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(maxGuid, guid);
 }
 
@@ -229,7 +229,7 @@ TEST_F(UbseCtrlQGetIdevPfeGuidRespMsgTest, DecodeRespMsgWrongBbNum)
 TEST_F(UbseCtrlQGetIdevPfeGuidRespMsgTest, GetGuidBeforeDecode)
 {
     UbseCtrlQGetIdevPfeGuidRespMsg respMsg;
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     UbseMtiGuid expectedGuid;
     expectedGuid.fill(0xFF);
     EXPECT_EQ(expectedGuid, guid);
@@ -252,10 +252,10 @@ TEST_F(UbseCtrlQGetIdevVfeGuidReqMsgTest, EncodeReqMsg)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
+    const auto& msg = req.GetReqMsg();
     ASSERT_FALSE(msg.blocks.empty());
 
-    auto &block = msg.blocks.front();
+    auto& block = msg.blocks.front();
     EXPECT_EQ(0x2, block.head.opCode);
 }
 
@@ -268,10 +268,10 @@ TEST_F(UbseCtrlQGetIdevVfeGuidReqMsgTest, EncodeReqMsgFeLocFields)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
-    auto &block = msg.blocks.front();
+    const auto& msg = req.GetReqMsg();
+    auto& block = msg.blocks.front();
 
-    auto *feLoc = reinterpret_cast<const FeLoc *>(block.cmdData);
+    auto* feLoc = reinterpret_cast<const FeLoc*>(block.cmdData);
     EXPECT_EQ(3, feLoc->slotId);
     EXPECT_EQ(1, feLoc->chipId);
     EXPECT_EQ(2, feLoc->dieId);
@@ -286,10 +286,10 @@ TEST_F(UbseCtrlQGetIdevVfeGuidReqMsgTest, EncodeReqMsgVfeIdNotFF)
     UbseCtrlQGetIdevVfeGuidReqMsg req(testVfe);
     req.EncodeReqMsg();
 
-    const auto &msg = req.GetReqMsg();
-    auto &block = msg.blocks.front();
+    const auto& msg = req.GetReqMsg();
+    auto& block = msg.blocks.front();
 
-    auto *feLoc = reinterpret_cast<const FeLoc *>(block.cmdData);
+    auto* feLoc = reinterpret_cast<const FeLoc*>(block.cmdData);
     EXPECT_NE(0xFF, feLoc->vfeId);
     EXPECT_EQ(0x04, feLoc->vfeId);
 }
@@ -299,7 +299,7 @@ TEST_F(UbseCtrlQGetIdevVfeGuidReqMsgTest, EncodeReqMsgVfeIdNotFF)
 TEST(UbseCtrlQGetIdevVfeGuidRespMsgTest, InheritsFromPfeGuidRespMsg)
 {
     UbseCtrlQGetIdevVfeGuidRespMsg respMsg;
-    auto *basePtr = dynamic_cast<UbseCtrlQGetIdevPfeGuidRespMsg *>(&respMsg);
+    auto* basePtr = dynamic_cast<UbseCtrlQGetIdevPfeGuidRespMsg*>(&respMsg);
     EXPECT_NE(nullptr, basePtr);
 }
 
@@ -312,7 +312,7 @@ TEST(UbseCtrlQGetIdevVfeGuidRespMsgTest, DecodeValidRespMsg)
     auto ret = respMsg.DecodeRespMsg(resp);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(testGuid, guid);
 
     FreeRespMsg(resp);
@@ -334,10 +334,10 @@ TEST_F(UbseCtrlQGet1825PfGuidReqMsgTest, EncodeReqMsg)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
+    const auto& msg = req.GetReqMsg();
     ASSERT_FALSE(msg.blocks.empty());
 
-    auto &block = msg.blocks.front();
+    auto& block = msg.blocks.front();
     EXPECT_EQ(0x10, block.head.opCode);
     EXPECT_EQ(DEFAULT_SERVICE_TYPE, block.head.serviceType);
 }
@@ -349,10 +349,10 @@ TEST_F(UbseCtrlQGet1825PfGuidReqMsgTest, EncodeReqMsgFeLoc1825Fields)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
-    auto &block = msg.blocks.front();
+    const auto& msg = req.GetReqMsg();
+    auto& block = msg.blocks.front();
 
-    auto *feLoc = reinterpret_cast<const FeLoc1825 *>(block.cmdData);
+    auto* feLoc = reinterpret_cast<const FeLoc1825*>(block.cmdData);
     EXPECT_EQ(0x0A, feLoc->slotId);
     EXPECT_EQ(0x0B, feLoc->chipId);
     EXPECT_EQ(0x0C, feLoc->dieId);
@@ -389,7 +389,7 @@ TEST_F(UbseCtrlQGet1825PfGuidRespMsgTest, DecodeValidRespMsg)
     auto ret = respMsg.DecodeRespMsg(resp_);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(testGuid, guid);
 }
 
@@ -457,7 +457,7 @@ TEST_F(UbseCtrlQGet1825PfGuidRespMsgTest, DecodeRespMsgWrongBbNum)
 TEST_F(UbseCtrlQGet1825PfGuidRespMsgTest, GetGuidBeforeDecode)
 {
     UbseCtrlQGet1825PfGuidRespMsg respMsg;
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     UbseMtiGuid expectedGuid;
     expectedGuid.fill(0xFF);
     EXPECT_EQ(expectedGuid, guid);
@@ -479,10 +479,10 @@ TEST_F(UbseCtrlQGet1825VfGuidReqMsgTest, EncodeReqMsg)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
+    const auto& msg = req.GetReqMsg();
     ASSERT_FALSE(msg.blocks.empty());
 
-    auto &block = msg.blocks.front();
+    auto& block = msg.blocks.front();
     EXPECT_EQ(0x10, block.head.opCode);
 }
 
@@ -493,10 +493,10 @@ TEST_F(UbseCtrlQGet1825VfGuidReqMsgTest, EncodeReqMsgFeLoc1825Fields)
     auto ret = req.EncodeReqMsg();
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &msg = req.GetReqMsg();
-    auto &block = msg.blocks.front();
+    const auto& msg = req.GetReqMsg();
+    auto& block = msg.blocks.front();
 
-    auto *feLoc = reinterpret_cast<const FeLoc1825 *>(block.cmdData);
+    auto* feLoc = reinterpret_cast<const FeLoc1825*>(block.cmdData);
     EXPECT_EQ(0x0A, feLoc->slotId);
     EXPECT_EQ(0x0B, feLoc->chipId);
     EXPECT_EQ(0x0C, feLoc->dieId);
@@ -508,7 +508,7 @@ TEST_F(UbseCtrlQGet1825VfGuidReqMsgTest, EncodeReqMsgFeLoc1825Fields)
 TEST(UbseCtrlQGet1825VfGuidRespMsgTest, InheritsFromPfGuidRespMsg)
 {
     UbseCtrlQGet1825VfGuidRespMsg respMsg;
-    auto *basePtr = dynamic_cast<UbseCtrlQGet1825PfGuidRespMsg *>(&respMsg);
+    auto* basePtr = dynamic_cast<UbseCtrlQGet1825PfGuidRespMsg*>(&respMsg);
     EXPECT_NE(nullptr, basePtr);
 }
 
@@ -521,7 +521,7 @@ TEST(UbseCtrlQGet1825VfGuidRespMsgTest, DecodeValidRespMsg)
     auto ret = respMsg.DecodeRespMsg(resp);
     EXPECT_EQ(UBSE_OK, ret);
 
-    const auto &guid = respMsg.GetGuid();
+    const auto& guid = respMsg.GetGuid();
     EXPECT_EQ(testGuid, guid);
 
     FreeRespMsg(resp);
@@ -529,7 +529,8 @@ TEST(UbseCtrlQGet1825VfGuidRespMsgTest, DecodeValidRespMsg)
 
 // ==================== 编解码往返测试 ====================
 
-class RoundTripTest : public ::testing::Test {};
+class RoundTripTest : public ::testing::Test {
+};
 
 TEST_F(RoundTripTest, IdevPfeGuidRoundTrip)
 {

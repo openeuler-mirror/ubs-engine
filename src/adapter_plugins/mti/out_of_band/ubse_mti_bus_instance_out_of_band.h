@@ -15,13 +15,13 @@
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 namespace ubse::mti::bus_instance {
 class UbseMtiBusInstanceOutOfBand : public UbseMtiBusInstance {
-    UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList) override;
+    UbseResult GetBusInstanceList(std::vector<UbseMtiBusInst>& busInstanceList) override;
 
-    UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance) override;
+    UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst& busInstance) override;
 
-    UbseResult DestroyVmBusInstance(const UbseMtiBusInst &busInstance) override;
+    UbseResult DestroyVmBusInstance(const UbseMtiBusInst& busInstance) override;
 
-    UbseResult GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba, uint64_t &size) override;
+    UbseResult GetD2hMemory(const UbseMtiBusInst& busInstance, uint32_t& tid, uint64_t& uba, uint64_t& size) override;
 };
 } // namespace ubse::mti::bus_instance
 #endif // UBSE_MTI_BUS_INSTANCE_OUT_OF_BAND_H

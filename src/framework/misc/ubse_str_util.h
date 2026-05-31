@@ -51,12 +51,12 @@ bool StrToULong(const std::string& src, uint64_t& value);
 
 bool StrToUint(const std::string& src, uint32_t& value);
 
-std::string RemoveDashes(const std::string &str);
+std::string RemoveDashes(const std::string& str);
 
 // 16进制字符转换辅助函数
 int HexCharToInt(char c);
 
 // 将两个16进制字符转换为一个字节
-bool HexPairToByte(char high, char low, uint8_t &result);
+bool HexPairToByte(char high, char low, uint8_t& result);
 } // namespace ubse::utils
 #endif // UBSE_MANAGER_UBSE_STR_UTIL_H

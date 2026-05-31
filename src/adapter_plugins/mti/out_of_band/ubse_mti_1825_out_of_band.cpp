@@ -10,18 +10,18 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mti_1825_out_of_band.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
 #include "./message/ubse_ctrl_q_fe_opt_msg.h"
 #include "./message/ubse_ctrl_q_get_1825_fe_msg.h"
 #include "./proxy/ubse_ctrl_q_msg_proxy.h"
-#include "ubse_error.h"
-#include "ubse_logger.h"
 namespace ubse::mti::_1825 {
 using namespace ubse::log;
 using namespace ubse::mti::ctrl_q;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult Reg1825FeToBusInstance(const UbseMtiBusInst &busInstance, UbseMtiBusInstanceType type,
-                                  const std::vector<UbseMti1825Vf> &vfList, std::vector<bool> &resList)
+UbseResult Reg1825FeToBusInstance(const UbseMtiBusInst& busInstance, UbseMtiBusInstanceType type,
+                                  const std::vector<UbseMti1825Vf>& vfList, std::vector<bool>& resList)
 {
     if (busInstance.type != type) {
         UBSE_LOG_ERROR << "Invalid bus instance type";
@@ -38,8 +38,8 @@ UbseResult Reg1825FeToBusInstance(const UbseMtiBusInst &busInstance, UbseMtiBusI
     return UBSE_OK;
 }
 
-UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMtiBusInstanceType type,
-                                      const std::vector<UbseMti1825Vf> &vfList, std::vector<bool> &resList)
+UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst& busInstance, UbseMtiBusInstanceType type,
+                                      const std::vector<UbseMti1825Vf>& vfList, std::vector<bool>& resList)
 {
     if (busInstance.type != type) {
         UBSE_LOG_ERROR << "Invalid bus instance type";
@@ -56,7 +56,7 @@ UbseResult UnReg1825FeFromBusInstance(const UbseMtiBusInst &busInstance, UbseMti
     return UBSE_OK;
 }
 
-UbseResult UbseMti1825OutOfBand::Get1825FeList(std::vector<UbseMti1825Pf> &pfList)
+UbseResult UbseMti1825OutOfBand::Get1825FeList(std::vector<UbseMti1825Pf>& pfList)
 {
     UbseCtrlQGet1825FeReqMsg reqMsg;
     UbseCtrlQGet1825PfeRespMsg respMsg;
@@ -69,30 +69,30 @@ UbseResult UbseMti1825OutOfBand::Get1825FeList(std::vector<UbseMti1825Pf> &pfLis
     return UBSE_OK;
 }
 
-UbseResult UbseMti1825OutOfBand::Reg1825FeToHostBusInstance(const UbseMtiBusInst &busInstance,
-                                                            const std::vector<UbseMti1825Vf> &vfList,
-                                                            std::vector<bool> &resList)
+UbseResult UbseMti1825OutOfBand::Reg1825FeToHostBusInstance(const UbseMtiBusInst& busInstance,
+                                                            const std::vector<UbseMti1825Vf>& vfList,
+                                                            std::vector<bool>& resList)
 {
     return Reg1825FeToBusInstance(busInstance, UbseMtiBusInstanceType::HOST, vfList, resList);
 }
 
-UbseResult UbseMti1825OutOfBand::UnReg1825FeFromHostBusInstance(const UbseMtiBusInst &busInstance,
-                                                                const std::vector<UbseMti1825Vf> &vfList,
-                                                                std::vector<bool> &resList)
+UbseResult UbseMti1825OutOfBand::UnReg1825FeFromHostBusInstance(const UbseMtiBusInst& busInstance,
+                                                                const std::vector<UbseMti1825Vf>& vfList,
+                                                                std::vector<bool>& resList)
 {
     return UnReg1825FeFromBusInstance(busInstance, UbseMtiBusInstanceType::HOST, vfList, resList);
 }
 
-UbseResult UbseMti1825OutOfBand::Reg1825FeToVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                          const std::vector<UbseMti1825Vf> &vfList,
-                                                          std::vector<bool> &resList)
+UbseResult UbseMti1825OutOfBand::Reg1825FeToVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                          const std::vector<UbseMti1825Vf>& vfList,
+                                                          std::vector<bool>& resList)
 {
     return Reg1825FeToBusInstance(busInstance, UbseMtiBusInstanceType::VM, vfList, resList);
 }
 
-UbseResult UbseMti1825OutOfBand::UnReg1825FeFromVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                              const std::vector<UbseMti1825Vf> &vfList,
-                                                              std::vector<bool> &resList)
+UbseResult UbseMti1825OutOfBand::UnReg1825FeFromVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                              const std::vector<UbseMti1825Vf>& vfList,
+                                                              std::vector<bool>& resList)
 {
     return UnReg1825FeFromBusInstance(busInstance, UbseMtiBusInstanceType::VM, vfList, resList);
 }

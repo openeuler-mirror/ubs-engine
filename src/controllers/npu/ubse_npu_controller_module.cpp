@@ -11,18 +11,18 @@
  */
 
 #include "ubse_npu_controller_module.h"
-#include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_npu_controller_dispatcher.h"
 #include "ubse_npu_manager_api.h"
+#include "vm_state_monitor/ubse_npu_monitor_service_api.h"
 
 namespace ubse::npu::controller {
 using namespace ubse::log;
 using namespace ubse::context;
 
-CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::AI,  UbseNpuControllerModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::AI, UbseNpuControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseNpuControllerModule::Initialize()

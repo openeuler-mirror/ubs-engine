@@ -23,18 +23,18 @@
 #include "ubs_error.h"
 
 struct UnpackCtx {
-    const uint8_t *ptr;
+    const uint8_t* ptr;
     size_t remaining;
 };
 
 struct PackCtx {
-    uint8_t *ptr;
+    uint8_t* ptr;
 };
 
 namespace ubse {
 
-template<typename T>
-inline ubs_error_t UnpackValue(UnpackCtx &ctx, T &value)
+template <typename T>
+inline ubs_error_t UnpackValue(UnpackCtx& ctx, T& value)
 {
     static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
     if (ctx.remaining < sizeof(T)) {
@@ -49,8 +49,8 @@ inline ubs_error_t UnpackValue(UnpackCtx &ctx, T &value)
     return UBS_SUCCESS;
 }
 
-template<typename T>
-inline ubs_error_t UnpackArray(UnpackCtx &ctx, T *arr, size_t count)
+template <typename T>
+inline ubs_error_t UnpackArray(UnpackCtx& ctx, T* arr, size_t count)
 {
     static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
     const size_t totalSize = sizeof(T) * count;
@@ -66,8 +66,8 @@ inline ubs_error_t UnpackArray(UnpackCtx &ctx, T *arr, size_t count)
     return UBS_SUCCESS;
 }
 
-template<typename T>
-inline ubs_error_t PackValue(PackCtx &ctx, const T &value)
+template <typename T>
+inline ubs_error_t PackValue(PackCtx& ctx, const T& value)
 {
     static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
     auto ret = memcpy_s(ctx.ptr, sizeof(T), &value, sizeof(T));
@@ -78,8 +78,8 @@ inline ubs_error_t PackValue(PackCtx &ctx, const T &value)
     return UBS_SUCCESS;
 }
 
-template<typename T>
-inline ubs_error_t PackArray(PackCtx &ctx, const T *arr, size_t count)
+template <typename T>
+inline ubs_error_t PackArray(PackCtx& ctx, const T* arr, size_t count)
 {
     static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
     const size_t totalSize = sizeof(T) * count;

@@ -17,11 +17,11 @@
  * History:
  */
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 struct bandbridge_mbuf {
     int sendbuf_size;

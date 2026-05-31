@@ -22,7 +22,8 @@ extern "C" {
 #define MACRO_UBSE_UB_DEVICE_GUID_SIZE 32
 #define MACRO_UBSE_UB_UPI_STR_SIZE 4
 
-typedef enum {
+typedef enum
+{
     UBS_BUSI = 1,
     UBS_NPU = 2,
     UBS_NIC_PFE = 3,
@@ -84,27 +85,27 @@ typedef struct {
 
 typedef struct {
     ubs_device_type type;
-    npu_attr_t *attr;
+    npu_attr_t* attr;
 } ubs_npu_t;
 
 typedef struct {
     ubs_device_type type;
-    busi_attr_t *attr;
+    busi_attr_t* attr;
 } ubs_busi_t;
 
 typedef struct {
     ubs_device_type type;
-    nic_pfe_attr_t *attr;
+    nic_pfe_attr_t* attr;
 } ubs_nic_pfe_t;
 
 typedef struct {
     ubs_device_type type;
-    nic_vfe_attr_t *attr;
+    nic_vfe_attr_t* attr;
 } ubs_nic_vfe_t;
 
 typedef struct {
     ubs_device_type type;
-    ubctrl_attr_t *attr;
+    ubctrl_attr_t* attr;
 } ubs_ubctrl_t;
 
 typedef struct {
@@ -115,26 +116,26 @@ typedef struct {
 } ubs_ub_alloc_devices_info_t;
 
 typedef struct {
-    ubs_ubctrl_t *ubctrl_ptr;
+    ubs_ubctrl_t* ubctrl_ptr;
     uint8_t ubctrl_cnt;
-    ubs_nic_pfe_t *nic_pfe_ptr;
+    ubs_nic_pfe_t* nic_pfe_ptr;
     uint8_t nic_pfe_cnt;
-    ubs_nic_vfe_t *nic_vfe_ptr;
+    ubs_nic_vfe_t* nic_vfe_ptr;
     uint8_t nic_vfe_cnt;
-    ubs_npu_t *npu_ptr;
+    ubs_npu_t* npu_ptr;
     uint8_t npu_cnt;
-    ubs_busi_t *busi_ptr;
+    ubs_busi_t* busi_ptr;
     uint8_t busi_cnt;
 } ubs_ub_devices_list_t;
 
-int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t *device_list);
+int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list);
 
-int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t *alloc_info, uint8_t *new_bus_instance_guid,
-                             ubs_ub_devices_list_t *device_list);
+int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
+                             ubs_ub_devices_list_t* device_list);
 
-int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t *alloc_info);
+int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t* alloc_info);
 
-void ubs_npu_device_list_free(ubs_ub_devices_list_t *device_list);
+void ubs_npu_device_list_free(ubs_ub_devices_list_t* device_list);
 
 int32_t ubs_uba_tid_size_query(uint8_t* bus_instance_guid, uint32_t* tid, uint64_t* uba, uint64_t* size);
 

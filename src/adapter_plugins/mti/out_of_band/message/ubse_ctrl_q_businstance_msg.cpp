@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_ctrl_q_businstance_msg.h"
-#include "securec.h"
 #include "ubse_ctrl_q_message.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "securec.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -45,7 +45,7 @@ UbseCtrlQCreateBusInstanceReqMsg::UbseCtrlQCreateBusInstanceReqMsg(uint16_t upi,
 
 UbseResult UbseCtrlQCreateBusInstanceReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<UbseCtrlQCreateBusInstanceReq *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<UbseCtrlQCreateBusInstanceReq*>(&reqMsg_.blocks.front());
     ref.upi = upi_;
     ref.vendor = vendor_;
     return UBSE_OK;
@@ -61,13 +61,13 @@ uint16_t UbseCtrlQCreateBusInstanceReqMsg::GetVendor()
     return vendor_;
 }
 
-UbseResult UbseCtrlQCreateBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQCreateBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // Check resp validation, bbNum is 1.
     if (!CheckRespValidation(msg, 1, CREATE_BUSINSTANCE_OP_CODE)) {
         return UBSE_ERROR;
     }
-    auto &body = *reinterpret_cast<UbseCtrlQCreateBusInstanceRespReader *>(msg.blocks);
+    auto& body = *reinterpret_cast<UbseCtrlQCreateBusInstanceRespReader*>(msg.blocks);
     uint32_t tmpEid = body.eid.eid;
     auto ret = memcpy_s(busInstance_.eid.data(), busInstance_.eid.size(), &tmpEid, sizeof(tmpEid));
     if (ret != EOK) {
@@ -82,7 +82,7 @@ UbseResult UbseCtrlQCreateBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessa
     return UBSE_OK;
 }
 
-const UbseMtiBusInst &UbseCtrlQCreateBusInstanceRespMsg::GetBusInstance() const
+const UbseMtiBusInst& UbseCtrlQCreateBusInstanceRespMsg::GetBusInstance() const
 {
     return busInstance_;
 }
@@ -95,7 +95,7 @@ struct UbseCtrlQDestroyBusInstanceReq {
     } __attribute__((packed)) eid;
 } __attribute__((packed));
 
-UbseCtrlQDestroyBusInstanceReqMsg::UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance)
+UbseCtrlQDestroyBusInstanceReqMsg::UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst& busInstance)
     : busInstance_(busInstance),
       ICtrlQReqMsg(DESTROY_BUSINSTANCE_OP_CODE)
 {
@@ -103,7 +103,7 @@ UbseCtrlQDestroyBusInstanceReqMsg::UbseCtrlQDestroyBusInstanceReqMsg(const UbseM
 
 UbseResult UbseCtrlQDestroyBusInstanceReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<UbseCtrlQDestroyBusInstanceReq *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<UbseCtrlQDestroyBusInstanceReq*>(&reqMsg_.blocks.front());
     // 从EID数组的前4个字节提取32位整数
     uint32_t eidValue = 0;
     auto ret = memcpy_s(&eidValue, sizeof(eidValue), busInstance_.eid.data(), sizeof(uint32_t));
@@ -117,7 +117,7 @@ UbseResult UbseCtrlQDestroyBusInstanceReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-UbseResult UbseCtrlQDestroyBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQDestroyBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // Check resp validation, bbNum is 1.
     if (!CheckRespValidation(msg, 1, DESTROY_BUSINSTANCE_OP_CODE)) {
@@ -127,7 +127,7 @@ UbseResult UbseCtrlQDestroyBusInstanceRespMsg::DecodeRespMsg(const CtrlQRespMess
     return UBSE_OK;
 }
 
-const bool &UbseCtrlQDestroyBusInstanceRespMsg::GetRet() const
+const bool& UbseCtrlQDestroyBusInstanceRespMsg::GetRet() const
 {
     return ret_;
 }

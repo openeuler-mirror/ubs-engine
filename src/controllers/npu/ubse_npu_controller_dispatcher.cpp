@@ -32,8 +32,8 @@ using namespace ubse::common::def;
  * @param func 执行函数，申请的内存，函数执行失败时，由函数内部自行释放
  * @return 执行结果
  */
-static UbseResult ExecuteDispatcher(const UbseIpcMessage &req, const UbseRequestContext &context,
-                                    const std::function<uint32_t(TransReqMsg, TransRespMsg &)> &func)
+static UbseResult ExecuteDispatcher(const UbseIpcMessage& req, const UbseRequestContext& context,
+                                    const std::function<uint32_t(TransReqMsg, TransRespMsg&)>& func)
 {
     if (!func) {
         UBSE_LOG_ERROR << "func is null";
@@ -60,7 +60,7 @@ static UbseResult ExecuteDispatcher(const UbseIpcMessage &req, const UbseRequest
     return ret;
 }
 
-UbseResult QueryLocalUbDevices(const UbseIpcMessage &req, const UbseRequestContext &context)
+UbseResult QueryLocalUbDevices(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Received QueryLocalUbDevices request";
     auto ret = ExecuteDispatcher(req, context, QueryDeviceExecute);
@@ -72,7 +72,7 @@ UbseResult QueryLocalUbDevices(const UbseIpcMessage &req, const UbseRequestConte
     return UBSE_OK;
 }
 
-UbseResult AllocUbDevice(const UbseIpcMessage &req, const UbseRequestContext &context)
+UbseResult AllocUbDevice(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Received AllocUbDevice request";
     auto ret = ExecuteDispatcher(req, context, AllocDeviceExecute);
@@ -84,7 +84,7 @@ UbseResult AllocUbDevice(const UbseIpcMessage &req, const UbseRequestContext &co
     return UBSE_OK;
 }
 
-UbseResult FreeUbDevice(const UbseIpcMessage &req, const UbseRequestContext &context)
+UbseResult FreeUbDevice(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Received FreeUbDevice request";
     auto ret = ExecuteDispatcher(req, context, FreeDeviceExecute);
@@ -96,7 +96,7 @@ UbseResult FreeUbDevice(const UbseIpcMessage &req, const UbseRequestContext &con
     return UBSE_OK;
 }
 
-UbseResult QueryTidUbaSize(const UbseIpcMessage &req, const UbseRequestContext &context)
+UbseResult QueryTidUbaSize(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Received QueryTidUbaSize request";
     auto ret = ExecuteDispatcher(req, context, QueryTidUbaSizeExecute);

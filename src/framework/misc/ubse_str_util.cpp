@@ -219,7 +219,7 @@ std::string Trim(const std::string& str, const std::locale& loc)
     return s;
 }
 
-std::string RemoveDashes(const std::string &str)
+std::string RemoveDashes(const std::string& str)
 {
     std::string ret;
     for (char c : str) {
@@ -244,7 +244,7 @@ int HexCharToInt(char c)
     return -1; // 无效字符
 }
 
-bool HexPairToByte(char high, char low, uint8_t &result)
+bool HexPairToByte(char high, char low, uint8_t& result)
 {
     int highVal = HexCharToInt(high);
     int lowVal = HexCharToInt(low);

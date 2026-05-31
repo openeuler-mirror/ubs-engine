@@ -21,7 +21,8 @@
 
 namespace ubse::npu::vm_monitor {
 using namespace ubse::common::def;
-enum class VirDomainEventType {
+enum class VirDomainEventType
+{
     VIR_DOMAIN_EVENT_DEFINED = 0,
     VIR_DOMAIN_EVENT_UNDEFINED = 1,
     VIR_DOMAIN_EVENT_STARTED = 2,
@@ -40,19 +41,19 @@ class LibvirtMonitorImpl;
 
 class LibvirtMonitor {
 public:
-    explicit LibvirtMonitor(const std::string &uri = "qemu:///system");
+    explicit LibvirtMonitor(const std::string& uri = "qemu:///system");
 
     ~LibvirtMonitor();
 
-    LibvirtMonitor(const LibvirtMonitor &) = delete;
+    LibvirtMonitor(const LibvirtMonitor&) = delete;
 
-    LibvirtMonitor &operator=(const LibvirtMonitor &) = delete;
+    LibvirtMonitor& operator=(const LibvirtMonitor&) = delete;
 
-    LibvirtMonitor(LibvirtMonitor &&) noexcept;
+    LibvirtMonitor(LibvirtMonitor&&) noexcept;
 
-    LibvirtMonitor &operator=(LibvirtMonitor &&) noexcept;
+    LibvirtMonitor& operator=(LibvirtMonitor&&) noexcept;
 
-    void SetCallBack(const EventCallback &cb);
+    void SetCallBack(const EventCallback& cb);
 
     bool Start();
 

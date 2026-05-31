@@ -158,10 +158,10 @@ public:
     explicit UbseUnpackUtil(const uint8_t* buffer, uint32_t len) noexcept : ptr_(buffer), remaining_(len) {}
 
     // 解包 unsigned char
-    bool UnpackUChar(unsigned char &value) noexcept
+    bool UnpackUChar(unsigned char& value) noexcept
     {
         if (remaining_ < sizeof(unsigned char)) {
-            return false;  // 缓冲区不足
+            return false; // 缓冲区不足
         }
 
         auto ret = memcpy_s(&value, sizeof(unsigned char), ptr_, sizeof(unsigned char));
@@ -171,7 +171,7 @@ public:
         // 更新位置
         ptr_ += sizeof(unsigned char);
         remaining_ -= sizeof(unsigned char);
-        return true;  // 成功
+        return true; // 成功
     }
     // 解包 uint8_t
     bool UnpackUint8(uint8_t& value) noexcept

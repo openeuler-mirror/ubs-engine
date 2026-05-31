@@ -23,13 +23,13 @@ struct RespReader {
     FixedHead head;
 } __attribute__((packed));
 
-bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode)
+bool CheckRespValidation(const CtrlQRespMessage& msg, uint8_t bbNum, uint8_t opCode)
 {
     if (msg.blocks == nullptr) {
         UBSE_LOG_ERROR << "Resp blocks is nullptr, opCode: " << opCode;
         return false;
     }
-    auto &reader = *reinterpret_cast<const RespReader *>(msg.blocks);
+    auto& reader = *reinterpret_cast<const RespReader*>(msg.blocks);
     // bbNum 为0时，不检查bbNum
     if (reader.head.serviceType != DEFAULT_SERVICE_TYPE || reader.head.opCode != opCode ||
         (bbNum != 0 && reader.head.bbNum != bbNum)) {
@@ -40,10 +40,10 @@ bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opC
     return true;
 }
 
-UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, std::vector<bool> &resList)
+UbseResult GetBatchOptRespResult(const CtrlQRespMessage& msg, uint8_t opCode, std::vector<bool>& resList)
 {
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
+    auto pos = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(RespReader);
+    auto end = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
 
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     try {
@@ -57,7 +57,7 @@ UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, st
                 resList.emplace_back(true);
             }
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Read opt resp failed, opCode: " << opCode;
         return UBSE_ERROR;
     }

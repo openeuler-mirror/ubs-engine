@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
-#include "securec.h"
 #include "ubse_ctrl_q_message.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "securec.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -34,19 +34,19 @@ UbseResult UbseCtrlQGetIdevFeDavidMappingReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-const UbseMtiIdevFeDavidMapping &UbseCtrlQGetIdevFeDavidMappingRespMsg::GetMapping() const
+const UbseMtiIdevFeDavidMapping& UbseCtrlQGetIdevFeDavidMappingRespMsg::GetMapping() const
 {
     return mapping_;
 }
 
-UbseResult UbseCtrlQGetIdevFeDavidMappingRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetIdevFeDavidMappingRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, GET_IDEV_FE_DAVID_MAPPING_OP_CODE)) {
         return UBSE_ERROR;
     }
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
+    auto pos = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(RespReader);
+    auto end = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     try {
         auto pfeNum = readHelper.Read<uint8_t>();
@@ -63,7 +63,7 @@ UbseResult UbseCtrlQGetIdevFeDavidMappingRespMsg::DecodeRespMsg(const CtrlQRespM
             mapping_.emplace(david, pfe);
         }
         return UBSE_OK;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Read get idev fe opt resp failed";
         return UBSE_ERROR;
     }

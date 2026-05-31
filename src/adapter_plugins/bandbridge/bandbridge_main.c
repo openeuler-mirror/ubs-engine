@@ -17,8 +17,8 @@
  * History:
  */
 
-#include <linux/module.h>
 #include "bandbridge_main.h"
+#include <linux/module.h>
 
 static int __init bandbridge_init(void)
 {

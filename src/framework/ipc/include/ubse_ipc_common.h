@@ -121,7 +121,8 @@ typedef enum
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_NPU_TEST = 0x0001,
     UBSE_NPU_GET_HOST_DEVICES = 0x0002,
     UBSE_NPU_ALLOC_UB_DEVICES = 0x0003,

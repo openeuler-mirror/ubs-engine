@@ -21,11 +21,11 @@
 
 #include "ubse_api_server.h"
 #include "ubse_api_server_def.h"
+#include "ubse_election.h"
 #include "ubse_ipc_message.h"
 #include "ubse_map_util.h"
 #include "ubse_request_id_util.h"
 #include "ubse_thread_pool.h"
-#include "ubse_election.h"
 
 namespace ubse::ipc {
 using api::server::SendResponse;
@@ -170,7 +170,7 @@ private:
 
     void CheckAndCloseTimeoutSessions();
     void HandlePersistentSession(const UbseRequestHeader& header, int fd, uint64_t requestId);
-    uint8_t GetSlotId(ubse::election::UbseRoleInfo &roleInfo) const;
+    uint8_t GetSlotId(ubse::election::UbseRoleInfo& roleInfo) const;
 };
 } // namespace ubse::ipc
 #endif // UBSE_UDS_SERVER_H

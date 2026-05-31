@@ -20,9 +20,9 @@
 #include <array>
 #include <csignal>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <regex>
-#include <iostream>
 #include <sstream>
 
 #include "ubse_error.h"
@@ -127,7 +127,7 @@ UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t& pid, uint32_t& numaId)
     return UBSE_ERROR;
 }
 
-UbseResult UbseOsUtil::ReadFileContent(const std::string &filePath, std::string &res)
+UbseResult UbseOsUtil::ReadFileContent(const std::string& filePath, std::string& res)
 {
     std::ifstream file(filePath);
     if (!file.is_open()) {

@@ -11,16 +11,16 @@
  */
 #include "ubse_mti_bus_instance_out_of_band.h"
 #include <regex>
-#include "./message/ubse_ctrl_q_businstance_msg.h"
-#include "./message/ubse_ctrl_q_get_d2h_memory_msg.h"
-#include "./message/ubse_ictrl_q_req_msg.h"
-#include "./proxy/ubse_ctrl_q_msg_proxy.h"
-#include "securec.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mti_util.h"
 #include "ubse_os_util.h"
 #include "ubse_str_util.h"
+#include "./message/ubse_ctrl_q_businstance_msg.h"
+#include "./message/ubse_ctrl_q_get_d2h_memory_msg.h"
+#include "./message/ubse_ictrl_q_req_msg.h"
+#include "./proxy/ubse_ctrl_q_msg_proxy.h"
+#include "securec.h"
 namespace ubse::mti::bus_instance {
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::log;
@@ -32,7 +32,7 @@ const std::string LSUB_STATIC_SERVER_TYPE = "Static_Server";
 const std::string LSUB_CLUSTER_SERVER_TYPE = "Static_Cluster";
 const std::string UB_DEVICES_PATH = "/sys/bus/ub/devices/";
 const std::string LSUB_SUB_DEVICE_HEADER = "Uents under this busInstance:";
-void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst> &busInstanceList, const std::string &output)
+void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst>& busInstanceList, const std::string& output)
 {
     std::istringstream iss(output);
     std::string line;
@@ -73,7 +73,7 @@ void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst> &busInstanceList, co
     }
 }
 
-std::vector<std::string> ParseGetSubDeviceOutput(const std::string &output)
+std::vector<std::string> ParseGetSubDeviceOutput(const std::string& output)
 {
     std::vector<std::string> devices;
     std::regex header(LSUB_SUB_DEVICE_HEADER);
@@ -102,7 +102,7 @@ std::vector<std::string> ParseGetSubDeviceOutput(const std::string &output)
     return devices;
 }
 
-UbseResult GetBusInstanceSubDevices(const std::string &eidStr, std::vector<UbseMtiGuid> &guidList)
+UbseResult GetBusInstanceSubDevices(const std::string& eidStr, std::vector<UbseMtiGuid>& guidList)
 {
     auto cmd = "lsub -b -E " + eidStr;
     std::string cmdResult{};
@@ -112,7 +112,7 @@ UbseResult GetBusInstanceSubDevices(const std::string &eidStr, std::vector<UbseM
         return ret;
     }
     auto subDevices = ParseGetSubDeviceOutput(cmdResult);
-    for (const auto &dev : subDevices) {
+    for (const auto& dev : subDevices) {
         auto filePath = UB_DEVICES_PATH + dev + "/guid";
         ret = utils::UbseOsUtil::ReadFileContent(filePath, cmdResult);
         if (ret != UBSE_OK) {
@@ -133,7 +133,7 @@ UbseResult GetBusInstanceSubDevices(const std::string &eidStr, std::vector<UbseM
     return UBSE_OK;
 }
 
-UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst> &busInstanceList)
+UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst>& busInstanceList)
 {
     UBSE_LOG_INFO << "Start to get bus instance and sub devices";
     std::string cmdResult{};
@@ -144,7 +144,7 @@ UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst> &busInstanceList)
     }
     try {
         ParseLsubBusInstanceOutput(busInstanceList, cmdResult);
-        for (auto &busInstance : busInstanceList) {
+        for (auto& busInstance : busInstanceList) {
             std::string eidStr;
             if (!EidArrayToStr(busInstance.eid, eidStr)) {
                 UBSE_LOG_ERROR << "Failed to convert eid to string";
@@ -157,19 +157,19 @@ UbseResult GetBusInstanceFromLsub(std::vector<UbseMtiBusInst> &busInstanceList)
                 return ret;
             }
         }
-    } catch (std::exception &e) {
+    } catch (std::exception& e) {
         UBSE_LOG_ERROR << "Get bus instance from lsub failed, error :" << e.what();
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-UbseResult UbseMtiBusInstanceOutOfBand::GetBusInstanceList(std::vector<UbseMtiBusInst> &busInstanceList)
+UbseResult UbseMtiBusInstanceOutOfBand::GetBusInstanceList(std::vector<UbseMtiBusInst>& busInstanceList)
 {
     return GetBusInstanceFromLsub(busInstanceList);
 }
 
-UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMtiBusInst &busInstance)
+UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMtiBusInst& busInstance)
 {
     UbseCtrlQCreateBusInstanceReqMsg reqMsg(upi, DEFAULT_VENDOR);
     UbseCtrlQCreateBusInstanceRespMsg respMsg;
@@ -184,7 +184,7 @@ UbseResult UbseMtiBusInstanceOutOfBand::CreateVmBusInstance(uint16_t upi, UbseMt
     return UBSE_OK;
 }
 
-UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusInst &busInstance)
+UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusInst& busInstance)
 {
     UbseCtrlQDestroyBusInstanceReqMsg reqMsg(busInstance);
     UbseCtrlQDestroyBusInstanceRespMsg respMsg;
@@ -199,8 +199,8 @@ UbseResult UbseMtiBusInstanceOutOfBand::DestroyVmBusInstance(const UbseMtiBusIns
     return UBSE_OK;
 }
 
-UbseResult UbseMtiBusInstanceOutOfBand::GetD2hMemory(const UbseMtiBusInst &busInstance, uint32_t &tid, uint64_t &uba,
-                                                     uint64_t &size)
+UbseResult UbseMtiBusInstanceOutOfBand::GetD2hMemory(const UbseMtiBusInst& busInstance, uint32_t& tid, uint64_t& uba,
+                                                     uint64_t& size)
 {
     UbseCtrlQGetD2hMemoryReqMsg reqMsg(busInstance);
     UbseCtrlQGetD2hMemoryRespMsg respMsg;

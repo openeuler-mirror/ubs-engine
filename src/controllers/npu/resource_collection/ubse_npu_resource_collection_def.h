@@ -19,10 +19,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "src/framework/misc/ubse_str_util.h"
 #include "ubse_common_def.h"
 #include "ubse_logger.h"
+#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
+#include "src/framework/misc/ubse_str_util.h"
 namespace ubse::npu::controller {
 using namespace ubse::mti::bus_instance;
 using namespace ubse::common::def;
@@ -33,7 +33,8 @@ using namespace ubse::log;
 
 constexpr uint8_t MAX_DEVICE_NUM = 0xff;
 constexpr uint8_t SPECIAL_FE_VAL = 0xff;
-enum class CollectionDeviceType : uint8_t {
+enum class CollectionDeviceType : uint8_t
+{
     HOST_BUSINSTANCE = 0,
     VM_BUSINSTANCE = 1,
     NPU = 2,
@@ -44,7 +45,8 @@ enum class CollectionDeviceType : uint8_t {
     V_IDEV = 7,
     COLLECTION_DEVICE_TYPE_COUNT = 8
 };
-enum class CollectionState {
+enum class CollectionState
+{
     WAIT_INIT, // 未初始化
     RUNNING,   // 正在采集资源
     FINISH     // 完成资源采集，可访问设备
@@ -61,14 +63,15 @@ struct CollectDeviceLoc {
     CollectionGuid guid;
     CollectionUpi upi;
     CollectDeviceLoc();
-    CollectDeviceLoc(const UbseMtiEid &, const CollectionGuid &, const CollectionUpi &);
+    CollectDeviceLoc(const UbseMtiEid&, const CollectionGuid&, const CollectionUpi&);
 };
 
 class CollectionStringUtil {
 public:
     // 辅助元函数：检查一个类型是否是 uint8_t 或 uint16_t
     template <typename T>
-    struct IsAllowedType : std::integral_constant<bool, std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t>> {};
+    struct IsAllowedType : std::integral_constant<bool, std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t>> {
+    };
 
     template <typename... Args>
     static CollectionDevId CollectionJoinStr(Args... args)
@@ -82,7 +85,7 @@ public:
         return oss.str();
     }
 
-    static CollectionDevId GuidToStr(const UbseMtiGuid &guid);
+    static CollectionDevId GuidToStr(const UbseMtiGuid& guid);
 
 private:
     static CollectionDevId CollectionJoinStr()
@@ -100,18 +103,18 @@ private:
 class CollectionDevice : std::enable_shared_from_this<CollectionDevice> {
 public:
     CollectionDevice(CollectDeviceLoc devLoc, CollectionDeviceType devType);
-    CollectionDevice(const CollectionDevId &guid, const UbseMtiEid &eid, const CollectionUpi &upi,
+    CollectionDevice(const CollectionDevId& guid, const UbseMtiEid& eid, const CollectionUpi& upi,
                      CollectionDeviceType devType);
     virtual ~CollectionDevice() = default;
     virtual CollectionDevId GetIdStr() = 0;
 
-    void SetEid(const UbseMtiEid &eid);
-    void SetGuid(const CollectionDevId &guid);
+    void SetEid(const UbseMtiEid& eid);
+    void SetGuid(const CollectionDevId& guid);
     void SetType(const CollectionDeviceType devType);
     CollectionDevId GetGuid() const;
     UbseMtiEid GetEid() const;
     CollectionDeviceType GetType() const;
-    static CollectionDevId GetDevIdByDevLoc(const CollectDeviceLoc &devLoc, const CollectionDeviceType type);
+    static CollectionDevId GetDevIdByDevLoc(const CollectDeviceLoc& devLoc, const CollectionDeviceType type);
 
     CollectDeviceLoc GetDeviceLoc();
     template <class T, template <class> class PtrT>
@@ -145,22 +148,22 @@ class CollectionDeviceNicVfe;
 // Bus instance
 class CollectionDeviceBusi : public CollectionDevice {
 public:
-    CollectionDeviceBusi(const CollectionDevId &guid, const mti::bus_instance::UbseMtiEid &eid,
-                         const CollectionUpi &upi, CollectionDeviceType devType);
+    CollectionDeviceBusi(const CollectionDevId& guid, const mti::bus_instance::UbseMtiEid& eid,
+                         const CollectionUpi& upi, CollectionDeviceType devType);
     CollectionDevId GetIdStr() override; // guid
     CollectionUpi GetUpiStr();           // upi
-    void SetUpiStr(const CollectionUpi &upi);
-    const std::vector<std::shared_ptr<CollectionDeviceNicPfe>> &GetSubDevNicPfe() const;
-    const std::vector<std::shared_ptr<CollectionDeviceNicVfe>> &GetSubDevNicVfe() const;
-    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> &GetSubDevIdev() const;
+    void SetUpiStr(const CollectionUpi& upi);
+    const std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& GetSubDevNicPfe() const;
+    const std::vector<std::shared_ptr<CollectionDeviceNicVfe>>& GetSubDevNicVfe() const;
+    const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>>& GetSubDevIdev() const;
 
-    void SetSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &devNic);
-    void SetSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &devNic);
-    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe> &devIdev);
+    void SetSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& devNic);
+    void SetSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& devNic);
+    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& devIdev);
 
-    void RemoveSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &devNic);
-    void RemoveSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &devNic);
-    void RemoveSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe> &devIdev);
+    void RemoveSubDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& devNic);
+    void RemoveSubDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& devNic);
+    void RemoveSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& devIdev);
 
 private:
     std::vector<std::shared_ptr<CollectionDeviceNicPfe>> subDevNicPfe;
@@ -171,12 +174,12 @@ private:
 // Ub controller
 class CollectionDeviceUbCtrl : public CollectionDevice {
 public:
-    explicit CollectionDeviceUbCtrl(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceUbCtrl(const CollectDeviceLoc& devLoc);
 
     CollectionDevId GetIdStr() override; // chipId-dieId
-    const std::vector<std::shared_ptr<CollectionDeviceIdevPfe>> &GetSubDevIdev();
+    const std::vector<std::shared_ptr<CollectionDeviceIdevPfe>>& GetSubDevIdev();
 
-    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevPfe> &idevPfe);
+    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevPfe>& idevPfe);
 
 private:
     std::vector<std::shared_ptr<CollectionDeviceIdevPfe>> subDevIdev;
@@ -185,9 +188,9 @@ private:
 // Idev: pfe vfe父类
 class CollectionDeviceIdev : public CollectionDevice {
 public:
-    CollectionDeviceIdev(const CollectDeviceLoc &devLoc, CollectionDeviceType type);
+    CollectionDeviceIdev(const CollectDeviceLoc& devLoc, CollectionDeviceType type);
     std::shared_ptr<CollectionDeviceDavid> GetBondingDevDavid() const;
-    void SetBondingDevDavid(const std::shared_ptr<CollectionDeviceDavid> &devDavid);
+    void SetBondingDevDavid(const std::shared_ptr<CollectionDeviceDavid>& devDavid);
     void RemoveBondingDevDavid();
     void SetIsComSharedFe(const bool isComSharedFe);
     bool GetIsComSharedFe() const;
@@ -200,12 +203,12 @@ private:
 // Idev Pfe
 class CollectionDeviceIdevPfe : public CollectionDeviceIdev {
 public:
-    explicit CollectionDeviceIdevPfe(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceIdevPfe(const CollectDeviceLoc& devLoc);
     CollectionDevId GetIdStr() override; // chipId-dieId-pfeId
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> GetSubDevVfe();
-    void SetParentUbCtl(const std::shared_ptr<CollectionDeviceUbCtrl> &devUbCtrl);
+    void SetParentUbCtl(const std::shared_ptr<CollectionDeviceUbCtrl>& devUbCtrl);
     std::shared_ptr<CollectionDeviceUbCtrl> GetParentUbCtl() const;
-    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe> &idevVfe);
+    void SetSubDevIdev(const std::shared_ptr<CollectionDeviceIdevVfe>& idevVfe);
 
 private:
     std::weak_ptr<CollectionDeviceUbCtrl> parentUbCtl;
@@ -215,13 +218,13 @@ private:
 // Idev Vfe
 class CollectionDeviceIdevVfe : public CollectionDeviceIdev {
 public:
-    explicit CollectionDeviceIdevVfe(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceIdevVfe(const CollectDeviceLoc& devLoc);
     CollectionDevId GetIdStr() override; // chipId-dieId-pfeId-vfeId
     std::shared_ptr<CollectionDeviceIdevPfe> GetParentPfe() const;
     std::vector<std::shared_ptr<CollectionDeviceBusi>> GetBondingDevBusi() const;
-    void SetParentPfe(const std::shared_ptr<CollectionDeviceIdevPfe> &idevPfe);
-    void SetBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi> &devBusi);
-    void RemoveBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi> &devBusi);
+    void SetParentPfe(const std::shared_ptr<CollectionDeviceIdevPfe>& idevPfe);
+    void SetBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi>& devBusi);
+    void RemoveBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi>& devBusi);
 
 private:
     std::weak_ptr<CollectionDeviceIdevPfe> parentPfe;
@@ -231,15 +234,15 @@ private:
 // npu
 class CollectionDeviceDavid : public CollectionDevice {
 public:
-    explicit CollectionDeviceDavid(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceDavid(const CollectDeviceLoc& devLoc);
     CollectionDevId GetIdStr() override; // slotId-chipId
     std::shared_ptr<CollectionDevice> GetBondingIdev();
-    void SetBondingIdev(const std::shared_ptr<CollectionDevice> &idev);
+    void SetBondingIdev(const std::shared_ptr<CollectionDevice>& idev);
     void RemoveBondingIdev();
     std::shared_ptr<CollectionDeviceNicPfe> GetAffinityDevNicPfe();
-    void SetAffinityDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &nicPfe);
+    void SetAffinityDevNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& nicPfe);
     std::shared_ptr<CollectionDeviceNicVfe> GetAffinityDevNicVfe();
-    void SetAffinityDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &nicVfe);
+    void SetAffinityDevNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& nicVfe);
 
 private:
     std::shared_ptr<CollectionDevice> bondingIdev; // pfe or vfe
@@ -250,12 +253,12 @@ private:
 // 1825
 class CollectionDeviceNic : public CollectionDevice {
 public:
-    explicit CollectionDeviceNic(const CollectDeviceLoc &devLoc, CollectionDeviceType type);
+    explicit CollectionDeviceNic(const CollectDeviceLoc& devLoc, CollectionDeviceType type);
     std::shared_ptr<CollectionDeviceBusi> GetBondingDevBusi();
-    void SetBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi> &devBusi);
+    void SetBondingDevBusi(const std::shared_ptr<CollectionDeviceBusi>& devBusi);
     void RemoveBondingDevBusi();
     std::shared_ptr<CollectionDeviceDavid> GetAffinityDevDavid();
-    void SetAffinityDevDavid(const std::shared_ptr<CollectionDeviceDavid> &devDavid);
+    void SetAffinityDevDavid(const std::shared_ptr<CollectionDeviceDavid>& devDavid);
 
 private:
     std::weak_ptr<CollectionDeviceBusi> bondingDevBusi;
@@ -264,25 +267,27 @@ private:
 
 class CollectionDeviceNicPfe : public CollectionDeviceNic {
 public:
-    explicit CollectionDeviceNicPfe(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceNicPfe(const CollectDeviceLoc& devLoc);
     CollectionDevId GetIdStr() override; // slotId-chipId-pfeId
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> GetSubNicVfe();
-    void SetSubNicVfe(const std::shared_ptr<CollectionDeviceNicVfe> &nicVfe);
+    void SetSubNicVfe(const std::shared_ptr<CollectionDeviceNicVfe>& nicVfe);
+
 private:
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> subNicVfe;
 };
 
 class CollectionDeviceNicVfe : public CollectionDeviceNic {
 public:
-    explicit CollectionDeviceNicVfe(const CollectDeviceLoc &devLoc);
+    explicit CollectionDeviceNicVfe(const CollectDeviceLoc& devLoc);
     CollectionDevId GetIdStr() override; // slotId-chipId-pfeId-vfeId
     std::shared_ptr<CollectionDeviceNicPfe> GetParentNicPfe() const;
-    void SetParentNicPfe(const std::shared_ptr<CollectionDeviceNicPfe> &nicPfe);
+    void SetParentNicPfe(const std::shared_ptr<CollectionDeviceNicPfe>& nicPfe);
+
 private:
     std::weak_ptr<CollectionDeviceNicPfe> parentNicPfe;
 };
 
-inline bool IsValidHexString(const std::string &str, bool allowDashes = false)
+inline bool IsValidHexString(const std::string& str, bool allowDashes = false)
 {
     return std::all_of(str.begin(), str.end(),
                        [allowDashes](char c) { return (allowDashes && c == '-') || std::isxdigit(c); });
@@ -295,204 +300,94 @@ inline uint8_t DeviceTypeToUint8(CollectionDeviceType type)
 {
     return static_cast<uint8_t>(type);
 }
-inline CollectionDevId GetDevIdByDevLocBusi(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocBusi(const CollectDeviceLoc& devLoc)
 {
     return devLoc.guid;
 }
 
-inline CollectionDevId GetDevIdByDevLocNpu(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocNpu(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::NPU), devLoc.slotId,
                                                    devLoc.chipId);
 }
 
-inline CollectionDevId GetDevIdByDevLocNicPfe(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocNicPfe(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::NIC_PFE), devLoc.slotId,
                                                    devLoc.chipId, devLoc.pfeId);
 }
 
-inline CollectionDevId GetDevIdByDevLocNicVfe(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocNicVfe(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::NIC_VFE), devLoc.slotId,
                                                    devLoc.chipId, devLoc.pfeId, devLoc.vfeId);
 }
-inline CollectionDevId GetDevIdByDevLocUbCtrl(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocUbCtrl(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::UBCONTROLLER), devLoc.chipId,
                                                    devLoc.dieId);
 }
 
-inline CollectionDevId GetDevIdByDevLocIdevPfe(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocIdevPfe(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::P_IDEV), devLoc.chipId,
                                                    devLoc.dieId, devLoc.pfeId);
 }
-inline CollectionDevId GetDevIdByDevLocIdevVfe(const CollectDeviceLoc &devLoc)
+inline CollectionDevId GetDevIdByDevLocIdevVfe(const CollectDeviceLoc& devLoc)
 {
     return CollectionStringUtil::CollectionJoinStr(DeviceTypeToUint8(CollectionDeviceType::V_IDEV), devLoc.chipId,
                                                    devLoc.dieId, devLoc.pfeId, devLoc.vfeId);
 }
-using CollectionGetDevIdByDevLoc = std::function<CollectionDevId(const CollectDeviceLoc &)>;
+using CollectionGetDevIdByDevLoc = std::function<CollectionDevId(const CollectDeviceLoc&)>;
 const size_t GET_DEVID_FUNCTION_NUM = static_cast<size_t>(CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT);
 const std::array<CollectionGetDevIdByDevLoc, GET_DEVID_FUNCTION_NUM> GET_DEVID_FUNCTION_TABLE{
-    GetDevIdByDevLocBusi, GetDevIdByDevLocBusi, GetDevIdByDevLocNpu, GetDevIdByDevLocNicPfe, GetDevIdByDevLocNicVfe,
-    GetDevIdByDevLocUbCtrl, GetDevIdByDevLocIdevPfe, GetDevIdByDevLocIdevVfe};
+    GetDevIdByDevLocBusi,   GetDevIdByDevLocBusi,   GetDevIdByDevLocNpu,     GetDevIdByDevLocNicPfe,
+    GetDevIdByDevLocNicVfe, GetDevIdByDevLocUbCtrl, GetDevIdByDevLocIdevPfe, GetDevIdByDevLocIdevVfe};
 
-enum class ProductType {
+enum class ProductType
+{
     SERVER = 0,
     POD_16_1825 = 1,
     POD_32_1825 = 2
 };
 
 // server环境 David和1825亲和关系
-const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t> > SERVER_DAVID_NIC_MAPPING = {
+const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t>> SERVER_DAVID_NIC_MAPPING = {
     // davidChipId, nicSlotId, nicChipId, nicPfeId
-    {1, 1, 11, 3},
-    {2, 1, 11, 1},
-    {3, 1, 12, 3},
-    {4, 1, 12, 1},
-    {5, 1, 13, 3},
-    {6, 1, 13, 1},
-    {7, 1, 14, 3},
-    {8, 1, 14, 1}
-};
+    {1, 1, 11, 3}, {2, 1, 11, 1}, {3, 1, 12, 3}, {4, 1, 12, 1},
+    {5, 1, 13, 3}, {6, 1, 13, 1}, {7, 1, 14, 3}, {8, 1, 14, 1}};
 // pod 16 1825环境 David和1825亲和关系
-const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t, uint8_t> > POD_16_1825_DAVID_NIC_MAPPING = {
+const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t, uint8_t>> POD_16_1825_DAVID_NIC_MAPPING = {
     // davidSlotId, davidChipId, nicSlotId, nicChipId, nicPfeId
-    {23, 1, 27, 3, 1},
-    {23, 2, 27, 4, 1},
-    {23, 3, 27, 3, 2},
-    {23, 4, 27, 4, 2},
-    {23, 5, 27, 3, 11},
-    {23, 6, 27, 4, 11},
-    {23, 7, 27, 3, 12},
-    {23, 8, 27, 4, 12},
-    {24, 1, 27, 5, 1},
-    {24, 2, 27, 6, 1},
-    {24, 3, 27, 5, 2},
-    {24, 4, 27, 6, 2},
-    {24, 5, 27, 5, 11},
-    {24, 6, 27, 6, 11},
-    {24, 7, 27, 5, 12},
-    {24, 8, 27, 6, 12},
-    {25, 1, 27, 7, 1},
-    {25, 2, 27, 8, 1},
-    {25, 3, 27, 7, 2},
-    {25, 4, 27, 8, 2},
-    {25, 5, 27, 7, 11},
-    {25, 6, 27, 8, 11},
-    {25, 7, 27, 7, 12},
-    {25, 8, 27, 8, 12},
-    {26, 1, 27, 9, 1},
-    {26, 2, 27, 10, 1},
-    {26, 3, 27, 9, 2},
-    {26, 4, 27, 10, 2},
-    {26, 5, 27, 9, 11},
-    {26, 6, 27, 10, 11},
-    {26, 7, 27, 9, 12},
-    {26, 8, 27, 10, 12},
-    {18, 1, 13, 3, 1},
-    {18, 2, 13, 4, 1},
-    {18, 3, 13, 3, 2},
-    {18, 4, 13, 4, 2},
-    {18, 5, 13, 3, 11},
-    {18, 6, 13, 4, 11},
-    {18, 7, 13, 3, 12},
-    {18, 8, 13, 4, 12},
-    {19, 1, 13, 5, 1},
-    {19, 2, 13, 6, 1},
-    {19, 3, 13, 5, 2},
-    {19, 4, 13, 6, 2},
-    {19, 5, 13, 5, 11},
-    {19, 6, 13, 6, 11},
-    {19, 7, 13, 5, 12},
-    {19, 8, 13, 6, 12},
-    {20, 1, 13, 7, 1},
-    {20, 2, 13, 8, 1},
-    {20, 3, 13, 7, 2},
-    {20, 4, 13, 8, 2},
-    {20, 5, 13, 7, 11},
-    {20, 6, 13, 8, 11},
-    {20, 7, 13, 7, 12},
-    {20, 8, 13, 8, 12},
-    {21, 1, 13, 9, 1},
-    {21, 2, 13, 10, 1},
-    {21, 3, 13, 9, 2},
-    {21, 4, 13, 10, 2},
-    {21, 5, 13, 9, 11},
-    {21, 6, 13, 10, 11},
-    {21, 7, 13, 9, 12},
-    {21, 8, 13, 10, 12}
-};
+    {23, 1, 27, 3, 1},  {23, 2, 27, 4, 1},   {23, 3, 27, 3, 2},  {23, 4, 27, 4, 2},  {23, 5, 27, 3, 11},
+    {23, 6, 27, 4, 11}, {23, 7, 27, 3, 12},  {23, 8, 27, 4, 12}, {24, 1, 27, 5, 1},  {24, 2, 27, 6, 1},
+    {24, 3, 27, 5, 2},  {24, 4, 27, 6, 2},   {24, 5, 27, 5, 11}, {24, 6, 27, 6, 11}, {24, 7, 27, 5, 12},
+    {24, 8, 27, 6, 12}, {25, 1, 27, 7, 1},   {25, 2, 27, 8, 1},  {25, 3, 27, 7, 2},  {25, 4, 27, 8, 2},
+    {25, 5, 27, 7, 11}, {25, 6, 27, 8, 11},  {25, 7, 27, 7, 12}, {25, 8, 27, 8, 12}, {26, 1, 27, 9, 1},
+    {26, 2, 27, 10, 1}, {26, 3, 27, 9, 2},   {26, 4, 27, 10, 2}, {26, 5, 27, 9, 11}, {26, 6, 27, 10, 11},
+    {26, 7, 27, 9, 12}, {26, 8, 27, 10, 12}, {18, 1, 13, 3, 1},  {18, 2, 13, 4, 1},  {18, 3, 13, 3, 2},
+    {18, 4, 13, 4, 2},  {18, 5, 13, 3, 11},  {18, 6, 13, 4, 11}, {18, 7, 13, 3, 12}, {18, 8, 13, 4, 12},
+    {19, 1, 13, 5, 1},  {19, 2, 13, 6, 1},   {19, 3, 13, 5, 2},  {19, 4, 13, 6, 2},  {19, 5, 13, 5, 11},
+    {19, 6, 13, 6, 11}, {19, 7, 13, 5, 12},  {19, 8, 13, 6, 12}, {20, 1, 13, 7, 1},  {20, 2, 13, 8, 1},
+    {20, 3, 13, 7, 2},  {20, 4, 13, 8, 2},   {20, 5, 13, 7, 11}, {20, 6, 13, 8, 11}, {20, 7, 13, 7, 12},
+    {20, 8, 13, 8, 12}, {21, 1, 13, 9, 1},   {21, 2, 13, 10, 1}, {21, 3, 13, 9, 2},  {21, 4, 13, 10, 2},
+    {21, 5, 13, 9, 11}, {21, 6, 13, 10, 11}, {21, 7, 13, 9, 12}, {21, 8, 13, 10, 12}};
 // pod 32 1825环境 David和1825亲和关系
-const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t, uint8_t> > POD_32_1825_DAVID_NIC_MAPPING = {
+const std::vector<std::tuple<uint8_t, uint8_t, uint8_t, uint8_t, uint8_t>> POD_32_1825_DAVID_NIC_MAPPING = {
     // davidSlotId, davidChipId, nicSlotId, nicChipId, nicPfeId
-    {23, 1, 27, 3, 2},
-    {23, 2, 27, 17, 2},
-    {23, 3, 27, 3, 3},
-    {23, 4, 27, 17, 3},
-    {23, 5, 27, 4, 2},
-    {23, 6, 27, 18, 2},
-    {23, 7, 27, 4, 3},
-    {23, 8, 27, 18, 3},
-    {24, 1, 27, 5, 2},
-    {24, 2, 27, 15, 2},
-    {24, 3, 27, 5, 3},
-    {24, 4, 27, 15, 3},
-    {24, 5, 27, 6, 2},
-    {24, 6, 27, 16, 2},
-    {24, 7, 27, 6, 3},
-    {24, 8, 27, 16, 3},
-    {25, 1, 27, 7, 2},
-    {25, 2, 27, 13, 2},
-    {25, 3, 27, 7, 3},
-    {25, 4, 27, 13, 3},
-    {25, 5, 27, 8, 2},
-    {25, 6, 27, 14, 2},
-    {25, 7, 27, 8, 3},
-    {25, 8, 27, 14, 3},
-    {26, 1, 27, 9, 2},
-    {26, 2, 27, 11, 2},
-    {26, 3, 27, 9, 3},
-    {26, 4, 27, 11, 3},
-    {26, 5, 27, 10, 2},
-    {26, 6, 27, 12, 2},
-    {26, 7, 27, 10, 3},
-    {26, 8, 27, 12, 3},
-    {18, 1, 13, 3, 2},
-    {18, 2, 13, 17, 2},
-    {18, 3, 13, 3, 3},
-    {18, 4, 13, 17, 3},
-    {18, 5, 13, 4, 2},
-    {18, 6, 13, 18, 2},
-    {18, 7, 13, 4, 3},
-    {18, 8, 13, 18, 3},
-    {19, 1, 13, 5, 2},
-    {19, 2, 13, 15, 2},
-    {19, 3, 13, 5, 3},
-    {19, 4, 13, 15, 3},
-    {19, 5, 13, 6, 2},
-    {19, 6, 13, 16, 2},
-    {19, 7, 13, 6, 3},
-    {19, 8, 13, 16, 3},
-    {20, 1, 13, 7, 2},
-    {20, 2, 13, 13, 2},
-    {20, 3, 13, 7, 3},
-    {20, 4, 13, 13, 3},
-    {20, 5, 13, 8, 2},
-    {20, 6, 13, 14, 2},
-    {20, 7, 13, 8, 3},
-    {20, 8, 13, 14, 3},
-    {21, 1, 13, 9, 2},
-    {21, 2, 13, 11, 2},
-    {21, 3, 13, 9, 3},
-    {21, 4, 13, 11, 3},
-    {21, 5, 13, 10, 2},
-    {21, 6, 13, 12, 2},
-    {21, 7, 13, 10, 3},
-    {21, 8, 13, 12, 3}
-};
+    {23, 1, 27, 3, 2},  {23, 2, 27, 17, 2}, {23, 3, 27, 3, 3},  {23, 4, 27, 17, 3}, {23, 5, 27, 4, 2},
+    {23, 6, 27, 18, 2}, {23, 7, 27, 4, 3},  {23, 8, 27, 18, 3}, {24, 1, 27, 5, 2},  {24, 2, 27, 15, 2},
+    {24, 3, 27, 5, 3},  {24, 4, 27, 15, 3}, {24, 5, 27, 6, 2},  {24, 6, 27, 16, 2}, {24, 7, 27, 6, 3},
+    {24, 8, 27, 16, 3}, {25, 1, 27, 7, 2},  {25, 2, 27, 13, 2}, {25, 3, 27, 7, 3},  {25, 4, 27, 13, 3},
+    {25, 5, 27, 8, 2},  {25, 6, 27, 14, 2}, {25, 7, 27, 8, 3},  {25, 8, 27, 14, 3}, {26, 1, 27, 9, 2},
+    {26, 2, 27, 11, 2}, {26, 3, 27, 9, 3},  {26, 4, 27, 11, 3}, {26, 5, 27, 10, 2}, {26, 6, 27, 12, 2},
+    {26, 7, 27, 10, 3}, {26, 8, 27, 12, 3}, {18, 1, 13, 3, 2},  {18, 2, 13, 17, 2}, {18, 3, 13, 3, 3},
+    {18, 4, 13, 17, 3}, {18, 5, 13, 4, 2},  {18, 6, 13, 18, 2}, {18, 7, 13, 4, 3},  {18, 8, 13, 18, 3},
+    {19, 1, 13, 5, 2},  {19, 2, 13, 15, 2}, {19, 3, 13, 5, 3},  {19, 4, 13, 15, 3}, {19, 5, 13, 6, 2},
+    {19, 6, 13, 16, 2}, {19, 7, 13, 6, 3},  {19, 8, 13, 16, 3}, {20, 1, 13, 7, 2},  {20, 2, 13, 13, 2},
+    {20, 3, 13, 7, 3},  {20, 4, 13, 13, 3}, {20, 5, 13, 8, 2},  {20, 6, 13, 14, 2}, {20, 7, 13, 8, 3},
+    {20, 8, 13, 14, 3}, {21, 1, 13, 9, 2},  {21, 2, 13, 11, 2}, {21, 3, 13, 9, 3},  {21, 4, 13, 11, 3},
+    {21, 5, 13, 10, 2}, {21, 6, 13, 12, 2}, {21, 7, 13, 10, 3}, {21, 8, 13, 12, 3}};
 } // namespace ubse::npu::controller
 
 #endif // UBSE_NPU_RESOURCE_COLLECTION_DEF_H

@@ -11,12 +11,12 @@
  */
 
 #include "ubse_ctrl_q_get_1825_fe_msg.h"
-#include "../proxy/ubse_ctrl_q_msg_proxy.h"
-#include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "ubse_ctrl_q_get_fe_guid_msg.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "../proxy/ubse_ctrl_q_msg_proxy.h"
+#include "adapter_plugins/mti/ubse_mti_1825.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 using namespace ubse::mti::_1825;
@@ -35,7 +35,7 @@ UbseResult UbseCtrlQGet1825FeReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGet1825PfGuidRespMsg &respMsg, UbseMtiGuid &guid)
+static UbseResult GetGuid(ICtrlQReqMsg& reqMsg, UbseCtrlQGet1825PfGuidRespMsg& respMsg, UbseMtiGuid& guid)
 {
     auto ret = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     if (ret != UBSE_OK) {
@@ -46,7 +46,7 @@ static UbseResult GetGuid(ICtrlQReqMsg &reqMsg, UbseCtrlQGet1825PfGuidRespMsg &r
     return UBSE_OK;
 }
 // 处理单个 VF
-static UbseResult ProcessVf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &pf)
+static UbseResult ProcessVf(UbseCtrlQMsgReadHelper& readHelper, UbseMti1825Pf& pf)
 {
     const auto vfId = readHelper.Read<uint16_t>();
     UbseMti1825Vf vf(pf.slotId, pf.chipId, pf.dieId, pf.pfId, vfId);
@@ -61,7 +61,7 @@ static UbseResult ProcessVf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &p
 }
 
 // 处理单个 PF
-static UbseResult ProcessPf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &pf)
+static UbseResult ProcessPf(UbseCtrlQMsgReadHelper& readHelper, UbseMti1825Pf& pf)
 {
     auto reqMsg = UbseCtrlQGet1825PfGuidReqMsg(pf);
     auto respMsg = UbseCtrlQGet1825PfGuidRespMsg();
@@ -80,8 +80,8 @@ static UbseResult ProcessPf(UbseCtrlQMsgReadHelper &readHelper, UbseMti1825Pf &p
     }
     return UBSE_OK;
 }
-static UbseResult ProcessPfs(UbseCtrlQMsgReadHelper &readHelper, const uint8_t &slotId, const uint8_t &chipId,
-                             const uint8_t &dieId, std::vector<UbseMti1825Pf> &pfeList)
+static UbseResult ProcessPfs(UbseCtrlQMsgReadHelper& readHelper, const uint8_t& slotId, const uint8_t& chipId,
+                             const uint8_t& dieId, std::vector<UbseMti1825Pf>& pfeList)
 {
     const auto pfNum = readHelper.Read<uint8_t>();
     for (uint16_t pfIdx = 0; pfIdx < pfNum; ++pfIdx) {
@@ -94,7 +94,7 @@ static UbseResult ProcessPfs(UbseCtrlQMsgReadHelper &readHelper, const uint8_t &
     }
     return UBSE_OK;
 }
-static UbseResult GetRespResult(std::vector<UbseMti1825Pf> &pfeList, UbseCtrlQMsgReadHelper &readHelper)
+static UbseResult GetRespResult(std::vector<UbseMti1825Pf>& pfeList, UbseCtrlQMsgReadHelper& readHelper)
 {
     const auto slotId = readHelper.Read<uint8_t>();
     const auto chipNum = readHelper.Read<uint8_t>();
@@ -112,26 +112,26 @@ static UbseResult GetRespResult(std::vector<UbseMti1825Pf> &pfeList, UbseCtrlQMs
     }
     return UBSE_OK;
 }
-UbseResult UbseCtrlQGet1825PfeRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGet1825PfeRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 为0时，不检查bbNum
     if (!CheckRespValidation(msg, 0, GET_1825_FE_OP_CODE)) {
         return UBSE_ERROR;
     }
 
-    auto pos = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(RespReader);
-    auto end = reinterpret_cast<uint8_t *>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
+    auto pos = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(RespReader);
+    auto end = reinterpret_cast<uint8_t*>(msg.blocks) + sizeof(BasicBlock) * msg.blockNums;
 
     UbseCtrlQMsgReadHelper readHelper(pos, end);
     try {
         return GetRespResult(pfList_, readHelper);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "Read get 1825 pf opt resp failed: " << e.what();
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
-const std::vector<UbseMti1825Pf> &UbseCtrlQGet1825PfeRespMsg::GetPfList() const
+const std::vector<UbseMti1825Pf>& UbseCtrlQGet1825PfeRespMsg::GetPfList() const
 {
     return pfList_;
 }

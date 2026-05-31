@@ -11,11 +11,11 @@
  */
 
 #include "ubse_ctrl_q_get_d2h_memory_msg.h"
-#include "securec.h"
 #include "ubse_ctrl_q_message.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "securec.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
@@ -41,7 +41,7 @@ struct GetUbaTidSizeRespMsg {
     uint32_t size;
 } __attribute__((packed));
 
-UbseCtrlQGetD2hMemoryReqMsg::UbseCtrlQGetD2hMemoryReqMsg(const UbseMtiBusInst &busInstance)
+UbseCtrlQGetD2hMemoryReqMsg::UbseCtrlQGetD2hMemoryReqMsg(const UbseMtiBusInst& busInstance)
     : ICtrlQReqMsg(GET_UBA_TID_SIZE_OP_CODE),
       busInstance_(busInstance)
 {
@@ -49,7 +49,7 @@ UbseCtrlQGetD2hMemoryReqMsg::UbseCtrlQGetD2hMemoryReqMsg(const UbseMtiBusInst &b
 
 UbseResult UbseCtrlQGetD2hMemoryReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<GetUbaTidSizeReqMsg *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<GetUbaTidSizeReqMsg*>(&reqMsg_.blocks.front());
     // 从EID数组的前4个字节提取32位整数
     uint32_t eidValue = 0;
     auto ret = memcpy_s(&eidValue, sizeof(eidValue), busInstance_.eid.data(), sizeof(uint32_t));
@@ -63,13 +63,13 @@ UbseResult UbseCtrlQGetD2hMemoryReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-UbseResult UbseCtrlQGetD2hMemoryRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetD2hMemoryRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // Check resp validation, bbNum is 1.
     if (!CheckRespValidation(msg, 1, GET_UBA_TID_SIZE_OP_CODE)) {
         return UBSE_ERROR;
     }
-    auto &ref = *reinterpret_cast<GetUbaTidSizeRespMsg *>(msg.blocks);
+    auto& ref = *reinterpret_cast<GetUbaTidSizeRespMsg*>(msg.blocks);
     tid_ = ref.eidTid.tid;
     // 合并高32位和低32位形成64位UBA值
     uba_ = (static_cast<uint64_t>(ref.ubaHigh) << 32) | ref.ubaLow;

@@ -20,10 +20,11 @@
 #ifndef BANDBRIDGE_LOG_H
 #define BANDBRIDGE_LOG_H
 
-#include <linux/types.h>
 #include <linux/printk.h>
+#include <linux/types.h>
 
-enum bandbridge_log_level {
+enum bandbridge_log_level
+{
     BANDBRIDGE_LOG_LEVEL_EMERG = 0,
     BANDBRIDGE_LOG_LEVEL_ALERT = 1,
     BANDBRIDGE_LOG_LEVEL_CRIT = 2,
@@ -69,7 +70,7 @@ extern uint32_t g_bandbridge_log_level;
 #define bandbridge_log_debug(...)                                 \
     do {                                                          \
         if (g_bandbridge_log_level >= BANDBRIDGE_LOG_LEVEL_DEBUG) \
-            bandbridge_log(debug, __VA_ARGS__);           \
+            bandbridge_log(debug, __VA_ARGS__);                   \
     } while (0)
 
 /* Rate Limited log to avoid soft lockup crash by quantities of printk */

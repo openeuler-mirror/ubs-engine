@@ -12,9 +12,9 @@
 
 #ifndef UBSE_CTRL_Q_GET_1825_FE_MSG_H
 #define UBSE_CTRL_Q_GET_1825_FE_MSG_H
-#include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_ictrl_q_resp_msg.h"
+#include "adapter_plugins/mti/ubse_mti_1825.h"
 namespace ubse::mti::ctrl_q {
 using namespace mti::_1825;
 class UbseCtrlQGet1825FeReqMsg : public ICtrlQReqMsg {
@@ -28,9 +28,9 @@ class UbseCtrlQGet1825PfeRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGet1825PfeRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<UbseMti1825Pf> &GetPfList() const;
+    const std::vector<UbseMti1825Pf>& GetPfList() const;
 
 private:
     std::vector<UbseMti1825Pf> pfList_;

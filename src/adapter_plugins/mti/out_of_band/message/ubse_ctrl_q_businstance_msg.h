@@ -12,9 +12,9 @@
 
 #ifndef UBSE_CTRL_Q_BUSINSTANCE_MSG_H
 #define UBSE_CTRL_Q_BUSINSTANCE_MSG_H
-#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_ictrl_q_resp_msg.h"
+#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace mti::bus_instance;
@@ -37,9 +37,9 @@ class UbseCtrlQCreateBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQCreateBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const UbseMtiBusInst &GetBusInstance() const;
+    const UbseMtiBusInst& GetBusInstance() const;
 
 private:
     UbseMtiBusInst busInstance_;
@@ -47,7 +47,7 @@ private:
 
 class UbseCtrlQDestroyBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst &busInstance);
+    explicit UbseCtrlQDestroyBusInstanceReqMsg(const UbseMtiBusInst& busInstance);
 
     UbseResult EncodeReqMsg() override;
 
@@ -59,9 +59,9 @@ class UbseCtrlQDestroyBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQDestroyBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const bool &GetRet() const;
+    const bool& GetRet() const;
 
 private:
     bool ret_ = false;

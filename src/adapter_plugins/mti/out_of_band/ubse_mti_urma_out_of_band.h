@@ -15,21 +15,21 @@
 #include "adapter_plugins/mti/ubse_mti_urma.h"
 namespace ubse::mti::urma {
 class UbseMtiUrmaOutOfBand : public UbseMtiUrma {
-    UbseResult GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList) override;
+    UbseResult GetIdevFeList(std::vector<UbseMtiIdevPfe>& feList) override;
 
-    UbseResult GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping) override;
+    UbseResult GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping& mapping) override;
 
-    UbseResult BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                         std::vector<bool> &resList) override;
+    UbseResult BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
+                         std::vector<bool>& resList) override;
 
-    UbseResult UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                           std::vector<bool> &resList) override;
-    UbseResult RegDavidFeToVmBusInstance(const UbseMtiBusInst &busInstance, const std::vector<UbseMtiIdevVfe> &vfeList,
-                                         std::vector<bool> &resList) override;
+    UbseResult UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
+                           std::vector<bool>& resList) override;
+    UbseResult RegDavidFeToVmBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMtiIdevVfe>& vfeList,
+                                         std::vector<bool>& resList) override;
 
-    UbseResult UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst &busInstance,
-                                             const std::vector<UbseMtiIdevVfe> &vfeList,
-                                             std::vector<bool> &resList) override;
+    UbseResult UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst& busInstance,
+                                             const std::vector<UbseMtiIdevVfe>& vfeList,
+                                             std::vector<bool>& resList) override;
 };
 } // namespace ubse::mti::urma
 #endif // UBSE_MTI_URMA_OUT_OF_BAND_H

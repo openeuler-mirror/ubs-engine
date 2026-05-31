@@ -28,7 +28,7 @@ public:
 
     static UbseResult GetNumaIdByPid(const uint64_t& pid, uint32_t& numaId);
 
-    static UbseResult ReadFileContent(const std::string &filePath, std::string &res);
+    static UbseResult ReadFileContent(const std::string& filePath, std::string& res);
 };
 } // namespace ubse::utils
 #endif // UBSE_OS_UTIL_H

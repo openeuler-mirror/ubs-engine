@@ -21,11 +21,11 @@ using namespace ubse::common::def;
 class UbseCtrlQMsgWriteHelper {
 public:
     UbseCtrlQMsgWriteHelper() = delete;
-    UbseCtrlQMsgWriteHelper(uint8_t *s, uint8_t *e) : start_(s), end_(e){};
-    UbseCtrlQMsgWriteHelper(const UbseCtrlQMsgWriteHelper &) = delete;
-    UbseCtrlQMsgWriteHelper(UbseCtrlQMsgWriteHelper &&) = delete;
-    UbseCtrlQMsgWriteHelper &operator=(const UbseCtrlQMsgWriteHelper &) = delete;
-    UbseCtrlQMsgWriteHelper &operator=(UbseCtrlQMsgWriteHelper &&) noexcept = delete;
+    UbseCtrlQMsgWriteHelper(uint8_t* s, uint8_t* e) : start_(s), end_(e){};
+    UbseCtrlQMsgWriteHelper(const UbseCtrlQMsgWriteHelper&) = delete;
+    UbseCtrlQMsgWriteHelper(UbseCtrlQMsgWriteHelper&&) = delete;
+    UbseCtrlQMsgWriteHelper& operator=(const UbseCtrlQMsgWriteHelper&) = delete;
+    UbseCtrlQMsgWriteHelper& operator=(UbseCtrlQMsgWriteHelper&&) noexcept = delete;
 
     template <typename T>
     void Write(T val)
@@ -33,23 +33,23 @@ public:
         if (start_ + sizeof(T) > end_) {
             throw std::out_of_range("out of range while writing request");
         }
-        *reinterpret_cast<T *>(start_) = val;
+        *reinterpret_cast<T*>(start_) = val;
         start_ += sizeof(T);
     }
 
 private:
-    uint8_t *start_;
-    uint8_t *end_;
+    uint8_t* start_;
+    uint8_t* end_;
 };
 
 class UbseCtrlQMsgReadHelper {
 public:
     UbseCtrlQMsgReadHelper() = delete;
-    UbseCtrlQMsgReadHelper(uint8_t *s, uint8_t *e) : start_(s), end_(e){};
-    UbseCtrlQMsgReadHelper(const UbseCtrlQMsgReadHelper &) = delete;
-    UbseCtrlQMsgReadHelper(UbseCtrlQMsgReadHelper &&) = delete;
-    UbseCtrlQMsgReadHelper &operator=(const UbseCtrlQMsgReadHelper &) = delete;
-    UbseCtrlQMsgReadHelper &operator=(UbseCtrlQMsgReadHelper &&) noexcept = delete;
+    UbseCtrlQMsgReadHelper(uint8_t* s, uint8_t* e) : start_(s), end_(e){};
+    UbseCtrlQMsgReadHelper(const UbseCtrlQMsgReadHelper&) = delete;
+    UbseCtrlQMsgReadHelper(UbseCtrlQMsgReadHelper&&) = delete;
+    UbseCtrlQMsgReadHelper& operator=(const UbseCtrlQMsgReadHelper&) = delete;
+    UbseCtrlQMsgReadHelper& operator=(UbseCtrlQMsgReadHelper&&) noexcept = delete;
 
     template <typename T>
     T Read()
@@ -59,16 +59,16 @@ public:
         }
         auto p = start_;
         start_ += sizeof(T);
-        return *reinterpret_cast<T *>(p);
+        return *reinterpret_cast<T*>(p);
     }
 
 private:
-    uint8_t *start_;
-    uint8_t *end_;
+    uint8_t* start_;
+    uint8_t* end_;
 };
 
-UbseResult GetBatchOptRespResult(const CtrlQRespMessage &msg, uint8_t opCode, std::vector<bool> &resList);
+UbseResult GetBatchOptRespResult(const CtrlQRespMessage& msg, uint8_t opCode, std::vector<bool>& resList);
 
-bool CheckRespValidation(const CtrlQRespMessage &msg, uint8_t bbNum, uint8_t opCode);
+bool CheckRespValidation(const CtrlQRespMessage& msg, uint8_t bbNum, uint8_t opCode);
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_CTRL_Q_MSG_HELPER_H

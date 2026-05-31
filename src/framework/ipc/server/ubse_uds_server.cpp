@@ -766,7 +766,7 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     return UBSE_OK;
 }
 
-uint8_t UbseUDSServer::GetSlotId(ubse::election::UbseRoleInfo &roleInfo) const
+uint8_t UbseUDSServer::GetSlotId(ubse::election::UbseRoleInfo& roleInfo) const
 {
     uint8_t slotId = 0;
     SceneType sceneType = GetSceneType();

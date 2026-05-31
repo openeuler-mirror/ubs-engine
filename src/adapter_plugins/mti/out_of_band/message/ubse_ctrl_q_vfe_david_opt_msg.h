@@ -23,7 +23,7 @@ class UbseCtrlQBindVfeDavidReqMsg : public ICtrlQReqMsg {
 public:
     UbseCtrlQBindVfeDavidReqMsg() = delete;
 
-    explicit UbseCtrlQBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList);
+    explicit UbseCtrlQBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -36,7 +36,7 @@ class UbseCtrlQUnBindVfeDavidReqMsg : public ICtrlQReqMsg {
 public:
     UbseCtrlQUnBindVfeDavidReqMsg() = delete;
 
-    explicit UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList);
+    explicit UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -49,9 +49,9 @@ class UbseCtrlQBindVfeDavidRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQBindVfeDavidRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;
@@ -61,9 +61,9 @@ class UbseCtrlQUnBindVfeDavidRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQUnBindVfeDavidRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;

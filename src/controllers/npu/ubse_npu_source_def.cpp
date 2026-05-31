@@ -15,7 +15,7 @@
 namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> StringToArrayForGuid(const std::string &str)
+std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> StringToArrayForGuid(const std::string& str)
 {
     std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> arr{};
     size_t copySize = std::min(str.size(), arr.size());
@@ -36,7 +36,7 @@ size_t NpuResource::CalculateSize() const
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
-UbseResult NpuResource::Pack(UbsePackUtil &packUtil)
+UbseResult NpuResource::Pack(UbsePackUtil& packUtil)
 {
     if (!packUtil.UbsePackUChar(static_cast<unsigned char>(type_)))
         return UBSE_ERROR;
@@ -56,7 +56,7 @@ UbseResult NpuResource::Pack(UbsePackUtil &packUtil)
         if (!packUtil.UbsePackUint8(id))
             return UBSE_ERROR;
     }
-    for (auto &device : affinityDevices_) {
+    for (auto& device : affinityDevices_) {
         if (!packUtil.UbsePackUChar(static_cast<unsigned char>(device.type)))
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.slotId))
@@ -72,7 +72,7 @@ UbseResult NpuResource::Pack(UbsePackUtil &packUtil)
     }
     return UBSE_OK;
 }
-UbseResult NpuResource::Unpack(UbsePackUtil &packUtil)
+UbseResult NpuResource::Unpack(UbsePackUtil& packUtil)
 {
     return UBSE_OK;
 }
@@ -83,16 +83,16 @@ void NpuResource::SetLoc(uint8_t slotId, uint8_t chipId)
     chipId_ = chipId;
 }
 
-void NpuResource::SetGuid(const std::string &npuGuid)
+void NpuResource::SetGuid(const std::string& npuGuid)
 {
     guid_ = npuGuid;
 }
-void NpuResource::SetBusInstanceGuid(const std::string &busInstanceGuid)
+void NpuResource::SetBusInstanceGuid(const std::string& busInstanceGuid)
 {
     busInstanceGuid_ = busInstanceGuid;
 }
 
-void NpuResource::AddAffinityDevice(const UbDevice &device)
+void NpuResource::AddAffinityDevice(const UbDevice& device)
 {
     affinityDevices_.push_back(device);
 }
@@ -105,11 +105,11 @@ size_t BusiResource::CalculateSize() const
 {
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
     size_t flexibleArraySize = subDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
-                                                          sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
+                                                     sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
-UbseResult BusiResource::Pack(UbsePackUtil &packUtil)
+UbseResult BusiResource::Pack(UbsePackUtil& packUtil)
 {
     if (!packUtil.UbsePackUChar(static_cast<unsigned char>(type_)))
         return UBSE_ERROR;
@@ -121,7 +121,7 @@ UbseResult BusiResource::Pack(UbsePackUtil &packUtil)
         if (!packUtil.UbsePackUint8(id))
             return UBSE_ERROR;
     }
-    for (auto &device : subDevices_) {
+    for (auto& device : subDevices_) {
         if (!packUtil.UbsePackUChar(static_cast<unsigned char>(device.type)))
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.slotId))
@@ -137,15 +137,15 @@ UbseResult BusiResource::Pack(UbsePackUtil &packUtil)
     }
     return UBSE_OK;
 }
-UbseResult BusiResource::Unpack(UbsePackUtil &packUtil)
+UbseResult BusiResource::Unpack(UbsePackUtil& packUtil)
 {
     return UBSE_OK;
 }
-void BusiResource::SetGuid(const std::string &npuGuid)
+void BusiResource::SetGuid(const std::string& npuGuid)
 {
     guid_ = npuGuid;
 }
-void BusiResource::AddSubDevice(const UbDevice &device)
+void BusiResource::AddSubDevice(const UbDevice& device)
 {
     subDevices_.push_back(device);
 }
@@ -163,7 +163,7 @@ size_t NicPfeResource::CalculateSize() const
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
-UbseResult NicPfeResource::Pack(UbsePackUtil &packUtil)
+UbseResult NicPfeResource::Pack(UbsePackUtil& packUtil)
 {
     if (!packUtil.UbsePackUChar(static_cast<unsigned char>(type_)))
         return UBSE_ERROR;
@@ -185,7 +185,7 @@ UbseResult NicPfeResource::Pack(UbsePackUtil &packUtil)
         if (!packUtil.UbsePackUint8(id))
             return UBSE_ERROR;
     }
-    for (auto &device : affinityDevices_) {
+    for (auto& device : affinityDevices_) {
         if (!packUtil.UbsePackUChar(static_cast<unsigned char>(device.type)))
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.slotId))
@@ -201,7 +201,7 @@ UbseResult NicPfeResource::Pack(UbsePackUtil &packUtil)
     }
     return UBSE_OK;
 }
-UbseResult NicPfeResource::Unpack(UbsePackUtil &packUtil)
+UbseResult NicPfeResource::Unpack(UbsePackUtil& packUtil)
 {
     return UBSE_OK;
 }
@@ -211,15 +211,15 @@ void NicPfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const ui
     chipId_ = chipId;
     pfId_ = pfId;
 }
-void NicPfeResource::SetGuid(const std::string &npuGuid)
+void NicPfeResource::SetGuid(const std::string& npuGuid)
 {
     guid_ = npuGuid;
 }
-void NicPfeResource::SetBusInstanceGuid(const std::string &busInstanceGuid)
+void NicPfeResource::SetBusInstanceGuid(const std::string& busInstanceGuid)
 {
     busInstanceGuid_ = busInstanceGuid;
 }
-void NicPfeResource::AddAffinityDevice(const UbDevice &device)
+void NicPfeResource::AddAffinityDevice(const UbDevice& device)
 {
     affinityDevices_.push_back(device);
 }
@@ -231,14 +231,14 @@ ResourceType NicVfeResource::GetType() const
 size_t NicVfeResource::CalculateSize() const
 {
     size_t fixSize = sizeof(unsigned char) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint16_t) +
-                     sizeof(uint16_t) + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE + sizeof(uint8_t) *
-                     UBSE_UB_DEVICE_GUID_SIZE;
+                     sizeof(uint16_t) + sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE +
+                     sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
     size_t flexibleArraySize = affinityDevices_.size() * (sizeof(unsigned char) + sizeof(uint8_t) * 3 +
                                                           sizeof(uint16_t) * 2); // 3:slotId/chipId/dieId;2:pfId/vfId
     size_t head = sizeof(unsigned char);
     return fixSize + flexibleArraySize + head;
 }
-UbseResult NicVfeResource::Pack(UbsePackUtil &packUtil)
+UbseResult NicVfeResource::Pack(UbsePackUtil& packUtil)
 {
     if (!packUtil.UbsePackUChar(static_cast<unsigned char>(type_)))
         return UBSE_ERROR;
@@ -262,7 +262,7 @@ UbseResult NicVfeResource::Pack(UbsePackUtil &packUtil)
         if (!packUtil.UbsePackUint8(id))
             return UBSE_ERROR;
     }
-    for (auto &device : affinityDevices_) {
+    for (auto& device : affinityDevices_) {
         if (!packUtil.UbsePackUChar(static_cast<unsigned char>(device.type)))
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.slotId))
@@ -278,7 +278,7 @@ UbseResult NicVfeResource::Pack(UbsePackUtil &packUtil)
     }
     return UBSE_OK;
 }
-UbseResult NicVfeResource::Unpack(UbsePackUtil &packUtil)
+UbseResult NicVfeResource::Unpack(UbsePackUtil& packUtil)
 {
     return UBSE_OK;
 }
@@ -289,15 +289,15 @@ void NicVfeResource::SetLoc(const uint8_t slotId, const uint8_t chipId, const ui
     pfId_ = pfId;
     vfId_ = vfId;
 }
-void NicVfeResource::SetGuid(const std::string &guid)
+void NicVfeResource::SetGuid(const std::string& guid)
 {
     guid_ = guid;
 }
-void NicVfeResource::SetBusInstanceGuid(const std::string &busInstanceGuid)
+void NicVfeResource::SetBusInstanceGuid(const std::string& busInstanceGuid)
 {
     busInstanceGuid_ = busInstanceGuid;
 }
-void NicVfeResource::AddAffinityDevice(const UbDevice &device)
+void NicVfeResource::AddAffinityDevice(const UbDevice& device)
 {
     affinityDevices_.push_back(device);
 }
@@ -313,7 +313,7 @@ size_t UbCtrlResource::CalculateSize() const
     size_t headSize = sizeof(unsigned char);
     return fixSize + headSize;
 }
-UbseResult UbCtrlResource::Pack(UbsePackUtil &packUtil)
+UbseResult UbCtrlResource::Pack(UbsePackUtil& packUtil)
 {
     UBSE_LOG_INFO << "[UbCtrl] pack size = " << CalculateSize()
                   << ", actually size: " << CalculateSize() - sizeof(size_t) << ", slotId: " << slotId_;
@@ -333,7 +333,7 @@ UbseResult UbCtrlResource::Pack(UbsePackUtil &packUtil)
         return UBSE_ERROR;
     return UBSE_OK;
 }
-UbseResult UbCtrlResource::Unpack(UbsePackUtil &packUtil)
+UbseResult UbCtrlResource::Unpack(UbsePackUtil& packUtil)
 {
     return UBSE_OK;
 }

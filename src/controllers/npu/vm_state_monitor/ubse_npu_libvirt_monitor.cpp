@@ -24,29 +24,28 @@ static constexpr int VIR_DOMAIN_EVENT_ID_LIFECYCLE = 0;
 static constexpr int VIR_DOMAIN_EVENT_ID_REBOOT = 1;
 
 extern "C" {
-    using VirConnectPtr = void *;
-    using VirDomainPtr = void *;
-    using VirConnectOpen = VirConnectPtr (*)(const char *);
-    using VirConnectClose = int (*)(VirConnectPtr);
-    using VirEventRegisterDefaultImpl = int (*)();
-    using VirEventRunDefaultImpl = int (*)();
-    using VirConnectDomainEventRegisterAny = int (*)(VirConnectPtr, VirDomainPtr, int, void *, void *, void *);
-    using VirConnectDomainEventDeregisterAny = int (*)(VirConnectPtr, int);
-    using VirDomainGetName = const char* (*)(VirDomainPtr);
-    using VirDomainGetXMLDesc = char* (*)(VirDomainPtr, unsigned int);
+using VirConnectPtr = void*;
+using VirDomainPtr = void*;
+using VirConnectOpen = VirConnectPtr (*)(const char*);
+using VirConnectClose = int (*)(VirConnectPtr);
+using VirEventRegisterDefaultImpl = int (*)();
+using VirEventRunDefaultImpl = int (*)();
+using VirConnectDomainEventRegisterAny = int (*)(VirConnectPtr, VirDomainPtr, int, void*, void*, void*);
+using VirConnectDomainEventDeregisterAny = int (*)(VirConnectPtr, int);
+using VirDomainGetName = const char* (*)(VirDomainPtr);
+using VirDomainGetXMLDesc = char* (*)(VirDomainPtr, unsigned int);
 }
 
 class LibvirtMonitorImpl {
 public:
-    explicit LibvirtMonitorImpl(std::string uri)
-        : uri_(std::move(uri)) {}
+    explicit LibvirtMonitorImpl(std::string uri) : uri_(std::move(uri)) {}
 
     ~LibvirtMonitorImpl()
     {
         Stop();
     }
 
-    void SetCallBack(const EventCallback &cb)
+    void SetCallBack(const EventCallback& cb)
     {
         userCallback_ = cb;
     }
@@ -69,7 +68,7 @@ public:
             return false;
         }
         lifecycleCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_LIFECYCLE,
-                                                                 reinterpret_cast<void *>(EventCallbackThunk), this,
+                                                                 reinterpret_cast<void*>(EventCallbackThunk), this,
                                                                  nullptr);
         if (lifecycleCallbackId_ < 0) {
             UBSE_LOG_ERROR << "Failed to register domain lifecycle event callback.";
@@ -79,7 +78,7 @@ public:
         }
 
         rebootCallbackId_ = virConnectDomainEventRegisterAny_(connection_, nullptr, VIR_DOMAIN_EVENT_ID_REBOOT,
-                                                              reinterpret_cast<void *>(GenericEventCallback), this,
+                                                              reinterpret_cast<void*>(GenericEventCallback), this,
                                                               nullptr);
         if (rebootCallbackId_ < 0) {
             UBSE_LOG_ERROR << "Failed to register domain reboot event callback.";
@@ -135,7 +134,7 @@ public:
 
 private:
     std::string uri_;
-    void *dlHandle_ = nullptr;
+    void* dlHandle_ = nullptr;
     VirConnectPtr connection_ = nullptr;
     int lifecycleCallbackId_ = -1;
     int rebootCallbackId_ = -1;
@@ -161,7 +160,7 @@ private:
             return false;
         }
 
-        auto loadSymbol = [this](const char *symbolName, void *&symbolPtr) {
+        auto loadSymbol = [this](const char* symbolName, void*& symbolPtr) {
             symbolPtr = dlsym(dlHandle_, symbolName);
             if (!symbolPtr) {
                 UBSE_LOG_ERROR << "Missing symbol:" << symbolName;
@@ -171,22 +170,21 @@ private:
         };
 
         struct SymbolInfo {
-            const char *symbolName;
-            void *&symbolPtr;
+            const char* symbolName;
+            void*& symbolPtr;
         };
 
         std::vector<SymbolInfo> symbols = {
-            {"virConnectOpen", reinterpret_cast<void *&>(virConnectOpen_)},
-            {"virConnectClose", reinterpret_cast<void *&>(virConnectClose_)},
-            {"virEventRegisterDefaultImpl", reinterpret_cast<void *&>(virEventRegisterDefaultImpl_)},
-            {"virEventRunDefaultImpl", reinterpret_cast<void *&>(virEventRunDefaultImpl_)},
-            {"virConnectDomainEventRegisterAny", reinterpret_cast<void *&>(virConnectDomainEventRegisterAny_)},
-            {"virConnectDomainEventDeregisterAny", reinterpret_cast<void *&>(virConnectDomainEventDeregisterAny_)},
-            {"virDomainGetName", reinterpret_cast<void *&>(virDomainGetName_)},
-            {"virDomainGetXMLDesc", reinterpret_cast<void *&>(virDomainGetXMLDesc_)}
-        };
+            {"virConnectOpen", reinterpret_cast<void*&>(virConnectOpen_)},
+            {"virConnectClose", reinterpret_cast<void*&>(virConnectClose_)},
+            {"virEventRegisterDefaultImpl", reinterpret_cast<void*&>(virEventRegisterDefaultImpl_)},
+            {"virEventRunDefaultImpl", reinterpret_cast<void*&>(virEventRunDefaultImpl_)},
+            {"virConnectDomainEventRegisterAny", reinterpret_cast<void*&>(virConnectDomainEventRegisterAny_)},
+            {"virConnectDomainEventDeregisterAny", reinterpret_cast<void*&>(virConnectDomainEventDeregisterAny_)},
+            {"virDomainGetName", reinterpret_cast<void*&>(virDomainGetName_)},
+            {"virDomainGetXMLDesc", reinterpret_cast<void*&>(virDomainGetXMLDesc_)}};
 
-        for (auto &symbol : symbols) {
+        for (auto& symbol : symbols) {
             if (!loadSymbol(symbol.symbolName, symbol.symbolPtr)) {
                 return false;
             }
@@ -194,10 +192,9 @@ private:
         return true;
     }
 
-    static void EventCallbackThunk(VirConnectPtr conn, VirDomainPtr dom, int event, int detail,
-                                                  void *opaque)
+    static void EventCallbackThunk(VirConnectPtr conn, VirDomainPtr dom, int event, int detail, void* opaque)
     {
-        auto *self = static_cast<LibvirtMonitorImpl *>(opaque);
+        auto* self = static_cast<LibvirtMonitorImpl*>(opaque);
         self->HandleEvent(conn, dom, event, detail);
     }
 
@@ -207,19 +204,19 @@ private:
         if (dom == nullptr) {
             return UBSE_OK;
         }
-        const char *domName = virDomainGetName_(dom);
+        const char* domName = virDomainGetName_(dom);
         if (!domName) {
             return UBSE_OK;
         }
         auto eventType = static_cast<VirDomainEventType>(event);
-        char *xmlCStr = nullptr;
+        char* xmlCStr = nullptr;
         xmlCStr = virDomainGetXMLDesc_(dom, 0);
         if (!xmlCStr) {
             return UBSE_OK;
         }
-        auto deleter = [](char *desc) {
+        auto deleter = [](char* desc) {
             if (desc) {
-                free(static_cast<void *>(desc));
+                free(static_cast<void*>(desc));
             }
         };
         std::shared_ptr<char> sp(xmlCStr, deleter);
@@ -233,23 +230,22 @@ private:
         return UBSE_OK;
     }
 
-    static void GenericEventCallback(VirConnectPtr conn, VirDomainPtr dom, void *opaque)
+    static void GenericEventCallback(VirConnectPtr conn, VirDomainPtr dom, void* opaque)
     {
-        auto *self = static_cast<LibvirtMonitorImpl *>(opaque);
+        auto* self = static_cast<LibvirtMonitorImpl*>(opaque);
         self->HandleEvent(conn, dom, static_cast<int>(VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT), 0);
     }
 };
 
-LibvirtMonitor::LibvirtMonitor(const std::string &uri)
-    : pImpl_(std::make_unique<LibvirtMonitorImpl>(uri)) {}
+LibvirtMonitor::LibvirtMonitor(const std::string& uri) : pImpl_(std::make_unique<LibvirtMonitorImpl>(uri)) {}
 
 LibvirtMonitor::~LibvirtMonitor() = default;
 
-LibvirtMonitor::LibvirtMonitor(LibvirtMonitor &&) noexcept = default;
+LibvirtMonitor::LibvirtMonitor(LibvirtMonitor&&) noexcept = default;
 
-LibvirtMonitor &LibvirtMonitor::operator=(LibvirtMonitor &&) noexcept = default;
+LibvirtMonitor& LibvirtMonitor::operator=(LibvirtMonitor&&) noexcept = default;
 
-void LibvirtMonitor::SetCallBack(const EventCallback &cb)
+void LibvirtMonitor::SetCallBack(const EventCallback& cb)
 {
     pImpl_->SetCallBack(cb);
 }

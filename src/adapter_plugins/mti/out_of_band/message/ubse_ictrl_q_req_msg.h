@@ -27,7 +27,7 @@ public:
 
     virtual UbseResult EncodeReqMsg() = 0;
 
-    const CtrlQReqMessage &GetReqMsg() const;
+    const CtrlQReqMessage& GetReqMsg() const;
 
 protected:
     void SetVersion(uint8_t version);

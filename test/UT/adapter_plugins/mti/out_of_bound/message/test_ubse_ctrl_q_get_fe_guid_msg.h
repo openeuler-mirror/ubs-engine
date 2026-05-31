@@ -15,10 +15,10 @@
 
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
+#include "ubse_error.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_get_fe_guid_msg.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_message.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_msg_helper.h"
-#include "ubse_error.h"
 
 namespace ubse::ut::mti::ctrl_q {
 using namespace ubse::mti::urma;

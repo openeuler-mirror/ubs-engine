@@ -92,7 +92,7 @@ struct CtrlQReqMessage {
 };
 
 struct CtrlQRespMessage {
-    CtrlQBasicBlock *blocks{nullptr};
+    CtrlQBasicBlock* blocks{nullptr};
     uint32_t blockNums{0};
 };
 } // namespace ubse::mti::ctrl_q

@@ -11,15 +11,15 @@
  */
 
 #include "test_ubse_ctrl_q_fe_opt_msg.h"
-#include <mockcpp/mockcpp.hpp>
-#include <ubse_error.h>
 #include <securec.h>
+#include <ubse_error.h>
+#include <mockcpp/mockcpp.hpp>
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_fe_opt_msg.h"
-#include "src/include/adapter_plugins/mti/ubse_mti_bus_instance.h"
-#include "src/include/adapter_plugins/mti/ubse_mti_urma.h"
-#include "src/include/adapter_plugins/mti/ubse_mti_1825.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ictrl_q_req_msg.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ictrl_q_resp_msg.h"
+#include "src/include/adapter_plugins/mti/ubse_mti_1825.h"
+#include "src/include/adapter_plugins/mti/ubse_mti_bus_instance.h"
+#include "src/include/adapter_plugins/mti/ubse_mti_urma.h"
 
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::mti::bus_instance;
@@ -28,35 +28,38 @@ using namespace ubse::mti::_1825;
 
 namespace ubse::ut::mti::ctrl_q {
 
-void TestUbseCtrlQFeOptMsg::SetUp() {
+void TestUbseCtrlQFeOptMsg::SetUp()
+{
     // 初始化测试数据
     testUpi_ = 1234;
     testVendor_ = 5678;
-    
+
     // 初始化测试总线实例
     testBusInstance_.type = ubse::mti::bus_instance::UbseMtiBusInstanceType::VM;
     testBusInstance_.upi = testUpi_;
     testBusInstance_.vendor = testVendor_;
-    
+
     // 初始化eid和guid
     std::fill(testBusInstance_.eid.begin(), testBusInstance_.eid.end(), 0);
     testBusInstance_.eid[0] = 1;
     testBusInstance_.eid[1] = 2;
     testBusInstance_.eid[2] = 3;
-    
+
     std::fill(testBusInstance_.guid.begin(), testBusInstance_.guid.end(), 0);
     testBusInstance_.guid[0] = 0x10;
     testBusInstance_.guid[1] = 0x20;
     testBusInstance_.guid[2] = 0x30;
 }
 
-void TestUbseCtrlQFeOptMsg::TearDown() {
+void TestUbseCtrlQFeOptMsg::TearDown()
+{
     // 清理测试数据
     GlobalMockObject::verify();
 }
 
 // 测试 UbseCtrlQRegDavidFeToBusInstanceReqMsg
-TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceReqMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceReqMsgTest)
+{
     // 准备测试数据
     std::vector<UbseMtiIdevVfe> vfeList;
     UbseMtiIdevVfe vfe;
@@ -76,7 +79,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceReqMsgTest) {
 }
 
 // 测试 UbseCtrlQRegDavidFeToBusInstanceRespMsg
-TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceRespMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceRespMsgTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -87,16 +91,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceRespMsgTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -105,7 +109,7 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceRespMsgTest) {
     UbseCtrlQRegDavidFeToBusInstanceRespMsg resp;
     EXPECT_EQ(resp.DecodeRespMsg(respMsg), UBSE_OK);
     // 测试获取结果列表
-    const auto &retList = resp.GetRetList();
+    const auto& retList = resp.GetRetList();
     // 结果列表应该包含2个元素
     EXPECT_EQ(retList.size(), 2);
     // 第一个结果应该为true（成功）
@@ -115,7 +119,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeToBusInstanceRespMsgTest) {
 }
 
 // 测试 UbseCtrlQReg1825FeToBusInstanceReqMsg
-TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceReqMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceReqMsgTest)
+{
     // 准备测试数据
     std::vector<UbseMti1825Vf> vfList;
     UbseMti1825Vf vf;
@@ -138,7 +143,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceReqMsgTest) {
 }
 
 // 测试 UbseCtrlQReg1825FeToBusInstanceRespMsg
-TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceRespMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceRespMsgTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -149,16 +155,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceRespMsgTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -167,7 +173,7 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceRespMsgTest) {
     UbseCtrlQReg1825FeToBusInstanceRespMsg resp;
     EXPECT_EQ(resp.DecodeRespMsg(respMsg), UBSE_OK);
     // 测试获取结果列表
-    const auto &retList = resp.GetRetList();
+    const auto& retList = resp.GetRetList();
     // 结果列表应该包含2个元素
     EXPECT_EQ(retList.size(), 2);
     // 第一个结果应该为true（成功）
@@ -177,7 +183,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeToBusInstanceRespMsgTest) {
 }
 
 // 测试 UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg
-TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceReqMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceReqMsgTest)
+{
     // 准备测试数据
     std::vector<UbseMtiIdevVfe> vfeList;
     UbseMtiIdevVfe vfe;
@@ -197,7 +204,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceReqMsgTest) {
 }
 
 // 测试 UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg
-TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceRespMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceRespMsgTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -208,16 +216,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceRespMsgTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -226,7 +234,7 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceRespMsgTest) {
     UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg resp;
     EXPECT_EQ(resp.DecodeRespMsg(respMsg), UBSE_OK);
     // 测试获取结果列表
-    const auto &retList = resp.GetRetList();
+    const auto& retList = resp.GetRetList();
     // 结果列表应该包含2个元素
     EXPECT_EQ(retList.size(), 2);
     // 第一个结果应该为true（成功）
@@ -236,7 +244,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeFromBusInstanceRespMsgTest) {
 }
 
 // 测试 UbseCtrlQUnReg1825FeFromBusInstanceReqMsg
-TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceReqMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceReqMsgTest)
+{
     // 准备测试数据
     std::vector<UbseMti1825Vf> vfList;
     UbseMti1825Vf vf;
@@ -259,7 +268,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceReqMsgTest) {
 }
 
 // 测试 UbseCtrlQUnReg1825FeFromBusInstanceRespMsg
-TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceRespMsgTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceRespMsgTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -270,16 +280,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceRespMsgTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -288,7 +298,7 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceRespMsgTest) {
     UbseCtrlQUnReg1825FeFromBusInstanceRespMsg resp;
     EXPECT_EQ(resp.DecodeRespMsg(respMsg), UBSE_OK);
     // 测试获取结果列表
-    const auto &retList = resp.GetRetList();
+    const auto& retList = resp.GetRetList();
     // 结果列表应该包含2个元素
     EXPECT_EQ(retList.size(), 2);
     // 第一个结果应该为true（成功）
@@ -298,7 +308,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeFromBusInstanceRespMsgTest) {
 }
 
 // 测试错误情况 - 空的vfList
-TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeEmptyVfListTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeEmptyVfListTest)
+{
     // 准备测试数据
     // 空的vfList
     std::vector<UbseMti1825Vf> vfList;
@@ -311,10 +322,11 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeEmptyVfListTest) {
 }
 
 // 测试错误情况 - 不一致的slotId
-TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInconsistentSlotIdTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInconsistentSlotIdTest)
+{
     // 准备测试数据
     std::vector<UbseMti1825Vf> vfList;
-    
+
     // 第一个vf的slotId为1
     UbseMti1825Vf vf1;
     vf1.slotId = 1;
@@ -327,7 +339,7 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInconsistentSlotIdTest) {
     vf1.guid.fill(0);
     vf1.vfId = 5;
     vfList.push_back(vf1);
-    
+
     // 第二个vf的slotId为2，与第一个不一致
     UbseMti1825Vf vf2;
     vf2.slotId = 2;
@@ -349,7 +361,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInconsistentSlotIdTest) {
 }
 
 // 测试错误情况 - 无效的serviceType
-TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeInvalidServiceTypeTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeInvalidServiceTypeTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -360,16 +373,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeInvalidServiceTypeTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -380,7 +393,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, RegDavidFeInvalidServiceTypeTest) {
 }
 
 // 测试错误情况 - 无效的serviceType
-TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInvalidServiceTypeTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInvalidServiceTypeTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -391,16 +405,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInvalidServiceTypeTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -411,7 +425,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, Reg1825FeInvalidServiceTypeTest) {
 }
 
 // 测试错误情况 - 无效的serviceType
-TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeInvalidServiceTypeTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeInvalidServiceTypeTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -422,16 +437,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeInvalidServiceTypeTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;
@@ -442,7 +457,8 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnRegDavidFeInvalidServiceTypeTest) {
 }
 
 // 测试错误情况 - 无效的serviceType
-TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeInvalidServiceTypeTest) {
+TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeInvalidServiceTypeTest)
+{
     // 准备测试数据
     CtrlQBasicBlock block;
     // 设置头部信息
@@ -453,16 +469,16 @@ TEST_F(TestUbseCtrlQFeOptMsg, UnReg1825FeInvalidServiceTypeTest) {
     block.head.ret = 0;
     block.head.seq = 1;
     block.head.resv = 0;
-    
+
     // 设置响应数据
-    uint8_t *data = reinterpret_cast<uint8_t *>(&block.cmdData);
+    uint8_t* data = reinterpret_cast<uint8_t*>(&block.cmdData);
     // 设置结果数量为2
     data[0] = 2;
     // 设置第一个结果为成功
     data[1] = UBSE_OK;
     // 设置第二个结果为失败
     data[2] = UBSE_ERROR;
-    
+
     CtrlQRespMessage respMsg;
     respMsg.blocks = &block;
     respMsg.blockNums = 1;

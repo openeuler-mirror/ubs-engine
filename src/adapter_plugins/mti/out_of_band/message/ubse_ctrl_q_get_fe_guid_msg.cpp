@@ -10,11 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_ctrl_q_get_fe_guid_msg.h"
-#include "securec.h"
 #include "ubse_ctrl_q_message.h"
 #include "ubse_ctrl_q_msg_helper.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "securec.h"
 namespace ubse::mti::ctrl_q {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -37,7 +37,7 @@ struct RespReader {
     Guid guid;
 } __attribute__((packed));
 
-UbseCtrlQGetIdevPfeGuidReqMsg::UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe &pfe)
+UbseCtrlQGetIdevPfeGuidReqMsg::UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPfe& pfe)
     : pfe_(pfe),
       ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
 {
@@ -45,7 +45,7 @@ UbseCtrlQGetIdevPfeGuidReqMsg::UbseCtrlQGetIdevPfeGuidReqMsg(const UbseMtiIdevPf
 
 UbseResult UbseCtrlQGetIdevPfeGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg*>(&reqMsg_.blocks.front());
     FeLoc feloc;
     feloc.slotId = pfe_.ubController.slotId;
     feloc.chipId = pfe_.ubController.chipId;
@@ -56,7 +56,7 @@ UbseResult UbseCtrlQGetIdevPfeGuidReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-UbseCtrlQGetIdevVfeGuidReqMsg::UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe &vfe)
+UbseCtrlQGetIdevVfeGuidReqMsg::UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVfe& vfe)
     : vfe_(vfe),
       ICtrlQReqMsg(GRT_FE_GUID_OP_CODE)
 {
@@ -64,7 +64,7 @@ UbseCtrlQGetIdevVfeGuidReqMsg::UbseCtrlQGetIdevVfeGuidReqMsg(const UbseMtiIdevVf
 
 UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<CtrlQGetFeGuidReqMsg*>(&reqMsg_.blocks.front());
     FeLoc feloc;
     feloc.slotId = vfe_.ubController.slotId;
     feloc.chipId = vfe_.ubController.chipId;
@@ -75,7 +75,7 @@ UbseResult UbseCtrlQGetIdevVfeGuidReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-UbseCtrlQGet1825PfGuidReqMsg::UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &pf)
+UbseCtrlQGet1825PfGuidReqMsg::UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf& pf)
     : pf_(pf),
       ICtrlQReqMsg(GRT_1825_FE_GUID_OP_CODE)
 {
@@ -83,7 +83,7 @@ UbseCtrlQGet1825PfGuidReqMsg::UbseCtrlQGet1825PfGuidReqMsg(const UbseMti1825Pf &
 
 UbseResult UbseCtrlQGet1825PfGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg*>(&reqMsg_.blocks.front());
     FeLoc1825 feloc;
     feloc.slotId = pf_.slotId;
     feloc.chipId = pf_.chipId;
@@ -93,7 +93,7 @@ UbseResult UbseCtrlQGet1825PfGuidReqMsg::EncodeReqMsg()
     return UBSE_OK;
 }
 
-UbseCtrlQGet1825VfGuidReqMsg::UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &vf)
+UbseCtrlQGet1825VfGuidReqMsg::UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf& vf)
     : vf_(vf),
       ICtrlQReqMsg(GRT_1825_FE_GUID_OP_CODE)
 {
@@ -101,7 +101,7 @@ UbseCtrlQGet1825VfGuidReqMsg::UbseCtrlQGet1825VfGuidReqMsg(const UbseMti1825Vf &
 
 UbseResult UbseCtrlQGet1825VfGuidReqMsg::EncodeReqMsg()
 {
-    auto &ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg *>(&reqMsg_.blocks.front());
+    auto& ref = *reinterpret_cast<CtrlQGet1825FeGuidReqMsg*>(&reqMsg_.blocks.front());
     FeLoc1825 feloc;
     feloc.slotId = vf_.slotId;
     feloc.chipId = vf_.chipId;
@@ -116,13 +116,13 @@ UbseCtrlQGetIdevPfeGuidRespMsg::UbseCtrlQGetIdevPfeGuidRespMsg()
     guid_.fill(0xFF);
 }
 
-UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGetIdevPfeGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 需要为1
     if (!CheckRespValidation(msg, 1, GRT_FE_GUID_OP_CODE)) {
         return UBSE_ERROR;
     }
-    auto &reader = *reinterpret_cast<RespReader *>(msg.blocks);
+    auto& reader = *reinterpret_cast<RespReader*>(msg.blocks);
     auto ret = memcpy_s(guid_.data(), guid_.size(), &reader.guid, guid_.size());
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Memcpy guid failed, ret: " << FormatRetCode(ret);
@@ -136,13 +136,13 @@ UbseCtrlQGet1825PfGuidRespMsg::UbseCtrlQGet1825PfGuidRespMsg()
     guid_.fill(0xFF);
 }
 
-UbseResult UbseCtrlQGet1825PfGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &msg)
+UbseResult UbseCtrlQGet1825PfGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage& msg)
 {
     // bbNum 需要为1
     if (!CheckRespValidation(msg, 1, GRT_1825_FE_GUID_OP_CODE)) {
         return UBSE_ERROR;
     }
-    auto &reader = *reinterpret_cast<RespReader *>(msg.blocks);
+    auto& reader = *reinterpret_cast<RespReader*>(msg.blocks);
     auto ret = memcpy_s(guid_.data(), guid_.size(), &reader.guid, guid_.size());
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Memcpy guid failed, ret: " << FormatRetCode(ret);
@@ -151,12 +151,12 @@ UbseResult UbseCtrlQGet1825PfGuidRespMsg::DecodeRespMsg(const CtrlQRespMessage &
     return UBSE_OK;
 }
 
-const UbseMtiGuid &UbseCtrlQGetIdevPfeGuidRespMsg::GetGuid() const
+const UbseMtiGuid& UbseCtrlQGetIdevPfeGuidRespMsg::GetGuid() const
 {
     return guid_;
 }
 
-const UbseMtiGuid &UbseCtrlQGet1825PfGuidRespMsg::GetGuid() const
+const UbseMtiGuid& UbseCtrlQGet1825PfGuidRespMsg::GetGuid() const
 {
     return guid_;
 }

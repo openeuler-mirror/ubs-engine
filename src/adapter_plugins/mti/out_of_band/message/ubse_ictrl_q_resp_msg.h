@@ -23,7 +23,7 @@ class ICtrlQRespMsg {
 public:
     virtual ~ICtrlQRespMsg() = default;
 
-    virtual UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) = 0;
+    virtual UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) = 0;
 };
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_ICTRL_Q_RESP_MSG_H

@@ -28,9 +28,9 @@ class UbseCtrlQGetIdevFeDavidMappingRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGetIdevFeDavidMappingRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const UbseMtiIdevFeDavidMapping &GetMapping() const;
+    const UbseMtiIdevFeDavidMapping& GetMapping() const;
 
 private:
     UbseMtiIdevFeDavidMapping mapping_;

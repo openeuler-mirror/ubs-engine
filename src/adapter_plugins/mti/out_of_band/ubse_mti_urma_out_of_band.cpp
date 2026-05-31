@@ -10,6 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mti_urma_out_of_band.h"
+#include "ubse_error.h"
+#include "ubse_logger.h"
 #include "./message/ubse_ctrl_q_businstance_msg.h"
 #include "./message/ubse_ctrl_q_fe_opt_msg.h"
 #include "./message/ubse_ctrl_q_get_idev_fe_david_mapping_msg.h"
@@ -17,14 +19,12 @@
 #include "./message/ubse_ctrl_q_vfe_david_opt_msg.h"
 #include "./message/ubse_ictrl_q_req_msg.h"
 #include "./proxy/ubse_ctrl_q_msg_proxy.h"
-#include "ubse_error.h"
-#include "ubse_logger.h"
 namespace ubse::mti::urma {
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult UbseMtiUrmaOutOfBand::GetIdevFeList(std::vector<UbseMtiIdevPfe> &feList)
+UbseResult UbseMtiUrmaOutOfBand::GetIdevFeList(std::vector<UbseMtiIdevPfe>& feList)
 {
     UbseCtrlQGetIdevFeReqMsg reqMsg;
     UbseCtrlQGetIdevFeRespMsg respMsg;
@@ -37,7 +37,7 @@ UbseResult UbseMtiUrmaOutOfBand::GetIdevFeList(std::vector<UbseMtiIdevPfe> &feLi
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaOutOfBand::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping &mapping)
+UbseResult UbseMtiUrmaOutOfBand::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping& mapping)
 {
     UbseCtrlQGetIdevFeDavidMappingReqMsg reqMsg;
     UbseCtrlQGetIdevFeDavidMappingRespMsg respMsg;
@@ -50,8 +50,8 @@ UbseResult UbseMtiUrmaOutOfBand::GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaOutOfBand::BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                                           std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
+                                           std::vector<bool>& resList)
 {
     UbseCtrlQBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
     UbseCtrlQBindVfeDavidRespMsg respMsg;
@@ -64,8 +64,8 @@ UbseResult UbseMtiUrmaOutOfBand::BindDavid(uint16_t upi, const std::vector<UbseM
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaOutOfBand::UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair> &vfeDavidList,
-                                             std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
+                                             std::vector<bool>& resList)
 {
     UbseCtrlQUnBindVfeDavidReqMsg reqMsg(upi, vfeDavidList);
     UbseCtrlQUnBindVfeDavidRespMsg respMsg;
@@ -78,9 +78,9 @@ UbseResult UbseMtiUrmaOutOfBand::UnBindDavid(uint16_t upi, const std::vector<Ubs
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaOutOfBand::RegDavidFeToVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                           const std::vector<UbseMtiIdevVfe> &vfeList,
-                                                           std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::RegDavidFeToVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                           const std::vector<UbseMtiIdevVfe>& vfeList,
+                                                           std::vector<bool>& resList)
 {
     UbseCtrlQRegDavidFeToBusInstanceReqMsg reqMsg(busInstance, vfeList);
     UbseCtrlQRegDavidFeToBusInstanceRespMsg respMsg;
@@ -93,9 +93,9 @@ UbseResult UbseMtiUrmaOutOfBand::RegDavidFeToVmBusInstance(const UbseMtiBusInst 
     return UBSE_OK;
 }
 
-UbseResult UbseMtiUrmaOutOfBand::UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst &busInstance,
-                                                               const std::vector<UbseMtiIdevVfe> &vfeList,
-                                                               std::vector<bool> &resList)
+UbseResult UbseMtiUrmaOutOfBand::UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst& busInstance,
+                                                               const std::vector<UbseMtiIdevVfe>& vfeList,
+                                                               std::vector<bool>& resList)
 {
     UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg reqMsg(busInstance, vfeList);
     UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg respMsg;

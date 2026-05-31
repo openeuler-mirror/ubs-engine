@@ -12,14 +12,14 @@
 
 #ifndef UBSE_CTRL_Q_GET_UBA_TID_SIZE_MSG_H
 #define UBSE_CTRL_Q_GET_UBA_TID_SIZE_MSG_H
-#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "ubse_ictrl_q_req_msg.h"
 #include "ubse_ictrl_q_resp_msg.h"
+#include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 namespace ubse::mti::ctrl_q {
 using namespace mti::bus_instance;
 class UbseCtrlQGetD2hMemoryReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQGetD2hMemoryReqMsg(const UbseMtiBusInst &busInstance);
+    explicit UbseCtrlQGetD2hMemoryReqMsg(const UbseMtiBusInst& busInstance);
 
     UbseResult EncodeReqMsg() override;
 
@@ -31,7 +31,7 @@ class UbseCtrlQGetD2hMemoryRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGetD2hMemoryRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
     uint64_t GetUba() const;
 

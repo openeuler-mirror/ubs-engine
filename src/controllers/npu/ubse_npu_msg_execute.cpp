@@ -13,9 +13,9 @@
 
 #include <array>
 
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_context.h"
 #include "ubse_npu_controller_module.h"
 #include "ubse_npu_manager_api.h"
 #include "ubse_pack_util.h"
@@ -31,15 +31,15 @@ constexpr size_t HEAD_SIZE = 6 * sizeof(uint8_t);
 constexpr uint8_t HEX_RADIX = 16;
 
 // list接口
-uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
+uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer);
 // alloc接口
-uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo, bool isAlloc);
-uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
-                              const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer);
-uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo);
-uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer);
+uint32_t UbseAllocRequestUnpack(const TransReqMsg& buffer, UbseAllocRequest& requestInfo, bool isAlloc);
+uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE>& newBusInstanceGuid,
+                              const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer);
+uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg& buffer, std::string& requestInfo);
+uint32_t QueryTidUbaResponsePack(uint32_t& tid, uint64_t& uba, uint64_t& size, TransRespMsg& buffer);
 
-uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg& resp)
 {
     std::vector<std::shared_ptr<IResource>> devList;
     auto ret = QueryAllDevicesImpl(devList);
@@ -57,7 +57,7 @@ uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp)
     return UBSE_OK;
 }
 
-uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg& resp)
 {
     // 解析接收数据
     UbseAllocRequest requestInfo;
@@ -67,8 +67,8 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
     }
     // 业务处理
     std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> newBusInstanceGuid;
-    std::string newBusInstanceGuidStr(reinterpret_cast<const char *>(newBusInstanceGuid.data()),
-        UBSE_UB_DEVICE_GUID_SIZE);
+    std::string newBusInstanceGuidStr(reinterpret_cast<const char*>(newBusInstanceGuid.data()),
+                                      UBSE_UB_DEVICE_GUID_SIZE);
     std::vector<std::shared_ptr<IResource>> devList;
     ret = AllocDevicesImpl(requestInfo, newBusInstanceGuidStr, devList);
     if (ret != UBSE_OK) {
@@ -86,7 +86,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp)
     return UBSE_OK;
 }
 
-uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp)
+uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg& resp)
 {
     UbseAllocRequest requestInfo{};
     auto ret = UbseAllocRequestUnpack(req, requestInfo, false);
@@ -108,7 +108,7 @@ uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp)
     return UBSE_OK;
 }
 
-uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp)
+uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg& resp)
 {
     std::string requestGuid;
     auto ret = UbseQueryTidUbaRequestUnpack(req, requestGuid);
@@ -137,9 +137,9 @@ struct DeviceCnt {
     uint8_t nicVfeCnt{};
 };
 
-void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, DeviceCnt &devCnt)
+void CountDevicesByType(const std::vector<std::shared_ptr<IResource>>& devList, DeviceCnt& devCnt)
 {
-    for (auto &dev : devList) {
+    for (auto& dev : devList) {
         if (dev->GetType() == ResourceType::NIC_PFE) {
             devCnt.nicPfeCnt++;
         }
@@ -158,10 +158,10 @@ void CountDevicesByType(const std::vector<std::shared_ptr<IResource>> &devList, 
     }
 }
 
-uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer)
 {
     size_t size = 0;
-    for (auto &dev : devList) {
+    for (auto& dev : devList) {
         size += dev->CalculateSize();
     }
     buffer.buffer = new (std::nothrow) uint8_t[size + HEAD_SIZE];
@@ -173,17 +173,17 @@ uint32_t QueryDeviceRespBufferAlloc(const std::vector<std::shared_ptr<IResource>
     return UBSE_OK;
 }
 
-uint32_t PackDevList(const std::vector<std::shared_ptr<IResource> > &devList, UbsePackUtil &packUtil)
+uint32_t PackDevList(const std::vector<std::shared_ptr<IResource>>& devList, UbsePackUtil& packUtil)
 {
     DeviceCnt devCnt{};
     CountDevicesByType(devList, devCnt);
-    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(devCnt.nicPfeCnt) || !packUtil.
-        UbsePackUint8(devCnt.nicVfeCnt) || !packUtil.UbsePackUint8(devCnt.npuCnt) ||
+    if (!packUtil.UbsePackUint8(devList.size()) || !packUtil.UbsePackUint8(devCnt.nicPfeCnt) ||
+        !packUtil.UbsePackUint8(devCnt.nicVfeCnt) || !packUtil.UbsePackUint8(devCnt.npuCnt) ||
         !packUtil.UbsePackUint8(devCnt.ubctrlCnt) || !packUtil.UbsePackUint8(devCnt.busiCnt)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
-    for (auto &dev : devList) {
+    for (auto& dev : devList) {
         auto ret = dev->Pack(packUtil);
         if (ret != UBSE_OK) {
             return ret;
@@ -191,7 +191,7 @@ uint32_t PackDevList(const std::vector<std::shared_ptr<IResource> > &devList, Ub
     }
     return UBSE_OK;
 }
-uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer)
 {
     auto ret = QueryDeviceRespBufferAlloc(devList, buffer);
     if (ret != UBSE_OK) {
@@ -210,7 +210,7 @@ uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>> &devL
     return UBSE_OK;
 }
 
-void PrintInfo(const UbseAllocRequest &requestInfo)
+void PrintInfo(const UbseAllocRequest& requestInfo)
 {
     std::ostringstream oss;
     // 拼接 UPIs
@@ -227,7 +227,7 @@ void PrintInfo(const UbseAllocRequest &requestInfo)
     UBSE_LOG_INFO << oss.str();
 }
 
-uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devList)
+uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice>& devList)
 {
     uint8_t devListSize;
     if (!unpackUtil.UnpackUint8(devListSize)) {
@@ -267,7 +267,7 @@ uint32_t UnpackDeviceList(UbseUnpackUtil unpackUtil, std::vector<UbDevice> &devL
     return UBSE_OK;
 }
 
-uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &requestInfo, bool isAlloc)
+uint32_t UbseAllocRequestUnpack(const TransReqMsg& buffer, UbseAllocRequest& requestInfo, bool isAlloc)
 {
     UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
     for (size_t i = 0; i < UBSE_UB_UPI_STR_SIZE; i++) {
@@ -302,7 +302,7 @@ uint32_t UbseAllocRequestUnpack(const TransReqMsg &buffer, UbseAllocRequest &req
     return UBSE_OK;
 }
 
-uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &requestInfo)
+uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg& buffer, std::string& requestInfo)
 {
     UbseUnpackUtil unpackUtil{buffer.buffer, buffer.length};
     for (size_t i = 0; i < UBSE_UB_DEVICE_GUID_SIZE; i++) {
@@ -315,12 +315,12 @@ uint32_t UbseQueryTidUbaRequestUnpack(const TransReqMsg &buffer, std::string &re
     }
     return UBSE_OK;
 }
-uint32_t AllocDevRespBufferAlloc(const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+uint32_t AllocDevRespBufferAlloc(const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer)
 {
     uint32_t size = 0;
     size += sizeof(uint8_t) * UBSE_UB_DEVICE_GUID_SIZE;
     size += HEAD_SIZE;
-    for (auto &dev : devList) {
+    for (auto& dev : devList) {
         size += dev->CalculateSize();
     }
     buffer.buffer = new (std::nothrow) uint8_t[size];
@@ -330,8 +330,8 @@ uint32_t AllocDevRespBufferAlloc(const std::vector<std::shared_ptr<IResource>> &
     buffer.length = size;
     return UBSE_OK;
 }
-uint32_t PackAllocResp(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
-                       const std::vector<std::shared_ptr<IResource>> &devList, UbsePackUtil &packUtil)
+uint32_t PackAllocResp(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE>& newBusInstanceGuid,
+                       const std::vector<std::shared_ptr<IResource>>& devList, UbsePackUtil& packUtil)
 {
     for (auto guid : newBusInstanceGuid) {
         if (!packUtil.UbsePackUint8(guid)) {
@@ -341,8 +341,8 @@ uint32_t PackAllocResp(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newB
     return PackDevList(devList, packUtil);
 }
 
-uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE> &newBusInstanceGuid,
-                              const std::vector<std::shared_ptr<IResource>> &devList, TransRespMsg &buffer)
+uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE>& newBusInstanceGuid,
+                              const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer)
 {
     auto ret = AllocDevRespBufferAlloc(devList, buffer);
     if (ret != UBSE_OK) {
@@ -362,7 +362,7 @@ uint32_t AllocDevResponsePack(const std::array<uint8_t, UBSE_UB_DEVICE_GUID_SIZE
     return ret;
 }
 
-uint32_t QueryTidUbaResponsePack(uint32_t &tid, uint64_t &uba, uint64_t &size, TransRespMsg &buffer)
+uint32_t QueryTidUbaResponsePack(uint32_t& tid, uint64_t& uba, uint64_t& size, TransRespMsg& buffer)
 {
     uint32_t msgSize = sizeof(tid) + sizeof(uba) + sizeof(size);
     buffer.buffer = new (std::nothrow) uint8_t[msgSize];

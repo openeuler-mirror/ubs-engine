@@ -15,7 +15,7 @@
 #include <cstdint>
 namespace ubse::npu::controller {
 struct TransMsg {
-    uint8_t *buffer;
+    uint8_t* buffer;
     uint32_t length;
 };
 
@@ -27,7 +27,7 @@ using TransRespMsg = TransMsg;
  * @param resp 返回响应
  * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
  */
-uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp);
+uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg& resp);
 
 /**
  * 绑定npu-sdk服务端执行
@@ -35,7 +35,7 @@ uint32_t QueryDeviceExecute(TransReqMsg req, TransRespMsg &resp);
  * @param resp 返回响应
  * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
  */
-uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp);
+uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg& resp);
 
 /**
  * 解绑npu-sdk服务端执行
@@ -43,7 +43,7 @@ uint32_t AllocDeviceExecute(TransReqMsg req, TransRespMsg &resp);
  * @param resp 返回响应
  * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
  */
-uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp);
+uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg& resp);
 
 /**
  * TidUbaSize查询-sdk服务端执行
@@ -51,7 +51,6 @@ uint32_t FreeDeviceExecute(TransReqMsg req, TransRespMsg &resp);
  * @param resp 返回响应
  * @return 函数执行结果；UBSE_OK代表成功，其它代表错误
  */
-uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg &resp);
+uint32_t QueryTidUbaSizeExecute(TransReqMsg req, TransRespMsg& resp);
 } // namespace ubse::npu::controller
 #endif // UBSE_NPU_MSG_EXECUTE_H
-

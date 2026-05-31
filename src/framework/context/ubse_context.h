@@ -32,16 +32,18 @@
 #define CONDITION_DYNAMIC_CREATE(CON, MODULE_NAME, ...)                                             \
     static UbseResult g_tmp_##MODULE_NAME =                                                         \
         CON ? ubse::context::UbseContext::GetInstance().RegisterModule<MODULE_NAME, ##__VA_ARGS__>( \
-            ubse::module::UbseModule::CreateModule<MODULE_NAME>) : UBSE_OK
+                  ubse::module::UbseModule::CreateModule<MODULE_NAME>) :                            \
+              UBSE_OK
 
 #define BASE_DYNAMIC_CREATE(MODULE_NAME, ...)                                                     \
     static UbseResult g_tmp_##MODULE_NAME =                                                       \
         ubse::context::UbseContext::GetInstance().RegisterBaseModule<MODULE_NAME, ##__VA_ARGS__>( \
             UbseModule::CreateModule<MODULE_NAME>)
-#define CONDITION_BASE_DYNAMIC_CREATE(CON, MODULE_NAME, ...)                                             \
-    static UbseResult g_tmp_##MODULE_NAME =                                                         \
+#define CONDITION_BASE_DYNAMIC_CREATE(CON, MODULE_NAME, ...)                                            \
+    static UbseResult g_tmp_##MODULE_NAME =                                                             \
         CON ? ubse::context::UbseContext::GetInstance().RegisterBaseModule<MODULE_NAME, ##__VA_ARGS__>( \
-            ubse::module::UbseModule::CreateModule<MODULE_NAME>) : UBSE_OK
+                  ubse::module::UbseModule::CreateModule<MODULE_NAME>) :                                \
+              UBSE_OK
 namespace ubse::context {
 using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
@@ -58,7 +60,8 @@ enum class ProcessMode
 extern std::atomic<bool> g_globalStop;
 extern std::condition_variable_any g_globalCv;
 
-enum class SceneType {
+enum class SceneType
+{
     AI,
     COMMON
 };

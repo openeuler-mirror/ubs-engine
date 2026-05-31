@@ -14,11 +14,11 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_os_util.h"
+#include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "ubse_os_util.h"
-#include "ubse_str_util.h"
 namespace ubse::npu::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mti::urma;
@@ -31,13 +31,13 @@ ResourceCollection::ResourceCollection()
 {
 }
 
-ResourceCollection &ResourceCollection::GetInstance()
+ResourceCollection& ResourceCollection::GetInstance()
 {
     static ResourceCollection instance;
     return instance;
 }
 
-CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid &guid)
+CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid& guid)
 {
     // UbseMtiGuid内存布局位小端序，与字符串表示相反，字符串用大端序存储
     UbseMtiGuid reversed{};
@@ -56,20 +56,20 @@ CollectionDevId CollectionStringUtil::GuidToStr(const UbseMtiGuid &guid)
 void ResourceCollection::ClearAllDevices()
 {
     std::lock_guard<std::mutex> guard(mutex_);
-    for (auto &devVec : devIdToDevice_) {
+    for (auto& devVec : devIdToDevice_) {
         devVec.clear();
     }
     guidToDevice_.clear();
     state_ = CollectionState::WAIT_INIT;
 }
 
-bool ValidateGuid(const std::string &guid)
+bool ValidateGuid(const std::string& guid)
 {
     // guid 是长度32位, 只允许-和16进制数的字符串
     return guid.size() == NO_32 && IsValidHexString(guid, true);
 }
 
-UbseResult SetDeviceWithDevId(std::shared_ptr<CollectionDevice> &dev, CollectionDevIdToDevice &devIdToDeviceMap)
+UbseResult SetDeviceWithDevId(std::shared_ptr<CollectionDevice>& dev, CollectionDevIdToDevice& devIdToDeviceMap)
 {
     if (dev->GetType() >= CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT) {
         UBSE_LOG_ERROR << "Invalid device type, devId: " << dev->GetIdStr();
@@ -87,7 +87,7 @@ UbseResult SetDeviceWithDevId(std::shared_ptr<CollectionDevice> &dev, Collection
     return UBSE_OK;
 }
 
-UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice> &dev, CollectionGuidToDevice &guidToDevice_)
+UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice>& dev, CollectionGuidToDevice& guidToDevice_)
 {
     if (!ValidateGuid(dev->GetGuid())) {
         UBSE_LOG_WARN << "Guid is invalid, guid: " << dev->GetGuid();
@@ -98,10 +98,8 @@ UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice> &dev, CollectionG
         UBSE_LOG_ERROR << "Invalid device type, guid: " << dev->GetGuid();
         return UBSE_ERROR;
     }
-    if (type == CollectionDeviceType::HOST_BUSINSTANCE
-        || type == CollectionDeviceType::VM_BUSINSTANCE
-        || type == CollectionDeviceType::NIC_PFE
-        || type == CollectionDeviceType::NIC_VFE) {
+    if (type == CollectionDeviceType::HOST_BUSINSTANCE || type == CollectionDeviceType::VM_BUSINSTANCE ||
+        type == CollectionDeviceType::NIC_PFE || type == CollectionDeviceType::NIC_VFE) {
         auto exist = guidToDevice_.find(dev->GetGuid()) != guidToDevice_.end();
         if (exist) {
             UBSE_LOG_WARN << "Device: " << dev->GetGuid() << " has already existed";
@@ -112,7 +110,7 @@ UbseResult SetDeviceWithGuid(std::shared_ptr<CollectionDevice> &dev, CollectionG
     return UBSE_OK;
 }
 
-UbseResult ResourceCollection::ValidateDevice(const std::shared_ptr<CollectionDevice> &dev)
+UbseResult ResourceCollection::ValidateDevice(const std::shared_ptr<CollectionDevice>& dev)
 {
     if (dev == nullptr) {
         UBSE_LOG_ERROR << "Device is nullptr";
@@ -125,14 +123,14 @@ UbseResult ResourceCollection::ValidateDevice(const std::shared_ptr<CollectionDe
     }
     return UBSE_OK;
 }
-UbseResult ResourceCollection::SetDevice(std::shared_ptr<CollectionDevice> &dev)
+UbseResult ResourceCollection::SetDevice(std::shared_ptr<CollectionDevice>& dev)
 {
     if (auto ret = ValidateDevice(dev); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Validate device failed";
         return ret;
     }
     auto type = dev->GetType();
-    auto &devIdToDeviceMap = devIdToDevice_[DeviceTypeToUint8(type)];
+    auto& devIdToDeviceMap = devIdToDevice_[DeviceTypeToUint8(type)];
     if (auto ret = SetDeviceWithDevId(dev, devIdToDeviceMap); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to add device to devId map";
         return ret;
@@ -150,19 +148,19 @@ UbseResult ResourceCollection::SetDevice(std::shared_ptr<CollectionDevice> &dev)
     return UBSE_OK;
 }
 
-
-bool IsBusInstanceType(const std::shared_ptr<CollectionDevice> &dev)
+bool IsBusInstanceType(const std::shared_ptr<CollectionDevice>& dev)
 {
     return dev->GetType() == CollectionDeviceType::HOST_BUSINSTANCE ||
            dev->GetType() == CollectionDeviceType::VM_BUSINSTANCE;
 }
 
-bool IsIdevFeType(const std::shared_ptr<CollectionDevice> &dev)
+bool IsIdevFeType(const std::shared_ptr<CollectionDevice>& dev)
 {
     return dev->GetType() == CollectionDeviceType::P_IDEV || dev->GetType() == CollectionDeviceType::V_IDEV;
 }
 
-enum BindDevType : uint8_t {
+enum BindDevType : uint8_t
+{
     BUSI_VFE = 0,
     BUSI_NIC_PFE = 1,
     BUSI_NIC_VFE = 2,
@@ -170,7 +168,7 @@ enum BindDevType : uint8_t {
     ERROR_TYPE = 4
 };
 
-BindDevType GetBindDevType(const std::shared_ptr<CollectionDevice> &dev1, const std::shared_ptr<CollectionDevice> &dev2)
+BindDevType GetBindDevType(const std::shared_ptr<CollectionDevice>& dev1, const std::shared_ptr<CollectionDevice>& dev2)
 {
     if ((IsBusInstanceType(dev1) && dev2->GetType() == CollectionDeviceType::V_IDEV) ||
         (IsBusInstanceType(dev2) && dev1->GetType() == CollectionDeviceType::V_IDEV)) {
@@ -191,8 +189,8 @@ BindDevType GetBindDevType(const std::shared_ptr<CollectionDevice> &dev1, const 
     return BindDevType::ERROR_TYPE;
 }
 
-std::shared_ptr<CollectionDevice> GetSpecifyTypeDevFromTwoDev(const std::shared_ptr<CollectionDevice> &dev1,
-                                                              const std::shared_ptr<CollectionDevice> &dev2,
+std::shared_ptr<CollectionDevice> GetSpecifyTypeDevFromTwoDev(const std::shared_ptr<CollectionDevice>& dev1,
+                                                              const std::shared_ptr<CollectionDevice>& dev2,
                                                               CollectionDeviceType type)
 {
     if (dev1->GetType() == type) {
@@ -205,7 +203,7 @@ std::shared_ptr<CollectionDevice> GetSpecifyTypeDevFromTwoDev(const std::shared_
     return nullptr;
 }
 
-UbseResult RemovePreviousBondingBusiFromVfe(const std::shared_ptr<CollectionDeviceIdevVfe> &devVfe)
+UbseResult RemovePreviousBondingBusiFromVfe(const std::shared_ptr<CollectionDeviceIdevVfe>& devVfe)
 {
     // vfebusi
     auto preBusiVec = devVfe->GetBondingDevBusi();
@@ -216,7 +214,7 @@ UbseResult RemovePreviousBondingBusiFromVfe(const std::shared_ptr<CollectionDevi
         return UBSE_ERROR;
     }
     if (!preBusiVec.empty()) {
-        const auto &preBusi = preBusiVec[0];
+        const auto& preBusi = preBusiVec[0];
         if (preBusi == nullptr) {
             UBSE_LOG_ERROR << "The previous busi is null";
             return UBSE_ERROR;
@@ -226,8 +224,8 @@ UbseResult RemovePreviousBondingBusiFromVfe(const std::shared_ptr<CollectionDevi
     return UBSE_OK;
 }
 
-UbseResult ManageBusiAndVfeBinding(const std::shared_ptr<CollectionDevice> &dev1,
-                                   const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+UbseResult ManageBusiAndVfeBinding(const std::shared_ptr<CollectionDevice>& dev1,
+                                   const std::shared_ptr<CollectionDevice>& dev2, bool isBinding)
 {
     auto devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::VM_BUSINSTANCE);
     auto devVfeBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::V_IDEV);
@@ -253,8 +251,8 @@ UbseResult ManageBusiAndVfeBinding(const std::shared_ptr<CollectionDevice> &dev1
     return UBSE_OK;
 }
 
-UbseResult ManageBusiAndNicPfeBinding(const std::shared_ptr<CollectionDevice> &dev1,
-                                      const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+UbseResult ManageBusiAndNicPfeBinding(const std::shared_ptr<CollectionDevice>& dev1,
+                                      const std::shared_ptr<CollectionDevice>& dev2, bool isBinding)
 {
     auto devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::VM_BUSINSTANCE);
     if (devBusiBase == nullptr) {
@@ -265,7 +263,7 @@ UbseResult ManageBusiAndNicPfeBinding(const std::shared_ptr<CollectionDevice> &d
     auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNicPfe>(devNicBase);
     if (devBusi == nullptr || devNic == nullptr) {
         UBSE_LOG_ERROR << "Device not found, busi: " << static_cast<int>(devBusi == nullptr)
-            << ", nic: " << static_cast<int>(devNic == nullptr);
+                       << ", nic: " << static_cast<int>(devNic == nullptr);
         return UBSE_ERROR;
     }
 
@@ -284,8 +282,8 @@ UbseResult ManageBusiAndNicPfeBinding(const std::shared_ptr<CollectionDevice> &d
     return UBSE_OK;
 }
 
-UbseResult ManageBusiAndNicVfeBinding(const std::shared_ptr<CollectionDevice> &dev1,
-                                      const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+UbseResult ManageBusiAndNicVfeBinding(const std::shared_ptr<CollectionDevice>& dev1,
+                                      const std::shared_ptr<CollectionDevice>& dev2, bool isBinding)
 {
     auto devBusiBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::VM_BUSINSTANCE);
     if (devBusiBase == nullptr) {
@@ -296,7 +294,7 @@ UbseResult ManageBusiAndNicVfeBinding(const std::shared_ptr<CollectionDevice> &d
     auto devNic = CollectionDevice::CollectionToDerived<CollectionDeviceNicVfe>(devNicBase);
     if (devBusi == nullptr || devNic == nullptr) {
         UBSE_LOG_ERROR << "Device not found, busi: " << static_cast<int>(devBusi == nullptr)
-            << ", nic: " << static_cast<int>(devNic == nullptr);
+                       << ", nic: " << static_cast<int>(devNic == nullptr);
         return UBSE_ERROR;
     }
 
@@ -314,8 +312,8 @@ UbseResult ManageBusiAndNicVfeBinding(const std::shared_ptr<CollectionDevice> &d
     return UBSE_OK;
 }
 
-UbseResult ManageIdevAndDavidBinding(const std::shared_ptr<CollectionDevice> &dev1,
-                                     const std::shared_ptr<CollectionDevice> &dev2, bool isBinding)
+UbseResult ManageIdevAndDavidBinding(const std::shared_ptr<CollectionDevice>& dev1,
+                                     const std::shared_ptr<CollectionDevice>& dev2, bool isBinding)
 {
     auto devIdevBase = GetSpecifyTypeDevFromTwoDev(dev1, dev2, CollectionDeviceType::P_IDEV);
     if (devIdevBase == nullptr) {
@@ -349,8 +347,8 @@ UbseResult ManageIdevAndDavidBinding(const std::shared_ptr<CollectionDevice> &de
     }
     return UBSE_OK;
 }
-UbseResult ResourceCollection::BindDevice(const std::shared_ptr<CollectionDevice> &dev1,
-                                          const std::shared_ptr<CollectionDevice> &dev2)
+UbseResult ResourceCollection::BindDevice(const std::shared_ptr<CollectionDevice>& dev1,
+                                          const std::shared_ptr<CollectionDevice>& dev2)
 {
     if (dev1 == nullptr || dev2 == nullptr) {
         UBSE_LOG_ERROR << "Failed to bind nullptr device, " << (dev1 == nullptr) << " " << (dev2 == nullptr);
@@ -390,8 +388,8 @@ UbseResult ResourceCollection::BindDevice(const std::shared_ptr<CollectionDevice
     return UBSE_OK;
 }
 
-UbseResult ResourceCollection::UnbindDevice(const std::shared_ptr<CollectionDevice> &dev1,
-                                            const std::shared_ptr<CollectionDevice> &dev2)
+UbseResult ResourceCollection::UnbindDevice(const std::shared_ptr<CollectionDevice>& dev1,
+                                            const std::shared_ptr<CollectionDevice>& dev2)
 {
     if (dev1 == nullptr || dev2 == nullptr) {
         UBSE_LOG_ERROR << "Failed to unbind nullptr device";
@@ -475,14 +473,14 @@ UbseResult ResourceCollection::CollectStaticResource()
     return UBSE_OK;
 }
 
-bool IsBusInstanceType(const CollectionDeviceType &type)
+bool IsBusInstanceType(const CollectionDeviceType& type)
 {
     return type == CollectionDeviceType::VM_BUSINSTANCE || type == CollectionDeviceType::HOST_BUSINSTANCE;
 }
 UbseResult ResourceCollection::BindVfeToNpu()
 {
     // 遍历businstance
-    for (auto &[devId, device] : guidToDevice_) {
+    for (auto& [devId, device] : guidToDevice_) {
         if (!IsBusInstanceType(device->GetType())) {
             continue;
         }
@@ -493,7 +491,7 @@ UbseResult ResourceCollection::BindVfeToNpu()
         }
         // 获取businstance绑定的vfe;
         auto subIdevs = busi->GetSubDevIdev();
-        for (auto &vfeIdev : subIdevs) {
+        for (auto& vfeIdev : subIdevs) {
             // vfe-pfe
             auto pfeIdev = vfeIdev->GetParentPfe();
             // pfe-david;
@@ -508,8 +506,8 @@ UbseResult ResourceCollection::BindVfeToNpu()
     return UBSE_OK;
 }
 
-std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByDevId(const CollectionDevId &devId,
-                                                                       const CollectionDeviceType &type)
+std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByDevId(const CollectionDevId& devId,
+                                                                       const CollectionDeviceType& type)
 {
     if (devId.empty() || type >= CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT) {
         UBSE_LOG_ERROR << "devId is empty or invalid device type, devId: " << devId
@@ -520,7 +518,7 @@ std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByDevId(const Col
         UBSE_LOG_ERROR << "devIdToDevice_ map is incomplete";
         return nullptr;
     }
-    auto &devIdToDeviceMap = devIdToDevice_[DeviceTypeToUint8(type)];
+    auto& devIdToDeviceMap = devIdToDevice_[DeviceTypeToUint8(type)];
     if (devIdToDeviceMap.find(devId) == devIdToDeviceMap.end()) {
         UBSE_LOG_ERROR << "Can not find device by devId";
         return nullptr;
@@ -528,7 +526,7 @@ std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByDevId(const Col
     return devIdToDeviceMap[devId];
 }
 
-std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByGuid(const CollectionGuid &guid)
+std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByGuid(const CollectionGuid& guid)
 {
     if (!ValidateGuid(guid)) {
         UBSE_LOG_ERROR << "Guid is invalid, guid: " << guid;
@@ -541,7 +539,7 @@ std::shared_ptr<CollectionDevice> ResourceCollection::GetDeviceByGuid(const Coll
     return guidToDevice_[guid];
 }
 
-UbseResult ResourceCollection::GetDevicesByType(const CollectionDeviceType &type, CollectionDevIdToDevice &sameTypeDevs)
+UbseResult ResourceCollection::GetDevicesByType(const CollectionDeviceType& type, CollectionDevIdToDevice& sameTypeDevs)
 {
     if (type >= CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT) {
         UBSE_LOG_ERROR << "Type is invalid";
@@ -569,7 +567,7 @@ std::shared_ptr<CollectionDeviceBusi> ResourceCollection::GetDeviceHostBusInstan
 std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> ResourceCollection::GetDeviceAllComSharedIdevVfe()
 {
     std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devComSharedIdevVfes{};
-    for (auto &kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
+    for (auto& kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
         auto devVfeBase = kv.second;
         auto devVfe = CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(devVfeBase);
         if (devVfe != nullptr && devVfe->GetIsComSharedFe()) {
@@ -579,30 +577,30 @@ std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> ResourceCollection::GetDev
     }
     return devComSharedIdevVfes;
 }
-UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice> &baseDev)
+UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<CollectionDevice>& baseDev)
 {
     auto dev = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(std::move(baseDev));
     if (dev == nullptr) {
         UBSE_LOG_ERROR << "dev is nullptr";
         return UBSE_ERROR_INVAL;
     }
-    auto &subDevNicPfes = dev->GetSubDevNicPfe();
+    auto& subDevNicPfes = dev->GetSubDevNicPfe();
     if (!subDevNicPfes.empty()) {
         UBSE_LOG_ERROR << "Sub nic pfe device is not empty";
         return UBSE_ERROR;
     }
-    auto &subDevNicVfes = dev->GetSubDevNicVfe();
+    auto& subDevNicVfes = dev->GetSubDevNicVfe();
     if (!subDevNicVfes.empty()) {
         UBSE_LOG_ERROR << "Sub nic vfe device is not empty";
         return UBSE_ERROR;
     }
-    auto &subDevIdevs = dev->GetSubDevIdev();
+    auto& subDevIdevs = dev->GetSubDevIdev();
     if (!subDevIdevs.empty()) {
         UBSE_LOG_ERROR << "Sub idev device is not empty";
         return UBSE_ERROR;
     }
     guidToDevice_.erase(dev->GetGuid());
-    auto &allVmBusi = devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::VM_BUSINSTANCE)];
+    auto& allVmBusi = devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::VM_BUSINSTANCE)];
     if (allVmBusi.find(dev->GetGuid()) == allVmBusi.end()) {
         UBSE_LOG_ERROR << "No such device in devIdToDevice_ map, guid: " << dev->GetGuid();
         return UBSE_ERROR;
@@ -610,8 +608,8 @@ UbseResult ResourceCollection::RemoveDeviceEmptyVmBusi(const std::shared_ptr<Col
     allVmBusi.erase(dev->GetGuid());
     return UBSE_OK;
 }
-UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl> &ubCtrlDev,
-                                             const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev)
+UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDeviceUbCtrl>& ubCtrlDev,
+                                             const std::shared_ptr<CollectionDeviceIdevPfe>& pfeDev)
 {
     auto device = CollectionDevice::CollectionToBase(pfeDev);
     auto ret = SetDevice(device);
@@ -624,8 +622,8 @@ UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDev
     return ret;
 }
 
-UbseResult ResourceCollection::AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe> &pfeDev,
-                                             const std::shared_ptr<CollectionDeviceIdevVfe> &vfeDev)
+UbseResult ResourceCollection::AddDevIdevVfe(const std::shared_ptr<CollectionDeviceIdevPfe>& pfeDev,
+                                             const std::shared_ptr<CollectionDeviceIdevVfe>& vfeDev)
 {
     auto device = CollectionDevice::CollectionToBase(vfeDev);
     auto ret = SetDevice(device);
@@ -637,14 +635,14 @@ UbseResult ResourceCollection::AddDevIdevVfe(const std::shared_ptr<CollectionDev
     vfeDev->SetParentPfe(pfeDev);
     return ret;
 }
-std::shared_ptr<CollectionDeviceUbCtrl> ConstructUbCtrlObject(const UbseMtiUbController &ubController)
+std::shared_ptr<CollectionDeviceUbCtrl> ConstructUbCtrlObject(const UbseMtiUbController& ubController)
 {
     CollectDeviceLoc devLoc;
     devLoc.chipId = ubController.chipId;
     devLoc.dieId = ubController.dieId;
     return std::make_shared<CollectionDeviceUbCtrl>(devLoc);
 }
-std::shared_ptr<CollectionDeviceIdevPfe> ConstructIdevPfe(const UbseMtiIdevPfe &idevPfe)
+std::shared_ptr<CollectionDeviceIdevPfe> ConstructIdevPfe(const UbseMtiIdevPfe& idevPfe)
 {
     CollectDeviceLoc devLoc;
     devLoc.chipId = idevPfe.ubController.chipId;
@@ -653,7 +651,7 @@ std::shared_ptr<CollectionDeviceIdevPfe> ConstructIdevPfe(const UbseMtiIdevPfe &
     devLoc.guid = CollectionStringUtil::GuidToStr(idevPfe.guid);
     return std::make_shared<CollectionDeviceIdevPfe>(devLoc);
 }
-std::shared_ptr<CollectionDeviceIdevVfe> ConstructIdevVfe(const UbseMtiIdevVfe &idevVfe)
+std::shared_ptr<CollectionDeviceIdevVfe> ConstructIdevVfe(const UbseMtiIdevVfe& idevVfe)
 {
     CollectDeviceLoc devLoc;
     devLoc.chipId = idevVfe.ubController.chipId;
@@ -673,7 +671,7 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
         return ret;
     }
     // 遍历 pfeList
-    for (const auto &idevPfe : feList) {
+    for (const auto& idevPfe : feList) {
         // 提取ubController, 转换成std::shared_ptr<CollectionDeviceUbCtrl> ubCtrlDev 并SetDevice(ubContrller)
         auto ubCtrlDevPtr = ConstructUbCtrlObject(idevPfe.ubController);
         auto device = CollectionDevice::CollectionToBase(ubCtrlDevPtr);
@@ -689,7 +687,7 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
             return ret;
         }
         // 提取vfe
-        for (const auto &idevVfe : idevPfe.vfeList) {
+        for (const auto& idevVfe : idevPfe.vfeList) {
             auto idevVfePtr = ConstructIdevVfe(idevVfe);
             if (ret = AddDevIdevVfe(idevPfePtr, idevVfePtr); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to add idev vfe";
@@ -701,8 +699,8 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
     return UBSE_OK;
 }
 
-void GetDavidPfeLoc(const UbseMtiDavid &david, const UbseMtiIdevPfe &idevPfe, CollectDeviceLoc &davidDevLoc,
-                    CollectDeviceLoc &pfeDevLoc)
+void GetDavidPfeLoc(const UbseMtiDavid& david, const UbseMtiIdevPfe& idevPfe, CollectDeviceLoc& davidDevLoc,
+                    CollectDeviceLoc& pfeDevLoc)
 {
     davidDevLoc.slotId = david.slotId;
     davidDevLoc.chipId = david.chipId;
@@ -711,7 +709,7 @@ void GetDavidPfeLoc(const UbseMtiDavid &david, const UbseMtiIdevPfe &idevPfe, Co
     pfeDevLoc.pfeId = idevPfe.pfeId;
 }
 
-UbseResult ResourceCollection::AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidDevLoc, CollectDeviceLoc &pfeDevLoc)
+UbseResult ResourceCollection::AddDavidAndBindToIdevPfe(CollectDeviceLoc& davidDevLoc, CollectDeviceLoc& pfeDevLoc)
 {
     auto davidDev = std::make_shared<CollectionDeviceDavid>(davidDevLoc);
     // 1650pfevfepfe
@@ -730,7 +728,7 @@ UbseResult ResourceCollection::AddDavidAndBindToIdevPfe(CollectDeviceLoc &davidD
     if (davidDevLoc.slotId == SPECIAL_FE_VAL && davidDevLoc.chipId == SPECIAL_FE_VAL) {
         // pfe
         existPfe->SetIsComSharedFe(true);
-        for (const auto &vfe : existPfe->GetSubDevVfe()) {
+        for (const auto& vfe : existPfe->GetSubDevVfe()) {
             if (vfe == nullptr) {
                 UBSE_LOG_ERROR << "Vfe is null";
                 continue;
@@ -759,7 +757,7 @@ UbseResult ResourceCollection::CollectIdevPfeDavid()
         UBSE_LOG_ERROR << "Failed to get david mapping, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &[david, idevPfe] : davidDevMapping) {
+    for (const auto& [david, idevPfe] : davidDevMapping) {
         CollectDeviceLoc davidDevLoc;
         CollectDeviceLoc pfeDevLoc;
         GetDavidPfeLoc(david, idevPfe, davidDevLoc, pfeDevLoc);
@@ -772,7 +770,7 @@ UbseResult ResourceCollection::CollectIdevPfeDavid()
     return UBSE_OK;
 }
 
-void GetNicVfeLoc(const UbseMti1825Vf &mti1825Vf, CollectDeviceLoc &nicFeLoc)
+void GetNicVfeLoc(const UbseMti1825Vf& mti1825Vf, CollectDeviceLoc& nicFeLoc)
 {
     nicFeLoc.slotId = mti1825Vf.slotId;
     nicFeLoc.chipId = mti1825Vf.chipId;
@@ -782,7 +780,7 @@ void GetNicVfeLoc(const UbseMti1825Vf &mti1825Vf, CollectDeviceLoc &nicFeLoc)
     nicFeLoc.guid = CollectionStringUtil::GuidToStr(mti1825Vf.guid);
 }
 
-void GetNicPfeLoc(const UbseMti1825Pf &mti1825Pf, CollectDeviceLoc &nicFeLoc)
+void GetNicPfeLoc(const UbseMti1825Pf& mti1825Pf, CollectDeviceLoc& nicFeLoc)
 {
     nicFeLoc.slotId = mti1825Pf.slotId;
     nicFeLoc.chipId = mti1825Pf.chipId;
@@ -791,7 +789,7 @@ void GetNicPfeLoc(const UbseMti1825Pf &mti1825Pf, CollectDeviceLoc &nicFeLoc)
     nicFeLoc.guid = CollectionStringUtil::GuidToStr(mti1825Pf.guid);
 }
 
-UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf &mti1825Pf)
+UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf& mti1825Pf)
 {
     CollectDeviceLoc nicPfeLoc;
     GetNicPfeLoc(mti1825Pf, nicPfeLoc);
@@ -804,7 +802,7 @@ UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf &mti1825Pf)
     auto ret = SetDevice(device);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to add nic pfe: {" << mti1825Pf.slotId << ", " << mti1825Pf.chipId << ", "
-            << mti1825Pf.dieId << ", " << mti1825Pf.pfId << "}";
+                       << mti1825Pf.dieId << ", " << mti1825Pf.pfId << "}";
         return ret;
     }
     for (auto mti1825Vf : mti1825Pf.vfList) {
@@ -819,7 +817,7 @@ UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf &mti1825Pf)
         auto ret = SetDevice(device);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add nic vfe: {" << mti1825Vf.slotId << ", " << mti1825Vf.chipId << ", "
-                << mti1825Vf.dieId << ", " << mti1825Vf.pfId << ", " << mti1825Vf.vfId << "}";
+                           << mti1825Vf.dieId << ", " << mti1825Vf.pfId << ", " << mti1825Vf.vfId << "}";
             return ret;
         }
         devNicPfe->SetSubNicVfe(devNicVfe);
@@ -836,7 +834,7 @@ UbseResult ResourceCollection::CollectNic()
         UBSE_LOG_ERROR << "Failed to get list of nfe fe operations";
         return ret;
     }
-    for (auto &feInfo : pfList) {
+    for (auto& feInfo : pfList) {
         if (ret = AddNicFe(feInfo); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add nic fe";
             return ret;
@@ -845,7 +843,7 @@ UbseResult ResourceCollection::CollectNic()
     return UBSE_OK;
 }
 
-UbseResult ResourceCollection::GetDavidSlotId(uint8_t &slotId)
+UbseResult ResourceCollection::GetDavidSlotId(uint8_t& slotId)
 {
     CollectionDevIdToDevice davidMap;
     auto ret = GetDevicesByType(CollectionDeviceType::NPU, davidMap);
@@ -853,7 +851,7 @@ UbseResult ResourceCollection::GetDavidSlotId(uint8_t &slotId)
         UBSE_LOG_ERROR << "Failed to get david device";
         return ret;
     }
-    for (auto &davidInfo : davidMap) {
+    for (auto& davidInfo : davidMap) {
         auto deviceDavid = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(davidInfo.second);
         if (deviceDavid != nullptr) {
             slotId = deviceDavid->GetDeviceLoc().slotId;
@@ -862,10 +860,10 @@ UbseResult ResourceCollection::GetDavidSlotId(uint8_t &slotId)
     }
     return UBSE_ERROR;
 }
-std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(const std::string &guid)
+std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(const std::string& guid)
 {
-    for (auto &kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
-        auto &vfe = kv.second;
+    for (auto& kv : devIdToDevice_[static_cast<uint8_t>(CollectionDeviceType::V_IDEV)]) {
+        auto& vfe = kv.second;
         if (vfe->GetGuid() == guid) {
             return CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(vfe);
         }
@@ -874,10 +872,10 @@ std::shared_ptr<CollectionDeviceIdevVfe> ResourceCollection::GetIdevVfeByGuid(co
     return nullptr;
 }
 
-UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid> &guids,
-                                                   std::shared_ptr<CollectionDeviceBusi> &devBusi)
+UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid>& guids,
+                                                   std::shared_ptr<CollectionDeviceBusi>& devBusi)
 {
-    for (const auto &mtiGuid : guids) {
+    for (const auto& mtiGuid : guids) {
         CollectionGuid guid = CollectionStringUtil::GuidToStr(mtiGuid);
         if (!ValidateGuid(guid)) {
             UBSE_LOG_ERROR << "Invalid guid: " << guid;
@@ -885,8 +883,8 @@ UbseResult ResourceCollection::QueryBusiSubDevices(const std::vector<UbseMtiGuid
         }
         // 1825
         if (auto devNicBase = GetDeviceByGuid(guid);
-            devNicBase != nullptr && (devNicBase->GetType() == CollectionDeviceType::NIC_PFE || devNicBase->GetType() ==
-                                      CollectionDeviceType::NIC_VFE)) {
+            devNicBase != nullptr && (devNicBase->GetType() == CollectionDeviceType::NIC_PFE ||
+                                      devNicBase->GetType() == CollectionDeviceType::NIC_VFE)) {
             BindDevice(devBusi, devNicBase);
         } else if (auto devVfe = GetIdevVfeByGuid(guid);
                    devVfe != nullptr && devVfe->GetType() == CollectionDeviceType::V_IDEV) {
@@ -909,7 +907,7 @@ UbseResult ResourceCollection::CollectBusInstance()
         UBSE_LOG_ERROR << "GetBusInstanceList failed, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &busInstanceInfo : busInstanceList) {
+    for (const auto& busInstanceInfo : busInstanceList) {
         std::shared_ptr<CollectionDeviceBusi> devBusi;
         CollectionGuid guid = CollectionStringUtil::GuidToStr(busInstanceInfo.guid);
         if (auto baseDev = GetDeviceByGuid(guid); baseDev != nullptr) {
@@ -960,7 +958,7 @@ UbseResult ResourceCollection::CollectDavidAffinityNic()
 }
 
 UbseResult ResourceCollection::GenerateDavidNicMap(ProductType productType,
-                                                   CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId)
+                                                   CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId)
 {
     uint8_t davidSlotId = 0;
     auto ret = GetDavidSlotId(davidSlotId);
@@ -970,29 +968,26 @@ UbseResult ResourceCollection::GenerateDavidNicMap(ProductType productType,
     }
     switch (productType) {
         case ProductType::SERVER: {
-            for (const auto &[davidChip, nicSlot, nicChip, nicPf] : SERVER_DAVID_NIC_MAPPING) {
-                davidDevIdTo1825DevId.insert({
-                    CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
-                                                            davidSlotId, davidChip),
-                    CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
-                                                            nicSlot, nicChip, nicPf)
-                });
+            for (const auto& [davidChip, nicSlot, nicChip, nicPf] : SERVER_DAVID_NIC_MAPPING) {
+                davidDevIdTo1825DevId.insert(
+                    {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                             davidSlotId, davidChip),
+                     CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                             nicSlot, nicChip, nicPf)});
             }
             break;
         }
         case ProductType::POD_16_1825:
         case ProductType::POD_32_1825:
-            const auto &mapping = (productType == ProductType::POD_16_1825) ?
-                                      POD_16_1825_DAVID_NIC_MAPPING :
-                                      POD_32_1825_DAVID_NIC_MAPPING;
-            for (const auto &[davidSlot, davidChip, nicSlot, nicChip, nicPf] : mapping) {
+            const auto& mapping = (productType == ProductType::POD_16_1825) ? POD_16_1825_DAVID_NIC_MAPPING :
+                                                                              POD_32_1825_DAVID_NIC_MAPPING;
+            for (const auto& [davidSlot, davidChip, nicSlot, nicChip, nicPf] : mapping) {
                 if (davidSlot == davidSlotId) {
-                    davidDevIdTo1825DevId.insert({
-                        CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
-                                                                davidSlot, davidChip),
-                        CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
-                                                                nicSlot, nicChip, nicPf)
-                    });
+                    davidDevIdTo1825DevId.insert(
+                        {CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NPU),
+                                                                 davidSlot, davidChip),
+                         CollectionStringUtil::CollectionJoinStr(static_cast<uint8_t>(CollectionDeviceType::NIC_PFE),
+                                                                 nicSlot, nicChip, nicPf)});
                 }
             }
             break;
@@ -1000,7 +995,7 @@ UbseResult ResourceCollection::GenerateDavidNicMap(ProductType productType,
     return UBSE_OK;
 }
 
-UbseResult ResourceCollection::SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId &davidDevIdTo1825DevId)
+UbseResult ResourceCollection::SetDavidAffinityNic(const CollectionDavidDevIdTo1825DevId& davidDevIdTo1825DevId)
 {
     CollectionDevIdToDevice davidMap;
     auto ret = GetDevicesByType(CollectionDeviceType::NPU, davidMap);
@@ -1014,7 +1009,7 @@ UbseResult ResourceCollection::SetDavidAffinityNic(const CollectionDavidDevIdTo1
         UBSE_LOG_ERROR << "Failed to get 1825 device";
         return ret;
     }
-    for (auto &davidKv : davidMap) {
+    for (auto& davidKv : davidMap) {
         CollectionDavidDevId davidDevId = davidKv.first;
         auto it = davidDevIdTo1825DevId.find(davidDevId);
         if (it == davidDevIdTo1825DevId.end()) {
@@ -1086,7 +1081,7 @@ std::vector<std::string> ResourceCollection::SplitFields(std::vector<std::string
  * @param [in/out] productType: 产品类型
  * @return 成功返回0, 失败返回非0
  */
-UbseResult ResourceCollection::GetProductType(ProductType &productType)
+UbseResult ResourceCollection::GetProductType(ProductType& productType)
 {
     constexpr char realCmd[] = "ipmitool raw 0x30 0x94 0xdb 0x07 0x00 0x6a 0x08 0x00 0x00 0x00 0xff";
     std::string result;

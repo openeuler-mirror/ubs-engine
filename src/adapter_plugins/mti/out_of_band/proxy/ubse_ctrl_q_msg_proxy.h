@@ -12,12 +12,12 @@
 
 #ifndef UBSE_CTRL_Q_MSG_PROXY_H
 #define UBSE_CTRL_Q_MSG_PROXY_H
-#include "../message/ubse_ctrl_q_message.h"
-#include "../message/ubse_ictrl_q_req_msg.h"
-#include "../message/ubse_ictrl_q_resp_msg.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_pointer_process.h"
+#include "../message/ubse_ctrl_q_message.h"
+#include "../message/ubse_ictrl_q_req_msg.h"
+#include "../message/ubse_ictrl_q_resp_msg.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace ubse::common::def;
@@ -27,9 +27,9 @@ public:
 
     CtrlQMsgProxy() = default;
 
-    static CtrlQMsgProxy &GetInstance();
+    static CtrlQMsgProxy& GetInstance();
 
-    UbseResult SendRequest(ICtrlQReqMsg &reqMsg, ICtrlQRespMsg &respMsg);
+    UbseResult SendRequest(ICtrlQReqMsg& reqMsg, ICtrlQRespMsg& respMsg);
 };
 } // namespace ubse::mti::ctrl_q
 #endif // UBSE_CTRL_Q_MSG_PROXY_H

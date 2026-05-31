@@ -12,11 +12,11 @@
 
 #ifndef UBSE_CTRL_Q_FE_OPT_MSG_H
 #define UBSE_CTRL_Q_FE_OPT_MSG_H
+#include "ubse_ictrl_q_req_msg.h"
+#include "ubse_ictrl_q_resp_msg.h"
 #include "adapter_plugins/mti/ubse_mti_1825.h"
 #include "adapter_plugins/mti/ubse_mti_bus_instance.h"
 #include "adapter_plugins/mti/ubse_mti_urma.h"
-#include "ubse_ictrl_q_req_msg.h"
-#include "ubse_ictrl_q_resp_msg.h"
 
 namespace ubse::mti::ctrl_q {
 using namespace mti::urma;
@@ -25,8 +25,8 @@ using namespace mti::bus_instance;
 
 class UbseCtrlQRegDavidFeToBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQRegDavidFeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                                    const std::vector<UbseMtiIdevVfe> &vfeList);
+    explicit UbseCtrlQRegDavidFeToBusInstanceReqMsg(const UbseMtiBusInst& busInstance,
+                                                    const std::vector<UbseMtiIdevVfe>& vfeList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -39,9 +39,9 @@ class UbseCtrlQRegDavidFeToBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQRegDavidFeToBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;
@@ -49,8 +49,8 @@ private:
 
 class UbseCtrlQReg1825FeToBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                                   const std::vector<UbseMti1825Vf> &vfList);
+    explicit UbseCtrlQReg1825FeToBusInstanceReqMsg(const UbseMtiBusInst& busInstance,
+                                                   const std::vector<UbseMti1825Vf>& vfList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -63,9 +63,9 @@ class UbseCtrlQReg1825FeToBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQReg1825FeToBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;
@@ -73,8 +73,8 @@ private:
 
 class UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                                        const std::vector<UbseMtiIdevVfe> &vfeList);
+    explicit UbseCtrlQUnRegDavidFeFromBusInstanceReqMsg(const UbseMtiBusInst& busInstance,
+                                                        const std::vector<UbseMtiIdevVfe>& vfeList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -87,9 +87,9 @@ class UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQUnRegDavidFeFromBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;
@@ -97,8 +97,8 @@ private:
 
 class UbseCtrlQUnReg1825FeFromBusInstanceReqMsg : public ICtrlQReqMsg {
 public:
-    explicit UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(const UbseMtiBusInst &busInstance,
-                                                       const std::vector<UbseMti1825Vf> &vfList);
+    explicit UbseCtrlQUnReg1825FeFromBusInstanceReqMsg(const UbseMtiBusInst& busInstance,
+                                                       const std::vector<UbseMti1825Vf>& vfList);
 
     UbseResult EncodeReqMsg() override;
 
@@ -111,9 +111,9 @@ class UbseCtrlQUnReg1825FeFromBusInstanceRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQUnReg1825FeFromBusInstanceRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<bool> &GetRetList() const;
+    const std::vector<bool>& GetRetList() const;
 
 private:
     std::vector<bool> retList_;
