@@ -28,14 +28,14 @@ void TestUbseNpuManagerApi::TearDown()
 
 TEST_F(TestUbseNpuManagerApi, GetInstanceReturnsSingleton)
 {
-    auto &instance1 = UbseNpuManagerApi::GetInstance();
-    auto &instance2 = UbseNpuManagerApi::GetInstance();
+    auto& instance1 = UbseNpuManagerApi::GetInstance();
+    auto& instance2 = UbseNpuManagerApi::GetInstance();
     EXPECT_EQ(&instance1, &instance2);
 }
 
 TEST_F(TestUbseNpuManagerApi, SetAndGetState)
 {
-    auto &manager = UbseNpuManagerApi::GetInstance();
+    auto& manager = UbseNpuManagerApi::GetInstance();
     manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
     EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
 
@@ -362,7 +362,7 @@ TEST_F(TestUbseNpuManagerApi, QueryUbaTidSizeImplReturnsOk)
 
 TEST_F(TestUbseNpuManagerApi, StateTransitionsFromInitToAvailable)
 {
-    auto &manager = UbseNpuManagerApi::GetInstance();
+    auto& manager = UbseNpuManagerApi::GetInstance();
     manager.SetState(UbseNpuManagerApi::NpuManagerState::INIT);
     EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::INIT);
 

@@ -31,7 +31,8 @@ constexpr uint8_t UB_DEVICE_ID_SIZE = 5;
 using namespace ubse::common::def;
 using namespace ubse::utils;
 // 资源类型枚举
-enum class ResourceType {
+enum class ResourceType
+{
     BUSINSTANCE = 1,
     NPU,
     NIC_PFE,
