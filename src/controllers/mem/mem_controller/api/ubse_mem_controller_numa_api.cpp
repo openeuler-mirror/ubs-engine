@@ -1174,7 +1174,7 @@ uint32_t CheckNumaReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp
     if (!importObjPtr && !exportObjPtr) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
-        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Resource not found.", UBSE_ERR_NOT_EXIST,
+        BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Memory does not exist.", UBSE_ERR_NOT_EXIST,
                                    MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }

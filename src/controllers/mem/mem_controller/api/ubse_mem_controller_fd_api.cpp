@@ -1185,7 +1185,7 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq& req, UbseMemOpera
     result.hasExport = exportObjPtr != nullptr;
     if (!result.hasImport && !result.hasExport) {
         result.comErrorCode =
-            ReturnFailed(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
+            ReturnFailed(req, resp, "Memory does not exist.", UBSE_ERR_NOT_EXIST, MemAdvice::RESOURCE_NOT_EXIST);
         return UBSE_ERR_NOT_EXIST;
     }
     // 检查资源状态（是否正在借用/归还中）

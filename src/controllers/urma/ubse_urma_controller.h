@@ -13,64 +13,64 @@
 #ifndef UBSE_URMA_CONTROLLER_H
 #define UBSE_URMA_CONTROLLER_H
 
-#include <atomic>
-#include <chrono>
-#include <thread>
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma_controller_manager.h"
+#include "ubse_urma_controller_qos.h"
 #include "ubse_urma_def.h"
 
 namespace ubse::urmaController {
 using common::def::UbseResult;
 using nodeController::PhysicalLink;
+using urma::UbseUrmaDevBrief;
 using urma::UbseUrmaDevPath;
 using urma::UbseUrmaInfo;
 using urma::UbseUrmaUvsNodeInfo;
 
-class UrmaController {
+class UbseUrmaController {
 public:
-    static UrmaController& GetInstance()
+    static UbseUrmaController& GetInstance()
     {
-        static UrmaController instance;
+        static UbseUrmaController instance;
         return instance;
     }
 
-    UbseResult UbseUrmaBandWidthSet(const std::string urmaName, uint32_t minBandWidth, uint32_t maxBandWidth);
-    UbseResult UbseUrmaBandWidthGet(const std::string urmaName, uint32_t& minBandWidth, uint32_t& maxBandWidth);
-    UbseResult UbseUrmaBandWidthReset(const std::string urmaName);
-    void UbseUrmaBandWidthUpdate(const std::string urmaName);
-    UbseResult UbseGetLocalUrmaDevInfo(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
-                                       std::vector<uint64_t>& hwResIds);
+    UbseResult UbseUrmaGetDevs(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
+                               std::vector<uint64_t>& hwResIds);
     UbseResult UbseAllocUrmaDev(const std::string& name, UbseUrmaDevPath& devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
-
-    UbseResult UbseGetUrmaDevInfoByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaInfoForQuery>& devInfos);
-    UbseResult UbseUrmaCliDevActivate(const std::string& nodeId, const std::string& urmaName);
-
+    UbseResult UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos);
     static UbseResult UbseTopoLinkChangeHandler(std::string& eventId, const std::string& eventMessage);
     static UbseResult UbseNodeJoinHandler(std::string& eventId, const std::string& eventMessage);
 
-    void RecoverUrmaDeviceForOneNode(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
-    UbseResult ActivateSpecifyUrmaBonding(const std::string& urmaName);
+    void FillUrmaDevsByUvsInfo(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    UbseResult ActivateSpecifyUrmaDev(const std::string& urmaName);
+    void GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfos);
+    bool IsUrmaDevCreated(const UbseUrmaInfo& urmaInfo);
 
 private:
     UbseResult DoNodeJoin(const std::string& joinNodeId);
     UbseResult HandleNodeJoinWithRetry(const std::string& joinNodeId);
     UbseResult HandleTopoLinkChangeWithRetry();
     UbseResult DoTopoLinkChange();
-    bool UbseUrmaBandWidthCheck(UbseUrmaInfo urmaInfo, const std::string profileName);
-    UbseResult UbseQueryUrmaInfoByRpc(const uint32_t& nodeId, std::vector<UbseUrmaInfoForQuery>& urmaInfo);
+    UbseResult UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& urmaInfo);
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
                                         const std::vector<PhysicalLink>& allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
-UbseResult QueryUrmaInfoStateFromUrma(const std::string& nodeId, const std::string& urmaName = "");
+/**
+ * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
+ * @param nodeId: 节点ID
+ * @param urmaName: urma name，为空时查询所有urma
+ * @return 成功返回0, 失败返回非0
+ */
+void RefreshAllUrmaDevsState(const std::string& nodeId);
+void RefreshUrmaDevStateByName(const std::string& nodeId, const std::string& urmaName);
 bool IsUdmaDevHealthy(const std::string& feEid);
 UbseResult QueryAllPortsDown(bool& isAllPortDown);
 } // namespace ubse::urmaController

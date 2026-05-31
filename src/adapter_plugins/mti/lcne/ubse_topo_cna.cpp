@@ -22,6 +22,8 @@
 #include "ubse_str_util.h"
 #include "ubse_xml.h"
 
+#include "adapter_plugins/mti/ubse_mti_def.h"
+
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
@@ -29,6 +31,7 @@ using namespace ubse::utils;
 using namespace ubse::common::def;
 using namespace ubse::http;
 using namespace ubse::mti;
+using namespace ubse::adapter_plugins::mti;
 
 void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
@@ -122,7 +125,13 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNo
     size_t index = 0;
     while (ubseXml->Next("address", index) != nullptr) {
         LcneNodeCnaInfo lcneNodeCnaInfo{};
-        lcneNodeCnaInfo.slotId = ubseXml->Child("slot")->Text();
+        std::string slotId = ubseXml->Child("slot")->Text();
+        std::string nodeId;
+        if (!GetCurNodeId(slotId, nodeId)) {
+            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+            return UBSE_ERROR;
+        }
+        lcneNodeCnaInfo.slotId = nodeId;
         lcneNodeCnaInfo.chipId = ubseXml->Child("ubpu")->Text();
         lcneNodeCnaInfo.cardId = ubseXml->Child("iou")->Text();
         lcneNodeCnaInfo.busNodeCna = ubseXml->Child("bus-primary-cna")->Text();

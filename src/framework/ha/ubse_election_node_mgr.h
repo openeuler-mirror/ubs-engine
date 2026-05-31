@@ -84,6 +84,8 @@ public:
 
     UbseResult GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE>& nodeIpMap);
 
+    void UpdateCurrentNode();
+
     /* *
      * 获取心跳时间
      * @return uint32_t 间隔时间

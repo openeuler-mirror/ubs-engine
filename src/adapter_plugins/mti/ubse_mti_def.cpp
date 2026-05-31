@@ -10,9 +10,17 @@
 * See the Mulan PSL v2 for more details.
 */
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_logger.h"
+#include "ubse_smbios.h"
+#include "ubse_str_util.h"
 
 namespace ubse::adapter_plugins::mti {
+UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::log;
+using namespace ubse::common::def;
+
 UbseDevName::UbseDevName(const std::string& name) : devName(name) {}
 UbseDevName::UbseDevName(std::string&& name) : devName(std::move(name)) {}
 UbseDevName::UbseDevName(const std::string& nodeId, const std::string& socketId) : devName(nodeId + "-" + socketId) {}
@@ -25,14 +33,14 @@ bool UbseDevName::operator<(const UbseDevName& other) const
 {
     return this->devName < other.devName;
 }
-uint32_t UbseDevName::SplitDevName(std::string& nodeId, std::string& socketId) const
+uint32_t UbseDevName::GetNodeIdAndChipId(std::string& nodeId, std::string& chipId) const
 {
     size_t pos = devName.find('-');
     if (pos == std::string::npos) {
         return UBSE_ERROR;
     }
     nodeId = devName.substr(0, pos);
-    socketId = devName.substr(pos + 1);
+    chipId = devName.substr(pos + 1);
     return UBSE_OK;
 }
 UbseDevPortName::UbseDevPortName(const std::string& slotId, const std::string& chipId, const std::string& cardId,
@@ -58,5 +66,21 @@ std::size_t UbseDevNameHash::operator()(const UbseDevName& obj) const
 {
     auto hash = std::hash<std::string>{}(obj.devName);
     return hash;
+}
+
+bool GetCurNodeId(const std::string& slotId, std::string& nodeId)
+{
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        nodeId = slotId;
+        return true;
+    }
+    uint32_t serverId;
+    if (auto ret = adapter_plugins::smbios::UbseSmbios::GetInstance().GetServerIdx(serverId); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "get bios data serverId failed, " << FormatRetCode(ret);
+        return false;
+    }
+
+    nodeId = std::to_string(serverId + 1);
+    return true;
 }
 } // namespace ubse::adapter_plugins::mti

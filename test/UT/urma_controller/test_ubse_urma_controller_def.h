@@ -34,10 +34,6 @@ UbseResult BrocastUrmaInfoTask(const std::string& nodeId);
 } // namespace ubse::urmaController
 
 namespace ubse::urma {
-inline bool operator==(const UrmaQosProfile& a, const UrmaQosProfile& b)
-{
-    return a.profileName == b.profileName && a.minBandWidth == b.minBandWidth && a.maxBandWidth == b.maxBandWidth;
-}
 inline bool operator==(const UbseFeInfo& a, const UbseFeInfo& b)
 {
     return a.name == b.name && a.slotId == b.slotId && a.ubpuId == b.ubpuId && a.iouId == b.iouId &&
@@ -56,8 +52,7 @@ inline bool operator==(const EidGroup& a, const EidGroup& b)
 inline bool operator==(const UbseUrmaInfo& a, const UbseUrmaInfo& b)
 {
     return a.subPath == b.subPath && a.urmaDevEid == b.urmaDevEid && a.eidGroups == b.eidGroups &&
-           a.urmaQosProfile == b.urmaQosProfile && a.urmaDevType == b.urmaDevType && a.state == b.state &&
-           a.hwResId == b.hwResId;
+           a.urmaDevType == b.urmaDevType && a.state == b.state && a.hwResId == b.hwResId;
 }
 inline bool operator==(const UbseUrmaUvsFe& a, const UbseUrmaUvsFe& b)
 {

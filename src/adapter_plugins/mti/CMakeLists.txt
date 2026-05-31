@@ -20,4 +20,4 @@ target_include_directories(ubse_mti PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../controllers/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/adapter_plugins/mti)
 
-target_link_libraries(ubse_mti PRIVATE mti_out_of_band ubse_election ubse_xml ubse_utils ubse_com ubse_context ubse_log ubse_http ubse_config)
+target_link_libraries(ubse_mti PRIVATE mti_out_of_band ubse_election ubse_xml ubse_utils ubse_com ubse_context ubse_log ubse_http ubse_config ubse_smbios)

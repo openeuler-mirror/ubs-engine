@@ -36,7 +36,7 @@ void TestUbseTopoInterface::TearDown()
 
 TEST_F(TestUbseTopoInterface, UbseGetLocalNodeInfo_ModuleLoadFailed)
 {
-    MtiNodeInfo info;
+    UbseMtiNodeInfo info;
     std::shared_ptr<UbseLcneModule> nullModule = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(nullModule));
     EXPECT_EQ(UbseGetLocalNodeInfo(info), UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -44,7 +44,7 @@ TEST_F(TestUbseTopoInterface, UbseGetLocalNodeInfo_ModuleLoadFailed)
 
 TEST_F(TestUbseTopoInterface, UbseGetLocalNodeInfo)
 {
-    MtiNodeInfo info;
+    UbseMtiNodeInfo info;
     std::shared_ptr<UbseLcneModule> module = std::make_shared<UbseLcneModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(module));
     MOCKER_CPP(&UbseLcneModule::UbseGetLocalNodeInfo).stubs().will(returnValue(UBSE_OK));
@@ -53,7 +53,7 @@ TEST_F(TestUbseTopoInterface, UbseGetLocalNodeInfo)
 
 TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_ModuleLoadFailed)
 {
-    std::vector<MtiNodeInfo> infos;
+    std::vector<UbseMtiNodeInfo> infos;
     std::shared_ptr<UbseLcneModule> nullModule = nullptr;
     MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(nullModule));
     EXPECT_EQ(UbseGetAllNodeInfos(infos), UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -61,7 +61,7 @@ TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_ModuleLoadFailed)
 
 TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_ubEnableTrue)
 {
-    std::vector<MtiNodeInfo> infos;
+    std::vector<UbseMtiNodeInfo> infos;
     std::shared_ptr<UbseLcneModule> module = std::make_shared<UbseLcneModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(module));
     bool ubEnable = true;
@@ -72,7 +72,7 @@ TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_ubEnableTrue)
 
 TEST_F(TestUbseTopoInterface, UbseGetAllNodeInfos_IpsList)
 {
-    std::vector<MtiNodeInfo> infos;
+    std::vector<UbseMtiNodeInfo> infos;
     std::shared_ptr<UbseLcneModule> module = std::make_shared<UbseLcneModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(module));
     bool ubEnable = false;

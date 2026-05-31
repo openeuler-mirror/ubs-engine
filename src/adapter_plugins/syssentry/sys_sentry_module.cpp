@@ -19,12 +19,14 @@
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "sentry_observer.h"
 #include "src/adapter_plugins/mti/ubse_lcne_module.h"
 
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::context;
 using namespace ubse::common::def;
 using namespace ubse::module;
@@ -34,6 +36,10 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be initialized";
+        return UBSE_OK;
+    }
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
@@ -43,6 +49,10 @@ UbseResult SysSentryModule::Initialize()
 
 void SysSentryModule::UnInitialize()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be uninitialized";
+        return;
+    }
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         UBSE_LOG_WARN << "TaskExecutorModule is null";
@@ -53,6 +63,10 @@ void SysSentryModule::UnInitialize()
 
 UbseResult SysSentryModule::Start()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be started";
+        return UBSE_OK;
+    }
     // 注册定时器，每隔一段时间调用sentryctl命令查询sentry_msg_monitor 运行状态
     UbseRasObserver::GetInstance().RegQueryMsgMonitorTimer();
     UbseRasObserver::GetInstance().UbseConfigSysSentryWithRetry(); // 不校验返回值，sysSentry未就绪时不影响ubse其它功能
@@ -66,6 +80,10 @@ UbseResult SysSentryModule::Start()
 
 void SysSentryModule::Stop()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be stopped";
+        return;
+    }
     UbseRasObserver::GetInstance().Stop();
 }
 
@@ -92,19 +110,12 @@ std::vector<std::string> SplitString(const std::string& str, char delimiter)
     return result;
 }
 
-UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo>& allSocketComEid, const std::string& nodeId,
+UbseResult ProcessEids(const std::map<UbseMtiIouInfo, UbseMtiEidGroup>& allSocketComEid, const std::string& nodeId,
                        std::unordered_map<std::string, std::vector<std::string>>& eids,
                        std::vector<std::string>& eidGroup)
 {
     for (const auto& info : allSocketComEid) {
-        std::vector<std::string> devVec;
-        ubse::utils::Split(info.first.devName, "-", devVec);
-        if (devVec.size() < NO_2) {
-            UBSE_LOG_ERROR << "Split str failed, devName=" << info.first.devName
-                           << ", primaryEid=" << info.second.primaryEid;
-            return UBSE_ERROR_INVAL;
-        }
-        eids[devVec[0]].emplace_back(info.second.primaryEid);
+        eids[info.first.slotId].emplace_back(info.second.primaryEid);
     }
     for (auto& e : eids[nodeId]) {
         eidGroup.emplace_back(e);
@@ -133,8 +144,9 @@ UbseResult ProcessEids(const std::map<UbseDevName, UbseUrmaEidInfo>& allSocketCo
 
 UbseResult GetEids(std::string& clientEid, std::string& serverEids)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
-    auto result = UbseMtiInterface::GetInstance().GetAllSocketComEid(socketInfoMap);
+    // CLOS组网下EID信息应从节点发现获得
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> comUrmaInfoMap{};
+    auto result = UbseMtiInterface::GetInstance().GetMtiComEid(comUrmaInfoMap);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "Get all socket eid failed, " << ubse::log::FormatRetCode(result);
         return result;
@@ -148,7 +160,7 @@ UbseResult GetEids(std::string& clientEid, std::string& serverEids)
 
     std::unordered_map<std::string, std::vector<std::string>> eids{};
     std::vector<std::string> eidGroup;
-    if (auto ret = ProcessEids(socketInfoMap, localNodeInfo.nodeId, eids, eidGroup); ret != UBSE_OK) {
+    if (auto ret = ProcessEids(comUrmaInfoMap, localNodeInfo.nodeId, eids, eidGroup); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to process eids, local nodeId=" << localNodeInfo.nodeId;
         return ret;
     }
@@ -200,14 +212,14 @@ UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas)
         auto devName = devCputopo.first;
         std::string devNodeId{};
         std::string devSocketId{};
-        if (devName.SplitDevName(devNodeId, devSocketId) != UBSE_OK) {
+        if (devName.GetNodeIdAndChipId(devNodeId, devSocketId) != UBSE_OK) {
             UBSE_LOG_WARN << "Failed to split dev name=" << devName.devName;
             continue;
         }
 
         auto& cpuTopo = devCputopo.second;
-        if (std::to_string(cpuTopo.slotId) == localNodeInfo.nodeId) {
-            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna << ", slotId=" << cpuTopo.slotId;
+        if (std::to_string(cpuTopo.nodeId) == localNodeInfo.nodeId) {
+            UBSE_LOG_INFO << "Get local node cna=" << cpuTopo.busNodeCna << ", nodeId=" << cpuTopo.nodeId;
             busNodeCnas.push_back(std::to_string(cpuTopo.busNodeCna));
         }
     }

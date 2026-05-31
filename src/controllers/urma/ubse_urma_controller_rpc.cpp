@@ -11,20 +11,17 @@
  */
 
 #include "ubse_urma_controller_rpc.h"
-#include <algorithm>
 #include <cstdint>
-#include <thread>
 #include "ubse_com_module.h"
+#include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_logger.h"
 #include "ubse_serial_util.h"
-#include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_manager.h"
-#include "ubse_urma_controller_module.h"
+#include "ubse_urma_controller_util.h"
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
-#include "ubs_error.h"
 
 namespace ubse::urmaController {
 using namespace ubse::com;
@@ -34,20 +31,10 @@ using namespace ubse::election;
 using namespace ubse::context;
 using namespace ubse::nodeController;
 using namespace ubse::urma;
+using namespace ubse::urmaController;
 using namespace ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-const int URMA_NO2 = 2;
-UrmaDevState ConvertUint32ToBondingState(uint32_t val)
-{
-    if (val == 1) {
-        return UrmaDevState::ACTIVED;
-    }
-    if (val == URMA_NO2) {
-        return UrmaDevState::INACTIVED;
-    }
-    return UrmaDevState::UNKNOWN;
-}
 
 UbseResult UrmaDevQueryReqSimpo::Serialize()
 {
@@ -130,7 +117,7 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr& req,
     UrmaDevQueryRpcRsp rpcRsp;
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
-        UbseUrmaControllerManager::GetInstance().GetUrmaInfoForQuery(rpcRsp.urmaInfos);
+        UbseUrmaController::GetInstance().GetLocalUrmaDevs(rpcRsp.urmaInfos);
         rpcRsp.result = UBSE_OK;
         response->SetUbseUrmaDevQueryRsp(rpcRsp);
         return UBSE_OK;
@@ -248,17 +235,6 @@ UbseResult QueryUrmaInfoFromMaster(const UbseRoleInfo& roleInfo, std::vector<std
     return UBSE_OK;
 }
 
-void UbseUrmaBandwidthInit(const std::string& nodeId)
-{
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(nodeId);
-    for (const auto& urmaInfoPair : nodeInfo.urmaList) {
-        if (g_globalStop) {
-            break;
-        }
-        UrmaController::GetInstance().UbseUrmaBandWidthUpdate(urmaInfoPair.first);
-    }
-}
-
 UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
 {
     AsyncHandlerGuard cntGuard;
@@ -286,7 +262,7 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         return ret;
     }
     // 尝试从urma恢复bonding设备
-    UrmaController::GetInstance().RecoverUrmaDeviceForOneNode(curNode.nodeId, uvsInfos);
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(curNode.nodeId, uvsInfos);
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query all ports status, ret=" << ret;
@@ -294,8 +270,8 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
     }
     if (isAllPortDown) {
         // 将该节点的所有urmaInfo状态改成Inactive
-        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to inactive";
-        UbseUrmaControllerManager::GetInstance().SetAllUrmaInfoToInactiveForNode(curNode.nodeId);
+        UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to PORT_DOWN";
+        UbseUrmaControllerManager::GetInstance().SetAllUrmaDevStateForNode(UrmaDevState::PORT_DOWN);
     }
     UBSE_LOG_INFO << "End to update urma info";
     return UBSE_OK;
@@ -320,27 +296,30 @@ UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t>& urmaIn
         timeStampUpdateId = globalTimeStampUpdateId.fetch_add(1);
     }
 
-    static std::mutex PostUpdateUrmaInfosTaskMtx;
-    std::lock_guard<std::mutex> lock(PostUpdateUrmaInfosTaskMtx);
+    static std::mutex postUpdateUrmaInfosTaskMtx;
+    std::lock_guard<std::mutex> lock(postUpdateUrmaInfosTaskMtx);
     if (timeStampUpdateId < globalTimeStampUpdateId - 1) {
         UBSE_LOG_INFO << "Urma info has been updated, ignore this task";
         return UBSE_OK;
     }
-    try {
-        std::thread th([updateNodeIds]() {
-            auto task = [updateNodeIds]() {
-                return DoUpdateUrmaInfos(updateNodeIds);
-            };
-            std::string taskExecutor = "UrmaExecutor";
-            std::string taskName = "UrmaUpdateUrmaInfoRetryTimer";
-            HandleTaskWithRetry(taskExecutor, taskName, NO_10, task);
-        });
-        th.detach();
-    } catch (const std::exception& e) {
-        UBSE_LOG_ERROR << "Failed to update urma info"
-                       << ", error=" << e.what();
-        return UBSE_ERROR;
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor failed";
+        return UBSE_ERROR_NULLPTR;
     }
+    std::string executorName = "UrmaExecutor";
+    auto urmaExecutor = taskExecutor->Get(executorName);
+    if (urmaExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor for urma failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    urmaExecutor->Execute([updateNodeIds, executorName]() {
+        auto task = [updateNodeIds]() {
+            return DoUpdateUrmaInfos(updateNodeIds);
+        };
+        std::string taskName = "UrmaUpdateUrmaInfoRetryTimer";
+        HandleTaskWithRetry(executorName, taskName, NO_10, task);
+    });
     return UBSE_OK;
 }
 
@@ -588,26 +567,32 @@ UbseResult BrocastUrmaInfoTask(const std::string& nodeId)
 
 UbseResult UbseUrmaAsyncBrocastUrmaInfo()
 {
-    try {
-        auto nodes = UbseNodeController::GetInstance().GetAllNodes();
-        for (auto& node : nodes) {
-            if (g_globalStop) {
-                return UBSE_OK;
-            }
-            std::thread([nodeId = node.second.nodeId]() {
-                UBSE_LOG_INFO << "Broadcast urma info timestamp to nodeId=" << nodeId;
-                std::string taskExecutor = "UrmaExecutor";
-                std::string taskName = "UrmaMasterBrocastRetryTimer_" + nodeId;
-                auto task = [nodeId]() {
-                    return BrocastUrmaInfoTask(nodeId);
-                };
-                // 广播事件设置的定时器时间为10s
-                HandleTaskWithRetry(taskExecutor, taskName, NO_10, task);
-            }).detach();
+    std::string executorName = "UrmaExecutor";
+    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto urmaExecutor = taskExecutor->Get(executorName);
+    if (urmaExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get task executor for urma failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto nodes = UbseNodeController::GetInstance().GetAllNodes();
+    for (auto& node : nodes) {
+        if (g_globalStop) {
+            return UBSE_OK;
         }
-    } catch (const std::exception& e) {
-        UBSE_LOG_ERROR << "Failed to create thread, " << e.what();
-        return UBSE_ERROR;
+        urmaExecutor->Execute([executorName, nodeId = node.second.nodeId]() {
+            UBSE_LOG_INFO << "Brocast urma info timestamp to nodeId=" << nodeId;
+            std::string taskName = "UrmaMasterBrocastRetryTimer_" + nodeId;
+            auto task = [nodeId]() {
+                return BrocastUrmaInfoTask(nodeId);
+            };
+            // 广播事件设置的定时器时间为10s
+            HandleTaskWithRetry(executorName, taskName, NO_10, task);
+        });
     }
 
     return UBSE_OK;
@@ -690,62 +675,6 @@ UbseResult ReportUrmaNodeInfoToMaster(const std::string& nodeId)
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaActivateUrmaInfoReqSimpo::Serialize()
-{
-    UbseSerialization out;
-    out << nodeId << urmaName;
-    if (!out.Check()) {
-        UBSE_LOG_ERROR << "Failed to serialize nodeId";
-        return UBSE_ERROR;
-    }
-    mOutputRawDataSize = out.GetLength();
-    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
-    return UBSE_OK;
-}
-
-UbseResult UbseUrmaActivateUrmaInfoReqSimpo::Deserialize()
-{
-    if (mInputRawData == nullptr) {
-        UBSE_LOG_ERROR << "InputRawData is null.";
-        return UBSE_ERROR;
-    }
-    UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    in >> nodeId >> urmaName;
-    if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to deserialize nodeId";
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
-UbseResult UbseUrmaActivateUrmaInfoRspSimpo::Serialize()
-{
-    UbseSerialization out;
-    out << mErrCode;
-    if (!out.Check()) {
-        UBSE_LOG_ERROR << "Failed to serialize urma infos";
-        return UBSE_ERROR;
-    }
-    mOutputRawDataSize = out.GetLength();
-    mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
-    return UBSE_OK;
-}
-
-UbseResult UbseUrmaActivateUrmaInfoRspSimpo::Deserialize()
-{
-    if (mInputRawData == nullptr) {
-        UBSE_LOG_ERROR << "InputRawData is null.";
-        return UBSE_ERROR;
-    }
-    UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    in >> mErrCode;
-    if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to deserialize urma infos";
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
 UbseResult GetCurNodeIdAndMasterNodeId(std::string& curNodeId, std::string& masterNodeId)
 {
     UbseRoleInfo currentNodeInfo{};
@@ -761,72 +690,5 @@ UbseResult GetCurNodeIdAndMasterNodeId(std::string& curNodeId, std::string& mast
     }
     masterNodeId = masterInfo.nodeId;
     return UBSE_OK;
-}
-
-UbseResult ForwardActiveReqToSpecifyNode(const std::string& nodeId, const UbseBaseMessagePtr& request,
-                                         const UbseBaseMessagePtr& response)
-{
-    UBSE_LOG_INFO << "Forward activate urma node, nodeId=" << nodeId;
-    SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
-                        static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_ACTIVATE)};
-    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Getting ComModule failed.";
-        response->SetErrCode(UBSE_ERROR_NULLPTR);
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto ret = comModule->RpcSend(sendParam, request, response);
-    if (ret != UBSE_OK || response->GetErrCode() != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to do rpc send, ret=" << ret << ", " << FormatRetCode(response->GetErrCode());
-        return ret;
-    }
-    response->SetErrCode(UBSE_OK);
-    return UBSE_OK;
-}
-
-UbseResult UbseUrmaActivateUrmaInfoMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
-                                                          UbseComBaseMessageHandlerCtxPtr ctx)
-{
-    AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
-        UBSE_LOG_INFO << "Stop urma controller, ignore message";
-        return UBSE_OK;
-    }
-    auto request = UbseBaseMessage::DeConvert<UbseUrmaActivateUrmaInfoReqSimpo>(req);
-    auto response = UbseBaseMessage::DeConvert<UbseUrmaActivateUrmaInfoRspSimpo>(rsp);
-    if (request == nullptr || response == nullptr) {
-        UBSE_LOG_ERROR << "Failed to convert base message";
-        return UBSE_ERROR;
-    }
-    auto nodeId = request->GetNodeId();
-    auto urmaName = request->GetUrmaName();
-    std::string curNodeId;
-    std::string masterNodeId;
-    if (auto ret = GetCurNodeIdAndMasterNodeId(curNodeId, masterNodeId); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get cur node id and master node id, ret=" << ret;
-        return ret;
-    }
-    // 如果是本节点的消息就激活，如果是主节点就转发，其他情况丢弃并返回错误
-    if (nodeId == curNodeId) {
-        UBSE_LOG_INFO << "Activate urma node, nodeId=" << nodeId;
-        auto ret = UrmaController::GetInstance().ActivateSpecifyUrmaBonding(urmaName);
-        response->SetErrCode(ret);
-        return ret;
-    } else if (masterNodeId == curNodeId) {
-        return ForwardActiveReqToSpecifyNode(nodeId, req, rsp);
-    }
-    UBSE_LOG_WARN << "Ignore activate urma node, nodeId=" << nodeId;
-    response->SetErrCode(UBSE_ERROR_INVAL);
-    return UBSE_ERROR_INVAL;
-}
-
-uint16_t UbseUrmaActivateUrmaInfoMessageHandler::GetModuleCode()
-{
-    return static_cast<uint16_t>(UbseModuleCode::UBSE_URMA);
-}
-
-uint16_t UbseUrmaActivateUrmaInfoMessageHandler::GetOpCode()
-{
-    return static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_ACTIVATE);
 }
 } // namespace ubse::urmaController

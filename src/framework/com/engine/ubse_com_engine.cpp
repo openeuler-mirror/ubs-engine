@@ -28,6 +28,7 @@
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_security_module.h"
+#include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
@@ -38,6 +39,7 @@ namespace ubse::com {
 using namespace ubse::log;
 using namespace ubse::config;
 using namespace ubse::security;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::utils;
 using namespace ock::hcom;
 using namespace ubse::common::def;
@@ -510,6 +512,10 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type, skip start hcomservice";
+        return UBSE_OK;
+    }
     auto ret = hcomNetService_->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
@@ -938,7 +944,7 @@ void NoHandlerReply(UbseComMessageCtx& message)
 
 void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
 {
-    mti::MtiNodeInfo localNodeInfo;
+    mti::UbseMtiNodeInfo localNodeInfo;
     const auto ret = mti::UbseGetLocalNodeInfo(localNodeInfo);
     UBSHcomRequest request;
     std::string respData = GET_NODE_ID_FAIL_MSG;
