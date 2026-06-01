@@ -37,7 +37,8 @@ using namespace ubse::nodeController;
 using namespace ubse::config;
 using namespace ubse::context;
 
-DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseUrmaControllerModule,
+                         ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult RpcReg()

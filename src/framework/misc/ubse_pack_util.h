@@ -22,6 +22,19 @@ class UbsePackUtil {
 public:
     // 构造函数：初始化解包缓冲区
     explicit UbsePackUtil(uint8_t* buffer, size_t bufferSize) noexcept : ptr_(buffer), remaining_(bufferSize) {}
+    bool UbsePackUChar(unsigned char value)
+    {
+        if (remaining_ < sizeof(unsigned char)) {
+            return false;
+        }
+        errno_t ret = memcpy_s(ptr_, sizeof(unsigned char), &value, sizeof(unsigned char));
+        if (ret != EOK) {
+            return false;
+        }
+        ptr_ += sizeof(unsigned char);
+        remaining_ -= sizeof(unsigned char);
+        return true;
+    }
     bool UbsePackUint8(uint8_t value)
     {
         if (remaining_ < sizeof(uint8_t)) {
@@ -48,7 +61,19 @@ public:
         remaining_ -= sizeof(uint32_t);
         return true;
     }
-
+    bool UbsePackUint16(uint16_t value)
+    {
+        if (remaining_ < sizeof(uint16_t)) {
+            return false;
+        }
+        errno_t ret = memcpy_s(ptr_, sizeof(uint16_t), &value, sizeof(uint16_t));
+        if (ret != EOK) {
+            return false;
+        }
+        ptr_ += sizeof(uint16_t);
+        remaining_ -= sizeof(uint16_t);
+        return true;
+    }
     bool UbsePackInt32(int32_t value)
     {
         if (remaining_ < sizeof(int32_t)) {
@@ -132,6 +157,22 @@ public:
     // 构造函数：初始化解包缓冲区
     explicit UbseUnpackUtil(const uint8_t* buffer, uint32_t len) noexcept : ptr_(buffer), remaining_(len) {}
 
+    // 解包 unsigned char
+    bool UnpackUChar(unsigned char& value) noexcept
+    {
+        if (remaining_ < sizeof(unsigned char)) {
+            return false; // 缓冲区不足
+        }
+
+        auto ret = memcpy_s(&value, sizeof(unsigned char), ptr_, sizeof(unsigned char));
+        if (ret != EOK) {
+            return false;
+        }
+        // 更新位置
+        ptr_ += sizeof(unsigned char);
+        remaining_ -= sizeof(unsigned char);
+        return true; // 成功
+    }
     // 解包 uint8_t
     bool UnpackUint8(uint8_t& value) noexcept
     {

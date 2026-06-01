@@ -21,8 +21,9 @@
 namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
+using namespace ubse::context;
 
-DYNAMIC_CREATE(UbseUrmaUvsModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseUrmaUvsModule);
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 

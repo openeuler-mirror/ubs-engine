@@ -24,6 +24,7 @@ typedef enum
     UBSE_NODE = 0x0003,
     UBSE_LONG_LINK_REGISTER = 0x0004, // moduleCode 为向服务端注册监听长连接事件
     UBSE_URMA = 0x0005,
+    UBSE_NPU = 0x0006,
 } ubse_ipc_module_code_t;
 
 typedef enum
@@ -120,6 +121,15 @@ typedef enum
     UBSE_URMA_QOS_GET = 0x000A,
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
+
+typedef enum
+{
+    UBSE_NPU_TEST = 0x0001,
+    UBSE_NPU_GET_HOST_DEVICES = 0x0002,
+    UBSE_NPU_ALLOC_UB_DEVICES = 0x0003,
+    UBSE_NPU_FREE_UB_DEVICES = 0x0004,
+    UBSE_NPU_QUERY_UBA_TID_SIZE = 0x0005,
+} ubse_ipc_npu_op_code_t;
 #ifdef __cplusplus
 }
 #endif

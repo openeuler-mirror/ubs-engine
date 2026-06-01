@@ -32,8 +32,9 @@ using namespace ubse::config;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
 using namespace ubse::log;
+using namespace ubse::context;
 
-DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseMemControllerModule, UbseMmiModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t CYCLE_CHECK_TIME_S = 300;

@@ -17,17 +17,26 @@
 #include <csignal>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
-
+#include "ubse_env_util.h"
 #include "ubse_error.h"
-
 namespace ubse::context {
 using namespace ubse::module;
 
 std::atomic<bool> g_globalStop{false};
 std::condition_variable_any g_globalCv;
 
+SceneType GetSceneType()
+{
+    static std::optional<SceneType> sceneType;
+    if (!sceneType.has_value()) {
+        auto kindArg = ubse::utils::GetEnv<std::string>("SCENE_TYPE", {});
+        sceneType = kindArg == "ai" ? SceneType::AI : SceneType::COMMON;
+    }
+    return *sceneType;
+}
 std::string Demangle(const std::string& mangledName)
 {
     int status = 0;

@@ -1,6 +1,7 @@
 add_subdirectory(node)
 add_subdirectory(mem)
 add_subdirectory(urma)
+add_subdirectory(npu)
 
 add_library(ubse_controller_includes INTERFACE)
 target_include_directories(ubse_controller_includes INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)

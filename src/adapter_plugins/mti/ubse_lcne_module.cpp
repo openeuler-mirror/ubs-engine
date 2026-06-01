@@ -47,7 +47,8 @@ using namespace ubse::log;
 using namespace adapter_plugins::mti;
 using namespace ubse::common::def;
 using namespace ubse::adapter_plugins::smbios;
-BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
+CONDITION_BASE_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseLcneModule, UbseTaskExecutorModule,
+                              UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseLcneModule::GetLcneConf()

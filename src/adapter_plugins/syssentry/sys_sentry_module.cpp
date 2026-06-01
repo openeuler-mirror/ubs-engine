@@ -31,7 +31,7 @@ using namespace ubse::context;
 using namespace ubse::common::def;
 using namespace ubse::module;
 using namespace ubse::task_executor;
-DYNAMIC_CREATE(SysSentryModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, SysSentryModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()

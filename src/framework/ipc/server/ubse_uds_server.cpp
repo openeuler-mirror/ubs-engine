@@ -766,23 +766,34 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     return UBSE_OK;
 }
 
+uint8_t UbseUDSServer::GetSlotId(ubse::election::UbseRoleInfo& roleInfo) const
+{
+    uint8_t slotId = 0;
+    SceneType sceneType = GetSceneType();
+    if (sceneType == SceneType::AI) {
+        return slotId;
+    }
+    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        return slotId;
+    }
+    try {
+        uint64_t nodeId = std::stoul(roleInfo.nodeId);
+        if (nodeId <= std::numeric_limits<uint8_t>::max()) {
+            slotId = static_cast<uint8_t>(nodeId);
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
+        slotId = 0; // 设置为默认值
+    }
+    return slotId;
+}
+
 // 生成并注册请求ID
 uint64_t UbseUDSServer::GenerateAndRegisterRequestId(int fd)
 {
-    uint8_t slotId = 0;
     ubse::election::UbseRoleInfo roleInfo{};
-    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
-    if (ret == UBSE_OK) {
-        try {
-            uint64_t nodeId = std::stoul(roleInfo.nodeId);
-            if (nodeId <= std::numeric_limits<uint8_t>::max()) {
-                slotId = static_cast<uint8_t>(nodeId);
-            }
-        } catch (const std::exception& e) {
-            UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
-            slotId = 0; // 设置为默认值
-        }
-    }
+    uint8_t slotId = GetSlotId(roleInfo);
     const int maxRetries = 3;
     int retryCount = 0;
     uint64_t requestId{};

@@ -37,7 +37,7 @@ using namespace ubse::config;
 using namespace ubse::common::def;
 using namespace httplib;
 
-BASE_DYNAMIC_CREATE(UbseHttpModule, UbseTaskExecutorModule);
+CONDITION_BASE_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseHttpModule, UbseTaskExecutorModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const size_t MAX_RESPONSE_BODY_SIZE = 2 * 1024 * 1024;

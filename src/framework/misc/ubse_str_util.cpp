@@ -219,4 +219,41 @@ std::string Trim(const std::string& str, const std::locale& loc)
     return s;
 }
 
+std::string RemoveDashes(const std::string& str)
+{
+    std::string ret;
+    for (char c : str) {
+        if (c != '-') {
+            ret += c;
+        }
+    }
+    return ret;
+}
+
+int HexCharToInt(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    } else if (c >= 'A' && c <= 'F') {
+        // 大写A-F：减去'A'再加10
+        return c - 'A' + 10;
+    } else if (c >= 'a' && c <= 'f') {
+        // 小写a-f：减去'a'再加10
+        return c - 'a' + 10;
+    }
+    return -1; // 无效字符
+}
+
+bool HexPairToByte(char high, char low, uint8_t& result)
+{
+    int highVal = HexCharToInt(high);
+    int lowVal = HexCharToInt(low);
+    if (highVal < 0 || lowVal < 0) {
+        return false;
+    }
+    // 将高4位的值移动到字节的高4位位置，低4位保持不变
+    result = static_cast<uint8_t>((highVal << 4) | lowVal);
+    return true;
+}
+
 } // namespace ubse::utils

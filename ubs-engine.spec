@@ -355,6 +355,9 @@ chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 chmod 700 "%{lcne_cert_dir}"
+if [ "$ENABLE_AI" = "true" ]; then
+ 	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
+fi
 systemctl enable %{service_name}
 if [ "$MXE_SCENE" == "vm" ]; then
     update_config /etc/ubse/ubse_plugin_admission.conf

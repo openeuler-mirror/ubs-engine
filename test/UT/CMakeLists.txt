@@ -37,6 +37,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_com
         ubse_xml
         ubse_mti
+        mti_out_of_band
         ubse_mmi
         mem_controller
         cert_api_static
@@ -51,6 +52,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_plugin
         ubse_storage
         ubse_sdk
+        npu_controller
         ubse_urma_controller
         ubse_urma_uvs
 )
@@ -90,7 +92,7 @@ add_subdirectory(ipc)
 add_subdirectory(log)
 add_subdirectory(mem_controller)
 add_subdirectory(security)
-add_subdirectory(timer)
+# add_subdirectory(timer)
 add_subdirectory(serial_tool)
 add_subdirectory(thread_pool)
 add_subdirectory(utils)
@@ -105,6 +107,7 @@ add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
 add_subdirectory(storage)
 add_subdirectory(sdk)
+add_subdirectory(npu)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
 

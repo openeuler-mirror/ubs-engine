@@ -21,13 +21,16 @@
 #include "ubse_mem_types.h"
 #include "ubse_obmm_executor.h"
 
+#include "../../framework/context/ubse_context.h"
+
 namespace ubse::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::common::def;
+using namespace ubse::context;
 
-DYNAMIC_CREATE(UbseMmiModule);
+CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseMmiModule);
 UbseResult UbseMmiModule::Initialize()
 {
     auto ret = RmObmmExecutor::GetInstance().Init();

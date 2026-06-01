@@ -29,7 +29,7 @@ using namespace ubse::message;
 using namespace ::ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule);
+CONDITION_BASE_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COMMON, UbseElectionModule, UbseComModule);
 
 UbseResult UbseElectionModule::Initialize()
 {
