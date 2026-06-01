@@ -85,7 +85,7 @@ std::string UbseLcneOSInfoToString(const UbseLcneOSInfo& info)
 
 UbseResult UbseLcneHostInfo::ParseHostQueryResponse(const std::string& responseStr, UbseLcneOSInfo& ubseLcneOSInfo)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;

@@ -39,7 +39,7 @@ TEST_F(TestUbseXml, test_parse_ubse_xml)
                              </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     const auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -65,7 +65,7 @@ TEST_F(TestUbseXml, test_parse_ubse_xml_twice)
                              </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     UbseXmlError ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -93,7 +93,7 @@ TEST_F(TestUbseXml, test_parse_not_vaild_ubse_xml_failed)
                              </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     UbseXmlError ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::ERROR_XML_PARSE, ret);
@@ -108,7 +108,7 @@ TEST_F(TestUbseXml, test_parse_ubse_xml_without_declaration)
                             </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     const auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -134,7 +134,7 @@ TEST_F(TestUbseXml, test_parse_ubse_xml_not_found_error)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     const auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -155,7 +155,7 @@ TEST_F(TestUbseXml, test_delete_node_successful)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     const auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -180,7 +180,7 @@ TEST_F(TestUbseXml, test_go_to_previous_node)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
 
     auto ret = ubseXml->Parse();
@@ -207,7 +207,7 @@ TEST_F(TestUbseXml, test_set_xmlns_attr_successful)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -229,7 +229,7 @@ TEST_F(TestUbseXml, test_set_attr_successful)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -259,7 +259,7 @@ TEST_F(TestUbseXml, test_access_array_element)
 )";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -287,7 +287,7 @@ TEST_F(TestUbseXml, test_get_deepth)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -307,7 +307,7 @@ TEST_F(TestUbseXml, test_set_name_successful)
    </guest-host-create>)";
 
     // when
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlData);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
     ASSERT_NE(ubseXml, nullptr);
     auto ret = ubseXml->Parse();
     EXPECT_EQ(UbseXmlError::OK, ret);
@@ -317,5 +317,52 @@ TEST_F(TestUbseXml, test_set_name_successful)
     // then
     EXPECT_EQ(UbseXmlError::OK, ret);
     EXPECT_EQ(ubseXml->Name(), "test");
+}
+
+// 验证UbseXml::Create()工厂方法返回的shared_ptr能正确支持shared_from_this()，
+// 即Next()等依赖shared_from_this()的方法不再抛bad_weak_ptr异常
+TEST_F(TestUbseXml, test_create_factory_returns_valid_shared_ptr)
+{
+    std::string xmlData = R"(<?xml version="1.0" encoding="UTF-8"?>
+    <root><child>value</child></root>)";
+
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
+    ASSERT_NE(ubseXml, nullptr);
+    EXPECT_EQ(UbseXmlError::OK, ubseXml->Parse());
+
+    auto result = ubseXml->Next("child");
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result.get(), ubseXml.get());
+}
+
+// 验证无参UbseXml::Create()工厂方法返回的shared_ptr也能正确支持shared_from_this()，
+// 确保默认构造路径同样不会导致bad_weak_ptr
+TEST_F(TestUbseXml, test_create_default_factory_returns_valid_shared_ptr)
+{
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create();
+    ASSERT_NE(ubseXml, nullptr);
+
+    ubseXml->AddNode("root");
+    ubseXml->Attr("xmlns", "test-ns");
+
+    std::string output;
+    ubseXml->Printer(output);
+    EXPECT_FALSE(output.empty());
+}
+
+// 验证通过Create()创建的对象，Child()返回的shared_ptr与原对象共享同一底层指针，
+// 确保shared_from_this()返回的是同一个shared_ptr实例而非新对象
+TEST_F(TestUbseXml, test_child_returns_same_shared_ptr_via_factory)
+{
+    std::string xmlData = R"(<root><item>text</item></root>)";
+
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlData);
+    ASSERT_NE(ubseXml, nullptr);
+    EXPECT_EQ(UbseXmlError::OK, ubseXml->Parse());
+
+    auto childPtr = ubseXml->Child("item");
+    EXPECT_NE(childPtr, nullptr);
+    EXPECT_EQ(childPtr.get(), ubseXml.get());
+    EXPECT_EQ(childPtr->Text(), "text");
 }
 } // namespace ubse::ut::utils

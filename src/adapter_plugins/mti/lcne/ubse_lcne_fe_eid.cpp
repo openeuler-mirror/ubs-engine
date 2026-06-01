@@ -155,7 +155,7 @@ UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>
 UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr,
                                                   std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
@@ -208,7 +208,7 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr
 
 UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string& responseStr, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }

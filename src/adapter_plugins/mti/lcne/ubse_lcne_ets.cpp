@@ -619,7 +619,7 @@ UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string& interfaceNam
 
 UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile& etsProfile, std::string& xmlStr)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create();
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Make xml pointer failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
@@ -652,7 +652,7 @@ UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile& etsProfile, 
 
 UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string& profileName, std::string& xmlStr)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>();
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create();
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Make xml pointer failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
@@ -667,7 +667,7 @@ UbseResult UbseLcneEts::BuildInterfaceEtsApplicationXml(const std::string& profi
 
 UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string& body, UbseMtiEtsProfile& etsProfile)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(body);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
         return UBSE_ERROR_NULLPTR;
@@ -703,7 +703,7 @@ UbseResult UbseLcneEts::ParseEtsProfileResponse(const std::string& body, UbseMti
 UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string& body,
                                                     std::vector<UbseMtiEtsProfile>& etsProfiles)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(body);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
         return UBSE_ERROR_NULLPTR;
@@ -740,7 +740,7 @@ UbseResult UbseLcneEts::ParseAllEtsProfilesResponse(const std::string& body,
 UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string& body, std::string& profileName)
 {
     profileName.clear();
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(body);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
         return UBSE_ERROR_NULLPTR;
@@ -778,7 +778,7 @@ UbseResult UbseLcneEts::ParseInterfaceEtsProfileResponse(const std::string& body
 UbseResult UbseLcneEts::ParseAllInterfaceEtsProfileResponse(const std::string& body,
                                                             std::vector<UbseMtiInterfaceEtsApplication>& applications)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(body);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(body);
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "[MTI] Get ubse xml failed.";
         return UBSE_ERROR_NULLPTR;
