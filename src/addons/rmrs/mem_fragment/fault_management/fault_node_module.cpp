@@ -1713,31 +1713,8 @@ MpResult FaultNodeModule::FaultHandleMigrate(uint16_t presentNumaId, uint16_t fa
     }
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultHandleParallel][FaultHandleMigrate] FaultHandleMigrate success."
+        << "[FaultHandleParallel][FaultHandleMigrate] FaultHandleMigrate success.";
     return MEM_POOLING_OK;
-}
-
-MpResult FaultNodeModule::BorrowIdLevelMemBorrow(const BorrowGroupResult& group, BorrowIdLevelDecision decision)
-{
-    // 1 借用新内存
-    SrcMemoryBorrowParam srcParam{
-        group.borrowNodeId, static_cast<int16_t>(group.borrowSocketId),
-        static_cast<int16_t>(decision.borrowNumaId), decision.uid, decision.username};
-    MemBorrowExecuteResult borrowExecuteResult;
-    std::vector<DestMemoryBorrowParam> destParamList;
-    uint16_t destNumaNum = 1;
-    std::vector<int> destNumaIdList{decision.lentNumaId};
-    std::vector<uint64_t> memSizeList{decision.lentMemSize};
-    DestMemoryBorrowParam destMemoryBorrowParam{decision.lentNodeId, decision.lentSocketId,
-                                                destNumaNum, destNumaIdList, memSizeList};
-    destParamList.push_back(destMemoryBorrowParam);
-    MpResult res = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParamList, borrowExecuteResult);
-    if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [NumaIdLevelExecute] Borrow mem error srcNode=" << group.borrowNodeId
-            << ",destNode=" << decision.lentNodeId << ",size=" << decision.lentMemSize << ".";
-        return MEM_POOLING_ERROR;
-    }
 }
 
 MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, BorrowIdLevelDecision decision)
@@ -1783,7 +1760,7 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
         return MEM_POOLING_ERROR;
     }
     // 4 归还成功后更新借用描述符的重定向关系表
-    MpResult retBorrId = BorrowIdRedirection::Instance().Update(oldName, borrowExecuteResult.borrowIds[0]);
+    MpResult retBorrId = BorrowIdRedirection::Instance().Update(decision.oldName, borrowExecuteResult.borrowIds[0]);
     if (retBorrId != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][NumaIdLevelExecute] Update borrowId redirection failed. oldName="
@@ -1916,7 +1893,7 @@ MpResult FaultNodeModule::NumaLevelMemBorrow(const BorrowGroupResult& group, Num
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleParallel][NumaIdLevelExecute]"<< "NumaLevelMemBorrow success, presentNumaId=" << presentNumaId
-        << ", borrowCount=" << tmpRedirectionMap.size() << ", totalBorrowSize=" << totalBorrowSize << "."
+        << ", borrowCount=" << tmpRedirectionMap.size() << ", totalBorrowSize=" << totalBorrowSize << ".";
     return MEM_POOLING_OK;
 }
 
