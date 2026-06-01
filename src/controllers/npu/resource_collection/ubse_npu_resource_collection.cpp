@@ -159,7 +159,8 @@ bool IsIdevFeType(const std::shared_ptr<CollectionDevice>& dev)
     return dev->GetType() == CollectionDeviceType::P_IDEV || dev->GetType() == CollectionDeviceType::V_IDEV;
 }
 
-enum BindDevType : uint8_t {
+enum BindDevType : uint8_t
+{
     BUSI_VFE = 0,
     BUSI_NIC_PFE = 1,
     BUSI_NIC_VFE = 2,
