@@ -35,8 +35,7 @@ struct UbseMtiUbController {
     bool operator<(const UbseMtiUbController& other) const;
 };
 
-enum class UbseMtiBusInstanceType
-{
+enum class UbseMtiBusInstanceType {
     HOST,
     VM
 };

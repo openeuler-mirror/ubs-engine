@@ -23,8 +23,7 @@
 #include <linux/printk.h>
 #include <linux/types.h>
 
-enum bandbridge_log_level
-{
+enum bandbridge_log_level {
     BANDBRIDGE_LOG_LEVEL_EMERG = 0,
     BANDBRIDGE_LOG_LEVEL_ALERT = 1,
     BANDBRIDGE_LOG_LEVEL_CRIT = 2,
