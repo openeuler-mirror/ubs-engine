@@ -353,6 +353,7 @@ uint32_t MemDecoderUtils::PreImportDecoderEntry(const decoder::utils::PreImportD
     mamiImportInfo.dstCNA = preImportDecoderParam.dstCNA;
     mamiImportInfo.marId = preImportDecoderParam.marId;
     mamiImportInfo.size = preImportDecoderParam.size;
+    mamiImportInfo.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
     decoder::utils::DecoderEntryLoc loc{};
     loc.ubpuId = mamiImportInfo.ubpuId;
     loc.iouId = mamiImportInfo.iouId;
