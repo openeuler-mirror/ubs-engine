@@ -1203,37 +1203,6 @@ static void ApplyAllocationResult(RemoteNumaCandidate& candidate, uint64_t alloc
     }
 }
 
-static void CollectCrossPlaneCandidates(BatchBorrowContext& ctx, std::vector<RemoteNumaCandidate>& crossPlaneCandidates)
-{
-    for (auto& pair : ctx.candidatesByPlane) {
-        if (pair.first != ctx.planeIndex) {
-            for (const auto& candidate : pair.second) {
-                crossPlaneCandidates.push_back(candidate);
-            }
-        }
-    }
-
-    std::sort(crossPlaneCandidates.begin(), crossPlaneCandidates.end(),
-              [&ctx](const RemoteNumaCandidate& a, const RemoteNumaCandidate& b) {
-                  if (a.borrowCount != b.borrowCount) {
-                      return a.borrowCount > b.borrowCount;
-                  }
-
-                  uint64_t totalA = ctx.nodeTotalMemMap.count(a.nodeId) ? ctx.nodeTotalMemMap.at(a.nodeId) : 0;
-                  uint64_t totalB = ctx.nodeTotalMemMap.count(b.nodeId) ? ctx.nodeTotalMemMap.at(b.nodeId) : 0;
-                  if (totalA != totalB) {
-                      return totalA > totalB;
-                  }
-
-                  if (a.nodeId != b.nodeId) {
-                      return a.nodeId < b.nodeId;
-                  }
-                  return a.availableMem > b.availableMem;
-              });
-
-    LOG_DEBUG << "[BatchBorrow] Collected " << crossPlaneCandidates.size() << " cross-plane candidates.";
-}
-
 static uint64_t AllocateFromSamePlane(uint64_t needSize, BatchBorrowContext& ctx)
 {
     uint64_t remaining = needSize;
@@ -1267,31 +1236,45 @@ static uint64_t AllocateFromCrossPlane(uint64_t needSize, BatchBorrowContext& ct
 {
     uint64_t remaining = needSize;
 
-    std::vector<RemoteNumaCandidate> crossPlaneCandidates;
-    CollectCrossPlaneCandidates(ctx, crossPlaneCandidates);
+    while (remaining > 0) {
+        int bestPlane = -1;
+        const RemoteNumaCandidate* bestHead = nullptr;
 
-    for (auto& candidate : crossPlaneCandidates) {
-        if (remaining == 0)
+        for (auto& [planeIdx, candidateSet] : ctx.candidatesByPlane) {
+            if (planeIdx == ctx.planeIndex || candidateSet.empty())
+                continue;
+            const auto& head = *candidateSet.begin();
+            if (!bestHead || candidateSet.value_comp()(head, *bestHead)) {
+                bestHead = &head;
+                bestPlane = planeIdx;
+            }
+        }
+
+        if (!bestHead) {
             break;
+        }
 
-        uint64_t nodeBorrowed = ctx.nodeBorrowedMap[candidate.nodeId];
-        uint64_t socketBorrowed = ctx.socketBorrowedMap[{candidate.nodeId, candidate.socketId}];
+        auto& candidateSet = ctx.candidatesByPlane[bestPlane];
+        RemoteNumaCandidate best = *bestHead;
+        candidateSet.erase(candidateSet.begin());
+        bestHead = nullptr; // invalidated by erase
+
+        uint64_t nodeBorrowed = ctx.nodeBorrowedMap[best.nodeId];
+        uint64_t socketBorrowed = ctx.socketBorrowedMap[{best.nodeId, best.socketId}];
 
         uint64_t allocateSize =
-            TryAllocateFromCandidate(candidate, remaining, ctx.blockSizeKB, nodeBorrowed, socketBorrowed);
+            TryAllocateFromCandidate(best, remaining, ctx.blockSizeKB, nodeBorrowed, socketBorrowed);
         if (allocateSize == 0) {
+            // Node/socket quota exhausted; quotas are monotonically non-decreasing
+            // within a single BatchBorrowStrategyImpl call, so this candidate will
+            // never become allocatable again - safe to discard.
             continue;
         }
 
-        ApplyAllocationResult(candidate, allocateSize, remaining, ctx, true);
+        ApplyAllocationResult(best, allocateSize, remaining, ctx, true);
 
-        auto& originalSet = ctx.candidatesByPlane[candidate.plane];
-        auto it = originalSet.find(candidate);
-        if (it != originalSet.end()) {
-            originalSet.erase(it);
-            if (candidate.availableMem > 0) {
-                originalSet.insert(candidate);
-            }
+        if (best.availableMem > 0) {
+            candidateSet.insert(best);
         }
     }
 

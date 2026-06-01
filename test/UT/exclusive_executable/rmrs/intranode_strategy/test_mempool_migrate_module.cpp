@@ -1397,4 +1397,427 @@ TEST_F(TestMempoolMigrateModule, ConvertNodeTopologySuccess)
     ASSERT_NE(0, nodeTopologyNew.size());
 }
 
+// ==================== BatchBorrowStrategyImpl Test Helpers ====================
+
+static uint32_t MockTopologyTwoPlanes(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
+{
+    MemNodeData nodeA;
+    nodeA.nodeId = "NodeA";
+    nodeA.socket.socketId = "0";
+    MemNodeData nodeB;
+    nodeB.nodeId = "NodeB";
+    nodeB.socket.socketId = "0";
+    MemNodeData nodeC;
+    nodeC.nodeId = "NodeC";
+    nodeC.socket.socketId = "1";
+    MemNodeData nodeD;
+    nodeD.nodeId = "NodeD";
+    nodeD.socket.socketId = "1";
+
+    nodeTopology["NodeA-0"] = {nodeA, nodeB};
+    nodeTopology["NodeB-0"] = {nodeA, nodeB};
+    nodeTopology["NodeC-1"] = {nodeC, nodeD};
+    nodeTopology["NodeD-1"] = {nodeC, nodeD};
+    return 0;
+}
+
+static std::unordered_map<std::string, UbseNodeInfo> BuildNodeMapBatchBorrow(uint32_t nodeBFree1G, uint32_t nodeCFree1G,
+                                                                             uint32_t nodeDFree1G)
+{
+    std::unordered_map<std::string, UbseNodeInfo> nodeMap;
+
+    // NodeA (src): blockSize=1024 MB, NUMA 0 on socket 0
+    UbseNodeInfo nodeA;
+    nodeA.nodeId = "NodeA";
+    nodeA.blockSize = 1024;
+    UbseNumaLocation locA = {"NodeA", 0};
+    UbseNumaInfo numaA{};
+    numaA.socketId = 0;
+    numaA.nr_hugepages_1G = 10;
+    numaA.free_hugepages_1G = 5;
+    nodeA.numaInfos[locA] = numaA;
+    nodeMap["NodeA"] = nodeA;
+
+    // NodeB (same plane): NUMA 0 on socket 0
+    UbseNodeInfo nodeBInfo;
+    nodeBInfo.nodeId = "NodeB";
+    nodeBInfo.blockSize = 1024;
+    UbseNumaLocation locB = {"NodeB", 0};
+    UbseNumaInfo numaB{};
+    numaB.socketId = 0;
+    numaB.nr_hugepages_1G = 10;
+    numaB.free_hugepages_1G = nodeBFree1G;
+    nodeBInfo.numaInfos[locB] = numaB;
+    nodeMap["NodeB"] = nodeBInfo;
+
+    // NodeC (cross plane): NUMA 0 on socket 1
+    UbseNodeInfo nodeCInfo;
+    nodeCInfo.nodeId = "NodeC";
+    nodeCInfo.blockSize = 1024;
+    UbseNumaLocation locC = {"NodeC", 0};
+    UbseNumaInfo numaC{};
+    numaC.socketId = 1;
+    numaC.nr_hugepages_1G = 20;
+    numaC.free_hugepages_1G = nodeCFree1G;
+    nodeCInfo.numaInfos[locC] = numaC;
+    nodeMap["NodeC"] = nodeCInfo;
+
+    // NodeD (cross plane): NUMA 0 on socket 1
+    UbseNodeInfo nodeDInfo;
+    nodeDInfo.nodeId = "NodeD";
+    nodeDInfo.blockSize = 1024;
+    UbseNumaLocation locD = {"NodeD", 0};
+    UbseNumaInfo numaD{};
+    numaD.socketId = 1;
+    numaD.nr_hugepages_1G = 15;
+    numaD.free_hugepages_1G = nodeDFree1G;
+    nodeDInfo.numaInfos[locD] = numaD;
+    nodeMap["NodeD"] = nodeDInfo;
+
+    return nodeMap;
+}
+
+static MpResult MockGetNumaInfoBatchBorrow(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
+{
+    mempooling::exportV2::NumaInfo numaInfo;
+    numaInfo.metaData.numaId = 0;
+    numaInfo.metaData.socketId = 0;
+    numaInfo.metaData.isLocal = true;
+    numaInfos.push_back(numaInfo);
+    return MEM_POOLING_OK;
+}
+
+static MpResult MockCollectBorrowRecordsEmpty(BorrowRecordHelper* This, const std::string nodeId,
+                                              std::vector<BorrowRecord>& borrowRecords)
+{
+    return MEM_POOLING_OK;
+}
+
+static MpResult MockCollectBorrowRecordsWithHistory(BorrowRecordHelper* This, const std::string nodeId,
+                                                    std::vector<BorrowRecord>& borrowRecords)
+{
+    for (int i = 0; i < 3; ++i) {
+        BorrowRecord record;
+        record.borrowNode = "NodeA";
+        record.lentNode = "NodeC";
+        borrowRecords.push_back(record);
+    }
+    for (int i = 0; i < 5; ++i) {
+        BorrowRecord record;
+        record.borrowNode = "NodeA";
+        record.lentNode = "NodeD";
+        borrowRecords.push_back(record);
+    }
+    return MEM_POOLING_OK;
+}
+
+static void SetupBatchBorrowCommonMocks(uint32_t nodeBFree1G, uint32_t nodeCFree1G, uint32_t nodeDFree1G)
+{
+    auto nodeMap = BuildNodeMapBatchBorrow(nodeBFree1G, nodeCFree1G, nodeDFree1G);
+
+    MOCKER_CPP(&UbseMemGetTopologyInfo, uint32_t(*)(std::unordered_map<std::string, std::vector<MemNodeData>>&))
+        .stubs()
+        .will(invoke(MockTopologyTwoPlanes));
+
+    MOCKER_CPP(&UbseNodeController::GetAllNodes,
+               (std::unordered_map<std::string, UbseNodeInfo>(*)(UbseNodeController*)))
+        .stubs()
+        .will(returnValue(nodeMap));
+
+    MOCKER_CPP(&UbseGetAllNodeNumaInfo, uint32_t(*)(std::vector<UbseNodeNumaInfo>&)).stubs().will(returnValue(UBSE_OK));
+
+    MOCKER_CPP(&mempooling::exportV2::Exporter::GetNumaInfoImmediately,
+               MpResult(*)(std::vector<mempooling::exportV2::NumaInfo>&))
+        .stubs()
+        .will(invoke(MockGetNumaInfoBatchBorrow));
+}
+
+// ==================== BatchBorrowStrategyImpl Test Cases ====================
+
+/*
+ * UT-1: BatchBorrow_CrossPlaneBasic
+ * 用例描述：验证跨平面基本借用场景，同平面不足时从跨平面补充
+ * 测试步骤：
+ * 1. 设置2平面拓扑，NodeB(同平面5GB), NodeC(跨平面10GB), NodeD(跨平面8GB)
+ * 2. 请求借用12GB
+ * 3. 同平面NodeB分配5GB，剩余7GB从跨平面NodeC分配
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. results.size() == 1
+ * 3. 总分配量 == 12GB
+ * 4. destParam包含NodeB和NodeC的分配条目
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_CrossPlaneBasic)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(5, 10, 8);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsEmpty));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 12 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    std::map<std::string, uint64_t> perNodeAllocated;
+    for (const auto& dest : results[0].destParam) {
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+            perNodeAllocated[dest.destNid] += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 12 * GB);
+    EXPECT_TRUE(perNodeAllocated.count("NodeB") > 0);
+    EXPECT_TRUE(perNodeAllocated.count("NodeC") > 0);
+    EXPECT_EQ(perNodeAllocated["NodeB"], 5 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeC"], 7 * GB);
+}
+
+/*
+ * UT-2: BatchBorrow_MultisetStateConsistency
+ * 用例描述：验证multiset状态一致性，确保分配后节点数据正确
+ * 测试步骤：
+ * 1. 设置NodeB(5GB), NodeC(10GB), NodeD(8GB)
+ * 2. 请求借用15GB
+ * 3. 同平面NodeB分配5GB，跨平面NodeC分配10GB
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. NodeC分配恰好10GB，NodeB分配恰好5GB
+ * 3. destParam条目的destNid值正确
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_MultisetStateConsistency)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(5, 10, 8);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsEmpty));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 15 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    std::map<std::string, uint64_t> perNodeAllocated;
+    for (const auto& dest : results[0].destParam) {
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+            perNodeAllocated[dest.destNid] += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 15 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeB"], 5 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeC"], 10 * GB);
+    EXPECT_EQ(perNodeAllocated.count("NodeD"), 0U);
+}
+
+/*
+ * UT-3: BatchBorrow_NodeQuotaExhausted
+ * 用例描述：验证多节点按优先级依次分配的场景
+ * 测试步骤：
+ * 1. 设置NodeB(1GB), NodeC(3GB), NodeD(8GB)
+ * 2. 请求借用10GB
+ * 3. 同平面NodeB分配1GB，跨平面NodeD(8GB totalMem > NodeC 3GB totalMem)先分配8GB，再NodeC分配1GB
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. 总分配量 == 10GB
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_NodeQuotaExhausted)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(1, 3, 8);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsEmpty));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 10 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    std::map<std::string, uint64_t> perNodeAllocated;
+    for (const auto& dest : results[0].destParam) {
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+            perNodeAllocated[dest.destNid] += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 10 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeB"], 1 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeD"], 8 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeC"], 1 * GB);
+}
+
+/*
+ * UT-4: BatchBorrow_MultiRoundSortStability
+ * 用例描述：验证borrowCount影响优先级排序，高borrowCount节点优先被选择
+ * 测试步骤：
+ * 1. 设置NodeB(0GB), NodeC(10GB, borrowCount=3), NodeD(8GB, borrowCount=5)
+ * 2. 请求借用10GB
+ * 3. 同平面无候选，跨平面NodeD(borrowCount=5)优先分配8GB，NodeC(borrowCount=3)分配2GB
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. 总分配量 == 10GB
+ * 3. NodeD分配8GB，NodeC分配2GB
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_MultiRoundSortStability)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(0, 10, 8);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsWithHistory));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 10 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    std::map<std::string, uint64_t> perNodeAllocated;
+    for (const auto& dest : results[0].destParam) {
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+            perNodeAllocated[dest.destNid] += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 10 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeD"], 8 * GB);
+    EXPECT_EQ(perNodeAllocated["NodeC"], 2 * GB);
+}
+
+/*
+ * UT-5: BatchBorrow_EmptyCrossPlane
+ * 用例描述：验证同平面即可满足需求时不触发跨平面分配
+ * 测试步骤：
+ * 1. 设置NodeB(5GB), NodeC(10GB), NodeD(8GB)
+ * 2. 请求借用3GB
+ * 3. 同平面NodeB(5GB)足够，分配3GB
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. results.size() == 1
+ * 3. 所有destParam条目的destNid均为NodeB
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_EmptyCrossPlane)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(5, 10, 8);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsEmpty));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 3 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    for (const auto& dest : results[0].destParam) {
+        EXPECT_EQ(dest.destNid, "NodeB");
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 3 * GB);
+}
+
+/*
+ * UT-6: BatchBorrow_SingleCandidateMultipleAllocations
+ * 用例描述：验证仅有一个跨平面候选节点时的分配行为
+ * 测试步骤：
+ * 1. 设置NodeB(0GB), NodeC(5GB), NodeD(0GB)
+ * 2. 请求借用3GB
+ * 3. 同平面无候选，跨平面仅NodeC可用，分配3GB
+ * 预期结果：
+ * 1. 返回MEM_POOLING_OK
+ * 2. 总分配量 == 3GB
+ * 3. 所有分配均来自NodeC
+ */
+TEST_F(TestMempoolMigrateModule, BatchBorrow_SingleCandidateMultipleAllocations)
+{
+    constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+    constexpr uint64_t GB = HUGEPAGE_1G_KB;
+
+    SetupBatchBorrowCommonMocks(0, 5, 0);
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsEmpty));
+
+    std::string srcNid = "NodeA";
+    std::vector<int16_t> srcNumaIds = {0};
+    uint64_t borrowSize = 3 * GB;
+    std::vector<MemBorrowStrategyResult> results;
+
+    MpResult ret = MempoolMigrateModule::BatchBorrowStrategyImpl(
+        srcNid, srcNumaIds, borrowSize, mempooling::outinterface::BorrowStrategy::AVERAGE, results);
+
+    ASSERT_EQ(ret, MEM_POOLING_OK);
+    ASSERT_EQ(results.size(), 1U);
+
+    uint64_t totalAllocated = 0;
+    for (const auto& dest : results[0].destParam) {
+        EXPECT_EQ(dest.destNid, "NodeC");
+        for (size_t i = 0; i < dest.memSize.size(); ++i) {
+            totalAllocated += dest.memSize[i];
+        }
+    }
+
+    EXPECT_EQ(totalAllocated, 3 * GB);
+}
+
 } // namespace mempooling::migrate

@@ -190,45 +190,34 @@ uint32_t MpVmQuotaUtil::GetVmNumaLimits(pid_t pid, std::map<int, uint64_t>& numa
 uint32_t MpVmQuotaUtil::CheckQuotaExceedsLimit(const std::vector<mempooling::outinterface::PageSwapPair>& pageSwapPairs,
                                                const std::map<int, uint64_t>& numaLimits)
 {
+    // Step 1: Aggregate quota by NUMA across all pageSwapPairs
+    std::map<int, uint64_t> aggregatedQuotaKB;
     for (const auto& pair : pageSwapPairs) {
-        // Validate localNumas quota
         for (const auto& local : pair.localNumas) {
             int numaId = static_cast<int>(local.numaId);
-            uint64_t quotaKB = local.quota;
-            auto it = numaLimits.find(numaId);
-            if (it != numaLimits.end()) {
-                uint64_t limitKB = it->second;
-                if (quotaKB > limitKB) {
-                    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                        << "[CheckQuota] localNuma quota exceeds limit: numaId=" << numaId << ", quota=" << quotaKB
-                        << "KB, limit=" << limitKB << "KB";
-                    return MEM_POOLING_ERROR;
-                }
-            } else {
-                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[CheckQuota] localNuma " << numaId << " not found in <numatune>";
-                return MEM_POOLING_ERROR;
-            }
+            aggregatedQuotaKB[numaId] += local.quota;
         }
-
-        // Validate remoteNumas quota
         for (const auto& remote : pair.remoteNumas) {
             int numaId = static_cast<int>(remote.numaId);
-            uint64_t quotaKB = remote.quota;
-            auto it = numaLimits.find(numaId);
-            if (it != numaLimits.end()) {
-                uint64_t limitKB = it->second;
-                if (quotaKB > limitKB) {
-                    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                        << "[CheckQuota] remoteNuma quota exceeds limit: numaId=" << numaId << ", quota=" << quotaKB
-                        << "KB, limit=" << limitKB << "KB";
-                    return MEM_POOLING_ERROR;
-                }
-            } else {
+            aggregatedQuotaKB[numaId] += remote.quota;
+        }
+    }
+
+    // Step 2: Compare aggregated quota against numaLimits
+    for (const auto& [numaId, totalQuotaKB] : aggregatedQuotaKB) {
+        auto it = numaLimits.find(numaId);
+        if (it != numaLimits.end()) {
+            uint64_t limitKB = it->second;
+            if (totalQuotaKB > limitKB) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[CheckQuota] remoteNuma " << numaId << " not found in <numatune>";
+                    << "[CheckQuota] aggregated quota exceeds limit: numaId=" << numaId
+                    << ", totalQuota=" << totalQuotaKB << "KB, limit=" << limitKB << "KB";
                 return MEM_POOLING_ERROR;
             }
+        } else {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[CheckQuota] numaId " << numaId << " not found in <numatune>";
+            return MEM_POOLING_ERROR;
         }
     }
     return MEM_POOLING_OK;

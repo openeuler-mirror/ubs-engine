@@ -128,9 +128,9 @@ private:
     // 获取节点基本页配置
     void LoadBasePageType();
     // mempooling 插件配置
+    void SetPageTypeForSimplified();
     std::string moduleName = "mempooling_plugin";
     uint16_t moduleCode = 0;
-
     // mempooling 采集配置
     uint32_t ipcTimeLimit{60};
 

@@ -109,7 +109,11 @@ MpResult MpSmapHelper::ReadAndSetRunMode()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Failed to query runmode data.";
         return MEM_POOLING_ERROR;
     }
-    if (runMode == -1) {
+    if (MpConfiguration::GetInstance().GetFaultSimplified()) {
+        runMode = 0;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] faultSimplified is enabled, force runMode to water line(0).";
+    } else if (runMode == -1) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] No runMode record.";
         return MEM_POOLING_ERROR;
     }

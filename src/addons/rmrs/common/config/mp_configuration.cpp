@@ -45,6 +45,14 @@ uint32_t MpConfiguration::Initialize(const uint16_t modCode)
     return MEM_POOLING_OK;
 }
 
+void MpConfiguration::SetPageTypeForSimplified()
+{
+    if (faultSimplified_) {
+        pageType = PageType::PAGE_4K;
+        LOG_DEBUG << "Detected: faultSimplified_=" << faultSimplified_ << " , Set PageType to 4K.";
+    }
+}
+
 uint32_t MpConfiguration::LoadConfig()
 {
     auto ret = UbseGetUInt("plugin_mempooling", "rmrs.ipc.timeout", ipcTimeLimit);
@@ -95,6 +103,7 @@ uint32_t MpConfiguration::LoadConfig()
     }
     LOG_DEBUG << "Param: faultSimplified_=" << faultSimplified_ << " .";
 
+    SetPageTypeForSimplified();
     LoadUCacheConfig();
 
     LoadMultiNumaSceneConfig();
