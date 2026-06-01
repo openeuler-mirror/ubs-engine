@@ -1,7 +1,9 @@
 add_library(ubse_node_discovery STATIC
         root_mode/message/ubse_node_discovery_serial.cpp
         root_mode/message/ubse_node_discovery_list_serial.cpp
-        node_mode/ubse_node_discovery_config_mode.cpp
+        conf_mode/ubse_node_discovery_config_mode.cpp
+        ubse_node_static_info_mgr.cpp
+        ubse_node_discovery_module.cpp
         ubse_node_discovery.cpp
 )
 

@@ -31,7 +31,7 @@ TEST_F(TestUbseNodeDiscoveryRootMode, Serialize)
 {
     UbseNodeStaticInfo info{};
     info.superPodId = 0;
-    info.podId = 1;
+    info.groupId = 1;
     info.nodeId = "1";
     info.addr = "192.168.100.100";
     info.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0000";
@@ -48,7 +48,7 @@ TEST_F(TestUbseNodeDiscoveryRootMode, Serialize)
     std::vector<UbseNodeStaticInfo> result = deserial.GetUbseNodeList();
     EXPECT_EQ(1, result.size());
     EXPECT_EQ(0, result[0].superPodId);
-    EXPECT_EQ(1, result[0].podId);
+    EXPECT_EQ(1, result[0].groupId);
     EXPECT_EQ("1", result[0].nodeId);
     EXPECT_EQ("192.168.100.100", result[0].addr);
     EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0000", result[0].bonding0Eid);

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBS_ENGINE_UBSE_NODE_DISCOVERY_H
-#define UBS_ENGINE_UBSE_NODE_DISCOVERY_H
+#ifndef UBS_ENGINE_UBSE_NODE_STATIC_INFO_MGR_H
+#define UBS_ENGINE_UBSE_NODE_STATIC_INFO_MGR_H
 
 #include <shared_mutex>
 #include <unordered_map>
@@ -21,19 +21,31 @@
 #include "ubse_node_discovery_def.h"
 
 namespace ubse::nodeDiscovery {
+
+enum class NodeDiscoveryMode {
+    TCP_CONFIG_CLOS_MODE = 0,
+    TCP_CONFIG_FULL_MESH_MODE,
+    TCP_ROOT_MODE,
+    URMA_CLOS_MODE,
+    URMA_FULL_MESH_MODE,
+};
+
+using namespace ubse::common::def;
 using NodeMap = std::unordered_map<uint16_t, std::unordered_map<std::string, UbseNodeStaticInfo>>;
 
-class UbseNodeDiscovery {
+class UbseNodeStaticInfoMgr {
 public:
-    static UbseNodeDiscovery &GetInstance()
+    static UbseNodeStaticInfoMgr &GetInstance()
     {
-        static UbseNodeDiscovery instance;
+        static UbseNodeStaticInfoMgr instance;
         return instance;
     }
 
+    UbseResult Init();
+
     NodeMap GetAllNodes() const;
 
-    std::unordered_map<std::string, UbseNodeStaticInfo> GetPodNodesByPodId(uint16_t podId);
+    std::unordered_map<std::string, UbseNodeStaticInfo> GetNodesByGroupId(uint16_t groupId);
 
     UbseNodeStaticInfo GetUbseNodeByAddr(const std::string &ip);
 
@@ -45,13 +57,33 @@ public:
 
     void SetCurrentNode(UbseNodeStaticInfo node);
 
-private:
-    UbseNodeStaticInfo currentNode_{};
+    [[nodiscard]] NodeDiscoveryMode GetNodeDiscoveryMode();
 
-    // std::map<podId, std::map<nodeId, superNodeId>>
+    [[nodiscard]] bool IsUrma();
+
+    [[nodiscard]] bool IsClos();
+
+    std::vector<std::string> GetRootIpList();
+
+    std::vector<std::string> GetClusterIpList();
+
+    uint32_t GetPodCapability();
+
+    UbseResult InitCurNodeInfo(UbseNodeStaticInfo &node);
+
+private:
+    UbseResult InitClusterMode();
+
+    bool isUrma_{true};
+    bool isClos_{false};
+    NodeDiscoveryMode mode_{};
+    UbseNodeStaticInfo currentNode_{};
+    std::vector<std::string> rootIps_{}; // 超节点集群 根节点列表
+    std::vector<std::string> clusterIps_{};
+    // std::map<groupId, std::map<nodeId, node>>
     NodeMap nodes_{};
     mutable std::shared_mutex nodeMutex_{};
 };
 } // namespace ubse::nodeDiscovery
 
-#endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_H
+#endif // UBS_ENGINE_UBSE_NODE_STATIC_INFO_MGR_H
