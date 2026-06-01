@@ -46,10 +46,33 @@ public:
     UbseResult UbseGetAllNodes(Node &master, Node &standby, std::vector<Node> &agent);
 
     /* *
-     * 查询主节点ID
-     * @param masterNode 主节点信息
+     * 查询全局唯一主节点信息
+     * @param[out] 返回集群唯一主节点信息
+     * @return UBSE_OK 成功，UBSE_ERROR 失败
      */
     UbseResult UbseGetMasterNode(Node &masterNode);
+
+    /* *
+     * 查询组内主节点信息
+     * @param[out] 返回组内主节点信息
+     * @return UBSE_OK 成功，UBSE_ERROR 失败
+     */
+    UbseResult GetLocalMasterNode(Node &localMasterNode);
+
+    /* *
+     * @brief 获取当前节点视角的HA拓扑信息
+     *
+     * - GLOBAL_MASTER + MASTER：返回全量拓扑
+     * - GLOBAL_STANDBY + MASTER：返回本组及其挂载组全量
+     * - GLOBAL_AGENT + MASTER：返回本组及其挂载组全量
+     * - MASTER + NONE：返回本挂载组全量 + 管理组的master
+     * - STANDBY + NONE：返回本组master
+     * - AGENT + NODE：返回本组master
+     *
+     * @param haTopology [out] 输出拓扑信息结构体
+     * @return UBSE_OK 成功，UBSE_ERROR 失败
+     */
+    UbseResult GetHaTopologyInfo(HaTopologyInfo &haTopology);
 
     /* *
      * 查询备节点ID

@@ -135,6 +135,7 @@ const std::string COMMON_PSK_ID = "common_psk_id";
 const std::string KMC_LOG_PATH = "/var/log/ubse/kmc_process.log";
 const std::string realUbfmDefaultPort = "8799";
 const std::string ELECTION_TASK_EXECUTOR_NAME = "ElectionLinkTask";
+const std::string ELECTION_GLOBAL_TASK_EXECUTOR_NAME = "ElectionGlobalLinkTask";
 const std::string UBSE_UDS_SOCKET_PATH = "/var/run/ubse/ubse.sock";
 const std::string UBSE_LOG_PATH = "/var/log/ubse";
 const std::string UBSE_AGENT_IPC_SERVER_NAME = "RackAgentIpcServer";

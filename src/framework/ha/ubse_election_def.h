@@ -13,14 +13,21 @@
 #ifndef UBSE_MANAGER_UBSE_ELECTION_DEF_H
 #define UBSE_MANAGER_UBSE_ELECTION_DEF_H
 
+#include <atomic>
 #include <cstdint>
-#include <string>
-#include <vector>
 #include <map>
 #include <mutex>
-#include <atomic>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace ubse::election {
+constexpr uint16_t UBSE_GLOBAL_PROC_INTERVAL = 1; // 单位秒
+constexpr uint16_t UBSE_GLOBAL_DISCOVERY_INTERVAL = 1; // 单位秒
+constexpr uint16_t UBSE_GLOBAL_COM_INTERVAL = 1; // 单位秒
+constexpr uint16_t UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL = 1; // 单位秒
+constexpr uint16_t UBSE_QUERY_NODES_INTERVAL = 10; // 单位秒
 constexpr const char *INVALID_NODE_ID = "";
 constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 2000;
 constexpr const uint32_t DEFAULT_HEART_BEAT_LOST = 3;
@@ -34,7 +41,21 @@ enum class RoleType {
     MASTER,
     STANDBY,
     AGENT,
-    INITIALIZER
+    INITIALIZER,
+};
+
+enum class GlobalRoleType {
+    GLOBAL_NONE,
+    GLOBAL_INITIALIZER,
+    GLOBAL_AGENT,
+    GLOBAL_STANDBY,
+    GLOBAL_MASTER
+};
+
+struct GroupSummaryInfo {
+    UBSE_ID_TYPE groupId;
+    UBSE_ID_TYPE groupMasterId;
+    UBSE_ID_TYPE groupStandbyId;
 };
 
 enum class UbseElectionPktType {
@@ -47,6 +68,24 @@ enum class UbseNodeChangeState {
     UNCHANGED,
     ADD,
     DELETE,
+};
+
+struct NodeRoleInfo {
+    UBSE_ID_TYPE nodeId;
+    RoleType groupRole;
+    RoleType globalRole;
+};
+struct GroupTopology {
+    UBSE_ID_TYPE groupId;
+    bool isManagingGroup; // 是否为管理组
+    UBSE_ID_TYPE groupMasterId;
+    UBSE_ID_TYPE groupStandbyId;
+    std::vector<NodeRoleInfo> groupNodes;
+    std::vector<GroupTopology> mountedGroups;
+};
+struct HaTopologyInfo {
+    NodeRoleInfo currentNode;
+    std::vector<GroupTopology> groups;
 };
 
 struct Node {
@@ -72,8 +111,9 @@ struct Node {
 };
 constexpr int ELECTION_PKT_TYPE_SELECT = 0;
 constexpr int ELECTION_PKT_TYPE_HEART = 1;
-constexpr uint8_t NEED_SWITCH_OVER = 1;
-constexpr uint8_t NO_SWITCH_OVER = 0;
+constexpr int ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER = 2;
+constexpr int ELECTION_PKT_TYPE_GLOBAL_SELECT = 3;
+constexpr int ELECTION_PKT_TYPE_GLOBAL_HEART = 4;
 
 enum class NotifyStatus : uint8_t {
     NOT_BROADCAST = 0,
@@ -108,9 +148,7 @@ enum class HeartBeatStatus : uint8_t {
 };
 
 struct ElectionPkt {
-    // 0：选主报文，1：心跳报文
     uint8_t type;
-    // 选主报文中：表示自己的 id，心跳报文中：表示主节点的 id
     UBSE_ID_TYPE masterId;
     UBSE_ID_TYPE standbyId;
     uint64_t turnId = 0;
@@ -120,9 +158,7 @@ struct ElectionPkt {
     uint8_t masterStatus = NOT_READY;
     uint8_t standbyStatus = NOT_READY;
     uint8_t broadcast = static_cast<uint8_t>(NotifyStatus::NOT_BROADCAST);
-    // 保留字段
-    uint8_t rev1;
-    uint16_t rsv2;
+    std::vector<UBSE_ID_TYPE> queryGroupNodeIds;
 };
 
 constexpr int ELECTION_PKT_RESULT_ACCEPT = 0;
@@ -131,21 +167,18 @@ constexpr int ELECTION_PKT_TYPE_REJECT_HAS_MASTER = 2;
 constexpr int ELECTION_PKT_REPLY_GLOBAL_STOP = 3;
 
 struct ElectionReplyPkt {
-    // 0：选主报文，1：心跳报文
     uint8_t type;
     UBSE_ID_TYPE replyId;
-    // 接受或者拒绝
-    uint32_t replyResult = ELECTION_PKT_RESULT_ACCEPT; // 0 接收 1 拒绝 2 拒绝且有主
-    // 拒绝的话，relay认为的主ID
+    UBSE_ID_TYPE groupId;
+    uint32_t replyResult = ELECTION_PKT_RESULT_ACCEPT;
     UBSE_ID_TYPE masterId;
+    UBSE_ID_TYPE standbyId;
     uint64_t turnId = 0;
-    // 备节点状态
     uint8_t standbyStatus = NOT_READY;
-    // 主节点上线通知状态
     uint8_t broadcast = static_cast<uint8_t>(NotifyStatus::NOT_BROADCAST);
-    // 保留字段
-    uint16_t rsv;
-    uint8_t length;
+    UBSE_ID_TYPE mountedGroupMasterId;
+    std::vector<UBSE_ID_TYPE> managingGroupNodeIds;
+    std::vector<UBSE_ID_TYPE> mountedGroupNodeIds;
 };
 
 struct CallbackCtx {
@@ -155,6 +188,13 @@ struct CallbackCtx {
     std::mutex *mtx = nullptr;
     std::atomic<bool> *stopping;
     std::atomic<int> *activeCount;
+};
+
+struct CallbackQueryCtx {
+    std::mutex *queryMtx = nullptr;
+    std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> *groupStates;
+    std::string *globalMasterId;
+    std::string destId{};
 };
 } // namespace ubse::election
 #endif // UBSE_MANAGER_UBSE_ELECTION_DEF_H
