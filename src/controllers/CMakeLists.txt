@@ -3,6 +3,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_subdirectory(node)
 add_subdirectory(mem)
 add_subdirectory(urma)
+add_subdirectory(ssu)
 
 add_library(ubse_controller STATIC)
 target_include_directories(ubse_controller PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
