@@ -151,6 +151,7 @@ public:
         static FaultMemIdExecute instance;
         return instance;
     }
+    MpResult RollBackHugepages(uint64_t remoteNumeId, uint64_t borrowMemSize);
     MpResult EchoHugepages(uint64_t remoteNumeId, uint64_t borrowMemSize);
     MpResult NotSameNidExecute(std::vector<uint16_t> remoteNumas, uint64_t totalNeedBorrowMem, std::vector<pid_t>& pids,
                                std::string borrowId, bool isForce);

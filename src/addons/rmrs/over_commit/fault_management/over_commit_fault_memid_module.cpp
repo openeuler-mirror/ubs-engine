@@ -647,13 +647,19 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
         .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
             delete[] data;
         }};
-    uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &vmNumaInfoWithSocketList,
+    OverCommitVmRemoteNumaInfoResult res;
+    uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &res,
                                OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "UbseRpcSend failed.";
         return MEM_POOLING_ERROR;
     }
-    if (vmNumaInfoWithSocketList.size() == 0) {
+    if (res.retCode != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "GetVmNumaInfoMapRpc execute failed.";
+        return res.retCode;
+    }
+    vmNumaInfoWithSocketList = res.vmNumaInfoWithSocketList;
+    if (res.vmNumaInfoWithSocketList.size() == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << TAG << "GetVmNumaInfoMapResHandler success, but vmNumaInfoWithSocketList is empty, return mem directly.";
         return MEM_POOLING_OK;
