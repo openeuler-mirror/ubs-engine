@@ -13,6 +13,8 @@
 #ifndef UBSE_NPU_MANAGER_API_H
 #define UBSE_NPU_MANAGER_API_H
 
+#include <memory>
+
 #include "ubse_common_def.h"
 #include "ubse_npu_source_def.h"
 

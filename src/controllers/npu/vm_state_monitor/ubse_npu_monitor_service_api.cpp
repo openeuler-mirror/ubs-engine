@@ -85,7 +85,7 @@ bool QueryAndReset(const std::string& busInstance)
 std::string GetBusInstance(std::string_view xmlStr)
 {
     std::string guid;
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(xmlStr.data());
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlStr.data());
     if (ubseXml == nullptr) {
         UBSE_LOG_ERROR << "Failed to get ubse xml.";
         return guid;
