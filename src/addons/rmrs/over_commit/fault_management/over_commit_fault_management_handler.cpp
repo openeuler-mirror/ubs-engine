@@ -37,7 +37,7 @@ uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const Ubs
     MpResult ret =
         OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(param.remoteNumaId, vmNumaInfoWithSocketList);
 
-    OverCommitFaultVmNumaInfoResult result{.vmNumaInfoWithSocketList = vmNumaInfoWithSocketList};
+    OverCommitVmRemoteNumaInfoResult result{.vmNumaInfoWithSocketList = vmNumaInfoWithSocketList, .retCode = ret};
     RmrsOutStream builder;
     builder << result;
     resp.len = builder.GetSize();
@@ -57,20 +57,27 @@ uint32_t OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(const Ubs
 void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void* ctx, const UbseByteBuffer& respData,
                                                                   uint32_t resCode)
 {
-    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
+    if (ctx == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx is null.";
         return;
     }
-    OverCommitFaultVmNumaInfoResult result;
-    auto* overCommitFaultVmNumaInfoResult = static_cast<OverCommitFaultVmNumaInfoResult*>(ctx);
+    auto* result = static_cast<OverCommitVmRemoteNumaInfoResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit][FaultManagement] Send error, res=" << resCode << ".";
-    } else {
-        RmrsInStream builder(respData.data, respData.len);
-        builder >> result;
+            << "[OverCommit][FaultManagement] RPC transport error, resCode=" << resCode;
+        result->retCode = resCode; // 写入错误码
+        // 注意：此时 respData 可能无效，不反序列化
+        return;
     }
-    *overCommitFaultVmNumaInfoResult = result;
+    // resCode OK 时，要求 respData 有效
+    if (respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Empty response data despite OK resCode.";
+        result->retCode = MEM_POOLING_ERROR;
+        return;
+    }
+    RmrsInStream builder(respData.data, respData.len);
+    builder >> (*result);
 }
 
 // memid级别故障处理：执行大页配置、setRemoteNumaInfo

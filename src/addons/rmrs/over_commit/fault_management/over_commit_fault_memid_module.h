@@ -83,6 +83,12 @@ struct OverCommitFaultVmNumaInfoParam {
 };
 
 // 获取VmInfo，结果，序列化和反序列化
+struct OverCommitVmRemoteNumaInfoResult {
+    std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
+    uint32_t retCode = MEM_POOLING_ERROR;
+};
+
+// 获取VmInfo，结果，序列化和反序列化
 struct OverCommitFaultVmNumaInfoResult {
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
 };

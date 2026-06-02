@@ -237,53 +237,68 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string& name
     return MEM_POOLING_ERROR;
 }
 
-MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name, MigrateBackMsg& migrateBackMsg,
+MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgList,
                                                EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params, borrow_id=" << name << ".";
-    bool isContainerScene = false;
-    if (MpConfiguration::GetInstance().GetSceneType() == MpSceneType::CONTAINER_SCENE) {
-        isContainerScene = true;
-    }
+        << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params list, borrow_id=" << name << ".";
+
+    bool isContainerScene = (MpConfiguration::GetInstance().GetSceneType() == MpSceneType::CONTAINER_SCENE);
+
     BorrowRecord record;
-    auto ret = GetBorrowRecordForSmapParams(name, record, isFault);
+    MpResult ret = GetBorrowRecordForSmapParams(name, record, isFault);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] CollectBorrowRecords failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] GetBorrowRecord failed.";
         return ret;
     }
+
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Find borrow_id=" << name
-        << " in borrow records, start to generate smap migrate back params.";
+        << "[MemFree][MemFreeExecute] Find borrow_id=" << name << ", borrowMemId.size=" << record.borrowMemId.size()
+        << ", start to split.";
+
+    // 计算目标 destNid（容器场景不同）
     int destNid = -1;
     if (isContainerScene) {
         destNid = record.borrowLocalNuma;
     }
 
-    if (record.borrowMemId.size() > MAX_NR_MIGBACK_MP) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] The borrow_id=" << name
-            << " has too many memid, size=" << record.borrowMemId.size() << ".";
-        return MEM_POOLING_ERROR;
-    }
-
-    for (size_t i = 0; i < record.borrowMemId.size(); i++) {
-        migrateBackMsg.payload[i].memid = record.borrowMemId[i];
-        migrateBackMsg.payload[i].srcNid = record.borrowRemoteNuma;
-        migrateBackMsg.payload[i].destNid = destNid;
-    }
-    migrateBackMsg.count = static_cast<int>(record.borrowMemId.size());
-    uint64_t taskId{};
-    GenerateSmapTaskId(taskId);
-    migrateBackMsg.taskID = taskId;
     importNodeId = record.borrowNode;
-    for (int i = 0; i < migrateBackMsg.count; i++) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Index=" << i << ", srcNid=" << migrateBackMsg.payload[i].srcNid
-            << ", dstNid=" << migrateBackMsg.payload[i].destNid << ", memid=" << migrateBackMsg.payload[i].memid;
-    }
     enableMsg.nid = record.borrowRemoteNuma;
     enableMsg.enable = SMAP_ENABLE_NUMA;
+
+    // 将 borrowMemId 拆分成多个 chunk，每个最多 MAX_NR_MIGBACK_MP 个
+    const size_t chunkSize = MAX_NR_MIGBACK_MP;
+    const auto& memIds = record.borrowMemId;
+    size_t totalCount = memIds.size();
+    size_t offset = 0;
+
+    while (offset < totalCount) {
+        size_t curCount = std::min(chunkSize, totalCount - offset);
+        MigrateBackMsg msg;
+        msg.count = static_cast<int>(curCount);
+        // 生成新的 taskID
+        uint64_t taskId{};
+        GenerateSmapTaskId(taskId);
+        msg.taskID = taskId;
+        for (size_t i = 0; i < curCount; ++i) {
+            msg.payload[i].memid = memIds[offset + i];
+            msg.payload[i].srcNid = record.borrowRemoteNuma;
+            msg.payload[i].destNid = destNid;
+        }
+
+        // 打印日志
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] Chunk offset=" << offset << ", srcNid=" << msg.payload[0].srcNid
+            << ", dstNid=" << msg.payload[0].destNid << ", first memid=" << msg.payload[0].memid
+            << ", last memid=" << msg.payload[curCount - 1].memid;
+
+        migrateBackMsgList.push_back(std::move(msg));
+        offset += curCount;
+    }
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeExecute] Generated " << migrateBackMsgList.size()
+        << " smap migrate back msg for borrow_id=" << name << ".";
 
     return MEM_POOLING_OK;
 }
@@ -450,35 +465,36 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
 
 MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault)
 {
-    MigrateBackMsg migrateBackMsg;
+    std::vector<MigrateBackMsg> migrateBackMsgList;
     EnableNodeMsg enableMsg;
     std::string importNodeId;
-    auto retSmap = GenerateSmapParams(deleteName, migrateBackMsg, enableMsg, importNodeId, isFault);
+    auto retSmap = GenerateSmapParams(deleteName, migrateBackMsgList, enableMsg, importNodeId, isFault);
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] GenerateParams failed.";
         return retSmap;
     }
-
-    // 持久化SmapEnable数据
-    if (migrateBackMsg.count > 0) {
-        PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
-    } else {
+    if (migrateBackMsgList.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Smap migrate back count=" << migrateBackMsg.count << " invalid.";
+            << "[MemFree][MemFreeExecute] Smap migrate back msg list is empty.";
         return MEM_POOLING_ERROR;
     }
-    retSmap = SmapMigrateBackProcess(migrateBackMsg);
-    if (retSmap != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
-        retSmap = SmapEnableNumaProcess(enableMsg);
-        // 迁回失败并对远端numa进行了enable，把持久化数据删掉
-        DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
+    // 持久化SmapEnable数据（只需一次，基于第一个消息的srcNid）
+    PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
+
+    for (auto& migrateBackMsg : migrateBackMsgList) {
+        retSmap = SmapMigrateBackProcess(migrateBackMsg);
         if (retSmap != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
+                << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
+            retSmap = SmapEnableNumaProcess(enableMsg);
+            // 迁回失败并对远端numa进行了enable，把持久化数据删掉
+            DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
+            if (retSmap != MEM_POOLING_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
+            }
+            return MEM_POOLING_ERROR;
         }
-        return MEM_POOLING_ERROR;
     }
 
     auto retMemFreeByUbse = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
@@ -492,7 +508,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const 
 
     retSmap = SmapEnableNumaProcess(enableMsg);
     // 归还成功并对远端numa进行了enable，把持久化数据删掉
-    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
+    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;

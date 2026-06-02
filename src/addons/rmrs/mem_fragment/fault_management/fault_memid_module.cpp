@@ -145,6 +145,26 @@ MpResult FaultMemIdExecute::SameNidExecute(uint64_t remoteNumaHuge, uint64_t mem
     return MEM_POOLING_OK;
 }
 
+// 回滚释放已分配大页
+MpResult FaultMemIdExecute::RollBackHugepages(uint64_t remoteNumeId, uint64_t borrowMemSize)
+{
+    LOG_INFO << "[FaultHandleParallel][RollbackHugepages] Rollback hugepages start.";
+    LOG_DEBUG << "[FaultHandleParallel][RollbackHugepages] Param remoteNumaId=" << remoteNumeId
+              << ", releaseMemSize=" << borrowMemSize << " KB.";
+
+    // 修改remoteNumaId大页 入参：远端numaId, 新借用内存大小kb
+    std::vector<uint64_t> remoteNumaIds = {remoteNumeId};
+    std::vector<uint64_t> borrowSizes = {borrowMemSize * KB_TO_BYTES}; // 内存单位从kb转换为b
+    MpResult retRelease = MpSmapHelper::GetInstance().ReleaseHugePages(remoteNumaIds, borrowSizes);
+    if (retRelease != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultHandleParallel][RollbackHugepages] Release hugePages failed. remoteNumaId=" << remoteNumeId
+                  << ".";
+        return MEM_POOLING_ERROR;
+    }
+    LOG_INFO << "[FaultHandleParallel][RollbackHugepages] Allocate HugePages not same nid success.";
+    return MEM_POOLING_OK;
+}
+
 // 分配大页
 MpResult FaultMemIdExecute::EchoHugepages(uint64_t remoteNumeId, uint64_t borrowMemSize)
 {
