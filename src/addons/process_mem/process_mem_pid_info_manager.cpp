@@ -585,8 +585,8 @@ uint32_t MemoryCheckHandle(def::ProcessMemPidInfo& info, const std::unordered_ma
     if (expectMemory == 0) {
         return UBSE_OK;
     }
-    const auto needBorrow = totalMemory * 100 / expectMemory > info.configInfo.evictThreshold;
-    const auto needReturn = totalMemory * 100 / expectMemory < info.configInfo.reclaimThreshold;
+    const auto needBorrow = totalMemory * 100 > static_cast<uint64_t>(info.configInfo.evictThreshold) * expectMemory;
+    const auto needReturn = totalMemory * 100 < static_cast<uint64_t>(info.configInfo.reclaimThreshold) * expectMemory;
 
     UBSE_LOG_INFO << "needBorrow IS " << needBorrow << ", needReturn is" << needReturn << ", localMemory is "
                   << localMemory << ", remote memory is " << remoteMemory << ",expectMemory is " << expectMemory;
