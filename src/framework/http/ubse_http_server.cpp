@@ -257,7 +257,7 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
         return nullptr;
     }
     // 配置客户端证书验证（mTLS）
-    SSL_CTX *ctx = sslServer->ssl_context();
+    SSL_CTX* ctx = static_cast<SSL_CTX*>(sslServer->tls_context());
     if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
         // 设置失败，可能是 OpenSSL 版本过低或不支持 TLS 1.3
         UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
