@@ -284,7 +284,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrow)
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(module));
     const auto func1 = &UbseComModule::RpcSend<UbseMemNumaBorrowExportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func1).stubs().will(returnValue(UBSE_OK));
-    EXPECT_FALSE(UBSE_OK == mem::controller::UbseMemNumaBorrow(req, resp));
+    EXPECT_TRUE(UBSE_OK == mem::controller::UbseMemNumaBorrow(req, resp));
 }
 
 TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowExportObjCallbackAgentRunning)

@@ -256,44 +256,89 @@ void FillAttachSocketId(UbseMemBorrowImportBaseObj& importObj, const bool isFdOr
     }
 }
 
-void GetDcnaWhenSpecifylink(const UbseNodeMemCnaInfoInput& cnaInput, const UbseNodeMemCnaInfoOutput& cnaOutput,
-                            uint32_t& dcna, const UbseMemNumaBorrowImportObj& importObj, std::string& borrowPortId)
+struct PortCnaResult {
+    bool found{false};
+    uint32_t dcna{0};
+    std::string borrowPortId; // 导入端端口(remotePortId)
+    std::string portId;       // 导出端端口
+};
+
+// 从export节点的portInfos中选择端口并解析dcna和borrowPortId:
+// specifiedPortId != UINT32_MAX时使用指定端口, 否则选择连接到importNodeId且portCna最小的端口
+static PortCnaResult SelectPortCna(const std::string& exportNodeId, const std::string& exportSocketIdStr,
+                                   const std::string& importNodeId, uint32_t specifiedPortId)
 {
-    if (importObj.req.linkInfo.lenderPort == -1) {
-        return;
-    }
-    if (!IsSameSocketMultiPortTopo()) {
-        return;
-    }
-    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(cnaInput.exportNodeId);
     uint32_t socketId{};
-    try {
-        socketId = std::stoi(cnaOutput.exportSocketId);
-    } catch (...) {
-        UBSE_LOG_INFO << "exportSocketId is " << cnaOutput.exportSocketId;
+    if (ConvertStrToUint32(exportSocketIdStr, socketId) != UBSE_OK) {
+        UBSE_LOG_INFO << "Invalid exportSocketId: " << exportSocketIdStr;
+        return {};
     }
-    UbseCpuLocation location{};
-    std::string portCna{};
+    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(exportNodeId);
+    const UbseCpuInfo* cpu = nullptr;
     for (const auto& cpuInfo : nodeInfo.cpuInfos) {
         if (cpuInfo.second.socketId == socketId) {
-            location = cpuInfo.first;
+            cpu = &cpuInfo.second;
             break;
         }
     }
-    auto cpu = nodeInfo.cpuInfos.find(location);
-    UBSE_LOG_INFO << "location nodeId is " << location.nodeId << "chipId is " << location.chipId;
-    if (cpu == nodeInfo.cpuInfos.end()) {
-        UBSE_LOG_WARN << "location " << location.nodeId << " - " << location.chipId << " is not found in cpuInfo";
+    if (cpu == nullptr) {
+        UBSE_LOG_WARN << "socket " << socketId << " not found in cpuInfo";
+        return {};
+    }
+    if (specifiedPortId != UINT32_MAX) {
+        for (const auto& portInfo : cpu->portInfos) {
+            if (portInfo.second.portId == std::to_string(specifiedPortId)) {
+                UBSE_LOG_INFO << "Found specified port " << specifiedPortId << " dcna=" << portInfo.second.portCna
+                              << " borrowPortId=" << portInfo.second.remotePortId;
+                return {true, portInfo.second.portCna, portInfo.second.remotePortId, portInfo.second.portId};
+            }
+        }
+        UBSE_LOG_WARN << "Specified port " << specifiedPortId << " not found";
+        return {};
+    }
+    // 未指定端口: 选择连接到importNodeId且对端portId最小的端口
+    PortCnaResult result;
+    uint32_t minRemotePortId = UINT32_MAX;
+    for (const auto& portInfo : cpu->portInfos) {
+        if (portInfo.second.portStatus == PortStatus::UP && portInfo.second.remoteSlotId == importNodeId) {
+            uint32_t remotePortId = 0;
+            if (ConvertStrToUint32(portInfo.second.remotePortId, remotePortId) == UBSE_OK &&
+                remotePortId < minRemotePortId) {
+                minRemotePortId = remotePortId;
+                result.dcna = portInfo.second.portCna;
+                result.borrowPortId = portInfo.second.remotePortId;
+                result.portId = portInfo.second.portId;
+                result.found = true;
+            }
+        }
+    }
+    if (result.found) {
+        UBSE_LOG_INFO << "Selected min port dcna=" << result.dcna << " borrowPortId=" << result.borrowPortId
+                      << " portId=" << result.portId;
+    }
+    return result;
+}
+
+void FillImportNumaPortAndChipId(const std::string& exportNodeId, int exportSocketId, const std::string& importNodeId,
+                                 std::vector<UbseMemDebtNumaInfo>& importNumaInfos, uint32_t specifiedPortId)
+{
+    if (importNumaInfos.empty()) {
         return;
     }
-    for (const auto& portInfo : cpu->second.portInfos) {
-        if (portInfo.second.portId == std::to_string(importObj.req.linkInfo.lenderPort)) {
-            UBSE_LOG_INFO << "portCna is " << portInfo.second.portCna;
-            dcna = portInfo.second.portCna;
-            borrowPortId = portInfo.second.remotePortId;
-            UBSE_LOG_INFO << "location nodeId is " << location.nodeId << ", chipId is " << location.chipId
-                          << ", portId is " << portInfo.second.portId << ", dcna is " << dcna << ", borrowPort is "
-                          << borrowPortId;
+    auto result = SelectPortCna(exportNodeId, std::to_string(exportSocketId), importNodeId, specifiedPortId);
+    for (auto& numaInfo : importNumaInfos) {
+        auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
+        if (nodeInfo.nodeId.empty()) {
+            continue;
+        }
+        if (result.found) {
+            ConvertStrToUint32(result.borrowPortId, numaInfo.portId);
+        }
+        for (const auto& cpuInfo : nodeInfo.cpuInfos) {
+            if (cpuInfo.second.socketId == numaInfo.socketId) {
+                ConvertStrToUint32(cpuInfo.second.chipId, numaInfo.chipId);
+                break;
+            }
         }
     }
 }
@@ -321,7 +366,12 @@ uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::str
     }
     uint32_t dcna = cnaOutput.exportNodeCna;
     std::string borrowPortId = cnaOutput.portGroupId;
-    GetDcnaWhenSpecifylink(cnaInput, cnaOutput, dcna, importObj, borrowPortId);
+    if (auto result = SelectPortCna(cnaInput.exportNodeId, cnaOutput.exportSocketId, cnaInput.borrowNodeId,
+                                    static_cast<uint32_t>(importObj.req.linkInfo.lenderPort));
+        result.found) {
+        dcna = result.dcna;
+        borrowPortId = result.borrowPortId;
+    }
     for (auto& newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
         newObmmDesc.desc.scna = cnaOutput.borrowNodeCna;
@@ -343,7 +393,7 @@ uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::str
 }
 
 uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string& importNodeId,
-                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr)
+                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr, uint32_t specifiedPortId)
 {
     UbseNodeMemCnaInfoInput cnaInput;
     cnaInput.exportNodeId = exportNodeId;
@@ -363,11 +413,19 @@ uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string
         return UBSE_ERROR;
     }
     FillAttachSocketId(importObj, isFdOrAddr, cnaOutput);
+    uint32_t dcna = cnaOutput.exportNodeCna;
+    std::string borrowPortId = cnaOutput.portGroupId;
+    if (auto result =
+            SelectPortCna(cnaInput.exportNodeId, cnaInput.exportSocketId, cnaInput.borrowNodeId, specifiedPortId);
+        result.found) {
+        dcna = result.dcna;
+        borrowPortId = result.borrowPortId;
+    }
     for (auto& newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
         newObmmDesc.desc.scna = cnaOutput.borrowNodeCna;
-        newObmmDesc.desc.dcna = cnaOutput.exportNodeCna;
-        newObmmDesc.desc.marId = GetMarId(cnaOutput.portGroupId);
+        newObmmDesc.desc.dcna = dcna;
+        newObmmDesc.desc.marId = GetMarId(borrowPortId);
         uint32_t srcSocketId = 0;
         auto ret = ConvertStrToUint32(cnaOutput.borrowSocketId, srcSocketId);
         ret |= UbseNodeController::GetInstance().GetEid(cnaInput.borrowNodeId, srcSocketId, newObmmDesc.desc.seid);
@@ -379,8 +437,7 @@ uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string
             return UBSE_ERROR;
         }
     }
-    UBSE_LOG_INFO << "Obmm portGroupId=" << cnaOutput.portGroupId << ", scna=" << cnaOutput.borrowNodeCna
-                  << ", dcna=" << cnaOutput.exportNodeCna;
+    UBSE_LOG_INFO << "Obmm portGroupId=" << borrowPortId << ", scna=" << cnaOutput.borrowNodeCna << ", dcna=" << dcna;
     return UBSE_OK;
 }
 

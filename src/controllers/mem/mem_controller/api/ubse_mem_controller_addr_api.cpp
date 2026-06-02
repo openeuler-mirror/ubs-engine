@@ -29,6 +29,7 @@
 #include "../message/ubse_mem_addr_borrow_exportobj_simpo.h"
 #include "../message/ubse_mem_addr_borrow_importobj_simpo.h"
 #include "../ubse_mem_account.h"
+#include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "src/controllers/mem/mem_scheduler/ubse_mem_scheduler.h"
@@ -184,6 +185,9 @@ uint32_t DoUbseMemAddrBorrow(const std::string& exportKey, const UbseMemAddrBorr
                                           MemOperationType::ADDR_BORROW);
     }
     NodeControllerReadUnLock(req);
+    FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
+                                importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
+                                importObj.algoResult.importNumaInfos);
     ConstructAddrObjs(importObj, exportObj, req);
     UBSE_LOG_INFO << "[MMC] send  export obj, exportId=" << req.exportNodeId << ", importNodeId=" << req.importNodeId;
 

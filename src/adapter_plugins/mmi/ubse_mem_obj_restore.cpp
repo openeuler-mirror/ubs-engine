@@ -66,9 +66,9 @@ void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdI
         algoResult.exportNumaInfos.push_back({lendNode, obmmMetaData.customMeta.exportSocket,
                                               obmmMetaData.customMeta.exportNumaIds[i],
                                               obmmMetaData.customMeta.numaSizes[i]});
-        algoResult.importNumaInfos.push_back({req.importNodeId, obmmMetaData.customMeta.importSocket,
-                                              obmmMetaData.customMeta.importNumaIds[i],
-                                              obmmMetaData.customMeta.numaSizes[i]});
+        algoResult.importNumaInfos.push_back(
+            {req.importNodeId, obmmMetaData.customMeta.importSocket, obmmMetaData.customMeta.importNumaIds[i],
+             obmmMetaData.customMeta.numaSizes[i], obmmMetaData.customMeta.portId, obmmMetaData.customMeta.chipId});
     }
     algoResult.blockSize = RmCommonUtils::GetInstance().SizeByte2Mb(obmmMetaData.totalSize);
     std::vector<UbseMemObmmInfo> exportObmmInfo{};
@@ -570,9 +570,9 @@ void ConstructSingleShareImportObj(const std::vector<UbseMemLocalObmmMetaData>& 
         algoResult.exportNumaInfos.push_back({exportNode, obmmMetaData.customMeta.exportSocket,
                                               obmmMetaData.customMeta.exportNumaIds[i],
                                               obmmMetaData.customMeta.numaSizes[i]});
-        algoResult.importNumaInfos.push_back({importNode, obmmMetaData.customMeta.importSocket,
-                                              obmmMetaData.customMeta.importNumaIds[i],
-                                              obmmMetaData.customMeta.numaSizes[i]});
+        algoResult.importNumaInfos.push_back(
+            {importNode, obmmMetaData.customMeta.importSocket, obmmMetaData.customMeta.importNumaIds[i],
+             obmmMetaData.customMeta.numaSizes[i], obmmMetaData.customMeta.portId, obmmMetaData.customMeta.chipId});
     }
     isNormal = AfterConstructSingleShareImportObj(importLocalObmmMetaDatas, mxeMemShareBorrowImportObj, obmmMetaData,
                                                   req, algoResult);
@@ -628,9 +628,9 @@ void ConstructSingleShareImportObjFromExportMetaData(
         algoResult.exportNumaInfos.push_back({exportNode, obmmMetaData.customMeta.exportSocket,
                                               obmmMetaData.customMeta.exportNumaIds[i],
                                               obmmMetaData.customMeta.numaSizes[i]});
-        algoResult.importNumaInfos.push_back({exportNode, obmmMetaData.customMeta.exportSocket,
-                                              obmmMetaData.customMeta.exportNumaIds[i],
-                                              obmmMetaData.customMeta.numaSizes[i]});
+        algoResult.importNumaInfos.push_back(
+            {exportNode, obmmMetaData.customMeta.exportSocket, obmmMetaData.customMeta.exportNumaIds[i],
+             obmmMetaData.customMeta.numaSizes[i], obmmMetaData.customMeta.portId, obmmMetaData.customMeta.chipId});
     }
     req.requestNodeId = obmmMetaData.localNodeId;
     algoResult.blockSize = RmCommonUtils::GetInstance().SizeByte2Mb(obmmMetaData.totalSize);
@@ -790,9 +790,9 @@ void ConstructSingleAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& i
             algoResult.exportNumaInfos.push_back({req.exportNodeId, obmmMetaData.customMeta.exportSocket,
                                                   obmmMetaData.customMeta.exportNumaIds[i],
                                                   obmmMetaData.customMeta.numaSizes[i]});
-            algoResult.importNumaInfos.push_back({req.importNodeId, obmmMetaData.customMeta.importSocket,
-                                                  obmmMetaData.customMeta.importNumaIds[i],
-                                                  obmmMetaData.customMeta.numaSizes[i]});
+            algoResult.importNumaInfos.push_back(
+                {req.importNodeId, obmmMetaData.customMeta.importSocket, obmmMetaData.customMeta.importNumaIds[i],
+                 obmmMetaData.customMeta.numaSizes[i], obmmMetaData.customMeta.portId, obmmMetaData.customMeta.chipId});
         }
     }
     std::vector<UbseMemAddrInfo> addrList{};

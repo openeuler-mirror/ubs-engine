@@ -32,6 +32,7 @@
 #include "../message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "../message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "../ubse_mem_account.h"
+#include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
@@ -660,23 +661,12 @@ uint32_t GetCnaTopoByPeerNodeInfo(const UbseMemShareAttachReq& req, const UbseMe
 
     UBSE_LOG_INFO << "req info: importNodeId=" << req.importNodeId << ", exportNodeId=" << remoteNode
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
-    auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
+    auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj, false,
+                                    importObj.req.lenderInfo.portId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get cna info when import, " << FormatRetCode(ret)
                        << ", requestId=" << req.requestId;
         return UBSE_ERROR;
-    }
-    // 多路径情况下，会给dcna重新赋值，当指定port时以指定port为准，否则选择直连导入socket的最小端口号，作为单路径路由表的配置
-    if (IsSameSocketMultiPortTopo()) {
-        uint32_t portId = importObj.req.lenderInfo.portId;
-        uint32_t portCna{};
-        if (GetPortInfo(req.importNodeId, importObj, remoteNode, portId, portCna) != UBSE_OK) {
-            return UBSE_ERROR;
-        }
-        for (auto& obmmInfo : importObj.exportObmmInfo) {
-            obmmInfo.desc.dcna = portCna;
-            obmmInfo.desc.marId = portId / 4; // portId / 4 能得到marId
-        }
     }
     return UBSE_OK;
 }
@@ -699,6 +689,13 @@ uint32_t PrepareShareAttachImportObj(const UbseMemShareAttachReq& req, UbseMemOp
     importObj.algoResult = exportObjs[0].algoResult;
     importObj.req = exportObjs[0].req;
     if (GetCnaTopoByPeerNodeInfo(req, exportObjs[0], resp, importObj) == UBSE_OK) {
+        // 共享借用算法阶段无importNumaInfos，需从exportNumaInfos和CNA信息构造导入端numa信息
+        importObj.algoResult.importNumaInfos.push_back(
+            {req.importNodeId, static_cast<int>(importObj.algoResult.attachSocketId),
+             importObj.algoResult.exportNumaInfos[0].numaId, importObj.algoResult.exportNumaInfos[0].size});
+        FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
+                                    importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
+                                    importObj.algoResult.importNumaInfos);
         return UBSE_OK;
     }
 

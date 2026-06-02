@@ -334,8 +334,8 @@ struct UbseMemDebtNumaInfo {
     int socketId{-1};   // socket id
     int64_t numaId{-1}; // numa id
     uint64_t size{0};
-    uint32_t portId{0};
-    uint32_t chipId{0}; // 中心侧算法后获取，用于远端numa获取以及内存预上线
+    uint32_t portId{0}; // 导入端portId，仅importNumaInfos有值
+    uint32_t chipId{0}; // 导入端chipId，仅importNumaInfos有值
     friend std::ostream& operator<<(std::ostream& os, const UbseMemDebtNumaInfo& obj);
 };
 
