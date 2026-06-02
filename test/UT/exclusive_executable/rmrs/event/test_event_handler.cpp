@@ -158,19 +158,35 @@ MpResult DetermineNodeTypeMockBorrowOut(FaultNodeModule& thisPtr, const std::str
     return MEM_POOLING_OK;
 }
 
+MpResult DetermineNodeTypeOverCommitMockBorrowIn(FaultNodeModule* thisPtr, const std::string nodeId, NodeType& nodeType)
+{
+    nodeType = NodeType::BORROW_IN;
+    return MEM_POOLING_OK;
+}
+
+MpResult DetermineNodeTypeOverCommitMockBorrowOut(FaultNodeModule* thisPtr, const std::string nodeId,
+                                                  NodeType& nodeType)
+{
+    nodeType = NodeType::BORROW_OUT;
+    return MEM_POOLING_OK;
+}
+
 TEST_F(TestEventHandler, HandleAlarmRebootEventBorrowOutOverCommitSuccess)
 {
     ALARM_FAULT_TYPE eventId = 0;
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeTypeOverCommit,
+               MpResult(*)(FaultNodeModule * thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
-        .will(invoke(DetermineNodeTypeMockBorrowOut));
+        .will(invoke(DetermineNodeTypeOverCommitMockBorrowOut));
     MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
                                                                 void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
+    MOCKER_CPP(&OverCommitFaultNodeModule::ProcessBorrowOutNodeFault, MpResult(*)(const std::string&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
 
     MpResult ret = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -184,8 +200,12 @@ TEST_F(TestEventHandler, HandlePanicEventDetermineNodeTypeFailed)
                                                                 void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeTypeOverCommit,
+               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestEventHandler, HandlePanicEventBorrowOutOverCommitFailed)
@@ -193,10 +213,10 @@ TEST_F(TestEventHandler, HandlePanicEventBorrowOutOverCommitFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeTypeOverCommit,
+               MpResult(*)(FaultNodeModule * thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
-        .will(invoke(DetermineNodeTypeMockBorrowOut));
+        .will(invoke(DetermineNodeTypeOverCommitMockBorrowOut));
     MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
                                                                 void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
@@ -218,10 +238,10 @@ TEST_F(TestEventHandler, HandleAlarmKernelRebootEventBorrowOutOverCommitFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string nodeId = "node1";
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
-    MOCKER_CPP(&FaultNodeModule::DetermineNodeType,
-               MpResult(*)(FaultNodeModule & thisPtr, const std::string nodeId, NodeType& nodeType))
+    MOCKER_CPP(&FaultNodeModule::DetermineNodeTypeOverCommit,
+               MpResult(*)(FaultNodeModule * thisPtr, const std::string nodeId, NodeType& nodeType))
         .stubs()
-        .will(invoke(DetermineNodeTypeMockBorrowOut));
+        .will(invoke(DetermineNodeTypeOverCommitMockBorrowOut));
     MOCKER_CPP(ubse::storage::UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key,
                                                                 void* ctx, ubse::storage::UbseStorageDealDataFunc func))
         .stubs()
@@ -448,7 +468,7 @@ TEST_F(TestEventHandler, RebootOverCommitSceneBorrowInSuccess)
                                                                 void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
-    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
+    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
                MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeIn));
@@ -465,7 +485,7 @@ TEST_F(TestEventHandler, RebootOverCommitSceneBorrowOutSuccess)
                                                                 void* ctx, UbseStorageDealDataFunc func))
         .stubs()
         .will(invoke(SetOverCommitScene));
-    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeType,
+    MOCKER_CPP(&mempooling::FaultNodeModule::DetermineNodeTypeOverCommit,
                MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));

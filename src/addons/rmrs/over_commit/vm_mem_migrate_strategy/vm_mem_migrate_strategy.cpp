@@ -738,7 +738,7 @@ uint32_t VMMemMigrateStrategy::AllocateMemoryToRemoteUsedVm(const std::unordered
                                                             const std::pair<pid_t, std::uint64_t>& vm,
                                                             std::vector<VMResult>& vmResults)
 {
-    UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[VMMemMigrateStrategy][AllocateMemoryToRemoteUsedVm] "
                                                         "AllocateMemoryToRemoteUsedVm start.";
     uint32_t borrowedSize = vmInfos.at(vm.first).totalRemoteUsedMem;
     VMResult result;

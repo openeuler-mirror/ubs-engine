@@ -19,6 +19,7 @@
 #include "mp_error.h"
 
 namespace mempooling {
+enum class NodeType;
 
 namespace event {
 using namespace ubse::ras;
@@ -32,6 +33,15 @@ public:
     static MpResult HandleAlarmKernelRebootEvent(ALARM_FAULT_TYPE eventId, std::string eventMessage);
 
     static MpResult HandleAlarmUceEvent(ALARM_FAULT_TYPE eventId, std::string eventMessage);
+
+private:
+    static MpResult ResolveOverCommitMode(bool& isOverCommit, bool useSimplified);
+
+    static MpResult HandleOverCommitNodeFault(const std::string& nodeId, bool isSimplified);
+
+    static void WaitForAllOtherNodesWorking(const std::string& nodeId, NodeType& nodeType);
+
+    static bool IsAllOtherNodesWorking(const std::string& nodeId);
 };
 } // namespace event
 } // namespace mempooling
