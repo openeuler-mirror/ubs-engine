@@ -648,8 +648,8 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
             delete[] data;
         }};
     OverCommitVmRemoteNumaInfoResult res;
-    uint32_t ret = UbseRpcSend(endpoint_get_vm_info, reqData, &res,
-                               OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
+    uint32_t ret =
+        UbseRpcSend(endpoint_get_vm_info, reqData, &res, OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "UbseRpcSend failed.";
         return MEM_POOLING_ERROR;

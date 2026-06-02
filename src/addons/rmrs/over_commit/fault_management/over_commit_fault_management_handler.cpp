@@ -65,7 +65,7 @@ void OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler(void* ctx, con
     if (resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] RPC transport error, resCode=" << resCode;
-        result->retCode = resCode;   // 写入错误码
+        result->retCode = resCode; // 写入错误码
         // 注意：此时 respData 可能无效，不反序列化
         return;
     }

@@ -59,8 +59,8 @@ public:
     MpResult GenerateSmapParamsForProcessMem(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgs,
                                              EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
 
-    MpResult GenerateSmapParams(const std::string &name, std::vector<MigrateBackMsg> &migrateBackMsgList,
-                                EnableNodeMsg &enableMsg, std::string &importNodeId, bool isFault = false);
+    MpResult GenerateSmapParams(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgList,
+                                EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
 
     MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg);
 

@@ -289,8 +289,8 @@ public:
     MpResult FaultHandleExecuteParallel(std::vector<BorrowGroupResult>& borrowGroups);
     MpResult NumaLevelExecute(const BorrowGroupResult& group, NumaLevelDecision decision,
                               std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap);
-    MpResult FaultHandleMigrate(uint16_t presentNumaId, uint16_t faultNumaId,
-                                std::vector<pid_t>& pids, uint64_t borrowMemSize);
+    MpResult FaultHandleMigrate(uint16_t presentNumaId, uint16_t faultNumaId, std::vector<pid_t>& pids,
+                                uint64_t borrowMemSize);
     MpResult NumaLevelMemBorrow(const BorrowGroupResult& group, NumaLevelDecision decision,
                                 std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap,
                                 uint16_t& presentNumaId);

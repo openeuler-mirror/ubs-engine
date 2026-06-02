@@ -237,11 +237,8 @@ MpResult MemBorrowExecutor::GetBorrowRecordForSmapParams(const std::string& name
     return MEM_POOLING_ERROR;
 }
 
-MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name,
-                                               std::vector<MigrateBackMsg>& migrateBackMsgList,
-                                               EnableNodeMsg& enableMsg,
-                                               std::string& importNodeId,
-                                               bool isFault)
+MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgList,
+                                               EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params list, borrow_id=" << name << ".";
@@ -255,8 +252,9 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name,
         return ret;
     }
 
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Find borrow_id=" << name
-        << ", borrowMemId.size=" << record.borrowMemId.size() << ", start to split.";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeExecute] Find borrow_id=" << name << ", borrowMemId.size=" << record.borrowMemId.size()
+        << ", start to split.";
 
     // 计算目标 destNid（容器场景不同）
     int destNid = -1;
@@ -289,16 +287,18 @@ MpResult MemBorrowExecutor::GenerateSmapParams(const std::string& name,
         }
 
         // 打印日志
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Chunk offset=" << offset
-            << ", srcNid=" << msg.payload[0].srcNid << ", dstNid=" << msg.payload[0].destNid
-            << ", first memid=" << msg.payload[0].memid << ", last memid=" << msg.payload[curCount - 1].memid;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] Chunk offset=" << offset << ", srcNid=" << msg.payload[0].srcNid
+            << ", dstNid=" << msg.payload[0].destNid << ", first memid=" << msg.payload[0].memid
+            << ", last memid=" << msg.payload[curCount - 1].memid;
 
         migrateBackMsgList.push_back(std::move(msg));
         offset += curCount;
     }
 
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] Generated "
-        << migrateBackMsgList.size() << " smap migrate back msg for borrow_id=" << name << ".";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeExecute] Generated " << migrateBackMsgList.size()
+        << " smap migrate back msg for borrow_id=" << name << ".";
 
     return MEM_POOLING_OK;
 }
@@ -463,7 +463,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
     return MEM_POOLING_OK;
 }
 
-MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const std::string &deleteName, bool isFault)
+MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault)
 {
     std::vector<MigrateBackMsg> migrateBackMsgList;
     EnableNodeMsg enableMsg;
@@ -481,7 +481,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
     // 持久化SmapEnable数据（只需一次，基于第一个消息的srcNid）
     PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
 
-    for (auto &migrateBackMsg : migrateBackMsgList) {
+    for (auto& migrateBackMsg : migrateBackMsgList) {
         retSmap = SmapMigrateBackProcess(migrateBackMsg);
         if (retSmap != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -496,7 +496,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string &name, const 
             return MEM_POOLING_ERROR;
         }
     }
-    
+
     auto retMemFreeByUbse = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
     if (retMemFreeByUbse != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
