@@ -21,14 +21,13 @@
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::urma {
-using namespace ubse::module;
-using namespace ubse::common::def;
-using namespace ubse::nodeController;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
-using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topo_size, uint32_t topNum);
-using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char *urmaEid, char *buf, size_t len);
-using UvsCreateAggrDev = uint32_t (*)(char *aggrDevEid, const char *aggrDevName);
-using UvsDeleteAggrDev = uint32_t (*)(char *aggrDevEid);
+using UvsSetTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_t topNum);
+using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char* urmaEid, char* buf, size_t len);
+using UvsCreateAggrDev = uint32_t (*)(char* aggrDevEid, const char* aggrDevName);
+using UvsDeleteAggrDev = uint32_t (*)(char* aggrDevEid);
 
 constexpr uint32_t EID_LEN = 16;
 constexpr uint32_t IODIE_NUM = 2;
@@ -58,10 +57,10 @@ struct UbcoreTopoAggrDev {
 };
 
 struct UbcoreTopoNode {
-    uint32_t type;    // 0代表1D-FULLMESH, 1代表Clos组网
-    uint32_t super_node_id; // 超节点Id
-    uint32_t id;    // 该entry对应的节点Id
-    uint32_t is_current;    // 0代表非本节点，1代表是本节点
+    uint32_t type;                          // 0代表1D-FULLMESH, 1代表Clos组网
+    uint32_t super_node_id;                 // 超节点Id
+    uint32_t id;                            // 该entry对应的节点Id
+    uint32_t is_current;                    // 0代表非本节点，1代表是本节点
     bool links[UVS_PORT_NUM][UVS_PORT_NUM]; // 当前节点port到该entry节点port的连接矩阵
     UbcoreTopoAggrDev aggr_dev[DEV_NUM];
 };

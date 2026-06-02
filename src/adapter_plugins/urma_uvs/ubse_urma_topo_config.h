@@ -48,9 +48,9 @@ enum class UbseUrmaTopoMode {
 
 UbseUrmaTopoMode GetUrmaTopoMode();
 
-UbseResult ParseUrmaTopoConfig(const std::string &topoFile, UbseUrmaTopoConfig &topoConfig);
+UbseResult ParseUrmaTopoConfig(const std::string& topoFile, UbseUrmaTopoConfig& topoConfig);
 
-UbseResult LoadUrmaTopoConfig(UbseUrmaTopoMode topoMode, UbseUrmaTopoConfig &topoConfig);
+UbseResult LoadUrmaTopoConfig(UbseUrmaTopoMode topoMode, UbseUrmaTopoConfig& topoConfig);
 } // namespace ubse::urma
 
 #endif // UBSE_URMA_TOPO_CONFIG_H

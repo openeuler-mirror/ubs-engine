@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include <unistd.h>
 
+#include "ubse_error.h"
+#include "ubse_ut_dir.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "src/adapter_plugins/urma_uvs/ubse_urma_topo_config.h"
-#include "ubse_error.h"
-#include "ubse_ut_dir.h"
 
 namespace ubse::ut::urma {
 using namespace ubse::common::def;
@@ -29,8 +29,7 @@ class TestUbseUrmaTopoConfig : public testing::Test {
 public:
     void SetUp() override
     {
-        tempDir_ = std::filesystem::temp_directory_path() /
-                   ("ubse_urma_topo_config_ut_" + std::to_string(getpid()));
+        tempDir_ = std::filesystem::temp_directory_path() / ("ubse_urma_topo_config_ut_" + std::to_string(getpid()));
         std::filesystem::create_directories(tempDir_);
     }
 
@@ -41,7 +40,7 @@ public:
     }
 
 protected:
-    std::filesystem::path WriteConfig(const std::string &fileName, const std::string &content) const
+    std::filesystem::path WriteConfig(const std::string& fileName, const std::string& content) const
     {
         auto filePath = tempDir_ / fileName;
         std::ofstream file(filePath);
@@ -167,8 +166,8 @@ TEST_F(TestUbseUrmaTopoConfig, ParseUrmaTopoConfigFailsWhenPortFormatInvalid)
  */
 TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinNonCrossTopoConfig)
 {
-    auto filePath = std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() /
-                    "conf" / "topo" / "non-cross.json";
+    auto filePath =
+        std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() / "conf" / "topo" / "non-cross.json";
 
     UbseUrmaTopoConfig topoConfig;
     EXPECT_EQ(ParseUrmaTopoConfig(filePath.string(), topoConfig), UBSE_OK);
@@ -187,8 +186,8 @@ TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinNonCrossTopoConfig)
  */
 TEST_F(TestUbseUrmaTopoConfig, ParseBuiltinHccsCrossTopoConfig)
 {
-    auto filePath = std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() /
-                    "conf" / "topo" / "hccs-cross.json";
+    auto filePath =
+        std::filesystem::path(UT_DIRECTORY).parent_path().parent_path() / "conf" / "topo" / "hccs-cross.json";
 
     UbseUrmaTopoConfig topoConfig;
     EXPECT_EQ(ParseUrmaTopoConfig(filePath.string(), topoConfig), UBSE_OK);
