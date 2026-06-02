@@ -24,6 +24,13 @@ namespace ubse::mem::controller {
 using ubse::common::def::UbseResult;
 using ubse::task_executor::UbseTaskExecutorPtr;
 
+struct PortEventInfo {
+    std::string status;
+    std::string slotId;
+    std::string chipId;
+    std::string portId;
+};
+
 class UbseMemFaultManager {
 public:
     static UbseResult InitMemFaultManager();
@@ -53,6 +60,11 @@ private:
     static UbseResult SendMemFaultMessageByType(const std::string& memType, uint64_t memId, const std::string& memName,
                                                 const adapter_plugins::mmi::UbseUdsInfo& udsInfo,
                                                 ubse::adapter_plugins::mmi::UbMemFaultType type);
+    static UbseResult PortDownUpEventHandle(std::string&, std::string& eventMsg);
+
+    static UbseResult OnePortUpHandle(const PortEventInfo& info);
+
+    static UbseResult OnePortDownHandle(const PortEventInfo& info);
 
     static UbseResult CreateTaskExecutor(const std::string& name);
 

@@ -138,13 +138,13 @@ UbseResult UbseQueryNumaImportHandleByExportNodeId(const std::string& importNode
                                                    NumaHandleInfoVec& importHandInfo);
 
 UbseResult UbseQueryFdPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                          const std::set<std::string>& portList, FdHandleInfoVec& importHandInfo);
+                                          const std::string& portId, FdHandleInfoVec& importHandInfo);
 
 UbseResult UbseQuerySharePortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                             const std::set<std::string>& portList, ShareHandleInfoVec& importHandInfo);
+                                             const std::string& portId, ShareHandleInfoVec& importHandInfo);
 
 UbseResult UbseQueryNumaPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                            const std::set<std::string>& portList, NumaHandleInfoVec& importHandInfo);
+                                            const std::string& portId, NumaHandleInfoVec& importHandInfo);
 
 uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& memDesc);
 } // namespace ubse::mem::controller::debt
