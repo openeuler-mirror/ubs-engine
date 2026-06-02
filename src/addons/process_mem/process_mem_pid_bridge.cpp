@@ -424,6 +424,10 @@ void RegisterFaultHandlers()
 
 uint32_t ProcessMemPidBridge::Init()
 {
+    if (!LoadMemPoolingLibrary()) {
+        return UBSE_ERROR;
+    }
+
     std::vector<__u32> dacReadSearchCap = {CAP_DAC_READ_SEARCH};
     ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(dacReadSearchCap, true);
 
@@ -433,9 +437,6 @@ uint32_t ProcessMemPidBridge::Init()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register IPC Handler failed, " << ubse::log::FormatRetCode(ret);
         return ret;
-    }
-    if (!LoadMemPoolingLibrary()) {
-        return UBSE_ERROR;
     }
 
     // 注册process_mem节点故障通知RPC处理器（所有节点均需注册，用于接收Master的通知）
