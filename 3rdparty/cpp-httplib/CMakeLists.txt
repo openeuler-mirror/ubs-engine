@@ -6,7 +6,7 @@ find_path(CPPHTTPLIB_INCLUDE_DIR
 
 find_library(CPPHTTPLIB_LIBRARY
         NAMES cpp-httplib libcpp-httplib.so
-        PATHS /usr/lib64 /usr/lib
+        PATHS /usr/lib64 /usr/lib /usr/lib/aarch64-linux-gnu
         NO_DEFAULT_PATH
 )
 
@@ -16,6 +16,7 @@ if((NOT CPPHTTPLIB_INCLUDE_DIR OR NOT CPPHTTPLIB_LIBRARY) AND NOT SOURCE_COMPILI
 endif()
 
 if (SOURCE_COMPILING)
+    include(FetchContent)
     set(CPPHTTPLIB_REPO "https://gitcode.com/GitHub_Trending/cp/cpp-httplib.git")
     set(CPPHTTPLIB_TAG "v0.40.0")
     FetchContent_Declare(
@@ -28,7 +29,7 @@ if (SOURCE_COMPILING)
     target_include_directories(cpp-httplib INTERFACE
             ${build-cpp-httplib_SOURCE_DIR}
     )
-elseif ()
+else ()
     message(STATUS "Found cpp-httplib: ${CPPHTTPLIB_INCLUDE_DIR}, ${CPPHTTPLIB_LIBRARY}")
     add_library(cpp-httplib INTERFACE)
     target_include_directories(cpp-httplib SYSTEM INTERFACE ${CPPHTTPLIB_INCLUDE_DIR})
