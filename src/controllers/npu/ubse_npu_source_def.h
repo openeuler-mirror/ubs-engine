@@ -11,13 +11,9 @@
  */
 #ifndef UBSE_NPU_SOURCE_DEF_H
 #define UBSE_NPU_SOURCE_DEF_H
-#include <cstdint>
-#include <iostream>
-#include <memory>
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "../../include/ubse_common_def.h"
 #include "src/framework/misc/ubse_pack_util.h"
 namespace ubse::npu::controller {
 constexpr uint8_t UBSE_UB_DEVICE_GUID_SIZE = 32;

@@ -22,8 +22,6 @@ bool EidArrayToStr(const std::array<uint8_t, 16>& eid, std::string& eidStr);
 
 bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid);
 
-std::string GuidArrayToStr(const std::array<uint8_t, 16>& guid);
-
 bool UpiStrToUint16(const std::string& upiStr, uint16_t& upi);
 
 std::string UpiUint16ToStr(uint16_t upi);

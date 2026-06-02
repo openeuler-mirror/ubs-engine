@@ -96,18 +96,6 @@ bool GuidStrToArray(const std::string& guidStr, std::array<uint8_t, 16>& guid)
     return true;
 }
 
-std::string GuidArrayToStr(const std::array<uint8_t, 16>& guid)
-{
-    std::ostringstream oss;
-    // 格式化输出：小端序GUID，每个字节2个字符，不足补0
-    oss << std::hex << std::nouppercase << std::setfill('0');
-    for (size_t i = guid.size() - 1; i >= 0; i--) {
-        // 每个字节2个字符，不足补0
-        oss << std::setw(2) << static_cast<int>(guid[i]);
-    }
-    return oss.str();
-}
-
 bool UpiStrToUint16(const std::string& upiStr, uint16_t& upi)
 {
     if (upiStr.size() != LSUB_UPI_LEN || !IsValidHexString(upiStr)) {
