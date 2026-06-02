@@ -884,6 +884,17 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail2)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
+uint32_t TestRackRpcSendGetVmNumaInfo(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                      const UbseComRespHandler& handler)
+{
+    OverCommitVmRemoteNumaInfoResult res;
+    res.retCode = MEM_POOLING_OK;
+    if (ctx != nullptr) {
+        *(OverCommitVmRemoteNumaInfoResult*)ctx = res; // 写到指针指向的内容里
+    }
+    return MEM_POOLING_OK; // RackRpcSend本身也返回错误
+}
+
 TEST_F(TestOverCommitFaultMemIdModule, GetVmNumaInfoMapRpcSuccess)
 {
     // 准备模拟数据
@@ -903,6 +914,10 @@ TEST_F(TestOverCommitFaultMemIdModule, GetVmNumaInfoMapRpcSuccess)
                                                              .localFreeMem = 8192,
                                                              .socketId = 1}};
     uint16_t remoteNumaId = 1;
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+        .stubs()
+        .will(invoke(TestRackRpcSendGetVmNumaInfo));
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().GetVmNumaInfoMapRpc(importNodeId, mockVmNumaInfoList, remoteNumaId);
@@ -918,7 +933,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetVmNumaInfoMapRpcFail)
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().GetVmNumaInfoMapRpc(importNodeId, mockVmNumaInfoList, remoteNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 uint32_t TestRackRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
