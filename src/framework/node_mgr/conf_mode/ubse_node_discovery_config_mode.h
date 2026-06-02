@@ -15,11 +15,9 @@
 
 #include <vector>
 
-#include "ubse_common_def.h"
-#include "ubse_node_discovery_def.h"
+#include "ubse_node_mgr_def.h"
 
-namespace ubse::nodeDiscovery {
-using namespace ubse::common::def;
+namespace ubse::nodeMgr {
 
 class UbseNodeDiscoveryConfigMode {
 public:
@@ -29,7 +27,12 @@ public:
         return instance;
     }
 
-    UbseResult Init();
+    UbseNodeDiscoveryConfigMode() = default;
+    ~UbseNodeDiscoveryConfigMode() = default;
+    UbseNodeDiscoveryConfigMode(const UbseNodeDiscoveryConfigMode &) = delete;
+    UbseNodeDiscoveryConfigMode &operator=(const UbseNodeDiscoveryConfigMode &) = delete;
+
+    uint32_t Init();
 
     void UnInit();
 
@@ -40,6 +43,6 @@ private:
 
     bool isClos_ = false;
 };
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
 
 #endif // UBS_ENGINE_UBSE_DISCOVERY_CONFIG_MODE_H

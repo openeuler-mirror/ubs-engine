@@ -14,10 +14,10 @@
 #define UBS_ENGINE_UBSE_NODE_DISCOVERY_SERIAL_H
 
 #include "ubse_base_message.h"
-#include "ubse_node_discovery_def.h"
+#include "ubse_node_mgr_def.h"
 #include "ubse_serial_util.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::message;
 using namespace ubse::serial;
 class UbseNodeDiscoverySerial : public UbseBaseMessage {

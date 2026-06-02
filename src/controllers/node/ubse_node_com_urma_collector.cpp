@@ -16,6 +16,7 @@
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
+#include "ubse_node_mgr.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_uvs_module.h"
 
@@ -26,6 +27,7 @@ using namespace ubse::context;
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::urma;
 using namespace ubse::log;
+using namespace ubse::nodeMgr;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseNodeComUrmaCollector::FillComUrmaInfo()
@@ -99,11 +101,19 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
 UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo> &hostUrmaInfos)
 {
     hostUrmaInfos.clear();
-    hostUrmaInfos.reserve(comUrmaInfos.size());
-    for (const auto &kv : comUrmaInfos) {
-        std::vector<UbseUrmaUvsAggrDev> aggrs;
-        aggrs.push_back(kv.second);
-        UbseUrmaUvsNodeInfo info{kv.first, aggrs};
+    const auto &clusterNodes = ubse::nodeMgr::GetAllNodes();
+    for (const auto &node : clusterNodes) {
+        UbseUrmaUvsAggrDev agg{};
+        agg.urmaDevEid = node.bonding0Eid;
+        for (const auto &eid : node.feEidList) {
+            UbseUrmaUvsFe fe{};
+            fe.ubpuId = eid.first;
+            fe.entityId = eid.second.entityId;
+            fe.primaryEid = eid.second.primaryEid;
+            fe.portEid = eid.second.portEidList;
+            agg.feList.push_back(fe);
+        }
+        UbseUrmaUvsNodeInfo info{node.nodeId, {agg}};
         hostUrmaInfos.push_back(info);
     }
     return UBSE_OK;

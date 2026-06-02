@@ -21,7 +21,7 @@
 #include "ubse_logger.h"
 #include "ubse_net_util.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::com;
 using namespace ubse::context;
 using namespace ubse::config;

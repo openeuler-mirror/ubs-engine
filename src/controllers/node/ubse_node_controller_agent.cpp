@@ -178,16 +178,6 @@ UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
 
 void UbseNodeControllerAgent::StartExec()
 {
-    while (!g_globalStop.load()) {
-        auto ret = SetUrmaUvs(true);
-        if (ret == UBSE_OK) {
-            UBSE_LOG_INFO << "set urma uvs successfully";
-            break;
-        }
-        UBSE_LOG_ERROR << "set urma uvs_set_topo_info failed, will retry 3s later";
-        sleep(NO_3);
-    }
-
     UbseNodeInfo info{};
     CollectBaseInfo(info);
     CollectTopology(info);

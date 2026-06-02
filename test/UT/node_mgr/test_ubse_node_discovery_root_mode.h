@@ -10,22 +10,21 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_CONFIG_MODE_H
-#define UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_CONFIG_MODE_H
+#ifndef UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_ROOT_MODE_H
+#define UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_ROOT_MODE_H
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
-namespace ubse::nodeDiscovery {
-class TestUbseNodeDiscoveryConfigMode : public testing::Test {
+namespace ubse::nodeMgr {
+class TestUbseNodeDiscoveryRootMode : public testing::Test {
 public:
-    TestUbseNodeDiscoveryConfigMode() = default;
+    TestUbseNodeDiscoveryRootMode() = default;
 
     void SetUp() override;
 
     void TearDown() override;
 };
 } // namespace ubse::nodeDiscovery
-
-#endif // UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_CONFIG_MODE_H
+#endif //UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_ROOT_MODE_H

@@ -12,6 +12,7 @@
 
 #include "test_ubse_election_comm_mgr.h"
 #include <unordered_map>
+#include "src/framework/node_mgr/ubse_node_static_info_mgr.h"
 #include "ubse_conf_module.h"
 #include "ubse_election_comm_mgr.cpp"
 #include "ubse_election_comm_mgr.h"
@@ -215,6 +216,7 @@ TEST_F(TestUbseElectionCommMgr, StartEventNodeSuccess)
 
 TEST_F(TestUbseElectionCommMgr, StartEventNodeFailed_WhenSubEventFail)
 {
+    MOCKER(PushAndActiveStaticInfoToUvs).stubs().will(returnValue(UBSE_OK));
     MockEventModuleWithSubEventResults(UBSE_ERROR);
     UbseResult ret = commMgr.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -222,6 +224,7 @@ TEST_F(TestUbseElectionCommMgr, StartEventNodeFailed_WhenSubEventFail)
 
 TEST_F(TestUbseElectionCommMgr, StartEventNodeFail)
 {
+    MOCKER(PushAndActiveStaticInfoToUvs).stubs().will(returnValue(UBSE_OK));
     UbseResult ret = commMgr.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -263,6 +266,7 @@ TEST_F(TestUbseElectionCommMgr, ElectionSubEvent_ShouldReturnOk_WhenAllSubEventS
 
 TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenGetMyselfNodeFail)
 {
+    MOCKER(PushAndActiveStaticInfoToUvs).stubs().will(returnValue(UBSE_OK));
     MockAllSubEventsSuccess();
     MockGetMyselfNode(UBSE_ERROR);
     UbseResult ret = commMgr.Start();
@@ -271,6 +275,7 @@ TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenGetMyselfNodeFail)
 
 TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnErrorModuleLoadFailed_WhenUbseComModuleIsNull)
 {
+    MOCKER(PushAndActiveStaticInfoToUvs).stubs().will(returnValue(UBSE_OK));
     MockAllSubEventsSuccess();
     MockGetMyselfNode(UBSE_OK);
     UbseContext::GetInstance().GetModule<UbseComModule>() = nullptr;
@@ -280,6 +285,7 @@ TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnErrorModuleLoadFailed_WhenUbse
 
 TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenStartComServiceFail)
 {
+    MOCKER(PushAndActiveStaticInfoToUvs).stubs().will(returnValue(UBSE_OK));
     MockAllSubEventsSuccess();
     MockGetMyselfNode(UBSE_OK);
     MockUbseComModuleWithStartService(UBSE_ERROR);
@@ -369,4 +375,55 @@ TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnOk_WhenRemoteIpFound)
     EXPECT_EQ(result, UBSE_OK);
 }
 
+TEST_F(TestUbseElectionCommMgr, PushAndActiveStaticInfoToUvs)
+{
+    MOCKER(GetClusterPhysicalLinkInfo)
+        .stubs()
+        .will(returnValue(UBSE_ERROR))
+        .then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR, PushAndActiveStaticInfoToUvs());
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, PushAndActiveStaticInfoToUvs());
+
+    UbseNodeStaticInfo info1{};
+    info1.nodeId = "1";
+    info1.groupId = 1;
+    info1.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
+    UbseUrmaEidInfo eidInfo{};
+    eidInfo.entityId = "12";
+    eidInfo.primaryEid = "4244:4944:0000:0000:0000:0000:0100:0001";
+    eidInfo.portEidList["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
+    info1.feEidList["11"] = eidInfo;
+    UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
+
+    MOCKER(UbsePushTopoAndBondingToUvs).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR, PushAndActiveStaticInfoToUvs());
+
+    MOCKER(UbseActiveBonding).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR, PushAndActiveStaticInfoToUvs());
+    EXPECT_EQ(UBSE_OK, PushAndActiveStaticInfoToUvs());
+}
+
+TEST_F(TestUbseElectionCommMgr, GenerateUrmaUvsNodeInfo)
+{
+    UbseNodeStaticInfo info1{};
+    info1.nodeId = "1";
+    info1.groupId = 1;
+    info1.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
+    UbseUrmaEidInfo eidInfo{};
+    eidInfo.entityId = "12";
+    eidInfo.primaryEid = "4244:4944:0000:0000:0000:0000:0100:0001";
+    eidInfo.portEidList["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
+    info1.feEidList["11"] = eidInfo;
+    UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
+
+    std::vector<UbseUrmaUvsNodeInfo> nodes = GenerateUrmaUvsNodeInfo();
+
+    EXPECT_EQ(1, nodes.size());
+    EXPECT_EQ("1", nodes[0].nodeId);
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].urmaDevEid);
+    EXPECT_EQ("11", nodes[0].devList[0].feList[0].ubpuId);
+    EXPECT_EQ("12", nodes[0].devList[0].feList[0].entityId);
+    EXPECT_EQ("4244:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].feList[0].primaryEid);
+    EXPECT_EQ("4344:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].feList[0].portEid["10"]);
+}
 } // namespace ubse::ut::election

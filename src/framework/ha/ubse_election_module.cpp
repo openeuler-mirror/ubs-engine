@@ -14,7 +14,6 @@
 #include "ubse_module.h"
 
 #include <chrono>
-#include "ubse_node_discovery_module.h"
 #include "config.h"
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_common_def.h"
@@ -23,16 +22,17 @@
 #include "ubse_election_pkt_handler.h"
 #include "ubse_net_util.h"
 #include "ubse_lcne_module.h"
+#include "ubse_node_mgr_module.h"
 
 namespace ubse::election {
 using namespace ubse::context;
 using namespace ubse::com;
 using namespace ubse::config;
 using namespace ubse::nodeController;
-using namespace ubse::nodeDiscovery;
+using namespace ubse::nodeMgr;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-OPTIONAL_MODULE_IMPL(UbseElectionModule, UbseComModule, mti::UbseLcneModule, UbseNodeDiscoveryModule);
+OPTIONAL_MODULE_IMPL(UbseElectionModule, UbseComModule, mti::UbseLcneModule, UbseNodeMgrModule);
 
 UbseResult UbseElectionModule::Initialize()
 {

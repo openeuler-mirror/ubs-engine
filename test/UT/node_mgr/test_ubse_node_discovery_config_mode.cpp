@@ -13,11 +13,11 @@
 #include "test_ubse_node_discovery_config_mode.h"
 
 #include "conf_mode/ubse_node_discovery_config_mode.h"
-#include "ubse_error.h"
 #include "ubse_net_util.h"
+#include "ubse_error.h"
 #include "ubse_node_static_info_mgr.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::utils;
 
 void TestUbseNodeDiscoveryConfigMode::SetUp()

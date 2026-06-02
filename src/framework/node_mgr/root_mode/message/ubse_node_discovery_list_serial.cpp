@@ -14,7 +14,7 @@
 
 #include "ubse_error.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 UbseResult UbseNodeDiscoveryListSerial::Serialize()
 {
     UbseSerialization out;

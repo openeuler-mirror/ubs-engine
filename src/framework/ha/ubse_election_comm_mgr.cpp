@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <future>
 #include <shared_mutex>
+#include "adapter_plugins/urma/ubse_urma_uvs.h"
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -22,6 +23,9 @@
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_utils.h"
 #include "ubse_event_module.h"
+#include "ubse_lcne_module.h"
+#include "ubse_node_controller.h"
+#include "ubse_node_mgr.h"
 namespace ubse::election {
 using namespace ubse::context;
 using namespace ubse::com;
@@ -29,6 +33,8 @@ using namespace ubse::election::message;
 using namespace ubse::log;
 using namespace ubse::event;
 using namespace ubse::election::utils;
+using namespace ubse::urma;
+using namespace ubse::nodeMgr;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -282,8 +288,65 @@ UbseResult UbseElectionCommMgr::ElectionSubEvent()
     return UBSE_OK;
 }
 
+std::vector<UbseUrmaUvsNodeInfo> GenerateUrmaUvsNodeInfo()
+{
+    std::vector<UbseUrmaUvsNodeInfo> allUrmaInfo{};
+    const auto &clusterNodes = ubse::nodeMgr::GetAllNodes();
+    for (const auto &nodeInfo : clusterNodes) {
+        UbseUrmaUvsAggrDev agg{};
+        agg.urmaDevEid = nodeInfo.bonding0Eid;
+        for (const auto &eid : nodeInfo.feEidList) {
+            UbseUrmaUvsFe fe{};
+            fe.ubpuId = eid.first;
+            fe.primaryEid = eid.second.primaryEid;
+            fe.entityId = eid.second.entityId;
+            fe.portEid = eid.second.portEidList;
+            agg.feList.push_back(fe);
+        }
+        UbseUrmaUvsNodeInfo info{nodeInfo.nodeId, {agg}};
+        allUrmaInfo.push_back(info);
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << " bondEid=" << agg.urmaDevEid;
+    }
+    return allUrmaInfo;
+}
+
+UbseResult PushAndActiveStaticInfoToUvs()
+{
+    std::vector<PhysicalLink> allLinkInfo{};
+    UbseResult ret = ubse::nodeMgr::GetClusterPhysicalLinkInfo(allLinkInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get cluster physical linkInfo failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto curNode = ubse::nodeMgr::GetCurrentNode();
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos = GenerateUrmaUvsNodeInfo();
+    if (hostUrmaInfos.empty()) {
+        UBSE_LOG_ERROR << "get all com urma info failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ret = UbsePushTopoAndBondingToUvs(curNode.nodeId, allLinkInfo, hostUrmaInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "set urma_uvs failed.";
+        return ret;
+    }
+    const std::string aggrDevName = "bonding_dev_0";
+    ret = UbseActiveBonding(curNode.bonding0Eid, aggrDevName);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "activate urmaDevEid=" << curNode.bonding0Eid << " failed.";
+    }
+    return ret;
+}
+
 UbseResult UbseElectionCommMgr::Start()
 {
+    while (!g_globalStop.load()) {
+        if (PushAndActiveStaticInfoToUvs() == UBSE_OK) {
+            UBSE_LOG_INFO << "set urma uvs successfully";
+            break;
+        }
+        UBSE_LOG_ERROR << "set urma uvs_set_topo_info failed, will retry 3s later";
+        sleep(NO_3);
+    }
     if (ElectionSubEvent() != UBSE_OK) {
         return UBSE_ERROR;
     }
