@@ -421,7 +421,7 @@ UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& node
     }
 
     for (auto& pair : nodeMap) {
-        nodeMap[pair.first].super_node_id = superNodeId;
+        nodeMap[pair.first].superNodeId = superNodeId;
         nodeMap[pair.first].type = isClosType ? 1 : 0;
     }
     return UBSE_OK;

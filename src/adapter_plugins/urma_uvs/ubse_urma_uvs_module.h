@@ -58,7 +58,7 @@ struct UbcoreTopoAggrDev {
 
 struct UbcoreTopoNode {
     uint32_t type;                          // 0代表1D-FULLMESH, 1代表Clos组网
-    uint32_t super_node_id;                 // 超节点Id
+    uint32_t superNodeId;                   // 超节点Id
     uint32_t id;                            // 该entry对应的节点Id
     uint32_t is_current;                    // 0代表非本节点，1代表是本节点
     bool links[UVS_PORT_NUM][UVS_PORT_NUM]; // 当前节点port到该entry节点port的连接矩阵
