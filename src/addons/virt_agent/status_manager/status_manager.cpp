@@ -235,8 +235,8 @@ float StatusManager::CalculateMemMigrateRatio(int16_t numaId, uint64_t curBorrow
             }
         }
     }
-    UBSE_LOG_DEBUG << "totalBorrowedMem = " << std::to_string(totalBorrowedMem) << ", totalVMusedMem = "
-                   << std::to_string(totalVMusedMem);
+    UBSE_LOG_DEBUG << "totalBorrowedMem = " << std::to_string(totalBorrowedMem)
+                   << ", totalVMusedMem = " << std::to_string(totalVMusedMem);
     float ratio = static_cast<float>(totalBorrowedMem / totalVMusedMem);
     return ratio;
 }
