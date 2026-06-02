@@ -29,6 +29,7 @@
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj;
+using ubse::adapter_plugins::mmi::UbseMemDebtNumaInfo;
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseMemState;
 using ubse::nodeController::UbseNodeClusterState;
@@ -59,10 +60,16 @@ void UnInit();
 void Stop();
 
 uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string& importNodeId,
-                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr = false);
+                              UbseMemBorrowImportBaseObj& importObj, const bool isFdOrAddr = false,
+                              uint32_t specifiedPortId = UINT32_MAX);
 
 uint32_t GetCnaInfoForNumaBorrow(const std::string& exportNodeId, const std::string& importNodeId,
                                  UbseMemNumaBorrowImportObj& importObj);
+
+// 填充importNumaInfos的portId(chipId)（fd/addr借用场景，算法后调用）
+void FillImportNumaPortAndChipId(const std::string& exportNodeId, int exportSocketId, const std::string& importNodeId,
+                                 std::vector<UbseMemDebtNumaInfo>& importNumaInfos,
+                                 uint32_t specifiedPortId = UINT32_MAX);
 
 /* *
  * 启动时加载所有初始对象

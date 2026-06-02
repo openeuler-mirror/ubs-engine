@@ -32,6 +32,7 @@
 #include "../message/ubse_mem_numa_borrow_exportobj_simpo.h"
 #include "../message/ubse_mem_numa_borrow_importobj_simpo.h"
 #include "../ubse_mem_account.h"
+#include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "src/controllers/mem/mem_controller/ubse_mem_controller_pre_online.h"
@@ -145,33 +146,6 @@ uint32_t FillChipIdAndPortIdForImport(const ubse::nodeController::UbseNodeInfo& 
 uint32_t ConstructNumaObjs(UbseMemNumaBorrowImportObj& importObj, UbseMemNumaBorrowExportObj& exportObj,
                            const UbseMemNumaBorrowReq& req)
 {
-    auto importNodeId = importObj.req.importNodeId;
-    // 填入chipId
-    for (auto& numaInfo : importObj.algoResult.exportNumaInfos) {
-        auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
-        if (FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, importNodeId) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to fill chipId and portId";
-            return UBSE_ERROR;
-        }
-        // 指定链路借用
-        if (req.linkInfo.lenderPort != -1) {
-            numaInfo.portId = req.linkInfo.lenderPort;
-            UBSE_LOG_INFO << "Specify link to borrow. The portId=" << numaInfo.portId;
-        }
-    }
-    for (auto& numaInfo : importObj.algoResult.importNumaInfos) {
-        auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
-        if (FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, importObj.algoResult.exportNumaInfos[0].nodeId) !=
-            UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to fill chipId";
-            return UBSE_ERROR;
-        }
-        // 指定链路借用
-        if (req.linkInfo.lenderPort != -1) {
-            numaInfo.portId = req.linkInfo.lenderPort;
-            UBSE_LOG_INFO << "Specify link to borrow. The portId=" << numaInfo.portId;
-        }
-    }
     exportObj.algoResult = importObj.algoResult;
     exportObj.req = req;
     exportObj.status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -372,6 +346,10 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq& req, UbseMemOperationResp
         return BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
                                           ubse::adapter_plugins::mmi::MemOperationType::NUMA_BORROW);
     }
+    // 填充importNumaInfos的portId和chipId
+    FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
+                                importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
+                                importObj.algoResult.importNumaInfos, static_cast<uint32_t>(req.linkInfo.lenderPort));
     // 更改状态 存储并下发
     UbseMemNumaBorrowExportObj exportObj{};
     if (const auto res = ConstructNumaObjs(importObj, exportObj, req); res != UBSE_OK) {

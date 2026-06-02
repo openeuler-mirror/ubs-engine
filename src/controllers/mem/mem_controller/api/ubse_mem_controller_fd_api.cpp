@@ -31,6 +31,7 @@
 #include "../message/ubse_mem_fd_borrow_importobj_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
+#include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
 
@@ -213,6 +214,9 @@ uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq& req, UbseMemOperationResp& re
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to allocate", UBSE_ERR_ALLOCATE,
                                           MemOperationType::FD_BORROW);
     }
+    FillImportNumaPortAndChipId(importObj.algoResult.exportNumaInfos[0].nodeId,
+                                importObj.algoResult.exportNumaInfos[0].socketId, req.importNodeId,
+                                importObj.algoResult.importNumaInfos);
     // 下发对象执行
     return DoSendFdExportObj(req, resp, importObj);
 }
