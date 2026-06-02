@@ -756,6 +756,37 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
     return MEM_POOLING_OK;
 }
 
+void OverCommitFaultNodeModule::RemovePidsOnRemoteNuma(int16_t remoteNumaId)
+{
+    const auto smapQueryProcessConfig = mempooling::smap::SmapModule::GetSmapGetRemoteProcessesFunc();
+    if (smapQueryProcessConfig == nullptr) {
+        LOG_WARN << "smapQueryProcessConfig is null, continue returning memory.";
+        return;
+    }
+
+    smap::ProcessPayload processPayload[MpSmapHelper::SMAP_QUERY_PID_NUM];
+    int retLen = 0;
+    auto smapRet = static_cast<MpResult>(
+        smapQueryProcessConfig(remoteNumaId, processPayload, MpSmapHelper::SMAP_QUERY_PID_NUM, &retLen));
+    if (smapRet != MEM_POOLING_OK) {
+        LOG_WARN << "smapQueryProcessConfig failed for numa " << remoteNumaId << ", ret=" << smapRet
+                 << ", continue returning memory.";
+        return;
+    }
+
+    if (retLen <= 0) {
+        return;
+    }
+
+    std::vector<pid_t> pidsToRemove;
+    pidsToRemove.reserve(retLen);
+    for (int i = 0; i < retLen; ++i) {
+        pidsToRemove.push_back(processPayload[i].pid);
+    }
+    LOG_INFO << "Found " << retLen << " pids on remote numa " << remoteNumaId << ", removing before return.";
+    MpSmapHelper::SmapRemoveProcessTrackingHelper(pidsToRemove, 0);
+}
+
 MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
     const std::pair<const int16_t, std::vector<BorrowRecord>>& remoteNumaPair,
     const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId)
@@ -770,6 +801,9 @@ MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
     // 2.1 如果这个远端numa上没有虚机，则直接归还这个远端
     if (vmDomainInfos.empty()) {
         LOG_DEBUG << "There is no vm in remote numa" << remoteNumaPair.first << ", begin to free memory.";
+
+        RemovePidsOnRemoteNuma(remoteNumaPair.first);
+
         for (auto& record : remoteNumaPair.second) {
             MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, false, true);
             if (ret != MEM_POOLING_OK) {
