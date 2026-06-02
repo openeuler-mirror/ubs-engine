@@ -171,7 +171,7 @@ bool UbseHttpModule::TcpSend(httplib::Request& httpReq, httplib::Response& httpR
     cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
     cli.set_path_encode(false);
-    SSL_CTX* ctx = cli.ssl_context();
+    SSL_CTX* ctx = static_cast<SSL_CTX*>(cli.tls_context());
     if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
         UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
         return false;
