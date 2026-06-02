@@ -41,7 +41,8 @@ struct UbseUrmaTopoConfig {
     std::vector<UbseUrmaTopoLink> links;
 };
 
-enum class UbseUrmaTopoMode {
+enum class UbseUrmaTopoMode
+{
     NON_CROSS,
     HCCS_CROSS,
 };
