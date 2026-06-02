@@ -59,7 +59,8 @@ public:
     static void AddTaskFilterSet(const VMNodeLocInfo& nodeLocInfo);
     static void RemoveTaskFilterSet(const VMNodeLocInfo& nodeLocInfo);
     static bool StillInTask(const std::string& hostId, const int16_t& socketId, const int16_t& numaId);
-    static std::vector<mempooling::VMPresetParam> ConvertToVmPresetParam(const std::vector<pid_t>& pids, const int16_t numaId);
+    static std::vector<mempooling::VMPresetParam> ConvertToVmPresetParam(const std::vector<pid_t>& pids,
+        const int16_t numaId, uint64_t curBorrowMemorySize = 0);
     static VmResult MigrateByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam& srcMemoryBorrowParam,
                                             std::vector<BorrowIdStatus>& BorrowIdStatuses);
     static VmResult ReturnByBorrowIdStatus(const mempooling::SrcMemoryBorrowParam& srcMemoryBorrowParam,
@@ -89,7 +90,7 @@ private:
         bool expected = true;
         firstMigFlag.compare_exchange_strong(expected, false, std::memory_order_acq_rel);
     }
-    static float CalculateMemMigrateRatio(const int16_t numaId);
+    static float CalculateMemMigrateRatio(const int16_t numaId, uint64_t curBorrowMemorySize);
 };
 } // namespace vm
 
