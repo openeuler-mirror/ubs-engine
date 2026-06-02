@@ -12,6 +12,7 @@
 
 #include "ubse_urma_topo_config.h"
 
+#include <cstddef>
 #include <fstream>
 #include <iterator>
 #include <utility>
@@ -39,6 +40,10 @@ constexpr const char *URMA_TOPO_MODE_HCCS_CROSS = "hccs-cross";
 constexpr const char *URMA_TOPO_CONFIG_DIR = "/etc/ubse/topo";
 constexpr const char *URMA_TOPO_CONFIG_NON_CROSS_FILE = "non-cross.json";
 constexpr const char *URMA_TOPO_CONFIG_HCCS_CROSS_FILE = "hccs-cross.json";
+constexpr std::size_t URMA_TOPO_PORT_FIELD_NUM = 3;
+constexpr std::size_t URMA_TOPO_PORT_CHIP_ID_INDEX = 0;
+constexpr std::size_t URMA_TOPO_PORT_DIE_ID_INDEX = 1;
+constexpr std::size_t URMA_TOPO_PORT_PORT_ID_INDEX = 2;
 
 UbseUrmaTopoMode GetUrmaTopoMode()
 {
@@ -93,14 +98,14 @@ UbseResult ParseTopoPort(const std::string &portStr, UbseUrmaTopoPort &port)
 {
     std::vector<std::string> fields;
     Split(portStr, "/", fields);
-    if (fields.size() != 3) {
+    if (fields.size() != URMA_TOPO_PORT_FIELD_NUM) {
         UBSE_LOG_ERROR << "Invalid URMA topo port=" << portStr;
         return UBSE_ERROR_INVAL;
     }
 
-    if (ConvertStrToUint32(fields[0], port.chipId) != UBSE_OK ||
-        ConvertStrToUint32(fields[1], port.dieId) != UBSE_OK ||
-        ConvertStrToUint32(fields[2], port.portId) != UBSE_OK) {
+    if (ConvertStrToUint32(fields[URMA_TOPO_PORT_CHIP_ID_INDEX], port.chipId) != UBSE_OK ||
+        ConvertStrToUint32(fields[URMA_TOPO_PORT_DIE_ID_INDEX], port.dieId) != UBSE_OK ||
+        ConvertStrToUint32(fields[URMA_TOPO_PORT_PORT_ID_INDEX], port.portId) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to parse URMA topo port=" << portStr;
         return UBSE_ERROR_INVAL;
     }
@@ -119,14 +124,14 @@ UbseResult GetJsonString(const rapidjson::Value &json, const char *key, std::str
 
 UbseResult ParseTopoNodePorts(const rapidjson::Value &json, std::vector<UbseUrmaTopoPort> &nodePorts)
 {
-    constexpr const char *NODE_PORTS_KEY = "node_ports";
-    if (!json.IsObject() || !json.HasMember(NODE_PORTS_KEY) || !json[NODE_PORTS_KEY].IsArray()) {
+    constexpr const char *nodePortsKey = "node_ports";
+    if (!json.IsObject() || !json.HasMember(nodePortsKey) || !json[nodePortsKey].IsArray()) {
         UBSE_LOG_ERROR << "Invalid URMA topo config node_ports";
         return UBSE_ERROR_INVAL;
     }
 
     nodePorts.clear();
-    for (const auto &portValue : json[NODE_PORTS_KEY].GetArray()) {
+    for (const auto &portValue : json[nodePortsKey].GetArray()) {
         if (!portValue.IsString()) {
             UBSE_LOG_ERROR << "Invalid URMA topo config node port item";
             return UBSE_ERROR_INVAL;
@@ -142,20 +147,20 @@ UbseResult ParseTopoNodePorts(const rapidjson::Value &json, std::vector<UbseUrma
 
 UbseResult ParseTopoLinks(const rapidjson::Value &json, std::vector<UbseUrmaTopoLink> &links)
 {
-    constexpr const char *LINKS_KEY = "links";
-    constexpr const char *LOCAL_PORT_KEY = "local_port";
-    constexpr const char *REMOTE_PORT_KEY = "remote_port";
-    if (!json.IsObject() || !json.HasMember(LINKS_KEY) || !json[LINKS_KEY].IsArray()) {
+    constexpr const char *linksKey = "links";
+    constexpr const char *localPortKey = "local_port";
+    constexpr const char *remotePortKey = "remote_port";
+    if (!json.IsObject() || !json.HasMember(linksKey) || !json[linksKey].IsArray()) {
         UBSE_LOG_ERROR << "Invalid URMA topo config links";
         return UBSE_ERROR_INVAL;
     }
 
     links.clear();
-    for (const auto &linkValue : json[LINKS_KEY].GetArray()) {
+    for (const auto &linkValue : json[linksKey].GetArray()) {
         std::string localPortStr;
         std::string remotePortStr;
-        if (GetJsonString(linkValue, LOCAL_PORT_KEY, localPortStr) != UBSE_OK ||
-            GetJsonString(linkValue, REMOTE_PORT_KEY, remotePortStr) != UBSE_OK) {
+        if (GetJsonString(linkValue, localPortKey, localPortStr) != UBSE_OK ||
+            GetJsonString(linkValue, remotePortKey, remotePortStr) != UBSE_OK) {
             return UBSE_ERROR_INVAL;
         }
 
