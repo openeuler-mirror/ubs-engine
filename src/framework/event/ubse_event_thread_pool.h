@@ -21,6 +21,7 @@
 #include "ubse_event_queue.h"
 #include "ubse_logger_module.h"
 #include "referable/ubse_ref.h"
+#include "ubse_thread_pool.h"
 
 namespace ubse::event {
 constexpr uint32_t DEFAULT_QUEUE_SIZE = 1024;
@@ -30,19 +31,20 @@ constexpr uint32_t DEFAULT_LOW_PRIORITY = 1;
 using ubse::common::def::UbseResult;
 using ubse::utils::Ref;
 using ubse::utils::Referable;
+using ubse::task_executor::UbseTaskExecutor;
+using ubse::task_executor::UbseTaskExecutorPtr;
+
 class UbseEventThreadPool : public Referable {
 public:
     UbseEventThreadPool(uint32_t numsHighThs, uint32_t numsMidThs, uint32_t numsLowThs,
                         uint32_t numsQueueSize = DEFAULT_QUEUE_SIZE);
 
-    ~UbseEventThreadPool() = default;
+    ~UbseEventThreadPool();
 
     UbseResult Init(uint32_t hPriority = DEFAULT_HIGH_PRIORITY, uint32_t mPriority = DEFAULT_MEDIUM_PRIORITY,
                     uint32_t lPriority = DEFAULT_LOW_PRIORITY);
 
     void Stop();
-
-    static void* Worker(void* paramsData);
 
     UbseEventQueue highPriorityQueue_, mediumPriorityQueue_, lowPriorityQueue_;
 
@@ -51,27 +53,24 @@ private:
     uint32_t numMediumPriorityThreads_{2};
     uint32_t numLowPriorityThreads_{2};
 
-    uint32_t threadsNums_{6};
+    uint32_t queueSize_{DEFAULT_QUEUE_SIZE};
 
     uint32_t highPriority_{};
     uint32_t mediumPriority_{};
     uint32_t lowPriority_{};
 
-    pthread_t* threads_ = nullptr;
-    pthread_barrier_t initBarrier_{};
+    UbseTaskExecutorPtr highPriorityExecutor_;
+    UbseTaskExecutorPtr mediumPriorityExecutor_;
+    UbseTaskExecutorPtr lowPriorityExecutor_;
 
-    std::atomic<bool> isThreadsRunning_{false};
+    std::atomic<bool> isRunning_{false};
 
-    UbseResult CleanupInitFailure(size_t createdCount);
-    UbseEventQueue* GetQueueByIndex(size_t index);
+    void StartExecutorWorkers(UbseTaskExecutorPtr& executor, UbseEventQueue& queue, uint32_t threadNum,
+                              uint32_t priority);
+    void WorkerLoop(UbseEventQueue& queue);
 };
 
 using UbseEventThreadPoolPtr = Ref<UbseEventThreadPool>;
-
-struct ThreadParams {
-    UbseEventThreadPool* ubseEventThreadPool = nullptr;
-    UbseEventQueue* ubseEventQueue = nullptr;
-};
 } // namespace ubse::event
 
 #endif // UBSE_EVENT_THREAD_POOL_H

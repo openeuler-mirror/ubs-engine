@@ -87,6 +87,11 @@ bool UbseTaskExecutor::Execute(const std::function<void()>& task)
     return Execute(MakeRef<UbseRunnable>(task));
 }
 
+void UbseTaskExecutor::SetThreadInitCallback(const ThreadInitCallback& callback)
+{
+    mThreadInitCallback = callback;
+}
+
 void UbseTaskExecutor::SetThreadName(const std::string& name)
 {
     mThreadName = name;
@@ -244,6 +249,10 @@ void UbseTaskExecutor::RunInThread(int16_t cpuId)
     }
 
     pthread_setname_np(pthread_self(), threadName.c_str());
+
+    if (mThreadInitCallback) {
+        mThreadInitCallback();
+    }
 
     while (runFlag) {
         DoRunnable(runFlag);
