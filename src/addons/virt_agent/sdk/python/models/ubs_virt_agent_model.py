@@ -270,14 +270,12 @@ class NumaMetaInfoT:
     """
     NUMA meta information data class
 
-    Corresponds to C structure NumaMetaInfo, containing socket ID and NUMA ID information.
+    Corresponds to C structure NumaMetaInfo, containing NUMA ID information.
     Used in memory borrow parameter structures.
 
     Attributes:
-        socket_id: Socket ID
         numa_id: NUMA ID
     """
-    socket_id: int
     numa_id: int
 
     @staticmethod
@@ -292,12 +290,11 @@ class NumaMetaInfoT:
             NumaMetaInfoT: Python data class instance
         """
         return NumaMetaInfoT(
-            socket_id=c_struct.socket_id,
             numa_id=c_struct.numa_id
         )
 
     def __str__(self) -> str:
-        return f"socketId={self.socket_id}, numaId={self.numa_id}"
+        return f"numaId={self.numa_id}"
 
 
 @dataclass
@@ -423,7 +420,7 @@ class MemBorrowResultT:
         borrow_ids = []
         for i in range(c_struct.borrow_ids_num):
             borrow_id_bytes = c_struct.borrow_ids[i]
-            id_str = borrow_id_bytes.decode('utf-8', errors='ignore').rstrip('\x00')
+            id_str = borrow_id_bytes.value.decode('utf-8', errors='ignore').rstrip('\x00')
             if id_str:
                 borrow_ids.append(id_str)
 

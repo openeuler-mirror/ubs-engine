@@ -103,7 +103,6 @@ class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
         if param.numa_meta_infos:
             numa_meta_array = (NumaMetaInfoC * len(param.numa_meta_infos))()
             for i, numa_meta in enumerate(param.numa_meta_infos):
-                numa_meta_array[i].socket_id = numa_meta.socket_id
                 numa_meta_array[i].numa_id = numa_meta.numa_id
             borrow_param_c.numa_meta_infos = ctypes.cast(
                 numa_meta_array,

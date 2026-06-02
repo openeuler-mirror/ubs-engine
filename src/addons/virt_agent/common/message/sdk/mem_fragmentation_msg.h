@@ -522,7 +522,6 @@ private:
 };
 
 typedef struct {
-    int16_t socket_id;
     int16_t numa_id;
 } numa_meta_info_s;
 
@@ -536,13 +535,12 @@ typedef struct {
 struct NumaMetaInfo {
     NumaMetaInfo() = default;
 
-    int16_t socketId = -1;
     int16_t numaId = -1;
 
     [[nodiscard]] std::string ToString() const
     {
         std::ostringstream oss;
-        oss << numaId << ":" << socketId;
+        oss << numaId;
         return oss.str();
     }
 };

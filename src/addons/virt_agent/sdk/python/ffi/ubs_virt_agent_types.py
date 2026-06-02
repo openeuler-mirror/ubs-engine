@@ -286,7 +286,6 @@ class NumaMetaInfoC(ctypes.Structure):
     Used in memory borrow parameter structure.
     """
     _fields_ = [
-        ("socket_id", ctypes.c_int16),
         ("numa_id", ctypes.c_int16)
     ]
 

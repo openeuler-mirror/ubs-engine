@@ -85,7 +85,6 @@ numa_meta_info_s *numa_meta_infos = (numa_meta_info_s *)malloc(sizeof(numa_meta_
 // 此处按照如下numa关系配置
 // NUMA0 - socketId: 0; NUMA1 - socketId: 0; NUMA2 - socketId: 1; NUMA3 - socketId: 1
 for (int i = 0; i < param -> numa_len; ++i) {
-    numa_meta_infos[i].socket_id = i < 2 ? 0 : 1;
     numa_meta_infos[i].numa_id = i;
 }
 mem_borrow_result_s* result = null;

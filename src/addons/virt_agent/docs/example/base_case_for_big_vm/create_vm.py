@@ -260,7 +260,6 @@ async def get_numa_len_and_numa_info(node_info_list):
             if numa_info.numa_huge_page_info[2 * MB_TO_KB].huge_page_total == 0:
                 continue
             new_numa_info = NumaMetaInfoT(
-                socket_id=numa_info.socket_id,
                 numa_id=int(numa_info.numa_id)
             )
             new_numa_infos.append(new_numa_info)

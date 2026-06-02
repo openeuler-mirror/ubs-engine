@@ -1710,7 +1710,7 @@ VmResult VirtMemFragSdk::MemBorrowStrategyByRMRS(const mem_fragmentation::Borrow
         return VM_ERROR;
     }
     std::vector<int16_t> numaIds{};
-    for (const auto& [socketId, numaId] : borrowParam.numaMetaInfos) {
+    for (const auto& [numaId] : borrowParam.numaMetaInfos) {
         numaIds.emplace_back(numaId);
     }
     const BatchSrcMemoryBorrowParam rmrsBorrowParam{
@@ -1792,18 +1792,25 @@ VmResult VirtMemFragSdk::SyncMemBorrowExec(const std::vector<MemBorrowStrategyRe
 {
     std::string errMsg{};
     VmResult ret{};
-    mem_borrow_result_c memBorrowRstC{};
     for (const auto& borrowStrategyRst : borrowStrategyRsts) {
         const std::string taskId = ThreadTaskManager::GetInstance().AddTask("memborrow");
         if (taskId.empty()) {
             UBSE_LOG_ERROR << "Failed to create task for nodeId=" << borrowStrategyRst.srcParam.srcNid;
             return VM_ERROR;
         }
+        mem_borrow_result_c memBorrowRstC{};
+        if (ret = StringToC(memBorrowRstC.task_id, taskId, MEM_TASK_ID_MAX); ret != VM_OK) {
+            errMsg = "Task id convert to c failed.";
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+            UBSE_LOG_ERROR << "SyncMemBorrowExec Exception, taskId=" << taskId << ", error=" << errMsg;
+            return VM_ERROR;
+        }
         ret = RunBorrowExec(taskId, borrowStrategyRst, memBorrowRstC);
         if (ret != VM_OK) {
-            errMsg = "StartMemBorrowSync failed. taskId=" + taskId + ", " + FormatRetCode(ret);
+            errMsg = "SyncMemBorrowExec failed. taskId=" + taskId + ", " + FormatRetCode(ret);
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
             UBSE_LOG_ERROR << errMsg;
+            return ret;
         }
         memBorrowRstCs.emplace_back(std::move(memBorrowRstC));
     }
@@ -1819,7 +1826,7 @@ VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult
             UBSE_LOG_ERROR << "Failed to create task for nodeId=" << borrowStrategyRst.srcParam.srcNid;
             return VM_ERROR;
         }
-        UBSE_LOG_INFO << "AsyncMemBorrow start, taskId=" << taskId;
+        UBSE_LOG_INFO << "AsyncMemBorrowExec start, taskId=" << taskId;
         try {
             std::thread(
                 [](const std::string& localTaskId, const MemBorrowStrategyResult& localBorrowStrategyRst) {
@@ -1832,7 +1839,7 @@ VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult
             if (const auto ret = StringToC(memBorrowRstC.task_id, taskId, MEM_TASK_ID_MAX); ret != VM_OK) {
                 const std::string errMsg = "Task id convert to c failed.";
                 ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
-                UBSE_LOG_ERROR << "StartMemBorrowAsync Exception, taskId=" << taskId << ", error=" << errMsg;
+                UBSE_LOG_ERROR << "AsyncMemBorrowExec Exception, taskId=" << taskId << ", error=" << errMsg;
                 return VM_ERROR;
             }
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::RUNNING, VM_OK);
@@ -1840,7 +1847,7 @@ VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult
         } catch (const std::exception& e) {
             const std::string errMsg = std::string("Exception in create Thread: ") + e.what();
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
-            UBSE_LOG_ERROR << "StartMemBorrowAsync Exception, taskId=" << taskId << ", error=" << e.what();
+            UBSE_LOG_ERROR << "AsyncMemBorrowExec Exception, taskId=" << taskId << ", error=" << e.what();
             return VM_ERROR;
         }
     }
