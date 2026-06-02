@@ -276,7 +276,7 @@ VmResult StatusManager::MigrateByBorrowIdStatus(const SrcMemoryBorrowParam &srcM
         return VM_ERROR;
     }
 
-    onst vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids, srcMemoryBorrowParam.srcNumaId);
+    const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids, srcMemoryBorrowParam.srcNumaId);
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
     if (UBSRMRSMemMigrate == nullptr) {
         UBSE_LOG_ERROR << "[borrow] UBSRMRSMemMigrate is nullptr.";
