@@ -212,7 +212,7 @@ void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult &result)
     result.presentNumaIds.swap(newPresentNumaId);
 }
 
-float StatusManager::CalculateMemMigrateRatio(int16_t numaId,uint64_t curBorrowMemorySize)
+float StatusManager::CalculateMemMigrateRatio(int16_t numaId, uint64_t curBorrowMemorySize)
 {
     double totalBorrowedMem = static_cast<double>(curBorrowMemorySize);
     double totalVMusedMem = 0;
