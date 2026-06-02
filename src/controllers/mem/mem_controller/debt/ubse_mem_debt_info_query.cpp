@@ -249,16 +249,43 @@ UbseResult UbseQueryNumaImportHandleByExportNodeId(const std::string& importNode
                                                                            importHandleInfo);
 }
 
-static bool IsPortInEnableList(const std::string& portId, const std::set<std::string>& portList)
+template <typename ImportObjType>
+static bool IsValidImportObj(const std::shared_ptr<const ImportObjType>& importObjPtr, const std::string& name,
+                             const std::string& nodeId, const std::string& typeStr)
 {
-    if (portList.empty()) {
-        UBSE_LOG_DEBUG << "[MEM_CONTROLLER] EnablePortList portList is empty, portId=" << portId
-                       << " treated as not in list";
+    if (!importObjPtr) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] " << typeStr << " import obj is null, name=" << name;
         return false;
     }
-    bool found = portList.find(portId) != portList.end();
-    UBSE_LOG_DEBUG << "[MEM_CONTROLLER] EnablePortList portId=" << portId << ", found=" << found;
-    return found;
+    if (importObjPtr->status.state != UBSE_MEM_IMPORT_SUCCESS &&
+        importObjPtr->status.state != UBSE_MEM_IMPORT_RUNNING) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] " << typeStr << " import obj state not SUCCESS/RUNNING, name=" << name
+                      << ", state=" << static_cast<uint32_t>(importObjPtr->status.state);
+        return false;
+    }
+    return true;
+}
+
+template <typename ImportObjType>
+static bool HasFaultPort(const std::shared_ptr<const ImportObjType>& importObjPtr, const std::string& name,
+                         const std::string& targetNodeId, uint32_t targetChipId, uint32_t targetPortId)
+{
+    for (const auto& numaInfo : importObjPtr->algoResult.importNumaInfos) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] objname=" << name << ", import-nodeId=" << numaInfo.nodeId
+                      << ", import-chipId=" << numaInfo.chipId << ", import-portId=" << numaInfo.portId;
+        if (numaInfo.nodeId != targetNodeId) {
+            continue;
+        }
+        if (numaInfo.chipId != targetChipId) {
+            continue;
+        }
+        if (numaInfo.portId == targetPortId) {
+            UBSE_LOG_INFO << "[MEM_CONTROLLER] import obj hit down port, name=" << name << ", nodeId=" << targetNodeId
+                          << ", chipId=" << targetChipId << ", portId=" << targetPortId;
+            return true;
+        }
+    }
+    return false;
 }
 
 template <typename ImportObjType, typename HandleInfo>
@@ -271,123 +298,94 @@ static void FillHandleInfoFromImportObj(const std::string& name,
         for (const auto& result : importObjPtr->status.importResults) {
             info.numaIds.insert(result.numaId);
         }
-        UBSE_LOG_DEBUG << "[MEM_CONTROLLER] FillHandleInfoFromImportObj numa type, name=" << name
-                       << ", numaIds size=" << info.numaIds.size();
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] FillHandleInfoFromImportObj numa type, name=" << name
+                      << ", numaIds size=" << info.numaIds.size();
     } else {
         for (const auto& result : importObjPtr->status.importResults) {
             info.memIds.insert(result.memId);
         }
-        UBSE_LOG_DEBUG << "[MEM_CONTROLLER] FillHandleInfoFromImportObj non-numa type, name=" << name
-                       << ", memIds size=" << info.memIds.size();
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] FillHandleInfoFromImportObj non-numa type, name=" << name
+                      << ", memIds size=" << info.memIds.size();
     }
-}
-
-template <typename ImportObjType>
-static bool HasFaultPort(const std::shared_ptr<const ImportObjType>& importObjPtr, uint32_t targetChipId,
-                         const std::set<std::string>& portList)
-{
-    for (const auto& numaInfo : importObjPtr->algoResult.importNumaInfos) {
-        if (numaInfo.chipId != targetChipId) {
-            continue;
-        }
-        if (std::string portId = std::to_string(numaInfo.portId); !IsPortInEnableList(portId, portList)) {
-            UBSE_LOG_INFO << "[MEM_CONTROLLER] import obj hit fault port, chipId=" << targetChipId
-                          << ", portId=" << portId;
-            return true;
-        }
-    }
-    return false;
 }
 
 template <typename ImportObjType, typename HandleInfoVec>
 static UbseResult CollectPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                             const std::set<std::string>& portList, HandleInfoVec& importHandleInfo,
+                                             const std::string& portId, HandleInfoVec& importHandleInfo,
                                              const std::string& typeStr)
 {
     uint32_t targetChipId = 0;
     if (ConvertStrToUint32(chipId, targetChipId) != UBSE_OK) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] Invalid chipId format: " << chipId;
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Invalid chipId format, chipId=" << chipId;
+        return UBSE_ERROR_INVAL;
+    }
+    uint32_t targetPortId = 0;
+    if (ConvertStrToUint32(portId, targetPortId) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] Invalid portId format, portId=" << portId;
         return UBSE_ERROR_INVAL;
     }
 
     auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto& importMap = ledger.GetDebtMap<ImportObjType>();
-    auto nodeImportMap = importMap.FindNodeMap(nodeId);
+    auto nodeImportMap = ledger.GetDebtMap<ImportObjType>().FindNodeMap(nodeId);
     if (!nodeImportMap) {
-        UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Node " << nodeId << " has no " << typeStr << " import debt info";
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Node " << nodeId << " has no " << typeStr << " import debt info";
         return UBSE_OK;
     }
     for (const auto& [name, importObjPtr] : nodeImportMap->GetAll()) {
-        if (!importObjPtr) {
-            UBSE_LOG_DEBUG << "[MEM_CONTROLLER] " << typeStr << " import obj is null, name=" << name;
+        if (!IsValidImportObj(importObjPtr, name, nodeId, typeStr)) {
             continue;
         }
-        if (importObjPtr->status.state != UBSE_MEM_IMPORT_SUCCESS &&
-            importObjPtr->status.state != UBSE_MEM_IMPORT_RUNNING) {
-            UBSE_LOG_DEBUG << "[MEM_CONTROLLER] " << typeStr << " import obj state not SUCCESS/RUNNING, name=" << name
-                           << ", state=" << static_cast<uint32_t>(importObjPtr->status.state);
-            continue;
-        }
-        if (HasFaultPort<ImportObjType>(importObjPtr, targetChipId, portList)) {
+        if (HasFaultPort<ImportObjType>(importObjPtr, name, nodeId, targetChipId, targetPortId)) {
             typename HandleInfoVec::value_type info;
             FillHandleInfoFromImportObj(name, importObjPtr, info);
             importHandleInfo.push_back(std::move(info));
         }
     }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] CollectPortFaultHandleInfo type=" << typeStr << ", nodeId=" << nodeId
+                  << ", chipId=" << chipId << ", portId=" << portId << ", total=" << nodeImportMap->GetAll().size()
+                  << ", collected=" << importHandleInfo.size();
+    return UBSE_OK;
+}
+
+template <typename ImportObjType, typename HandleInfoVec>
+static UbseResult QueryPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
+                                           const std::string& portId, HandleInfoVec& importHandInfo,
+                                           const std::string& typeStr)
+{
+    importHandInfo.clear();
+    if (nodeId.empty() || chipId.empty() || portId.empty()) {
+        UBSE_LOG_WARN << "[MEM_CONTROLLER] QueryPortFaultHandleInfo param empty, nodeId=" << nodeId
+                      << ", chipId=" << chipId << ", portId=" << portId;
+        return UBSE_ERROR_INVAL;
+    }
+    if (auto ret = CollectPortFaultHandleInfo<ImportObjType>(nodeId, chipId, portId, importHandInfo, typeStr);
+        ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] QueryPortFaultHandleInfo failed, type=" << typeStr << ", nodeId=" << nodeId
+                       << ", chipId=" << chipId << ", portId=" << portId << "." << FormatRetCode(ret);
+        return ret;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] QueryPortFaultHandleInfo done, type=" << typeStr << ", nodeId=" << nodeId
+                  << ", chipId=" << chipId << ", portId=" << portId << ", found " << importHandInfo.size()
+                  << " fault handles";
     return UBSE_OK;
 }
 
 UbseResult UbseQuerySharePortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                             const std::set<std::string>& portList, ShareHandleInfoVec& importHandInfo)
+                                             const std::string& portId, ShareHandleInfoVec& importHandInfo)
 {
-    importHandInfo.clear();
-    if (nodeId.empty() || chipId.empty()) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] nodeId or chipId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    if (auto ret =
-            CollectPortFaultHandleInfo<UbseMemShareBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "share");
-        ret != UBSE_OK) {
-        return ret;
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] UbseQuerySharePortFaultHandleInfo nodeId=" << nodeId << ", chipId=" << chipId
-                  << ", portList size=" << portList.size() << ", found " << importHandInfo.size() << " fault handles";
-    return UBSE_OK;
+    return QueryPortFaultHandleInfo<UbseMemShareBorrowImportObj>(nodeId, chipId, portId, importHandInfo, "share");
 }
 
 UbseResult UbseQueryFdPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                          const std::set<std::string>& portList, FdHandleInfoVec& importHandInfo)
+                                          const std::string& portId, FdHandleInfoVec& importHandInfo)
 {
-    importHandInfo.clear();
-    if (nodeId.empty() || chipId.empty()) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] nodeId or chipId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    if (auto ret = CollectPortFaultHandleInfo<UbseMemFdBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "fd");
-        ret != UBSE_OK) {
-        return ret;
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] UbseQueryFdPortFaultHandleInfo nodeId=" << nodeId << ", chipId=" << chipId
-                  << ", portList size=" << portList.size() << ", found " << importHandInfo.size() << " fault handles";
-    return UBSE_OK;
+    return QueryPortFaultHandleInfo<UbseMemFdBorrowImportObj>(nodeId, chipId, portId, importHandInfo, "fd");
 }
 
 UbseResult UbseQueryNumaPortFaultHandleInfo(const std::string& nodeId, const std::string& chipId,
-                                            const std::set<std::string>& portList, NumaHandleInfoVec& importHandInfo)
+                                            const std::string& portId, NumaHandleInfoVec& importHandInfo)
 {
-    importHandInfo.clear();
-    if (nodeId.empty() || chipId.empty()) {
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] nodeId or chipId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    if (auto ret =
-            CollectPortFaultHandleInfo<UbseMemNumaBorrowImportObj>(nodeId, chipId, portList, importHandInfo, "numa");
-        ret != UBSE_OK) {
-        return ret;
-    }
-    UBSE_LOG_INFO << "[MEM_CONTROLLER] UbseQueryNumaPortFaultHandleInfo nodeId=" << nodeId << ", chipId=" << chipId
-                  << ", portList size=" << portList.size() << ", found " << importHandInfo.size() << " fault handles";
-    return UBSE_OK;
+    return QueryPortFaultHandleInfo<UbseMemNumaBorrowImportObj>(nodeId, chipId, portId, importHandInfo, "numa");
 }
 
 template <typename ImportObjType>

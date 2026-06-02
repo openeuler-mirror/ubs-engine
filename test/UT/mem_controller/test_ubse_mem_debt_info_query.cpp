@@ -14,8 +14,6 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include <set>
-
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -734,16 +732,14 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_InvalidChipIdFor
     AddFdImportObjWithPortInfo("1", "2", "fdFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "invalid_chip", portList, handleInfo), UBSE_ERROR_INVAL);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "invalid_chip", "5", handleInfo), UBSE_ERROR_INVAL);
     EXPECT_TRUE(handleInfo.empty());
 }
 
 TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_NoImportData)
 {
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
@@ -753,25 +749,20 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_FaultPortCollect
     AddFdImportObjWithPortInfo("1", "2", "fdFault2", UBSE_MEM_IMPORT_SUCCESS, 1, 6, {300});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2", "3"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
-    ASSERT_EQ(handleInfo.size(), 2);
-    EXPECT_EQ(handleInfo[1].name, "fdFault1");
-    EXPECT_EQ(handleInfo[1].memIds.size(), 2);
-    EXPECT_NE(handleInfo[1].memIds.find(100), handleInfo[1].memIds.end());
-    EXPECT_NE(handleInfo[1].memIds.find(200), handleInfo[1].memIds.end());
-    EXPECT_EQ(handleInfo[0].name, "fdFault2");
-    EXPECT_EQ(handleInfo[0].memIds.size(), 1);
-    EXPECT_NE(handleInfo[0].memIds.find(300), handleInfo[0].memIds.end());
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fdFault1");
+    EXPECT_EQ(handleInfo[0].memIds.size(), 2);
+    EXPECT_NE(handleInfo[0].memIds.find(100), handleInfo[0].memIds.end());
+    EXPECT_NE(handleInfo[0].memIds.find(200), handleInfo[0].memIds.end());
 }
 
-TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_PortInEnableListNotCollected)
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_PortNotMatched)
 {
     AddFdImportObjWithPortInfo("1", "2", "fdNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"5"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "3", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
@@ -780,8 +771,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_ChipIdMismatch)
     AddFdImportObjWithPortInfo("1", "2", "fdOtherChip", UBSE_MEM_IMPORT_SUCCESS, 2, 5, {100});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
@@ -790,18 +780,16 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_WrongStateFilter
     AddFdImportObjWithPortInfo("1", "2", "fdInit", UBSE_MEM_STATE_INIT, 1, 5, {100});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
-TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_EmptyPortListAllFault)
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_SinglePortMatched)
 {
     AddFdImportObjWithPortInfo("1", "2", "fdAllFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList;
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].name, "fdAllFault");
 }
@@ -811,21 +799,19 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_FaultPortColl
     AddShareImportObjWithPortInfo("1", "2", "shareFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {500});
 
     ShareHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].name, "shareFault");
     EXPECT_EQ(handleInfo[0].memIds.size(), 1);
     EXPECT_NE(handleInfo[0].memIds.find(500), handleInfo[0].memIds.end());
 }
 
-TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_PortInEnableList)
+TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_PortNotMatched)
 {
     AddShareImportObjWithPortInfo("1", "2", "shareNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {500});
 
     ShareHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"5"};
-    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", "3", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
@@ -834,8 +820,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_FaultPortColle
     AddNumaImportObjWithPortInfo("1", "2", "numaFault", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {0, 1});
 
     NumaHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].name, "numaFault");
     EXPECT_EQ(handleInfo[0].numaIds.size(), 2);
@@ -843,13 +828,12 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_FaultPortColle
     EXPECT_NE(handleInfo[0].numaIds.find(1), handleInfo[0].numaIds.end());
 }
 
-TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_PortInEnableList)
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_PortNotMatched)
 {
     AddNumaImportObjWithPortInfo("1", "2", "numaNormal", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {0});
 
     NumaHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"5"};
-    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", "3", handleInfo), UBSE_OK);
     EXPECT_TRUE(handleInfo.empty());
 }
 
@@ -858,8 +842,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_RunningStateCo
     AddNumaImportObjWithPortInfo("1", "2", "numaRunning", UBSE_MEM_IMPORT_RUNNING, 1, 5, {0});
 
     NumaHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "2"};
-    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].name, "numaRunning");
 }
@@ -867,8 +850,8 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_RunningStateCo
 /**
  * 测试：多芯片多端口场景下的 FD 故障查询
  * 场景：
- *   - fdChip1Port5: chipId=1, portId=5 -> chipId匹配，portId=5不在{"1","3"}中 -> 故障
- *   - fdChip1Port3: chipId=1, portId=3 -> chipId匹配，portId=3在{"1","3"}中 -> 正常
+ *   - fdChip1Port5: chipId=1, portId=5 -> chipId匹配，portId=5匹配 -> 故障
+ *   - fdChip1Port3: chipId=1, portId=3 -> chipId匹配，portId=3不匹配 -> 正常
  *   - fdChip2Port5: chipId=2, portId=5 -> chipId不匹配 -> 过滤
  * 预期：只返回 fdChip1Port5
  */
@@ -879,8 +862,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_MultipleChipsAnd
     AddFdImportObjWithPortInfo("1", "2", "fdChip2Port5", UBSE_MEM_IMPORT_SUCCESS, 2, 5, {300});
 
     FdHandleInfoVec handleInfo;
-    std::set<std::string> portList = {"1", "3"};
-    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", portList, handleInfo), UBSE_OK);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].name, "fdChip1Port5");
 }
@@ -890,6 +872,21 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_MultipleChipsAnd
  * 场景：添加包含重复 numaId {0, 1, 0} 的对象
  * 预期：numaIds 集合大小为 2（0 被去重）
  */
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_InvalidPortIdFormat)
+{
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "invalid_port", handleInfo), UBSE_ERROR_INVAL);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_EmptyParam)
+{
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("", "1", "5", handleInfo), UBSE_ERROR_INVAL);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "", "5", handleInfo), UBSE_ERROR_INVAL);
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "", handleInfo), UBSE_ERROR_INVAL);
+}
+
 TEST_F(TestUbseMemDebtInfoQuery, NumaHandleInfo_UsesUnorderedSetNumaIds)
 {
     AddNumaImportObjWithExportNode("1", "2", "numaSet", UBSE_MEM_IMPORT_SUCCESS, {0, 1, 0});
@@ -898,5 +895,60 @@ TEST_F(TestUbseMemDebtInfoQuery, NumaHandleInfo_UsesUnorderedSetNumaIds)
     EXPECT_EQ(UbseQueryNumaImportHandleByExportNodeId("1", "2", handleInfo), UBSE_OK);
     ASSERT_EQ(handleInfo.size(), 1);
     EXPECT_EQ(handleInfo[0].numaIds.size(), 2);
+}
+
+/**
+ * 测试：FD 故障查询时，importNumaInfos 中 nodeId 与目标 nodeId 不匹配的对象应被过滤
+ * 场景：
+ *   - fdOtherNode: 导入节点的 importNumaInfo.nodeId="3"，目标查询 nodeId="1" -> 过滤
+ *   - fdMatchNode: 导入节点的 importNumaInfo.nodeId="1"，目标查询 nodeId="1" -> 命中
+ * 预期：只返回 fdMatchNode
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryFdPortFaultHandleInfo_NodeIdMismatch)
+{
+    AddFdImportObjWithPortInfo("1", "2", "fdOtherNode", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {100});
+    AddFdImportObjWithPortInfo("1", "2", "fdMatchNode", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {200});
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().FindNodeMap("1")->Modify(
+        "fdOtherNode", [](UbseMemFdBorrowImportObj& obj) { obj.algoResult.importNumaInfos[0].nodeId = "3"; });
+
+    FdHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryFdPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
+    ASSERT_EQ(handleInfo.size(), 1);
+    EXPECT_EQ(handleInfo[0].name, "fdMatchNode");
+}
+
+/**
+ * 测试：Share 故障查询时，importNumaInfos 中 nodeId 与目标 nodeId 不匹配的对象应被过滤
+ * 场景：构造一个 share 对象的 importNumaInfo.nodeId="2"，但目标查询 nodeId="1" -> 过滤
+ * 预期：返回结果为空
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseQuerySharePortFaultHandleInfo_NodeIdMismatch)
+{
+    AddShareImportObjWithPortInfo("1", "2", "shareOtherNode", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {500});
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().FindNodeMap("1")->Modify(
+        "shareOtherNode", [](UbseMemShareBorrowImportObj& obj) { obj.algoResult.importNumaInfos[0].nodeId = "2"; });
+
+    ShareHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQuerySharePortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
+}
+
+/**
+ * 测试：Numa 故障查询时，importNumaInfos 中 nodeId 与目标 nodeId 不匹配的对象应被过滤
+ * 场景：构造一个 numa 对象的 importNumaInfo.nodeId="2"，但目标查询 nodeId="1" -> 过滤
+ * 预期：返回结果为空
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseQueryNumaPortFaultHandleInfo_NodeIdMismatch)
+{
+    AddNumaImportObjWithPortInfo("1", "2", "numaOtherNode", UBSE_MEM_IMPORT_SUCCESS, 1, 5, {0});
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowImportObj>().FindNodeMap("1")->Modify(
+        "numaOtherNode", [](UbseMemNumaBorrowImportObj& obj) { obj.algoResult.importNumaInfos[0].nodeId = "2"; });
+
+    NumaHandleInfoVec handleInfo;
+    EXPECT_EQ(UbseQueryNumaPortFaultHandleInfo("1", "1", "5", handleInfo), UBSE_OK);
+    EXPECT_TRUE(handleInfo.empty());
 }
 } // namespace ubse::mem_controller::ut

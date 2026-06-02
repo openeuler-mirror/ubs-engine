@@ -58,6 +58,10 @@ const char* ubse_fault_type_to_string(ubs_mem_fault_type_t type)
             return "REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR";
         case MEM_EXPORT_FAULT:
             return "MEM_EXPORT_FAULT";
+        case MEM_LINK_DOWN:
+            return "MEM_LINK_DOWN";
+        case MEM_LINK_UP:
+            return "MEM_LINK_UP";
         case UB_MEM_HEALTHY:
             return "UB_MEM_HEALTHY";
         default:

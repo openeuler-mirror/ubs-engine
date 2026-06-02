@@ -64,15 +64,69 @@ const std::string MEM_FAULT_INFO_JSON_MEM_ID = "memid";
 const std::string MEM_FAULT_INFO_JSON_RAS_TYPE = "raw_ubus_mem_err_type";
 const std::string PANIC_REBOOT_FAULT_LOCAL_EVENT_ID = "UbsePanicAndRebootFaultLocalEvent";
 const std::string BMC_FAULT_TIMER_NAME = "BmcFaultTimer";
+const std::string PORT_UP_DOWN_EVENT_ID = "topology.port.linkupdown";
 const uint32_t BMC_FAULT_MAX_RETRY_COUNT = 5;
 const uint32_t BMC_FAULT_TIMEOUT_SECONDS = 60;
 const uint32_t BMC_FAULT_TIMER_INTERVAL_SECONDS = 5;
 
+static std::unordered_map<std::string, std::unordered_set<std::string>> g_portDownRecords;
+
+static std::mutex g_portDownMutex;
+
+static std::string MakePortDownKey(const std::string& slotId, const std::string& chipId)
+{
+    return slotId + ":" + chipId;
+}
+
+static bool IsPortDown(const std::string& slotId, const std::string& chipId, const std::string& portId)
+{
+    std::scoped_lock lock(g_portDownMutex);
+    auto key = MakePortDownKey(slotId, chipId);
+    auto it = g_portDownRecords.find(key);
+    if (it == g_portDownRecords.end()) {
+        return false;
+    }
+    return it->second.find(portId) != it->second.end();
+}
+
+static void AddPortDown(const PortEventInfo& info)
+{
+    std::scoped_lock lock(g_portDownMutex);
+    auto key = MakePortDownKey(info.slotId, info.chipId);
+    auto [it, inserted] = g_portDownRecords.try_emplace(key);
+    it->second.insert(info.portId);
+    if (inserted) {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] New port down record created, slotId=" << info.slotId
+                      << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+    } else {
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] Port down recorded, slotId=" << info.slotId << ", chipId=" << info.chipId
+                      << ", portId=" << info.portId << ".";
+    }
+}
+
+static void ErasePortDown(const PortEventInfo& info)
+{
+    std::scoped_lock lock(g_portDownMutex);
+    auto key = MakePortDownKey(info.slotId, info.chipId);
+    auto it = g_portDownRecords.find(key);
+    if (it == g_portDownRecords.end()) {
+        return;
+    }
+    it->second.erase(info.portId);
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Port up removed from down record, slotId=" << info.slotId
+                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+    if (it->second.empty()) {
+        g_portDownRecords.erase(it);
+        UBSE_LOG_INFO << "[MEM_CONTROLLER] All ports up, removed down record, slotId=" << info.slotId
+                      << ", chipId=" << info.chipId << ".";
+    }
+}
+
 struct BmcFaultEvent {
     std::string faultNodeId;
-    uint32_t faultTypeValue;
+    uint32_t faultTypeValue{};
     std::set<std::string> sentNodeIds;
-    uint32_t retryCount;
+    uint32_t retryCount{};
     std::chrono::steady_clock::time_point createTime;
 };
 
@@ -297,7 +351,8 @@ static UbseResult SendSingleFaultMemBlockMessage(const std::string& handleType, 
     return UBSE_OK;
 }
 
-template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode, typename HandleInfoVec, typename IdGetter>
+template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode, UbMemFaultType FaultType = MEM_EXPORT_FAULT,
+          typename HandleInfoVec, typename IdGetter>
 static UbseResult ExtractFaultMemBlockInVecAndCallSengFunc(const HandleInfoVec& handleInfo,
                                                            const std::string& handleType, IdGetter&& getIdList)
 {
@@ -307,7 +362,7 @@ static UbseResult ExtractFaultMemBlockInVecAndCallSengFunc(const HandleInfoVec& 
             UbseMemFault fault{
                 .memName = info.name,
                 .handleId = static_cast<uint64_t>(id),
-                .type = static_cast<UbseIpcMemFaultType>(MEM_EXPORT_FAULT),
+                .type = static_cast<UbseIpcMemFaultType>(FaultType),
             };
             auto ret = SendSingleFaultMemBlockMessage<OpCode, ModuleCode>(handleType, fault, info.udsInfo);
             if (ret != UBSE_OK) {
@@ -450,7 +505,12 @@ UbseResult UbseMemFaultManager::InitMemFaultManager()
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to subscribe panic reboot fault event. " << FormatRetCode(ret);
         return ret;
     }
-
+    eventId = PORT_UP_DOWN_EVENT_ID;
+    ret = event::UbseSubEvent(eventId, PortDownUpEventHandle, event::HIGH);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to subscribe port down or up event. " << FormatRetCode(ret);
+        return ret;
+    }
     ret = timer::UbseTimerHandlerRegister(BMC_FAULT_TIMER_NAME, BmcFaultTimerHandler, BMC_FAULT_TIMER_INTERVAL_SECONDS);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register BMC fault timer. " << FormatRetCode(ret);
@@ -466,7 +526,7 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     timer::UbseTimerHandlerUnregister(BMC_FAULT_TIMER_NAME);
 
     {
-        std::lock_guard<std::mutex> lock(g_bmcFaultMutex);
+        std::scoped_lock lock(g_bmcFaultMutex);
         g_pendingBmcFaultEvents.clear();
     }
 
@@ -488,6 +548,13 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     ret = event::UbseUnSubEvent(eventId, PanicRebootFaultEventHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unsubscribe panic reboot fault event. " << FormatRetCode(ret);
+        return ret;
+    }
+
+    eventId = PORT_UP_DOWN_EVENT_ID;
+    ret = event::UbseUnSubEvent(eventId, PortDownUpEventHandle);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unsubscribe port down or up event. " << FormatRetCode(ret);
         return ret;
     }
 
@@ -663,12 +730,18 @@ void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer& re
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Processing single import debt, shareCount=" << shareHandleInfoVec.size()
                   << ", numaCount=" << numaHandleInfoVec.size() << ", fdCount=" << fdHandleInfoVec.size();
 
-    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER>(
-        shareHandleInfoVec, "share", [](const auto& info) -> const auto& { return info.memIds; });
-    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER>(
-        numaHandleInfoVec, "numa", [](const auto& info) -> const auto& { return info.numaIds; });
-    ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER>(
-        fdHandleInfoVec, "fd", [](const auto& info) -> const auto& { return info.memIds; });
+    if (executorPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit SingleImportDebt task.";
+        return;
+    }
+    executorPtr->Execute([shareHandleInfoVec, numaHandleInfoVec, fdHandleInfoVec] {
+        ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER>(
+            shareHandleInfoVec, "share", [](const auto& info) -> const auto& { return info.memIds; });
+        ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER>(
+            numaHandleInfoVec, "numa", [](const auto& info) -> const auto& { return info.numaIds; });
+        ExtractFaultMemBlockInVecAndCallSengFunc<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER>(
+            fdHandleInfoVec, "fd", [](const auto& info) -> const auto& { return info.memIds; });
+    });
 }
 
 template <typename ImportObjType>
@@ -851,6 +924,158 @@ UbseResult UbseMemFaultManager::SendMemFaultMessageByType(const std::string& mem
         UBSE_LOG_INFO << "[MEM_CONTROLLER] Successfully sent fault message. memType=" << memType
                       << ", memId=" << fault.handleId;
     });
+    return UBSE_OK;
+}
+
+static UbseResult ParsePortDownUpEventMsg(const std::string& eventMsg, PortEventInfo& info)
+
+{
+    size_t semiPos = eventMsg.find(';');
+    if (semiPos == std::string::npos) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid eventMsg format, expected 'STATUS;slotId:chipId:portId'.";
+        return UBSE_ERROR_INVAL;
+    }
+
+    info.status = eventMsg.substr(0, semiPos);
+    if (info.status != "DOWN" && info.status != "UP") {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid port status=" << info.status << ", expected 'DOWN' or 'UP'.";
+        return UBSE_ERROR_INVAL;
+    }
+
+    std::string locationInfo = eventMsg.substr(semiPos + 1);
+    size_t pos1 = locationInfo.find(':');
+    if (pos1 == std::string::npos) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing slotId:chipId:portId.";
+        return UBSE_ERROR_INVAL;
+    }
+    size_t pos2 = locationInfo.find(':', pos1 + 1);
+    if (pos2 == std::string::npos) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing chipId:portId.";
+        return UBSE_ERROR_INVAL;
+    }
+    size_t pos3 = locationInfo.find(':', pos2 + 1);
+    if (pos3 == std::string::npos) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Invalid location info format, missing portId.";
+        return UBSE_ERROR_INVAL;
+    }
+
+    info.slotId = locationInfo.substr(0, pos1);
+    info.chipId = locationInfo.substr(pos1 + 1, pos2 - pos1 - 1);
+    info.portId = locationInfo.substr(pos2 + 1, pos3 - pos2 - 1);
+
+    if (info.slotId.empty() || info.chipId.empty() || info.portId.empty()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Parsed empty field from eventMsg, slotId=" << info.slotId
+                       << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+        return UBSE_ERROR_INVAL;
+    }
+
+    return UBSE_OK;
+}
+
+UbseResult UbseMemFaultManager::PortDownUpEventHandle(std::string&, std::string& eventMsg)
+{
+    if (eventMsg.empty()) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] PortDownUpEventHandle eventMsg is empty.";
+        return UBSE_ERROR_INVAL;
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Starting to handle topology port down or up event, eventMsg=" << eventMsg << ".";
+
+    PortEventInfo info;
+    auto ret = ParsePortDownUpEventMsg(eventMsg, info);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Parsed port event: status=" << info.status << ", slotId=" << info.slotId
+                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+
+    bool isDown = (info.status == "DOWN");
+    bool wasDown = IsPortDown(info.slotId, info.chipId, info.portId);
+    if (isDown) {
+        if (wasDown) {
+            UBSE_LOG_WARN << "[MEM_CONTROLLER] Port already down, slotId=" << info.slotId << ", chipId=" << info.chipId
+                          << ", portId=" << info.portId << ".";
+            return UBSE_OK;
+        }
+        AddPortDown(info);
+        OnePortDownHandle(info);
+        return UBSE_OK;
+    } else {
+        if (!wasDown) {
+            UBSE_LOG_WARN << "[MEM_CONTROLLER] Port up but not in down record, slotId=" << info.slotId
+                          << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+            return UBSE_OK;
+        }
+
+        ErasePortDown(info);
+        OnePortUpHandle(info);
+        return UBSE_OK;
+    }
+    return UBSE_OK;
+}
+template <uint32_t OpCode, ubse_ipc_module_code_t ModuleCode, UbMemFaultType FaultType, typename HandleInfoVec,
+          typename QueryFunc, typename IdGetter>
+static UbseResult ReportPortFaultHandles(const PortEventInfo& info, const std::string& handleType, QueryFunc queryFunc,
+                                         IdGetter getIdList)
+{
+    HandleInfoVec handleInfo;
+    auto ret = queryFunc(info.slotId, info.chipId, info.portId, handleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to query " << handleType
+                       << " port fault handle info, nodeId=" << info.slotId << ", chipId=" << info.chipId
+                       << ", portId=" << info.portId << "." << FormatRetCode(ret);
+        return ret;
+    }
+    return ExtractFaultMemBlockInVecAndCallSengFunc<OpCode, ModuleCode, FaultType>(handleInfo, handleType, getIdList);
+}
+
+template <UbMemFaultType FaultType>
+static void ReportAllPortFaultHandles(const PortEventInfo& info, const std::string& action)
+{
+    auto ret =
+        ReportPortFaultHandles<UBSE_LONGLINK_FAULT_SHM, UBSE_LONG_LINK_REGISTER, FaultType, debt::ShareHandleInfoVec>(
+            info, "share", debt::UbseQuerySharePortFaultHandleInfo,
+            [](const auto& h) -> const auto& { return h.memIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] " << action << " share fault report failed, slotId=" << info.slotId
+                       << ", chipId=" << info.chipId << ", portId=" << info.portId << "." << FormatRetCode(ret);
+    }
+    ret = ReportPortFaultHandles<UBSE_LONGLINK_FAULT_NUMA, UBSE_LONG_LINK_REGISTER, FaultType, debt::NumaHandleInfoVec>(
+        info, "numa", debt::UbseQueryNumaPortFaultHandleInfo, [](const auto& h) -> const auto& { return h.numaIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] " << action << " numa fault report failed, slotId=" << info.slotId
+                       << ", chipId=" << info.chipId << ", portId=" << info.portId << "." << FormatRetCode(ret);
+    }
+    ret = ReportPortFaultHandles<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER, FaultType, debt::FdHandleInfoVec>(
+        info, "fd", debt::UbseQueryFdPortFaultHandleInfo, [](const auto& h) -> const auto& { return h.memIds; });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] " << action << " fd fault report failed, slotId=" << info.slotId
+                       << ", chipId=" << info.chipId << ", portId=" << info.portId << "." << FormatRetCode(ret);
+    }
+}
+
+UbseResult UbseMemFaultManager::OnePortDownHandle(const PortEventInfo& info)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Handling new port down event, slotId=" << info.slotId
+                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+    if (executorPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit OnPortDown task.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    executorPtr->Execute([info] { ReportAllPortFaultHandles<MEM_LINK_DOWN>(info, "OnPortDown"); });
+    return UBSE_OK;
+}
+
+UbseResult UbseMemFaultManager::OnePortUpHandle(const PortEventInfo& info)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] Handling port up event (was down), slotId=" << info.slotId
+
+                  << ", chipId=" << info.chipId << ", portId=" << info.portId << ".";
+    if (executorPtr == nullptr) {
+        UBSE_LOG_ERROR << "[MEM_CONTROLLER] executorPtr is null, cannot submit OnPortUp task.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    executorPtr->Execute([info] { ReportAllPortFaultHandles<MEM_LINK_UP>(info, "OnPortUp"); });
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller

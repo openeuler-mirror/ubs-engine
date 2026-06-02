@@ -2893,6 +2893,8 @@ typedef enum {
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
     MEM_EXPORT_FAULT,
+    MEM_LINK_DOWN,
+    MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
 
@@ -3028,6 +3030,8 @@ typedef enum {
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
     MEM_EXPORT_FAULT,
+    MEM_LINK_DOWN,
+    MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000,
 } ubs_mem_fault_type_t;
 ```
@@ -3159,6 +3163,8 @@ typedef enum {
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
     MEM_EXPORT_FAULT,
+    MEM_LINK_DOWN,
+    MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000,
 } ubs_mem_fault_type_t;
 ```
@@ -3290,6 +3296,8 @@ typedef enum {
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
     MEM_EXPORT_FAULT,
+    MEM_LINK_DOWN,
+    MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000,
 } ubs_mem_fault_type_t;
 ```

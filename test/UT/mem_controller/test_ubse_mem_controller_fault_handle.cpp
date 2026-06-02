@@ -52,6 +52,7 @@ void TestUbseMemControllerFaultHandle::TearDown()
     UbseMemFaultManager::executorPtr = nullptr;
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
     g_pendingBmcFaultEvents.clear();
+    g_portDownRecords.clear();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -104,6 +105,17 @@ TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_TimerRegisterFailed
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_PortUpDownSubEventFailed)
+{
+    MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegisterAlarmFaultHandler, uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseSubEvent).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
 }
 
@@ -485,6 +497,37 @@ TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_Success)
                        }};
     UbseByteBuffer resp{.data = nullptr, .len = 0, .freeFunc = nullptr};
 
+    using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
+    MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
+    auto mockExecutor = UbseTaskExecutor::Create("test", 1, 1000);
+    UbseMemFaultManager::executorPtr = mockExecutor;
+
+    UbseMemFaultManager::SingleImportDebtNotifyHandler(req, resp);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_NullExecutor)
+{
+    UbseMemFaultManager::executorPtr = nullptr;
+
+    ubse::mem::controller::message::UbseMemSingleImportMessage msg;
+
+    ubse::mem::def::ShareHandleInfo shareInfo{};
+    shareInfo.name = "shareTest";
+    shareInfo.memIds.insert(100);
+    shareInfo.udsInfo.uid = 1000;
+    shareInfo.udsInfo.gid = 1000;
+    shareInfo.udsInfo.pid = 1;
+
+    ubse::mem::def::ShareHandleInfoVec shareVec;
+    shareVec.push_back(shareInfo);
+
+    msg.SetShareHandleInfoVec(shareVec);
+    msg.Serialize();
+
+    UbseByteBuffer req{.data = msg.SerializedData(), .len = msg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {
+                       }};
+    UbseByteBuffer resp{.data = nullptr, .len = 0, .freeFunc = nullptr};
+
     UbseMemFaultManager::SingleImportDebtNotifyHandler(req, resp);
 }
 
@@ -834,10 +877,219 @@ TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_UnSubEventFailed)
     EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::DeInitMemFaultManager());
 }
 
+TEST_F(TestUbseMemControllerFaultHandle, DeInitMemFaultManager_PortUpDownUnSubEventFailed)
+{
+    MOCKER_CPP(ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(UnRegisterAlarmFaultHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::event::UbseUnSubEvent).stubs().will(returnValue(UBSE_OK)).then(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::DeInitMemFaultManager());
+}
+
 TEST_F(TestUbseMemControllerFaultHandle, InitMemFaultManager_RegRpcServiceFailed)
 {
     MOCKER(&UbseMemFaultManager::CreateTaskExecutor).stubs().will(returnValue(UBSE_OK));
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, UbseMemFaultManager::InitMemFaultManager());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_ValidDown)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN;1:2:3:0", info), UBSE_OK);
+    EXPECT_EQ(info.status, "DOWN");
+    EXPECT_EQ(info.slotId, "1");
+    EXPECT_EQ(info.chipId, "2");
+    EXPECT_EQ(info.portId, "3");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_ValidUp)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("UP;10:20:30:0", info), UBSE_OK);
+    EXPECT_EQ(info.status, "UP");
+    EXPECT_EQ(info.slotId, "10");
+    EXPECT_EQ(info.chipId, "20");
+    EXPECT_EQ(info.portId, "30");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_NoSemicolon)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN1:2:3:0", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_InvalidStatus)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("INVALID;1:2:3:0", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_MissingColonSlotChip)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN;1", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_MissingColonChipPort)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN;1:2", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_MissingColonPortSuffix)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN;1:2:3", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ParsePortDownUpEventMsg_EmptyFields)
+{
+    PortEventInfo info;
+    EXPECT_EQ(ParsePortDownUpEventMsg("DOWN;:2:3:0", info), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_EmptyMessage)
+{
+    std::string eventId;
+    std::string eventMsg;
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_InvalidFormat)
+{
+    std::string eventId;
+    std::string eventMsg = "INVALID";
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownSuccess)
+{
+    std::string eventId;
+    std::string eventMsg = "DOWN;1:2:5:0";
+
+    using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
+    MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
+    auto mockExecutor = UbseTaskExecutor::Create("test", 1, 1000);
+    UbseMemFaultManager::executorPtr = mockExecutor;
+
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownAlreadyDown)
+{
+    std::string eventId;
+    std::string eventMsg = "DOWN;1:2:5:0";
+
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    AddPortDown(info);
+
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpSuccess)
+{
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    AddPortDown(info);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+
+    using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
+    MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
+    auto mockExecutor = UbseTaskExecutor::Create("test", 1, 1000);
+    UbseMemFaultManager::executorPtr = mockExecutor;
+
+    std::string eventId;
+    std::string eventMsg = "UP;1:2:5:0";
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
+    EXPECT_FALSE(IsPortDown("1", "2", "5"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpNotInDownRecord)
+{
+    std::string eventId;
+    std::string eventMsg = "UP;1:2:5:0";
+    EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, IsPortDown_NotDown)
+{
+    EXPECT_FALSE(IsPortDown("1", "2", "5"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, IsPortDown_IsDown)
+{
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    AddPortDown(info);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, AddPortDown_NewRecord)
+{
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    AddPortDown(info);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+    EXPECT_FALSE(IsPortDown("1", "2", "3"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, AddPortDown_MultiplePorts)
+{
+    PortEventInfo info1{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    PortEventInfo info2{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "6"};
+    AddPortDown(info1);
+    AddPortDown(info2);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+    EXPECT_TRUE(IsPortDown("1", "2", "6"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ErasePortDown_Success)
+{
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    AddPortDown(info);
+    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+
+    ErasePortDown(info);
+    EXPECT_FALSE(IsPortDown("1", "2", "5"));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ErasePortDown_NotExist)
+{
+    PortEventInfo info{.status = "UP", .slotId = "1", .chipId = "2", .portId = "5"};
+    ErasePortDown(info);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, OnePortDownHandle_NullExecutor)
+{
+    UbseMemFaultManager::executorPtr = nullptr;
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    EXPECT_EQ(UbseMemFaultManager::OnePortDownHandle(info), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, OnePortDownHandle_Success)
+{
+    using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
+    MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
+    auto mockExecutor = UbseTaskExecutor::Create("test", 1, 1000);
+    UbseMemFaultManager::executorPtr = mockExecutor;
+
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    EXPECT_EQ(UbseMemFaultManager::OnePortDownHandle(info), UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, OnePortUpHandle_NullExecutor)
+{
+    UbseMemFaultManager::executorPtr = nullptr;
+    PortEventInfo info{.status = "UP", .slotId = "1", .chipId = "2", .portId = "5"};
+    EXPECT_EQ(UbseMemFaultManager::OnePortUpHandle(info), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, OnePortUpHandle_Success)
+{
+    using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
+    MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
+    auto mockExecutor = UbseTaskExecutor::Create("test", 1, 1000);
+    UbseMemFaultManager::executorPtr = mockExecutor;
+
+    PortEventInfo info{.status = "UP", .slotId = "1", .chipId = "2", .portId = "5"};
+    EXPECT_EQ(UbseMemFaultManager::OnePortUpHandle(info), UBSE_OK);
 }
 } // namespace ubse::mem_controller::ut
