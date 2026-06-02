@@ -152,6 +152,11 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo &originNode, const
     ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
 
     uint64_t borrowMemorySize = std::accumulate(borrowSizes.begin(), borrowSizes.end(), static_cast<uint64_t>(0));
+
+    VMNodeLocInfo vmNodeLocInfo{.hostId = originNode.hostId,
+                                .socketId = originNode.socketId,
+                                .numaId = originNode.numaId};
+    ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapNumaMemBorrow(vmNodeLocInfo, borrowMemorySize);
     const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids, originNode.numaId, borrowMemorySize);
     // 2. Memory migration (memory scheduling interface)
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
@@ -233,6 +238,7 @@ float StatusManager::CalculateMemMigrateRatio(int16_t numaId, uint64_t curBorrow
             if (memIt != vmInfo.numaMemInfo.end()) {
                 totalVMusedMem += static_cast<double>(memIt->second.usedMem);
             }
+            totalVMusedMem += static_cast<double>(vmInfo.remoteUsedMem);
         }
     }
     UBSE_LOG_DEBUG << "totalBorrowedMem = " << std::to_string(totalBorrowedMem) << ", totalVMusedMem = "

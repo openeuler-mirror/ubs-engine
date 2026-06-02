@@ -543,4 +543,17 @@ VmResult ResourceCollect::UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDo
     return VM_OK;
 }
 
+void ResourceCollect::UpdateGlobalNumaInfoMapNumaMemBorrow(VMNodeLocInfo &vmNodeLocInfo, uint64_t borrowMemSize)
+{
+    std::lock_guard<std::mutex> numaInfoGuard(mGlobalNumaLock);
+    auto it = globalNumaInfoMap.find(vmNodeLocInfo);
+    if (it == globalNumaInfoMap.end()) {
+        UBSE_LOG_ERROR << "numa info not found, hostId = " << vmNodeLocInfo.hostId
+                       << ", socketId = " << std::to_string(vmNodeLocInfo.socketId)
+                       << ", numaId = " << std::to_string(vmNodeLocInfo.numaId);
+        return;
+    }
+    it->second.numaMemBorrow += borrowMemSize;
+}
+
 } // namespace vm
