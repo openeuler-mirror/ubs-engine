@@ -1843,6 +1843,20 @@ ubse::common::def::UbseResult FAKE_GetUbseConfForRadiusMax(const std::string& se
     }
     return UBSE_ERROR;
 }
+
+ubse::common::def::UbseResult FAKE_GetUbseConfForRadius2(const std::string& section, const std::string& configKey,
+                                                         std::string& configValue)
+{
+    if (section == "ubse.memory" && configKey == "radius.borrow") {
+        configValue = "2";
+        return UBSE_OK;
+    }
+    if (section == "ubse.memory" && configKey == "radius.lender") {
+        configValue = "2";
+        return UBSE_OK;
+    }
+    return UBSE_ERROR;
+}
 } // namespace
 
 /*
@@ -1920,6 +1934,156 @@ TEST_F(TestMemScheduler, TestBorrowWithRadiusMax)
         if (i <= 8) {
             EXPECT_EQ(ret, UBSE_OK) << "node 1 borrow from " << i << " should succeed";
         }
+    }
+}
+
+/*
+ * 用例描述：
+ * 测试CheckByMemoryRadius在用户请求路径下的借入半径校验（对称校验的借入侧）：
+ * 1. 走FD路径（candidateNodeList）建立债务：节点1→节点2、节点1→节点3（借入半径=2耗尽）
+ * 2. 借入半径耗尽后向新节点借用 → 失败（CheckByMemoryRadius立即拒绝）
+ * 3. 借入半径耗尽后向已有借入节点借用 → 成功（已有关系不受半径限制）
+ */
+TEST_F(TestMemScheduler, TestCheckByMemoryRadiusBorrow)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadius2));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(6);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 6);
+
+    UbseMemFdBorrowImportObj setupObj{};
+    setupObj.req.requestNodeId = "1";
+    setupObj.req.importNodeId = "1";
+    setupObj.req.size = MB_128;
+    setupObj.req.udsInfo.gid = 1;
+    setupObj.req.udsInfo.pid = 2;
+    setupObj.req.udsInfo.uid = 3;
+    setupObj.status.state = UBSE_MEM_SCHEDULING;
+
+    setupObj.req.name = "setup2";
+    setupObj.req.candidateNodeList = {"2"};
+    setupObj.algoResult.exportNumaInfos.clear();
+    setupObj.algoResult.importNumaInfos.clear();
+    EXPECT_EQ(scheduler::UbseMemFdImportObjStateChangeHandler(setupObj), UBSE_OK);
+
+    setupObj.req.name = "setup3";
+    setupObj.req.candidateNodeList = {"3"};
+    setupObj.algoResult.exportNumaInfos.clear();
+    setupObj.algoResult.importNumaInfos.clear();
+    EXPECT_EQ(scheduler::UbseMemFdImportObjStateChangeHandler(setupObj), UBSE_OK);
+
+    // borrow radius=2 exceeded, new lender node 4 → should be rejected
+    {
+        UbseMemFdBorrowImportObj importObj{};
+        importObj.req.requestNodeId = "1";
+        importObj.req.importNodeId = "1";
+        importObj.req.size = MB_128;
+        importObj.req.name = "test_new_lender";
+        importObj.req.udsInfo.gid = 1;
+        importObj.req.udsInfo.pid = 2;
+        importObj.req.udsInfo.uid = 3;
+        importObj.status.state = UBSE_MEM_SCHEDULING;
+        importObj.req.lenderLocs.push_back({"4", 1});
+        importObj.req.lenderSizes.push_back(MB_128);
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_NE(ret, UBSE_OK);
+    }
+
+    // borrow radius=2 exceeded, existing lender node 2 → should succeed
+    {
+        UbseMemFdBorrowImportObj importObj{};
+        importObj.req.requestNodeId = "1";
+        importObj.req.importNodeId = "1";
+        importObj.req.size = MB_128;
+        importObj.req.name = "test_existing_lender";
+        importObj.req.udsInfo.gid = 1;
+        importObj.req.udsInfo.pid = 2;
+        importObj.req.udsInfo.uid = 3;
+        importObj.status.state = UBSE_MEM_SCHEDULING;
+        importObj.req.lenderLocs.push_back({"2", 1});
+        importObj.req.lenderSizes.push_back(MB_128);
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_EQ(ret, UBSE_OK);
+    }
+}
+
+/*
+ * 用例描述：
+ * 测试CheckByMemoryRadius在用户请求路径下的借出半径校验（对称校验的借出侧）：
+ * 1. 走FD路径（candidateNodeList）建立债务：节点1→节点5、节点2→节点5（借出半径=2耗尽）
+ * 2. 借出半径耗尽后新借入节点借用 → 失败（CheckByMemoryRadius立即拒绝）
+ * 3. 借出半径耗尽后已有借入节点借用 → 成功（已有关系不受半径限制）
+ */
+TEST_F(TestMemScheduler, TestCheckByMemoryRadiusLender)
+{
+    AlgoAccountManger::GetInstance().Clear();
+    MOCKER_CPP(GetUbseConf<std::string>).stubs().will(invoke(FAKE_GetUbseConfForRadius2));
+    UbseMemConfiguration::GetInstance().Init();
+
+    MockGetNumValueTopo(6);
+    std::vector<ubse::nodeController::UbseNodeInfo> nodeInfos{};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfoMap{};
+    MockNumNodeAndCheckSuccess(nodeInfos, nodeInfoMap, 6);
+
+    UbseMemFdBorrowImportObj setupObj{};
+    setupObj.req.size = MB_128;
+    setupObj.req.udsInfo.gid = 1;
+    setupObj.req.udsInfo.pid = 2;
+    setupObj.req.udsInfo.uid = 3;
+    setupObj.status.state = UBSE_MEM_SCHEDULING;
+
+    setupObj.req.name = "setup1";
+    setupObj.req.requestNodeId = "1";
+    setupObj.req.importNodeId = "1";
+    setupObj.req.candidateNodeList = {"5"};
+    setupObj.algoResult.exportNumaInfos.clear();
+    setupObj.algoResult.importNumaInfos.clear();
+    EXPECT_EQ(scheduler::UbseMemFdImportObjStateChangeHandler(setupObj), UBSE_OK);
+
+    setupObj.req.name = "setup2";
+    setupObj.req.requestNodeId = "2";
+    setupObj.req.importNodeId = "2";
+    setupObj.req.candidateNodeList = {"5"};
+    setupObj.algoResult.exportNumaInfos.clear();
+    setupObj.algoResult.importNumaInfos.clear();
+    EXPECT_EQ(scheduler::UbseMemFdImportObjStateChangeHandler(setupObj), UBSE_OK);
+
+    // lender radius=2 exceeded, new borrower node 3 from node 5 → should be rejected
+    {
+        UbseMemFdBorrowImportObj importObj{};
+        importObj.req.requestNodeId = "3";
+        importObj.req.importNodeId = "3";
+        importObj.req.size = MB_128;
+        importObj.req.name = "test_new_borrower";
+        importObj.req.udsInfo.gid = 1;
+        importObj.req.udsInfo.pid = 2;
+        importObj.req.udsInfo.uid = 3;
+        importObj.status.state = UBSE_MEM_SCHEDULING;
+        importObj.req.lenderLocs.push_back({"5", 1});
+        importObj.req.lenderSizes.push_back(MB_128);
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_NE(ret, UBSE_OK);
+    }
+
+    // lender radius=2 exceeded, existing borrower node 1 from node 5 → should succeed
+    {
+        UbseMemFdBorrowImportObj importObj{};
+        importObj.req.requestNodeId = "1";
+        importObj.req.importNodeId = "1";
+        importObj.req.size = MB_128;
+        importObj.req.name = "test_existing_borrower";
+        importObj.req.udsInfo.gid = 1;
+        importObj.req.udsInfo.pid = 2;
+        importObj.req.udsInfo.uid = 3;
+        importObj.status.state = UBSE_MEM_SCHEDULING;
+        importObj.req.lenderLocs.push_back({"5", 1});
+        importObj.req.lenderSizes.push_back(MB_128);
+        auto ret = scheduler::UbseMemFdImportObjStateChangeHandler(importObj);
+        EXPECT_EQ(ret, UBSE_OK);
     }
 }
 

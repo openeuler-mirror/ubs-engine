@@ -49,6 +49,7 @@ constexpr uint64_t CHECK_LEND_NUMA_IS_ENOUGH = 1 << 19;
 constexpr uint64_t CHECK_LEND_NODE_IS_IN_GROUP = 1 << 20;
 constexpr uint64_t CHECK_LEND_NODE_IS_IN_CANDIDATELIST = 1 << 21;
 constexpr uint64_t CHECK_NODE_IS_DOWN = 1 << 22;
+constexpr uint64_t CHECK_BY_MEMORY_RADIUS = 1 << 23;
 class UbseMemValidator {
 public:
     UbseMemValidator()
@@ -81,32 +82,59 @@ private:
     void InitStatus();
 
     UbseResult DisPatchHandler(uint64_t checkCode);
+    // 采用算法决策时，过滤已借入的提供者节点（已借入的节点不能再借出）
     UbseResult FilterLendNodeHasBorrowed();
+    // 采用算法决策时，过滤非借出节点，只保留标记为 lender 的节点
     UbseResult FilterNodeIsLender();
+    // 采用算法决策时，根据同平面拓扑信息过滤 NUMA，只保留与请求端在同一平面内的 NUMA
     UbseResult FilterNumaBySamePlane();
+    // 采用算法决策时，根据候选节点列表过滤 NUMA，只保留候选列表中的节点
     UbseResult FilterCandidateNodeList();
+    // 采用算法决策时，根据分组配置过滤，只保留与请求节点在同一组的提供者节点
     UbseResult FilterNodeByGroup();
+    // 采用算法决策时，过滤状态异常的节点（宕机节点不可借出）
     UbseResult FilterNodeIsDown();
+    // 采用算法决策时，根据共享节点列表过滤，只保留指定提供者列表中的节点
     UbseResult FilterShareNodeList();
+    // 采用算法决策时，根据借出端 socket 信息过滤 NUMA
     UbseResult FilterNumaByLendSocket();
+    // 采用算法决策时，过滤借出次数超限的 socket
     UbseResult FilterInvalidSocketLendTimes();
+    // 采用算法决策时，根据指定的借出节点/端口信息过滤，仅保留匹配的 NUMA
     UbseResult FilterByLenderInfo();
+    // 采用算法决策时，基于同平面拓扑过滤共享节点，保留请求端所在平面内的节点
     UbseResult FilterShareBySamePlane();
+    // 采用算法决策时，过滤链路端口不通的节点
     UbseResult FilterByLinkPortDown();
+    // 采用算法决策时，综合借入半径和借出半径过滤
     UbseResult FilterByMemoryRadius();
+    // 采用算法决策时，根据借入半径限制过滤，已达上限时仅保留已有债务的提供者
     UbseResult FilterByBorrowRadius();
+    // 采用算法决策时，根据借出半径限制过滤，排除已达上限且未借给当前请求节点的 lender
     UbseResult FilterByLenderRadius();
 
+    // 检查内存配置（分配器、block size）是否合法
     UbseResult CheckMemoryConfigIsValid();
+    // 检查请求借入大小是否超过节点最大借入限制
     UbseResult CheckBorrowSizeMeetLimit();
+    // 指定借出方时，检查借入节点是否已借出（已借出的节点不能再借入）
     UbseResult CheckBorrowNodeHasLent();
+    // 指定借出方时，检查借出节点是否已借入（已借入的节点不能再借出）
     UbseResult CheckLendNodeHasBorrowed();
+    // 指定借出方时，检查借出节点是否配置为 lender
     UbseResult CheckLendNodeIsLender();
+    // 指定借出方时，检查借出端 NUMA 预留内存是否充足
     UbseResult CheckLendNumaIsEnough();
+    // 指定借出方时，检查借出节点是否在请求节点的分组中
     UbseResult CheckLendNodeIsInGroup();
+    // 指定借出方时，检查借出节点是否在候选列表中
     UbseResult CheckLendNodeIsInCandidatelist();
+    // 指定借出方时，检查借出节点状态是否正常
     UbseResult CheckLendNodeIsDown();
+    // 指定借出方时，检查借出信息（nodeId/socketId/numaId/portId）是否合法
     UbseResult CheckLenderInfoIsValid() const;
+    // 指定借出方时，检查借入和借出是否超出各自半径限制
+    UbseResult CheckByMemoryRadius();
 
     // 定义函数指针类型
     using CheckHandlerFunc = UbseResult (UbseMemValidator::*)();
@@ -134,7 +162,8 @@ private:
         {FILTER_LEND_TIME_OUT, &UbseMemValidator::FilterInvalidSocketLendTimes},
         {FILTER_SHARE_BY_LENDER, &UbseMemValidator::FilterByLenderInfo},
         {FILTER_LINK_PORT_DOWN, &UbseMemValidator::FilterByLinkPortDown},
-        {FILTER_BY_MEMORY_RADIUS, &UbseMemValidator::FilterByMemoryRadius}};
+        {FILTER_BY_MEMORY_RADIUS, &UbseMemValidator::FilterByMemoryRadius},
+        {CHECK_BY_MEMORY_RADIUS, &UbseMemValidator::CheckByMemoryRadius}};
 };
 } // namespace ubse::mem::strategy
 #endif

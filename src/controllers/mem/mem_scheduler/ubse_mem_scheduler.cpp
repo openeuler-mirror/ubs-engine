@@ -201,11 +201,11 @@ uint64_t GetCheckMaskCodeByNumaReq(const UbseMemNumaBorrowReq& numaReq)
 }
 
 template <class ReqType>
-uint64_t GetCheckMaskCodeByUserReq(const ReqType& userReq)
+uint64_t GetCheckMaskCodeByLenderReq(const ReqType& userReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | CHECK_BORROW_SIZE_MEET_LIMIT | CHECK_BORROW_NODE_HAS_LENT |
                              CHECK_LEND_NODE_HAS_BORROWED | CHECK_LEND_NODE_IS_IN_GROUP | CHECK_LEND_NODE_IS_LENDER |
-                             CHECK_NODE_IS_DOWN | CHECK_LEND_NUMA_IS_ENOUGH | FILTER_BY_MEMORY_RADIUS;
+                             CHECK_NODE_IS_DOWN | CHECK_LEND_NUMA_IS_ENOUGH | CHECK_BY_MEMORY_RADIUS;
 
     if (!userReq.candidateNodeList.empty()) {
         checkMaskCode |= CHECK_LEND_NODE_IS_IN_CANDIDATELIST;
@@ -295,7 +295,7 @@ uint32_t UbseMemFdImportObjStateChangeHandler(UbseMemFdBorrowImportObj& importOb
         auto isNeedRetry = UpdateCacheNodeState(nodeMap);
         UbseResult ret = UBSE_OK;
         if (!importObj.req.lenderLocs.empty()) {
-            auto checkMaskCode = GetCheckMaskCodeByUserReq(importObj.req);
+            auto checkMaskCode = GetCheckMaskCodeByLenderReq(importObj.req);
             ret = strategy::UbseMemStrategyHelper::GetInstance().MemoryBorrowAccordingToUserRequest(
                 importObj.req, importObj.algoResult, checkMaskCode);
             if (ret != UBSE_OK) {
@@ -354,7 +354,7 @@ uint32_t UbseMemNumaImportObjStateChangeHandler(UbseMemNumaBorrowImportObj& impo
         }
 
         if (!importObj.req.lenderLocs.empty()) {
-            auto checkMaskCode = GetCheckMaskCodeByUserReq(importObj.req);
+            auto checkMaskCode = GetCheckMaskCodeByLenderReq(importObj.req);
             ret = strategy::UbseMemStrategyHelper::GetInstance().MemoryBorrowAccordingToUserRequest(
                 importObj.req, importObj.algoResult, checkMaskCode, importObj.req.srcSocket, importObj.req.srcNuma);
             if (ret != UBSE_OK) {
