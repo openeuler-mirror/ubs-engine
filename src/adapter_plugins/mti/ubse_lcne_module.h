@@ -27,13 +27,7 @@
 
 namespace ubse::mti {
 using ubse::module::UbseModule;
-using namespace ubse::module;
-using namespace ubse::context;
 using namespace ubse::adapter_plugins::mti;
-
-constexpr uint32_t IPV6_FULL_FORMAT_LENGTH = 39;
-constexpr uint32_t IPV6_BYTE_COUNT = 16;
-constexpr size_t IPV6_SEGMENT_LENGTH = 4;
 
 class UbseLcneModule : public UbseModule {
 public:

@@ -24,7 +24,7 @@ namespace ubse::utils {
 using namespace common::def;
 std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe0Id, uint16_t fe1Id)
 {
-    uint32_t id0 = BEID_PREFIX + superPodId;
+    uint32_t id0 = BEID_PREFIX;
     uint32_t id1 = 0;
     uint32_t id2 = (static_cast<uint32_t>(fe0Id) << 16) | fe1Id;
     uint32_t id3 = nodeId;
@@ -66,11 +66,11 @@ UbseResult ParseBaseEid(const std::string& baseEid, std::string& bitStr)
 
     std::vector<uint16_t> values;
     for (const auto& seg : segments) {
-        try {
-            values.push_back(static_cast<uint16_t>(std::stoul(seg, nullptr, NO_16)));
-        } catch (const std::invalid_argument& e) {
+        uint16_t value = 0;
+        if (ConvertStrToUint16(seg, value, NO_16) != UBSE_OK) {
             return UBSE_ERROR;
         }
+        values.push_back(value);
     }
 
     for (auto value : values) {
@@ -105,39 +105,39 @@ void ConstructEid(const std::string& bitStr, std::string& eid)
 
 UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::string& result)
 {
-    uint32_t podId = serverIdx / NO_8;
-    uint32_t serverId = serverIdx % NO_8;
-    return OverwriteEid(podId, serverId, baseEid, result);
-
-    /* 当前eid算法逻辑保持原有，待LCNE更新后替换 */
-}
-
-UbseResult OverwriteEid(uint32_t podId, uint32_t serverId, const std::string& baseEid, std::string& result)
-{
-    uint32_t n = 116; // 从第117位开始，3位podId，3位serverId
-    uint8_t podBitSize = NO_3;
-    uint8_t serverBitSize = NO_3;
+    uint32_t n = 96; // 从第97位开始，4位part1, 101-104为不变，9位part2
+    uint8_t serverIdx_h = NO_4;
+    uint8_t serverIdx_l = NO_9;
+    // 取serverIdx低13bit, 高4bit为part1, 低9bit为part2
+    uint32_t nodeIdLow13 = serverIdx & ((1 << (serverIdx_h + serverIdx_l)) - 1);
+    uint8_t part2 = nodeIdLow13 & ((1 << serverIdx_l) - 1);          // bits [0:8]
+    uint8_t part1 = (nodeIdLow13 >> serverIdx_l) & ((1 << serverIdx_h) - 1) + 1;  // bits [9:12]
 
     std::string bitStr;
-    auto ret = ParseBaseEid(baseEid, bitStr);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
 
-    if (n + podBitSize + serverBitSize > bitStr.size()) {
+    if (auto ret = ParseBaseEid(baseEid, bitStr); ret != UBSE_OK) {
         return UBSE_ERROR;
     }
+    // 检查替换区域是否超出bitStr范围
+    if (n + serverIdx_h + serverIdx_l > bitStr.size()) {
+        return UBSE_ERROR;
+    }
+    // part1和part2转bit字符串
+    std::bitset<NO_16> part1Bits(part1);
+    std::bitset<NO_16> part2Bits(part2);
+    std::string part1BitStr = part1Bits.to_string().substr(NO_16 - serverIdx_h);
+    std::string part2BitStr = part2Bits.to_string().substr(NO_16 - serverIdx_l);
 
-    std::bitset<NO_32> podIdBits(podId);
-    std::bitset<NO_32> serverIdBits(serverId);
+    // 128位bitStr中：
+    // (positions 104-112) 替换为part2 (9位)
+    // (positions 100-103) 不变 (4位)
+    // (positions 96-99)  替换为part1 (4位)
+    // 其余部分不变
+    std::string eidBitStr = bitStr.substr(0, n) + part1BitStr +
+                            bitStr.substr(n + serverIdx_h, NO_4) + part2BitStr +
+                            bitStr.substr(n + serverIdx_h + NO_4 + serverIdx_l);
 
-    std::string podIdBitStr = podIdBits.to_string().substr(NO_32 - podBitSize);
-    std::string serverIdBitStr = serverIdBits.to_string().substr(NO_32 - serverBitSize);
-
-    std::string eidBitStr =
-        bitStr.substr(0, n) + podIdBitStr + serverIdBitStr + bitStr.substr(n + podBitSize + serverBitSize);
     ConstructEid(eidBitStr, result);
     return UBSE_OK;
 }
-
 } // namespace ubse::utils

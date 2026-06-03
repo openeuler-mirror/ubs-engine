@@ -69,7 +69,7 @@ constexpr uint32_t STACK_IGNORE_DEPTH = 0;
 constexpr uint32_t PRINTSIG = 35;
 constexpr uint32_t DEFAULTTIMEOUT = 60;
 constexpr uint32_t DEFAULTHBTIMEOUT = 30;
-constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 64;
+constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 1024;
 
 const uint16_t MIN_PORT = 1024;
 const uint16_t MAX_PORT = 65535;
