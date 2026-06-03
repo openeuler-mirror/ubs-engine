@@ -52,7 +52,8 @@ public:
 
     UbseResult GetLocalUrmaDevInfoByName(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
     UbseResult AllocUrmaDev(const std::string& urmaName, std::vector<std::string>& feNames, std::string& eid);
-    UbseResult GetAllUvsTopoInfo(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    UbseResult GetAllUvsTopoInfo(uint32_t startServerIdx, uint32_t batchNodeNum,
+                                 std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
     void SetUrmaSubPath(const std::string& urmaEid, const std::string& urmaSubPath);
     void SetFeName(const std::string& feEid, const std::string& urmaEidName);
     UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string& nodeId);
@@ -73,10 +74,9 @@ private:
     // clos组网下，获取通信bonding，插入到本节点的urmaList中，拓展到96bonding
     UbseResult InsertComBondingUrmaDevInner();
     std::string GenerateBondingDevName(ubse::adapter_plugins::mti::UbseMtiFeType feType);
-    UbseResult GetAllUvsTopoInfoForClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
+    UbseResult GetAllUvsTopoInfoForClos(uint32_t startServerIdx, uint32_t batchNodeNum,
                                         std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
-    UbseResult GetAllUvsTopoInfoForNonClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
-                                           std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    UbseResult GetAllUvsTopoInfoForNonClos(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
 
 private:
     utils::ReadWriteLock rwLock;

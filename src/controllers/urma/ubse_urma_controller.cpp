@@ -12,6 +12,7 @@
 
 #include "ubse_urma_controller.h"
 #include <cstddef>
+#include <cstdint>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -174,11 +175,15 @@ UbseResult UbseUrmaController::DoTopoLinkChange()
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     // 下发所有节点拓扑及所有urmaInfo
-    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(uvsInfos);
-    if (auto ret = UbseUrmaControllerSetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
-        return ret;
+    const uint32_t batchNodeNum = 64;
+    const uint32_t batchNum = (UBSE_CLOS_MAX_NODE_NUM + batchNodeNum - 1) / batchNodeNum;
+    for (uint32_t batchIdx = 0; batchIdx < batchNum; ++batchIdx) {
+        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+        UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(batchIdx * batchNodeNum, batchNodeNum, uvsInfos);
+        if (auto ret = UbseUrmaControllerSetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
+            return ret;
+        }
     }
     // 向urma重新查询bounding状态，并更新状态
     RefreshAllUrmaDevsState(curNode.nodeId);
@@ -576,10 +581,9 @@ void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string &nodeId, std::v
     auto it =
         std::find_if(uvsInfos.begin(), uvsInfos.end(), [&nodeId](const auto &info) { return info.nodeId == nodeId; });
     if (it == uvsInfos.end()) {
-        UBSE_LOG_WARN << "Failed to find nodeId=" << nodeId << " in uvsInfos";
         return;
     }
-
+    UBSE_LOG_INFO << "Fill urma dev info by uvs info for nodeId=" << nodeId << ", dev num=" << it->devList.size();
     auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
     if (urmaModule == nullptr) {
         UBSE_LOG_WARN << "Getting UrmaModule failed.";

@@ -110,8 +110,8 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
     uint8_t serverIdx_l = NO_9;
     // 取serverIdx低13bit, 高4bit为part1, 低9bit为part2
     uint32_t nodeIdLow13 = serverIdx & ((1 << (serverIdx_h + serverIdx_l)) - 1);
-    uint8_t part2 = nodeIdLow13 & ((1 << serverIdx_l) - 1);          // bits [0:8]
-    uint8_t part1 = (nodeIdLow13 >> serverIdx_l) & ((1 << serverIdx_h) - 1) + 1;  // bits [9:12]
+    uint8_t part2 = nodeIdLow13 & ((1 << serverIdx_l) - 1);                        // bits [0:8]
+    uint8_t part1 = ((nodeIdLow13 >> serverIdx_l) & ((1 << serverIdx_h) - 1)) + 1; // bits [9:12]
 
     std::string bitStr;
 
@@ -133,8 +133,7 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
     // (positions 100-103) 不变 (4位)
     // (positions 96-99)  替换为part1 (4位)
     // 其余部分不变
-    std::string eidBitStr = bitStr.substr(0, n) + part1BitStr +
-                            bitStr.substr(n + serverIdx_h, NO_4) + part2BitStr +
+    std::string eidBitStr = bitStr.substr(0, n) + part1BitStr + bitStr.substr(n + serverIdx_h, NO_4) + part2BitStr +
                             bitStr.substr(n + serverIdx_h + NO_4 + serverIdx_l);
 
     ConstructEid(eidBitStr, result);
