@@ -201,9 +201,25 @@ UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeIn
     for (const auto& kv : comUrmaInfos) {
         std::vector<UbseUrmaUvsAggrDev> aggrs;
         aggrs.push_back(kv.second);
-        UbseUrmaUvsNodeInfo info{kv.first, aggrs};
-        hostUrmaInfos.push_back(info);
+        UbseUrmaUvsNodeInfo info{kv.first, std::move(aggrs)};
+        hostUrmaInfos.push_back(std::move(info));
     }
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeComUrmaCollector::GetComUrmaByNodeId(const std::string& nodeId,
+                                                        std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+{
+    hostUrmaInfos.clear();
+    auto it = comUrmaInfos.find(nodeId);
+    if (it == comUrmaInfos.end()) {
+        UBSE_LOG_ERROR << "Node " << nodeId << " not found in comUrmaInfos";
+        return UBSE_ERROR;
+    }
+    std::vector<UbseUrmaUvsAggrDev> aggrs;
+    aggrs.push_back(it->second);
+    UbseUrmaUvsNodeInfo info{it->first, std::move(aggrs)};
+    hostUrmaInfos.push_back(std::move(info));
     return UBSE_OK;
 }
 
