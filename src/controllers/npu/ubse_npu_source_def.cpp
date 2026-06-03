@@ -65,9 +65,9 @@ UbseResult NpuResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.dieId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.pfId))
+        if (!packUtil.UbsePackUint16(device.pfId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.vfId))
+        if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -130,9 +130,9 @@ UbseResult BusiResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.dieId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.pfId))
+        if (!packUtil.UbsePackUint16(device.pfId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.vfId))
+        if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -194,9 +194,9 @@ UbseResult NicPfeResource::Pack(UbsePackUtil& packUtil)
             return UBSE_ERROR;
         if (!packUtil.UbsePackUint8(device.dieId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.pfId))
+        if (!packUtil.UbsePackUint16(device.pfId))
             return UBSE_ERROR;
-        if (!packUtil.UbsePackUint8(device.vfId))
+        if (!packUtil.UbsePackUint16(device.vfId))
             return UBSE_ERROR;
     }
     return UBSE_OK;

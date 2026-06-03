@@ -269,7 +269,7 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
                               .slotId = nicLoc.slotId,
                               .chipId = nicLoc.chipId,
                               .pfId = nicLoc.pfeId,
-                              .vfId = nicLoc.pfeId});
+                              .vfId = nicLoc.vfeId});
         UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.pfeId << "-" << nicLoc.vfeId
                        << " added to busRes.subDevices";
     }

@@ -411,7 +411,7 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithNicVfe)
     EXPECT_EQ(busRes->subDevices_[0].slotId, nicVfeLoc.slotId);
     EXPECT_EQ(busRes->subDevices_[0].chipId, nicVfeLoc.chipId);
     EXPECT_EQ(busRes->subDevices_[0].pfId, nicVfeLoc.pfeId);
-    EXPECT_EQ(busRes->subDevices_[0].vfId, nicVfeLoc.pfeId);
+    EXPECT_EQ(busRes->subDevices_[0].vfId, nicVfeLoc.vfeId);
 }
 
 TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithIdevVfe)

@@ -1071,7 +1071,22 @@ UbseResult CheckCollection(const std::string& action)
 
 UbseResult QueryUbaTidSizeImpl(const std::string& busInstanceGuid, UbaTidSize& info)
 {
-    return UBSE_OK;
+    auto& collection = ResourceCollection::GetInstance();
+    const std::shared_ptr<CollectionDeviceBusi> busInstance =
+        CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(collection.GetDeviceByGuid(busInstanceGuid));
+    if (busInstance == nullptr) {
+        UBSE_LOG_ERROR << "bus instance " << busInstanceGuid << " not found";
+        return UBSE_ERROR;
+    }
+    const auto mtiBusInstance = ConvertToUbseMtiBusi(busInstance);
+    const UbseResult res =
+        UbseMtiBusInstance::GetInstance().GetD2hMemory(mtiBusInstance, info.tid, info.uba, info.size);
+    if (res != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query uba, busInstanceGuid: " << busInstance->GetIdStr();
+        return res;
+    }
+    UBSE_LOG_INFO << "Query UbaTidSize: tid:" << info.tid << " uba: " << info.uba << " size: " << info.size;
+    return res;
 }
 
 UbseNpuManagerApi& UbseNpuManagerApi::GetInstance()
