@@ -43,10 +43,10 @@ TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_Success)
     module->uvsSetTopoInfo = [](void* topo, uint32_t topo_size, uint32_t topNum) {
         return UBSE_OK;
     };
-    nodes.push_back(UbcoreTopoNode{.type = 0, .superNodeId = 0, .id = 1, .is_current = 1});
-    nodes.push_back(UbcoreTopoNode{.type = 0, .superNodeId = 0, .id = 2, .is_current = 0});
+    nodes.push_back(UbcoreTopoNode{.type = 0, .super_node_id = 0, .id = 1, .is_current = 1});
+    nodes.push_back(UbcoreTopoNode{.type = 0, .super_node_id = 0, .id = 2, .is_current = 0});
 
-    MOCKER_CPP(&FillNodeComInfo).stubs().with(any(), any(), any(), outBound(nodes)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&FillNodeComInfo).stubs().with(any(), any(), outBound(nodes)).will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
 
     auto ret = UbsePushTopoAndBondingToUvs(current_slot_id, allLinkInfo, bondingInfo);
@@ -412,7 +412,7 @@ TEST_F(TestUrmaUvs, FillNodeComInfo)
     devList.push_back(UbseUrmaUvsAggrDev{.urmaDevEid = "4225:0000:0000:0000:0000:0000:0000:0001", .feList = feList});
     bondingInfo.push_back(UbseUrmaUvsNodeInfo{.nodeId = "1", .devList = devList});
 
-    auto ret = FillNodeComInfo("1", allLinkInfo, bondingInfo, nodes);
+    auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -439,129 +439,7 @@ TEST_F(TestUrmaUvs, FillNodeComInfo_NoLink)
     devList.push_back(UbseUrmaUvsAggrDev{.urmaDevEid = "4225:0000:0000:0000:0000:0000:0000:0001", .feList = feList});
     bondingInfo.push_back(UbseUrmaUvsNodeInfo{.nodeId = "1", .devList = devList});
 
-    auto ret = FillNodeComInfo("1", allLinkInfo, bondingInfo, nodes);
+    auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
     EXPECT_EQ(ret, UBSE_OK);
-}
-
-namespace {
-uint32_t PortIndex(uint32_t chipId, uint32_t portId)
-{
-    return (chipId - 1) * PORT_NUM + portId;
-}
-
-UbcoreTopoNode MakeTopoNode(uint32_t nodeId, bool isCurrent)
-{
-    UbcoreTopoNode node{};
-    node.id = nodeId;
-    node.type = 1;
-    node.is_current = isCurrent ? 1 : 0;
-    return node;
-}
-
-UbseUrmaTopoConfig MakeNonCrossTopoConfig()
-{
-    UbseUrmaTopoConfig config{};
-    config.version = "1.0";
-    config.nodeType = "normal";
-    config.linkType = "non-cross";
-    config.nodePorts = {
-        {1, 1, 1},
-        {1, 1, 2},
-        {2, 1, 1},
-        {2, 1, 2},
-    };
-    config.links = {
-        {{1, 1, 1}, {1, 1, 1}},
-        {{1, 1, 2}, {1, 1, 2}},
-        {{2, 1, 1}, {2, 1, 1}},
-        {{2, 1, 2}, {2, 1, 2}},
-    };
-    return config;
-}
-
-UbseUrmaTopoConfig MakeHccsCrossTopoConfig()
-{
-    UbseUrmaTopoConfig config{};
-    config.version = "1.0";
-    config.nodeType = "normal";
-    config.linkType = "hccs-cross";
-    config.nodePorts = {
-        {1, 1, 1},
-        {1, 1, 2},
-        {2, 1, 1},
-        {2, 1, 2},
-    };
-    config.links = {
-        {{1, 1, 1}, {1, 1, 1}}, {{1, 1, 1}, {2, 1, 1}}, {{1, 1, 2}, {1, 1, 2}}, {{1, 1, 2}, {2, 1, 2}},
-        {{2, 1, 1}, {2, 1, 1}}, {{2, 1, 1}, {1, 1, 1}}, {{2, 1, 2}, {2, 1, 2}}, {{2, 1, 2}, {1, 1, 2}},
-    };
-    return config;
-}
-} // namespace
-
-/*
- * 用例描述：按 non-cross 静态拓扑配置填充 CLOS 拓扑矩阵。
- * 预期结果：当前节点仅 localPort 自连通为 true，非当前节点填充同 chip 同 port 链路。
- */
-TEST_F(TestUrmaUvs, FillClosTopoByConfigNonCrossSuccess)
-{
-    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
-        {"1", MakeTopoNode(1, true)},
-        {"2", MakeTopoNode(2, false)},
-    };
-
-    EXPECT_EQ(FillClosTopoByConfig(MakeNonCrossTopoConfig(), nodeMap), UBSE_OK);
-
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
-    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 3)][PortIndex(1, 3)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
-    EXPECT_FALSE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
-}
-
-/*
- * 用例描述：按 hccs-cross 静态拓扑配置填充 CLOS 拓扑矩阵。
- * 预期结果：当前节点仅 localPort 自连通为 true，非当前节点同时填充同 chip 同 port 和跨 chip 链路。
- */
-TEST_F(TestUrmaUvs, FillClosTopoByConfigHccsCrossSuccess)
-{
-    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
-        {"1", MakeTopoNode(1, true)},
-        {"2", MakeTopoNode(2, false)},
-    };
-
-    EXPECT_EQ(FillClosTopoByConfig(MakeHccsCrossTopoConfig(), nodeMap), UBSE_OK);
-
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(1, 2)][PortIndex(1, 2)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["1"].links[PortIndex(2, 2)][PortIndex(2, 2)]);
-    EXPECT_FALSE(nodeMap["1"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(1, 2)][PortIndex(2, 2)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 1)][PortIndex(1, 1)]);
-    EXPECT_TRUE(nodeMap["2"].links[PortIndex(2, 2)][PortIndex(1, 2)]);
-    EXPECT_FALSE(nodeMap["2"].links[PortIndex(1, 1)][PortIndex(2, 2)]);
-}
-
-/*
- * 用例描述：CLOS 静态拓扑配置中端口 chipId 非法。
- * 预期结果：填充失败并返回 UBSE_ERROR。
- */
-TEST_F(TestUrmaUvs, FillClosTopoByConfigFailsWhenChipInvalid)
-{
-    auto config = MakeNonCrossTopoConfig();
-    config.links[0].localPort.chipId = 0;
-    std::unordered_map<std::string, UbcoreTopoNode> nodeMap{
-        {"2", MakeTopoNode(2, false)},
-    };
-
-    EXPECT_EQ(FillClosTopoByConfig(config, nodeMap), UBSE_ERROR);
 }
 } // namespace ubse::urma::ut
