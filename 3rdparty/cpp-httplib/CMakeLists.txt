@@ -12,12 +12,12 @@ find_library(CPPHTTPLIB_LIBRARY
 
 if((NOT CPPHTTPLIB_INCLUDE_DIR OR NOT CPPHTTPLIB_LIBRARY) AND NOT SOURCE_COMPILING)
     message(FATAL_ERROR "cpp-httplib not found! Please execute:
-                sudo yum install 'cpp-httplib-devel >= 0.27.0'")
+                sudo yum install 'cpp-httplib-devel >= 0.40.0'")
 endif()
 
 if (SOURCE_COMPILING)
     set(CPPHTTPLIB_REPO "https://gitcode.com/GitHub_Trending/cp/cpp-httplib.git")
-    set(CPPHTTPLIB_TAG "v0.27.0")
+    set(CPPHTTPLIB_TAG "v0.40.0")
     FetchContent_Declare(
             build-cpp-httplib
             GIT_REPOSITORY ${CPPHTTPLIB_REPO}
