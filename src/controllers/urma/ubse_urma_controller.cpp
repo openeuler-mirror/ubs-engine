@@ -175,7 +175,7 @@ UbseResult UbseUrmaController::DoTopoLinkChange()
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     // 下发所有节点拓扑及所有urmaInfo
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsInfo(uvsInfos);
+    UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(uvsInfos);
     if (auto ret = UbseUrmaControllerSetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
         return ret;

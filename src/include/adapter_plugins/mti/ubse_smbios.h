@@ -16,8 +16,8 @@
 #include <cstdint>
 enum class UbseMeshType
 {
-    FULL_MESH = 1,
-    CLOS = 8,
+    FULL_MESH = 0x80,
+    CLOS = 0x81,
 };
 namespace ubse::adapter_plugins::smbios {
 class UbseSmbios {
