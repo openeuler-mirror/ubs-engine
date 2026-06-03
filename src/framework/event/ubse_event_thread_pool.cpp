@@ -12,9 +12,9 @@
 
 #include "ubse_event_thread_pool.h"
 
-#include <cstdint>
 #include <pthread.h>
 #include <sched.h>
+#include <cstdint>
 #include "trace_context.h"
 
 namespace ubse::event {
@@ -43,7 +43,7 @@ static void SetThreadPriority(uint32_t priority)
     if (priority == 0) {
         return;
     }
-    struct sched_param sParam {};
+    struct sched_param sParam = {};
     sParam.sched_priority = static_cast<int>(priority);
     auto ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &sParam);
     if (ret != static_cast<int>(UBSE_OK)) {

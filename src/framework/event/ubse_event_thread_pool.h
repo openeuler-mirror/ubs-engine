@@ -20,8 +20,8 @@
 #include "ubse_error.h"
 #include "ubse_event_queue.h"
 #include "ubse_logger_module.h"
-#include "referable/ubse_ref.h"
 #include "ubse_thread_pool.h"
+#include "referable/ubse_ref.h"
 
 namespace ubse::event {
 constexpr uint32_t DEFAULT_QUEUE_SIZE = 1024;
@@ -29,10 +29,10 @@ constexpr uint32_t DEFAULT_HIGH_PRIORITY = 90;
 constexpr uint32_t DEFAULT_MEDIUM_PRIORITY = 10;
 constexpr uint32_t DEFAULT_LOW_PRIORITY = 1;
 using ubse::common::def::UbseResult;
-using ubse::utils::Ref;
-using ubse::utils::Referable;
 using ubse::task_executor::UbseTaskExecutor;
 using ubse::task_executor::UbseTaskExecutorPtr;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 
 class UbseEventThreadPool : public Referable {
 public:
