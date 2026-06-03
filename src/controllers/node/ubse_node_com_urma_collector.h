@@ -35,6 +35,8 @@ public:
 
     UbseResult GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
+    UbseResult GetComUrmaByNodeId(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
+
     UbseResult FillComUrmaInfo();
 
     UbseResult FillComUrmaInfoClos();
