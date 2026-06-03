@@ -224,18 +224,16 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(const std::vector
     const size_t batchNodeNum = 64;
     const size_t batchNum = (UBSE_CLOS_MAX_NODE_NUM + batchNodeNum - 1) / batchNodeNum;
     for (size_t batchIdx = 0; batchIdx < batchNum; ++batchIdx) {
+        ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
         this->InferOtherNodesUrmaDevInfo(curNode.nodeId, batchIdx * batchNodeNum, batchNodeNum);
-        {
-            ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
-            for (auto& nodeInfo : nodeInfos) {
-                UbseUrmaUvsNodeInfo tmpUvsInfo{};
-                if (FillUrmaUvsNodeInfo(hostUrmaInfos, nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
-                    UBSE_LOG_ERROR << "Fill urma uvs info failed.";
-                    this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
-                    return UBSE_ERROR;
-                }
-                uvsInfos.push_back(tmpUvsInfo);
+        for (auto& nodeInfo : nodeInfos) {
+            UbseUrmaUvsNodeInfo tmpUvsInfo{};
+            if (FillUrmaUvsNodeInfo(hostUrmaInfos, nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
+                UBSE_LOG_ERROR << "Fill urma uvs info failed.";
+                this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
+                return UBSE_ERROR;
             }
+            uvsInfos.push_back(tmpUvsInfo);
         }
         // 获取拓扑信息后，删除其它节点的urmaInfo，只保留本节点的urmaInfo，避免内存占用过高
         this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
@@ -651,6 +649,7 @@ void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     FeTopoType topoType = FeTopoType::INVALID;
     const uint32_t PFE_VFE_HYBRID_PFE_CNT = 1;
     const uint32_t PFE_VFE_HYBRID_VFE_CNT = 5;
+    const uint32_t ALL_PFE_CNT = 6;
     for (size_t iouIdx = 0; iouIdx < feInfos.size(); ++iouIdx) {
         auto& feInfoIou = feInfos[iouIdx];
         uint32_t pfeCnt = 0;
@@ -665,6 +664,8 @@ void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
         FeTopoType iouTopoType = FeTopoType::INVALID;
         if (pfeCnt == PFE_VFE_HYBRID_PFE_CNT && vfeCnt == PFE_VFE_HYBRID_VFE_CNT) {
             iouTopoType = FeTopoType::PFE_VFE_HYBRID;
+        } else if (pfeCnt == ALL_PFE_CNT && vfeCnt == 0) {
+            iouTopoType = FeTopoType::ALL_PFE;
         } else {
             UBSE_LOG_WARN << "Invalid fe topology on IOU[" << iouIdx << "], pfeCnt=" << pfeCnt << ", vfeCnt=" << vfeCnt;
             topoType = FeTopoType::INVALID;
@@ -896,7 +897,6 @@ UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(const std::stri
         UBSE_LOG_WARN << "Only support CLOS mesh type, skip infer other nodes";
         return UBSE_OK;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     if (nodeInfos.find(basedNodeId) == nodeInfos.end()) {
         UBSE_LOG_WARN << "There is no urma dev info for node=" << basedNodeId << ", skip infer other nodes";
         return UBSE_ERROR;
@@ -928,7 +928,6 @@ void UbseUrmaControllerManager::DeleteOtherNodesUrmaInfo(const std::string& curN
         UBSE_LOG_WARN << "Only support CLOS mesh type, skip infer other nodes";
         return;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     // 提取本节点信息，避免后续 swap 时被销毁
     auto curNodeHandle = nodeInfos.extract(curNodeId);
     // swap 强制立即释放旧 map 的全部内存（包括 Rb-tree 节点），不留缓存
