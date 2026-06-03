@@ -1013,6 +1013,29 @@ UbseResult UbseMemValidator::FilterByLinkPortDown()
     return UBSE_OK;
 }
 
+UbseResult UbseMemValidator::CheckByMemoryRadius()
+{
+    auto& borrowDebt = UbseMemStrategyHelper::GetInstance().GetBorrowDebt();
+    auto borrowRadius = UbseMemConfiguration::GetInstance().GetBorrowRadius();
+    auto borrowIt = borrowDebt.find(importNodeId_);
+    if (borrowRadius == 0 || (borrowIt != borrowDebt.end() && borrowIt->second.size() >= borrowRadius &&
+                              borrowIt->second.find(exportNodeId_) == borrowIt->second.end())) {
+        UBSE_LOG_ERROR << "Borrower node=" << importNodeId_ << " has reached borrow radius=" << borrowRadius
+                       << ", can't lend to borrower=" << importNodeId_;
+        return UBSE_ERROR;
+    }
+    auto lenderRadius = UbseMemConfiguration::GetInstance().GetLenderRadius();
+    auto& lenderDebt = UbseMemStrategyHelper::GetInstance().GetLenderDebt();
+    auto lenderIt = lenderDebt.find(exportNodeId_);
+    if (lenderRadius == 0 || (lenderIt != lenderDebt.end() && lenderIt->second.size() >= lenderRadius &&
+                              lenderIt->second.find(importNodeId_) == lenderIt->second.end())) {
+        UBSE_LOG_ERROR << "Lender node=" << exportNodeId_ << " has reached lender radius=" << lenderRadius
+                       << ", can't lend to borrower=" << importNodeId_;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseMemValidator::DisPatchHandler(uint64_t checkCode)
 {
     auto it = g_checkHandlers.find(checkCode);
