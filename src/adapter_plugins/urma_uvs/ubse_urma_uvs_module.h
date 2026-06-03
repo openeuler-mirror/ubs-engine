@@ -32,7 +32,6 @@ using UvsDeleteAggrDev = uint32_t (*)(char* aggrDevEid);
 constexpr uint32_t EID_LEN = 16;
 constexpr uint32_t IODIE_NUM = 2;
 constexpr uint32_t PORT_NUM = 9;
-constexpr uint32_t UVS_PORT_NUM = IODIE_NUM * PORT_NUM;
 constexpr uint32_t DEV_NUM = 256;
 constexpr size_t DEV_NAME_LEN = 32;
 
@@ -56,12 +55,18 @@ struct UbcoreTopoAggrDev {
     UbcoreTopoFe fe[IODIE_NUM];
 };
 
+struct UbcoreTopoLink {
+    uint32_t peer_node;  // node id
+    uint32_t peer_iodie; // iodie idx
+    uint32_t peer_port;  // poet idx, UINT32_MAX=无连接
+};
+
 struct UbcoreTopoNode {
-    uint32_t type;                          // 0代表1D-FULLMESH, 1代表Clos组网
-    uint32_t superNodeId;                   // 超节点Id
-    uint32_t id;                            // 该entry对应的节点Id
-    uint32_t is_current;                    // 0代表非本节点，1代表是本节点
-    bool links[UVS_PORT_NUM][UVS_PORT_NUM]; // 当前节点port到该entry节点port的连接矩阵
+    uint32_t type;          // 0代表1D-FULLMESH, 1代表Clos组网
+    uint32_t super_node_id; // 超节点Id
+    uint32_t id;            // 节点Id
+    uint32_t is_current;    // 0代表非本节点，1代表是本节点
+    UbcoreTopoLink link[IODIE_NUM][PORT_NUM];
     UbcoreTopoAggrDev aggr_dev[DEV_NUM];
 };
 
