@@ -16,61 +16,67 @@
 #include <functional>
 #include <map>
 
+#include "ubse_common_def.h"
 #include "ubse_mti_interface.h"
-#include "lock/ubse_lock.h"
-#include "ubse_common_def.h"
-#include "ubse_urma_uvs_module.h"
 #include "ubse_urma_def.h"
-#include "ubse_common_def.h"
+#include "ubse_urma_uvs_module.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::urmaController {
 using common::def::UbseResult;
 using ubse::adapter_plugins::mti::UbseMtiFeInfo;
+using ubse::urma::FeTopoType;
 using ubse::urma::UbseUrmaInfo;
 using ubse::urma::UbseUrmaNodeInfo;
 using ubse::urma::UbseUrmaUvsNodeInfo;
 using ubse::urma::UrmaDevState;
-using ubse::urma::UrmaDevType;
 
 class UbseUrmaControllerManager {
 public:
-    static UbseUrmaControllerManager &GetInstance()
+    static UbseUrmaControllerManager& GetInstance()
     {
         static UbseUrmaControllerManager instance;
         return instance;
     }
     // 通过RPC通信获取其余节点的nodeInfo后，通过此方法存储
-    void InsertNewNodeInfo(const std::string &nodeId, UbseUrmaNodeInfo &insertNodeInfo);
+    void InsertNewNodeInfo(const std::string& nodeId, UbseUrmaNodeInfo& insertNodeInfo);
     // 更新对应节点的fe信息，计算出urmaInfo设备信息
-    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &feInfos);
-    UbseResult ConstructNewUrmaInfo(const std::string &nodeId, std::vector<std::vector<UbseMtiFeInfo>> &&feInfos);
+    UbseResult ConstructNewUrmaInfo(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos);
+    UbseResult ConstructNewUrmaInfo(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>&& feInfos);
     // 根据本节点的urma bonding信息，推算出其它所有节点的urma bonding信息
-    UbseResult InferOtherNodesUrmaDevInfo(const std::string &basedNodeId);
+    UbseResult InferOtherNodesUrmaDevInfo(const std::string& basedNodeId, uint32_t startIdx, uint32_t batchNodeNum);
     // 下发拓扑后，删除其它节点的urmaInfo，只保留本节点的urmaInfo，避免内存占用过高
-    void DeleteOtherNodesUrmaInfo(const std::string &curNodeId);
+    void DeleteOtherNodesUrmaInfo(const std::string& curNodeId);
 
-    void SetUrmaDevStateByDevEid(const std::string &urmaDevEid, UrmaDevState state);
+    void SetUrmaDevStateByDevEid(const std::string& urmaDevEid, UrmaDevState state);
 
-    UbseResult GetLocalUrmaDevInfoByName(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
-    UbseResult AllocUrmaDev(const std::string &urmaName, std::vector<std::string> &feNames, std::string &eid);
-    UbseResult GetAllUvsInfo(std::vector<UbseUrmaUvsNodeInfo> &uvsInfos);
-    void SetUrmaSubPath(const std::string &urmaEid, const std::string &urmaSubPath);
-    void SetFeName(const std::string &feEid, const std::string &urmaEidName);
-    UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string &nodeId);
+    UbseResult GetLocalUrmaDevInfoByName(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
+    UbseResult AllocUrmaDev(const std::string& urmaName, std::vector<std::string>& feNames, std::string& eid);
+    UbseResult GetAllUvsTopoInfo(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    void SetUrmaSubPath(const std::string& urmaEid, const std::string& urmaSubPath);
+    void SetFeName(const std::string& feEid, const std::string& urmaEidName);
+    UbseUrmaNodeInfo GetUrmaNodeInfo(const std::string& nodeId);
     void SetAllUrmaDevStateForNode(UrmaDevState state);
-    uint64_t GetUrmaUpdateTimeStamp(const std::string &nodeId);
+    uint64_t GetUrmaUpdateTimeStamp(const std::string& nodeId);
+    void SetFeTopoType(FeTopoType topoType);
+    FeTopoType GetFeTopoType() const;
 
 private:
-    UbseResult CreateAndInsertUrmaInfo(const uint16_t superPodId, const uint32_t serverIdx, const std::string &nodeId,
-                                       UbseMtiFeInfo &lcneFe0, UbseMtiFeInfo &lcneFe1);
-    UbseResult InferOneNodeUrmaDevInfo(uint16_t superPodId, uint32_t serverIdx, const std::string &baseNodeId);
+    UbseResult CreateAndInsertUrmaInfo(const uint16_t superPodId, const uint32_t serverIdx, const std::string& nodeId,
+                                       UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1);
+    UbseResult InferOneNodeUrmaDevInfo(uint16_t superPodId, uint32_t serverIdx, const std::string& baseNodeId);
     uint16_t GenerateUniqueFeId();
     uint64_t GenerateUrmaDevId();
-    void PrintNodeInfo(const UbseUrmaNodeInfo &nodeInfo);
-    UbseResult GetLocalUrmaDevInfoByNameInner(const std::string &urmaName, UbseUrmaInfo &urmaInfo);
-    bool IsLcneFeUsed(const UbseMtiFeInfo &fe0, const UbseMtiFeInfo &fe1);
+    void PrintNodeInfo(const UbseUrmaNodeInfo& nodeInfo);
+    UbseResult GetLocalUrmaDevInfoByNameInner(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
+    bool IsLcneFeUsed(const UbseMtiFeInfo& fe0, const UbseMtiFeInfo& fe1);
     // clos组网下，获取通信bonding，插入到本节点的urmaList中，拓展到96bonding
     UbseResult InsertComBondingUrmaDevInner();
+    std::string GenerateBondingDevName(ubse::adapter_plugins::mti::UbseMtiFeType feType);
+    UbseResult GetAllUvsTopoInfoForClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
+                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
+    UbseResult GetAllUvsTopoInfoForNonClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
+                                           std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
 
 private:
     utils::ReadWriteLock rwLock;
@@ -78,6 +84,7 @@ private:
     std::atomic<uint16_t> globalFeId{0};       // 节点内唯一的feId生成器
     std::atomic<uint64_t> globalUrmaId{0};     // 节点内唯一的urmaId生成器
     std::map<std::string, uint16_t> feIdMap{}; // <feKey, feId>
+    FeTopoType feTopoType{FeTopoType::INVALID};
 };
 } // namespace ubse::urmaController
 

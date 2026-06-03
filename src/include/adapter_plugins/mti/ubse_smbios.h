@@ -14,16 +14,17 @@
 #define UBSE_SMBIOS_H
 
 #include <cstdint>
-enum class UbseMeshType {
-    FULL_MESH = 1,
-    CLOS = 8,
+enum class UbseMeshType
+{
+    FULL_MESH = 0x80,
+    CLOS = 0x81,
 };
 namespace ubse::adapter_plugins::smbios {
 class UbseSmbios {
 public:
-    UbseSmbios(const UbseSmbios &) = delete;
-    UbseSmbios &operator=(const UbseSmbios &) = delete;
-    static UbseSmbios &GetInstance()
+    UbseSmbios(const UbseSmbios&) = delete;
+    UbseSmbios& operator=(const UbseSmbios&) = delete;
+    static UbseSmbios& GetInstance()
     {
         static UbseSmbios instance;
         return instance;
@@ -35,7 +36,7 @@ public:
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR 表示失败
      */
-    uint32_t GetMeshType(UbseMeshType &meshType);
+    uint32_t GetMeshType(UbseMeshType& meshType);
 
     /**
      * @brief 判断组网是否为CLOS类型
@@ -48,7 +49,7 @@ public:
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR 表示失败
      */
-    uint32_t GetSuperPodId(uint16_t &superPodId);
+    uint32_t GetSuperPodId(uint16_t& superPodId);
 
     /**
      * @brief 获取节点所在框号/超节点ID
@@ -56,7 +57,7 @@ public:
      * @return UBSE_OK 标识成功
      * @return UBSE_ERROR 表示失败
      */
-    uint32_t GetPodId(uint16_t &podId);
+    uint32_t GetPodId(uint16_t& podId);
 
     /**
       * @brief 获取服务器索引
@@ -64,7 +65,8 @@ public:
       * @return UBSE_OK 标识成功
       * @return UBSE_ERROR 表示失败
       */
-    uint32_t GetServerIdx(uint32_t &serverIdx);
+    uint32_t GetServerIdx(uint32_t& serverIdx);
+
 private:
     UbseSmbios() = default;
 };

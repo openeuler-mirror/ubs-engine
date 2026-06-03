@@ -75,7 +75,7 @@ UbseResult UbseSmbios::GetServerIdx(uint32_t &serverIdx)
         return UBSE_ERROR;
     }
     // 计算serverIdx，serverIdx从0开始，slotId从1开始
-    serverIdx = static_cast<uint32_t>(basicInfo->podId) * NO_8 + static_cast<uint32_t>(basicInfo->slotId) - 1;
+    serverIdx = basicInfo->serverIdx;
     return UBSE_OK;
 }
 } // namespace ubse::adapter_plugins::smbios

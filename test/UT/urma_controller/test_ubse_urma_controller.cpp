@@ -62,7 +62,7 @@ TEST_F(TestUbseUrmaController, GetUrmaDevEidByUrmaName_NotFound)
 TEST_F(TestUbseUrmaController, UbseGetLocalUrmaDevInfo_CallsGetAllUvsInfo)
 {
     std::vector<UbseUrmaDevBrief> devInfos;
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
     UbseUrmaController::GetInstance().GetLocalUrmaDevs(devInfos);
     SUCCEED();
 }
@@ -252,7 +252,7 @@ TEST_F(TestUbseUrmaController, DoTopoLinkChange_SetUvsInfoModuleNull)
     UbseNodeInfo curNode;
     curNode.nodeId = "0";
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(g_nullUvsModule));
     auto ret = UbseUrmaController::GetInstance().DoTopoLinkChange();
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -281,7 +281,7 @@ TEST_F(TestUbseUrmaController, DoTopoLinkChange_QueryUrmaInfoStateFails)
     curNode.nodeId = "0";
     curNode.slotId = 0;
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
     auto urmaModule = std::make_shared<UbseUrmaUvsModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(urmaModule));
     MOCKER_CPP(UbsePushTopoAndBondingToUvs).stubs().will(returnValue(UBSE_OK));
