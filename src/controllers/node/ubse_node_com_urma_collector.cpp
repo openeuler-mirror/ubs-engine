@@ -174,10 +174,6 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
-    if (UbseSmbios::GetInstance().IsClosType()) {
-        UBSE_LOG_INFO << "Is clos type, skip set com urma info to uvs.";
-        return UBSE_OK;
-    }
     ret = UbsePushTopoAndBondingToUvs(ubseNodeInfo.nodeId, allLinkInfo, hostUrmaInfos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Set urma_uvs failed.";

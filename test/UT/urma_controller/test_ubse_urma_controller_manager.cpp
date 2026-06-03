@@ -55,19 +55,29 @@ TEST_F(TestUbseUrmaControllerManager, GetUrmaNodeInfo)
     EXPECT_EQ(nodeInfo.urmaList["urmaId_1"].urmaDevEid, eid);
 }
 
-TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev)
+TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev_Success)
 {
-    UbseUrmaUvsNodeInfo nodeInfo1{.nodeId = "0"};
-    UbseUrmaUvsNodeInfo nodeInfo2{.nodeId = "1"};
-    UbseUrmaUvsAggrDev aggrDev1{.urmaDevEid = "12345"};
-    UbseUrmaUvsAggrDev aggrDev2{.urmaDevEid = "1234"};
-    nodeInfo1.devList.push_back(aggrDev1);
-    nodeInfo2.devList.push_back(aggrDev2);
-    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos{nodeInfo1, nodeInfo2};
+    UbseUrmaUvsNodeInfo nodeInfo{.nodeId = "1"};
+    UbseUrmaUvsAggrDev aggrDev{.urmaDevEid = "1234"};
+    nodeInfo.devList.push_back(aggrDev);
+    std::vector<UbseUrmaUvsNodeInfo> mockHostUrmaInfos{nodeInfo};
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetComUrmaByNodeId)
+        .stubs()
+        .with(_, outBound(mockHostUrmaInfos))
+        .will(returnValue(UBSE_OK));
     UbseUrmaUvsNodeInfo uvsInfo{.nodeId = "1"};
-    GetHostUrmaDev(hostUrmaInfos, uvsInfo);
+    auto ret = GetHostUrmaDev("1", uvsInfo);
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+    EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(uvsInfo.devList[0].urmaDevEid, "1234");
+}
+
+TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev_ComFailure)
+{
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetComUrmaByNodeId).stubs().will(returnValue(UBSE_ERROR));
+    UbseUrmaUvsNodeInfo uvsInfo{.nodeId = "1"};
+    auto ret = GetHostUrmaDev("1", uvsInfo);
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 TEST_F(TestUbseUrmaControllerManager, SetUrmaSubPath)

@@ -16,13 +16,14 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <mockcpp/mokc.h>
+#include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 
 namespace ubse::urmaController {
-void GetHostUrmaDev(std::vector<ubse::urma::UbseUrmaUvsNodeInfo>& hostUrmaInfos,
-                    ubse::urma::UbseUrmaUvsNodeInfo& uvsInfo);
-}
+using common::def::UbseResult;
+UbseResult GetHostUrmaDev(const std::string& nodeId, ubse::urma::UbseUrmaUvsNodeInfo& uvsInfo);
+} // namespace ubse::urmaController
 namespace ubse::urmaControllerManager::ut {
 class TestUbseUrmaControllerManager : public testing::Test {
     void SetUp() override

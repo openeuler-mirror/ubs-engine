@@ -154,29 +154,29 @@ void UbseUrmaControllerManager::SetUrmaDevStateByDevEid(const std::string& urmaD
     nodeInfos[nodeId].urmaList[urmaName].state = state;
 }
 
-void GetHostUrmaDev(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos, UbseUrmaUvsNodeInfo& uvsInfo)
+UbseResult GetHostUrmaDev(const std::string& nodeId, UbseUrmaUvsNodeInfo& uvsInfo)
 {
     if (UbseSmbios::GetInstance().IsClosType() &&
         UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::ALL_PFE) {
         UBSE_LOG_INFO << "Clos type detected, skip getting host urma dev";
-        return;
+        return UBSE_OK;
     }
-    for (auto& hostUrmaInfo : hostUrmaInfos) {
-        if (hostUrmaInfo.nodeId != uvsInfo.nodeId) {
-            continue;
-        }
-        if (hostUrmaInfo.devList.empty()) {
-            UBSE_LOG_WARN << "host urma dev list is empty";
-            break;
-        }
-        // host urma只有一个聚合设备，且下发时必须放在第一个
-        uvsInfo.devList.insert(uvsInfo.devList.begin(), hostUrmaInfo.devList[0]);
-        break;
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
+    if (ret != UBSE_OK || hostUrmaInfos.empty()) {
+        UBSE_LOG_ERROR << "Get com urma info by nodeId=" << uvsInfo.nodeId << " failed";
+        return UBSE_ERROR;
     }
+    if (hostUrmaInfos[0].devList.empty()) {
+        UBSE_LOG_WARN << "host urma dev list is empty, nodeId=" << uvsInfo.nodeId;
+        return UBSE_ERROR;
+    }
+    // host urma只有一个聚合设备，且下发时必须放在第一个
+    uvsInfo.devList.insert(uvsInfo.devList.begin(), hostUrmaInfos[0].devList[0]);
+    return UBSE_OK;
 }
 
-UbseResult FillUrmaUvsNodeInfo(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos, UbseUrmaNodeInfo& nodeInfo,
-                               UbseUrmaUvsNodeInfo& tmpUvsInfo)
+UbseResult FillUrmaUvsNodeInfo(UbseUrmaNodeInfo& nodeInfo, UbseUrmaUvsNodeInfo& tmpUvsInfo)
 {
     tmpUvsInfo.nodeId = nodeInfo.nodeId;
     if (UbseSmbios::GetInstance().IsClosType() &&
@@ -185,7 +185,10 @@ UbseResult FillUrmaUvsNodeInfo(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaI
                       << nodeInfo.nodeId;
         return UBSE_ERROR;
     }
-    GetHostUrmaDev(hostUrmaInfos, tmpUvsInfo);
+    if (GetHostUrmaDev(nodeInfo.nodeId, tmpUvsInfo) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get host urma dev for nodeId=" << nodeInfo.nodeId;
+        return UBSE_ERROR;
+    }
     for (auto& urmaInfo : nodeInfo.urmaList) {
         UbseUrmaUvsAggrDev dev{};
         dev.urmaDevEid = urmaInfo.second.urmaDevEid;
@@ -206,7 +209,7 @@ UbseResult FillUrmaUvsNodeInfo(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaI
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
+UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(uint32_t startServerIdx, uint32_t batchNodeNum,
                                                                std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
     if (!UbseSmbios::GetInstance().IsClosType()) {
@@ -221,28 +224,23 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(const std::vector
         return UBSE_ERROR;
     }
     // 为避免OOM，分批计算其它节点的topo并下发
-    const size_t batchNodeNum = 64;
-    const size_t batchNum = (UBSE_CLOS_MAX_NODE_NUM + batchNodeNum - 1) / batchNodeNum;
-    for (size_t batchIdx = 0; batchIdx < batchNum; ++batchIdx) {
-        ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
-        this->InferOtherNodesUrmaDevInfo(curNode.nodeId, batchIdx * batchNodeNum, batchNodeNum);
-        for (auto& nodeInfo : nodeInfos) {
-            UbseUrmaUvsNodeInfo tmpUvsInfo{};
-            if (FillUrmaUvsNodeInfo(hostUrmaInfos, nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
-                UBSE_LOG_ERROR << "Fill urma uvs info failed.";
-                this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
-                return UBSE_ERROR;
-            }
-            uvsInfos.push_back(tmpUvsInfo);
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    this->InferOtherNodesUrmaDevInfo(curNode.nodeId, startServerIdx, batchNodeNum);
+    for (auto& nodeInfo : nodeInfos) {
+        UbseUrmaUvsNodeInfo tmpUvsInfo{};
+        if (FillUrmaUvsNodeInfo(nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Fill urma uvs info failed.";
+            this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
+            return UBSE_ERROR;
         }
-        // 获取拓扑信息后，删除其它节点的urmaInfo，只保留本节点的urmaInfo，避免内存占用过高
-        this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
+        uvsInfos.push_back(tmpUvsInfo);
     }
+    // 获取拓扑信息后，删除其它节点的urmaInfo，只保留本节点的urmaInfo，避免内存占用过高
+    this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForNonClos(const std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos,
-                                                                  std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
+UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForNonClos(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
     // 计算其它节点的urma device info
     if (UbseSmbios::GetInstance().IsClosType()) {
@@ -258,7 +256,7 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForNonClos(const std::vec
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
     for (auto& nodeInfo : nodeInfos) {
         UbseUrmaUvsNodeInfo tmpUvsInfo{};
-        if (FillUrmaUvsNodeInfo(hostUrmaInfos, nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
+        if (FillUrmaUvsNodeInfo(nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
             UBSE_LOG_ERROR << "Fill urma uvs info failed.";
             this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
             return UBSE_ERROR;
@@ -268,16 +266,11 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForNonClos(const std::vec
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
+UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(uint32_t startServerIdx, uint32_t batchNodeNum,
+                                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
-    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetAllComUrma(hostUrmaInfos);
-    if (ret != UBSE_OK || hostUrmaInfos.empty()) {
-        UBSE_LOG_ERROR << "Get all com urma info failed.";
-        return UBSE_ERROR;
-    }
-    return UbseSmbios::GetInstance().IsClosType() ? GetAllUvsTopoInfoForClos(hostUrmaInfos, uvsInfos) :
-                                                    GetAllUvsTopoInfoForNonClos(hostUrmaInfos, uvsInfos);
+    return UbseSmbios::GetInstance().IsClosType() ? GetAllUvsTopoInfoForClos(startServerIdx, batchNodeNum, uvsInfos) :
+                                                    GetAllUvsTopoInfoForNonClos(uvsInfos);
 }
 
 void UbseUrmaControllerManager::SetUrmaSubPath(const std::string& urmaEid, const std::string& urmaSubPath)
@@ -582,7 +575,7 @@ UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<Ubse
         return UBSE_ERROR_INVAL;
     }
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetAllComUrma(hostUrmaInfos); ret != UBSE_OK) {
+    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get all com urma info";
         return ret;
     }
@@ -936,8 +929,6 @@ void UbseUrmaControllerManager::DeleteOtherNodesUrmaInfo(const std::string& curN
     if (!curNodeHandle.empty()) {
         nodeInfos.insert(std::move(curNodeHandle));
     }
-    // 归还 glibc 缓存的空闲内存给 OS
-    // malloc_trim(0);
 }
 
 std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseUrmaInfo, UrmaNameCompare>& urmaList,
@@ -961,7 +952,7 @@ std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseU
 UbseResult FetchCurNodeComDev(const std::string& nodeId, UbseUrmaUvsAggrDev& comDev)
 {
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetAllComUrma(hostUrmaInfos);
+    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
     auto it = std::find_if(hostUrmaInfos.begin(), hostUrmaInfos.end(),
                            [&nodeId](const UbseUrmaUvsNodeInfo& info) { return info.nodeId == nodeId; });
     if (ret != UBSE_OK || it == hostUrmaInfos.end()) {

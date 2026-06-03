@@ -18,6 +18,7 @@
 #include "ubse_election.h"
 #include "ubse_logger.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_util.h"
@@ -235,6 +236,33 @@ UbseResult QueryUrmaInfoFromMaster(const UbseRoleInfo& roleInfo, std::vector<std
     return UBSE_OK;
 }
 
+UbseResult SetUvsTopoInfo(const std::string& nodeId)
+{
+    if (adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        const uint32_t batchNodeNum = 64;
+        const uint32_t batchNum = (UBSE_CLOS_MAX_NODE_NUM + batchNodeNum - 1) / batchNodeNum;
+        for (uint32_t batchIdx = 0; batchIdx < batchNum; ++batchIdx) {
+            std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+            UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(batchIdx * batchNodeNum, batchNodeNum, uvsInfos);
+            if (auto ret = UbseUrmaControllerSetUvsInfo(nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+                UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
+                return ret;
+            }
+            // 尝试从urma恢复bonding设备
+            UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(nodeId, uvsInfos);
+        }
+    } else {
+        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+        UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(0, 0, uvsInfos);
+        if (auto ret = UbseUrmaControllerSetUvsInfo(nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
+            return ret;
+        }
+        UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(nodeId, uvsInfos);
+    }
+    return UBSE_OK;
+}
+
 UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
 {
     AsyncHandlerGuard cntGuard;
@@ -255,14 +283,10 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
     }
     // 下发拓扑
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(uvsInfos);
-    if (auto ret = UbseUrmaControllerSetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
+    if (auto ret = SetUvsTopoInfo(curNode.nodeId); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to set uvs topo info, ret=" << ret;
         return ret;
     }
-    // 尝试从urma恢复bonding设备
-    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(curNode.nodeId, uvsInfos);
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to query all ports status, ret=" << ret;
