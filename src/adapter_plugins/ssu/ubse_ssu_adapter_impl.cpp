@@ -24,7 +24,12 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 namespace {
 struct GStrFreevDeleter {
-    void operator()(gchar** p) const { if (p) g_strfreev(p); }
+    void operator()(gchar** p) const
+    {
+        if (p) {
+            g_strfreev(p);
+        }
+    }
 };
 using GStrvGuard = std::unique_ptr<gchar*, GStrFreevDeleter>;
 }
@@ -87,14 +92,13 @@ UbseResult UbseSsuAdapterImpl::DlOpenLib()
 }
 
 /**
- * @brief 构建设备地址列表
- * @details 从输入的设备信息列表中提取EID信息，构建底层库所需的DevAddrT列表
+ * @brief 从输入的设备信息列表中提取EID信息，构建底层库所需的DevAddrT列表
  * @param ssuInfoList 输入的设备信息列表（包含EID）
  * @param devList 输出的设备地址列表
  * @return 0表示成功，非0表示失败
  */
 uint32_t UbseSsuAdapterImpl::BuildDevAddrList(const std::vector<UbseSsuDevInfo>& ssuInfoList,
-                                          std::vector<DevAddrT>& devList)
+                                              std::vector<DevAddrT>& devList)
 {
     devList.resize(ssuInfoList.size());
     for (size_t i = 0; i < ssuInfoList.size(); ++i) {
@@ -157,7 +161,7 @@ void UbseSsuAdapterImpl::ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo&
         const auto& ns = devInfo.namespaces[i];
         UbseSsuDevNameSpace nsInfo;
         nsInfo.namespaceId = ns.namespaceId;
-        nsInfo.subSystem.eid = info.subSystem.eid; 
+        nsInfo.subSystem.eid = info.subSystem.eid;
         nsInfo.subSystem.subNqn = info.subSystem.subNqn;
         nsInfo.guid = std::string(ns.guid, strnlen(ns.guid, GUID_SIZE));
         nsInfo.uuid = std::string(ns.uuid, strnlen(ns.uuid, UUID_SIZE));
@@ -224,7 +228,8 @@ uint32_t UbseSsuAdapterImpl::GetDevList(std::vector<UbseSsuDevInfo> &ssuInfoList
     return UBSE_OK;
 }
 
-uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForCreate(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo)
+uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForCreate(const UbseSsuDevNameSpace& nameSpace,
+                                                         DevNamespaceInfoT& nsInfo)
 {
     memset_s(&nsInfo, sizeof(nsInfo), 0, sizeof(nsInfo));
     
@@ -704,15 +709,13 @@ uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
     // 检查LVM逻辑卷是否存在，通过两种路径检查
     std::string lvPath1 = "/dev/mapper/" + vgName + "-" + deviceName;
     std::string lvPath2 = "/dev/" + vgName + "/" + deviceName;
-    bool lvmDeviceExists = g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) || 
+    bool lvmDeviceExists = g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) ||
                            g_file_test(lvPath2.c_str(), G_FILE_TEST_EXISTS);
-
     // 如果都不存在，直接返回成功（幂等）
     if (!mdDeviceExists && !lvmDeviceExists) {
         UBSE_LOG_INFO << "Block device " << deviceName << " does not exist, returning success (idempotent)";
         return UBSE_OK;
     }
-
     // 如果LVM设备存在，尝试删除LVM
     if (lvmDeviceExists) {
         gboolean lvRet = bd_lvm_lvremove(vgName.c_str(), deviceName.c_str(), (gboolean)1, nullptr, &error);
@@ -722,13 +725,13 @@ uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
             return UBSE_OK;
         }
         // LVM删除失败，返回错误
-        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ": " << (error ? error->message : "unknown error");
+        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ": "
+                       << (error ? error->message : "unknown error");
         if (error != nullptr) {
             g_error_free(error);
         }
         return UBSE_ERROR;
     }
-
     // 如果md设备存在，尝试删除md
     if (mdDeviceExists) {
         gboolean mdRemoveRet = bd_md_remove(mdDevicePath.c_str(), nullptr, (gboolean)1, nullptr, &error);
@@ -737,13 +740,13 @@ uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
             return UBSE_OK;
         }
         // md删除失败，返回错误
-        UBSE_LOG_ERROR << "Failed to delete mdadm block device " << deviceName << ": " << (error ? error->message : "unknown error");
+        UBSE_LOG_ERROR << "Failed to delete mdadm block device " << deviceName << ": "
+                       << (error ? error->message : "unknown error");
         if (error != nullptr) {
             g_error_free(error);
         }
         return UBSE_ERROR;
     }
-
     return UBSE_OK;
 }
 
