@@ -49,7 +49,5 @@ uint32_t ParseBaseEid(const std::string& baseEid, std::string& bitStr);
  * @return 操作结果
  */
 uint32_t OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::string& result);
-// 考虑兼容，计划在后续版本中移除
-uint32_t OverwriteEid(uint32_t podId, uint32_t serverId, const std::string& baseEid, std::string& result);
 } // namespace ubse::utils
 #endif // UBSE_URMA_UTIL_H
