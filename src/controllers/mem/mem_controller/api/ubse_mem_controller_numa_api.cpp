@@ -157,16 +157,31 @@ uint32_t ConstructNumaObjs(UbseMemNumaBorrowImportObj &importObj, UbseMemNumaBor
             UBSE_LOG_INFO << "Specify link to borrow. The portId=" << numaInfo.portId;
         }
     }
+    const auto &exportInfo = importObj.algoResult.exportNumaInfos[0];
+    auto allLinkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     for (auto &numaInfo : importObj.algoResult.importNumaInfos) {
-        auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(numaInfo.nodeId);
-        if (FillChipIdAndPortIdByNodeId(nodeInfo, numaInfo, importObj.algoResult.exportNumaInfos[0].nodeId) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to fill chipId";
-            return UBSE_ERROR;
+        bool matched = false;
+        for (auto &[_, linkInfo] : allLinkInfos) {
+            if (std::to_string(linkInfo.slotId) == exportInfo.nodeId &&
+                linkInfo.chipId == exportInfo.chipId &&
+                linkInfo.portId == exportInfo.portId) {
+                numaInfo.chipId = linkInfo.peerChipId;
+                numaInfo.portId = linkInfo.peerPortId;
+                matched = true;
+            } else if (std::to_string(linkInfo.peerSlotId) == exportInfo.nodeId &&
+                       linkInfo.peerChipId == exportInfo.chipId &&
+                       linkInfo.peerPortId == exportInfo.portId) {
+                numaInfo.chipId = linkInfo.chipId;
+                numaInfo.portId = linkInfo.portId;
+                matched = true;
+            }
+            if (matched) {
+                break;
+            }
         }
-        // 指定链路借用
-        if (req.linkInfo.lenderPort != -1) {
-            numaInfo.portId = req.linkInfo.lenderPort;
-            UBSE_LOG_INFO << "Specify link to borrow. The portId=" << numaInfo.portId;
+        if (!matched) {
+            UBSE_LOG_ERROR << "Failed to find link for importNumaInfo, nodeId=" << numaInfo.nodeId;
+            return UBSE_ERROR;
         }
     }
     exportObj.algoResult = importObj.algoResult;

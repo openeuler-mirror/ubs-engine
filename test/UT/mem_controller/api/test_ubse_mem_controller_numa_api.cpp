@@ -105,6 +105,14 @@ TEST_F(TestUbseMemControllerNumaApi, ConstructNumaObjs)
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
     MOCKER_CPP(ubse::mem::controller::FillChipIdAndPortIdByNodeId).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(ubse::mem::controller::FillChipIdAndPortIdForImport).stubs().will(returnValue(UBSE_OK));
+    std::map<std::string, ubse::nodeController::PhysicalLink> connectInfo;
+    ubse::nodeController::PhysicalLink link{};
+    link.slotId = 2;
+    link.chipId = 0;
+    link.portId = 1;
+    link.linkStatus = ubse::nodeController::LinkStatus::available;
+    connectInfo["link1"] = link;
+    MOCKER_CPP(&UbseNodeController::UbseGetDirConnectInfo).stubs().will(returnValue(connectInfo));
     auto ret = ubse::mem::controller::ConstructNumaObjs(importObj, exportObj, req);
     EXPECT_EQ(ret, UBSE_OK);
 }
