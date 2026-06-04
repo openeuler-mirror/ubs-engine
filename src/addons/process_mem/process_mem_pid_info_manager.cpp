@@ -285,9 +285,9 @@ std::string GenerateSimpleName(pid_t pid)
     return name;
 }
 
-bool CheckIsNeedBorrow(const def::ProcessMemPidInfo& pidInfo, size_t requestSize, uint64_t& needBorrowSize)
+bool CheckIsNeedBorrow(const def::ProcessMemPidInfo& pidInfo, uint64_t expectRemoteMemory, uint64_t& needBorrowSize)
 {
-    size_t hasBorrowSize = 0;
+    uint64_t totalSecured = 0;
     std::vector<std::string> timeoutDebts;
     for (const auto& [name, debtInfo] : pidInfo.memBorrowInfo.debtInfos) {
         auto now = std::chrono::steady_clock::now();
@@ -296,16 +296,16 @@ bool CheckIsNeedBorrow(const def::ProcessMemPidInfo& pidInfo, size_t requestSize
             timeoutDebts.push_back(name);
             continue;
         }
-        hasBorrowSize += debtInfo.numaDesc.size;
+        totalSecured += debtInfo.numaDesc.size;
     }
     for (const auto& name : timeoutDebts) {
         ProcessMemPidInfoManager::GetInstance().DeletePidMemBorrowInfo(pidInfo.configInfo.pid, name);
     }
-    UBSE_LOG_INFO << "requestSize is " << requestSize << ", hasBorrowSize is " << hasBorrowSize;
-    if (requestSize <= hasBorrowSize) {
+    UBSE_LOG_INFO << "expectRemoteMemory is " << expectRemoteMemory << ", totalSecured is " << totalSecured;
+    if (expectRemoteMemory <= totalSecured) {
         return false;
     }
-    needBorrowSize = requestSize - hasBorrowSize;
+    needBorrowSize = expectRemoteMemory - totalSecured;
     return true;
 }
 
@@ -474,12 +474,11 @@ void AsyncBorrowAndMigrateExecute(pid_t pid, const def::DebtInfo& debtInfo, uint
     MigrateOut(infoAfterBorrow, freshExpectRemote);
 }
 
-uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t requestSize, uint64_t expectRemoteMemory,
-                          int32_t minNuma)
+uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t expectRemoteMemory, int32_t minNuma)
 {
     bool isNeedBorrow = false;
-    uint64_t needBorrowSize = requestSize;
-    isNeedBorrow = CheckIsNeedBorrow(pidInfo, requestSize, needBorrowSize);
+    uint64_t needBorrowSize = 0;
+    isNeedBorrow = CheckIsNeedBorrow(pidInfo, expectRemoteMemory, needBorrowSize);
     if (!isNeedBorrow) {
         MigrateOut(pidInfo, expectRemoteMemory);
         return UBSE_OK;
@@ -517,7 +516,7 @@ uint32_t BorrowMemoryAndMigrateOut(def::ProcessMemPidInfo& pidInfo, uint64_t loc
         MigrateOut(pidInfo, expectRemoteMemory);
         return UBSE_OK;
     }
-    BorrowAndMigrate(pidInfo, expectRemoteMemory - remoteMemorySize, expectRemoteMemory, minNuma);
+    BorrowAndMigrate(pidInfo, expectRemoteMemory, minNuma);
     return UBSE_OK;
 }
 
