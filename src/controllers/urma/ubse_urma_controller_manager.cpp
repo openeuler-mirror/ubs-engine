@@ -156,8 +156,8 @@ void UbseUrmaControllerManager::SetUrmaDevStateByDevEid(const std::string& urmaD
 
 UbseResult GetHostUrmaDev(const std::string& nodeId, UbseUrmaUvsNodeInfo& uvsInfo)
 {
-    if (UbseSmbios::GetInstance().IsClosType() &&
-        UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::ALL_PFE) {
+    // 如果主机不占用bonding 0，则需要将host bonding插入到拓扑信息中
+    if (UbseSmbios::GetInstance().IsClosType() && !UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
         UBSE_LOG_INFO << "Clos type detected, skip getting host urma dev";
         return UBSE_OK;
     }
@@ -430,8 +430,8 @@ std::string UbseUrmaControllerManager::GenerateBondingDevName(UbseMtiFeType feTy
         UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::PFE_VFE_HYBRID) {
         // 1 PFE + 5 VFE 混插场景，PFE有17组EID。当前bonding 0对应EID组已经过滤，因此当前第16组EID对应的bonding设备命名为bonding_dev_96，兼容此前版本，避免容器重建
         static uint32_t pfeEidCnt = 0;
-        const uint32_t TARGET_PFE_EID_GROUP_CNT = 16;
-        if (++pfeEidCnt == TARGET_PFE_EID_GROUP_CNT) {
+        const uint32_t targetPfeEidGroupCnt = 16;
+        if (++pfeEidCnt == targetPfeEidGroupCnt) {
             return "bonding_dev_96";
         }
     }
@@ -640,9 +640,9 @@ void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     // 逐die(IOU)校验FE拓扑类型，每个IOU上必须为1个PFE+5个VFE
     // 且两个IOU的拓扑类型必须一致
     FeTopoType topoType = FeTopoType::INVALID;
-    const uint32_t PFE_VFE_HYBRID_PFE_CNT = 1;
-    const uint32_t PFE_VFE_HYBRID_VFE_CNT = 5;
-    const uint32_t ALL_PFE_CNT = 6;
+    const uint32_t pfeVfeHybridPfeCnt = 1;
+    const uint32_t pfeVfeHybridVfeCnt = 5;
+    const uint32_t allPfeCnt = 6;
     for (size_t iouIdx = 0; iouIdx < feInfos.size(); ++iouIdx) {
         auto& feInfoIou = feInfos[iouIdx];
         uint32_t pfeCnt = 0;
@@ -655,9 +655,9 @@ void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
             }
         }
         FeTopoType iouTopoType = FeTopoType::INVALID;
-        if (pfeCnt == PFE_VFE_HYBRID_PFE_CNT && vfeCnt == PFE_VFE_HYBRID_VFE_CNT) {
+        if (pfeCnt == pfeVfeHybridPfeCnt && vfeCnt == pfeVfeHybridVfeCnt) {
             iouTopoType = FeTopoType::PFE_VFE_HYBRID;
-        } else if (pfeCnt == ALL_PFE_CNT && vfeCnt == 0) {
+        } else if (pfeCnt == allPfeCnt && vfeCnt == 0) {
             iouTopoType = FeTopoType::ALL_PFE;
         } else {
             UBSE_LOG_WARN << "Invalid fe topology on IOU[" << iouIdx << "], pfeCnt=" << pfeCnt << ", vfeCnt=" << vfeCnt;
@@ -751,8 +751,8 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& no
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
                 .count();
     }
-    // 为支持96容器，将主机用的bonding插入到URMA info中，取名为bonding_dev_96
-    return InsertComBondingUrmaDevInner();
+    // 将不被ubse占用的bonding 0（host bonding）加入到设备列表，拓展到96bonding或提供host bonding的激活
+    return InsertHostUrmaDevInner();
 }
 
 UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& nodeId,
@@ -969,20 +969,53 @@ UbseResult FetchCurNodeComDev(const std::string& nodeId, UbseUrmaUvsAggrDev& com
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::InsertComBondingUrmaDevInner()
+UbseResult UbseUrmaControllerManager::BuildHostUrmaDev(
+    const UbseUrmaUvsAggrDev& comDev, const std::map<std::string, UbseUrmaInfo, UrmaNameCompare>& urmaList,
+    UbseUrmaInfo& urmaDev)
 {
-    // 只有clos组网下，6 PFE场景才支持插入通信bonding的urma dev，以拓展到支持96容器
-    if (!UbseSmbios::GetInstance().IsClosType() || GetFeTopoType() != FeTopoType::ALL_PFE) {
-        UBSE_LOG_INFO
-            << "Only support insert communication bonding dev for CLOS network with all PFE topology, skip it";
+    urmaDev.urmaDevEid = comDev.urmaDevEid;
+    urmaDev.urmaDevType = UrmaDevType::SHARED;
+    urmaDev.state = UrmaDevState::UNKNOWN;
+    for (const auto& fe : comDev.feList) {
+        auto feInfo = FindMatchingFeInfo(urmaList, fe.ubpuId, fe.entityId, urmaDev.hwResId);
+        if (!feInfo) {
+            UBSE_LOG_ERROR << "Failed to find matching fe info for ubpuId=" << fe.ubpuId
+                           << ", entityId=" << fe.entityId;
+            return UBSE_ERROR;
+        }
+        urmaDev.eidGroups.push_back({fe.primaryEid, fe.portEid, feInfo});
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::InsertHostUrmaDevInner()
+{
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Only support insert communication bonding dev for CLOS network, skip it";
         return UBSE_OK;
     }
+    if (GetFeTopoType() == FeTopoType::INVALID) {
+        UBSE_LOG_WARN << "Invalid fe topology, skip insert communication bonding dev";
+        return UBSE_ERROR;
+    }
+    if (UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+        UBSE_LOG_INFO << "Communication bonding dev is occupied, skip insert communication bonding dev";
+        return UBSE_OK;
+    }
+    /*
+     * 1. 6 PFE场景且主机bonding不被UBSE占用时，视作bonding 96，以拓展到支持96容器
+     * 2. 1 PFE + 5 VFE场景，主机bonding不被UBSE占用时，也需要预留，作为bonding 0供主机使用
+     */
+    UBSE_LOG_INFO << "Fe topology type is " << static_cast<int>(GetFeTopoType());
+    const std::string allPfeUrmaDevName = "bonding_dev_96";
+    const std::string pfeVfeHybridUrmaDevName = "bonding_dev_0";
+    const std::string urmaDevName = GetFeTopoType() == FeTopoType::ALL_PFE ? allPfeUrmaDevName :
+                                                                             pfeVfeHybridUrmaDevName;
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     if (curNode.nodeId.empty()) {
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_ERROR;
     }
-    const std::string urmaDevName = "bonding_dev_96";
     std::map<std::string, UbseUrmaInfo, UrmaNameCompare> urmaList;
     {
         if (nodeInfos.find(curNode.nodeId) == nodeInfos.end() || nodeInfos[curNode.nodeId].urmaList.empty()) {
@@ -995,28 +1028,16 @@ UbseResult UbseUrmaControllerManager::InsertComBondingUrmaDevInner()
         }
         urmaList = nodeInfos[curNode.nodeId].urmaList;
     }
-
     UbseUrmaUvsAggrDev comDev;
     auto ret = FetchCurNodeComDev(curNode.nodeId, comDev);
     if (ret != UBSE_OK) {
         return ret;
     }
-
-    UbseUrmaInfo urmaDev{
-        .urmaDevEid = comDev.urmaDevEid,
-        .urmaDevType = UrmaDevType::SHARED,
-        .state = UrmaDevState::UNKNOWN,
-    };
-    for (const auto& fe : comDev.feList) {
-        auto feInfo = FindMatchingFeInfo(urmaList, fe.ubpuId, fe.entityId, urmaDev.hwResId);
-        if (!feInfo) {
-            UBSE_LOG_ERROR << "Failed to find matching fe info for ubpuId=" << fe.ubpuId
-                           << ", entityId=" << fe.entityId;
-            return UBSE_ERROR;
-        }
-        urmaDev.eidGroups.push_back({fe.primaryEid, fe.portEid, feInfo});
+    UbseUrmaInfo urmaDev;
+    ret = BuildHostUrmaDev(comDev, urmaList, urmaDev);
+    if (ret != UBSE_OK) {
+        return ret;
     }
-
     nodeInfos[curNode.nodeId].urmaList[urmaDevName] = std::move(urmaDev);
     UBSE_LOG_INFO << "Inserted bonding dev " << urmaDevName << " for node " << curNode.nodeId;
     return UBSE_OK;

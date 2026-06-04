@@ -87,11 +87,6 @@ UbseResult RpcReg()
         UBSE_LOG_ERROR << "Failed to register report urma info handler for rpc";
         return ret;
     }
-
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to register activate urma info handler for rpc";
-        return ret;
-    }
     return UBSE_OK;
 }
 

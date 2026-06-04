@@ -71,8 +71,11 @@ private:
     void PrintNodeInfo(const UbseUrmaNodeInfo& nodeInfo);
     UbseResult GetLocalUrmaDevInfoByNameInner(const std::string& urmaName, UbseUrmaInfo& urmaInfo);
     bool IsLcneFeUsed(const UbseMtiFeInfo& fe0, const UbseMtiFeInfo& fe1);
-    // clos组网下，获取通信bonding，插入到本节点的urmaList中，拓展到96bonding
-    UbseResult InsertComBondingUrmaDevInner();
+    // clos组网下，获取主机bonding，插入到本节点的urmaList中，拓展到96bonding
+    UbseResult InsertHostUrmaDevInner();
+    UbseResult BuildHostUrmaDev(const ubse::urma::UbseUrmaUvsAggrDev& comDev,
+                                const std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList,
+                                UbseUrmaInfo& urmaDev);
     std::string GenerateBondingDevName(ubse::adapter_plugins::mti::UbseMtiFeType feType);
     UbseResult GetAllUvsTopoInfoForClos(uint32_t startServerIdx, uint32_t batchNodeNum,
                                         std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);

@@ -17,8 +17,6 @@
 #include <set>
 #include <string>
 #include <vector>
-#include "adapter_plugins/mti/ubse_mti_def.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -26,6 +24,9 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
 #include "ubse_urma_controller_util.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::urmaController {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -45,7 +46,7 @@ void EtsTemplate::SetEtsProfileState(EtsQosProfileState state)
     state_ = state;
 }
 
-UbseResult EtsTemplate::ValidateConfig(const std::vector<EtsQosConfig> &configs)
+UbseResult EtsTemplate::ValidateConfig(const std::vector<EtsQosConfig>& configs)
 {
     if (configs.empty()) {
         UBSE_LOG_ERROR << "ETS configs is empty";
@@ -58,7 +59,7 @@ UbseResult EtsTemplate::ValidateConfig(const std::vector<EtsQosConfig> &configs)
         return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
     std::set<uint8_t> seenPriorities;
-    for (const auto &cfg : configs) {
+    for (const auto& cfg : configs) {
         // 优先级只能为0或1
         if (cfg.priority != EtsPriority::PRI_0 && cfg.priority != EtsPriority::PRI_1) {
             UBSE_LOG_ERROR << "Invalid priority=" << static_cast<uint32_t>(cfg.priority);
@@ -113,10 +114,10 @@ UbseResult EtsTemplate::InitQosEtsRetry()
 }
 
 void EtsTemplate::ClassifyAppliedEtsInterfaces(
-    const std::vector<adapter_plugins::mti::UbseMtiInterfaceEtsApplication> &appliedEtsInterfaces,
-    std::set<std::string> &allAppliedInterfaceNames, std::set<std::string> &targetEtsAppliedInterfaceNames)
+    const std::vector<adapter_plugins::mti::UbseMtiInterfaceEtsApplication>& appliedEtsInterfaces,
+    std::set<std::string>& allAppliedInterfaceNames, std::set<std::string>& targetEtsAppliedInterfaceNames)
 {
-    for (const auto &interface : appliedEtsInterfaces) {
+    for (const auto& interface : appliedEtsInterfaces) {
         if (interface.interfaceName.empty() || interface.etsProfileName.empty()) {
             UBSE_LOG_WARN << "Invalid ETS interface application, interfaceName=" << interface.interfaceName
                           << ", etsProfileName=" << interface.etsProfileName;
@@ -194,11 +195,11 @@ UbseResult EtsTemplate::CreateEtsProfileIfNotExist(bool isRetry)
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::ApplyToRemainingPorts(bool isRetry, const std::set<std::string> &allUbInterfaces,
-                                              const std::set<std::string> &allAppliedInterfaceNames,
-                                              const std::set<std::string> &targetEtsAppliedInterfaceNames)
+UbseResult EtsTemplate::ApplyToRemainingPorts(bool isRetry, const std::set<std::string>& allUbInterfaces,
+                                              const std::set<std::string>& allAppliedInterfaceNames,
+                                              const std::set<std::string>& targetEtsAppliedInterfaceNames)
 {
-    for (const auto &interfaceName : allUbInterfaces) {
+    for (const auto& interfaceName : allUbInterfaces) {
         if (targetEtsAppliedInterfaceNames.find(interfaceName) != targetEtsAppliedInterfaceNames.end()) {
             continue;
         }
@@ -219,25 +220,25 @@ UbseResult EtsTemplate::ApplyToRemainingPorts(bool isRetry, const std::set<std::
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::GetAllUbInterfaceNameFromMti(std::set<std::string> &allUbInterfaceNames)
+UbseResult EtsTemplate::GetAllUbInterfaceNameFromMti(std::set<std::string>& allUbInterfaceNames)
 {
     std::vector<PhysicalLink> allLinkInfos;
     auto ret = UbseNodeComUrmaCollector::GetInstance().GetCurNodePorts(allLinkInfos);
     allUbInterfaceNames.clear();
     std::transform(allLinkInfos.begin(), allLinkInfos.end(),
                    std::inserter(allUbInterfaceNames, allUbInterfaceNames.end()),
-                   [](const PhysicalLink &link) { return link.interfaceName; });
+                   [](const PhysicalLink& link) { return link.interfaceName; });
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get all ub interface name";
         return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
-    for (auto &name : allUbInterfaceNames) {
+    for (auto& name : allUbInterfaceNames) {
         UBSE_LOG_DEBUG << "Get interface name=" << name;
     }
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::CreatePreset(const std::vector<EtsQosConfig> &configs)
+UbseResult EtsTemplate::CreatePreset(const std::vector<EtsQosConfig>& configs)
 {
     auto ret = this->InitInner(false);
     if (ret != UBSE_OK) {
@@ -252,7 +253,7 @@ UbseResult EtsTemplate::CreatePreset(const std::vector<EtsQosConfig> &configs)
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig> &configs)
+UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
 {
     UBSE_LOG_INFO << "Will create ETS template with " << configs.size()
                   << " priority groups, ETS QoS profile state=" << static_cast<int>(state_);
@@ -264,7 +265,7 @@ UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig> &configs)
     etsProfiles.profileName = ETS_QOS_PROFILE_NAME;
     etsProfiles.vls.clear();
     etsProfiles.priorityGroups.clear();
-    for (const auto &config : configs) {
+    for (const auto& config : configs) {
         UbseEtsPriorityGroup prioGroup{.priorityGroupId = static_cast<uint8_t>(config.priority),
                                        .scheduleMode = UbseEtsScheduleMode::SP,
                                        .weight = NO_1,
@@ -276,7 +277,7 @@ UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig> &configs)
         }
 
         std::string vlIndicesStr;
-        for (const auto &vlIndex : it->second) {
+        for (const auto& vlIndex : it->second) {
             UbseEtsVl vl{.vlIndex = vlIndex,
                          .priorityGroupId = static_cast<uint8_t>(config.priority),
                          .scheduleMode = UbseEtsScheduleMode::SP,
@@ -310,7 +311,7 @@ UbseResult EtsTemplate::Delete()
         UBSE_LOG_ERROR << "Failed to query all applied ETS interfaces," << FormatRetCode(ret);
         return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
-    for (const auto &interface : appliedEtsInterfaces) {
+    for (const auto& interface : appliedEtsInterfaces) {
         if (interface.interfaceName.empty() || interface.etsProfileName.empty()) {
             UBSE_LOG_WARN << "Invalid ETS interface application, interfaceName=" << interface.interfaceName
                           << ", etsProfileName=" << interface.etsProfileName;
@@ -353,7 +354,7 @@ UbseResult EtsTemplate::Delete()
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::Query(std::vector<EtsQosConfig> &configs)
+UbseResult EtsTemplate::Query(std::vector<EtsQosConfig>& configs)
 {
     // 模板是否存在
     UbseMtiEtsProfile etsProfiles;
@@ -392,7 +393,7 @@ UbseResult EtsTemplate::Query(std::vector<EtsQosConfig> &configs)
         return UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED;
     }
     // 否则，返回已应用的ETS配置
-    for (const auto &prioGroup : etsProfiles.priorityGroups) {
+    for (const auto& prioGroup : etsProfiles.priorityGroups) {
         configs.push_back(
             {.priority = static_cast<EtsPriority>(prioGroup.priorityGroupId), .bandwidth = prioGroup.cir});
     }
@@ -414,6 +415,10 @@ template <>
 UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosInit()
 {
     UBSE_LOG_INFO << "Start to init ETS QoS";
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Current mesh type is not clos, skip init qos";
+        return UBSE_OK;
+    }
     auto ret = qosTemplate_->Init();
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to init ETS QoS," << FormatRetCode(ret) << ", will retry";
@@ -423,7 +428,7 @@ UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosInit()
 }
 
 template <>
-UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosCreate(const std::vector<EtsQosConfig> &configs)
+UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosCreate(const std::vector<EtsQosConfig>& configs)
 {
     if (qosTemplate_ == nullptr) {
         UBSE_LOG_ERROR << "QoS template not created";
@@ -443,7 +448,7 @@ UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosDelete()
 }
 
 template <>
-UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosQuery(std::vector<EtsQosConfig> &configs)
+UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosQuery(std::vector<EtsQosConfig>& configs)
 {
     if (qosTemplate_ == nullptr) {
         UBSE_LOG_ERROR << "QoS template not created";
