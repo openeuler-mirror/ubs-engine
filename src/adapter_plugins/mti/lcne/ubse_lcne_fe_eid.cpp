@@ -32,7 +32,7 @@ UbseResult CheckFeEid(std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     for (auto& item : allFeInfos) {
         std::string nodeId;
-        if (!GetCurNodeId(item.slotId, nodeId)) {
+        if (!GetCurNodeId(item.slotId, nodeId) || nodeId.empty()) {
             UBSE_LOG_ERROR << "[MTI] Failed to convert slotId to nodeId, slotId=" << item.slotId;
             return UBSE_ERROR;
         }
@@ -125,6 +125,9 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiF
         UBSE_LOG_ERROR << "[MTI] Failed to parse response body for get fe eid.";
         return UBSE_ERROR;
     }
+    if (UpdateFeType(iouInfo, allFeInfos) != UBSE_OK) {
+        UBSE_LOG_WARN << "[MTI] Failed to update fe type.";
+    }
     if (CheckFeEid(allFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] Failed to check fe eid.";
         return UBSE_ERROR;
@@ -134,8 +137,8 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiF
 
 UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>& ubseXml, UbseMtiIouInfo& iouInfo)
 {
-    std::string nodeId = ubseXml->Child("slot-id")->Text();
-    if (nodeId.empty()) {
+    iouInfo.slotId = ubseXml->Child("slot-id")->Text();
+    if (iouInfo.slotId.empty()) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
     }
@@ -189,7 +192,8 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr
                 ubseFeInfo->fetype = UbseMtiFeType::PHYSICAL_TYPE;
             }
             ubseXml->Previous();
-        } else if (ubseXml->Next("ue-id") != nullptr) {
+        }
+        if (ubseXml->Next("ue-id") != nullptr) {
             std::string ueIdlist = ubseXml->Text();
             std::vector<std::string> ueId = ueIdlistSplit(ueIdlist, " ");
             for (const auto& entityId : ueId) {
