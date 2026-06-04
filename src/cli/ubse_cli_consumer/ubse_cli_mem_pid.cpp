@@ -55,7 +55,7 @@ bool PidInfoDeSerialization(UbseDeSerialization& in, std::vector<process_mem::de
 std::shared_ptr<UbseCliResultEcho> BuildPidInfoTable(
     const std::vector<process_mem::def::ProcessMemPidInfo>& pidInfoDetail)
 {
-    UbseCliResBuilder variableCellBuilder(UBSE_CLI_NUM_6, UBSE_CLI_NUM_10 + UBSE_CLI_NUM_10);
+    UbseCliResBuilder variableCellBuilder(UBSE_CLI_NUM_6, UBSE_CLI_NUM_30);
     size_t row = variableCellBuilder.UbseCliAddRow();
     variableCellBuilder.UbseCliAddlineSeparate(row);
     variableCellBuilder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "pid");
@@ -128,6 +128,9 @@ public:
         std::vector<process_mem::def::ProcessMemPidInfo> pidInfo{};
         if (!PidInfoDeSerialization(derial, pidInfo)) {
             return UbseCliRegModule::UbseCliStringPromptReply("ERROR");
+        }
+        if (pidInfo.empty()) {
+            return UbseCliRegModule::UbseCliStringPromptReply("No process is currently managed by process_mem");
         }
         return BuildPidInfoTable(pidInfo);
     }

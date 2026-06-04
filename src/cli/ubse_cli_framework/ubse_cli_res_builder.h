@@ -33,6 +33,7 @@ constexpr size_t UBSE_CLI_NUM_7 = 7;
 constexpr size_t UBSE_CLI_NUM_8 = 8;
 constexpr size_t UBSE_CLI_NUM_9 = 9;
 constexpr size_t UBSE_CLI_NUM_10 = 10;
+constexpr size_t UBSE_CLI_NUM_30 = 30;
 
 // Data structure for variable-length cells
 struct UbseCliVariableCellInfo {

@@ -77,17 +77,18 @@ constexpr const char* EVICT_THRESHOLD_OPTION = "evict-thresh";
 constexpr const char* TARGET_EVICT_THRESHOLD_OPTION = "target-evict-thresh";
 constexpr const char* RECLAIM_THRESHOLD_OPTION = "reclaim-thresh";
 constexpr const char* EVICT_THRESHOLD_OPTION_TIP =
-    "Eviction threshold (%). Eviction is triggered when total memory usage exceeds this ratio. Range: 1-100";
+    "Eviction threshold (%). Eviction is triggered when total memory usage exceeds this ratio. "
+    "Must be at least 5 higher than reclaim-thresh to avoid oscillation. Range: 1-100";
 constexpr const char* TARGET_EVICT_THRESHOLD_OPTION_TIP =
     "Target eviction ratio (%). Target proportion of remote memory to total memory after eviction. Range: 1-100";
 constexpr const char* RECLAIM_THRESHOLD_OPTION_TIP =
     "Reclaim threshold (%). All remote memory is migrated back and released when total memory usage "
-    "drops below this ratio. Range: 1-100";
+    "drops below this ratio. Must be at least 5 lower than evict-thresh to avoid oscillation. Range: 1-100";
 constexpr const char* SRC_NUMAID_OPTION = "src-numa";
 constexpr const char* SRC_NUMAID_OPTION_TIP =
     "Local NUMA node ID (optional). The lending socket is selected on the same plane as this NUMA node";
 constexpr const char* SIZE_OPTION = "size";
-constexpr const char* SIZE_OPTION_TIP = "Specify the size. The range is from 128M to 256G. "
+constexpr const char* SIZE_OPTION_TIP = "Specify the size. The range is from 128M to 32G. "
                                         "Support up to 2 decimal places. Example: 1G, 512M, 1.5G";
 constexpr const char* INVALID_SIZE_OPTION_TIP = "ERROR: Invalid size param. Please check the form.";
 
@@ -844,6 +845,36 @@ UbseCliCommandInfo UbseCliRegMemModule::ChangeMemory()
     return builder.UbseCliBuild();
 }
 
+static constexpr int PID_VALUE_MAX = 4194304;
+
+bool IsValidIntegerString(const std::string& s)
+{
+    if (s.empty()) {
+        return false;
+    }
+    if (s[0] == '0' && s.size() > 1) {
+        return false;
+    }
+    for (char c : s) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static std::string ValidatePid(const std::string& pidStr)
+{
+    if (!IsValidIntegerString(pidStr)) {
+        return "--pid must be a positive integer, range 1~" + std::to_string(PID_VALUE_MAX);
+    }
+    int pidVal = 0;
+    if (utils::ConvertStrToInt(pidStr, pidVal) != UBSE_OK || pidVal <= 0 || pidVal > PID_VALUE_MAX) {
+        return "--pid must be a positive integer, range 1~" + std::to_string(PID_VALUE_MAX);
+    }
+    return "";
+}
+
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidUnSetFunc(const std::map<std::string, std::string>& params)
 {
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
@@ -853,10 +884,12 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidUnSetFunc(const std::
     if (pid == params.end()) {
         return UbseCliStringPromptReply("Invalid PID");
     }
-    pid_t tmpPid = 0;
-    if (utils::ConvertStrToInt(pid->second, tmpPid) != UBSE_OK) {
-        return UbseCliStringPromptReply("Invalid PID");
+    auto errMsg = ValidatePid(pid->second);
+    if (!errMsg.empty()) {
+        return UbseCliStringPromptReply(errMsg);
     }
+    pid_t tmpPid = 0;
+    utils::ConvertStrToInt(pid->second, tmpPid);
     UbseCliMemPid memPid{};
     return memPid.UbseCliUnsetPid(tmpPid);
 }
@@ -1023,8 +1056,11 @@ UbseCliCommandInfo UbseCliRegMemModule::ShmMemoryDetach()
 
 // Threshold limits
 static constexpr int THRESHOLD_PERCENT_MAX = 100;
-static constexpr int PID_VALUE_MAX = 4194304;
 static constexpr int MIN_EVICT_RECLAIM_DELTA = 5;
+
+// process_mem size range: 128M ~ 32G
+static constexpr uint64_t PROCESS_MEM_SIZE_MIN = 128ULL * 1024 * 1024;       // 128M
+static constexpr uint64_t PROCESS_MEM_SIZE_MAX = 32ULL * 1024 * 1024 * 1024; // 32G
 
 // Size conversion constants
 static constexpr uint64_t BYTES_PER_KIB = 1024ULL;
@@ -1033,64 +1069,40 @@ static constexpr uint64_t BYTES_PER_GIB = BYTES_PER_KIB * BYTES_PER_KIB * BYTES_
 static constexpr int DECIMAL_BASE = 10;
 static constexpr int DECIMAL_DIGITS_GROUP = 3;
 
-bool IsNonNegativeInteger(const std::string& s)
+static std::string JoinStrings(const std::vector<std::string>& parts, const std::string& delim)
 {
-    if (s.empty()) {
-        return false;
-    }
-    if (s[0] == '0' && s.size() > 1) {
-        return false; // 禁止前导零（如 "01"）
-    }
-    for (char c : s) {
-        if (!std::isdigit(static_cast<unsigned char>(c))) {
-            return false;
+    std::string result;
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (i > 0) {
+            result += delim;
         }
+        result += parts[i];
     }
-    return true;
-};
+    return result;
+}
 
-bool CheckThreshold(const std::string& threshold)
+static std::string ValidateThreshold(const std::string& valStr, const std::string& paramName)
 {
-    // 检查 threshold 是否为有效非负整数
-    // 将 threshold 转为整数（使用 strtol 避免异常）
-    if (!IsNonNegativeInteger(threshold)) {
-        return false;
+    if (!IsValidIntegerString(valStr)) {
+        return paramName + " must be an integer, range 1~" + std::to_string(THRESHOLD_PERCENT_MAX);
     }
     int val = 0;
-    if (utils::ConvertStrToInt(threshold, val) != UBSE_OK) {
-        return false;
+    if (utils::ConvertStrToInt(valStr, val) != UBSE_OK || val <= 0 || val > THRESHOLD_PERCENT_MAX) {
+        return paramName + " must be an integer, range 1~" + std::to_string(THRESHOLD_PERCENT_MAX);
     }
-    if (val <= 0 || val > THRESHOLD_PERCENT_MAX) {
-        return false;
-    }
-    return true;
+    return "";
 }
 
-bool SetPidThresholdParamCheck(const std::string& pid, const std::string& evictThreshold,
-                               const std::string& targetEvictThreshold, const std::string& reclaimThreshold)
-{
-    if (!IsNonNegativeInteger(pid)) {
-        return false;
-    }
-    int pidVal = 0;
-    if (utils::ConvertStrToInt(pid, pidVal) != UBSE_OK) {
-        return false;
-    }
-    if (pidVal <= 0 || pidVal > PID_VALUE_MAX) {
-        return false;
-    }
-    return CheckThreshold(evictThreshold) && CheckThreshold(targetEvictThreshold) && CheckThreshold(reclaimThreshold);
-}
-
-static bool CheckEvictReclaimDelta(const std::string& evictThreshold, const std::string& reclaimThreshold)
+static std::string ValidateEvictReclaimDelta(const std::string& evictThreshold, const std::string& reclaimThreshold)
 {
     int evict = 0;
     int reclaim = 0;
     if (utils::ConvertStrToInt(evictThreshold, evict) != UBSE_OK ||
-        utils::ConvertStrToInt(reclaimThreshold, reclaim) != UBSE_OK) {
-        return false;
+        utils::ConvertStrToInt(reclaimThreshold, reclaim) != UBSE_OK || (evict - reclaim) < MIN_EVICT_RECLAIM_DELTA) {
+        return "--evict-thresh must be at least " + std::to_string(MIN_EVICT_RECLAIM_DELTA) +
+               " higher than --reclaim-thresh to avoid oscillation";
     }
-    return (evict - reclaim) >= MIN_EVICT_RECLAIM_DELTA;
+    return "";
 }
 
 static bool ConvertIntegerPart(uint64_t intPart, uint64_t unitMultiplier, uint64_t& size)
@@ -1173,6 +1185,81 @@ bool SizeConversion(const std::string& str, uint64_t& size)
     return ConvertDecimalPart(intPart, match[DECIMAL_DIGITS_GROUP], unitMultiplier, size);
 }
 
+static std::string ValidateSize(const std::string& sizeStr, uint64_t& size)
+{
+    if (!SizeConversion(sizeStr, size)) {
+        return "--size: invalid format, supported range is 128M~32G (e.g., 128M, 1G, 1.5G)";
+    }
+    if (size < PROCESS_MEM_SIZE_MIN || size > PROCESS_MEM_SIZE_MAX) {
+        return "--size: out of range, supported range is 128M~32G";
+    }
+    return "";
+}
+
+static auto FindRequiredParam(const std::map<std::string, std::string>& params, const std::string& key,
+                              const std::string& displayName, std::vector<std::string>& missingParams)
+    -> std::map<std::string, std::string>::const_iterator
+{
+    auto it = params.find(key);
+    if (it == params.end()) {
+        missingParams.push_back(displayName);
+    }
+    return it;
+}
+
+static void CheckAndPushError(const std::string& err, std::vector<std::string>& errors)
+{
+    if (!err.empty()) {
+        errors.push_back(err);
+    }
+}
+
+struct ValidatedPidThresholdResult {
+    std::string pidVal;
+    std::string evictThreshold;
+    std::string targetEvictThreshold;
+    std::string reclaimThreshold;
+    uint64_t size{};
+};
+
+static std::string ValidatePidSetThresholdParams(const std::map<std::string, std::string>& params,
+                                                 ValidatedPidThresholdResult& out)
+{
+    std::vector<std::string> missingParams;
+    auto pid = FindRequiredParam(params, PID_OPTION, "--pid", missingParams);
+    auto evictIt =
+        FindRequiredParam(params, EVICT_THRESHOLD_OPTION, "--" + std::string(EVICT_THRESHOLD_OPTION), missingParams);
+    auto targetEvictIt = FindRequiredParam(params, TARGET_EVICT_THRESHOLD_OPTION,
+                                           "--" + std::string(TARGET_EVICT_THRESHOLD_OPTION), missingParams);
+    auto reclaimIt = FindRequiredParam(params, RECLAIM_THRESHOLD_OPTION, "--" + std::string(RECLAIM_THRESHOLD_OPTION),
+                                       missingParams);
+    auto sizeIt = FindRequiredParam(params, SIZE_OPTION, "--" + std::string(SIZE_OPTION), missingParams);
+    if (!missingParams.empty()) {
+        return "ERROR: missing required parameter(s): " + JoinStrings(missingParams, ", ");
+    }
+
+    out.pidVal = pid->second;
+    out.evictThreshold = evictIt->second;
+    out.targetEvictThreshold = targetEvictIt->second;
+    out.reclaimThreshold = reclaimIt->second;
+
+    std::vector<std::string> errors;
+    CheckAndPushError(ValidatePid(out.pidVal), errors);
+    auto evictErr = ValidateThreshold(out.evictThreshold, "--evict-thresh");
+    CheckAndPushError(evictErr, errors);
+    CheckAndPushError(ValidateThreshold(out.targetEvictThreshold, "--target-evict-thresh"), errors);
+    auto reclaimErr = ValidateThreshold(out.reclaimThreshold, "--reclaim-thresh");
+    CheckAndPushError(reclaimErr, errors);
+    if (evictErr.empty() && reclaimErr.empty()) {
+        CheckAndPushError(ValidateEvictReclaimDelta(out.evictThreshold, out.reclaimThreshold), errors);
+    }
+    CheckAndPushError(ValidateSize(sizeIt->second, out.size), errors);
+    if (!errors.empty()) {
+        return "ERROR: " + JoinStrings(errors, "; ");
+    }
+    return "";
+}
+
 process_mem::def::ProcessMemPidInfo SetPidManagerInfo(const std::string& pidStr, const std::string& evictThresholdStr,
                                                       const std::string& targetEvictThresholdStr,
                                                       const std::string& reclaimThresholdStr, uint64_t size)
@@ -1194,40 +1281,20 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidSetThresholdFunc(
     if (!UbseCliRegModule::DisableTimeoutTimer()) {
         return UbseCliStringPromptReply(SET_TIMER_ERROR);
     }
-    auto pid = params.find(PID_OPTION);
-    if (pid == params.end()) {
-        return UbseCliStringPromptReply("Invalid PID, the length must be lower than 10");
-    }
-    auto evictThreshold = params.find(EVICT_THRESHOLD_OPTION);
-    auto targetEvictThreshold = params.find(TARGET_EVICT_THRESHOLD_OPTION);
-    auto reclaimThreshold = params.find(RECLAIM_THRESHOLD_OPTION);
-    auto srcNumaIdParam = params.find(SRC_NUMAID_OPTION);
-    if (evictThreshold == params.end() || targetEvictThreshold == params.end() || reclaimThreshold == params.end()) {
-        return UbseCliStringPromptReply("Invalid threshold");
+
+    ValidatedPidThresholdResult validated;
+    auto errMsg = ValidatePidSetThresholdParams(params, validated);
+    if (!errMsg.empty()) {
+        return UbseCliStringPromptReply(errMsg);
     }
 
-    if (!SetPidThresholdParamCheck(pid->second, evictThreshold->second, targetEvictThreshold->second,
-                                   reclaimThreshold->second)) {
-        return UbseCliStringPromptReply("Invalid threshold");
-    }
-
-    if (!CheckEvictReclaimDelta(evictThreshold->second, reclaimThreshold->second)) {
-        return UbseCliStringPromptReply(
-            "evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation");
-    }
-
-    auto sizeParam = params.find(SIZE_OPTION);
-    uint64_t size{};
-    if (sizeParam == params.end() || !SizeConversion(sizeParam->second, size)) {
-        return UbseCliStringPromptReply(INVALID_SIZE_OPTION_TIP);
-    }
-
-    auto pidInfo = SetPidManagerInfo(pid->second, evictThreshold->second, targetEvictThreshold->second,
-                                     reclaimThreshold->second, size);
+    auto pidInfo = SetPidManagerInfo(validated.pidVal, validated.evictThreshold, validated.targetEvictThreshold,
+                                     validated.reclaimThreshold, validated.size);
     if (pidInfo.configInfo.pid == -1) {
         return UbseCliStringPromptReply("Internal error");
     }
 
+    auto srcNumaIdParam = params.find(SRC_NUMAID_OPTION);
     if (srcNumaIdParam != params.end()) {
         uint64_t srcNumaId;
         if (utils::ConvertStrToUint64(srcNumaIdParam->second, srcNumaId) != UBSE_OK) {
