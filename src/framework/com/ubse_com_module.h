@@ -30,6 +30,8 @@ using namespace ubse::com;
 
 class UbseComModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseComModule";
+    std::string Name() const override { return kModuleName; }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

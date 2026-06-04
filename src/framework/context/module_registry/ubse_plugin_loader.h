@@ -9,21 +9,31 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+//
 
-#include "mock_dependency_module.h"
+#ifndef UBSE_PLUGIN_LOADER_H
+#define UBSE_PLUGIN_LOADER_H
 
-#include "ubse_context.h"
-#include "ubse_common_def.h"
-namespace ubse::mock {
-CORE_MODULE_IMPL(MockDependencyModule);
-UbseResult ubse::mock::MockDependencyModule::Initialize()
-{
-    return 0;
-}
-void ubse::mock::MockDependencyModule::UnInitialize() {}
-ubse::common::def::UbseResult ubse::mock::MockDependencyModule::Start()
-{
-    return 0;
-}
-void ubse::mock::MockDependencyModule::Stop() {}
-}
+#include <string>
+#include <vector>
+namespace ubse::module {
+class UbsePluginLoader {
+public:
+    static UbsePluginLoader &GetInstance()
+    {
+        static UbsePluginLoader instance;
+        return instance;
+    }
+
+    void DiscoverAndLoad();
+
+    void UnloadAll();
+
+private:
+    UbsePluginLoader() = default;
+
+    std::vector<void *> handles_;
+};
+
+} // namespace ubse::module
+#endif // UBSE_PLUGIN_LOADER_H

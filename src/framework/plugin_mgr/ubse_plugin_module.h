@@ -23,6 +23,8 @@ namespace ubse::plugin {
 using namespace ubse::module;
 class UbsePluginModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbsePluginModule";
+    std::string Name() const override { return kModuleName; }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

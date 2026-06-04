@@ -34,6 +34,9 @@ constexpr size_t IPV6_SEGMENT_LENGTH = 4;
 
 class UbseLcneModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseLcneModule";
+    std::string Name() const override { return kModuleName; }
+
     UbseResult Initialize() override;
 
     void UnInitialize() override;

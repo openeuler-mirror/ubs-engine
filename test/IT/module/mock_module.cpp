@@ -17,7 +17,7 @@
 
 namespace ubse::mock {
 using namespace ubse::context;
-DYNAMIC_CREATE(MockModule, MockDependencyModule);
+CORE_MODULE_IMPL(MockModule, MockDependencyModule);
 UbseResult MockModule::Initialize()
 {
     return 0;

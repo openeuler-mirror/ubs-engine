@@ -11,6 +11,8 @@
  */
 
 #include "ubse_election_module.h"
+#include "ubse_module.h"
+
 #include <chrono>
 #include "ubse_node_discovery_module.h"
 #include "config.h"
@@ -20,6 +22,7 @@
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
 #include "ubse_net_util.h"
+#include "ubse_lcne_module.h"
 
 namespace ubse::election {
 using namespace ubse::context;
@@ -29,7 +32,7 @@ using namespace ubse::nodeController;
 using namespace ubse::nodeDiscovery;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule, UbseNodeDiscoveryModule);
+OPTIONAL_MODULE_IMPL(UbseElectionModule, UbseComModule, mti::UbseLcneModule, UbseNodeDiscoveryModule);
 
 UbseResult UbseElectionModule::Initialize()
 {

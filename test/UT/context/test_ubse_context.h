@@ -23,20 +23,24 @@ using namespace ubse::context;
 using namespace ubse::module;
 class MockUbseModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "MockUbseModule";
     MOCK_METHOD0(Initialize, UbseResult());
     MOCK_METHOD0(Start, UbseResult());
     MOCK_METHOD0(RegArgs, void());
     MOCK_METHOD0(Stop, void());
     MOCK_METHOD0(UnInitialize, void());
+    MOCK_CONST_METHOD0(Name, std::string());
 };
 
 class MockUbseModuleD : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "MockUbseModuleD";
     MOCK_METHOD0(Initialize, UbseResult());
     MOCK_METHOD0(Start, UbseResult());
     MOCK_METHOD0(RegArgs, void());
     MOCK_METHOD0(Stop, void());
     MOCK_METHOD0(UnInitialize, void());
+    MOCK_CONST_METHOD0(Name, std::string());
 };
 
 class TestUbseContext : public testing::Test {
@@ -49,6 +53,7 @@ public:
 
 private:
     UbseContext &context = UbseContext::GetInstance();
+    UbseModuleRegistry &registry = UbseModuleRegistry::GetInstance();
 };
 }
 #endif // UBSE_MANAGER_TEST_UBSE_CONTEXT_H

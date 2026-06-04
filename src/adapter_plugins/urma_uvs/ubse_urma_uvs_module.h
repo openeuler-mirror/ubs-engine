@@ -73,6 +73,8 @@ struct UbcoreTopoNode {
 
 class UbseUrmaUvsModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseUrmaUvsModule";
+    std::string Name() const override { return kModuleName; }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

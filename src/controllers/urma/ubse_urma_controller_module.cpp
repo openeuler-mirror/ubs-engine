@@ -11,6 +11,7 @@
  */
 
 #include "ubse_urma_controller_module.h"
+#include "ubse_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
@@ -36,7 +37,7 @@ std::atomic<uint32_t> g_asyncHandlerCnt{0};
 std::set<std::string> g_RegTimerNames;
 std::mutex g_RegTimerNamesMtx;
 
-DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
+OPTIONAL_MODULE_IMPL(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)

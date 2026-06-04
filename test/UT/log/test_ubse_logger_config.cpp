@@ -51,10 +51,10 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgLevel)
 {
     UbseLoggerConfig ubseLogConfig;
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    UbseContext::GetInstance().moduleMap_[typeid(UbseConfModule)] = module;
+    UbseContext::GetInstance().moduleMap_[UbseConfModule::kModuleName] = module;
     EXPECT_EQ(ubseLogConfig.Initialize(), UBSE_OK);
     EXPECT_EQ(ubseLogConfig.GetLogCfgLevel(), "INFO");
-    auto it = UbseContext::GetInstance().moduleMap_.find(typeid(UbseConfModule));
+    auto it = UbseContext::GetInstance().moduleMap_.find(UbseConfModule::kModuleName);
     UbseContext::GetInstance().moduleMap_.erase(it);
 }
 
@@ -76,7 +76,7 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgFileSize)
     uint32_t value = 16; // 设置16为测试值
     UbseLoggerConfig ubseLogConfig;
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    UbseContext::GetInstance().moduleMap_[typeid(UbseConfModule)] = module;
+    UbseContext::GetInstance().moduleMap_[UbseConfModule::kModuleName] = module;
     ubseLogConfig.Initialize();
     EXPECT_EQ(ubseLogConfig.GetLogCfgFileSize(), 20); // 设置20为测试值
 }
@@ -96,7 +96,7 @@ TEST_F(TestUbseLoggerConfig, testGetLogCfgFileSize_valid1)
 {
     UbseLoggerConfig ubseLogConfig;
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    UbseContext::GetInstance().moduleMap_[typeid(UbseConfModule)] = module;
+    UbseContext::GetInstance().moduleMap_[UbseConfModule::kModuleName] = module;
     ubseLogConfig.Initialize();
     EXPECT_EQ(ubseLogConfig.GetLogCfgFileSize(), 20); // 20为logCfgFileSize的默认值
 }
@@ -403,7 +403,7 @@ TEST_F(TestUbseLoggerConfig, testGetSyslogType_valid)
     GlobalMockObject::verify();
     MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(ubseLogConfig.GetSyslogType(), SYSLOG_TYPE_USER);
-    auto it = UbseContext::GetInstance().moduleMap_.find(typeid(UbseConfModule));
+    auto it = UbseContext::GetInstance().moduleMap_.find(UbseConfModule::kModuleName);
     UbseContext::GetInstance().moduleMap_.erase(it);
 }
 /*

@@ -44,9 +44,9 @@ TestUbseUdsServer::TestUbseUdsServer() = default;
 void TestUbseUdsServer::SetUp()
 {
     MOCKER(&security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    context::UbseContext::GetInstance().moduleMap_[typeid(ubse::task_executor::UbseTaskExecutorModule)] =
+    context::UbseContext::GetInstance().moduleMap_[ubse::task_executor::UbseTaskExecutorModule::kModuleName] =
         std::make_shared<ubse::task_executor::UbseTaskExecutorModule>();
-    context::UbseContext::GetInstance().moduleMap_[typeid(ubse::security::UbseSecurityModule)] =
+    context::UbseContext::GetInstance().moduleMap_[ubse::security::UbseSecurityModule::kModuleName] =
         std::make_shared<ubse::security::UbseSecurityModule>();
     UbseUDSConfig udsConfig{
         .socketPath = GetSocketPath()

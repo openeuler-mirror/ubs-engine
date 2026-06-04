@@ -11,6 +11,7 @@
  */
 
 #include "ubse_api_server_module.h"
+#include "ubse_module.h"
 
 #include "ubse_api_server_auth_manager.h"
 #include "ubse_conf_module.h"
@@ -26,7 +27,7 @@ using namespace ubse::ipc;
 using namespace ubse::config;
 using namespace ubse::log;
 
-BASE_DYNAMIC_CREATE(UbseApiServerModule, UbseConfModule);
+CORE_MODULE_IMPL(UbseApiServerModule, UbseConfModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint16_t UDS_PERM = 0660;             // uds最小权限

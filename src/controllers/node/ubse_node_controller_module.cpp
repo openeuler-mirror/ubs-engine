@@ -12,12 +12,15 @@
 
 #include "ubse_node_controller_module.h"
 
+#include "ubse_module.h"
+#include "ubse_election_module.h"
+
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_api.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_master.h"
 #include "ubse_node_controller_agent.h"
-
+#include "ubse_lcne_module.h"
 namespace ubse::nodeController {
 using namespace ubse::election;
 using namespace ubse::ipc;
@@ -25,7 +28,7 @@ using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::node::api;
 
-DYNAMIC_CREATE(UbseNodeControllerModule);
+OPTIONAL_MODULE_IMPL(UbseNodeControllerModule, UbseLcneModule, UbseElectionModule);
 
 UbseResult UbseNodeControllerModule::Initialize()
 {

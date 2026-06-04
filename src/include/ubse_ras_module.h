@@ -17,9 +17,11 @@
 
 namespace ubse::ras {
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 class UbseRasModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseRasModule";
+    std::string Name() const override { return kModuleName; }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

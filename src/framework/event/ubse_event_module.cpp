@@ -11,6 +11,7 @@
  */
 
 #include "ubse_event_module.h"
+#include "ubse_module.h"
 
 #include <referable/ubse_ref.h>       // for Ref
 #include <cstdint>                    // for uint32_t
@@ -30,7 +31,7 @@ using namespace ubse::config;
 using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-BASE_DYNAMIC_CREATE(UbseEventModule, UbseConfModule, UbseLoggerModule);
+CORE_MODULE_IMPL(UbseEventModule, UbseConfModule, UbseLoggerModule);
 
 class UbseEventModule::Impl {
 public:

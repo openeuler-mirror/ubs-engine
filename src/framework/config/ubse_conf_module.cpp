@@ -11,6 +11,7 @@
  */
 
 #include "ubse_conf_module.h"
+#include "ubse_module.h"
 
 #include <cstddef>                // for size_t
 #include <regex>
@@ -29,7 +30,7 @@ using namespace ubse::log;
 using namespace ubse::common::def;
 using namespace ubse::utils;
 
-BASE_DYNAMIC_CREATE(UbseConfModule, ubse::security::UbseSecurityModule);
+CORE_MODULE_IMPL(UbseConfModule, ubse::security::UbseSecurityModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string CONFIG_DEFAULT_DIR = "/etc/ubse";

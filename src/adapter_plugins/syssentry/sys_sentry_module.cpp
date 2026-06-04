@@ -13,6 +13,7 @@
 #include "sentry_observer.h"
 #include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "sys_sentry_module.h"
+#include "ubse_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -25,7 +26,7 @@
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
-DYNAMIC_CREATE(SysSentryModule);
+OPTIONAL_MODULE_IMPL(SysSentryModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()

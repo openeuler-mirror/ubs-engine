@@ -20,8 +20,8 @@
 #include <string>
 #include <thread>
 
+#include "module_registry/ubse_plugin_loader.h"
 #include "ubse_error.h"
-
 namespace ubse::context {
 
 std::atomic<bool> g_globalStop{false};
@@ -59,8 +59,9 @@ UbseResult UbseContext::Run(int argc, char *argv[], ProcessMode mode)
         return ret;
     }
     SetProcessMode(mode);
+    std::cout << "UbseContext::Run-Loading plugins." << std::endl;
+    UbsePluginLoader::GetInstance().DiscoverAndLoad();
 
-    // 创建模块
     ret = CreateModules();
     if (ret != UBSE_OK) {
         std::cerr << "UbseContext::Run-Error: create modules failed" << std::endl;
@@ -125,41 +126,103 @@ UbseResult StartModule(const std::string &moduleName, std::shared_ptr<UbseModule
     return UBSE_OK;
 }
 
-UbseResult UbseContext::InitAndStartModule()
+UbseResult UbseContext::InitCoreModules(std::chrono::time_point<std::chrono::system_clock> &moduleStartTime)
 {
-    auto ret = InitModule(sortedBaseModules_);
-    if (ret != UBSE_OK) {
-        std::cerr << "UbseContext::InitBaseModule-Error: initializing base module failed." << std::endl;
-        return ret;
-    }
-    ret = StartModule(sortedBaseModules_);
-    if (ret != UBSE_OK) {
-        std::cerr << "UbseContext::StartBaseModule-Error: starting base module failed." << std::endl;
-        return ret;
-    }
-
-    ret = InitModule(sortedModules_);
-    if (ret != UBSE_OK) {
-        std::cerr << "UbseContext::InitModule-Error: initializing module failed." << std::endl;
-        return ret;
-    }
-    ret = StartModule(sortedModules_);
-    if (ret != UBSE_OK) {
-        std::cerr << "UbseContext::StartModule-Error: starting module failed." << std::endl;
-        return ret;
+    std::cout << "UbseContext::InitCoreModules-CORE" << std::endl;
+    for (const auto &[name, module] : sortedModules_) {
+        if (g_globalStop.load()) {
+            break;
+        }
+        auto it = registry_.find(name);
+        if (it == registry_.end() || it->second.category != UbseModuleCategory::CORE) {
+            continue;
+        }
+        auto ret = ubse::context::InitModule(name, module, moduleStartTime);
+        if (ret != UBSE_OK) {
+            std::cerr << "UbseContext::InitCoreModules-Error: initializing module " << name << std::endl;
+            return ret;
+        }
     }
     return UBSE_OK;
 }
 
-UbseResult UbseContext::InitModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+UbseResult UbseContext::StartCoreModules(std::chrono::time_point<std::chrono::system_clock> &moduleStartTime)
+{
+    std::cout << "UbseContext::StartCoreModules-CORE" << std::endl;
+    for (const auto &[name, module] : sortedModules_) {
+        if (g_globalStop.load()) {
+            break;
+        }
+        auto it = registry_.find(name);
+        if (it == registry_.end() || it->second.category != UbseModuleCategory::CORE) {
+            continue;
+        }
+        auto ret = ubse::context::StartModule(name, module, moduleStartTime);
+        if (ret != UBSE_OK) {
+            std::cerr << "UbseContext::StartCoreModules-Error: starting module " << name << std::endl;
+            return ret;
+        }
+        moduleMap_[name] = module;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseContext::InitAndStartNonCoreModules(std::chrono::time_point<std::chrono::system_clock> &moduleStartTime)
+{
+    std::cout << "UbseContext::InitAndStartNonCoreModules-OPTIONAL/PLUGIN" << std::endl;
+    for (const auto &[name, module] : sortedModules_) {
+        if (g_globalStop.load()) {
+            break;
+        }
+        auto it = registry_.find(name);
+        if (it == registry_.end() || it->second.category == UbseModuleCategory::CORE) {
+            continue;
+        }
+        auto ret = ubse::context::InitModule(name, module, moduleStartTime);
+        if (ret != UBSE_OK) {
+            std::cerr << "UbseContext::InitAndStartNonCoreModules-Error: initializing module " << name << std::endl;
+            return ret;
+        }
+        ret = ubse::context::StartModule(name, module, moduleStartTime);
+        if (ret != UBSE_OK) {
+            std::cerr << "UbseContext::InitAndStartNonCoreModules-Error: starting module " << name << std::endl;
+            return ret;
+        }
+        moduleMap_[name] = module;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseContext::InitAndStartModule()
+{
+    std::cout << "UbseContext::InitAndStartModule-start" << std::endl;
+    auto startTime = std::chrono::system_clock::now();
+    auto moduleStartTime = startTime;
+
+    if (auto ret = InitCoreModules(moduleStartTime); ret != UBSE_OK) {
+        return ret;
+    }
+    if (auto ret = StartCoreModules(moduleStartTime); ret != UBSE_OK) {
+        return ret;
+    }
+    if (auto ret = InitAndStartNonCoreModules(moduleStartTime); ret != UBSE_OK) {
+        return ret;
+    }
+
+    auto endTime = std::chrono::system_clock::now();
+    std::cout << "UbseContext::InitAndStartModule-end. Total time: " << CountDuration(startTime, endTime) << "ms"
+              << std::endl;
+    return UBSE_OK;
+}
+
+UbseResult UbseContext::InitModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>> &sortedModuleVec)
 {
     std::cout << "UbseContext::InitModule-start" << std::endl;
     auto startTime = std::chrono::system_clock::now();
-    auto moduleStartTime = std::chrono::system_clock::now();
-    for (const auto &it : sortedModuleVec) {
+    auto moduleStartTime = startTime;
+    for (const auto &[name, module] : sortedModuleVec) {
         if (!g_globalStop.load()) {
-            auto ret = ubse::context::InitModule(Demangle(it.first.name()), it.second, moduleStartTime);
+            auto ret = ubse::context::InitModule(name, module, moduleStartTime);
             if (ret != UBSE_OK) {
                 return ret;
             }
@@ -171,19 +234,17 @@ UbseResult UbseContext::InitModule(
     return UBSE_OK;
 }
 
-UbseResult UbseContext::StartModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+UbseResult UbseContext::StartModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>> &sortedModuleVec)
 {
     std::cout << "UbseContext::StartModule-start" << std::endl;
     auto startTime = std::chrono::system_clock::now();
     auto moduleStartTime = startTime;
-    for (const auto &it : sortedModuleVec) {
+    for (const auto &[name, module] : sortedModuleVec) {
         if (!g_globalStop.load()) {
-            auto ret = ubse::context::StartModule(Demangle(it.first.name()), it.second, moduleStartTime);
+            auto ret = ubse::context::StartModule(name, module, moduleStartTime);
             if (ret != UBSE_OK) {
                 return ret;
             }
-            moduleMap_[it.first] = it.second;
         }
     }
     auto endTime = std::chrono::system_clock::now();
@@ -192,8 +253,7 @@ UbseResult UbseContext::StartModule(
     return UBSE_OK;
 }
 
-UbseResult UbseContext::StopModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+UbseResult UbseContext::StopModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>> &sortedModuleVec)
 {
     std::cout << "UbseContext::StopModule-start" << std::endl;
     for (auto it = sortedModuleVec.rbegin(); it != sortedModuleVec.rend(); ++it) {
@@ -201,31 +261,110 @@ UbseResult UbseContext::StopModule(
             moduleMap_.erase(it->first);
             it->second->Stop();
         } catch (const std::exception &e) {
-            std::cerr << "UbseContext::StopModule-Error: stopping module " << Demangle(it->first.name()) << ": "
-                      << e.what() << std::endl;
+            std::cerr << "UbseContext::StopModule-Error: stopping module " << it->first << ": " << e.what()
+                      << std::endl;
         }
-        std::cout << "UbseContext::StopModule-Module: " << Demangle(it->first.name()) << std::endl;
+        std::cout << "UbseContext::StopModule-Module: " << it->first << std::endl;
     }
     std::cout << "UbseContext::StopModule-end" << std::endl;
     return UBSE_OK;
 }
 
-UbseResult UbseContext::DestroyModule(
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
+UbseResult UbseContext::DestroyModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>> &sortedModuleVec)
 {
     std::cout << "UbseContext::DestroyModule-start" << std::endl;
     for (auto it = sortedModuleVec.rbegin(); it != sortedModuleVec.rend(); ++it) {
         try {
             it->second->UnInitialize();
         } catch (const std::exception &e) {
-            std::cerr << "UbseContext::DestroyModule-Error: destroying module " << Demangle(it->first.name()) << ": "
-                      << e.what() << std::endl;
+            std::cerr << "UbseContext::DestroyModule-Error: destroying module " << it->first << ": " << e.what()
+                      << std::endl;
         }
-        std::cout << "UbseContext::DestroyModule-Module: " << Demangle(it->first.name()) << std::endl;
+        std::cout << "UbseContext::DestroyModule-Module: " << it->first << std::endl;
     }
     sortedModuleVec.clear();
     std::cout << "UbseContext::DestroyModule-end" << std::endl;
     return UBSE_OK;
+}
+
+void UbseContext::StopNonCoreModules()
+{
+    std::cout << "UbseContext::Stop-NonCORE" << std::endl;
+    for (auto it = sortedModules_.rbegin(); it != sortedModules_.rend(); ++it) {
+        auto entryIt = registry_.find(it->first);
+        if (entryIt == registry_.end() || entryIt->second.category == UbseModuleCategory::CORE) {
+            continue;
+        }
+        try {
+            moduleMap_.erase(it->first);
+            it->second->Stop();
+        } catch (const std::exception &e) {
+            std::cerr << "UbseContext::StopModule-Error: stopping module " << it->first << ": " << e.what()
+                      << std::endl;
+        }
+        std::cout << "UbseContext::StopModule-Module: " << it->first << std::endl;
+    }
+}
+
+void UbseContext::DestroyNonCoreModules()
+{
+    std::cout << "UbseContext::Destroy-NonCORE" << std::endl;
+    for (auto it = sortedModules_.rbegin(); it != sortedModules_.rend(); ++it) {
+        auto entryIt = registry_.find(it->first);
+        if (entryIt == registry_.end() || entryIt->second.category == UbseModuleCategory::CORE) {
+            continue;
+        }
+        try {
+            it->second->UnInitialize();
+        } catch (const std::exception &e) {
+            std::cerr << "UbseContext::DestroyModule-Error: destroying module " << it->first << ": " << e.what()
+                      << std::endl;
+        }
+        std::cout << "UbseContext::DestroyModule-Module: " << it->first << std::endl;
+
+        if (entryIt->second.category == UbseModuleCategory::PLUGIN) {
+            it->second.reset();
+            registry_.erase(it->first);
+            activated_.erase(it->first);
+            std::cout << "[UbseContext] Unregistered plugin: " << it->first << std::endl;
+        }
+    }
+}
+
+void UbseContext::StopCoreModules()
+{
+    std::cout << "UbseContext::Stop-CORE" << std::endl;
+    for (auto it = sortedModules_.rbegin(); it != sortedModules_.rend(); ++it) {
+        auto entryIt = registry_.find(it->first);
+        if (entryIt == registry_.end() || entryIt->second.category != UbseModuleCategory::CORE) {
+            continue;
+        }
+        try {
+            moduleMap_.erase(it->first);
+            it->second->Stop();
+        } catch (const std::exception &e) {
+            std::cerr << "UbseContext::StopModule-Error: stopping module " << it->first << ": " << e.what()
+                      << std::endl;
+        }
+        std::cout << "UbseContext::StopModule-Module: " << it->first << std::endl;
+    }
+}
+
+void UbseContext::DestroyCoreModules()
+{
+    std::cout << "UbseContext::Destroy-CORE" << std::endl;
+    for (auto it = sortedModules_.rbegin(); it != sortedModules_.rend(); ++it) {
+        auto entryIt = registry_.find(it->first);
+        if (entryIt == registry_.end() || entryIt->second.category != UbseModuleCategory::CORE) {
+            continue;
+        }
+        try {
+            it->second->UnInitialize();
+        } catch (const std::exception &e) {
+            std::cerr << "UbseContext::Stop-Error: destroying module " << it->first << ": " << e.what() << std::endl;
+        }
+        std::cout << "UbseContext::DestroyModule-Module: " << it->first << std::endl;
+    }
 }
 
 void UbseContext::Stop()
@@ -234,25 +373,29 @@ void UbseContext::Stop()
     g_globalStop.store(true);
     std::cout << "UbseContext::Stop-start, allModulesReady=" << allModulesReady_.load()
               << ", globalStop=" << g_globalStop.load() << std::endl;
-    // 停止业务模块
-    (void)StopModule(sortedModules_);
-    (void)DestroyModule(sortedModules_);
 
-    // 停止基础模块
-    (void)StopModule(sortedBaseModules_);
-    (void)DestroyModule(sortedBaseModules_);
+    StopNonCoreModules();
+    DestroyNonCoreModules();
+    UbsePluginLoader::GetInstance().UnloadAll();
+    StopCoreModules();
+    DestroyCoreModules();
+
+    sortedModules_.clear();
+    registry_.clear();
+    activated_.clear();
+    moduleMap_.clear();
     std::cout << "UbseContext::Stop-end" << std::endl;
 }
 
 UbseResult UbseContext::RegisterArg()
 {
     std::cout << "UbseContext::RegisterArg-start" << std::endl;
-    for (const auto &it : moduleMap_) {
+    for (const auto &[name, module] : moduleMap_) {
         try {
-            it.second->RegArgs();
+            module->RegArgs();
         } catch (const std::exception &e) {
-            std::cerr << "UbseContext::RegisterArg-Error: registering arguments for module "
-                      << Demangle(it.first.name()) << ": " << e.what() << std::endl;
+            std::cerr << "UbseContext::RegisterArg-Error: registering arguments for module " << name << ": " << e.what()
+                      << std::endl;
             return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
     }
@@ -262,23 +405,26 @@ UbseResult UbseContext::RegisterArg()
 
 UbseResult UbseContext::ParserArgs(int argc, char *argv[])
 {
-    for (int i = 1; i < argc; ++i) {
+    int i = 1;
+    while (i < argc) {
         std::string arg = argv[i];
         if (arg[0] != '-') {
             std::cerr << "UbseContext::ParserArgs-Error: parsing arguments: " << arg << std::endl;
             return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
 
-        std::string key = arg.substr(1); // 去掉'-'，得到参数名
+        std::string key = arg.substr(1);
         if (key.empty()) {
             std::cerr << "UbseContext::ParserArgs-Error: parsing arguments " << arg << std::endl;
             return UBSE_ERROR_PARSE_ARGS_FAILED;
         }
         std::string value;
         if (i + 1 < argc && argv[i + 1][0] != '-') {
-            value = argv[++i]; // 获取下一个非'-'的值
+            value = argv[i + 1];
+            ++i;
         }
         argMap_[key] = value;
+        ++i;
     }
     std::cout << "UbseContext::ParserArgs-Args: ";
     for (const auto &it : argMap_) {
@@ -300,114 +446,170 @@ UbseResult UbseContext::GetArgStr(const std::string &argName, std::string &argVa
 
 UbseResult UbseContext::CreateModules()
 {
-    // 创建基础模块
-    std::cout << "UbseContext::CreateBaseModules-start" << std::endl;
-    UbseResult res = CreateModules(baseModuleCreatorMap_, sortedBaseModules_);
-    if (res != UBSE_OK) {
-        return res;
-    }
-    std::cout << "UbseContext::CreateBaseModules-end" << std::endl;
-
-    // 创建业务模块
-    std::cout << "UbseContext::CreateModules-start" << std::endl;
-    res = CreateModules(moduleCreatorMap_, sortedModules_);
-    if (res != UBSE_OK) {
-        return res;
-    }
-    std::cout << "UbseContext::CreateModules-end" << std::endl;
-    return UBSE_OK;
-}
-
-UbseResult UbseContext::CreateModules(
-    const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec)
-{
-    if (!sortedModuleVec.empty()) {
+    if (!sortedModules_.empty()) {
         return UBSE_OK;
     }
-    std::vector<std::type_index> sortedModuleName;
+    registry_ = UbseModuleRegistry::GetInstance().TakeRegistry();
+    std::vector<std::string> sorted{};
     try {
-        sortedModuleName = TopologicalSort(creatorMap);
+        // 解析激活：CORE 无条件激活，PLUGIN 无条件激活，OPTIONAL 按需激活
+        ResolveActivation();
+        // 拓扑排序：返回模块名称列表，CORE 在前，其余按依赖顺序
+        sorted = TopologicalSort();
     } catch (const std::exception &e) {
         std::cerr << "UbseContext::CreateModules-Error: " << e.what() << std::endl;
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    for (const std::type_index &moduleName : sortedModuleName) {
-        auto creatorIt = creatorMap.find(moduleName);
-        if (creatorIt == creatorMap.end()) {
-            std::cerr << "UbseContext::CreateModules-Error: creator for module " << Demangle(moduleName.name())
-                      << " not found" << std::endl;
-        }
-        try {
-            auto module = creatorIt->second.creator();
-            sortedModuleVec.emplace_back(moduleName, module);
-            moduleMap_[moduleName] = module;
-        } catch (const std::exception &e) {
-            std::cerr << "UbseContext::CreateModules-Error: creating module " << Demangle(moduleName.name()) << ": "
-                      << e.what() << std::endl;
+
+    // 按排序顺序创建模块实例
+    for (const auto &name : sorted) {
+        auto it = registry_.find(name);
+        if (it == registry_.end() || !it->second.creator) {
+            std::cerr << "UbseContext::CreateModules-Error: failed to create module: " << name << std::endl;
             return UBSE_ERROR_MODULE_LOAD_FAILED;
         }
+        auto module = it->second.creator();
+        if (!module) {
+            std::cerr << "UbseContext::CreateModules-Error: failed to create module: " << name << std::endl;
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+        sortedModules_.emplace_back(name, module);
+        moduleMap_[name] = module;
     }
+
     std::cout << "UbseContext::CreateModules-ModuleList: ";
-    for (const auto &it : sortedModuleName) {
-        std::cout << "[moduleName: " << Demangle(it.name()) << "] ";
+    for (const auto &[name, _] : sortedModules_) {
+        std::cout << "[" << name << "] ";
     }
     std::cout << std::endl;
+
     return UBSE_OK;
 }
-
-std::vector<std::type_index> UbseContext::TopologicalSort(
-    const std::unordered_map<std::type_index, ModuleEntry> &creatorMap)
+void UbseContext::ResolveActivation()
 {
-    std::vector<std::type_index> sorted;
-    std::unordered_set<std::type_index> visited;
-    std::unordered_set<std::type_index> visiting;
+    activated_.clear();
 
-    for (const auto &[name, entry] : creatorMap) {
-        if (visited.find(name) == visited.end()) {
-            if (!TopologicalSortUtil(creatorMap, name, visited, visiting, sorted)) {
-                throw std::runtime_error("Cyclic dependency detected");
-            }
+    for (const auto &[name, entry] : registry_) {
+        if (entry.category == UbseModuleCategory::CORE) {
+            ActivateWithDependencies(name);
         }
     }
-    return sorted;
+
+    for (const auto &[name, entry] : registry_) {
+        if (entry.category == UbseModuleCategory::PLUGIN) {
+            ActivateWithDependencies(name);
+        }
+    }
 }
 
-bool UbseContext::TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                                      const std::type_index &moduleName, std::unordered_set<std::type_index> &visited,
-                                      std::unordered_set<std::type_index> &visiting,
-                                      std::vector<std::type_index> &sorted)
+void UbseContext::ActivateWithDependencies(const std::string &name)
 {
-    if (visiting.find(moduleName) != visiting.end()) {
-        return false;
+    std::set<std::string> inStack;
+    ActivateWithDependenciesImpl(name, inStack);
+}
+
+void UbseContext::ActivateWithDependenciesImpl(const std::string &name, std::set<std::string> &inStack)
+{
+    if (activated_.find(name) != activated_.end()) {
+        return;
     }
 
-    if (visited.find(moduleName) != visited.end()) {
-        return true;
+    auto it = registry_.find(name);
+    if (it == registry_.end()) {
+        std::cerr << "[UbseContext] Warning: Module not found in registry: " << name << std::endl;
+        return;
     }
 
-    visiting.insert(moduleName);
+    if (inStack.find(name) != inStack.end()) {
+        std::string errorMsg = "[UbseContext] Error: Circular dependency detected at: " + name;
+        std::cerr << errorMsg << std::endl;
+        throw std::runtime_error(errorMsg);
+    }
 
-    const auto &entry = creatorMap.at(moduleName);
-    for (const auto &dependency : entry.dependencies) {
-        if (creatorMap.find(dependency) == creatorMap.end()) {
-            std::cerr << "UbseContext::CreateModules-Error: " << Demangle(dependency.name())
-                      << " which is a dependency of " << Demangle(moduleName.name()) << " is not registered"
-                      << std::endl;
-            throw std::runtime_error("Dependency not registered");
+    inStack.insert(name);
+
+    for (const auto &dep : it->second.dependencies) {
+        ActivateWithDependenciesImpl(dep, inStack);
+    }
+
+    inStack.erase(name);
+
+    activated_.insert(name);
+
+    const char *catStr = "";
+    switch (it->second.category) {
+        case UbseModuleCategory::CORE:
+            catStr = "CORE";
+            break;
+        case UbseModuleCategory::OPTIONAL:
+            catStr = "OPTIONAL";
+            break;
+        case UbseModuleCategory::PLUGIN:
+            catStr = "PLUGIN";
+            break;
+    }
+    std::cout << "[UbseContext] Activated: " << name << " [" << catStr << "]" << std::endl;
+}
+std::vector<std::string> UbseContext::TopologicalSort()
+{
+    std::vector<std::string> result;
+    std::set<std::string> visited;
+    std::set<std::string> inStack;
+
+    std::function<bool(const std::string &)> visit = [&](const std::string &name) -> bool {
+        if (visited.find(name) != visited.end()) {
+            return true;
         }
-        if (!TopologicalSortUtil(creatorMap, dependency, visited, visiting, sorted)) {
+        if (inStack.find(name) != inStack.end()) {
+            std::cerr << "[UbseContext] Error: Circular dependency detected at: " << name << std::endl;
             return false;
         }
+
+        inStack.insert(name);
+
+        auto it = registry_.find(name);
+        if (it != registry_.end()) {
+            for (const auto &dep : it->second.dependencies) {
+                if (activated_.find(dep) == activated_.end()) {
+                    std::cerr << "UbseContext::CreateModules-Error: " << dep << " which is a dependency of " << name
+                              << " is not registered" << std::endl;
+                    throw std::runtime_error("Dependency not registered");
+                }
+                if (!visit(dep)) {
+                    return false;
+                }
+            }
+        }
+
+        inStack.erase(name);
+        visited.insert(name);
+        result.push_back(name);
+        return true;
+    };
+
+    for (const auto &name : activated_) {
+        if (!visit(name)) {
+            return {};
+        }
     }
 
-    visiting.erase(moduleName);
-    visited.insert(moduleName);
-    sorted.push_back(moduleName);
+    std::vector<std::string> coreModules;
+    std::vector<std::string> otherModules;
+    for (const auto &name : result) {
+        auto it = registry_.find(name);
+        if (it != registry_.end() && it->second.category == UbseModuleCategory::CORE) {
+            coreModules.push_back(name);
+        } else {
+            otherModules.push_back(name);
+        }
+    }
 
-    return true;
+    result.clear();
+    result.insert(result.end(), coreModules.begin(), coreModules.end());
+    result.insert(result.end(), otherModules.begin(), otherModules.end());
+
+    return result;
 }
-
 ProcessMode UbseContext::GetProcessMode() const
 {
     if (processMode_ == ProcessMode::DEFAULT) {

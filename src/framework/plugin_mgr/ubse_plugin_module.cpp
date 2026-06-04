@@ -9,15 +9,15 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
+#include "ubse_plugin_module.h"
 #include "ubse_http_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_plugin_module.h"
+#include "ubse_module.h"
 
 namespace ubse::plugin {
-DYNAMIC_CREATE(UbsePluginModule);
+CORE_MODULE_IMPL(UbsePluginModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbsePluginModule::Initialize()

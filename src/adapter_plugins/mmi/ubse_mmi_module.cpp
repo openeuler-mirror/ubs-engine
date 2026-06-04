@@ -11,6 +11,7 @@
  */
 
 #include "ubse_common_def.h"
+#include "ubse_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -26,7 +27,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
 
-DYNAMIC_CREATE(UbseMmiModule);
+OPTIONAL_MODULE_IMPL(UbseMmiModule);
 UbseResult UbseMmiModule::Initialize()
 {
     auto ret = RmObmmExecutor::GetInstance().Init();

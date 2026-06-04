@@ -25,6 +25,8 @@ using namespace ubse::ipc;
 
 class UbseApiServerModule final : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseApiServerModule";
+    std::string Name() const override { return kModuleName; }
     ~UbseApiServerModule() override = default;
 
     UbseResult Initialize() override;

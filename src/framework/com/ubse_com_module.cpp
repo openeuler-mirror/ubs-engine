@@ -11,6 +11,7 @@
  */
 
 #include "ubse_com_module.h"
+#include "ubse_module.h"
 
 #include <sys/stat.h>
 #include <csignal>
@@ -34,8 +35,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
-BASE_DYNAMIC_CREATE(UbseComModule, UbseConfModule, ubse::task_executor::UbseTaskExecutorModule,
-                    ubse::event::UbseEventModule);
+OPTIONAL_MODULE_IMPL(UbseComModule, UbseConfModule,
+                              ubse::task_executor::UbseTaskExecutorModule, ubse::event::UbseEventModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
 const std::string UBSE_CERT_CONFIG_KEY = "cert.use";
 constexpr uint16_t NODE_UP_STATE = 1;

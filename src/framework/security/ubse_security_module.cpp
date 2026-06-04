@@ -11,6 +11,7 @@
  */
 
 #include "ubse_security_module.h"
+#include "ubse_module.h"
 
 #include <iostream>                // for char_traits, basic_ostream
 
@@ -19,9 +20,8 @@
 #include "ubse_env_util.h"         // for GetEnv
 #include "ubse_error.h"            // for UBSE_OK, UBSE_ERROR
 #include "ubse_logger.h"
-
 namespace ubse::security {
-BASE_DYNAMIC_CREATE(UbseSecurityModule);
+CORE_MODULE_IMPL(UbseSecurityModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 UbseResult SetMinCapabilities()

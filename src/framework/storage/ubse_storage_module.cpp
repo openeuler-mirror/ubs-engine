@@ -13,6 +13,7 @@
 #include "ubse_election.h"
 #include "ubse_fs.h"
 #include "ubse_security_module.h"
+#include "ubse_module.h"
 
 namespace ubse::storage {
 using namespace ubse::context;
@@ -22,7 +23,7 @@ using namespace ubse::election;
 using namespace ubse::misc::fs;
 using namespace ubse::security;
 
-BASE_DYNAMIC_CREATE(UbseStorageModule, UbseLoggerModule, UbseElectionModule);
+OPTIONAL_MODULE_IMPL(UbseStorageModule, UbseLoggerModule, UbseElectionModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 class UbseStorageModule::Impl {
