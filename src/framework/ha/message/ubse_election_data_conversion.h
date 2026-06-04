@@ -20,27 +20,31 @@ inline void ElectionPktSerialize(ubse::serial::UbseSerialization &out, ubse::ele
 {
     out << electionPkt.type << electionPkt.masterId << electionPkt.standbyId << electionPkt.turnId
         << electionPkt.sequenceId << electionPkt.agentCount << electionPkt.agentIds << electionPkt.masterStatus
-        << electionPkt.standbyStatus << electionPkt.broadcast << electionPkt.rev1 << electionPkt.rsv2;
+        << electionPkt.standbyStatus << electionPkt.broadcast << electionPkt.queryGroupNodeIds;
 }
 inline void ElectionPktDeserialize(ubse::serial::UbseDeSerialization &in, ubse::election::ElectionPkt &electionPkt)
 {
     in >> electionPkt.type >> electionPkt.masterId >> electionPkt.standbyId >> electionPkt.turnId >>
         electionPkt.sequenceId >> electionPkt.agentCount >> electionPkt.agentIds >> electionPkt.masterStatus >>
-        electionPkt.standbyStatus >> electionPkt.broadcast >> electionPkt.rev1 >> electionPkt.rsv2;
+        electionPkt.standbyStatus >> electionPkt.broadcast >> electionPkt.queryGroupNodeIds;
 }
 inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization &out,
                                       ubse::election::ElectionReplyPkt &electionReplyPkt)
 {
-    out << electionReplyPkt.type << electionReplyPkt.replyId << electionReplyPkt.replyResult
-        << electionReplyPkt.masterId << electionReplyPkt.turnId << electionReplyPkt.standbyStatus
-        << electionReplyPkt.broadcast << electionReplyPkt.rsv << electionReplyPkt.length;
+    out << electionReplyPkt.type << electionReplyPkt.replyId << electionReplyPkt.groupId << electionReplyPkt.replyResult
+        << electionReplyPkt.masterId << electionReplyPkt.standbyId
+        << electionReplyPkt.turnId << electionReplyPkt.standbyStatus
+        << electionReplyPkt.broadcast << electionReplyPkt.mountedGroupMasterId
+        << electionReplyPkt.managingGroupNodeIds << electionReplyPkt.mountedGroupNodeIds;
 }
 inline void ElectionReplyPktDeserialize(ubse::serial::UbseDeSerialization &in,
                                         ubse::election::ElectionReplyPkt &electionReplyPkt)
 {
-    in >> electionReplyPkt.type >> electionReplyPkt.replyId >> electionReplyPkt.replyResult >>
-        electionReplyPkt.masterId >> electionReplyPkt.turnId >> electionReplyPkt.standbyStatus >>
-        electionReplyPkt.broadcast >> electionReplyPkt.rsv >> electionReplyPkt.length;
+    in >> electionReplyPkt.type >> electionReplyPkt.replyId >> electionReplyPkt.groupId >>
+        electionReplyPkt.replyResult >> electionReplyPkt.masterId >> electionReplyPkt.standbyId >>
+        electionReplyPkt.turnId >> electionReplyPkt.standbyStatus >>
+        electionReplyPkt.broadcast >> electionReplyPkt.mountedGroupMasterId >>
+        electionReplyPkt.managingGroupNodeIds >> electionReplyPkt.mountedGroupNodeIds;
 }
 } // namespace ubse::election::data::conversion
 #endif // UBSE_ELECTION_DATA_CONVERSION_H

@@ -12,21 +12,24 @@
 
 #include "ubse_election_module.h"
 #include <chrono>
+#include "ubse_node_discovery_module.h"
 #include "config.h"
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
+#include "ubse_net_util.h"
 
 namespace ubse::election {
 using namespace ubse::context;
 using namespace ubse::com;
 using namespace ubse::config;
 using namespace ubse::nodeController;
+using namespace ubse::nodeDiscovery;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule);
+BASE_DYNAMIC_CREATE(UbseElectionModule, UbseComModule, UbseNodeDiscoveryModule);
 
 UbseResult UbseElectionModule::Initialize()
 {
@@ -100,6 +103,11 @@ UbseResult UbseElectionModule::Start()
         UBSE_LOG_ERROR << "[ELECTION] Create election task executor failed";
         return ret;
     }
+    ret = taskExecutorModule->Create(ELECTION_GLOBAL_TASK_EXECUTOR_NAME, NO_4, NO_7);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Create election global task executor failed";
+        return ret;
+    }
     // UT 场景下，启用下面两个线程，会导致 UT 程序无法正常退出
 #if !defined(ENABLE_UBSE_TESTING) || ENABLE_UBSE_TESTING != 1
     threads_.emplace_back(&UbseElectionModule::TimerTaskElection, this);
@@ -119,6 +127,7 @@ void UbseElectionModule::Stop()
     auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (taskExecutorModule != nullptr) {
         taskExecutorModule->Remove(ELECTION_TASK_EXECUTOR_NAME);
+        taskExecutorModule->Remove(ELECTION_GLOBAL_TASK_EXECUTOR_NAME);
     }
     auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule != nullptr) {
@@ -148,6 +157,11 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
         masterNode.ip = NODE_IP_NULL;
         masterNode.port = NODE_PORT_NULL;
     }
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionModule::GetLocalMasterNode(Node &localMasterNode)
+{
     return UBSE_OK;
 }
 
@@ -230,6 +244,7 @@ UbseResult UbseElectionModule::GetCurrentNode(Node &currentNode)
     }
     return UBSE_OK;
 }
+
 UbseResult UbseElectionModule::GetMasterStatus(uint8_t &status)
 {
     status = RoleMgr::GetInstance().GetRole()->GetMasterStatus();
@@ -292,5 +307,10 @@ void UbseElectionModule::SwitchAgentFromMaster()
     ctx.standbyId = INVALID_NODE_ID;
     ctx.turnId = role->GetTurnId();
     RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
+}
+
+UbseResult UbseElectionModule::GetHaTopologyInfo(HaTopologyInfo &haTopology)
+{
+    return UBSE_OK;
 }
 } // namespace ubse::election
