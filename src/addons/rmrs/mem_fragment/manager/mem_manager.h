@@ -89,6 +89,32 @@ struct BorrowRecord {
     }
 };
 
+struct NumaLevelBorrowedDecision {
+    uint16_t presentNumaId;
+    uint16_t oldNumaId;
+    std::vector<pid_t> pids;
+    uint64_t totalBorrowSize;
+    std::map<std::string, std::string> borrowResultMap; // oldName->newName
+};
+
+struct BorrowIdLevelBorrowedDecision {
+    uint16_t presentNumaId;
+    uint16_t oldNumaId;
+    std::vector<pid_t> pids;
+    uint64_t borrowSize;
+    std::string oldName;
+    std::string newName;
+};
+
+// 已经执行了借用，但是迁移失败的决策
+struct BorrowedDecision {
+    std::string borrowNodeId;             // 该故障numa对应的nodeId
+    uint16_t remoteNumaId;                // 该故障numa对应的远端numaId
+    bool isNumaLevel{false};              // true为NUMA级别决策, false则为borrowId级别决策
+    NumaLevelBorrowedDecision numaBorrowedDecision{}; // NUMA级别决策结果
+    std::vector<BorrowIdLevelBorrowedDecision> borrowIdBorrowedDecisions{};
+};
+
 struct NumaMemInfo {
     uint16_t numaId{0};
     uint16_t socketId{0};
@@ -327,6 +353,26 @@ private:
     // smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaId
     std::unordered_set<int16_t> smapEnableCompleted;
     std::mutex mtxSmapEnableCompleted;
+};
+
+class FaultHandleBorrowedDecision {
+public:
+    static FaultHandleBorrowedDecision& Instance()
+    {
+        static FaultHandleBorrowedDecision instance;
+        return instance;
+    }
+    MpResult Update(const uint16_t numaId, const BorrowedDecision& decision);
+    MpResult Remove(const uint16_t numaId);
+    MpResult Query(BorrowedDecision& decision, const uint16_t numaId);
+    MpResult QueryAll(std::vector<BorrowedDecision>& decisionList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
+
+private:
+    // borrowedDecisionMap中存放的为故障numa对应的borrowedDecision
+    std::unordered_map<uint16_t, BorrowedDecision> borrowedDecisionMap;
+    std::mutex mtxBorrowedDecision;
 };
 
 class BorrowIdInFaultProcess {

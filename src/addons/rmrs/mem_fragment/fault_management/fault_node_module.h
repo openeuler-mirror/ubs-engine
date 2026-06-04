@@ -163,6 +163,8 @@ struct NumaLevelDecision {
     std::vector<pid_t> pids;                           // 需逃生的虚机pid集合
     uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    bool isBorrowed = false; // 是否已经借用过
+    NumaLevelBorrowedDecision borrowedDecision; // 借用成功，迁移失败的NUMA级别决策
 };
 
 struct BorrowIdLevelDecision {
@@ -179,6 +181,8 @@ struct BorrowIdLevelDecision {
     bool isReturnDirectly = false;                     // 是否直接归还（无需借用迁移）
     uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
     std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    bool isBorrowed = false; // 是否已经借用过
+    BorrowIdLevelBorrowedDecision borrowedDecision; // 借用成功，迁移失败的borrowId级别决策结果
 };
 
 struct BorrowGroupResult {
@@ -294,6 +298,12 @@ public:
     MpResult NumaLevelMemBorrow(const BorrowGroupResult& group, NumaLevelDecision decision,
                                 std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap,
                                 uint16_t& presentNumaId);
+    MpResult GetBorrowedDecisionRpc(const std::string& nodeId, std::vector<BorrowedDecision>& outDecisions);
+    void RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowGroups);
+    MpResult BorrowIdLevelBorrowedExecute(BorrowIdLevelBorrowedDecision& borrowedDecision);
+    MpResult NumaLevelBorrowedExecute(const NumaLevelBorrowedDecision& decision);
+    MpResult NumaLevelExecuteNormal(const BorrowGroupResult& group, NumaLevelDecision decision,
+                                    std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap);
     static uint64_t GetBlockSizeKB();
 
 private:
@@ -317,6 +327,8 @@ uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp
 uint32_t BorrowIdLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 void NumaLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
 class MpFaultNodeSubModule : public MpSubModule {
 public:
@@ -355,6 +367,15 @@ public:
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] BorrowIdLevelExecuteHandler reg failed, ret=" << ret;
+            return ret;
+        }
+
+        // 注册查询失败决策的 handler
+        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_GET_BORROWED_DECISION};
+        ret = UbseRegRpcService(endpoint, GetBorrowedDecisionHandler);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MSG] GetBorrowedDecisionHandler reg failed, ret=" << ret;
             return ret;
         }
 
