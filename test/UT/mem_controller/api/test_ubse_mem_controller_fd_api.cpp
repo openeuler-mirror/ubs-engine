@@ -155,7 +155,7 @@ TEST_F(TestUbseMemControllerFdApi, AgentSendFdExportObjFailedTest)
 
 TEST_F(TestUbseMemControllerFdApi, UbseMemFdReturnSuccessTest)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowExportObj exportObj;
     UbseMemDebtNumaInfo numaInfo{};
     numaInfo.nodeId = NODE_ONE;

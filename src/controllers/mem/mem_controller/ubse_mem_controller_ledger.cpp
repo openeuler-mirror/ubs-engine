@@ -12,6 +12,7 @@
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_init_ledger_state.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api.h"
@@ -483,6 +484,12 @@ UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType 
 
 UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
 {
+    if (node.clusterState == UbseNodeClusterState::UBSE_NODE_INIT) {
+        UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, false);
+    } else if (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, true);
+    }
+
     if (node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
         return UBSE_OK;
     }

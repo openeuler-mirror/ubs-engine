@@ -1146,7 +1146,7 @@ TEST_F(TestUbseMemControllerApi, FdImportExpectSuccessMasterCallbackFail)
 
 TEST_F(TestUbseMemControllerApi, FdImportExpectDestroyMasterCallbackExportNotExist)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER(&BuildOperationRespWhenSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = "0";
@@ -1179,7 +1179,7 @@ TEST_F(TestUbseMemControllerApi, FdImportExpectDestroyMasterCallbackExportNotExi
 
 TEST_F(TestUbseMemControllerApi, FdImportExpectDestroyMasterCallback)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER(&BuildOperationRespWhenSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = "0";
@@ -1481,7 +1481,7 @@ TEST_F(TestUbseMemControllerApi, NumaImportExpectSuccessMasterCallBackFail)
 
 TEST_F(TestUbseMemControllerApi, NumaImportExpectDestroyedMasterCallBack)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemDebtNumaInfo numaInfo;
     numaInfo.nodeId = "1";
     std::vector<UbseMemDebtNumaInfo> numaInfos;

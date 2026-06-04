@@ -51,9 +51,8 @@ using ubse::adapter_plugins::mmi::UbseUdsInfo;
 
 const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
-const uint32_t SLEEP_TIME = 200;
 const uint32_t ALLOCATE_RETRY_TIME = 25;
-const uint32_t RETURN_RETRY_TIME = 150;
+const uint32_t MAX_WAIT_TIME_MS = 30000;
 extern std::atomic<uint64_t> g_fdUnimportFailedCount;
 extern std::atomic<uint64_t> g_numaUnimportFailedCount;
 extern std::atomic<uint64_t> g_shareUnimportFailedCount;
@@ -249,7 +248,7 @@ bool CheckShareReturnPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& re
 bool CheckShareDetachPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& reqUds,
                                 const std::string& realRequestNodeId, const std::string& importNodeId);
 
-uint32_t WaitNodeStateWork(const std::string& importNode);
+uint32_t WaitInitLedgerSuccess(const std::string& importNode);
 
 template <class ObjType>
 bool HasAgentAlreadyReported(const std::string& name, const std::string& exeNodeId, bool ObjType::*reportedFlagField)

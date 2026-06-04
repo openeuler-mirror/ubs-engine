@@ -1006,7 +1006,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedSuccess)
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     UbseMemImportResult importResult{};
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     importObj.status.importResults.push_back(importResult);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
         importObj.req.importNodeId, importObj.req.name, importObj);
@@ -1023,7 +1023,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedSuccess)
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccess)
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const std::string nodeId = NODE_ONE;
     const std::string name = "addr_test_mem";
     UbseMemAddrBorrowExportObj addrBorrowExportObj{};
