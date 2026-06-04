@@ -34,7 +34,7 @@ UbseResult CheckFeEid(std::vector<UbseMtiFeInfo>& allFeInfos)
 {
     for (auto& item : allFeInfos) {
         std::string nodeId;
-        if (!GetCurNodeId(item.slotId, nodeId)) {
+        if (!GetCurNodeId(item.slotId, nodeId) || nodeId.empty()) {
             UBSE_LOG_ERROR << "[MTI] Failed to convert slotId to nodeId, slotId=" << item.slotId;
             return UBSE_ERROR;
         }
@@ -140,8 +140,8 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiF
 
 UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>& ubseXml, UbseMtiIouInfo& iouInfo)
 {
-    std::string nodeId = ubseXml->Child("slot-id")->Text();
-    if (nodeId.empty()) {
+    iouInfo.slotId = ubseXml->Child("slot-id")->Text();
+    if (iouInfo.slotId.empty()) {
         UBSE_LOG_ERROR << "[MTI] Xml parse slot-id failed.";
         return UBSE_ERROR;
     }
