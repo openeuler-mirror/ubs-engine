@@ -44,10 +44,11 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
     }
 
     const ubs_error_t ret = UbseUbDevListUnpack(responseBuffer.buffer, responseBuffer.length, device_list);
+    ubse_api_buffer_free(&responseBuffer);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "Failed to unpack ub device list, error: " << ret;
+        return ret;
     }
-    ubse_api_buffer_free(&responseBuffer);
 
     IPC_LOG_DEBUG << "Device List: UBCTRL=" << static_cast<uint32_t>(device_list->ubctrl_cnt)
                   << ", NIC_PFE=" << static_cast<uint32_t>(device_list->nic_pfe_cnt)
@@ -55,7 +56,7 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
                   << ", NPU=" << static_cast<uint32_t>(device_list->npu_cnt)
                   << ", BUSI=" << static_cast<uint32_t>(device_list->busi_cnt);
 
-    return static_cast<int32_t>(ret);
+    return ret;
 }
 
 int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
@@ -135,14 +136,14 @@ void ubs_npu_device_list_free(ubs_ub_devices_list_t* device_list)
 
 int32_t ubs_uba_tid_size_query(uint8_t* bus_instance_guid, uint32_t* tid, uint64_t* uba, uint64_t* size)
 {
-    if (bus_instance_guid == nullptr) {
-        return static_cast<int32_t>(UBS_ERR_NULL_POINTER);
+    if (bus_instance_guid == nullptr || tid == nullptr || uba == nullptr || size == nullptr) {
+        return UBS_ERR_NULL_POINTER;
     }
 
     ubse_api_buffer_t requestBuffer;
     ubs_error_t ret = UbseNpuQueryTidUbaSizeReqBuild(requestBuffer, bus_instance_guid);
     if (ret != UBS_SUCCESS) {
-        return static_cast<int32_t>(ret);
+        return ret;
     }
 
     ubse_api_buffer_t responseBuffer = {nullptr, 0};
@@ -156,5 +157,5 @@ int32_t ubs_uba_tid_size_query(uint8_t* bus_instance_guid, uint32_t* tid, uint64
 
     ret = UbseNpuQueryTidUbaSizeUnpack(responseBuffer.buffer, responseBuffer.length, *tid, *uba, *size);
     ubse_api_buffer_free(&responseBuffer);
-    return static_cast<int32_t>(ret);
+    return ret;
 }

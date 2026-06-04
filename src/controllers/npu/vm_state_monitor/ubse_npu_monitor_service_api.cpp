@@ -159,22 +159,11 @@ UbseResult StartVMMonitor()
 
 void ResetNpuOfBusInstance(const std::string& busInstance, VirDomainEventType event)
 {
-    static const std::unordered_set<VirDomainEventType> handleEvents = {VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
-                                                                        VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
-                                                                        VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT};
+    static const std::unordered_set handleEvents = {VirDomainEventType::VIR_DOMAIN_EVENT_STARTED,
+                                                    VirDomainEventType::VIR_DOMAIN_EVENT_STOPPED,
+                                                    VirDomainEventType::VIR_DOMAIN_EVENT_REBOOT};
     if (handleEvents.find(event) == handleEvents.end()) {
         return;
-    }
-    static std::unordered_map<std::string, VirDomainEventType> record;
-    static std::mutex recordMutex;
-    std::lock_guard<std::mutex> lock(recordMutex);
-    if (const auto it = record.find(busInstance); it != record.end()) {
-        if (it->second == event) {
-            return;
-        }
-        it->second = event;
-    } else {
-        record[busInstance] = event;
     }
     QueryAndReset(busInstance);
 }

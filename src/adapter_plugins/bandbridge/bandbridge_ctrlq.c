@@ -140,6 +140,7 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
         if (unlikely(!bb_num)) {
             bandbridge_log_err("bb_num is invalid.\n");
             bandbridge_ctrlq_reset_rq_ci();
+            return -ENOSPC;
         }
 
         // 两端的seq高位为01

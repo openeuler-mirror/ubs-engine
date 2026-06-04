@@ -39,7 +39,7 @@ void ParseLsubBusInstanceOutput(std::vector<UbseMtiBusInst>& busInstanceList, co
     bool foundHeader = false;
     while (std::getline(iss, line)) {
         line.erase(0, line.find_first_not_of(" \t"));
-        line.erase(line.find_first_not_of(" \t") + 1);
+        line.erase(line.find_last_not_of(" \t") + 1);
         if (!foundHeader) {
             if (line.find(LSUB_HEADER) != std::string::npos) {
                 foundHeader = true;

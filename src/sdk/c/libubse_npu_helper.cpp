@@ -272,10 +272,14 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
 static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& busiIndex)
 {
     auto& item = deviceList.busi_ptr[busiIndex];
-    UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type));
+    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     uint8_t subDevCnt = 0;
-    UnpackValue(ctx, subDevCnt);
+    if (UnpackValue(ctx, subDevCnt) != UBS_SUCCESS) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr = static_cast<busi_attr_t*>(malloc(sizeof(busi_attr_t) + subDevCnt * sizeof(ubs_ub_devices_type_t)));
     if (item.attr == nullptr) {
@@ -283,7 +287,10 @@ static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& device
     }
     item.attr->sub_devices_count = subDevCnt;
 
-    UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+    if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
+        free(item.attr);
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->sub_devices[i]) != UBS_SUCCESS) {
@@ -316,6 +323,43 @@ static ubs_error_t InnerReadDeviceCounts(UnpackCtx& ctx, ubs_ub_devices_list_t& 
     return UBS_SUCCESS;
 }
 
+struct DevIndex {
+    size_t ubctrlIndex = 0;
+    size_t npuIndex = 0;
+    size_t nicPfeIndex = 0;
+    size_t nicVfeIndex = 0;
+    size_t busiIndex = 0;
+};
+
+static void InnerAllocateDeviceBuffers(ubs_ub_devices_list_t& deviceList)
+{
+    deviceList.nic_pfe_ptr = new ubs_nic_pfe_t[deviceList.nic_pfe_cnt]{};
+    deviceList.nic_vfe_ptr = new ubs_nic_vfe_t[deviceList.nic_vfe_cnt]{};
+    deviceList.npu_ptr = new ubs_npu_t[deviceList.npu_cnt]{};
+    deviceList.ubctrl_ptr = new ubs_ubctrl_t[deviceList.ubctrl_cnt]{};
+    deviceList.busi_ptr = new ubs_busi_t[deviceList.busi_cnt]{};
+}
+
+static ubs_error_t InnerUnpackDeviceByType(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, uint8_t type,
+                                           DevIndex& indices)
+{
+    switch (type) {
+        case UBS_BUSI:
+            return InnerUnpackBusi(ctx, deviceList, indices.busiIndex);
+        case UBS_NPU:
+            return InnerUnpackNpu(ctx, deviceList, indices.npuIndex);
+        case UBS_NIC_PFE:
+            return InnerUnpackNicPfe(ctx, deviceList, indices.nicPfeIndex);
+        case UBS_NIC_VFE:
+            return InnerUnpackNicVfe(ctx, deviceList, indices.nicVfeIndex);
+        case UBS_UBCTRL:
+            return InnerUnpackUbctrl(ctx, deviceList, indices.ubctrlIndex);
+        default:
+            IPC_LOG_WARN << "type invalid: " << static_cast<uint32_t>(type);
+            return UBS_SUCCESS;
+    }
+}
+
 static ubs_error_t InnerUbDevListUnpack(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList)
 {
     uint8_t count = 0;
@@ -325,37 +369,13 @@ static ubs_error_t InnerUbDevListUnpack(UnpackCtx& ctx, ubs_ub_devices_list_t& d
     if (InnerReadDeviceCounts(ctx, deviceList) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
-    deviceList.nic_pfe_ptr = new ubs_nic_pfe_t[deviceList.nic_pfe_cnt]{};
-    deviceList.nic_vfe_ptr = new ubs_nic_vfe_t[deviceList.nic_vfe_cnt]{};
-    deviceList.npu_ptr = new ubs_npu_t[deviceList.npu_cnt]{};
-    deviceList.ubctrl_ptr = new ubs_ubctrl_t[deviceList.ubctrl_cnt]{};
-    deviceList.busi_ptr = new ubs_busi_t[deviceList.busi_cnt]{};
-    size_t ubctrlIndex = 0;
-    size_t npuIndex = 0;
-    size_t nicPfeIndex = 0;
-    size_t nicVfeIndex = 0;
-    size_t busiIndex = 0;
+    InnerAllocateDeviceBuffers(deviceList);
+    DevIndex indices;
     for (size_t i = 0; i < count; i++) {
         uint8_t type = 0;
         UnpackValue(ctx, type);
-        switch (type) {
-            case UBS_BUSI:
-                InnerUnpackBusi(ctx, deviceList, busiIndex);
-                break;
-            case UBS_NPU:
-                InnerUnpackNpu(ctx, deviceList, npuIndex);
-                break;
-            case UBS_NIC_PFE:
-                InnerUnpackNicPfe(ctx, deviceList, nicPfeIndex);
-                break;
-            case UBS_NIC_VFE:
-                InnerUnpackNicVfe(ctx, deviceList, nicVfeIndex);
-                break;
-            case UBS_UBCTRL:
-                InnerUnpackUbctrl(ctx, deviceList, ubctrlIndex);
-                break;
-            default:
-                break;
+        if (InnerUnpackDeviceByType(ctx, deviceList, type, indices) != UBS_SUCCESS) {
+            return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
     return UBS_SUCCESS;

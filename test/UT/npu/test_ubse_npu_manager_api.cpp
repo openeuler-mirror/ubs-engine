@@ -11,6 +11,7 @@
  */
 
 #include "test_ubse_npu_manager_api.h"
+#include "out_of_band/ubse_mti_bus_instance_out_of_band.h"
 #include "ubse_npu_manager_api.cpp"
 
 namespace ubse::npu::controller::ut {
@@ -353,11 +354,11 @@ TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiIdevVfeListWithNullptr)
     EXPECT_EQ(mtiVfeList.size(), 1);
 }
 
-TEST_F(TestUbseNpuManagerApi, QueryUbaTidSizeImplReturnsOk)
+TEST_F(TestUbseNpuManagerApi, QueryUbaTidSizeImplReturnsErrorWhenGuidNotFound)
 {
     UbaTidSize info;
     UbseResult result = QueryUbaTidSizeImpl("test-guid", info);
-    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(result, UBSE_ERROR);
 }
 
 TEST_F(TestUbseNpuManagerApi, StateTransitionsFromInitToAvailable)
