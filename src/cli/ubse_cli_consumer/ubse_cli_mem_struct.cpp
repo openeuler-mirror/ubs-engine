@@ -190,7 +190,7 @@ framework::UbseCliVariableCellInfo UbseBorrowDetailInfo::GetVariableCellInfo(
     std::unordered_map<std::string, UbseBorrowDetailInfo>& node_borrow_detail,
     std::unordered_map<std::string, std::string>& node_id_with_hostname)
 {
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_8, UBSE_CLI_NUM_3 * UBSE_CLI_NUM_10);
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_8, UBSE_CLI_NUM_30);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "name");

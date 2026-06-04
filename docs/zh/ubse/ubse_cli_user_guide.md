@@ -827,7 +827,8 @@ ubsectl display process-mem -t <type>
 
 **约束限制**
 
-ubsectl只能在root，ubse用户中运行
+1. ubsectl只能在root，ubse用户中运行
+2. 需要目标节点的 process_mem 插件正常启动，否则无法获取已纳管进程信息
 
 **输出信息说明**
 
@@ -872,14 +873,15 @@ ubsectl change process-mem -p <pid> -e <evict-thresh> -t <target-evict-thresh> -
 | -e<br/>--evict-thresh | 必选，迁出阈值(%)。当进程总内存使用超过此比例时，触发迁出动作 | 整数，范围 1-100 |
 | -t<br/>--target-evict-thresh | 必选，预期迁出比例(%)。迁出后远端内存占总内存的目标比例 | 整数，范围 1-100 |
 | -r<br/>--reclaim-thresh | 必选，迁回阈值(%)。当进程总内存使用低于此比例时，将远端内存全部迁回并释放 | 整数，范围 1-100，需比--evict-thresh至少小5 |
-| -s<br/>--size | 必选，进程期望总内存大小 | 格式为数字+M/G，支持最多两位小数，如 512M、1G、1.5G |
+| -s<br/>--size | 必选，进程期望总内存大小 | 格式为数字+单位(B/K/M/G)，支持最多两位小数，范围 128M~32G，如 512M、1G、1.5G |
 | -sn<br/>--src-numa | 可选，本地NUMA节点ID。同平面socket会被选为借出socket | 整数 |
 
 **约束限制**
 
 1. ubsectl只能在root，ubse用户中运行
-2. evict-thresh必须比reclaim-thresh至少大5，避免震荡
-3. 当进程已有子进程时，子进程会继承该配置
+2. 需要目标节点的 process_mem 插件正常启动，否则配置无法生效
+3. evict-thresh必须比reclaim-thresh至少大5，避免震荡
+4. 当进程已有子进程时，子进程会继承该配置
 
 **输出信息说明**
 
@@ -905,7 +907,7 @@ evict-thresh must be at least 5 higher than reclaim-thresh to avoid oscillation
 
 **描述**
 
-移除指定进程的内存配置信息。配置移除后，进程将不再进行内存迁出/迁入管理。
+移除指定进程的内存配置信息。移除前会将进程已借用的远端内存全部迁回并归还，配置移除后进程将不再进行内存迁出/迁入管理。
 
 **用法**
 
@@ -921,7 +923,8 @@ ubsectl remove process-mem -p <pid>
 
 **约束限制**
 
-ubsectl只能在root，ubse用户中运行
+1. ubsectl只能在root，ubse用户中运行
+2. 需要目标节点的 process_mem 插件正常启动，否则配置移除操作无法执行
 
 **输出信息说明**
 
