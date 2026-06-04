@@ -21,8 +21,10 @@
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_sign_verifier.h"
+#include "ubse_mem_topology_info_manager.h"
 #include "ubse_mem_util.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
@@ -35,7 +37,6 @@
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -48,7 +49,6 @@ using namespace ubse::context;
 using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace message;
-using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller::debt;
@@ -1106,7 +1106,7 @@ uint32_t RealImportDecoder(const std::pair<uint32_t, uint32_t>& chipDiePair, Ubs
     res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
-        uint8_t decoderId = importObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
+        uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
         UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
         return UBSE_ERR_INTERNAL;
     }
@@ -1146,7 +1146,7 @@ uint32_t ShareImportRunningHandler(UbseMemOperationResp& resp, UbseMemShareBorro
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << importObj.req.requestId;
         if (realExe) {
-            uint8_t decoderId = importObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
+            uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
             UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
         }
         EraseShareImport(importObj);
@@ -1212,7 +1212,7 @@ uint32_t ShareImportDestroyingHandler(UbseMemOperationResp& resp, UbseMemShareBo
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed";
         }
-        uint8_t decoderId = importObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
+        uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
         UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
     }
     if (!importObj.status.decoderResult.empty()) {

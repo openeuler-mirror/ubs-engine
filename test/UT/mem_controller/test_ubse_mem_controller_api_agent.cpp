@@ -284,10 +284,8 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemAddrBorrow1)
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
     UbseMemAddrBorrowReq req{};
-    req.wrDelayComp = 2;
+    req.ubseMemPrivData.wrDelayComp = 1;
     UbseMemOperationResp resp{};
-    EXPECT_EQ(ubse::mem::controller::agent::UbseMemAddrBorrow(req, resp), UBSE_ERROR);
-    req.wrDelayComp = 1;
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemAddrBorrow(req, resp), UBSE_ERROR);
     std::shared_ptr<UbseComModule> nullModule = nullptr;
     std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();

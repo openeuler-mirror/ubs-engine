@@ -30,6 +30,7 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
+#include "api/ubse_mem_controller_api_common.h"
 #include "message/ubse_mem_controller_def_serial.h"
 #include "message/ubse_mem_fd_borrow_req_simpo.h"
 #include "ubs_engine_mem.h"
@@ -1192,6 +1193,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req
     req.importNodeId = localNodeId;
     req.requestNodeId = localNodeId;
     SetBaseReqInfo(req, context);
+    ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
 
     if (IsHighSafety()) {
         if (const auto res =
@@ -1588,6 +1593,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq&
     req.importNodeId = localNodeId;
     req.requestNodeId = localNodeId;
     SetBaseReqInfo(req, context);
+    ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     if (GetSrcSocketId(req) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get src socket for borrow via specifying link.";
         return UBSE_ERR_LINK_NOT_EXIST;

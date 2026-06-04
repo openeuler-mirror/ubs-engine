@@ -29,6 +29,11 @@ using namespace ubse::nodeController;
 std::unordered_map<uint32_t, uint32_t> MemDecoderUtils::portToPortSet{{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 1},
                                                                       {5, 1}, {6, 1}, {7, 1}, {8, 2}};
 
+uint8_t MemDecoderUtils::GetDecoderIdByPrivData(const UbseMemPrivData& privData)
+{
+    return privData.cacheableFlag == 1 ? 0 : 1;
+}
+
 UbseResult MemDecoderUtils::GetChipAndDieId(const uint32_t socketId, std::pair<uint32_t, uint32_t>& chipDiePair)
 {
     bool isSocketIdExit = false;
@@ -196,7 +201,7 @@ void GetHandleFromDebtInfo(const std::unordered_map<uint32_t, std::pair<uint32_t
             continue;
         }
         UBSE_LOG_INFO << "ImportObj state is " << fdImportObj.status.state;
-        uint8_t decoderId = 0; // 0是cc表
+        uint8_t decoderId = MemDecoderUtils::GetDecoderIdByPrivData(fdImportObj.req.ubseMemPrivData);
         if (socketIdToChipDie.find(fdImportObj.algoResult.attachSocketId) == socketIdToChipDie.end()) {
             continue;
         }
@@ -209,7 +214,7 @@ void GetHandleFromDebtInfo(const std::unordered_map<uint32_t, std::pair<uint32_t
             continue;
         }
         UBSE_LOG_INFO << "ImportObj state is " << numaImportObj.status.state;
-        uint8_t decoderId = 0; // 0是cc表
+        uint8_t decoderId = MemDecoderUtils::GetDecoderIdByPrivData(numaImportObj.req.ubseMemPrivData);
         if (socketIdToChipDie.find(numaImportObj.algoResult.attachSocketId) == socketIdToChipDie.end()) {
             continue;
         }
@@ -222,7 +227,7 @@ void GetHandleFromDebtInfo(const std::unordered_map<uint32_t, std::pair<uint32_t
             continue;
         }
         UBSE_LOG_INFO << "ImportObj state is " << shareImportObj.status.state;
-        uint8_t decoderId = shareImportObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
+        uint8_t decoderId = MemDecoderUtils::GetDecoderIdByPrivData(shareImportObj.req.ubseMemPrivData);
         if (socketIdToChipDie.find(shareImportObj.algoResult.attachSocketId) == socketIdToChipDie.end()) {
             continue;
         }
@@ -235,7 +240,7 @@ void GetHandleFromDebtInfo(const std::unordered_map<uint32_t, std::pair<uint32_t
             continue;
         }
         UBSE_LOG_INFO << "ImportObj state is " << addImportObj.status.state;
-        uint8_t decoderId = 0;
+        uint8_t decoderId = MemDecoderUtils::GetDecoderIdByPrivData(addImportObj.req.ubseMemPrivData);
         if (socketIdToChipDie.find(addImportObj.algoResult.attachSocketId) == socketIdToChipDie.end()) {
             continue;
         }
@@ -253,7 +258,7 @@ void GetHandleFromNumaDebtInfo(const std::unordered_map<uint32_t, std::pair<uint
             continue;
         }
         UBSE_LOG_INFO << "ImportObj state is " << numaImportObj.status.state;
-        uint8_t decoderId = 0; // 0是cc表
+        uint8_t decoderId = MemDecoderUtils::GetDecoderIdByPrivData(numaImportObj.req.ubseMemPrivData);
         if (socketIdToChipDie.find(numaImportObj.algoResult.attachSocketId) == socketIdToChipDie.end()) {
             continue;
         }
@@ -307,7 +312,6 @@ UbseResult MemDecoderUtils::GetAllHandleFromNumaImportObj(DecoderLocTohandleDcna
 void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam)
 {
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
-    importParam.decoderIdx = ubse::config::UbseIsMemBorrowCcSupported() ? 0 : 1;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
     importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
 }
@@ -339,7 +343,6 @@ void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& 
 void MemDecoderUtils::SetImportDecoderParam(decoder::utils::ImportDecoderParam& importParam, uint16_t wrDelayComp)
 {
     importParam.importType = UB_MEMORY_IMPORT_MEMORY;
-    importParam.decoderIdx = ubse::config::UbseIsMemBorrowCcSupported() ? 0 : 1;
     importParam.flag |= UB_MEMORY_IMPORT_ADDR_TR_ONCHIP;
     importParam.flag |= UB_MEMORY_IMPORT_SINGLE_PATH;
     if (wrDelayComp == 1) {

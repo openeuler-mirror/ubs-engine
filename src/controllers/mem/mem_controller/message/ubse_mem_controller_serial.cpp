@@ -306,11 +306,41 @@ bool UbseNumaLocationDeserialization(UbseDeSerialization& in, UbseNumaLocation& 
     return true;
 }
 
+inline uint16_t UbseMemPrivDataToUint16(const UbseMemPrivData& data)
+{
+    uint16_t val = 0;
+    val |= static_cast<uint16_t>(data.onePth) << BIT0_SHIFT;
+    val |= static_cast<uint16_t>(data.wrDelayComp) << BIT1_SHIFT;
+    val |= static_cast<uint16_t>(data.reduceDelayComp) << BIT2_SHIFT;
+    val |= static_cast<uint16_t>(data.cmoDelayComp) << BIT3_SHIFT;
+    val |= static_cast<uint16_t>(data.so) << BIT4_SHIFT;
+    val |= static_cast<uint16_t>(data.adTrOchip) << BIT5_SHIFT;
+    val |= static_cast<uint16_t>(data.cacheableFlag) << BIT6_SHIFT;
+    val |= static_cast<uint16_t>(data.marId) << BIT7_SHIFT;
+    val |= static_cast<uint16_t>(data.rsv0) << BIT10_SHIFT;
+    return val;
+}
+
+inline void UbseMemPrivDataFromUint16(uint16_t val, UbseMemPrivData& data)
+{
+    data.onePth = (val >> BIT0_SHIFT) & BIT0_MASK;
+    data.wrDelayComp = (val >> BIT1_SHIFT) & BIT1_MASK;
+    data.reduceDelayComp = (val >> BIT2_SHIFT) & BIT2_MASK;
+    data.cmoDelayComp = (val >> BIT3_SHIFT) & BIT3_MASK;
+    data.so = (val >> BIT4_SHIFT) & BIT4_MASK;
+    data.adTrOchip = (val >> BIT5_SHIFT) & BIT5_MASK;
+    data.cacheableFlag = (val >> BIT6_SHIFT) & BIT6_MASK;
+    data.marId = (val >> BIT7_SHIFT) & BIT7_9_MASK;
+    data.rsv0 = (val >> BIT10_SHIFT) & BIT10_15_MASK;
+}
+
 inline void UbseMemBaseBorrowReqSerialize(UbseSerialization& out, const UbseMemBaseBorrowReq& data)
 {
     out << data.name << data.requestId << data.requestNodeId;
     UbseUdsInfoSerialization(out, data.udsInfo);
     UbseTrustChainDataSerialization(out, data.trustRingData);
+    uint16_t privDataVal = UbseMemPrivDataToUint16(data.ubseMemPrivData);
+    out << privDataVal;
 }
 
 inline void UbseMemBaseBorrowReqDeserialize(UbseDeSerialization& in, UbseMemBaseBorrowReq& data)
@@ -318,6 +348,9 @@ inline void UbseMemBaseBorrowReqDeserialize(UbseDeSerialization& in, UbseMemBase
     in >> data.name >> data.requestId >> data.requestNodeId;
     UbseUdsInfoDeserialization(in, data.udsInfo);
     UbseTrustChainDataDeserialization(in, data.trustRingData);
+    uint16_t privDataVal{};
+    in >> privDataVal;
+    UbseMemPrivDataFromUint16(privDataVal, data.ubseMemPrivData);
 }
 
 bool UbseMemFdBorrowReqSerialization(UbseSerialization& out, const UbseMemFdBorrowReq& req)
@@ -740,7 +773,7 @@ bool UbseMemAddrInfoDeserialization(UbseDeSerialization& in, UbseMemAddrInfo& ub
 void UbseMemAddrBorrowReqSerialization(UbseSerialization& out, const UbseMemAddrBorrowReq& req)
 {
     out << req.importNodeId << req.importPid << req.exportNodeId << req.exportPid << req.srcSocket << req.srcNuma
-        << req.dstSocket << req.dstNuma << req.wrDelayComp;
+        << req.dstSocket << req.dstNuma;
     out << (right_v<size_t>(req.exportAddrList.size()));
     for (auto addrInfo : req.exportAddrList) {
         UbseMemAddrInfoSerialization(out, addrInfo);
@@ -751,7 +784,7 @@ void UbseMemAddrBorrowReqSerialization(UbseSerialization& out, const UbseMemAddr
 bool UbseMemAddrBorrowReqDeserialization(UbseDeSerialization& in, UbseMemAddrBorrowReq& req)
 {
     in >> req.importNodeId >> req.importPid >> req.exportNodeId >> req.exportPid >> req.srcSocket >> req.srcNuma >>
-        req.dstSocket >> req.dstNuma >> req.wrDelayComp;
+        req.dstSocket >> req.dstNuma;
     size_t size{};
     in >> size;
     if (!in.Check()) {
@@ -980,34 +1013,6 @@ inline void SerializeWithAffinity(UbseSerialization& out, const UbseMemShmAffini
     out << data.affinitySocketId << data.createReqNodeId << data.enableCreateWithAffinity;
 }
 
-inline uint16_t UbseMemPrivDataToUint16(const UbseMemPrivData& data)
-{
-    uint16_t val = 0;
-    val |= static_cast<uint16_t>(data.onePth) << BIT0_SHIFT;
-    val |= static_cast<uint16_t>(data.wrDelayComp) << BIT1_SHIFT;
-    val |= static_cast<uint16_t>(data.reduceDelayComp) << BIT2_SHIFT;
-    val |= static_cast<uint16_t>(data.cmoDelayComp) << BIT3_SHIFT;
-    val |= static_cast<uint16_t>(data.so) << BIT4_SHIFT;
-    val |= static_cast<uint16_t>(data.adTrOchip) << BIT5_SHIFT;
-    val |= static_cast<uint16_t>(data.cacheableFlag) << BIT6_SHIFT;
-    val |= static_cast<uint16_t>(data.marId) << BIT7_SHIFT;
-    val |= static_cast<uint16_t>(data.rsv0) << BIT10_SHIFT;
-    return val;
-}
-
-inline void UbseMemPrivDataFromUint16(uint16_t val, UbseMemPrivData& data)
-{
-    data.onePth = (val >> BIT0_SHIFT) & BIT0_MASK;          // 第0位：onePth
-    data.wrDelayComp = (val >> BIT1_SHIFT) & BIT1_MASK;     // 第1位：wrDelayComp
-    data.reduceDelayComp = (val >> BIT2_SHIFT) & BIT2_MASK; // 第2位：reduceDelayComp
-    data.cmoDelayComp = (val >> BIT3_SHIFT) & BIT3_MASK;    // 第3位：cmoDelayComp
-    data.so = (val >> BIT4_SHIFT) & BIT4_MASK;              // 第4位：so
-    data.adTrOchip = (val >> BIT5_SHIFT) & BIT5_MASK;       // 第5位：adTrOchip
-    data.cacheableFlag = (val >> BIT6_SHIFT) & BIT6_MASK;   // 第6位：cacheableFlag
-    data.marId = (val >> BIT7_SHIFT) & BIT7_9_MASK;         // 第7-9位：marId
-    data.rsv0 = (val >> BIT10_SHIFT) & BIT10_15_MASK;       // 第10-15位：保留字段rsv0
-}
-
 bool UbseMemShareBorrowReqSerialization(UbseSerialization& out, const UbseMemShareBorrowReq& data)
 {
     UbseMemBaseBorrowReqSerialize(out, data);
@@ -1017,8 +1022,6 @@ bool UbseMemShareBorrowReqSerialization(UbseSerialization& out, const UbseMemSha
     UbseShmProvierSerialize(out, data.providerList);
     SerializeUsrInfo(out, data.usrInfo, UBSE_MAX_USR_INFO_LEN);
 
-    uint16_t privDataVal = UbseMemPrivDataToUint16(data.ubseMemPrivData);
-    out << privDataVal;
     out << data.shmAnonymous;
 
     SerializeWithAffinity(out, data.withAffinity);
@@ -1129,14 +1132,6 @@ bool UbseMemShareBorrowReqDeserialization(UbseDeSerialization& in, UbseMemShareB
         return false;
     }
 
-    // 读取 ubseMemPrivData
-    uint16_t privDataVal;
-    in >> privDataVal;
-    UbseMemPrivDataFromUint16(privDataVal, data.ubseMemPrivData);
-    if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to check UbseMemShareBorrowReq during deserialization";
-        return false;
-    }
     // 读取 flag
     in >> data.shmAnonymous;
     // 读取withAffinity

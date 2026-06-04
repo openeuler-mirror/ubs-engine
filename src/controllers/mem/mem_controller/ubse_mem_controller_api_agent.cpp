@@ -591,13 +591,13 @@ static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq& req)
 
 uint32_t CheckAddrBorrowMode(UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
-    if (req.wrDelayComp != 0 && req.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
+    if (req.ubseMemPrivData.wrDelayComp != 0 && req.ubseMemPrivData.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_MEMCONTROLLER_ERROR_COMP_ERROR;
         UBSE_LOG_ERROR << "Only relay mode and non-relay mode are supported currently,"
                           " the value of wrDelayComp is "
-                       << req.wrDelayComp;
+                       << req.ubseMemPrivData.wrDelayComp;
         return UBSE_ERROR;
     }
     return UBSE_OK;

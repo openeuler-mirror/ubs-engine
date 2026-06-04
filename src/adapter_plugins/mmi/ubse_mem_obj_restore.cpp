@@ -37,6 +37,7 @@ void ConstructSingleFdImportObj(const std::vector<UbseMemLocalObmmMetaData>& fdI
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
     UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
                   << ", gid=" << req.udsInfo.gid;
     std::string lendNode = std::string(obmmMetaData.customMeta.exportNodeId);
@@ -137,6 +138,7 @@ void ConstructSingleFdExportObj(const std::vector<UbseMemLocalObmmMetaData>& exp
     req.distance = MEM_DISTANCE_L0; // 使用默认值，不额外加，因为决策完成之后，这个就没有作用了
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
     UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
                   << ", gid=" << req.udsInfo.gid;
     std::string lendNode = std::string(obmmMetaData.customMeta.exportNodeId);
@@ -228,6 +230,7 @@ void ConstructSingleNumaImportObj(const std::vector<UbseMemLocalObmmMetaData>& i
     auto& meta = obmmMetaData.customMeta;
     std::string lendNode = std::string(meta.exportNodeId);
     BuildSingleNumaImportReq(meta, req, lendNode);
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
     if (memcpy_s(req.usrInfo, UBSE_MAX_USR_INFO_LEN, obmmMetaData.customMeta.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "MemCopy fail when copy usrInfo, name=" << req.name << ", usrInfo="
                        << reinterpret_cast<char*>(
@@ -407,6 +410,7 @@ void BuildSingleNumaExportReq(UbseMemLocalObmmMetaData& obmmMetaData, std::strin
     req.distance = MEM_DISTANCE_L0;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
     UBSE_LOG_INFO << MMI_LOG_INFO << "req.udsInfo.username=" << req.udsInfo.username << ", uid=" << req.udsInfo.uid
                   << ", gid=" << req.udsInfo.gid;
     uint64_t resourceMemSize = 0;
@@ -771,6 +775,7 @@ void SetAddrReqInfo(UbseMemAddrBorrowReq& req, const UbseMemLocalObmmMetaData ob
     req.dstSocket = obmmMetaData.customMeta.dstSocket;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
 }
 
 void ConstructSingleAddrImportObj(const std::vector<UbseMemLocalObmmMetaData>& importLocalObmmMetaDatas,
@@ -856,6 +861,7 @@ void SetAddrReqByMetaData(UbseMemAddrBorrowReq& req, const UbseMemLocalObmmMetaD
     req.dstSocket = obmmMetaData.customMeta.dstSocket;
     req.udsInfo = {obmmMetaData.customMeta.uid, obmmMetaData.customMeta.gid,
                    static_cast<int>(obmmMetaData.customMeta.pid), obmmMetaData.customMeta.username};
+    CopyUbMemPrivData(req.ubseMemPrivData, obmmMetaData.privData);
 }
 
 void ConstructSingleAddrExportObj(const std::vector<UbseMemLocalObmmMetaData>& exportLocalObmmMetaDatas,
