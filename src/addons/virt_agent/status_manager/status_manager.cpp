@@ -212,7 +212,7 @@ void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
     result.presentNumaIds.swap(newPresentNumaId);
 }
 
-float StatusManager::CalculateMemMigrateRatio(int16_t numaId, uint64_t curBorrowMemorySize)
+float StatusManager::CalculateMemMigrateRatio(int16_t numaId,uint64_t curBorrowMemorySize)
 {
     double totalBorrowedMem = static_cast<double>(curBorrowMemorySize);
     double totalVMusedMem = 0;
@@ -236,13 +236,13 @@ float StatusManager::CalculateMemMigrateRatio(int16_t numaId, uint64_t curBorrow
         }
     }
     UBSE_LOG_DEBUG << "totalBorrowedMem = " << std::to_string(totalBorrowedMem) << ", totalVMusedMem = "
-                   << std::to_string(totalVMusedMem);
+            << std::to_string(totalVMusedMem);
     float ratio = static_cast<float>(totalBorrowedMem / totalVMusedMem);
     return ratio;
 }
 
 std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids, int16_t numaId,
-                                                                 uint64_t curBorrowMemorySize)
+    uint64_t curBorrowMemorySize)
 {
     std::vector<VMPresetParam> vmPresetParams;
     try {
