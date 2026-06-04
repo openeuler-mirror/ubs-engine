@@ -1259,10 +1259,10 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt);
 
 **参数 PARAMETERS**
 
-| name          | IN/OUT | description                                      |
-| ------------- | ------ | ------------------------------------------------ |
-| fd\_descs     | OUT    | fd内存描述信息数组，调用成功后需要使用 `free` 接口主动释放内存             |
-| fd\_desc\_cnt | OUT    | fd内存描述信息数组中的元素个数，范围 `[0, UBS_MEM_MAX_DESC_LIST]` |
+| name          | IN/OUT | description                          |
+| ------------- | ------ |--------------------------------------|
+| fd\_descs     | OUT    | fd内存描述信息数组，调用成功后需要使用 `free` 接口主动释放内存 |
+| fd\_desc\_cnt | OUT    | fd内存描述信息数组中的元素个数，范围 `[0, 2000]`      |
 
 **返回值 RETURN VALUE**
 
@@ -1821,9 +1821,9 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_
 **参数 PARAMETERS**
 
 | name            | IN/OUT | description                            |
-| --------------- | ------ | -------------------------------------- |
+| --------------- | ------ |----------------------------------------|
 | numa\_descs     | OUT    | numa内存描述信息数组，调用成功后需要使用 `free` 接口主动释放内存 |
-| numa\_desc\_cnt | OUT    | numa内存描述信息数组中的元素个数                     |
+| numa\_desc\_cnt | OUT    | numa内存描述信息数组中的元素个数，范围 `[0, 2000]`            |
 
 **返回值 RETURN VALUE**
 
