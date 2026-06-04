@@ -11,6 +11,7 @@
  */
 
 #include "ubse_urma_uvs_module.h"
+#include "ubse_module.h"
 
 #include <dlfcn.h>
 #include "ubse_context.h"
@@ -22,7 +23,7 @@ namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
 
-DYNAMIC_CREATE(UbseUrmaUvsModule);
+OPTIONAL_MODULE_IMPL(UbseUrmaUvsModule);
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 

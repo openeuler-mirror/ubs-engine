@@ -23,6 +23,13 @@ using namespace ubse::adapter_plugins::mmi;
 
 class UbseMmiModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseMmiModule";
+
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
+
     UbseResult Initialize() override;
 
     void UnInitialize() override;

@@ -13,12 +13,19 @@
 #ifndef UBSE_MANAGER_MOCKMODULE_H
 #define UBSE_MANAGER_MOCKMODULE_H
 
+#include "ubse_common_def.h"
 #include "ubse_module.h"
 
 namespace ubse::mock {
 using namespace ubse::module;
+using namespace common::def;
 class MockModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "MockModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

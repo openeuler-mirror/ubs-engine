@@ -11,6 +11,7 @@
  */
 
 #include "ubse_thread_pool_module.h"
+#include "ubse_module.h"
 
 #include <referable/ubse_ref.h> // for Ref
 #include <utility>              // for pair
@@ -24,7 +25,7 @@
 namespace ubse::task_executor {
 using namespace ubse::log;
 
-BASE_DYNAMIC_CREATE(UbseTaskExecutorModule, ubse::log::UbseLoggerModule);
+CORE_MODULE_IMPL(UbseTaskExecutorModule, ubse::log::UbseLoggerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseTaskExecutorModule::Initialize()

@@ -29,19 +29,21 @@ char *g_argv[] = {(char *)"", (char *)DASH_ARG_NAME.c_str(), (char *)ARG_VAL.c_s
 
 TEST_F(TestUbseContext, EMPTYMODULES)
 {
-    context.moduleCreatorMap_.clear();
+    registry.registry_.clear();
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_OK);
 }
 
 TEST_F(TestUbseContext, CyclicDependencyModule)
 {
-    context.RegisterModule<MockUbseModule, MockUbseModuleD>(UbseModule::CreateModule<MockUbseModule>);
-    context.RegisterModule<MockUbseModuleD, MockUbseModule>(UbseModule::CreateModule<MockUbseModuleD>);
+    registry.registry_.clear();
+    registry.RegisterCoreModule<MockUbseModule, MockUbseModuleD>();
+    registry.RegisterCoreModule<MockUbseModuleD, MockUbseModule>();
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 TEST_F(TestUbseContext, ModuleNotRegisteredError)
 {
-    context.RegisterModule<MockUbseModule, MockUbseModuleD>(UbseModule::CreateModule<MockUbseModule>);
+    registry.registry_.clear();
+    registry.RegisterCoreModule<MockUbseModule, MockUbseModuleD>();
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
@@ -117,7 +119,7 @@ TEST_F(TestUbseContext, GetModuleFailed)
 TEST_F(TestUbseContext, GetModuleSuccess)
 {
     context.Run(ARGC, g_argv, ProcessMode::MANAGER);
-    EXPECT_EQ(context.GetModule<MockUbseModule>(), context.moduleMap_[typeid(MockUbseModule)]);
+    EXPECT_EQ(context.GetModule<MockUbseModule>(), context.moduleMap_[MockUbseModule::kModuleName]);
 }
 TEST_F(TestUbseContext, GetArgStrFailed)
 {
@@ -144,9 +146,9 @@ TEST_F(TestUbseContext, GetProcessMode)
 }
 void TestUbseContext::SetUp()
 {
-    context.moduleCreatorMap_.clear();
-    context.baseModuleCreatorMap_.clear();
-    context.RegisterModule<MockUbseModule>(UbseModule::CreateModule<MockUbseModule>);
+    registry.registry_.clear();
+    registry.RegisterCoreModule<MockUbseModule>();
+
     Test::SetUp();
 }
 

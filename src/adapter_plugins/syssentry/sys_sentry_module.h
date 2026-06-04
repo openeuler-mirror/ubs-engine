@@ -22,6 +22,12 @@ using namespace ubse::context;
 
 class SysSentryModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "SysSentryModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
+
     ~SysSentryModule() override = default;
 
     UbseResult Initialize() override;

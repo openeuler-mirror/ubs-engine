@@ -1,5 +1,6 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_ras_module.h"
+#include "ubse_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -10,7 +11,7 @@ namespace ubse::ras {
 using namespace ubse::common;
 using namespace ubse::log;
 
-DYNAMIC_CREATE(UbseRasModule);
+OPTIONAL_MODULE_IMPL(UbseRasModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRasModule::Initialize()

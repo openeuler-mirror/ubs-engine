@@ -25,7 +25,7 @@
 
 namespace ubse::config {
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 // 校验错误枚举类
 enum class ErrorType : uint16_t {
     CONFIG_RETURN_FAILURE = 1,     // 调用下层接口失败, 返回非0
@@ -48,6 +48,8 @@ public:
 
 class UbseConfModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseConfModule";
+    std::string Name() const override { return kModuleName; }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

@@ -18,7 +18,7 @@
 #include "ubse_node_static_info_mgr.h"
 
 namespace ubse::nodeDiscovery {
-BASE_DYNAMIC_CREATE(UbseNodeDiscoveryModule);
+OPTIONAL_MODULE_IMPL(UbseNodeDiscoveryModule);
 
 UbseResult UbseNodeDiscoveryModule::Initialize()
 {

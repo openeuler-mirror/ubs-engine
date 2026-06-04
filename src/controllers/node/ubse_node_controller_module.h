@@ -29,9 +29,14 @@ using namespace ubse::log;
 using namespace ubse::module;
 using namespace ubse::timer;
 using namespace ubse::election;
-
+using namespace ubse::common::def;
 class UbseNodeControllerModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseNodeControllerModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

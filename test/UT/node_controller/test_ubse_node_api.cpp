@@ -67,7 +67,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenApiServerModuleIsNull)
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] = nullModule;
     auto ret = UbseNodeApi::UbseServerNodeGet(req, ctx);
     ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
@@ -80,7 +80,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeGetWhenSendResponseFail)
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     apiServerModule->ipcServer_ = nullptr;
@@ -108,7 +108,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenApiServerModuleIsNull)
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] = nullModule;
     auto ret = UbseNodeApi::UbseServerNodeList(req, ctx);
     ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
@@ -121,7 +121,7 @@ TEST_F(TestUbseNodeApi, UbseServerNodeListWhenSendResponseFail)
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     apiServerModule->ipcServer_ = nullptr;
@@ -149,7 +149,7 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenApiServerModuleIsNull)
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<::api::server::UbseApiServerModule> nullModule = nullptr;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] = nullModule;
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] = nullModule;
     auto ret = UbseNodeApi::UbseServerCpuTopoList(req, ctx);
     ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
@@ -162,7 +162,7 @@ TEST_F(TestUbseNodeApi, UbseServerCpuTopoListWhenSendResponseFail)
     ::api::server::UbseIpcMessage req{.buffer = &dummyVal, .length = sizeof(uint8_t)};
     ::api::server::UbseRequestContext ctx{};
     auto backupModuleMap = ubseCtx.moduleMap_;
-    ubseCtx.moduleMap_[typeid(::api::server::UbseApiServerModule)] =
+    ubseCtx.moduleMap_[::api::server::UbseApiServerModule::kModuleName] =
         std::make_shared<::api::server::UbseApiServerModule>();
     auto apiServerModule = UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     apiServerModule->ipcServer_ = nullptr;
@@ -177,7 +177,7 @@ TEST_F(TestUbseNodeApi, UbseClusterListWhenNodeInfoIsEmpty)
     std::vector<UbseNodeInfo> nodeList;
     auto backupModuleMap = ubseCtx.moduleMap_;
     std::shared_ptr<UbseModule> nullModule = nullptr;
-    ubseCtx.moduleMap_[typeid(UbseElectionModule)] = nullModule;
+    ubseCtx.moduleMap_[UbseElectionModule::kModuleName] = nullModule;
     UbseClusterList(nodeList);
     ubseCtx.moduleMap_.swap(backupModuleMap);
     ASSERT_EQ(nodeList.empty(), true);

@@ -22,6 +22,11 @@ using namespace ubse::adapter_plugins::mmi;
 
 class UbseMemControllerModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseMemControllerModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     UbseResult Initialize() override;
 
     void UnInitialize() override;

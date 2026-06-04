@@ -11,6 +11,7 @@
  */
 
 #include "ubse_http_module.h"
+#include "ubse_module.h"
 
 #include <httplib.h> // for Error, Response, Request, Client
 #include <openssl/x509.h>
@@ -35,7 +36,7 @@ using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
 
-BASE_DYNAMIC_CREATE(UbseHttpModule, UbseTaskExecutorModule);
+OPTIONAL_MODULE_IMPL(UbseHttpModule, UbseTaskExecutorModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const size_t MAX_RESPONSE_BODY_SIZE = 2 * 1024 * 1024;

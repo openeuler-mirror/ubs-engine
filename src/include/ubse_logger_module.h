@@ -19,9 +19,10 @@
 
 namespace ubse::log {
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 class UbseLoggerModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseLoggerModule";
     UbseResult Initialize() override;
 
     void UnInitialize() override;
@@ -29,6 +30,10 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
 };
-}
+} // namespace ubse::log
 #endif // UBSE_LOGGER_MODULE_H

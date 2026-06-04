@@ -25,6 +25,8 @@ using ubse::module::UbseModule;
 
 class UbseSecurityModule final : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseSecurityModule";
+    std::string Name() const override { return kModuleName; }
     ~UbseSecurityModule() override = default;
 
     UbseResult Initialize() override;

@@ -22,9 +22,10 @@
 
 namespace ubse::event {
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 class UbseEventModule : public UbseModule {
 public:
+    std::string Name() const override { return kModuleName; }
     UbseEventModule();
     ~UbseEventModule() override;
 
@@ -63,7 +64,8 @@ public:
      * @return NA
      */
     UbseResult UbseUnSubEvent(const std::string &eventId, UbseEventHandler registerFunc);
-
+public:
+    static constexpr const char* kModuleName = "UbseEventModule";
 private:
     class Impl;
     std::unique_ptr<Impl> pImpl_;

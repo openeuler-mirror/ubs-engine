@@ -23,10 +23,14 @@
 #include "ubse_module.h"      // for UbseModule
 namespace ubse::http {
 using namespace ubse::module;
+using namespace ubse::common::def;
 const size_t MAX_TOTAL_HEADERS_SIZE = 8 * 1024; // 8KB
 
 class UbseHttpModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseHttpModule";
+    std::string Name() const override { return kModuleName; }
+
     UbseResult Initialize() override;
 
     void UnInitialize() override;

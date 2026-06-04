@@ -21,6 +21,7 @@
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_host_info.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_node_info.h"
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_urma_eid.h"
+#include "ubse_module.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_event_module.h"
@@ -41,7 +42,7 @@ using namespace ubse::lcne;
 using namespace ubse::utils;
 using namespace ubse::log;
 using namespace adapter_plugins::mti;
-BASE_DYNAMIC_CREATE(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
+OPTIONAL_MODULE_IMPL(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topNum);

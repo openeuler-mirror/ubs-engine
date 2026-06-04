@@ -22,6 +22,11 @@ using namespace ubse::common::def;
 
 class UbseNodeDiscoveryModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseNodeDiscoveryModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     ~UbseNodeDiscoveryModule() override = default;
 
     UbseResult Initialize() override;

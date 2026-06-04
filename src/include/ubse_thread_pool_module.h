@@ -24,9 +24,11 @@
 namespace ubse::task_executor {
 
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 class UbseTaskExecutorModule final : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseTaskExecutorModule";
+
     UbseResult Initialize() override;
 
     void UnInitialize() override;
@@ -40,6 +42,7 @@ public:
     UbseTaskExecutorPtr Get(const std::string &name);
 
     void Remove(const std::string &name);
+    std::string Name() const override { return kModuleName; }
 
 private:
     std::map<std::string, UbseTaskExecutorPtr> executors_;

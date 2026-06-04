@@ -27,7 +27,19 @@ using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
-DYNAMIC_CREATE(UbseMemControllerModule, UbseMmiModule);
+static constexpr auto G_UBSE_MEM_DEPS = std::array<UbseOptionModule, 10>{
+    UbseOptionModule::UbseNodeControllerModule,
+    UbseOptionModule::UbseElectionModule,
+    UbseOptionModule::UbseMmiModule,
+    UbseOptionModule::UbseLcneModule,
+    UbseOptionModule::UbseComModule,
+    UbseOptionModule::UbseRasModule,
+    UbseOptionModule::SysSentryModule,
+    UbseOptionModule::UbseUrmaUvsModule,
+    UbseOptionModule::UbseUrmaControllerModule,
+    UbseOptionModule::UbseNodeDiscoveryModule,
+};
+PLUGIN_MODULE_IMPL(UbseMemControllerModule, G_UBSE_MEM_DEPS);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint32_t CYCLE_CHECK_TIME_S = 300;

@@ -15,11 +15,11 @@
 #include <functional>
 #include "ubse_module.h"
 #include "ubse_storage.h"
-
+#include "ubse_common_def.h"
 namespace ubse::storage {
 using namespace std;
 using namespace ubse::module;
-
+using namespace ubse::common::def;
 const std::string DEFAULT_DB_NAME = "default";
 const std::string DB_STORE_DIR = "/var/lib/ubse/data";
 const uint32_t DIR_MODE = 0750;
@@ -35,6 +35,11 @@ using RemoteGetHandler = std::function<UbseResult(const std::vector<KV> &kvs)>;
 
 class UbseStorageModule : public UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseStorageModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     UbseStorageModule();
     ~UbseStorageModule() override;
     UbseResult Initialize() override;

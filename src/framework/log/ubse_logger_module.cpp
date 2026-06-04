@@ -11,6 +11,7 @@
  */
 
 #include "ubse_logger_module.h"
+#include "ubse_module.h"
 
 #include <new>                    // for nothrow
 #include <string>                 // for basic_string
@@ -25,7 +26,7 @@
 #include "trace_context.h"
 
 namespace ubse::log {
-BASE_DYNAMIC_CREATE(UbseLoggerModule, ubse::config::UbseConfModule);
+CORE_MODULE_IMPL(UbseLoggerModule, ubse::config::UbseConfModule);
 UbseLoggerWriter *g_writer = nullptr;
 
 UbseResult UbseLoggerModule::Initialize()

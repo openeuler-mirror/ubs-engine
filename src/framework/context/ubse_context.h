@@ -17,23 +17,16 @@
 #include <condition_variable>
 #include <functional>
 #include <memory>
+#include <set>
 #include <typeindex>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "ubse_module.h"
-
-// 所有UbseModule的扩展类cpp文件都需要使用该宏提供方法实现体,并完成向上下文中注册类信息
-#define DYNAMIC_CREATE(MODULE_NAME, ...)                                                      \
-    static UbseResult g_tmp_##MODULE_NAME =                                                   \
-        ubse::context::UbseContext::GetInstance().RegisterModule<MODULE_NAME, ##__VA_ARGS__>( \
-            ubse::module::UbseModule::CreateModule<MODULE_NAME>)
-#define BASE_DYNAMIC_CREATE(MODULE_NAME, ...)                                                     \
-    static UbseResult g_tmp_##MODULE_NAME =                                                       \
-        ubse::context::UbseContext::GetInstance().RegisterBaseModule<MODULE_NAME, ##__VA_ARGS__>( \
-            UbseModule::CreateModule<MODULE_NAME>)
+#include "ubse_common_def.h"
 namespace ubse::context {
 using namespace ubse::module;
+using namespace ubse::common::def;
 using ModulerCreatorFunc = std::function<std::shared_ptr<UbseModule>()>;
 
 enum class ProcessMode {
@@ -59,37 +52,6 @@ public:
 
     // 运行上下文
     UbseResult Run(int argc, char *argv[], ProcessMode = ProcessMode::MANAGER);
-
-    template <typename T, typename... Dependencies>
-    UbseResult RegisterModule(const ModulerCreatorFunc &creator)
-    {
-        // 静态断言：确保类型T完整且是UbseModule派生类
-        static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
-        static_assert(std::is_base_of_v<UbseModule, T>, "GetModule must be used with UbseModule derived types");
-        // 依赖项检查: 处理0个或多个依赖
-        if constexpr (sizeof...(Dependencies) > 0) {
-            // 使用折叠表达式检查每个依赖项类型
-            (CheckDependencyType<Dependencies>(), ...);
-        }
-        moduleCreatorMap_[typeid(T)] = {creator, {typeid(Dependencies)...}};
-        return 0;
-    }
-
-    template <typename T, typename... Dependencies>
-    UbseResult RegisterBaseModule(const ModulerCreatorFunc &creator)
-    {
-        // 静态断言：确保类型T完整且是UbseModule派生类
-        static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
-        static_assert(std::is_base_of_v<UbseModule, T>, "GetModule must be used with UbseModule derived types");
-        // 依赖项检查: 处理0个或多个依赖
-        if constexpr (sizeof...(Dependencies) > 0) {
-            // 使用折叠表达式检查每个依赖项类型
-            (CheckDependencyType<Dependencies>(), ...);
-        }
-        baseModuleCreatorMap_[typeid(T)] = {creator, {typeid(Dependencies)...}};
-        return 0;
-    }
-
     // 停止上下文
     void Stop();
 
@@ -99,14 +61,9 @@ public:
         // 静态断言：确保类型T完整且是UbseModule派生类
         static_assert(sizeof(T) != 0, "Type is incomplete. Provide a full definition.");
         static_assert(std::is_base_of_v<UbseModule, T>, "GetModule must be used with UbseModule derived types");
-        const std::type_index moduleType(typeid(T));
-        try {
-            auto it = moduleMap_.find(moduleType);
-            if (it != moduleMap_.end()) {
-                return std::dynamic_pointer_cast<T>(it->second);
-            }
-        } catch (...) {
-            return nullptr;
+        auto it = moduleMap_.find(T::kModuleName);
+        if (it != moduleMap_.end()) {
+            return std::dynamic_pointer_cast<T>(it->second);
         }
         return nullptr;
     }
@@ -138,42 +95,38 @@ public:
     ~UbseContext() = default;
 
 private:
-    struct ModuleEntry {
-        ModulerCreatorFunc creator;
-        std::vector<std::type_index> dependencies;
-    };
-
     UbseContext() = default;
 
     UbseResult CreateModules();
 
-    UbseResult CreateModules(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                             std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
-
     void SetProcessMode(ProcessMode mode);
-
-    std::vector<std::type_index> TopologicalSort(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap);
-
-    bool TopologicalSortUtil(const std::unordered_map<std::type_index, ModuleEntry> &creatorMap,
-                             const std::type_index &moduleName, std::unordered_set<std::type_index> &visited,
-                             std::unordered_set<std::type_index> &visiting, std::vector<std::type_index> &sorted);
 
     UbseResult GetExecutablePath();
 
-    UbseResult InitModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult InitModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult StartModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult StartModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult StopModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult StopModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
-    UbseResult DestroyModule(std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> &sortedModuleVec);
+    UbseResult DestroyModule(std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>>& sortedModuleVec);
 
     UbseResult RegisterArg();
 
     UbseResult ParserArgs(int argc, char *argv[]);
 
     UbseResult InitAndStartModule();
-
+    UbseResult InitCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
+    UbseResult StartCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
+    UbseResult InitAndStartNonCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
+    void StopNonCoreModules();
+    void DestroyNonCoreModules();
+    void StopCoreModules();
+    void DestroyCoreModules();
+    void ResolveActivation();
+    void ActivateWithDependencies(const std::string& name);
+    void ActivateWithDependenciesImpl(const std::string& name, std::set<std::string>& inStack);
+    std::vector<std::string> TopologicalSort();
     // 通用类型检查函数
     template <typename U>
     constexpr void CheckDependencyType()
@@ -194,11 +147,10 @@ private:
     ProcessMode processMode_ = ProcessMode::DEFAULT;
     // 命令行参数
     std::unordered_map<std::string, std::string> argMap_{};
-    std::unordered_map<std::type_index, ModuleEntry> moduleCreatorMap_{};
-    std::unordered_map<std::type_index, ModuleEntry> baseModuleCreatorMap_{};
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedModules_{};
-    std::vector<std::pair<std::type_index, std::shared_ptr<UbseModule>>> sortedBaseModules_{};
-    std::unordered_map<std::type_index, std::shared_ptr<UbseModule>> moduleMap_{};
+    std::map<std::string, UbseModuleEntry> registry_{};
+    std::set<std::string> activated_{};
+    std::vector<std::pair<std::string, std::shared_ptr<UbseModule>>> sortedModules_;
+    std::map<std::string, std::shared_ptr<UbseModule>> moduleMap_;
 
     uint8_t workReadiness_ = 0;
 

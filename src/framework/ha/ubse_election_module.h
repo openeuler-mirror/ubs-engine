@@ -28,6 +28,9 @@ using namespace ubse::message;
 
 class UbseElectionModule : public UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseElectionModule";
+    std::string Name() const override { return kModuleName; }
+
     // 构造函数
     UbseElectionModule() = default;
 

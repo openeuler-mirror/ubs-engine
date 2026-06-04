@@ -38,6 +38,8 @@ private:
 
 class UbseUrmaControllerModule : public ubse::module::UbseModule {
 public:
+    static constexpr const char* kModuleName = "UbseUrmaControllerModule";
+    std::string Name() const override { return kModuleName; }
     ubse::common::def::UbseResult Initialize() override;
 
     void UnInitialize() override;
