@@ -212,9 +212,9 @@ void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
     result.presentNumaIds.swap(newPresentNumaId);
 }
 
-float StatusManager::CalculateMemMigrateRatio(int16_t numaId,uint64_t curBorrowMemorySize)
+float StatusManager::CalculateMemMigrateRatio(const int16_t numaId, uint64_t curBorrowMemorySize)
 {
-    double totalBorrowedMem = static_cast<double>(curBorrowMemorySize);
+    double totalBorrowedMem = 0;
     double totalVMusedMem = 0;
     auto globalNumaInfoMap = ResourceCollect::GetInstance().GetGlobalSampleNumaInfo();
     auto globalNumaVmInfoMap = ResourceCollect::GetInstance().GetGlobalSampleVMInfo();
@@ -241,7 +241,7 @@ float StatusManager::CalculateMemMigrateRatio(int16_t numaId,uint64_t curBorrowM
     return ratio;
 }
 
-std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids, int16_t numaId,
+std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids, const int16_t numaId,
     uint64_t curBorrowMemorySize)
 {
     std::vector<VMPresetParam> vmPresetParams;
