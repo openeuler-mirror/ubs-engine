@@ -75,6 +75,7 @@ struct PendingMigrationState {
     uint64_t remoteTotalSizeKB = 0;
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
+    std::unordered_map<uint16_t, std::vector<std::string>> numaToBorrowIds;
     bool migrated = false;
     std::unordered_set<std::string> freedOldBorrowIds;
 };
@@ -153,6 +154,7 @@ struct PidBorrowContext {
     uint64_t remoteTotalSizeKB = 0;
     std::vector<uint16_t> remoteNumaIds;
     std::unordered_map<uint16_t, uint64_t> remoteNumaSizeMap;
+    std::unordered_map<uint16_t, std::vector<std::string>> numaToBorrowIds;
     std::string borrowNodeId;
     int16_t borrowLocalNuma = -1;
     uint16_t borrowSocketId = 0;
