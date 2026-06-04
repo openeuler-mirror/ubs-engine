@@ -569,7 +569,7 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessBorrowOutNodeFaultMultiNuma_Succeed
     OverCommitFaultNodeModule module;
     auto ret = module.ProcessBorrowOutNodeFaultMultiNuma("node_test");
 
-    // EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
 // 2. Test HandleFaultRemoteNumasPerBorrowNode
@@ -1030,6 +1030,254 @@ TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_SinglePid_RemoveCor
     EXPECT_TRUE(g_smapRemoveCalled);
     ASSERT_EQ(g_removedPids.size(), 1u);
     EXPECT_EQ(g_removedPids[0], 1234);
+}
+
+// =========================================================================
+// Remote NUMA Idle Fallback tests
+// =========================================================================
+
+MpResult MemBorrowExecuteForFaultSuccessMock(const SrcMemoryBorrowParam& srcParam,
+                                             const std::vector<uint64_t>& borrowSizes, const WaterMark& waterMark,
+                                             MemBorrowExecuteResult& borrowExecuteResult,
+                                             const ProcessMemUsrInfo& processMemUsrInfo)
+{
+    borrowExecuteResult.borrowIds.push_back("new_borrow_id");
+    borrowExecuteResult.presentNumaId.push_back(2);
+    return MEM_POOLING_OK;
+}
+
+// Mock: OsHelper::GetMemInfoByNumaId returns idle (memFree == memTotal)
+MpResult GetMemInfoByNumaIdIdleMock(const uint16_t& numaId, exportV2::NumaInfo& info)
+{
+    info.metaData.memFree = 1024;
+    info.metaData.memTotal = 1024;
+    return MEM_POOLING_OK;
+}
+
+// Mock: OsHelper::GetMemInfoByNumaId returns non-idle (memFree != memTotal)
+MpResult GetMemInfoByNumaIdNonIdleMock(const uint16_t& numaId, exportV2::NumaInfo& info)
+{
+    info.metaData.memFree = 512;
+    info.metaData.memTotal = 1024;
+    return MEM_POOLING_OK;
+}
+
+// Mock: OsHelper::GetMemInfoByNumaId fails
+MpResult GetMemInfoByNumaIdFailMock(const uint16_t& numaId, exportV2::NumaInfo& info)
+{
+    return MEM_POOLING_ERROR;
+}
+
+// Mock: SmapQueryProcessConfigHelper returns empty list (no processes)
+MpResult SmapQueryProcessConfigEmptyMock(int nid, std::vector<smap::ProcessPayload>& processPayloadList)
+{
+    return MEM_POOLING_OK;
+}
+
+// Mock: SmapQueryProcessConfigHelper returns one process
+MpResult SmapQueryProcessConfigWithProcessMock(int nid, std::vector<smap::ProcessPayload>& processPayloadList)
+{
+    smap::ProcessPayload payload;
+    payload.pid = 1234;
+    processPayloadList.push_back(payload);
+    return MEM_POOLING_OK;
+}
+
+/*
+ * 用例描述：CanDirectlyReturnRemoteNumas传入空remoteNumaIds时，应返回false
+ * 测试步骤：
+ * 1. 构造空的remoteNumaIds向量
+ * 2. 调用CanDirectlyReturnRemoteNumas
+ * 预期结果：
+ * 1. 返回false
+ */
+TEST_F(TestOverCommitFaultNodeModule, CanDirectlyReturnRemoteNumas_EmptyNumaIds_ReturnsFalse)
+{
+    std::vector<uint16_t> emptyNumaIds;
+    EXPECT_FALSE(CanDirectlyReturnRemoteNumas(emptyNumaIds));
+}
+
+/*
+ * 用例描述：CanDirectlyReturnRemoteNumas所有NUMA都空闲且无进程时，应返回true
+ * 测试步骤：
+ * 1. Mock SmapQueryProcessConfigHelper 返回空列表
+ * 2. Mock GetMemInfoByNumaId 返回 memFree==memTotal
+ * 3. 构造包含2个numaId的向量
+ * 4. 调用CanDirectlyReturnRemoteNumas
+ * 预期结果：
+ * 1. 返回true
+ */
+TEST_F(TestOverCommitFaultNodeModule, CanDirectlyReturnRemoteNumas_AllIdleNoProcesses_ReturnsTrue)
+{
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(SmapQueryProcessConfigEmptyMock));
+
+    MOCKER_CPP(&exportV2::OsHelper::GetMemInfoByNumaId, MpResult(*)(const uint16_t&, exportV2::NumaInfo&))
+        .stubs()
+        .will(invoke(GetMemInfoByNumaIdIdleMock));
+
+    std::vector<uint16_t> numaIds = {1, 2};
+    EXPECT_TRUE(CanDirectlyReturnRemoteNumas(numaIds));
+}
+
+/*
+ * 用例描述：CanDirectlyReturnRemoteNumas有NUMA非空闲时，应返回false
+ * 测试步骤：
+ * 1. Mock SmapQueryProcessConfigHelper 返回空列表
+ * 2. Mock GetMemInfoByNumaId 返回 memFree!=memTotal
+ * 3. 构造包含2个numaId的向量
+ * 4. 调用CanDirectlyReturnRemoteNumas
+ * 预期结果：
+ * 1. 返回false
+ */
+TEST_F(TestOverCommitFaultNodeModule, CanDirectlyReturnRemoteNumas_NoneIdle_ReturnsFalse)
+{
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(SmapQueryProcessConfigEmptyMock));
+
+    MOCKER_CPP(&exportV2::OsHelper::GetMemInfoByNumaId, MpResult(*)(const uint16_t&, exportV2::NumaInfo&))
+        .stubs()
+        .will(invoke(GetMemInfoByNumaIdNonIdleMock));
+
+    std::vector<uint16_t> numaIds = {1, 2};
+    EXPECT_FALSE(CanDirectlyReturnRemoteNumas(numaIds));
+}
+
+/*
+ * 用例描述：CanDirectlyReturnRemoteNumas中GetMemInfoByNumaId失败时，应返回false
+ * 测试步骤：
+ * 1. Mock SmapQueryProcessConfigHelper 返回空列表
+ * 2. Mock GetMemInfoByNumaId 返回 MEM_POOLING_ERROR
+ * 3. 构造包含1个numaId的向量
+ * 4. 调用CanDirectlyReturnRemoteNumas
+ * 预期结果：
+ * 1. 返回false
+ */
+TEST_F(TestOverCommitFaultNodeModule, CanDirectlyReturnRemoteNumas_GetMemInfoFailed_ReturnsFalse)
+{
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(SmapQueryProcessConfigEmptyMock));
+
+    MOCKER_CPP(&exportV2::OsHelper::GetMemInfoByNumaId, MpResult(*)(const uint16_t&, exportV2::NumaInfo&))
+        .stubs()
+        .will(invoke(GetMemInfoByNumaIdFailMock));
+
+    std::vector<uint16_t> numaIds = {1};
+    EXPECT_FALSE(CanDirectlyReturnRemoteNumas(numaIds));
+}
+
+/*
+ * 用例描述：ProcessNewBorrowFlow中前置检查所有远端NUMA空闲且无进程时，应直接释放oldBorrowIds并返回OK
+ * 测试步骤：
+ * 1. Mock SmapQueryProcessConfigHelper 返回空列表
+ * 2. Mock GetMemInfoByNumaId 返回idle
+ * 3. Mock MemFreeWithOps 返回成功
+ * 4. 构造records并调用ProcessNewBorrowFlow
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_OK
+ * 2. MemFreeWithOps 被调用（对应oldBorrowIds数量）
+ */
+TEST_F(TestOverCommitFaultNodeModule, ProcessNewBorrowFlow_PreCheck_AllNumasIdle_FreesOldBorrowIds)
+{
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(SmapQueryProcessConfigEmptyMock));
+
+    MOCKER_CPP(&exportV2::OsHelper::GetMemInfoByNumaId, MpResult(*)(const uint16_t&, exportV2::NumaInfo&))
+        .stubs()
+        .will(invoke(GetMemInfoByNumaIdIdleMock));
+
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    std::vector<BorrowRecord> records;
+    BorrowRecord record;
+    record.name = "old_borrow_1";
+    record.size = 1024;
+    record.borrowNode = "node0";
+    record.borrowLocalNuma = 0;
+    record.borrowRemoteNuma = 1;
+    record.borrowSocketId = 0;
+    record.uid = 0;
+    record.username = "root";
+    records.push_back(record);
+
+    pid_t pid = 1234;
+    int64_t startTime = 1000;
+    MpResult ret = ProcessNewBorrowFlow(pid, startTime, records);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+/*
+ * 用例描述：ProcessPendingMigration中前置检查所有远端NUMA空闲且无进程时，应跳过迁移并释放oldBorrowIds
+ * 测试步骤：
+ * 1. 设置pendingMigrations中有一个未迁移的state（含numaToBorrowIds映射）
+ * 2. Mock SmapQueryProcessConfigHelper 返回空列表
+ * 3. Mock GetMemInfoByNumaId 返回idle
+ * 4. Mock MemFreeWithOps 返回成功
+ * 5. Mock BorrowIdRedirection::Update 返回成功
+ * 6. 调用ProcessSinglePidFault触发ProcessPendingMigration
+ * 预期结果：
+ * 1. 返回 MEM_POOLING_OK
+ * 2. pendingMigrations中该pid被清除
+ */
+TEST_F(TestOverCommitFaultNodeModule, ProcessPendingMigration_PreCheck_AllNumasIdle_SkipsMigrate)
+{
+    auto& pendingMigrations = OverCommitFaultNodeModule::Instance().GetPendingMigrations();
+    pendingMigrations.clear();
+
+    PendingMigrationState state;
+    state.newBorrowId = "new_borrow_1";
+    state.newRemoteNumaId = 2;
+    state.oldBorrowIds = {"old_borrow_1"};
+    state.borrowNodeId = "node0";
+    state.pid = 9999;
+    state.remoteTotalSizeKB = 1024;
+    state.remoteNumaIds = {1};
+    state.remoteNumaSizeMap[1] = 1024;
+    state.numaToBorrowIds[1] = {"old_borrow_1"};
+    state.migrated = false;
+    pendingMigrations[9999] = state;
+
+    MOCKER_CPP(&MpSmapHelper::SmapQueryProcessConfigHelper, MpResult(*)(int, std::vector<smap::ProcessPayload>&))
+        .stubs()
+        .will(invoke(SmapQueryProcessConfigEmptyMock));
+
+    MOCKER_CPP(&exportV2::OsHelper::GetMemInfoByNumaId, MpResult(*)(const uint16_t&, exportV2::NumaInfo&))
+        .stubs()
+        .will(invoke(GetMemInfoByNumaIdIdleMock));
+
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&BorrowIdRedirection::Update, MpResult(*)(const std::string&, const std::string&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    std::vector<BorrowRecord> records;
+    BorrowRecord record;
+    record.name = "old_borrow_1";
+    record.size = 1024;
+    record.borrowNode = "node0";
+    record.borrowLocalNuma = 0;
+    record.borrowRemoteNuma = 1;
+    record.borrowSocketId = 0;
+    record.uid = 0;
+    record.username = "root";
+    records.push_back(record);
+
+    pid_t pid = 9999;
+    int64_t startTime = 3000;
+    MpResult ret = ProcessSinglePidFault(pid, startTime, records);
+
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_TRUE(pendingMigrations.find(9999) == pendingMigrations.end());
 }
 
 } // namespace mempooling::over_commit

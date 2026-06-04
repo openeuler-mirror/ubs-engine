@@ -46,6 +46,8 @@ constexpr int RANDOM_BYTE_MAX = 255;
 constexpr auto RESOURCE_KIND = "MEM";
 constexpr int WIDTH = 2;
 
+static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+
 MpResult MemBorrowExecutor::PrepareMemNumaCreateParams(const std::string attachNode,
                                                        const RackCreateResourceWaterBorrowAttr& attr,
                                                        UbseMemBorrower& borrower,
@@ -309,39 +311,47 @@ MpResult MemBorrowExecutor::GenerateSmapParamsForProcessMem(const std::string& n
                                                             bool isFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params, borrow_id=" << name << ".";
-    bool isContainerScene = false;
-    if (MpConfiguration::GetInstance().GetSceneType() == MpSceneType::CONTAINER_SCENE) {
-        isContainerScene = true;
-    }
-    BorrowRecord record;
-    auto ret = GetBorrowRecordForSmapParams(name, record, isFault);
+        << "[MemFree][MemFreeExecute] Begin to generate smap migrate back params, borrow_id=" << name
+        << ", isFault=" << isFault << ".";
+
+    std::vector<UbseNumaMemoryDebtInfo> debtInfos;
+    MpResult ret = GetDebtInfoByNameWithRetry(name, debtInfos);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] CollectBorrowRecords failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] GetDebtInfoByNameWithRetry failed for borrow_id=" << name << ".";
         return ret;
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemFreeExecute] Find borrow_id=" << name
-        << " in borrow records, start to generate smap migrate back params.";
-    int destNid = -1;
-    if (isContainerScene) {
-        destNid = record.borrowLocalNuma;
+
+    const UbseNumaMemoryDebtInfo* currentDebtInfo = nullptr;
+    int srcNuma = -1;
+    ret = FindCurrentDebtInfoAndSrcNuma(debtInfos, name, currentDebtInfo, srcNuma);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] FindCurrentDebtInfoAndSrcNuma failed for borrow_id=" << name << ".";
+        return ret;
     }
 
-    for (size_t j = 0; j < record.borrowMemId.size(); j += MAX_NR_MIGBACK_MP) {
+    int destNid = srcNuma;
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeExecute] Found borrow_id=" << name << ", destNid=" << destNid
+        << ", remoteNumaId=" << currentDebtInfo->remoteNumaId
+        << ", borrowMemId.size()=" << currentDebtInfo->borrowMemId.size()
+        << ", start to generate smap migrate back params.";
+
+    for (size_t j = 0; j < currentDebtInfo->borrowMemId.size(); j += MAX_NR_MIGBACK_MP) {
         MigrateBackMsg migrateBackMsg;
-        size_t batchEnd = std::min(j + MAX_NR_MIGBACK_MP, record.borrowMemId.size());
+        size_t batchEnd = std::min(j + MAX_NR_MIGBACK_MP, currentDebtInfo->borrowMemId.size());
         size_t batchSize = batchEnd - j;
         for (size_t i = 0; i < batchSize; i++) {
-            migrateBackMsg.payload[i].memid = record.borrowMemId[j + i];
-            migrateBackMsg.payload[i].srcNid = record.borrowRemoteNuma;
+            migrateBackMsg.payload[i].memid = currentDebtInfo->borrowMemId[j + i];
+            migrateBackMsg.payload[i].srcNid = currentDebtInfo->remoteNumaId;
             migrateBackMsg.payload[i].destNid = destNid;
         }
         migrateBackMsg.count = static_cast<int>(batchSize);
         uint64_t taskId{};
         GenerateSmapTaskId(taskId);
         migrateBackMsg.taskID = taskId;
-        importNodeId = record.borrowNode;
+        importNodeId = currentDebtInfo->borrowNodeId;
         for (int i = 0; i < migrateBackMsg.count; i++) {
             UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Index=" << i << ", srcNid=" << migrateBackMsg.payload[i].srcNid
@@ -350,7 +360,7 @@ MpResult MemBorrowExecutor::GenerateSmapParamsForProcessMem(const std::string& n
         migrateBackMsgs.push_back(migrateBackMsg);
     }
 
-    enableMsg.nid = record.borrowRemoteNuma;
+    enableMsg.nid = currentDebtInfo->remoteNumaId;
     enableMsg.enable = SMAP_ENABLE_NUMA;
 
     return MEM_POOLING_OK;
@@ -777,24 +787,73 @@ uint64_t MemBorrowExecutor::CalculateTotalSizeBytesForSrcNuma(const std::vector<
     return totalSizeBytes;
 }
 
+static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    if (ret == UBSE_ERR_INTERNAL) {
+        return true;
+    }
+    if (ret != UBSE_OK && debtInfos.empty()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfo failed, ret=" << ret
+            << ", debtInfos is empty, need retry.";
+        return true;
+    }
+    if (ret != UBSE_OK && !debtInfos.empty()) {
+        bool hasInvalidRemoteNuma =
+            std::any_of(debtInfos.begin(), debtInfos.end(),
+                        [](const UbseNumaMemoryDebtInfo& info) { return info.remoteNumaId < 0; });
+        if (hasInvalidRemoteNuma) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfo ret=" << ret
+                << ", has remoteNumaId < 0, need retry.";
+            return true;
+        }
+    }
+    return false;
+}
+
+static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    constexpr int maxRetryTimes = 30;
+    constexpr int sleepSeconds = 1;
+    int curRetryTimes = 0;
+
+    while (curRetryTimes < maxRetryTimes) {
+        debtInfos.clear();
+        UbseResult ret = UbseGetNumaMemDebtInfo(debtInfos);
+        if (ShouldRetryDebtInfoFetch(ret, debtInfos)) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
+                << ", ret=" << static_cast<uint32_t>(ret);
+            std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
+            curRetryTimes++;
+            continue;
+        }
+
+        for (const auto& debtInfo : debtInfos) {
+            if (debtInfo.name == name) {
+                return MEM_POOLING_OK;
+            }
+        }
+
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] borrowId=" << name
+                                                         << " not found in debt info, retry=" << (curRetryTimes + 1);
+        std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
+        curRetryTimes++;
+    }
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemFree][MemFreeExecute] borrowId=" << name << " not found in debt info after max retry.";
+    return MEM_POOLING_ERROR;
+}
+
 MpResult MemBorrowExecutor::UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std::string& name,
                                                                       const std::string& deleteName, bool isFault)
 {
-    BorrowRecord record;
-    auto ret = Instance().GetBorrowRecordForSmapParams(name, record, isFault);
-    if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] GetBorrowRecordForSmapParams failed, borrowId=" << name;
-        return ret;
-    }
-
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
-    UbseResult errCode = UbseGetNumaMemDebtInfoWithNode(record.borrowNode, debtInfos);
-    if (errCode != UBSE_OK && errCode != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfoWithNode failed, borrowNode=" << record.borrowNode
-            << ", errCode=" << errCode;
-        return MEM_POOLING_ERROR;
+    MpResult getRet = GetDebtInfoByNameWithRetry(name, debtInfos);
+    if (getRet != MEM_POOLING_OK) {
+        return getRet;
     }
 
     const UbseNumaMemoryDebtInfo* currentDebtInfo = nullptr;
