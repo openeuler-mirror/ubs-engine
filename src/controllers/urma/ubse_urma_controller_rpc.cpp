@@ -263,6 +263,28 @@ UbseResult SetUvsTopoInfo(const std::string& nodeId)
     return UBSE_OK;
 }
 
+void ActivateHostBonding()
+{
+    // 1pfe + 5vfe场景下，如果host bonding未被ubse占用，需要起定时器，创建设备预留给主机
+    bool isClosType = adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
+    FeTopoType feTopoType = UbseUrmaControllerManager::GetInstance().GetFeTopoType();
+    bool isHostUrmaDevOccupied = UbseNodeController::GetInstance().IsHostUrmaDevOccupied();
+    if (!isClosType || feTopoType != FeTopoType::PFE_VFE_HYBRID || isHostUrmaDevOccupied) {
+        UBSE_LOG_INFO << "Skip activating host bonding, isClosType=" << static_cast<int>(isClosType)
+                      << "fe topo=" << static_cast<int>(UbseUrmaControllerManager::GetInstance().GetFeTopoType())
+                      << "isHostUrmaDevOccupied=" << static_cast<int>(isHostUrmaDevOccupied);
+        return;
+    }
+    std::string taskExecutor = "UrmaExecutor";
+    std::string taskName = "UrmaActivateHostBondingRetryTimer";
+    const std::string hostBondingName = "bonding_dev_0";
+    const uint32_t retryInterval = 10;
+    auto task = [hostBondingName]() {
+        return UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev(hostBondingName);
+    };
+    HandleTaskWithRetry(taskExecutor, taskName, retryInterval, task);
+}
+
 UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
 {
     AsyncHandlerGuard cntGuard;
@@ -297,6 +319,7 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to PORT_DOWN";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaDevStateForNode(UrmaDevState::PORT_DOWN);
     }
+    ActivateHostBonding();
     UBSE_LOG_INFO << "End to update urma info";
     return UBSE_OK;
 }

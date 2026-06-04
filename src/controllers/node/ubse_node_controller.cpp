@@ -1366,4 +1366,13 @@ uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo>& roleInfos)
 {
     return UbseGetAllNodeInfos(roleInfos);
 }
+
+void UbseNodeController::OccupyComUrmaBonding()
+{
+    isHostUrmaDevOccupied = true;
+}
+bool UbseNodeController::IsHostUrmaDevOccupied() const
+{
+    return isHostUrmaDevOccupied;
+}
 } // namespace ubse::nodeController

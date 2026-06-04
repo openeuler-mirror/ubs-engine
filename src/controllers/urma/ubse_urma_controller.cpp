@@ -319,7 +319,11 @@ UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string>& nameInf
     } else {
         lastQueryResult = isAllPortDown;
     }
+    const std::string hostUrmaDevName = "bonding_dev_0";
     for (auto& dev : urmaNodeInfo.urmaList) {
+        if (dev.first == hostUrmaDevName) {
+            continue;
+        }
         nameInfo.push_back(dev.first);
         bool health = true;
         for (auto& eidGroup : dev.second.eidGroups) {
@@ -645,7 +649,11 @@ void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfo
     const size_t feCntPerUrmaInfo = 2;
     RefreshAllUrmaDevsState(currentNodeInfo.nodeId);
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(currentNodeInfo.nodeId);
+    const std::string hostUrmaDevName = "bonding_dev_0";
     for (auto& info : nodeInfo.urmaList) {
+        if (info.first == hostUrmaDevName) {
+            continue;
+        }
         UbseUrmaDevBrief urmaInfo;
         urmaInfo.urmaName = info.first;
         if (info.second.eidGroups.size() != feCntPerUrmaInfo) {

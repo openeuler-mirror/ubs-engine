@@ -349,6 +349,9 @@ public:
     void UpdateConnect(PhysicalLink& physicalLink, std::string& linkId);
     void PrintDevDirConnectInfo();
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
+    // 由mem ctl初始化时调用，占用通信bonding
+    void OccupyComUrmaBonding();
+    bool IsHostUrmaDevOccupied() const;
 
 private:
     std::shared_mutex rwMutex;
@@ -360,6 +363,7 @@ private:
     std::shared_mutex devDirMutex;
     std::map<std::string, PhysicalLink>
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
+    bool isHostUrmaDevOccupied{false};
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

@@ -26,6 +26,7 @@
 #include "ubse_urma_controller_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::urmaController {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -414,6 +415,10 @@ template <>
 UbseResult UbseUrmaControllerQos<EtsQosConfig>::UbseUrmaQosInit()
 {
     UBSE_LOG_INFO << "Start to init ETS QoS";
+    if (!adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Current mesh type is not clos, skip init qos";
+        return UBSE_OK;
+    }
     auto ret = qosTemplate_->Init();
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to init ETS QoS," << FormatRetCode(ret) << ", will retry";
