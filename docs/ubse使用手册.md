@@ -657,7 +657,41 @@ UBM服务异常。
 
 - **故障处理方法**
 
-  根据识别结果参考URMA的定位定界进一步定位。
+   根据识别结果参考URMA的定位定界进一步定位。
+
+#### UBSE决策失败
+
+- **故障现象**
+
+  内存借用接口返回1013错误码
+
+- **故障识别**
+
+  通过 `grep -F "[MMC] Failed to allocate, name=" /var/log/ubse/ubse.log` 发现存在错误日志打印，表明对应资源的借用决策失败，其中 `name=` 为申请的资源名称。示例如下：
+
+  ```shell
+  [2026-06-04 10:15:23.456 +0800][ERROR][7760][281469448406912][ubse_mem_controller_numa_api.cpp:UbseMemNumaBorrow:341] [MMC] Failed to allocate, name=test1, requestNodeId=1, ErrorCode=10800, requestId=216454263290527745
+  ```
+
+- **故障处理方法**
+
+   从上一步日志中提取线程号，过滤 `ubse_mem_strategy.log` 获取详细失败原因：`grep "281469448406912" /var/log/ubse/ubse_mem_strategy.log | grep -E "\[WARN\]|\[ERROR\]" | grep "10:15:23"`，示例如下：
+
+  ```shell
+  [2026-06-04 10:15:23.456 +0800][ERROR][7760][281469448406912][ubse_mem_validator.cpp:CheckBorrowNodeHasLent:537] borrowNodeId node=1 has lent before, it can not borrow.
+  ```
+
+  节点被过滤影响导致借用失败常见原因如下（`node=` 后的数字为实际节点ID）：
+
+  | 详细日志 | 问题原因 |
+  | :--- | :--- |
+  | `borrowNodeId node=1 has lent before, it can not borrow.` | 借入节点借出过，不能进行借入 |
+  | `Provider node=2 has borrowed before, it can not lend.` | 借出节点借入过，不能进行借出 |
+  | `Provider node=2 is not working, can't lend out` / `Lend nodeId=2 status is not working` | 借出节点不在工作状态，无法进行借出 |
+  | `Node=2 is not a lender.` | 借出节点被配置成非lender节点，无法进行借出 |
+  | `exportNodeId=2 is not in candidateNodeList` | 借出节点不在候选节点列表里面 |
+  | `The reserved memory is insufficient. Node=2, numaId=0` | 借出节点内存不足，无法借出 |
+  | `Numa not exist. nodeId=4, numa=0` | 节点不存在，无法进行借出(可能原因是整个集群发生脑裂，该节点不在当前子集群) |
 
 ### 常见错误码说明及处理建议
 
