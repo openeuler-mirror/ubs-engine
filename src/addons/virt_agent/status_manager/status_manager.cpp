@@ -151,8 +151,7 @@ void StatusManager::MemoryBorrowOperation(const VMNodeLocInfo& originNode, const
     auto BorrowIdStatuses = GenerateBorrowIdStatuses(originNode, borrowResult);
     ResourceCollect::GetInstance().UpdateGlobalBorrowMap(BorrowIdStatuses);
 
-    uint64_t borrowMemorySize = std::accumulate(borrowSizes.begin(), borrowSizes.end(), static_cast<uint64_t>(0));
-    const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids, originNode.numaId, borrowMemorySize);
+    const vector<VMPresetParam>& vmPresetParam = ConvertToVmPresetParam(pids, originNode.numaId);
     // 2. Memory migration (memory scheduling interface)
     const auto UBSRMRSMemMigrate = MempoolingModule::UBSRMRSMemMigrate();
     if (UBSRMRSMemMigrate == nullptr) {
@@ -212,7 +211,7 @@ void StatusManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
     result.presentNumaIds.swap(newPresentNumaId);
 }
 
-float StatusManager::CalculateMemMigrateRatio(const int16_t numaId, uint64_t curBorrowMemorySize)
+float StatusManager::CalculateMemMigrateRatio(const int16_t numaId)
 {
     double totalBorrowedMem = 0;
     double totalVMusedMem = 0;
@@ -235,14 +234,11 @@ float StatusManager::CalculateMemMigrateRatio(const int16_t numaId, uint64_t cur
             }
         }
     }
-    UBSE_LOG_DEBUG << "totalBorrowedMem = " << std::to_string(totalBorrowedMem) << ", totalVMusedMem = "
-            << std::to_string(totalVMusedMem);
     float ratio = static_cast<float>(totalBorrowedMem / totalVMusedMem);
     return ratio;
 }
 
-std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids, const int16_t numaId,
-    uint64_t curBorrowMemorySize)
+std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vector<pid_t>& pids, const int16_t numaId)
 {
     std::vector<VMPresetParam> vmPresetParams;
     try {
@@ -251,7 +247,7 @@ std::vector<VMPresetParam> StatusManager::ConvertToVmPresetParam(const std::vect
         UBSE_LOG_ERROR << "Memory allocation failed: " << e.what();
         return {};
     }
-    float ratio = CalculateMemMigrateRatio(numaId, curBorrowMemorySize);
+    float ratio = CalculateMemMigrateRatio(numaId);
     UBSE_LOG_DEBUG << "Memory_migrate_ratio = " << std::to_string(ratio);
     for (pid_t pid : pids) {
         VMPresetParam param{};
