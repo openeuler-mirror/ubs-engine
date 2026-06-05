@@ -1236,6 +1236,11 @@ void FaultNodeModule::GenerateNumaLevelDecision(std::vector<BorrowGroupResult>& 
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel] start to generate numa-level decision for borrowGroup which's borrowNodeId="
             << group.borrowNodeId << ", faultNumaId=" << group.remoteNumaId << ".";
+        if (group.strategyType == BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] This borrowGroup was borrowed and strategy is borrowIdLevel.";
+            continue;
+        }
         if (group.strategyType == BorrowStrategyType::NUMA_LEVEL_STRATEGY && group.numaDecision.isBorrowed) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] this borrowGroup was borrowed.";
             successCnt++;   // 计入成功（已执行借用过但迁移失败的决策）
@@ -1313,13 +1318,15 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
             continue;
         }
 
-        // 复制已有的已借用决策到 tmpDecisions，并构建已借用oldName集合
+       // 复制已有的已借用决策，并构建 oldName -> BorrowIdLevelDecision 映射
         std::vector<BorrowIdLevelDecision> tmpDecisions;
-        std::unordered_set<std::string> borrowedOldNames;
+        std::map<std::string, BorrowIdLevelDecision> borrowedMap;
         for (const auto& dec : group.borrowIdDecisions) {
             if (dec.isBorrowed) {
                 tmpDecisions.push_back(dec);
-                borrowedOldNames.insert(dec.oldName);
+                borrowedMap[dec.oldName] = dec;
+                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[FaultHandleParallel] BorrowedDecision oldName=" << dec.oldName << ".";
             }
         }
 
@@ -1333,10 +1340,14 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
 
         int errCount = 0;
         for (const auto& record : group.records) {
-            // 跳过已经借用的 record
-            if (borrowedOldNames.find(record.name) != borrowedOldNames.end()) {
+            // 如果已借用过该 record，从 vmInfos 中删除对应的 pids，并跳过
+            auto it = borrowedMap.find(record.name);
+            if (it != borrowedMap.end()) {
                 UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[BorrowIdLevelDecision] Skip already borrowed record, oldName=" << record.name << ".";
+                // 删除该决策中需要迁移的 pid 集合
+                const auto& pidsToRemove = it->second.borrowedDecision.pids;
+                RemoveMigratedPidsFromVmInfos(group.vmInfos, pidsToRemove);
                 continue;
             }
             
@@ -1408,6 +1419,12 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
 
             RemoveMigratedPidsFromVmInfos(group.vmInfos, decision.pids);
         }
+        // 排序
+        std::stable_sort(tmpDecisions.begin(), tmpDecisions.end(),
+                 [](const BorrowIdLevelDecision& a, const BorrowIdLevelDecision& b) {
+                     // 非直接归还（false）的决策排在直接归还（true） 前面
+                     return a.isReturnDirectly < b.isReturnDirectly;
+                 });
         group.borrowIdDecisions = std::move(tmpDecisions);
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel] group.borrowIdDecisions.size=" << group.borrowIdDecisions.size() << ".";
@@ -2191,7 +2208,7 @@ MpResult FaultNodeModule::NumaLevelMemBorrow(const BorrowGroupResult& group, Num
     return MEM_POOLING_OK;
 }
 
-MpResult FaultNodeModule::NumaLevelBorrowedExecute(const NumaLevelBorrowedDecision decision)
+MpResult FaultNodeModule::NumaLevelBorrowedExecute(NumaLevelBorrowedDecision decision)
 {
     // 1 对于已借用过的决策直接执行远端迁移
     auto res = FaultHandleMigrate(decision.presentNumaId, decision.oldNumaId, decision.pids, decision.totalBorrowSize);
@@ -2235,7 +2252,7 @@ void fillBorrowedDecisionNumaLevel(const BorrowGroupResult& group, const NumaLev
                                BorrowedDecision& borrowedDecision)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevel migrate failed, start to update borrowedDecision."
+        << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevel migrate failed, start to update borrowedDecision.";
     borrowedDecision.borrowNodeId = group.borrowNodeId;
     borrowedDecision.remoteNumaId = group.remoteNumaId;
     borrowedDecision.isNumaLevel = true;

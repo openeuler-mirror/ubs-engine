@@ -855,6 +855,17 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
     return MEM_POOLING_OK;
 }
 
+void FaultHandleBorrowedDecision::ToString()
+{
+    std::ostringstream oss;
+    oss << "BorrowedDecisionMap{size=" << borrowedDecisionMap.size();
+    for (const auto& kv : borrowedDecisionMap) {
+        oss << ", numa" << kv.first << ":" << kv.second.ToString();
+    }
+    oss << "}";
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Print BorrowedDecisionMap," << oss.str() << ".";
+}
+
 MpResult FaultHandleBorrowedDecision::Query(BorrowedDecision& decision, const uint16_t numaId)
 {
     LOG_DEBUG << "[FaultHandleBorrowedDecision] Query for numaId=" << numaId << ".";
@@ -866,6 +877,7 @@ MpResult FaultHandleBorrowedDecision::Query(BorrowedDecision& decision, const ui
         return MEM_POOLING_ERROR;
     }
     decision = it->second;
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Query success, decision=" << decision.ToString() << ".";
     return MEM_POOLING_OK;
 }
 
@@ -881,7 +893,8 @@ MpResult FaultHandleBorrowedDecision::QueryAll(std::vector<BorrowedDecision>& de
     }
 
     for (const auto& pair : borrowedDecisionMap) {
-        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << pair.first << " get one borrowed decision.";
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << pair.first << " get one borrowedDecision="
+            << pair.second.ToString() << ".";
         decisionList.push_back(pair.second);
     }
     return MEM_POOLING_OK;
