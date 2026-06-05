@@ -619,18 +619,12 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseReques
         return UBSE_ERR_INTERNAL;
     }
     // ubseMemPrivData 数据和SDK接口默认值一致
-    req.ubseMemPrivData.onePth = 1;
-    req.ubseMemPrivData.wrDelayComp = 0;
-    req.ubseMemPrivData.reduceDelayComp = 0;
-    req.ubseMemPrivData.cmoDelayComp = 0;
-    req.ubseMemPrivData.so = 0;
-    req.ubseMemPrivData.adTrOchip = 1;
-    auto ret = SetCliShareCacheableFlag(req);
+    auto ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData, 0);
+    req.shmAnonymous = false;
     if (ret != UBSE_OK) {
         return ret;
     }
-    req.shmAnonymous = false;
-    return UBSE_OK;
+    return SetCliShareCacheableFlag(req);
 }
 
 uint32_t UbseMemApi::UbseCliShmGetDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
@@ -890,7 +884,7 @@ UbseResult FillNumaInfoToCreateReq(const UbseIpcMessage& buffer, const UbseReque
             return ret;
         }
     }
-    return UBSE_OK;
+    return SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
 }
 
 uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context)
@@ -930,7 +924,7 @@ UbseResult FillFdInfoToCreateReq(const UbseIpcMessage& buffer, const UbseRequest
         UBSE_LOG_ERROR << "Invalid name";
         return UBSE_ERROR_INVAL;
     }
-    return UBSE_OK;
+    return SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
 }
 
 uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage& buffer, const UbseRequestContext& context)
