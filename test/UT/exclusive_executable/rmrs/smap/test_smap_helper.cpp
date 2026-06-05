@@ -12,6 +12,7 @@
 
 #include "mp_smap_helper.h"
 
+#include <time.h>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -41,6 +42,7 @@ protected:
     void SetUp() override
     {
         cout << "[Phase SetUp Begin]" << endl;
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
         cout << "[Phase SetUp End]" << endl;
     }
     void TearDown() override
