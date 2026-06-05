@@ -2719,6 +2719,25 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
     return MEM_POOLING_OK;
 }
 
+uint32_t FaultHandleBorrowedDecisionInit(UbseByteBuffer& buffer)
+{
+    MpResult ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_BORROWED_DECISION, &buffer, LoadDataBase);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][FaultHandleBorrowedDecision] Failed to query database.";
+        ResetAndDeleteBuffer(buffer);
+        return MEM_POOLING_ERROR;
+    }
+
+    ret = mempooling::FaultHandleBorrowedDecision::Instance().PutRawData(buffer);
+    ResetAndDeleteBuffer(buffer);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][FaultHandleBorrowedDecision] Failed to init FaultHandleBorrowedDecision data.";
+        return MEM_POOLING_ERROR;
+    }
+
+    return MEM_POOLING_OK;
+}
+
 uint32_t BorrowIdInFaultProcessInit()
 {
     MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
@@ -2826,6 +2845,12 @@ uint32_t DataReloadInit()
     if (SmapEnableCompletedInit(buffer) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
+
+    // 初始化BorrowedDecisionMap
+    if (FaultHandleBorrowedDecisionInit(buffer) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+
     // 初始化RemovePid记录，如果存在需remove的pid则执行remove操作
     if (RemovePidCompletedInit(buffer) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;

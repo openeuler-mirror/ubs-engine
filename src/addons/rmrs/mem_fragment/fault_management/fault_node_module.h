@@ -300,8 +300,8 @@ public:
                                 uint16_t& presentNumaId);
     MpResult GetBorrowedDecisionRpc(const std::string& nodeId, std::vector<BorrowedDecision>& outDecisions);
     void RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowGroups);
-    MpResult BorrowIdLevelBorrowedExecute(BorrowIdLevelBorrowedDecision& borrowedDecision);
-    MpResult NumaLevelBorrowedExecute(const NumaLevelBorrowedDecision& decision);
+    MpResult BorrowIdLevelBorrowedExecute(BorrowIdLevelBorrowedDecision borrowedDecision);
+    MpResult NumaLevelBorrowedExecute(NumaLevelBorrowedDecision decision);
     MpResult NumaLevelExecuteNormal(const BorrowGroupResult& group, NumaLevelDecision decision,
                                     std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap);
     static uint64_t GetBlockSizeKB();
