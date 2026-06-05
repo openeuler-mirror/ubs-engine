@@ -6,6 +6,7 @@
 
 #include <ubse_node.h>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <thread>
 #include "adapter_plugins/mti/ubse_topology_interface.h"
@@ -146,16 +147,68 @@ UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtIn
     }
 }
 
+std::set<std::string> CollectRelatedNodeIds(const NodeMemDebtInfo& ledger)
+{
+    std::set<std::string> nodeIds;
+    auto collect = [&nodeIds](const auto& obj) {
+        if (!obj.algoResult.importNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.importNumaInfos[0].nodeId);
+        }
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    };
+    for (const auto& [_, obj] : ledger.fdImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.fdExportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.numaImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.numaExportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.shareImportObjMap) {
+        nodeIds.insert(obj.importNodeId);
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    }
+    for (const auto& [_, obj] : ledger.shareExportObjMap) {
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    }
+    for (const auto& [_, obj] : ledger.addrImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.addrExportObjMap)
+        collect(obj);
+    return nodeIds;
+}
+
 UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
                             const NodeMemDebtInfo& masterDebtInfo, const std::string& targetNodeId)
 {
+    auto ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto relatedNodeIds = CollectRelatedNodeIds(allDebtInfoMap[targetNodeId]);
     std::vector<UbseRoleInfo> roleInfos;
-    auto ret = UbseNodeGetLinkUpNodes(roleInfos);
+    ret = UbseNodeGetLinkUpNodes(roleInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " get link up nodes failed, " << FormatRetCode(ret);
+        return ret;
+    }
     for (const auto& nodeInfo : roleInfos) {
         ubse::nodeController::UbseNodeInfo ubseNodeInfo =
             UbseNodeController::GetInstance().GetNodeById(nodeInfo.nodeId);
         if (ubseNodeInfo.nodeId.empty()) {
             UBSE_LOG_WARN << "ubseNodeInfo nodeId is empty, nodeId =" << nodeInfo.nodeId;
+            continue;
+        }
+        if (relatedNodeIds.find(ubseNodeInfo.nodeId) == relatedNodeIds.end()) {
+            UBSE_LOG_INFO << "skip ledger for nodeId=" << nodeInfo.nodeId
+                          << ", not in relatedNodeIds, targetNodeId=" << targetNodeId;
             continue;
         }
         if (ubseNodeInfo.nodeId != targetNodeId && ubseNodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT &&
@@ -170,10 +223,6 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& al
             UBSE_LOG_WARN << "process exit, stop ledger";
             return UBSE_OK;
         }
-    }
-    ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
     }
     return ret;
 }
@@ -495,14 +544,18 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
     }
     UBSE_LOG_INFO << "nodeId=" << node.nodeId << "start ledger.";
     UbseResult ret = UBSE_OK;
+    if (!CheckNodeIsMaster()) {
+        UBSE_LOG_INFO << "current node not master, skip ledger.";
+        return UBSE_OK;
+    }
     auto nodeId = node.nodeId;
     auto masterDebtInfo = GetMasterCtxLedger(nodeId);
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
     ret |= CollectAllLedger(allDebtInfoMap, masterDebtInfo, nodeId);
-    if (!CheckNodeIsMaster()) {
-        UBSE_LOG_INFO << "current node not master, skip ledger.";
-        return UBSE_OK;
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " collect ledge failed, " << FormatRetCode(ret);
+        return ret;
     }
 
     NodeMemDebtInfo agentDebtInfo{};

@@ -11,5 +11,6 @@ target_include_directories(mem_controller PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../adapter_plugins/mti
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../adapter_plugins/ubturbo
         ${CMAKE_CURRENT_SOURCE_DIR}/../../node
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../framework/security
         ${SRC_DIR}/sdk/c/include
 )
