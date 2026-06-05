@@ -55,19 +55,27 @@ static const int UBSE_HTTP_STATUS_CODE_INTERNAL_SVR_ERR = 500;
 TestHamMigrate::TestHamMigrate() = default;
 
 UbseIpcMessage response{};
+static std::mutex responseMutex;
 
-uint32_t GetSendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage &sendResponse)
+uint32_t GetSendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& sendResponse)
 {
+    std::lock_guard<std::mutex> lock(responseMutex);
+    if (response.buffer != nullptr) {
+        delete[] response.buffer;
+        response.buffer = nullptr;
+    }
     response.length = sendResponse.length;
     response.buffer = new (std::nothrow) uint8_t[sendResponse.length];
-    if (response.buffer != nullptr) {
-        memcpy_s(response.buffer, response.length, sendResponse.buffer, sendResponse.length);
+    if (response.buffer == nullptr) {
+        return VM_ERROR;
     }
+    memcpy_s(response.buffer, response.length, sendResponse.buffer, sendResponse.length);
     return VM_OK;
 }
 
 void freeResponse()
 {
+    std::lock_guard<std::mutex> lock(responseMutex);
     if (response.buffer != nullptr) {
         delete[] response.buffer;
         response.buffer = nullptr;
@@ -77,8 +85,14 @@ void freeResponse()
 
 std::string GetSendResponseString()
 {
+    std::lock_guard<std::mutex> lock(responseMutex);
+    if (response.buffer == nullptr) {
+        return "";
+    }
     return std::string{response.buffer, response.buffer + response.length};
 }
+
+static std::thread gClearThread;
 
 VmResult GetHamMigrateVmInfo(HamMigrateVmInfo &hamMigrateVmInfo, const std::string &nodeId, int pid, VmState vmState)
 {
@@ -115,10 +129,14 @@ void TestHamMigrate::SetUp()
     MOCKER(SendResponse).stubs().will(invoke(GetSendResponse));
     MOCKER(RegisterIpcHandler).stubs().will(returnValue(VM_OK));
     MOCKER(com::UbseRegRpcService).stubs().will(returnValue(VM_OK));
+    MOCKER(HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos).stubs().will(returnValue(VM_ERROR));
 }
 
 void TestHamMigrate::TearDown()
 {
+    if (gClearThread.joinable()) {
+        gClearThread.join();
+    }
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -345,8 +363,7 @@ void mock_migrate_fail_clear_success(uint64_t sleep_ms)
         .will(returnValue(VM_OK))
         .id("3");
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
@@ -397,8 +414,7 @@ void mock_noborrow_migrate_fail_clear_success(uint64_t sleep_ms)
         .will(returnValue(VM_OK))
         .id("3");
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
@@ -466,8 +482,7 @@ TEST_F(TestHamMigrate, Borrow_AddProcessTracking_failed)
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_ERROR));
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -517,8 +532,7 @@ TEST_F(TestHamMigrate, Borrow_BorrowAddress_failed)
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::BORROWED_NOMIGRATE, VmOpState::BORROWED_ADDRESS)));
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -559,8 +573,7 @@ TEST_F(TestHamMigrate, Borrow_SyncData_failed)
     MOCKER(HttpUtil::EnableProcessMigrate).expects(atLeast(1)).will(returnValue(VM_OK));
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -669,8 +682,7 @@ TEST_F(TestHamMigrate, Migrate_success_clear_success)
     hamMigrateVmInfo.timeout = system_clock::now() + minutes(WAIT_TIME);
     HamMigrate::EnterClearQueue(hamMigrateVmInfo);
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -744,8 +756,7 @@ TEST_F(TestHamMigrate, NoBorrow_BorrowAddress_failed)
         .expects(atLeast(1))
         .with(checkWith(CheckVmInfo(VmState::NOBORROW_NOMIGRATE, VmOpState::BORROWED_ADDRESS)));
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -782,8 +793,7 @@ TEST_F(TestHamMigrate, NoBorrow_Borrow_success)
         .will(returnValue(VM_OK))
         .id("2");
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
@@ -829,8 +839,7 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
         .will(returnValue(VM_OK))
         .id("3");
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
@@ -873,6 +882,7 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_clear_success)
 TEST_F(TestHamMigrate, restart_clear_success)
 {
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
+    MOCKER(HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos).reset();
     MOCKER(HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos).stubs().will(invoke(GetAllHamMigrateVmInfos));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
@@ -915,8 +925,7 @@ TEST_F(TestHamMigrate, restart_clear_success)
         .will(returnValue(VM_OK))
         .id("6");
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     std::this_thread::sleep_for(milliseconds(CLEAR_WAIT_TIME));
     HamMigrate::Stop();
@@ -930,6 +939,7 @@ TEST_F(TestHamMigrate, libvirt_restart_clear_success)
 
     MOCKER(ubse::nodeController::UbseNodeGetNodeIdByHostname).stubs().will(invoke(UbseNodeGetNodeIdByHostname));
     MOCKER(HamMigrateVmInfoStorage::GetHamMigrateVmInfos).stubs().will(invoke(GetHamMigrateVmInfos));
+    MOCKER(HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos).reset();
     MOCKER(HamMigrateVmInfoStorage::GetAllHamMigrateVmInfos).stubs().will(invoke(GetAllHamMigrateVmInfos));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(returnValue(VM_OK));
@@ -945,8 +955,7 @@ TEST_F(TestHamMigrate, libvirt_restart_clear_success)
         .with(checkWith(CheckNodeId(NODE)), checkWith(CheckPid(DST_PID)))
         .will(returnValue(VM_OK));
 
-    std::thread ClearThread(&HamMigrate::ClearQueueOperation);
-    ClearThread.detach();
+    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
 
     RespInfo respInfo;
     UbseIpcMessage resp{};
