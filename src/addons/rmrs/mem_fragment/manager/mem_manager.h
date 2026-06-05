@@ -110,12 +110,9 @@ struct NumaLevelBorrowedDecision {
         }
 
         oss << "NumaLevelBorrowedDecision{"
-            << "oldNumaId=" << oldNumaId
-            << ", presentNumaId=" << presentNumaId
-            << ", pids=[" << pidStr << "]"
+            << "oldNumaId=" << oldNumaId << ", presentNumaId=" << presentNumaId << ", pids=[" << pidStr << "]"
             << ", totalBorrowSize=" << totalBorrowSize << "KB"
-            << ", borrowResultMap=" << borrowResultMapStr
-            << "}";
+            << ", borrowResultMap=" << borrowResultMapStr << "}";
         return oss.str();
     }
 };
@@ -136,11 +133,8 @@ struct BorrowIdLevelBorrowedDecision {
             pidStr += std::to_string(pid) + ",";
         }
         oss << "BorrowIdLevelBorrowedDecision{"
-            << "oldName=" << oldName
-            << ", newName=" << newName
-            << ", oldNumaId=" << oldNumaId
-            << ", presentNumaId=" << presentNumaId
-            << ", pids=[" << pidStr << "]"
+            << "oldName=" << oldName << ", newName=" << newName << ", oldNumaId=" << oldNumaId
+            << ", presentNumaId=" << presentNumaId << ", pids=[" << pidStr << "]"
             << ", borrowSize=" << borrowSize << "KB"
             << "}";
         return oss.str();
@@ -149,9 +143,9 @@ struct BorrowIdLevelBorrowedDecision {
 
 // 已经执行了借用，但是迁移失败的决策
 struct BorrowedDecision {
-    std::string borrowNodeId;             // 该故障numa对应的nodeId
-    uint16_t remoteNumaId;                // 该故障numa对应的远端numaId
-    bool isNumaLevel{false};              // true为NUMA级别决策, false则为borrowId级别决策
+    std::string borrowNodeId;                         // 该故障numa对应的nodeId
+    uint16_t remoteNumaId;                            // 该故障numa对应的远端numaId
+    bool isNumaLevel{false};                          // true为NUMA级别决策, false则为borrowId级别决策
     NumaLevelBorrowedDecision numaBorrowedDecision{}; // NUMA级别决策结果
     std::vector<BorrowIdLevelBorrowedDecision> borrowIdBorrowedDecisions{};
 
@@ -159,15 +153,14 @@ struct BorrowedDecision {
     {
         std::ostringstream oss;
         oss << "BorrowedDecision{"
-            << "borrowNodeId=" << borrowNodeId
-            << ", remoteNumaId=" << remoteNumaId
-            << ", isNumaLevel=" << isNumaLevel;
+            << "borrowNodeId=" << borrowNodeId << ", remoteNumaId=" << remoteNumaId << ", isNumaLevel=" << isNumaLevel;
         if (isNumaLevel) {
             oss << ", " << numaBorrowedDecision.ToString();
         } else {
             oss << ", borrowIdDecisions=[";
             for (size_t i = 0; i < borrowIdBorrowedDecisions.size(); ++i) {
-                if (i != 0) oss << ", ";
+                if (i != 0)
+                    oss << ", ";
                 oss << borrowIdBorrowedDecisions[i].ToString();
             }
             oss << "]";

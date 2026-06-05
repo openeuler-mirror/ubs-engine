@@ -893,8 +893,8 @@ MpResult FaultHandleBorrowedDecision::QueryAll(std::vector<BorrowedDecision>& de
     }
 
     for (const auto& pair : borrowedDecisionMap) {
-        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << pair.first << " get one borrowedDecision="
-            << pair.second.ToString() << ".";
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << pair.first
+                  << " get one borrowedDecision=" << pair.second.ToString() << ".";
         decisionList.push_back(pair.second);
     }
     return MEM_POOLING_OK;
@@ -1222,7 +1222,9 @@ MpResult FaultHandleBorrowedDecision::GetRawData(UbseByteBuffer& data, bool need
         data.len = 1;
         data.data = new uint8_t[data.len];
         data.data[0] = ' '; // 数据清空标致
-        data.freeFunc = [](uint8_t* p) { delete[] p; };
+        data.freeFunc = [](uint8_t* p) {
+            delete[] p;
+        };
         LOG_DEBUG << "[FaultHandleBorrowedDecision] The data of keyPrefix=" << KEYPREFIX_BORROWED_DECISION
                   << " is empty.";
         return MEM_POOLING_OK;

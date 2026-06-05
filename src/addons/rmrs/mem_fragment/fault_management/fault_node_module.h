@@ -161,8 +161,8 @@ struct NumaLevelDecision {
     std::map<uint16_t, uint64_t> lentNumaIdAndSizeMap; // 决策出的借出方numaId -> 借出内存大小(单位：KB)
     bool isReturnDirectly = false;                     // 是否直接归还（无需借用迁移）
     std::vector<pid_t> pids;                           // 需逃生的虚机pid集合
-    uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
-    std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uid_t uid{0};            // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};  // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
     bool isBorrowed = false; // 是否已经借用过
     NumaLevelBorrowedDecision borrowedDecision; // 借用成功，迁移失败的NUMA级别决策
 };
@@ -179,8 +179,8 @@ struct BorrowIdLevelDecision {
     uint64_t lentMemSize;    // 决策出的借出方numaId上的借出内存大小(单位：KB)
     std::map<uint16_t, uint64_t> lentNumaIdAndSizeMap; // 决策出的借出方numaId -> 借出内存大小(单位：KB)
     bool isReturnDirectly = false;                     // 是否直接归还（无需借用迁移）
-    uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
-    std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uid_t uid{0};            // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};  // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
     bool isBorrowed = false; // 是否已经借用过
     BorrowIdLevelBorrowedDecision borrowedDecision; // 借用成功，迁移失败的borrowId级别决策结果
 };
