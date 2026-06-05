@@ -21,6 +21,7 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_init_ledger_state.h"
 #include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_pre_online.h"
@@ -509,27 +510,18 @@ bool CheckShareDetachPermission(const UbseUdsInfo& memUds, const UbseUdsInfo& re
     return false;
 }
 
-uint32_t WaitNodeStateWork(const std::string& importNode)
+uint32_t WaitInitLedgerSuccess(const std::string& importNode)
 {
     auto nodeInfo = nodeController::UbseNodeController::GetInstance().GetNodeById(importNode);
     if (nodeInfo.nodeId.empty()) {
         UBSE_LOG_ERROR << "nodeId:" << importNode << "is not found";
         return UBSE_ERR_NODE_NOT_EXIST;
     }
-    int nowTime = 0;
-    while (nowTime < RETURN_RETRY_TIME) {
-        if (nodeInfo.clusterState == nodeController::UbseNodeClusterState::UBSE_NODE_WORKING) {
-            return UBSE_OK;
-        }
-        if (nodeInfo.clusterState != nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
-            UBSE_LOG_ERROR << "nodeId=" << importNode << ", state=" << static_cast<int32_t>(nodeInfo.clusterState);
-            return UBSE_ERR_NODE_UNREACHABLE;
-        }
-        ++nowTime;
-        nodeInfo = nodeController::UbseNodeController::GetInstance().GetNodeById(importNode);
-        std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
+    if (UbseInitLedgerState::GetInstance().WaitInitLedgerDone(importNode, MAX_WAIT_TIME_MS)) {
+        return UBSE_OK;
     }
-    UBSE_LOG_WARN << "nodeId=" << importNode << "is still smoothing";
+    nodeInfo = nodeController::UbseNodeController::GetInstance().GetNodeById(importNode);
+    UBSE_LOG_WARN << "nodeId=" << importNode << ", state=" << static_cast<int32_t>(nodeInfo.clusterState);
     return UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS;
 }
 } // namespace ubse::mem::controller

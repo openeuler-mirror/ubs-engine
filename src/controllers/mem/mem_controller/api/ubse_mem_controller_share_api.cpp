@@ -776,7 +776,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
         return ShareDetachFailed(req, resp, "Detach with no node is valid.", UBSE_ERR_SHM_NODE_EMPTY,
                                  MemAdvice::NODE_IN_MAINTENANCE);
     }
-    auto waitResult = WaitNodeStateWork(req.unImportNodeId);
+    auto waitResult = WaitInitLedgerSuccess(req.unImportNodeId);
     if (waitResult != UBSE_OK) {
         return ShareDetachFailed(req, resp, "importNode is not ok", waitResult, MemAdvice::NODE_IN_MAINTENANCE);
     }

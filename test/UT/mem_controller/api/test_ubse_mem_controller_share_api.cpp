@@ -730,7 +730,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseRoleInfo currentNode;
     currentNode.nodeRole = election::ELECTION_ROLE_MASTER;
     MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNode)).will(returnValue(UBSE_OK));

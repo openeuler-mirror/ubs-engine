@@ -260,7 +260,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnImportNodeNok)
     req.importNodeId = "1";
     UbseMemOperationResp resp;
     const std::string realRequestNodeId = "1";
-    MOCKER_CPP(WaitNodeStateWork).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_ERROR));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -272,7 +272,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturnNoBorrowObj)
     req.importNodeId = "1";
     UbseMemOperationResp resp;
     const std::string realRequestNodeId = "1";
-    MOCKER_CPP(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -284,7 +284,7 @@ TEST_F(TestUbseMemControllerNumaApi, UbseMemNumaReturn)
     req.importNodeId = "1";
     UbseMemOperationResp resp;
     const std::string realRequestNodeId = "1";
-    MOCKER_CPP(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemNumaReturn(req, resp, realRequestNodeId);
     EXPECT_EQ(ret, UBSE_ERROR);
 }

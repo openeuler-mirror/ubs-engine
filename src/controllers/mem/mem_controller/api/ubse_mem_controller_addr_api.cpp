@@ -875,7 +875,7 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp& resp, con
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseAddrImport(importObj);
         UbseMemAddrImportObjStateChangeHandler(importObj);
-        auto waitResult = WaitNodeStateWork(exportNodeId);
+        auto waitResult = WaitInitLedgerSuccess(exportNodeId);
         if (waitResult != UBSE_OK) {
             BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_PRI_BORROW", 0, exportNodeId, req.requestNodeId,
                                UBSE_ERR_UNIMPORT_SUCCESS, MemAdvice::NODE_IN_MAINTENANCE);
@@ -1003,7 +1003,7 @@ uint32_t AddrReturnExistImport(UbseMemAddrBorrowImportObj& importObj, UbseMemAdd
 uint32_t CheckAddrReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp, UbseMemBorrowStatus& status,
                          UbseMemAddrBorrowExportObj& exportObj, UbseMemAddrBorrowImportObj& importObj)
 {
-    if (auto waitResult = WaitNodeStateWork(req.importNodeId); waitResult != UBSE_OK) {
+    if (auto waitResult = WaitInitLedgerSuccess(req.importNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_PRI_BORROW", 0, "", req.requestNodeId, waitResult,
                            MemAdvice::NODE_IN_MAINTENANCE);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,

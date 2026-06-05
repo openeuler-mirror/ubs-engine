@@ -980,7 +980,7 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp& resp, const s
     EraseNumaImport(importObj);
     UbseMemNumaImportObjStateChangeHandler(importObj);
 
-    if (auto waitResult = WaitNodeStateWork(exportNodeId); waitResult != UBSE_OK) {
+    if (auto waitResult = WaitInitLedgerSuccess(exportNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_NUMA_BORROW", 0, exportNodeId, importNodeId,
                            waitResult, MemAdvice::NODE_IN_MAINTENANCE);
         return BuildOperationRespWhenFail(resp, name, importObj.returnReq.requestNodeId, "exportNode is not working.",
@@ -1140,7 +1140,7 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq& req, UbseMemOperationR
 uint32_t CheckNumaReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp, UbseMemBorrowStatus& status,
                          UbseMemNumaBorrowExportObj& exportObj, UbseMemNumaBorrowImportObj& importObj)
 {
-    if (auto waitResult = WaitNodeStateWork(req.importNodeId); waitResult != UBSE_OK) {
+    if (auto waitResult = WaitInitLedgerSuccess(req.importNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId,
                            waitResult, MemAdvice::NODE_IN_MAINTENANCE);
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "importNode is not ok", waitResult,

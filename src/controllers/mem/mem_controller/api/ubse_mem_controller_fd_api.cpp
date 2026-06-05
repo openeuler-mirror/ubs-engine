@@ -961,7 +961,7 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp& resp, Ubs
     EraseFdImport(importObj);
     UbseMemFdImportObjStateChangeHandler(importObj);
     auto exportKey = GenerateExportObjKey(name, importNodeId);
-    auto waitResult = WaitNodeStateWork(exportNodeId);
+    auto waitResult = WaitInitLedgerSuccess(exportNodeId);
     if (waitResult != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "WATER_BORROW", 0, exportNodeId, importNodeId, waitResult,
                            MemAdvice::NODE_IN_MAINTENANCE);
@@ -1178,7 +1178,7 @@ static uint32_t ValidateBorrowResource(const UbseMemReturnReq& req, UbseMemOpera
     auto lock = LoggingLockGuard(exportKey);
     InitializeResponse(req, resp);
     // 等待导入节点对账完成
-    if (auto ret = WaitNodeStateWork(req.importNodeId); ret != UBSE_OK) {
+    if (auto ret = WaitInitLedgerSuccess(req.importNodeId); ret != UBSE_OK) {
         result.comErrorCode = ReturnFailed(req, resp, "importNode is not ok", ret, MemAdvice::NODE_IN_MAINTENANCE);
         return ret;
     }
