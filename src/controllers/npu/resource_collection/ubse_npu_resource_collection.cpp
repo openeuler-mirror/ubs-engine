@@ -617,8 +617,9 @@ UbseResult ResourceCollection::AddDevIdevPfe(const std::shared_ptr<CollectionDev
         UBSE_LOG_ERROR << "Failed to add idev pfe";
         return ret;
     }
-    ubCtrlDev->SetSubDevIdev(pfeDev);
-    pfeDev->SetParentUbCtl(ubCtrlDev);
+    auto actualPfeDev = CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(device);
+    ubCtrlDev->SetSubDevIdev(actualPfeDev);
+    actualPfeDev->SetParentUbCtl(ubCtrlDev);
     return ret;
 }
 
@@ -631,8 +632,9 @@ UbseResult ResourceCollection::AddDevIdevVfe(const std::shared_ptr<CollectionDev
         UBSE_LOG_ERROR << "Failed to add idev vfe";
         return ret;
     }
-    pfeDev->SetSubDevIdev(vfeDev);
-    vfeDev->SetParentPfe(pfeDev);
+    auto actualVfeDev = CollectionDevice::CollectionToDerived<CollectionDeviceIdevVfe>(device);
+    pfeDev->SetSubDevIdev(actualVfeDev);
+    actualVfeDev->SetParentPfe(pfeDev);
     return ret;
 }
 std::shared_ptr<CollectionDeviceUbCtrl> ConstructUbCtrlObject(const UbseMtiUbController& ubController)
@@ -672,21 +674,21 @@ UbseResult ResourceCollection::CollectUbCtrlIdev()
     }
     // 遍历 pfeList
     for (const auto& idevPfe : feList) {
-        // 提取ubController, 转换成std::shared_ptr<CollectionDeviceUbCtrl> ubCtrlDev 并SetDevice(ubContrller)
         auto ubCtrlDevPtr = ConstructUbCtrlObject(idevPfe.ubController);
         auto device = CollectionDevice::CollectionToBase(ubCtrlDevPtr);
         if (auto ret = SetDevice(device); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add ub controller";
             return ret;
         }
-        // 提取pfe
+        ubCtrlDevPtr = CollectionDevice::CollectionToDerived<CollectionDeviceUbCtrl>(device);
         auto idevPfePtr = ConstructIdevPfe(idevPfe);
         auto ret = AddDevIdevPfe(ubCtrlDevPtr, idevPfePtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add idev pfe";
             return ret;
         }
-        // 提取vfe
+        idevPfePtr = CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(
+            GetDeviceByDevId(idevPfePtr->GetIdStr(), idevPfePtr->GetType()));
         for (const auto& idevVfe : idevPfe.vfeList) {
             auto idevVfePtr = ConstructIdevVfe(idevVfe);
             if (ret = AddDevIdevVfe(idevPfePtr, idevVfePtr); ret != UBSE_OK) {
@@ -741,6 +743,7 @@ UbseResult ResourceCollection::AddDavidAndBindToIdevPfe(CollectDeviceLoc& davidD
             UBSE_LOG_ERROR << "Failed to add david device";
             return ret;
         }
+        davidDev = CollectionDevice::CollectionToDerived<CollectionDeviceDavid>(device);
         if (auto ret = BindDevice(davidDev, existPfe); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to bind david and idev pfe, ret: " << ret;
             return ret;
@@ -805,6 +808,7 @@ UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf& mti1825Pf)
                        << mti1825Pf.dieId << ", " << mti1825Pf.pfId << "}";
         return ret;
     }
+    devNicPfe = CollectionDevice::CollectionToDerived<CollectionDeviceNicPfe>(device);
     for (auto mti1825Vf : mti1825Pf.vfList) {
         CollectDeviceLoc nicVfeLoc;
         GetNicVfeLoc(mti1825Vf, nicVfeLoc);
@@ -813,13 +817,14 @@ UbseResult ResourceCollection::AddNicFe(const UbseMti1825Pf& mti1825Pf)
             UBSE_LOG_ERROR << "Failed to transfer guid from array to string";
             return UBSE_ERROR;
         }
-        auto device = CollectionDevice::CollectionToBase(devNicVfe);
-        auto ret = SetDevice(device);
+        device = CollectionDevice::CollectionToBase(devNicVfe);
+        ret = SetDevice(device);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to add nic vfe: {" << mti1825Vf.slotId << ", " << mti1825Vf.chipId << ", "
                            << mti1825Vf.dieId << ", " << mti1825Vf.pfId << ", " << mti1825Vf.vfId << "}";
             return ret;
         }
+        devNicVfe = CollectionDevice::CollectionToDerived<CollectionDeviceNicVfe>(device);
         devNicPfe->SetSubNicVfe(devNicVfe);
         devNicVfe->SetParentNicPfe(devNicPfe);
     }
@@ -927,6 +932,7 @@ UbseResult ResourceCollection::CollectBusInstance()
                 UBSE_LOG_ERROR << "Cannot add bus instance, guid: " << devBusiBase->GetGuid();
                 return ret;
             }
+            devBusi = CollectionDevice::CollectionToDerived<CollectionDeviceBusi>(devBusiBase);
         }
         if (devBusi == nullptr) {
             UBSE_LOG_ERROR << "Bus instance is null";
