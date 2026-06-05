@@ -79,12 +79,14 @@ struct UbseSsuNamespaceOptions {
 struct UbseSsuDevSubSystem {
     std::string eid;    // ssu物理设备eid
     std::string subNqn; // 子系统NQN
+    uint32_t jettyId{0}; // jetty id
 };
 
 struct UbseSsuDevNameSpace {
     uint32_t namespaceId;                     // 命名空间 ID（1, 2, 3...）
     UbseSsuDevSubSystem subSystem;            // ns所在的子系统信息
     std::string guid;                         // 命名空间 GUID
+    std::string uuid;                         // 命名空间 UUID
     std::string nsDevPath;                    // by-id 或 by-path 路径，ns持久化标识（重启不变）
     uint64_t nsze;                            // 命名空间大小（LBA 数量）
     uint64_t ncap;                            // 命名空间容量（LBA 数量）
@@ -132,5 +134,5 @@ struct UbseCreateBlockDeviceOptions {
     // 单位KB，一次写入单个设备的连续数据量，mdadm 默认 512KB，常见值 64KB/128KB/256KB；必须对齐扇区	chunk_size % sector_size == 0（sector_size 通常 512B）
     uint32_t chunkSize = 512; // UbseSsuAddressingType为STRIPED有效
 };
-} // namespace ubse::ssu::def
+} // namespace ubse::adapter_plugins::ssu::def
 #endif // UBSE_SSU_DEF_H

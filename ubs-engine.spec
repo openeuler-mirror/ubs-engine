@@ -21,6 +21,7 @@ BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
 BuildRequires:  libvirt-devel >= 9.0
+BuildRequires:  libblockdev-lvm libblockdev-mdraid libblockdev-lvm-devel libblockdev-mdraid-devel
 Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.40.0 ubs-comm-lib >= 1.0.0-15 obmm
 Requires: tar systemd
 Requires(pre): coreutils shadow systemd glibc-common

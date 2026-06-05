@@ -140,5 +140,5 @@ public:
     virtual uint32_t DeleteBlockDevice(const std::string &deviceName) = 0;
 };
 
-} // namespace ubse::ssu_adapter
+} // namespace ubse::adapter_plugins::ssu::def
 #endif // UBSE_SSU_ADAPTER_INTERFACE_H
