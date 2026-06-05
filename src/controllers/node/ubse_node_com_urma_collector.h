@@ -19,9 +19,11 @@
 
 namespace ubse::nodeController {
 using ubse::adapter_plugins::mti::UbseMtiIouInfo;
+using ubse::adapter_plugins::mti::UbseMtiEidGroup;
 using ubse::common::def::UbseResult;
 using ubse::urma::UbseUrmaUvsAggrDev;
 using ubse::urma::UbseUrmaUvsNodeInfo;
+using ubse::urma::UbseUrmaUvsFe;
 
 class UbseNodeComUrmaCollector {
 public:

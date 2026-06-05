@@ -35,6 +35,7 @@ using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
 using namespace ubse::config;
+using namespace ubse::context;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -145,7 +146,7 @@ void UbseUrmaControllerModule::UnInitialize() {}
 
 void DisconnectAllNormalLink()
 {
-    auto comModule = context::UbseContext::GetInstance().GetModule<com::UbseComModule>();
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (comModule == nullptr) {
         UBSE_LOG_WARN << "Failed to get com module";
         return;
