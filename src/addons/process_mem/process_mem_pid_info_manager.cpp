@@ -735,9 +735,6 @@ void RemoveStaleDebts(def::BorrowInfo& borrowInfo, const std::unordered_set<std:
 void ProcessMemPidInfoManager::RefreshBorrowInfo()
 {
     auto entries = CollectProcessMemImportDebts();
-    if (entries.empty()) {
-        return;
-    }
 
     // 收集 ubse 返回的运行态账本名称
     std::unordered_map<pid_t, std::unordered_set<std::string>> activeDebts;
@@ -760,11 +757,11 @@ void ProcessMemPidInfoManager::RefreshBorrowInfo()
         }
 
         // 清理不在 ubse 中的已完成账本，保留正在创建的账本
+        static const std::unordered_set<std::string> emptySet;
         for (auto& [pid, pidInfo] : pidInfoMap) {
             auto activeIt = activeDebts.find(pid);
-            if (activeIt != activeDebts.end()) {
-                RemoveStaleDebts(pidInfo.memBorrowInfo, activeIt->second);
-            }
+            const auto& activeNames = (activeIt != activeDebts.end()) ? activeIt->second : emptySet;
+            RemoveStaleDebts(pidInfo.memBorrowInfo, activeNames);
         }
     }
 }
