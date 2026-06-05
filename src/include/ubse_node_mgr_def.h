@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBS_ENGINE_UBSE_NODE_DISCOVERY_DEF_H
-#define UBS_ENGINE_UBSE_NODE_DISCOVERY_DEF_H
+#ifndef UBS_ENGINE_UBSE_NODE_MGR_DEF_H
+#define UBS_ENGINE_UBSE_NODE_MGR_DEF_H
 
 #include <string>
 
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::adapter_plugins::mti;
 
 constexpr uint32_t MAX_CLUSTER_SIZE = 4096;    // 单个超节点集群规模上限
@@ -26,11 +26,11 @@ constexpr uint32_t DEFAULT_POD_CAPABILITY = 8; // 默认逻辑机柜容量
 
 struct UbseNodeStaticInfo {
     uint16_t superPodId{0};  // 超节点集群ID
-    uint16_t groupId{0};       // 逻辑机柜号; 1Dfullmesh场景下 全部为0, clos组网场景下按照机柜容量划分逻辑机柜号
+    uint16_t groupId{0};     // 逻辑机柜号; 1Dfullmesh场景下 全部为0, clos组网场景下按照机柜容量划分逻辑机柜号
     std::string nodeId;      // 节点ID; 1Dfullmesh场景下等于槽位号, clos组网场景下为集群下标+1
     std::string addr;        // 节点 IPV4地址, 用于 tcp场景下节点发现
     std::string bonding0Eid; // 节点 bonding0Eid, 用于 urma场景下节点发现
     std::unordered_map<std::string, UbseUrmaEidInfo> feEidList; // 节点fe eid list, 用于 urma场景下节点发现, key为chipId
 };
-} // namespace ubse::nodeDiscovery
-#endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_DEF_H
+} // namespace ubse::nodeMgr
+#endif // UBS_ENGINE_UBSE_NODE_MGR_DEF_H

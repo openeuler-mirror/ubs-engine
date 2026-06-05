@@ -14,9 +14,10 @@
 #define UBS_ENGINE_UBSE_NODE_DISCOVERY_H
 
 #include <vector>
-#include "ubse_node_discovery_def.h"
+#include "ubse_node_mgr_def.h"
+#include "ubse_node_controller.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 /**
  * @brief 获取当前节点的静态信息
  * @return 当前节点的UbseNodeStaticInfo，包含nodeId、groupId、addr等字段
@@ -61,5 +62,12 @@ std::vector<std::string> GetRootIpList();
  * @return 对应机柜下所有节点的UbseNodeStaticInfo列表
  */
 std::vector<UbseNodeStaticInfo> GetNodesByGroupId(uint16_t groupId);
+
+/**
+ * @brief 获取集群物理链路信息
+ * @param allLinkInfo [out] 物理链路
+ * @return
+ */
+uint32_t GetClusterPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLinkInfo);
 } // namespace ubse::nodeDiscovery
 #endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_H

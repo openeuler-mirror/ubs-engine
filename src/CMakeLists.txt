@@ -22,6 +22,7 @@ add_executable(ubse
         framework/log/ubse_logger_module.cpp
         framework/plugin_mgr/ubse_plugin_module.cpp
         framework/http/ubse_http_module.cpp
+        framework/node_mgr/ubse_node_mgr_module.cpp
         controllers/node/ubse_node_controller_module.cpp
         controllers/mem/mem_controller/ubse_mem_controller_module.cpp
         controllers/mem/mem_controller/ubse_mem_controller.cpp
@@ -66,7 +67,7 @@ target_link_libraries(ubse PRIVATE
         trace_context
         ubse_urma_uvs
         ubse_urma_controller
-        ubse_node_discovery
+        ubse_node_mgr
 )
 
 # 手动导出注册模式下会被编译器优化的符号

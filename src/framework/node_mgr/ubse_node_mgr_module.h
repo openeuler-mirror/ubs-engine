@@ -10,24 +10,24 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBS_ENGINE_UBSE_NODE_DISCOVERY_MODULE_H
-#define UBS_ENGINE_UBSE_NODE_DISCOVERY_MODULE_H
+#ifndef UBS_ENGINE_UBSE_NODE_MGR_MODULE_H
+#define UBS_ENGINE_UBSE_NODE_MGR_MODULE_H
 
 #include "ubse_common_def.h"
 #include "ubse_module.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::module;
 using namespace ubse::common::def;
 
-class UbseNodeDiscoveryModule : public UbseModule {
+class UbseNodeMgrModule : public UbseModule {
 public:
-    static constexpr const char *kModuleName = "UbseNodeDiscoveryModule";
+    static constexpr const char *kModuleName = "UbseNodeMgrModule";
     std::string Name() const override
     {
         return kModuleName;
     }
-    ~UbseNodeDiscoveryModule() override = default;
+    ~UbseNodeMgrModule() override = default;
 
     UbseResult Initialize() override;
     void UnInitialize() override;
@@ -35,7 +35,6 @@ public:
     void Stop() override;
 };
 
-}
+} // namespace ubse::nodeMgr
 
-
-#endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_MODULE_H
+#endif // UBS_ENGINE_UBSE_NODE_MGR_MODULE_H

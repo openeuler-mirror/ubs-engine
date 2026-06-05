@@ -10,22 +10,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_node_discovery_module.h"
+#include "ubse_node_mgr_module.h"
 
 #include "conf_mode/ubse_node_discovery_config_mode.h"
+#include "ubse_urma_uvs_module.h"
+#include "static_mode/ubse_node_discovery_static_mode.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_node_static_info_mgr.h"
 
-namespace ubse::nodeDiscovery {
-OPTIONAL_MODULE_IMPL(UbseNodeDiscoveryModule);
+namespace ubse::nodeMgr {
+using namespace ubse::urma;
+OPTIONAL_MODULE_IMPL(UbseNodeMgrModule, UbseUrmaUvsModule);
 
-UbseResult UbseNodeDiscoveryModule::Initialize()
+UbseResult UbseNodeMgrModule::Initialize()
 {
     return UbseNodeStaticInfoMgr::GetInstance().Init();
 }
 
-UbseResult UbseNodeDiscoveryModule::Start()
+UbseResult UbseNodeMgrModule::Start()
 {
     NodeDiscoveryMode mode = UbseNodeStaticInfoMgr::GetInstance().GetNodeDiscoveryMode();
     switch (mode) {
@@ -37,19 +40,18 @@ UbseResult UbseNodeDiscoveryModule::Start()
             return UBSE_OK;
         case NodeDiscoveryMode::URMA_CLOS_MODE:
         case NodeDiscoveryMode::URMA_FULL_MESH_MODE:
-            // todo: support urma
-            return UBSE_OK;
+            return UbseNodeDiscoveryStaticMode::GetInstance().Init();
         default:
             return UBSE_ERROR_INVAL;
     }
 }
 
-void UbseNodeDiscoveryModule::Stop()
+void UbseNodeMgrModule::Stop()
 {
     // Do Nothing
 }
 
-void UbseNodeDiscoveryModule::UnInitialize()
+void UbseNodeMgrModule::UnInitialize()
 {
     // Do Nothing
 }

@@ -37,7 +37,7 @@ static constexpr auto G_UBSE_MEM_DEPS = std::array<UbseOptionModule, 10>{
     UbseOptionModule::SysSentryModule,
     UbseOptionModule::UbseUrmaUvsModule,
     UbseOptionModule::UbseUrmaControllerModule,
-    UbseOptionModule::UbseNodeDiscoveryModule,
+    UbseOptionModule::UbseNodeMgrModule,
 };
 PLUGIN_MODULE_IMPL(UbseMemControllerModule, G_UBSE_MEM_DEPS);
 UBSE_DEFINE_THIS_MODULE("ubse");

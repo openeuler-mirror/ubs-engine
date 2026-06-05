@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "ubse_common_def.h"
-#include "ubse_node_discovery_def.h"
+#include "ubse_node_mgr_def.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 
 enum class NodeDiscoveryMode {
     TCP_CONFIG_CLOS_MODE = 0,

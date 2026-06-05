@@ -21,7 +21,7 @@
 #include "ubse_smbios.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 using namespace ubse::log;
 using namespace ubse::context;
 using namespace ubse::config;

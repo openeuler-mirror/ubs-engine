@@ -15,7 +15,7 @@
 #include "root_mode/message/ubse_node_discovery_list_serial.h"
 #include "ubse_error.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 void TestUbseNodeDiscoveryRootMode::SetUp()
 {
     Test::SetUp();

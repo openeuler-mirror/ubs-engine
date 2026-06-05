@@ -14,7 +14,7 @@
 
 #include "ubse_error.h"
 
-namespace ubse::nodeDiscovery {
+namespace ubse::nodeMgr {
 void UbseNodeDiscoverySerial::SerializeUbseNode(UbseSerialization &out, UbseNodeStaticInfo &node)
 {
     out << node.groupId << node.superPodId << node.nodeId << node.addr << node.bonding0Eid;
