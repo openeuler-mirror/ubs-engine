@@ -56,10 +56,10 @@ MpResult UpdatePidNumaInfos(const std::string& srcNid, const std::vector<pid_t>&
     auto ret = MEM_POOLING_OK;
     std::vector<mempooling::RmrsPidInfo> pidInfos;
     ret = ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(srcNid, pids, pidInfos);
-    if (ret != MEM_POOLING_OK) {
+    if (ret != MEM_POOLING_OK || pidInfos.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[VMMemMigrateStrategy] HelpGetContainerPidNumaInfoByLocalNode failed.";
-        return ret;
+            << "[VMMemMigrateStrategy] HelpGetContainerPidNumaInfoByLocalNode failed or empty.";
+        return MEM_POOLING_ERROR;
     }
     for (const auto& n : pidInfos) {
         pid_t id = n.pid;
@@ -120,6 +120,11 @@ MpResult UpdateContainerInfoInnode(const std::string& srcNid, const std::vector<
     if (resp.freeFunc) {
         resp.freeFunc(resp.data);
         resp.data = nullptr;
+    }
+    if (result.pidInfoList.empty()) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[VMMemMigrateStrategy] PidNumaInfoCollectRecvHandler result empty, all pids skipped.";
+        return MEM_POOLING_OK;
     }
     for (const auto& n : result.pidInfoList) {
         pid_t id = n.pid;
@@ -1367,7 +1372,7 @@ MpResult VMMemMigrateStrategy::Rebalance(std::string srcNid, int16_t srcNumaId, 
         return MEM_POOLING_ERROR;
     }
 
-    if (UpdateContainerInfoInnode(srcNid, pids, vmInfos) != MEM_POOLING_OK) {
+    if (UpdateContainerInfoInnode(srcNid, pids, vmInfos) != MEM_POOLING_OK || vmInfos.empty()) {
         return MEM_POOLING_ERROR;
     }
 

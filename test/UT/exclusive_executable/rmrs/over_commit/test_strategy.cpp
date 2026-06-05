@@ -101,6 +101,19 @@ static uint32_t MockRmrsNumaMemInfoCollectSuccess(const turbo::rmrs::NumaMemInfo
     return 0;
 }
 
+MpResult MockUpdateContainerInfoInnode(const std::string& srcNid, const std::vector<pid_t>& pids,
+                                       std::unordered_map<pid_t, VMInfo>& vmInfos)
+{
+    VMInfo vmInfo;
+    vmInfo.totalLocalUsedMem = 10;
+    vmInfo.totalRemoteUsedMem = 0;
+    vmInfo.ratio = 25;
+    vmInfo.pid = 1;
+    vmInfo.localNumaIds = {0};
+    vmInfos[1] = vmInfo;
+    return MEM_POOLING_OK;
+}
+
 TEST_F(MockVMMemMigrateStrategy2, RebalanceTestSuccessWhenStepEmpty)
 {
     MOCKER_CPP(PageFileHelper::AllocateHugePages,
@@ -123,7 +136,7 @@ TEST_F(MockVMMemMigrateStrategy2, RebalanceTestSuccessWhenStepEmpty)
     MOCKER_CPP(UpdateContainerInfoInnode,
                MpResult(*)(const std::string&, const std::vector<pid_t>&, std::unordered_map<pid_t, VMInfo>&))
         .stubs()
-        .will(returnValue(MEM_POOLING_OK));
+        .will(invoke(MockUpdateContainerInfoInnode));
 
     MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
