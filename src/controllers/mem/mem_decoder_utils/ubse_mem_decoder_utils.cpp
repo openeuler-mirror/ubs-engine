@@ -22,6 +22,7 @@
 namespace ubse::mem::decoder::utils {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
+using namespace ubse::service::mem;
 std::unordered_map<uint32_t, uint32_t> MemDecoderUtils::portToPortSet{{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 1},
                                                                       {5, 1}, {6, 1}, {7, 1}, {8, 2}};
 
@@ -353,7 +354,7 @@ uint32_t MemDecoderUtils::PreImportDecoderEntry(const decoder::utils::PreImportD
     mamiImportInfo.dstCNA = preImportDecoderParam.dstCNA;
     mamiImportInfo.marId = preImportDecoderParam.marId;
     mamiImportInfo.size = preImportDecoderParam.size;
-    decoder::utils::DecoderEntryLoc loc{};
+    DecoderEntryLoc loc{};
     loc.ubpuId = mamiImportInfo.ubpuId;
     loc.iouId = mamiImportInfo.iouId;
     loc.decoderId = mamiImportInfo.decoderId;

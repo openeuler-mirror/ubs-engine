@@ -201,8 +201,4 @@ void UbseMemControllerModule::Stop()
     ubse::mem::controller::Stop();
 }
 
-uint32_t UbseGetMemDebtInfo(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap)
-{
-    return UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap);
-}
 } // namespace ubse::mem::controller

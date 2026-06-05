@@ -20,24 +20,24 @@
 #include <typeindex>
 namespace ubse::service {
 
-class IService {
+class UbseIService {
 public:
-    virtual ~IService() = default;
+    virtual ~UbseIService() = default;
     virtual std::string GetServiceName() const = 0;
 };
 
-class ServiceRegistry {
+class UbseServiceRegistry {
 public:
-    static ServiceRegistry &GetInstance()
+    static UbseServiceRegistry &GetInstance()
     {
-        static ServiceRegistry instance;
+        static UbseServiceRegistry instance;
         return instance;
     }
 
     template <typename T>
     void RegisterService(std::shared_ptr<T> service)
     {
-        static_assert(std::is_base_of_v<IService, T>, "T must derive from IService");
+        static_assert(std::is_base_of_v<UbseIService, T>, "T must derive from IService");
         std::unique_lock lock(mutex_);
         std::string name = service->GetServiceName();
         services_[name] = service;
@@ -46,7 +46,7 @@ public:
     template <typename T>
     void UnRegisterService(const std::string &name)
     {
-        static_assert(std::is_base_of_v<IService, T>, "T must derive from IService");
+        static_assert(std::is_base_of_v<UbseIService, T>, "T must derive from IService");
         std::unique_lock lock(mutex_);
         if (auto it = services_.find(name); it != services_.end()) {
             services_.erase(it);
@@ -55,7 +55,7 @@ public:
     template <typename T>
     std::weak_ptr<T> GetService(const std::string &name)
     {
-        static_assert(std::is_base_of_v<IService, T>, "T must derive from IService");
+        static_assert(std::is_base_of_v<UbseIService, T>, "T must derive from IService");
         std::shared_lock lock(mutex_);
         auto it = services_.find(name);
         if (it != services_.end()) {
@@ -70,10 +70,8 @@ public:
     }
 
 private:
-    std::map<std::string, std::shared_ptr<IService>> services_;
+    std::map<std::string, std::shared_ptr<UbseIService>> services_;
     mutable std::shared_mutex mutex_;
 };
-
-}
-
+} // namespace ubse::service
 #endif

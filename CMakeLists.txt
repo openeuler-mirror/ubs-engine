@@ -115,6 +115,7 @@ include_directories(
         ${CMAKE_BINARY_DIR}/include     # 自动生成头文件
         ${PROJECT_SOURCE_DIR}           # 项目根目录（解头文件依赖）
         ${SRC_DIR}/include/adapter_plugins/mmi            # 内部共享头文件
+        ${SRC_DIR}/include/plugin_services  #插件对外服务
 )
 option(BUILD_TESTS "Build tests" OFF)
 

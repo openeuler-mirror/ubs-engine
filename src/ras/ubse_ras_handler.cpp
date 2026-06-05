@@ -19,24 +19,23 @@
 #include <regex>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
+#include "../controllers/mem/mem_controller/ubse_mem_controller_module.h"
 #include "message/ubse_ras_message.h"
+#include "plugin_services/mem/ubse_mem_service.h"
 #include "securec.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
+#include "ubse_event.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller_fault_handle.h"
-#include "ubse_mem_controller_module.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_pointer_process.h"
-#include "ubse_str_util.h"
-#include "ubse_event.h"
 #include "ubse_ras_oom_handler.h"
-#include "ubse_mem_controller_module.h"
-
+#include "ubse_str_util.h"
 namespace ubse::ras {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -45,6 +44,8 @@ using namespace ubse::log;
 using namespace ubse::nodeController;
 using namespace ubse::event;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::service;
+using namespace ubse::service::mem;
 std::unordered_map<ALARM_FAULT_TYPE, std::set<std::string>> g_MSG_ID_MAP{};
 std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_HANDLER_RESULT{};
 
@@ -212,7 +213,12 @@ void LogMemDebtInfoWithNode(ALARM_FAULT_TYPE faultType, const std::string &nodeI
 
     // 获取账本信息
     ubse::adapter_plugins::mmi::NodeMemDebtInfoMap memDebtInfoMap;
-    uint32_t ret = mem::controller::UbseGetMemDebtInfo("", memDebtInfoMap);
+    auto memService = GetMemService();
+    if (memService == nullptr) {
+        UBSE_LOG_ERROR << "UbseMemService is not registered";
+        return;
+    }
+    uint32_t ret = memService->UbseGetMemDebtInfoFromMaster("", memDebtInfoMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "The UbseGetMemDebtInfo method call failed.";
         return;
@@ -552,7 +558,12 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
         UBSE_LOG_ERROR << "fault info is invalid. ";
         return ret;
     }
-    mem::controller::UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultNodeId);
+    auto memService = GetMemService();
+    if (memService == nullptr) {
+        UBSE_LOG_ERROR << "UbseMemService is not registered";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    memService->MemReportWhenExportNodeOnFault(faultType, faultNodeId);
     SwitchRoleWhenMasterFault(faultNodeId);
 
     UbseRoleInfo roleInfo;

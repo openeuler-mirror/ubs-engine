@@ -14,10 +14,10 @@
 
 #include <utility>
 
-#include "ubse_node_controller.h"
 #include "ubse_conf.h"
+#include "ubse_mem_controller_query_api.h"
 #include "ubse_mmi_interface.h"
-#include "ubse_mem_controller_module.h"
+#include "ubse_node_controller.h"
 namespace ubse::obj::ut {
 using namespace ubse::mem::account;
 using namespace ubse::adapter_plugins::mmi;
@@ -183,7 +183,7 @@ TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdEmptyWithoutAccou
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     const std::string nodeId;
@@ -195,7 +195,7 @@ TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdEmptyWithoutAccou
 TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdEmptyAndWithAccount)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfo));
     const std::string nodeId;
     UbseBorrowAccountMap accountMap;
@@ -241,7 +241,7 @@ TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdNotEmptyWithEmpty
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     const std::string nodeId = "Node0";
@@ -253,7 +253,7 @@ TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdNotEmptyWithEmpty
 TEST_F(TestUbseMemAccount, ReturnsAccountMapCorrectlyWhenNodeIdNotEmptyAndWithAccount)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfo));
     const std::string nodeId = "Node0";
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(invoke(MockGetAllNodes));
@@ -291,7 +291,7 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdEmptyWi
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     const std::string nodeId;
@@ -303,7 +303,7 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdEmptyWi
 TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdEmptyWithAccount)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfo));
     const std::string nodeId;
     UbseBorrowAccountMap accountMap;
@@ -348,7 +348,7 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdNotEmpt
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     const std::string nodeId = "Node0";
@@ -360,7 +360,7 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdNotEmpt
 TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdNotEmptyWithAccount)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfo));
     const std::string nodeId = "Node0";
     UbseBorrowAccountMap accountMap;
@@ -397,7 +397,7 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdNotEmpt
 TEST_F(TestUbseMemAccount, UbseAllNumaInfoFullProcedure)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfo));
     const std::string nodeId = "Node0";
     UbseBorrowAccountMap accountMap;
@@ -424,7 +424,7 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoFullProcedureWithEmptyNumaInfo)
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     std::vector<UbseNumaNodeInfo> numaNodeInfoVec{};
@@ -467,7 +467,7 @@ uint32_t MockUbseGetMemShareDebtInfo([[maybe_unused]] const std::string &nodeId,
 TEST_F(TestUbseMemAccount, UbseAllShmAccountInfo)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemShareDebtInfo));
     const std::string nodeId;
     UbseBorrowAccountMap accountMap;
@@ -499,7 +499,7 @@ TEST_F(TestUbseMemAccount, UbseAllShmAccountInfoWithEmptyShmInfo)
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> emptyNodeInfo{};
     MOCKER(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodeInfo));
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemDebtInfoReturnEmpty));
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     UbseShmAccountMap outMap{};
@@ -536,7 +536,7 @@ uint32_t MockUbseGetMemSingleDebtInfo([[maybe_unused]] const std::string &nodeId
 TEST_F(TestUbseMemAccount, SingleLedgerRefill)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemSingleDebtInfo));
     const std::string nodeId;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(invoke(MockGetAllNodes));
@@ -575,7 +575,7 @@ uint32_t MockUbseGetMemShareDebtInfoForSameNumaBorrows([[maybe_unused]] const st
 /*
  * 用例描述：
  * DTS2025091030893查询numa共享内存信息返回正常
- * 测试步骤：1.MOCKER UbseGetMemDebtInfo，构造同一个节点同一个numa两次借出SHARE内存;
+ * 测试步骤：1.MOCKER UbseGetMemDebtInfoFromMaster，构造同一个节点同一个numa两次借出SHARE内存;
  * 2.调用UbseAllNumaInfo;
  * 3.判断返回值为0，且mMemShared为两次借用的和
  * 预期结果：
@@ -585,7 +585,7 @@ uint32_t MockUbseGetMemShareDebtInfoForSameNumaBorrows([[maybe_unused]] const st
 TEST_F(TestUbseMemAccount, UbseAllNumaInfoForShareSameNumaBorrows)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemShareDebtInfoForSameNumaBorrows));
     const std::string nodeId;
     UbseBorrowAccountMap accountMap;
@@ -627,7 +627,7 @@ uint32_t MockUbseGetMemNumaDebtInfoForSameNumaBorrows([[maybe_unused]] const std
 /*
  * 用例描述：
  * DTS2025082836736查询numa内存信息返回正常
- * 测试步骤：1.MOCKER UbseGetMemDebtInfo，构造同一个节点同一个numa两次借出numa内存;
+ * 测试步骤：1.MOCKER UbseGetMemDebtInfoFromMaster，构造同一个节点同一个numa两次借出numa内存;
  * 2.调用UbseAllNumaInfo;
  * 3.判断返回值为0，且mMemLent、mMemBorrowed为两次借用的和
  * 预期结果：
@@ -637,7 +637,7 @@ uint32_t MockUbseGetMemNumaDebtInfoForSameNumaBorrows([[maybe_unused]] const std
 TEST_F(TestUbseMemAccount, UbseAllNumaInfoForNumaSameNumaBorrows)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemNumaDebtInfoForSameNumaBorrows));
     const std::string nodeId;
     UbseBorrowAccountMap accountMap;
@@ -659,7 +659,7 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoForNumaSameNumaBorrows)
 /*
  * 用例描述：
  * DTS2025082830291查询numa借用的lentSize返回正常
- * 测试步骤：1.MOCKER UbseGetMemDebtInfo，构造同一个节点同一个numa两次借出numa内存;
+ * 测试步骤：1.MOCKER UbseGetMemDebtInfoFromMaster，构造同一个节点同一个numa两次借出numa内存;
  * 2.调用UbseAllNumaInfo;
  * 3.判断返回值为0，且mMemLent、mMemBorrowed为两次借用的和
  * 预期结果：
@@ -668,7 +668,7 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoForNumaSameNumaBorrows)
 TEST_F(TestUbseMemAccount, UbseAllBorrowAccountInfoLentSizeCorrect)
 {
     uint32_t (*func)(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap) =
-        &UbseGetMemDebtInfo;
+        &UbseGetMemDebtInfoFromMaster;
     MOCKER_CPP(func).stubs().will(invoke(MockUbseGetMemNumaDebtInfoForSameNumaBorrows));
     const std::string nodeId;
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetAllNodes).stubs().will(invoke(MockGetAllNodes));

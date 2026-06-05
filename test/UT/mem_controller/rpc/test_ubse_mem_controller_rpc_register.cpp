@@ -12,10 +12,10 @@
 
 #include "test_ubse_mem_controller_rpc_register.h"
 #include "message/node_mem_debt_info_simpo.h"
-#include "message/node_mem_debtInfo_query_req_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "message/ubse_mem_debt_info_partial_fetch_res.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "message/ubse_mem_update_obj_state.simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"

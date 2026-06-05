@@ -84,14 +84,14 @@ TEST_F(TestUbsEngineMem, UbsMemNumastatGetWhenUnpackFailed)
     EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
 }
 
-std::vector<UbseNumaNodeInfo> BuildNumaNodeInfoList()
+std::vector<service::mem::UbseNumaNodeInfo> BuildNumaNodeInfoList()
 {
-    std::vector<UbseNumaNodeInfo> numaNodeInfoList{};
-    UbseNumaNodeInfo numaNodeInfo1{};
+    std::vector<service::mem::UbseNumaNodeInfo> numaNodeInfoList{};
+    service::mem::UbseNumaNodeInfo numaNodeInfo1{};
     numaNodeInfo1.nodeId = "1";
     numaNodeInfoList.emplace_back(numaNodeInfo1);
 
-    UbseNumaNodeInfo numaNodeInfo2{};
+    service::mem::UbseNumaNodeInfo numaNodeInfo2{};
     numaNodeInfo2.nodeId = "1";
     numaNodeInfoList.emplace_back(numaNodeInfo2);
     return numaNodeInfoList;

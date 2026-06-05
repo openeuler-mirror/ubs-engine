@@ -6,81 +6,30 @@
 #include <cstdint>
 #include <map>
 #include <vector>
+#include "plugin_services/mem/ubse_mem_service.h"
 #include "ubse_event.h"
 #include "ubse_json_util.h"
-#include "ubse_mem_configuration.h"
-#include "ubse_mem_debt_info.h"
-#include "ubse_mem_json_def.h"
-#include "ubse_mem_meta_data.h"
-#include "ubse_mem_topology_info_manager.h"
-#include "ubse_node_controller.h"
 #include "ubse_logger.h"
+#include "ubse_mem_configuration.h"
+#include "ubse_mem_json_def.h"
+#include "ubse_node_controller.h"
 
 namespace ubse::mem::strategy {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 using namespace ubse::common::def;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::service;
+using namespace ubse::service::mem;
 
-    void BuildNumaInfoMap(std::map<std::string, std::string> &numaInfoMap, const std::shared_ptr<MemNumaInfo> item)
+std::string GetAllNumaJsonInfo(const std::string &nodeId)
 {
-    if (item == nullptr) {
-        return;
-    }
-    numaInfoMap.emplace("mGlobalIndex", std::to_string(item->mGlobalIndex));
-    numaInfoMap.emplace("mStatus", "true");
-    numaInfoMap.emplace("mTimestamp", std::to_string(item->mTimestamp));
-    numaInfoMap.emplace("mMemTotal", std::to_string(item->mMemTotal));
-    numaInfoMap.emplace("mMemUsed", std::to_string(item->mMemUsed));
-    numaInfoMap.emplace("mMemFree", std::to_string(item->mMemFree));
-    std::string cpuList;
-    for (auto item1 : item->mCpuList) {
-        cpuList += std::to_string(item1) + ",";
-    }
-    if (!cpuList.empty()) {
-        cpuList.resize(cpuList.size() - 1);
-    }
-    numaInfoMap.emplace("mCpuList", cpuList);
-    numaInfoMap.emplace("mMemBorrowed", std::to_string(item->mMemBorrowed));
-    numaInfoMap.emplace("mWaterBorrowCount", std::to_string(item->mWaterBorrowCount));
-    numaInfoMap.emplace("mMemLent", std::to_string(item->mMemLent));
-    numaInfoMap.emplace("mMemShared", std::to_string(item->mMemShared));
-    numaInfoMap.emplace("mPercent", std::to_string(item->mPercent));
-    std::string lastWarningType = "NO_WARN";
-    numaInfoMap.emplace("mLastWarningType", lastWarningType);
-    numaInfoMap.emplace("mLastWarningCount", std::to_string(item->mLastWarningCount));
-    auto numaLoc = item->mUbseMemNumaLoc.nodeId + "/" + std::to_string(item->mUbseMemNumaLoc.socketId) + "/" +
-                   std::to_string(item->mUbseMemNumaLoc.numaId);
-    numaInfoMap.emplace("numaLoc", numaLoc);
-}
-
-std::string GetAllNumaJsonInfo(const NodeId &nodeId)
-{
-    auto list = UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo(nodeId);
-    if (list.empty()) {
-#ifndef DEBUG_MEM_UT
+    auto memService = GetMemService();
+    if (memService == nullptr) {
+        UBSE_LOG_ERROR << "UbseMemService is not registered";
         return "";
-#endif
     }
-    std::vector<std::string> strVec;
-    for (auto item : list) {
-        std::map<std::string, std::string> numaInfoMap;
-        BuildNumaInfoMap(numaInfoMap, item);
-        auto hostName =
-            ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(item->mUbseMemNumaLoc.nodeId).hostName;
-        numaInfoMap.emplace("hostName", hostName);
-        std::string tmp;
-        if (!UbseJsonUtil::ConvertMap2JsonStr(numaInfoMap, tmp)) {
-            UBSE_LOG_ERROR << "ConvertMap2JsonStr error";
-            return "";
-        }
-        strVec.emplace_back(tmp);
-    }
-    std::string json;
-    if (!UbseJsonUtil::ConvertVector2JsonStr(strVec, json)) {
-        UBSE_LOG_ERROR << "ConvertVector2JsonStr error.";
-        return "[]";
-    }
-    return json;
+    return memService->GetAllNumaJsonInfo(nodeId);
 }
 
 static std::string ToString(const WatermarkWarningType warning)
@@ -156,7 +105,12 @@ void GetAllImportItemByMap(std::vector<UbseMemEventNotifyBorrowItem> &tmpBorrow,
 
 void GetAllImportItem(const UbseMemNumaLoc &memIdLoc, std::vector<UbseMemEventNotifyBorrowItem> &tmpBorrow)
 {
-    auto debtInfoMap = ubse::mem::controller::GetNodeMemDebtInfoMap();
+    auto memService = GetMemService();
+    if (memService == nullptr) {
+        UBSE_LOG_ERROR << "UbseMemService is not registered";
+        return;
+    }
+    auto debtInfoMap = memService->UbseGetLocalMemDebtInfo();
     for (const auto &nodeMap : debtInfoMap) {
         GetAllImportItemByMap(tmpBorrow, memIdLoc, nodeMap.second.numaImportObjMap);
     }

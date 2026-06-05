@@ -14,12 +14,13 @@
 
 #include <securec.h>
 
+#include "plugin_services/mem/ubse_mem_service.h"
 #include "ubs_engine.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_def.h"
-#include "ubse_logger_module.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -206,7 +207,7 @@ void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList)
     }
 }
 
-uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<UbseNumaNodeInfo> &nodeNumaMemList)
+uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<service::mem::UbseNumaNodeInfo> &nodeNumaMemList)
 {
     nodeNumaMemList.clear();
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos =
@@ -220,8 +221,13 @@ uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<UbseNumaNodeI
         node.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
         return UBSE_ERR_NODE_FAULT;
     }
-    std::vector<UbseNumaNodeInfo> allNumaInfoList{};
-    auto ret = UbseAllNumaInfo(allNumaInfoList);
+    auto memService = service::mem::GetMemService();
+    if (memService == nullptr) {
+        UBSE_LOG_ERROR << "UbseMemService is not registered";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    std::vector<service::mem::UbseNumaNodeInfo> allNumaInfoList{};
+    auto ret = memService->UbseAllNumaInfo(allNumaInfoList);
     if (ret != UBSE_OK) {
         return ret;
     }

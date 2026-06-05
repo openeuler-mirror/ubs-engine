@@ -11,7 +11,7 @@
  */
 #include "ubse_mem_controller_query_api.h"
 
-#include "message/node_mem_debtInfo_query_req_simpo.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
 #include "src/sdk/c/include/ubs_engine_topo.h"

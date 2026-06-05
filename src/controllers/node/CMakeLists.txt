@@ -30,7 +30,7 @@ target_link_libraries(ubse_node_controller PRIVATE
         api_server
         ubse_http
         ubse_config
-        mem_controller
+        mem_controller_adapter
         ubse_urma_uvs
         ubse_security)
 

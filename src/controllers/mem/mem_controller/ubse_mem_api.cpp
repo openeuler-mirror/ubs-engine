@@ -27,7 +27,6 @@
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_def_serial.h"
-#include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info_partial_fetch_req.h"
 #include "ubse_mem_debt_info_partial_fetch_res.h"
@@ -400,7 +399,7 @@ uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage &req, const Ubse
 
 {
     std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
-    auto ret = UbseAllNumaInfo(numaInfoList);
+    auto ret = ubse::mem::account::UbseAllNumaInfo(numaInfoList);
     if (ret != UBSE_OK) {
         return ret;
     }

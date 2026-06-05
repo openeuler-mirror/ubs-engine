@@ -100,7 +100,7 @@ TEST_F(TestUbseMemControllerModule, DelHandleByMapDiff)
     // 测试 allHandleValues 和 handleMap 中有相同的数据
     UbseMamiMemWithdraw handleInfo{.ubpuId = 1, .iouId = 2, .marId = 3, .decoderIdx = 4, .handle = 5};
     UbseMamiMemHandleValue handleValue{.handle = handleInfo.handle};
-    mem::decoder::utils::DecoderEntryLoc loc{.ubpuId = handleInfo.ubpuId,
+    service::mem::DecoderEntryLoc loc{.ubpuId = handleInfo.ubpuId,
                                              .iouId = handleInfo.iouId,
                                              .marId = handleInfo.marId,
                                              .decoderId = handleInfo.decoderIdx};
@@ -201,7 +201,7 @@ TEST_F(TestUbseMemControllerModule, GetMemDebtInfo)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseGetMemDebtInfo("node1", memDebtInfoMap), UBSE_ERROR);
-    EXPECT_EQ(UbseGetMemDebtInfo("node1", memDebtInfoMap), UBSE_OK);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster("node1", memDebtInfoMap), UBSE_ERROR);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster("node1", memDebtInfoMap), UBSE_OK);
 }
 } // namespace ubse::mem_controller::ut

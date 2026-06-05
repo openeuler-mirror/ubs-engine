@@ -13,7 +13,6 @@
 #include "ubse_mem_controller_api_common.h"
 #include <cstdint>
 
-#include "../message/node_mem_debtInfo_query_req_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_rpc_processor.h"
@@ -203,7 +202,7 @@ void SetMamiImportInfoByExportInfo(const UbseMemObmmInfo &exportInfo, UbseMamiMe
     mamiImportInfo.marId = exportInfo.desc.marId;
 }
 
-void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, decoder::utils::DecoderEntryLoc &loc)
+void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, service::mem::DecoderEntryLoc &loc)
 {
     loc.ubpuId = mamiImportInfo.ubpuId;
     loc.iouId = mamiImportInfo.iouId;
@@ -211,7 +210,7 @@ void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo &mamiImportInfo, 
     loc.marId = mamiImportInfo.marId;
 }
 
-UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc &loc, UbseMamiMemImportInfo &mamiImportInfo,
+UbseResult AddDecoderEntryByPreOnline(const service::mem::DecoderEntryLoc &loc, UbseMamiMemImportInfo &mamiImportInfo,
                                       UbseMemImportStatus &status)
 {
     UbseMamiMemImportResult importResult{};
@@ -241,7 +240,7 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t> &chipDieP
     status.decoderResult.clear();
     UbseMamiMemImportInfo mamiImportInfo{};
     SetMamiImportInfoByDecoderParam(chipDiePair, importDecoderParam, mamiImportInfo);
-    decoder::utils::DecoderEntryLoc loc{};
+    service::mem::DecoderEntryLoc loc{};
     SetDecoderLocByMamiImportInfo(mamiImportInfo, loc);
     if (importDecoderParam.isHighSafety &&
         exportObmmInfo.size() != importDecoderParam.trustRingData.lendSignedDatas.size()) {

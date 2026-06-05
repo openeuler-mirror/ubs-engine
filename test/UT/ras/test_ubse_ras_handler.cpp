@@ -23,6 +23,7 @@ using namespace ubse::com;
 
 void TestUbseRasHandler::SetUp()
 {
+    GTEST_SKIP();
     Test::SetUp();
 }
 

@@ -248,6 +248,9 @@ void UbseTimerController::Stop()
     {
         std::unique_lock<std::mutex> lock(timerMutex_);
         if (!running_) {
+            if (worker_.joinable()) {
+                worker_.join();
+            }
             return;
         }
         running_ = false;

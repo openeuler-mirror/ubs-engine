@@ -14,11 +14,10 @@
 #define UBSE_NODE_CONTROLLER_QUERY_API_H
 #include <cstdint>
 #include <vector>
-#include "ubse_mem_account.h"
+#include "plugin_services/mem/ubse_mem_service_def.h"
 #include "ubse_node_controller_def.h"
 
 namespace ubse::nodeController {
-using namespace ubse::mem::account;
 /**
  * @brief 查询所有CPU类型节点的拓扑信息
  *
@@ -56,7 +55,7 @@ void UbseNodeGet(def::UbseNode &node);
 void UbseNodeGetByNodeIdInMaster(const std::string &nodeId, def::UbseNode &node);
 void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node);
 
-uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<UbseNumaNodeInfo> &nodeNumaMemList);
+uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<service::mem::UbseNumaNodeInfo> &nodeNumaMemList);
 
 size_t UbseGetUnitSize();
 } // namespace ubse::nodeController

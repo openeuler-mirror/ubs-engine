@@ -2,7 +2,8 @@ add_ut(mem_controller)
 
 target_link_libraries(${CMAKE_PROJECT_NAME}_mem_controller_ut
         PRIVATE
-        mem_controller ubse_controller_rpc
+        mem_plugin
+        mem_controller_adapter ubse_controller_rpc  ubse_controller_api
         ubse_log
         ubse_com
         ubse_election

@@ -54,7 +54,7 @@ void InitAllEntryBlock(const decoder::utils::DecoderLocTohandleValueMap &tmpValu
     }
 }
 
-void InitDcnaByPreImportInfo(const mmi::BasicPreImportInfo &preImportInfo,
+void InitDcnaByPreImportInfo(const BasicPreImportInfo &preImportInfo,
                              DecoderLocToIsUsehandleValueMap &preHandleMap, DcnaToSize &dcnaToSize)
 {
     for (auto &[loc, values] : preHandleMap) {
@@ -78,7 +78,7 @@ void UbseMemPrehandleManager::PrintPreHandleMap()
     }
 }
 
-UbseResult UbseMemPrehandleManager::InitPreHandle(std::vector<mmi::BasicPreImportInfo> preImportInfos)
+UbseResult UbseMemPrehandleManager::InitPreHandle(std::vector<BasicPreImportInfo> preImportInfos)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     PreMapClear();
@@ -96,7 +96,7 @@ UbseResult UbseMemPrehandleManager::InitPreHandle(std::vector<mmi::BasicPreImpor
     return UBSE_OK;
 }
 
-UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const DecoderEntryLoc &loc, uint32_t dcna,
                                                          UbseMamiMemImportResult &handleValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -115,7 +115,7 @@ UbseResult UbseMemPrehandleManager::GetOneUnImportHandle(const decoder::utils::D
     return UBSE_ERROR;
 }
 
-uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const DecoderEntryLoc &loc, uint32_t dcna,
                                                      UbseMamiMemImportResult &handleValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -135,7 +135,7 @@ uint32_t UbseMemPrehandleManager::GetPreHandleByDcna(const decoder::utils::Decod
     return UBSE_ERROR;
 }
 
-void UbseMemPrehandleManager::CreatePreHandle(const decoder::utils::DecoderEntryLoc &loc,
+void UbseMemPrehandleManager::CreatePreHandle(const DecoderEntryLoc &loc,
                                               const UbseMamiMemImportResult &handleValue, uint32_t dcna,
                                               uint32_t importSize)
 {
@@ -147,7 +147,7 @@ void UbseMemPrehandleManager::CreatePreHandle(const decoder::utils::DecoderEntry
     preHandleMap[loc].emplace_back(tmpInfo);
 }
 
-void UbseMemPrehandleManager::GetOneUnPreImportHandle(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+void UbseMemPrehandleManager::GetOneUnPreImportHandle(const DecoderEntryLoc &loc, uint32_t dcna,
                                                       UbseMamiMemImportResult &outValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -166,7 +166,7 @@ void UbseMemPrehandleManager::GetOneUnPreImportHandle(const decoder::utils::Deco
                   << ", marId" << loc.marId;
 }
 
-bool UbseMemPrehandleManager::IsNeedPreOnline(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+bool UbseMemPrehandleManager::IsNeedPreOnline(const DecoderEntryLoc &loc, uint32_t dcna,
                                               UbseMamiMemImportResult &outValue)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -202,7 +202,7 @@ uint64_t UbseMemPrehandleManager::GetPresizeByDcna(uint32_t dcna)
     return dcnaToSize[dcna];
 }
 
-void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc &loc,
+void UbseMemPrehandleManager::RollbackHandle(const DecoderEntryLoc &loc,
                                              const std::vector<uint64_t> &handles)
 {
     std::lock_guard<std::mutex> lock(handleLock);
@@ -215,7 +215,7 @@ void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryL
     }
 }
 
-void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryLoc &loc, uint64_t handle)
+void UbseMemPrehandleManager::RollbackHandle(const DecoderEntryLoc &loc, uint64_t handle)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     for (auto &preInfo : preHandleMap[loc]) {
@@ -225,7 +225,7 @@ void UbseMemPrehandleManager::RollbackHandle(const decoder::utils::DecoderEntryL
     }
 }
 
-void UbseMemPrehandleManager::RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc &loc)
+void UbseMemPrehandleManager::RollbackPreImportHandle(const DecoderEntryLoc &loc)
 {
     std::lock_guard<std::mutex> lock(handleLock);
     for (auto &preInfo : preHandleMap[loc]) {
