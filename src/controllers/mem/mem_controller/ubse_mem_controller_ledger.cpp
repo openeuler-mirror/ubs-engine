@@ -2656,6 +2656,11 @@ static std::vector<std::pair<int64_t, int>> BuildNumaStatus(
 void MasterNotifyRemoteNumaStatus(const std::string& targetNodeId,
                                   const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
+    if (allDebtInfoMap.find(targetNodeId) == allDebtInfoMap.end() ||
+        allDebtInfoMap.at(targetNodeId).numaImportObjMap.empty()) {
+        return;
+    }
+
     auto linkUpPorts = GetLinkUpPorts(targetNodeId);
 
     std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> linkToNumaMap;
