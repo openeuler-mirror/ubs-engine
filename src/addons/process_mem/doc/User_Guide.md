@@ -98,7 +98,7 @@ sudo systemctl restart ubse
 tail -f /var/log/ubse/process_mem_plugin.log
 ```
 
-日志中应能看到 `UbsePluginInit` 初始化成功的信息，以及 `taskExecutor start success` 的日志。
+ubse.log 中应能看到 process_mem 初始化成功的信息。
 
 ```bash
 # 检查 libprocess_mem.so 是否被 UBSE 进程加载

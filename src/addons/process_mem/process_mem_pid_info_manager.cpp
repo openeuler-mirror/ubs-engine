@@ -157,9 +157,13 @@ void ProcessMemPidInfoManager::Init()
     const int workThreadNum = 2;
     const int exceptionThreadNum = 1;
     const int queSize = 1024;
-    taskExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidInfoManager", workThreadNum, queSize);
-    if (taskExecutor == nullptr || !taskExecutor->Start()) {
-        UBSE_LOG_ERROR << "taskExecutor start failed";
+    borrowExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidBorrow", workThreadNum, queSize);
+    if (borrowExecutor == nullptr || !borrowExecutor->Start()) {
+        UBSE_LOG_ERROR << "borrowExecutor start failed";
+    }
+    returnExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidReturn", workThreadNum, queSize);
+    if (returnExecutor == nullptr || !returnExecutor->Start()) {
+        UBSE_LOG_ERROR << "returnExecutor start failed";
     }
     exceptionHandleExecutor =
         ubse::task_executor::UbseTaskExecutor::Create("ExceptionHandle", exceptionThreadNum, queSize);
@@ -183,7 +187,7 @@ void ProcessMemPidInfoManager::Init()
     process_mem::collect::ProcessMemPidCollect::GetInstance().RegisterCollectHandler("pidCollectCallback", handler);
     process_mem::collect::ProcessMemPidCollect::GetInstance().Init();
 
-    UBSE_LOG_INFO << "taskExecutor start success";
+    UBSE_LOG_INFO << "borrowExecutor and returnExecutor start success";
 }
 
 void ProcessMemPidInfoManager::UnInit()
@@ -193,10 +197,14 @@ void ProcessMemPidInfoManager::UnInit()
     process_mem::collect::ProcessMemPidCollect::GetInstance().UnInit();
     ubse::timer::UbseTimerHandlerUnregister("PidMemoryCheck");
 
-    // 排空 taskExecutor 队列后停止，避免积压的借用/归还任务被丢弃
-    if (taskExecutor != nullptr) {
-        taskExecutor->Wait();
-        taskExecutor->Stop();
+    // 排空队列后停止，避免积压的借用/归还任务被丢弃
+    if (borrowExecutor != nullptr) {
+        borrowExecutor->Wait();
+        borrowExecutor->Stop();
+    }
+    if (returnExecutor != nullptr) {
+        returnExecutor->Wait();
+        returnExecutor->Stop();
     }
     if (exceptionHandleExecutor != nullptr) {
         exceptionHandleExecutor->Stop();
@@ -500,7 +508,7 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t expectRemote
     ProcessMemPidInfoManager::GetInstance().UpdatePidMemBorrowInfo(pidInfo.configInfo.pid, debtInfo);
 
     auto pid = pidInfo.configInfo.pid;
-    ProcessMemPidInfoManager::GetInstance().taskExecutor->Execute(
+    ProcessMemPidInfoManager::GetInstance().borrowExecutor->Execute(
         [pid, debtInfo, expectRemoteMemory]() { AsyncBorrowAndMigrateExecute(pid, debtInfo, expectRemoteMemory); });
 
     return UBSE_OK;
@@ -526,7 +534,7 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
     if (!ProcessMemPidInfoManager::GetInstance().IsRecoverCompleted()) {
         UBSE_LOG_INFO << "Recover not completed, retry MigrateBackAndReturnMemory later, pid="
                       << pidInfo.configInfo.pid;
-        ProcessMemPidInfoManager::GetInstance().taskExecutor->Execute(
+        ProcessMemPidInfoManager::GetInstance().returnExecutor->Execute(
             [pidInfo]() { MigrateBackAndReturnMemoryAsyncExecute(pidInfo); });
         return UBSE_OK;
     }
@@ -560,7 +568,7 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
 
 uint32_t MigrateBackAndReturnMemory(def::ProcessMemPidInfo& pidInfo)
 {
-    ProcessMemPidInfoManager::GetInstance().taskExecutor->Execute(
+    ProcessMemPidInfoManager::GetInstance().returnExecutor->Execute(
         [pidInfo]() { MigrateBackAndReturnMemoryAsyncExecute(pidInfo); });
     return UBSE_OK;
 }

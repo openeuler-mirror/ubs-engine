@@ -68,7 +68,8 @@ public:
     void ResetPidMemBorrowInfo(pid_t pid);
 
 public:
-    ubse::task_executor::UbseTaskExecutorPtr taskExecutor{};
+    ubse::task_executor::UbseTaskExecutorPtr borrowExecutor{};
+    ubse::task_executor::UbseTaskExecutorPtr returnExecutor{};
     ubse::task_executor::UbseTaskExecutorPtr exceptionHandleExecutor{};
 
 private:

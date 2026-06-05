@@ -12,7 +12,7 @@ function _ubse_commond_completion() {
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
     commands='create display import delete check change remove detach attach urma'
-    display_types='topo memory cluster cert node urma ets'
+    display_types='topo memory cluster cert node urma ets process-mem'
     create_types='memory ets'
     delete_types='memory ets'
     check_types='memory'
