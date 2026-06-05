@@ -18,6 +18,7 @@
 #include "mem_manager.h"
 #include "mempooling_return_module.h"
 #undef private
+#include <time.h>
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -29,7 +30,10 @@ namespace mempooling {
 class TestMemReturnScanner : public ::testing::Test {
 protected:
     TestMemReturnScanner() {}
-    virtual void SetUp() {}
+    virtual void SetUp()
+    {
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
+    }
     virtual void TearDown()
     {
         GlobalMockObject::reset();

@@ -22,6 +22,7 @@
 #include <string>
 #include "exporter.h"
 
+#include <time.h>
 #include "ubse_storage.h"
 #include "mem_manager.h"
 #include "mp_configuration.h"
@@ -44,6 +45,7 @@ class TestMemManager : public ::testing::Test {
     void SetUp() override
     {
         cout << "[TestMemManager SetUp Begin]" << endl;
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
         cout << "[TestMemManager SetUp End]" << endl;
     }
     void TearDown() override

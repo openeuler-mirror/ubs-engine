@@ -2,6 +2,7 @@
  * Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
  */
 #include <gmock/gmock.h>
+#include <time.h>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -35,6 +36,7 @@ protected:
     {
         cout << "[TestMemManagerBase SetUp Begin]" << endl;
         GlobalMockObject::reset();
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
         cout << "[TestMemManagerBase SetUp End]" << endl;
     }
 

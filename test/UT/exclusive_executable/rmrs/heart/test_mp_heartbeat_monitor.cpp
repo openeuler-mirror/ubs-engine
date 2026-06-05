@@ -6,6 +6,7 @@
 #include "mp_heartbeat_monitor.h"
 #undef private
 
+#include <time.h>
 #include "ubse_com.h"
 #include "ubse_election.h"
 #include "mempooling_message.h"
@@ -26,6 +27,7 @@ class TestMpHeartBeatMonitor : public ::testing::Test {
 protected:
     void SetUp() override
     {
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
         auto& monitor = MpHeartBeatMonitor::Instance();
         monitor.running = false;
         monitor.faultNodeVec.clear();

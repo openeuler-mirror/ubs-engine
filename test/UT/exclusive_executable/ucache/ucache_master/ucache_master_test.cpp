@@ -10,6 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <time.h>
 #include <ubse_com.h>
 #include <ctime>
 #include <thread>
@@ -39,6 +40,7 @@ protected:
     void SetUp() override
     {
         cout << "[Phase SetUp Begin]" << endl;
+        MOCKER_CPP(&nanosleep, int (*)(const struct timespec*, struct timespec*)).stubs().will(returnValue(0));
         cout << "[Phase SetUp End]" << endl;
     }
     void TearDown() override
