@@ -25,6 +25,8 @@
 #include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_pre_online.h"
+#include "ubse_mem_decoder_utils.h"
+#include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_sign_token_bucket.h"
@@ -33,8 +35,6 @@
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -94,6 +94,31 @@ bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag)
     }
     UBSE_LOG_WARN << "Memory share mode is unsupported, cacheableFlag=" << cacheableFlag;
     return false;
+}
+
+UbseResult SetDefaultMemBorrowPrivData(UbseMemPrivData& privData, uint16_t wrDelayComp)
+{
+    if (wrDelayComp > 1) {
+        UBSE_LOG_WARN << "Memory borrow wrDelayComp is invalid, wrDelayComp=" << wrDelayComp;
+        return UBSE_ERROR_INVAL;
+    }
+    privData.onePth = 0;
+    privData.wrDelayComp = wrDelayComp;
+    privData.reduceDelayComp = 0;
+    privData.cmoDelayComp = 0;
+    privData.so = 0;
+    privData.adTrOchip = 1;
+    if (UbseIsMemBorrowCcSupported()) {
+        privData.cacheableFlag = 1;
+    } else if (UbseIsMemBorrowNcSupported()) {
+        privData.cacheableFlag = 0;
+    } else {
+        UBSE_LOG_WARN << "Memory borrow mode is unsupported.";
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    privData.marId = 0;
+    privData.rsv0 = 0;
+    return UBSE_OK;
 }
 
 uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp& resp, const std::string& name,

@@ -4,7 +4,9 @@ add_subdirectory(urma)
 add_subdirectory(npu)
 
 add_library(ubse_controller_includes INTERFACE)
-target_include_directories(ubse_controller_includes INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(ubse_controller_includes INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/mem/mem_decoder_utils)
 
 add_library(ubse_controller STATIC)
 target_include_directories(ubse_controller PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

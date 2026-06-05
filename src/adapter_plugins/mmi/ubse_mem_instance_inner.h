@@ -78,8 +78,6 @@ public:
                !obj.req.name.empty() && obj.req.size > 0;
     }
 
-    void SetPrivDataByShareReq(UbMemPrivData& destPrivData, UbseMemPrivData& sourcePrivData);
-
     template <typename ExportObj>
     uint32_t UnExportExecutor(const ExportObj& exportObj, const std::string& expectedName, uint8_t expectedBorrowType)
     {

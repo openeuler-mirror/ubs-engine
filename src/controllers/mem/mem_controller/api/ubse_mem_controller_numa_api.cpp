@@ -19,10 +19,13 @@
 #include "ubse_logger.h"
 #include "ubse_logger_audit.h"
 #include "ubse_mem_advice.h"
+#include "ubse_mem_common_utils.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_common.h"
+#include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller.h"
@@ -35,7 +38,6 @@
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
-#include "src/controllers/mem/mem_controller/ubse_mem_controller_pre_online.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -757,7 +759,9 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp& resp, UbseMemNumaBorrowI
     }
 
     decoder::utils::ImportDecoderParam importParam{};
+    const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam);
+    importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "numa";
@@ -766,7 +770,7 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp& resp, UbseMemNumaBorrowI
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
-            UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+            UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
             return UBSE_ERR_INTERNAL;
         }
         importObj.req.trustRingData.ClearLendSignedDataMemory();
@@ -775,7 +779,7 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp& resp, UbseMemNumaBorrowI
     if (auto ret = UbseMmiInterface::GetInstance().NumaImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << importObj.req.requestId;
-        UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
         EraseNumaImport(importObj);
         return ret;
     }
@@ -844,7 +848,8 @@ uint32_t NumaImportDestroyingHandler(UbseMemOperationResp& resp, UbseMemNumaBorr
     UBSE_LOG_INFO << "Success to unimport numa, name=" << name << ", requestId=" << resp.requestId;
     UBSE_AUDIT_RUNTIME_DEALLOC << name << " on Node: " << importObj.req.importNodeId << " NumaMemory UnImport "
                                << std::to_string(importObj.req.size) << " Bytes Success";
-    UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+    const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
+    UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
     if (!importObj.status.decoderResult.empty()) {
         UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed";
     }

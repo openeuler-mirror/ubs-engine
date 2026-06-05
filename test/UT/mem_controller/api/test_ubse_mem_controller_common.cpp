@@ -559,7 +559,7 @@ TEST_F(TestUbseMemControllerCommonHelper, ConvertUbseMemAddrCreateReqTest)
         EXPECT_EQ(addrBorrowReq.exportNodeId, std::to_string(lender.slotId));
         EXPECT_EQ(addrBorrowReq.dstSocket, lender.socketId);
         EXPECT_EQ(addrBorrowReq.exportPid, lender.pid);
-        EXPECT_EQ(addrBorrowReq.wrDelayComp, flag);
+        EXPECT_EQ(addrBorrowReq.ubseMemPrivData.wrDelayComp, flag);
 
         // 验证地址列表
         ASSERT_EQ(addrBorrowReq.exportAddrList.size(), 1);

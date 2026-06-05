@@ -192,4 +192,15 @@ TEST_F(TestUbseMemDecoderUtils, SetImportDecoderParam)
     EXPECT_NO_THROW(MemDecoderUtils::SetImportDecoderParam(importParam, wrDelayComp));
 }
 
+TEST_F(TestUbseMemDecoderUtils, GetDecoderIdByPrivData)
+{
+    ubse::adapter_plugins::mmi::UbseMemPrivData privData{};
+
+    privData.cacheableFlag = 1;
+    EXPECT_EQ(MemDecoderUtils::GetDecoderIdByPrivData(privData), 0);
+
+    privData.cacheableFlag = 0;
+    EXPECT_EQ(MemDecoderUtils::GetDecoderIdByPrivData(privData), 1);
+}
+
 } // namespace ubse::ut::mem::decoder::utils

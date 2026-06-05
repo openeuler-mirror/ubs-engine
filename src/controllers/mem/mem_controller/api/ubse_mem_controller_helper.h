@@ -51,9 +51,9 @@ void ConvertUbseMemDeleteReq(const std::string& name, const UbseMemBorrower& bor
 UbseResult UbseMemAddrCreateReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
                                        const UbseMemProcessLender& lender);
 
-void ConvertUbseMemAddrCreateReq(const std::string& name, const UbseMemBorrower& borrower,
-                                 const UbseMemProcessLender& lender, uint32_t flag,
-                                 UbseMemAddrBorrowReq& addrBorrowReq);
+UbseResult ConvertUbseMemAddrCreateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                       const UbseMemProcessLender& lender, uint32_t flag,
+                                       UbseMemAddrBorrowReq& addrBorrowReq);
 } // namespace ubse::mem::controller
 
 #endif // UBS_ENGINE_UBSE_MEM_CONTROLLER_HELPER_H

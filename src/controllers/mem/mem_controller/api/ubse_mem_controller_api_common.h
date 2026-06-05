@@ -26,10 +26,10 @@
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mmi_interface.h"
 #include "lock/ubse_lock.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
+
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::MemOperationType;
 using ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
@@ -44,6 +44,7 @@ using ubse::adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
 using ubse::adapter_plugins::mmi::UbseMemImportStatus;
 using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
 using ubse::adapter_plugins::mmi::UbseMemOperationResp;
+using ubse::adapter_plugins::mmi::UbseMemPrivData;
 using ubse::adapter_plugins::mmi::UbseMemReturnReq;
 using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
 using ubse::adapter_plugins::mmi::UbseShmRegionDesc;
@@ -84,6 +85,8 @@ bool IsMemBorrowFeatureSupported();
 bool IsMemShareFeatureSupported();
 
 bool IsMemShareModeFeatureSupported(uint16_t cacheableFlag);
+
+UbseResult SetDefaultMemBorrowPrivData(UbseMemPrivData& privData, uint16_t wrDelayComp = 0);
 
 uint32_t BuildMemFeatureNotSupportedResp(UbseMemOperationResp& resp, const std::string& name,
                                          const std::string& requestNodeId,

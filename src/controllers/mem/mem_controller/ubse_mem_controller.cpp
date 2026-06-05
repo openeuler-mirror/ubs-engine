@@ -574,7 +574,10 @@ UbseResult UbseMemAddrCreate(const std::string& name, const UbseMemBorrower& bor
     // 请求转换
     UbseMemAddrBorrowReq addrBorrowReq;
     UbseMemOperationResp resp;
-    ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+    ret = ConvertUbseMemAddrCreateReq(name, borrower, lender, flag, addrBorrowReq);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
     // 调用内部ubse_mem_controller_api_agent.h接口
     ubse::mem::controller::agent::UbseMemAddrBorrow(addrBorrowReq, resp);
     if (resp.errorCode != UBSE_OK) {

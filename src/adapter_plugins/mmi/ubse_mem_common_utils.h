@@ -19,6 +19,7 @@
 #include <string>
 #include <type_traits>
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_mem_types.h"
 #include "ubse_mmi_interface.h"
@@ -68,7 +69,7 @@ inline void ConstructUbMemPrivData(UbMemPrivData& ubPrivData, const uint16_t& ma
     ubPrivData.cmo_delay_comp = 0u;
     ubPrivData.so = 0u;
     ubPrivData.ad_tr_ochip = 1u;
-    ubPrivData.cacheable_flag = 1u;
+    ubPrivData.cacheable_flag = ubse::config::UbseIsMemBorrowCcSupported() ? 1u : 0u;
     ubPrivData.mar_id = marId;
     ubPrivData.rsv0 = 0u;
 }

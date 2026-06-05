@@ -144,15 +144,15 @@ struct UbseNumaLocation {
 };
 
 struct UbseMemPrivData {
-    uint16_t onePth : 1;
-    uint16_t wrDelayComp : 1;
-    uint16_t reduceDelayComp : 1;
-    uint16_t cmoDelayComp : 1;
-    uint16_t so : 1;
-    uint16_t adTrOchip : 1;
-    uint16_t cacheableFlag : 1;
-    uint16_t marId : 3;
-    uint16_t rsv0 : 6;
+    uint16_t onePth : 1;      // bit0: 查单路径/多路径路由表，1表示单路径，读命令固定走多路径
+    uint16_t wrDelayComp : 1; // bit1: 写命令是否comp接力，1表示不接力，0表示接力
+    uint16_t reduceDelayComp : 1; // bit2: reduce操作是否comp接力，1表示不接力，0表示接力
+    uint16_t cmoDelayComp : 1; // bit3: cache maintain操作是否comp接力，1表示不接力，0表示接力，暂预留
+    uint16_t so : 1;           // bit4: 命令是否强保序，读命令固定为0
+    uint16_t adTrOchip : 1;    // bit5: UMMU查片上页表/DDR页表，1表示查片上页表，0表示查DDR页表
+    uint16_t cacheableFlag : 1; // bit6: 访问模式，1表示cc，0表示nc
+    uint16_t marId : 3;         // bit7-9: mar id
+    uint16_t rsv0 : 6;          // bit10-15: 保留位
 };
 
 // 高安签名信息
@@ -184,6 +184,7 @@ struct UbseMemBaseBorrowReq {
     uint64_t requestId{};
     UbseUdsInfo udsInfo{}; // 使用方进程信息
     UbseTrustRingData trustRingData{};
+    UbseMemPrivData ubseMemPrivData{}; // 内存访问属性
     friend std::ostream& operator<<(std::ostream& os, const UbseMemBaseBorrowReq& obj);
 };
 
@@ -250,8 +251,6 @@ struct UbseMemShareBorrowReq : public UbseMemBaseBorrowReq {
     bool shmAnonymous{false}; // true:匿名共享内存，需要自动清理；false:非匿名共享内存，无需自动清理
     UbseMemShmAffinitySocketInfo withAffinity{0, "", false}; // 默认不启用指定CPU平面创建
     UbseMemLenderInfo lenderInfo;                            // 指定借出方信息
-    UbseMemPrivData
-        ubseMemPrivData; // 传递给OBMM的内存访问属性；全0表示无效，UBSE自行组装访问属性；非全零，直接使用该字段传递给OBMM
     friend std::ostream& operator<<(std::ostream& os, const UbseMemShareBorrowReq& obj);
 };
 
@@ -277,7 +276,6 @@ struct UbseMemAddrBorrowReq : public UbseMemBaseBorrowReq {
     int dstNuma{-1};                               // 内存申请借出方节点NUMA信息  -1 无效
     uint64_t exportPid{0};                         // 借出进程PID
     std::vector<UbseMemAddrInfo> exportAddrList{}; // 借出地址段  最大段数=CPU核数
-    uint16_t wrDelayComp{1}; // 目前仅支持接力/非接力模式，1为非接力模式，0为接力模式，默认使用非接力模式
     friend std::ostream& operator<<(std::ostream& os, const UbseMemAddrBorrowReq& obj);
 };
 

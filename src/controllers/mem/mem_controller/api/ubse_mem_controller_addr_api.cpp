@@ -18,11 +18,14 @@
 #include "ubse_logger.h"
 #include "ubse_logger_audit.h"
 #include "ubse_mem_advice.h"
+#include "ubse_mem_common_utils.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_decoder_utils.h"
+#include "ubse_mem_scheduler.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
@@ -32,7 +35,6 @@
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_scheduler.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -658,7 +660,9 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
     }
 
     decoder::utils::ImportDecoderParam importParam{};
-    decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.wrDelayComp);
+    const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
+    decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.ubseMemPrivData.wrDelayComp);
+    importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
     importParam.type = "addr";
@@ -667,7 +671,7 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;
-            UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+            UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
             return UBSE_ERR_INTERNAL;
         }
         importObj.req.trustRingData.ClearLendSignedDataMemory();
@@ -675,7 +679,7 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
     }
     if (auto ret = UbseMmiInterface::GetInstance().AddrImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to import, name=" << name << ", requestNodeId=" << requestNodeId;
-        UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+        UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
         EraseAddrImport(importObj);
         return ret;
     }
@@ -715,7 +719,8 @@ uint32_t AddrImportDestroyingHandler(const std::string& requestNodeId, UbseMemAd
     }
     UBSE_LOG_INFO << "Success to unimport addr, name=" << name;
     UBSE_AUDIT_RUNTIME_DEALLOC << name << " on Node: " << importObj.req.importNodeId << " AddrMemory UnImport Success";
-    UnimportToDelDecoderEntry(chipDiePair, importObj.status, 0);
+    const uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(importObj.req.ubseMemPrivData);
+    UnimportToDelDecoderEntry(chipDiePair, importObj.status, decoderId);
     if (!importObj.status.decoderResult.empty()) {
         UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed";
     }

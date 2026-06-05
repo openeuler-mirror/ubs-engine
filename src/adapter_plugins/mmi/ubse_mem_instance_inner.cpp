@@ -65,7 +65,7 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImpo
                         customMeta,
                         ubPrivData,
                         mode};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, importObj.req.ubseMemPrivData);
     auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, opParam, importObj.status, &numa);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
                   << RmCommonUtils::GetInstance().MemToStr(memids) << " remoteNuma=" << numa;
@@ -135,7 +135,7 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaExportExecutor(UbseMemNumaBorrowExpo
                         customMeta,
                         ubPrivData,
                         mode};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, exportObj.req.ubseMemPrivData);
     auto blockSize = RmCommonUtils::GetInstance().SizeMb2Byte(exportObj.algoResult.blockSize);
     memIdList = RmObmmExecutor::GetInstance().ObmmExport(sizes, MAX_NUMA_NODES, opParam, obmmMemDesc, blockSize);
     if (memIdList.empty() || memIdList.size() != obmmMemDesc.size()) {
@@ -167,7 +167,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportExecutor(UbseMemFdBorrowImportObj&
     }
     ObmmOpParam obmmOpParam{UbseBorrowType::FD_BORROW, importObj.req.owner.uid, importObj.req.owner.gid, customMeta};
     obmmOpParam.mode = importObj.req.owner.mode;
-    ConstructUbMemPrivData(obmmOpParam.privData, 0, 0);
+    CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
     auto memids =
         RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, nullptr);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
@@ -260,7 +260,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdExportExecutor(UbseMemFdBorrowExportObj&
         return UBSE_ERROR_INVAL;
     }
     ObmmOpParam opParam{UbseBorrowType::FD_BORROW, exportObj.req.udsInfo.uid, exportObj.req.udsInfo.gid, customMeta};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, exportObj.req.ubseMemPrivData);
     auto blockSize = RmCommonUtils::GetInstance().SizeMb2Byte(exportObj.algoResult.blockSize);
     memIdList = RmObmmExecutor::GetInstance().ObmmExport(sizes, MAX_NUMA_NODES, opParam, obmmMemDesc, blockSize);
     if (memIdList.empty() || memIdList.size() != obmmMemDesc.size()) {
@@ -341,7 +341,7 @@ uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj& 
     ObmmOpParam obmmOpParam{UbseBorrowType::SHARE_BORROW, importObj.shareAttr.owner.uid, importObj.shareAttr.owner.gid,
                             customMeta};
     obmmOpParam.mode = importObj.shareAttr.owner.mode;
-    MemInstanceInnerCommon::GetInstance().SetPrivDataByShareReq(obmmOpParam.privData, importObj.req.ubseMemPrivData);
+    CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
     auto memids =
         RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, nullptr);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
@@ -569,8 +569,8 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
         addrRemoteNumaIds.push_back(addrRemoteNumaId);
         obmmOpParam.customMeta.memidCount = importObj.exportObmmInfo.size();
         obmmOpParam.customMeta.virAddr = importObj.req.exportAddrList[i].addr;
-        ConstructUbMemPrivData(obmmOpParam.privData, 0, importObj.req.wrDelayComp);
-        UBSE_LOG_DEBUG << "The value of wr_delay_comp is " << importObj.req.wrDelayComp;
+        CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
+        UBSE_LOG_DEBUG << "The value of wr_delay_comp is " << importObj.req.ubseMemPrivData.wrDelayComp;
         mem_id memid =
             RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo[i].desc, obmmOpParam, &addrRemoteNumaId);
         if (memid == INVALID_MEM_ID || addrRemoteNumaId == -1) {
@@ -627,7 +627,7 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExpo
     UbMemPrivData ubMemPrivData{};
     std::unordered_map<uint64_t, uint64_t> exportNumaInfoMap{};
 
-    ConstructUbMemPrivData(ubMemPrivData, 0, 0);
+    CopyUbMemPrivData(ubMemPrivData, exportObj.req.ubseMemPrivData);
     for (size_t i = 0; i < addr.size(); ++i) {
         auto ret = GetCustomMetaFromAddrExportObj(exportObj, customMeta);
         if (UBSE_RESULT_FAIL(ret)) {
@@ -987,19 +987,6 @@ UbseResult MemInstanceInnerCommon::MemUnPreOnline()
         RmCommonUtils::GetInstance().SafeFree(preImportInfo);
     }
     return UBSE_OK;
-}
-
-void MemInstanceInnerCommon::SetPrivDataByShareReq(UbMemPrivData& destPrivData, UbseMemPrivData& sourcePrivData)
-{
-    destPrivData.one_pth = sourcePrivData.onePth;
-    destPrivData.wr_delay_comp = sourcePrivData.wrDelayComp;
-    destPrivData.reduce_delay_comp = sourcePrivData.reduceDelayComp;
-    destPrivData.cmo_delay_comp = sourcePrivData.cmoDelayComp;
-    destPrivData.so = sourcePrivData.so;
-    destPrivData.ad_tr_ochip = sourcePrivData.adTrOchip;
-    destPrivData.cacheable_flag = sourcePrivData.cacheableFlag;
-    destPrivData.mar_id = sourcePrivData.marId;
-    destPrivData.rsv0 = sourcePrivData.rsv0;
 }
 
 } // namespace ubse::mmi

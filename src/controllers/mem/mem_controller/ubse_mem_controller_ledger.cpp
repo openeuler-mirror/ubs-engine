@@ -26,6 +26,7 @@
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_update_obj_state.simpo.h"
 #include "ubse_mem_util.h"
@@ -438,11 +439,7 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std
         return UBSE_OK;
     }
     auto& debtObj = importObjMap.at(name);
-    uint8_t decoderId = 0;
-    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
-    if constexpr (std::is_same_v<std::decay_t<decltype(debtObj)>, UbseMemShareBorrowImportObj>) {
-        decoderId = debtObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
-    }
+    uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(debtObj.req.ubseMemPrivData);
 
     auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId);
     if (ret != UBSE_OK) {

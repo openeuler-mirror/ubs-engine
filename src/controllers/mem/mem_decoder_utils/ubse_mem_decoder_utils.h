@@ -96,6 +96,7 @@ public:
     static uint32_t PreImportDecoderEntry(const decoder::utils::PreImportDecoderParam& importDecoderParam,
                                           UbseMamiMemImportResult& outValue);
     static UbseResult GetAllHandleFromNumaImportObj(DecoderLocTohandleDcnaMap& handleMap);
+    static uint8_t GetDecoderIdByPrivData(const ubse::adapter_plugins::mmi::UbseMemPrivData& privData);
 };
 } // namespace ubse::mem::decoder::utils
 
