@@ -145,7 +145,8 @@ func UbsGetContainerMemInfo(param PidParam) ([]ContainerMemInfo, error) {
 	}()
 
 	count := int(cCount)
-	if count <= 0 || count > C.SDK_NO_2048 {
+	// 与 RMRS 接口对齐：进程存在但没有分配内存时，空列表表示当前无内存使用，go sdk 这里应正常返回。
+	if count < 0 || count > C.SDK_NO_2048 {
 		return []ContainerMemInfo{}, fmt.Errorf("invalid container count returned from C: %d", count)
 	}
 
