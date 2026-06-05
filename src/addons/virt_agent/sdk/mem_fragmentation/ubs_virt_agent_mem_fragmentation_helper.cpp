@@ -317,7 +317,6 @@ VmResult BorrowParamFromCStyle(const mem_borrow_param_s* src, BorrowParam& borro
 
         for (uint32_t i = 0; i < src->numa_len; ++i) {
             NumaMetaInfo metaInfo;
-            metaInfo.socketId = src->numa_meta_infos[i].socket_id;
             metaInfo.numaId = src->numa_meta_infos[i].numa_id;
 
             borrowParam.numaMetaInfos.emplace_back(std::move(metaInfo));

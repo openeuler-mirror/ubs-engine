@@ -1717,11 +1717,9 @@ TEST_F(TestMemFragmentationSdkServer, BorrowParamDeserializeTest)
     borrowParamOri.nodeId = "1";
     borrowParamOri.numaMetaInfos = std::vector{
         mem_fragmentation::NumaMetaInfo{
-            .socketId = 0,
             .numaId = 0,
         },
         mem_fragmentation::NumaMetaInfo{
-            .socketId = 0,
             .numaId = 1,
         },
     };
@@ -1766,11 +1764,9 @@ TEST_F(TestMemFragmentationSdkServer, MemBorrowStrategyByRMRSTest)
         .numaMetaInfos =
             std::vector{
                 mem_fragmentation::NumaMetaInfo{
-                    .socketId = 0,
                     .numaId = 0,
                 },
                 mem_fragmentation::NumaMetaInfo{
-                    .socketId = 0,
                     .numaId = 1,
                 },
             },
@@ -1951,7 +1947,7 @@ TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnError_WhenRu
                void (ThreadTaskManager::*)(const std::string&, AsyncTaskStatus, uint32_t, const std::string&))
         .stubs();
 
-    EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
     MOCKER(VirtMemFragSdk::RunBorrowExec).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
@@ -2106,11 +2102,9 @@ TEST_F(TestMemFragmentationSdkServer, MemBorrowTest)
         .numaMetaInfos =
             std::vector{
                 mem_fragmentation::NumaMetaInfo{
-                    .socketId = 0,
                     .numaId = 0,
                 },
                 mem_fragmentation::NumaMetaInfo{
-                    .socketId = 0,
                     .numaId = 1,
                 },
             },

@@ -30,13 +30,12 @@ from ubse.ffi.ubs_virt_agent_mem_borrow import UbsVirtAgentMemBorrow
 from ubse.models.ubs_virt_agent_model import BorrowParamT, NumaMetaInfoT
 
 
-def test_mem_borrow_sync(node_id, socket_id, numa_id, borrow_size_mb):
+def test_mem_borrow_sync(node_id, numa_id, borrow_size_mb):
     """
     测试同步内存借用功能
     
     Args:
         node_id (str): 源节点ID
-        socket_id (int): Socket ID
         numa_id (int): NUMA ID
         borrow_size_mb (int): 借用大小（MB）
         
@@ -45,7 +44,6 @@ def test_mem_borrow_sync(node_id, socket_id, numa_id, borrow_size_mb):
     """
     print(f"\n执行同步内存借用:")
     print(f"  节点ID: {node_id}")
-    print(f"  Socket ID: {socket_id}")
     print(f"  NUMA ID: {numa_id}")
     print(f"  借用大小: {borrow_size_mb} MB")
     
@@ -55,7 +53,7 @@ def test_mem_borrow_sync(node_id, socket_id, numa_id, borrow_size_mb):
         
         param = BorrowParamT(
             node_id=node_id,
-            numa_meta_infos=[NumaMetaInfoT(socket_id=socket_id, numa_id=numa_id)],
+            numa_meta_infos=[NumaMetaInfoT(numa_id=numa_id)],
             borrow_size=borrow_size_mb
         )
         
@@ -83,13 +81,12 @@ def test_mem_borrow_sync(node_id, socket_id, numa_id, borrow_size_mb):
         mem_borrow_client.ubs_virt_agent_finalize()
 
 
-def test_mem_borrow_async(node_id, socket_id, numa_id, borrow_size_mb):
+def test_mem_borrow_async(node_id, numa_id, borrow_size_mb):
     """
     测试异步内存借用功能
     
     Args:
         node_id (str): 源节点ID
-        socket_id (int): Socket ID
         numa_id (int): NUMA ID
         borrow_size_mb (int): 借用大小（MB）
         
@@ -98,7 +95,6 @@ def test_mem_borrow_async(node_id, socket_id, numa_id, borrow_size_mb):
     """
     print(f"\n执行异步内存借用:")
     print(f"  节点ID: {node_id}")
-    print(f"  Socket ID: {socket_id}")
     print(f"  NUMA ID: {numa_id}")
     print(f"  借用大小: {borrow_size_mb} MB")
     
@@ -108,7 +104,7 @@ def test_mem_borrow_async(node_id, socket_id, numa_id, borrow_size_mb):
         
         param = BorrowParamT(
             node_id=node_id,
-            numa_meta_infos=[NumaMetaInfoT(socket_id=socket_id, numa_id=numa_id)],
+            numa_meta_infos=[NumaMetaInfoT(numa_id=numa_id)],
             borrow_size=borrow_size_mb
         )
         
@@ -137,35 +133,33 @@ if __name__ == '__main__':
     print("内存借用接口测试")
     print("=" * 60)
     
-    if len(sys.argv) < 5:
-        print("\n用法: python test_mem_borrow.py <node_id> <socket_id> <numa_id> <borrow_size_mb> [async]")
+    if len(sys.argv) < 4:
+        print("\n用法: python test_mem_borrow.py <node_id> <numa_id> <borrow_size_mb> [async]")
         print("\n参数说明:")
         print("  node_id       - 源节点ID (例如: node-001)")
-        print("  socket_id     - Socket ID (例如: 0)")
         print("  numa_id       - NUMA ID (例如: 0)")
         print("  borrow_size_mb - 借用大小，单位MB (例如: 1024)")
         print("  async         - 可选，指定为'async'时使用异步模式")
         print("\n示例:")
-        print("  python test_mem_borrow.py node-001 0 0 1024")
-        print("  python test_mem_borrow.py node-001 0 0 1024 async")
+        print("  python test_mem_borrow.py node-001 0 1024")
+        print("  python test_mem_borrow.py node-001 0 1024 async")
         sys.exit(1)
     
     node_id = sys.argv[1]
-    socket_id = int(sys.argv[2])
-    numa_id = int(sys.argv[3])
-    borrow_size_mb = int(sys.argv[4])
-    is_async = len(sys.argv) > 5 and sys.argv[5].lower() == 'async'
+    numa_id = int(sys.argv[2])
+    borrow_size_mb = int(sys.argv[3])
+    is_async = len(sys.argv) > 4 and sys.argv[4].lower() == 'async'
     
     try:
         if is_async:
-            task_ids = test_mem_borrow_async(node_id, socket_id, numa_id, borrow_size_mb)
+            task_ids = test_mem_borrow_async(node_id, numa_id, borrow_size_mb)
             print(f"\n{'='*60}")
             print(f"异步任务已提交，任务ID列表: {task_ids}")
             print(f"可使用以下命令查询任务状态:")
             for task_id in task_ids:
                 print(f"  python test_task_query.py {task_id}")
         else:
-            results = test_mem_borrow_sync(node_id, socket_id, numa_id, borrow_size_mb)
+            results = test_mem_borrow_sync(node_id, numa_id, borrow_size_mb)
             print(f"\n{'='*60}")
             print("同步借用完成！")
         

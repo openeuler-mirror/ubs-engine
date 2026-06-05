@@ -855,7 +855,6 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s *param, cons
 
 ```c++
 typedef struct {
-    int16_t socket_id;  // socketId
     int16_t numa_id; // numaId
 } numa_meta_info_s;
 
@@ -935,9 +934,8 @@ int main(void)
     
     // 根据实际情况填写 or 根据ubs_virt_agent_mem_fragmentation_node_info_list查询结果填写
     // 此处按照如下numa关系配置
-    // NUMA0 - socketId: 0; NUMA1 - socketId: 0; NUMA2 - socketId: 1; NUMA3 - socketId: 1
+    // NUMA0; NUMA1; NUMA2; NUMA3
     for (int i = 0; i < param -> numa_len; ++i) {
-        numa_meta_infos[i].socket_id = i < 2 ? 0 : 1;
         numa_meta_infos[i].numa_id = i;
     }
     mem_borrow_result_s* result = null;

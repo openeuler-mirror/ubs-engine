@@ -1238,8 +1238,7 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Serialize()
     out << borrowPram.nodeId;
     uint32_t numaMetaInfosCount = borrowPram.numaMetaInfos.size();
     out << numaMetaInfosCount;
-    for (auto& [socketId, numaId] : borrowPram.numaMetaInfos) {
-        out << socketId;
+    for (auto& [numaId] : borrowPram.numaMetaInfos) {
         out << numaId;
     }
     out << borrowPram.borrowSize;
@@ -1269,7 +1268,6 @@ VmResult mem_fragmentation::MemFragmentationMemBorrowParamMsg::Deserialize()
     borrowPram.numaMetaInfos.reserve(numaMetaInfosCount);
     for (size_t j = 0; j < numaMetaInfosCount; j++) {
         NumaMetaInfo numaMetaInfo{};
-        in >> numaMetaInfo.socketId;
         in >> numaMetaInfo.numaId;
         borrowPram.numaMetaInfos.emplace_back(std::move(numaMetaInfo));
     }

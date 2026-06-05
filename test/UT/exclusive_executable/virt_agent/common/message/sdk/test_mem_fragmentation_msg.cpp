@@ -424,12 +424,10 @@ TEST_F(TestMemFragmentationMsg, MemFragmentationMemBorrowParamMsg_Serialize_Dese
     param.borrowSize = 1024; // 1GB
 
     NumaMetaInfo numaMeta1;
-    numaMeta1.socketId = 0;
     numaMeta1.numaId = 0;
     param.numaMetaInfos.push_back(numaMeta1);
 
     NumaMetaInfo numaMeta2;
-    numaMeta2.socketId = 1;
     numaMeta2.numaId = 1;
     param.numaMetaInfos.push_back(numaMeta2);
 
