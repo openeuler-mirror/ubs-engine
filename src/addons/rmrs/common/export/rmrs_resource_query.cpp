@@ -192,10 +192,9 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string& srcNid, c
         return ret;
     }
     if (pidNumaInfoCollectResult.pidInfoList.empty()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Failed, Collect RmrsPidInfo empty.";
-        return MEM_POOLING_ERROR;
-    }
-    if (pidNumaInfoCollectResult.pidInfoList.front().pid == -1) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect] Collect RmrsPidInfo empty, all pids skipped.";
+    } else if (pidNumaInfoCollectResult.pidInfoList.front().pid == -1) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Call OSTurbo failed.";
         return MEM_POOLING_ERROR;
     }
@@ -240,8 +239,8 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string
     }
 
     if (pidNumaInfoCollectResult.pidInfoList.empty()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Failed, Collect RmrsPidInfo empty.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect] Collect RmrsPidInfo empty, all pids skipped.";
     }
 
     // vector 转成内部PidInfo

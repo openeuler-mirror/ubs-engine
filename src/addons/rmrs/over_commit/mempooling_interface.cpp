@@ -402,6 +402,10 @@ uint32_t FilterRemoteNumaPidsByLocalNuma(const std::vector<VmNumaInfoWithSocket>
 MpResult GenpidsOnNuma(int16_t srcNumaId, std::vector<pid_t>& pidsOnNuma,
                        std::vector<mempooling::RmrsPidInfo>& pidInfos)
 {
+    if (pidInfos.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] HelpGetContainerPidNumaInfo return empty.";
+        return MEM_POOLING_ERROR;
+    }
     for (auto pInfo : pidInfos) {
         if (pInfo.localNumaIds.empty()) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] HelpGetContainerPidNumaInfo "
@@ -455,6 +459,9 @@ MpResult ProcessBorrowIds(const SrcMemoryBorrowParam& srcParam, const std::vecto
             ret = ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(srcParam.srcNid, remoteNumaPids, pidInfos);
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] HelpGetContainerPidNumaInfo failed.";
+            } else if (pidInfos.empty()) {
+                UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemReturn] HelpGetContainerPidNumaInfo empty, all pids skipped.";
             }
             ret = GenpidsOnNuma(srcParam.srcNumaId, pidsOnNuma, pidInfos);
             if (ret != MEM_POOLING_OK) {
