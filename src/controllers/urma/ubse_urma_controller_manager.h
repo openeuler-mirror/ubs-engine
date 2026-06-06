@@ -77,9 +77,6 @@ private:
                                 const std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList,
                                 UbseUrmaInfo& urmaDev);
     std::string GenerateBondingDevName(ubse::adapter_plugins::mti::UbseMtiFeType feType);
-    UbseResult GetAllUvsTopoInfoForClos(uint32_t startServerIdx, uint32_t batchNodeNum,
-                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
-    UbseResult GetAllUvsTopoInfoForNonClos(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
 
 private:
     utils::ReadWriteLock rwLock;

@@ -167,6 +167,24 @@ void RefreshUrmaDevStateByName(const std::string& nodeId, const std::string& urm
     }
 }
 
+UbseResult PushNodesTopoToUvs(const std::string& nodeId)
+{
+    bool isClos = UbseSmbios::GetInstance().IsClosType();
+    const uint32_t batchSize = isClos ? 64 : 0; // 决定被推算拓扑的节点数量，1D场景下不需要推算拓扑
+    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize :
+                                       1; // 1D场景下发已汇聚拓扑即可
+
+    for (uint32_t i = 0; i < batchNum; ++i) {
+        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+        UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(i * batchSize, batchSize, uvsInfos);
+        if (auto ret = UbseUrmaControllerSetUvsInfo(nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to push topology to uvs, ret=" << ret;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseUrmaController::DoTopoLinkChange()
 {
     AsyncHandlerGuard cntGuard;
@@ -174,16 +192,8 @@ UbseResult UbseUrmaController::DoTopoLinkChange()
         return UBSE_OK;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    // 下发所有节点拓扑及所有urmaInfo
-    const uint32_t batchNodeNum = 64;
-    const uint32_t batchNum = (UBSE_CLOS_MAX_NODE_NUM + batchNodeNum - 1) / batchNodeNum;
-    for (uint32_t batchIdx = 0; batchIdx < batchNum; ++batchIdx) {
-        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-        UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(batchIdx * batchNodeNum, batchNodeNum, uvsInfos);
-        if (auto ret = UbseUrmaControllerSetUvsInfo(curNode.nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to set uvs info, ret=" << ret;
-            return ret;
-        }
+    if (auto ret = PushNodesTopoToUvs(curNode.nodeId); ret != UBSE_OK) {
+        return ret;
     }
     // 向urma重新查询bounding状态，并更新状态
     RefreshAllUrmaDevsState(curNode.nodeId);
@@ -319,9 +329,8 @@ UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string>& nameInf
     } else {
         lastQueryResult = isAllPortDown;
     }
-    const std::string hostUrmaDevName = "bonding_dev_0";
     for (auto& dev : urmaNodeInfo.urmaList) {
-        if (dev.first == hostUrmaDevName) {
+        if (dev.first == UBSE_HOST_URMA_DEV_NAME) {
             continue;
         }
         nameInfo.push_back(dev.first);
@@ -371,6 +380,7 @@ bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo& urmaInfo)
 
 UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, UbseUrmaDevPath& devPaths)
 {
+    UBSE_LOG_INFO << "Receive urma-alloc request, name=" << urmaName;
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK || isAllPortDown) {
         UBSE_LOG_WARN << "Failed to query all ports status or all ports are down, cannot allocate urma dev, urmaName="
@@ -585,6 +595,7 @@ void UbseUrmaController::FillUrmaDevsByUvsInfo(const std::string& nodeId, std::v
     auto it =
         std::find_if(uvsInfos.begin(), uvsInfos.end(), [&nodeId](const auto& info) { return info.nodeId == nodeId; });
     if (it == uvsInfos.end()) {
+        UBSE_LOG_INFO << "Cannot find uvs info for nodeId=" << nodeId;
         return;
     }
     UBSE_LOG_INFO << "Fill urma dev info by uvs info for nodeId=" << nodeId << ", dev num=" << it->devList.size();
@@ -649,9 +660,8 @@ void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfo
     const size_t feCntPerUrmaInfo = 2;
     RefreshAllUrmaDevsState(currentNodeInfo.nodeId);
     auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(currentNodeInfo.nodeId);
-    const std::string hostUrmaDevName = "bonding_dev_0";
     for (auto& info : nodeInfo.urmaList) {
-        if (info.first == hostUrmaDevName) {
+        if (info.first == UBSE_HOST_URMA_DEV_NAME) {
             continue;
         }
         UbseUrmaDevBrief urmaInfo;

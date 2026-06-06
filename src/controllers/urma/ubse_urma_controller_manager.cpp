@@ -209,22 +209,16 @@ UbseResult FillUrmaUvsNodeInfo(UbseUrmaNodeInfo& nodeInfo, UbseUrmaUvsNodeInfo& 
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(uint32_t startServerIdx, uint32_t batchNodeNum,
-                                                               std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
+UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(uint32_t startServerIdx, uint32_t batchNodeNum,
+                                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
-    if (!UbseSmbios::GetInstance().IsClosType()) {
-        UBSE_LOG_ERROR
-            << "Non-clos type detected, but fe topo type is hybrid, cannot filling urma uvs info for clos network";
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
-    // 计算其它节点的urma device info
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     if (curNode.nodeId.empty()) {
         UBSE_LOG_ERROR << "Failed to get current node info.";
         return UBSE_ERROR;
     }
-    // 为避免OOM，分批计算其它节点的topo并下发
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    // 只有CLOS组网才会推算其它节点拓扑
     this->InferOtherNodesUrmaDevInfo(curNode.nodeId, startServerIdx, batchNodeNum);
     for (auto& nodeInfo : nodeInfos) {
         UbseUrmaUvsNodeInfo tmpUvsInfo{};
@@ -238,39 +232,6 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForClos(uint32_t startSer
     // 获取拓扑信息后，删除其它节点的urmaInfo，只保留本节点的urmaInfo，避免内存占用过高
     this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
     return UBSE_OK;
-}
-
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfoForNonClos(std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
-{
-    // 计算其它节点的urma device info
-    if (UbseSmbios::GetInstance().IsClosType()) {
-        UBSE_LOG_ERROR
-            << "Clos type detected, but fe topo type is not hybrid, cannot filling urma uvs info for non-clos network";
-        return UBSE_ERR_NOT_SUPPORTED;
-    }
-    auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    if (curNode.nodeId.empty()) {
-        UBSE_LOG_ERROR << "Failed to get current node info.";
-        return UBSE_ERROR;
-    }
-    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
-    for (auto& nodeInfo : nodeInfos) {
-        UbseUrmaUvsNodeInfo tmpUvsInfo{};
-        if (FillUrmaUvsNodeInfo(nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Fill urma uvs info failed.";
-            this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
-            return UBSE_ERROR;
-        }
-        uvsInfos.push_back(tmpUvsInfo);
-    }
-    return UBSE_OK;
-}
-
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(uint32_t startServerIdx, uint32_t batchNodeNum,
-                                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
-{
-    return UbseSmbios::GetInstance().IsClosType() ? GetAllUvsTopoInfoForClos(startServerIdx, batchNodeNum, uvsInfos) :
-                                                    GetAllUvsTopoInfoForNonClos(uvsInfos);
 }
 
 void UbseUrmaControllerManager::SetUrmaSubPath(const std::string& urmaEid, const std::string& urmaSubPath)
@@ -594,7 +555,7 @@ UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<Ubse
     */
     std::set<std::string> filterPrimaryEids; // 需要过滤的primaryEid，过滤含该primaryEid的EidGroup
     for (const auto& fe : it->devList[NO_0].feList) {
-        UBSE_LOG_INFO << "Communication bonding fe info: slotId="
+        UBSE_LOG_INFO << "Communication bonding fe info:"
                       << ", ubpuId=" << fe.ubpuId << ", entityId=" << fe.entityId << ", primaryEid=" << fe.primaryEid;
         filterPrimaryEids.insert(fe.primaryEid);
     }
@@ -1008,9 +969,8 @@ UbseResult UbseUrmaControllerManager::InsertHostUrmaDevInner()
      */
     UBSE_LOG_INFO << "Fe topology type is " << static_cast<int>(GetFeTopoType());
     const std::string allPfeUrmaDevName = "bonding_dev_96";
-    const std::string pfeVfeHybridUrmaDevName = "bonding_dev_0";
     const std::string urmaDevName = GetFeTopoType() == FeTopoType::ALL_PFE ? allPfeUrmaDevName :
-                                                                             pfeVfeHybridUrmaDevName;
+                                                                             UBSE_HOST_URMA_DEV_NAME;
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     if (curNode.nodeId.empty()) {
         UBSE_LOG_ERROR << "Failed to get current node info";

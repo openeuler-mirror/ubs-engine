@@ -185,8 +185,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     }
 
     if (isBeforeElection) {
-        const std::string aggrDevName = "bonding_dev_0";
-        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, aggrDevName);
+        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, UBSE_HOST_URMA_DEV_NAME);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Activate urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
         }
