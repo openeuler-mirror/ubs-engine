@@ -60,6 +60,7 @@ private:
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
+UbseResult PushNodesTopoToUvs(const std::string& nodeId);
 UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
                                         const std::vector<PhysicalLink>& allLinkInfo,
                                         const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
