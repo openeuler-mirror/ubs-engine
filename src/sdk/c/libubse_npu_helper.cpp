@@ -88,9 +88,19 @@ static ubs_error_t InnerUnpackNpuDeviceId(UnpackCtx& ctx, npu_attr_t* attr)
     return UBS_SUCCESS;
 }
 
+static ubs_error_t InnerUnpackDeviceType(UnpackCtx& ctx, ubs_device_type& type)
+{
+    uint8_t val = 0;
+    if (UnpackValue(ctx, val) != UBS_SUCCESS) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    type = static_cast<ubs_device_type>(val);
+    return UBS_SUCCESS;
+}
+
 static ubs_error_t InnerUnpackUbDeviceType(UnpackCtx& ctx, ubs_ub_devices_type_t& devType)
 {
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&devType.device_type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, devType.device_type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     if (UnpackValue(ctx, devType.slot_id) != UBS_SUCCESS) {
@@ -114,7 +124,7 @@ static ubs_error_t InnerUnpackUbDeviceType(UnpackCtx& ctx, ubs_ub_devices_type_t
 static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& ubctrlIndex)
 {
     auto& item = deviceList.ubctrl_ptr[ubctrlIndex];
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
@@ -141,7 +151,7 @@ static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& nicIndex)
 {
     auto& item = deviceList.nic_pfe_ptr[nicIndex];
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
@@ -186,7 +196,7 @@ static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& nicIndex)
 {
     auto& item = deviceList.nic_vfe_ptr[nicIndex];
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
@@ -231,7 +241,7 @@ static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
 static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& npuIndex)
 {
     auto& item = deviceList.npu_ptr[npuIndex];
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
@@ -272,7 +282,7 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
 static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList, size_t& busiIndex)
 {
     auto& item = deviceList.busi_ptr[busiIndex];
-    if (UnpackValue(ctx, *reinterpret_cast<uint8_t*>(&item.type)) != UBS_SUCCESS) {
+    if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 

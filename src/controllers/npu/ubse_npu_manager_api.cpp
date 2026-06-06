@@ -1754,7 +1754,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(const std::vector<std::sh
     UBSE_LOG_DEBUG << "Start Send UnRegister Nic Request, infos size: " << devList.size();
     UbseResult res = UBSE_ERROR;
     if (devList.empty()) {
-        return res;
+        return UBSE_OK;
     }
     auto busi = devList[0]->GetBondingDevBusi();
     UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
@@ -1786,7 +1786,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
     UBSE_LOG_DEBUG << "Start Send UnRegister Vfe Request, infos size: " << devList.size();
     UbseResult res = UBSE_ERROR;
     if (devList.empty()) {
-        return res;
+        return UBSE_OK;
     }
     auto busi = devList[0]->GetBondingDevBusi();
     UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi[0]);

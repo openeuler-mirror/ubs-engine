@@ -121,7 +121,7 @@ class UbsBusinstanceId:
 
 class UbsUbDevicesTypeT(ctypes.Structure):
     _fields_ = [
-        ("device_type", ctypes.c_uint8),
+        ("device_type", ctypes.c_uint32),
         ("slot_id", ctypes.c_uint8),
         ("chip_id", ctypes.c_uint8),
         ("die_id", ctypes.c_uint8),

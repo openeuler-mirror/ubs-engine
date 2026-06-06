@@ -25,6 +25,7 @@ constexpr uint8_t ERROR_BIND_REPEATED = 23;   // 23: David和vfe重复绑定错�
 struct CtrlQBindVfeDavidReqMsg {
     FixedHead head;
     uint16_t upi;
+    uint8_t padding;
 } __attribute__((packed));
 static_assert(sizeof(CtrlQBindVfeDavidReqMsg) <= BASIC_BLOCK_SIZE,
               "The size of CtrlQBindVfeDavidReqMsg is larger than 32");
@@ -87,7 +88,7 @@ UbseCtrlQBindVfeDavidReqMsg::UbseCtrlQBindVfeDavidReqMsg(uint16_t upi,
                                                          const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList)
     : upi_(upi),
       vfeDavidList_(vfeDavidList),
-      ICtrlQReqMsg(BIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
+      ICtrlQReqMsg(BIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList.size()))
 {
 }
 
@@ -101,7 +102,7 @@ UbseCtrlQUnBindVfeDavidReqMsg::UbseCtrlQUnBindVfeDavidReqMsg(uint16_t upi,
                                                              const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList)
     : upi_(upi),
       vfeDavidList_(vfeDavidList),
-      ICtrlQReqMsg(UNBIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList_.size()))
+      ICtrlQReqMsg(UNBIND_VFE_OP_CODE, CalculateTotalSize(vfeDavidList.size()))
 {
 }
 
