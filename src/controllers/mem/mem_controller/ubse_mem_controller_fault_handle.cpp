@@ -274,9 +274,9 @@ static void ProcessBmcFaultEvents()
 
     if (curNodeInfo.nodeRole != ELECTION_ROLE_MASTER) {
         std::scoped_lock lock(g_bmcFaultMutex);
-        UBSE_LOG_WARN << "[MEM_CONTROLLER] Master node has been switched to another node, clearing all pending BMC "
-                         "fault events, count="
-                      << g_pendingBmcFaultEvents.size();
+        UBSE_LOG_DEBUG << "[MEM_CONTROLLER] Current node is not the master node, clearing all pending BMC "
+                          "fault events, count="
+                       << g_pendingBmcFaultEvents.size();
         if (!g_pendingBmcFaultEvents.empty()) {
             g_pendingBmcFaultEvents.clear();
         }
