@@ -844,12 +844,14 @@ MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
         res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel(nodeId, true);
         if (res != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Process BORROW_OUT node fault failed.";
+        } else {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Process BORROW_OUT node fault success.";
         }
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " end.";
     // 处理完后返回失败，利用UBSE故障重试机制继续处理
-    return MEM_POOLING_ERROR;
+    return res;
 }
 
 static void PrintCollectedInfos(const std::vector<BorrowGroupResult>& borrowGroups,
@@ -1234,6 +1236,17 @@ void FaultNodeModule::GenerateNumaLevelDecision(std::vector<BorrowGroupResult>& 
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel] start to generate numa-level decision for borrowGroup which's borrowNodeId="
             << group.borrowNodeId << ", faultNumaId=" << group.remoteNumaId << ".";
+        if (group.strategyType == BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] This borrowGroup was borrowed and strategy is borrowIdLevel.";
+            continue;
+        }
+        if (group.strategyType == BorrowStrategyType::NUMA_LEVEL_STRATEGY && group.numaDecision.isBorrowed) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] this borrowGroup was borrowed.";
+            successCnt++; // 计入成功（已执行借用过但迁移失败的决策）
+            continue;
+        }
+
         if (group.vmInfos.empty()) {
             group.strategyType = BorrowStrategyType::NUMA_LEVEL_STRATEGY;
             group.numaDecision.isReturnDirectly = true;
@@ -1305,6 +1318,18 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
             continue;
         }
 
+        // 复制已有的已借用决策，并构建 oldName -> BorrowIdLevelDecision 映射
+        std::vector<BorrowIdLevelDecision> tmpDecisions;
+        std::map<std::string, BorrowIdLevelDecision> borrowedMap;
+        for (const auto& dec : group.borrowIdDecisions) {
+            if (dec.isBorrowed) {
+                tmpDecisions.push_back(dec);
+                borrowedMap[dec.oldName] = dec;
+                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[FaultHandleParallel] BorrowedDecision oldName=" << dec.oldName << ".";
+            }
+        }
+
         // 动态过滤
         auto candidates = FilterSnapshotByBorrowNode(group.borrowNodeId, group.borrowSocketId, baseSnapshot);
         if (candidates.empty()) {
@@ -1314,8 +1339,18 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
         }
 
         int errCount = 0;
-        std::vector<BorrowIdLevelDecision> tmpDecisions;
         for (const auto& record : group.records) {
+            // 如果已借用过该 record，从 vmInfos 中删除对应的 pids，并跳过
+            auto it = borrowedMap.find(record.name);
+            if (it != borrowedMap.end()) {
+                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[BorrowIdLevelDecision] Skip already borrowed record, oldName=" << record.name << ".";
+                // 删除该决策中需要迁移的 pid 集合
+                const auto& pidsToRemove = it->second.borrowedDecision.pids;
+                RemoveMigratedPidsFromVmInfos(group.vmInfos, pidsToRemove);
+                continue;
+            }
+
             BorrowIdLevelDecision decision;
             decision.oldName = record.name;
             // 当故障numa上没有虚机占用，且前面的决策没有失败的情况下，直接归还该oldBorrowId
@@ -1384,6 +1419,12 @@ void FaultNodeModule::GenerateBorrowIdLevelDecision(std::vector<BorrowGroupResul
 
             RemoveMigratedPidsFromVmInfos(group.vmInfos, decision.pids);
         }
+        // 排序
+        std::stable_sort(tmpDecisions.begin(), tmpDecisions.end(),
+                         [](const BorrowIdLevelDecision& a, const BorrowIdLevelDecision& b) {
+                             // 非直接归还（false）的决策排在直接归还（true） 前面
+                             return a.isReturnDirectly < b.isReturnDirectly;
+                         });
         group.borrowIdDecisions = std::move(tmpDecisions);
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel] group.borrowIdDecisions.size=" << group.borrowIdDecisions.size() << ".";
@@ -1471,6 +1512,145 @@ MpResult FaultNodeModule::FaultHandleBorrowStrategy(std::vector<BorrowGroupResul
     return MEM_POOLING_OK;
 }
 
+MpResult FaultNodeModule::GetBorrowedDecisionRpc(const std::string& nodeId, std::vector<BorrowedDecision>& outDecisions)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel] SendGetBorrowedDecisionRpc to node " << nodeId << ".";
+    UbseComEndpoint endpoint = {
+        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GET_BORROWED_DECISION, .address = nodeId};
+    RmrsOutStream builder;
+    builder << nodeId;
+    UbseByteBuffer reqData = {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = [](uint8_t* data) {
+            delete[] data;
+        }};
+
+    uint32_t rpcRet = UbseRpcSend(endpoint, reqData, &outDecisions, GetBorrowedDecisionResHandler);
+    if (rpcRet != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SendGetBorrowedDecisionRpc RPC send failed, ret=" << rpcRet;
+        return MEM_POOLING_ERROR;
+    }
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel] GetBorrowedDecisionRpc received " << outDecisions.size() << " decisions.";
+
+    return MEM_POOLING_OK;
+}
+
+void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
+{
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[GetBorrowedDecisionResHandler] Invalid param";
+        return;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[GetBorrowedDecisionResHandler] resCode=" << resCode << ", respLen=" << respData.len;
+
+    auto* result = static_cast<std::vector<BorrowedDecision>*>(ctx);
+    if (resCode != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[GetBorrowedDecisionResHandler] RPC error, resCode=" << resCode;
+        return;
+    }
+
+    // 反序列化决策列表
+    RmrsInStream in(respData.data, respData.len);
+    in >> *result;
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[GetBorrowedDecisionResHandler] Received " << result->size() << " decisions.";
+}
+
+uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] GetBorrowedDecisionHandler start.";
+
+    std::vector<BorrowedDecision> decisionList;
+    MpResult ret = FaultHandleBorrowedDecision::Instance().QueryAll(decisionList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] QueryAll failed, ret=" << ret;
+        resp.len = RPC_RESP_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len];
+        if (resp.data == nullptr) {
+            LOG_ERROR << "[FaultHandleParallel] Out of memory.";
+            return MEM_POOLING_ERROR;
+        }
+        resp.freeFunc = [](uint8_t* data) {
+            delete[] data;
+        };
+        *reinterpret_cast<MpResult*>(resp.data) = MEM_POOLING_ERROR;
+        return MEM_POOLING_ERROR;
+    }
+
+    // 序列化决策列表
+    RmrsOutStream builder;
+    builder << decisionList;
+    resp.len = builder.GetSize();
+    resp.data = builder.GetBufferPointer();
+    resp.freeFunc = [](uint8_t* data) {
+        delete[] data;
+    };
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel] Success, returned " << decisionList.size() << " decisions.";
+    return MEM_POOLING_OK;
+}
+
+void FaultNodeModule::RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowGroups)
+{
+    // 按 borrowNodeId 聚合组，减少 RPC 次数
+    std::unordered_map<std::string, std::vector<size_t>> nodeToGroupIndices;
+    for (size_t i = 0; i < borrowGroups.size(); ++i) {
+        nodeToGroupIndices[borrowGroups[i].borrowNodeId].push_back(i);
+    }
+    // 对每个节点发起一次 RPC 获取该节点上所有失败决策
+    for (auto& kv : nodeToGroupIndices) {
+        const std::string& nodeId = kv.first;
+        std::vector<BorrowedDecision> nodeDecisions;
+        if (GetBorrowedDecisionRpc(nodeId, nodeDecisions) != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] RebuildBorrowGroup: Failed to get borrowed decisions from node=" << nodeId
+                << ".";
+            continue;
+        }
+        // 构建 remoteNumaId -> BorrowedDecision 的映射
+        std::unordered_map<uint16_t, BorrowedDecision> numaDecisionMap;
+        for (auto& dec : nodeDecisions) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] GetBorrowedDecision: Node=" << nodeId << ", remoteNumaId=" << dec.remoteNumaId
+                << ", isNumaLevel=" << dec.isNumaLevel << ".";
+            numaDecisionMap[dec.remoteNumaId] = std::move(dec);
+        }
+        // 更新对应的 borrowGroup
+        for (size_t idx : kv.second) {
+            auto& group = borrowGroups[idx];
+            auto it = numaDecisionMap.find(group.remoteNumaId);
+            if (it == numaDecisionMap.end())
+                continue;
+            const auto& borrowed = it->second;
+            if (borrowed.isNumaLevel) {
+                // NUMA 级别失败决策
+                group.strategyType = BorrowStrategyType::NUMA_LEVEL_STRATEGY;
+                group.numaDecision.isBorrowed = true;
+                group.numaDecision.borrowedDecision = borrowed.numaBorrowedDecision;
+            } else {
+                // borrowId 级别失败决策
+                group.strategyType = BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY;
+                // 构建 borrowIdDecisions 列表
+                group.borrowIdDecisions.clear();
+                for (const auto& bdec : borrowed.borrowIdBorrowedDecisions) {
+                    BorrowIdLevelDecision dec;
+                    dec.oldName = bdec.oldName;
+                    dec.isBorrowed = true;
+                    dec.borrowedDecision = bdec;
+                    group.borrowIdDecisions.push_back(dec);
+                }
+            }
+        }
+    }
+}
+
 MpResult FaultNodeModule::FaultHandleInfosCollect(const std::string& faultNodeId,
                                                   std::vector<BorrowGroupResult>& borrowGroups,
                                                   std::vector<ClusterSnapshotItem>& baseSnapshot)
@@ -1519,6 +1699,8 @@ MpResult FaultNodeModule::FaultHandleInfosCollect(const std::string& faultNodeId
             << "[FaultHandleInfosCollect] No valid borrow groups after VM info collection, skip.";
         return MEM_POOLING_ERROR;
     }
+
+    RebuildBorrowGroup(borrowGroups);
 
     // 3. 获取基础集群快照
     res = GetBaseClusterSnapshot(faultNodeId, baseSnapshot);
@@ -1718,6 +1900,90 @@ MpResult FaultNodeModule::FaultHandleMigrate(uint16_t presentNumaId, uint16_t fa
     return MEM_POOLING_OK;
 }
 
+void UpdateBorrowedDecisionBorrowIdLevel(const BorrowGroupResult& group, const BorrowIdLevelDecision& decision,
+                                         const MemBorrowExecuteResult& borrowExecuteResult,
+                                         BorrowIdLevelBorrowedDecision& borrowedDecision)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][BorrowIdLevelExecute] BorrowIdLevel migrate failed,"
+        << "start to update BorrowedDecision. newName=" << borrowExecuteResult.borrowIds[0]
+        << ", oldName=" << decision.oldName << ", presentNumaId=" << borrowExecuteResult.presentNumaId[0] << ".";
+    borrowedDecision.presentNumaId = borrowExecuteResult.presentNumaId[0];
+    borrowedDecision.oldNumaId = group.remoteNumaId;
+    borrowedDecision.pids = decision.pids;
+    borrowedDecision.borrowSize = decision.lentMemSize;
+    borrowedDecision.oldName = decision.oldName;
+    borrowedDecision.newName = borrowExecuteResult.borrowIds[0];
+
+    BorrowedDecision bd;
+    auto ret = FaultHandleBorrowedDecision::Instance().Query(bd, borrowedDecision.oldNumaId);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] No borrowed decision found for numaId="
+            << borrowedDecision.oldNumaId << ".";
+        // 该numaId未找到已有的已借用决策
+        bd.borrowNodeId = group.borrowNodeId;
+        bd.remoteNumaId = group.remoteNumaId;
+        bd.isNumaLevel = false;
+    }
+
+    bd.borrowIdBorrowedDecisions.push_back(borrowedDecision);
+    ret = FaultHandleBorrowedDecision::Instance().Update(borrowedDecision.oldNumaId, bd);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Update borrowed decision failed for numaId="
+            << borrowedDecision.oldNumaId << ".";
+    }
+}
+
+void RemoveBorrowedDecisionBorrowIdLevel(BorrowIdLevelBorrowedDecision borrowedDecision)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][BorrowIdLevelExecute] Start to remove borrowId-level borrowed decision for numaId="
+        << borrowedDecision.oldNumaId << ", oldName=" << borrowedDecision.oldName << ".";
+    BorrowedDecision bd;
+    auto ret = FaultHandleBorrowedDecision::Instance().Query(bd, borrowedDecision.oldNumaId);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] No borrowed decision found for numaId="
+            << borrowedDecision.oldNumaId << ".";
+        return;
+    }
+
+    auto it = std::remove_if(bd.borrowIdBorrowedDecisions.begin(), bd.borrowIdBorrowedDecisions.end(),
+                             [&borrowedDecision](const BorrowIdLevelBorrowedDecision& tmp) {
+                                 return tmp.oldName == borrowedDecision.oldName;
+                             });
+    if (it == bd.borrowIdBorrowedDecisions.end()) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] No borrowed decision found for borrowId="
+            << borrowedDecision.oldName << ".";
+        return;
+    }
+    bd.borrowIdBorrowedDecisions.erase(it, bd.borrowIdBorrowedDecisions.end());
+
+    if (bd.borrowIdBorrowedDecisions.empty()) {
+        // 删除整个numaId条目
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Remove borrowId-level borrowed decision for numaId="
+            << borrowedDecision.oldNumaId << ", oldName=" << borrowedDecision.oldName << ".";
+        ret = FaultHandleBorrowedDecision::Instance().Remove(borrowedDecision.oldNumaId);
+    } else {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Update borrowId-level borrowed decision for numaId="
+            << borrowedDecision.oldNumaId << ", oldName=" << borrowedDecision.oldName << ".";
+        ret = FaultHandleBorrowedDecision::Instance().Update(borrowedDecision.oldNumaId, bd);
+    }
+
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Remove borrowId-level borrowed decision failed.";
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][BorrowIdLevelExecute] Remove borrowId-level borrowed decision success.";
+}
+
 MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, BorrowIdLevelDecision decision)
 {
     // 1 借用新内存
@@ -1734,7 +2000,7 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
     MpResult res = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParamList, borrowExecuteResult);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [NumaIdLevelExecute] Borrow mem error srcNode=" << group.borrowNodeId
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Borrow mem error srcNode=" << group.borrowNodeId
             << ",destNode=" << decision.lentNodeId << ",size=" << decision.lentMemSize << ".";
         return MEM_POOLING_ERROR;
     }
@@ -1744,11 +2010,11 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
                                               decision.lentMemSize);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [BorrowIdLevelExecute] FaultHandleMigrate error oldNumaId=" << group.remoteNumaId
+            << "[FaultHandleParallel][BorrowIdLevelExecute] FaultHandleMigrate error oldNumaId=" << group.remoteNumaId
             << ", newNumaId=" << borrowExecuteResult.presentNumaId[0] << ".";
-        // 迁移失败需将此次借用记录存储到数据库中，以便下次故障处理时直接使用此次借过来的内存；
-        // borrowIdLevel只需要borrowExecuteResult+BorrowIdLevelDecision(pids+memSize++oldName)+faultNuma
-        // 形式可以是Map<borrowGroup+oldName : borrowExecuteResult+BorrowIdLevelDecision>
+        // 迁移失败，更新以借用但迁移失败的决策到数据库中
+        BorrowIdLevelBorrowedDecision borrowedDecision;
+        UpdateBorrowedDecisionBorrowIdLevel(group, decision, borrowExecuteResult, borrowedDecision);
         return MEM_POOLING_ERROR;
     }
 
@@ -1756,14 +2022,14 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
     res = MemBorrowExecutor::Instance().MemFreeWithOps(decision.oldName, false, true, true);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [FaultLentNode] MemFreeWithOps error oldName=" << decision.oldName << ".";
+            << "[FaultHandleParallel][BorrowIdLevelExecute] MemFreeWithOps error oldName=" << decision.oldName << ".";
         return MEM_POOLING_ERROR;
     }
     // 4 归还成功后更新借用描述符的重定向关系表
     MpResult retBorrId = BorrowIdRedirection::Instance().Update(decision.oldName, borrowExecuteResult.borrowIds[0]);
     if (retBorrId != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultHandleParallel][NumaIdLevelExecute] Update borrowId redirection failed. oldName="
+            << "[FaultHandleParallel][BorrowIdLevelExecute] Update borrowId redirection failed. oldName="
             << decision.oldName << ", newBorrowId=" << borrowExecuteResult.borrowIds[0] << ".";
     }
 
@@ -1795,6 +2061,43 @@ void BorrowIdLevelReturnDirectly(const BorrowIdLevelDecision& decision, int errC
     }
 }
 
+MpResult FaultNodeModule::BorrowIdLevelBorrowedExecute(BorrowIdLevelBorrowedDecision borrowedDecision)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] BorrowIdLevel-BorrowedDecisionExecute start, oldName="
+        << borrowedDecision.oldName << ", newName=" << borrowedDecision.newName << ".";
+    // 1 分配大页+远端迁移
+    auto res = FaultNodeModule::FaultHandleMigrate(borrowedDecision.presentNumaId, borrowedDecision.oldNumaId,
+                                                   borrowedDecision.pids, borrowedDecision.borrowSize);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] FaultHandleMigrate error oldNumaId="
+            << borrowedDecision.oldNumaId << ", newNumaId=" << borrowedDecision.presentNumaId << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    // 2 迁移成功后移除该borrowedDecision
+    RemoveBorrowedDecisionBorrowIdLevel(borrowedDecision);
+
+    // 3 归还旧内存
+    res = MemBorrowExecutor::Instance().MemFreeWithOps(borrowedDecision.oldName, false, true, true);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] MemFreeWithOps error oldName="
+            << borrowedDecision.oldName << ".";
+        return MEM_POOLING_ERROR;
+    }
+    // 3 归还成功后更新借用描述符的重定向关系表
+    MpResult retBorrId = BorrowIdRedirection::Instance().Update(borrowedDecision.oldName, borrowedDecision.newName);
+    if (retBorrId != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] Update borrowId redirection failed. oldName="
+            << borrowedDecision.oldName << ", newName=" << borrowedDecision.newName << ".";
+    }
+
+    return MEM_POOLING_OK;
+}
+
 uint32_t BorrowIdLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultNode] BorrowIdLevelExecuteHandler start.";
@@ -1810,6 +2113,14 @@ uint32_t BorrowIdLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& 
     for (const auto& decision : group.borrowIdDecisions) {
         if (decision.isReturnDirectly) {
             BorrowIdLevelReturnDirectly(decision, errCount);
+            continue;
+        }
+
+        if (decision.isBorrowed) {
+            ret = FaultNodeModule::Instance().BorrowIdLevelBorrowedExecute(decision.borrowedDecision);
+            if (ret != MEM_POOLING_OK) {
+                errCount++;
+            }
             continue;
         }
 
@@ -1887,7 +2198,7 @@ MpResult FaultNodeModule::NumaLevelMemBorrow(const BorrowGroupResult& group, Num
             return MEM_POOLING_ERROR;
         }
         tmpRedirectionMap[record.name] = borrowExecuteResult;
-        presentNumaId = borrowExecuteResult.presentNumaId[0];
+        presentNumaId = borrowExecuteResult.presentNumaId[0]; // 所有record的presentNumaId相同
         totalBorrowSize += record.size;
     }
 
@@ -1898,22 +2209,67 @@ MpResult FaultNodeModule::NumaLevelMemBorrow(const BorrowGroupResult& group, Num
     return MEM_POOLING_OK;
 }
 
-MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaLevelDecision decision,
-                                           std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap)
+MpResult FaultNodeModule::NumaLevelBorrowedExecute(NumaLevelBorrowedDecision decision)
 {
-    if (decision.isReturnDirectly) {
-        // 直接归还旧内存
-        for (auto oldName : decision.oldNames) {
-            auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldName, false, true, true);
-            if (ret != MEM_POOLING_OK) {
-                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
-                return MEM_POOLING_ERROR;
-            }
-        }
-        return MEM_POOLING_OK;
+    // 1 对于已借用过的决策直接执行远端迁移
+    auto res = FaultHandleMigrate(decision.presentNumaId, decision.oldNumaId, decision.pids, decision.totalBorrowSize);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleMigrate failed. oldNumaId=" << decision.oldNumaId
+            << ", newNumaId=" << decision.presentNumaId << ".";
+        return MEM_POOLING_ERROR;
     }
 
+    // 2 迁移完成，移除BorrowedDecisionMap
+    res = FaultHandleBorrowedDecision::Instance().Remove(decision.oldNumaId);
+    if (res != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleBorrowedDecision Remove failed. oldNumaId="
+            << decision.oldNumaId << ".";
+    }
+
+    // 3 归还旧内存
+    for (auto [oldName, newName] : decision.borrowResultMap) {
+        res = MemBorrowExecutor::Instance().MemFreeWithOps(oldName, false, true, true);
+        if (res != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
+            return MEM_POOLING_ERROR;
+        }
+        // 4 归还成功后，更新borrowId重定向关系
+        MpResult retBorrId = BorrowIdRedirection::Instance().Update(oldName, newName);
+        if (retBorrId != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel][NumaIdLevelExecute] Update borrowId redirection failed. oldName=" << oldName
+                << ", newBorrowId=" << newName << ".";
+        }
+    }
+
+    return MEM_POOLING_OK;
+}
+
+void fillBorrowedDecisionNumaLevel(const BorrowGroupResult& group, const NumaLevelDecision& decision,
+                                   std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap,
+                                   BorrowedDecision& borrowedDecision)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevel migrate failed, start to update borrowedDecision.";
+    borrowedDecision.borrowNodeId = group.borrowNodeId;
+    borrowedDecision.remoteNumaId = group.remoteNumaId;
+    borrowedDecision.isNumaLevel = true;
+    borrowedDecision.numaBorrowedDecision.oldNumaId = group.remoteNumaId;
+    borrowedDecision.numaBorrowedDecision.pids = decision.pids;
+    borrowedDecision.numaBorrowedDecision.totalBorrowSize = decision.lentMemSize;
+    for (const auto& [oldName, borrowExecuteResult] : tmpRedirectionMap) {
+        borrowedDecision.numaBorrowedDecision.borrowResultMap[oldName] = borrowExecuteResult.borrowIds[0];
+        // presentNumaId在一个numa级别的决策中都是相同的
+        borrowedDecision.numaBorrowedDecision.presentNumaId = borrowExecuteResult.presentNumaId[0];
+    }
+}
+
+MpResult FaultNodeModule::NumaLevelExecuteNormal(const BorrowGroupResult& group, NumaLevelDecision decision,
+                                                 std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap)
+{
     // 1 借用新内存
     uint16_t presentNumaId{};
     std::string borrowId{};
@@ -1930,6 +2286,15 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleMigrate failed. oldNumaId=" << group.remoteNumaId
             << ", newNumaId=" << presentNumaId << ".";
+        // 迁移失败，更新borrowedDecisionMap
+        BorrowedDecision borrowedDecision;
+        fillBorrowedDecisionNumaLevel(group, decision, tmpRedirectionMap, borrowedDecision);
+        res = FaultHandleBorrowedDecision::Instance().Update(group.remoteNumaId, borrowedDecision);
+        if (res != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleBorrowedDecision Update failed. oldNumaId="
+                << group.remoteNumaId << ".";
+        }
         return MEM_POOLING_ERROR;
     }
 
@@ -1950,6 +2315,45 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
         }
     }
 
+    return MEM_POOLING_OK;
+}
+
+MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaLevelDecision decision,
+                                           std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap)
+{
+    if (decision.isReturnDirectly) {
+        // 直接归还旧内存
+        for (auto oldName : decision.oldNames) {
+            auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldName, false, true, true);
+            if (ret != MEM_POOLING_OK) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
+                return MEM_POOLING_ERROR;
+            }
+        }
+        return MEM_POOLING_OK;
+    }
+
+    if (decision.isBorrowed) {
+        auto ret = NumaLevelBorrowedExecute(decision.borrowedDecision);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevelBorrowedExecute failed.";
+            return MEM_POOLING_ERROR;
+        }
+        return MEM_POOLING_OK;
+    }
+
+    auto ret = NumaLevelExecuteNormal(group, decision, tmpRedirectionMap);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevelDoExecute failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevelExecute success, borrowNodeId=" << group.borrowNodeId
+        << ", faultNumaId=" << group.remoteNumaId << ".";
     return MEM_POOLING_OK;
 }
 

@@ -62,6 +62,7 @@ const std::string KEYPREFIX_COMMON = "mempooling";
 const std::string KEYPREFIX_SMAPENABLE_COMPLETED = "_smap_enable_completed";
 const std::string KEYPREFIX_REMOVEPID_COMPLETED = "_remove_pid_completed";
 const std::string KEYPREFIX_FAULT_PROCESS_BORROWID = "_fault_process_borrowid";
+const std::string KEYPREFIX_BORROWED_DECISION = "_borrowed_decision";
 
 const int HEADER_LENGTH = 4;
 const int TIMESTAMP_OFFSET = 2;
@@ -385,6 +386,29 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
     return MEM_POOLING_OK;
 }
 
+MpResult FaultHandleBorrowedDecision::Update(const uint16_t numaId, const BorrowedDecision& decision)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] FaultHandleBorrowedDecision Update for numaId=" << numaId << ".";
+
+    std::unique_lock<std::mutex> lock(mtxBorrowedDecision);
+    // 覆盖，这里直接替换该numaId对应的所有决策
+    borrowedDecisionMap[numaId] = decision;
+
+    // 持久化
+    RmrsOutStream builder;
+    builder << borrowedDecisionMap;
+    UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_BORROWED_DECISION, &buffer);
+    SafeDeleteArray(buffer.data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultHandleBorrowedDecision] Failed to store borrowed decisions, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    lock.unlock();
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Update success.";
+    return MEM_POOLING_OK;
+}
+
 MpResult BorrowIdInFaultProcess::Update(const std::string borrowId)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] Update of borrowId in fault started, numaId=" << borrowId
@@ -503,6 +527,33 @@ MpResult SmapEnableCompleted::Remove(const int16_t numaId)
     lock.unlock();
 
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] Remove smapEnable numaId ended.";
+    return MEM_POOLING_OK;
+}
+
+MpResult FaultHandleBorrowedDecision::Remove(const uint16_t numaId)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Remove for numaId=" << numaId << ".";
+
+    std::unique_lock<std::mutex> lock(mtxBorrowedDecision);
+    auto it = borrowedDecisionMap.find(numaId);
+    if (it == borrowedDecisionMap.end()) {
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << numaId << " not found, nothing to remove.";
+        return MEM_POOLING_OK;
+    }
+    borrowedDecisionMap.erase(it);
+
+    // 持久化
+    RmrsOutStream builder;
+    builder << borrowedDecisionMap;
+    UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_BORROWED_DECISION, &buffer);
+    SafeDeleteArray(buffer.data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultHandleBorrowedDecision] Failed to store after remove, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    lock.unlock();
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Remove success.";
     return MEM_POOLING_OK;
 }
 
@@ -804,6 +855,51 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
     return MEM_POOLING_OK;
 }
 
+void FaultHandleBorrowedDecision::ToString()
+{
+    std::ostringstream oss;
+    oss << "BorrowedDecisionMap{size=" << borrowedDecisionMap.size();
+    for (const auto& kv : borrowedDecisionMap) {
+        oss << ", numa" << kv.first << ":" << kv.second.ToString();
+    }
+    oss << "}";
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Print BorrowedDecisionMap," << oss.str() << ".";
+}
+
+MpResult FaultHandleBorrowedDecision::Query(BorrowedDecision& decision, const uint16_t numaId)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Query for numaId=" << numaId << ".";
+
+    std::lock_guard<std::mutex> lock(mtxBorrowedDecision);
+    auto it = borrowedDecisionMap.find(numaId);
+    if (it == borrowedDecisionMap.end()) {
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] No borrowed decision found for numaId=" << numaId << ".";
+        return MEM_POOLING_ERROR;
+    }
+    decision = it->second;
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Query success, decision=" << decision.ToString() << ".";
+    return MEM_POOLING_OK;
+}
+
+MpResult FaultHandleBorrowedDecision::QueryAll(std::vector<BorrowedDecision>& decisionList)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] Query all borrowed decisions.";
+    std::lock_guard<std::mutex> lock(mtxBorrowedDecision);
+
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] borrowedDecisionMap.size=" << borrowedDecisionMap.size() << ".";
+    if (borrowedDecisionMap.size() == 0) {
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] No borrowed decision found.";
+        return MEM_POOLING_ERROR;
+    }
+
+    for (const auto& pair : borrowedDecisionMap) {
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] numaId=" << pair.first
+                  << " get one borrowedDecision=" << pair.second.ToString() << ".";
+        decisionList.push_back(pair.second);
+    }
+    return MEM_POOLING_OK;
+}
+
 void GetFaultProcessBorrowIdValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
                                   void* ctx)
 {
@@ -952,6 +1048,25 @@ MpResult SmapEnableCompleted::PutRawData(UbseByteBuffer& data)
     return MEM_POOLING_OK;
 }
 
+MpResult FaultHandleBorrowedDecision::PutRawData(UbseByteBuffer& data)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] PutRawData start.";
+
+    std::lock_guard<std::mutex> locker(mtxBorrowedDecision);
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_BORROWED_DECISION, &data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultHandleBorrowedDecision] UbseStoragePutData failed, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    // 重新加载到内存
+    borrowedDecisionMap.clear();
+    RmrsInStream builder(data.data, data.len);
+    builder >> borrowedDecisionMap;
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] PutRawData success, loaded " << borrowedDecisionMap.size()
+              << " entries.";
+    return MEM_POOLING_OK;
+}
+
 MpResult BorrowIdInFaultProcess::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[PersistentStore][BorrowIdInFaultProcess] PutBorrowIdInFaultProcessRawData start.";
@@ -1091,6 +1206,34 @@ MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
     data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
 
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] GetSmapEnableCompletedRawData end.";
+    return MEM_POOLING_OK;
+}
+
+MpResult FaultHandleBorrowedDecision::GetRawData(UbseByteBuffer& data, bool needLock)
+{
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] GetRawData start.";
+
+    std::unique_lock<std::mutex> locker(mtxBorrowedDecision, std::defer_lock);
+    if (needLock) {
+        locker.lock();
+    }
+
+    if (borrowedDecisionMap.empty()) {
+        data.len = 1;
+        data.data = new uint8_t[data.len];
+        data.data[0] = ' '; // 数据清空标致
+        data.freeFunc = [](uint8_t* p) {
+            delete[] p;
+        };
+        LOG_DEBUG << "[FaultHandleBorrowedDecision] The data of keyPrefix=" << KEYPREFIX_BORROWED_DECISION
+                  << " is empty.";
+        return MEM_POOLING_OK;
+    }
+
+    RmrsOutStream builder;
+    builder << borrowedDecisionMap;
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    LOG_DEBUG << "[FaultHandleBorrowedDecision] GetBorrowedDecisionRawData end.";
     return MEM_POOLING_OK;
 }
 
@@ -2591,6 +2734,25 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
     return MEM_POOLING_OK;
 }
 
+uint32_t FaultHandleBorrowedDecisionInit(UbseByteBuffer& buffer)
+{
+    MpResult ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_BORROWED_DECISION, &buffer, LoadDataBase);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][FaultHandleBorrowedDecision] Failed to query database.";
+        ResetAndDeleteBuffer(buffer);
+        return MEM_POOLING_ERROR;
+    }
+
+    ret = mempooling::FaultHandleBorrowedDecision::Instance().PutRawData(buffer);
+    ResetAndDeleteBuffer(buffer);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][FaultHandleBorrowedDecision] Failed to init FaultHandleBorrowedDecision data.";
+        return MEM_POOLING_ERROR;
+    }
+
+    return MEM_POOLING_OK;
+}
+
 uint32_t BorrowIdInFaultProcessInit()
 {
     MpResult retBorrowIdInFaultProcess = BorrowIdInFaultProcess::Instance().Clear();
@@ -2698,6 +2860,12 @@ uint32_t DataReloadInit()
     if (SmapEnableCompletedInit(buffer) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
+
+    // 初始化BorrowedDecisionMap
+    if (FaultHandleBorrowedDecisionInit(buffer) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+
     // 初始化RemovePid记录，如果存在需remove的pid则执行remove操作
     if (RemovePidCompletedInit(buffer) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
