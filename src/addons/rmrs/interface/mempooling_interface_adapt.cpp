@@ -1036,8 +1036,14 @@ int mempooling::outinterface::UBSRMRSRemove(const uint16_t remoteNumaId, const s
     for (size_t i = 0; i < static_cast<size_t>(msg.count); ++i) {
         RemovePayload tmp{};
         tmp.pid = pids[i];
-        tmp.count = 1;
-        tmp.nid[0] = remoteNumaId;
+        // remoNumaId为0表示删除进程在所有远端NUMA上的冷热流动
+        if (remoteNumaId == 0) {
+            tmp.count = 0;
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Detect remoteNumaId is 0, set payload.count = 0.";
+        } else {
+            tmp.count = 1;
+            tmp.nid[0] = remoteNumaId;
+        }
         msg.payload[i] = tmp;
     }
 
