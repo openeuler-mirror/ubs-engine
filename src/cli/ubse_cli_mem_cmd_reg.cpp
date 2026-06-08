@@ -882,7 +882,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::PidUnSetFunc(const std::
     }
     auto pid = params.find(PID_OPTION);
     if (pid == params.end()) {
-        return UbseCliStringPromptReply("Invalid PID");
+        return UbseCliStringPromptReply("ERROR: The request option -p or --pid is required.");
     }
     auto errMsg = ValidatePid(pid->second);
     if (!errMsg.empty()) {
