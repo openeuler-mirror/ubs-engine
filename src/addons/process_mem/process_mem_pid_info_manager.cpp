@@ -804,7 +804,7 @@ uint32_t ProcessMemPidInfoManager::UnsetPidInfo(pid_t pid)
 
 namespace {
 void RecoverSingleDebtInfo(std::unordered_map<pid_t, def::ProcessMemPidInfo>& pidInfoMap,
-                           const ubse::mem::controller::UbseNumaMemoryImportDebtInfo& debtInfo,
+                           const ubse::mem::controller::UbseNumaMemoryDebtInfo& debtInfo,
                            ubse::task_executor::UbseTaskExecutorPtr& exceptionHandleExecutor)
 {
     def::ProcessMemUsrInfo usrInfo{};
@@ -846,22 +846,38 @@ void RecoverSingleDebtInfo(std::unordered_map<pid_t, def::ProcessMemPidInfo>& pi
     if (!debtInfo.borrowSocketIdList.empty()) {
         borrowInfo.importSocketId = debtInfo.borrowSocketIdList[0];
     }
+    if (!debtInfo.lentNodeId.empty()) {
+        borrowInfo.exportSlotId = std::stoi(debtInfo.lentNodeId);
+        newDebtInfo.numaDesc.exportNode.slotId = static_cast<uint32_t>(borrowInfo.exportSlotId);
+    }
+
     borrowInfo.debtInfos[debtInfo.name] = newDebtInfo;
     UBSE_LOG_INFO << "Recover debt success, pid=" << usrInfo.pid << ", name=" << debtInfo.name
-                  << ", remoteNumaId=" << debtInfo.remoteNumaId;
+                  << ", remoteNumaId=" << debtInfo.remoteNumaId << ", exportSlotId=" << borrowInfo.exportSlotId;
 }
 } // namespace
 
 void ProcessMemPidInfoManager::RecoverAllDebtInfoData()
 {
     UBSE_LOG_INFO << "RecoverAllDebtInfoData begin";
-    std::vector<ubse::mem::controller::UbseNumaMemoryImportDebtInfo> debtInfos{};
-    auto ret = ubse::mem::controller::UbseGetNumaMemImportDebtInfoWithLocalNode(debtInfos);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RecoverAllDebtInfoData failed, ret=" << ret << ", debtInfos.size=" << debtInfos.size();
-        return;
+    auto curNodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
+    constexpr int retryTime = 10;
+    constexpr int retryIntervalSec = 2;
+    int remainRetry = retryTime;
+    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(curNodeId, debtInfos);
+    while (ret != UBSE_OK && remainRetry > 0) {
+        UBSE_LOG_WARN << "RecoverAllDebtInfoData retry, ret=" << ret << ", remainRetry=" << remainRetry;
+        sleep(retryIntervalSec);
+        debtInfos.clear();
+        ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(curNodeId, debtInfos);
+        --remainRetry;
     }
-    UBSE_LOG_INFO << "UbseGetNumaMemImportDebtInfoWithLocalNode success, total debtInfos=" << debtInfos.size();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RecoverAllDebtInfoData failed after retry, ret=" << ret
+                       << ", debtInfos.size=" << debtInfos.size();
+    }
+    UBSE_LOG_INFO << "UbseGetNumaMemDebtInfoWithNode success, total debtInfos=" << debtInfos.size();
 
     uint32_t matchedCount = 0;
     uint32_t recoveredCount = 0;
@@ -869,14 +885,17 @@ void ProcessMemPidInfoManager::RecoverAllDebtInfoData()
         std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
         UBSE_LOG_INFO << "current pidInfoMap size=" << pidInfoMap.size();
         for (const auto& debtInfo : debtInfos) {
+            if (debtInfo.borrowNodeId != curNodeId) {
+                continue;
+            }
             if (!IsProcessMemDebt(debtInfo)) {
                 continue;
             }
             ++matchedCount;
             UBSE_LOG_INFO << "recovering debt: name=" << debtInfo.name << ", size=" << debtInfo.size
                           << ", remoteNumaId=" << debtInfo.remoteNumaId;
-            RecoverSingleDebtInfo(pidInfoMap, debtInfo, exceptionHandleExecutor);
             ++recoveredCount;
+            RecoverSingleDebtInfo(pidInfoMap, debtInfo, exceptionHandleExecutor);
         }
     }
     UBSE_LOG_INFO << "RecoverAllDebtInfoData matched=" << matchedCount << ", recovered=" << recoveredCount;
