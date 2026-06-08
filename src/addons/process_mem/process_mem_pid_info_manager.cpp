@@ -498,7 +498,8 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t expectRemote
     debtInfo.numaDesc.name = name;
     debtInfo.numaDesc.size = needBorrowSize;
     debtInfo.status = def::BorrowStatus::CREATING;
-    const def::ProcessMemUsrInfo usrInfo{.pid = pidInfo.configInfo.pid, .startTime = pidInfo.startTime};
+    const def::ProcessMemUsrInfo usrInfo{
+        .pid = pidInfo.configInfo.pid, .startTime = pidInfo.startTime, .srcNuma = minNuma};
     auto ret =
         memcpy_s(debtInfo.numaDesc.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, &usrInfo, sizeof(usrInfo));
     if (ret != EOK) {
