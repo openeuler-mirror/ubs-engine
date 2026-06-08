@@ -339,13 +339,15 @@ UbseResult PushAndActiveStaticInfoToUvs()
 
 UbseResult UbseElectionCommMgr::Start()
 {
-    while (!g_globalStop.load()) {
-        if (PushAndActiveStaticInfoToUvs() == UBSE_OK) {
-            UBSE_LOG_INFO << "set urma uvs successfully";
-            break;
+    if (ubse::nodeMgr::IsUrma()) {
+        while (!g_globalStop.load()) {
+            if (PushAndActiveStaticInfoToUvs() == UBSE_OK) {
+                UBSE_LOG_INFO << "set urma uvs successfully";
+                break;
+            }
+            UBSE_LOG_ERROR << "set urma uvs_set_topo_info failed, will retry 3s later";
+            sleep(NO_3);
         }
-        UBSE_LOG_ERROR << "set urma uvs_set_topo_info failed, will retry 3s later";
-        sleep(NO_3);
     }
     if (ElectionSubEvent() != UBSE_OK) {
         return UBSE_ERROR;
