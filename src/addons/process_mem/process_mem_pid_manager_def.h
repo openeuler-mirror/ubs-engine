@@ -85,6 +85,8 @@ struct DebtInfo {
     ubse::mem::controller::UbseMemNumaDesc numaDesc{};
 };
 
+constexpr uint16_t INVALID_REMOTE_NUMA = 0;
+
 struct BorrowInfo {
     int32_t remoteNumaId{-1};
     int32_t exportSlotId{-1};                            // 导出的节点Id

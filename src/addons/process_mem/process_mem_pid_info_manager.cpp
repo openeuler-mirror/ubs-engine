@@ -86,7 +86,8 @@ void ProcessMemPidInfoManager::DeletePidMemBorrowInfo(pid_t pid, const std::stri
         UBSE_LOG_ERROR << "MigrateOut failed, pid=" << pid;
     }
     std::vector<pid_t> pids = {pid};
-    pid::bridge::ProcessMemPidBridge::rmrsRemove(static_cast<uint16_t>(remoteNumaId), pids, 0);
+    UBSE_LOG_INFO << "rmrsRemove called, pid=" << pid;
+    pid::bridge::ProcessMemPidBridge::rmrsRemove(def::INVALID_REMOTE_NUMA, pids, 0);
 }
 
 void ProcessMemPidInfoManager::ResetPidMemBorrowInfo(pid_t pid)
@@ -548,7 +549,8 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
         }
         std::vector<pid_t> pids;
         pids.push_back(pidInfo.configInfo.pid);
-        res = pid::bridge::ProcessMemPidBridge::rmrsRemove(remoteNuma, pids, 0);
+        UBSE_LOG_INFO << "rmrsRemove called, pid=" << pidInfo.configInfo.pid;
+        res = pid::bridge::ProcessMemPidBridge::rmrsRemove(def::INVALID_REMOTE_NUMA, pids, 0);
         for (const auto& [name, debtInfo] : pidInfo.memBorrowInfo.debtInfos) {
             auto borrowName = name;
             auto ret = process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(debtInfo.numaDesc.name);
@@ -716,14 +718,9 @@ void RemoveStaleDebts(def::BorrowInfo& borrowInfo, const std::unordered_set<std:
             ++it;
             continue;
         }
-        // 不在 ubse 结果中：COMPLETED 账本已从远端清理，删除；CREATING 账本保留（除非超时）
         if (it->second.status == def::BorrowStatus::CREATING) {
-            bool isTimeout = (std::chrono::steady_clock::now() - it->second.borrowStartTime) >
-                             std::chrono::seconds(g_borrowTimeOut);
-            if (!isTimeout) {
-                ++it;
-                continue;
-            }
+            ++it;
+            continue;
         }
         UBSE_LOG_INFO << "RefreshBorrowInfo: remove stale debt " << it->first;
         it = debtMap.erase(it);
@@ -742,6 +739,7 @@ void ProcessMemPidInfoManager::RefreshBorrowInfo()
         activeDebts[entry.pid].insert(entry.debtInfo.name);
     }
 
+    std::vector<std::pair<pid_t, int>> clearedPids;
     {
         std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
 
@@ -762,7 +760,17 @@ void ProcessMemPidInfoManager::RefreshBorrowInfo()
             auto activeIt = activeDebts.find(pid);
             const auto& activeNames = (activeIt != activeDebts.end()) ? activeIt->second : emptySet;
             RemoveStaleDebts(pidInfo.memBorrowInfo, activeNames);
+            if (pidInfo.memBorrowInfo.debtInfos.empty()) {
+                clearedPids.emplace_back(pid, pidInfo.memBorrowInfo.remoteNumaId);
+                pidInfo.memBorrowInfo = {};
+            }
         }
+    }
+
+    for (const auto& [pid, remoteNumaId] : clearedPids) {
+        std::vector<pid_t> pids = {pid};
+        UBSE_LOG_INFO << "rmrsRemove called, pid=" << pid;
+        pid::bridge::ProcessMemPidBridge::rmrsRemove(def::INVALID_REMOTE_NUMA, pids, 0);
     }
 }
 
