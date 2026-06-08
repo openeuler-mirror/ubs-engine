@@ -12,6 +12,7 @@
 #include "src/adapter_plugins/mti/lcne/ubse_lcne_decoder_entry.h"
 #include "src/controllers/mem/mem_controller/rpc/ubse_mem_debt_info_query_handler.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "ubse_service_registry.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_dispatcher.h"
@@ -19,6 +20,7 @@
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
+#include "ubse_mem_service_impl.h"
 #include "ubse_timer.h"
 
 namespace ubse::mem::controller {
@@ -189,11 +191,17 @@ UbseResult UbseMemControllerModule::Start()
         UBSE_LOG_ERROR << "Failed to reg UbseMemGetOptResultHandler.";
         return ret;
     }
+
+    memService_ = std::make_shared<ubse::service::mem::UbseMemServiceImpl>();
+    service::UbseServiceRegistry::GetInstance().RegisterService<ubse::service::mem::UbseMemService>(memService_);
+
     return ubse::mem::controller::agent::Init();
 }
 
 void UbseMemControllerModule::Stop()
 {
+    service::UbseServiceRegistry::GetInstance().UnRegisterService<ubse::service::mem::UbseMemService>(memService_);
+ 	 
     auto ret = UbseMemFaultManager::DeInitMemFaultManager();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to delete mem fault handler.";

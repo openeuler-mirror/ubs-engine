@@ -4,6 +4,7 @@ add_subdirectory(api)
 add_subdirectory(debt)
 
 add_library(mem_plugin SHARED
+        ubse_mem_service_impl.cpp
         ubse_mem_account.cpp
         ubse_mem_controller_module.cpp
         ubse_mem_controller_ledger.cpp
@@ -66,6 +67,7 @@ target_include_directories(mem_controller_adapter PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../include
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../adapter_plugins/mti
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../adapter_plugins/ubturbo
         ${CMAKE_CURRENT_SOURCE_DIR}/../../node
         ${SRC_DIR}/sdk/c/include
 )
