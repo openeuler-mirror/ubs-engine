@@ -19,6 +19,8 @@
 #include "ubse_error.h"
 
 namespace ubse::ut::lcne {
+using namespace ubse::http;
+using namespace ubse::adapter_plugins::mti;
 using namespace ubse::lcne;
 using namespace ubse::context;
 

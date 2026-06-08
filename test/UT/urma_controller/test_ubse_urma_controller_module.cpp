@@ -174,7 +174,6 @@ TEST_F(TestUbseUrmaControllerModule, Initialize_CreateFail)
 {
     UbseUrmaControllerModule module;
     MOCKER_CPP(UbseUrmaControllerApi::Register).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(ubse::config::UbseIsUrmaSupported).stubs().will(returnValue(true));
     auto taskExec = std::make_shared<UbseTaskExecutorModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskExec));
     MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_ERROR));
@@ -186,7 +185,6 @@ TEST_F(TestUbseUrmaControllerModule, Initialize_RegisterFail)
 {
     UbseUrmaControllerModule module;
     MOCKER_CPP(UbseUrmaControllerApi::Register).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER_CPP(ubse::config::UbseIsUrmaSupported).stubs().will(returnValue(true));
     auto taskExec = std::make_shared<UbseTaskExecutorModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskExec));
     MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
