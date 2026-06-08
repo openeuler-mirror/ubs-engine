@@ -16,8 +16,9 @@
 #include "ubse_logger.h"            // for FormatRetCode, UBSE_DEFINE_THIS_MO...
 #include "ubse_mti_eid_interface.h" // for ParseBaseEid
 #include "ubse_pointer_process.h"   // for SafeDeleteArray
-#include "ubse_str_util.h"          // for ConvertStrToUint32
-#include "ubse_xml.h"               // for UbseXml, UbseXmlError // for UbseByteBuffer
+#include "ubse_smbios.h"
+#include "ubse_str_util.h" // for ConvertStrToUint32
+#include "ubse_xml.h"      // for UbseXml, UbseXmlError // for UbseByteBuffer
 #include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
@@ -25,6 +26,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace common::def;
 using namespace ubse::http;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
 using namespace ubse::log;
 using namespace ubse::utils;
 
@@ -386,8 +388,14 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
 
 std::string UbseLcneFeEid::GetEidGroupId(std::string eid)
 {
-    return eid.substr(NO_0, NO_20);
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        return eid.substr(NO_0, NO_20);
+    }
     // EID 128位bit字符串，第121位到第125位为EID组ID
-    /* 当前eid算法逻辑保持原有，待LCNE更新后替换 */
+    std::string bitStr;
+    if (ParseBaseEid(eid, bitStr) != UBSE_OK) {
+        return "";
+    }
+    return bitStr.substr(NO_128 - NO_8, NO_5);
 }
 } // namespace ubse::lcne

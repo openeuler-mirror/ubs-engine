@@ -69,7 +69,7 @@ constexpr uint32_t STACK_IGNORE_DEPTH = 0;
 constexpr uint32_t PRINTSIG = 35;
 constexpr uint32_t DEFAULTTIMEOUT = 60;
 constexpr uint32_t DEFAULTHBTIMEOUT = 30;
-constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 64;
+constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 1024;
 
 const uint16_t MIN_PORT = 1024;
 const uint16_t MAX_PORT = 65535;
@@ -140,5 +140,6 @@ const std::string ELECTION_TASK_EXECUTOR_NAME = "ElectionLinkTask";
 const std::string UBSE_UDS_SOCKET_PATH = "/var/run/ubse/ubse.sock";
 const std::string UBSE_LOG_PATH = "/var/log/ubse";
 const std::string UBSE_AGENT_IPC_SERVER_NAME = "RackAgentIpcServer";
+const std::string UBSE_HOST_URMA_DEV_NAME = "bonding_dev_0";
 } // namespace ubse::common::def
 #endif // UBSE_COMMON_DEF_H

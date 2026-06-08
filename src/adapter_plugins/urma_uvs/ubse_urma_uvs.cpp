@@ -12,6 +12,8 @@
 
 #include "ubse_urma_uvs.h"
 #include <cstdint>
+#include <utility>
+
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -20,6 +22,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
+#include "ubse_urma_topo_config.h"
 #include "ubse_urma_uvs_module.h"
 #include "lock/ubse_lock.h"
 #include "securec.h"
@@ -36,7 +39,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 utils::ReadWriteLock g_invokeUrmaMutex;
 
-UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
 
@@ -45,15 +48,10 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::
 {
     UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
-    auto ret = FillNodeComInfo(allLinkInfo, bondingInfo, nodes);
+    auto ret = FillNodeComInfo(current_slot_id, allLinkInfo, bondingInfo, nodes);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FillNodeComInfo failed";
         return ret;
-    }
-    for (auto& node : nodes) {
-        if (std::to_string(node.id) == current_slot_id) {
-            node.is_current = 1;
-        }
     }
     auto module = UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
     if (!module) {
@@ -213,7 +211,22 @@ UbseResult GetSlotIds(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::
     return UBSE_OK;
 }
 
-UbseResult FillTopo(const std::vector<PhysicalLink>& allLinkInfo,
+bool ConvertLinkPortToIndex(uint32_t chipId, uint32_t portId, uint32_t& index)
+{
+    if (chipId == 0 || chipId > IODIE_NUM || portId >= PORT_NUM) {
+        UBSE_LOG_ERROR << "Invalid link port. chipId=" << chipId << ", portId=" << portId;
+        return false;
+    }
+    index = (chipId - 1) * PORT_NUM + portId;
+    return true;
+}
+
+bool ConvertTopoPortToIndex(const UbseUrmaTopoPort& port, uint32_t& index)
+{
+    return ConvertLinkPortToIndex(port.chipId, port.portId, index);
+}
+
+UbseResult FillTopo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
                     std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
 {
     if (allLinkInfo.empty()) {
@@ -223,31 +236,78 @@ UbseResult FillTopo(const std::vector<PhysicalLink>& allLinkInfo,
     for (const auto& topo : allLinkInfo) {
         std::string curSlotId = std::to_string(topo.slotId);
         std::string peerSlotId = std::to_string(topo.peerSlotId);
+        if (curSlotId == currentSlotId && peerSlotId == currentSlotId) {
+            continue;
+        }
 
-        uint32_t iodie_idx = topo.chipId - 1;
-        uint32_t peer_iodie_idx = topo.peerChipId - 1;
-        if (iodie_idx >= IODIE_NUM || topo.portId >= PORT_NUM || peer_iodie_idx >= IODIE_NUM ||
-            topo.peerPortId >= PORT_NUM) {
-            UBSE_LOG_ERROR << std::to_string(topo.portId) << " or " << std::to_string(topo.peerPortId);
-            UBSE_LOG_ERROR << std::to_string(iodie_idx) << " or " << std::to_string(peer_iodie_idx);
+        uint32_t localPortIndex = 0;
+        uint32_t remotePortIndex = 0;
+        if (!ConvertLinkPortToIndex(topo.chipId, topo.portId, localPortIndex) ||
+            !ConvertLinkPortToIndex(topo.peerChipId, topo.peerPortId, remotePortIndex)) {
             return UBSE_ERROR;
         }
 
-        if (nodeMap.find(curSlotId) != nodeMap.end()) {
-            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_node = topo.peerSlotId;
-            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_iodie = peer_iodie_idx;
-            nodeMap[curSlotId].link[iodie_idx][topo.portId].peer_port = topo.peerPortId;
-        } else {
-            UBSE_LOG_WARN << "Failed to find slotId " << curSlotId << " in nodes, skip fill this node";
+        if (curSlotId == currentSlotId || peerSlotId == currentSlotId) {
+            auto currentIter = nodeMap.find(currentSlotId);
+            if (currentIter != nodeMap.end()) {
+                currentIter->second.links[localPortIndex][localPortIndex] = true;
+                currentIter->second.links[remotePortIndex][remotePortIndex] = true;
+            }
         }
 
-        if (nodeMap.find(peerSlotId) != nodeMap.end()) {
-            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_node = topo.slotId;
-            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_iodie = iodie_idx;
-            nodeMap[peerSlotId].link[peer_iodie_idx][topo.peerPortId].peer_port = topo.portId;
-        } else {
-            UBSE_LOG_WARN << "Failed to find peerSlotId " << peerSlotId << " in nodes, skip fill this node";
+        if (curSlotId == currentSlotId) {
+            auto iter = nodeMap.find(peerSlotId);
+            if (iter == nodeMap.end()) {
+                UBSE_LOG_WARN << "Failed to find peerSlotId " << peerSlotId << " in nodes, skip fill this node";
+                continue;
+            }
+            iter->second.links[localPortIndex][remotePortIndex] = true;
+            continue;
         }
+
+        if (peerSlotId == currentSlotId) {
+            auto iter = nodeMap.find(curSlotId);
+            if (iter == nodeMap.end()) {
+                UBSE_LOG_WARN << "Failed to find slotId " << curSlotId << " in nodes, skip fill this node";
+                continue;
+            }
+            iter->second.links[remotePortIndex][localPortIndex] = true;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig& topoConfig,
+                                std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
+{
+    for (auto& pair : nodeMap) {
+        auto& node = pair.second;
+        for (const auto& link : topoConfig.links) {
+            uint32_t localPortIndex = 0;
+            uint32_t remotePortIndex = 0;
+            if (!ConvertTopoPortToIndex(link.localPort, localPortIndex) ||
+                !ConvertTopoPortToIndex(link.remotePort, remotePortIndex)) {
+                return UBSE_ERROR;
+            }
+            node.links[localPortIndex][remotePortIndex] = true;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillClosTopo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
+{
+    UbseUrmaTopoConfig topoConfig;
+    auto ret = LoadUrmaTopoConfig(GetUrmaTopoMode(), topoConfig);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to load URMA topo config, ret=" << FormatRetCode(ret);
+        return ret;
+    }
+
+    ret = FillClosTopoByConfig(topoConfig, nodeMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to fill CLOS topo by config, ret=" << FormatRetCode(ret);
+        return ret;
     }
     return UBSE_OK;
 }
@@ -333,7 +393,8 @@ UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
     return UBSE_OK;
 }
 
-void InitialNodes(const std::set<std::string>& slotIds, std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
+void InitialNodes(const std::string& currentSlotId, const std::set<std::string>& slotIds,
+                  std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
 {
     nodeMap.clear();
     for (auto& id : slotIds) {
@@ -342,21 +403,13 @@ void InitialNodes(const std::set<std::string>& slotIds, std::unordered_map<std::
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to convert " << id << " to uint32";
         }
-        node.is_current = 0; // default not current node
-        node.type = 0;       // default full mesh type
-
-        for (uint32_t i_iodie = 0; i_iodie < IODIE_NUM; i_iodie++) {
-            for (uint32_t j_port = 0; j_port < PORT_NUM; j_port++) {
-                node.link[i_iodie][j_port].peer_node = UINT32_MAX;
-                node.link[i_iodie][j_port].peer_iodie = UINT32_MAX;
-                node.link[i_iodie][j_port].peer_port = UINT32_MAX;
-            }
-        }
+        node.is_current = (id == currentSlotId) ? 1 : 0;
+        node.type = 0; // default full mesh type
         nodeMap[id] = std::move(node);
     }
 }
 
-UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
+UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap, bool isClosType)
 {
     uint16_t superNodeId = 0;
     if (auto ret = UbseSmbios::GetInstance().GetSuperPodId(superNodeId); ret != UBSE_OK) {
@@ -364,13 +417,13 @@ UbseResult FillClusterInfo(std::unordered_map<std::string, UbcoreTopoNode>& node
     }
 
     for (auto& pair : nodeMap) {
-        nodeMap[pair.first].super_node_id = superNodeId;
-        nodeMap[pair.first].type = UbseSmbios::GetInstance().IsClosType() ? 1 : 0;
+        nodeMap[pair.first].superNodeId = superNodeId;
+        nodeMap[pair.first].type = isClosType ? 1 : 0;
     }
     return UBSE_OK;
 }
 
-UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes)
 {
     nodes.clear();
@@ -380,15 +433,15 @@ UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
         UBSE_LOG_ERROR << "Failed to get slotIds";
         return UBSE_ERROR;
     }
-
     std::unordered_map<std::string, UbcoreTopoNode> nodeMap;
-    InitialNodes(slotIds, nodeMap);
-    ret = FillClusterInfo(nodeMap);
+    InitialNodes(currentSlotId, slotIds, nodeMap);
+    const bool isClosType = UbseSmbios::GetInstance().IsClosType();
+    ret = FillClusterInfo(nodeMap, isClosType);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill cluster info";
         return ret;
     }
-    ret = FillTopo(allLinkInfo, nodeMap);
+    ret = isClosType ? FillClosTopo(nodeMap) : FillTopo(currentSlotId, allLinkInfo, nodeMap);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill topo";
         return ret;
@@ -401,8 +454,8 @@ UbseResult FillNodeComInfo(const std::vector<PhysicalLink>& allLinkInfo,
     UBSE_LOG_INFO << "Found " << slotIds.size() << " nodes, and successfully filled uvs data";
 
     nodes.reserve(nodeMap.size());
-    for (auto& pair : nodeMap) {
-        nodes.push_back(pair.second);
+    for (auto& slotId : slotIds) {
+        nodes.push_back(nodeMap[slotId]);
     }
     return UBSE_OK;
 }

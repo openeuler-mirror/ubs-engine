@@ -46,6 +46,14 @@ enum class FeType
     BUTT_TYPE          // 参考业界定义枚举类型最大值用BUTT表示
 };
 
+// FE 拓扑组合的枚举
+enum class FeTopoType
+{
+    INVALID = 0,        // 无效值
+    ALL_PFE = 1,        // 6 PFE，全物理FE
+    PFE_VFE_HYBRID = 2, // 1 PFE + 5 VFE，物理/虚拟混合
+};
+
 struct UbseFeInfo {
     std::string name;
     std::string slotId;

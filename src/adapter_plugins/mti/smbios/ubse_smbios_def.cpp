@@ -172,7 +172,7 @@ void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
     UBSE_LOG_INFO << "SmbiosSuperPodBasicInfo: "
                   << "flag=" << static_cast<int>(flag) << ", podId=" << static_cast<int>(podId)
                   << ", slotId=" << static_cast<int>(slotId) << ", meshType=" << static_cast<int>(meshType)
-                  << ", superPodId=" << static_cast<int>(superPodId);
+                  << ", superPodId=" << static_cast<int>(superPodId) << ", serverIdx=" << static_cast<int>(serverIdx);
 }
 
 std::vector<uint8_t> GetDmiTable(off_t base, const char* tableFile, uint32_t flags, uint32_t& len)
@@ -232,6 +232,7 @@ UbseResult SmbiosSuperPodBasicInfo::FillSmbiosStructFromBuf()
     this->slotId = rawData[NO_7];
     this->meshType = rawData[NO_8];
     this->superPodId = static_cast<uint32_t>((rawData[NO_10] << NO_8) | rawData[NO_9]);
+    this->serverIdx = static_cast<uint32_t>((rawData[NO_14] << NO_8) | rawData[NO_13]);
     LogSmbiosStructTypeInfo();
     return UBSE_OK;
 }

@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "node_type": "normal",
+  "node_ports": [
+    "1/1/4",
+    "1/1/5",
+    "2/1/4",
+    "2/1/5"
+  ],
+  "link_type": "hccs-cross",
+  "links": [
+    {
+      "local_port": "1/1/4",
+      "remote_port": "1/1/4"
+    },
+    {
+      "local_port": "1/1/4",
+      "remote_port": "2/1/4"
+    },
+    {
+      "local_port": "1/1/5",
+      "remote_port": "1/1/5"
+    },
+    {
+      "local_port": "1/1/5",
+      "remote_port": "2/1/5"
+    },
+    {
+      "local_port": "2/1/4",
+      "remote_port": "2/1/4"
+    },
+    {
+      "local_port": "2/1/4",
+      "remote_port": "1/1/4"
+    },
+    {
+      "local_port": "2/1/5",
+      "remote_port": "2/1/5"
+    },
+    {
+      "local_port": "2/1/5",
+      "remote_port": "1/1/5"
+    }
+  ]
+}

@@ -156,6 +156,7 @@ UbseResult UbseMemControllerModule::Initialize()
             return CycleCheckDecoderHandle();
         },
         CYCLE_CHECK_TIME_S);
+    UbseNodeController::GetInstance().OccupyComUrmaBonding();
     return UBSE_OK;
 }
 

@@ -174,8 +174,8 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
-    if (UbseSmbios::GetInstance().IsClosType()) {
-        UBSE_LOG_INFO << "Is clos type, skip set com urma info to uvs.";
+    if (!UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+        UBSE_LOG_INFO << "Com Urma bonding is not occupied, skip set com urma bonding.";
         return UBSE_OK;
     }
     ret = UbsePushTopoAndBondingToUvs(ubseNodeInfo.nodeId, allLinkInfo, hostUrmaInfos);
@@ -185,8 +185,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
     }
 
     if (isBeforeElection) {
-        const std::string aggrDevName = "bonding_dev_0";
-        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, aggrDevName);
+        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, UBSE_HOST_URMA_DEV_NAME);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Activate urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
         }
@@ -201,9 +200,25 @@ UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeIn
     for (const auto& kv : comUrmaInfos) {
         std::vector<UbseUrmaUvsAggrDev> aggrs;
         aggrs.push_back(kv.second);
-        UbseUrmaUvsNodeInfo info{kv.first, aggrs};
-        hostUrmaInfos.push_back(info);
+        UbseUrmaUvsNodeInfo info{kv.first, std::move(aggrs)};
+        hostUrmaInfos.push_back(std::move(info));
     }
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeComUrmaCollector::GetComUrmaByNodeId(const std::string& nodeId,
+                                                        std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+{
+    hostUrmaInfos.clear();
+    auto it = comUrmaInfos.find(nodeId);
+    if (it == comUrmaInfos.end()) {
+        UBSE_LOG_ERROR << "Node " << nodeId << " not found in comUrmaInfos";
+        return UBSE_ERROR;
+    }
+    std::vector<UbseUrmaUvsAggrDev> aggrs;
+    aggrs.push_back(it->second);
+    UbseUrmaUvsNodeInfo info{it->first, std::move(aggrs)};
+    hostUrmaInfos.push_back(std::move(info));
     return UBSE_OK;
 }
 
