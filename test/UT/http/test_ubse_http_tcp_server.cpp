@@ -26,6 +26,8 @@ namespace ubse::ut::http {
 using namespace ubse::http;
 using namespace ubse::context;
 using namespace ubse::config;
+using namespace ubse::common::def;
+using namespace httplib;
 
 constexpr const uint32_t DEFAULT_TCP_SERVER_PORT = 8082;
 constexpr const uint32_t TCP_SERVER_PORT = 8088;
@@ -56,7 +58,7 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
 {
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
+    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseHttpServer::GetInstance().Start(true), false);
     EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
@@ -68,7 +70,7 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
     GTEST_SKIP();
     std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
     MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    ubse::mti::MtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
+    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
     MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
     struct group testGroup{.gr_name = "ubm_nuds"};
     MOCKER(getgrnam).stubs().will(returnValue(&testGroup));

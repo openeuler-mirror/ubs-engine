@@ -15,25 +15,31 @@
 #include <string>
 #include "securec.h"
 
-#include "ubse_http_module.h"
 #include "ubse_error.h"
+#include "ubse_http_module.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
 #include "ubse_xml.h"
 
+#include "adapter_plugins/mti/ubse_mti_def.h"
+
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::common::def;
+using namespace ubse::http;
+using namespace ubse::mti;
+using namespace ubse::adapter_plugins::mti;
 
-void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
+void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
     std::ostringstream oss;
-    for (auto &item : lcneNodeCnaInfos) {
-        oss << "SlotId=" << item.slotId << ", ChipId=" << item.chipId << ", IODieId=" << item.cardId ;
+    for (auto& item : lcneNodeCnaInfos) {
+        oss << "SlotId=" << item.slotId << ", ChipId=" << item.chipId << ", IODieId=" << item.cardId;
         oss << ", busNodeCna=" << item.busNodeCna << "\n";
-        for (auto &portInfo : item.ports) {
+        for (auto& portInfo : item.ports) {
             oss << " port_id=" << portInfo.portId << ", bus_port_cna=" << portInfo.portCna << "\n";
         }
         oss << "\n";
@@ -42,16 +48,16 @@ void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
     UBSE_LOG_INFO << "[MTI] CNA Info:" << "\n" << result;
 }
 
-bool ValidateCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
+bool ValidateCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
-    for (auto &item : lcneNodeCnaInfos) {
+    for (auto& item : lcneNodeCnaInfos) {
         if (ConvertStrToUint32(item.busNodeCna, item.busNodeCnaUint32, NO_16) != UBSE_OK) {
             return false;
         }
-        if (item.busNodeCnaUint32 > std::numeric_limits<uint16_t >::max()) {
+        if (item.busNodeCnaUint32 > std::numeric_limits<uint16_t>::max()) {
             return false;
         }
-        for (auto &portInfo : item.ports) {
+        for (auto& portInfo : item.ports) {
             if (ConvertStrToUint32(portInfo.portCna, portInfo.portCnaUint32, NO_16) != UBSE_OK) {
                 return false;
             }
@@ -60,7 +66,7 @@ bool ValidateCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
     return true;
 }
 
-UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
+UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -77,7 +83,7 @@ UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaIn
     }
     if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK)) {
         UBSE_LOG_ERROR << "[MTI] Access the LCNE Cna information interface failed. The HTTP status code is "
-                     << rsp.status;
+                       << rsp.status;
         return UBSE_ERROR;
     }
     if (rsp.body.empty()) {
@@ -98,7 +104,7 @@ UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaIn
     return UBSE_OK;
 }
 
-UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string &resBody, std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos)
+UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
     std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
     if (ubseXml == nullptr) {
@@ -117,7 +123,13 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string &resBody, std::vector<LcneNo
     size_t index = 0;
     while (ubseXml->Next("address", index) != nullptr) {
         LcneNodeCnaInfo lcneNodeCnaInfo{};
-        lcneNodeCnaInfo.slotId = ubseXml->Child("slot")->Text();
+        std::string slotId = ubseXml->Child("slot")->Text();
+        std::string nodeId;
+        if (!GetCurNodeId(slotId, nodeId)) {
+            UBSE_LOG_ERROR << "[MTI] Convert slot id to node id failed, slotId: " << slotId;
+            return UBSE_ERROR;
+        }
+        lcneNodeCnaInfo.slotId = nodeId;
         lcneNodeCnaInfo.chipId = ubseXml->Child("ubpu")->Text();
         lcneNodeCnaInfo.cardId = ubseXml->Child("iou")->Text();
         lcneNodeCnaInfo.busNodeCna = ubseXml->Child("bus-primary-cna")->Text();
@@ -137,7 +149,7 @@ UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string &resBody, std::vector<LcneNo
             innerIndex++;
         }
         UBSE_LOG_DEBUG << "[MTI] The current slot_id is " << lcneNodeCnaInfo.slotId << " and its port num is "
-                     << innerIndex;
+                       << innerIndex;
         index++;
         lcneNodeCnaInfos.emplace_back(lcneNodeCnaInfo);
         ubseXml->Previous();

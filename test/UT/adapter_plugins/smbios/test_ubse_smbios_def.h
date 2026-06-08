@@ -16,7 +16,7 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "ubse_smbios_def.h"
+#include "smbios/ubse_smbios_def.h"
 
 namespace ubse::adapter_plugins::smbios::ut {
 

@@ -196,7 +196,6 @@ TEST_F(TestUbseComModule, TestUbseComInit)
 {
     const std::string localNodeId;
     const std::string localIp;
-    MOCKER(GetNodeInfoFromMti).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, ubseComModulePtr->InitUbseCom(localNodeId, localIp));
 }
 
@@ -562,14 +561,14 @@ TEST_F(TestUbseComModule, TestQueryEidByNodeIdCb)
     // 步骤2
     std::shared_ptr<ubse::mti::UbseLcneModule> ubseLcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
     MOCKER(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(ubseLcneModule));
-    MOCKER(&mti::UbseLcneModule::GetBondingEidByNodeId).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(GetBondingEidByNodeId).stubs().will(returnValue(UBSE_ERROR));
     ret = queryCb(nodeId, eid);
     EXPECT_EQ(false, ret);
     GlobalMockObject::verify();
 
     // 步骤3
     MOCKER(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(ubseLcneModule));
-    MOCKER(&mti::UbseLcneModule::GetBondingEidByNodeId).stubs().will(returnValue(UBSE_OK));
+    MOCKER(GetBondingEidByNodeId).stubs().will(returnValue(UBSE_OK));
     ret = queryCb(nodeId, eid);
     EXPECT_EQ(false, ret);
 }
@@ -888,61 +887,6 @@ TEST_F(TestUbseComModule, TestStartComService)
     MOCKER(&UbseInterCom::StartQueue).stubs().will(returnValue(UBSE_ERROR));
     ret = ubseComModule3.StartComService(localNodeId, localIp, newChannelCb, brokenChannelCb);
     EXPECT_EQ(UBSE_ERROR, ret);
-}
-
-/*
- * 用例描述：
- * 从MTI获取节点信息
- * 测试步骤：
- * 1.GetLocalNodeInfo失败
- * 2.ubEnable为true时获取节点信息
- * 3.ubEnable为false时获取节点信息
- * 预期结果：
- * 1.返回UBSE_ERROR
- * 2.返回UBSE_OK，address.first为eid
- * 3.返回UBSE_OK，address.second为TCP_LISTEN_PORT
- */
-TEST_F(TestUbseComModule, TestGetNodeInfoFromMti)
-{
-    IpAddress address;
-    std::string nodeId;
-    adapter_plugins::mti::UbseMtiInterface& mtiInterface = adapter_plugins::mti::UbseMtiInterface::GetInstance();
-
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
-    UbseResult ret = GetNodeInfoFromMti(address, nodeId);
-    EXPECT_EQ(UBSE_ERROR, ret);
-    GlobalMockObject::verify();
-
-    adapter_plugins::mti::UbseMtiNodeInfo nodeInfo{"Node0", "testEid"};
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
-        .stubs()
-        .with(outBound(nodeInfo))
-        .will(returnValue(UBSE_OK));
-    std::shared_ptr<UbseConfModule> ubseConfModule = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
-    ret = GetNodeInfoFromMti(address, nodeId);
-    EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ("testEid", address.first);
-    EXPECT_EQ("Node0", nodeId);
-    GlobalMockObject::verify();
-
-    std::string configVal = "192.168.1.1";
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
-        .stubs()
-        .with(outBound(nodeInfo))
-        .will(returnValue(UBSE_OK));
-    MOCKER(&UbseConfModule::GetConf<std::string>)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP_VIRTUAL(mtiInterface, &adapter_plugins::mti::UbseMtiInterface::GetLocalIp)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-    ret = GetNodeInfoFromMti(address, nodeId);
-    EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(TCP_LISTEN_PORT, address.second);
 }
 
 /*

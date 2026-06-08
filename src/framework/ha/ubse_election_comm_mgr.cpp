@@ -300,7 +300,7 @@ std::vector<UbseUrmaUvsNodeInfo> GenerateUrmaUvsNodeInfo()
             fe.ubpuId = eid.first;
             fe.primaryEid = eid.second.primaryEid;
             fe.entityId = eid.second.entityId;
-            fe.portEid = eid.second.portEidList;
+            fe.portEid = eid.second.portEids;
             agg.feList.push_back(fe);
         }
         UbseUrmaUvsNodeInfo info{nodeInfo.nodeId, {agg}};
