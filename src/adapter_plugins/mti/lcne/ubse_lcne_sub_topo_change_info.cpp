@@ -150,4 +150,40 @@ uint32_t UbseLcneLinkInfo::ParseMonitorData(std::string &resBody)
     }
     return UBSE_OK;
 }
+
+uint32_t UbseLcneLinkInfo::ParseLinkUpDownReq(const std::string &reqBody, std::string &linkUpDown,
+                                              std::string &interfaceName)
+{
+    if (reqBody.empty()) {
+        UBSE_LOG_WARN << "[MTI] req.body is empty.";
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_DEBUG << "[MTI] Received req.body " << reqBody;
+    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(reqBody);
+    if (ubseXml == nullptr) {
+        UBSE_LOG_WARN << "[MTI] Get ubse xml failed, " << FormatRetCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    auto ret = ubseXml->Parse();
+    if (ret != UbseXmlError::OK) {
+        UBSE_LOG_WARN << "[MTI] Topology reqBody parse failed, " << FormatRetCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    std::string portStatus;
+    if (ubseXml->Next("link-up") != nullptr) {
+        linkUpDown = "link-up";
+        portStatus = ubseXml->Child("oper-status")->Text();
+        interfaceName = ubseXml->Child("main-if-name")->Text();
+        UBSE_LOG_INFO << linkUpDown << ", portStatus=" << portStatus << ", interfaceName=" << interfaceName;
+        return UBSE_OK;
+    } else if (ubseXml->Next("link-down") != nullptr) {
+        linkUpDown = "link-down";
+        portStatus = ubseXml->Child("oper-status")->Text();
+        interfaceName = ubseXml->Child("main-if-name")->Text();
+        UBSE_LOG_INFO << linkUpDown << ", portStatus=" << portStatus << ", interfaceName=" << interfaceName;
+        return UBSE_OK;
+    }
+    UBSE_LOG_WARN << "[MTI] Neither link-up nor link-down is found in reqBody.";
+    return UBSE_ERROR;
+}
 } // namespace ubse::lcne

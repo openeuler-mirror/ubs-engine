@@ -12,7 +12,6 @@
 
 #include "ubse_smbios.h"
 #include <cstdint>
-#include "ubse_common_def.h"
 #include "ubse_smbios_def.h"
 #include "ubse_logger.h"
 #include "ubse_smbios_impl.h"
@@ -68,17 +67,6 @@ UbseResult UbseSmbios::GetPodId(uint16_t &podId)
     return UBSE_OK;
 }
 
-UbseResult UbseSmbios::GetSlotId(uint8_t &slotId)
-{
-    auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
-    if (basicInfo == nullptr) {
-        UBSE_LOG_ERROR << "Get super pod basic info failed";
-        return UBSE_ERROR;
-    }
-    slotId = static_cast<uint8_t>(basicInfo->slotId);
-    return UBSE_OK;
-}
-
 UbseResult UbseSmbios::GetServerIdx(uint32_t &serverIdx)
 {
     auto basicInfo = impl::UbseSmbiosImpl::GetInstance().GetSmbiosTypeInfo<UbseSmbiosType::SUPER_POD_BASIC_INFO_T>();
@@ -87,7 +75,7 @@ UbseResult UbseSmbios::GetServerIdx(uint32_t &serverIdx)
         return UBSE_ERROR;
     }
     // 计算serverIdx，serverIdx从0开始，slotId从1开始
-    serverIdx = static_cast<uint32_t>(basicInfo->podId) * NO_8 + static_cast<uint32_t>(basicInfo->slotId) - 1;
+    serverIdx = basicInfo->serverIdx;
     return UBSE_OK;
 }
 } // namespace ubse::adapter_plugins::smbios

@@ -388,10 +388,10 @@ TEST_F(TestUbseElectionCommMgr, PushAndActiveStaticInfoToUvs)
     info1.nodeId = "1";
     info1.groupId = 1;
     info1.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
-    UbseUrmaEidInfo eidInfo{};
+    UbseMtiEidGroup eidInfo{};
     eidInfo.entityId = "12";
     eidInfo.primaryEid = "4244:4944:0000:0000:0000:0000:0100:0001";
-    eidInfo.portEidList["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
+    eidInfo.portEids["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
     info1.feEidList["11"] = eidInfo;
     UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
 
@@ -409,10 +409,10 @@ TEST_F(TestUbseElectionCommMgr, GenerateUrmaUvsNodeInfo)
     info1.nodeId = "1";
     info1.groupId = 1;
     info1.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
-    UbseUrmaEidInfo eidInfo{};
+    UbseMtiEidGroup eidInfo{};
     eidInfo.entityId = "12";
     eidInfo.primaryEid = "4244:4944:0000:0000:0000:0000:0100:0001";
-    eidInfo.portEidList["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
+    eidInfo.portEids["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
     info1.feEidList["11"] = eidInfo;
     UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
 

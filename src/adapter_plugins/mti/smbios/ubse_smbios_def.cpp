@@ -172,7 +172,7 @@ void SmbiosSuperPodBasicInfo::LogSmbiosStructTypeInfo()
     UBSE_LOG_INFO << "SmbiosSuperPodBasicInfo: "
                   << "flag=" << static_cast<int>(flag) << ", podId=" << static_cast<int>(podId)
                   << ", slotId=" << static_cast<int>(slotId) << ", meshType=" << static_cast<int>(meshType)
-                  << ", superPodId=" << static_cast<int>(superPodId);
+                  << ", superPodId=" << static_cast<int>(superPodId) << ", serverIdx=" << static_cast<int>(serverIdx);
 }
 
 std::vector<uint8_t> GetDmiTable(off_t base, const char *tableFile, uint32_t flags, uint32_t &len)
@@ -232,6 +232,7 @@ UbseResult SmbiosSuperPodBasicInfo::FillSmbiosStructFromBuf()
     this->slotId = rawData[NO_7];
     this->meshType = rawData[NO_8];
     this->superPodId = static_cast<uint32_t>((rawData[NO_10] << NO_8) | rawData[NO_9]);
+    this->serverIdx = static_cast<uint32_t>((rawData[NO_14] << NO_8) | rawData[NO_13]);
     LogSmbiosStructTypeInfo();
     return UBSE_OK;
 }
@@ -264,7 +265,6 @@ UbseResult SmbiosStructure::DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_
         }
         // 当前的type不匹配，跳到下一个type
         if (this->header.type != static_cast<uint8_t>(type)) {
-            UBSE_LOG_ERROR << "Skip smbios type " << static_cast<int>(this->header.type);
             // 跳转到字符串表
             uint8_t *next = cursor + this->header.length;
             // 遍历字符串表，直到连续两个符号都是'\0'，表示字符串表结束

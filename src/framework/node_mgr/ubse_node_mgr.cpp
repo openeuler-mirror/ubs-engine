@@ -11,7 +11,7 @@
  */
 
 #include "ubse_node_mgr.h"
-#include "adapter_plugins/smbios/ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_static_info_mgr.h"
@@ -102,7 +102,7 @@ UbseResult GetClusterPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> 
     for (const auto &kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
-        kv.first.SplitDevName(nodeId, ubpuId);
+        kv.first.GetNodeIdAndChipId(nodeId, ubpuId);
         for (const auto &portKv : kv.second.second) {
             nodeController::PhysicalLink link{};
             if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK ||

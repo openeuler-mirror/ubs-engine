@@ -35,10 +35,10 @@ TEST_F(TestUbseNodeDiscoveryRootMode, Serialize)
     info.nodeId = "1";
     info.addr = "192.168.100.100";
     info.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0000";
-    UbseUrmaEidInfo eidInfo{};
+    UbseMtiEidGroup eidInfo{};
     eidInfo.entityId = "2";
     eidInfo.primaryEid = "4245:4944:0000:0000:0000:0000:0100:0001";
-    eidInfo.portEidList["3"] = "4245:4944:0000:0000:0000:0000:0100:0002";
+    eidInfo.portEids["3"] = "4245:4944:0000:0000:0000:0000:0100:0002";
     info.feEidList["5"] = eidInfo;
     std::vector<UbseNodeStaticInfo> nodes{info};
     UbseNodeDiscoveryListSerial serial(nodes);
@@ -55,7 +55,7 @@ TEST_F(TestUbseNodeDiscoveryRootMode, Serialize)
     EXPECT_EQ(1, result[0].feEidList.size());
     EXPECT_EQ("2", result[0].feEidList["5"].entityId);
     EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0001", result[0].feEidList["5"].primaryEid);
-    EXPECT_EQ(1, result[0].feEidList["5"].portEidList.size());
-    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0002", result[0].feEidList["5"].portEidList["3"]);
+    EXPECT_EQ(1, result[0].feEidList["5"].portEids.size());
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0002", result[0].feEidList["5"].portEids["3"]);
 }
 } // namespace ubse::nodeDiscovery

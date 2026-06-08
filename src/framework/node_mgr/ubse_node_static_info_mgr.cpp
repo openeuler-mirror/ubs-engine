@@ -14,11 +14,13 @@
 
 #include <mutex>
 
-#include "adapter_plugins/smbios/ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_com_module.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_logger.h"
+#include "ubse_str_util.h"
 #include "ubse_net_util.h"
 
 namespace ubse::nodeMgr {
@@ -198,32 +200,25 @@ uint32_t UbseNodeStaticInfoMgr::GetPodCapability()
 UbseResult UbseNodeStaticInfoMgr::InitCurNodeInfo(UbseNodeStaticInfo &node)
 {
     bool isClos = UbseSmbios::GetInstance().IsClosType();
-    auto &smbios = UbseSmbios::GetInstance();
-    uint8_t slotId = 0;
-    auto ret = smbios.GetSlotId(slotId);
+    adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{};
+    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get slot id failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "get local node info failed, " << FormatRetCode(ret);
         return ret;
     }
+    node.nodeId = ubseNodeInfo.nodeId;
     if (!isClos) {
-        node.nodeId = std::to_string(slotId);
         node.groupId = 0;
         node.superPodId = 0;
     } else {
-        uint32_t serverIndex = 0;
-        ret = smbios.GetServerIdx(serverIndex);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "get server index failed, " << FormatRetCode(ret);
-            return ret;
+        uint32_t nodeIndex;
+        if (ConvertStrToUint32(ubseNodeInfo.nodeId, nodeIndex) != UBSE_OK) {
+            UBSE_LOG_ERROR << "convert nodeId=" << ubseNodeInfo.nodeId << " to uint32_t failed";
+            return UBSE_ERROR;
         }
-        node.nodeId = std::to_string(serverIndex + 1); // nodeId从1开始
         uint32_t podCapability = GetPodCapability();
-        node.groupId = serverIndex / podCapability + 1; // 逻辑机柜从1开始
-        ret = smbios.GetSuperPodId(node.superPodId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "get super pod id failed, " << FormatRetCode(ret);
-            return ret;
-        }
+        node.groupId = (nodeIndex - 1) / podCapability + 1; // 逻辑机柜从1开始
+        node.superPodId = 0;
     }
     return UBSE_OK;
 }

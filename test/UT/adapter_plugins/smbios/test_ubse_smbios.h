@@ -17,8 +17,8 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_smbios.h"
-#include "ubse_smbios_def.h"
-#include "ubse_smbios_impl.h"
+#include "smbios/ubse_smbios_def.h"
+#include "smbios/ubse_smbios_impl.h"
 
 namespace ubse::adapter_plugins::smbios::ut {
 

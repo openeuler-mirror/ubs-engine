@@ -21,8 +21,8 @@ void UbseNodeDiscoverySerial::SerializeUbseNode(UbseSerialization &out, UbseNode
     out << array_len_insert(node.feEidList.size());
     for (const auto &fe : node.feEidList) {
         out << fe.first << fe.second.entityId << fe.second.primaryEid;
-        out << array_len_insert(fe.second.portEidList.size());
-        for (const auto &eid : fe.second.portEidList) {
+        out << array_len_insert(fe.second.portEids.size());
+        for (const auto &eid : fe.second.portEids) {
             out << eid.first << eid.second;
         }
     }
@@ -39,7 +39,7 @@ UbseResult UbseNodeDiscoverySerial::DeSerializeUbseNode(UbseDeSerialization &in,
     for (size_t i = 0; i < feEidListSize; i++) {
         std::string ubpuId;
         in >> ubpuId;
-        UbseUrmaEidInfo eidInfo{};
+        UbseMtiEidGroup eidInfo{};
         in >> eidInfo.entityId >> eidInfo.primaryEid;
         uint32_t eidListSize = 0;
         in >> array_len_capture(eidListSize);
@@ -50,7 +50,7 @@ UbseResult UbseNodeDiscoverySerial::DeSerializeUbseNode(UbseDeSerialization &in,
             std::string portId;
             std::string portEid;
             in >> portId >> portEid;
-            eidInfo.portEidList[portId] = portEid;
+            eidInfo.portEids[portId] = portEid;
         }
         node.feEidList[ubpuId] = eidInfo;
         if (!in.Check()) {

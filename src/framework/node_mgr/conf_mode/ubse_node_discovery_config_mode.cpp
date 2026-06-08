@@ -18,7 +18,7 @@
 #include "ubse_logger_module.h"
 #include "ubse_net_util.h"
 #include "ubse_node_static_info_mgr.h"
-#include "ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeMgr {

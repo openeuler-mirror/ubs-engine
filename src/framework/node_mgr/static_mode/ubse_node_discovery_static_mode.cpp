@@ -12,7 +12,8 @@
 
 #include "ubse_node_discovery_static_mode.h"
 
-#include "adapter_plugins/smbios/ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -25,6 +26,7 @@
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeMgr {
 using namespace ubse::adapter_plugins::smbios;
+using namespace ubse::adapter_plugins::mti;
 using namespace ubse::log;
 using namespace ubse::context;
 using namespace ubse::config;
@@ -54,24 +56,23 @@ UbseResult UbseNodeDiscoveryStaticMode::GenerateClusterStaticInfo()
 {
     auto &nodeDiscovery = UbseNodeStaticInfoMgr::GetInstance();
     auto currentSuperNode = nodeDiscovery.GetCurrentNode();
-    auto lcneModule = UbseContext::GetInstance().GetModule<mti::UbseLcneModule>();
-    if (lcneModule == nullptr) {
-        UBSE_LOG_ERROR << "Get lcne module failed. ";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::vector<MtiNodeInfo> ubseNodeInfos{};
-    auto ret = lcneModule->UbseGetAllNodeInfos(ubseNodeInfos);
+    std::vector<UbseMtiNodeInfo> ubseNodeInfos;
+    auto ret = UbseMtiInterface::GetInstance().GetClusterNodeInfoList(ubseNodeInfos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseGetAllNodeInfos failed, " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "Get all cluster node info failed, " << FormatRetCode(ret);
         return ret;
     }
-    const auto &allSocketComEid = lcneModule->GetAllSocketComEid();
-    for (const auto &socketComEid : allSocketComEid) {
-        std::string nodeId;
-        std::string ubpuId;
-        socketComEid.first.SplitDevName(nodeId, ubpuId);
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> comUrmaInfoMap{};
+    ret = UbseMtiInterface::GetInstance().GetMtiComEid(comUrmaInfoMap);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Get all socket eid failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    for (const auto &socketComEid : comUrmaInfoMap) {
+        std::string nodeId = socketComEid.first.slotId;
+        std::string ubpuId = socketComEid.first.ubpuId;
         const auto it = std::find_if(ubseNodeInfos.begin(), ubseNodeInfos.end(),
-                                     [&nodeId](const MtiNodeInfo &info) { return info.nodeId == nodeId; });
+                                     [&nodeId](const UbseMtiNodeInfo &info) { return info.nodeId == nodeId; });
         if (it == ubseNodeInfos.end()) {
             UBSE_LOG_WARN << "nodeId=" << nodeId << ", ubpuId=" << ubpuId
                           << ", not found in nodes info, will skip";

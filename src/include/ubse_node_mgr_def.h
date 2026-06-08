@@ -30,7 +30,7 @@ struct UbseNodeStaticInfo {
     std::string nodeId;      // 节点ID; 1Dfullmesh场景下等于槽位号, clos组网场景下为集群下标+1
     std::string addr;        // 节点 IPV4地址, 用于 tcp场景下节点发现
     std::string bonding0Eid; // 节点 bonding0Eid, 用于 urma场景下节点发现
-    std::unordered_map<std::string, UbseUrmaEidInfo> feEidList; // 节点fe eid list, 用于 urma场景下节点发现, key为chipId
+    std::unordered_map<std::string, UbseMtiEidGroup> feEidList; // 节点fe eid list, 用于 urma场景下节点发现, key为chipId
 };
 } // namespace ubse::nodeMgr
 #endif // UBS_ENGINE_UBSE_NODE_MGR_DEF_H

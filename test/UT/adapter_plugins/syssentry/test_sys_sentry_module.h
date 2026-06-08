@@ -37,14 +37,13 @@ extern std::vector<std::string> SplitString(const std::string &str, char delimit
 extern UbseResult GetEids(std::string &clientEid, std::string &serverEids);
 extern UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
-extern UbseResult SetSysSentryFaultEventOn();
-extern void LinkStrings(std::string &result, const std::string linkSymbol, const std::vector<std::string> strings);
-extern std::string ShellEscape(const std::string &str);
-extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseDevName,
-                                             ubse::adapter_plugins::mti::UbseUrmaEidInfo> &allSocketComEid,
-                              const std::string &nodeId,
-                              std::unordered_map<std::string, std::vector<std::string>> &eids,
-                              std::vector<std::string> &eidGroup);
+extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
+extern std::string ShellEscape(const std::string& str);
+extern UbseResult ProcessEids(const std::map<ubse::adapter_plugins::mti::UbseMtiIouInfo,
+                                             ubse::adapter_plugins::mti::UbseMtiEidGroup>& allSocketComEid,
+                              const std::string& nodeId,
+                              std::unordered_map<std::string, std::vector<std::string>>& eids,
+                              std::vector<std::string>& eidGroup);
 } // namespace syssentry
 namespace syssentry::ut {
 using namespace ubse::context;
