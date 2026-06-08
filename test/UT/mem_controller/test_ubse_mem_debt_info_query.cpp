@@ -20,9 +20,10 @@
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
-#include "ubse_mem_controller_module.h"
-#include "ubse_mem_debt_info.h"
 #include "ubse_mem_controller_def.h"
+#include "ubse_mem_controller_module.h"
+#include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller.h"
 
@@ -61,10 +62,10 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseGetMemDebtInfo)
         &UbseComModule::RpcSend<mem::controller::message::NodeMemDebtInfoQueryReqSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(sendFunc).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
 
-    EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_ERROR);
-    EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_ERROR_MODULE_LOAD_FAILED);
-    EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_ERROR);
-    EXPECT_EQ(UbseGetMemDebtInfo(nodeId, memDebtInfoMap), UBSE_OK);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap), UBSE_ERROR);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap), UBSE_ERROR_MODULE_LOAD_FAILED);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap), UBSE_ERROR);
+    EXPECT_EQ(UbseGetMemDebtInfoFromMaster(nodeId, memDebtInfoMap), UBSE_OK);
 }
 
 void AddFdObj(const std::string &importNodeId, const std::string &exportNodeId, const std::string &name)

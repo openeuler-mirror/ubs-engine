@@ -3,6 +3,7 @@
  */
 #ifndef UBSE_MEM_PREHANDLE_MANAGER_H
 #define UBSE_MEM_PREHANDLE_MANAGER_H
+#include "plugin_services/mem/ubse_mem_service_def.h"
 #include "src/adapter_plugins/mmi/ubse_mem_types.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_common_def.h"
@@ -16,11 +17,9 @@ struct PreHandlerInfo {
     bool isPreImport;                     // 是否已经执行了obmm的预上线操作
 };
 
-using DecoderLocToIsUsehandleValueMap =
-    std::unordered_map<decoder::utils::DecoderEntryLoc, std::vector<PreHandlerInfo>,
-                       decoder::utils::DecoderEntryLoc::Hash,
-                       decoder::utils::DecoderEntryLoc::
-                           Equal>; // 第一个bool表示是否执行了obmm的预上线操作，第二个bool表示这块内存是否有导入设备
+using DecoderLocToIsUsehandleValueMap = std::unordered_map<
+    DecoderEntryLoc, std::vector<PreHandlerInfo>, DecoderEntryLoc::Hash,
+    DecoderEntryLoc::Equal>; // 第一个bool表示是否执行了obmm的预上线操作，第二个bool表示这块内存是否有导入设备
 
 using DcnaToSize = std::unordered_map<uint32_t, uint64_t>;
 
@@ -35,32 +34,32 @@ public:
     UbseMemPrehandleManager(UbseMemPrehandleManager &&other) = delete;
     UbseMemPrehandleManager &operator=(const UbseMemPrehandleManager &other) = delete;
     UbseMemPrehandleManager &operator=(UbseMemPrehandleManager &&other) noexcept = delete;
-    UbseResult InitPreHandle(std::vector<mmi::BasicPreImportInfo> preImportInfos);
+    UbseResult InitPreHandle(std::vector<BasicPreImportInfo> preImportInfos);
 
     UbseResult GetOneUnImportHandle(
-        const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+        const DecoderEntryLoc &loc, uint32_t dcna,
         UbseMamiMemImportResult &handleValue); // 获得一个已经预上线，但没有导入的静态表项，指定了哪张表
 
-    void GetOneUnPreImportHandle(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+    void GetOneUnPreImportHandle(const DecoderEntryLoc &loc, uint32_t dcna,
                                  UbseMamiMemImportResult &value); // 获得一个还未预上线的表项，指定表
 
-    void CreatePreHandle(const decoder::utils::DecoderEntryLoc &loc, const UbseMamiMemImportResult &handleValue,
+    void CreatePreHandle(const DecoderEntryLoc &loc, const UbseMamiMemImportResult &handleValue,
                          uint32_t dcna, uint32_t importSize);
 
-    uint32_t GetPreHandleByDcna(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+    uint32_t GetPreHandleByDcna(const DecoderEntryLoc &loc, uint32_t dcna,
                                 UbseMamiMemImportResult &handleValue);
 
     uint64_t GetPresizeByDcna(uint32_t dcna);
 
-    void RollbackHandle(const decoder::utils::DecoderEntryLoc &loc, const std::vector<uint64_t> &handles);
+    void RollbackHandle(const DecoderEntryLoc &loc, const std::vector<uint64_t> &handles);
 
-    void RollbackHandle(const decoder::utils::DecoderEntryLoc &loc, uint64_t handle);
+    void RollbackHandle(const DecoderEntryLoc &loc, uint64_t handle);
 
-    void RollbackPreImportHandle(const decoder::utils::DecoderEntryLoc &loc);
+    void RollbackPreImportHandle(const DecoderEntryLoc &loc);
 
     void PrintPreHandleMap();
 
-    bool IsNeedPreOnline(const decoder::utils::DecoderEntryLoc &loc, uint32_t dcna, UbseMamiMemImportResult &outValue);
+    bool IsNeedPreOnline(const DecoderEntryLoc &loc, uint32_t dcna, UbseMamiMemImportResult &outValue);
 
 private:
     UbseMemPrehandleManager() = default;

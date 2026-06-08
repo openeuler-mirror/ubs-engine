@@ -1,4 +1,4 @@
 add_subdirectory(mem_scheduler)
-add_subdirectory(mem_controller)
 add_subdirectory(algorithm)
 add_subdirectory(mem_decoder_utils)
+add_subdirectory(mem_controller)

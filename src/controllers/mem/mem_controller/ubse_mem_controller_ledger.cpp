@@ -23,7 +23,6 @@
 #include "ubse_election_module.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_ledger_filter.h"
-#include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_def.h"
@@ -41,6 +40,7 @@ using ubse::election::UbseElectionModule;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::security;
 
+using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
 const std::string ClusterHandlerKey = "NODE_CLUSTER_HDL";
 const int DEFAULT_SLEEP_SECONDS = 299;

@@ -111,12 +111,6 @@ private:
     MemWaterMarkHolder() = default;
 };
 
-enum class WatermarkWarningType {
-    NO_WARN = 0,
-    HIGH_WATERMARK,
-    LOW_WATERMARK
-};
-
 struct UbseMemNumaIndexLoc {
     NodeIndex nodeIndex{INVALID_META_ID};
     SocketIndex socketIndex{INVALID_META_ID}; /* Node内从0索引，非所有Socket的索引 */

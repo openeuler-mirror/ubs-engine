@@ -22,7 +22,7 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_constants.h"
+#include "src/controllers/include/ubse_mem_constants.h"
 #include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
@@ -166,17 +166,6 @@ struct ObmmOpParam {
     }
 };
 // obmm部分
-
-struct BasicPreImportInfo {
-    uint64_t pa;
-    uint32_t scna{};
-    uint32_t dcna{};
-    uint16_t marId{0};
-    int numa_id{};
-    uint64_t preOnlineSize{};
-    uint32_t seid{0};
-    uint32_t deid{0};
-};
 
 struct obmm_preimport_info {
     uint64_t pa;

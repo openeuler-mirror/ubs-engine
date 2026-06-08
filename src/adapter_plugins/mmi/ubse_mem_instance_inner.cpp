@@ -12,8 +12,8 @@
 
 #include "ubse_mem_instance_inner.h"
 
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
+#include "plugin_services/mem/ubse_mem_service.h"
+#include "plugin_services/mem/ubse_mem_service_def.h"
 #include "ubse_error.h"
 #include "ubse_file_util.h"
 #include "ubse_mem_common_utils.h"
@@ -32,7 +32,7 @@ using namespace ubse::utils;
 using namespace ubse::nodeController;
 using namespace ubse::log;
 using namespace ubse::mmi::restore;
-
+using namespace ubse::mem::decoder::utils;
 static int LOCAL_NUMA_MAX{0};
 
 uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImportObj &importObj)
@@ -724,7 +724,12 @@ UbseResult SetPreImportDecoderParam(const SocketCnaInfo &cnaTopoInfo, uint64_t p
                                     mem::decoder::utils::PreImportDecoderParam &preImportDecoderParam)
 {
     std::pair<uint32_t, uint32_t> chipDiePair{};
-    auto res = mem::decoder::utils::MemDecoderUtils::GetChipAndDieId(cnaTopoInfo.importSocketId, chipDiePair);
+    auto memService = service::mem::GetMemService();
+    if (!memService) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto res = memService->GetChipAndDieId(cnaTopoInfo.importSocketId, chipDiePair);
     preImportDecoderParam.ubpuId = chipDiePair.first;
     preImportDecoderParam.iouId = chipDiePair.second;
     preImportDecoderParam.importType = UB_MEMORY_PREIMPORT_MEMORY_STATIC; // 静态预引入
@@ -734,21 +739,26 @@ UbseResult SetPreImportDecoderParam(const SocketCnaInfo &cnaTopoInfo, uint64_t p
     return res;
 }
 
-UbseResult MemPreImport(BasicPreImportInfo &basicPreImportInfo,
-                        const mem::decoder::utils::PreImportDecoderParam &preImportDecoderParam,
+UbseResult MemPreImport(service::mem::BasicPreImportInfo &basicPreImportInfo,
+                        const service::mem::PreImportDecoderParam &preImportDecoderParam,
                         const adapter_plugins::mti::mami::UbseMamiMemImportResult importValue,
                         std::vector<obmm_preimport_info> &obmmPreImportInfos)
 {
     auto ret = UBSE_OK;
     basicPreImportInfo.preOnlineSize = preImportDecoderParam.size;
-    mem::decoder::utils::DecoderEntryLoc loc{preImportDecoderParam.ubpuId, preImportDecoderParam.iouId,
+    service::mem::DecoderEntryLoc loc{preImportDecoderParam.ubpuId, preImportDecoderParam.iouId,
                                              preImportDecoderParam.marId, 0};
     std::vector<uint64_t> preImportHandles{};
     basicPreImportInfo.pa = importValue.hpa;
     auto preImportInfo = ConstructPreImportInfo(basicPreImportInfo);
     if (!preImportInfo) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "PreImportInfo is nullptr.";
-        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc);
+        auto memService = service::mem::GetMemService();
+        if (!memService) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+        memService->RollbackPreImportHandle(loc);
         RollBackPreOnline(obmmPreImportInfos);
         return UBSE_ERROR_INVAL;
     }
@@ -756,7 +766,12 @@ UbseResult MemPreImport(BasicPreImportInfo &basicPreImportInfo,
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "ObmmPreImport failed.";
         RmCommonUtils::GetInstance().SafeFree(preImportInfo);
-        mem::decoder::utils::UbseMemPrehandleManager::GetInstance().RollbackPreImportHandle(loc);
+        auto memService = service::mem::GetMemService();
+        if (!memService) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+        memService->RollbackPreImportHandle(loc);
         RollBackPreOnline(obmmPreImportInfos);
         return ret;
     }
@@ -785,22 +800,26 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
         UBSE_LOG_INFO << MMI_LOG_INFO << "Use primary cna. Dcna is " << cnaTopoInfo.dcna;
     }
 
-    mem::decoder::utils::PreImportDecoderParam preImportDecoderParam{};
+    service::mem::PreImportDecoderParam preImportDecoderParam{};
     auto res = SetPreImportDecoderParam(cnaTopoInfo, preImportSize, basicPreImportInfo.dcna, preImportDecoderParam);
     if (res != UBSE_OK) {
         return UBSE_ERROR_INVAL;
     }
 
     adapter_plugins::mti::mami::UbseMamiMemImportResult importValue{};
-    mem::decoder::utils::DecoderEntryLoc loc{preImportDecoderParam.ubpuId, preImportDecoderParam.iouId,
+    service::mem::DecoderEntryLoc loc{preImportDecoderParam.ubpuId, preImportDecoderParam.iouId,
                                              preImportDecoderParam.marId, 0};
-    auto isNeedPreOnline = mem::decoder::utils::UbseMemPrehandleManager::GetInstance().IsNeedPreOnline(
-        loc, basicPreImportInfo.dcna, importValue);
+    auto memService = service::mem::GetMemService();
+    if (!memService) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto isNeedPreOnline = memService->IsNeedPreOnline(loc, basicPreImportInfo.dcna, importValue);
     if (!isNeedPreOnline) {
         return UBSE_OK;
     }
     if (importValue.hpa == 0) {
-        ret = mem::decoder::utils::MemDecoderUtils::PreImportDecoderEntry(preImportDecoderParam, importValue);
+        ret = memService->PreImportDecoderEntry(preImportDecoderParam, importValue);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "PreImportDecoderEntry failed";
             return UBSE_ERROR_INVAL;
@@ -830,7 +849,12 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
             return UBSE_ERROR;
         }
         std::pair<uint32_t, uint32_t> chipDiePair{};
-        auto res = mem::decoder::utils::MemDecoderUtils::GetChipAndDieId(cnaTopoInfo.importSocketId, chipDiePair);
+        auto memService = service::mem::GetMemService();
+        if (!memService) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+        auto res = memService->GetChipAndDieId(cnaTopoInfo.importSocketId, chipDiePair);
         UbseCpuLocation location{cnaTopoInfo.exportNodeId, cnaTopoInfo.exportSocketId};
         auto cpuInfos = nodeInfo->second.cpuInfos.find(location);
         if (res != UBSE_OK || cpuInfos == nodeInfo->second.cpuInfos.end()) {
@@ -890,7 +914,12 @@ UbseResult MemInstanceInnerCommon::MemPreOnline(const std::vector<SocketCnaInfo>
     if (ret != UBSE_OK) {
         return ret;
     }
-    ret = ubse::mem::decoder::utils::UbseMemPrehandleManager::GetInstance().InitPreHandle(preImportInfos);
+    auto memService = service::mem::GetMemService();
+    if (!memService) {
+        UBSE_LOG_ERROR << MMI_LOG_INFO << "UbseMemService is not registered";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    ret = memService->InitPreHandle(preImportInfos);
     if (UBSE_RESULT_FAIL(ret)) {
         return ret;
     }

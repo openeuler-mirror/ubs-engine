@@ -5,6 +5,7 @@ add_subdirectory(controllers)
 add_subdirectory(adapter_plugins)
 add_subdirectory(ras)
 add_subdirectory(api_server)
+add_subdirectory(controllers/mem)
 add_subdirectory(sdk)
 add_subdirectory(addons)
 
@@ -23,9 +24,6 @@ add_executable(ubse
         framework/plugin_mgr/ubse_plugin_module.cpp
         framework/http/ubse_http_module.cpp
         framework/node_mgr/ubse_node_mgr_module.cpp
-        controllers/node/ubse_node_controller_module.cpp
-        controllers/mem/mem_controller/ubse_mem_controller_module.cpp
-        controllers/mem/mem_controller/ubse_mem_controller.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
         framework/ha/ubse_election_module.cpp
@@ -48,7 +46,6 @@ target_include_directories(ubse PRIVATE ${CMAKE_BINARY_DIR}/rpc)
 
 target_link_libraries(ubse PRIVATE
         ubse_security
-        ubse_context
         ubse_config
         ubse_com
         ubse_event
@@ -58,7 +55,6 @@ target_link_libraries(ubse PRIVATE
         ubse_http
         ubse_election
         ubse_mti
-        ubse_node_controller
         ubse_ras
         syssentry
         cert_api_static
@@ -73,7 +69,10 @@ target_link_libraries(ubse PRIVATE
 # 手动导出注册模式下会被编译器优化的符号
 target_link_libraries(ubse PRIVATE
         -Wl,--whole-archive
+        ubse_context
+        ubse_mmi
         ubse_node_controller_register_config
+        ubse_node_controller
         -Wl,--no-whole-archive
 )
 if (ASAN_BUILD)

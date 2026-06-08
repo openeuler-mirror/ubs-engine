@@ -8,7 +8,14 @@ add_library(ubse_mem_scheduler STATIC
         ubse_mem_validator.cpp
         ubse_borrow_account.cpp
         ubse_shm_account.cpp
-        ubse_mem_json_def.cpp
+        ../../../ras/water_process/ubse_mem_json_def.cpp
         )
-target_include_directories(ubse_mem_scheduler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/controllers/include ${PROJECT_SOURCE_DIR}/src/controllers/mem/algorithm/strategy)
-target_link_libraries(ubse_mem_scheduler PRIVATE ubse_node_controller ubse_context rm_mem_algo_static ubse_config ubse_election ubse_com)
+target_include_directories(ubse_mem_scheduler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/controllers/include ${PROJECT_SOURCE_DIR}/src/controllers/mem/algorithm/strategy  ${PROJECT_SOURCE_DIR}/src/include)
+target_link_libraries(ubse_mem_scheduler PRIVATE rm_mem_algo_static)
+target_include_directories(ubse_mem_scheduler PRIVATE
+    $<TARGET_PROPERTY:ubse_node_controller,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:ubse_context,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:ubse_config,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:ubse_election,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:ubse_com,INTERFACE_INCLUDE_DIRECTORIES>
+)

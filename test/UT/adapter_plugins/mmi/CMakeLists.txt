@@ -6,7 +6,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_mmi_ut
         ubse_config
         ubse_security
         ubse_http
-        ubse_mem_scheduler
+        mem_plugin
         ubse_rpc_client
         ubse_rpc
 )

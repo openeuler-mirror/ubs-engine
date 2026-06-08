@@ -2,7 +2,7 @@
 #include "ubse_ras_com_handler.h"
 #include "message/ubse_ras_message.h"
 #include "message/ubse_ras_oom_message.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
+#include "ubse_mmi_def.h"
 #include "ubse_election_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
@@ -138,7 +138,7 @@ UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseM
         return UBSE_ERROR;
     }
     auto numaInfo = nodeInfo.numaInfos[numaLocation];
-    UbseMemNumaLoc warningNumaLoc{.nodeId = nodeId,
+    adapter_plugins::mmi::UbseMemNumaLoc warningNumaLoc{.nodeId = nodeId,
                                   .socketId = static_cast<int>(numaInfo.socketId),
                                   .numaId = static_cast<int64_t>(numaId)};
 

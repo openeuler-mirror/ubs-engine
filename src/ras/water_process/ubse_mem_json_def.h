@@ -17,7 +17,7 @@
 #include <map>
 #include <string>
 
-#include "ubse_mem_constants.h"
+#include "src/controllers/include/ubse_mem_constants.h"
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::strategy {

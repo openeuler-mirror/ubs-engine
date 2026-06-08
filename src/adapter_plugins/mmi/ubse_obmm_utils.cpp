@@ -20,7 +20,6 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_common_utils.h"
-#include "ubse_mem_constants.h"
 #include "ubse_mem_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_obmm_executor.h"
@@ -31,9 +30,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::nodeController;
-using namespace ubse::mem::strategy;
 using namespace ubse::mmi;
-
 constexpr uint32_t INVALID_VALUE_CNA = 0;
 constexpr int CNA_FIRST_SHIFT = 24;
 constexpr int CNA_PER_SHIFT = 8;
@@ -488,7 +485,7 @@ obmm_preimport_info *ConstructPreImportInfo(const BasicPreImportInfo &basicPreIm
     return preImportInfoPtr;
 }
 
-UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicPreImportInfos)
+UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<service::mem::BasicPreImportInfo> &basicPreImportInfos)
 {
     std::ifstream file("/proc/obmm/preimport_info");
     if (!file.is_open()) {
@@ -523,7 +520,7 @@ UbseResult RmObmmUtils::GetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicP
     return UBSE_OK;
 }
 
-UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &basicPreImportInfos,
+UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<service::mem::BasicPreImportInfo> &basicPreImportInfos,
                                                std::ifstream &file, const std::vector<std::string> &tokens)
 {
     UBSE_LOG_INFO << MMI_LOG_INFO << "startAddr=" << tokens[START_ADDR_INDEX]
@@ -556,7 +553,7 @@ UbseResult RmObmmUtils::GetBasicPreImportInfos(std::vector<BasicPreImportInfo> &
         return UBSE_ERROR_INVAL;
     }
     uint64_t preOnlineSize = endAddr - startAddr + 1;
-    BasicPreImportInfo basicPreImportInfo{startAddr,
+    service::mem::BasicPreImportInfo basicPreImportInfo{startAddr,
                                           static_cast<uint32_t>(scna),
                                           static_cast<uint32_t>(dcna),
                                           0u,

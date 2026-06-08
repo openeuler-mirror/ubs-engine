@@ -19,13 +19,13 @@
 #include "ubse_conf.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_controller_module.h"
-
+#include "ubse_mmi_interface.h"
+#include "ubse_mem_controller_query_api.h"
 namespace ubse::mem::account {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::common::def;
 using namespace ubse::utils;
-using namespace ubse::mem::controller;
+using namespace ubse::adapter_plugins::mmi;
 const std::string MEM_CONFING_SECTION_NAME = "ubse.memory";
 const std::string POOL_MEMORY_RATIO = "system.pool.memory.ratio";
 /* **************************************** */
@@ -537,7 +537,7 @@ uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo> &numaInfo, std::vector<
     std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos =
         ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
     NodeMemDebtInfoMap debtInfoMap;
-    uint32_t ret = UbseGetMemDebtInfo("", debtInfoMap);
+    uint32_t ret = controller::UbseGetMemDebtInfoFromMaster("", debtInfoMap);
     if (ret != 0) {
         // 由下层模块打日志
         return ret;

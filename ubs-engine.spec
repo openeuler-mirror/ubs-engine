@@ -96,6 +96,15 @@ Requires: %{name} = %{version}-%{release}
 Development package for ucache plugin
 
 # ========================================================
+#                   SUBPACKAGE: ubs-engine-mem
+# ========================================================
+%package mem
+Summary: mem plugin
+Requires: %{name} = %{version}-%{release}
+%description mem
+Development package for mem plugin
+
+# ========================================================
 #                   SUBPACKAGE: ubs-engine-rmrs
 # ========================================================
 %package rmrs
@@ -236,6 +245,10 @@ cp -r %{_builddir}/%{project_dir}/src/include/* %{buildroot}/usr/include/ubse
 #install ucache
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
+
+#install mem
+mkdir -p %{buildroot}/usr/lib64/ubse_plugin
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmem_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
 
 #install rmrs
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libmempooling.so %{buildroot}/usr/lib64/
@@ -396,6 +409,8 @@ fi
 %dir /etc/ubse/
 %config(noreplace) /etc/ubse/ubse*.conf
 %dir /etc/ubse/plugins
+%defattr(755,root,root,-)
+%dir /usr/lib64/ubse_plugin
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
 
@@ -435,6 +450,11 @@ fi
 %config(noreplace) /etc/ubse/plugins/plugin_ucache.conf
 %defattr(755,root,root,-)
 /usr/lib64/libucache_plugin.so
+
+
+%files mem
+%defattr(755,root,root,-)
+/usr/lib64/ubse_plugin/libmem_plugin.so
 
 %files rmrs
 %defattr(644,root,root,-)

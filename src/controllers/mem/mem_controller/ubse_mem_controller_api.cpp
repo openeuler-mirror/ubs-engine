@@ -6,7 +6,6 @@
 #include <cstdint>
 
 #include "api/ubse_mem_controller_api_common.h"
-#include "message/node_mem_debtInfo_query_req_simpo.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"

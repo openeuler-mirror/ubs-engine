@@ -14,16 +14,17 @@
 #define UBSE_MANAGER_RM_OBMM_UTILS_H
 
 #include <ostream>
+#include "plugin_services/mem/ubse_mem_service_def.h"
 #include "ubse_common_def.h"
-#include "ubse_mmi_interface.h"
-#include "ubse_mmi_obmm_def.h"
 #include "ubse_mem_common_utils.h"
 #include "ubse_mem_types.h"
+#include "ubse_mmi_interface.h"
+#include "ubse_mmi_obmm_def.h"
 
 namespace ubse::mmi {
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::common::def;
-
+using namespace ubse::service::mem;
 obmm_mem_desc *ConstructExportMemDesc(const UbseMemLocalObmmCustomMeta &customMeta,
     const UbMemPrivData &ubMemPrivData);
 obmm_mem_desc *ConstructImportMemDesc(const ObmmOpParam &opParam, const ubse_mem_obmm_mem_desc &desc);

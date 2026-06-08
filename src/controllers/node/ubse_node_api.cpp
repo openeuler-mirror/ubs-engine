@@ -118,7 +118,7 @@ uint32_t UbseNodeApi::UbseServerNodeNumaMemGet(const UbseIpcMessage &req, const 
     if (ret != UBSE_OK) {
         return ret;
     }
-    std::vector<UbseNumaNodeInfo> numaNodeInfoList{};
+    std::vector<service::mem::UbseNumaNodeInfo> numaNodeInfoList{};
     ret = UbseNodeNumaMemGet(std::to_string(slotId), numaNodeInfoList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get numa info failed," << FormatRetCode(ret);

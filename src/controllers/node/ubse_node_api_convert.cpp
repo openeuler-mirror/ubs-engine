@@ -219,7 +219,7 @@ uint32_t UbseCpuLinkListPack(const std::vector<UbseCpuLink> &cpuLinkList, ipc::U
     return UBSE_OK;
 }
 
-static uint32_t UbseNumaInfoPack(const UbseNumaNodeInfo &numaInfo, UbsePackUtil &packUtil)
+static uint32_t UbseNumaInfoPack(const service::mem::UbseNumaNodeInfo &numaInfo, UbsePackUtil &packUtil)
 {
     try {
         uint32_t slotId = std::stoul(numaInfo.nodeId);
@@ -242,7 +242,8 @@ static uint32_t UbseNumaInfoPack(const UbseNumaNodeInfo &numaInfo, UbsePackUtil 
     return UBSE_OK;
 }
 
-uint32_t UbseNumaInfoListPack(const std::vector<UbseNumaNodeInfo> &numaInfoList, ipc::UbseIpcMessage &buffer)
+uint32_t UbseNumaInfoListPack(const std::vector<service::mem::UbseNumaNodeInfo> &numaInfoList,
+                              ipc::UbseIpcMessage &buffer)
 {
     size_t numaInfoSize = sizeof(uint32_t) * 9 + sizeof(uint64_t) * 4;
     size_t totalSize = sizeof(uint32_t) + numaInfoSize * numaInfoList.size();
