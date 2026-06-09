@@ -49,6 +49,7 @@ void MpConfiguration::SetPageTypeForSimplified()
 {
     if (faultSimplified_) {
         pageType = PageType::PAGE_4K;
+        sceneType = MpSceneType::CONTAINER_SCENE;
         LOG_DEBUG << "Detected: faultSimplified_=" << faultSimplified_ << " , Set PageType to 4K.";
     }
 }

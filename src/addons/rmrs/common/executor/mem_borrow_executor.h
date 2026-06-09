@@ -75,13 +75,18 @@ public:
     static MpResult UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std::string& name, const std::string& deleteName,
                                                               bool isFault);
 
+    static bool IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo);
+    static MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static std::vector<UbseNumaMemoryDebtInfo> FilterValidDebtInfos(
+        const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static uint64_t SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                       int16_t remoteNumaId);
+    static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+
 private:
     static MpResult FindCurrentDebtInfoAndSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
                                                   const std::string& name,
                                                   const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo, int& outSrcNuma);
-
-    static uint64_t CalculateTotalSizeBytesForSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos, int srcNuma,
-                                                      int16_t remoteNumaId);
 
     static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo, uint64_t totalSizeBytes,
                                                  int srcNuma, const std::string& name);

@@ -664,6 +664,27 @@ MpResult MempoolMigrateModule::GetReturningNuma(const std::string& borrowInNode,
     return MEM_POOLING_OK;
 }
 
+void MempoolMigrateExecute::ExcludePendingReturnBorrowIds(std::unordered_set<std::string>& borrowIds)
+{
+    auto pendingReturnIds = MemReturnManager::Instance().GetPendingReturnBorrowIds();
+    if (pendingReturnIds.empty()) {
+        return;
+    }
+    for (const auto& pendingId : pendingReturnIds) {
+        if (!BorrowRecordHelper::Instance().BorrowIdExists(pendingId)) {
+            MemReturnManager::Instance().RemovePendingReturn(pendingId);
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrate] Removed stale pending return borrowId=" << pendingId
+                << " (not in ledger).";
+            continue;
+        }
+        if (borrowIds.erase(pendingId) > 0) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemMigrate][MemMigrate] Exclude pending return borrowId=" << pendingId << " from migrateout.";
+        }
+    }
+}
+
 MpResult MempoolMigrateExecute::MigrateExecute(const std::string& borrowInNode,
                                                const std::vector<VMMigrateOutParam>& vmInfoList, uint64_t waitingTime,
                                                const std::vector<std::string>& borrowIdListIn)
@@ -678,27 +699,16 @@ MpResult MempoolMigrateExecute::MigrateExecute(const std::string& borrowInNode,
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Get migrate info failed.";
         return MEM_POOLING_ERROR;
     }
-    // 前置参数校验 分别校验borrowInNode和远端numa是否存在，大虚拟机场景也需要做校验
     ret = ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIds);
     if (waitingTime != 0 && ret) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Valid param failed.";
         return MEM_POOLING_ERROR;
     }
     std::unordered_set<std::string> borrowIds;
-    for (auto& destNumaId : uniqueDesNumaIds) {
-        std::vector<std::string> namesOfRemoteNuma;
-        ret = BorrowRecordHelper::Instance().GetBorrowIdByNumaId(namesOfRemoteNuma, destNumaId, borrowInNode);
-        if (waitingTime != 0 && ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] GetBorrowIdByNumaId failed.";
-            return ret;
-        }
-        borrowIds.insert(namesOfRemoteNuma.begin(), namesOfRemoteNuma.end());
+    ret = CollectAndFilterBorrowIds(borrowInNode, uniqueDesNumaIds, waitingTime, borrowIds, borrowIdList);
+    if (waitingTime != 0 && ret != MEM_POOLING_OK) {
+        return ret;
     }
-    borrowIdList.erase(std::remove_if(borrowIdList.begin(), borrowIdList.end(),
-                                      [&borrowIds](const std::string& id) {
-                                          return borrowIds.find(id) == borrowIds.end(); // 如果 id 不在 borrowIds 中
-                                      }),
-                       borrowIdList.end());
     if (waitingTime != 0 && borrowIdList.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Input borrowIdList is invalid.";
         return MEM_POOLING_ERROR;
@@ -720,6 +730,32 @@ MpResult MempoolMigrateExecute::MigrateExecute(const std::string& borrowInNode,
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] Migrate Execute failed.";
         return ret;
     }
+    return MEM_POOLING_OK;
+}
+
+MpResult MempoolMigrateExecute::CollectAndFilterBorrowIds(const std::string& borrowInNode,
+                                                          const std::unordered_set<uint16_t>& uniqueDesNumaIds,
+                                                          uint64_t waitingTime,
+                                                          std::unordered_set<std::string>& borrowIds,
+                                                          std::vector<std::string>& borrowIdList)
+{
+    MpResult ret = MEM_POOLING_OK;
+    for (auto& destNumaId : uniqueDesNumaIds) {
+        std::vector<std::string> namesOfRemoteNuma;
+        ret = BorrowRecordHelper::Instance().GetBorrowIdByNumaId(namesOfRemoteNuma, destNumaId, borrowInNode);
+        if (waitingTime != 0 && ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemMigrate][MemMigrate] GetBorrowIdByNumaId failed.";
+            return ret;
+        }
+        borrowIds.insert(namesOfRemoteNuma.begin(), namesOfRemoteNuma.end());
+    }
+    if (MpConfiguration::GetInstance().GetFaultSimplified()) {
+        ExcludePendingReturnBorrowIds(borrowIds);
+    }
+    borrowIdList.erase(
+        std::remove_if(borrowIdList.begin(), borrowIdList.end(),
+                       [&borrowIds](const std::string& id) { return borrowIds.find(id) == borrowIds.end(); }),
+        borrowIdList.end());
     return MEM_POOLING_OK;
 }
 

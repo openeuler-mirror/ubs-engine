@@ -138,7 +138,7 @@ struct PidCollectInfo {
 
 enum class UsrInfoPluginType : uint32_t
 {
-    PROCESS_MEM = 0,
+    PROCESS_MEM = 123,
 };
 
 inline const std::string PROCESS_MEM_NAME_PREFIX = "ProcessMem_";

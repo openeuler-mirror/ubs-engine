@@ -12,7 +12,6 @@
 
 #include "over_commit_fault_node_module.h"
 #include "ubse_error.h"
-#include "ubse_node_controller.h"
 #include "OsHelper/OsHelper.h"
 #include "collect_util.h"
 #include "common_delete_func.h"
@@ -864,21 +863,6 @@ MpResult OverCommitFaultNodeModule::BorrowInNodeProcess(const FaultRecordsInNode
     return res;
 }
 
-bool IsValidBorrowIdFormat(const std::string& name, const std::unordered_set<std::string>& validNodeIds)
-{
-    auto dashPos = name.find('-');
-    if (dashPos == std::string::npos || dashPos == 0 || dashPos == name.size() - 1) {
-        return false;
-    }
-    std::string nodeIdPart = name.substr(0, dashPos);
-    for (char c : nodeIdPart) {
-        if (!std::isdigit(static_cast<unsigned char>(c))) {
-            return false;
-        }
-    }
-    return validNodeIds.count(nodeIdPart) > 0;
-}
-
 BorrowRecord ConvertDebtInfoToBorrowRecord(const UbseNumaMemoryDebtInfo& debtInfo)
 {
     BorrowRecord record;
@@ -921,14 +905,8 @@ MpResult AggregatePidBorrowRecords(const std::vector<UbseNumaMemoryDebtInfo>& de
         return MEM_POOLING_OK;
     }
 
-    std::unordered_set<std::string> validNodeIds;
-    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto& [nodeId, _] : allNodes) {
-        validNodeIds.insert(nodeId);
-    }
-
     for (const auto& debtInfo : debtInfos) {
-        if (!IsValidBorrowIdFormat(debtInfo.name, validNodeIds)) {
+        if (!MemBorrowExecutor::IsValidBorrowIdFormat(debtInfo)) {
             LOG_WARN << "[FaultManager][Simplified] Skipping debt with invalid borrowId format: " << debtInfo.name
                      << ".";
             continue;
@@ -1024,7 +1002,7 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
     return MEM_POOLING_OK;
 }
 
-MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId, uint64_t remoteTotalSizeKB,
+MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap)
 {
     MigrateEscapeMsg msg{};
@@ -1048,6 +1026,23 @@ MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId, uint6
         return MEM_POOLING_ERROR;
     }
 
+    std::vector<UbseNumaMemoryDebtInfo> allDebtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] GetDebtInfosWithRetry failed for pending pid=" << pid << ".";
+        return MEM_POOLING_ERROR;
+    }
+    auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
+    uint64_t totalBorrowedKB =
+        MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(newRemoteNumaId)) /
+        1024;
+    over_commit::MemBorrowInfoWithSrc info{
+        .srcNumaId = 0, .presentNumaId = newRemoteNumaId, .borrowSize = totalBorrowedKB};
+    auto setRet = MpSmapHelper::SetSmapRemoteNumaInfo(-1, {info});
+    if (setRet != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] SetSmapRemoteNumaInfo failed for pending pid=" << pid
+                  << ", newRemoteNumaId=" << newRemoteNumaId << ".";
+    }
+
     MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry"
@@ -1067,7 +1062,7 @@ MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const st
             continue;
         }
         MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
-        if (ret != MEM_POOLING_OK) {
+        if (ret != MEM_POOLING_OK && ret != UBSE_ERR_NOT_EXIST) {
             LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
             finalRet = MEM_POOLING_ERROR;
         } else {
@@ -1110,6 +1105,23 @@ MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNum
         return MEM_POOLING_ERROR;
     }
 
+    std::vector<UbseNumaMemoryDebtInfo> allDebtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] GetDebtInfosWithRetry failed for pid=" << ctx.pid << ".";
+        return MEM_POOLING_ERROR;
+    }
+    auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
+    uint64_t totalBorrowedKB =
+        MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(newRemoteNumaId)) /
+        1024;
+    over_commit::MemBorrowInfoWithSrc info{
+        .srcNumaId = 0, .presentNumaId = newRemoteNumaId, .borrowSize = totalBorrowedKB};
+    auto setRet = MpSmapHelper::SetSmapRemoteNumaInfo(-1, {info});
+    if (setRet != MEM_POOLING_OK) {
+        LOG_ERROR << "[FaultManager][Simplified] SetSmapRemoteNumaInfo failed for pid=" << ctx.pid
+                  << ", newRemoteNumaId=" << newRemoteNumaId << ".";
+    }
+
     MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry "
@@ -1130,7 +1142,7 @@ MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& n
     MpResult finalRet = MEM_POOLING_OK;
     for (const auto& oldBorrowId : ctx.oldBorrowIds) {
         MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(oldBorrowId, true, false, true);
-        if (ret != MEM_POOLING_OK) {
+        if (ret != UBSE_ERR_NOT_EXIST && ret != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][Simplified] MemFreeWithOps failed for oldBorrowId=" << oldBorrowId << ".";
             finalRet = MEM_POOLING_ERROR;
         }
@@ -1231,8 +1243,7 @@ MpResult ProcessPendingMigration(pid_t pid, std::unordered_map<pid_t, PendingMig
             return MEM_POOLING_ERROR;
         }
 
-        MpResult ret =
-            ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId, state.remoteTotalSizeKB, state.remoteNumaSizeMap);
+        MpResult ret = ExecuteMigrateForPidWithNuma(pid, state.newRemoteNumaId, state.remoteNumaSizeMap);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][Simplified] Pending migrate failed for pid=" << pid
                       << ", borrowId=" << state.newBorrowId << " retained.";

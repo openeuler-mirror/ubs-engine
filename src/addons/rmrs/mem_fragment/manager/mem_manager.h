@@ -267,6 +267,22 @@ private:
     std::mutex mtxBorrowIdRedirect;
 };
 
+class SmapMigrateBackTaskIds {
+public:
+    static SmapMigrateBackTaskIds& Instance()
+    {
+        static SmapMigrateBackTaskIds instance;
+        return instance;
+    }
+    MpResult Update(const std::string& borrowId, const std::vector<uint64_t>& taskIds);
+    MpResult Query(const std::string& borrowId, std::vector<uint64_t>& taskIds);
+    MpResult Remove(const std::string& borrowId);
+
+private:
+    std::unordered_map<std::string, std::vector<uint64_t>> taskIdsMap;
+    std::mutex mtxTaskIds;
+};
+
 class BorrowIdsCompleted {
 public:
     static BorrowIdsCompleted& Instance()
@@ -542,6 +558,7 @@ public:
     MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
     MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord>& fragMentFaultBorrowRecords);
+    bool BorrowIdExists(const std::string& borrowId);
 
 private:
     MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);
@@ -564,9 +581,16 @@ public:
     MpResult PutRawData(UbseByteBuffer& buffer);
     bool IsAllReturned(const std::string& srcNid, const uint16_t& srcRemoteNumaId);
 
+    MpResult AddPendingReturn(const std::string& borrowId);
+    MpResult RemovePendingReturn(const std::string& borrowId);
+    std::unordered_set<std::string> GetPendingReturnBorrowIds();
+
 private:
     std::unordered_map<std::string, BorrowItem> borrowCache; // key为borrowId，value为对应的借用记录
     std::shared_mutex mtxMemReturnManager;
+
+    std::unordered_set<std::string> pendingReturnBorrowIds; // 即将归还的borrowId集合
+    std::shared_mutex mtxPendingReturn;
 };
 
 class MemRequestHelper {

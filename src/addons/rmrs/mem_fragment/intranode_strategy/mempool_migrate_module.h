@@ -146,6 +146,11 @@ public:
                                           std::unordered_set<uint16_t>& uniqueDesNumaIds);
     static MpResult ValidMigrateExecuteParam(const std::string& borrowInNode,
                                              const std::unordered_set<uint16_t>& uniqueDesNumaIdList);
+    static void ExcludePendingReturnBorrowIds(std::unordered_set<std::string>& borrowIds);
+    static MpResult CollectAndFilterBorrowIds(const std::string& borrowInNode,
+                                              const std::unordered_set<uint16_t>& uniqueDesNumaIds,
+                                              uint64_t waitingTime, std::unordered_set<std::string>& borrowIds,
+                                              std::vector<std::string>& borrowIdList);
 };
 
 } // namespace migrate
