@@ -34,6 +34,7 @@
 #include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "mp_vm_quota_util.h"
+#include "process_mem_pid_manager_def.h"
 #include "rmrs_resource_query.h"
 
 namespace mempooling {
@@ -1108,14 +1109,40 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
     return ret;
 }
 
+static MpResult SetRemoteNumaInfoBeforeMigrateOut(const MigrateOutMsg& msg)
+{
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> allDebtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "MigrateOut GetDebtInfosWithRetry failed, skip SetSmapRemoteNumaInfo.";
+        return MEM_POOLING_ERROR;
+    }
+    auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
+
+    std::vector<over_commit::MemBorrowInfoWithSrc> infos;
+    for (int i = 0; i < msg.count; ++i) {
+        uint16_t remoteNumaId = static_cast<uint16_t>(msg.payload[i].inner[0].destNid);
+        uint64_t totalSizeKB =
+            MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(remoteNumaId)) /
+            1024;
+        if (totalSizeKB > 0) {
+            infos.push_back({.srcNumaId = 0, .presentNumaId = remoteNumaId, .borrowSize = totalSizeKB});
+        }
+    }
+    if (!infos.empty() && smap::MpSmapHelper::SetSmapRemoteNumaInfo(-1, infos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "MigrateOut SetSmapRemoteNumaInfo failed, count=" << infos.size();
+    }
+    return MEM_POOLING_OK;
+}
+
 int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayload>& items, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry MigrateOut.";
     MigrateOutMsg msg{};
     msg.count = static_cast<int>(items.size());
     for (size_t i = 0; i < items.size(); ++i) {
-        const auto& in = items[i];
-        msg.payload[i] = in; // 结构体直接拷贝=透传
+        msg.payload[i] = items[i];
     }
 
     SmapMigrateOutFunc smapMigrateOutFunc = SmapModule::GetSmapMigrateOut();
@@ -1126,18 +1153,16 @@ int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayl
 
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "MigrateOut, pidType=" << pidType << ", count=" << msg.count << ".";
-
     for (int i = 0; i < msg.count; ++i) {
         const auto& p = msg.payload[i];
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "MigrateOut payload[" << i << "]"
-            << ", pid=" << p.pid << ", destNid=" << p.inner[0].destNid
-            << ", migrateMode=" << static_cast<int>(p.inner[0].migrateMode) << ", ratio=" << p.inner[0].ratio
+            << "MigrateOut payload[" << i << "], pid=" << p.pid << ", destNid=" << p.inner[0].destNid
             << ", memSize=" << p.inner[0].memSize << "KB";
     }
 
-    int ret2 = smapMigrateOutFunc(&msg, pidType);
+    SetRemoteNumaInfoBeforeMigrateOut(msg);
 
+    int ret2 = smapMigrateOutFunc(&msg, pidType);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "MigrateOut, with code = " << ret2 << ".";
     return ret2;
 }

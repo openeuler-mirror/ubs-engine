@@ -25,6 +25,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
+#include "ubse_node_controller.h"
 #include "mem_manager.h"
 #include "mempooling_return_module.h"
 #include "mp_configuration.h"
@@ -409,6 +410,34 @@ void DeletePersistenceSmapEnable(const int16_t& numaId)
     }
 }
 
+static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector<MigrateBackMsg>& msgs,
+                                            const EnableNodeMsg& enableMsg, std::vector<uint64_t>& taskIds)
+{
+    if (SmapMigrateBackTaskIds::Instance().Query(name, taskIds) == MEM_POOLING_OK && !taskIds.empty()) {
+        return MEM_POOLING_OK;
+    }
+    for (auto& msg : msgs) {
+        if (msg.count <= 0) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] Smap migrate back count=" << msg.count << " invalid.";
+            return MEM_POOLING_ERROR;
+        }
+        PersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
+        if (SmapMigrateBackProcess(msg) != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
+            SmapEnableNumaProcess(enableMsg);
+            DeletePersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
+            return MEM_POOLING_ERROR;
+        }
+        taskIds.push_back(msg.taskID);
+    }
+    if (!taskIds.empty()) {
+        SmapMigrateBackTaskIds::Instance().Update(name, taskIds);
+    }
+    return MEM_POOLING_OK;
+}
+
 MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string& name, const std::string& deleteName,
                                                               bool isFault)
 {
@@ -420,45 +449,33 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] GenerateParams failed.";
         return retSmap;
     }
-    auto retUpdateSmap = UpdateSmapRemoteNumaInfoBeforeMigrateBack(name, deleteName, isFault);
-    if (retUpdateSmap != MEM_POOLING_OK) {
+    if (UpdateSmapRemoteNumaInfoBeforeMigrateBack(name, deleteName, isFault) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] UpdateSmapRemoteNumaInfoBeforeMigrateBack failed, abort return.";
+            << "[MemFree][MemFreeExecute] UpdateSmapRemoteNumaInfoBeforeMigrateBack failed.";
         return MEM_POOLING_ERROR;
     }
 
-    for (auto& migrateBackMsg : migrateBackMsgs) {
-        // 持久化SmapEnable数据
-        if (migrateBackMsg.count > 0) {
-            PersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
-        } else {
+    std::vector<uint64_t> taskIds;
+    if (DispatchMigrateBackIfNeeded(name, migrateBackMsgs, enableMsg, taskIds) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+    for (const auto& taskId : taskIds) {
+        if (MpSmapHelper::GetLocalSmapBackResult(taskId) != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] Smap migrate back count=" << migrateBackMsg.count << " invalid.";
-            return MEM_POOLING_ERROR;
-        }
-        retSmap = SmapMigrateBackProcess(migrateBackMsg);
-        if (retSmap != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
-            retSmap = SmapEnableNumaProcess(enableMsg);
-            // 迁回失败并对远端numa进行了enable，把持久化数据删掉
-            DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
-            if (retSmap != MEM_POOLING_OK) {
-                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                    << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
-            }
+                << "[MemFree][MemFreeExecute] GetLocalSmapBackResult failed, taskId=" << taskId << ".";
             return MEM_POOLING_ERROR;
         }
     }
+    SmapMigrateBackTaskIds::Instance().Remove(name);
 
-    auto retMemFreeByUbse = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
-    if (retMemFreeByUbse != MEM_POOLING_OK) {
+    if (MemFreeWithOpsByMemfabric(name, deleteName, isFault) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed.";
         return MEM_POOLING_ERROR;
     }
+    MemReturnManager::Instance().RemovePendingReturn(name);
+
     retSmap = SmapEnableNumaProcess(enableMsg);
-    // 归还成功并对远端numa进行了enable，把持久化数据删掉
     if (!migrateBackMsgs.empty()) {
         DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgs[0].payload[0].srcNid));
     }
@@ -466,10 +483,8 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;
     }
-
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemFree][MemBorrowExecute] MemBorrowExecutor frees memory success, borrow_id=" << name << ".";
-
     return MEM_POOLING_OK;
 }
 
@@ -678,7 +693,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name,
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] BorrowId=" << name << " rediects to borrow_id=" << deleteName << ".";
     }
-
+    MemReturnManager::Instance().AddPendingReturn(name);
     if (smapBack) {
         auto ret = MemFreeWithOpsBySmapForProcessMem(name, deleteName, isFault);
         if (ret != MEM_POOLING_OK) {
@@ -772,22 +787,68 @@ MpResult MemBorrowExecutor::FindCurrentDebtInfoAndSrcNuma(const std::vector<Ubse
     return MEM_POOLING_OK;
 }
 
-uint64_t MemBorrowExecutor::CalculateTotalSizeBytesForSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
-                                                              int srcNuma, int16_t remoteNumaId)
+bool MemBorrowExecutor::IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo)
+{
+    // Check usrInfo first 4 bytes (pluginId) is PROCESS_MEM
+    uint32_t pluginId = 0;
+    auto err = memcpy_s(&pluginId, sizeof(pluginId), debtInfo.usrInfo, sizeof(pluginId));
+    if (err != 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "memcpy_s usrInfo failed, err=" << err;
+        return false;
+    }
+    if (pluginId != static_cast<uint32_t>(process_mem::def::UsrInfoPluginType::PROCESS_MEM)) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "borrowId " << debtInfo.name << " pluginId is " << pluginId << ".";
+        return false;
+    }
+
+    // Check name format: nodeId-xxx where nodeId is all digits and valid
+    const std::string& name = debtInfo.name;
+    auto dashPos = name.find('-');
+    if (dashPos == std::string::npos || dashPos == 0 || dashPos == name.size() - 1) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "borrowId " << debtInfo.name << " excluded.";
+        return false;
+    }
+    std::string nodeIdPart = name.substr(0, dashPos);
+    for (char c : nodeIdPart) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "borrowId " << debtInfo.name << " excluded.";
+            return false;
+        }
+    }
+    auto allNodes = ubse::nodeController::UbseNodeController::GetInstance().GetAllNodes();
+    std::unordered_set<std::string> validNodeIds;
+    for (const auto& [nodeId, _] : allNodes) {
+        validNodeIds.insert(nodeId);
+    }
+    return validNodeIds.count(nodeIdPart) > 0;
+}
+
+std::vector<UbseNumaMemoryDebtInfo> MemBorrowExecutor::FilterValidDebtInfos(
+    const std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    std::vector<UbseNumaMemoryDebtInfo> validDebtInfos;
+    for (const auto& debtInfo : debtInfos) {
+        if (IsValidBorrowIdFormat(debtInfo)) {
+            validDebtInfos.push_back(debtInfo);
+        }
+    }
+    return validDebtInfos;
+}
+
+uint64_t MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                               int16_t remoteNumaId)
 {
     uint64_t totalSizeBytes = 0;
     for (const auto& debtInfo : debtInfos) {
-        process_mem::def::ProcessMemUsrInfo tmpUsrInfo{};
-        memcpy_s(&tmpUsrInfo, sizeof(process_mem::def::ProcessMemUsrInfo), debtInfo.usrInfo,
-                 sizeof(process_mem::def::ProcessMemUsrInfo));
-        if (tmpUsrInfo.srcNuma == srcNuma && debtInfo.remoteNumaId == remoteNumaId) {
+        if (debtInfo.remoteNumaId == remoteNumaId) {
             totalSizeBytes += debtInfo.size;
         }
     }
     return totalSizeBytes;
 }
 
-static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+bool MemBorrowExecutor::ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     if (ret == UBSE_ERR_INTERNAL) {
         return true;
@@ -812,6 +873,30 @@ static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaM
     return false;
 }
 
+MpResult MemBorrowExecutor::GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
+{
+    constexpr int maxRetryTimes = 30;
+    constexpr int sleepSeconds = 1;
+    int curRetryTimes = 0;
+
+    while (curRetryTimes < maxRetryTimes) {
+        debtInfos.clear();
+        UbseResult ret = UbseGetNumaMemDebtInfo(debtInfos);
+        if (!ShouldRetryDebtInfoFetch(ret, debtInfos)) {
+            return MEM_POOLING_OK;
+        }
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrowExecutor] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
+            << ", ret=" << static_cast<uint32_t>(ret);
+        std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
+        curRetryTimes++;
+    }
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemBorrowExecutor] UbseGetNumaMemDebtInfo failed after max retry.";
+    return MEM_POOLING_ERROR;
+}
+
 static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     constexpr int maxRetryTimes = 30;
@@ -821,7 +906,7 @@ static MpResult GetDebtInfoByNameWithRetry(const std::string& name, std::vector<
     while (curRetryTimes < maxRetryTimes) {
         debtInfos.clear();
         UbseResult ret = UbseGetNumaMemDebtInfo(debtInfos);
-        if (ShouldRetryDebtInfoFetch(ret, debtInfos)) {
+        if (MemBorrowExecutor::ShouldRetryDebtInfoFetch(ret, debtInfos)) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] UbseGetNumaMemDebtInfo retry=" << (curRetryTimes + 1)
                 << ", ret=" << static_cast<uint32_t>(ret);
@@ -862,11 +947,9 @@ MpResult MemBorrowExecutor::UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std:
     if (findRet != MEM_POOLING_OK) {
         return findRet;
     }
-    if (srcNuma == -1) {
-        return MEM_POOLING_OK;
-    }
 
-    uint64_t totalSizeBytes = CalculateTotalSizeBytesForSrcNuma(debtInfos, srcNuma, currentDebtInfo->remoteNumaId);
+    auto validDebtInfos = FilterValidDebtInfos(debtInfos);
+    uint64_t totalSizeBytes = SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, currentDebtInfo->remoteNumaId);
 
     return ValidateAndExecuteSmapUpdate(currentDebtInfo, totalSizeBytes, srcNuma, name);
 }
@@ -885,8 +968,8 @@ MpResult MemBorrowExecutor::ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDeb
     uint64_t remainingSizeBytes = totalSizeBytes - currentDebtInfo->size;
     uint64_t remainingSizeKB = remainingSizeBytes / 1024;
 
-    auto ret = SetSmapRemoteNumaInfoExec(static_cast<int16_t>(srcNuma),
-                                         static_cast<uint16_t>(currentDebtInfo->remoteNumaId), remainingSizeKB);
+    auto ret = SetSmapRemoteNumaInfoExec(static_cast<int16_t>(-1), static_cast<uint16_t>(currentDebtInfo->remoteNumaId),
+                                         remainingSizeKB);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] SetSmapRemoteNumaInfoExec failed, srcNuma=" << srcNuma

@@ -11,6 +11,8 @@
  */
 
 #include <algorithm>
+#include <cerrno>
+#include <csignal>
 
 #include "mem_borrow_executor.h"
 
@@ -474,6 +476,28 @@ uint32_t SetHandlerResponseFromResult(UbseByteBuffer& resp, MpResult result)
     return static_cast<uint32_t>(result);
 }
 
+static bool IsProcessAlive(pid_t pid)
+{
+    if (pid <= 0) {
+        return false;
+    }
+    return kill(pid, 0) == 0 || errno != ESRCH;
+}
+
+static MpResult FreeBorrowRecordsDirectly(const std::vector<BorrowRecord>& records)
+{
+    MpResult finalRet = MEM_POOLING_OK;
+    for (const auto& rec : records) {
+        auto ret = MemBorrowExecutor::Instance().MemFreeWithOps(rec.name, true, false, true);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] FreeBorrowRecordsDirectly failed for " << rec.name;
+            finalRet = MEM_POOLING_ERROR;
+        }
+    }
+    return finalRet;
+}
+
 MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
 {
     std::vector<std::pair<pid_t, uint64_t>> pidSizeList;
@@ -488,14 +512,23 @@ MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
 
     MpResult finalResult = MEM_POOLING_OK;
     for (const auto& pidSizePair : pidSizeList) {
-        int64_t startTime =
-            records.pidStartTimeMap.count(pidSizePair.first) ? records.pidStartTimeMap.at(pidSizePair.first) : 0;
-        MpResult pidResult =
-            ProcessSinglePidFault(pidSizePair.first, startTime, records.pidBorrowMap.at(pidSizePair.first));
+        pid_t pid = pidSizePair.first;
+        int64_t startTime = records.pidStartTimeMap.count(pid) ? records.pidStartTimeMap.at(pid) : 0;
+        const auto& borrowRecords = records.pidBorrowMap.at(pid);
+
+        if (!IsProcessAlive(pid)) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Process dead, directly freeing borrowIds, pid=" << pid;
+            if (FreeBorrowRecordsDirectly(borrowRecords) != MEM_POOLING_OK) {
+                finalResult = MEM_POOLING_ERROR;
+            }
+            continue;
+        }
+
+        MpResult pidResult = ProcessSinglePidFault(pid, startTime, borrowRecords);
         if (pidResult != MEM_POOLING_OK) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[OverCommit][FaultManagement] SimplifiedFaultNumaProcessRecvHandler ProcessSinglePidFault"
-                << " failed, pid=" << pidSizePair.first << ", ret=" << pidResult << ".";
+                << "[OverCommit][FaultManagement] ProcessSinglePidFault failed, pid=" << pid;
             finalResult = MEM_POOLING_ERROR;
         }
     }

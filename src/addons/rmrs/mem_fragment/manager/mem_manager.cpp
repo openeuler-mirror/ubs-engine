@@ -1358,6 +1358,32 @@ MpResult BorrowIdRedirection::Remove(const std::string key)
     return MEM_POOLING_OK;
 }
 
+MpResult SmapMigrateBackTaskIds::Update(const std::string& borrowId, const std::vector<uint64_t>& taskIds)
+{
+    std::lock_guard<std::mutex> lock(mtxTaskIds);
+    taskIdsMap[borrowId] = taskIds;
+    LOG_DEBUG << "[SmapMigrateBackTaskIds] Updated borrowId=" << borrowId << ", taskIds.size=" << taskIds.size();
+    return MEM_POOLING_OK;
+}
+
+MpResult SmapMigrateBackTaskIds::Query(const std::string& borrowId, std::vector<uint64_t>& taskIds)
+{
+    std::lock_guard<std::mutex> lock(mtxTaskIds);
+    auto it = taskIdsMap.find(borrowId);
+    if (it != taskIdsMap.end()) {
+        taskIds = it->second;
+        return MEM_POOLING_OK;
+    }
+    return MEM_POOLING_ERROR;
+}
+
+MpResult SmapMigrateBackTaskIds::Remove(const std::string& borrowId)
+{
+    std::lock_guard<std::mutex> lock(mtxTaskIds);
+    taskIdsMap.erase(borrowId);
+    return MEM_POOLING_OK;
+}
+
 MpResult MemRequestHelper::ParseMemIdArray(const rapidjson::Value& doc, BorrowRecord& record)
 {
     auto ret = MEM_POOLING_ERROR;
@@ -1949,6 +1975,16 @@ MpResult BorrowRecordHelper::GetBorrowIdByNumaId(std::vector<std::string>& borro
     return MEM_POOLING_OK;
 }
 
+bool BorrowRecordHelper::BorrowIdExists(const std::string& borrowId)
+{
+    for (const auto& record : gBorrowRecords) {
+        if (record.name == borrowId) {
+            return true;
+        }
+    }
+    return false;
+}
+
 MpResult MemReturnManager::Update(const std::string& borrowId, BorrowItem& value)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -2072,6 +2108,30 @@ bool MemReturnManager::IsAllReturned(const std::string& srcNid, const uint16_t& 
         }
     }
     return true;
+}
+
+MpResult MemReturnManager::AddPendingReturn(const std::string& borrowId)
+{
+    std::unique_lock<std::shared_mutex> lock(mtxPendingReturn);
+    pendingReturnBorrowIds.insert(borrowId);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemReturnManager] Mark borrowId=" << borrowId << " as pending return.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MemReturnManager::RemovePendingReturn(const std::string& borrowId)
+{
+    std::unique_lock<std::shared_mutex> lock(mtxPendingReturn);
+    pendingReturnBorrowIds.erase(borrowId);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MemReturnManager] Remove pending return mark for borrowId=" << borrowId << ".";
+    return MEM_POOLING_OK;
+}
+
+std::unordered_set<std::string> MemReturnManager::GetPendingReturnBorrowIds()
+{
+    std::shared_lock<std::shared_mutex> lock(mtxPendingReturn);
+    return pendingReturnBorrowIds;
 }
 
 MpResult Name2VmInfo::Update(const std::string& nodeId, std::map<std::string, std::set<BorrowIdInfo>>& value)
