@@ -46,8 +46,7 @@ public:
 
     UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower) override;
 
-    UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                                 const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
+    UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemAddrCreateOpt &opt,
                                  UbseMemAddrDesc &desc) override;
 
     UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &borrower) override;
@@ -69,15 +68,15 @@ public:
 
     UbseResult GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair) override;
 
-    uint32_t PreImportDecoderEntry(const ubse::mem::decoder::utils::PreImportDecoderParam &importDecoderParam,
+    uint32_t PreImportDecoderEntry(const PreImportDecoderParam &importDecoderParam,
                                    ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult &outValue) override;
 
-    bool IsNeedPreOnline(const ubse::mem::decoder::utils::DecoderEntryLoc &loc, uint32_t dcna,
+    bool IsNeedPreOnline(const DecoderEntryLoc &loc, uint32_t dcna,
                          ubse::adapter_plugins::mti::mami::UbseMamiMemImportResult &outValue) override;
 
-    void RollbackPreImportHandle(const ubse::mem::decoder::utils::DecoderEntryLoc &loc) override;
+    void RollbackPreImportHandle(const DecoderEntryLoc &loc) override;
 
-    UbseResult InitPreHandle(const std::vector<ubse::mem::decoder::utils::BasicPreImportInfo> &preImportInfos) override;
+    UbseResult InitPreHandle(const std::vector<BasicPreImportInfo> &preImportInfos) override;
 
     ~UbseMemServiceImpl() override = default;
 };

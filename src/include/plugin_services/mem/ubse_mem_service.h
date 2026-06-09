@@ -56,8 +56,7 @@ public:
 
     virtual UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower) = 0;
 
-    virtual UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &borrower,
-                                         const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
+    virtual UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemAddrCreateOpt &opt,
                                          UbseMemAddrDesc &desc) = 0;
 
     virtual UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &borrower) = 0;

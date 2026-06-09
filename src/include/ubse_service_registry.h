@@ -37,6 +37,7 @@ public:
     template <typename T>
     void RegisterService(std::shared_ptr<T> service)
     {
+        if (service == nullptr) return;
         static_assert(std::is_base_of_v<UbseIService, T>, "T must derive from IService");
         std::unique_lock lock(mutex_);
         std::string name = service->GetServiceName();
@@ -44,11 +45,12 @@ public:
     }
 
     template <typename T>
-    void UnRegisterService(const std::string &name)
+    void UnRegisterService(std::shared_ptr<T> service)
     {
+        if (service == nullptr) return;
         static_assert(std::is_base_of_v<UbseIService, T>, "T must derive from IService");
         std::unique_lock lock(mutex_);
-        if (auto it = services_.find(name); it != services_.end()) {
+        if (auto it = services_.find(service->GetServiceName()); it != services_.end()) {
             services_.erase(it);
         }
     }

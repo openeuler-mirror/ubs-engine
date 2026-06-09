@@ -19,6 +19,8 @@
 #include <vector>
 
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
+#include "ubse_mem_controller.h"
+
 namespace ubse::service::mem {
 
 struct UbseNumaNodeInfo {
@@ -87,6 +89,13 @@ struct DecoderEntryLoc {
                    lhs.decoderId == rhs.decoderId;
         }
     };
+};
+
+struct UbseMemAddrCreateOpt {
+    ubse::mem::controller::UbseMemBorrower borrower;      // 借用方信息
+    ubse::mem::controller::UbseMemProcessLender lender;   // 借出进程信息
+    uint32_t flag{0};              // 标志位，如 UBSE_MEM_FLAG_NO_WR_DELAY
+    uint8_t exportAccessMode{0};   // 导出访问模式
 };
 };
 #endif

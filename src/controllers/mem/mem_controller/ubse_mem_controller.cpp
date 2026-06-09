@@ -113,7 +113,14 @@ UbseResult UbseMemAddrCreate(const std::string &name, const UbseMemBorrower &bor
         UBSE_LOG_ERROR << "UbseMemService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    return memService->UbseMemAddrCreate(name, borrower, lender, flag, exportAccessMode, desc);
+    // 将参数封装到 UbseMemAddrCreateOpt 中
+    service::mem::UbseMemAddrCreateOpt opt{
+        .borrower = borrower,
+        .lender = lender,
+        .flag = flag,
+        .exportAccessMode = exportAccessMode
+    };
+    return memService->UbseMemAddrCreate(name, opt, desc);
 }
 
 UbseResult UbseMemAddrDelete(const std::string &name, const UbseMemBorrower &borrower)

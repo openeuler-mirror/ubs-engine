@@ -15,6 +15,7 @@
 
 #include "ubse_context.h" // for context
 #include "ubse_mmi_interface.h"
+#include "ubse_mem_service_impl.h"
 #include "ubse_common_def.h"
 namespace ubse::mem::controller {
 using namespace ubse::common::def;
@@ -33,6 +34,8 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+private:
+    std::shared_ptr<service::mem::UbseMemServiceImpl> memService_;
 };
 
 
