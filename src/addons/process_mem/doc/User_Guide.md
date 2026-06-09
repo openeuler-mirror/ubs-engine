@@ -187,7 +187,7 @@ ProcessMem 插件日志文件路径：
 /var/log/ubse/process_mem_plugin.log
 ```
 
-## 6 卸载
+# 6 卸载
 
 ```bash
 rpm -evh process_mem
