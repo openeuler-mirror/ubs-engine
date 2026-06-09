@@ -21,6 +21,7 @@
 #include "mem_manager.h"
 #include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
+#include "mp_smap_controller.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -408,6 +409,8 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             MpSmapHelper::SmapMigratePidRemoteNumaHelper(pids.data(), pids.size(), remoteNumaId, remoteNumaHuge);
         if (retRemote != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][MemId] Smap migrate pid remote NUMA failed ret=" << retRemote << ".";
+            SmapEnablePidsProcess(pids);
+
             return MEM_POOLING_ERROR;
         }
         LOG_INFO << "[FaultManager][MemId] Smap migrate pid remote NUMA(not same nid) success.";
@@ -419,14 +422,11 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
 
     if (pids.size() != 0) {
         // 开启pid级别冷热流动
-        int retSmap02 = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_MIGRATE_ENABLE,
-                                                                     SMAP_MIGRATE_FLAGS);
-        if (retSmap02 != 0) {
-            LOG_ERROR << "[FaultManager][MemId] Smap Enable process(enable) failed, ErrorCode=" << retSmap02 << ".";
+        MpResult retEnable = SmapEnablePidsProcess(pids);
+        if (retEnable != MEM_POOLING_OK) {
+            LOG_ERROR << "[FaultManager][MemId] Smap Enable pids failed.";
             return MEM_POOLING_ERROR;
         }
-        // 从持久化数据库中删除被enable的pids
-        PidSmapEnableCompleted::Instance().Remove(pids);
     }
     LOG_INFO << "[FaultManager][MemId] VM migrate other remote NUMA success.";
     return MEM_POOLING_OK;

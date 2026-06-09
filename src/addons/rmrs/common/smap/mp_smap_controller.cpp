@@ -62,4 +62,20 @@ uint32_t SmapEnableNumaProcess(EnableNodeMsg enableMsg)
     return ret;
 }
 
+uint32_t SmapEnablePidsProcess(std::vector<pid_t> pids)
+{
+    int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_MIGRATE_DISABLE,
+                                                               SMAP_MIGRATE_FLAGS);
+    if (retSmap != SMAP_OK) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapEnablePids] SmapEnablePidProcess failed, ret=" << retSmap << ".";
+        return MEM_POOLING_ERROR;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[SmapEnablePids] SmapEnablePidProcess success, Start to remove these pids.";
+    PidSmapEnableCompleted::Instance().Remove(pids);
+
+    return MEM_POOLING_OK;
+}
+
 } // namespace mempooling::smap

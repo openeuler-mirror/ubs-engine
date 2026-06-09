@@ -63,6 +63,7 @@ const std::string KEYPREFIX_SMAPENABLE_COMPLETED = "_smap_enable_completed";
 const std::string KEYPREFIX_REMOVEPID_COMPLETED = "_remove_pid_completed";
 const std::string KEYPREFIX_FAULT_PROCESS_BORROWID = "_fault_process_borrowid";
 const std::string KEYPREFIX_BORROWED_DECISION = "_borrowed_decision";
+const std::string KEYPREFIX_PID_SMAPENABLE_COMPLETED = "_pid_smap_enable_completed";
 
 const int HEADER_LENGTH = 4;
 const int TIMESTAMP_OFFSET = 2;
@@ -75,6 +76,8 @@ constexpr uint64_t HUGE_PAGE_NUM_4K_TO_KB = 2 * 1024; // 4k标准页场景下pmd
 constexpr uint64_t HUGE_PAGE_NUM_64K_TO_KB = 512 * 1024; // 64k标准页场景下pmd配置为512M大页可以用于被借出
 constexpr uint64_t NUM_TO_RATIO = 100;
 constexpr uint16_t TIMEOUT_CYCLES_LIMIT = 300; // 超时周期上限
+constexpr int SMAP_PID_DISABLE = 0;
+constexpr int SMAP_PID_ENABLE = 1;
 
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -2961,15 +2964,9 @@ uint32_t PidSmapEnableCompletedInit(UbseByteBuffer& buffer)
     if (!pids.empty()) {
         LOG_DEBUG << "[PluginInit][PidSmapEnableCompleted] pids.size=" << pids.size()
                   << ", Start to execute SmapEnable for each pid.";
-
-        int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_MIGRATE_DISABLE,
-                                                                   SMAP_MIGRATE_FLAGS);
-        if (retSmap != SMAP_OK) {
-            LOG_WARN << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess failed, pid=" << pid
-                        << ", ret=" << retSmap << ".";
-        } else {
-            LOG_DEBUG << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess success, Start to remove these pids.";
-            PidSmapEnableCompleted::Instance().Remove(pids);
+        auto retSmap = SmapEnablePidsProcess(pids);
+        if (retSmap != MEM_POOLING_OK) {
+            LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess failed.";
         }
     }
 
