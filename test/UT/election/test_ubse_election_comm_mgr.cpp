@@ -39,8 +39,8 @@ UbseResult MockGetAllNode(UbseElectionNodeMgr *pthis, std::vector<Node> &allNode
 
 void TestUbseElectionCommMgr::SetUp()
 {
-    connectSuccessNodes_ = {"1", "2", "3", "4"};
-    commMgr.connectSuccessNodes_ = connectSuccessNodes_;
+    connectedIntraGroupNodes_ = {"1", "2", "3", "4"};
+    commMgr.connectedIntraGroupNodes_ = connectedIntraGroupNodes_;
 }
 
 void TestUbseElectionCommMgr::TearDown()
@@ -94,32 +94,12 @@ TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_ERROR_WhenGetUbseComModuleFaile
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
-TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_ERROR_WhenFailedToFetchAllNodeInformation)
-{
-    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
-    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
-    MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_ERROR));
-    uint32_t result = commMgr.Connect("6");
-    EXPECT_EQ(result, UBSE_ERROR);
-}
-
-TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_ERROR_WhenFailedToFetchNodeInformation)
-{
-    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
-    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
-    MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseElectionNodeMgr::GetPortByIp).stubs().will(returnValue(UBSE_ERROR));
-    uint32_t result = commMgr.Connect("6");
-    EXPECT_EQ(result, UBSE_ERROR);
-}
-
 TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_OK_WhenConnectFailed)
 {
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseElectionNodeMgr::GetPortByIp).stubs().will(returnValue(UBSE_OK));
     uint32_t result = commMgr.Connect("6");
     EXPECT_EQ(result, UBSE_OK);
 }
@@ -131,7 +111,6 @@ TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_OK_WhenConnectSuccess)
     MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseElectionNodeMgr::GetNodeInfoByID).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseElectionNodeMgr::GetPortByIp).stubs().will(returnValue(UBSE_OK));
     uint32_t result = commMgr.Connect("6");
     EXPECT_EQ(result, UBSE_OK);
 }
@@ -184,7 +163,7 @@ TEST_F(TestUbseElectionCommMgr, SendElectionPkt_ShouldReturnUbse_ERROR_WhenRpcSe
 
 TEST_F(TestUbseElectionCommMgr, getConnectedNodes)
 {
-    EXPECT_EQ(commMgr.GetConnectedNodes(), connectSuccessNodes_);
+    EXPECT_EQ(commMgr.GetConnectedNodes(), connectedIntraGroupNodes_);
 }
 
 TEST_F(TestUbseElectionCommMgr, GetAllNodeFailed_ShouldReturnError_WhenGetAllNodeFailed)

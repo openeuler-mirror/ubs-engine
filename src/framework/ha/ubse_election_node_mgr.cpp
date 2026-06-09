@@ -11,12 +11,13 @@
  */
 
 #include "ubse_election_node_mgr.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "role/ubse_election_role.h"
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "ubse_node_mgr.h"
 
 namespace ubse::election {
 using namespace ubse::log;
@@ -24,6 +25,8 @@ using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::nodeController;
+using namespace ubse::nodeMgr;
+
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 static const std::string ELECTION_ROLE_INIT = "init";
@@ -94,7 +97,9 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     } else {
         heartBeatTime_ = heartBeatTime;
     }
-
+    ubEnable_ = IsUrma();
+    if (GetRootIpList().empty()) { rootEnable_ = false; }
+    if (GetAllNodesStoredByGroup().size() != NO_1) { isHierarchicalElection_ = true; }
     ret = LoadConfig();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] UbseElectionNodeMgr: LoadConfig failed.";
@@ -124,73 +129,77 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
-    bool ubEnable = true;
-    GetUBEnable(ubEnable);
-    const uint16_t port = TCP_LISTEN_PORT;
     std::unique_lock<std::shared_mutex> lock(mtx_);
-    if (ubEnable) {
-        currentAllNodes_.clear();
-        nodeIpMap_.clear();
-        std::vector<UbseNodeInfo> ubseNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
-        if (ubseNodeInfos.empty()) {
-            UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
-            return;
-        }
-        auto topoLinkedNodes = GetTopoLinkedNodes();
-        for (const auto &node : ubseNodeInfos) {
-            Node tempNode;
-            tempNode.id = node.nodeId;
-            tempNode.ip = std::string(node.bondingEid);
-            tempNode.port = port;
-            if (topoLinkedNodes.find(node.nodeId) != topoLinkedNodes.end() || currentNode_.id == node.nodeId) {
+    if (!isHierarchicalElection_) {
+        if (ubEnable_) {
+            currentAllNodes_.clear();
+            nodeIpMap_.clear();
+            auto ubseNodeInfos = GetAllNodes();
+            if (ubseNodeInfos.empty()) {
+                UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+                return;
+            }
+            auto topoLinkedNodes = GetTopoLinkedNodes();
+            for (const auto &node : ubseNodeInfos) {
+                Node tempNode;
+                tempNode.id = node.nodeId;
+                tempNode.ip = node.bonding0Eid;
+                tempNode.port = TCP_LISTEN_PORT;
+                if (topoLinkedNodes.find(node.nodeId) != topoLinkedNodes.end() || currentNode_.id == node.nodeId) {
+                    currentAllNodes_.push_back(tempNode);
+                    nodeIpMap_.emplace(tempNode.ip, node.nodeId);
+                }
+            }
+        } else if (!ubEnable_ && currentAllNodes_.empty()) {
+            std::vector<std::string> ipList{};
+            auto ubseNodeInfos = GetAllNodes();
+            if (ubseNodeInfos.empty()) {
+                UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+                return;
+            }
+            for (const auto &nodeInfo : ubseNodeInfos) {
+                Node tempNode;
+                tempNode.ip = nodeInfo.addr;
+                tempNode.port = TCP_LISTEN_PORT;
+                if (currentNode_.ip == nodeInfo.addr) {
+                    tempNode.id = currentNode_.id;
+                    UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode_.id << " current ip =" << currentNode_.ip;
+                }
                 currentAllNodes_.push_back(tempNode);
-                nodeIpMap_.emplace(tempNode.ip, node.nodeId);
+                nodeIpMap_.emplace(tempNode.ip, tempNode.id);
             }
         }
-    } else if (!ubEnable && currentAllNodes_.empty()) {
-        std::vector<std::string> ipList{};
-        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetClusterIpList(ipList);
-        for (const auto &ip : ipList) {
-            Node tempNode;
-            tempNode.ip = ip;
-            tempNode.port = port;
-            if (currentNode_.ip == ip) {
-                tempNode.id = currentNode_.id;
-                UBSE_LOG_INFO << "[ELECTION] current id =" << currentNode_.id << " current ip =" << currentNode_.ip;
-            }
-            currentAllNodes_.push_back(tempNode);
-            nodeIpMap_.emplace(tempNode.ip, tempNode.id);
+    } else {
+        if (!rootEnable_) {
+            GetGroupNodes(currentAllNodes_);
         }
     }
 }
 
 UbseResult UbseElectionNodeMgr::LoadConfig()
 {
-    UbseNodeInfo ubseNodeInfo = UbseNodeController::GetInstance().GetCurNode();
-    if (ubseNodeInfo.nodeId.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] LoadConfig get nodeId failed.";
+    UbseNodeStaticInfo nodeStaticInfo = GetCurrentNode();
+    if (nodeStaticInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetCurrentNode failed.";
         return UBSE_ERROR;
     }
-    bool ubEnable = true;
-    GetUBEnable(ubEnable);
-    if (ubEnable) {
-        currentNode_.ip = std::string(ubseNodeInfo.bondingEid);
+
+    currentNode_.id = nodeStaticInfo.nodeId;
+    currentNode_.port = TCP_LISTEN_PORT;
+    if (isHierarchicalElection_ && rootEnable_) {
+        currentNode_.ip = nodeStaticInfo.addr;
     } else {
-        adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(currentNode_.ip);
-        currentNode_.port = TCP_LISTEN_PORT;
+        currentNode_.ip = ubEnable_ ? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
     }
-    currentNode_.id = ubseNodeInfo.nodeId;
-    if (currentNode_.id.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] LoadConfig nodeId empty.";
-        return UBSE_ERROR;
-    }
+
     ParseAllNodesVector();
-    // 校验
+
     if (currentNode_.id.empty() || currentNode_.ip.empty() || currentAllNodes_.empty()) {
         UBSE_LOG_WARN << "[ELECTION] LoadConfig: invalid local config, please check.";
         return UBSE_ERROR;
     }
-
+    UBSE_LOG_INFO << "[ELECTION] LoadConfig success: nodeId=" << currentNode_.id
+                  << ", ip=" << currentNode_.ip << ", port=" << currentNode_.port;
     return UBSE_OK;
 }
 
@@ -259,27 +268,6 @@ UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::str
         }
     }
     UBSE_LOG_DEBUG << "[ELECTION] GetNodeInfoByID: id:" << id << "not found.";
-    return UBSE_ERROR;
-}
-
-UbseResult UbseElectionNodeMgr::GetPortByIp(const std::string &ip, uint16_t &port)
-{
-    if (ip.empty()) {
-        UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: id is empty.";
-        return UBSE_ERROR;
-    }
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-    if (currentAllNodes_.empty()) {
-        UBSE_LOG_WARN << "[ELECTION] GetPortByIp: currentAllNodes_ is empty.";
-        return UBSE_ERROR;
-    }
-    for (const auto &it : currentAllNodes_) {
-        if (it.ip == ip) {
-            port = it.port;
-            return UBSE_OK;
-        }
-    }
-    UBSE_LOG_DEBUG << "[ELECTION] GetPortByIp: ip=" << ip << "not found.";
     return UBSE_ERROR;
 }
 
@@ -374,5 +362,38 @@ UbseNodeLocalState UbseElectionNodeMgr::GetLocalNodeState()
         ubseNodeInfo.localState = UbseNodeLocalState::UBSE_NODE_RESTORE;
     }
     return ubseNodeInfo.localState;
+}
+
+UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
+{
+    UbseNodeStaticInfo nodeInfo = GetCurrentNode();
+    std::vector<UbseNodeStaticInfo> nodeStaticInfos = GetNodesByGroupId(nodeInfo.groupId);
+    bool ubEnable = true;
+    GetUBEnable(ubEnable);
+    groupNodes.clear();
+    for (const auto &nodeStaticInfo : nodeStaticInfos) {
+        Node node;
+        node.id = nodeStaticInfo.nodeId;
+        node.ip = ubEnable? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
+        node.port = TCP_LISTEN_PORT;
+        groupNodes.push_back(node);
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionNodeMgr::GetGroupId(std::string &groupId)
+{
+    UbseNodeStaticInfo nodeInfo = GetCurrentNode();
+    UBSE_LOG_INFO <<"[ELECTION] Current node group id is " << nodeInfo.groupId;
+    groupId = std::to_string(nodeInfo.groupId);
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionNodeMgr::GetGroupIdByNodeId(const std::string &nodeId, std::string &groupId)
+{
+    UbseNodeStaticInfo nodeInfo = GetUbseNodeById(nodeId);
+    UBSE_LOG_INFO <<"[ELECTION] node id is "<< nodeId <<", group id is " << nodeInfo.groupId;
+    groupId = std::to_string(nodeInfo.groupId);
+    return UBSE_OK;
 }
 } // namespace ubse::election

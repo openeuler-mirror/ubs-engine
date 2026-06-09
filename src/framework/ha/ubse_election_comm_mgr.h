@@ -42,12 +42,20 @@ public:
     UbseElectionCommMgr() = default;
     explicit UbseElectionCommMgr(const std::string &nodeId, const std::string &name) : UbseComBase(nodeId, name) {}
     uint32_t Connect(const UBSE_ID_TYPE &dstIp);
+    // 和管理组的master节点建链
+    uint32_t ConnectMasterNode(const UBSE_ID_TYPE &dstId, const UBSE_ID_TYPE &dstIp);
+    // 和管理组保持长连接，目的查询该管理组的groupMaster
+    uint32_t ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, const UBSE_ID_TYPE &dstIp);
 
     UbseResult DisConnect(const UBSE_ID_TYPE &dstId);
 
     UbseResult SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt &pkt, ElectionReplyPkt &reply);
 
     std::vector<UBSE_ID_TYPE> GetConnectedNodes() const;
+    // 获取建链上的管理组的MasterId
+    std::vector<UBSE_ID_TYPE> GetConnectedMasterNodes() const;
+    // 获取其他组的长连接nodeId
+    std::unordered_map<std::string, UBSE_ID_TYPE> GetInterManagementGroupLinkMap() const;
 
     UbseResult ElectionResponseHandler(std::string &eventId, std::string &eventMessage);
 
@@ -75,8 +83,12 @@ public:
 
 private:
     void ElectionNodeDownNotify(const std::string &nodeId);
-    std::vector<UBSE_ID_TYPE> connectSuccessNodes_;
+    std::vector<UBSE_ID_TYPE> connectedIntraGroupNodes_; // 已建立连接的本组内NodeId列表
+    std::vector<UBSE_ID_TYPE> connectedInterMgmtMasters_; // 已建立连接的其他管理组的MasterId列表
     mutable std::shared_mutex mtx_{};
+    mutable std::shared_mutex interMgmtMastersMtx_{};
+    mutable std::shared_mutex interMgmtGroupLinkMtx_{};
+    std::unordered_map<std::string, UBSE_ID_TYPE> interMgmtGrpLinkMap_; // 和其他管理组的长连接节点map
 };
 } // namespace ubse::election
 #endif // UBSE_ELECTION_COMM_MGR_H
