@@ -65,23 +65,23 @@ UbseResult MockUbseGetDevTopology(UbseLcneModule *this_, UbseDevTopology &devTop
     return UBSE_OK;
 }
 
-TEST_F(TestUbseNodeDiscoveryStaticMode, GetClusterPhysicalLinkInfo)
+TEST_F(TestUbseNodeDiscoveryStaticMode, GetCurPhysicalLinkInfo)
 {
     MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
     std::shared_ptr<UbseLcneModule> nullModule = nullptr;
     std::shared_ptr<UbseLcneModule> module = std::make_shared<UbseLcneModule>();
     MOCKER(&UbseContext::GetModule<UbseLcneModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
     std::vector<PhysicalLink> allLinkInfo{};
-    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, GetClusterPhysicalLinkInfo(allLinkInfo));
+    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, GetCurPhysicalLinkInfo(allLinkInfo));
 
     MOCKER(&UbseLcneModule::UbseGetDevTopology)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(invoke(MockUbseGetDevTopology));
 
-    EXPECT_EQ(UBSE_ERROR, GetClusterPhysicalLinkInfo(allLinkInfo));
+    EXPECT_EQ(UBSE_ERROR, GetCurPhysicalLinkInfo(allLinkInfo));
 
-    EXPECT_EQ(UBSE_OK, GetClusterPhysicalLinkInfo(allLinkInfo));
+    EXPECT_EQ(UBSE_OK, GetCurPhysicalLinkInfo(allLinkInfo));
     EXPECT_EQ(1, allLinkInfo.size());
     EXPECT_EQ(4, allLinkInfo[0].slotId);
     EXPECT_EQ(4, allLinkInfo[0].chipId);
@@ -97,6 +97,40 @@ UbseResult MockUbseGetAllNodeInfos(UbseLcneModule *this_, std::vector<UbseMtiNod
     ubseNodeInfos.push_back({"2", "4245:4944:0000:0000:0000:0000:0100:0002"});
     ubseNodeInfos.push_back({"3", "4245:4944:0000:0000:0000:0000:0100:0003"});
     return UBSE_OK;
+}
+
+TEST_F(TestUbseNodeDiscoveryStaticMode, GenerateClosClusterStaticInfo)
+{
+    UbseNodeStaticInfo curNode{};
+    curNode.nodeId = "1";
+    curNode.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
+    nodeMgr::UbseNodeStaticInfoMgr::GetInstance().SetCurrentNode(curNode);
+    MOCKER(&UbseNodeDiscoveryStaticMode::GenerateClosStaticInfo)
+        .stubs()
+        .will(returnValue(UBSE_ERROR))
+        .then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR, UbseNodeDiscoveryStaticMode::GetInstance().GenerateClosClusterStaticInfo());
+    EXPECT_EQ(UBSE_OK, UbseNodeDiscoveryStaticMode::GetInstance().GenerateClosClusterStaticInfo());
+}
+
+TEST_F(TestUbseNodeDiscoveryStaticMode, GenerateClosStaticInfo)
+{
+    UbseNodeStaticInfo curNode{};
+    curNode.nodeId = "1";
+    curNode.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
+    UbseMtiEidGroup eidGroup{};
+    eidGroup.entityId = "2";
+    eidGroup.primaryEid = "4245:4944:0000:0000:0000:0000:0100:0011";
+    eidGroup.portEids["3"] = "4245:4944:0000:0000:0000:0000:0100:0111";
+    curNode.feEidList["1"] = eidGroup;
+
+    UbseNodeDiscoveryStaticMode::GetInstance().podCapability_ = 2;
+    UbseNodeStaticInfo info{};
+    EXPECT_EQ(UBSE_OK, UbseNodeDiscoveryStaticMode::GetInstance().GenerateClosStaticInfo(curNode, 10, info));
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0b00:0000", info.bonding0Eid);
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:1105:8011", info.feEidList["1"].primaryEid);
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:1105:8111", info.feEidList["1"].portEids["3"]);
+    EXPECT_EQ("2", info.feEidList["1"].entityId);
 }
 
 } // namespace ubse::nodeMgr

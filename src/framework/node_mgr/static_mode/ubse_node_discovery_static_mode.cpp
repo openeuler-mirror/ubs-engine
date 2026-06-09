@@ -12,6 +12,7 @@
 
 #include "ubse_node_discovery_static_mode.h"
 
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_conf_module.h"
@@ -20,8 +21,8 @@
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_node_mgr_def.h"
-#include "ubse_str_util.h"
 #include "ubse_node_static_info_mgr.h"
+#include "ubse_str_util.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeMgr {
@@ -52,8 +53,69 @@ UbseResult UbseNodeDiscoveryStaticMode::Init()
     return ret;
 }
 
+UbseResult UbseNodeDiscoveryStaticMode::GenerateClosStaticInfo(const UbseNodeStaticInfo &currentSuperNode,
+                                                               uint32_t serverIdx, UbseNodeStaticInfo &info)
+{
+    uint32_t nodeId = serverIdx + 1;
+    info.nodeId = std::to_string(nodeId);
+    info.superPodId = currentSuperNode.superPodId;
+    info.groupId = serverIdx / podCapability_ + 1;
+    UbseResult ret = UBSE_OK;
+
+    info.bonding0Eid = GenerateUrmaDevEid(0, nodeId, 0, 0);
+    for (const auto &chip : currentSuperNode.feEidList) {
+        UbseMtiEidGroup eidGroup{};
+        eidGroup.entityId = chip.second.entityId;
+        ret = OverwriteEid(nodeId, chip.second.primaryEid, eidGroup.primaryEid);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "nodeId=" << nodeId << ", chipId=" << chip.first << " generate primary eid failed, "
+                           << FormatRetCode(ret);
+            return ret;
+        }
+        for (const auto &portEid : chip.second.portEids) {
+            std::string eid;
+            ret = OverwriteEid(nodeId, portEid.second, eid);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "nodeId=" << nodeId << ", chipId=" << chip.first << ", portId=" << portEid.first
+                               << " generate primary eid failed, " << FormatRetCode(ret);
+                return ret;
+            }
+            eidGroup.portEids[portEid.first] = eid;
+        }
+        info.feEidList[chip.first] = eidGroup;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseNodeDiscoveryStaticMode::GenerateClosClusterStaticInfo()
+{
+    auto &nodeDiscovery = UbseNodeStaticInfoMgr::GetInstance();
+    auto currentSuperNode = nodeDiscovery.GetCurrentNode();
+
+    UbseResult ret = UBSE_OK;
+    std::vector<UbseNodeStaticInfo> ubseNodeInfos{};
+    for (size_t i = 0; i < UBSE_CLOS_MAX_NODE_NUM; ++i) {
+        if (std::to_string(i + 1) == currentSuperNode.nodeId) {
+            continue;
+        }
+        UbseNodeStaticInfo info{};
+        ret = GenerateClosStaticInfo(currentSuperNode, i, info);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "nodeId=" << (i + 1) << " generate topo failed, " << FormatRetCode(ret);
+            return ret;
+        }
+        ubseNodeInfos.push_back(info);
+    }
+    nodeDiscovery.SetNodes(ubseNodeInfos);
+    return UBSE_OK;
+}
+
 UbseResult UbseNodeDiscoveryStaticMode::GenerateClusterStaticInfo()
 {
+    if (!UbseNodeStaticInfoMgr::GetInstance().IsApplyUrmaDev()) {
+        UBSE_LOG_WARN << "no module apply urma dev, will skip.";
+        return UBSE_OK;
+    }
     auto &nodeDiscovery = UbseNodeStaticInfoMgr::GetInstance();
     auto currentSuperNode = nodeDiscovery.GetCurrentNode();
     std::vector<UbseMtiNodeInfo> ubseNodeInfos;
@@ -92,10 +154,10 @@ UbseResult UbseNodeDiscoveryStaticMode::GenerateClusterStaticInfo()
         }
     }
     if (isClos_) {
-        // todo clos组网场景下,需要额外计算集群内其他节点的EID拓扑信息
+        return GenerateClosClusterStaticInfo();
     }
     return UBSE_OK;
 }
 
 void UbseNodeDiscoveryStaticMode::UnInit() {}
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
