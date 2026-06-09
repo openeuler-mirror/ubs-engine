@@ -12,6 +12,9 @@ add_library(ubse_election STATIC
         role/ubse_election_role_standby.cpp
         role/ubse_election_role_agent.cpp
         role/ubse_election_role_initializer.cpp
+        role/ubse_election_role_global_initializer.cpp
+        role/ubse_election_role_global_agent.cpp
+        role/ubse_election_role_global_standby.cpp
 )
 
 target_include_directories(ubse_election PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -57,6 +57,8 @@ public:
 
     uint8_t GetStandbyStatus() override;
 
+    std::unordered_set<UBSE_ID_TYPE> GetMountedGroupMasters() override;
+
     void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override;
     void DealBroadcast(ElectionReplyPkt &reply, const UBSE_ID_TYPE &id);
     void DealHbCnt(const UBSE_ID_TYPE &id);
@@ -91,6 +93,7 @@ private:
     std::mutex mtx_;  // 互斥锁
     std::atomic<bool> stopping_{};     // Master 是否正在销毁
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
+    std::unordered_map<UBSE_ID_TYPE, std::vector<UBSE_ID_TYPE>> mountedGroupNodeIds_;
 };
 #undef MODULE_LOG_NAME
 

@@ -70,6 +70,40 @@ UbseResult ConnectAllNodes()
     return UBSE_OK;
 }
 
+UbseResult ConnectManagingMasters()
+{
+    Node myselfNode{};
+    if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myselfNode)) {
+        UBSE_LOG_ERROR << "[ELECTION] GetMyselfNode: no node found.";
+        return UBSE_ERROR;
+    }
+    std::vector<UBSE_ID_TYPE> masterIds{};
+    masterIds = RoleMgr::GetInstance().GetManagingGroupMasterIds();
+
+    std::vector<Node> managingGroupMasterInfos{};
+    for (auto const &masterId : masterIds) {
+        std::string ip = RoleMgr::GetInstance().GetIpById(masterId);
+        managingGroupMasterInfos.push_back(Node{masterId, ip, TCP_LISTEN_PORT});
+    }
+    auto taskExecutorModule =
+        ubse::context::UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
+    if (taskExecutorModule == nullptr) {
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+    auto taskExecutor = taskExecutorModule->Get(ELECTION_GLOBAL_TASK_EXECUTOR_NAME);
+    if (taskExecutor == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    for (const auto &masterInfo : managingGroupMasterInfos) {
+        if (masterInfo.ip != myselfNode.ip) {
+            taskExecutor->Execute([masterInfo]() ->
+                void { RoleMgr::GetInstance().GetCommMgr()->ConnectMasterNode(masterInfo.id, masterInfo.ip); });
+        }
+    }
+    taskExecutor->Wait();
+    return UBSE_OK;
+}
+
 UBSE_ID_TYPE FindSmallestId(const std::vector<UBSE_ID_TYPE> &allNodes)
 {
     UBSE_ID_TYPE smallestId = INVALID_NODE_ID;
@@ -221,5 +255,54 @@ bool GetElectionWait()
 bool IsHeartBeatEnabled(HeartBeatStatus status)
 {
     return status == HeartBeatStatus::ENABLED;
+}
+
+uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNodes)
+{
+    UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection: SIZE " << allNodes.size() << ".";
+    if (allNodes.empty()) {
+        UBSE_LOG_INFO << "[ELECTION] Initializer: allNodes.empty "<< ".";
+        return ELECTION_PKT_RESULT_ACCEPT;
+    }
+
+    UBSE_ID_TYPE smallestId = FindSmallestId(allNodes);
+    UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection:  " << smallestId << ".";
+    if (smallestId >= myselfID) {
+        if (SendElectionPkt(myselfID) == ELECTION_PKT_RESULT_ACCEPT) {
+            return ELECTION_PKT_RESULT_ACCEPT;
+        }
+    }
+    return ELECTION_PKT_TYPE_REJECT;
+}
+
+uint32_t SendGlobalElectionPkt(UBSE_ID_TYPE myselfID)
+{
+    std::vector<std::string> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedMasterNodes();
+    for (const auto &pdNode : allNodes) {
+        ElectionPkt pkt;
+        ElectionReplyPkt reply;
+        pkt.type = ELECTION_PKT_TYPE_GLOBAL_SELECT;
+        pkt.masterId = myselfID;
+        RoleMgr::GetInstance().GetCommMgr()->SendElectionPkt(pdNode, pkt, reply);
+        if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
+            continue;
+        } else if (reply.replyResult == ELECTION_PKT_TYPE_REJECT) {
+            return ELECTION_PKT_TYPE_REJECT;
+        } else if (reply.replyResult == ELECTION_PKT_TYPE_REJECT_HAS_MASTER) {
+            return ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+        }
+    }
+    return ELECTION_PKT_RESULT_ACCEPT;
+}
+
+void HandleGlobalMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
+{
+    if (rcvPkt.broadcast == 0) {
+        RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION,
+                                                     rcvPkt.masterId);
+        UBSE_LOG_INFO << "[ELECTION] The Global Master is online: " << rcvPkt.masterId
+        << ", turnId is: " << rcvPkt.turnId;
+        reply.broadcast = 1;
+    }
 }
 }

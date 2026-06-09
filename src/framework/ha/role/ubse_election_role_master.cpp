@@ -513,4 +513,13 @@ void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
         standbyId_ = INVALID_NODE_ID;
     }
 }
+
+std::unordered_set<UBSE_ID_TYPE> Master::GetMountedGroupMasters()
+{
+    std::unordered_set<UBSE_ID_TYPE> result;
+    for (const auto &kv : mountedGroupNodeIds_) {
+        result.insert(kv.first);
+    }
+    return result;
+}
 }

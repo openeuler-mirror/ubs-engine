@@ -76,6 +76,8 @@ public:
 
     void SwitchRole(RoleType roleType, RoleContext &ctx);
 
+    void SwitchGlobalRole(GlobalRoleType globalRoleType, RoleContext &ctx);
+
     std::shared_ptr<UbseElectionCommMgr> GetCommMgr()
     {
         return commMgr_;
@@ -93,7 +95,7 @@ public:
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     void ProcTimer();
     void GlobalProcTimer();
-    void DiscoveryConnections();
+    void ConnectInterManagingGroup(); // 不同管理组之间建立的连接
     void QueryManagingMaster();
     std::vector<UBSE_ID_TYPE> GetManagingGroupMasterIds();
     UBSE_ID_TYPE GetGlobalMasterId();

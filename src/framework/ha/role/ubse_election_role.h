@@ -52,6 +52,21 @@ public:
 
     virtual uint64_t GetTurnId() = 0;
 
+    virtual std::unordered_set<UBSE_ID_TYPE> GetMountedGroupMasters()
+    {
+        return {};
+    }
+
+    virtual std::vector<UBSE_ID_TYPE> GetPdGroupNodeIds()
+    {
+        return {};
+    }
+
+    virtual std::vector<UBSE_ID_TYPE> GetMountedGroupNodeIds()
+    {
+        return {};
+    }
+
     static uint32_t GetHeartTimeInterval()
     {
         return UbseElectionNodeMgr::GetInstance().GetHeartBeatTime();
@@ -64,6 +79,7 @@ public:
 };
 UbseResult GetBootTime(uint64_t &bootTime);
 UbseResult ConnectAllNodes();
+UbseResult ConnectManagingMasters();
 UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const std::vector<UBSE_ID_TYPE> &allNodes);
 UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYPE> &allNodes,
     const UBSE_ID_TYPE &masterId, const UBSE_ID_TYPE &agentId);
@@ -74,6 +90,9 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID);
 bool GetElectionCandidate();
 bool GetElectionWait();
 bool IsHeartBeatEnabled(HeartBeatStatus status);
+uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNodes);
+uint32_t SendGlobalElectionPkt(UBSE_ID_TYPE myselfID);
+void HandleGlobalMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
 } // namespace ubse::election
 
 #endif // UBSE_ELECTION_ROLE_H
