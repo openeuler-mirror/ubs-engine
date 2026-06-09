@@ -13,7 +13,7 @@
 #include "test_ubse_mem_operation_resp_handler.h"
 #include <mockcpp/mockcpp.hpp>
 #include "message/ubse_mem_operation_resp_simpo.h"
-#include "request_helper.h"
+#include "framework/misc/ubse_future_mgr.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_mem_controller_handler.h"

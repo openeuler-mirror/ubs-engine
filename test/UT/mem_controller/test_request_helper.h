@@ -17,10 +17,11 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "src/controllers/mem/mem_controller/request_helper.h"
+#include "framework/misc/ubse_future_mgr.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem_controller;
+using namespace ubse::misc::future;
 
 class TestRequestHelper : public testing::Test {
 public:

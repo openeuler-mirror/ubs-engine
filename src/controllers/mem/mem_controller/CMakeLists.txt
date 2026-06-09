@@ -27,7 +27,6 @@ add_library(mem_plugin SHARED
         ubse_mem_async_processor.cpp
         ubse_mem_agent_task_manager.cpp
         ubse_mem_advice.cpp
-        request_helper.cpp
         logging_lock_guard.cpp
 )
 set(MEM_PLUGIN_DEP_TARGETS

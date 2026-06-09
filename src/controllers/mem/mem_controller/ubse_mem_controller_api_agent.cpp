@@ -19,7 +19,7 @@
 #include "message/ubse_mem_share_attach_req_simpo.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
 #include "message/ubse_mem_share_detach_req_simpo.h"
-#include "request_helper.h"
+#include "framework/misc/ubse_future_mgr.h"
 #include "request_id.h"
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
@@ -49,6 +49,7 @@ using namespace ubse::mem::controller;
 using namespace ubse::log;
 using namespace ubse::com;
 using namespace ubse::mem_controller;
+using namespace ubse::misc::future;
 using namespace ubse::config;
 using namespace ubse::mem::controller::message;
 using namespace ubse::task_executor;
@@ -450,7 +451,7 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
     }
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;
@@ -527,7 +528,7 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
     }
     // 创建请求
     auto requestId = GetRequestId(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "requestId=" << requestId << "Create future instance failed";
         return UBSE_ERROR_NULLPTR;
@@ -621,7 +622,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         reqSize += addr.size;
     }
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;
@@ -695,7 +696,7 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
     }
 
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;
@@ -760,7 +761,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
 {
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;
@@ -821,7 +822,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
 {
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;
@@ -906,7 +907,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
                   << ", request_id=" << req.requestId;
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
-    auto respMgr = FutureMgr::CreateInstance(requestId);
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
     if (respMgr == nullptr) {
         UBSE_LOG_ERROR << "respMgr is null for request ID: " << requestId;
         return UBSE_ERROR;

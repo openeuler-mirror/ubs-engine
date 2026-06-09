@@ -12,7 +12,7 @@
 
 #include "ubse_mem_controller_handler.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
-#include "request_helper.h"
+#include "framework/misc/ubse_future_mgr.h"
 #include "request_id.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -20,6 +20,7 @@
 
 namespace ubse::mem::controller::agent {
 using namespace ubse::mem_controller;
+using namespace ubse::misc::future;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::context;
 using namespace ubse::mem::controller::message;
@@ -32,7 +33,7 @@ UbseResult UbseMemOperationRespHandler::Handle(const UbseBaseMessagePtr &req, co
     UbseMemOperationResp memOperationResp = request->GetUbseMemOperationResp();
     UBSE_LOG_INFO << "name is " << memOperationResp.name << ", requestNodeId is " << memOperationResp.requestNodeId;
     auto requestId = GetRequestIdNew(memOperationResp.name, memOperationResp.requestNodeId);
-    if (!FutureMgr::SetResult(requestId, memOperationResp)) {
+    if (!UbseFutureMgr::SetResult(requestId, memOperationResp)) {
         UBSE_LOG_WARN << "Can not find requestId[" << requestId << "].";
     }
     return UBSE_OK;
