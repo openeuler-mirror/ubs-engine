@@ -43,7 +43,7 @@ uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE &dstIp)
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
         std::string dstIdTemp;
-        for (auto &connectedNodeId : connectSuccessNodes_) {
+        for (auto &connectedNodeId : connectedIntraGroupNodes_) {
             if (UbseElectionNodeMgr::GetInstance().GetNodeIdByIp(dstIp, dstIdTemp) == UBSE_OK &&
                 connectedNodeId == dstIdTemp) {
                 return UBSE_OK;
@@ -60,11 +60,7 @@ uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE &dstIp)
     option.nodeId = dstIp;
     option.ip = dstIp;
     option.channelType = UbseChannelType::NORMAL;
-    auto ret = UbseElectionNodeMgr::GetInstance().GetPortByIp(option.ip, option.port);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] Failed to fetch node information id : " << option.nodeId;
-        return UBSE_ERROR;
-    }
+    option.port = TCP_LISTEN_PORT;
     std::string remoteId;
     auto retCode = ubseComModule->ConnectWithOption(option, remoteId);
     if (retCode != UBSE_OK) {
@@ -74,9 +70,81 @@ uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE &dstIp)
             std::unique_lock<std::shared_mutex> writeLock(mtx_);
             UBSE_LOG_INFO << "[ELECTION] Connect successfully, nodeId = " << remoteId;
             if (UbseElectionNodeMgr::GetInstance().UpdateNodeIdWithConnect(dstIp, remoteId) == UBSE_OK) {
-                connectSuccessNodes_.emplace_back(remoteId);
+                connectedIntraGroupNodes_.emplace_back(remoteId);
             }
         }
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseElectionCommMgr::ConnectMasterNode(const UBSE_ID_TYPE &dstId, const UBSE_ID_TYPE &dstIp)
+{
+    {
+        std::shared_lock<std::shared_mutex> lock(interMgmtMastersMtx_);
+        for (auto &connectedNodeId : connectedInterMgmtMasters_) {
+            if (connectedNodeId == dstId) {
+                return UBSE_OK;
+            }
+        }
+    }
+    UbseContext &ctx = UbseContext::GetInstance();
+    auto ubseComModule = ctx.GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] get UbseComModule failed";
+        return UBSE_ERROR;
+    }
+    ConnectOption option;
+    option.nodeId = dstId;
+    option.ip = dstIp;
+    option.channelType = UbseChannelType::NORMAL;
+    option.port = TCP_LISTEN_PORT;
+    std::string remoteId;
+    auto retCode = ubseComModule->ConnectWithOption(option, remoteId);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Connect master node failed: " << option.ip;
+        return UBSE_ERROR;
+    }
+    {
+        std::unique_lock<std::shared_mutex> writeLock(interMgmtMastersMtx_);
+        UBSE_LOG_INFO << "[ELECTION] Connect master node successfully, nodeId = " << remoteId;
+        connectedInterMgmtMasters_.emplace_back(remoteId);
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseElectionCommMgr::ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, const UBSE_ID_TYPE &dstIp)
+{
+    {
+        std::shared_lock<std::shared_mutex> lock(interMgmtGroupLinkMtx_);
+        for (auto &connectedNodeId : interMgmtGrpLinkMap_) {
+            if (connectedNodeId.second == dstId) {
+                return UBSE_OK;
+                }
+        }
+    }
+    UbseContext &ctx = UbseContext::GetInstance();
+    auto ubseComModule = ctx.GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] get UbseComModule failed";
+        return UBSE_ERROR;
+    }
+    ConnectOption option;
+    option.nodeId = dstId;
+    option.ip = dstIp;
+    option.channelType = UbseChannelType::NORMAL;
+    option.port = TCP_LISTEN_PORT;
+    std::string remoteId;
+    auto retCode = ubseComModule->ConnectWithOption(option, remoteId);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Connect failed: " << option.ip;
+        return UBSE_ERROR;
+    }
+    {
+        std::unique_lock<std::shared_mutex> writeLock(interMgmtGroupLinkMtx_);
+        UBSE_LOG_INFO << "[ELECTION] Connect successfully, nodeId = " << remoteId;
+        std::string groupId;
+        UbseElectionNodeMgr::GetInstance().GetGroupIdByNodeId(dstId, groupId);
+        interMgmtGrpLinkMap_[groupId] = dstId;
     }
     return UBSE_OK;
 }
@@ -85,7 +153,8 @@ uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
 {
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
-        if (std::find(connectSuccessNodes_.begin(), connectSuccessNodes_.end(), dstId) == connectSuccessNodes_.end()) {
+        if (std::find(connectedIntraGroupNodes_.begin(), connectedIntraGroupNodes_.end(), dstId) ==
+            connectedIntraGroupNodes_.end()) {
             UBSE_LOG_DEBUG << "[ELECTION] The node is disconnected , node_id = " << dstId;
             return UBSE_OK;
         }
@@ -104,8 +173,8 @@ uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
         {
             std::unique_lock<std::shared_mutex> writeLock(mtx_);
             UBSE_LOG_INFO << "[ELECTION] Remove successfully, nodeId = " << dstId;
-            connectSuccessNodes_.erase(std::remove(connectSuccessNodes_.begin(), connectSuccessNodes_.end(), dstId),
-                                       connectSuccessNodes_.end());
+            connectedIntraGroupNodes_.erase(std::remove(connectedIntraGroupNodes_.begin(),
+                connectedIntraGroupNodes_.end(), dstId), connectedIntraGroupNodes_.end());
         }
     }
     return UBSE_OK;
@@ -154,7 +223,19 @@ uint32_t UbseElectionCommMgr::SendElectionPkt(UBSE_ID_TYPE destID, const Electio
 std::vector<UBSE_ID_TYPE> UbseElectionCommMgr::GetConnectedNodes() const
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
-    return connectSuccessNodes_;
+    return connectedIntraGroupNodes_;
+}
+
+std::vector<UBSE_ID_TYPE> UbseElectionCommMgr::GetConnectedMasterNodes() const
+{
+    std::shared_lock<std::shared_mutex> lock(interMgmtMastersMtx_);
+    return connectedInterMgmtMasters_;
+}
+
+std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> UbseElectionCommMgr::GetInterManagementGroupLinkMap() const
+{
+    std::shared_lock<std::shared_mutex> lock(interMgmtGroupLinkMtx_);
+    return interMgmtGrpLinkMap_;
 }
 
 void UbseElectionCommMgr::ElectionNodeDownNotify(const std::string &nodeId)
@@ -170,6 +251,12 @@ void UbseElectionCommMgr::ElectionNodeDownNotify(const std::string &nodeId)
     masterId = RoleMgr::GetInstance().GetRole()->GetMasterNode();
     if (masterId == currentNode.id) {
         RoleMgr::GetInstance().GetRole()->SetNodeDownStatus(nodeId);
+    }
+    if (RoleMgr::GetInstance().GetGlobalRole() != nullptr) {
+        UBSE_ID_TYPE globalMasterId = RoleMgr::GetInstance().GetGlobalRole()->GetMasterNode();
+        if (globalMasterId == currentNode.id) {
+            RoleMgr::GetInstance().GetGlobalRole()->SetNodeDownStatus(nodeId);
+        }
     }
 }
 
@@ -192,9 +279,24 @@ UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string &eventId, st
                 ElectionNodeDownNotify(it.nodeId);
                 UBSE_LOG_INFO << "[ELECTION] Event disconnect to node id is: " << it.nodeId
                               << ", eventId is: " << eventId;
-                connectSuccessNodes_.erase(
-                    std::remove(connectSuccessNodes_.begin(), connectSuccessNodes_.end(), it.nodeId),
-                    connectSuccessNodes_.end());
+                {
+                    std::unique_lock<std::shared_mutex> writeLock(mtx_);
+                    connectedIntraGroupNodes_.erase(
+                        std::remove(connectedIntraGroupNodes_.begin(), connectedIntraGroupNodes_.end(), it.nodeId),
+                        connectedIntraGroupNodes_.end());
+                }
+                UBSE_ID_TYPE groupId;
+                UbseElectionNodeMgr::GetInstance().GetGroupIdByNodeId(it.nodeId, groupId);
+                {
+                    std::unique_lock<std::shared_mutex> writeLock(interMgmtGroupLinkMtx_);
+                    interMgmtGrpLinkMap_.erase(groupId);
+                }
+                {
+                    std::unique_lock<std::shared_mutex> writeLock(interMgmtMastersMtx_);
+                    connectedInterMgmtMasters_.erase(
+                        std::remove(connectedInterMgmtMasters_.begin(), connectedInterMgmtMasters_.end(), it.nodeId),
+                        connectedInterMgmtMasters_.end());
+                }
             }
         }
     }

@@ -39,6 +39,11 @@ public:
 
     virtual RoleType GetRoleType() = 0;
 
+    virtual GlobalRoleType GetGlobalRoleType()
+    {
+        return GlobalRoleType::GLOBAL_NONE;
+    }
+
     virtual uint8_t GetMasterStatus() = 0;
 
     virtual uint8_t GetStandbyStatus() = 0;

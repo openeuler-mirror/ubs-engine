@@ -74,8 +74,6 @@ public:
 
     UbseResult GetNodeInfoByID(const UBSE_ID_TYPE &id, std::string &ip, uint16_t &port);
 
-    UbseResult GetPortByIp(const std::string &ip, uint16_t &port);
-
     UbseResult UpdateNodeIdWithConnect(const std::string &ip, const std::string &id);
 
     UbseResult GetNodeIdByIp(const std::string &ip, std::string &id);
@@ -96,20 +94,29 @@ public:
      */
     uint32_t GetHeartBeatLost() const;
 
+    // 获取组内节点
+    UbseResult GetGroupNodes(std::vector<Node> &groupNodes);
+    // 获取建链节点的groupId
+    UbseResult GetGroupIdByNodeId(const std::string &nodeId, std::string &groupId);
+    // 获取当前节点的groupId
+    UbseResult GetGroupId(std::string &groupId);
+
 private:
     // 本地节点信息
     Node currentNode_;
 
     UBSE_ID_TYPE master_;
     UBSE_ID_TYPE standby_;
-
+    bool isHierarchicalElection_ = false; // 是否分层选举
+    bool rootEnable_ = true;
+    bool ubEnable_ = true;
     // 心跳时间
     uint32_t heartBeatTime_;
     // 备节点丢失心跳阈值
     uint32_t heartBeatLost_;
 
     // 当前所有节点信息和上一次所有节点信息
-    std::vector<Node> currentAllNodes_; // 当前所有节点
+    std::vector<Node> currentAllNodes_; // 单层：当前所有节点；双层：当前组所有节点
     std::vector<Node> lastAllNodes_;    // 上一次所有节点的
     std::unordered_map<std::string, UBSE_ID_TYPE> nodeIpMap_;
     mutable std::shared_mutex mtx_{}; // 读写锁

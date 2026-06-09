@@ -39,7 +39,7 @@ public:
     void MockUbseComModuleWithStartService(uint32_t startResult);
 
 private:
-    std::vector<UBSE_ID_TYPE> connectSuccessNodes_;
+    std::vector<UBSE_ID_TYPE> connectedIntraGroupNodes_;
     ElectionPkt pkt;
     ElectionReplyPkt replyPkt;
 };
