@@ -398,6 +398,8 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             LOG_ERROR << "[FaultManager][MemId] Smap Enable Process(disable) failed, ErrorCode=" << retSmap << ".";
             return MEM_POOLING_ERROR;
         }
+        // 持久化被disable的pids
+        PidSmapEnableCompleted::Instance().Update(pids);
     }
 
     if (pids.size() != 0) {
@@ -423,6 +425,8 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             LOG_ERROR << "[FaultManager][MemId] Smap Enable process(enable) failed, ErrorCode=" << retSmap02 << ".";
             return MEM_POOLING_ERROR;
         }
+        // 从持久化数据库中删除被enable的pids
+        PidSmapEnableCompleted::Instance().Remove(pids);
     }
     LOG_INFO << "[FaultManager][MemId] VM migrate other remote NUMA success.";
     return MEM_POOLING_OK;
