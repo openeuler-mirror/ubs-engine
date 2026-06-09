@@ -30,6 +30,8 @@ using ubse::utils::Ref;
 using ubse::utils::Referable;
 using ubse::utils::RingBufferBlockingQueue;
 
+using ThreadInitCallback = std::function<void()>;
+
 enum class UbseRunnableType
 {
     NORMAL = 0,
@@ -78,6 +80,8 @@ public:
 
     void SetCpuSetStartIndex(int16_t idx);
 
+    void SetThreadInitCallback(const ThreadInitCallback& callback);
+
     void Wait();
 
     inline bool IsStart()
@@ -107,6 +111,7 @@ private:
     std::atomic<size_t> pending{0}; // Number of threads currently working + Number of tasks waiting in the queue
     std::atomic<uint64_t> totalSubmitted{0}; // Number of total Submitted.
     std::atomic<uint64_t> totalCompleted{0}; // Number of total Completed.
+    ThreadInitCallback mThreadInitCallback;
 };
 using UbseTaskExecutorPtr = Ref<UbseTaskExecutor>;
 } // namespace ubse::task_executor
