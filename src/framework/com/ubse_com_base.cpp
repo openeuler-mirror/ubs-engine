@@ -189,6 +189,10 @@ std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string& engineNa
 void UbseComBase::CheckSdkEventAndNotify(const std::string& engineName, const std::string& curNodeId,
                                          const UBSHcomChannelPtr& ch, UbseLinkState state)
 {
+    if (ch.Get() == nullptr) {
+        UBSE_LOG_ERROR << "Channel is nullptr";
+        return;
+    }
     if (curNodeId.compare(0, FAKE_CUR_NODE_ID.length(), FAKE_CUR_NODE_ID) != 0) {
         return;
     }

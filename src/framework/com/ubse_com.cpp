@@ -76,6 +76,10 @@ public:
                       UbseComBaseMessageHandlerCtxPtr handlerCtx) override
     {
         auto reqPtr = UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(req);
+        if (reqPtr.Get() == nullptr) {
+            UBSE_LOG_ERROR << "DeConvert request message failed, req is nullptr";
+            return UBSE_ERROR_NULLPTR;
+        }
         UbseByteBuffer data{reqPtr->GetData(), reqPtr->GetDataLen(), nullptr};
         UbseByteBuffer respData{};
 
@@ -88,6 +92,12 @@ public:
             UBSE_LOG_INFO << "Execute handler moduleId=" << moduleCode << ", serviceId=" << opCode << " finished";
         }
         auto respPtr = UbseBaseMessage::DeConvert<UbseComBaseBufferMessage>(rsp);
+        if (respPtr.Get() == nullptr) {
+            UBSE_LOG_ERROR << "DeConvert response message failed, rsp is nullptr";
+            FreeByteBuffer(respData,
+                           "module_code=" + std::to_string(moduleCode) + ", op_code=" + std::to_string(opCode));
+            return UBSE_ERROR_NULLPTR;
+        }
         if (respPtr->SetInputRawData(respData.data, static_cast<uint32_t>(respData.len)) != UBSE_OK) {
             std::string tmpData = UbseReplyResultToString(UbseReplyResult::ERR_NO_REPLY);
             respPtr->SetInputRawData(

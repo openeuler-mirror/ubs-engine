@@ -452,11 +452,13 @@ UbseResult UbseComEngine::GetChannelByRemoteNodeId(const std::string& nodeId, Ub
 
 std::optional<UbseComMsgHandler> UbseComEngine::GetMessageHandler(uint16_t moduleCode, uint16_t opCode)
 {
-    if (handlerMap_.find({moduleCode, opCode}) == handlerMap_.end()) {
+    rwHanldeMapLock.LockRead();
+    auto it = handlerMap_.find({moduleCode, opCode});
+    if (it == handlerMap_.end()) {
+        rwHanldeMapLock.UnLock();
         return {};
     }
-    rwHanldeMapLock.LockRead();
-    auto hdl = handlerMap_[{moduleCode, opCode}];
+    auto hdl = it->second;
     rwHanldeMapLock.UnLock();
     return hdl;
 }
@@ -1170,13 +1172,13 @@ void UbseComEngine::RemoveConnectingNode(const std::string& remoteNodeIp, UbseCh
 
 UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo& engineInfo, const UbseComLinkStateNotify& notify)
 {
-    std::lock_guard<std::mutex> locker(G_MUTEX_);
+    std::unique_lock<std::mutex> locker(G_MUTEX_);
     const auto& engineName = engineInfo.GetName();
     auto iter = G_ENGINE_MAP_.find(engineName);
     if (iter != G_ENGINE_MAP_.end()) {
         return UBSE_OK;
     }
-    G_MUTEX_.unlock();
+    locker.unlock();
     NetLogger::Instance()->SetExternalLogFunction(engineInfo.GetLogFunc());
     UBSHcomServiceOptions options{};
     UBSHcomServiceProtocol hcomProtocol = UbseProtocolToHcomProtocol(engineInfo.GetProtocol());
@@ -1202,7 +1204,7 @@ UbseResult UbseComEngineManager::CreateEngine(const UbseComEngineInfo& engineInf
         SafeDelete(engine);
         return ret;
     }
-    G_MUTEX_.lock();
+    locker.lock();
     G_ENGINE_MAP_.emplace(engineName, engine);
     UBSE_LOG_DEBUG << "Create engine " << engineName << " successfully";
     return UBSE_OK;
