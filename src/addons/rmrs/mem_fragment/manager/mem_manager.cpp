@@ -76,8 +76,6 @@ constexpr uint64_t HUGE_PAGE_NUM_4K_TO_KB = 2 * 1024; // 4k标准页场景下pmd
 constexpr uint64_t HUGE_PAGE_NUM_64K_TO_KB = 512 * 1024; // 64k标准页场景下pmd配置为512M大页可以用于被借出
 constexpr uint64_t NUM_TO_RATIO = 100;
 constexpr uint16_t TIMEOUT_CYCLES_LIMIT = 300; // 超时周期上限
-constexpr int SMAP_PID_DISABLE = 0;
-constexpr int SMAP_PID_ENABLE = 1;
 
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
 #define LOG_ERROR UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -909,6 +907,19 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
         smapEnableCompletedList.push_back(numaId);
     }
     return MEM_POOLING_OK;
+}
+
+void GetPidSmapEnableCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                 void* ctx)
+{
+    if (ctx == nullptr) {
+        LOG_ERROR << "GetPidSmapEnableCompletedValue: ctx is null!";
+        return;
+    }
+    std::unordered_set<pid_t>& pidSmapEnableCompleted = *(static_cast<std::unordered_set<pid_t>*>(ctx));
+    RmrsInStream builder(buff.data, buff.len);
+    builder >> pidSmapEnableCompleted;
+    return;
 }
 
 // 查询当前所有已禁用但尚未enable的pid列表（从持久化加载）
@@ -2967,6 +2978,10 @@ uint32_t PidSmapEnableCompletedInit(UbseByteBuffer& buffer)
         auto retSmap = SmapEnablePidsProcess(pids);
         if (retSmap != MEM_POOLING_OK) {
             LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess failed.";
+        } else {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess success, Start to remove these pids.";
+            PidSmapEnableCompleted::Instance().Remove(pids);
         }
     }
 

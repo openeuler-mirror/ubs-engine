@@ -409,7 +409,13 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             MpSmapHelper::SmapMigratePidRemoteNumaHelper(pids.data(), pids.size(), remoteNumaId, remoteNumaHuge);
         if (retRemote != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][MemId] Smap migrate pid remote NUMA failed ret=" << retRemote << ".";
-            SmapEnablePidsProcess(pids);
+            if (SmapEnablePidsProcess(pids) != MEM_POOLING_OK) {
+                LOG_ERROR << "[FaultManager][MemId] Smap Enable pids failed.";
+                return MEM_POOLING_ERROR;
+            } else {
+                LOG_INFO << "[FaultManager][MemId] Smap Enable pids success, start to remove pids.";
+                PidSmapEnableCompleted::Instance().Remove(pids);
+            }
 
             return MEM_POOLING_ERROR;
         }
@@ -422,10 +428,12 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
 
     if (pids.size() != 0) {
         // 开启pid级别冷热流动
-        MpResult retEnable = SmapEnablePidsProcess(pids);
-        if (retEnable != MEM_POOLING_OK) {
+        if (SmapEnablePidsProcess(pids) != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][MemId] Smap Enable pids failed.";
             return MEM_POOLING_ERROR;
+        } else {
+            LOG_INFO << "[FaultManager][MemId] Smap Enable pids success, start to remove pids.";
+            PidSmapEnableCompleted::Instance().Remove(pids);
         }
     }
     LOG_INFO << "[FaultManager][MemId] VM migrate other remote NUMA success.";

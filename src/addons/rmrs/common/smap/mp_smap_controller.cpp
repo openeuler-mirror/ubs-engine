@@ -17,6 +17,9 @@
 namespace mempooling::smap {
 constexpr int RESULT_OK = 0;
 constexpr int RESULT_ERROR = 1;
+constexpr int SMAP_PIDS_ENABLE = 1;
+constexpr int SMAP_MIGRATE_FLAGS = 0;
+constexpr int SMAP_OK = 0;
 
 using namespace ubse::log;
 using namespace rmrs::serialize;
@@ -64,16 +67,13 @@ uint32_t SmapEnableNumaProcess(EnableNodeMsg enableMsg)
 
 uint32_t SmapEnablePidsProcess(std::vector<pid_t> pids)
 {
-    int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_MIGRATE_DISABLE,
+    int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_PIDS_ENABLE,
                                                                SMAP_MIGRATE_FLAGS);
     if (retSmap != SMAP_OK) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[SmapEnablePids] SmapEnablePidProcess failed, ret=" << retSmap << ".";
         return MEM_POOLING_ERROR;
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[SmapEnablePids] SmapEnablePidProcess success, Start to remove these pids.";
-    PidSmapEnableCompleted::Instance().Remove(pids);
 
     return MEM_POOLING_OK;
 }
