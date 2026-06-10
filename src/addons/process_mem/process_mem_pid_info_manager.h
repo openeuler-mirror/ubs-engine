@@ -52,7 +52,7 @@ public:
 
     void RecoverAllDebtInfoData();
 
-    void HandleNodeFaultEvent(const std::string& lentNodeId);
+    uint32_t HandleNodeFaultEvent(const std::string& lentNodeId);
 
     void CheckFaultNodesRecovery();
 
