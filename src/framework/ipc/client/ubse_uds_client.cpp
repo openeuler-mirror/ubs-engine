@@ -575,8 +575,6 @@ void UbseUDSClient::CleanupReconnectThread()
     if (reconnectThread_.joinable()) {
         IPC_LOG_INFO << "cleaning up old reconnect thread";
         try {
-            // 设置停止标志
-            isReConnect_.store(false);
             // 如果线程仍在运行，等待线程完成
             IPC_LOG_WARN << "old reconnect thread still alive, joining";
             reconnectThread_.join(); // 等待线程结束
