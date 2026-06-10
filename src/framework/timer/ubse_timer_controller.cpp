@@ -62,13 +62,15 @@ static void CheckHandlerExecTimeout()
 {
     std::unique_lock<std::mutex> lock(g_handlerExecCheckCvMutex);
     while (g_isTimerRunning.load(std::memory_order_acquire) && !g_globalStop.load(std::memory_order_acquire)) {
-        g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(UBSE_HANDLER_EXEC_CHECK_INTERVAL_SECONDS));
-        // 确认线程进入检查状态
-        UBSE_LOG_INFO << "Checking handler execution timeouts.";
+        g_handlerExecCheckCv.wait_for(lock, std::chrono::seconds(UBSE_HANDLER_EXEC_CHECK_INTERVAL_SECONDS), []() {
+            return !g_isTimerRunning.load(std::memory_order_acquire) || g_globalStop.load(std::memory_order_acquire);
+        });
         if (!g_isTimerRunning.load(std::memory_order_acquire) || g_globalStop.load(std::memory_order_acquire)) {
             UBSE_LOG_INFO << "ubse process exit, stop check.";
             break;
         }
+        // 确认线程进入检查状态
+        UBSE_LOG_INFO << "Checking handler execution timeouts.";
         std::unique_lock<std::shared_mutex> startRecordLock(g_handlerExecStartMtx);
         auto handlerExecStartRecordCopy = g_handlerExecStartRecord;
         startRecordLock.unlock();
@@ -168,7 +170,10 @@ uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler hand
     g_handlers[name] = std::make_pair(interval, handler);
     UBSE_LOG_INFO << "Register handler=" << name;
     if (!g_isTimerRunning.load(std::memory_order_relaxed)) {
-        g_isTimerRunning.store(true, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lock(g_handlerExecCheckCvMutex);
+            g_isTimerRunning.store(true, std::memory_order_release);
+        }
         // 启动独立的超时检查线程
         g_checkHandlerThread = std::thread(CheckHandlerExecTimeout);
         g_ubseTimer.Start(UBSE_TIMER_INTERVAL_SECONDS * UBSE_SECOND_TO_MILLISECONDS, ExecTimerHandler, UBSE_TIMER_NAME);
@@ -187,7 +192,10 @@ void UbseTimerHandlerUnregister(const std::string& name)
     }
     if (g_handlers.empty()) {
         UBSE_LOG_INFO << "Handlers empty, start to exit";
-        g_isTimerRunning.store(false, std::memory_order_release);
+        {
+            std::lock_guard<std::mutex> lock(g_handlerExecCheckCvMutex);
+            g_isTimerRunning.store(false, std::memory_order_release);
+        }
         // 通知超时检查线程退出
         g_handlerExecCheckCv.notify_all();
         if (g_checkHandlerThread.joinable()) {
