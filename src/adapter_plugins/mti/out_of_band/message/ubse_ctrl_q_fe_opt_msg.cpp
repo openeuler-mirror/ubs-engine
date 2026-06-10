@@ -109,12 +109,14 @@ static UbseResult WriteIdevReqMsg(const UbseMtiBusInst& busInstance, const std::
         UBSE_LOG_ERROR << "Set businstance failed";
         return UBSE_ERROR;
     }
+    auto& ref = *reinterpret_cast<UbseCtrlQRegIdevReqMsg*>(&msg.blocks.front());
+    ref.feCount = regInfoList.size();
+
     auto blockStartPtr = reinterpret_cast<uint8_t*>(msg.blocks.data());
     auto start = blockStartPtr + sizeof(UbseCtrlQRegIdevReqMsg);
     auto end = blockStartPtr + msg.blocks.size() * BASIC_BLOCK_SIZE;
     UbseCtrlQMsgWriteHelper writeHelper(start, end);
     try {
-        writeHelper.Write<uint8_t>(regInfoList.size());
         for (const auto& regInfo : regInfoList) {
             writeHelper.Write<IdevRegInfo>(regInfo);
         }
