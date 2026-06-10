@@ -73,7 +73,7 @@ const char* UbseMemCliFdCreateDispatch::GetOperationName() const
 uint32_t UbseMemCliFdCreateDispatch::Execute(UbseMemOperationResp& resp)
 {
     req_.importNodeId = req_.requestNodeId;
-    if (uint32_t ret = agent::UbseMemFdBorrow(req_, resp) != UBSE_OK) {
+    if (uint32_t ret = agent::UbseMemFdBorrow(req_, resp); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemFdBorrow failed," << FormatRetCode(ret);
         return ret;
     }
