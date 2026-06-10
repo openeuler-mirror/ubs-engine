@@ -711,7 +711,7 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
 UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string& faultInfo)
 {
     if (faultHandlerMap.find(faultType) == faultHandlerMap.end()) {
-        UBSE_LOG_WARN << "No handler register, type=" << faultType << "; info=" << faultInfo;
+        UBSE_LOG_WARN << "No handler register, type=" << faultType << ", info=" << faultInfo;
         return UBSE_OK;
     }
     auto handlersMap = faultHandlerMap[faultType];

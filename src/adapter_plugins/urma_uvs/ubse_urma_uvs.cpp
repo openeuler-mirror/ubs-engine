@@ -258,7 +258,7 @@ UbseResult FillTopo(const std::string& currentSlotId, const std::vector<Physical
         if (curSlotId == currentSlotId) {
             auto iter = nodeMap.find(peerSlotId);
             if (iter == nodeMap.end()) {
-                UBSE_LOG_WARN << "Failed to find peerSlotId " << peerSlotId << " in nodes, skip fill this node";
+                UBSE_LOG_WARN << "Failed to find peerSlotId=" << peerSlotId << " in nodes, skip fill this node";
                 continue;
             }
             iter->second.links[localPortIndex][remotePortIndex] = true;
@@ -268,7 +268,7 @@ UbseResult FillTopo(const std::string& currentSlotId, const std::vector<Physical
         if (peerSlotId == currentSlotId) {
             auto iter = nodeMap.find(curSlotId);
             if (iter == nodeMap.end()) {
-                UBSE_LOG_WARN << "Failed to find slotId " << curSlotId << " in nodes, skip fill this node";
+                UBSE_LOG_WARN << "Failed to find slotId=" << curSlotId << " in nodes, skip fill this node";
                 continue;
             }
             iter->second.links[remotePortIndex][localPortIndex] = true;

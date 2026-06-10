@@ -141,12 +141,12 @@ void Master::DealNodeUpdate()
     }
 
     for (const auto& nodeId : addNodes) {
-        UBSE_LOG_INFO << "[ELECTION] Master NodeAdded: " << nodeId;
+        UBSE_LOG_INFO << "[ELECTION] Master NodeAdded=" << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_UP, nodeId);
     }
 
     for (const auto& nodeId : removeNodes) {
-        UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved: " << nodeId;
+        UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved=" << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_DOWN, nodeId);
     }
 }

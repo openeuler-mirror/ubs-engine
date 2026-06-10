@@ -120,7 +120,7 @@ void PrintShareExportObj(std::string module, std::vector<UbseMemShareBorrowExpor
         if (obj.algoResult.exportNumaInfos.empty()) {
             continue;
         }
-        UBSE_LOG_INFO << module << ", node= " << obj.algoResult.exportNumaInfos[0].nodeId
+        UBSE_LOG_INFO << module << ", node=" << obj.algoResult.exportNumaInfos[0].nodeId
                       << ", share_export_name=" << obj.req.name << ", state=" << TransState(obj.status.state)
                       << ", origin_state=" << static_cast<uint32_t>(obj.status.state);
     }
