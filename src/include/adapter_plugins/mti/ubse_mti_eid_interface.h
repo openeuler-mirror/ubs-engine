@@ -41,6 +41,14 @@ std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe
  */
 uint32_t ParseBaseEid(const std::string& baseEid, std::string& bitStr);
 
+/**
+ * @brief 从EID字符串中解析CNA值
+ * @param eid EID字符串
+ * @param cna 解析出的CNA值
+ * @return 操作结果
+ */
+uint32_t ParseCnaFromEid(const std::string& eid, uint32_t& cna);
+
 /*
  * @brief CLOS组网下，重写目标节点 EID （仅用于 primaryEid 和 portEid）
  * @param targetNodeId 目标节点 ID

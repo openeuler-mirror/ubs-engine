@@ -42,14 +42,23 @@ struct UbseUrmaUvsNodeInfo {
 
 /**
  * @brief 下发拓扑和聚合设备信息到urma_uvs
- * @param [in] current_slot_id：当前节点ID
+ * @param [in] current_node_id：当前节点ID
  * @param [in] allLinkInfo：拓扑链路信息
  * @param [in] bondingInfo：聚合设备信息
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushTopoAndBondingToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
 
+/*
+ * @brief 下发共享拓扑和聚合设备信息到urma_uvs
+ * @param [in] current_node_id：当前节点ID
+ * @param [in] shareLinkInfo：共享拓扑链路信息
+ * @param [in] allLinkInfo：共享聚合设备信息
+ * @return 成功返回0, 失败返回非0
+ */
+UbseResult UbsePushShareTopoToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+                                  const std::vector<UbseUrmaUvsNodeInfo>& shareBondingInfo);
 /**
  * @brief 获得urma设备子路径名称。从urma_uvs获取EID对应的子路径名称（如 /dev/urma0/subpath_abc 中的 subpath_abc）
  * @param [in] urmaEid：urma设备Eid, 格式为 0000:0000:0000:0000:0000:0000:0100:0000
