@@ -14,9 +14,11 @@
 #include <cstring>
 #include <memory>
 #include <securec.h>
+#include <sstream>
 #include <glib.h>
 #include <blockdev/lvm.h>
 #include <blockdev/mdraid.h>
+#include "ubse_conf.h"
 #include "src/framework/misc/ubse_os_util.h"
 
 namespace ubse::adapter_plugins::ssu::def {
@@ -32,6 +34,25 @@ struct GStrFreevDeleter {
     }
 };
 using GStrvGuard = std::unique_ptr<gchar*, GStrFreevDeleter>;
+
+constexpr int NQN_MASK_SUFFIX_LEN = 4;
+
+std::string MaskNqn(const std::string &nqn)
+{
+    if (nqn.size() <= NQN_MASK_SUFFIX_LEN) {
+        return "****";
+    }
+    return "****" + nqn.substr(nqn.size() - NQN_MASK_SUFFIX_LEN);
+}
+
+uint32_t GetAdminNqn(std::string &adminNqn)
+{
+    if (ubse::config::UbseGetStr("ubse.ssu", "ssu.adminNqn", adminNqn) != UBSE_OK || adminNqn.empty()) {
+        UBSE_LOG_ERROR << "Failed to get ssu.adminNqn from config";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
 }
 
 UbseSsuAdapterImpl::UbseSsuAdapterImpl() : dlManager_(SSU_PATH) {}
@@ -57,37 +78,40 @@ UbseResult UbseSsuAdapterImpl::DlOpenLib()
         return ret;
     }
 
-    ret = dlManager_.GetFunction(acquireDevInfo_, "acquire_dev_info");
-    if (ret != UBSE_OK) {
-        dlManager_.Close();
-        return ret;
-    }
+    auto loadFunc = [this](auto &funcPtr, const char *symbol) -> UbseResult {
+        UbseResult r = dlManager_.GetFunction(funcPtr, symbol);
+        if (r != UBSE_OK) {
+            dlManager_.Close();
+        }
+        return r;
+    };
 
-    ret = dlManager_.GetFunction(createNamespace_, "create_namespace");
-    if (ret != UBSE_OK) {
-        dlManager_.Close();
-        return ret;
-    }
-
-    ret = dlManager_.GetFunction(deleteNamespace_, "delete_namespace");
-    if (ret != UBSE_OK) {
-        dlManager_.Close();
-        return ret;
-    }
-
-    ret = dlManager_.GetFunction(attachNamespace_, "attach_namespace");
-    if (ret != UBSE_OK) {
-        dlManager_.Close();
-        return ret;
-    }
-
-    ret = dlManager_.GetFunction(detachNamespace_, "detach_namespace");
-    if (ret != UBSE_OK) {
-        dlManager_.Close();
-        return ret;
-    }
+    ret = loadFunc(acquireDevInfo_, "acquire_dev_info");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(createNamespace_, "create_namespace");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(deleteNamespace_, "delete_namespace");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(attachNamespace_, "attach_namespace");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(detachNamespace_, "detach_namespace");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(addNamespaceAllowHost_, "add_namespace_allow_host");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(removeNamespaceAllowHost_, "remove_namespace_allow_host");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(getNamespaceAllowHosts_, "get_namespace_allow_hosts");
+    if (ret != UBSE_OK) { return ret; }
+    ret = loadFunc(freeAllowHostsMem_, "free_allow_hosts_mem");
+    if (ret != UBSE_OK) { return ret; }
 
     UBSE_LOG_INFO << "Successfully loaded libssu.so";
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::GetSrcEid(DevEidT &srcEid)
+{
+    memset_s(srcEid.raw, EID_SIZE, 0, EID_SIZE);
     return UBSE_OK;
 }
 
@@ -117,8 +141,12 @@ uint32_t UbseSsuAdapterImpl::BuildDevAddrList(const std::vector<UbseSsuDevInfo>&
             return UBSE_ERROR;
         }
         
-        memset_s(&devList[i].devEid.raw, EID_SIZE, 0, EID_SIZE);
-        memcpy_s(devList[i].devEid.raw, EID_SIZE, eid.c_str(), EID_SIZE);
+        memset_s(&devList[i].srcEid.raw, EID_SIZE, 0, EID_SIZE);
+        if (GetSrcEid(devList[i].srcEid) != UBSE_OK) {
+            return UBSE_ERROR;
+        }
+        memset_s(&devList[i].tgtEid.raw, EID_SIZE, 0, EID_SIZE);
+        memcpy_s(devList[i].tgtEid.raw, EID_SIZE, eid.c_str(), EID_SIZE);
         devList[i].devIp = nullptr;
         devList[i].useUb = false;
         memset_s(devList[i].subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
@@ -135,8 +163,8 @@ uint32_t UbseSsuAdapterImpl::BuildDevAddrList(const std::vector<UbseSsuDevInfo>&
  */
 void UbseSsuAdapterImpl::ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo& info)
 {
-    info.subSystem.eid = std::string(reinterpret_cast<const char*>(devInfo.devAddr.devEid.raw),
-                                     strnlen(reinterpret_cast<const char*>(devInfo.devAddr.devEid.raw), EID_SIZE));
+    info.subSystem.eid = std::string(reinterpret_cast<const char*>(devInfo.devAddr.tgtEid.raw),
+                                     strnlen(reinterpret_cast<const char*>(devInfo.devAddr.tgtEid.raw), EID_SIZE));
     info.subSystem.subNqn = std::string(devInfo.devAddr.subNqn);
     info.serialNumber = std::string(devInfo.sn);
     info.firmware = std::string(devInfo.mn);
@@ -163,12 +191,12 @@ void UbseSsuAdapterImpl::ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo&
         nsInfo.namespaceId = ns.namespaceId;
         nsInfo.subSystem.eid = info.subSystem.eid;
         nsInfo.subSystem.subNqn = info.subSystem.subNqn;
-        nsInfo.guid = std::string(ns.guid, strnlen(ns.guid, GUID_SIZE));
-        nsInfo.uuid = std::string(ns.uuid, strnlen(ns.uuid, UUID_SIZE));
+        nsInfo.guid = std::string(reinterpret_cast<const char*>(ns.guid), GUID_SIZE);
+        nsInfo.uuid = std::string(reinterpret_cast<const char*>(ns.uuid), UUID_SIZE);
         nsInfo.nsDevPath = std::string(ns.devPath);
         nsInfo.nsze = ns.baseAttr.nsze;
         nsInfo.ncap = ns.baseAttr.ncap;
-        nsInfo.nuse = ns.nuse;
+        nsInfo.nuse = ns.usedBytes;
         
         // 填充nsOptions
         nsInfo.nsOptions.flbas = ns.baseAttr.flbas;
@@ -201,6 +229,11 @@ uint32_t UbseSsuAdapterImpl::GetDevList(std::vector<UbseSsuDevInfo> &ssuInfoList
         return UBSE_ERROR;
     }
 
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
     if (ssuInfoList.empty()) {
         return UBSE_ERROR;
     }
@@ -212,9 +245,10 @@ uint32_t UbseSsuAdapterImpl::GetDevList(std::vector<UbseSsuDevInfo> &ssuInfoList
     }
 
     std::vector<DevInfoT> devInfoList(ssuInfoList.size());
-    int acqRet = acquireDevInfo_(devList.data(), static_cast<int>(devList.size()), devInfoList.data());
+    int acqRet = acquireDevInfo_(adminNqn.c_str(), devList.data(), static_cast<int>(devList.size()),
+                                 devInfoList.data());
     if (acqRet != 0) {
-        UBSE_LOG_ERROR << "acquire_dev_info failed, ret=" << acqRet;
+        UBSE_LOG_ERROR << "acquire_dev_info failed, adminNqn=" << MaskNqn(adminNqn) << ", ret=" << acqRet;
         return UBSE_ERROR;
     }
 
@@ -256,8 +290,12 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForCreate(const UbseSsuDevNameSpa
     }
     
     // 设置设备地址
-    memset_s(&nsInfo.devAddr.devEid.raw, EID_SIZE, 0, EID_SIZE);
-    memcpy_s(nsInfo.devAddr.devEid.raw, EID_SIZE,
+    memset_s(&nsInfo.devAddr.srcEid.raw, EID_SIZE, 0, EID_SIZE);
+    if (GetSrcEid(nsInfo.devAddr.srcEid) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    memset_s(&nsInfo.devAddr.tgtEid.raw, EID_SIZE, 0, EID_SIZE);
+    memcpy_s(nsInfo.devAddr.tgtEid.raw, EID_SIZE,
              nameSpace.subSystem.eid.c_str(), EID_SIZE);
     nsInfo.devAddr.devIp = nullptr;
     nsInfo.devAddr.useUb = false;
@@ -298,8 +336,12 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForBasic(const UbseSsuDevNameSpac
     }
     
     // 设置设备地址
-    memset_s(&nsInfo.devAddr.devEid.raw, EID_SIZE, 0, EID_SIZE);
-    memcpy_s(nsInfo.devAddr.devEid.raw, EID_SIZE,
+    memset_s(&nsInfo.devAddr.srcEid.raw, EID_SIZE, 0, EID_SIZE);
+    if (GetSrcEid(nsInfo.devAddr.srcEid) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    memset_s(&nsInfo.devAddr.tgtEid.raw, EID_SIZE, 0, EID_SIZE);
+    memcpy_s(nsInfo.devAddr.tgtEid.raw, EID_SIZE,
              nameSpace.subSystem.eid.c_str(), EID_SIZE);
     nsInfo.devAddr.devIp = nullptr;
     nsInfo.devAddr.useUb = false;
@@ -311,7 +353,8 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForBasic(const UbseSsuDevNameSpac
     // guid如果有就拷贝
     if (!nameSpace.guid.empty()) {
         memset_s(nsInfo.guid, GUID_SIZE, 0, GUID_SIZE);
-        strncpy_s(nsInfo.guid, GUID_SIZE, nameSpace.guid.c_str(), nameSpace.guid.size());
+        memcpy_s(nsInfo.guid, GUID_SIZE, nameSpace.guid.c_str(),
+                 std::min(nameSpace.guid.size(), static_cast<size_t>(GUID_SIZE)));
     }
     
     return UBSE_OK;
@@ -324,8 +367,13 @@ bool UbseSsuAdapterImpl::VerifyNamespaceGuid(const UbseSsuDevNameSpace& nameSpac
         return false;
     }
 
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return false;
+    }
+
     std::vector<UbseSsuDevInfo> devInfoList;
-    devInfoList.push_back({.subSystem = {.eid = nameSpace.subSystem.eid}});
+    devInfoList.push_back({.subSystem = {.eid = nameSpace.subSystem.eid, .subNqn = nameSpace.subSystem.subNqn}});
     uint32_t ret = GetDevList(devInfoList);
     if (ret != 0) {
         UBSE_LOG_ERROR << "VerifyNamespaceGuid: GetDevList failed, ret=" << ret;
@@ -367,25 +415,28 @@ uint32_t UbseSsuAdapterImpl::CreateDevNameSpace(UbseSsuDevNameSpace &nameSpace)
         return UBSE_ERROR;
     }
 
-    // 构建命名空间信息
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = BuildNamespaceInfoForCreate(nameSpace, nsInfo);
     if (ret != UBSE_OK) {
         return ret;
     }
 
-    int createRet = createNamespace_(&nsInfo);
+    int createRet = createNamespace_(adminNqn.c_str(), &nsInfo);
     if (createRet != 0) {
-        UBSE_LOG_ERROR << "create_namespace failed, ret=" << createRet;
+        UBSE_LOG_ERROR << "create_namespace failed, adminNqn=" << MaskNqn(adminNqn) << ", ret=" << createRet;
         return UBSE_ERROR;
     }
 
-    // 填充输出参数
     nameSpace.namespaceId = nsInfo.namespaceId;
     nameSpace.nsDevPath = std::string(nsInfo.devPath);
-    nameSpace.nuse = nsInfo.nuse;
-    nameSpace.guid = std::string(nsInfo.guid, strnlen(nsInfo.guid, GUID_SIZE));
-    nameSpace.uuid = std::string(nsInfo.uuid, strnlen(nsInfo.uuid, UUID_SIZE));
+    nameSpace.nuse = nsInfo.usedBytes;
+    nameSpace.guid = std::string(reinterpret_cast<const char*>(nsInfo.guid), GUID_SIZE);
+    nameSpace.uuid = std::string(reinterpret_cast<const char*>(nsInfo.uuid), UUID_SIZE);
 
     UBSE_LOG_INFO << "Successfully created namespace " << nameSpace.namespaceId
                   << " with guid: " << nameSpace.guid;
@@ -407,15 +458,18 @@ uint32_t UbseSsuAdapterImpl::DeleteDevNameSpace(const UbseSsuDevNameSpace &nameS
         return UBSE_ERROR;
     }
 
-    // ========== 可靠性要求：GUID验证 ==========
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
     if (!VerifyNamespaceGuid(nameSpace)) {
         UBSE_LOG_ERROR << "DeleteDevNameSpace failed: GUID verification failed";
         return UBSE_ERROR;
     }
 
-    // ========== 幂等性检查：检查NS是否已删除 ==========
     std::vector<UbseSsuDevInfo> devInfoList;
-    devInfoList.push_back({.subSystem = {.eid = nameSpace.subSystem.eid}});
+    devInfoList.push_back({.subSystem = {.eid = nameSpace.subSystem.eid, .subNqn = nameSpace.subSystem.subNqn}});
     uint32_t ret = GetDevList(devInfoList);
     if (ret != 0) {
         UBSE_LOG_ERROR << "GetDevList failed before delete, ret=" << ret;
@@ -445,7 +499,7 @@ uint32_t UbseSsuAdapterImpl::DeleteDevNameSpace(const UbseSsuDevNameSpace &nameS
         return ret;
     }
 
-    int deleteRet = deleteNamespace_(&nsInfo);
+    int deleteRet = deleteNamespace_(adminNqn.c_str(), &nsInfo);
     if (deleteRet != 0) {
         UBSE_LOG_ERROR << "delete_namespace failed, ret=" << deleteRet;
         return UBSE_ERROR;
@@ -463,37 +517,41 @@ uint32_t UbseSsuAdapterImpl::DeleteDevNameSpace(const UbseSsuDevNameSpace &nameS
  * @param nameSpace 要attach的命名空间，guid用于验证
  * @return 0表示成功，非0表示失败
  */
-uint32_t UbseSsuAdapterImpl::AttachDevNameSpace(const UbseSsuDevNameSpace &nameSpace)
+uint32_t UbseSsuAdapterImpl::AttachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace)
 {
+    if (hostNqn.empty()) {
+        UBSE_LOG_ERROR << "AttachDevNameSpace: hostNqn is empty";
+        return UBSE_ERROR;
+    }
+
     if (DlOpenLib() != UBSE_OK) {
         return UBSE_ERROR;
     }
 
-    // 构建命名空间信息
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = BuildNamespaceInfoForBasic(nameSpace, nsInfo);
     if (ret != UBSE_OK) {
         return ret;
     }
 
-    int attachRet = attachNamespace_(&nsInfo);
+    int attachRet = attachNamespace_(hostNqn.c_str(), &nsInfo);
     if (attachRet != 0) {
-        UBSE_LOG_ERROR << "attach_namespace failed, ret=" << attachRet;
+        UBSE_LOG_ERROR << "attach_namespace failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << attachRet;
         return UBSE_ERROR;
     }
 
-    // ========== 可靠性要求：attach后验证NGUID一致性 ==========
     if (!VerifyNamespaceGuid(nameSpace)) {
         UBSE_LOG_ERROR << "AttachDevNameSpace failed: GUID verification after attach failed";
-        int detachRet = detachNamespace_(&nsInfo);
+        int detachRet = detachNamespace_(hostNqn.c_str(), &nsInfo);
         if (detachRet != 0) {
-            UBSE_LOG_ERROR << "Rollback detach also failed after attach GUID mismatch, ret=" << detachRet;
+            UBSE_LOG_ERROR << "Rollback detach also failed after attach GUID mismatch, hostNqn="
+                           << MaskNqn(hostNqn) << ", ret=" << detachRet;
         }
         return UBSE_ERROR;
     }
 
     UBSE_LOG_INFO << "Successfully attached namespace " << nameSpace.namespaceId
-                  << " with GUID: " << nameSpace.guid;
+                  << ", hostNqn=" << MaskNqn(hostNqn);
     return UBSE_OK;
 }
 
@@ -504,42 +562,143 @@ uint32_t UbseSsuAdapterImpl::AttachDevNameSpace(const UbseSsuDevNameSpace &nameS
  * @param nameSpace 要detach的命名空间
  * @return 0表示成功，非0表示失败
  */
-uint32_t UbseSsuAdapterImpl::DetachDevNameSpace(const UbseSsuDevNameSpace &nameSpace)
+uint32_t UbseSsuAdapterImpl::DetachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace)
 {
+    if (hostNqn.empty()) {
+        UBSE_LOG_ERROR << "DetachDevNameSpace: hostNqn is empty";
+        return UBSE_ERROR;
+    }
+
     if (DlOpenLib() != UBSE_OK) {
         return UBSE_ERROR;
     }
 
-    // 构建命名空间信息
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = BuildNamespaceInfoForBasic(nameSpace, nsInfo);
     if (ret != UBSE_OK) {
         return ret;
     }
 
-    int detachRet = detachNamespace_(&nsInfo);
+    int detachRet = detachNamespace_(hostNqn.c_str(), &nsInfo);
     if (detachRet != 0) {
-        UBSE_LOG_ERROR << "detach_namespace failed, ret=" << detachRet;
+        UBSE_LOG_ERROR << "detach_namespace failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << detachRet;
         return UBSE_ERROR;
     }
 
-    UBSE_LOG_INFO << "Successfully detached namespace " << nameSpace.namespaceId;
+    UBSE_LOG_INFO << "Successfully detached namespace " << nameSpace.namespaceId
+                  << ", hostNqn=" << MaskNqn(hostNqn);
     return UBSE_OK;
 }
 
-/**
- * @brief 创建块设备（支持RAID）
- * @details 将多个命名空间组合成一个块设备，支持LINEAR、RAID0、RAID5模式
- *          满足可靠性要求：
- *          1. devicePathList应使用persistentPath（/dev/disk/by-id/nvme-eui.<guid>）
- *          2. 创建成功后更新mdadm.conf并执行update-initramfs
- *          3. 通过raidUuid标识阵列
- * @param deviceName 设备名称
- * @param devicePathList 底层设备路径列表（应使用by-id路径）
- * @param options 创建选项（RAID级别、条带大小等）
- * @param devicePath 输出参数，创建后的块设备路径
- * @return 0表示成功，非0表示失败
- */
+uint32_t UbseSsuAdapterImpl::AddNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                                   const std::string &hostNqn)
+{
+    if (hostNqn.empty()) {
+        UBSE_LOG_ERROR << "AddNameSpaceAllowHost: hostNqn is empty";
+        return UBSE_ERROR;
+    }
+
+    if (DlOpenLib() != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = BuildNamespaceInfoForBasic(nameSpace, nsInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    int addRet = addNamespaceAllowHost_(adminNqn.c_str(), &nsInfo, hostNqn.c_str());
+    if (addRet != 0) {
+        UBSE_LOG_ERROR << "add_namespace_allow_host failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << addRet;
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "Successfully added allow host to namespace " << nameSpace.namespaceId
+                  << ", hostNqn=" << MaskNqn(hostNqn);
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::RemoveNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                                      const std::string &hostNqn)
+{
+    if (hostNqn.empty()) {
+        UBSE_LOG_ERROR << "RemoveNameSpaceAllowHost: hostNqn is empty";
+        return UBSE_ERROR;
+    }
+
+    if (DlOpenLib() != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = BuildNamespaceInfoForBasic(nameSpace, nsInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    int removeRet = removeNamespaceAllowHost_(adminNqn.c_str(), &nsInfo, hostNqn.c_str());
+    if (removeRet != 0) {
+        UBSE_LOG_ERROR << "remove_namespace_allow_host failed, hostNqn=" << MaskNqn(hostNqn) << ", ret=" << removeRet;
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "Successfully removed allow host from namespace " << nameSpace.namespaceId
+                  << ", hostNqn=" << MaskNqn(hostNqn);
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::GetNameSpaceAllowHostList(const UbseSsuDevNameSpace &nameSpace,
+                                                       std::vector<std::string> &allowHostList)
+{
+    if (DlOpenLib() != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    std::string adminNqn;
+    if (GetAdminNqn(adminNqn) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = BuildNamespaceInfoForBasic(nameSpace, nsInfo);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    char** allowHosts = nullptr;
+    uint32_t hostCnt = 0;
+    int getRet = getNamespaceAllowHosts_(adminNqn.c_str(), &nsInfo, &allowHosts, &hostCnt);
+    if (getRet != 0) {
+        UBSE_LOG_ERROR << "get_namespace_allow_hosts failed, ret=" << getRet;
+        return UBSE_ERROR;
+    }
+
+    for (uint32_t i = 0; i < hostCnt; ++i) {
+        if (allowHosts[i] != nullptr) {
+            allowHostList.push_back(allowHosts[i]);
+        }
+    }
+
+    if (allowHosts != nullptr) {
+        freeAllowHostsMem_(allowHosts, hostCnt);
+    }
+
+    UBSE_LOG_INFO << "Successfully got allow host list for namespace " << nameSpace.namespaceId
+                  << ", count=" << allowHostList.size();
+    return UBSE_OK;
+}
+
 uint32_t UbseSsuAdapterImpl::ValidatePersistentPaths(const std::vector<std::string>& devicePathList)
 {
     for (const auto& path : devicePathList) {
@@ -664,6 +823,19 @@ uint32_t UbseSsuAdapterImpl::CreateStripedBlockDevice(const std::string& deviceN
     return UBSE_OK;
 }
 
+/**
+ * @brief 创建块设备（支持RAID）
+ * @details 将多个命名空间组合成一个块设备，支持LINEAR、RAID0、RAID5模式
+ *          满足可靠性要求：
+ *          1. devicePathList应使用persistentPath（/dev/disk/by-id/nvme-eui.<guid>）
+ *          2. 创建成功后更新mdadm.conf并执行update-initramfs
+ *          3. 通过raidUuid标识阵列
+ * @param deviceName 设备名称
+ * @param devicePathList 底层设备路径列表（应使用by-id路径）
+ * @param options 创建选项（RAID级别、条带大小等）
+ * @param devicePath 输出参数，创建后的块设备路径
+ * @return 0表示成功，非0表示失败
+ */
 uint32_t UbseSsuAdapterImpl::CreateBlockDevice(const std::string &deviceName,
                                                const std::vector<std::string> &devicePathList,
                                                const UbseCreateBlockDeviceOptions &options,
