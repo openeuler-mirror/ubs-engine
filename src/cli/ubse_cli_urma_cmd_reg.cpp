@@ -65,20 +65,20 @@ static const std::string URMA_QOS_PRI_BAND_REQUIRED = "ERROR: Both --pri and --c
 static const std::string URMA_QOS_INVALID_PRI_BAND = "ERROR: Invalid priority or bandwidth value.";
 static const std::string URMA_QOS_PRI_RANGE_ERROR = "ERROR: Priority must be 0 or 1.";
 static const std::string URMA_QOS_INTERNAL_ERROR = "ERROR: Internal error with error code ";
-static const std::string URMA_QOS_CREATE_SUCCESS = "create ets successfully";
-static const std::string URMA_QOS_DELETE_SUCCESS = "delete ets successfully";
+static const std::string URMA_QOS_CREATE_SUCCESS = "create successfully";
+static const std::string URMA_QOS_DELETE_SUCCESS = "delete successfully";
 static const std::string URMA_QOS_PRI_BAND_MISMATCH = "ERROR: --pri and --cir count mismatch.";
 static const std::string URMA_QOS_COUNT_EXCEED = "ERROR: QoS config count exceeds limit (max 2).";
 static const std::string URMA_QOS_PRI_DUPLICATE = "ERROR: Duplicate priorities are not allowed.";
 static const std::string URMA_QOS_NULLPTR_ERROR = "ERROR: QoS template not initialized.";
-static const std::string URMA_QOS_ACCESS_MTI_ERROR =
-    "ERROR: Failed to access MTI interface, please check MTI service status.";
+static const std::string URMA_QOS_CONNECT_UBM_ERROR =
+    "ERROR: Failed to access UBM interface, please check UBM service status.";
 static const std::string URMA_QOS_TEMPLATE_NOT_EXISTED =
     "ERROR: Failed to create ETS QoS template, No ETS QoS template exists.";
 static const std::string URMA_QOS_TEMPLATE_NOT_APPLIED =
-    "ERROR: ETS QoS template has not been applied to all network ports. please try: ubsectl create ets.";
+    "ERROR: ETS QoS template has not been applied to all network ports. please try: ubsectl create urma-qos.";
 static const std::string URMA_QOS_QUERY_EMPTY_ERROR =
-    "ERROR: No ETS QoS priority groups has been created, please run: ubsectl create ets.";
+    "ERROR: No ETS QoS priority groups has been created, please run: ubsectl create urma-qos.";
 static const std::string URMA_QOS_PRIO_GROUP_EXIST_ERROR =
     "ERROR: ETS QoS priority group already exists, please delete existing QoS config first.";
 
@@ -105,7 +105,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliCreateUrmaQos()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("create")
-        .UbseCliSetType("ets")
+        .UbseCliSetType("urma-qos")
         .UbseCliAddOption("p", URMA_QOS_PRI_OPT, URMA_QOS_CREATE_OPT_DES_PRI)
         .UbseCliAddOption("c", URMA_QOS_BAND_OPT, URMA_QOS_CREATE_OPT_DES_CIR)
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QOS_CREATE_OPT_DES_NODE)
@@ -117,7 +117,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliDeleteUrmaQos()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("delete")
-        .UbseCliSetType("ets")
+        .UbseCliSetType("urma-qos")
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QOS_DELETE_OPT_DES_NODE)
         .UbseCliSetFunc(UbseDeleteUrmaQosFunc);
     return builder.UbseCliBuild();
@@ -127,7 +127,7 @@ UbseCliCommandInfo UbseCliRegUrmaModule::UbseCliDisplayUrmaQos()
 {
     UbseCliRegBuilder builder;
     builder.UbseCliSetCommand("display")
-        .UbseCliSetType("ets")
+        .UbseCliSetType("urma-qos")
         .UbseCliAddOption("n", URMA_NODE_OPT, URMA_QOS_DISPLAY_OPT_DES_NODE)
         .UbseCliSetFunc(UbseDisplayUrmaQosFunc);
     return builder.UbseCliBuild();
@@ -271,7 +271,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::MapQosErrorToMessage(ui
     static const std::map<uint32_t, std::string> errorMap = {
         {UBSE_ERROR_NULLPTR, URMA_QOS_NULLPTR_ERROR},
         {UBSE_ERROR_INVAL, URMA_QOS_INVALID_PRI_BAND},
-        {UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED, URMA_QOS_ACCESS_MTI_ERROR},
+        {UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED, URMA_QOS_CONNECT_UBM_ERROR},
         {UBSE_URMACONTRL_ERROR_PRIO_GROUP_EXIST, URMA_QOS_PRIO_GROUP_EXIST_ERROR},
         {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_EXISTED, URMA_QOS_TEMPLATE_NOT_EXISTED},
         {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED, URMA_QOS_TEMPLATE_NOT_APPLIED}};
@@ -333,7 +333,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDeleteUrmaQosFunc(
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_QOS_DELETE, &ubseReqBuffer, &ubseResBuffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubseResBuffer);
     if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(URMA_QOS_INTERNAL_ERROR + std::to_string(ret));
+        return MapQosErrorToMessage(ret);
     }
 
     return UbseCliStringPromptReply(URMA_QOS_DELETE_SUCCESS);

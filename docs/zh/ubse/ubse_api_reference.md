@@ -3912,6 +3912,318 @@ int main(void)
 }
 ```
 
+### ubs\_urma\_qos\_create
+
+**库 LIBRARY**
+
+**ubse 库** (`libubse.so`)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_urma.h>
+
+uint32_t ubs_urma_qos_create(const ubs_urma_qos_config_t* configs, uint32_t count);
+```
+
+**描述 DESCRIPTION**
+
+设置URMA设备的ETS QoS配置，为指定优先级分配带宽资源。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | 描述                                  |
+|---------|--------|-------------------------------------|
+| configs | IN     | QoS配置数组指针，包含优先级和带宽信息               |
+| count   | IN     | 数组元素个数，有效范围 1-2                    |
+
+- 数据结构说明
+
+```c
+#define UBS_URMA_QOS_CONFIG_MIN_COUNT 1 // QoS配置最小数量
+#define UBS_URMA_QOS_CONFIG_MAX_COUNT 2 // QoS配置最大数量
+#define UBS_URMA_QOS_PRIORITY_MAX 1     // QoS优先级最大值
+
+typedef struct {
+    uint32_t priority;  // 优先级，值为0或1
+    uint32_t bandwidth; // 带宽，单位Gbps
+} ubs_urma_qos_config_t;
+```
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+**错误 ERRORS**
+
+| Error                            | Description        |
+|----------------------------------|--------------------|
+| UBS_ENGINE_ERR_INVALID_PARAM     | 参数错误：count不在1-2范围、优先级超过1、带宽为0、存在重复优先级 |
+| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
+| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过   |
+| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_CONNECT_UBM_FAILED | 访问UBM接口失败 |
+| UBS_ENGINE_ERR_URMA_QOS_EXIST | ETS优先级组已存在，请先删除现有配置 |
+| UBS_ENGINE_ERR_INTERNAL          | UBSE服务端内部错误     |
+
+**约束 CONSTRAINTS**
+
+- 配置数量必须在1-2之间
+- 优先级值必须为0或1
+- 不允许配置重复的优先级
+- 带宽值必须为正整数（大于0），单位Gbps
+
+**附注 NOTES**
+
+暂无
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，创建单个优先级的QoS配置。
+
+```c
+#include <stdio.h>
+#include <libubse.h>
+#include <ubs_engine_urma.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_urma_qos_config_t config = {
+        .priority = 0,
+        .bandwidth = 10
+    };
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed.\n");
+        return -1;
+    }
+
+    ret = ubs_urma_qos_create(&config, 1);
+    if (UBS_SUCCESS != ret) {
+        perror("create qos failed.\n");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("QoS config created successfully.\n");
+    ubs_engine_client_finalize();
+
+    return 0;
+}
+```
+
+创建多个优先级的QoS配置：
+
+```c
+#include <stdio.h>
+#include <libubse.h>
+#include <ubs_engine_urma.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_urma_qos_config_t configs[2] = {
+        {.priority = 0, .bandwidth = 10},
+        {.priority = 1, .bandwidth = 20}
+    };
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed.\n");
+        return -1;
+    }
+
+    ret = ubs_urma_qos_create(configs, 2);
+    if (UBS_SUCCESS != ret) {
+        perror("create qos failed.\n");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("QoS configs created successfully.\n");
+    ubs_engine_client_finalize();
+
+    return 0;
+}
+```
+
+### ubs\_urma\_qos\_delete
+
+**库 LIBRARY**
+
+**ubse 库** (`libubse.so`)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_urma.h>
+
+uint32_t ubs_urma_qos_delete(void);
+```
+
+**描述 DESCRIPTION**
+
+清理所有ETS QoS配置，释放已分配的带宽资源。
+
+**参数 PARAMETERS**
+
+无
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+**错误 ERRORS**
+
+| Error                            | Description        |
+|----------------------------------|--------------------|
+| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
+| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过   |
+| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_CONNECT_UBM_FAILED | 访问UBM接口失败 |
+| UBS_ENGINE_ERR_INTERNAL          | UBSE服务端内部错误     |
+
+**约束 CONSTRAINTS**
+
+暂无
+
+**附注 NOTES**
+
+暂无
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，删除所有QoS配置。
+
+```c
+#include <stdio.h>
+#include <libubse.h>
+#include <ubs_engine_urma.h>
+
+int main(void)
+{
+    int32_t ret;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed.\n");
+        return -1;
+    }
+
+    ret = ubs_urma_qos_delete();
+    if (UBS_SUCCESS != ret) {
+        perror("delete qos failed.\n");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("QoS configs deleted successfully.\n");
+    ubs_engine_client_finalize();
+
+    return 0;
+}
+```
+
+### ubs\_urma\_qos\_get
+
+**库 LIBRARY**
+
+**ubse 库** (`libubse.so`)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_urma.h>
+
+uint32_t ubs_urma_qos_get(ubs_urma_qos_config_t** configs, uint32_t* count);
+```
+
+**描述 DESCRIPTION**
+
+查询已创建的ETS QoS配置信息。
+
+**参数 PARAMETERS**
+
+| name    | IN/OUT | 描述                                         |
+|---------|--------|----------------------------------------------|
+| configs | OUT    | QoS配置数组指针，调用成功后需用 free() 释放 |
+| count   | OUT    | 返回的QoS配置数量                           |
+
+- 数据结构说明
+
+```c
+typedef struct {
+    uint32_t priority;  // 优先级，值为0或1
+    uint32_t bandwidth; // 带宽，单位Gbps
+} ubs_urma_qos_config_t;
+```
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见`错误 ERRORS`
+
+**错误 ERRORS**
+
+| Error                            | Description        |
+|----------------------------------|--------------------|
+| UBS_ENGINE_ERR_CONNECTION_FAILED | 连接UBSE服务端失败    |
+| UBS_ENGINE_ERR_AUTH_FAILED       | UBSE服务端鉴权不通过   |
+| UBS_ENGINE_ERR_TIMEOUT           | UBSE服务端处理超时     |
+| UBS_ENGINE_ERR_CONNECT_UBM_FAILED | 访问UBM接口失败 |
+| UBS_ENGINE_ERR_URMA_QOS_NOT_EXISTED | ETS QoS模板未创建 |
+| UBS_ENGINE_ERR_INTERNAL          | UBSE服务端内部错误     |
+
+**约束 CONSTRAINTS**
+
+暂无
+
+**附注 NOTES**
+
+调用方需释放configs内存
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，查询QoS配置信息。
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <libubse.h>
+#include <ubs_engine_urma.h>
+
+int main(void)
+{
+    int32_t ret;
+    uint32_t count = 0;
+    ubs_urma_qos_config_t* configs = NULL;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed.\n");
+        return -1;
+    }
+
+    ret = ubs_urma_qos_get(&configs, &count);
+    if (UBS_SUCCESS != ret) {
+        perror("get qos failed.\n");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        printf("QoS config %u: priority=%u, bandwidth=%u Gbps\n",
+               i, configs[i].priority, configs[i].bandwidth);
+    }
+
+    free(configs);
+    ubs_engine_client_finalize();
+
+    return 0;
+}
+```
+
 ## UBSE 内存控制器接口说明文档
 
 **概述**
