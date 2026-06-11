@@ -28,16 +28,16 @@ void TestRequestHelper::TearDown()
 TEST_F(TestRequestHelper, CreateInstance_Wait)
 {
     std::thread t([]() -> void {
-        auto featureMgr = FutureMgr::CreateInstance("resId");
+        auto featureMgr = UbseFutureMgr::CreateInstance("resId");
         auto uintFeature = featureMgr->GetFuture<uint32_t>();
         // 延迟1s赋值，构造线程2等待场景
         sleep(1);
-        FutureMgr::SetResult("resId", 0);
+        UbseFutureMgr::SetResult("resId", 0);
     });
     std::thread t1([]() -> void {
-        auto featureMgr = FutureMgr::CreateInstance("resId");
+        auto featureMgr = UbseFutureMgr::CreateInstance("resId");
         auto uintFeature = featureMgr->GetFuture<uint32_t>();
-        FutureMgr::SetResult("resId", 0);
+        UbseFutureMgr::SetResult("resId", 0);
     });
     t.join();
     t1.join();
@@ -45,14 +45,14 @@ TEST_F(TestRequestHelper, CreateInstance_Wait)
 
 TEST_F(TestRequestHelper, Feature_NotFound)
 {
-    EXPECT_EQ(false, FutureMgr::Find("resId"));
+    EXPECT_EQ(false, UbseFutureMgr::Find("resId"));
 }
 
 TEST_F(TestRequestHelper, GetSize)
 {
-    auto featureMgr = FutureMgr::CreateInstance("resId");
+    auto featureMgr = UbseFutureMgr::CreateInstance("resId");
     auto uintFeature = featureMgr->GetFuture<uint32_t>();
-    EXPECT_EQ(1, FutureMgr::GetSize());
-    FutureMgr::SetResult("resId", 0);
+    EXPECT_EQ(1, UbseFutureMgr::GetSize());
+    UbseFutureMgr::SetResult("resId", 0);
 }
 } // namespace ubse::mem_controller::ut

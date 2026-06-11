@@ -800,8 +800,8 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_FutureMgrNull)
 
     MOCKER(IsHighSafety).reset();
     MOCKER(IsHighSafety).stubs().will(returnValue(false));
-    std::shared_ptr<FutureMgr> nullFutureMgr = nullptr;
-    MOCKER(&FutureMgr::CreateInstance).stubs().will(returnValue(nullFutureMgr));
+    std::shared_ptr<UbseFutureMgr> nullFutureMgr = nullptr;
+    MOCKER(&UbseFutureMgr::CreateInstance).stubs().will(returnValue(nullFutureMgr));
 
     auto ret = UbseMemFdBorrow(req, resp);
     EXPECT_EQ(ret, UBSE_ERROR);
