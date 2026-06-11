@@ -131,7 +131,7 @@ void GlobalInitializer::ProcRoleSwitch(const std::vector<Node> &masterIds)
     } else if (GetElectionCandidate() && !GetElectionWait()) {
         if (SendGlobalElectionPkt(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
             UBSE_LOG_INFO << "[ELECTION] Initializer: ProcTimer switch master - 4";
-            RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+            RoleMgr::GetInstance().SwitchGlobalRole(GlobalRoleType::GLOBAL_MASTER, ctx);
         }
     }
 }
@@ -146,7 +146,7 @@ void GlobalInitializer::ProcTimer()
 
     std::vector<UBSE_ID_TYPE> pdMasterIds = RoleMgr::GetInstance().GetManagingGroupMasterIds();
     if (pdMasterIds.empty()) {
-        UBSE_LOG_DEBUG << "[ELECTION] The number of Managing GroupNode is less than 5.";
+        UBSE_LOG_DEBUG << "[ELECTION] ManagingGroup MasterIds is empty.";
         return;
     }
 
@@ -161,7 +161,7 @@ void GlobalInitializer::ProcTimer()
         std::vector<Node> masterIds{};
         for (const auto& item : pdMasterIds) {
             masterIds.push_back({item});
-            UBSE_LOG_INFO << "[ELECTION] 当前查询到的别的组的主节点为 group.masterId = " << item;
+            UBSE_LOG_INFO << "[ELECTION] query Managing Group masterId = " << item;
         }
         masterIds.push_back({myselfID_});
         if (!isStartTimeSet_) {
