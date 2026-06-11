@@ -81,7 +81,6 @@ public:
         ReadLocker lock(&globalBorrowLock);
         return globalBorrowMap_;
     }
-    void UpdateGlobalNumaInfoMapNumaMemBorrow(VMNodeLocInfo& vmNodeLocInfo, uint64_t borrowMemSize);
     VmResult UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo& hostVmDomainInfo,
                                                            HostNumaCpuInfo& hostNumaCpuInfo);
     static void UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus>& borrowIdStatuses);

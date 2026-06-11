@@ -109,13 +109,9 @@ void ResourceCollect::KeepNumaInfo()
         const NumaInfoToKeep infoToKeep = {
             .numaMigrateStatus = numaInfoIter.second.numaMigrateStatus,
             .numaMigrateLastTime = numaInfoIter.second.numaMigrateLastTime,
-            .numaMemBorrow = numaInfoIter.second.numaMemBorrow,
-            .numaMemLend = numaInfoIter.second.numaMemLend,
         };
         UBSE_LOG_DEBUG << "KeepNumaInfo numaMigrateStatus = " << numaInfoIter.second.numaMigrateStatus
-                       << ", numaMigrateLastTime = " << numaInfoIter.second.numaMigrateLastTime
-                       << ", numaMemBorrow = " << numaInfoIter.second.numaMemBorrow
-                       << ", numaMemLend = " << numaInfoIter.second.numaMemLend;
+                       << ", numaMigrateLastTime = " << numaInfoIter.second.numaMigrateLastTime;
         NumaToKeep.emplace(numaInfoIter.first, infoToKeep);
     }
 }
@@ -259,8 +255,6 @@ void ResourceCollect::InheritNumaInfo(GlobalNumaInfo& numaInfo, VMNodeLocInfo& t
     if (keptIter != NumaToKeep.end()) {
         numaInfo.numaMigrateLastTime = keptIter->second.numaMigrateLastTime;
         numaInfo.numaMigrateStatus = keptIter->second.numaMigrateStatus;
-        numaInfo.numaMemBorrow = keptIter->second.numaMemBorrow;
-        numaInfo.numaMemLend = keptIter->second.numaMemLend;
     }
 }
 
@@ -547,19 +541,6 @@ VmResult ResourceCollect::UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDo
         return ret;
     }
     return VM_OK;
-}
-
-void ResourceCollect::UpdateGlobalNumaInfoMapNumaMemBorrow(VMNodeLocInfo& vmNodeLocInfo, uint64_t borrowMemSize)
-{
-    std::lock_guard<std::mutex> numaInfoGuard(mGlobalNumaLock);
-    auto it = globalNumaInfoMap.find(vmNodeLocInfo);
-    if (it == globalNumaInfoMap.end()) {
-        UBSE_LOG_ERROR << "numa info not found, hostId = " << vmNodeLocInfo.hostId
-                       << ", socketId = " << std::to_string(vmNodeLocInfo.socketId)
-                       << ", numaId = " << std::to_string(vmNodeLocInfo.numaId);
-        return;
-    }
-    it->second.numaMemBorrow += borrowMemSize;
 }
 
 } // namespace vm
