@@ -447,8 +447,11 @@ void AsyncBorrowAndMigrateExecute(pid_t pid, const def::DebtInfo& debtInfo, uint
 
     ubse::mem::controller::UbseMemNumaDesc desc{};
     pid::bridge::MemoryBorrowRequest request{};
+    auto curNodeInfo = ubse::nodeController::UbseNodeController::GetInstance().GetCurNode();
+    uint64_t blockSizeBytes = static_cast<uint64_t>(curNodeInfo.blockSize) * 1024 * 1024;
     request.name = debtInfo.numaDesc.name;
-    request.size = debtInfo.numaDesc.size;
+    // 根据ubse的对齐规则，size向上取整对齐到blockSize大小，+ blockSize - 1把余数部分"推过"下一个 block 边界
+    request.size = ((debtInfo.numaDesc.size + blockSizeBytes - 1) / blockSizeBytes) * blockSizeBytes;
     if (memcpy_s(request.usrInfo, ubse::mem::controller::UBSE_MAX_USR_INFO_LEN, debtInfo.numaDesc.usrInfo,
                  ubse::mem::controller::UBSE_MAX_USR_INFO_LEN) != EOK) {
         ProcessMemPidInfoManager::GetInstance().DeletePidMemBorrowInfo(pid, debtInfo.numaDesc.name);
