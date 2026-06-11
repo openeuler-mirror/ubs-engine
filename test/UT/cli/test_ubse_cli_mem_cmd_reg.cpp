@@ -507,6 +507,21 @@ TEST_F(TestUbseCliMemCmdReg, NumaStatusInvokeNormal)
     MOCKER(&ubse_invoke_call).reset();
 }
 
+TEST_F(TestUbseCliMemCmdReg, NumaStatusAllInvokeNormal)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_numa_status_all_ubse_invoke_call_normal));
+    std::map<std::basic_string<char>, std::basic_string<char>> params{{"type", "numa_status"}, {"all", ""}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, NumaStatusAllUnsupportOtherType)
+{
+    std::map<std::basic_string<char>, std::basic_string<char>> params{{"type", "node_borrow"}, {"all", ""}};
+    auto result = UbseCliRegMemModule::UbseCliMemQueryFunc(params);
+    EXPECT_TRUE(result != nullptr);
+}
+
 TEST_F(TestUbseCliMemCmdReg, ConfigInvokeNormal)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_config_ubse_invoke_call_normal));

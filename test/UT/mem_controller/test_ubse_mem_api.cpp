@@ -521,6 +521,40 @@ TEST_F(TestUbseMemApi, TestUbseMemApiUbseNumaStatusHandler)
     req.buffer = nullptr;
 }
 
+TEST_F(TestUbseMemApi, UbseNumaStatusHandlerShowAll)
+{
+    UbseSerialization reqSerial;
+    uint8_t showAll = 1;
+    reqSerial << showAll;
+    UbseIpcMessage req{};
+    req.buffer = reqSerial.GetBuffer();
+    req.length = static_cast<uint32_t>(reqSerial.GetLength());
+
+    UbseRequestContext context{};
+    std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
+    ubse::mem::account::UbseNumaNodeInfo numaNodeInfo;
+    numaNodeInfo.mMemTotal = 1024 * 1024 * 1024;
+    numaNodeInfo.mMemFree = 896 * 1024 * 1024;
+    numaNodeInfo.nodeId = "1";
+    numaNodeInfo.hostName = "node-1";
+    numaNodeInfo.numaId = 0;
+    numaNodeInfo.nrHugepages = 512;
+    numaNodeInfo.freeHugepages = 256;
+    numaNodeInfo.nrHugepages1G = 4;
+    numaNodeInfo.freeHugepages1G = 2;
+    numaInfoList.push_back(numaNodeInfo);
+    MOCKER(ubse::mem::account::UbseAllNumaInfo).stubs().with(outBound(numaInfoList)).will(returnValue(UBSE_OK));
+
+    std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseMemApi::UbseNumaStatusHandler(req, context), UBSE_OK);
+
+    MOCKER(ubse::mem::account::UbseAllNumaInfo).reset();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).reset();
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).reset();
+}
+
 TEST_F(TestUbseMemApi, QueryNumaStateHandler)
 {
     // 场景 1: 请求信息为空

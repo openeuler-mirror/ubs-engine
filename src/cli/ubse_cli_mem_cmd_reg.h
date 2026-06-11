@@ -37,8 +37,10 @@ private:
 
     static std::shared_ptr<UbseCliResultEcho> UbseCliMemoryStatusData(UbseDeSerialization& ubse_de_serial, size_t size);
     static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusData(UbseDeSerialization& deSerialization,
-                                                                           size_t numaInfoSize);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNumaStatus();
+                                                                           size_t numaInfoSize, bool showAll = false);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliProcessNumaStatusDataWithHugepages(
+        UbseDeSerialization& deSerialization, size_t numaInfoSize);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliQueryNumaStatus(bool showAll = false);
     static std::shared_ptr<UbseCliResultEcho> QueryMemConfig();
 
     UbseCliCommandInfo CreateMemory();
