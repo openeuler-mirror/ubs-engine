@@ -44,6 +44,7 @@
 ###     --lsan                  Enable LeakSanitizer (LSAN)
 ###     --tsan                  Enable ThreadSanitizer (TSAN)
 ###     --ubsan                 Enable UndefinedBehaviorSanitizer (UBSAN)
+set -euo pipefail
 
 # 函数内命令（后台命令）失败时，立即退出函数
  set -o errtrace
@@ -96,11 +97,19 @@ generator="Unix Makefiles"
 enable_coverage="OFF"
 enable_test="OFF"
 skip_run_tests="OFF"
-force_colored_output="OFF" # 强制启用ANSI颜色输出
-deploy_version="2.0.0.B098" # 发布版本，B098 为稳定日构建版本（OS包会取上个稳定迭代版本）
-enable_ub="ON" # 启用 UB 环境编译
-enable_pre_commit="OFF" # 启用 pre-commit 检查
+force_colored_output="OFF"
+deploy_version="2.0.0.B098"
+enable_ub="ON"
+enable_pre_commit="OFF"
+enable_http_server="OFF"
+enable_source_compiling="OFF"
+enable_asan="OFF"
+enable_lsan="OFF"
+enable_tsan="OFF"
+enable_ubsan="OFF"
+toolchain_file=""
 is_build_project="false"
+enable_clean="OFF"
 
 # 判断是否在流水线构建
 build_in_ci=false
@@ -361,21 +370,24 @@ function build_cmake() {
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
-    cmake --no-warn-unused-cli -S . -B "${build_dir}" -G "${generator}" \
-        -DCMAKE_BUILD_TYPE="${build_type}" \
-        -DCMAKE_CXX_STANDARD="${std}" \
-        -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
-        -DBUILD_TESTS="${enable_test}" \
-        -DENABLE_COVERAGE="${enable_coverage}" \
-        -DSOURCE_COMPILING="${enable_source_compiling}" \
-        -DSKIP_RUN_TESTS="${skip_run_tests}" \
-        -DASAN_BUILD="${enable_asan}" \
-        -DENABLE_HTTP_SERVER="${enable_http_server}" \
-        -DFORCE_COLORED_OUTPUT="${force_colored_output}" \
-        -DBUILD_IN_CI="${build_in_ci}" \
-        -DB_VERSION="${deploy_version}" \
-        -DENABLE_UB="${enable_ub}" \
+    local cmake_args=(
+        --no-warn-unused-cli -S . -B "${build_dir}" -G "${generator}"
+        -DCMAKE_BUILD_TYPE="${build_type}"
+        -DCMAKE_CXX_STANDARD="${std}"
+        -DBUILD_TESTS="${enable_test}"
+        -DENABLE_COVERAGE="${enable_coverage}"
+        -DSOURCE_COMPILING="${enable_source_compiling}"
+        -DSKIP_RUN_TESTS="${skip_run_tests}"
+        -DASAN_BUILD="${enable_asan}"
+        -DENABLE_HTTP_SERVER="${enable_http_server}"
+        -DFORCE_COLORED_OUTPUT="${force_colored_output}"
+        -DBUILD_IN_CI="${build_in_ci}"
+        -DB_VERSION="${deploy_version}"
+        -DENABLE_UB="${enable_ub}"
         -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
+    )
+    [[ -n "${toolchain_file}" ]] && cmake_args+=(-DCMAKE_TOOLCHAIN_FILE="${toolchain_file}")
+    cmake "${cmake_args[@]}"
 
     if [[ "$enable_pre_commit" == 'ON' ]]; then
         log_info "Pre-commit mode: only generating compile_commands.json, skipping build."
