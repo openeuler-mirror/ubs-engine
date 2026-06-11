@@ -387,7 +387,7 @@ UbseResult UbseNodeControllerMaster::ReportAggregationTimerHandler()
     buffer << "ubse node last 1min report summary:";
     for (auto& [id, count] : reportCounters_) {
         int reportCount = count;
-        buffer << "nodeId=" << id << " report=" << reportCount << " times, ";
+        buffer << "nodeId=" << id << ", report=" << reportCount << " times, ";
         count = 0;
     }
     UBSE_LOG_INFO << buffer.str();
@@ -797,7 +797,7 @@ UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& 
 {
     UBSE_LOG_DEBUG << "LcneChangeNodeInfoHandler received request";
     return ProcessNodeRequest(req, resp, [](UbseNodeInfo& info) -> UbseResult {
-        UBSE_LOG_INFO << "Processing LCNE change for node: " << info.nodeId;
+        UBSE_LOG_INFO << "Processing LCNE change for node=" << info.nodeId;
         return UbseNodeControllerMaster::GetInstance().UbseLcneTopologyChangeHandler(info);
     });
 }

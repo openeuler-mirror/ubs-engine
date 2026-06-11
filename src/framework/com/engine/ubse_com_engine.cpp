@@ -1546,7 +1546,7 @@ void UbseCommunication::UbseComMsgReply(UbseComMessageCtx& message, const UbseCo
     }
     UBSHcomRequest reqMsg;
     if (data.len > TCP_SEND_RECEIVE_SIZE) {
-        UBSE_LOG_CRIT << "Too large msg for tcp reply, msg size=" << data.len;
+        UBSE_LOG_CRIT << "Too large msg for tcp reply, msg_size=" << data.len;
     }
     reqMsg.address = data.data;
     reqMsg.size = data.len;

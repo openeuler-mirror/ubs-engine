@@ -504,7 +504,7 @@ private:
                 ctx->SetRemoteCall(message.IsRemoteCall());
                 auto handlerRet = handler->Handle(reqPtr, respPtr, ctx);
                 if (handlerRet != UBSE_OK) {
-                    UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode << " exec failed,"
+                    UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode << ", exec failed,"
                                    << FormatRetCode(handlerRet);
                     respPtr->SetErrCode(handlerRet);
                 }
