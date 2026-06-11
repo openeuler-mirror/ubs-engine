@@ -32,15 +32,15 @@ using namespace message;
 
 const std::string TASK_MANGER_LOG_PREFIX = "[Task Manager] ";
 
-std::map<std::string, std::map<uint64_t, UbseMemFdBorrowExportObj>> UbseMemAgentTaskManager::fdExportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemNumaBorrowExportObj>> UbseMemAgentTaskManager::numaExportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemShareBorrowExportObj>> UbseMemAgentTaskManager::shareExportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemAddrBorrowExportObj>> UbseMemAgentTaskManager::addrExportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemFdBorrowImportObj>> UbseMemAgentTaskManager::fdImportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemNumaBorrowImportObj>> UbseMemAgentTaskManager::numaImportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemShareBorrowImportObj>> UbseMemAgentTaskManager::shareImportTaskObjMap{};
-std::map<std::string, std::map<uint64_t, UbseMemAddrBorrowImportObj>> UbseMemAgentTaskManager::addrImportTaskObjMap{};
-uint64_t UbseMemAgentTaskManager::taskId = 0;
+std::map<std::string, std::map<uint32_t, UbseMemFdBorrowExportObj>> UbseMemAgentTaskManager::fdExportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemNumaBorrowExportObj>> UbseMemAgentTaskManager::numaExportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemShareBorrowExportObj>> UbseMemAgentTaskManager::shareExportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemAddrBorrowExportObj>> UbseMemAgentTaskManager::addrExportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemFdBorrowImportObj>> UbseMemAgentTaskManager::fdImportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemNumaBorrowImportObj>> UbseMemAgentTaskManager::numaImportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemShareBorrowImportObj>> UbseMemAgentTaskManager::shareImportTaskObjMap{};
+std::map<std::string, std::map<uint32_t, UbseMemAddrBorrowImportObj>> UbseMemAgentTaskManager::addrImportTaskObjMap{};
+uint32_t UbseMemAgentTaskManager::taskId = 0;
 
 std::map<MemResourceType, std::shared_ptr<ReadWriteLock>> memResourceLockMap = {
     {MemResourceType::FD_EXPORT, SafeMakeShared<ReadWriteLock>()},
@@ -53,7 +53,7 @@ std::map<MemResourceType, std::shared_ptr<ReadWriteLock>> memResourceLockMap = {
     {MemResourceType::ADDR_IMPORT, SafeMakeShared<ReadWriteLock>()}};
 ReadWriteLock taskIdLock;
 
-uint64_t UbseMemAgentTaskManager::GenerateTaskId()
+uint32_t UbseMemAgentTaskManager::GenerateTaskId()
 {
     taskIdLock.LockWrite();
     const auto res = taskId++;
@@ -62,7 +62,7 @@ uint64_t UbseMemAgentTaskManager::GenerateTaskId()
 }
 
 template <typename T, MemResourceType ResourceType>
-UbseResult AddTask(uint64_t taskId, const T& obj, std::map<std::string, std::map<uint64_t, T>>& taskObjMap)
+UbseResult AddTask(uint32_t taskId, const T& obj, std::map<std::string, std::map<uint32_t, T>>& taskObjMap)
 {
     // 校验taskId
     taskIdLock.LockRead();
@@ -89,7 +89,7 @@ UbseResult AddTask(uint64_t taskId, const T& obj, std::map<std::string, std::map
     return UBSE_OK;
 }
 
-UbseResult UbseMemAgentTaskManager::DeleteTaskObj(uint64_t taskId)
+UbseResult UbseMemAgentTaskManager::DeleteTaskObj(uint32_t taskId)
 {
     if (DeleteFdExportTask(taskId)) {
         return UBSE_OK;
@@ -119,59 +119,59 @@ UbseResult UbseMemAgentTaskManager::DeleteTaskObj(uint64_t taskId)
     return UBSE_ERROR;
 }
 
-uint64_t UbseMemAgentTaskManager::GetTaskId()
+uint32_t UbseMemAgentTaskManager::GetTaskId()
 {
     return taskId;
 }
 
-UbseResult UbseMemAgentTaskManager::AddFdExportTask(uint64_t taskId, const UbseMemFdBorrowExportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddFdExportTask(uint32_t taskId, const UbseMemFdBorrowExportObj& obj)
 {
     return AddTask<UbseMemFdBorrowExportObj, MemResourceType::FD_EXPORT>(taskId, obj, fdExportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddNumaExportTask(uint64_t taskId, const UbseMemNumaBorrowExportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddNumaExportTask(uint32_t taskId, const UbseMemNumaBorrowExportObj& obj)
 {
     return AddTask<UbseMemNumaBorrowExportObj, MemResourceType::NUMA_EXPORT>(taskId, obj, numaExportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddShareExportTask(uint64_t taskId, const UbseMemShareBorrowExportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddShareExportTask(uint32_t taskId, const UbseMemShareBorrowExportObj& obj)
 {
     return AddTask<UbseMemShareBorrowExportObj, MemResourceType::SHARE_EXPORT>(taskId, obj, shareExportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddAddrExportTask(uint64_t taskId, const UbseMemAddrBorrowExportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddAddrExportTask(uint32_t taskId, const UbseMemAddrBorrowExportObj& obj)
 {
     return AddTask<UbseMemAddrBorrowExportObj, MemResourceType::ADDR_EXPORT>(taskId, obj, addrExportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddFdImportTask(uint64_t taskId, const UbseMemFdBorrowImportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddFdImportTask(uint32_t taskId, const UbseMemFdBorrowImportObj& obj)
 {
     return AddTask<UbseMemFdBorrowImportObj, MemResourceType::FD_IMPORT>(taskId, obj, fdImportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddNumaImportTask(uint64_t taskId, const UbseMemNumaBorrowImportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddNumaImportTask(uint32_t taskId, const UbseMemNumaBorrowImportObj& obj)
 {
     return AddTask<UbseMemNumaBorrowImportObj, MemResourceType::NUMA_IMPORT>(taskId, obj, numaImportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddShareImportTask(uint64_t taskId, const UbseMemShareBorrowImportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddShareImportTask(uint32_t taskId, const UbseMemShareBorrowImportObj& obj)
 {
     return AddTask<UbseMemShareBorrowImportObj, MemResourceType::SHARE_IMPORT>(taskId, obj, shareImportTaskObjMap);
 }
 
-UbseResult UbseMemAgentTaskManager::AddAddrImportTask(uint64_t taskId, const UbseMemAddrBorrowImportObj& obj)
+UbseResult UbseMemAgentTaskManager::AddAddrImportTask(uint32_t taskId, const UbseMemAddrBorrowImportObj& obj)
 {
     return AddTask<UbseMemAddrBorrowImportObj, MemResourceType::ADDR_IMPORT>(taskId, obj, addrImportTaskObjMap);
 }
 
 template <typename T, MemResourceType ResourceType>
-bool DeleteTask(uint64_t taskId, std::map<std::string, std::map<uint64_t, T>>& taskObjMap)
+bool DeleteTask(uint32_t taskId, std::map<std::string, std::map<uint32_t, T>>& taskObjMap)
 {
     memResourceLockMap[ResourceType]->LockWrite();
     for (auto it = taskObjMap.begin(); it != taskObjMap.end();) {
         if (it->second.find(taskId) != it->second.end()) {
             UBSE_LOG_INFO << TASK_MANGER_LOG_PREFIX << "Delete taskId=" << taskId << " ,name=" << it->first
-                          << ", type=" << static_cast<uint64_t>(ResourceType) << ".";
+                          << ", type=" << static_cast<uint32_t>(ResourceType) << ".";
             it->second.erase(taskId);
             if (it->second.empty()) {
                 it = taskObjMap.erase(it); // 更新迭代器
@@ -188,49 +188,49 @@ bool DeleteTask(uint64_t taskId, std::map<std::string, std::map<uint64_t, T>>& t
     return false;
 }
 
-bool UbseMemAgentTaskManager::DeleteFdExportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteFdExportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemFdBorrowExportObj, MemResourceType::FD_EXPORT>(delTaskId, fdExportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteNumaExportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteNumaExportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemNumaBorrowExportObj, MemResourceType::NUMA_EXPORT>(delTaskId, numaExportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteShareExportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteShareExportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemShareBorrowExportObj, MemResourceType::SHARE_EXPORT>(delTaskId, shareExportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteAddrExportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteAddrExportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemAddrBorrowExportObj, MemResourceType::ADDR_EXPORT>(delTaskId, addrExportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteFdImportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteFdImportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemFdBorrowImportObj, MemResourceType::FD_IMPORT>(delTaskId, fdImportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteNumaImportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteNumaImportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemNumaBorrowImportObj, MemResourceType::NUMA_IMPORT>(delTaskId, numaImportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteShareImportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteShareImportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemShareBorrowImportObj, MemResourceType::SHARE_IMPORT>(delTaskId, shareImportTaskObjMap);
 }
 
-bool UbseMemAgentTaskManager::DeleteAddrImportTask(uint64_t delTaskId)
+bool UbseMemAgentTaskManager::DeleteAddrImportTask(uint32_t delTaskId)
 {
     return DeleteTask<UbseMemAddrBorrowImportObj, MemResourceType::ADDR_IMPORT>(delTaskId, addrImportTaskObjMap);
 }
 
 template <typename T>
 UbseResult GetTaskObjTemplate(const std::string& name, const std::string& importNodeId, T& returnObj,
-                              const std::map<std::string, std::map<uint64_t, T>>& taskObjMap)
+                              const std::map<std::string, std::map<uint32_t, T>>& taskObjMap)
 {
     std::string key = importNodeId.empty() ? name : GenerateExportObjKey(name, importNodeId);
     if (taskObjMap.find(key) == taskObjMap.end() || taskObjMap.at(key).empty()) {
