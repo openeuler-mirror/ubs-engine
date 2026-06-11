@@ -909,6 +909,13 @@ bool CheckDeleteType(const std::string& type)
     return type == "fd" || type == "numa" || type == "addr" || type == "share";
 }
 
+void EnsureDotAtEnd(std::string& str)
+{
+    if (!str.empty() && str.back() != '.') {
+        str += '.';
+    }
+}
+
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
     const std::map<std::string, std::string>& params)
 {
@@ -959,6 +966,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::DeleteMemoryFunc(
     if (deserial.Check() && errorCode == UBSE_ERR_NOT_SUPPORTED) {
         return UbseCliStringPromptReply(GetErrorMessage(errorCode));
     }
+    EnsureDotAtEnd(errMsg);
     return UbseCliStringPromptReply("ERROR: " + errMsg);
 }
 
