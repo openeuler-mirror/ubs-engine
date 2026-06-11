@@ -14,6 +14,7 @@
 
 #include <ubse_node.h>
 
+#include "src/controllers/mem/mem_controller/ubse_mem_service_impl.h"
 #include "src/sdk/c/include/ubs_engine_topo.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
@@ -177,7 +178,7 @@ TEST_F(TestUbseNodeControllerQueryApi, UbseNodeGetByNodeId)
     ASSERT_EQ(node.hostName, "computer");
 }
 
-uint32_t MockUbseAllNumaInfo(std::vector<service::mem::UbseNumaNodeInfo> &numaNodeInfoList)
+uint32_t MockUbseAllNumaInfo(service::mem::UbseMemService *, std::vector<service::mem::UbseNumaNodeInfo> &numaNodeInfoList)
 {
     numaNodeInfoList.push_back(service::mem::UbseNumaNodeInfo{nodeId : "1", mMemTotal : 1024, mMemFree : 512});
     return 0;
@@ -185,7 +186,8 @@ uint32_t MockUbseAllNumaInfo(std::vector<service::mem::UbseNumaNodeInfo> &numaNo
 
 TEST_F(TestUbseNodeControllerQueryApi, UbseNodeNumaMemGet)
 {
-    GTEST_SKIP();
+    std::shared_ptr<service::mem::UbseMemService> memService = std::make_shared<service::mem::UbseMemServiceImpl>();
+    MOCKER_CPP(service::mem::GetMemService).stubs().will(returnValue(memService));
     ubse::nodeController::UbseNodeController::GetInstance().nodeInfos.clear();
     std::shared_ptr<UbseElectionModule> module = std::make_shared<UbseElectionModule>();
     MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
@@ -208,6 +210,10 @@ TEST_F(TestUbseNodeControllerQueryApi, UbseNodeNumaMemGet)
     nodeInfo1.clusterState = nodeController::UbseNodeClusterState::UBSE_NODE_WORKING;
     ubse::nodeController::UbseNodeController::GetInstance().nodeInfos["1"] = nodeInfo1;
 
+    MOCKER_CPP_VIRTUAL(*memService, &service::mem::UbseMemService::UbseAllNumaInfo)
+        .stubs()
+        .will(returnValue(UBSE_ERROR))
+        .then(invoke(MockUbseAllNumaInfo));
     EXPECT_EQ(UbseNodeNumaMemGet(nodeId, nodeNumaMemList), UBSE_ERROR);
 
     EXPECT_EQ(UbseNodeNumaMemGet(nodeId, nodeNumaMemList), UBSE_OK);
