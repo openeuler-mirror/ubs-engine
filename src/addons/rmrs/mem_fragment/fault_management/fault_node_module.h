@@ -229,7 +229,6 @@ public:
     MpResult FragmentHandleFault(std::string nodeId);
     bool CheckUBTurboIsAliveRpc(std::string nodeId);
     MpResult DetermineNodeType(const std::string nodeId, NodeType& nodeType);
-    MpResult ProcessBorrowOutNodeFault(const std::string nodeId, bool forceDeleteMem);
 
     MpResult GetBorrowNodeInfo(std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
     MpResult GetBorrowAbleNodeIdList(std::string curDealNodeId, std::vector<std::string>& borrowAbleNodeIdList);
@@ -250,8 +249,6 @@ public:
     void ExecuteBorrow(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList,
                        std::vector<BorrowExecuteParam>& successExecuteParamCollectList,
                        std::vector<ForwardMemIdParam>& forwardMemIdParamList);
-    MpResult ExecuteNumaReplaceAndReturn(std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList, bool failFlag,
-                                         bool forceDeleteMem);
     bool MayBorrowFromNuma(NodeBorrowRecord nodeBorrowRecord, NodeMemoryInfoWithReservedMem& originNodeMemInfoItem,
                            NodeMemoryInfoWithReservedMem nodeMemInfoItem,
                            std::vector<BorrowExecuteParam>& borrowExecuteParamCollectList);
@@ -300,8 +297,8 @@ public:
                                 uint16_t& presentNumaId);
     MpResult GetBorrowedDecisionRpc(const std::string& nodeId, std::vector<BorrowedDecision>& outDecisions);
     void RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowGroups);
-    MpResult BorrowIdLevelBorrowedExecute(BorrowIdLevelBorrowedDecision borrowedDecision);
-    MpResult NumaLevelBorrowedExecute(NumaLevelBorrowedDecision decision);
+    MpResult BorrowIdLevelBorrowedExecute(const BorrowGroupResult& group, BorrowIdLevelBorrowedDecision borrowedDecision);
+    MpResult NumaLevelBorrowedExecute(const BorrowGroupResult& group, NumaLevelBorrowedDecision decision);
     MpResult NumaLevelExecuteNormal(const BorrowGroupResult& group, NumaLevelDecision decision,
                                     std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap);
     static uint64_t GetBlockSizeKB();
@@ -319,8 +316,6 @@ private:
 // RPC Handler
 uint32_t CheckUBTurboIsAliveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
-void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
-void NodeNumaReplaceReturnResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
                                   uint64_t& hugePageMemSize);
 uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
@@ -334,18 +329,9 @@ class MpFaultNodeSubModule : public MpSubModule {
 public:
     MpResult Init() override
     {
-        // 注册节点级故障numa迁移以及归还消息处理器
-        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_FAULT_NODE_NUMA_REPLACE_RETURN};
-        auto ret = UbseRegRpcService(endpoint, NodeNumaReplaceReturnHandler);
-        if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MSG] NodeNumaReplaceReturn reg failed res: " << ret << ".";
-            return ret;
-        }
-
         // 注册ubturbo探活消息
-        endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
-        ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
+        UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_CHECK_UBTURBO_IS_ALIVE};
+        auto ret = UbseRegRpcService(endpoint, CheckUBTurboIsAliveHandler);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MSG] CheckUBTurboIsAliveHandler reg failed res: " << ret << ".";

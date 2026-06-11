@@ -462,10 +462,12 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         MemReturnManager::Instance().RemovePendingReturn(name);
     }
     retSmap = SmapEnableNumaProcess(enableMsg);
-    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgs[0].payload[0].srcNid));
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;
+    } else {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess success.";
+        DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgs[0].payload[0].srcNid));
     }
 
     return ret;

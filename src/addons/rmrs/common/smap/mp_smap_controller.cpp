@@ -13,6 +13,7 @@
 #include "mp_smap_controller.h"
 #include "ubse_logger.h"
 #include "mp_configuration.h"
+#include "mem_manager.h"
 
 namespace mempooling::smap {
 constexpr int RESULT_OK = 0;
@@ -67,12 +68,24 @@ uint32_t SmapEnableNumaProcess(EnableNodeMsg enableMsg)
 
 uint32_t SmapEnablePidsProcess(std::vector<pid_t> pids)
 {
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapEnablePids] SmapEnablePidProcess start.";
+    std::string pidStr;
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0) pidStr += ", ";
+        pidStr += std::to_string(pids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapEnablePids] SmapEnablePidProcess pids=[" << pidStr << "].";
+    
     int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_PIDS_ENABLE,
                                                                SMAP_MIGRATE_FLAGS);
     if (retSmap != SMAP_OK) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[SmapEnablePids] SmapEnablePidProcess failed, ret=" << retSmap << ".";
         return MEM_POOLING_ERROR;
+    } else {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapEnablePids] SmapEnablePidProcess success, Remove these pids=[" << pidStr << "].";
+        PidSmapEnableCompleted::Instance().Remove(pids);
     }
 
     return MEM_POOLING_OK;

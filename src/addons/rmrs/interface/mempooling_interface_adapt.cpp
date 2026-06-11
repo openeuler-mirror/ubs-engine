@@ -1103,6 +1103,12 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, pids = " << pids[i] << ".";
     }
 
+    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = SmapModule::GetSmapMigratePidRemoteNumaFunc();
+    if (smapMigratePidRemoteNumaFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Ptr smapMigratePidRemoteNumaFunc == nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+    // 关闭进程的冷热页流动
     pid_t* pidArr = const_cast<pid_t*>(pids.data());
     int len = static_cast<int>(pids.size());
     int retEnable = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pidArr, len, 0, 1);
@@ -1110,16 +1116,13 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "RemoteNumaMigrate, ubturbo_smap_process_migrate_enable failed.";
     }
-
-    SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = SmapModule::GetSmapMigratePidRemoteNumaFunc();
-    if (smapMigratePidRemoteNumaFunc == nullptr) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Ptr smapMigratePidRemoteNumaFunc == nullptr.";
+    if(PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, PidSmapEnable update failed.";
         return MEM_POOLING_ERROR;
     }
 
     MigrateEscapeMsg msg;
     msg.count = len;
-
     for (int i = 0; i < msg.count; i++) {
         msg.payload[i].pid = pidArr[i];
         msg.payload[i].srcNid = srcNid;
@@ -1127,9 +1130,18 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         msg.payload[i].ratio = 100;
         msg.payload[i].migrateMode = MIG_RATIO_MODE; // 模式需要佳豪确认一下
     }
-
+    // 远端迁移
     auto ret = smapMigratePidRemoteNumaFunc(&msg);
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate, with code = " << ret << ".";
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate failed, ret=" << ret << ".";
+        // 迁移失败，需要从srcNid上过滤更新有效的pids
+        std::vector<pid_t> pidList = pids;
+        ResourceQuery::FilterValidPidListByLocalNode(pidList);
+        pidArr = const_cast<pid_t*>(pidList.data());
+        len = static_cast<int>(pidList.size());
+    } else {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Out RemoteNumaMigrate success.";
+    }
 
     retEnable = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pidArr, len, 1, 1);
     if (retEnable != SMAP_OK) {

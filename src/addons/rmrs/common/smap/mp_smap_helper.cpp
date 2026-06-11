@@ -17,6 +17,7 @@
 #include "ubse_storage.h"
 #include "mp_error.h"
 #include "over_commit_ucache_strategy.h"
+#include "rmrs_resource_query.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
@@ -555,6 +556,45 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     return MEM_POOLING_OK;
 }
 
+void MpSmapHelper::FilterValidPidsByLocalNode(const int16_t faultNumaId,
+                                                 std::vector<pid_t>& pidList)
+{
+    
+    auto ret = ResourceQuery::FilterValidPidListByLocalNode(pidList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] FilterValidPidListByLocalNode failed.";
+        // 过滤有效pid失败则继续使用原pidList
+        return;
+    }
+
+    // 使用根据processConfig查到的pid信息进行过滤
+    pidList.erase(std::remove_if(pidList.begin(), pidList.end(),
+                                 [&processPayloadMap](pid_t pid) {
+                                     return processPayloadMap.count(pid) == 0;
+                                 }),
+                  pidList.end());
+
+    return MEM_POOLING_OK;
+}
+
+void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList)
+{
+    auto ret = ResourceQuery::FilterValidPidListRpc(srcNid, pidList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] FilterValidPidListRpc failed, srcNid: " << srcNid << ".";
+        return;
+    }
+
+    // 使用根据processConfig查到的pid信息进行过滤
+    pidList.erase(std::remove_if(pidList.begin(), pidList.end(),
+                                 [&processPayloadMap](pid_t pid) {
+                                     return processPayloadMap.count(pid) == 0;
+                                 }),
+                  pidList.end());
+
+    return MEM_POOLING_OK;
+}
+
 MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, int srcNid, int destNid)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigratePidRemoteNumaHelper start.";
@@ -763,6 +803,41 @@ MpResult MpSmapHelper::SetSmapRemoteNumaInfo(
         }
     }
     return MEM_POOLING_OK;
+}
+
+void MpSmapHelper::RollBackSmapEnablePids(std::vector<pid_t>& pids)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] RollBackSmapEnablePids start.";
+    // oldPids即上层传下来的pids，用于打印和remove
+    std::vector<pid_t> oldPids = pids;
+    std::string pidStr;
+    for (size_t i = 0; i < oldPids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(oldPids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] before filter, pids=[" << pidStr << "].";
+    // 更新过滤最新pids（过滤掉被kill的pid）
+    FilterValidPidsByLocalNode(pids);
+    pidStr.clear();
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(pids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] after filter, pids=[" << pidStr << "].";
+
+    // 根据过滤出的pids进行enable
+    ret = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "RollBackSmapEnablePids failed, ret=" << ret << ".";
+        return;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnablePids success, remove these pids.";
+    PidSmapEnableCompleted::Instance().Remove(oldPids);
 }
 
 MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
@@ -1082,6 +1157,31 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
     for (int i = 0; i < realLen; i++) {
         processPayloadList.push_back(payloadArr[i]);
     }
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList)
+{
+    std::vector<ProcessPayload> processPayloadList;
+    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    if (smapQueryProcessConfigFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
+        return MEM_POOLING_ERROR;
+    }
+
+    ProcessPayload payloadArr[SMAP_QUERY_PID_NUM];
+    int realLen = 0;
+    int res = smapQueryProcessConfigFunc(nid, payloadArr, SMAP_QUERY_PID_NUM, &realLen);
+    if (res != SMAP_OK || realLen < 0 || realLen > SMAP_QUERY_PID_NUM) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[RmrsSmapHelper] SmapQueryProcessConfig error." << nid << " " << realLen << " " << res;
+        return MEM_POOLING_ERROR;
+    }
+    for (int i = 0; i < realLen; i++) {
+        processPayloadList.push_back(payloadArr[i]);
+    }
+
+
     return MEM_POOLING_OK;
 }
 

@@ -394,11 +394,17 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
 // 添加多个 pid 到集合中（去重）并持久化
 MpResult PidSmapEnableCompleted::Update(const std::vector<pid_t>& pids)
 {
-    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update start, pids'count=" << pids.size() << ".";
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update pids start.";
     std::unique_lock<std::mutex> lock(mtxPidSmapEnableCompleted);
-    for (pid_t pid : pids) {
-        pidSmapEnableCompleted.insert(pid);
+    std::string pidStr;
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(pids[i]);
+        pidSmapEnableCompleted.insert(pids[i]);
     }
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update pids=[" << pidStr << "].";
 
     // 持久化
     RmrsOutStream builder;
@@ -942,8 +948,9 @@ MpResult PidSmapEnableCompleted::Query(std::vector<pid_t>& pidSmapEnableComplete
     // 同步内存缓存（可选）
     pidSmapEnableCompleted = std::move(loadedSet);
     std::string pidStr;
-    for (pid_t pid : pidSmapEnableCompletedList) {
-        pidStr += std::to_string(pid) + ",";
+    for (size_t i = 0; i < pidSmapEnableCompletedList.size(); ++i) {
+        if (i != 0) pidStr += ", ";
+        pidStr += std::to_string(pidSmapEnableCompletedList[i]);
     }
     LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Query success, pidSmapEnableCompletedList=[" << pidStr << "].";
     return MEM_POOLING_OK;

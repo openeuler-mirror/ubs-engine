@@ -744,18 +744,24 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
         LOG_ERROR << "Failed to disable smap pid migrate.";
         return MEM_POOLING_ERROR;
     }
+    if(PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, PidSmapEnable update failed.";
+        return MEM_POOLING_ERROR;
+    }
+
     // 1. 根据故障numa上的借用记录，新借来相同借入方、大小、用户的内存
     ret = ExecuteFaultMemoryBorrow(borrowRecords, remoteNumas);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "ExecuteFaultMemoryBorrow failed, ret=" << ret << ".";
+        MpSmapHelper::RollBackSmapEnablePids(pids);
         return MEM_POOLING_ERROR;
     }
 
     // 2. 则将虚机挪到借来的内存上，直到任一方资源耗尽
-
     ret = EvaculateVmsFromFaultNuma(remoteNumaId2LocalNumaId, faultNumaId, vmInfos, remoteNumas);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "EvaculateVmsFromFaultNuma failed, ret=" << ret << ".";
+        MpSmapHelper::RollBackSmapEnablePids(pids);
         return MEM_POOLING_ERROR;
     }
 

@@ -217,6 +217,83 @@ MpResult ResourceQuery::HelpGetContainerPidNumaInfo(const std::string& srcNid, c
     return MEM_POOLING_OK;
 }
 
+MpResult ResourceQuery::FilterValidPidListRpc(const std::string& srcNid, std::vector<pid_t>& pidList)
+{
+    if (pidList.empty()) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidList is empty.";
+        return MEM_POOLING_OK;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PidNumaInfoCollect] Master to invoke the slave to collect pid numa info.";
+    std::vector<RmrsPidInfo> pidInfos;
+    MpResult ret = MEM_POOLING_OK;
+    ubse::com::UbseComEndpoint endpoint_ms = {
+        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_PID_NUMA_INFO_COLLECT, .address = srcNid};
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Endpoint, srcNid=" << srcNid << ".";
+    over_commit::PidNumaInfoCollectParam param(pidList);
+    rmrs::serialize::RmrsOutStream builder;
+    builder << param;
+    UbseByteBuffer reqData = {
+        .data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = DefaultFreeFunc};
+
+    turbo::rmrs::PidNumaInfoCollectResult pidNumaInfoCollectResult;
+    ret = UbseRpcSend(endpoint_ms, reqData, &pidNumaInfoCollectResult,
+                      mempooling::over_commit::PidNumaInfoCollectRpcResHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect][Memfabric] PidNumaInfoCollect RpcSend failed. ret=" << ret << ".";
+        return ret;
+    }
+    if (pidNumaInfoCollectResult.pidInfoList.empty()) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect] Collect RmrsPidInfo empty, all pids skipped.";
+    } else if (pidNumaInfoCollectResult.pidInfoList.front().pid == -1) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] Call OSTurbo failed.";
+        return MEM_POOLING_ERROR;
+    }
+    // 只有有效的pid会返回pidInfo
+    pidList.clear();
+    for (auto& pidInfo : pidNumaInfoCollectResult.pidInfoList) {
+        pidList.push_back(pidInfo.pid);
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] FilterValidPidList success.";
+    return MEM_POOLING_OK;
+}
+
+MpResult ResourceQuery::FilterValidPidListByLocalNode(std::vector<pid_t>& pidList)
+{
+    if (pidList.empty()) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FilterValidPidListByLocalNode] PidList is empty.";
+        return MEM_POOLING_OK;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PidNumaInfoCollect] LocalNode start to collect pid numa info.";
+    turbo::rmrs::PidNumaInfoCollectParam pidNumaInfoCollectParam(pidList);
+    turbo::rmrs::PidNumaInfoCollectResult pidNumaInfoCollectResult;
+
+    auto ret = PidNumaInfoCollectHandler(pidNumaInfoCollectParam, pidNumaInfoCollectResult);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect] PidNumaInfoCollectHandler failed. ret=" << ret << ".";
+        return ret;
+    }
+
+    if (pidNumaInfoCollectResult.pidInfoList.empty()) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PidNumaInfoCollect] Collect RmrsPidInfo empty, all pids skipped.";
+        return MEM_POOLING_ERROR;
+    }
+
+    pidList.clear();
+    for (auto& pidInfo : pidNumaInfoCollectResult.pidInfoList) {
+        pidList.push_back(pidInfo.pid);
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] FilterValidPidListByLocalNode success.";
+    return MEM_POOLING_OK;
+}
+
 MpResult ResourceQuery::HelpGetContainerPidNumaInfoByLocalNode(const std::string& srcNid,
                                                                const std::vector<pid_t>& pidList,
                                                                std::vector<RmrsPidInfo>& pidInfos)

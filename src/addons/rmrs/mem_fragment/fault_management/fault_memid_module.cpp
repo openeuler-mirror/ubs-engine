@@ -409,14 +409,7 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             MpSmapHelper::SmapMigratePidRemoteNumaHelper(pids.data(), pids.size(), remoteNumaId, remoteNumaHuge);
         if (retRemote != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][MemId] Smap migrate pid remote NUMA failed ret=" << retRemote << ".";
-            if (SmapEnablePidsProcess(pids) != MEM_POOLING_OK) {
-                LOG_ERROR << "[FaultManager][MemId] Smap Enable pids failed.";
-                return MEM_POOLING_ERROR;
-            } else {
-                LOG_INFO << "[FaultManager][MemId] Smap Enable pids success, start to remove pids.";
-                PidSmapEnableCompleted::Instance().Remove(pids);
-            }
-
+            RollBackSmapEnablePids(pids);
             return MEM_POOLING_ERROR;
         }
         LOG_INFO << "[FaultManager][MemId] Smap migrate pid remote NUMA(not same nid) success.";
