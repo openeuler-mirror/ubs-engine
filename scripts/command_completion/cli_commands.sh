@@ -11,10 +11,10 @@ function _ubse_commond_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
     local prev=${COMP_WORDS[COMP_CWORD-2]}
 
-    commands='create display import delete check change remove detach attach urma'
-    display_types='topo memory cluster cert node urma ets process-mem'
-    create_types='memory ets'
-    delete_types='memory ets'
+commands='create display import delete check change remove detach attach'
+    display_types='topo memory cluster cert node urma urma-qos process-mem'
+    create_types='memory urma-qos'
+    delete_types='memory urma-qos'
     check_types='memory'
 
     case "${cmd}" in
@@ -57,10 +57,6 @@ function _ubse_commond_completion() {
                 COMPREPLY=( $(compgen -W 'memory' -- ${cur}) )
                 return 0
             ;;
-            'urma')
-                COMPREPLY=( $(compgen -W '--node -n --dev -d' -- ${cur}) )
-                return 0
-           	;;
             '*')
                 return 0
             ;;
@@ -91,7 +87,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--node --dev' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
                         return 0
                     ;;
@@ -147,7 +143,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--type --link-id --size --name --region' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '--pri --cir --node' -- ${cur}) )
                         return 0
                     ;;
@@ -163,7 +159,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '--name --type' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '--node' -- ${cur}) )
                         return 0
                     ;;
@@ -226,7 +222,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-n -d' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
                         return 0
                     ;;
@@ -282,7 +278,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-t -l -s -n -r' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '-p -c -n' -- ${cur}) )
                         return 0
                     ;;
@@ -298,7 +294,7 @@ function _ubse_commond_completion() {
                         COMPREPLY=( $(compgen -W '-n -t' -- ${cur}) )
                         return 0
                     ;;
-                    'ets')
+                    'urma-qos')
                         COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
                         return 0
                     ;;
@@ -391,12 +387,12 @@ function _ubse_commond_completion() {
             return 0
     fi
 
-    if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
-           [[ ${COMP_WORDS[1]} == create ]] && \
-           [[ ${COMP_WORDS[2]} == ets ]] && \
-           [[ "${cmd}" == '--pri' || "${cmd}" == '-p' ]]; then
+if [[ ${COMP_WORDS[0]} == *ubsectl ]] && \
+       [[ ${COMP_WORDS[1]} == create ]] && \
+       [[ ${COMP_WORDS[2]} == urma-qos ]] && \
+       [[ "${cmd}" == '--pri' || "${cmd}" == '-p' ]]; then
 
-            COMPREPLY=( $(compgen -W '1 2' -- ${cur}) )
+            COMPREPLY=( $(compgen -W '0 1' -- ${cur}) )
             return 0
     fi
 
