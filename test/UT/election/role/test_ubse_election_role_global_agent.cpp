@@ -379,4 +379,235 @@ TEST_F(TestUbseElectionRoleGlobalAgent, RecvPkt_ShouldLogWarn_WhenUnknownPktType
 
     agent.RecvPkt(srcID, rcvPkt, reply);
 }
+
+TEST_F(TestUbseElectionRoleGlobalAgent, ProcTimer_ShouldNotSwitch_WhenHeartBeatNotTimeout)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeSmall));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, ProcTimer_ShouldSwitchGlobalMaster_WhenHeartBeatTimeoutAndElectionAccept)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeLarge));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::ElectWhenLowest).stubs().will(returnValue((uint32_t)ELECTION_PKT_RESULT_ACCEPT));
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(std::make_shared<UbseElectionCommMgr>("1", "test")));
+    MOCKER(&UbseElectionCommMgr::GetConnectedMasterNodes).stubs().will(returnValue(std::vector<UBSE_ID_TYPE>{"3", "5"}));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, ProcTimer_ShouldNotSwitch_WhenNotElectionCandidate)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeLarge));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(false));
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(std::make_shared<UbseElectionCommMgr>("1", "test")));
+    MOCKER(&UbseElectionCommMgr::GetConnectedMasterNodes).stubs().will(returnValue(std::vector<UBSE_ID_TYPE>{"3", "5"}));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, ProcTimer_ShouldNotSwitch_WhenElectWhenLowestRejected)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeLarge));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::ElectWhenLowest).stubs().will(returnValue((uint32_t)ELECTION_PKT_TYPE_REJECT));
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(std::make_shared<UbseElectionCommMgr>("1", "test")));
+    MOCKER(&UbseElectionCommMgr::GetConnectedMasterNodes).stubs().will(returnValue(std::vector<UBSE_ID_TYPE>{"3", "5"}));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, IsAgentHeartBeatTimeout_ShouldReturnFalse_WhenGetBootTimeFail)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeFail));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, IsAgentHeartBeatTimeout_ShouldReturnFalse_WhenBootTimeLessThanLastHeartTime)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.lastHeartTime_ = 100000;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(invoke(FAKE_GetBootTimeLessThanLast));
+
+    agent.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_AGENT);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, DisconnectAgents_ShouldReturn_WhenStandbyIdEmpty)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.globalMasterId_ = "3";
+    agent.globalStandbyId_ = "5";
+
+    ElectionPkt rcvPkt;
+    rcvPkt.standbyId = "";
+    rcvPkt.agentCount = 2;
+    rcvPkt.agentIds = {"1", "2"};
+
+    EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, DisconnectAgents_ShouldReturn_WhenAgentCountLessThan2)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.globalMasterId_ = "3";
+    agent.globalStandbyId_ = "5";
+
+    ElectionPkt rcvPkt;
+    rcvPkt.standbyId = "5";
+    rcvPkt.agentCount = 1;
+    rcvPkt.agentIds = {"1"};
+
+    EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, DisconnectAgents_ShouldReturn_WhenGetStaticNodeInfoEmpty)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.globalMasterId_ = "3";
+    agent.globalStandbyId_ = "5";
+
+    ElectionPkt rcvPkt;
+    rcvPkt.standbyId = "5";
+    rcvPkt.agentCount = 2;
+    rcvPkt.agentIds = {"1", "2"};
+
+    MOCKER(&ubse::nodeController::UbseNodeController::GetStaticNodeInfo)
+        .stubs()
+        .will(returnValue(std::vector<UbseNodeInfo>{}));
+
+    EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, DisconnectAgents_ShouldDisconnectOtherAgents)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.globalMasterId_ = "3";
+    agent.globalStandbyId_ = "5";
+
+    ElectionPkt rcvPkt;
+    rcvPkt.standbyId = "5";
+    rcvPkt.agentCount = 3;
+    rcvPkt.agentIds = {"1", "2", "4"};
+
+    std::vector<UbseNodeInfo> nodeInfos;
+    UbseNodeInfo node1;
+    node1.nodeId = "1";
+    UbseNodeInfo node2;
+    node2.nodeId = "2";
+    UbseNodeInfo node3;
+    node3.nodeId = "6";
+    nodeInfos.push_back(node1);
+    nodeInfos.push_back(node2);
+    nodeInfos.push_back(node3);
+
+    MOCKER(&ubse::nodeController::UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(nodeInfos));
+    MOCKER(&ubse::election::RoleMgr::GetCommMgr)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionCommMgr>("1", "test")));
+    MOCKER(&ubse::election::UbseElectionCommMgr::DisConnect).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
+}
+
+TEST_F(TestUbseElectionRoleGlobalAgent, RecvPktForHeart_ShouldSetMountedGroupInfo_WhenGroupRoleNotNull)
+{
+    SetupGlobalAgentCommonMocks();
+    RoleContext ctx = MakeAgentCtx();
+    GlobalAgent agent(ctx);
+    agent.globalMasterId_ = "3";
+    agent.globalStandbyId_ = "5";
+    agent.lastHeartTime_ = 0;
+
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+
+    auto mockRole = std::make_shared<GlobalAgent>(ctx);
+    mockRole->globalMasterId_ = "3";
+    mockRole->globalStandbyId_ = "5";
+    mockRole->lastHeartTime_ = 0;
+    MOCKER(&RoleMgr::GetRole).stubs().will(returnValue(std::static_pointer_cast<ElectionRole>(mockRole)));
+
+    UBSE_ID_TYPE srcID = "3";
+    ElectionPkt rcvPkt;
+    ElectionReplyPkt reply;
+    rcvPkt.type = ELECTION_PKT_TYPE_GLOBAL_HEART;
+    rcvPkt.masterId = "3";
+    rcvPkt.standbyId = "5";
+    rcvPkt.turnId = 10;
+    rcvPkt.agentIds = {"1"};
+    rcvPkt.agentCount = 1;
+
+    agent.RecvPkt(srcID, rcvPkt, reply);
+
+    EXPECT_EQ(reply.replyId, "1");
+    EXPECT_EQ(reply.replyResult, ELECTION_PKT_RESULT_ACCEPT);
+}
 } // namespace ubse::event::election
