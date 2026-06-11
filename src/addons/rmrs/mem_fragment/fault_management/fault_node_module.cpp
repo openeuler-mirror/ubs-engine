@@ -2231,7 +2231,7 @@ MpResult FaultNodeModule::NumaLevelBorrowedExecute(const BorrowGroupResult& grou
         BorrowedDecision borrowedDecision = {.borrowNodeId = group.borrowNodeId, .remoteNumaId = group.remoteNumaId,
                                              .isNumaLevel = true, .numaBorrowedDecision = decision};
         // 更新BorrowedDecisionMap
-        FaultHandleBorrowedDecision::Instance().Update(borrowedDecision);
+        FaultHandleBorrowedDecision::Instance().Update(decision.oldNumaId, borrowedDecision);
         return MEM_POOLING_ERROR;
     }
 

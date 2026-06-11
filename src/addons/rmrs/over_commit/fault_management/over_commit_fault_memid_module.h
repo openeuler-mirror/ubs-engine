@@ -161,6 +161,7 @@ public:
 
     MpResult MemFreeExecuteRpc(std::string borrowId, std::string importNodeId);
     MpResult DisableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
+    MpResult EnableSmapProcessMigrateRpc(std::vector<pid_t> pids, std::string importNodeId);
     MpResult MemFreeDirectlyExecuteRpc(outinterface::SrcMemoryBorrowParam oSrcParam, uint16_t preRemoteNumaId,
                                        std::string borrowId);
     MpResult MemIdExecuteRpc(OverCommitFaultMemIdExecuteParam param, std::string importNodeId);

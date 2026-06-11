@@ -18,6 +18,7 @@
 #include "mp_error.h"
 #include "over_commit_ucache_strategy.h"
 #include "rmrs_resource_query.h"
+#include "mem_manager.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
@@ -567,14 +568,7 @@ void MpSmapHelper::FilterValidPidsByLocalNode(const int16_t faultNumaId,
         return;
     }
 
-    // 使用根据processConfig查到的pid信息进行过滤
-    pidList.erase(std::remove_if(pidList.begin(), pidList.end(),
-                                 [&processPayloadMap](pid_t pid) {
-                                     return processPayloadMap.count(pid) == 0;
-                                 }),
-                  pidList.end());
-
-    return MEM_POOLING_OK;
+    return;
 }
 
 void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList)
@@ -585,14 +579,7 @@ void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_
         return;
     }
 
-    // 使用根据processConfig查到的pid信息进行过滤
-    pidList.erase(std::remove_if(pidList.begin(), pidList.end(),
-                                 [&processPayloadMap](pid_t pid) {
-                                     return processPayloadMap.count(pid) == 0;
-                                 }),
-                  pidList.end());
-
-    return MEM_POOLING_OK;
+    return;
 }
 
 MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, int srcNid, int destNid)
@@ -830,7 +817,7 @@ void MpSmapHelper::RollBackSmapEnablePids(std::vector<pid_t>& pids)
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] after filter, pids=[" << pidStr << "].";
 
     // 根据过滤出的pids进行enable
-    ret = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
+    auto ret = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "RollBackSmapEnablePids failed, ret=" << ret << ".";
@@ -1180,7 +1167,6 @@ MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pi
     for (int i = 0; i < realLen; i++) {
         processPayloadList.push_back(payloadArr[i]);
     }
-
 
     return MEM_POOLING_OK;
 }
