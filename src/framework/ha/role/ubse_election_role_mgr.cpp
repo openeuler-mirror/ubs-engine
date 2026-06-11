@@ -16,6 +16,9 @@
 #include "ubse_context.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
+#include "ubse_election_role_global_agent.h"
+#include "ubse_election_role_global_initializer.h"
+#include "ubse_election_role_global_standby.h"
 #include "ubse_net_util.h"
 
 namespace ubse::election {
@@ -115,6 +118,45 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 return;
             }
             UBSE_LOG_INFO << "[ELECTION] SwitchRole Initializer.";
+            break;
+    }
+}
+
+void RoleMgr::SwitchGlobalRole(GlobalRoleType globalRoleType, RoleContext &ctx)
+{
+    switch (globalRoleType) {
+        case GlobalRoleType::GLOBAL_MASTER:
+            RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION, ctx.masterId);
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Master, node_id = " << ctx.masterId << ".";
+            break;
+        case GlobalRoleType::GLOBAL_STANDBY:
+            globalCurrentRole_ = SafeMakeShared<GlobalStandby>(ctx);
+            if (!globalCurrentRole_) {
+                UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
+                return;
+            }
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Standby: " << ctx.standbyId << ".";
+            break;
+        case GlobalRoleType::GLOBAL_AGENT:
+            globalCurrentRole_ = SafeMakeShared<GlobalAgent>(ctx);
+            if (!globalCurrentRole_) {
+                UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
+                return;
+            }
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Agent.";
+            RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION, ctx.masterId);
+            UBSE_LOG_INFO << "[ELECTION] The Global Master is online: " << ctx.masterId
+            << ", global turnId is: " << ctx.turnId;
+            break;
+        case GlobalRoleType::GLOBAL_INITIALIZER:
+            globalCurrentRole_ = SafeMakeShared<GlobalInitializer>();
+            if (!globalCurrentRole_) {
+                UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
+                return;
+            }
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Initializer.";
+            break;
+        default:
             break;
     }
 }
@@ -269,7 +311,7 @@ static std::string NextNodeInGroup(const std::string &nodeStr)
     return groupNodes[nextIndex].nodeId;
 }
 
-void RoleMgr::DiscoveryConnections()
+void RoleMgr::ConnectInterManagingGroup()
 {
     auto globalRoleType = RoleMgr::GetInstance().GetGlobalRole()->GetGlobalRoleType();
     if (globalRoleType == GlobalRoleType::GLOBAL_AGENT) {
