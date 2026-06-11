@@ -73,6 +73,7 @@ bool UbseTaskExecutor::Execute(const UbseRunnablePtr& runnable)
         ++pending;
         return true;
     } else {
+        tmp->DecreaseRef();
         UBSE_LOG_WARN << "This executor is full."
                       << " The executor mThreadName is " << mThreadName << " and The mThreadNum of this executor is "
                       << mThreadNum << " and The mCapacity of this executor is " << mCapacity
