@@ -85,7 +85,7 @@ declare -A BUILD_DIRS=(
 # 获取项目根目录（目前为构建脚本所在目录）
 PROJECT_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-output_dir=${PROJECT_ROOT_DIR}/output
+output_dir="${PROJECT_ROOT_DIR}/output"
 
 build_target="all"
 build_type="Release"
@@ -100,6 +100,7 @@ force_colored_output="OFF" # 强制启用ANSI颜色输出
 deploy_version="2.0.0.B098" # 发布版本，B098 为稳定日构建版本（OS包会取上个稳定迭代版本）
 enable_ub="ON" # 启用 UB 环境编译
 enable_pre_commit="OFF" # 启用 pre-commit 检查
+is_build_project="false"
 
 # 判断是否在流水线构建
 build_in_ci=false
@@ -130,7 +131,7 @@ FAILURE='[\033[1;31mFAILED\033[0;39m]'
 
 # 日志打印辅助函数
 function log_info() {
-    LOG_FILE=${build_dir}/build.log
+    LOG_FILE="${build_dir}/build.log"
     if [ $# -lt 1 ]; then
         return
     fi
@@ -360,21 +361,21 @@ function build_cmake() {
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
-    cmake --no-warn-unused-cli -S . -B ${build_dir} -G "${generator}" \
-        -DCMAKE_BUILD_TYPE=${build_type} \
+    cmake --no-warn-unused-cli -S . -B "${build_dir}" -G "${generator}" \
+        -DCMAKE_BUILD_TYPE="${build_type}" \
         -DCMAKE_CXX_STANDARD="${std}" \
         -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
-        -DBUILD_TESTS=${enable_test} \
-        -DENABLE_COVERAGE=${enable_coverage} \
-        -DSOURCE_COMPILING=${enable_source_compiling} \
-        -DSKIP_RUN_TESTS=${skip_run_tests} \
-        -DASAN_BUILD=${enable_asan} \
-        -DENABLE_HTTP_SERVER=${enable_http_server} \
-        -DFORCE_COLORED_OUTPUT=${force_colored_output} \
-        -DBUILD_IN_CI=${build_in_ci} \
+        -DBUILD_TESTS="${enable_test}" \
+        -DENABLE_COVERAGE="${enable_coverage}" \
+        -DSOURCE_COMPILING="${enable_source_compiling}" \
+        -DSKIP_RUN_TESTS="${skip_run_tests}" \
+        -DASAN_BUILD="${enable_asan}" \
+        -DENABLE_HTTP_SERVER="${enable_http_server}" \
+        -DFORCE_COLORED_OUTPUT="${force_colored_output}" \
+        -DBUILD_IN_CI="${build_in_ci}" \
         -DB_VERSION="${deploy_version}" \
         -DENABLE_UB="${enable_ub}" \
-	    -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
+        -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
 
     if [[ "$enable_pre_commit" == 'ON' ]]; then
         log_info "Pre-commit mode: only generating compile_commands.json, skipping build."
@@ -383,11 +384,11 @@ function build_cmake() {
 
     # 确保先构建 Debug 版本的所有代码，生成全面覆盖率报告
     if [[ "$enable_coverage" == 'ON' && "$build_type" == 'Debug' && "$build_target" != 'all' ]]; then
-        cmake --build ${build_dir} --target all -j ${jobs}
+        cmake --build "${build_dir}" --target all -j "${jobs}"
     fi
 
     # CMake 构建
-    cmake --build ${build_dir} --target ${build_target} -j ${jobs}
+    cmake --build "${build_dir}" --target "${build_target}" -j "${jobs}"
 
     # 生成覆盖率报告
     if [[ "$enable_coverage" == 'ON' ]]; then
@@ -402,7 +403,7 @@ function build_cmake() {
     fi
 
     local ret=$?
-    if [ $ret -ne 0 ]; then
+    if [ "$ret" -ne 0 ]; then
         log_info "build_cmake failed"
         echo_failure
         exit 1
