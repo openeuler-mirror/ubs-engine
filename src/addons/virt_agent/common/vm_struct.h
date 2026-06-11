@@ -76,8 +76,6 @@ enum class NumaStatus : int
 struct NumaInfoToKeep {
     NumaMigrateStatus numaMigrateStatus = NORMAL;
     time_t numaMigrateLastTime = 0;
-    uint64_t numaMemBorrow = 0; // from mem
-    uint64_t numaMemLend = 0;   // from mem
 };
 
 inline NumaStatus MapStringToNumaStatus(const std::string& status)
@@ -94,6 +92,8 @@ inline NumaStatus MapStringToNumaStatus(const std::string& status)
 struct GlobalNumaInfo
     : NumaInfoCollected
     , NumaInfoToKeep {
+    uint64_t numaMemBorrow = 0; // from mem
+    uint64_t numaMemLend = 0;   // from mem
     VMNodeLocInfo numaLoc{};
     NumaStatus numaStatus = NumaStatus::NORMAL; // numa status
     std::string toString() const
