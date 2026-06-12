@@ -12,6 +12,7 @@
 
 #include "test_ubse_com_base.h"
 #include "test_ubse_com_mock.h"
+#include "test_ubse_com.h"
 #include "ubse_com_base.cpp"
 #include "ubse_com_module.h"
 
@@ -677,5 +678,329 @@ TEST_F(TestUbseComBase, TestBufferDeserialize)
     ubseBM.SetInputRawData(data, testLen);
     EXPECT_EQ(UBSE_OK, ubseBM.Deserialize());
     SafeDeleteArray(data);
+}
+
+/*
+* 用例描述：
+* RegMessageHandler(uint16_t, uint16_t)注册成功
+* 测试步骤：
+* 1.调用UbseComBase::RegMessageHandler注册消息处理
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComBase, RegMessageHandlerWithCodesSuccess)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MOCKER(&UbseCommunication::RegUbseComMsgHandler).stubs().will(returnValue(UBSE_OK));
+    auto ret = mockUbseComBase.RegMessageHandler(1, 2);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RegMessageHandler(uint16_t, uint16_t)注册失败
+* 测试步骤：
+* 1.调用UbseComBase::RegMessageHandler注册消息处理失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, RegMessageHandlerWithCodesFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MOCKER(&UbseCommunication::RegUbseComMsgHandler).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = mockUbseComBase.RegMessageHandler(1, 2);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* Send(UbseRpcMessage)序列化失败
+* 测试步骤：
+* 1.调用Send，request.Serialize返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, SendRpcMessageSerializeFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    MockUbseRpcMessage resp;
+    auto ret = mockUbseComBase.Send("Node0", 1, 2, req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* Send, EncodeRequestMsg失败
+* 测试步骤：
+* 1.调用Send，request.Serialize返回UBSE_OK
+* 2.调用EncodeRequestMsg返回{}
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, SendRpcMessageEncodeFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> emptyBuffer;
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(emptyBuffer)));
+    auto ret = mockUbseComBase.Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* Send, EncodeRequestMsg成功，Send失败
+* 测试步骤：
+* 1.调用EncodeRequestMsg返回非空buffer
+* 2.调用Send，UbseComMsgSend返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, SendRpcMessageSendFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgSend).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = mockUbseComBase.Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* Send, EncodeRequestMsg成功，Send成功
+* 测试步骤：
+* 1.调用EncodeRequestMsg返回非空buffer
+* 2.调用Send，UbseComMsgSend返回成功
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComBase, SendRpcMessageSuccess)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgSend).stubs().will(returnValue(UBSE_OK));
+    auto ret = mockUbseComBase.Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* Send, EncodeRequestMsg成功，Send成功，response.Deserialize失败
+* 测试步骤：
+* 1.调用EncodeRequestMsg返回非空buffer
+* 2.调用Send，UbseComMsgSend返回成功
+* 3.调用response.Deserialize返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, SendRpcMessageDeserializeFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    resp.deserializeRet = UBSE_ERROR;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgSend).stubs().will(returnValue(UBSE_OK));
+    auto ret = mockUbseComBase.Send("Node0", 1, 2, req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* AsyncSend, Serialize失败
+* 测试步骤：
+* 1.AsyncSend,request.Serialize失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, AsyncSendRpcMessageSerializeFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    UbseComCallback cb;
+    auto ret = mockUbseComBase.AsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* AsyncSend, EncodeRequestMsg失败
+* 测试步骤：
+* 1.调用Send，request.Serialize返回UBSE_OK
+* 2.调用EncodeRequestMsg返回{}
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, AsyncSendRpcMessageEncodeFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    std::vector<uint8_t> emptyBuffer;
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(emptyBuffer)));
+    auto ret = mockUbseComBase.AsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* AsyncSend, EncodeRequestMsg成功，AsyncSend失败
+* 测试步骤：
+* 1.调用EncodeRequestMsg返回非空buffer
+* 2.调用AsyncSend，UbseComMsgSend返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, AsyncSendRpcMessageSendFail)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgAsyncSend).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = mockUbseComBase.AsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* AsyncSend, EncodeRequestMsg成功，AsyncSend成功
+* 测试步骤：
+* 1.调用EncodeRequestMsg返回非空buffer
+* 2.调用AsyncSend，UbseComMsgSend返回成功
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComBase, AsyncSendRpcMessageSuccess)
+{
+    std::string testName = "test";
+    MockUbseComBase mockUbseComBase(testName, testName);
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgAsyncSend).stubs().will(returnValue(UBSE_OK));
+    auto ret = mockUbseComBase.AsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseComBase, HandleEndpointRequestNullMessage)
+{
+    UbseComMessageCtx ctx;
+    EXPECT_NO_THROW(UbseComBase::HandleEndpointRequest(ctx));
+}
+
+/*
+* 用例描述：
+* HandleEndpointRequest找不到Endpoint
+* 测试步骤：
+* 1.构造消息上下文
+* 2.调用HandleEndpointRequest，对应Endpoint不存在
+* 预期结果：
+* 1.不抛出异常
+*/
+TEST_F(TestUbseComBase, HandleEndpointRequestEndpointNotFound)
+{
+    UbseComMessageHead head;
+    head.SetModuleCode(999);
+    head.SetOpCode(999);
+    head.SetBodyLen(0);
+    head.SetCrc(0);
+    std::vector<uint8_t> buffer(sizeof(UbseComMessageHead));
+    memcpy(buffer.data(), &head, sizeof(UbseComMessageHead));
+    UbseComMessageCtx ctx;
+    ctx.SetMessage(buffer.data());
+    EXPECT_NO_THROW(UbseComBase::HandleEndpointRequest(ctx));
+}
+
+/*
+* 用例描述：
+* UbseComModule::RegRpcService(uint16_t, uint16_t)注册失败
+* 测试步骤：
+* 1.queueRef_和rpcServer_都为空
+* 2.调用RegRpcService
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, ComModuleRegRpcServiceWithCodesNoServer)
+{
+    UbseComModule ubseComModule;
+    auto ret = ubseComModule.RegRpcService(1, 2);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* UbseComModule::RegRpcService(uint16_t, uint16_t)queueRef注册成功但rpcServer为空
+* 测试步骤：
+* 1.queueRef_非空，rpcServer_为空
+* 2.调用RegRpcService，queueRef注册成功但rpcServer_为空
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, ComModuleRegRpcServiceWithCodesQueueOnly)
+{
+    UbseComModule ubseComModule;
+    ubseComModule.queueRef_ = std::make_shared<UbseInterCom>();
+    auto ret = ubseComModule.RegRpcService(1, 2);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* UbseComModule::RpcSend(UbseRpcMessage)无通信模块
+* 测试步骤：
+* 1.queueRef_和rpcServer_都为空
+* 2.调用RpcSend
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, ComModuleRpcSendNoServer)
+{
+    UbseComModule ubseComModule;
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    auto ret = ubseComModule.RpcSend("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* UbseComModule::RpcAsyncSend(UbseRpcMessage)无通信模块
+* 测试步骤：
+* 1.queueRef_和rpcServer_都为空
+* 2.调用RpcAsyncSend
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComBase, ComModuleRpcAsyncSendNoServer)
+{
+    UbseComModule ubseComModule;
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    auto ret = ubseComModule.RpcAsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
 }
 } // namespace ubse::ut::com
