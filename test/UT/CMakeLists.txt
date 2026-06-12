@@ -57,6 +57,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_urma_controller
         ubse_urma_uvs
         ubse_node_mgr
+        ubse_ssu_controller
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
@@ -96,6 +97,7 @@ add_subdirectory(sdk)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
 add_subdirectory(node_mgr)
+add_subdirectory(ssu-scheduler)
 
 add_independent_exec_ut(${UT_BINARY})
 
