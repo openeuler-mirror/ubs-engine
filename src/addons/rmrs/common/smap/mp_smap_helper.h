@@ -107,9 +107,10 @@ public:
     static MpResult SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList);
     static MpResult GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
                                                 std::unordered_map<pid_t, smap::ProcessPayload>& processPayloadMap);
-    static void FilterValidPidListByLocalNode(std::vector<pid_t>& pidList);
 
-    static void FilterValidPidListRpc(const std::string& srcNid, std::vector<pid_t>& pidList);
+    static void FilterValidPidsByLocalNode(std::vector<pid_t>& pidList);
+
+    static void FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList);
 
     static void RollBackSmapEnablePids(std::vector<pid_t>& pids);
 

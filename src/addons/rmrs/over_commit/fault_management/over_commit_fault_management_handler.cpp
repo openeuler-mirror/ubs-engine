@@ -252,7 +252,7 @@ void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void*
 }
 
 uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(const UbseByteBuffer& req,
-                                                                                UbseByteBuffer& resp)
+                                                                               UbseByteBuffer& resp)
 {
     std::vector<pid_t> pids;
     RmrsInStream builder(req.data, req.len);
@@ -308,7 +308,7 @@ uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(c
 
 // 在 OverCommitFaultManagementHandler 中增加响应处理函数
 void OverCommitFaultManagementHandler::EnableSmapProcessMigrateResHandler(void* ctx, const UbseByteBuffer& respData,
-                                                                           uint32_t resCode)
+                                                                          uint32_t resCode)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "EnableSmapProcessMigrateResHandler resCode = " << resCode;
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {

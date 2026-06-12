@@ -17,9 +17,11 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 
+#include "ubse_storage.h"
 #include "fault_memid_module.h"
 #include "mem_borrow_executor.h"
 #include "mp_smap_helper.h"
+#include "rmrs_resource_query.h"
 #include "rmrs_serialize.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
@@ -764,6 +766,16 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma2)
                MpResult(*)(pid_t * pidArr, int len, int srcNid, int destNid))
         .stubs()
         .will(returnValue(1));
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
     ASSERT_EQ(res, 1);
@@ -784,6 +796,13 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma3)
                MpResult(*)(pid_t * pidArr, int len, int srcNid, int destNid))
         .stubs()
         .will(returnValue(0));
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
     ASSERT_EQ(res, 1);
@@ -804,6 +823,13 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma4)
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto res =
@@ -1479,6 +1505,38 @@ TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoResHandlerFailed)
     MemIdFaultNotSameNidVmInfoResHandler(ctx, respData, resCode);
     delete[] respData.data;
     FMVmInfoResult* result = static_cast<FMVmInfoResult*>(ctx);
+}
+
+TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma_SmapMigrateFailed_RollBackSmapEnablePids)
+{
+    std::vector<pid_t> pids = {4321};
+    uint16_t remoteNumaId = 1;
+    uint16_t remoteNumaHuge = 2;
+    std::string borrowId = "1";
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper,
+               MpResult(*)(pid_t * pidArr, int len, int enable, int flags))
+        .stubs()
+        .will(returnValue(0));
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper,
+               MpResult(*)(pid_t * pidArr, int len, int srcNid, int destNid))
+        .stubs()
+        .will(returnValue(1));
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    auto res =
+        FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
+    ASSERT_EQ(res, 1);
+    std::vector<pid_t> completedPids;
+    PidSmapEnableCompleted::Instance().Query(completedPids);
+    EXPECT_TRUE(std::find(completedPids.begin(), completedPids.end(), 4321) == completedPids.end());
 }
 
 } // namespace mempooling

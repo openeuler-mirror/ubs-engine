@@ -418,7 +418,7 @@ MpResult PidSmapEnableCompleted::Update(const std::vector<pid_t>& pids)
     }
 
     LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update success, total pids="
-        << pidSmapEnableCompleted.size() << ".";
+              << pidSmapEnableCompleted.size() << ".";
     return MEM_POOLING_OK;
 }
 
@@ -586,7 +586,7 @@ MpResult PidSmapEnableCompleted::Remove(const std::vector<pid_t>& pids)
     }
 
     LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Remove success, total pids="
-        << pidSmapEnableCompleted.size() << ".";
+              << pidSmapEnableCompleted.size() << ".";
     return MEM_POOLING_OK;
 }
 
@@ -916,7 +916,7 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
 }
 
 void GetPidSmapEnableCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
-                                 void* ctx)
+                                    void* ctx)
 {
     if (ctx == nullptr) {
         LOG_ERROR << "GetPidSmapEnableCompletedValue: ctx is null!";
@@ -949,10 +949,12 @@ MpResult PidSmapEnableCompleted::Query(std::vector<pid_t>& pidSmapEnableComplete
     pidSmapEnableCompleted = std::move(loadedSet);
     std::string pidStr;
     for (size_t i = 0; i < pidSmapEnableCompletedList.size(); ++i) {
-        if (i != 0) pidStr += ", ";
+        if (i != 0)
+            pidStr += ", ";
         pidStr += std::to_string(pidSmapEnableCompletedList[i]);
     }
-    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Query success, pidSmapEnableCompletedList=[" << pidStr << "].";
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Query success, pidSmapEnableCompletedList=[" << pidStr
+              << "].";
     return MEM_POOLING_OK;
 }
 
@@ -1164,7 +1166,8 @@ MpResult PidSmapEnableCompleted::PutRawData(UbseByteBuffer& data)
     pidSmapEnableCompleted.clear();
     RmrsInStream builder(data.data, data.len);
     builder >> pidSmapEnableCompleted;
-    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] PutRawData success, loaded " << pidSmapEnableCompleted.size() << " entries.";
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] PutRawData success, loaded "
+              << pidSmapEnableCompleted.size() << " entries.";
     return MEM_POOLING_OK;
 }
 
@@ -1350,7 +1353,9 @@ MpResult PidSmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
         data.len = 1;
         data.data = new uint8_t[data.len];
         data.data[0] = ' ';
-        data.freeFunc = [](uint8_t* p) { delete[] p; };
+        data.freeFunc = [](uint8_t* p) {
+            delete[] p;
+        };
         LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Data is empty.";
         return MEM_POOLING_OK;
     }

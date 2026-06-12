@@ -297,7 +297,8 @@ public:
                                 uint16_t& presentNumaId);
     MpResult GetBorrowedDecisionRpc(const std::string& nodeId, std::vector<BorrowedDecision>& outDecisions);
     void RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowGroups);
-    MpResult BorrowIdLevelBorrowedExecute(const BorrowGroupResult& group, BorrowIdLevelBorrowedDecision borrowedDecision);
+    MpResult BorrowIdLevelBorrowedExecute(const BorrowGroupResult& group,
+                                          BorrowIdLevelBorrowedDecision borrowedDecision);
     MpResult NumaLevelBorrowedExecute(const BorrowGroupResult& group, NumaLevelBorrowedDecision decision);
     MpResult NumaLevelExecuteNormal(const BorrowGroupResult& group, NumaLevelDecision decision,
                                     std::map<std::string, MemBorrowExecuteResult>& tmpRedirectionMap);

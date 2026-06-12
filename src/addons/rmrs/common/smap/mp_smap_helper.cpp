@@ -15,10 +15,10 @@
 #include "ubse_logger.h"
 #include "ubse_security.h"
 #include "ubse_storage.h"
+#include "mem_manager.h"
 #include "mp_error.h"
 #include "over_commit_ucache_strategy.h"
 #include "rmrs_resource_query.h"
-#include "mem_manager.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
@@ -557,10 +557,8 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     return MEM_POOLING_OK;
 }
 
-void MpSmapHelper::FilterValidPidsByLocalNode(const int16_t faultNumaId,
-                                                 std::vector<pid_t>& pidList)
+void MpSmapHelper::FilterValidPidsByLocalNode(std::vector<pid_t>& pidList)
 {
-    
     auto ret = ResourceQuery::FilterValidPidListByLocalNode(pidList);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] FilterValidPidListByLocalNode failed.";
@@ -575,7 +573,8 @@ void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_
 {
     auto ret = ResourceQuery::FilterValidPidListRpc(srcNid, pidList);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] FilterValidPidListRpc failed, srcNid: " << srcNid << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] FilterValidPidListRpc failed, srcNid: " << srcNid << ".";
         return;
     }
 
@@ -819,8 +818,7 @@ void MpSmapHelper::RollBackSmapEnablePids(std::vector<pid_t>& pids)
     // 根据过滤出的pids进行enable
     auto ret = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
     if (ret != SMAP_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "RollBackSmapEnablePids failed, ret=" << ret << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RollBackSmapEnablePids failed, ret=" << ret << ".";
         return;
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnablePids success, remove these pids.";

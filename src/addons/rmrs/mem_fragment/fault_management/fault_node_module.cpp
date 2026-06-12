@@ -687,7 +687,6 @@ MpResult FaultNodeModule::DealRes(NumaReplaceReturnMsg msg)
     return failSet.empty() ? MEM_POOLING_OK : MEM_POOLING_ERROR;
 }
 
-
 MpResult FaultNodeModule::ForwardMemIdFaultDeal(std::vector<ForwardMemIdParam> forwardMemIdParamList,
                                                 bool forceDeleteMem)
 {
@@ -2070,7 +2069,8 @@ void BorrowIdLevelReturnDirectly(const BorrowIdLevelDecision& decision, int errC
     }
 }
 
-MpResult FaultNodeModule::BorrowIdLevelBorrowedExecute(const BorrowGroupResult& group, BorrowIdLevelBorrowedDecision borrowedDecision)
+MpResult FaultNodeModule::BorrowIdLevelBorrowedExecute(const BorrowGroupResult& group,
+                                                       BorrowIdLevelBorrowedDecision borrowedDecision)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleParallel][BorrowIdLevelBorrowedExecute] BorrowIdLevel-BorrowedDecisionExecute start, oldName="
@@ -2228,8 +2228,10 @@ MpResult FaultNodeModule::NumaLevelBorrowedExecute(const BorrowGroupResult& grou
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleMigrate failed. oldNumaId=" << decision.oldNumaId
             << ", newNumaId=" << decision.presentNumaId << ".";
-        BorrowedDecision borrowedDecision = {.borrowNodeId = group.borrowNodeId, .remoteNumaId = group.remoteNumaId,
-                                             .isNumaLevel = true, .numaBorrowedDecision = decision};
+        BorrowedDecision borrowedDecision = {.borrowNodeId = group.borrowNodeId,
+                                             .remoteNumaId = group.remoteNumaId,
+                                             .isNumaLevel = true,
+                                             .numaBorrowedDecision = decision};
         // 更新BorrowedDecisionMap
         FaultHandleBorrowedDecision::Instance().Update(decision.oldNumaId, borrowedDecision);
         return MEM_POOLING_ERROR;

@@ -1116,7 +1116,7 @@ int mempooling::outinterface::RemoteNumaMigrate(const std::vector<pid_t>& pids, 
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "RemoteNumaMigrate, ubturbo_smap_process_migrate_enable failed.";
     }
-    if(PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
+    if (PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, PidSmapEnable update failed.";
         return MEM_POOLING_ERROR;
     }

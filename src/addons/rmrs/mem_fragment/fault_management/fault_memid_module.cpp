@@ -19,9 +19,9 @@
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
 #include "mem_manager.h"
+#include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
-#include "mp_smap_controller.h"
 
 namespace mempooling {
 using namespace ubse::log;

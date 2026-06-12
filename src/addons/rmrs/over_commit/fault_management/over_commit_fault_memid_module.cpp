@@ -1077,8 +1077,8 @@ MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t
                                                                uint64_t remoteNumaTotalSize)
 {
     int disable = 0; //  disable 0 表示禁用
-    int flags = 0;  //  flags 0 预留字段无意义
-    int enable = 1; //  enable 1 表示启用
+    int flags = 0;   //  flags 0 预留字段无意义
+    int enable = 1;  //  enable 1 表示启用
 
     // 调用远端pid迁移到远端接口
     // 关闭pid级别冷热迁移，pids不会为空
@@ -1088,7 +1088,7 @@ MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t
             << TAG << "SmapDisableProcessMigrateHelper faild , retSmap=" << retSmap << ".";
         return MEM_POOLING_ERROR;
     }
-    if(PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
+    if (PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, PidSmapEnable update failed.";
         return MEM_POOLING_ERROR;
     }
@@ -1110,7 +1110,9 @@ MpResult OverCommitFaultMemIdModule::VmsMigrateOtherRemoteNuma(std::vector<pid_t
         }
         pidStr += std::to_string(pids[i]);
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Migrate pids=[" << pidStr << "] ,srcNumaId=" << preRemoteNumaId << " to destRemoteNumaId=" << remoteNumaId << ".";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << TAG << "Migrate pids=[" << pidStr << "] ,srcNumaId=" << preRemoteNumaId
+        << " to destRemoteNumaId=" << remoteNumaId << ".";
 
     // 开启pid级别冷热流动
     MpResult retSmap02 =

@@ -17,12 +17,15 @@
 #define private public
 #include "over_commit_fault_memid_module.h"
 #undef private
+#include "ubse_storage.h"
 #include "collect_util.h"
 #include "mem_borrow_executor.h"
+#include "mempooling_message.h"
 #include "mp_smap_helper.h"
 #include "mp_string_util.h"
 #include "over_commit_def.h"
 #include "over_commit_fault_management_handler.h"
+#include "rmrs_resource_query.h"
 #include "set_smap_remote_numa_info_send.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -1078,6 +1081,15 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaSuccess)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -1120,6 +1132,19 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail2)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1146,6 +1171,15 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail3)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -1170,6 +1204,15 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail4)
         .will(returnValue(MEM_POOLING_OK));
 
     MOCKER_CPP(SetSmapRemoteNumaInfoExec, MpResult(*)(uint16_t, uint16_t, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
@@ -1627,6 +1670,303 @@ TEST_F(TestOverCommitFaultMemIdModule, GetWaterMark)
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = OverCommitFaultMemIdModule::Instance().GetWaterMark(waterMark);
     EXPECT_EQ(MEM_POOLING_OK, ret);
+}
+
+TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNuma_SmapMigrateFailed_RollBackSmapEnablePids)
+{
+    std::vector<pid_t> pids = {5678};
+    uint16_t preRemoteNumaId = 1;
+    uint16_t remoteNumaId = 2;
+    int16_t localNumaId = 0;
+    uint64_t remoteNumaTotalSize = 1024;
+
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, MpResult(*)(pid_t*, int, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&MpSmapHelper::SmapMigratePidRemoteNumaHelper, MpResult(*)(pid_t*, int, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
+                                                                                    localNumaId, remoteNumaTotalSize);
+
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    std::vector<pid_t> completedPids;
+    PidSmapEnableCompleted::Instance().Query(completedPids);
+    EXPECT_TRUE(std::find(completedPids.begin(), completedPids.end(), 5678) == completedPids.end());
+}
+
+static int g_enableSmapProcessMigrateRpcCallCount = 0;
+
+uint32_t MockUbseRpcSendForMemIdFault(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                      const UbseComRespHandler& handler)
+{
+    switch (endpoint.serviceId) {
+        case message::OPCODE_OVER_COMMIT_MEMID_FAULT_GET_VM_INFO: {
+            auto* result = static_cast<OverCommitVmRemoteNumaInfoResult*>(ctx);
+            VmNumaInfoWithSocket info{};
+            info.pid = 100;
+            info.localNumaId = 0;
+            info.remoteNumaId = 0;
+            info.remoteUsedMem = 1024;
+            info.localUsedMem = 512;
+            result->vmNumaInfoWithSocketList.push_back(info);
+            result->retCode = MEM_POOLING_OK;
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_DISABLE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_ENABLE: {
+            g_enableSmapProcessMigrateRpcCallCount++;
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW: {
+            auto* result = static_cast<FaultHandleMemBorrowResult*>(ctx);
+            result->retCode = MEM_POOLING_OK;
+            result->borrowIds.push_back("testBorrowId");
+            result->presentNumaId.push_back(1);
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_MEM_ID_FAULT_EXECUTE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        default:
+            return MEM_POOLING_OK;
+    }
+}
+
+uint32_t MockUbseRpcSendForMemBorrowFail(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                                         const UbseComRespHandler& handler)
+{
+    switch (endpoint.serviceId) {
+        case message::OPCODE_OVER_COMMIT_MEMID_FAULT_GET_VM_INFO: {
+            auto* result = static_cast<OverCommitVmRemoteNumaInfoResult*>(ctx);
+            VmNumaInfoWithSocket info{};
+            info.pid = 100;
+            info.localNumaId = 0;
+            info.remoteNumaId = 0;
+            info.remoteUsedMem = 1024;
+            info.localUsedMem = 512;
+            result->vmNumaInfoWithSocketList.push_back(info);
+            result->retCode = MEM_POOLING_OK;
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_DISABLE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_ENABLE: {
+            g_enableSmapProcessMigrateRpcCallCount++;
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW: {
+            auto* result = static_cast<FaultHandleMemBorrowResult*>(ctx);
+            result->retCode = MEM_POOLING_ERROR;
+            return MEM_POOLING_OK;
+        }
+        default:
+            return MEM_POOLING_OK;
+    }
+}
+
+uint32_t MockUbseRpcSendForGetRemoteNumaSizeFail(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData,
+                                                 void* ctx, const UbseComRespHandler& handler)
+{
+    switch (endpoint.serviceId) {
+        case message::OPCODE_OVER_COMMIT_MEMID_FAULT_GET_VM_INFO: {
+            auto* result = static_cast<OverCommitVmRemoteNumaInfoResult*>(ctx);
+            VmNumaInfoWithSocket info{};
+            info.pid = 100;
+            info.localNumaId = 0;
+            info.remoteNumaId = 0;
+            info.remoteUsedMem = 1024;
+            info.localUsedMem = 512;
+            result->vmNumaInfoWithSocketList.push_back(info);
+            result->retCode = MEM_POOLING_OK;
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_DISABLE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_ENABLE: {
+            g_enableSmapProcessMigrateRpcCallCount++;
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW: {
+            auto* result = static_cast<FaultHandleMemBorrowResult*>(ctx);
+            result->retCode = MEM_POOLING_OK;
+            result->borrowIds.push_back("testBorrowId");
+            result->presentNumaId.push_back(1);
+            return MEM_POOLING_OK;
+        }
+        default:
+            return MEM_POOLING_OK;
+    }
+}
+
+uint32_t MockUbseRpcSendForMemIdExecuteRpcFail(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData,
+                                               void* ctx, const UbseComRespHandler& handler)
+{
+    switch (endpoint.serviceId) {
+        case message::OPCODE_OVER_COMMIT_MEMID_FAULT_GET_VM_INFO: {
+            auto* result = static_cast<OverCommitVmRemoteNumaInfoResult*>(ctx);
+            VmNumaInfoWithSocket info{};
+            info.pid = 100;
+            info.localNumaId = 0;
+            info.remoteNumaId = 0;
+            info.remoteUsedMem = 1024;
+            info.localUsedMem = 512;
+            result->vmNumaInfoWithSocketList.push_back(info);
+            result->retCode = MEM_POOLING_OK;
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_DISABLE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_SMAP_PROCESS_MIGRATE_ENABLE: {
+            g_enableSmapProcessMigrateRpcCallCount++;
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_OK;
+            }
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW: {
+            auto* result = static_cast<FaultHandleMemBorrowResult*>(ctx);
+            result->retCode = MEM_POOLING_OK;
+            result->borrowIds.push_back("testBorrowId");
+            result->presentNumaId.push_back(4);
+            return MEM_POOLING_OK;
+        }
+        case message::OPCODE_OVER_COMMIT_MEM_ID_FAULT_EXECUTE: {
+            if (ctx != nullptr) {
+                *(uint32_t*)ctx = MEM_POOLING_ERROR;
+            }
+            return MEM_POOLING_OK;
+        }
+        default:
+            return MEM_POOLING_OK;
+    }
+}
+
+MpResult MockGetNumaBindTypeSingle(OverCommitStorage* This, const std::string& nodeId, NumaBindType& value)
+{
+    value = NumaBindType::BIND_SINGLE;
+    return MEM_POOLING_OK;
+}
+
+void SetupMemIdFaultCommonMocks()
+{
+    MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsWithFault,
+               MpResult(*)(const std::string&, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(invoke(MockCollectBorrowRecordsNode0WithFault));
+
+    MOCKER_CPP(&MpConfiguration::GetSceneType, MpSceneType(*)()).stubs().will(returnValue(MpSceneType::VIRTUAL_SCENE));
+
+    MOCKER_CPP(&OverCommitStorage::GetNumaBindType,
+               MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
+        .stubs()
+        .will(invoke(MockGetNumaBindTypeSingle));
+
+    MOCKER_CPP(&OverCommitStorage::GetWaterMark, MpResult(*)(uint16_t&, uint16_t&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
+        .stubs()
+        .will(returnValue(0));
+}
+
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_MemBorrowExecuteFail_EnableSmapProcessMigrate)
+{
+    std::string borrowInNid = "node0";
+    uint64_t memId = 0;
+    g_enableSmapProcessMigrateRpcCallCount = 0;
+
+    SetupMemIdFaultCommonMocks();
+
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+        .stubs()
+        .will(invoke(MockUbseRpcSendForMemBorrowFail));
+
+    const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
+}
+
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_GetRemoteNumaSizeFail_EnableSmapProcessMigrate)
+{
+    std::string borrowInNid = "node0";
+    uint64_t memId = 0;
+    g_enableSmapProcessMigrateRpcCallCount = 0;
+
+    SetupMemIdFaultCommonMocks();
+
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+        .stubs()
+        .will(invoke(MockUbseRpcSendForGetRemoteNumaSizeFail));
+
+    const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
+}
+
+TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_MemIdExecuteRpcFail_EnableSmapProcessMigrate)
+{
+    std::string borrowInNid = "node0";
+    uint64_t memId = 0;
+    g_enableSmapProcessMigrateRpcCallCount = 0;
+
+    SetupMemIdFaultCommonMocks();
+
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+        .stubs()
+        .will(invoke(MockUbseRpcSendForMemIdExecuteRpcFail));
+
+    const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
 }
 
 } // namespace mempooling::over_commit

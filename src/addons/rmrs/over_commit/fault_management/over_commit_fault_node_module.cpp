@@ -744,7 +744,7 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
         LOG_ERROR << "Failed to disable smap pid migrate.";
         return MEM_POOLING_ERROR;
     }
-    if(PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
+    if (PidSmapEnableCompleted::Instance().Update(pids) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RemoteNumaMigrate, PidSmapEnable update failed.";
         return MEM_POOLING_ERROR;
     }

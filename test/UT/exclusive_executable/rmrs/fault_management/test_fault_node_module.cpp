@@ -18,10 +18,12 @@
 #include "mockcpp/mokc.h"
 
 #include "ubse_com.h"
+#include "ubse_storage.h"
 #include "fault_memid_helper.h"
 #include "fault_memid_module.h"
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
+#include "mem_manager.h"
 #include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
 
@@ -952,6 +954,83 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeSuccess2)
     auto ret = FaultNodeModule::Instance().MayBorrowFromOtherNode(curDealNodeId, borrowRecords,
                                                                   borrowExecuteParamCollectList, forwardMemIdParamList);
     ASSERT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelBorrowedExecute_FaultHandleMigrateFailed_StoreBorrowedDecision)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "node0";
+    group.remoteNumaId = 3;
+
+    BorrowIdLevelBorrowedDecision borrowedDecision;
+    borrowedDecision.presentNumaId = 1;
+    borrowedDecision.oldNumaId = 3;
+    borrowedDecision.pids = {100, 200};
+    borrowedDecision.borrowSize = 4096;
+    borrowedDecision.oldName = "oldBorrowId";
+    borrowedDecision.newName = "newBorrowId";
+
+    MOCKER_CPP(&FaultNodeModule::FaultHandleMigrate,
+               MpResult(FaultNodeModule::*)(uint16_t, uint16_t, std::vector<pid_t>&, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    auto res = FaultNodeModule::Instance().BorrowIdLevelBorrowedExecute(group, borrowedDecision);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+
+    BorrowedDecision storedDecision;
+    MpResult queryRet = FaultHandleBorrowedDecision::Instance().Query(storedDecision, borrowedDecision.oldNumaId);
+    EXPECT_EQ(queryRet, MEM_POOLING_OK);
+    EXPECT_EQ(storedDecision.borrowNodeId, group.borrowNodeId);
+    EXPECT_EQ(storedDecision.remoteNumaId, group.remoteNumaId);
+    EXPECT_FALSE(storedDecision.isNumaLevel);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions.size(), 1u);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions[0].oldName, borrowedDecision.oldName);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions[0].newName, borrowedDecision.newName);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions[0].presentNumaId, borrowedDecision.presentNumaId);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions[0].oldNumaId, borrowedDecision.oldNumaId);
+    EXPECT_EQ(storedDecision.borrowIdBorrowedDecisions[0].borrowSize, borrowedDecision.borrowSize);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelBorrowedExecute_FaultHandleMigrateFailed_StoreBorrowedDecision)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "node1";
+    group.remoteNumaId = 5;
+
+    NumaLevelBorrowedDecision decision;
+    decision.presentNumaId = 2;
+    decision.oldNumaId = 5;
+    decision.pids = {300, 400};
+    decision.totalBorrowSize = 8192;
+    decision.borrowResultMap = {{"oldName1", "newName1"}};
+
+    MOCKER_CPP(&FaultNodeModule::FaultHandleMigrate,
+               MpResult(FaultNodeModule::*)(uint16_t, uint16_t, std::vector<pid_t>&, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    auto res = FaultNodeModule::Instance().NumaLevelBorrowedExecute(group, decision);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+
+    BorrowedDecision storedDecision;
+    MpResult queryRet = FaultHandleBorrowedDecision::Instance().Query(storedDecision, decision.oldNumaId);
+    EXPECT_EQ(queryRet, MEM_POOLING_OK);
+    EXPECT_EQ(storedDecision.borrowNodeId, group.borrowNodeId);
+    EXPECT_EQ(storedDecision.remoteNumaId, group.remoteNumaId);
+    EXPECT_TRUE(storedDecision.isNumaLevel);
+    EXPECT_EQ(storedDecision.numaBorrowedDecision.presentNumaId, decision.presentNumaId);
+    EXPECT_EQ(storedDecision.numaBorrowedDecision.oldNumaId, decision.oldNumaId);
+    EXPECT_EQ(storedDecision.numaBorrowedDecision.totalBorrowSize, decision.totalBorrowSize);
+    EXPECT_EQ(storedDecision.numaBorrowedDecision.borrowResultMap.size(), decision.borrowResultMap.size());
 }
 
 } // namespace mempooling

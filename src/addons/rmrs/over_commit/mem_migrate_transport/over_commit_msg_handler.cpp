@@ -471,8 +471,8 @@ uint32_t InitOverCommitReg()
 
     // 超分场景memID故障处理 agent节点开启冷热流动
     endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_SMAP_PROCESS_MIGRATE_ENABLE};
-    ret = UbseRegRpcService(endpoint,
-                            over_commit::OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler);
+    ret =
+        UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "EnableSmapProcessMigrateRecvHandler reg failed res: " << ret;
