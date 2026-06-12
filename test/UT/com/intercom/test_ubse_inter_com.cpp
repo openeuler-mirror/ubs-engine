@@ -18,6 +18,7 @@
 #include "ubse_context.h"
 #include "ubse_logger.h"
 #include "ubse_thread_pool_module.h"
+#include "../test_ubse_com.h"
 
 namespace ubse::ut::com {
 using namespace ubse::task_executor;
@@ -350,5 +351,263 @@ TEST_F(TestUbseInterCom, MqHandleGetHandlerOverMax)
 TEST_F(TestUbseInterCom, MqHandleGetHandlerOpOverMax)
 {
     EXPECT_NO_THROW(mqPtr->GetHandler(0, 1001));
+}
+
+/*
+ * 用例描述：
+ * RegMessageHandler(uint16_t, uint16_t)注册成功
+ * 测试步骤：
+ * 1.调用RegMessageHandler注册合法的moduleCode和opCode
+ * 预期结果：
+ * 1.函数返回UBSE_OK
+ */
+TEST_F(TestUbseInterCom, RegMessageHandlerWithCodesSuccess)
+{
+    auto ret = mqPtr->RegMessageHandler(1, 2);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * RegMessageHandler(uint16_t, uint16_t)注册失败moduleCode过大
+ * 测试步骤：
+ * 1.调用RegMessageHandler注册非法的moduleCode
+ * 预期结果：
+ * 1.函数返回UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE
+ */
+TEST_F(TestUbseInterCom, RegMessageHandlerWithCodesInvalidModuleCode)
+{
+    auto ret = mqPtr->RegMessageHandler(1001, 2);
+    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+}
+
+/*
+ * 用例描述：
+ * RegMessageHandler(uint16_t, uint16_t)注册失败opCode过大
+ * 测试步骤：
+ * 1.调用RegMessageHandler注册非法的opCode
+ * 预期结果：
+ * 1.函数返回UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE
+ */
+TEST_F(TestUbseInterCom, RegMessageHandlerWithCodesInvalidOpCode)
+{
+    auto ret = mqPtr->RegMessageHandler(1, 1001);
+    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+}
+
+/*
+ * 用例描述：
+ * Send(UbseRpcMessage)序列化失败
+ * 测试步骤：
+ * 1.调用Send，request.Serialize返回失败
+ * 预期结果：
+ * 1.函数返回非UBSE_OK
+ */
+TEST_F(TestUbseInterCom, SendRpcMessageSerializeFail)
+{
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    MockUbseRpcMessage resp;
+    auto ret = mqPtr->Send("Node0", 1, 2, req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * Send(UbseRpcMessage)编码失败
+ * 测试步骤：
+ * 1.调用Send，EncodeRequestMsg返回空
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseInterCom, SendRpcMessageEncodeFail)
+{
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    auto ret = mqPtr->Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * Send(UbseRpcMessage)无handler
+ * 测试步骤：
+ * 1.调用Send，handler不存在
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseInterCom, SendRpcMessageNoHandler)
+{
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    auto ret = mqPtr->Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * Send(UbseRpcMessage)发送成功
+ * 测试步骤：
+ * 1.先注册handler
+ * 2.调用Send
+ * 预期结果：
+ * 1.函数返回UBSE_OK
+ */
+TEST_F(TestUbseInterCom, SendRpcMessageSuccess)
+{
+    mqPtr->RegMessageHandler(1, 2);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    auto ret = mqPtr->Send("Node0", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * AsynSend(UbseRpcMessage)序列化失败
+ * 测试步骤：
+ * 1.调用AsynSend，request.Serialize返回失败
+ * 预期结果：
+ * 1.函数返回非UBSE_OK
+ */
+TEST_F(TestUbseInterCom, AsynSendRpcMessageSerializeFail)
+{
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    UbseComCallback cb;
+    auto ret = mqPtr->AsynSend("Node0", 1, 2, req, cb);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * AsynSend(UbseRpcMessage)编码失败
+ * 测试步骤：
+ * 1.调用AsynSend，EncodeRequestMsg返回空
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseInterCom, AsynSendRpcMessageEncodeFail)
+{
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    auto ret = mqPtr->AsynSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * AsynSend(UbseRpcMessage)无handler
+ * 测试步骤：
+ * 1.调用AsynSend，handler不存在
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseInterCom, AsynSendRpcMessageNoHandler)
+{
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    auto ret = mqPtr->AsynSend("Node0", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * MqHandleEndpointRequest消息指针为空
+ * 测试步骤：
+ * 1.构造空消息上下文
+ * 2.调用MqHandleEndpointRequest
+ * 预期结果：
+ * 1.不抛出异常
+ */
+TEST_F(TestUbseInterCom, MqHandleEndpointRequestNullMessage)
+{
+    HandlerInput input;
+    UbseComMessageCtx ctx;
+    input.messageCtx = ctx;
+    EXPECT_NO_THROW(UbseInterCom::MqHandleEndpointRequest(input));
+}
+
+/*
+ * 用例描述：
+ * MqHandleEndpointRequest找不到Endpoint
+ * 测试步骤：
+ * 1.构造消息上下文，设置moduleCode和opCode
+ * 2.调用MqHandleEndpointRequest，对应Endpoint不存在
+ * 预期结果：
+ * 1.不抛出异常
+ */
+TEST_F(TestUbseInterCom, MqHandleEndpointRequestEndpointNotFound)
+{
+    UbseComMessageHead head;
+    head.SetModuleCode(999);
+    head.SetOpCode(999);
+    head.SetBodyLen(0);
+    head.SetCrc(0);
+    std::vector<uint8_t> buffer(sizeof(UbseComMessageHead));
+    memcpy(buffer.data(), &head, sizeof(UbseComMessageHead));
+    HandlerInput input;
+    UbseComMessageCtx ctx;
+    ctx.SetMessage(buffer.data());
+    input.messageCtx = ctx;
+    EXPECT_NO_THROW(UbseInterCom::MqHandleEndpointRequest(input));
+}
+
+/*
+ * 用例描述：
+ * MqEndpointReply buffer为空
+ * 测试步骤：
+ * 1.调用MqEndpointReply，buffer为nullptr
+ * 预期结果：
+ * 1.不抛出异常
+ */
+TEST_F(TestUbseInterCom, MqEndpointReplyNullBuffer)
+{
+    HandlerInput input;
+    std::unique_ptr<uint8_t[]> nullBuffer;
+    uint32_t size = 0;
+    EXPECT_NO_THROW(UbseInterCom::MqEndpointReply(input, nullBuffer, size));
+}
+
+/*
+ * 用例描述：
+ * MqEndpointReply bufferSize为0
+ * 测试步骤：
+ * 1.调用MqEndpointReply，bufferSize为0
+ * 预期结果：
+ * 1.不抛出异常
+ */
+TEST_F(TestUbseInterCom, MqEndpointReplyZeroBufferSize)
+{
+    HandlerInput input;
+    auto buffer = std::make_unique<uint8_t[]>(4);
+    uint32_t size = 0;
+    EXPECT_NO_THROW(UbseInterCom::MqEndpointReply(input, buffer, size));
+}
+
+/*
+ * 用例描述：
+ * MqEndpointReply正常回复
+ * 测试步骤：
+ * 1.调用MqEndpointReply，buffer有效
+ * 预期结果：
+ * 1.input.retData被正确设置
+ */
+TEST_F(TestUbseInterCom, MqEndpointReplySuccess)
+{
+    HandlerInput input;
+    uint32_t size = 4;
+    auto buffer = std::make_unique<uint8_t[]>(size);
+    memset(buffer.get(), 0xAB, size);
+    UbseInterCom::MqEndpointReply(input, buffer, size);
+    EXPECT_NE(nullptr, input.retData.data);
+    EXPECT_EQ(size, input.retData.len);
+    SafeDeleteArray(input.retData.data);
 }
 } // namespace ubse::ut::com

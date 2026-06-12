@@ -29,7 +29,6 @@ public:
 
     UbseInterCom *mqPtr = nullptr;
 };
-}
-
+} // namespace ubse::ut::com
 
 #endif // TEST_UBSE_INTER_COM_H
