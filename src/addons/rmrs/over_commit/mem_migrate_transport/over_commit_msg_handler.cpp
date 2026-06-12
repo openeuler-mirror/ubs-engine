@@ -270,9 +270,10 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
     auto ret = smapRemove(&removeMsg, static_cast<int>(MpConfiguration::GetInstance().GetMpSceneType()));
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal failed.";
-    } else {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
+        return MEM_POOLING_ERROR;
     }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
     return MEM_POOLING_OK;
 }
 
