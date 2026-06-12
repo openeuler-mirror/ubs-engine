@@ -75,12 +75,12 @@ static const std::string URMA_QOS_CONNECT_UBM_ERROR =
     "ERROR: Failed to access UBM interface, please check UBM service status.";
 static const std::string URMA_QOS_TEMPLATE_NOT_EXISTED =
     "ERROR: Failed to create ETS QoS template, No ETS QoS template exists.";
-static const std::string URMA_QOS_TEMPLATE_NOT_APPLIED =
-    "ERROR: ETS QoS template has not been applied to all network ports. please try: ubsectl create urma-qos.";
 static const std::string URMA_QOS_QUERY_EMPTY_ERROR =
-    "ERROR: No ETS QoS priority groups has been created, please run: ubsectl create urma-qos.";
+    "No ETS QoS priority groups has been created, please run: ubsectl create urma-qos.";
 static const std::string URMA_QOS_PRIO_GROUP_EXIST_ERROR =
     "ERROR: ETS QoS priority group already exists, please delete existing QoS config first.";
+static const std::string URMA_QOS_PRIO_GROUP_EXIST_BUT_NOT_APPLIED =
+    "ERROR: ETS QoS priority group already exists, but apply failed.";
 
 void UbseCliRegUrmaModule::UbseCliSignUp()
 {
@@ -238,7 +238,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::ParseAndValidateQosPara
 {
     std::vector<std::string> priList = ParseCommaSeparatedDeviceList(priStr);
     std::vector<std::string> cirList = ParseCommaSeparatedDeviceList(cirStr);
-    
+
     if (priList.empty() || cirList.empty()) {
         return UbseCliStringPromptReply(URMA_QOS_INVALID_PRI_BAND);
     }
@@ -272,9 +272,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::MapQosErrorToMessage(ui
         {UBSE_ERROR_INVAL, URMA_QOS_INVALID_PRI_BAND},
         {UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED, URMA_QOS_CONNECT_UBM_ERROR},
         {UBSE_URMACONTRL_ERROR_PRIO_GROUP_EXIST, URMA_QOS_PRIO_GROUP_EXIST_ERROR},
-        {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_EXISTED, URMA_QOS_TEMPLATE_NOT_EXISTED},
-        {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED, URMA_QOS_TEMPLATE_NOT_APPLIED}
-    };
+        {UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_EXISTED, URMA_QOS_TEMPLATE_NOT_EXISTED}};
     auto it = errorMap.find(ret);
     if (it != errorMap.end()) {
         return UbseCliStringPromptReply(it->second);
@@ -349,7 +347,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(
     ubse_api_buffer_t ubseResBuffer{};
     uint32_t ret = ubse_invoke_call(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, &ubseReqBuffer, &ubseResBuffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubseResBuffer);
-    if (ret != UBSE_OK) {
+    if (ret != UBSE_OK && ret != UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED) {
         return MapQosErrorToMessage(ret);
     }
 
@@ -361,6 +359,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegUrmaModule::UbseDisplayUrmaQosFunc(
     }
     if (urmaQosSize == 0) {
         return UbseCliStringPromptReply(URMA_QOS_QUERY_EMPTY_ERROR);
+    }
+    if (ret == UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED) {
+        return UbseCliStringPromptReply(URMA_QOS_PRIO_GROUP_EXIST_BUT_NOT_APPLIED);
     }
 
     return UbseCliProcessUrmaQosTable(ubseDeSerial, urmaQosSize);
