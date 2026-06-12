@@ -56,11 +56,11 @@ public:
 
     UbseCliRegBuilder& UbseCliSetType(const std::string& type);
 
-    UbseCliRegBuilder& UbseCliAddOption(const std::string& shortOpt,
-        const std::string& longOpt, const std::string& desc);
+    UbseCliRegBuilder& UbseCliAddOption(const std::string& shortOpt, const std::string& longOpt,
+                                        const std::string& desc);
 
-    UbseCliRegBuilder& UbseCliAddFlagOption(const std::string& shortOpt,
-        const std::string& longOpt, const std::string& desc);
+    UbseCliRegBuilder& UbseCliAddFlagOption(const std::string& shortOpt, const std::string& longOpt,
+                                            const std::string& desc);
 
     UbseCliRegBuilder& UbseCliSetFunc(UbseCliCommandFunc func);
 

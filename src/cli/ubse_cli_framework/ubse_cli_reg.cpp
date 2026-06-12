@@ -132,8 +132,8 @@ bool UbseCliParse::UbseCliProcessOption(size_t& arg_index, const std::vector<std
             }
             if (arg_index + 1 >= args.size()) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Option '" +
-                                                                              std::string(is_long_option ? "--" : "-") +
-                                                                              option_name + "' requires a value.\n");
+                                                                             std::string(is_long_option ? "--" : "-") +
+                                                                             option_name + "' requires a value.\n");
                 return false;
             }
             const std::string& value = args[arg_index + 1];
@@ -238,8 +238,8 @@ void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string& command_ke
         }
         options_set.insert(command_option.shortOpt);
         options_set.insert(command_option.longOpt);
-        filtered_options.emplace_back(UbseCliOptionsInfo{command_option.shortOpt,
-            command_option.longOpt, command_option.desc, command_option.isFlag});
+        filtered_options.emplace_back(UbseCliOptionsInfo{command_option.shortOpt, command_option.longOpt,
+                                                         command_option.desc, command_option.isFlag});
     }
     if (filtered_options.size() > UBSE_MAX_OPTIONS_NUM || filtered_options.size() == 0) {
         return;
