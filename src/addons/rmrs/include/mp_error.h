@@ -86,7 +86,7 @@ using VmResult = uint32_t;
 #define MEM_POOLING_SMAP_PARTIAL_SUCCESS MEM_POOLING_COMMON_ERROR(23)      /* SMAP迁移时 */
 #define MEM_POOLING_RMRS_MIGRATE_FAILED_VM_DELETED MEM_POOLING_COMMON_ERROR(24) /* SMAP迁移失败-迁移过程中虚机被删除 */
 #define MEM_POOLING_PARTIAL_OK MEM_POOLING_COMMON_ERROR(25)                     /* 部分成功 */
-
+#define MEM_POOLING_HANDLING_FAULT MEM_POOLING_COMMON_ERROR(26)                 /* 处理故障错误码 */
 /* **************************************** */
 /* http模块错误码定义                        */
 /* **************************************** */

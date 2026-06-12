@@ -156,7 +156,7 @@ void ProcessMemPidInfoManager::Init()
     }
 
     const int workThreadNum = 2;
-    const int exceptionThreadNum = 1;
+    const int exceptionThreadNum = 4;
     const int queSize = 1024;
     borrowExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidBorrow", workThreadNum, queSize);
     if (borrowExecutor == nullptr || !borrowExecutor->Start()) {
@@ -380,6 +380,21 @@ void ExceptionMemoryHandle(const std::string& name)
     }
 }
 
+int DoMigrateOut(pid_t pid, int destNid, uint64_t memSizeKb)
+{
+    mempooling::smap::MigrateOutPayload payload{};
+    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
+    mempooling::smap::MigrateOutPayloadInner inner{};
+    payload.count = 1;
+    inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
+    inner.memSize = memSizeKb;
+    inner.destNid = destNid;
+    payload.pid = pid;
+    payload.inner[0] = inner;
+    payloads.push_back(payload);
+    return process_mem::pid::bridge::ProcessMemPidBridge::rmrsMigrateOut(payloads, 0);
+}
+
 uint32_t MigrateOut(const def::ProcessMemPidInfo& pidInfo, uint64_t targetRemoteMemory)
 {
     if (pidInfo.memBorrowInfo.remoteNumaId == -1) {
@@ -390,19 +405,13 @@ uint32_t MigrateOut(const def::ProcessMemPidInfo& pidInfo, uint64_t targetRemote
     constexpr uint64_t pageSizeKb = 4;
     memSizeKb = memSizeKb / pageSizeKb * pageSizeKb;
 
-    mempooling::smap::MigrateOutPayload payload{};
-    std::vector<mempooling::smap::MigrateOutPayload> payloads{};
-    mempooling::smap::MigrateOutPayloadInner inner{};
-    payload.count = 1;
-    inner.migrateMode = mempooling::smap::MIG_MEMSIZE_MODE;
-    inner.memSize = memSizeKb;
-    payload.pid = pidInfo.configInfo.pid;
-    inner.destNid = pidInfo.memBorrowInfo.remoteNumaId;
-    payload.inner[0] = inner;
-    payloads.push_back(payload);
     UBSE_LOG_INFO << "MigrateOut begin, targetSize:" << memSizeKb
                   << "KB, remoteNumaId:" << pidInfo.memBorrowInfo.remoteNumaId;
-    process_mem::pid::bridge::ProcessMemPidBridge::rmrsMigrateOut(payloads, 0);
+    int ret = DoMigrateOut(pidInfo.configInfo.pid, pidInfo.memBorrowInfo.remoteNumaId, memSizeKb);
+    if (ret == MEM_POOLING_HANDLING_FAULT) {
+        UBSE_LOG_ERROR << "MigrateOut fault: MEM_POOLING_HANDLING_FAULT, interrupting all business.";
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
@@ -483,7 +492,10 @@ void AsyncBorrowAndMigrateExecute(pid_t pid, const def::DebtInfo& debtInfo, uint
         return;
     }
     auto freshExpectRemote = RefreshExpectRemoteMemory(pid, infoAfterBorrow, expectRemoteMemory);
-    MigrateOut(infoAfterBorrow, freshExpectRemote);
+    if (MigrateOut(infoAfterBorrow, freshExpectRemote) != UBSE_OK) {
+        UBSE_LOG_ERROR << "MigrateOut failed after borrow, interrupting business for pid=" << pid;
+        return;
+    }
 }
 
 uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t expectRemoteMemory, int32_t minNuma)
@@ -492,7 +504,10 @@ uint32_t BorrowAndMigrate(def::ProcessMemPidInfo& pidInfo, uint64_t expectRemote
     uint64_t needBorrowSize = 0;
     isNeedBorrow = CheckIsNeedBorrow(pidInfo, expectRemoteMemory, needBorrowSize);
     if (!isNeedBorrow) {
-        MigrateOut(pidInfo, expectRemoteMemory);
+        if (MigrateOut(pidInfo, expectRemoteMemory) != UBSE_OK) {
+            UBSE_LOG_ERROR << "MigrateOut failed, interrupting business for pid=" << pidInfo.configInfo.pid;
+            return UBSE_ERROR;
+        }
         return UBSE_OK;
     }
 
@@ -526,7 +541,10 @@ uint32_t BorrowMemoryAndMigrateOut(def::ProcessMemPidInfo& pidInfo, uint64_t loc
     UBSE_LOG_INFO << "localMemory is " << localMemorySize << ", remoteMemory is " << remoteMemorySize
                   << ", expect RemoteMemory is " << expectRemoteMemory;
     if (expectRemoteMemory <= remoteMemorySize) {
-        MigrateOut(pidInfo, expectRemoteMemory);
+        if (MigrateOut(pidInfo, expectRemoteMemory) != UBSE_OK) {
+            UBSE_LOG_ERROR << "MigrateOut failed, interrupting business for pid=" << pidInfo.configInfo.pid;
+            return UBSE_ERROR;
+        }
         return UBSE_OK;
     }
     BorrowAndMigrate(pidInfo, expectRemoteMemory, minNuma);
@@ -546,7 +564,11 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
 
     int remoteNuma = pidInfo.memBorrowInfo.remoteNumaId;
     if (!pidInfo.memBorrowInfo.debtInfos.empty()) {
-        MigrateOut(pidInfo, 0);
+        if (MigrateOut(pidInfo, 0) != UBSE_OK) {
+            UBSE_LOG_ERROR << "MigrateOut failed in return path, interrupting business for pid="
+                           << pidInfo.configInfo.pid;
+            return UBSE_ERROR;
+        }
         bool res = GetMigrateResult(pidInfo.configInfo.pid, remoteNuma, 0, true);
         if (!res) {
             UBSE_LOG_ERROR << "Memory Return rmrsMigrateOut failed";
@@ -558,6 +580,13 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
         for (const auto& [name, debtInfo] : pidInfo.memBorrowInfo.debtInfos) {
             auto borrowName = name;
             auto ret = process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(debtInfo.numaDesc.name);
+            if (ret == MEM_POOLING_HANDLING_FAULT) {
+                UBSE_LOG_ERROR << "rmrsFreeWithMigrate fault: MEM_POOLING_HANDLING_FAULT, "
+                               << "interrupting all business for pid=" << pidInfo.configInfo.pid;
+                ProcessMemPidInfoManager::GetInstance().DeletePidMemBorrowInfo(pidInfo.configInfo.pid, name);
+                ProcessMemPidInfoManager::GetInstance().ResetPidMemBorrowInfo(pidInfo.configInfo.pid);
+                return UBSE_ERROR;
+            }
             if (ret != UBSE_OK && ret != UBSE_ERR_NOT_EXIST) {
                 UBSE_LOG_ERROR << "rmrsFreeWithMigrate failed";
                 ProcessMemPidInfoManager::GetInstance().exceptionHandleExecutor->Execute(
@@ -734,23 +763,91 @@ void RemoveStaleDebts(def::BorrowInfo& borrowInfo, const std::unordered_set<std:
     }
 }
 
+struct RemovedPidDebt {
+    pid_t pid;
+    std::vector<std::string> debtNames;
+    int remoteNumaId;
+};
+
+void AsyncMigrateBackAndFreeForRemovedPid(const RemovedPidDebt& entry)
+{
+    UBSE_LOG_INFO << "RefreshBorrowInfo: async process removed pid=" << entry.pid
+                  << ", debtCount=" << entry.debtNames.size() << ", remoteNumaId=" << entry.remoteNumaId;
+
+    auto exactStartTime = ProcessMemPidConfigManager::GetExactStartTime(entry.pid);
+    if (exactStartTime == 0) {
+        UBSE_LOG_INFO << "RefreshBorrowInfo: process exited, returning memory directly for pid=" << entry.pid;
+        for (const auto& name : entry.debtNames) {
+            auto ret = process_mem::pid::bridge::ProcessMemPidBridge::MemoryReturn(name);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "RefreshBorrowInfo MemoryReturn failed for exited pid=" << entry.pid
+                               << ", debt=" << name << ", ret=" << ret;
+            }
+        }
+        return;
+    }
+
+    int ret = DoMigrateOut(entry.pid, entry.remoteNumaId, 0);
+    if (ret == MEM_POOLING_HANDLING_FAULT) {
+        UBSE_LOG_ERROR << "RefreshBorrowInfo MigrateOut fault: MEM_POOLING_HANDLING_FAULT,"
+                       << " interrupting for removed pid=" << entry.pid;
+        return;
+    }
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOG_ERROR << "RefreshBorrowInfo DoMigrateOut failed for removed pid=" << entry.pid << ", ret=" << ret;
+        return;
+    }
+    bool migrateDone = GetMigrateResult(entry.pid, static_cast<int64_t>(entry.remoteNumaId), 0, true);
+    if (!migrateDone) {
+        UBSE_LOG_ERROR << "RefreshBorrowInfo GetMigrateResult failed for removed pid=" << entry.pid;
+        return;
+    }
+    for (const auto& name : entry.debtNames) {
+        auto freeRet = process_mem::pid::bridge::ProcessMemPidBridge::rmrsFreeWithMigrate(name);
+        if (freeRet == MEM_POOLING_HANDLING_FAULT) {
+            UBSE_LOG_ERROR << "RefreshBorrowInfo rmrsFreeWithMigrate fault: MEM_POOLING_HANDLING_FAULT,"
+                           << " interrupting for removed pid=" << entry.pid << ", debt=" << name;
+            continue;
+        }
+        if (freeRet != UBSE_OK && freeRet != UBSE_ERR_NOT_EXIST) {
+            UBSE_LOG_ERROR << "RefreshBorrowInfo rmrsFreeWithMigrate failed for removed pid=" << entry.pid
+                           << ", debt=" << name << ", ret=" << freeRet;
+        }
+    }
+}
+
 } // namespace
 
 void ProcessMemPidInfoManager::RefreshBorrowInfo()
 {
     auto entries = CollectProcessMemImportDebts();
 
-    // 收集 ubse 返回的运行态账本名称
     std::unordered_map<pid_t, std::unordered_set<std::string>> activeDebts;
     for (const auto& entry : entries) {
         activeDebts[entry.pid].insert(entry.debtInfo.name);
     }
 
+    // 收集已移除纳管的 pid（UBSE 中有账本但 pidInfoMap 中无配置），按 pid 汇聚
+    std::vector<RemovedPidDebt> removedPidDebts;
     std::vector<std::pair<pid_t, int>> clearedPids;
     {
         std::unique_lock<std::shared_mutex> lock(pidInfoMutex);
 
-        // 合并/更新运行态账本
+        for (const auto& entry : entries) {
+            if (pidInfoMap.find(entry.pid) != pidInfoMap.end()) {
+                continue;
+            }
+            auto it = std::find_if(removedPidDebts.begin(), removedPidDebts.end(),
+                                   [pid = entry.pid](const auto& item) { return item.pid == pid; });
+            if (it != removedPidDebts.end()) {
+                it->debtNames.push_back(entry.debtInfo.name);
+            } else {
+                removedPidDebts.push_back(
+                    {entry.pid, {entry.debtInfo.name}, static_cast<int>(entry.debtInfo.remoteNumaId)});
+            }
+        }
+
+        // 合并/更新仍在管 pid 的运行态账本
         for (const auto& entry : entries) {
             auto pidIt = pidInfoMap.find(entry.pid);
             if (pidIt == pidInfoMap.end()) {
@@ -761,7 +858,7 @@ void ProcessMemPidInfoManager::RefreshBorrowInfo()
             MergeOrUpdateDebt(borrowInfo, entry.debtInfo);
         }
 
-        // 清理不在 ubse 中的已完成账本，保留正在创建的账本
+        // 清理 UBSE 中已不存在的账本（仅清本地缓存，不回迁），保留 CREATING 状态
         static const std::unordered_set<std::string> emptySet;
         for (auto& [pid, pidInfo] : pidInfoMap) {
             auto activeIt = activeDebts.find(pid);
@@ -772,6 +869,13 @@ void ProcessMemPidInfoManager::RefreshBorrowInfo()
                 pidInfo.memBorrowInfo = {};
             }
         }
+    }
+
+    // 异步处理已移除纳管的 pid：一次性回迁所有远端内存，再逐个归还账本
+    for (auto& entry : removedPidDebts) {
+        UBSE_LOG_INFO << "RefreshBorrowInfo: removed pid=" << entry.pid << ", debtCount=" << entry.debtNames.size()
+                      << ", remoteNumaId=" << entry.remoteNumaId << ", submit to exception executor";
+        exceptionHandleExecutor->Execute([entry = std::move(entry)]() { AsyncMigrateBackAndFreeForRemovedPid(entry); });
     }
 
     for (const auto& [pid, remoteNumaId] : clearedPids) {
