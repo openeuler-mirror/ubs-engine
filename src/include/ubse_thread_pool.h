@@ -98,7 +98,7 @@ private:
     std::vector<std::unique_ptr<std::thread>> mThreads;
     std::atomic<bool> mStarted;
     std::atomic<bool> mStopped;
-    std::atomic<uint16_t> mStartedThreadNum;
+    std::atomic<uint16_t> mStartedThreadNum{0};
     std::string mThreadName;
 
     std::mutex mtx;

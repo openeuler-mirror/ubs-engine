@@ -251,7 +251,7 @@ UbseResult AllocDevicesImpl(const UbseAllocRequest& requestInfo, std::string& ne
                             std::vector<std::shared_ptr<IResource>>& devList)
 {
     auto& manager = UbseNpuManagerApi::GetInstance();
-    if (CheckCollection("alloc npu,nic devices") != UBSE_OK) {
+    if (CheckCollection("alloc npu, nic devices") != UBSE_OK) {
         return UBSE_ERROR;
     }
     {
@@ -1248,7 +1248,12 @@ UbseResult UbseNpuManagerApi::RegisterIDevToBusi(std::vector<std::shared_ptr<Col
             dev->GetBondingIdev()->GetType() == CollectionDeviceType::P_IDEV) {
             std::shared_ptr<CollectionDeviceIdevPfe> pfe =
                 CollectionDevice::CollectionToDerived<CollectionDeviceIdevPfe>(dev->GetBondingIdev());
-            std::shared_ptr<CollectionDeviceIdevVfe> vfe = pfe->GetSubDevVfe()[0];
+            auto subDevVfe = pfe->GetSubDevVfe();
+            if (subDevVfe.empty()) {
+                UBSE_LOG_ERROR << "sub dev vfe is empty";
+                continue;
+            }
+            std::shared_ptr<CollectionDeviceIdevVfe> vfe = subDevVfe[0];
             vfeList.push_back(vfe);
         }
     }
@@ -1789,6 +1794,10 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
         return res;
     }
     auto busi = devList[0]->GetBondingDevBusi();
+    if (busi.empty()) {
+        UBSE_LOG_ERROR << "bonding busi is empty";
+        return UBSE_ERROR_INVAL;
+    }
     UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi[0]);
     std::vector<UbseMtiIdevVfe> mtiVfeList = ConvertToUbseMtiIdevVfeList(devList);
 
@@ -1998,7 +2007,7 @@ UbseResult AllocNic(std::vector<std::shared_ptr<CollectionDeviceNicPfe>>& nicPfe
 UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi>& busInstance)
 {
     if (busInstance == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get bus instance by guid " << busInstance->GetGuid();
+        UBSE_LOG_ERROR << "bus instance is nullptr";
         return UBSE_ERROR_INVAL;
     }
 
@@ -2006,6 +2015,7 @@ UbseResult CheckBusi(const std::shared_ptr<CollectionDeviceBusi>& busInstance)
         UBSE_LOG_ERROR << "Invalid bus instance type";
         return UBSE_ERROR_INVAL;
     }
+
     return UBSE_OK;
 }
 

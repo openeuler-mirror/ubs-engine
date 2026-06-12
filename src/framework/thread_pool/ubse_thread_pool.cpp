@@ -15,6 +15,7 @@
 #include <pthread.h> // for pthread_self, pthread_s...
 #include <sched.h>   // for CPU_SET, CPU_ZERO, cpu_...
 #include <unistd.h>  // for sleep, usleep
+#include <atomic>
 #include <new>       // for nothrow
 #include <stdexcept> // for runtime_error
 
@@ -210,11 +211,9 @@ void UbseTaskExecutor::DoRunnable(bool& flag)
         if (runnable->Type() == UbseRunnableType::NORMAL) {
             runnable->Run();
             totalCompleted++;
-            if (pending.fetch_sub(1) ==
-                1) { // 注意，比较操作过程也要注意竞争，fetch_sub返回之前的值，这个之前的值不会出问题
-                std::unique_lock<std::mutex> lock(cvMtx);
-                done.notify_all();
-            }
+            pending.fetch_sub(1, std::memory_order_acq_rel);
+            std::unique_lock<std::mutex> lock(cvMtx);
+            done.notify_all();
         } else if (runnable->Type() == UbseRunnableType::STOP) {
             flag = false; // stop thread
         } else {
@@ -230,7 +229,7 @@ void UbseTaskExecutor::DoRunnable(bool& flag)
 void UbseTaskExecutor::RunInThread(int16_t cpuId)
 {
     bool runFlag = true;
-    uint16_t threadIndex = mStartedThreadNum++;
+    uint16_t threadIndex = mStartedThreadNum.fetch_add(1, std::memory_order_relaxed);
 
     auto threadName = mThreadName.empty() ? "executor" : mThreadName;
     threadName += std::to_string(threadIndex);

@@ -183,8 +183,11 @@ uint32_t ProcessListLine(const std::string& line, T& idList)
                 start = end;
                 end = temp;
             }
-            for (int id = start; id <= end && id >= start; ++id) {
+            for (int id = start; id <= end; ++id) {
                 idList.push_back(id);
+                if (id == end) {
+                    break;
+                }
             }
         }
     }
