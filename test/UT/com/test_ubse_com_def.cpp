@@ -829,4 +829,41 @@ TEST_F(TestUbseComDef, GetSendReceiveSegCount)
     engineInfo.SetSendReceiveSegCount(1);
     EXPECT_EQ(1, engineInfo.GetSendReceiveSegCount());
 }
+
+/*
+ * 用例描述：
+ * 编码请求消息成功
+ * 测试步骤：
+ * 1.调用EncodeRequestMsg编码请求消息
+ * 预期结果：
+ * 1.返回非空的vector
+ */
+TEST_F(TestUbseComDef, EncodeRequestMsgSuccess)
+{
+    uint16_t opCode = 1;
+    uint16_t moduleCode = 2;
+    std::string testData = "test_data";
+    auto reqData = std::make_unique<uint8_t[]>(testData.size());
+    memcpy(reqData.get(), testData.data(), testData.size());
+    auto result = EncodeRequestMsg(opCode, moduleCode, reqData, testData.size());
+    EXPECT_FALSE(result->empty());
+    EXPECT_EQ(sizeof(UbseComMessageHead) + testData.size(), result->size());
+}
+
+/*
+ * 用例描述：
+ * 编码请求消息空数据
+ * 测试步骤：
+ * 1.调用EncodeRequestMsg编码空数据
+ * 预期结果：
+ * 1.返回空vector（memcpy_s对0长度可能失败）
+ */
+TEST_F(TestUbseComDef, EncodeRequestMsgEmptyData)
+{
+    uint16_t opCode = 1;
+    uint16_t moduleCode = 2;
+    auto reqData = std::make_unique<uint8_t[]>(0);
+    auto result = EncodeRequestMsg(opCode, moduleCode, reqData, 0);
+    EXPECT_TRUE(result == nullptr);
+}
 } // namespace ubse::ut::com

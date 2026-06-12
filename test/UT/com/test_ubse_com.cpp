@@ -441,4 +441,316 @@ TEST_F(TestUbseCom, TestUbseNetMessageHandler)
     UbseNetMessageHandler ubseHandler(testOpCode, testModuleCode, TestUBSHcomHandler);
     //    ubseHandler.Handle()
 }
+
+/*
+ * 用例描述：
+ * UbseRegRpcEndpoint注册成功
+ * 测试步骤：
+ * 1.调用UbseRegRpcEndpoint接口
+ * 预期结果：
+ * 1.函数返回UBSE_OK
+ */
+TEST_F(TestUbseCom, UbseRegRpcEndpointSuccess)
+{
+    const auto func = static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    auto ret = UbseRegRpcEndpoint(1, 2);
+    ASSERT_EQ(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRegRpcEndpoint注册失败
+ * 测试步骤：
+ * 1.调用UbseRegRpcEndpoint接口失败
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseCom, UbseRegRpcEndpointFailWhenModelFail)
+{
+    const auto func = static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    auto ret = UbseRegRpcEndpoint(1, 2);
+    ASSERT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRegRpcEndpoint获取模块失败
+ * 测试步骤：
+ * 1.获取UbseComModule为nullptr
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR_NULLPTR
+ */
+TEST_F(TestUbseCom, UbseRegRpcEndpointFailWhenModuleNull)
+{
+    std::shared_ptr<UbseComModule> ubseComModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    auto ret = UbseRegRpcEndpoint(1, 2);
+    ASSERT_EQ(UBSE_ERROR_NULLPTR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint同步发送成功
+ * 测试步骤：
+ * 1.调用UbseRpcEndpoint::UbseRpcSend
+ * 预期结果：
+ * 1.函数返回UBSE_OK
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointSendSuccess)
+{
+    const auto func =
+        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
+                                                   UbseRpcMessage &)>(&UbseComModule::RpcSend);
+    MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    auto ret = endpoint.UbseRpcSend("Node0", req, resp);
+    ASSERT_EQ(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint同步发送失败
+ * 测试步骤：
+ * 1.调用UbseRpcEndpoint::UbseRpcSend模块接口失败
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointSendFailWhenModelFail)
+{
+    const auto func =
+        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
+                                                   UbseRpcMessage &)>(&UbseComModule::RpcSend);
+    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    auto ret = endpoint.UbseRpcSend("Node0", req, resp);
+    ASSERT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint同步发送获取模块失败
+ * 测试步骤：
+ * 1.获取UbseComModule为nullptr
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR_NULLPTR
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointSendFailWhenModuleNull)
+{
+    std::shared_ptr<UbseComModule> ubseComModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    MockUbseRpcMessage resp;
+    auto ret = endpoint.UbseRpcSend("Node0", req, resp);
+    ASSERT_EQ(UBSE_ERROR_NULLPTR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint异步发送成功
+ * 测试步骤：
+ * 1.调用UbseRpcEndpoint::UbseRpcAsyncSend
+ * 预期结果：
+ * 1.函数返回UBSE_OK
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendSuccess)
+{
+    const auto func =
+        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
+                                                   const UbseComCallback &)>(&UbseComModule::RpcAsyncSend);
+    MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    std::shared_ptr<UbseRpcAsyncCallBack> callback = std::make_shared<MockUbseRpcAsyncCallBack>();
+    auto ret = endpoint.UbseRpcAsyncSend("Node0", req, callback);
+    ASSERT_EQ(UBSE_OK, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint异步发送失败
+ * 测试步骤：
+ * 1.调用UbseRpcEndpoint::UbseRpcAsyncSend模块接口失败
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendFailWhenModelFail)
+{
+    const auto func =
+        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
+                                                   const UbseComCallback &)>(&UbseComModule::RpcAsyncSend);
+    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    std::shared_ptr<UbseRpcAsyncCallBack> callback = std::make_shared<MockUbseRpcAsyncCallBack>();
+    auto ret = endpoint.UbseRpcAsyncSend("Node0", req, callback);
+    ASSERT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint异步发送获取模块失败
+ * 测试步骤：
+ * 1.获取UbseComModule为nullptr
+ * 预期结果：
+ * 1.函数返回UBSE_ERROR_NULLPTR
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendFailWhenModuleNull)
+{
+    std::shared_ptr<UbseComModule> ubseComModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    UbseRpcEndpoint endpoint(1, 2, nullptr);
+    MockUbseRpcMessage req;
+    std::shared_ptr<UbseRpcAsyncCallBack> callback = std::make_shared<MockUbseRpcAsyncCallBack>();
+    auto ret = endpoint.UbseRpcAsyncSend("Node0", req, callback);
+    ASSERT_EQ(UBSE_ERROR_NULLPTR, ret);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint获取属性
+ * 测试步骤：
+ * 1.获取ModuleCode
+ * 2.获取OpCode
+ * 3.获取Receiver
+ * 预期结果：
+ * 1.返回正确的moduleCode
+ * 2.返回正确的opCode
+ * 3.返回正确的receiver
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointGetProperties)
+{
+    uint16_t testModuleCode = 10;
+    uint16_t testOpCode = 20;
+    bool receiverCalled = false;
+    UbseRpcMessageReceiver testReceiver = [&receiverCalled](const uint8_t *reqData, uint32_t reqSize,
+                                                             std::unique_ptr<UbseRpcMessage> &resp) {
+        receiverCalled = true;
+    };
+    UbseRpcEndpoint endpoint(testModuleCode, testOpCode, testReceiver);
+    EXPECT_EQ(testModuleCode, endpoint.GetModuleCode());
+    EXPECT_EQ(testOpCode, endpoint.GetOpCode());
+    const auto &recv = endpoint.GetReceiver();
+    EXPECT_FALSE(recv == nullptr);
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpoint默认构造
+ * 测试步骤：
+ * 1.使用默认构造函数
+ * 2.获取ModuleCode和OpCode
+ * 预期结果：
+ * 1.ModuleCode为0
+ * 2.OpCode为0
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointDefaultConstructor)
+{
+    UbseRpcEndpoint endpoint;
+    EXPECT_EQ(0, endpoint.GetModuleCode());
+    EXPECT_EQ(0, endpoint.GetOpCode());
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpointFactory构建新Endpoint
+ * 测试步骤：
+ * 1.调用Build构建新的Endpoint
+ * 预期结果：
+ * 1.返回的Endpoint属性正确
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildNew)
+{
+    const auto regFunc =
+        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+
+    uint16_t testModuleCode = 100;
+    uint16_t testOpCode = 200;
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    auto endpoint = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
+    EXPECT_EQ(testModuleCode, endpoint->GetModuleCode());
+    EXPECT_EQ(testOpCode, endpoint->GetOpCode());
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpointFactory构建已存在的Endpoint
+ * 测试步骤：
+ * 1.调用Build构建Endpoint两次
+ * 预期结果：
+ * 1.第二次Build返回已存在的Endpoint
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildExisting)
+{
+    const auto regFunc =
+        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+
+    uint16_t testModuleCode = 100;
+    uint16_t testOpCode = 200;
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    auto endpoint1 = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
+    auto endpoint2 = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
+    EXPECT_EQ(endpoint1->GetModuleCode(), endpoint2->GetModuleCode());
+    EXPECT_EQ(endpoint1->GetOpCode(), endpoint2->GetOpCode());
+    auto storedPtr = UbseRpcEndpointFactory::GetRpcEndpoint(testModuleCode, testOpCode);
+    ASSERT_NE(nullptr, storedPtr);
+    EXPECT_EQ(1U, UbseRpcEndpointFactory::rpcEndpoints_.size());
+}
+
+/*
+ * 用例描述：
+ * UbseRpcEndpointFactory获取已存在的Endpoint
+ * 测试步骤：
+ * 1.先Build一个Endpoint
+ * 2.调用GetRpcEndpoint获取
+ * 预期结果：
+ * 1.返回非空指针，属性正确
+ */
+TEST_F(TestUbseCom, UbseRpcEndpointFactoryGetRpcEndpointFound)
+{
+    const auto regFunc =
+        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+
+    uint16_t testModuleCode = 100;
+    uint16_t testOpCode = 200;
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
+    auto found = UbseRpcEndpointFactory::GetRpcEndpoint(testModuleCode, testOpCode);
+    ASSERT_NE(nullptr, found);
+    EXPECT_EQ(testModuleCode, found->GetModuleCode());
+    EXPECT_EQ(testOpCode, found->GetOpCode());
+}
+
+TEST_F(TestUbseCom, UbseRpcEndpointFactoryGetRpcEndpointNotFound)
+{
+    auto found = UbseRpcEndpointFactory::GetRpcEndpoint(999, 999);
+    ASSERT_EQ(nullptr, found);
+}
 } // namespace ubse::ut::com
