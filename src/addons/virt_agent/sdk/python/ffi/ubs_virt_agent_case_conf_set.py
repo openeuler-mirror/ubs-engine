@@ -15,7 +15,7 @@ from typing import Dict, Any
 
 from ubse.ffi.ubs_virt_agent_base import UbsVirtAgentBase
 from ubse.ffi.ubs_virt_agent_types import CaseConfSetInfo
-from ubse.ffi.ubs_virt_agent_exceptions import UbsVANullPointerError
+from ubse.ffi.ubs_virt_agent_exceptions import UbsVANullPointerError, UbsVAInvalidParamError
 
 
 class UbsVirtAgentCaseConfSet(UbsVirtAgentBase):
