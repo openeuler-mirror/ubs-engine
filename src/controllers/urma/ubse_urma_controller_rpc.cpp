@@ -241,7 +241,7 @@ void ActivateHostBonding()
     // 1pfe + 5vfe场景下，如果host bonding未被ubse占用，需要起定时器，创建设备预留给主机
     bool isClosType = adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
     FeTopoType feTopoType = UbseUrmaControllerManager::GetInstance().GetFeTopoType();
-    bool isHostUrmaDevOccupied = UbseNodeController::GetInstance().IsHostUrmaDevOccupied();
+    bool isHostUrmaDevOccupied = UbseNodeController::GetInstance().IsComUrmaBondingRegistered();
     if (!isClosType || feTopoType != FeTopoType::PFE_VFE_HYBRID || isHostUrmaDevOccupied) {
         UBSE_LOG_INFO << "Skip activating host bonding, isClosType=" << static_cast<int>(isClosType)
                       << "fe topo=" << static_cast<int>(UbseUrmaControllerManager::GetInstance().GetFeTopoType())
@@ -283,7 +283,7 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
     }
     // 从UVS恢复本节点bonding设备
     std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-    UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(0, 0, uvsInfos);
+    UbseUrmaControllerManager::GetInstance().BuildUvsTopoNodeInfo(false, 0, 0, uvsInfos);
     UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo(curNode.nodeId, uvsInfos);
     bool isAllPortDown = false;
     if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
@@ -295,7 +295,6 @@ UbseResult DoUpdateUrmaInfos(std::vector<std::string> updateNodeIds)
         UBSE_LOG_INFO << "All ports are down for nodeId=" << curNode.nodeId << ", set all URMA info to PORT_DOWN";
         UbseUrmaControllerManager::GetInstance().SetAllUrmaDevStateForNode(UrmaDevState::PORT_DOWN);
     }
-    ActivateHostBonding();
     UBSE_LOG_INFO << "End to update urma info";
     return UBSE_OK;
 }

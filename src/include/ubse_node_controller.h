@@ -350,8 +350,8 @@ public:
     void PrintDevDirConnectInfo();
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
     // 由mem ctl初始化时调用，占用通信bonding
-    void OccupyComUrmaBonding();
-    bool IsHostUrmaDevOccupied() const;
+    void RegisterComUrmaBonding();
+    bool IsComUrmaBondingRegistered() const;
 
 private:
     std::shared_mutex rwMutex;

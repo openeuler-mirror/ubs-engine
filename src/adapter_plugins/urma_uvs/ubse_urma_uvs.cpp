@@ -22,9 +22,9 @@
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "ubse_urma_topo_config.h"
 #include "ubse_urma_uvs_module.h"
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "lock/ubse_lock.h"
 #include "securec.h"
 
@@ -44,7 +44,7 @@ UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<P
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
 
-UbseResult UbsePushTopoAndBondingToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
     UBSE_LOG_DEBUG << "Set Uvs Info";
@@ -74,7 +74,7 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string& current_node_id, const std::
     return UBSE_OK;
 }
 
-UbseResult UbsePushShareTopoToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                   const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
     UBSE_LOG_DEBUG << "Set Uvs Share Topo Info";

@@ -174,7 +174,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
-    if (!UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+    if (!UbseNodeController::GetInstance().IsComUrmaBondingRegistered()) {
         UBSE_LOG_INFO << "Com Urma bonding is not occupied, skip set com urma bonding.";
         return UBSE_OK;
     }

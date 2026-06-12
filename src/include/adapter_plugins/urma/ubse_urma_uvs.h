@@ -47,7 +47,7 @@ struct UbseUrmaUvsNodeInfo {
  * @param [in] bondingInfo：聚合设备信息
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbsePushTopoAndBondingToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
 
 /*
@@ -57,7 +57,7 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string& current_node_id, const std::
  * @param [in] allLinkInfo：共享聚合设备信息
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbsePushShareTopoToUvs(std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                   const std::vector<UbseUrmaUvsNodeInfo>& shareBondingInfo);
 /**
  * @brief 获得urma设备子路径名称。从urma_uvs获取EID对应的子路径名称（如 /dev/urma0/subpath_abc 中的 subpath_abc）

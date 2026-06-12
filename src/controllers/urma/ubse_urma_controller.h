@@ -61,9 +61,6 @@ private:
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();
 UbseResult PushNodesTopoToUvs(const std::string& nodeId);
-UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
-                                        const std::vector<PhysicalLink>& allLinkInfo,
-                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
 /**
  * @brief 查询指定urma的状态，如果为空则查询所有urma，查询后设置urmaInfo状态
  * @param nodeId: 节点ID

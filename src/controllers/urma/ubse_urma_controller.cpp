@@ -167,20 +167,46 @@ void RefreshUrmaDevStateByName(const std::string& nodeId, const std::string& urm
     }
 }
 
+static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, uint32_t batchNum, uint32_t batchSize,
+                                   const std::string& nodeId)
+{
+    bool isClos = UbseSmbios::GetInstance().IsClosType();
+    bool isBuildHostOnly = isPushShareTopoOnly;
+    for (uint32_t i = 0; i < batchNum; ++i) {
+        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+        UbseUrmaControllerManager::GetInstance().BuildUvsTopoNodeInfo(isBuildHostOnly, i * batchSize, batchSize,
+                                                                      uvsInfos);
+        if (uvsInfos.empty()) {
+            UBSE_LOG_WARN << "No uvs info, batch=" << i << ", break";
+            return UBSE_ERROR;
+        }
+        std::vector<PhysicalLink> emptyLinkInfo;
+        auto links = isClos ? emptyLinkInfo : GetDirConnectInfo();
+        auto ret = isPushShareTopoOnly ? UbsePushShareTopoToUvs(nodeId, links, uvsInfos) :
+                                         UbsePushTopoAndBondingToUvs(nodeId, links, uvsInfos);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to push uvs topo batch, batch=" << i << ", ret=" << ret;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
 UbseResult PushNodesTopoToUvs(const std::string& nodeId)
 {
     bool isClos = UbseSmbios::GetInstance().IsClosType();
-    const uint32_t batchSize = isClos ? 64 : 0; // 决定被推算拓扑的节点数量，1D场景下不需要推算拓扑
-    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize :
-                                       1; // 1D场景下发已汇聚拓扑即可
+    const uint32_t batchSize = isClos ? 64 : 0;
+    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize : 1;
 
-    for (uint32_t i = 0; i < batchNum; ++i) {
-        std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
-        UbseUrmaControllerManager::GetInstance().GetAllUvsTopoInfo(i * batchSize, batchSize, uvsInfos);
-        if (auto ret = UbseUrmaControllerSetUvsInfo(nodeId, GetDirConnectInfo(), uvsInfos); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to push topology to uvs, ret=" << ret;
-            return ret;
-        }
+    auto ret = PushUvsTopoBatch(false, batchNum, batchSize, nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=false, ret=" << ret;
+        return ret;
+    }
+    ret = PushUvsTopoBatch(true, batchNum, batchSize, nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=true, ret=" << ret;
+        return ret;
     }
     return UBSE_OK;
 }
@@ -544,27 +570,6 @@ std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo()
     }
     UBSE_LOG_INFO << "GetDirConnectInfo success, size=" << allLinkInfo.size();
     return allLinkInfo;
-}
-
-UbseResult UbseUrmaControllerSetUvsInfo(const std::string& current_slot_id,
-                                        const std::vector<PhysicalLink>& allLinkInfo,
-                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
-{
-    auto urmaModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::urma::UbseUrmaUvsModule>();
-    if (urmaModule == nullptr) {
-        UBSE_LOG_ERROR << "Getting UrmaModule failed.";
-        return UBSE_ERROR;
-    }
-    UbseMeshType meshType;
-    auto ret = UbseSmbios::GetInstance().GetMeshType(meshType);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get smbios method type, ret=" << ret;
-        return ret;
-    }
-    std::string nodeId = current_slot_id;
-    std::vector<PhysicalLink> emptyLinkInfo;
-    return UbsePushTopoAndBondingToUvs(nodeId, meshType == UbseMeshType::CLOS ? emptyLinkInfo : allLinkInfo,
-                                       bondingInfo);
 }
 
 UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev& dev)
