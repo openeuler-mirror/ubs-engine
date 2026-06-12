@@ -384,18 +384,17 @@ UbseResult EtsTemplate::Query(std::vector<EtsQosConfig>& configs)
     std::set<std::string> targetEtsAppliedInterfaceNames;
     std::set<std::string> allAppliedInterfaceNames;
     ClassifyAppliedEtsInterfaces(appliedEtsInterfaces, allAppliedInterfaceNames, targetEtsAppliedInterfaceNames);
-    // 如果存在port未应用ETS配置，直接返回模板微应用错误
+    for (const auto& prioGroup : etsProfiles.priorityGroups) {
+        configs.push_back(
+            {.priority = static_cast<EtsPriority>(prioGroup.priorityGroupId), .bandwidth = prioGroup.cir});
+    }
+    // 如果存在port未应用ETS配置，直接返回模板未应用错误
     if (allUbInterfaces.empty() ||
         !std::includes(targetEtsAppliedInterfaceNames.begin(), targetEtsAppliedInterfaceNames.end(),
                        allUbInterfaces.begin(), allUbInterfaces.end())) {
         UBSE_LOG_WARN << "ETS profile not applied on all ports," << targetEtsAppliedInterfaceNames.size() << "/"
                       << allUbInterfaces.size();
         return UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED;
-    }
-    // 否则，返回已应用的ETS配置
-    for (const auto& prioGroup : etsProfiles.priorityGroups) {
-        configs.push_back(
-            {.priority = static_cast<EtsPriority>(prioGroup.priorityGroupId), .bandwidth = prioGroup.cir});
     }
     return UBSE_OK;
 }
