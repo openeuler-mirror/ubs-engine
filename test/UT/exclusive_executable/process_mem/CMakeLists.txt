@@ -1,7 +1,5 @@
 file(GLOB_RECURSE PROCESS_MEM_TEST_SOURCES LIST_DIRECTORIES false *.h *.cpp)
 list(FILTER PROCESS_MEM_TEST_SOURCES EXCLUDE REGEX ".*/mock/.*")
-list(FILTER PROCESS_MEM_TEST_SOURCES EXCLUDE REGEX ".*pid_bridge.*")
-list(FILTER PROCESS_MEM_TEST_SOURCES EXCLUDE REGEX ".*pid_info_manager.*")
 file(GLOB MOCK_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/mock/ubse/*.cpp)
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../src/addons/process_mem)
 add_executable(${CMAKE_PROJECT_NAME}_process_mem_ut EXCLUDE_FROM_ALL

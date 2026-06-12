@@ -574,8 +574,11 @@ uint32_t MigrateBackAndReturnMemoryAsyncExecute(const def::ProcessMemPidInfo& pi
 
 uint32_t MigrateBackAndReturnMemory(def::ProcessMemPidInfo& pidInfo)
 {
-    ProcessMemPidInfoManager::GetInstance().returnExecutor->Execute(
-        [pidInfo]() { MigrateBackAndReturnMemoryAsyncExecute(pidInfo); });
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    if (mgr.returnExecutor.Get() == nullptr) {
+        return UBSE_ERROR;
+    }
+    mgr.returnExecutor->Execute([pidInfo]() { MigrateBackAndReturnMemoryAsyncExecute(pidInfo); });
     return UBSE_OK;
 }
 
