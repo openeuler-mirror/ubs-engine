@@ -96,6 +96,12 @@ constexpr const char* DISPLAY_MEM_NAME_OPTION_UNSUPPORT =
     "ERROR: The -n or --name option only supports when the -t or --type parameter is borrow_detail.";
 constexpr const char* DISPLAY_MEM_BORROW_TYPE_OPTION_UNSUPPORT =
     "ERROR: The -bt or --borrow-type option only supports when the -t or --type parameter is borrow_detail.";
+constexpr const char* DISPLAY_MEM_ALL_OPTION = "all";
+constexpr const char* DISPLAY_MEM_ALL_OPTION_TIP =
+    "Display all hugepage types supported by the current environment in addition to basic NUMA info. "
+    "Supported only when the type parameter is numa_status.";
+constexpr const char* DISPLAY_MEM_ALL_OPTION_UNSUPPORT =
+    "ERROR: The -a or --all option only supports when the -t or --type parameter is numa_status.";
 
 // create memory option reg
 constexpr const char* CREATE_MEM_T_OPTION = "type";
@@ -287,9 +293,51 @@ struct UbseNumaStatusInfo {
 };
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatusData(
+    UbseDeSerialization& deSerialization, size_t numaInfoSize, bool showAll)
+{
+    if (!showAll) {
+        UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_6, NODE_LENGTH);
+        size_t row = variable_cell_builder.UbseCliAddRow();
+        variable_cell_builder.UbseCliAddlineSeparate(row);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, "numa");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, "total");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "used");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "free");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "used_percent");
+        variable_cell_builder.UbseCliAddBottomlineSeparate();
+        for (size_t i = 0; i < numaInfoSize; i++) {
+            row = variable_cell_builder.UbseCliAddRow();
+            UbseNumaStatusInfo numaInfo{};
+            deSerialization >> numaInfo.node >> numaInfo.numa >> numaInfo.total >> numaInfo.used >> numaInfo.freeSize >>
+                numaInfo.used_percent;
+            if (!deSerialization.Check()) {
+                return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+            }
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, numaInfo.node);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, numaInfo.numa);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, numaInfo.total);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, numaInfo.used);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, numaInfo.freeSize);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, numaInfo.used_percent);
+        }
+        variable_cell_builder.UbseCliAddBottomlineSeparate();
+        return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
+    }
+    return UbseCliProcessNumaStatusDataWithHugepages(deSerialization, numaInfoSize);
+}
+
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatusDataWithHugepages(
     UbseDeSerialization& deSerialization, size_t numaInfoSize)
 {
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_6, NODE_LENGTH);
+    std::string pageSizeType;
+    deSerialization >> pageSizeType;
+    if (!deSerialization.Check()) {
+        return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
+    }
+    std::string largeTotalCol = pageSizeType + "_total";
+    std::string largeFreeCol = pageSizeType + "_free";
+    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_10, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
@@ -298,12 +346,20 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "used");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "free");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "used_percent");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, "2M_total");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, "2M_free");
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, largeTotalCol);
+    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, largeFreeCol);
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     for (size_t i = 0; i < numaInfoSize; i++) {
         row = variable_cell_builder.UbseCliAddRow();
         UbseNumaStatusInfo numaInfo{};
+        std::string nr2M;
+        std::string free2M;
+        std::string nrLarge;
+        std::string freeLarge;
         deSerialization >> numaInfo.node >> numaInfo.numa >> numaInfo.total >> numaInfo.used >> numaInfo.freeSize >>
-            numaInfo.used_percent;
+            numaInfo.used_percent >> nr2M >> free2M >> nrLarge >> freeLarge;
         if (!deSerialization.Check()) {
             return UbseCliStringPromptReply(DE_SERIALIZATION_ERROR);
         }
@@ -313,14 +369,26 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, numaInfo.used);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, numaInfo.freeSize);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, numaInfo.used_percent);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, nr2M);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, free2M);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, nrLarge);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, freeLarge);
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
+std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus(bool showAll)
 {
-    ubse_api_buffer_t ubse_req_buffer{nullptr, 0};
+    UbseSerialization ubse_req_serial(REQUEST_BUFFER_CAPACITY);
+    if (showAll) {
+        uint8_t flag = 1;
+        ubse_req_serial << flag;
+        if (!ubse_req_serial.Check()) {
+            return UbseCliStringPromptReply(SERIALIZATION_ERROR);
+        }
+    }
+    ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
     uint32_t ret = ubse_invoke_call(UBSE_MEM, UBSE_MEM_CLI_NUMA_STATUS, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
@@ -336,7 +404,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliQueryNumaStatus()
     if (numaInfoSize == 0) {
         return UbseCliStringPromptReply(BORROW_DETAIL_EMPTY);
     }
-    return UbseCliProcessNumaStatusData(ubse_de_serial, numaInfoSize);
+    return UbseCliProcessNumaStatusData(ubse_de_serial, numaInfoSize, showAll);
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::QueryMemConfig()
@@ -414,6 +482,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
         UbseCliMemDisplayBorrowDetail query;
         return query.UbseCliQueryBorrowDetail(fliter);
     } else {
+        auto it_all = params.find(DISPLAY_MEM_ALL_OPTION);
+        if (it_all != params.end() && kind != "numa_status") {
+            return UbseCliStringPromptReply(DISPLAY_MEM_ALL_OPTION_UNSUPPORT);
+        }
         if (it_name != params.end()) {
             return UbseCliStringPromptReply(DISPLAY_MEM_NAME_OPTION_UNSUPPORT);
         }
@@ -425,7 +497,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
         } else if (kind == "node_lend") {
             return UbseCliQueryNodeLendInfo();
         } else if (kind == "numa_status") {
-            return UbseCliQueryNumaStatus();
+            return UbseCliQueryNumaStatus(it_all != params.end());
         } else if (kind == "config") {
             return QueryMemConfig();
         }
@@ -506,6 +578,7 @@ UbseCliCommandInfo UbseCliRegMemModule::UbseCliQueryMem()
         .UbseCliAddOption("t", DISPLAY_MEM_T_OPTION, DISPLAY_MEM_TYPE_OPTION_TIP)
         .UbseCliAddOption("bt", DISPLAY_MEM_BT_OPTION, DISPLAY_MEM_BORROW_TYPE_OPTION_TIP)
         .UbseCliAddOption("n", DISPLAY_MEM_N_OPTION, DISPLAY_MEM_NAME_OPTION_TIP)
+        .UbseCliAddFlagOption("a", DISPLAY_MEM_ALL_OPTION, DISPLAY_MEM_ALL_OPTION_TIP)
         .UbseCliSetFunc(UbseCliMemQueryFunc);
     return builder.UbseCliBuild();
 }

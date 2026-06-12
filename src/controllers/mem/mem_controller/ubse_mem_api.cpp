@@ -54,6 +54,7 @@ using namespace ubse::mem::util;
 using namespace ubse::nodeController;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::controller::agent;
+using namespace ubse::mem::strategy;
 using UbseBorrowDetailsRequestPair = std::pair<UbseMemDebtInfoPartialFetchReqPtr, UbseMemDebtInfoPartialFetchResPtr>;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -430,25 +431,29 @@ inline uint32_t UbseConvertBytesToMegabytes(uint64_t bytes)
     return static_cast<uint32_t>(mb);
 }
 
-uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
-
+uint8_t UbseMemApi::UbseNumaStatusParseShowAllFlag(const UbseIpcMessage& req)
 {
-    if (!ubse::config::UbseIsMemSupported()) {
-        return UBSE_ERR_NOT_SUPPORTED;
+    uint8_t showAll = 0;
+    if (req.length > 0 && req.buffer != nullptr) {
+        UbseDeSerialization deSerial(req.buffer, req.length);
+        deSerial >> showAll;
+        if (!deSerial.Check()) {
+            showAll = 0;
+        }
     }
-    std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
-    auto ret = UbseAllNumaInfo(numaInfoList);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    UbseSerialization ubse_serial;
-    ubse_serial << array_len_insert(numaInfoList.size());
+    return showAll;
+}
+
+uint32_t UbseMemApi::UbseNumaStatusSerializeNumaList(
+    const std::vector<ubse::mem::account::UbseNumaNodeInfo>& numaInfoList, uint8_t showAll,
+    const std::string& pageSizeType, UbseSerialization& ubse_serial)
+{
     for (const auto& numaInfo : numaInfoList) {
         auto memUsed = numaInfo.mMemTotal - numaInfo.mMemFree;
         std::string usedPercent = "0";
         if (numaInfo.mMemTotal != 0) {
-            constexpr double PERCENTAGE_FACTOR = 100.0; // 将小数转换为百分比的乘数
-            constexpr int DECIMAL_PLACES = 1;           // 要保留的小数位数
+            constexpr double PERCENTAGE_FACTOR = 100.0;
+            constexpr int DECIMAL_PLACES = 1;
             double percent =
                 (static_cast<double>(memUsed) / static_cast<double>(numaInfo.mMemTotal)) * PERCENTAGE_FACTOR;
             std::ostringstream oss;
@@ -459,10 +464,49 @@ uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const Ubse
                     << std::to_string(UbseConvertBytesToMegabytes(numaInfo.mMemTotal))
                     << std::to_string(UbseConvertBytesToMegabytes(memUsed))
                     << std::to_string(UbseConvertBytesToMegabytes(numaInfo.mMemFree)) << usedPercent;
+        if (showAll == 1) {
+            ubse_serial << std::to_string(numaInfo.nrHugepages) << std::to_string(numaInfo.freeHugepages);
+            if (pageSizeType == "512M") {
+                ubse_serial << std::to_string(numaInfo.nrHugepages512M) << std::to_string(numaInfo.freeHugepages512M);
+            } else {
+                ubse_serial << std::to_string(numaInfo.nrHugepages1G) << std::to_string(numaInfo.freeHugepages1G);
+            }
+        }
     }
     if (!ubse_serial.Check()) {
         UBSE_LOG_ERROR << "Serialization of topo response info failed";
         return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    return UBSE_OK;
+}
+
+uint32_t UbseMemApi::UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context)
+
+{
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    uint8_t showAll = UbseNumaStatusParseShowAllFlag(req);
+    std::string osPageSize;
+    auto confRet = GetUbseConf("os", "page_size", osPageSize);
+    if (confRet != UBSE_OK || osPageSize.empty()) {
+        osPageSize = PAGE_SIZE_4K;
+    }
+    std::string pageSizeType = (osPageSize == PAGE_SIZE_64K) ? "512M" : "1G";
+
+    std::vector<ubse::mem::account::UbseNumaNodeInfo> numaInfoList{};
+    auto ret = UbseAllNumaInfo(numaInfoList);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    UbseSerialization ubse_serial;
+    ubse_serial << array_len_insert(numaInfoList.size());
+    if (showAll == 1) {
+        ubse_serial << pageSizeType;
+    }
+    ret = UbseNumaStatusSerializeNumaList(numaInfoList, showAll, pageSizeType, ubse_serial);
+    if (ret != UBSE_OK) {
+        return ret;
     }
     UbseIpcMessage res{};
     res.buffer = ubse_serial.GetBuffer();

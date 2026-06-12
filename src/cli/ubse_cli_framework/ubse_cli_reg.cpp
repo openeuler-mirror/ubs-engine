@@ -125,6 +125,11 @@ bool UbseCliParse::UbseCliProcessOption(size_t& arg_index, const std::vector<std
                     "ERROR: Duplicate option '" + std::string(is_long_option ? "--" : "-") + option_name + "'.\n");
                 return false;
             }
+            if (option.isFlag) {
+                inputOptionMap_[key] = "";
+                arg_index += 1;
+                return true;
+            }
             if (arg_index + 1 >= args.size()) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Option '" +
                                                                              std::string(is_long_option ? "--" : "-") +
@@ -139,7 +144,7 @@ bool UbseCliParse::UbseCliProcessOption(size_t& arg_index, const std::vector<std
                 return false;
             }
             inputOptionMap_[key] = value;
-            arg_index += 2; // It has been ensured that +2 will not go out of bounds.
+            arg_index += UBSE_CLI_NUM_2;
             return true;
         }
     }
@@ -233,8 +238,8 @@ void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string& command_ke
         }
         options_set.insert(command_option.shortOpt);
         options_set.insert(command_option.longOpt);
-        filtered_options.emplace_back(
-            UbseCliOptionsInfo{command_option.shortOpt, command_option.longOpt, command_option.desc});
+        filtered_options.emplace_back(UbseCliOptionsInfo{command_option.shortOpt, command_option.longOpt,
+                                                         command_option.desc, command_option.isFlag});
     }
     if (filtered_options.size() > UBSE_MAX_OPTIONS_NUM || filtered_options.size() == 0) {
         return;

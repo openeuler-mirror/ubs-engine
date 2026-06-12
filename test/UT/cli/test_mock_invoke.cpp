@@ -444,6 +444,39 @@ uint32_t mock_numa_status_ubse_invoke_call_normal(uint16_t module_code, uint16_t
     return UBSE_OK;
 }
 
+uint32_t mock_numa_status_all_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                      const ubse_api_buffer_t* request_data,
+                                                      ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    size_t size = 1;
+    ser << array_len_insert(size);
+    ser << "1G";
+    ser << "node01(2)"
+        << "0"
+        << "64398"
+        << "11083"
+        << "53316"
+        << "17.2"
+        << "512"
+        << "256"
+        << "1024"
+        << "1024";
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 uint32_t mock_config_ubse_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                              const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
 {

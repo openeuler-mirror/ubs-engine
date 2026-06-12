@@ -12,10 +12,13 @@
 
 #ifndef UBSE_MEM_API_H
 #define UBSE_MEM_API_H
+
 #include "ubse_api_server_module.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_mem_account.h"
 #include "ubse_node_controller.h"
+#include "ubse_serial_util.h"
 
 namespace usbe::mem::api {
 using ::api::server::UbseApiServerModule;
@@ -32,6 +35,10 @@ private:
     static uint32_t UbseCheckMemoryStatus(const UbseIpcMessage& req, const UbseRequestContext& context);
     static uint32_t UbseNodeMemConfigHandle(const UbseIpcMessage& req, const UbseRequestContext& context);
     static uint32_t UbseNumaStatusHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint8_t UbseNumaStatusParseShowAllFlag(const UbseIpcMessage& req);
+    static uint32_t UbseNumaStatusSerializeNumaList(
+        const std::vector<ubse::mem::account::UbseNumaNodeInfo>& numaInfoList, uint8_t showAll,
+        const std::string& pageSizeType, ubse::serial::UbseSerialization& ubse_serial);
     static uint32_t QueryNumaStateHandler(const UbseIpcMessage& request, const UbseRequestContext& context);
 
     static uint32_t UbseMemCliNumaInfoGetByName(const UbseIpcMessage& buffer, const UbseRequestContext& context);

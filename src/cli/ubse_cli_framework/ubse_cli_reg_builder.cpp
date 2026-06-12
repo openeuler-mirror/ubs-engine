@@ -32,14 +32,26 @@ UbseCliRegBuilder& UbseCliRegBuilder::UbseCliSetType(const std::string& type)
     return *this;
 }
 
-UbseCliRegBuilder& UbseCliRegBuilder::UbseCliAddOption(const std::string& short_opt, const std::string& long_opt,
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliAddOption(const std::string& shortOpt, const std::string& longOpt,
                                                        const std::string& desc)
 {
-    UbseCliOptionsInfo option_info;
-    option_info.shortOpt = short_opt;
-    option_info.longOpt = long_opt;
-    option_info.desc = desc;
-    this->commandInfo_.options.push_back(option_info);
+    UbseCliOptionsInfo optionInfo;
+    optionInfo.shortOpt = shortOpt;
+    optionInfo.longOpt = longOpt;
+    optionInfo.desc = desc;
+    this->commandInfo_.options.push_back(optionInfo);
+    return *this;
+}
+
+UbseCliRegBuilder& UbseCliRegBuilder::UbseCliAddFlagOption(const std::string& shortOpt, const std::string& longOpt,
+                                                           const std::string& desc)
+{
+    UbseCliOptionsInfo optionInfo;
+    optionInfo.shortOpt = shortOpt;
+    optionInfo.longOpt = longOpt;
+    optionInfo.desc = desc;
+    optionInfo.isFlag = true;
+    this->commandInfo_.options.push_back(optionInfo);
     return *this;
 }
 

@@ -27,6 +27,7 @@ struct UbseCliOptionsInfo {
     std::string shortOpt;
     std::string longOpt;
     std::string desc;
+    bool isFlag = false;
 
     bool operator==(const UbseCliOptionsInfo& other) const
     {
@@ -55,8 +56,11 @@ public:
 
     UbseCliRegBuilder& UbseCliSetType(const std::string& type);
 
-    UbseCliRegBuilder& UbseCliAddOption(const std::string& short_opt, const std::string& long_opt,
+    UbseCliRegBuilder& UbseCliAddOption(const std::string& shortOpt, const std::string& longOpt,
                                         const std::string& desc);
+
+    UbseCliRegBuilder& UbseCliAddFlagOption(const std::string& shortOpt, const std::string& longOpt,
+                                            const std::string& desc);
 
     UbseCliRegBuilder& UbseCliSetFunc(UbseCliCommandFunc func);
 

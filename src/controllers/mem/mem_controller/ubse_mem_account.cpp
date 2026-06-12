@@ -67,6 +67,10 @@ static void AssignNumaInfo(const std::unordered_map<std::string, ubse::nodeContr
             tmpNumaInfo.freeMemSize = singleNumaInfo.freeSize * NO_1024;
             tmpNumaInfo.nrHugePages = singleNumaInfo.nr_hugepages_2M;
             tmpNumaInfo.freeHugePages = singleNumaInfo.free_hugepages_2M;
+            tmpNumaInfo.nrHugePages512M = singleNumaInfo.nr_hugepages_512M;
+            tmpNumaInfo.freeHugePages512M = singleNumaInfo.free_hugepages_512M;
+            tmpNumaInfo.nrHugePages1G = singleNumaInfo.nr_hugepages_1G;
+            tmpNumaInfo.freeHugePages1G = singleNumaInfo.free_hugepages_1G;
             tmpNumaInfo.timeStamp = singleNumaInfo.timestamp;
             tmpNumaInfo.ratio = nodeInfo.pmdMapping;
             numaInfo.emplace_back(tmpNumaInfo);
@@ -633,6 +637,10 @@ uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo>& numaNodeInfoList)
         numaRes.mMemFree = numa.freeMemSize;
         numaRes.nrHugepages = numa.nrHugePages;
         numaRes.freeHugepages = numa.freeHugePages;
+        numaRes.nrHugepages512M = numa.nrHugePages512M;
+        numaRes.freeHugepages512M = numa.freeHugePages512M;
+        numaRes.nrHugepages1G = numa.nrHugePages1G;
+        numaRes.freeHugepages1G = numa.freeHugePages1G;
         numaRes.mTimestamp = numa.timeStamp;
         uint64_t borrowSize = 0, lendSize = 0;
         if (numaledger.find(numa.nodeId) != numaledger.end() &&
