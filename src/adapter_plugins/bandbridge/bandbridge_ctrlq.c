@@ -128,7 +128,6 @@ int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
         if (bandbridge_ctrlq_rq_is_empty()) {
             msleep(CTRLQ_TX_WAIT_TIME);
             timeout++;
-            bandbridge_log_info("ctrlq rq is empty\n");
             continue;
         }
         rq->ci = reg_read(CTRLQ_RX_HEAD_REG) & CTRLQ_RX_HEAD_MASK;

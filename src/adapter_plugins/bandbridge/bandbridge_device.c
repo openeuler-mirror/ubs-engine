@@ -19,15 +19,22 @@
 
 #include <linux/capability.h>
 #include <linux/cdev.h>
+#include <linux/dcache.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
+#include <linux/mm.h>
+#include <linux/nsproxy.h>
+#include <linux/pid_namespace.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 
 #include "bandbridge_device.h"
+
+#define UBSE_EXEC_PATH "/usr/bin/ubse"
 
 struct bandbridge_ctx {
     dev_t bandbridge_devno;
@@ -39,11 +46,64 @@ struct bandbridge_ctx {
 
 static struct bandbridge_ctx g_bandbridge_ctx = {0};
 
-static int bandbridge_open(struct inode* inode, struct file* filp)
+static int bandbridge_check_permission(void)
 {
     if (!capable(CAP_NET_ADMIN)) {
-        bandbridge_log_err("[bandbridge_open] permission denied.\n");
+        bandbridge_log_err("[bandbridge] CAP_NET_ADMIN check failed.\n");
         return -EPERM;
+    }
+
+    if (strcmp(current->group_leader->comm, "ubse") != 0) {
+        bandbridge_log_err("[bandbridge] process name check failed, comm=%s.\n", current->group_leader->comm);
+        return -EPERM;
+    }
+
+    struct mm_struct* mm = current->group_leader->mm;
+    if (mm == NULL) {
+        bandbridge_log_err("[bandbridge] mm is NULL, kernel thread not allowed.\n");
+        return -EPERM;
+    }
+    if (mm->exe_file == NULL) {
+        bandbridge_log_err("[bandbridge] exe_file is NULL.\n");
+        return -EPERM;
+    }
+    char exe_path[64] = {0};
+    char* path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+    if (path_buf == NULL) {
+        bandbridge_log_err("[bandbridge] kmalloc path_buf failed.\n");
+        return -ENOMEM;
+    }
+    char* resolved = d_path(&mm->exe_file->f_path, path_buf, PATH_MAX);
+    if (IS_ERR_OR_NULL(resolved)) {
+        kfree(path_buf);
+        bandbridge_log_err("[bandbridge] d_path failed.\n");
+        return -EPERM;
+    }
+    if (strscpy(exe_path, resolved, sizeof(exe_path)) < 0) {
+        kfree(path_buf);
+        bandbridge_log_err("[bandbridge] strscpy failed.\n");
+        return -EPERM;
+    }
+    kfree(path_buf);
+    if (strcmp(exe_path, UBSE_EXEC_PATH) != 0) {
+        bandbridge_log_err("[bandbridge] exec path check failed, path=%s.\n", exe_path);
+        return -EPERM;
+    }
+
+    struct nsproxy* nsp = current->nsproxy;
+    if (nsp == NULL || nsp->pid_ns_for_children != &init_pid_ns) {
+        bandbridge_log_err("[bandbridge] namespace check failed, not in init pid namespace.\n");
+        return -EPERM;
+    }
+
+    return 0;
+}
+
+static int bandbridge_open(struct inode* inode, struct file* filp)
+{
+    int ret = bandbridge_check_permission();
+    if (ret != 0) {
+        return ret;
     }
     int buf_size;
 
@@ -88,10 +148,6 @@ static int bandbridge_open(struct inode* inode, struct file* filp)
 
 static int bandbridge_close(struct inode* inode, struct file* filp)
 {
-    if (!capable(CAP_NET_ADMIN)) {
-        bandbridge_log_err("[bandbridge_close] permission denied.\n");
-        return -EPERM;
-    }
     struct bandbridge_mbuf* mbuf = filp->private_data;
     if (mbuf) {
         if (mbuf->sendbuf) {
@@ -107,9 +163,9 @@ static int bandbridge_close(struct inode* inode, struct file* filp)
 
 static long bandbridge_send_request(struct bandbridge_mbuf* mbuf, void __user* arg)
 {
-    if (!capable(CAP_NET_ADMIN)) {
-        bandbridge_log_err("[bandbridge_send_request] permission denied.\n");
-        return -EPERM;
+    int perm_ret = bandbridge_check_permission();
+    if (perm_ret != 0) {
+        return perm_ret;
     }
     struct bandbridge_mbuf tmpbuf;
     int ret;
@@ -163,10 +219,6 @@ static long bandbridge_send_request(struct bandbridge_mbuf* mbuf, void __user* a
 
 static long bandbridge_ioctl(struct file* filp, unsigned int cmd, unsigned long arg)
 {
-    if (!capable(CAP_NET_ADMIN)) {
-        bandbridge_log_err("[bandbridge_ioctl] permission denied.\n");
-        return -EPERM;
-    }
     struct bandbridge_mbuf* mbuf = filp->private_data;
 
     switch (cmd) {
