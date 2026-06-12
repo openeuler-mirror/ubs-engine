@@ -71,4 +71,12 @@ TEST_F(TestUbseRasOomHandler, TestInitOomWaitTime)
     int16_t numaId = 1;
     EXPECT_NO_THROW(InitOomWaitTime());
 }
+
+// InitOomWaitTime: GetFileValue 失败时，应返回默认值 100
+TEST_F(TestUbseRasOomHandler, InitOomWaitTimeDefaultWhenGetFileValueFail)
+{
+    MOCKER(GetFileValue).stubs().will(returnValue(UBSE_ERROR));
+    uint64_t result = InitOomWaitTime();
+    ASSERT_EQ(result, 100u); // 默认等待时间 100ms
+}
 } // namespace ubse::ras::ut

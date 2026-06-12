@@ -285,6 +285,8 @@ uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqD
     if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
         std::string masterNode = GetMasterNodeId();
         if (masterNode.empty()) {
+            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                        ", service_ID=" + std::to_string(endpoint.serviceId));
             UBSE_LOG_ERROR << "Can't get ubse master node id";
             return UBSE_ERROR_INVAL;
         }

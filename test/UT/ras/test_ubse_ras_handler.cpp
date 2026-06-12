@@ -620,7 +620,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenGetStandbyInfoFailed)
 {
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
-    g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenGetStandbyInfoFailed");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_ERROR));
     auto ret = SendSwitchRoleToStandby(info, "SendSwitchRoleToStandbyWhenGetStandbyInfoFailed");
     ASSERT_EQ(ret, UBSE_ERROR);
@@ -630,7 +629,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenGetModuleFailed)
 {
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
-    g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenGetModuleFailed");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseComModule>)
         .stubs()
@@ -643,7 +641,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenRpcSendFailed)
 {
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
-    g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenRpcSendFailed");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
@@ -661,7 +658,6 @@ TEST_F(TestUbseRasHandler, SendSwitchRoleToStandbyWhenSuccess)
 {
     UbseRoleInfo info;
     info.nodeRole = ELECTION_ROLE_MASTER;
-    g_MSG_ID_MAP[ALARM_REBOOT_EVENT].erase("SendSwitchRoleToStandbyWhenSuccess");
     MOCKER_CPP(UbseGetStandbyInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
         .stubs()
@@ -786,5 +782,149 @@ TEST_F(TestUbseRasHandler, IsOnlyOneNodeInClusterSuccess)
     MOCKER(&UbseElectionModule::UbseGetAllNodes).stubs().will(invoke(MockOnlyOneNodeUbseGetAllNodes));
     MOCKER(&UbseElectionModule::GetCurrentNode).stubs().will(invoke(MockOnlyOneNodeGetCurrentNode));
     ASSERT_TRUE(IsOnlyOneNodeInCluster());
+}
+// ==================== IsHandlerDone 测试 ====================
+
+// IsHandlerDone: msg 不在 map 中，应返回 false
+TEST_F(TestUbseRasHandler, IsHandlerDoneWhenMsgNotFound)
+{
+    ASSERT_FALSE(IsHandlerDone("isdone_nonexist", "handler1"));
+}
+
+// IsHandlerDone: handler 不在 msg 下，应返回 false
+TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerNotFound)
+{
+    SetHandlerResult("isdone_msg1", "handler1", UBSE_OK);
+    ASSERT_FALSE(IsHandlerDone("isdone_msg1", "handler2")); // handler2 不存在
+}
+
+// IsHandlerDone: handler 结果为 UBSE_OK，应返回 true
+TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerOk)
+{
+    SetHandlerResult("isdone_ok", "handler1", UBSE_OK);
+    ASSERT_TRUE(IsHandlerDone("isdone_ok", "handler1"));
+}
+
+// IsHandlerDone: handler 结果为非 UBSE_OK，应返回 false
+TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerFailed)
+{
+    SetHandlerResult("isdone_fail", "handler1", UBSE_ERROR);
+    ASSERT_FALSE(IsHandlerDone("isdone_fail", "handler1"));
+}
+
+// ==================== SetHandlerResult 测试 ====================
+
+// SetHandlerResult: 设置新 handler 结果，可通过 GetResultFromHandlersByMsg 获取
+TEST_F(TestUbseRasHandler, SetHandlerResultNewEntry)
+{
+    SetHandlerResult("set_result_new", "handler1", UBSE_OK);
+    ASSERT_EQ(GetResultFromHandlersByMsg("set_result_new"), UBSE_OK);
+}
+
+// SetHandlerResult: 覆盖已有 handler 结果
+TEST_F(TestUbseRasHandler, SetHandlerResultOverwrite)
+{
+    SetHandlerResult("set_result_overwrite", "handler1", UBSE_ERROR);
+    ASSERT_EQ(GetResultFromHandlersByMsg("set_result_overwrite"), UBSE_ERROR);
+    SetHandlerResult("set_result_overwrite", "handler1", UBSE_OK); // 覆盖为 OK
+    ASSERT_EQ(GetResultFromHandlersByMsg("set_result_overwrite"), UBSE_OK);
+}
+
+// ==================== GetResultFromHandlersByMsg 测试 ====================
+
+// GetResultFromHandlersByMsg: msg 不在 map 中，应返回 UBSE_OK
+TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgWhenMsgNotFound)
+{
+    ASSERT_EQ(GetResultFromHandlersByMsg("get_result_nonexist"), UBSE_OK);
+}
+
+// GetResultFromHandlersByMsg: 所有 handler 都返回 OK，应返回 UBSE_OK
+TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgAllOk)
+{
+    SetHandlerResult("get_result_all_ok", "handler1", UBSE_OK);
+    SetHandlerResult("get_result_all_ok", "handler2", UBSE_OK);
+    ASSERT_EQ(GetResultFromHandlersByMsg("get_result_all_ok"), UBSE_OK);
+}
+
+// GetResultFromHandlersByMsg: 存在一个失败的 handler，应返回其错误码
+TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgHasError)
+{
+    SetHandlerResult("get_result_has_err", "handler1", UBSE_OK);
+    SetHandlerResult("get_result_has_err", "handler2", UBSE_ERROR_INVAL);
+    ASSERT_EQ(GetResultFromHandlersByMsg("get_result_has_err"), UBSE_ERROR_INVAL);
+}
+
+// GetResultFromHandlersByMsg: 多个 handler 失败，返回第一个非 OK 的错误码
+TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgFirstError)
+{
+    SetHandlerResult("get_result_first_err", "handler1", UBSE_ERROR_NULLPTR);
+    SetHandlerResult("get_result_first_err", "handler2", UBSE_ERROR_INVAL);
+    // 由于 unordered_map 迭代顺序不确定，检查结果是非 OK 即可
+    auto result = GetResultFromHandlersByMsg("get_result_first_err");
+    ASSERT_NE(result, UBSE_OK);
+}
+
+// ==================== ClearAllHandlerResults 测试 ====================
+
+// ClearAllHandlerResults: 清除空 map，无异常
+TEST_F(TestUbseRasHandler, ClearAllHandlerResultsEmpty)
+{
+    EXPECT_NO_THROW(ClearAllHandlerResults());
+}
+
+// ClearAllHandlerResults: 清除非空 map，清除后查询应返回 UBSE_OK
+TEST_F(TestUbseRasHandler, ClearAllHandlerResultsNonEmpty)
+{
+    SetHandlerResult("clear_nonempty_1", "handler1", UBSE_ERROR);
+    SetHandlerResult("clear_nonempty_2", "handler1", UBSE_ERROR);
+    ClearAllHandlerResults();
+    ASSERT_EQ(GetResultFromHandlersByMsg("clear_nonempty_1"), UBSE_OK);
+    ASSERT_EQ(GetResultFromHandlersByMsg("clear_nonempty_2"), UBSE_OK);
+    ASSERT_FALSE(IsHandlerDone("clear_nonempty_1", "handler1"));
+}
+
+// ==================== ExecuteFaultHandler 集成测试 ====================
+
+// ExecuteFaultHandler: handler 已完成（IsHandlerDone 返回 true），跳过重复执行
+TEST_F(TestUbseRasHandler, ExecuteFaultHandlerSkipDoneHandler)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
+    std::string faultInfo = "1";
+    handler.faultHandlerMap.clear();
+    int callCount = 0;
+    AlarmFaultHandler func = [&callCount](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
+        callCount++;
+        return UBSE_OK;
+    };
+    handler.faultHandlerMap[type][AlarmHandlerPriority::HIGH].emplace_back("test_handler", func);
+    std::string msgId = "integration_msg";
+
+    // 预置 handler 为已完成状态
+    SetHandlerResult(msgId, "test_handler", UBSE_OK);
+
+    auto res = handler.ExecuteFaultHandler(type, faultInfo, msgId);
+    ASSERT_EQ(res, UBSE_OK);
+    ASSERT_EQ(callCount, 0); // 已完成的 handler 不应被再次调用
+}
+
+// ExecuteFaultHandler: handler 未完成，应正常执行并记录结果
+TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWithResultCaching)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
+    std::string faultInfo = "1";
+    handler.faultHandlerMap.clear();
+    AlarmFaultHandler func = [](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
+        return UBSE_ERROR_INVAL;
+    };
+    handler.faultHandlerMap[type][AlarmHandlerPriority::HIGH].emplace_back("test_handler", func);
+    std::string msgId = "integration_msg2";
+
+    auto res = handler.ExecuteFaultHandler(type, faultInfo, msgId);
+    // handler 返回了 UBSE_ERROR_INVAL，ExecuteFaultHandler 应传播此错误
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+    // handler 返回错误，所以 IsHandlerDone 应返回 false（只有 UBSE_OK 才算 done）
+    ASSERT_FALSE(IsHandlerDone(msgId, "test_handler"));
 }
 } // namespace ubse::ras::ut

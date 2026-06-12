@@ -14,6 +14,7 @@
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
+#include "ubse_ras_com_handler.cpp"
 
 namespace ubse::ras::ut {
 using namespace mem::strategy;
@@ -156,5 +157,51 @@ TEST_F(TestUbseRasComHandler, CheckCommonParamWhenInvalidArgs)
     messageValue["nid"] = std::vector<int>(20);
     ret = CheckCommonParam(messageValue, "test event message");
     ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+// UpdateNodeBmcFaultMsgId: 新的 nodeId 和 msgId 组合，应返回 true
+TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdNewEntry)
+{
+    bool isNew = UpdateNodeBmcFaultMsgId("ut_new_node", "ut_new_msg");
+    ASSERT_TRUE(isNew);
+}
+
+// UpdateNodeBmcFaultMsgId: 相同的 nodeId 和 msgId 重复调用，应返回 false（去重）
+TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdDuplicateEntry)
+{
+    UpdateNodeBmcFaultMsgId("ut_dup_node", "ut_dup_msg");              // 第一次写入
+    bool isNew = UpdateNodeBmcFaultMsgId("ut_dup_node", "ut_dup_msg"); // 重复
+    ASSERT_FALSE(isNew);
+}
+
+// UpdateNodeBmcFaultMsgId: 相同 nodeId 但不同 msgId，应返回 true（更新）
+TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdUpdateEntry)
+{
+    UpdateNodeBmcFaultMsgId("ut_upd_node", "ut_upd_msg1");              // 写入旧 msgId
+    bool isNew = UpdateNodeBmcFaultMsgId("ut_upd_node", "ut_upd_msg2"); // 新 msgId
+    ASSERT_TRUE(isNew);
+}
+
+// UpdateNodeBmcFaultMsgId: 不同 nodeId，应返回 true（独立条目）
+TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdDifferentNode)
+{
+    UpdateNodeBmcFaultMsgId("ut_diff_a", "ut_diff_msg");
+    bool isNew = UpdateNodeBmcFaultMsgId("ut_diff_b", "ut_diff_msg"); // 不同 nodeId，相同 msgId
+    ASSERT_TRUE(isNew);
+}
+
+// UpdateNodeBmcFaultMsgId: 多节点独立记录，各自去重
+TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdMultiNodeDedup)
+{
+    // node A 写入 msg-1
+    ASSERT_TRUE(UpdateNodeBmcFaultMsgId("ut_multi_a", "ut_multi_1"));
+    // node A 重复 msg-1 -> false
+    ASSERT_FALSE(UpdateNodeBmcFaultMsgId("ut_multi_a", "ut_multi_1"));
+    // node B 写入 msg-1 -> true（独立记录）
+    ASSERT_TRUE(UpdateNodeBmcFaultMsgId("ut_multi_b", "ut_multi_1"));
+    // node A 更新为 msg-2 -> true
+    ASSERT_TRUE(UpdateNodeBmcFaultMsgId("ut_multi_a", "ut_multi_2"));
+    // node B 重复 msg-1 -> false
+    ASSERT_FALSE(UpdateNodeBmcFaultMsgId("ut_multi_b", "ut_multi_1"));
 }
 } // namespace ubse::ras::ut
