@@ -50,6 +50,7 @@ const uint32_t LOCAL_HANDLER_RETRY_DURATION = 2;
 const uint32_t IPV4_LENGTH = 4;
 const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
+constexpr size_t MAX_IP_ADDR_NUM = 1024;
 
 /**
  * 从 LCNE 模块获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
@@ -351,6 +352,7 @@ uint32_t UbseNodeController::RegLocalStateNotifyHandler(const UbseLocalStateNoti
     localNotifyHandlers.push_back(handler);
     return UBSE_OK;
 }
+
 // 注册中心侧节点状态变更回调
 uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterStateNotifyHandler& handler)
 {
@@ -642,9 +644,11 @@ void UbseNodeController::UpdateNodeInfoLocalState(UbseNodeLocalState state)
         return;
     }
     nodeInfos[currentNodeId].localState = state;
+    auto nodeInfo = nodeInfos[currentNodeId];
+    auto handlers = localNotifyHandlers;
     rwMutex.unlock();
     // local 状态的变更，restore需要重试直到平滑成功;
-    ExecLocalStateHandler(nodeInfos[currentNodeId], localNotifyHandlers);
+    ExecLocalStateHandler(nodeInfo, handlers);
     UBSE_LOG_INFO << "local node update local state to " << static_cast<uint32_t>(state);
 }
 
@@ -1044,6 +1048,11 @@ UbseResult ParseIpList(UbseDeSerialization& inStream, UbseNodeInfo& info)
         UBSE_LOG_ERROR << "Ubse deserialize itemNum failed";
         return UBSE_ERROR;
     }
+    if (itemNum > MAX_IP_ADDR_NUM) {
+        UBSE_LOG_ERROR << "Ubse deserialize ip addr num exceed limit, itemNum=" << itemNum;
+        return UBSE_ERROR_INVAL;
+    }
+
     UbseResult ret = UBSE_OK;
     std::vector<UbseIpAddr> ipAddrVec{};
     for (size_t i = 0; i < itemNum; i++) {

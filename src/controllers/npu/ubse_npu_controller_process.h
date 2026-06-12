@@ -64,7 +64,7 @@ private:
         } else {
             nicRes->SetBusInstanceGuid(busi->GetGuid());
         }
-    };
+    }
 };
 
 } // namespace ubse::npu::controller

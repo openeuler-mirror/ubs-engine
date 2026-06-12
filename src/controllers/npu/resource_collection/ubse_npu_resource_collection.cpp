@@ -1066,8 +1066,13 @@ std::vector<std::string> ResourceCollection::SplitLines(std::string result)
 
 std::vector<std::string> ResourceCollection::SplitFields(std::vector<std::string> lines)
 {
-    std::string firstLine = lines[0];
     std::vector<std::string> fields;
+    if (lines.empty()) {
+        UBSE_LOG_ERROR << "lines is empty";
+        return fields;
+    }
+
+    std::string firstLine = lines[0];
     size_t start = 0;
     size_t end = firstLine.find(' ');
     while (end != std::string::npos) {
