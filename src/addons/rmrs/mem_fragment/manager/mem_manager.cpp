@@ -2987,14 +2987,7 @@ uint32_t PidSmapEnableCompletedInit(UbseByteBuffer& buffer)
     if (!pids.empty()) {
         LOG_DEBUG << "[PluginInit][PidSmapEnableCompleted] pids.size=" << pids.size()
                   << ", Start to execute SmapEnable for each pid.";
-        auto retSmap = SmapEnablePidsProcess(pids);
-        if (retSmap != MEM_POOLING_OK) {
-            LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess failed.";
-        } else {
-            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[PluginInit][PidSmapEnableCompleted] SmapEnablePidProcess success, Start to remove these pids.";
-            PidSmapEnableCompleted::Instance().Remove(pids);
-        }
+        SmapEnablePidsProcessOneByOne(pids);
     }
 
     return MEM_POOLING_OK;

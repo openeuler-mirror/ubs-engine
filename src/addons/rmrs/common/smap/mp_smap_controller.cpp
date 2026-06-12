@@ -93,4 +93,40 @@ uint32_t SmapEnablePidsProcess(std::vector<pid_t> pids)
     return MEM_POOLING_OK;
 }
 
+void SmapEnablePidsProcessOneByOne(std::vector<pid_t> pids)
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapEnablePids] SmapEnablePidProcess start.";
+    std::string pidStr;
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0)
+            pidStr += ", ";
+        pidStr += std::to_string(pids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[SmapEnablePids] SmapEnablePidProcess pids=[" << pidStr << "].";
+
+    int successCount = 0;
+    for (auto pid : pids) {
+        std::vector<pid_t> singlePid = {pid};
+        int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(singlePid.data(), singlePid.size(), SMAP_PIDS_ENABLE,
+                                                                   SMAP_MIGRATE_FLAGS);
+        if (retSmap != SMAP_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapEnablePids] SmapEnablePidProcess failed, pid=" << pid << ", ret=" << retSmap << ".";
+        } else {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[SmapEnablePids] SmapEnablePidProcess success, pid=" << pid << ".";
+            successCount++;
+            PidSmapEnableCompleted::Instance().Remove(singlePid);
+        }
+    }
+
+    if (successCount != pids.size()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[SmapEnablePids] SmapEnablePidProcess failed, successCount=" << successCount
+            << ", pids.size()=" << pids.size() << ".";
+    }
+    return;
+}
+
 } // namespace mempooling::smap

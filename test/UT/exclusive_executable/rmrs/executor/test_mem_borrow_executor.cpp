@@ -585,6 +585,8 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_En
 
     MOCKER_CPP(SmapMigrateBackProcess, uint32_t(*)(MigrateBackMsg)).stubs().will(returnValue(MEM_POOLING_OK));
 
+    MOCKER_CPP(&MpSmapHelper::GetLocalSmapBackResult, MpResult(*)(uint64_t)).stubs().will(returnValue(MEM_POOLING_OK));
+
     MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsByMemfabric, MpResult(*)(const std::string&, const std::string&, bool))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));

@@ -423,8 +423,10 @@ static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector
         if (MpSmapHelper::SmapMigrateBackSync(msg) != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
-            SmapEnableNumaProcess(enableMsg);
-            DeletePersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
+            if (SmapEnableNumaProcess(enableMsg) == MEM_POOLING_OK) {
+                DeletePersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
+            }
+
             return MEM_POOLING_ERROR;
         }
     }
@@ -439,8 +441,9 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
     std::string importNodeId;
     auto retSmap = GenerateSmapParamsForProcessMem(deleteName, migrateBackMsgs, enableMsg, importNodeId, isFault);
     if (retSmap != MEM_POOLING_OK || migrateBackMsgs.empty()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] GenerateParams failed.";
-        return retSmap;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeExecute] GenerateParams failed, ret=" << retSmap << ".";
+        return MEM_POOLING_ERROR;
     }
     if (UpdateSmapRemoteNumaInfoBeforeMigrateBack(name, deleteName, isFault) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -497,11 +500,12 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const 
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
             retSmap = SmapEnableNumaProcess(enableMsg);
-            // 迁回失败并对远端numa进行了enable，把持久化数据删掉
-            DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
             if (retSmap != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
+            } else {
+                // 迁回失败并对远端numa进行了enable，把持久化数据删掉
+                DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsg.payload[0].srcNid));
             }
             return MEM_POOLING_ERROR;
         }
@@ -517,11 +521,12 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const 
     }
 
     retSmap = SmapEnableNumaProcess(enableMsg);
-    // 归还成功并对远端numa进行了enable，把持久化数据删掉
-    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;
+    } else {
+        // 归还成功并对远端numa进行了enable，把持久化数据删掉
+        DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgList[0].payload[0].srcNid));
     }
 
     return retMemFreeByUbse;

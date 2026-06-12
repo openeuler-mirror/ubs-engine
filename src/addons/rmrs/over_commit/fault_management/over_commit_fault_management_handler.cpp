@@ -218,6 +218,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "SmapEnableProcessMigrateHelper successed, enable=" << 0 << ".";
+        PidSmapEnableCompleted::Instance().Update(pids);
         resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
         resp.data = new (std::nothrow) uint8_t[resp.len]{};
         if (resp.data == nullptr) {
@@ -259,6 +260,7 @@ uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(c
     builder >> pids;
     uint32_t ret;
     int successCount = 0;
+    std::vector<pid_t> successRemovePids;
     for (auto pid : pids) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit][FaultManagement] Enable process migrate, pid=" << pid << ".";
@@ -269,6 +271,7 @@ uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(c
             continue;
         } else {
             successCount++;
+            successRemovePids.push_back(pid);
         }
     }
 
@@ -289,6 +292,7 @@ uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(c
         ret = MEM_POOLING_OK;
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "SmapEnableProcessMigrateHelper succeeded, enable=" << 1 << ".";
+        PidSmapEnableCompleted::Instance().Remove(successRemovePids);
         resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
         resp.data = new (std::nothrow) uint8_t[resp.len]{};
         if (resp.data == nullptr) {
