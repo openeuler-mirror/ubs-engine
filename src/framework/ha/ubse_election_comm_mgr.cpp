@@ -415,7 +415,7 @@ std::vector<UbseUrmaUvsNodeInfo> GenerateUrmaUvsNodeInfo()
 UbseResult PushAndActiveStaticInfoToUvs()
 {
     std::vector<PhysicalLink> allLinkInfo{};
-    UbseResult ret = ubse::nodeMgr::GetClusterPhysicalLinkInfo(allLinkInfo);
+    UbseResult ret = ubse::nodeMgr::GetCurPhysicalLinkInfo(allLinkInfo);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Get cluster physical linkInfo failed, " << FormatRetCode(ret);
         return ret;

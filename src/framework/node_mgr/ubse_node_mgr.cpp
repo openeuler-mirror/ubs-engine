@@ -82,7 +82,7 @@ std::vector<UbseNodeStaticInfo> GetNodesByGroupId(uint16_t groupId)
     return nodesVec;
 }
 
-UbseResult GetClusterPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLinkInfo)
+UbseResult GetCurPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLinkInfo)
 {
     if (UbseSmbios::GetInstance().IsClosType()) {
         return UBSE_OK;
@@ -127,5 +127,10 @@ UbseResult GetClusterPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> 
         }
     }
     return UBSE_OK;
+}
+
+void ApplyUrmaDev()
+{
+    UbseNodeStaticInfoMgr::GetInstance().ApplyUrmaDev();
 }
 }

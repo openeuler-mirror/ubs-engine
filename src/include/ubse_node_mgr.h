@@ -64,10 +64,15 @@ std::vector<std::string> GetRootIpList();
 std::vector<UbseNodeStaticInfo> GetNodesByGroupId(uint16_t groupId);
 
 /**
- * @brief 获取集群物理链路信息
+ * @brief 获取当前节点物理链路信息
  * @param allLinkInfo [out] 物理链路
  * @return
  */
-uint32_t GetClusterPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLinkInfo);
+uint32_t GetCurPhysicalLinkInfo(std::vector<nodeController::PhysicalLink> &allLinkInfo);
+
+/**
+ * @brief urma场景下, 向node mgr申请占用bonding0设备
+ */
+void ApplyUrmaDev();
 } // namespace ubse::nodeDiscovery
 #endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_H

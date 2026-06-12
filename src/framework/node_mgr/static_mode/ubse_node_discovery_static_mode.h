@@ -14,6 +14,7 @@
 #define UBS_ENGINE_UBSE_NODE_DISCOVERY_STATIC_MODE_H
 
 #include "ubse_node_controller.h"
+#include "ubse_node_mgr_def.h"
 
 namespace ubse::nodeMgr {
 using namespace ubse::nodeController;
@@ -33,10 +34,15 @@ public:
 private:
     uint32_t GenerateClusterStaticInfo();
 
+    uint32_t GenerateClosClusterStaticInfo();
+
+    uint32_t GenerateClosStaticInfo(const UbseNodeStaticInfo &currentSuperNode, uint32_t serverIdx,
+                                    UbseNodeStaticInfo &info);
+
     uint32_t podCapability_ = 0;
 
     bool isClos_ = false;
 };
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
 
 #endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_STATIC_MODE_H

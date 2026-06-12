@@ -71,11 +71,16 @@ public:
 
     UbseResult InitCurNodeInfo(UbseNodeStaticInfo &node);
 
+    void ApplyUrmaDev();
+
+    bool IsApplyUrmaDev();
+
 private:
     UbseResult InitClusterMode();
 
     bool isUrma_{true};
     bool isClos_{false};
+    bool isApplyUrmaDev{false}; // clos组网场景-urma场景下是否申请bonding0Eid
     NodeDiscoveryMode mode_{};
     UbseNodeStaticInfo currentNode_{};
     std::vector<std::string> rootIps_{}; // 超节点集群 根节点列表

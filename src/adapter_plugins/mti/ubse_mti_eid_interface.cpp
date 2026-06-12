@@ -109,9 +109,9 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
     uint8_t serverIdxHigh = NO_4;
     uint8_t serverIdxLow = NO_9;
     // 取serverIdx低13bit, 高4bit为part1, 低9bit为part2
-    uint32_t nodeIdLow13 = serverIdx & ((1 << (serverIdxHigh + serverIdxLow)) - 1);
-    uint8_t part2 = nodeIdLow13 & ((1 << serverIdxLow) - 1);                          // bits [0:8]
-    uint8_t part1 = ((nodeIdLow13 >> serverIdxLow) & ((1 << serverIdxHigh) - 1)) + 1; // bits [9:12]
+    uint16_t serverIdLow13 = serverIdx & ((1 << (serverIdxHigh + serverIdxLow)) - 1);
+    uint16_t part2 = serverIdLow13 & ((1 << serverIdxLow) - 1);                          // bits [0:8]
+    uint16_t part1 = ((serverIdLow13 >> serverIdxLow) & ((1 << serverIdxHigh) - 1)) + 1; // bits [9:12]
 
     std::string bitStr;
 

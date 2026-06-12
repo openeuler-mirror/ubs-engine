@@ -222,4 +222,20 @@ UbseResult UbseNodeStaticInfoMgr::InitCurNodeInfo(UbseNodeStaticInfo &node)
     }
     return UBSE_OK;
 }
+
+void UbseNodeStaticInfoMgr::ApplyUrmaDev()
+{
+    std::unique_lock lock(nodeMutex_);
+    if (!isUrma_) {
+        UBSE_LOG_WARN << "not urma, skip apply urma dev.";
+        return;
+    }
+    isApplyUrmaDev = true;
+}
+
+bool UbseNodeStaticInfoMgr::IsApplyUrmaDev()
+{
+    std::shared_lock lock(nodeMutex_);
+    return isApplyUrmaDev;
+}
 } // namespace ubse::nodeDiscovery

@@ -20,8 +20,9 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
-#include "ubse_net_util.h"
 #include "ubse_lcne_module.h"
+#include "ubse_net_util.h"
+#include "ubse_node_mgr.h"
 #include "ubse_node_mgr_module.h"
 
 namespace ubse::election {
@@ -36,6 +37,9 @@ OPTIONAL_MODULE_IMPL(UbseElectionModule, UbseComModule, mti::UbseLcneModule, Ubs
 
 UbseResult UbseElectionModule::Initialize()
 {
+    if (IsUrma()) {
+        ApplyUrmaDev();
+    }
     return UBSE_OK;
 }
 

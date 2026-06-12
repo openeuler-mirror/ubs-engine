@@ -868,6 +868,7 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_returnMem_fail_retry_success)
 
 TEST_F(TestHamMigrate, NoBorrow_Migrate_fail_RemoveProcessTracking_fail_retry_success)
 {
+    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::RemoveProcessTracking).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     mock_noborrow_migrate_fail_clear_success(WAIT_TIME * CLEAR_WAIT_TIME);

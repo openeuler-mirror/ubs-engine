@@ -356,7 +356,7 @@ TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnOk_WhenRemoteIpFound)
 
 TEST_F(TestUbseElectionCommMgr, PushAndActiveStaticInfoToUvs)
 {
-    MOCKER(GetClusterPhysicalLinkInfo)
+    MOCKER(GetCurPhysicalLinkInfo)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
