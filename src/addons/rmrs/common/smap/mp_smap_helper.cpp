@@ -1068,4 +1068,49 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
     return MEM_POOLING_OK;
 }
 
+MpResult MpSmapHelper::SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper start.";
+
+    if (pids.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] No pids to remove.";
+        return MEM_POOLING_OK;
+    }
+
+    const SmapRemoveFunc smapRemoveFunc = SmapModule::GetSmapRemoveFunc();
+    if (smapRemoveFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] smapRemoveFunc is null.";
+        return MEM_POOLING_ERROR;
+    }
+
+    RemoveMsg removeMsg{};
+    if (pids.size() > MAX_NR_REMOVE_MP) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Pids size exceeds limit, size=" << pids.size() << ", max=" << MAX_NR_REMOVE_MP << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    removeMsg.count = static_cast<int>(pids.size());
+    for (size_t i = 0; i < pids.size(); ++i) {
+        RemovePayload tmp{};
+        tmp.pid = pids[i];
+        tmp.count = 1;
+        tmp.nid[0] = remoteNumaId;
+        removeMsg.payload[i] = tmp;
+    }
+
+    int ret = smapRemoveFunc(&removeMsg, static_cast<int>(MpConfiguration::GetInstance().GetMpSceneType()));
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] SmapRemove failed, ret=" << ret << ", removeMsg=" << removeMsg.ToString() << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] Successfully removed " << pids.size() << " pids from remote numa " << remoteNumaId << ".";
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper end.";
+    return MEM_POOLING_OK;
+}
+
 } // namespace mempooling::smap

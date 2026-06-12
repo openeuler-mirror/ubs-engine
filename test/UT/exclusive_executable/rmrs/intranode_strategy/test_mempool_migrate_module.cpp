@@ -789,7 +789,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed)
         .stubs()
         .will(returnValue(false));
     std::vector<VMMigrateOutParam> vmMigrateOutParam;
-    uint64_t waitingTime;
+    uint64_t waitingTime = 1;
     std::vector<std::string> borrowIdList;
     MpResult res = MempoolMigrateExecute::MigrateExecuteImpl(vmMigrateOutParam, waitingTime, borrowIdList);
     EXPECT_EQ(res, MEM_POOLING_ERROR);
