@@ -118,15 +118,11 @@ void BuildVlXml(const std::shared_ptr<UbseXml>& vlXml, const UbseEtsVl& vl)
 {
     AddTextNode(vlXml, "vl-index", std::to_string(vl.vlIndex));
     AddTextNode(vlXml, "priority-group-id", std::to_string(vl.priorityGroupId));
-    AddTextNode(vlXml, "schedule-mode", ScheduleModeToString(vl.scheduleMode));
-    AddTextNode(vlXml, "weight", std::to_string(vl.weight));
 }
 
 void BuildPriorityGroupXml(const std::shared_ptr<UbseXml>& priorityGroupXml, const UbseEtsPriorityGroup& priorityGroup)
 {
     AddTextNode(priorityGroupXml, "priority-group-id", std::to_string(priorityGroup.priorityGroupId));
-    AddTextNode(priorityGroupXml, "schedule-mode", ScheduleModeToString(priorityGroup.scheduleMode));
-    AddTextNode(priorityGroupXml, "weight", std::to_string(priorityGroup.weight));
     AddTextNode(priorityGroupXml, "cir", std::to_string(priorityGroup.cir));
     AddTextNode(priorityGroupXml, "cbs", std::to_string(priorityGroup.cbs));
 }
@@ -187,28 +183,12 @@ UbseResult ParseVlXml(const std::shared_ptr<UbseXml>& vlXml, UbseEtsVl& vl)
     if (ret != UBSE_OK) {
         return ret;
     }
-    ret = ReadChildUint32(vlXml, "priority-group-id", vl.priorityGroupId);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    ret = ReadChildScheduleMode(vlXml, vl.scheduleMode);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    return ReadChildUint32(vlXml, "weight", vl.weight);
+    return ReadChildUint32(vlXml, "priority-group-id", vl.priorityGroupId);
 }
 
 UbseResult ParsePriorityGroupXml(const std::shared_ptr<UbseXml>& priorityGroupXml, UbseEtsPriorityGroup& priorityGroup)
 {
     auto ret = ReadChildUint32(priorityGroupXml, "priority-group-id", priorityGroup.priorityGroupId);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    ret = ReadChildScheduleMode(priorityGroupXml, priorityGroup.scheduleMode);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    ret = ReadChildUint32(priorityGroupXml, "weight", priorityGroup.weight);
     if (ret != UBSE_OK) {
         return ret;
     }
