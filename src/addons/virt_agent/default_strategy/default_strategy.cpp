@@ -399,7 +399,14 @@ StrategyTip DefaultStrategy::CalBorrowMem(AlarmNumaInfo& alarmNumaInfo, GlobalNu
                                           uint64_t& expectedRevenue, std::vector<size_t>& borrowSizes) const
 {
     StrategyTip strategyTip = StrategyTip::NOPE;
-    uint64_t remainMaxBorrowSize = Mul(GetMaxMemBorrow(), numaInfo.numaMemTotal) - numaInfo.numaMemBorrow;
+    uint64_t maxBorrowSize = Mul(GetMaxMemBorrow(), numaInfo.numaMemTotal);
+    maxBorrowSize = Align(maxBorrowSize, memBorrowAlignBytes);
+    if (maxBorrowSize < numaInfo.numaMemBorrow) {
+        strategyTip = StrategyTip::BOR_NOT_ENOUGH_CREDIT;
+        expectedRevenue = 0;
+        return strategyTip;
+    }
+    uint64_t remainMaxBorrowSize = maxBorrowSize - numaInfo.numaMemBorrow;
     uint64_t numaRemoteUsedMemSize = 0;
     MonitorNumaMemoryBorrowing(alarmNumaInfo, numaInfo, borrowSizes, numaRemoteUsedMemSize);
     // Expected borrowed memory size + Current used borrowed memory size > Current total borrowed memory size
