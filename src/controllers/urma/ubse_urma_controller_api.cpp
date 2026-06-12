@@ -212,7 +212,7 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage& req
 {
     std::vector<EtsQosConfig> configs;
     auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosQuery(configs);
-    if (ret != UBSE_OK) {
+    if (ret != UBSE_OK && ret != UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED) {
         UBSE_LOG_ERROR << "UbseUrmaController::UbseUrmaQosGet failed," << FormatRetCode(ret);
         return ret;
     }
@@ -238,9 +238,9 @@ uint32_t UbseUrmaControllerApi::UbseUrmaQosQueryStream(const UbseIpcMessage& req
     }
 
     UbseIpcMessage response = {serializer.GetBuffer(), static_cast<uint32_t>(serializer.GetLength())};
-    ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, response);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbseUrmaQosQueryStream response send failed," << FormatRetCode(ret);
+    auto sendRet = apiServerModule->SendResponse(ret, context.requestId, response);
+    if (sendRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "UbseUrmaQosQueryStream response send failed," << FormatRetCode(sendRet);
         return UBSE_ERROR;
     }
     return UBSE_OK;
