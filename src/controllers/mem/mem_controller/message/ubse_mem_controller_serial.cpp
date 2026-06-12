@@ -968,6 +968,10 @@ bool UbseShmRegionDescDeserialization(UbseDeSerialization& in, UbseShmRegionDesc
         UBSE_LOG_ERROR << "Check failed;";
         return false;
     }
+    if (vectorSize > MAX_NODE_LIST_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
+        return false;
+    }
     for (size_t i = 0; i < vectorSize; i++) {
         UbseNodeInfo nodeInfo;
         if (!UbseNodeInfoDeserialization(in, nodeInfo)) {
@@ -1049,6 +1053,10 @@ inline bool UbseShmRegionDescDeserialize(UbseDeSerialization& in, UbseShmRegionD
         UBSE_LOG_ERROR << "Check failed;";
         return false;
     }
+    if (vectorSize > MAX_NODE_LIST_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
+        return false;
+    }
     for (size_t i = 0; i < vectorSize; i++) {
         UbseNodeInfo nodeInfo;
         if (!UbseNodeInfoDeserialize(in, nodeInfo)) {
@@ -1064,6 +1072,14 @@ inline bool UbseShmProvierDeSerialize(UbseDeSerialization& in, std::vector<std::
 {
     uint64_t vectorSize;
     in >> ubse::serial::array_len_capture(vectorSize);
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    if (vectorSize > MAX_NODE_LIST_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
+        return false;
+    }
     for (auto i = 0; i < vectorSize; i++) {
         std::string nodeId;
         in >> nodeId;
@@ -1689,6 +1705,10 @@ bool UbseMemOperationRespDeserialize(UbseDeSerialization& in, UbseMemOperationRe
     if (!in.Check()) {
         return false;
     }
+    if (vectorSize > MAX_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
+        return false;
+    }
     for (size_t i = 0; i < vectorSize; i++) {
         uint64_t item;
         in >> item;
@@ -1718,6 +1738,10 @@ bool ShareHandleInfoVecDeserialize(UbseDeSerialization& in, def::ShareHandleInfo
     if (!in.Check()) {
         return false;
     }
+    if (vectorSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
+        return false;
+    }
     for (size_t i = 0; i < vectorSize; i++) {
         def::ShareHandleInfo item;
         in >> item.name >> item.memIds >> item.udsInfo.uid >> item.udsInfo.gid >> item.udsInfo.pid >>
@@ -1745,6 +1769,10 @@ bool NumaHandleInfoVecDeserialize(UbseDeSerialization& in, def::NumaHandleInfoVe
     uint64_t vectorSize;
     in >> ubse::serial::array_len_capture(vectorSize);
     if (!in.Check()) {
+        return false;
+    }
+    if (vectorSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid vectorSize during deserialization, size=" << vectorSize;
         return false;
     }
     for (size_t i = 0; i < vectorSize; i++) {

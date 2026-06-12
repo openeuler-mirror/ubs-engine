@@ -13,6 +13,7 @@
 #include "ubse_mem_agent_task_manager.h"
 
 #include <ubse_com_module.h>
+#include <cstdint>
 
 #include "ubse_com_base.h"
 #include "ubse_error.h"

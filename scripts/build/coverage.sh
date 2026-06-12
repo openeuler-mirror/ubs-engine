@@ -68,7 +68,8 @@ function generate_coverage_report() {
     local lcovrc_file="$2"
 
     # Validate required tools
-    local genhtml_path="$(command -v genhtml)" || error_exit "genhtml not found in PATH"
+    local genhtml_path
+    genhtml_path="$(command -v genhtml)" || error_exit "genhtml not found in PATH"
 
     # Create clean output directory
     mkdir -p "${output_dir}"
@@ -93,7 +94,8 @@ function generate_coverage_report() {
 function print_coverage_summary() {
     local info_file="$1"
     local lcovrc_file="$2"
-    local lcov_path="$(command -v lcov)" || error_exit "lcov not found in PATH"
+    local lcov_path
+    lcov_path="$(command -v lcov)" || error_exit "lcov not found in PATH"
 
     echo ""
     echo "=========================================="

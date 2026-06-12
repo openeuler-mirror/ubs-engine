@@ -318,6 +318,9 @@ public:
     static inline void Print(int level, const char* msg)
     {
         const char* color = "\033[0m"; // 还原颜色
+        if (level < LogLevel::TRACE || level >= LogLevel::OFF) {
+            level = LogLevel::INFO;
+        }
         if (level == LogLevel::INFO) {
             color = "\033[32m";
         }
