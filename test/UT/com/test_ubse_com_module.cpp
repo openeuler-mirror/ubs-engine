@@ -14,6 +14,7 @@
 #include "intercom/ubse_inter_com.h"
 #include "ubse_com_module.cpp"
 #include "ubse_lcne_module.h"
+#include "test_ubse_com.h"
 namespace ubse::ut::com {
 const std::string IP = "127.0.0.1";
 const uint16_t PORT = 1901;
@@ -912,5 +913,303 @@ TEST_F(TestUbseComModule, TestGetNodeIdByIp)
     MOCKER(&UbseComBase::GetNodeIdByIp).stubs().will(returnValue(mockNodeId));
     nodeId = ubseComModule.GetNodeIdByIp(ip);
     EXPECT_EQ(mockNodeId, nodeId);
+}
+/*
+* 用例描述：
+* RegRpcService(uint16_t, uint16_t)通过rpcServer注册成功
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空
+* 2.调用RegRpcService
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComModule, RegRpcServiceWithCodesRpcServerSuccess)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseCommunication::RegUbseComMsgHandler).stubs().will(returnValue(UBSE_OK));
+    auto ret = ubseComModule.RegRpcService(1, 2);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+
+* 用例描述：
+* RegRpcService(uint16_t, uint16_t)通过rpcServer注册失败
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空
+* 2.调用RegRpcService，RegUbseComMsgHandler返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComModule, RegRpcServiceWithCodesRpcServerFail)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseCommunication::RegUbseComMsgHandler).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = ubseComModule.RegRpcService(1, 2);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* RegRpcService(uint16_t, uint16_t)通过queueRef注册失败
+* 测试步骤：
+* 1.queueRef_非空，rpcServer_非空
+* 2.调用RegRpcService，queueRef注册失败
+* 预期结果：
+* 1.函数返回queueRef的错误码
+*/
+TEST_F(TestUbseComModule, RegRpcServiceWithCodesQueueRefFail)
+{
+    UbseComModule ubseComModule;
+    ubseComModule.queueRef_ = std::make_shared<UbseInterCom>();
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    auto ret = ubseComModule.RegRpcService(1001, 2);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RegRpcService(uint16_t, uint16_t)queueRef和rpcServer都注册成功
+* 测试步骤：
+* 1.queueRef_非空，rpcServer_非空
+* 2.调用RegRpcService
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComModule, RegRpcServiceWithCodesBothSuccess)
+{
+    UbseComModule ubseComModule;
+    ubseComModule.queueRef_ = std::make_shared<UbseInterCom>();
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseCommunication::RegUbseComMsgHandler).stubs().will(returnValue(UBSE_OK));
+    auto ret = ubseComModule.RegRpcService(1, 2);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcSend(UbseRpcMessage)通过rpcServer发送成功
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空，IsCurrentNode返回false
+* 2.mock EncodeRequestMsg返回非空数据，UbseComMsgSend返回UBSE_OK
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComModule, RpcSendRpcMessageViaRpcServerSuccess)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_OK;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgSend).stubs().will(returnValue(UBSE_OK));
+    auto ret = ubseComModule.RpcSend("Node1", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcSend(UbseRpcMessage)通过rpcServer发送失败
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空，IsCurrentNode返回false
+* 2.调用RpcSend，UbseComMsgSend返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComModule, RpcSendRpcMessageViaRpcServerFail)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_OK;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgSend).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = ubseComModule.RpcSend("Node1", 1, 2, req, resp);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* RpcSend(UbseRpcMessage)通过queueRef发送失败
+* 测试步骤：
+* 1.queueRef_非空，IsCurrentNode返回true
+* 2.调用RpcSend，queueRef内部GetHandler失败（handlerMap_需要RegMessageHandler）
+* 预期结果：
+* 1.函数返回非UBSE_OK
+*/
+TEST_F(TestUbseComModule, RpcSendRpcMessageViaQueueRefFail)
+
+{
+    UbseComModule ubseComModule;
+    ubseComModule.queueRef_ = std::make_shared<UbseInterCom>();
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(true));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_OK;
+    MockUbseRpcMessage resp;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    auto ret = ubseComModule.RpcSend("Node0", 1, 2, req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcAsyncSend(UbseRpcMessage)通过rpcServer发送成功
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空，IsCurrentNode返回false
+* 2.mock EncodeRequestMsg返回非空数据，UbseComMsgAsyncSend返回UBSE_OK
+* 预期结果：
+* 1.函数返回UBSE_OK
+*/
+TEST_F(TestUbseComModule, RpcAsyncSendRpcMessageViaRpcServerSuccess)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_OK;
+    UbseComCallback cb;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgAsyncSend).stubs().will(returnValue(UBSE_OK));
+    auto ret = ubseComModule.RpcAsyncSend("Node1", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcAsyncSend(UbseRpcMessage)通过rpcServer发送失败
+* 测试步骤：
+* 1.rpcServer_非空，queueRef_为空，IsCurrentNode返回false
+* 2.调用RpcAsyncSend，UbseComMsgAsyncSend返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComModule, RpcAsyncSendRpcMessageViaRpcServerFail)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_OK;
+    UbseComCallback cb;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    MOCKER(&UbseCommunication::UbseComMsgAsyncSend).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = ubseComModule.RpcAsyncSend("Node1", 1, 2, req, cb);
+    EXPECT_EQ(UBSE_ERROR, ret);
+}
+
+/*
+* 用例描述：
+* RpcAsyncSend(UbseRpcMessage)通过queueRef发送失败
+* 测试步骤：
+* 1.queueRef_非空，IsCurrentNode返回true
+* 2.调用RpcAsyncSend,缺少注册等步骤
+* 预期结果：
+* 1.函数返回非UBSE_OK（queueRef内部处理）
+*/
+TEST_F(TestUbseComModule, RpcAsyncSendRpcMessageViaQueueRefFail)
+{
+    UbseComModule ubseComModule;
+    ubseComModule.queueRef_ = std::make_shared<UbseInterCom>();
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(true));
+    MockUbseRpcMessage req;
+    UbseComCallback cb;
+    req.serializeRet = UBSE_OK;
+    std::vector<uint8_t> mockBuffer(sizeof(UbseComMessageHead) + 4, 0);
+    MOCKER(EncodeRequestMsg).stubs().will(returnValue(std::make_shared<std::vector<uint8_t>>(mockBuffer)));
+    auto ret = ubseComModule.RpcAsyncSend("Node0", 1, 2, req, cb);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcSend(UbseRpcMessage)序列化失败
+* 测试步骤：
+* 1.rpcServer_非空，IsCurrentNode返回false
+* 2.调用RpcSend，request.Serialize返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComModule, RpcSendRpcMessageSerializeFail)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    MockUbseRpcMessage resp;
+    auto ret = ubseComModule.RpcSend("Node1", 1, 2, req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+/*
+* 用例描述：
+* RpcAsyncSend(UbseRpcMessage)序列化失败
+* 测试步骤：
+* 1.rpcServer_非空，IsCurrentNode返回false
+* 2.调用RpcAsyncSend，request.Serialize返回失败
+* 预期结果：
+* 1.函数返回UBSE_ERROR
+*/
+TEST_F(TestUbseComModule, RpcAsyncSendRpcMessageSerializeFail)
+{
+    UbseComModule ubseComModule;
+    std::string ip = "127.0.0.1";
+    uint16_t port = 5000;
+    std::string nodeId = "1";
+    std::string name = "RpcServer";
+    ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
+    MOCKER(&UbseComModule::IsCurrentNode).stubs().will(returnValue(false));
+    MockUbseRpcMessage req;
+    req.serializeRet = UBSE_ERROR;
+    UbseComCallback cb;
+    auto ret = ubseComModule.RpcAsyncSend("Node1", 1, 2, req, cb);
+    EXPECT_NE(UBSE_OK, ret);
 }
 } // namespace ubse::ut::com
