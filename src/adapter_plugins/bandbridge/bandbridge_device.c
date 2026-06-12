@@ -158,62 +158,86 @@ static int bandbridge_close(struct inode* inode, struct file* filp)
         }
         kfree(mbuf);
     }
+    filp->private_data = NULL;
+    return 0;
+}
+
+static int bandbridge_validate_user_buf(struct bandbridge_mbuf* tmpbuf)
+{
+    int sq_alloc_size = bandbridge_ctrlq_get_sq_size();
+
+    if (tmpbuf->sendbuf_size <= 0 || tmpbuf->sendbuf_size > sq_alloc_size) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d.\n", tmpbuf->sendbuf_size,
+                           sq_alloc_size);
+        return -EINVAL;
+    }
+
+    int ret = bandbridge_ctrlq_check_sq_enough(tmpbuf->sendbuf_size);
+    if (ret != 0) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sq is not enough.\n");
+        return -ENOSPC;
+    }
+    return 0;
+}
+
+static int bandbridge_do_send_recv(struct bandbridge_mbuf* mbuf, struct bandbridge_mbuf* tmpbuf)
+{
+    mutex_lock(&g_bandbridge_ctx.bandbridge_lock);
+    if (copy_from_user(mbuf->sendbuf, tmpbuf->sendbuf, tmpbuf->sendbuf_size)) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] copy sendbuf from user failed.\n");
+        return -EFAULT;
+    }
+    mbuf->sendbuf_size = tmpbuf->sendbuf_size;
+    mbuf->recvbuf_size = tmpbuf->recvbuf_size;
+    bandbridge_ctrlq_send_to_sq(mbuf->sendbuf, mbuf->sendbuf_size);
+
+    struct bandbridge_ctrlq_msg_header* head = (struct bandbridge_ctrlq_msg_header*)mbuf->sendbuf;
+    u16 sseq = le16_to_cpu(head->seq);
+    int ret = bandbridge_ctrlq_receive_from_rq(mbuf->recvbuf, &mbuf->recvbuf_size, sseq);
+    if (ret != 0) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] recv response from rq failed.\n");
+        return ret;
+    }
+
+    if (copy_to_user(tmpbuf->recvbuf, mbuf->recvbuf, mbuf->recvbuf_size)) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] copy recvbuf to user failed.\n");
+        return -EFAULT;
+    }
+    tmpbuf->recvbuf_size = mbuf->recvbuf_size;
+    mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
     return 0;
 }
 
 static long bandbridge_send_request(struct bandbridge_mbuf* mbuf, void __user* arg)
 {
-    int perm_ret = bandbridge_check_permission();
-    if (perm_ret != 0) {
-        return perm_ret;
-    }
-    struct bandbridge_mbuf tmpbuf;
-    int ret;
-    struct bandbridge_ctrlq_msg_header* head;
-    u16 sseq;
-
-    if (copy_from_user(&tmpbuf, arg, sizeof(tmpbuf))) {
-        bandbridge_log_err("[bandbridge_send_request] copy from user failed 1.\n");
-        return -EFAULT;
-    }
-
-    ret = bandbridge_ctrlq_check_sq_enough(tmpbuf.sendbuf_size);
+    int ret = bandbridge_check_permission();
     if (ret != 0) {
-        bandbridge_log_err("[bandbridge_send_request] sq is not enough.\n");
-        return -ENOSPC;
-    }
-    mutex_lock(&g_bandbridge_ctx.bandbridge_lock);
-    if (copy_from_user(mbuf->sendbuf, tmpbuf.sendbuf, tmpbuf.sendbuf_size)) {
-        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
-        bandbridge_log_err("[bandbridge_send_request] copy from user failed 2.\n");
-        return -EFAULT;
-    }
-    mbuf->sendbuf_size = tmpbuf.sendbuf_size;
-    mbuf->recvbuf_size = tmpbuf.recvbuf_size;
-    bandbridge_ctrlq_send_to_sq(mbuf->sendbuf, mbuf->sendbuf_size);
-
-    head = (struct bandbridge_ctrlq_msg_header*)mbuf->sendbuf;
-    sseq = le16_to_cpu(head->seq);
-    ret = bandbridge_ctrlq_receive_from_rq(mbuf->recvbuf, &mbuf->recvbuf_size, sseq);
-    if (ret != 0) {
-        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
-        bandbridge_log_err("[bandbridge_send_request] recv response from rq failed.\n");
         return ret;
     }
 
-    if (copy_to_user(tmpbuf.recvbuf, mbuf->recvbuf, mbuf->recvbuf_size)) {
-        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
-        bandbridge_log_err("[bandbridge_send_request] copy to user failed 3.\n");
+    struct bandbridge_mbuf tmpbuf;
+    if (copy_from_user(&tmpbuf, arg, sizeof(tmpbuf))) {
+        bandbridge_log_err("[bandbridge_send_request] copy mbuf from user failed.\n");
         return -EFAULT;
     }
-    tmpbuf.recvbuf_size = mbuf->recvbuf_size;
-    mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+
+    ret = bandbridge_validate_user_buf(&tmpbuf);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = bandbridge_do_send_recv(mbuf, &tmpbuf);
+    if (ret != 0) {
+        return ret;
+    }
 
     if (copy_to_user(arg, &tmpbuf, sizeof(tmpbuf))) {
-        bandbridge_log_err("[bandbridge_send_request] copy to user failed 4.\n");
+        bandbridge_log_err("[bandbridge_send_request] copy mbuf to user failed.\n");
         return -EFAULT;
     }
-
     return 0;
 }
 
