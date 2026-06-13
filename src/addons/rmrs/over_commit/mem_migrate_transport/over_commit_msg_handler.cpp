@@ -18,6 +18,7 @@
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
+#include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "numa_info.h"
 #include "over_commit_fault_management_handler.h"
@@ -29,7 +30,6 @@
 #include "smap_remote_process_query_trans_msg.h"
 #include "smap_remove_trans_msg.h"
 #include "vm_mem_migrate_strategy.h"
-#include "mp_smap_controller.h"
 
 namespace mempooling::over_commit {
 using namespace ubse::log;
@@ -161,13 +161,15 @@ void OverCommitMsgHandler::CheckAndExecuteSmapEnable()
         return;
     }
     if (smapEnableCompletedList.empty()) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] smapEnableCompletedList is empty, no need to execute SmapEnable.";
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] smapEnableCompletedList is empty, no need to execute SmapEnable.";
         return;
     }
 
     // 执行smapEnable
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit][SmapEnableCompleted] smapEnableCompletedList.size=" << smapEnableCompletedList.size()
-                << ", Start to execute SmapEnable.";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] smapEnableCompletedList.size=" << smapEnableCompletedList.size()
+        << ", Start to execute SmapEnable.";
     int successCount = 0;
     for (auto& numaId : smapEnableCompletedList) {
         EnableNodeMsg enableMsg;
@@ -175,18 +177,23 @@ void OverCommitMsgHandler::CheckAndExecuteSmapEnable()
         enableMsg.enable = SMAP_ENABLE_NUMA;
         ret = SmapEnableNumaProcess(enableMsg);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId << ".";
             continue;
         }
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId << ", Start to Remove this numaId.";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId
+            << ", Start to Remove this numaId.";
         ret = SmapEnableCompleted::Instance().Remove(numaId);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit][SmapEnableCompleted] Remove failed, numaId = " << numaId << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] Remove failed, numaId = " << numaId << ".";
             continue;
         }
         successCount++;
     }
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess finished, totalCount = "
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess finished, totalCount = "
         << smapEnableCompletedList.size() << ", successCount = " << successCount << ".";
 }
 
@@ -201,31 +208,38 @@ void OverCommitMsgHandler::CheckAndExecuteRemovePid()
         return;
     }
     if (removePidCompletedList.empty()) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] removePidCompletedList is empty, no need to execute RemovePids.";
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] removePidCompletedList is empty, no need to execute RemovePids.";
         return;
     }
 
     // 执行removePids
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] removePidCompletedList.size = " << removePidCompletedList.size() << ".";
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] removePidCompletedList.size = " << removePidCompletedList.size() << ".";
     int successCount = 0;
     for (const auto& [numaId, pids] : removePidCompletedList) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to RemovePids, numaId = " << numaId << ", pids.size = " << pids.size() << ".";
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] Start to RemovePids, numaId = " << numaId << ", pids.size = " << pids.size() << ".";
         std::vector<pid_t> pidsVec(pids.begin(), pids.end());
         ret = RemoveLocalHandler(numaId, pidsVec);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to RemovePids, numaId = " << numaId << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePids, numaId = " << numaId << ".";
             continue;
         }
         ret = RemovePidCompleted::Instance().Remove(numaId, pidsVec);
         if (ret != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to RemovePid, numaId = " << numaId << ".";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePid, numaId = " << numaId << ".";
             continue;
         }
         successCount++;
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] RemovePid success, numaId = " << numaId << ".";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] RemovePid success, numaId = " << numaId << ".";
     }
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] CheckAndExecuteRemovePids finished, totalCount = "
-        << removePidCompletedList.size() << ", successCount = " << successCount << ".";
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] CheckAndExecuteRemovePids finished, totalCount = " << removePidCompletedList.size()
+        << ", successCount = " << successCount << ".";
 }
 
 MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)

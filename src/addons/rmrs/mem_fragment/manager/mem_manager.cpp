@@ -2964,7 +2964,8 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
                          << ", ret=" << retSmap << ".";
                 continue;
             } else {
-                LOG_INFO << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId << ".";
+                LOG_INFO << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId
+                         << ".";
                 SmapEnableCompleted::Instance().Remove(numaId);
             }
         }
