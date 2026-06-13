@@ -63,7 +63,7 @@ UbseXmlError UbseXml::Parse()
 
     // 解析字符串
     doc = xmlReadMemory(xmlString.c_str(), static_cast<int>(xmlString.length()), "noname.xml", nullptr,
-                        XML_PARSE_NOBLANKS);
+                        XML_PARSE_NOBLANKS | XML_PARSE_NONET);
     if (!doc) {
         return UbseXmlError::ERROR_XML_PARSE;
     }
