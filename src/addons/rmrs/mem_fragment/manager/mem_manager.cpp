@@ -249,6 +249,10 @@ MpResult AntiNode::GetRawData(UbseByteBuffer& buffer, bool needLock)
         return MEM_POOLING_OK;
     }
     if (ctx.len == 0) {
+        if (ctx.data != nullptr) {
+            delete[] ctx.data;
+            ctx.data = nullptr;
+        }
         return MEM_POOLING_OK;
     }
     buffer.data = ctx.data;
@@ -2313,6 +2317,10 @@ MpResult MemManager::InitBorrowableInfo()
     UbseComEndpoint endpoint = {
         .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GET_ALL_NODEINFO, .address = roleInfo.nodeId};
     UbseByteBuffer reqData = {.data = new (std::nothrow) uint8_t[1], .len = 1, .freeFunc = nullptr};
+    if (reqData.data == nullptr) {
+        LOG_ERROR << "Failed to allocate memory for reqData.data.";
+        return MEM_POOLING_ERROR;
+    }
     // 用同步接口，回调函数里记录结果
     uint32_t retRpc = UbseRpcSend(endpoint, reqData, &nodeInfoMap, GetAllNodeInfoImmediatelyResHandler);
     delete[] reqData.data;
@@ -2518,13 +2526,17 @@ MpResult MemManager::ResolveUbBorrowableInfoList(NodeMemoryInfoWithReservedMem n
 
 void MemManager::ResolveHccsBorrowableInfoList(NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem)
 {
+    uint64_t reservedMem = nodeMemoryInfoWithReservedMem.reservedMem;
+    uint64_t sharedMem = nodeMemoryInfoWithReservedMem.sharedMem;
+    uint64_t lentMem = nodeMemoryInfoWithReservedMem.lentMemory;
+    uint64_t canBorrowFromReserved = (sharedMem + lentMem > reservedMem) ? 0 : reservedMem - sharedMem - lentMem;
     nodeMemoryInfoWithReservedMem.canBorrowMem =
-        std::min(nodeMemoryInfoWithReservedMem.freeMemory, nodeMemoryInfoWithReservedMem.reservedMem -
-                                                               nodeMemoryInfoWithReservedMem.sharedMem -
-                                                               nodeMemoryInfoWithReservedMem.lentMemory);
+        std::min(nodeMemoryInfoWithReservedMem.freeMemory, canBorrowFromReserved);
     for (RackNumaMemInfo& numaMemInfo : nodeMemoryInfoWithReservedMem.numaMemInfo) {
-        numaMemInfo.canBorrowMem =
-            std::min(numaMemInfo.memFree, numaMemInfo.reservedMem - numaMemInfo.sharedMem - numaMemInfo.lentMem);
+        uint64_t calMem = (numaMemInfo.sharedMem + numaMemInfo.lentMem > numaMemInfo.reservedMem) ?
+                              0 :
+                              numaMemInfo.reservedMem - numaMemInfo.sharedMem - numaMemInfo.lentMem;
+        numaMemInfo.canBorrowMem = std::min(numaMemInfo.memFree, calMem);
     }
 }
 
@@ -2703,6 +2715,7 @@ void LoadDataBase(const std::string& keyPrefix, const std::string& key, const Ub
     value.data = new (std::nothrow) uint8_t[value.len];
     if (value.data == nullptr) {
         LOG_ERROR << "New data failed.";
+        value.len = 0;
         return;
     }
     if (memcpy_s(value.data, value.len, buff.data, value.len) != 0) {

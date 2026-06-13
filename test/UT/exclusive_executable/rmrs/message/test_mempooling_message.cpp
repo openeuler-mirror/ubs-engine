@@ -22,7 +22,6 @@
 #include "mempooling_message.h"
 #include "mockcpp/mokc.h"
 #include "mp_error.h"
-#include "mp_heartbeat_monitor.h"
 #include "mp_sync_data_helper.h"
 #include "over_commit_serializer.h"
 #include "rmrs_serialize.h"
@@ -112,6 +111,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed)
 {
     static int dummy_handle;
     MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue(reinterpret_cast<void*>(&dummy_handle)));
+    MOCKER_CPP(dlclose, int (*)(void*)).stubs().will(returnValue(0));
 
     MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue((void*)nullptr));
 
@@ -123,6 +123,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed2)
 {
     static int dummy_handle;
     MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue(reinterpret_cast<void*>(&dummy_handle)));
+    MOCKER_CPP(dlclose, int (*)(void*)).stubs().will(returnValue(0));
 
     MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()

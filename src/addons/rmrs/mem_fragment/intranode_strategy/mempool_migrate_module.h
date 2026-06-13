@@ -116,7 +116,7 @@ public:
                                             mempooling::outinterface::BorrowStrategy borrowStrategy,
                                             std::vector<MemBorrowStrategyResult>& results);
 
-    static MpResult GetExpectRemoteNumaMem(int nid, int& ExpectMigratedPages);
+    static MpResult GetExpectRemoteNumaMem(int nid, int64_t& ExpectMigratedPages);
 
     static std::vector<uint64_t> numaBorrowSize;        // 单位MB
     static const uint64_t memoryPageSize;               // 2048

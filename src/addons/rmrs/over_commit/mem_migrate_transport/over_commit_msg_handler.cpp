@@ -294,12 +294,14 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer& req, Ub
     }
     JSON_MAP numa2pidMap;
     auto ret = MEM_POOLING_OK;
+    auto totalRet = MEM_POOLING_OK;
     for (size_t i = 0; i < numaIds.size(); i++) {
         ProcessPayload processPayload[SMAP_QUERY_PID_NUM];
         int retLen = 0;
-        ret = static_cast<uint16_t>(smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen));
+        ret = smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboSmap][MsgHandler] Query config failed.";
+            totalRet = MEM_POOLING_ERROR;
             break;
         }
         std::vector<std::string> pids;
@@ -315,8 +317,8 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer& req, Ub
         }
         numa2pidMap[std::to_string(numaIds[i])] = str;
     }
-    if (ret != MEM_POOLING_OK) {
-        SetResponse(response, ret, "SmapRemove failed.", resp);
+    if (totalRet != MEM_POOLING_OK) {
+        SetResponse(response, totalRet, "SmapRemove failed.", resp);
     } else {
         std::string str2;
         if (!JsonUtil::RackMemConvertMap2JsonStr(numa2pidMap, str2)) {
@@ -340,12 +342,14 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
     }
     JSON_MAP numa2pidMap;
     auto ret = MEM_POOLING_OK;
+    auto totalRet = MEM_POOLING_OK;
     for (size_t i = 0; i < numaIds.size(); i++) {
         ProcessPayload processPayload[SMAP_QUERY_PID_NUM];
         int retLen = 0;
-        ret = static_cast<uint16_t>(smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen));
+        ret = smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboSmap][MsgHandler] Query config failed.";
+            totalRet = MEM_POOLING_ERROR;
             break;
         }
         std::vector<std::string> pids;
@@ -368,8 +372,9 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
         }
         numa2pidMap[std::to_string(numaIds[i])] = str;
     }
-    if (ret != MEM_POOLING_OK) {
+    if (totalRet != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapQueryProcessByLocal failed.";
+        return MEM_POOLING_ERROR;
     } else {
         if (!JsonUtil::RackMemConvertMap2JsonStr(numa2pidMap, numa2pidMapJson)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapQueryLocal convert json map failed.";

@@ -89,6 +89,8 @@ uint32_t MempoolingMessage::InitOSTurboIpcClient()
         const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get osturboFunctionCaller ptr failed: " << (error ? error : "Unknown error") << ".";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
@@ -97,6 +99,8 @@ uint32_t MempoolingMessage::InitOSTurboIpcClient()
         const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get osturboSetIpcTimeLimit ptr failed: " << (error ? error : "Unknown error") << ".";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
@@ -104,23 +108,31 @@ uint32_t MempoolingMessage::InitOSTurboIpcClient()
     auto ret = osturboSetIpcTimeLimit(ipcTimeLimit);
     if (ret != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Osturbo set ipc time limit failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
     ret = MempoolingMessage::DlsymMemFragInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get MemFragInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     ret = MempoolingMessage::DlsymOverCommitInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get OverCommitInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     ret = MempoolingMessage::DlsymUcacheInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get UcacheInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 

@@ -67,6 +67,11 @@ MpResult GetBorrowedItemVec(const std::string nodeId, std::vector<RackMemNumaPai
     UbseResult errorCode = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
     for (auto& debtInfo : debtInfos) {
         if (debtInfo.borrowNodeId == nodeId) {
+            if (debtInfo.lentNumaIdList.empty() || debtInfo.lentNumaSizeList.empty()) {
+                UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemBorrow][MemBorrowStrategy] debtInfo lentNumaIdList or lentNumaSizeList empty, skip.";
+                continue;
+            }
             RackMemNumaPair rackMemNumaPair{debtInfo.lentNodeId, debtInfo.lentNumaIdList[0],
                                             debtInfo.lentNumaSizeList[0]};
             borrowedItemVec.push_back(rackMemNumaPair);
@@ -108,6 +113,9 @@ bool compareSocketMemInfo(const std::unordered_map<std::string, std::unordered_s
                           const std::vector<RackMemNumaPair>& borrowedItemVec, const SrcMemoryBorrowParam& srcParam,
                           const std::pair<std::string, NodeMemInfo>& a, const std::pair<std::string, NodeMemInfo>& b)
 {
+    if (a.second.localnumaMemInfo.empty() || b.second.localnumaMemInfo.empty()) {
+        return false;
+    }
     // 优先从同平面的平面借用内存
     bool aSamePlane = MemManager::Instance().JudgeSampPlane(srcParam.srcNid, srcParam.srcSocketId, a.first,
                                                             a.second.localnumaMemInfo[0].socketId);
@@ -490,9 +498,22 @@ MpResult MempoolBorrowModule::ProcessNodeMemBorrow(const std::pair<std::string, 
             return MEM_POOLING_ERROR;
         }
 
+        uint64_t couldBorrowBytes = static_cast<uint64_t>(couldBorrowSize) * MB_TO_BYTES;
         uint32_t FOUR_GB_BLOCKSIZE = FOUR_GB / (gBlockSize * MB_TO_KB);
-        uint32_t couldBorrowNum = (couldBorrowSize * MB_TO_BYTES) / (gBlockSize * MB_TO_KB * KB_TO_BYTES);
-        uint32_t haveFourGbNum = (couldBorrowSize * MB_TO_BYTES) / (FOUR_GB * KB_TO_BYTES);
+        uint64_t couldBorrowNumCalc = couldBorrowBytes / (gBlockSize * MB_TO_KB * KB_TO_BYTES);
+        if (couldBorrowNumCalc > UINT32_MAX) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemBorrow][MemBorrowStrategy] couldBorrowNum overflow.";
+            return MEM_POOLING_ERROR;
+        }
+        uint32_t couldBorrowNum = static_cast<uint32_t>(couldBorrowNumCalc);
+        uint64_t haveFourGbNumCalc = couldBorrowBytes / (FOUR_GB * KB_TO_BYTES);
+        if (haveFourGbNumCalc > UINT32_MAX) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemBorrow][MemBorrowStrategy] haveFourGbNum overflow.";
+            return MEM_POOLING_ERROR;
+        }
+        uint32_t haveFourGbNum = static_cast<uint32_t>(haveFourGbNumCalc);
         uint32_t moreBorrowNum = couldBorrowNum - haveFourGbNum * FOUR_GB_BLOCKSIZE;
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowStrategy] The couldBorrowNum=" << couldBorrowNum

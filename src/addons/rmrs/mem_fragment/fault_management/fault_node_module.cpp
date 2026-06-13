@@ -2360,6 +2360,10 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
 uint32_t NumaLevelExecuteHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel] NumaLevelExecuteHandler start.";
+    if (req.data == nullptr || req.len == 0) {
+        LOG_ERROR << "[NumaLevelExecuteHandler] req.data is null or len is 0.";
+        return MEM_POOLING_ERROR;
+    }
     BorrowGroupResult group;
     RmrsInStream inBuilder(req.data, req.len);
     inBuilder >> group;
@@ -2499,6 +2503,10 @@ void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vecto
 
 void NodeNumaReplaceReturnHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
+    if (req.data == nullptr || req.len == 0) {
+        LOG_ERROR << "[FaultManager] NodeNumaReplaceReturnHandler req.data is null or len is 0.";
+        return;
+    }
     NumaReplaceReturnMsg rpcMsg;
     RmrsInStream builder(req.data, req.len);
     builder >> rpcMsg;

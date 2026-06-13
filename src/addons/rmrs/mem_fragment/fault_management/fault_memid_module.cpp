@@ -38,6 +38,7 @@ constexpr size_t ECHO_HUGE_PAGE_NUM = 1;
 constexpr int SMAP_MIGRATE_DISABLE = 0;
 constexpr int SMAP_MIGRATE_ENABLE = 1;
 constexpr int SMAP_MIGRATE_FLAGS = 0;
+constexpr size_t RESP_ERROR_LENGTH = 1;
 constexpr size_t RESP_LENGTH = 2;
 
 #define LOG_DEBUG UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -945,7 +946,7 @@ void MemIdFaultNotSameNidResHandler(void* ctx, const UbseByteBuffer& respData, u
         return;
     }
     uint32_t* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != RESP_ERROR_LENGTH) {
         *result = MEM_POOLING_ERROR;
         LOG_ERROR << "[FaultManager][MemId] ResHandler result error.";
         return;
@@ -1002,7 +1003,7 @@ void MemIdFaultSameNidResHandler(void* ctx, const UbseByteBuffer& respData, uint
         return;
     }
     uint32_t* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != RESP_ERROR_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }

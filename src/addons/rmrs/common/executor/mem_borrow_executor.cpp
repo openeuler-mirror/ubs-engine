@@ -40,7 +40,7 @@ using namespace ubse::com;
 using namespace rmrs::serialize;
 using namespace mempooling::smap;
 using namespace ubse::mem::controller;
-
+constexpr int MAX_REDIRECT_COUNT = 64; // borrowid重定向最大次数，防止死循环
 constexpr int UUID_BYTE_SIZE = 16;
 constexpr int RANDOM_BYTE_MIN = 0;
 constexpr int RANDOM_BYTE_MAX = 255;
@@ -617,9 +617,9 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
 
     std::string deleteName = name;
 
+    int redirectCount = 0;
     std::string redirectNameKey = name;
     std::string redirectNameVal = name;
-
     do {
         redirectNameKey = redirectNameVal;
         redirectNameVal.clear();
@@ -628,6 +628,11 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << name << " failed.";
             return retDirect;
+        }
+        if (++redirectCount > MAX_REDIRECT_COUNT) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] Redirection chain too long for borrow_id=" << name << ".";
+            return MEM_POOLING_ERROR;
         }
     } while (!redirectNameVal.empty());
 
@@ -674,9 +679,9 @@ MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name,
 
     std::string deleteName = name;
 
+    int redirectCount = 0;
     std::string redirectNameKey = name;
     std::string redirectNameVal = name;
-
     do {
         redirectNameKey = redirectNameVal;
         redirectNameVal.clear();
@@ -685,6 +690,11 @@ MpResult MemBorrowExecutor::MemFreeWithOpsForProcessMem(const std::string& name,
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << name << " failed.";
             return retDirect;
+        }
+        if (++redirectCount > MAX_REDIRECT_COUNT) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemFree][MemFreeExecute] Redirection chain too long for borrow_id=" << name << ".";
+            return MEM_POOLING_ERROR;
         }
     } while (!redirectNameVal.empty());
 

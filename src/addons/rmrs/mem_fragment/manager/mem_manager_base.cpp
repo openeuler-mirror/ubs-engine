@@ -154,6 +154,10 @@ void ParallelSendGetNodeInfo(const std::vector<std::string>& nodeList,
             UbseComEndpoint endpoint = {
                 .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GET_NODEINFO, .address = node};
             UbseByteBuffer reqData = {.data = new (std::nothrow) uint8_t[1], .len = 1, .freeFunc = nullptr};
+            if (reqData.data == nullptr) {
+                LOG_ERROR << "Failed to allocate memory for reqData.data.";
+                return;
+            }
             // 用同步接口，回调函数里记录结果
             uint32_t retRpc = UbseRpcSend(endpoint, reqData, &numaInfos, GetNodeInfoImmediatelyResHandler);
             delete[] reqData.data;

@@ -471,15 +471,19 @@ uint32_t mempooling::outinterface::UBSRMRSMemBorrowExecute(
     bool mustSamePlane = MpConfiguration::GetInstance().GetMustSamePlane();
     bool enableBorrowSplit = MpConfiguration::GetInstance().GetEnableBorrowSplit();
     auto& mgr = ApiConcurrencyManager::getInstance();
+    // 大虚机场景可以并发
     if (mustSamePlane || enableBorrowSplit) {
         if (!mgr.TryEnterOtherFunc()) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] Concurrency is not "
                                                                  "supported, the current function cannot be entered.";
             return MEM_POOLING_ERROR;
         }
+        ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParam, borrowExecuteResult);
+        mgr.ExitOtherFunc();
+    } else {
+        ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParam, borrowExecuteResult);
     }
-    ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParam, borrowExecuteResult);
-    mgr.ExitOtherFunc();
+
     if (ret != MEM_POOLING_OK) {
         return ret;
     }

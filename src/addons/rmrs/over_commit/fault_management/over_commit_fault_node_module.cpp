@@ -683,14 +683,21 @@ MpResult OverCommitFaultNodeModule::ReturnFaultRemoteNumaMemory(const int16_t fa
     // key : localNumaId, value: the localNuma used mem in faultNumaId
     std::unordered_map<int16_t, uint64_t> localNumaId2RemoteSize;
     for (auto& record : borrowRecords) {
-        localNumaId2RemoteSize[record.borrowLocalNuma] += record.size;
+        uint64_t newSize = localNumaId2RemoteSize[record.borrowLocalNuma] + record.size;
+        if (newSize < localNumaId2RemoteSize[record.borrowLocalNuma]) {
+            LOG_ERROR << "LocalNumaId2RemoteSize overflow, localNumaId=" << record.borrowLocalNuma << ".";
+            return MEM_POOLING_ERROR;
+        }
+        localNumaId2RemoteSize[record.borrowLocalNuma] = newSize;
     }
 
     // 重新set远端使用量
     for (auto& remoteNuma : remoteNumas) {
-        localNumaId2RemoteSize[remoteNuma.localNumaId] -= remoteNuma.borrowRecord.size;
-        if (localNumaId2RemoteSize[remoteNuma.localNumaId] < 0) {
-            LOG_ERROR << "LocalNumaId2RemoteSize < 0.";
+        if (remoteNuma.borrowRecord.size > localNumaId2RemoteSize[remoteNuma.localNumaId]) {
+            LOG_ERROR << "LocalNumaId2RemoteSize underflow, localNumaId=" << remoteNuma.localNumaId << ".";
+            localNumaId2RemoteSize[remoteNuma.localNumaId] = 0;
+        } else {
+            localNumaId2RemoteSize[remoteNuma.localNumaId] -= remoteNuma.borrowRecord.size;
         }
     }
 
@@ -726,6 +733,11 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
     vector<pid_t> pids;
     for (auto pid : vmInfos) {
         pids.push_back(pid.first);
+    }
+    // 防御性编程，实际上调用链保证了pids非空
+    if (pids.empty()) {
+        LOG_ERROR << "No pids found in vmInfos, skip SmapEnableProcessMigrateHelper.";
+        return MEM_POOLING_ERROR;
     }
     auto ret = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 0, 0);
     if (ret != MEM_POOLING_OK) {
@@ -1323,6 +1335,7 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] ExecuteMigrateForPid failed for pid=" << ctx.pid
                   << ", borrowId=" << newBorrowId << " retained for retry.";
+        (void)MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
         return MEM_POOLING_ERROR;
     }
 

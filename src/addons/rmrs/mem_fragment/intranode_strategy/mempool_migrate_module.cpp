@@ -209,7 +209,7 @@ bool MempoolMigrateModule::GetVmInfoMap(std::map<pid_t, mempooling::exportV2::Vm
     return true;
 }
 
-MpResult MempoolMigrateModule::GetExpectRemoteNumaMem(int nid, int& expectMigratedPages)
+MpResult MempoolMigrateModule::GetExpectRemoteNumaMem(int nid, int64_t& expectMigratedPages)
 {
     // 输入远端numaid
     expectMigratedPages = 0;
@@ -225,7 +225,8 @@ MpResult MempoolMigrateModule::GetExpectRemoteNumaMem(int nid, int& expectMigrat
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemMigrate][MemMigrate] Query pid=" << processPayloadList[i].pid << ", nid=" << nid
             << ", memSize=" << processPayloadList[i].memSize << ".";
-        expectMigratedPages += static_cast<int>(processPayloadList[i].memSize) / static_cast<int>(memoryPageSize);
+        expectMigratedPages +=
+            static_cast<int64_t>(processPayloadList[i].memSize) / static_cast<int64_t>(memoryPageSize);
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[MemMigrate][MemMigrate] ExpectMigratedPages=" << expectMigratedPages << ".";
@@ -259,9 +260,9 @@ bool MempoolMigrateModule::ValidateRemoteFreeSpace(const std::vector<VMMigrateOu
     }
     // 远端numa的空余页的预期足量判断 遍历vmMigrateLocalGroupByNumaIdMap做本地numa的空余页的预期足量判断
     for (const auto& vmMigrateOutParamGroupEntry : vmMigrateOutParamGroupByNumaIdMap) {
-        int sumMigrateHugePages = 0;
-        int expectSumMigrateHugePages = 0;
-        int expectMigratedPages = 0;
+        int64_t sumMigrateHugePages = 0;
+        int64_t expectSumMigrateHugePages = 0;
+        int64_t expectMigratedPages = 0;
         for (VMMigrateOutParam vmMigrateOutParamItem : vmMigrateOutParamGroupEntry.second) {
             auto vmDomainInfo = vmInfoMap[vmMigrateOutParamItem.pid];
             uint64_t pageSize = 0; // 默认为4KB
@@ -286,8 +287,8 @@ bool MempoolMigrateModule::ValidateRemoteFreeSpace(const std::vector<VMMigrateOu
                     break;
                 }
             }
-            int realMigrateHugePages = static_cast<int>(vmMigrateOutParamItem.memSize / pageSize);
-            int migratedPages = static_cast<int>((remoteUsedMem / pageSize));
+            int64_t realMigrateHugePages = static_cast<int64_t>(vmMigrateOutParamItem.memSize / pageSize);
+            int64_t migratedPages = static_cast<int64_t>((remoteUsedMem / pageSize));
             sumMigrateHugePages += (realMigrateHugePages - migratedPages);
             expectSumMigrateHugePages += realMigrateHugePages;
         }
@@ -301,8 +302,9 @@ bool MempoolMigrateModule::ValidateRemoteFreeSpace(const std::vector<VMMigrateOu
             << "[MemMigrate][MemMigrate] The need pages=" << sumMigrateHugePages
             << ", need pages by smap=" << expectSumMigrateHugePages
             << ", free pages=" << destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first] << ".";
-        if (sumMigrateHugePages > static_cast<int>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first]) &&
-            expectSumMigrateHugePages > static_cast<int>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first])) {
+        if (sumMigrateHugePages > static_cast<int64_t>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first]) &&
+            expectSumMigrateHugePages >
+                static_cast<int64_t>(destNumaFreeHugePageMap[vmMigrateOutParamGroupEntry.first])) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemMigrate][MemMigrate] Remoute hugepages no enough "
                 << " migrate numaId " << vmMigrateOutParamGroupEntry.first << " need pages " << sumMigrateHugePages

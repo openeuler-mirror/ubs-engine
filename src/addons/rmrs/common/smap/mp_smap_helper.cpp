@@ -546,7 +546,7 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     }
 
     // 遍历 processPayload 数组，填充 map
-    for (int i = 0; i < MpSmapHelper::SMAP_QUERY_PID_NUM; ++i) {
+    for (int i = 0; i < retLen; ++i) {
         const smap::ProcessPayload& payload = processPayload[i];
         processPayloadMap[payload.pid] = payload; // 以 pid 为键插入到 map 中
     }
