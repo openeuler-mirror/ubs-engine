@@ -900,6 +900,7 @@ void GetSmapEnableCompletedValue(const std::string& keyPrefix, const std::string
 
 MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedList)
 {
+    LOG_INFO << "[PersistentStore][SmapEnableCompleted] Query start.";
     std::lock_guard<std::mutex> lock(mtxSmapEnableCompleted);
     std::unordered_set<int16_t> smapEnableCompleted;
     auto ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_SMAPENABLE_COMPLETED, &smapEnableCompleted,
@@ -912,6 +913,13 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
     for (const auto& numaId : smapEnableCompleted) {
         smapEnableCompletedList.push_back(numaId);
     }
+    std::string numaIdStr;
+    for (size_t i = 0; i < smapEnableCompletedList.size(); ++i) {
+        if (i != 0)
+            numaIdStr += ", ";
+        numaIdStr += std::to_string(smapEnableCompletedList[i]);
+    }
+    LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] Query success, smapEnableCompletedList=[" << numaIdStr << "].";
     return MEM_POOLING_OK;
 }
 
@@ -2954,6 +2962,10 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
             if (retSmap != MEM_POOLING_OK) {
                 LOG_WARN << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId
                          << ", ret=" << retSmap << ".";
+                continue;
+            } else {
+                LOG_INFO << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId << ".";
+                SmapEnableCompleted::Instance().Remove(numaId);
             }
         }
     }

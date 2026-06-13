@@ -57,6 +57,7 @@ uint32_t SmapMigrateBackProcess(MigrateBackMsg migrateBackMsg)
 
 uint32_t SmapEnableNumaProcess(EnableNodeMsg enableMsg)
 {
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[SmapEnableNuma] SmapEnableNumaProcess start, enableNumaId=" << enableMsg.nid << ".";
     auto ret = MpSmapHelper::SmapEnableNuma(enableMsg);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNuma failed.";
