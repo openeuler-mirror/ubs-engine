@@ -102,6 +102,76 @@ TEST_F(TestUrmaUvs, UbsePushTopoAndBondingToUvs_UvsSetTopoInfoFailed)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
+TEST_F(TestUrmaUvs, UbsePushShareTopoToUvs_Success)
+{
+    std::string current_slot_id = "1";
+    std::vector<PhysicalLink> allLinkInfo;
+    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
+    std::vector<UbcoreTopoNode> nodes;
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    module->uvsSetShareTopoInfo = [](void* topo, uint32_t topo_size, uint32_t topNum) {
+        return UBSE_OK;
+    };
+    nodes.push_back(UbcoreTopoNode{.type = 0, .superNodeId = 0, .id = 1, .is_current = 1});
+    nodes.push_back(UbcoreTopoNode{.type = 0, .superNodeId = 0, .id = 2, .is_current = 0});
+
+    MOCKER_CPP(&FillNodeComInfo).stubs().with(any(), any(), any(), outBound(nodes)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
+
+    auto ret = UbsePushShareTopoToUvs(current_slot_id, allLinkInfo, bondingInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUrmaUvs, UbsePushShareTopoToUvs_FillNodeComInfoFailed)
+{
+    std::string current_slot_id = "1";
+    std::vector<PhysicalLink> allLinkInfo;
+    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
+    MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_ERROR));
+    auto ret = UbsePushShareTopoToUvs(current_slot_id, allLinkInfo, bondingInfo);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUrmaUvs, UbsePushShareTopoToUvs_GetModuleFailed)
+{
+    std::string current_slot_id = "1";
+    std::vector<PhysicalLink> allLinkInfo;
+    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
+    MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbsePushShareTopoToUvs(current_slot_id, allLinkInfo, bondingInfo);
+    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
+}
+
+TEST_F(TestUrmaUvs, UbsePushShareTopoToUvs_UvsSetShareTopoInfoNull)
+{
+    std::string current_slot_id = "1";
+    std::vector<PhysicalLink> allLinkInfo;
+    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+    MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
+
+    auto ret = UbsePushShareTopoToUvs(current_slot_id, allLinkInfo, bondingInfo);
+    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUrmaUvs, UbsePushShareTopoToUvs_UvsSetShareTopoInfoFailed)
+{
+    std::string current_slot_id = "1";
+    std::vector<PhysicalLink> allLinkInfo;
+    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
+    auto module = std::make_shared<UbseUrmaUvsModule>();
+
+    module->uvsSetShareTopoInfo = [](void* topo, uint32_t topo_size, uint32_t topNum) {
+        return UBSE_ERROR;
+    };
+    MOCKER_CPP(&FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(module));
+
+    auto ret = UbsePushShareTopoToUvs(current_slot_id, allLinkInfo, bondingInfo);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
 TEST_F(TestUrmaUvs, UbseGetUrmaSubpathByEid_Success)
 {
     std::string eid;

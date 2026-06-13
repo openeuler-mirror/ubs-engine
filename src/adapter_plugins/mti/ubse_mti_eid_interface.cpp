@@ -86,22 +86,6 @@ UbseResult ParseBaseEid(const std::string& baseEid, std::string& bitStr)
     return UBSE_OK;
 }
 
-uint32_t ParseCnaFromEid(const std::string& eid, uint32_t& cna)
-{
-    // 将EID解析为128位0/1字符串，从第97位起取24个bit位，转为uint32_t作为CNA
-    std::string bitStr;
-    if (ParseBaseEid(eid, bitStr) != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-    if (CNA_BIT_OFFSET + CNA_BIT_LEN > bitStr.size()) {
-        return UBSE_ERROR;
-    }
-    std::string cnaBitStr = bitStr.substr(CNA_BIT_OFFSET, CNA_BIT_LEN);
-    std::bitset<CNA_BIT_LEN> cnaBits(cnaBitStr);
-    cna = static_cast<uint32_t>(cnaBits.to_ulong());
-    return UBSE_OK;
-}
-
 void ConstructEid(const std::string& bitStr, std::string& eid)
 {
     // eid 4245:4944:0000:0000:0000:0000:0100:0000 格式，bits字符长128位
@@ -152,10 +136,30 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
     // (positions 100-103) 不变 (4位)
     // (positions 96-99)  替换为part1 (4位)
     // 其余部分不变
-    std::string eidBitStr = bitStr.substr(0, CNA_BIT_OFFSET) + part1BitStr + bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh, NO_4) +
-                            part2BitStr + bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh + NO_4 + serverIdxLow);
+    std::string eidBitStr = bitStr.substr(0, CNA_BIT_OFFSET) + part1BitStr +
+                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh, NO_4) + part2BitStr +
+                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh + NO_4 + serverIdxLow);
 
     ConstructEid(eidBitStr, result);
+    return UBSE_OK;
+}
+
+uint32_t ParseCnaFromEid(const std::string& eid, std::string& cna)
+{
+    // 将EID解析为128位0/1字符串，从第97位起取24个bit位，其余位均为0，构造新的EID
+    std::string bitStr;
+    if (ParseBaseEid(eid, bitStr) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    if (CNA_BIT_OFFSET + CNA_BIT_LEN > bitStr.size()) {
+        return UBSE_ERROR;
+    }
+    // 非CNA位全部置为0，CNA位保留原值
+    std::string cnaBitStr(bitStr.size(), '0');
+    for (size_t i = 0; i < CNA_BIT_LEN; ++i) {
+        cnaBitStr[CNA_BIT_OFFSET + i] = bitStr[CNA_BIT_OFFSET + i];
+    }
+    ConstructEid(cnaBitStr, cna);
     return UBSE_OK;
 }
 } // namespace ubse::utils

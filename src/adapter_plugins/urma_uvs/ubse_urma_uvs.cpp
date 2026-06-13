@@ -43,6 +43,7 @@ utils::ReadWriteLock g_invokeUrmaMutex;
 UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
+UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT], bool isClosType);
 
 UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
@@ -106,7 +107,7 @@ UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std:
 
 UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urmaSubpath)
 {
-    UBSE_LOG_DEBUG << "Get Name By UrmaEid, Eid =" << urmaEid;
+    UBSE_LOG_DEBUG << "Get Name By UrmaEid, Eid=" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -126,7 +127,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Uvs failed to get device name";
+        UBSE_LOG_WARN << "Uvs failed to get device name, eid=" << urmaEid;
         return ret;
     }
     urmaSubpath = name;
@@ -135,7 +136,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
 
 UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isActive)
 {
-    UBSE_LOG_DEBUG << "Get State By UrmaEid, Eid =" << urmaEid;
+    UBSE_LOG_DEBUG << "Get State By UrmaEid, Eid=" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -382,9 +383,7 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& 
                 UBSE_LOG_ERROR << "Failed to parse portEid=" << port.second;
                 return ret;
             }
-            if (!isClosType) {
-                continue;
-            } else if (auto ret = ParseCnaFromEid(port.second, aggr_dev.fe[i].cna[portId]); ret != UBSE_OK) {
+            if (auto ret = ExtractCnaFromEid(port.second, aggr_dev.fe[i].cna[portId], isClosType); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse cna from portEid=" << port.second;
                 return ret;
             }
@@ -516,5 +515,26 @@ UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IP
     // outBytes经过转换后，是长度为16的char数组.
     // 其格式为[0x42, 0x45, 0x49, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]
     return scanned == IPV6_BYTE_COUNT ? UBSE_OK : UBSE_ERROR;
+}
+
+UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT], bool isClosType)
+{
+    if (!isClosType) {
+        // 非Clos类型时CNA全为0，初始化cna为16字节0
+        auto ret = memset_s(cna, IPV6_BYTE_COUNT, 0, IPV6_BYTE_COUNT);
+        if (ret != EOK) {
+            UBSE_LOG_ERROR << "Failed to memset_s cna, ret=" << ret;
+            return UBSE_ERROR;
+        }
+        return UBSE_OK;
+    }
+    std::string cnaStr;
+    if (ParseCnaFromEid(input, cnaStr) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    if (ConvertEidStrToHexCharList(cnaStr, cna) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
 }
 } // namespace ubse::urma

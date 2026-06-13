@@ -50,7 +50,7 @@ struct UbcoreTopoFe {
     uint32_t entity_id;
     char primary_eid[EID_LEN];
     char port_eid[PORT_NUM][EID_LEN];
-	uint32_t cna[PORT_NUM];
+    char cna[PORT_NUM][EID_LEN];
 };
 
 struct UbcoreTopoAggrDev {

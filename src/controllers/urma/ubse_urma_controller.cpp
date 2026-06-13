@@ -195,7 +195,7 @@ static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, uint32_t batchNum, 
 UbseResult PushNodesTopoToUvs(const std::string& nodeId)
 {
     bool isClos = UbseSmbios::GetInstance().IsClosType();
-    const uint32_t batchSize = isClos ? 64 : 0;
+    const uint32_t batchSize = isClos ? 32 : 0;
     const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize : 1;
 
     auto ret = PushUvsTopoBatch(false, batchNum, batchSize, nodeId);
@@ -576,7 +576,6 @@ UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev& dev)
 {
     std::string subPath;
     if (auto ret = UbseGetUrmaSubpathByEid(dev.urmaDevEid, subPath); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to get urma name for eid=" << dev.urmaDevEid;
         return UBSE_ERROR;
     }
     UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(dev.urmaDevEid, subPath);
@@ -586,7 +585,6 @@ UbseResult FillUrmaDevByUvsInfo(UbseUrmaUvsAggrDev& dev)
         }
         std::string urmaEidName;
         if (auto ret = UbseGetUrmaSubpathByEid(feInfo.primaryEid, urmaEidName); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to get fe name for eid=" << feInfo.primaryEid;
             return UBSE_ERROR;
         }
         UbseUrmaControllerManager::GetInstance().SetFeName(feInfo.primaryEid, urmaEidName);
@@ -636,7 +634,6 @@ UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string& urmaNam
     }
     std::string subPath;
     if (auto ret = UbseGetUrmaSubpathByEid(urmaInfo.urmaDevEid, subPath); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to get urma name for eid=" << urmaInfo.urmaDevEid;
         return ret;
     }
     UbseUrmaControllerManager::GetInstance().SetUrmaSubPath(urmaInfo.urmaDevEid, subPath);
@@ -646,7 +643,6 @@ UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string& urmaNam
         }
         std::string feName;
         if (auto ret = UbseGetUrmaSubpathByEid(eidGroup.primaryEid, feName); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "Failed to get fe name for eid=" << eidGroup.primaryEid;
             return ret;
         }
         UbseUrmaControllerManager::GetInstance().SetFeName(eidGroup.primaryEid, feName);

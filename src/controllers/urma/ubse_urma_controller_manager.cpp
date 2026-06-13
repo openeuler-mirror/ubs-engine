@@ -896,6 +896,9 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& no
     }
     UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
+    }
     // 分别基于容器侧与主机侧的FE组bonding
     if (ProcessFeBounding(nodeId, serverIdx, containerFeInfos, nodeInfos[nodeId].urmaList) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to process container fe bounding";
@@ -1034,7 +1037,7 @@ UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(bool isInferHostOn
     nodeInfos[nodeIdStr] = nodeInfos[basedNodeId];
     nodeInfos[nodeIdStr].nodeId = nodeIdStr;
     auto& nodeInfo = nodeInfos[nodeIdStr];
-    UBSE_LOG_INFO << "Infer urma dev info for nodeId=" << nodeIdStr << ", basedNodeId=" << basedNodeId;
+    UBSE_LOG_DEBUG << "Infer urma dev info for nodeId=" << nodeIdStr << ", basedNodeId=" << basedNodeId;
     if (!isInferHostOnly) {
         auto ret = InferUrmaListDevInfo(serverIdx, nodeId, nodeInfo.urmaList);
         if (ret != UBSE_OK) {
