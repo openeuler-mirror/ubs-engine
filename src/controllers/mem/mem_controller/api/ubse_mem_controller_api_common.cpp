@@ -290,7 +290,8 @@ void SetDecoderLocByMamiImportInfo(const UbseMamiMemImportInfo& mamiImportInfo, 
 }
 
 UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc& loc, UbseMamiMemImportInfo& mamiImportInfo,
-                                      UbseMemImportStatus& status)
+                                      UbseMemImportStatus& status,
+                                      const ubse::adapter_plugins::mti::UbseDecoderTrustRingData& trustRingData)
 {
     UbseMamiMemImportResult importResult{};
     auto res = decoder::utils::UbseMemPrehandleManager::GetInstance().GetPreHandleByDcna(loc, mamiImportInfo.dstCNA,
@@ -300,7 +301,8 @@ UbseResult AddDecoderEntryByPreOnline(const decoder::utils::DecoderEntryLoc& loc
         return res;
     }
     mamiImportInfo.handle = importResult.handle;
-    res = adapter_plugins::mti::UbseMtiInterface::GetInstance().AddDecoderEntry(mamiImportInfo, importResult);
+    res = adapter_plugins::mti::UbseMtiInterface::GetInstance().AddDecoderEntry(mamiImportInfo, importResult,
+                                                                                trustRingData);
     if (res != UBSE_OK) {
         mamiImportInfo.handle = 0;
         UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed";
@@ -336,21 +338,19 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
         }
         SetMamiImportInfoByExportInfo(exportObmmInfo[i], mamiImportInfo);
         UbseMamiMemImportResult importResult{};
-        if (usePreOnline) {
-            auto res = AddDecoderEntryByPreOnline(loc, mamiImportInfo, status);
-            if (res == UBSE_OK) {
-                continue;
-            }
-            // 预上线失败，尝试使用普通上线
-            usePreOnline = false;
-            UBSE_LOG_ERROR << "PreImportToAddDecoderEntry failed, use normal preImport";
-        }
-
         ubse::adapter_plugins::mti::UbseDecoderTrustRingData trustRingData{importDecoderParam.isHighSafety};
         if (importDecoderParam.isHighSafety) {
             trustRingData.trustRingId = importDecoderParam.trustRingData.trustRingId;
             trustRingData.signedData = importDecoderParam.trustRingData.lendSignedDatas[i];
             trustRingData.type = importDecoderParam.type;
+        }
+        if (usePreOnline) {
+            auto res = AddDecoderEntryByPreOnline(loc, mamiImportInfo, status, trustRingData);
+            if (res == UBSE_OK) {
+                continue;
+            }
+            usePreOnline = false;
+            UBSE_LOG_ERROR << "PreImportToAddDecoderEntry failed, use normal preImport";
         }
         int retry = 3;
         uint32_t res = UBSE_OK;
