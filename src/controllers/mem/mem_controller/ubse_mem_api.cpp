@@ -614,8 +614,15 @@ uint32_t DeserializeAndValidateName(const UbseIpcMessage& buffer, std::string& n
     return UBSE_OK;
 }
 
-UbseResult SetCliShareCacheableFlag(UbseMemShareBorrowReq& req)
+UbseResult SetCliSharePrivateData(UbseMemShareBorrowReq& req)
 {
+    // ubseMemPrivData adTrOchip赋默认值1和cacheableFlag赋默认值0
+    req.ubseMemPrivData.onePth = 1;
+    req.ubseMemPrivData.wrDelayComp = 0;
+    req.ubseMemPrivData.reduceDelayComp = 0;
+    req.ubseMemPrivData.cmoDelayComp = 0;
+    req.ubseMemPrivData.so = 0;
+    req.ubseMemPrivData.adTrOchip = 1;
     if (ubse::config::UbseIsMemShareNcSupported()) {
         req.ubseMemPrivData.cacheableFlag = 0;
         return UBSE_OK;
@@ -662,13 +669,9 @@ UbseResult BuildMemShareCreateReq(const UbseIpcMessage& buffer, const UbseReques
         UBSE_LOG_ERROR << "Failed to parse CLI create request, requestId: " << context.requestId;
         return UBSE_ERR_INTERNAL;
     }
-    // ubseMemPrivData 数据和SDK接口默认值一致
-    auto ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData, 0);
+    // 默认关闭匿名内存
     req.shmAnonymous = false;
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    return SetCliShareCacheableFlag(req);
+    return SetCliSharePrivateData(req);
 }
 
 uint32_t UbseMemApi::UbseCliShmGetDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context)
