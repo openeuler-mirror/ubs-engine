@@ -1016,25 +1016,48 @@ void ProcessMemPidInfoManager::RecoverAllDebtInfoData()
     UBSE_LOG_INFO << "RecoverAllDebtInfoData completed, isRecoverCompleted_=true";
 }
 
-void ProcessMemPidInfoManager::HandleNodeFaultEvent(const std::string& lentNodeId)
+namespace {
+uint32_t QueryDebtInfoWithRetry(const std::string& nodeId,
+                                std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo>& debtInfos,
+                                const char* caller, int maxRetries, bool acceptPartial)
+{
+    constexpr int retryIntervalSec = 2;
+    int remainRetry = maxRetries;
+    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
+    auto shouldRetry = [acceptPartial](uint32_t r) {
+        if (acceptPartial) {
+            return r != UBSE_OK && r != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS;
+        }
+        return r != UBSE_OK;
+    };
+    while (shouldRetry(ret) && remainRetry > 0) {
+        UBSE_LOG_WARN << caller << ": query debts retry, node=" << nodeId << ", ret=" << ret
+                      << ", remainRetry=" << remainRetry;
+        sleep(retryIntervalSec);
+        debtInfos.clear();
+        ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
+        --remainRetry;
+    }
+    return ret;
+}
+} // namespace
+
+uint32_t ProcessMemPidInfoManager::HandleNodeFaultEvent(const std::string& lentNodeId)
 {
     UBSE_LOG_INFO << "HandleNodeFaultEvent: lentNodeId=" << lentNodeId;
 
-    // 查询该故障节点相关的全量账本信息
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
-    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
-    if (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
-        UBSE_LOG_ERROR << "HandleNodeFaultEvent: query debts for node " << lentNodeId << " failed, ret=" << ret;
-        return;
+    auto ret = QueryDebtInfoWithRetry(lentNodeId, debtInfos, "HandleNodeFaultEvent", 3, false);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "HandleNodeFaultEvent: query debts failed after retry, ret=" << ret;
+        return ret;
     }
+    UBSE_LOG_INFO << "HandleNodeFaultEvent: query debts done, ret=" << ret << ", total=" << debtInfos.size();
 
-    // 筛选出本插件在该故障借出节点上的借出记录，获取受影响的 PID
+    // 筛选出本插件在该故障借出节点上的受影响的 PID
     std::unordered_set<pid_t> affectedPids;
     for (const auto& debtInfo : debtInfos) {
-        if (debtInfo.lentNodeId != lentNodeId) {
-            continue;
-        }
-        if (!IsProcessMemDebt(debtInfo)) {
+        if (debtInfo.lentNodeId != lentNodeId || !IsProcessMemDebt(debtInfo)) {
             continue;
         }
         def::ProcessMemUsrInfo usrInfo{};
@@ -1044,13 +1067,12 @@ void ProcessMemPidInfoManager::HandleNodeFaultEvent(const std::string& lentNodeI
         }
         if (usrInfo.pid > 0) {
             affectedPids.insert(usrInfo.pid);
-            UBSE_LOG_INFO << "HandleNodeFaultEvent: found affected pid=" << usrInfo.pid << ", debt=" << debtInfo.name;
         }
     }
 
     if (affectedPids.empty()) {
         UBSE_LOG_INFO << "HandleNodeFaultEvent: no affected PIDs for lentNodeId=" << lentNodeId;
-        return;
+        return UBSE_OK;
     }
 
     // 标记受影响的 PID 为 FAULT 状态
@@ -1060,21 +1082,20 @@ void ProcessMemPidInfoManager::HandleNodeFaultEvent(const std::string& lentNodeI
             auto pidIt = pidInfoMap.find(pid);
             if (pidIt != pidInfoMap.end()) {
                 pidIt->second.processStatus = def::ProcessStatus::FAULT;
-                UBSE_LOG_INFO << "HandleNodeFaultEvent: pid=" << pid << " set to FAULT";
             } else {
                 UBSE_LOG_WARN << "HandleNodeFaultEvent: pid=" << pid << " not found in pidInfoMap";
             }
         }
         faultedLentNodes_[lentNodeId] = std::move(affectedPids);
     }
+    return UBSE_OK;
 }
 
-namespace {
 bool IsNodeRecovered(const std::string& lentNodeId)
 {
     // 条件1: 账本中已无该节点的 ProcessMem 债务
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
-    auto ret = ubse::mem::controller::UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+    auto ret = QueryDebtInfoWithRetry(lentNodeId, debtInfos, "IsNodeRecovered", 2, true);
     if (ret == UBSE_OK) {
         bool hasDebt = false;
         for (const auto& debtInfo : debtInfos) {
@@ -1114,7 +1135,6 @@ void RestoreFaultPids(const std::vector<std::string>& recoveredNodes,
         faultedLentNodes.erase(nodeIt);
     }
 }
-} // namespace
 
 void ProcessMemPidInfoManager::CheckFaultNodesRecovery()
 {

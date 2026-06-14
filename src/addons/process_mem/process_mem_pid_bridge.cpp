@@ -151,14 +151,32 @@ uint32_t SendProcessMemNodeFaultToNode(const std::string& nodeId, const std::str
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
-    auto respHandler = [](void*, const UbseByteBuffer&, uint32_t statusCode) -> void {
-        UBSE_LOG_INFO << "[PROCESS_MEM] Node fault notify response, statusCode=" << statusCode;
+    uint32_t remoteResult = UBSE_OK;
+    auto respHandler = [&remoteResult](void*, const UbseByteBuffer& respData, uint32_t statusCode) -> void {
+        if (statusCode != UBSE_OK) {
+            UBSE_LOG_ERROR << "[PROCESS_MEM] Node fault notify RPC failed, statusCode=" << statusCode;
+            remoteResult = statusCode;
+            return;
+        }
+        ubse::serial::UbseDeSerialization input(respData.data, respData.len);
+        input >> remoteResult;
+        if (!input.Check()) {
+            UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to deserialize node fault notify response.";
+            remoteResult = UBSE_ERROR;
+            return;
+        }
+        UBSE_LOG_INFO << "[PROCESS_MEM] Node fault notify response, remoteResult=" << remoteResult;
     };
 
     auto endpoint = GetProcessMemFaultComEndpoint(
         static_cast<uint16_t>(ubse::com::UbseMemFaultOpCode::UBSE_PROCESS_MEM_NODE_FAULT_NOTIFY), nodeId);
     UbseByteBuffer request{.data = output.GetBuffer(), .len = output.GetLength(), .freeFunc = nullptr};
-    return ubse::com::UbseRpcAsyncSend(endpoint, request, nullptr, respHandler);
+    auto ret = ubse::com::UbseRpcSend(endpoint, request, nullptr, respHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to send node fault notify to " << nodeId << ", ret=" << ret;
+        return ret;
+    }
+    return remoteResult;
 }
 
 } // namespace
@@ -169,24 +187,45 @@ uint32_t ProcessMemPidBridge::FaultHandler(ubse::ras::ALARM_FAULT_TYPE alarmFaul
     UBSE_LOG_INFO << "FaultHandler: event=" << alarmFaultEvent << ", lentNodeId=" << lentNodeId;
 
     // 1. 本地处理（如果Master自身也是借入节点，处理本地的PID）
-    manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(lentNodeId);
+    auto ret = manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(lentNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FaultHandler: HandleNodeFaultEvent failed, ret=" << ret;
+        return ret;
+    }
 
     // 2. 通知其他借入节点处理故障
-    NotifyBorrowNodesOnFault(lentNodeId);
+    ret = NotifyBorrowNodesOnFault(lentNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FaultHandler: NotifyBorrowNodesOnFault failed, ret=" << ret;
+        return ret;
+    }
 
     return UBSE_OK;
 }
 
-void ProcessMemPidBridge::NotifyBorrowNodesOnFault(const std::string& lentNodeId)
+uint32_t ProcessMemPidBridge::NotifyBorrowNodesOnFault(const std::string& lentNodeId)
 {
     // 查询该故障节点相关的全量账本信息，找出所有借入节点
     std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos{};
+    constexpr int retryTime = 3;
+    constexpr int retryIntervalSec = 2;
+    int remainRetry = retryTime;
     auto ret = UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+    while (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS && remainRetry > 0) {
+        UBSE_LOG_WARN << "[PROCESS_MEM] NotifyBorrowNodesOnFault: query debts retry, ret=" << ret
+                      << ", remainRetry=" << remainRetry;
+        sleep(retryIntervalSec);
+        debtInfos.clear();
+        ret = UbseGetNumaMemDebtInfoWithNode(lentNodeId, debtInfos);
+        --remainRetry;
+    }
     if (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
         UBSE_LOG_WARN << "[PROCESS_MEM] NotifyBorrowNodesOnFault: query debts for node " << lentNodeId
-                      << " failed, ret=" << ret;
-        return;
+                      << " failed after retry, ret=" << ret;
+        return ret;
     }
+    UBSE_LOG_INFO << "[PROCESS_MEM] NotifyBorrowNodesOnFault: query debts done, ret=" << ret
+                  << ", total=" << debtInfos.size();
 
     // 获取当前节点ID，避免通知自身（自身已在FaultHandler中处理）
     auto currentNodeId = ubse::nodeController::UbseNodeController::GetInstance().GetCurrentNodeId();
@@ -204,17 +243,22 @@ void ProcessMemPidBridge::NotifyBorrowNodesOnFault(const std::string& lentNodeId
 
     if (targetNodeIds.empty()) {
         UBSE_LOG_INFO << "[PROCESS_MEM] No remote borrow nodes to notify for lentNodeId=" << lentNodeId;
-        return;
+        return UBSE_OK;
     }
 
     // 向每个借入节点发送故障通知
+    uint32_t firstError = UBSE_OK;
     for (const auto& nodeId : targetNodeIds) {
         auto sendRet = SendProcessMemNodeFaultToNode(nodeId, lentNodeId);
         if (sendRet != UBSE_OK) {
             UBSE_LOG_ERROR << "[PROCESS_MEM] Failed to notify borrow node " << nodeId << " about fault node "
                            << lentNodeId;
+            if (firstError == UBSE_OK) {
+                firstError = sendRet;
+            }
         }
     }
+    return firstError;
 }
 
 void ProcessMemPidBridge::ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
@@ -230,7 +274,16 @@ void ProcessMemPidBridge::ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer&
     }
 
     UBSE_LOG_INFO << "[PROCESS_MEM] Processing node fault notify, faultNodeId=" << faultNodeId;
-    manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(faultNodeId);
+    auto ret = manager::ProcessMemPidInfoManager::GetInstance().HandleNodeFaultEvent(faultNodeId);
+    UBSE_LOG_INFO << "[PROCESS_MEM] Node fault notify processing done, ret=" << ret;
+
+    ubse::serial::UbseSerialization output;
+    output << ret;
+    resp.data = output.GetBuffer(true);
+    resp.len = output.GetLength();
+    resp.freeFunc = [](uint8_t* data) {
+        delete[] data;
+    };
 }
 
 uint32_t SendPidSetResponse(int successCode, const std::string& errorMsg, uint64_t requestId)

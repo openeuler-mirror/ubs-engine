@@ -115,9 +115,7 @@ uint32_t ProcessMemPidCollect::CycleCollectNumaInfo()
     for (auto pidInfo : pidInfos) {
         bool isFaultPid = (pidInfo.processStatus == def::ProcessStatus::FAULT);
         if (GetPidInfoByCollect(pidInfo, pidCollectInfo) != UBSE_OK) {
-            if (!isFaultPid) {
-                ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pidInfo.configInfo.pid);
-            }
+            ProcessMemPidInfoManager::GetInstance().UnsetPidInfo(pidInfo.configInfo.pid);
             continue;
         }
         CollectChildPids(pidInfo.configInfo.pid, pidInfo.configInfo, pidCollectInfo);

@@ -54,7 +54,7 @@ public:
 
     static void ProcessMemNodeFaultNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-    static void NotifyBorrowNodesOnFault(const std::string& lentNodeId);
+    static uint32_t NotifyBorrowNodesOnFault(const std::string& lentNodeId);
 };
 } // namespace process_mem::pid::bridge
 #endif
