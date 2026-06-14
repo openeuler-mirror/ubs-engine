@@ -221,24 +221,23 @@ SSL_CTX* UbseVsockClient::GetSharedSslCtx()
 
 bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, uint32_t data_len)
 {
+    const auto safeSize = 1LL << 20;
+    if (data_len > safeSize || data_len == 0 || data == nullptr) {
+        UBSE_LOG_ERROR << "To sign data is empty ro data_len is illegal";
+        return false;
+    }
     if (sockFd_ < 0) {
         UBSE_LOG_ERROR << "Not connect vsock server";
         return false;
     }
     uint64_t total_size = sizeof(MsgHeader) + data_len;
     std::unique_ptr<char[]> buffer(new char[total_size]);
-    const auto safeSize = 1LL << 20;
 
     MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     hdr->id = id;
     hdr->version = 0xffff0400;
     hdr->type = type;
     hdr->len = data_len;
-
-    if (data_len > safeSize || data_len <= 0 || data == nullptr) {
-        UBSE_LOG_ERROR << "To sign data is empty ro data_len is illegal";
-        return false;
-    }
     errno_t ret = memcpy_s(hdr->data, data_len, data, data_len);
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Data copy failed";
