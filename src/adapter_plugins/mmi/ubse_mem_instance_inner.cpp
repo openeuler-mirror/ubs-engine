@@ -829,7 +829,7 @@ UbseResult MemPreImport(BasicPreImportInfo &basicPreImportInfo,
 }
 
 UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
-                   std::vector<obmm_preimport_info> &obmmPreImportInfos, uint64_t preImportSize, const bool isPoc)
+                   std::vector<obmm_preimport_info>& obmmPreImportInfos, uint64_t preImportSize)
 {
     uint32_t portId;
     auto ret = ConvertStrToUint32(portInfo.portId, portId);
@@ -842,10 +842,7 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
     uint32_t portCna = portInfo.portCna;
     BasicPreImportInfo basicPreImportInfo{0,      cnaTopoInfo.scna, portCna,          cnaTopoInfo.marId,
                                           numaId, preImportSize,    cnaTopoInfo.seid, cnaTopoInfo.deid};
-    if (!isPoc) {
-        basicPreImportInfo.dcna = cnaTopoInfo.dcna;
-        UBSE_LOG_INFO << MMI_LOG_INFO << "Use primary cna. Dcna is " << cnaTopoInfo.dcna;
-    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Use port cna. Dcna is " << portCna;
 
     mem::decoder::utils::PreImportDecoderParam preImportDecoderParam{};
     auto res = SetPreImportDecoderParam(cnaTopoInfo, preImportSize, basicPreImportInfo.dcna, preImportDecoderParam);
@@ -881,8 +878,7 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
 {
     std::vector<obmm_preimport_info> obmmPreImportInfos{};
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    auto isPoc = IsSameSocketMultiPortTopo();
-    for (auto &cnaTopoInfo : cnaTopoInfos) {
+    for (auto& cnaTopoInfo : cnaTopoInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO
                       << "PreImport socketCnaInfo= " << RmCommonUtils::GetInstance().TranStructToStr(cnaTopoInfo);
         auto nodeInfo = nodeInfos.find(cnaTopoInfo.exportNodeId);
@@ -907,7 +903,7 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
                 continue;
             }
 
-            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize, isPoc) != UBSE_OK) {
+            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize) != UBSE_OK) {
                 return UBSE_ERROR;
             }
         }
