@@ -63,9 +63,6 @@ install -Dm644 src/addons/virt_agent/conf/auth-virt_agent.conf "$STAGING/etc/ubs
 # Bash completion
 install -Dm644 scripts/command_completion/cli_commands.sh "$STAGING/etc/bash_completion.d/cli_commands.sh"
 
-# Version file
-install -Dm644 cmake-build-release/VERSION "$STAGING/usr/share/ubse/VERSION"
-
 # Internal libs (in /${LIBDIR}/ubse/)
 install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so "$STAGING/${LIBDIR}/ubse/libhcom.so"
 install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so.0 "$STAGING/${LIBDIR}/ubse/libhcom.so.0"
@@ -147,8 +144,6 @@ build_deb() {
                 "$pkg_dir/etc/ubse/topo/hccs-cross.json"
             # Completion
             install -Dm644 "$STAGING/etc/bash_completion.d/cli_commands.sh" "$pkg_dir/etc/bash_completion.d/cli_commands.sh"
-            # Version
-            install -Dm644 "$STAGING/usr/share/ubse/VERSION" "$pkg_dir/usr/share/ubse/VERSION"
             # Internal libs
             install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so" "$pkg_dir/${LIBDIR}/ubse/libhcom.so"
             install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so.0" "$pkg_dir/${LIBDIR}/ubse/libhcom.so.0"
