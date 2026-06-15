@@ -14,7 +14,7 @@ Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
 
-BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3
+BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3 python3-setuptools
 BuildRequires:  glibc-devel >= 2.34 libstdc++-devel >= 10.3
 BuildRequires:  systemd-devel >= 249
 BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.40.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.0-15
