@@ -201,6 +201,21 @@ SmapMigrateBackFunc SmapModule::GetSmapMigrateBackFunc()
     return smapMigrateBackFunc;
 }
 
+SmapMigrateBackFunc SmapModule::GetSmapMigrateBackSyncFunc()
+{
+    if (smapMigrateBackFunc != nullptr) {
+        return smapMigrateBackFunc;
+    }
+
+    smapMigrateBackFunc = (SmapMigrateBackFunc)(dlsym(smapHandle, "ubturbo_smap_migrate_back_sync"));
+    if (smapMigrateBackFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapModule] Get ubturbo_smap_migrate_back_sync ptr failed.";
+        return nullptr;
+    }
+    return smapMigrateBackFunc;
+}
+
 SmapEnableNodeFunc SmapModule::GetSmapEnableNodeFunc()
 {
     if (smapEnableNodeFunc != nullptr) {

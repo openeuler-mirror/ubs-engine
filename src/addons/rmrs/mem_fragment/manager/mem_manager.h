@@ -407,6 +407,98 @@ private:
     std::mutex mutex_;
 };
 
+class FaultNumaLock {
+public:
+    static FaultNumaLock& Instance()
+    {
+        static FaultNumaLock instance;
+        return instance;
+    }
+
+    // 独占锁（故障处理）：阻塞等待直到无任何锁，然后独占持有
+    void AcquireExclusive(uint16_t numaId)
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+            cv_.wait(lk);
+        }
+        exclusiveLocks_.insert(numaId);
+    }
+
+    void ReleaseExclusive(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        exclusiveLocks_.erase(numaId);
+        cv_.notify_all();
+    }
+
+    void AcquireShared(uint16_t numaId)
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        while (exclusiveLocks_.count(numaId) > 0) {
+            cv_.wait(lk);
+        }
+        sharedCounts_[numaId]++;
+    }
+
+    void ReleaseShared(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (sharedCounts_[numaId] > 0) {
+            sharedCounts_[numaId]--;
+            if (sharedCounts_[numaId] == 0) {
+                cv_.notify_all();
+            }
+        }
+    }
+
+    // 共享锁：如果无独占锁则获取共享锁，否则返回 false
+    bool TryAcquireShared(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (exclusiveLocks_.count(numaId) > 0) {
+            return false;
+        }
+        sharedCounts_[numaId]++;
+        return true;
+    }
+
+    bool TryAcquireExclusive(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+            return false;
+        }
+        exclusiveLocks_.insert(numaId);
+        return true;
+    }
+
+private:
+    FaultNumaLock() = default;
+    ~FaultNumaLock() = default;
+    FaultNumaLock(const FaultNumaLock&) = delete;
+    FaultNumaLock& operator=(const FaultNumaLock&) = delete;
+
+    std::unordered_set<uint16_t> exclusiveLocks_;
+    std::unordered_map<uint16_t, uint32_t> sharedCounts_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+};
+
+struct FaultNumaLockGuard {
+    std::vector<uint16_t> sharedNumaIds;
+    std::vector<uint16_t> exclusiveNumaIds;
+    ~FaultNumaLockGuard()
+    {
+        for (auto numaId : sharedNumaIds) {
+            FaultNumaLock::Instance().ReleaseShared(numaId);
+        }
+        for (auto numaId : exclusiveNumaIds) {
+            FaultNumaLock::Instance().ReleaseExclusive(numaId);
+        }
+    }
+};
+
 class SmapEnableCompleted {
 public:
     static SmapEnableCompleted& Instance()

@@ -951,6 +951,23 @@ MpResult MpSmapHelper::SmapMigrateBack(MigrateBackMsg& migrateBackMsg)
     return MEM_POOLING_OK;
 }
 
+MpResult MpSmapHelper::SmapMigrateBackSync(MigrateBackMsg& migrateBackMsg)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackSync start.";
+    SmapMigrateBackFunc smapMigrateBackFunc = SmapModule::GetSmapMigrateBackSyncFunc();
+    if (smapMigrateBackFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Ptr smapMigrateBackFunc == nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+    int ret = smapMigrateBackFunc(&migrateBackMsg);
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackFunc failed " << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackSync succeed.";
+    return MEM_POOLING_OK;
+}
+
 MpResult MpSmapHelper::SmapEnableNuma(EnableNodeMsg& enableMsg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnableNuma start.";

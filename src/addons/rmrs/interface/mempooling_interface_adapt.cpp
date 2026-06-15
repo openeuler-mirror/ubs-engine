@@ -28,6 +28,7 @@
 #include "LibvirtHelper.h"
 #include "exporter.h"
 #include "mem_borrow_executor.h"
+#include "mem_manager.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_helper.h"
 #include "mempool_migrate_module.h"
@@ -663,6 +664,31 @@ uint32_t mempooling::outinterface::UBSRMRSMemFreeWithMigrate(const std::string& 
         return MEM_POOLING_ERROR;
     }
 
+    std::vector<ubse::mem::controller::UbseNumaMemoryDebtInfo> debtInfos;
+    if (MemBorrowExecutor::GetDebtInfosWithRetry(debtInfos) != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemFreeBase] GetDebtInfosWithRetry failed, borrowId=" << borrowId << ".";
+        return MEM_POOLING_ERROR;
+    }
+    FaultNumaLockGuard lockGuard;
+    std::unordered_set<uint16_t> seenNumas;
+    for (const auto& debt : debtInfos) {
+        if (debt.name == borrowId && debt.remoteNumaId >= 0) {
+            auto numaId = static_cast<uint16_t>(debt.remoteNumaId);
+            if (seenNumas.count(numaId) > 0) {
+                continue;
+            }
+            seenNumas.insert(numaId);
+            if (!FaultNumaLock::Instance().TryAcquireExclusive(numaId)) {
+                UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                    << "[MemFree][MemFreeBase] Fault NUMA locked, numaId=" << numaId << ", borrowId=" << borrowId
+                    << ".";
+                return MEM_POOLING_HANDLING_FAULT;
+            }
+            lockGuard.exclusiveNumaIds.push_back(numaId);
+        }
+    }
+
     uint32_t ret = MEM_POOLING_ERROR;
     MempoolingInterfaceAdapt guard;
 
@@ -1139,6 +1165,23 @@ static MpResult SetRemoteNumaInfoBeforeMigrateOut(const MigrateOutMsg& msg)
 int mempooling::outinterface::UBSRMRSMigrateOut(const std::vector<MigrateOutPayload>& items, int pidType)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "Entry MigrateOut.";
+
+    FaultNumaLockGuard lockGuard;
+    std::unordered_set<uint16_t> seenNumas;
+    for (const auto& item : items) {
+        auto destNid = static_cast<uint16_t>(item.inner[0].destNid);
+        if (seenNumas.count(destNid) > 0) {
+            continue;
+        }
+        seenNumas.insert(destNid);
+        if (!FaultNumaLock::Instance().TryAcquireShared(destNid)) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "MigrateOut fault NUMA locked, destNid=" << destNid << ".";
+            return MEM_POOLING_HANDLING_FAULT;
+        }
+        lockGuard.sharedNumaIds.push_back(destNid);
+    }
+
     MigrateOutMsg msg{};
     msg.count = static_cast<int>(items.size());
     for (size_t i = 0; i < items.size(); ++i) {

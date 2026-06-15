@@ -295,6 +295,8 @@ public:
 
     static SmapMigrateBackFunc GetSmapMigrateBackFunc();
 
+    static SmapMigrateBackFunc GetSmapMigrateBackSyncFunc();
+
     static SmapEnableNodeFunc GetSmapEnableNodeFunc();
 
     static SmapMigrateRemoteNumaFunc GetSmapMigrateRemoteNumaFunc();

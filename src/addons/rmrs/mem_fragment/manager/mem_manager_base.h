@@ -14,6 +14,7 @@
 #define MEM_MANAGER_BASE_H
 
 #include <algorithm>
+#include <condition_variable>
 #include <map>
 #include <mutex>
 #include <set>
