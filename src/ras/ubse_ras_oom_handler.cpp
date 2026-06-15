@@ -396,7 +396,7 @@ UbseResult GetFreeMemInfo(int16_t numaId, uint64_t& memFree)
 
 uint64_t InitOomWaitTime()
 {
-    uint64_t oomWaitTime;
+    uint64_t oomWaitTime = 100; // 默认等待时间 100ms
     std::string oomWaitTimePath = "/sys/module/obmm/parameters/message_ack_timeout_ms";
     auto ret = GetFileValue(oomWaitTimePath, 0, oomWaitTime);
     if (ret != UBSE_OK) {

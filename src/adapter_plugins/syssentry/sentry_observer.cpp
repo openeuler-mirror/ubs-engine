@@ -225,9 +225,9 @@ void UbseRasObserver::SentryEventListen()
             LogValidFaultMsg(pucParasStr);
             continue;
         }
-        UBSE_LOG_INFO << "Alarm from sysSentry, id=" << msg->usAlarmId << ", param=" << msg->pucParas;
+        UBSE_LOG_INFO << "Alarm from sysSentry, id=" << msg->usAlarmId << ", param=" << pucParasStr;
         auto result = ubse::ras::UbseRasHandler::GetInstance().NodeFaultHandle(msg);
-        UBSE_LOG_DEBUG << "Ubse ras handler finished, " << FormatRetCode(result);
+        UBSE_LOG_INFO << "Ubse ras handler finished, " << FormatRetCode(result);
         SafeDelete(msg);
         TraceContext::Clear();
     }

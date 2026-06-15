@@ -14,6 +14,7 @@
 #include <dlfcn.h>
 #include <cctype>
 #include <cstring>
+#include <mutex>
 #include <regex>
 #include <set>
 #include <utility>
@@ -48,8 +49,48 @@ using namespace ubse::com;
 using namespace ubse::context;
 using namespace ubse::utils;
 
-std::unordered_map<ALARM_FAULT_TYPE, std::set<std::string>> g_MSG_ID_MAP{};
-std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_HANDLER_RESULT{};
+// handler 执行结果缓存及其互斥锁，由下列存取函数统一保护：
+//   IsHandlerDone / SetHandlerResult / GetResultFromHandlersByMsg / ClearHandlerResult / ClearAllHandlerResults
+static std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_handlerResultMap{};
+static std::mutex g_handlerResultMutex;
+
+static bool IsHandlerDone(const std::string& msg, const std::string& handlerName)
+{
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    auto msgIt = g_handlerResultMap.find(msg);
+    if (msgIt == g_handlerResultMap.end()) {
+        return false;
+    }
+    auto handlerIt = msgIt->second.find(handlerName);
+    return handlerIt != msgIt->second.end() && handlerIt->second == UBSE_OK;
+}
+
+static void SetHandlerResult(const std::string& msg, const std::string& handlerName, uint32_t result)
+{
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    g_handlerResultMap[msg][handlerName] = result;
+}
+
+static UbseResult GetResultFromHandlersByMsg(const std::string& msg)
+{
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    auto msgIt = g_handlerResultMap.find(msg);
+    if (msgIt == g_handlerResultMap.end()) {
+        return UBSE_OK;
+    }
+    for (const auto& result : msgIt->second) {
+        if (result.second != UBSE_OK) {
+            return static_cast<UbseResult>(result.second);
+        }
+    }
+    return UBSE_OK;
+}
+
+static void ClearAllHandlerResults()
+{
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    g_handlerResultMap.clear();
+}
 
 struct DebtInfo {
     std::string name; // 资源名称标识
@@ -354,7 +395,8 @@ UbseResult SendSwitchRoleToStandby(const UbseRoleInfo& curRoleInfo, const std::s
 void ClearFaultHandlerResult(const std::string& msgId)
 {
     UBSE_LOG_INFO << "Clear fault handler result for msgId=" << msgId;
-    g_HANDLER_RESULT[msgId].clear();
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    g_handlerResultMap[msgId].clear();
 }
 
 UbseResult ReportBMCFaultToMaster(const std::string& info, const std::string& faultNodeId,
@@ -669,16 +711,6 @@ UbseResult UbseRasHandler::RegisterAlarmFaultHandler(const AlarmHandler& alarmHa
     return UBSE_OK;
 }
 
-UbseResult GetResultFromHandlersByMsg(const std::string& msg)
-{
-    for (const auto& result : g_HANDLER_RESULT[msg]) {
-        if (result.second != UBSE_OK) {
-            return result.second;
-        }
-    }
-    return UBSE_OK;
-}
-
 UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string& faultInfo,
                                                const std::string& msg)
 {
@@ -691,8 +723,7 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
         for (const auto& handler : handlers.second) {
             UBSE_LOG_DEBUG << "Handler execute, type=" << faultType << "; priority=" << static_cast<int>(handlers.first)
                            << "; name=" << handler.first;
-            if (g_HANDLER_RESULT[msg].find(handler.first) != g_HANDLER_RESULT[msg].end() &&
-                g_HANDLER_RESULT[msg][handler.first] == UBSE_OK) {
+            if (IsHandlerDone(msg, handler.first)) {
                 UBSE_LOG_DEBUG << "Handler " << handler.first << " is already done. ";
                 continue;
             }
@@ -700,7 +731,7 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
                 continue;
             }
             auto retTmp = handler.second(faultType, faultInfo);
-            g_HANDLER_RESULT[msg][handler.first] = retTmp;
+            SetHandlerResult(msg, handler.first, retTmp);
             UBSE_LOG_INFO << "Handler execute finished, type=" << faultType << "; name=" << handler.first
                           << "; priority=" << static_cast<int>(handlers.first) << "; result=" << retTmp;
         }
@@ -875,7 +906,7 @@ void UbseRasHandler::ClearAllMsgId()
 {
     UBSE_LOG_INFO << "Clear all processed msg id";
     processedMsgId.clear();
-    g_HANDLER_RESULT.clear();
+    ClearAllHandlerResults();
 }
 
 bool UbseRasHandler::MsgIdHasBeenProcessed(const std::string& msgId) const

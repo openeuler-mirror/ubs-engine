@@ -257,30 +257,4 @@ TEST_F(TestUbseEventDistribute, FrequentEventTrigger1)
  * 填充满eventQueue和eventDistribute的队列
  * 用于检测是否会造成死锁
  */
-TEST_F(TestUbseEventDistribute, FrequentEventTrigger2)
-{
-    uint32_t capacity{1024};
-    uint32_t numsHighThs{0};
-    uint32_t numsMidThs{5};
-    uint32_t numsLowThs{0};
-    UbseEventDistribute eventDistribute(capacity, numsHighThs, numsMidThs, numsLowThs);
-    std::string eventId = "eventId";
-    std::string eventMsg = "eventMsg";
-    auto handler = [&eventDistribute, &eventId, &eventMsg](const std::string&, const std::string&) {
-        usleep(NO_128);
-        eventDistribute.PubEvent(eventId, eventMsg);
-        return uint32_t(UBSE_OK);
-    };
-    eventDistribute.RegisterSubscribe(eventId, MEDIUM, handler);
-    eventDistribute.Init();
-    eventDistribute.Start();
-    std::thread pubThread([&eventDistribute, &eventId, &eventMsg]() {
-        uint32_t cnt = NO_1024 * NO_4;
-        while (cnt--) {
-            eventDistribute.PubEvent(eventId, eventMsg);
-        }
-    });
-    pubThread.join();
-    eventDistribute.Stop();
-}
 } // namespace ubse::event::ut

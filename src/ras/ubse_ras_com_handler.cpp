@@ -1,8 +1,10 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
-#include "ubse_ras_com_handler.h"
+#include <mutex>
+
 #include "ubse_election_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
+#include "ubse_ras_com_handler.h"
 #include "ubse_ras_handler.h"
 #include "message/ubse_ras_message.h"
 #include "message/ubse_ras_oom_message.h"
@@ -18,16 +20,30 @@ using namespace ubse::log;
 using namespace ubse::com;
 using namespace ubse::common::def;
 
-static std::unordered_map<std::string, std::string>
-    g_nodeBmcFaultMsgId; // <nodeId, msgId>，记录nodeId上一次BMC处理的msgId
+// <nodeId, msgId>，记录nodeId上一次BMC处理的msgId。由 UpdateNodeBmcFaultMsgId() 统一保护并发访问
+static std::unordered_map<std::string, std::string> g_nodeBmcFaultMsgId;
+static std::mutex g_nodeBmcFaultMsgIdMutex;
+
+// 检查是否为新的 msgId（未处理过或与上一次不同），若是则更新记录。
+// 调用方持有锁的时间仅为本函数调用期间，返回后锁释放。
+static bool UpdateNodeBmcFaultMsgId(const std::string& nodeId, const std::string& msgId)
+{
+    std::lock_guard<std::mutex> lock(g_nodeBmcFaultMsgIdMutex);
+    auto it = g_nodeBmcFaultMsgId.find(nodeId);
+    if (it == g_nodeBmcFaultMsgId.end() || it->second != msgId) {
+        g_nodeBmcFaultMsgId[nodeId] = msgId;
+        return true; // 新的 msgId，需要处理
+    }
+    return false; // 已处理过相同的 msgId
+}
+
 UbseResult HandleBmcFaultPreSet(const UbseRasMessagePtr& request, const UbseRasMessagePtr& response)
 {
     LogMemDebtInfoWithNode(ALARM_REBOOT_EVENT, request->GetData());
     auto nodeId = request->GetData();
     auto msgId = request->GetMsg();
     // 如果没有对节点为nodeId的序号为msgId的Bmc故障进行过处理，则清空
-    if (g_nodeBmcFaultMsgId.find(nodeId) == g_nodeBmcFaultMsgId.end() || g_nodeBmcFaultMsgId[nodeId] != msgId) {
-        g_nodeBmcFaultMsgId[nodeId] = msgId;
+    if (UpdateNodeBmcFaultMsgId(nodeId, msgId)) {
         ClearFaultHandlerResult("BMC-" + nodeId + "-" + msgId);
     }
     // 调用node ctrl 回调，尝试进入pre bmc状态，超时则返回失败
