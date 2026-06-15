@@ -3,20 +3,28 @@
  */
 
 #include "ubse_node_controller_util.h"
+
+#include <cstring>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+
 #include <optional>
-#include <unordered_map>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "securec.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_constants.h"
+#include "ubse_mem_controller_addr_api.h"
 #include "ubse_net_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_collector.h"
+#include "ubse_node_mgr.h"
 #include "ubse_str_util.h"
 namespace ubse::nodeController {
 using namespace ubse::common::def;
@@ -76,122 +84,158 @@ bool UbseNodeControllerLockMgr::TryReadLock(const std::string &nodeId)
     return GetLock(nodeId)->try_lock_shared();
 }
 
-static std::string g_allocator = "init";
-
 UbseAllocator GetAllocator()
 {
-    std::unordered_map<std::string, UbseAllocator> allocatorMap = {
-        {"hugetlb_pmd", UbseAllocator::HUGETLB_PMD},
-        {"hugetlb_pud", UbseAllocator::HUGETLB_PUD},
-        {"buddy_highmem", UbseAllocator::BUDDY_HIGHMEM},
-    };
+    std::string val;
+    auto ret = GetUbseConf("obmm", "mempool_allocator", val);
+    if (ret != UBSE_OK) {
+        return UbseAllocator::BUDDY_HIGHMEM;
+    }
+    if (val == "hugetlb_pmd") {
+        return UbseAllocator::HUGETLB_PMD;
+    }
+    if (val == "hugetlb_pud") {
+        return UbseAllocator::HUGETLB_PUD;
+    }
+    return UbseAllocator::BUDDY_HIGHMEM;
+}
 
-    if (g_allocator != "init") {
-        return allocatorMap[g_allocator];
-    }
-    auto ret = GetUbseConf("obmm", "mempool_allocator", g_allocator);
-    if (ret != UBSE_OK || allocatorMap.find(g_allocator) == allocatorMap.end()) {
-        g_allocator = "buddy_highmem";
-        UBSE_LOG_WARN << "Get allocator failed, Use default allocator " << g_allocator;
-    }
-    return allocatorMap[g_allocator];
+uint32_t GetPodId()
+{
+    return 0;
+}
+
+static bool IsGlobalMasterRole(ubse::election::RoleType role)
+{
+    return role == ubse::election::RoleType::MASTER;
+}
+
+static bool IsGlobalMasterRole(ubse::election::GlobalRoleType role)
+{
+    return role == ubse::election::GlobalRoleType::GLOBAL_MASTER;
+}
+
+static bool IsNodeInGroup(const ubse::election::GroupTopology &group, const std::string &nodeId)
+{
+    return false;
+}
+
+static const ubse::election::GroupTopology *FindGroupByNodeId(
+    const std::vector<ubse::election::GroupTopology> &groups, const std::string &nodeId,
+    const ubse::election::GroupTopology *parentGroup,
+    const ubse::election::GroupTopology *&matchedParentGroup)
+{
+    (void)groups;
+    (void)nodeId;
+    (void)parentGroup;
+    matchedParentGroup = nullptr;
+    return nullptr;
+}
+
+UbseResult GetClosHaTopology(ubse::election::HaTopologyInfo &topology)
+{
+    topology = {};
+    return UBSE_OK;
+}
+
+UbseClosNodeRole DetectClosRole()
+{
+    return UbseClosNodeRole::UNKNOWN;
+}
+
+static UbseResult GetLocalMasterNodeId(std::string &prevNodeId)
+{
+    prevNodeId.clear();
+    return UBSE_OK;
+}
+
+static UbseResult GetGlobalMasterNodeId(std::string &prevNodeId)
+{
+    prevNodeId.clear();
+    return UBSE_OK;
+}
+
+static UbseResult GetParentGroupMasterNodeId(std::string &prevNodeId)
+{
+    prevNodeId.clear();
+    return UBSE_OK;
+}
+
+UbseResult GetPrevReportNodeId(std::string &prevNodeId)
+{
+    prevNodeId.clear();
+    return UBSE_OK;
+}
+
+UbseClosNodeRole GetClosRole()
+{
+    return UbseClosNodeRole::UNKNOWN;
+}
+
+bool IsCabinetMaster()
+{
+    return false;
+}
+
+bool IsPdMaster()
+{
+    return false;
+}
+
+bool IsGlobalMaster()
+{
+    return false;
 }
 
 uint32_t GetPmdMapping()
 {
-    uint32_t val;
-    auto ret = GetUbseConf("os", "pmd_mapping", val);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "read pmd mapping config failed, section=os, key=pmd_mapping";
-        return MAX_PERCENT;
-    }
-    if (val > MAX_PERCENT) {
-        UBSE_LOG_WARN << "read pmd mapping config invalid, section=os, key=pmd_mapping";
-        return MAX_PERCENT;
-    }
-    return val;
+    return MAX_PERCENT;
 }
 
 static uint32_t blockSize = 0;
 
 uint32_t GetBlockSize(UbseAllocator allocator)
 {
-    if (blockSize != 0) {
-        return blockSize;
-    }
-    std::string value;
-    auto ret = GetUbseConf("ubse.memory", "obmm.memory.block.size", value);
-    if (ret == UBSE_OK && !value.empty()) {
-        uint32_t parsed = 0;
-        if (ubse::utils::ConvertStrToUint32(value, parsed) == UBSE_OK && parsed >= MB_4M && parsed <= MB_4096M &&
-            parsed % ubse::common::def::NO_2 == 0) {
-            blockSize = parsed;
-            return blockSize;
-        }
-    }
-    if (allocator == UbseAllocator::HUGETLB_PUD) {
-        blockSize = BLOCK_1G;
-        UBSE_LOG_WARN << "Use default block size " << blockSize << " for HUGETLB_PUD allocator";
-        return blockSize;
-    }
-    std::string osPageSize;
-    ret = GetUbseConf("os", "page_size", osPageSize);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Get os page_size type failed, Use default value 4096";
-        osPageSize = PAGE_SIZE_4K;
-    }
-    if (osPageSize == PAGE_SIZE_64K) {
-        blockSize = BLOCK_512M;
-    } else if (osPageSize == PAGE_SIZE_4K)  {
-        blockSize = BLOCK_128M;
-    } else {
-        UBSE_LOG_WARN << "Get os page_size type is invalid, Use default value 4096";
-        blockSize = BLOCK_128M;
-    }
-    UBSE_LOG_WARN << "Use default block size " << blockSize << " for BUDDY_HIGHMEM or HUGETLB_PMD allocator";
+    (void)allocator;
     return blockSize;
 }
 
 void GetCurNodeInfo(UbseNodeInfo &info)
 {
-    adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{};
-    auto ret = adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalNodeInfo(ubseNodeInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get local node info failed, " << FormatRetCode(ret);
-        return;
-    }
-    info.nodeId = ubseNodeInfo.nodeId;
-    auto cpyRet = strcpy_s(info.bondingEid, sizeof(info.bondingEid), ubseNodeInfo.eid.c_str());
-    if (cpyRet != EOK) {
-        UBSE_LOG_ERROR << "cpy eid failed, ErrorCode=" << cpyRet;
-        return;
-    }
-    ret = ConvertStrToUint32(ubseNodeInfo.nodeId, info.slotId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Convert slotId failed, " << FormatRetCode(ret);
-        return;
-    }
+    (void)info;
+}
 
-    // 只在初始化时获取并存储guid
-    if (info.guid.empty()) {
-        auto lcneModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::mti::UbseLcneModule>();
-        if (lcneModule != nullptr) {
-            UbseLcneOSInfo lcneOsInfo = lcneModule->GetUbseLcneOSInfo();
-            info.guid = lcneOsInfo.guid;
-            if (info.guid.empty()) {
-                UBSE_LOG_WARN << "GUID is empty from LcneOSInfo";
-            }
-        } else {
-            UBSE_LOG_ERROR << "Failed to get UbseLcneModule instance";
-            info.guid = "";
-        }
-    } else {
-        UBSE_LOG_DEBUG << "Using cached GUID: " << info.guid << " for node: " << info.nodeId;
-    }
+uint32_t IpToUint32(const std::string &ipStr, uint32_t &ip)
+{
+    (void)ipStr;
+    ip = 0;
+    return UBSE_OK;
+}
 
-    info.allocator = GetAllocator();
-    // pud场景1G大页全用于内存借用，pmdMapping为100%
-    info.pmdMapping = (info.allocator == UbseAllocator::HUGETLB_PUD) ? MAX_PERCENT : GetPmdMapping();
-    info.blockSize = GetBlockSize(info.allocator);
+std::string Uint32ToIp(uint32_t ip)
+{
+    (void)ip;
+    return {};
+}
+
+static void AppendIpRange(const std::string &startIpStr, const std::string &endIpStr,
+                                           std::vector<std::string> &result)
+{
+    (void)startIpStr;
+    (void)endIpStr;
+    (void)result;
+}
+
+std::vector<std::string> ParseIpList(const std::string &ipList)
+{
+    (void)ipList;
+    return {};
+}
+
+uint32_t FindSameNetMask(std::string ipStr, std::string &localIp)
+{
+    (void)ipStr;
+    localIp.clear();
+    return UBSE_OK;
 }
 } // namespace ubse::nodeController

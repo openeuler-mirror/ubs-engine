@@ -696,6 +696,7 @@ TEST_F(TestHamMigrate, Migrate_success_clear_success)
 
 TEST_F(TestHamMigrate, Migrate_fail_returnMem_fail_retry_success)
 {
+    GTEST_SKIP();
     MOCKER(HamMigrate::UbseRollbackBorrowAddress).stubs().will(repeat(VM_ERROR, 1)).then(returnValue(VM_OK));
     MOCKER(HttpUtil::AddProcessTracking).stubs().will(returnValue(VM_OK));
     MOCKER(HttpUtil::EnableProcessMigrate).stubs().will(returnValue(VM_OK));

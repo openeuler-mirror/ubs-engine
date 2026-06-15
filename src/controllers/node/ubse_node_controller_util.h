@@ -22,11 +22,20 @@
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_election_def.h"
 #include "ubse_logger.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::nodeController {
 #define MODULE_LOG_NAME "ubse"
+
+enum class UbseClosNodeRole {
+    UNKNOWN,
+    CABINET_AGENT,
+    CABINET_MASTER,
+    PD_MASTER,
+    GLOBAL_MASTER
+};
 
 class UbseNodeControllerLockMgr {
 public:
@@ -51,7 +60,32 @@ private:
 };
 
 void GetCurNodeInfo(UbseNodeInfo &info);
+
 UbseAllocator GetAllocator();
+
+uint32_t GetPodId();
+
+ubse::common::def::UbseResult GetClosHaTopology(ubse::election::HaTopologyInfo &topology);
+
+ubse::common::def::UbseResult GetPrevReportNodeId(std::string &prevNodeId);
+
+UbseClosNodeRole DetectClosRole();
+
+UbseClosNodeRole GetClosRole();
+
+bool IsCabinetMaster();
+
+bool IsPdMaster();
+
+bool IsGlobalMaster();
+
+uint32_t IpToUint32(const std::string &ipStr, uint32_t &ip);
+
+std::string Uint32ToIp(uint32_t ip);
+
+std::vector<std::string> ParseIpList(const std::string &ipList);
+
+uint32_t FindSameNetMask(std::string ipStr, std::string &localIp);
 #undef MODULE_LOG_NAME
 } // namespace ubse::nodeController
 

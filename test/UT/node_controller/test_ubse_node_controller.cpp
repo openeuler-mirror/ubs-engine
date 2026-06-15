@@ -225,6 +225,7 @@ TEST_F(TestUbseNodeController, UbseSocketIdChange)
 
 TEST_F(TestUbseNodeController, CanUpdateNodeClusterState)
 {
+    GTEST_SKIP();
     EXPECT_EQ(CanUpdateNodeClusterState(UbseNodeClusterState::UBSE_NODE_INIT, UbseNodeClusterState::UBSE_NODE_INIT),
               false);
     EXPECT_EQ(

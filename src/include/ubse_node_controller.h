@@ -150,6 +150,11 @@ enum class UbseNodeLocalState {
     UBSE_NODE_READY,   // 节点正常
 };
 
+enum class UbseNodeGlobalState {
+    UBSE_NODE_GLOBAL_INIT, // 全局主侧未完成数据恢复
+    UBSE_NODE_GLOBAL_READY // 全局主侧已完成数据恢复
+};
+
 enum class UbseAllocator {
     HUGETLB_PMD,  // 使用2M大页决策借出节点
     HUGETLB_PUD,  // 使用1G大页决策借出节点
@@ -157,15 +162,15 @@ enum class UbseAllocator {
 };
 
 enum class UbseNodeSysSentryState {
-    UBSE_NODE_SYSSENTRY_OK, // sysSentry服务正常
+    UBSE_NODE_SYSSENTRY_OK,  // sysSentry服务正常
     UBSE_NODE_SYSSENTRY_NOK, // 服务异常
     UBSE_NODE_SYSSENTRY_UNKNOWN
 };
 
 enum class UbseNodeObmmState {
-    UBSE_NODE_OBMM_INSERTED,  // 内核已插入
-    UBSE_NODE_OBMM_NOT_INSERTED,  // 内核未插入
-    UBSE_NODE_OBMM_UNKNOWN   // 状态未知
+    UBSE_NODE_OBMM_INSERTED,     // 内核已插入
+    UBSE_NODE_OBMM_NOT_INSERTED, // 内核未插入
+    UBSE_NODE_OBMM_UNKNOWN       // 状态未知
 };
 
 struct UbseNodeInfo {
@@ -179,10 +184,11 @@ struct UbseNodeInfo {
     std::unordered_map<UbseNumaLocation, UbseNumaInfo, UbseNumaLocation::Hash, UbseNumaLocation::Equal>
         numaInfos; // numa信息
     std::unordered_map<UbseCpuLocation, UbseCpuInfo, UbseCpuLocation::Hash, UbseCpuLocation::Equal>
-        cpuInfos;                      // cpu信息（key为lcne的chipid）
-    UbseNodeLocalState localState;     // 当前节点状态
-    UbseNodeClusterState clusterState; // 中心侧节点状态
-    bool isLender = true;              // 当前节点是否可以进行内存借用
+        cpuInfos;                                                                // cpu信息（key为lcne的chipid）
+    UbseNodeLocalState localState;                                               // 当前节点状态
+    UbseNodeClusterState clusterState;                                           // 中心侧节点状态
+    UbseNodeGlobalState globalState{UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT}; // 全局主侧数据恢复状态
+    bool isLender = true;                                                        // 当前节点是否可以进行内存借用
     bool operator==(const UbseNodeInfo &other) const
     {
         return this->nodeId == other.nodeId;
@@ -191,8 +197,10 @@ struct UbseNodeInfo {
     UbseAllocator allocator{UbseAllocator::BUDDY_HIGHMEM}; // 使用不同的内存类型余量借用决策
     uint32_t pmdMapping{100};                              // 控制每个numa上能导出的内存总量，单位%
     uint32_t blockSize{128};                               // 芯片表项内存拆分粒度大小，单位M
-    uint32_t exportTotalTimes{1024}; // 单个socket的总导出次数，一个节点上的两个socket配置相同
-    UbseNodeSysSentryState sysSentryState{UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_UNKNOWN}; // 本节点sysSentry服务状态
+    uint32_t podId{0};                                     // 所在机柜号
+    uint32_t exportTotalTimes{1024};                       // 单个socket的总导出次数，一个节点上的两个socket配置相同
+    UbseNodeSysSentryState sysSentryState{
+        UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_UNKNOWN};               // 本节点sysSentry服务状态
     UbseNodeObmmState obmmState{UbseNodeObmmState::UBSE_NODE_OBMM_UNKNOWN}; // 本节点obmm内核插入状态
 };
 
@@ -216,10 +224,20 @@ struct PhysicalLink {
 
     bool operator==(const PhysicalLink &other) const
     {
-        return slotId == other.slotId && chipId == other.chipId && portId == other.portId &&
-               interfaceName == other.interfaceName && peerSlotId == other.peerSlotId &&
-               peerChipId == other.peerChipId && peerPortId == other.peerPortId &&
-               peerInterfaceName == other.peerInterfaceName && linkStatus == other.linkStatus;
+        return slotId == other.slotId &&
+               chipId == other.chipId &&
+               portId == other.portId &&
+               interfaceName == other.interfaceName &&
+               peerSlotId == other.peerSlotId &&
+               peerChipId == other.peerChipId &&
+               peerPortId == other.peerPortId &&
+               peerInterfaceName == other.peerInterfaceName &&
+               linkStatus == other.linkStatus;
+    }
+
+    bool operator!=(const PhysicalLink &other) const
+    {
+        return !(*this == other);
     }
 };
 
@@ -246,9 +264,9 @@ struct CliPhysicalLink {
     std::string linkId;
 
     CliPhysicalLink() = default;
-    CliPhysicalLink(std::string node, std::string socketId, std::string portId,
-                    std::string interfaceName, std::string peerNode, std::string peerSocketId,
-                    std::string peerPortId, std::string peerInterfaceName, std::string linkId)
+    CliPhysicalLink(std::string node, std::string socketId, std::string portId, std::string interfaceName,
+                    std::string peerNode, std::string peerSocketId, std::string peerPortId,
+                    std::string peerInterfaceName, std::string linkId)
         : node(node),
           socketId(socketId),
           portId(portId),
@@ -278,6 +296,7 @@ uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDi
 
 using UbseLocalStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
 using UbseClusterStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
+using UbseGlobalStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
 using UbseMemGroupNodeList = std::vector<std::vector<UbseNodeInfo>>;
 using UbseMemProviderNodeList = std::vector<UbseNodeInfo>;
 
@@ -290,8 +309,10 @@ public:
         static UbseNodeController instance;
         return instance;
     }
-    // 获取所有节点信息,agent侧要发送rpc到master取全量节点信息
+    // 获取所有节点信息；若当前节点不是leader，会向master远程查询
     std::unordered_map<std::string, UbseNodeInfo> GetAllNodes();
+    // 获取当前进程内nodeInfos；不进行远程查询，供CLOS本节点周期全量上报使用
+    std::unordered_map<std::string, UbseNodeInfo> GetLocalNodeInfos();
     // 从LCNE获取静态节点列表，用于选主模块获取节点列表创建心跳链路
     std::vector<UbseNodeInfo> GetStaticNodeInfo();
     // 获取当前节点信息
@@ -311,11 +332,21 @@ public:
 
     // 注册本节点状态变更回调
     uint32_t RegLocalStateNotifyHandler(const UbseLocalStateNotifyHandler &handler);
+
     // 注册中心侧节点状态变更回调
     uint32_t RegClusterStateNotifyHandler(const UbseClusterStateNotifyHandler &handler);
 
+    // 注册全局主侧数据恢复状态变更回调
+    uint32_t RegGlobalStateNotifyHandler(const UbseGlobalStateNotifyHandler &handler);
+
+    // 执行全局主侧数据恢复状态变更回调
+    uint32_t ExecGlobalStateNotifyHandler(const UbseNodeInfo &node);
+
+    // 更新全局主侧数据恢复状态
+    uint32_t UpdateNodeInfoGlobalState(const std::string &nodeId, UbseNodeGlobalState state);
+
     // 若节点信息不存在，添加元素；若节点信息已存在，刷新 numa, cpu, ipList等拓扑字段
-    uint32_t UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo info);
+    uint32_t UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
     // 利用numaInfos的OS socketId，更新cpuInfos的值
     void UbseSocketIdChange(const std::string &nodeId);
@@ -346,6 +377,7 @@ private:
     std::unordered_map<std::string, UbseNodeInfo> nodeInfos; // agent侧只有当前节点，Master有全量节点
     std::vector<UbseLocalStateNotifyHandler> localNotifyHandlers;
     std::vector<UbseClusterStateNotifyHandler> clusterNotifyHandlers;
+    std::vector<UbseGlobalStateNotifyHandler> globalNotifyHandlers;
     std::string currentNodeId;
     // 链接对
     std::shared_mutex devDirMutex;

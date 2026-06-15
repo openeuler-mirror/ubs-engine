@@ -534,7 +534,11 @@ UbseResult CollectCpuInfo(UbseNodeInfo &ubseNodeInfo, const std::string &nodeId)
 
 UbseResult CollectSysSentryState(UbseNodeInfo &ubseNodeInfo)
 {
-    if (!syssentry::UbseRasObserver::GetInstance().IsSentryMsgMonitorRunning() ||
+    std::string command = "sentryctl status sentry_msg_monitor 2>/dev/null";
+    std::string result;
+    auto ret = ubse::utils::UbseOsUtil::Exec(command, result);
+    // sysSentry 服务未启动时也会返回错误，因此命令执行失败后视作sysSentry服务异常
+    if (ret != UBSE_OK || result.find("RUNNING") == std::string::npos ||
         !syssentry::UbseRasObserver::GetInstance().IsConfigSuccess()) {
         ubseNodeInfo.sysSentryState = UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_NOK;
     } else {
