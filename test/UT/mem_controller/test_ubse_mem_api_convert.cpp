@@ -315,7 +315,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateReqUnpackFailed)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
     ptr += nameLen;
 
-    EXPECT_EQ(UbseMemShmCreateReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmCreateReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -333,7 +333,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateReqUnpackFailed)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &size, sizeof(uint64_t));
     ptr += sizeof(uint64_t);
 
-    EXPECT_EQ(UbseMemShmCreateReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmCreateReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -516,7 +516,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithAffinityReqUnpackFailed)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
     ptr += nameLen;
 
-    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -534,7 +534,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithAffinityReqUnpackFailed)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &size, sizeof(uint64_t));
     ptr += sizeof(uint64_t);
 
-    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -560,7 +560,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmCreateWithAffinityReqUnpackFailed)
     uint64_t flag = 0x1;
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &flag, sizeof(uint64_t));
 
-    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmCreateWithAffinityReqUnpack(buffer, memShmDispatcher), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -719,7 +719,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateWithLenderReqUnpackSuccess)
     uint32_t invalidLenderCnt = 0; // 无效的 lenderCnt
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &invalidLenderCnt, sizeof(uint32_t));
 
-    EXPECT_EQ(UbseMemCreateWithLenderReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemCreateWithLenderReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -809,7 +809,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateWithCandidateReqUnpackSuccess)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
     ptr += nameLen;
 
-    EXPECT_EQ(UbseMemCreateWithCandidateReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemCreateWithCandidateReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -881,7 +881,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemFdPermissionReqUnpackSuccess)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
     ptr += nameLen;
 
-    EXPECT_EQ(UbseMemFdPermissionReqUnpack(buffer, memFdPermissionReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemFdPermissionReqUnpack(buffer, memFdPermissionReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -943,7 +943,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateReqUnpackSuccess)
     ptr += sizeof(uint32_t);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
 
-    EXPECT_EQ(UbseMemNumaCreateReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -959,7 +959,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateReqUnpackSuccess)
     ptr += nameLen;
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &size, sizeof(uint64_t));
 
-    EXPECT_EQ(UbseMemNumaCreateReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -1047,7 +1047,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
     ptr += sizeof(uint32_t);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
 
-    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -1064,7 +1064,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
     lenderCnt = 2; // 两个 lender
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &lenderCnt, sizeof(uint32_t));
 
-    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -1224,7 +1224,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemShmAttachReqUnpackSuccess)
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
     ptr += nameLen;
 
-    EXPECT_EQ(UbseMemShmAttachReqUnpack(buffer, memShareAttachReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemShmAttachReqUnpack(buffer, memShareAttachReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);

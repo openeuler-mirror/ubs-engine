@@ -24,6 +24,9 @@ using namespace ubse::serial;
 using namespace ubse::adapter_plugins::mmi;
 #define MODULE_LOG_NAME "ubse"
 
+// 单个节点的最大的借用账本数为: 128T/4/512M = 2^16 = 65536
+constexpr int MAX_DEBT_MAP_SIZE = 65536;
+
 inline void UbseMemFdImportObjMapSerialize(UbseSerialization& out, const UbseMemFdImportObjMap& data)
 {
     out << array_len_insert(data.size());
@@ -38,6 +41,10 @@ inline bool UbseMemFdImportObjMapDeserialize(UbseDeSerialization& in, UbseMemFdI
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Fd Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -74,6 +81,10 @@ inline bool UbseMemFdExportObjMapDeserialize(UbseDeSerialization& in, UbseMemFdE
         UBSE_LOG_ERROR << "check failed;";
         return false;
     }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Fd Export Object Map deserialization, dataSize=" << dataSize;
+        return false;
+    }
     for (size_t i = 0; i < dataSize; i++) {
         std::string key{};
         in >> key;
@@ -106,6 +117,10 @@ inline bool UbseMemNumaImportObjMapDeserialize(UbseDeSerialization& in, UbseMemN
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Numa Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -142,6 +157,10 @@ inline bool UbseMemNumaExportObjMapDeserialize(UbseDeSerialization& in, UbseMemN
         UBSE_LOG_ERROR << "Check failed;";
         return false;
     }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Numa Export Object Map deserialization, dataSize=" << dataSize;
+        return false;
+    }
     for (size_t i = 0; i < dataSize; i++) {
         std::string key{};
         in >> key;
@@ -175,6 +194,10 @@ inline bool UbseMemShareImportObjMapDeserialize(UbseDeSerialization& in, UbseMem
         UBSE_LOG_ERROR << "check failed;";
         return false;
     }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Share Import Object Map deserialization, dataSize=" << dataSize;
+        return false;
+    }
     for (size_t i = 0; i < dataSize; i++) {
         std::string key{};
         in >> key;
@@ -206,6 +229,10 @@ inline bool UbseMemShareExportObjMapDeserialize(UbseDeSerialization& in, UbseMem
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Share Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -242,6 +269,10 @@ inline bool UbseMemAddrImportObjMapDeserialize(UbseDeSerialization& in, UbseMemA
         UBSE_LOG_ERROR << "check failed;";
         return false;
     }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Addr Import Object Map deserialization, dataSize=" << dataSize;
+        return false;
+    }
     for (size_t i = 0; i < dataSize; i++) {
         std::string key{};
         in >> key;
@@ -274,6 +305,10 @@ inline bool UbseMemAddrExportObjMapDeserialize(UbseDeSerialization& in, UbseMemA
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Addr Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {

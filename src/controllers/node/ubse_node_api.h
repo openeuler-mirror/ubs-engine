@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef USBE_NODE_API_H
-#define USBE_NODE_API_H
+#ifndef UBSE_NODE_API_H
+#define UBSE_NODE_API_H
 #include "ubse_api_server_module.h"
 #include "ubse_common_def.h"
 
@@ -35,4 +35,4 @@ private:
     static uint32_t UbseQueryNodeInfo(const UbseIpcMessage& req, const UbseRequestContext& context);
 };
 } // namespace ubse::node::api
-#endif // USBE_NODE_API_H
+#endif // UBSE_NODE_API_H

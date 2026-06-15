@@ -80,7 +80,7 @@ UbseResult SendToMasterIfNotMaster(std::string& masterNodeId, TReq& requestPtr, 
 
 UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherCreate()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -117,7 +117,7 @@ UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherCreate()
 
 UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherDelete()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -133,7 +133,7 @@ UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherDelete()
 
 UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcherQuery()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -180,7 +180,7 @@ UbseResult UbseMemControllerDispatcher::RegisterFdSdkDispatcher()
 
 UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherCreate()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -210,7 +210,7 @@ UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherCreate()
 
 UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherDelete()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -226,7 +226,7 @@ UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherDelete()
 
 UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcherQuery()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -273,7 +273,7 @@ UbseResult UbseMemControllerDispatcher::RegisterNumaSdkDispatcher()
 
 UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherCreate()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR;
     }
@@ -310,7 +310,7 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherCreate()
 
 UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherDelete()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -333,7 +333,7 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherDelete()
 
 UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcherQuery()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR;
     }
@@ -394,7 +394,7 @@ UbseResult UbseMemControllerDispatcher::RegisterShmSdkDispatcher()
 
 UbseResult UbseMemControllerDispatcher::RegisterCliDispatcher()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR;
     }
@@ -610,7 +610,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmReturnReq(const UbseIpcMessag
 }
 uint32_t UbseMemControllerDispatcher::MemShmBorrowRespDispatcher(UbseMemOperationResp& resp)
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -625,7 +625,7 @@ uint32_t UbseMemControllerDispatcher::MemShmBorrowRespDispatcher(UbseMemOperatio
 }
 uint32_t UbseMemControllerDispatcher::MemShmAttachRespDispatcher(UbseMemOperationResp& resp)
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -649,7 +649,7 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachRespDispatcher(UbseMemOperatio
 }
 uint32_t UbseMemControllerDispatcher::MemShmDetachRespDispatcher(UbseMemOperationResp& resp)
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -660,7 +660,7 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachRespDispatcher(UbseMemOperatio
 }
 uint32_t UbseMemControllerDispatcher::MemReturnRespDispatcher(UbseMemOperationResp& resp)
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -915,7 +915,7 @@ uint32_t UbseMemControllerDispatcher::MemShmMemFaultGet(const UbseIpcMessage& bu
 {
     UBSE_LOG_INFO << "shm mem status get dispatcher, requestId=" << context.requestId;
 
-    const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -950,7 +950,7 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage& 
                                                           const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm get dispatcher, requestId=" << context.requestId;
-    const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    const auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -1000,7 +1000,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListDispatcher(const UbseIpcMessage&
                                                            const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -1039,7 +1039,7 @@ uint32_t UbseMemControllerDispatcher::MemShmListWithPrefixDispatcher(const UbseI
                                                                      const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "shm list dispatcher, requestId=" << context.requestId;
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<::api::server::UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
@@ -1349,7 +1349,15 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcM
     fdPermissionReq.requestNodeId = localNodeId;
     SetBaseReqInfo(fdPermissionReq, context);
     UbseBaseMessagePtr reqMessagePtr = new (std::nothrow) UbseMemFdPermissionReqMessage(fdPermissionReq);
+    if (reqMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new reqMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
     UbseBaseMessagePtr respMessagePtr = new (std::nothrow) UbseMemFdPermissionRespMessage();
+    if (respMessagePtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to new respMessagePtr";
+        return UBSE_ERROR_NULLPTR;
+    }
 
     SendParam sendParam{masterNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                         static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_PERMISSION)};
@@ -1840,6 +1848,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaBorrowRespHandler(const UbseM
     }
     ret = apiServer->SendResponse(status, requestId, message);
     delete[] message.buffer;
+    message.buffer = nullptr;
     return ret;
 }
 

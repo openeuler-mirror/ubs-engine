@@ -25,7 +25,7 @@ using namespace ubse::log;
 using namespace ubse::utils;
 
 const uint8_t UBSE_MAX_LENDER_CNT = 2;
-const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 128 MB
+const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 4 MB
 
 UbseResult UbseMemCreateWithLenderReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
                                              const std::vector<UbseMemNumaLender>& lenders)

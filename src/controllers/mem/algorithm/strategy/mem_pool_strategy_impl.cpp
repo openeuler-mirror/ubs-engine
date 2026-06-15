@@ -68,7 +68,7 @@ BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest& borrowRequest, co
         return UBSE_ERROR;
     }
 
-    BResult res;
+    BResult res = UBSE_ERROR;
     try {
         switch (mBorrowDecisionMaker_->memConfig_->memStaticParam.algoMode) {
             case AlgoMode::GREEDY:
@@ -76,6 +76,11 @@ BResult MemPoolStrategyImpl::MemoryBorrow(const BorrowRequest& borrowRequest, co
                 break;
             case AlgoMode::SELF_DEVELOPED:
                 res = mBorrowDecisionMaker_->SingleMemBorrow(borrowRequest, ubseStatus, result);
+                break;
+            default:
+                res = UBSE_ERROR;
+                UBSE_LOG_ERROR << "Unknown algoMode: "
+                               << static_cast<int>(mBorrowDecisionMaker_->memConfig_->memStaticParam.algoMode);
                 break;
         }
     } catch (const std::exception& exp) {
@@ -105,7 +110,7 @@ BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest& shareRequest, const
         return UBSE_ERROR;
     }
 
-    BResult res;
+    BResult res = UBSE_ERROR;
     try {
         switch (mShareDecisionMaker_->memConfig_->memStaticParam.algoMode) {
             case AlgoMode::GREEDY:
@@ -113,6 +118,11 @@ BResult MemPoolStrategyImpl::MemoryShare(const ShareRequest& shareRequest, const
                 break;
             case AlgoMode::SELF_DEVELOPED:
                 res = mShareDecisionMaker_->MemoryShare(shareRequest, ubseStatus, result);
+                break;
+            default:
+                res = UBSE_ERROR;
+                UBSE_LOG_ERROR << "Unknown algoMode: "
+                               << static_cast<int>(mShareDecisionMaker_->memConfig_->memStaticParam.algoMode);
                 break;
         }
     } catch (const std::exception& exp) {

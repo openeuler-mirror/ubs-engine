@@ -228,63 +228,74 @@ bool UbseMemAgentTaskManager::DeleteAddrImportTask(uint32_t delTaskId)
     return DeleteTask<UbseMemAddrBorrowImportObj, MemResourceType::ADDR_IMPORT>(delTaskId, addrImportTaskObjMap);
 }
 
-template <typename T>
+template <typename T, MemResourceType ResourceType>
 UbseResult GetTaskObjTemplate(const std::string& name, const std::string& importNodeId, T& returnObj,
                               const std::map<std::string, std::map<uint32_t, T>>& taskObjMap)
 {
+    memResourceLockMap[ResourceType]->LockRead();
     std::string key = importNodeId.empty() ? name : GenerateExportObjKey(name, importNodeId);
     if (taskObjMap.find(key) == taskObjMap.end() || taskObjMap.at(key).empty()) {
         UBSE_LOG_WARN << TASK_MANGER_LOG_PREFIX << "name=" << name << ", importNodeId=" << importNodeId
                       << " is not in task manager.";
+        memResourceLockMap[ResourceType]->UnLock();
         return UBSE_ERROR;
     }
 
     returnObj = taskObjMap.at(key).rbegin()->second;
+    memResourceLockMap[ResourceType]->UnLock();
     return UBSE_OK;
 }
 
 UbseResult UbseMemAgentTaskManager::GetFdExportTaskObj(const std::string& name, const std::string& importNodeId,
                                                        UbseMemFdBorrowExportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemFdBorrowExportObj>(name, importNodeId, returnObj, fdExportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemFdBorrowExportObj, MemResourceType::FD_EXPORT>(name, importNodeId, returnObj,
+                                                                                    fdExportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetNumaExportTaskObj(const std::string& name, const std::string& importNodeId,
                                                          UbseMemNumaBorrowExportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemNumaBorrowExportObj>(name, importNodeId, returnObj, numaExportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemNumaBorrowExportObj, MemResourceType::NUMA_EXPORT>(name, importNodeId, returnObj,
+                                                                                        numaExportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetShareExportTaskObj(const std::string& name,
                                                           UbseMemShareBorrowExportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemShareBorrowExportObj>(name, "", returnObj, shareExportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemShareBorrowExportObj, MemResourceType::SHARE_EXPORT>(name, "", returnObj,
+                                                                                          shareExportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetAddrExportTaskObj(const std::string& name, const std::string& importNodeId,
                                                          UbseMemAddrBorrowExportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemAddrBorrowExportObj>(name, importNodeId, returnObj, addrExportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemAddrBorrowExportObj, MemResourceType::ADDR_EXPORT>(name, importNodeId, returnObj,
+                                                                                        addrExportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetFdImportTaskObj(const std::string& name, UbseMemFdBorrowImportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemFdBorrowImportObj>(name, "", returnObj, fdImportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemFdBorrowImportObj, MemResourceType::FD_IMPORT>(name, "", returnObj,
+                                                                                    fdImportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetNumaImportTaskObj(const std::string& name, UbseMemNumaBorrowImportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemNumaBorrowImportObj>(name, "", returnObj, numaImportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemNumaBorrowImportObj, MemResourceType::NUMA_IMPORT>(name, "", returnObj,
+                                                                                        numaImportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetShareImportTaskObj(const std::string& name,
                                                           UbseMemShareBorrowImportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemShareBorrowImportObj>(name, "", returnObj, shareImportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemShareBorrowImportObj, MemResourceType::SHARE_IMPORT>(name, "", returnObj,
+                                                                                          shareImportTaskObjMap);
 }
 
 UbseResult UbseMemAgentTaskManager::GetAddrImportTaskObj(const std::string& name, UbseMemAddrBorrowImportObj& returnObj)
 {
-    return GetTaskObjTemplate<UbseMemAddrBorrowImportObj>(name, "", returnObj, addrImportTaskObjMap);
+    return GetTaskObjTemplate<UbseMemAddrBorrowImportObj, MemResourceType::ADDR_IMPORT>(name, "", returnObj,
+                                                                                        addrImportTaskObjMap);
 }
 } // namespace ubse::mem::controller

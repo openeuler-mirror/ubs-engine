@@ -173,7 +173,7 @@ UbseResult UbseMemControllerModule::Start()
 {
     UbseResult ret = UBSE_OK;
     RegUbseMemControllerHandler();
-    ret = usbe::mem::api::UbseMemApi::Register();
+    ret = ubse::mem::api::UbseMemApi::Register();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register UbseMem IPC-API failed," << FormatRetCode(ret);
         return ret;

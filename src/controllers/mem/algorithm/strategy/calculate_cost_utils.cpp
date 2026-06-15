@@ -159,10 +159,22 @@ double MemPoolStrategyImpl::BalanceScore(const TargetSocket& targetSocket, Reque
         double hostUsedRatio;
         double socketUsedRatio;
         uint64_t requestSizeByte = GetRequestByteSize(targetSocket);
-        hostUsedRatio = static_cast<double>(hostMemUsed + requestSizeByte) / static_cast<double>(hostMemTotal);
-        socketUsedRatio = static_cast<double>(socketMemUsed + requestSizeByte) / static_cast<double>(socketMemTotal);
+        if (hostMemTotal > 0) {
+            hostUsedRatio = static_cast<double>(hostMemUsed + requestSizeByte) / static_cast<double>(hostMemTotal);
+        } else {
+            hostUsedRatio = 0.0;
+        }
+        if (socketMemTotal > 0) {
+            socketUsedRatio =
+                static_cast<double>(socketMemUsed + requestSizeByte) / static_cast<double>(socketMemTotal);
+        } else {
+            socketUsedRatio = 0.0;
+        }
         return memUsedRatioWeight_[0] * hostUsedRatio + memUsedRatioWeight_[1] * socketUsedRatio;
     } else {
+        if (targetSocket.resLen <= 0) {
+            return 0.0;
+        }
         double numaUsedRatio = 0.0;
         for (int i = 0; i < targetSocket.resLen; i++) {
             int numaIndex = mConfig_->GetNumaIndex(targetSocket.resLocs[i]);
@@ -170,7 +182,10 @@ double MemPoolStrategyImpl::BalanceScore(const TargetSocket& targetSocket, Reque
             uint64_t numaMemTotal = sysStatus.numaStatus[numaIndex].memLocal;
 
             uint64_t requestSizeByte = static_cast<uint64_t>(targetSocket.resSizes[i]) * MB_TO_B;
-            numaUsedRatio += static_cast<double>(numaMemUsed + requestSizeByte) / static_cast<double>(numaMemTotal);
+            double ratio = (numaMemTotal == 0) ?
+                               0.0 :
+                               static_cast<double>(numaMemUsed + requestSizeByte) / static_cast<double>(numaMemTotal);
+            numaUsedRatio += ratio;
         }
 
         return numaUsedRatio / static_cast<double>(targetSocket.resLen);

@@ -28,7 +28,7 @@ namespace tc::rs::mem {
 const int MB_TO_B = (1024 * 1024);
 const int GB_TO_B = (1024 * 1024 * 1024);
 const int HUNDRED = 100;
-const int HALF_MIN_REQUEST_SIZE = (128.0 / 2);
+const int HALF_MIN_REQUEST_SIZE = (128 / 2);
 const int TWO = 2;
 const int PRECISION = 3;
 const int TOOL_PRECISION = 7;
