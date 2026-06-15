@@ -573,8 +573,8 @@ UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<Ubse
         return false;
     };
     // 返回true代表需要过滤传入的eidGroup
-    auto filterByEidGroup = [&filterPrimaryEids](UbseMtiEidGroup& eidGroup) -> bool {
-        return filterPrimaryEids.find(eidGroup.primaryEid) != filterPrimaryEids.end();
+    auto filterByEidGroup = [&filterPrimaryEids](UbseMtiEidGroup &eidGroup) -> bool {
+        return eidGroup.primaryEid == "" || filterPrimaryEids.find(eidGroup.primaryEid) != filterPrimaryEids.end();
     };
     for (auto& feInfoIou : feInfos) {
         feInfoIou.erase(std::remove_if(feInfoIou.begin(), feInfoIou.end(), filterByEntityId), feInfoIou.end());
