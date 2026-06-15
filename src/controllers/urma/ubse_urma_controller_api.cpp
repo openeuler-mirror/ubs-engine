@@ -41,6 +41,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const uint32_t UBSE_URMA_NAME_MAX = 32;        // 包含结束符长度
 const uint32_t UBSE_MAX_URMA_PATH_LENGTH = 64; // 包含结束符长度
 const size_t MAX_BUFFER_SIZE = 10 * 1024;      // 10 KB
+const std::string URMA_PERMISSION = "urma";
 
 bool IsUrmaApiSupported()
 {
@@ -142,12 +143,17 @@ UbseResult UbseUrmaControllerApi::Register()
         return UBSE_ERROR_NULLPTR;
     }
     auto ret = ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_DEV_GET, UbseUrmaDevGetByFilter);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_FREE, UbseUrmaDevFree);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGetLocal);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_CREATE, UbseUrmaQosCreateNative);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaQosQueryNative);
-    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_DELETE, UbseUrmaQosDelete);
+    ret |=
+        ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_ALLOC, UbseUrmaDevAlloc, URMA_PERMISSION);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_FREE, UbseUrmaDevFree, URMA_PERMISSION);
+    ret |=
+        ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_DEV_GET, UbseUrmaDevGetLocal, URMA_PERMISSION);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_CREATE, UbseUrmaQosCreateNative,
+                                                      URMA_PERMISSION);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_GET, UbseUrmaQosQueryNative,
+                                                      URMA_PERMISSION);
+    ret |=
+        ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_QOS_DELETE, UbseUrmaQosDelete, URMA_PERMISSION);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_CREATE, UbseUrmaQosCreateStream);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_URMA, UBSE_URMA_CLI_QOS_GET, UbseUrmaQosQueryStream);
     if (ret != UBSE_OK) {

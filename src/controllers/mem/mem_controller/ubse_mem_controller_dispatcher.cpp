@@ -418,7 +418,7 @@ UbseResult UbseMemControllerDispatcher::RegisterCliDispatcher()
 
 UbseResult UbseMemControllerDispatcher::RegisterSdkDispatcher()
 {
-    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
