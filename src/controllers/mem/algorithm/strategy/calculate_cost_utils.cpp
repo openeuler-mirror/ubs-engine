@@ -100,11 +100,7 @@ double MemPoolStrategyImpl::RegionBalanceScore(const TargetSocket& targetSocket,
             if (i == row || j == col) {
                 memFree = memFree - static_cast<uint64_t>(requestSize) * MB_TO_B;
             }
-            if (memTotal == 0) {
-                freeRatio[i][j] = 0.0;
-            } else {
-                freeRatio[i][j] = static_cast<double>(memFree) / static_cast<double>(memTotal);
-            }
+            freeRatio[i][j] = static_cast<double>(memFree) / static_cast<double>(memTotal);
             averageFreeRatio += freeRatio[i][j] / mConfig_->memStaticParam.numHosts; // 计算均值时, 分母是有效host数量
         }
     }

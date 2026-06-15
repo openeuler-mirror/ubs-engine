@@ -195,7 +195,7 @@ static uint32_t UnpackNodeList(def::UbseMemShmRegion& region, UbseUnpackUtil& un
     for (int i = 0; i < region.nodeCnt; i++) {
         if (!unPackUtil.UnpackUint32(region.slotIds[i])) {
             UBSE_LOG_WARN << "unpack region slotIds[" << i << "]failed.";
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
     return UBSE_OK;
@@ -232,23 +232,23 @@ static uint32_t LenderInfoUnpack(UbseUnpackUtil& unpackUtil, UbseNumaLocation& l
                                  uint32_t& socketId, uint32_t& portId)
 {
     if (!unpackUtil.UnpackUint64(lenderSize)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     uint32_t slotId{};
     if (!unpackUtil.UnpackUint32(slotId)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     loc.nodeId = std::to_string(slotId);
     if (!unpackUtil.UnpackUint32(socketId)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     uint32_t numaId{};
     if (!unpackUtil.UnpackUint32(numaId)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     loc.numaId = numaId;
     if (!unpackUtil.UnpackUint32(portId)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
@@ -278,20 +278,20 @@ uint32_t UbseMemShmCreateReqUnpack(const UbseIpcMessage& buffer, def::UbseMemShm
     // 解包size
     if (!unpackUtil.UnpackUint64(memShmDispatcher.size)) {
         UBSE_LOG_ERROR << "unpack size failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
     // 解包usr_info
     for (int i = 0; i < UBSE_MAX_USR_INFO_LEN; i++) {
         if (!unpackUtil.UnpackUint8(memShmDispatcher.usrInfo[i])) {
             UBSE_LOG_ERROR << "unpack usrInfo failed.";
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
     // 解包flag
     if (!unpackUtil.UnpackUint64(memShmDispatcher.flag)) {
         UBSE_LOG_ERROR << "unpack flag failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包region
     auto ret = UnpackNodeList(memShmDispatcher.shmRegion, unpackUtil);
@@ -323,26 +323,26 @@ uint32_t UbseMemShmCreateWithAffinityReqUnpack(const UbseIpcMessage& buffer,
     // 解包size
     if (!unpackUtil.UnpackUint64(memShmDispatcher.size)) {
         UBSE_LOG_ERROR << "unpack size failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
     // 解包usr_info
     for (int i = 0; i < UBSE_MAX_USR_INFO_LEN; i++) {
         if (!unpackUtil.UnpackUint8(memShmDispatcher.usrInfo[i])) {
             UBSE_LOG_ERROR << "unpack usrInfo failed.";
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
     // 解包flag
     if (!unpackUtil.UnpackUint64(memShmDispatcher.flag)) {
         UBSE_LOG_ERROR << "unpack flag failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
     // 解包affinitySocketId
     if (!unpackUtil.UnpackUint32(memShmDispatcher.affinitySocketId)) {
         UBSE_LOG_ERROR << "affinitySocketId is invalid";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
     // 解包region
@@ -375,12 +375,12 @@ uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseM
     for (int i = 0; i < UBSE_MAX_USR_INFO_LEN; i++) {
         if (!unpackUtil.UnpackUint8(memShmBorrowReq.usrInfo[i])) {
             UBSE_LOG_ERROR << "unpack usrInfo failed.";
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
     }
     if (!unpackUtil.UnpackUint64(flag)) {
         UBSE_LOG_ERROR << "unpack flag failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
 
     auto ret = UnpackshmRegionList(memShmBorrowReq.shmRegion, unpackUtil);
@@ -395,7 +395,7 @@ uint32_t UbseMemShmCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseM
     uint32_t portId{};
     if (LenderInfoUnpack(unpackUtil, numaLocation, lenderSize, socketId, portId) != UBSE_OK) {
         UBSE_LOG_ERROR << "unpack failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     memShmBorrowReq.size = lenderSize;
     memShmBorrowReq.lenderInfo.lender_size = lenderSize;
@@ -418,7 +418,7 @@ uint32_t UbseMemShmAttachReqUnpack(const UbseIpcMessage& buffer, UbseMemShareAtt
     // 解包 owner
     if (!UbseOwnerUnpack(unpackUtil, memShareAttachReq.owner)) {
         UBSE_LOG_ERROR << "unpack owner failed.";
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
@@ -615,15 +615,15 @@ uint32_t UbseMemCreateReqUnpack(const UbseIpcMessage& buffer, UbseMemFdBorrowReq
     }
     // 解包size
     if (!unpackUtil.UnpackUint64(memFdBorrowReq.size)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包 owner
     if (!UbseOwnerUnpack(unpackUtil, memFdBorrowReq.owner)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包distance
     if (!unpackUtil.UnpackEnum(memFdBorrowReq.distance)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
@@ -701,15 +701,15 @@ uint32_t UbseMemCreateWithCandidateReqUnpack(const UbseIpcMessage& buffer, UbseM
     }
     // 解包size
     if (!unpackUtil.UnpackUint64(memFdBorrowReq.size)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包 uds_info
     if (!UbseOwnerUnpack(unpackUtil, memFdBorrowReq.owner)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包candidateInfo
     if (!CandidateInfoUnpack(unpackUtil, memFdBorrowReq.candidateNodeList)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
@@ -724,7 +724,7 @@ uint32_t UbseMemFdPermissionReqUnpack(const UbseIpcMessage& buffer, UbseMemFdPer
     }
     // 解包 owner
     if (!UbseOwnerUnpack(unpackUtil, memFdPermissionReq.fdOwner)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
@@ -813,11 +813,11 @@ uint32_t UbseMemNumaCreateReqUnpack(const UbseIpcMessage& buffer, UbseMemNumaBor
     }
     // 解包size
     if (!unpackUtil.UnpackUint64(memNumaBorrowReq.size)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包distance
     if (!unpackUtil.UnpackEnum(memNumaBorrowReq.distance)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     return UBSE_OK;
 }
