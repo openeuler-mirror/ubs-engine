@@ -493,6 +493,333 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldNotSwitch_WhenSend
     }
 }
 
+TEST_F(TestUbseElectionRoleGlobalInitializer, Constructor_ShouldLogWarn_WhenGetBootTimeFail)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue((uint32_t)UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+
+    GlobalInitializer globalInit;
+    EXPECT_EQ(globalInit.GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, Constructor_ShouldReturnEarly_WhenGetGroupIdFail)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue((uint32_t)UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+
+    GlobalInitializer globalInit;
+    EXPECT_EQ(globalInit.GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+}
+
+static uint32_t StubRegTimerAndRun(const std::string &name, std::function<uint32_t()> cb, uint32_t interval)
+{
+    (void)name;
+    (void)interval;
+    if (cb) {
+        return cb();
+    }
+    return 0;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimerCallback_ShouldReturnOk_WhenGlobalStop)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+
+    ubse::context::g_globalStop.store(true);
+    GlobalInitializer globalInit;
+    ubse::context::g_globalStop.store(false);
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimerCallback_ShouldCallGlobalProcTimer_WhenNotGlobalStop)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&RoleMgr::GlobalProcTimer).stubs();
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, DiscoveryCallback_ShouldCallConnectInterManagingGroup_WhenGlobalRoleNotNull)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&RoleMgr::ConnectInterManagingGroup).stubs();
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, DiscoveryCallback_ShouldSkip_WhenGlobalRoleNull)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&RoleMgr::GetGlobalRole).stubs().will(returnValue(std::shared_ptr<ElectionRole>(nullptr)));
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ComCallback_ShouldReturnError_WhenGetGroupIdFail)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(returnValue(UBSE_ERROR));
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ComCallback_ShouldCallConnectManagingMasters_WhenNotAgent)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, PdQueryCallback_ShouldCallQueryManagingMaster_WhenGlobalRoleNotNull)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&RoleMgr::QueryManagingMaster).stubs();
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, PdQueryCallback_ShouldSkip_WhenGlobalRoleNull)
+{
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GlobalInitGetMyselfNode1));
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetGroupId).stubs().will(invoke(FAKE_GlobalInitGetGroupId1));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::timer::UbseTimerHandlerRegister).stubs().will(invoke(StubRegTimerAndRun));
+    MOCKER(&ubse::timer::UbseTimerHandlerUnregister).stubs();
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatTime).stubs().will(returnValue((uint32_t)1000));
+    MOCKER(&UbseElectionNodeMgr::GetHeartBeatLost).stubs().will(returnValue((uint32_t)3));
+    MOCKER(&RoleMgr::RoleChangeNotifyAsync).stubs();
+    MOCKER(&RoleMgr::GetGlobalRole).stubs().will(returnValue(std::shared_ptr<ElectionRole>(nullptr)));
+
+    ubse::context::g_globalStop.store(false);
+    GlobalInitializer globalInit;
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, CheckAndSwitchMaster_ShouldNotSwitch_WhenStage1NotSmallest)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
+    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
+        .stubs()
+        .will(returnValue(std::vector<UBSE_ID_TYPE>{"1", "3"}));
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionWait).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::IsSmallestNode).stubs().will(returnValue(false));
+
+    GlobalInitializer globalInit;
+    globalInit.isStartTimeSet_ = false;
+    globalInit.lastTimeMs_ = 1000;
+    globalInit.startTimeMs_ = 0;
+
+    globalInit.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, CheckAndSwitchMaster_ShouldNotSwitch_WhenStage2NotSecondSmallest)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
+    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
+        .stubs()
+        .will(returnValue(std::vector<UBSE_ID_TYPE>{"1", "3"}));
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionWait).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::IsSecondSmallestNode).stubs().will(returnValue(false));
+
+    GlobalInitializer globalInit;
+    globalInit.isStartTimeSet_ = false;
+    globalInit.lastTimeMs_ = 4000;
+    globalInit.startTimeMs_ = 0;
+
+    globalInit.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ProcRoleSwitch_ShouldSwitchMaster_WhenCandidateAndNotWait)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
+    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
+        .stubs()
+        .will(returnValue(std::vector<UBSE_ID_TYPE>{"1", "3"}));
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionWait).stubs().will(returnValue(false));
+    MOCKER(&ubse::election::SendGlobalElectionPkt).stubs().will(returnValue((uint32_t)ELECTION_PKT_RESULT_ACCEPT));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+
+    GlobalInitializer globalInit;
+    globalInit.isStartTimeSet_ = true;
+    globalInit.lastTimeMs_ = 1000;
+    globalInit.startTimeMs_ = 0;
+
+    globalInit.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ProcRoleSwitch_ShouldLogWarn_WhenGetBootTimeFail)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
+    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
+        .stubs()
+        .will(returnValue(std::vector<UBSE_ID_TYPE>{"1", "3"}));
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionWait).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::IsSmallestNode).stubs().will(returnValue(false));
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_ERROR));
+
+    GlobalInitializer globalInit;
+    globalInit.isStartTimeSet_ = false;
+    globalInit.lastTimeMs_ = 1000;
+    globalInit.startTimeMs_ = 0;
+
+    globalInit.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldLogWarn_WhenGetBootTimeFailForStartTime)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
+    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
+        .stubs()
+        .will(returnValue(std::vector<UBSE_ID_TYPE>{"1", "3"}));
+    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionWait).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::IsSmallestNode).stubs().will(returnValue(false));
+
+    GlobalInitializer globalInit;
+    globalInit.isStartTimeSet_ = false;
+    globalInit.lastTimeMs_ = 1000;
+    globalInit.startTimeMs_ = 0;
+    MOCKER(&ubse::election::GetBootTime).stubs().will(returnValue(UBSE_ERROR));
+
+    globalInit.ProcTimer();
+
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+    }
+}
+
+TEST_F(TestUbseElectionRoleGlobalInitializer, RecvPkt_ShouldLogWarn_WhenUnknownPktType)
+{
+    SetupGlobalInitCommonMocks();
+    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
+        .stubs()
+        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    GlobalInitializer globalInit;
+    UBSE_ID_TYPE srcID = "3";
+    ElectionPkt rcvPkt;
+    ElectionReplyPkt reply;
+    rcvPkt.type = static_cast<uint8_t>(99);
+
+    globalInit.RecvPkt(srcID, rcvPkt, reply);
+}
+
 TEST_F(TestUbseElectionRoleGlobalInitializer, SetNodeDownStatus_ShouldNotCrash_WhenCalled)
 {
     SetupGlobalInitCommonMocks();

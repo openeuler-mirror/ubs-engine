@@ -405,4 +405,73 @@ TEST_F(TestUbseElectionCommMgr, GenerateUrmaUvsNodeInfo)
     EXPECT_EQ("4244:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].feList[0].primaryEid);
     EXPECT_EQ("4344:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].feList[0].portEid["10"]);
 }
+
+TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenAlreadyConnected)
+{
+    commMgr.connectedInterMgmtMasters_ = {"1", "2", "3"};
+    uint32_t result = commMgr.ConnectMasterNode("2", "192.168.0.2");
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenUbseComModuleNull)
+{
+    commMgr.connectedInterMgmtMasters_.clear();
+    uint32_t result = commMgr.ConnectMasterNode("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenConnectWithOptionFail)
+{
+    commMgr.connectedInterMgmtMasters_.clear();
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_ERROR));
+    uint32_t result = commMgr.ConnectMasterNode("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenConnectWithOptionSuccess)
+{
+    commMgr.connectedInterMgmtMasters_.clear();
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_OK));
+    uint32_t result = commMgr.ConnectMasterNode("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectForGroupMaster_ShouldReturnOk_WhenAlreadyConnected)
+{
+    commMgr.interMgmtGrpLinkMap_["group1"] = "2";
+    uint32_t result = commMgr.ConnectForGroupMaster("2", "192.168.0.2");
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectForGroupMaster_ShouldReturnError_WhenUbseComModuleNull)
+{
+    commMgr.interMgmtGrpLinkMap_.clear();
+    uint32_t result = commMgr.ConnectForGroupMaster("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectForGroupMaster_ShouldReturnError_WhenConnectWithOptionFail)
+{
+    commMgr.interMgmtGrpLinkMap_.clear();
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_ERROR));
+    uint32_t result = commMgr.ConnectForGroupMaster("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseElectionCommMgr, ConnectForGroupMaster_ShouldReturnOk_WhenConnectWithOptionSuccess)
+{
+    commMgr.interMgmtGrpLinkMap_.clear();
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
+    MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId).stubs().will(returnValue(UBSE_OK));
+    uint32_t result = commMgr.ConnectForGroupMaster("5", "192.168.0.5");
+    EXPECT_EQ(result, UBSE_OK);
+}
 } // namespace ubse::ut::election
