@@ -6,7 +6,7 @@
 - 目前内存超分, 针对2M大页场景
 - 内存借用速率在开启内存预留与内存预上线特性后, 在预留内存范围内的内存借用, 内存借用速率满足不低于50ms/GB; 详细参考: [内存池化借用性能规格设计.md](../../../../../docs/design/%E5%86%85%E5%AD%98%E6%B1%A0%E5%8C%96%E5%80%9F%E7%94%A8%E6%80%A7%E8%83%BD%E8%A7%84%E6%A0%BC%E8%AE%BE%E8%AE%A1.md)
 - 内存借用/归还特性, 依赖UBS RMRS与UBS Engine提供的内存借用/归还能力. 需要满足相关组件对借用功能的约束; 当前实现, 不支持跨平面借用[^跨平面]
-  - UBS Engine接口约束描述, 请参考[libubse_mem.md](../../../../../docs/api/libubse_mem.md)
+  - UBS Engine接口约束描述, 请参考[ubse_api_reference.md](../../../../../docs/zh/ubse/ubse_api_reference.md)
 
 ## 内存碎片整理
 
