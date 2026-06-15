@@ -351,14 +351,6 @@ function build_cmake() {
     # 确保构建目录已创建
     [ ! -d "${build_dir}" ] && mkdir -p "${build_dir}"
 
-
-    # 流水线构建，安全考虑只保留 commit id
-    version_cmd=("$PROJECT_ROOT_DIR/scripts/build/update_version.sh" "$build_dir/VERSION")
-    version_cmd+=(--pure)
-    [[ "$enable_ub" == 'OFF' ]] && version_cmd+=(--hccs)
-    # 执行命令
-    bash "${version_cmd[@]}"
-
     log_info "***** start build_cmake *****"
 
     log_info "building target ${build_target}."
