@@ -634,11 +634,12 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<
     }
     if (borrowIdNuma2Size[presentNumaId] == 0 && pids.size() != 0) {
         ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
-        // 执行完成RemovePid后，无论成功与否都从持久化数据库中删除RemovePid数据
-        DeletePersistenceRemovePid(presentNumaId, pids);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] Smap remove failed.";
             return ret;
+        } else {
+            // 执行完成RemovePid成功，从持久化数据库中删除RemovePid数据
+            DeletePersistenceRemovePid(presentNumaId, pids);
         }
     }
     return MEM_POOLING_OK;

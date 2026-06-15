@@ -175,7 +175,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_SmapRemoveFailed)
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_SetSmapRemoteNumaInfoFailed)

@@ -79,6 +79,8 @@ public:
 
 uint32_t SmapMigrateBackProcess(MigrateBackMsg migrateBackMsg);
 uint32_t SmapEnableNumaProcess(EnableNodeMsg enableMsg);
+uint32_t SmapEnablePidsProcess(std::vector<pid_t> pids);
+void SmapEnablePidsProcessOneByOne(std::vector<pid_t> pids);
 
 class MpSmapSubModule : public mempooling::MpSubModule {
 public:

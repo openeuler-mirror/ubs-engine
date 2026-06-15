@@ -14,11 +14,13 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 
+#include "ubse_storage.h"
 #include "mem_manager.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_helper.h"
 #include "mempooling_interface.h"
 #include "mp_configuration.h"
+#include "mp_smap_module.h"
 #include "rmrs_resource_query.h"
 #include "turbo_rmrs_interface.h"
 
@@ -434,6 +436,60 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapRemoveProcessTrackingSucceed
     int flags;
     auto ret = UBSRMRSSmapRemoveProcessTracking(pidVec, flags);
     EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+static int g_smapEnableProcessMigrateHelperCallCount = 0;
+static int g_filterValidPidListCallCount = 0;
+
+static int MockSmapMigratePidRemoteNumaFunc_Fail(MigrateEscapeMsg*)
+{
+    return -1;
+}
+
+static int MockSmapEnableProcessMigrateHelper(pid_t* pids, int len, int enable, int flag)
+{
+    g_smapEnableProcessMigrateHelperCallCount++;
+    return 0;
+}
+
+static MpResult MockFilterValidPidListByLocalNode(std::vector<pid_t>& pidList)
+{
+    g_filterValidPidListCallCount++;
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestRackMempoolingInterfaceAdapt, RemoteNumaMigrate_SmapMigrateFailed_FilterAndEnable)
+{
+    std::vector<pid_t> pids = {100, 200};
+    int srcNid = 1;
+    int destNid = 2;
+    g_smapEnableProcessMigrateHelperCallCount = 0;
+    g_filterValidPidListCallCount = 0;
+
+    SmapMigratePidRemoteNumaFunc mockFunc = MockSmapMigratePidRemoteNumaFunc_Fail;
+    MOCKER(&smap::SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(mockFunc));
+
+    MOCKER_CPP(smap::MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, int, int, int))
+        .stubs()
+        .will(invoke(MockSmapEnableProcessMigrateHelper));
+
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(invoke(MockFilterValidPidListByLocalNode));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    auto ret = RemoteNumaMigrate(pids, srcNid, destNid);
+    EXPECT_NE(ret, 0);
+    EXPECT_EQ(g_filterValidPidListCallCount, 1);
+    EXPECT_EQ(g_smapEnableProcessMigrateHelperCallCount, 2);
 }
 
 } // namespace mempooling

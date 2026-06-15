@@ -218,6 +218,7 @@ uint32_t OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "SmapEnableProcessMigrateHelper successed, enable=" << 0 << ".";
+        PidSmapEnableCompleted::Instance().Update(pids);
         resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
         resp.data = new (std::nothrow) uint8_t[resp.len]{};
         if (resp.data == nullptr) {
@@ -245,6 +246,81 @@ void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void*
     }
     auto* result = static_cast<uint32_t*>(ctx);
     if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
+        *result = MEM_POOLING_ERROR;
+        return;
+    }
+    *result = MEM_POOLING_OK;
+}
+
+uint32_t OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler(const UbseByteBuffer& req,
+                                                                               UbseByteBuffer& resp)
+{
+    std::vector<pid_t> pids;
+    RmrsInStream builder(req.data, req.len);
+    builder >> pids;
+    uint32_t ret;
+    int successCount = 0;
+    std::vector<pid_t> successRemovePids;
+    for (auto pid : pids) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[OverCommit][FaultManagement] Enable process migrate, pid=" << pid << ".";
+        std::vector<pid_t> enablePid = {pid};
+        // enable = 1, flags = 0 （可根据需要调整）
+        int retSmap = MpSmapHelper::SmapEnableProcessMigrateHelper(enablePid.data(), enablePid.size(), 1, 0);
+        if (MEM_POOLING_OK != static_cast<MpResult>(retSmap)) {
+            continue;
+        } else {
+            successCount++;
+            successRemovePids.push_back(pid);
+        }
+    }
+
+    if (successCount == 0) {
+        ret = MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SmapEnableProcessMigrateHelper failed enable=" << 1 << ", retSmap=" << ret << ".";
+        resp.len = MEMID_FAIL_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
+        resp.data[1] = 0;
+    } else {
+        ret = MEM_POOLING_OK;
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SmapEnableProcessMigrateHelper succeeded, enable=" << 1 << ".";
+        PidSmapEnableCompleted::Instance().Remove(successRemovePids);
+        resp.len = MEMID_SUCCESS_RESPONSE_DATA_LENGTH;
+        resp.data = new (std::nothrow) uint8_t[resp.len]{};
+        if (resp.data == nullptr) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Failed to allocate memory, size=" << resp.len << ".";
+            return MEM_POOLING_ERROR;
+        }
+        resp.data[0] = static_cast<uint8_t>(ret);
+    }
+    resp.freeFunc = [](uint8_t* p) {
+        if (p != nullptr) {
+            delete[] p;
+        }
+    };
+    return ret;
+}
+
+// 在 OverCommitFaultManagementHandler 中增加响应处理函数
+void OverCommitFaultManagementHandler::EnableSmapProcessMigrateResHandler(void* ctx, const UbseByteBuffer& respData,
+                                                                          uint32_t resCode)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "EnableSmapProcessMigrateResHandler resCode = " << resCode;
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit][FaultManagement] Ctx or respData is null.";
+        return;
+    }
+    auto* result = static_cast<uint32_t*>(ctx);
+    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
         *result = MEM_POOLING_ERROR;
         return;
     }

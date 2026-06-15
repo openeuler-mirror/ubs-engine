@@ -452,9 +452,6 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutFailed)
                MpResult(*)(FaultNodeModule * This, const std::string, NodeType&))
         .stubs()
         .will(invoke(setNodeTypeOut));
-    MOCKER_CPP(&mempooling::FaultNodeModule::ProcessBorrowOutNodeFault, MpResult(*)(const std::string&))
-        .stubs()
-        .will(returnValue(MEM_POOLING_OK));
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"3","importMemID":3})";
     MpResult ret = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);

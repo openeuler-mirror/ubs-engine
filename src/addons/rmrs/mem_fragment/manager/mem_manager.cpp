@@ -63,6 +63,7 @@ const std::string KEYPREFIX_SMAPENABLE_COMPLETED = "_smap_enable_completed";
 const std::string KEYPREFIX_REMOVEPID_COMPLETED = "_remove_pid_completed";
 const std::string KEYPREFIX_FAULT_PROCESS_BORROWID = "_fault_process_borrowid";
 const std::string KEYPREFIX_BORROWED_DECISION = "_borrowed_decision";
+const std::string KEYPREFIX_PID_SMAPENABLE_COMPLETED = "_pid_smap_enable_completed";
 
 const int HEADER_LENGTH = 4;
 const int TIMESTAMP_OFFSET = 2;
@@ -390,6 +391,37 @@ MpResult SmapEnableCompleted::Update(const int16_t numaId)
     return MEM_POOLING_OK;
 }
 
+// 添加多个 pid 到集合中（去重）并持久化
+MpResult PidSmapEnableCompleted::Update(const std::vector<pid_t>& pids)
+{
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update pids start.";
+    std::unique_lock<std::mutex> lock(mtxPidSmapEnableCompleted);
+    std::string pidStr;
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(pids[i]);
+        pidSmapEnableCompleted.insert(pids[i]);
+    }
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update pids=[" << pidStr << "].";
+
+    // 持久化
+    RmrsOutStream builder;
+    builder << pidSmapEnableCompleted;
+    UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &buffer);
+    SafeDeleteArray(buffer.data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] Failed to store, ret=" << ret;
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Update success, total pids="
+              << pidSmapEnableCompleted.size() << ".";
+    return MEM_POOLING_OK;
+}
+
 MpResult FaultHandleBorrowedDecision::Update(const uint16_t numaId, const BorrowedDecision& decision)
 {
     LOG_DEBUG << "[FaultHandleBorrowedDecision] FaultHandleBorrowedDecision Update for numaId=" << numaId << ".";
@@ -531,6 +563,30 @@ MpResult SmapEnableCompleted::Remove(const int16_t numaId)
     lock.unlock();
 
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] Remove smapEnable numaId ended.";
+    return MEM_POOLING_OK;
+}
+
+MpResult PidSmapEnableCompleted::Remove(const std::vector<pid_t>& pids)
+{
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Remove start, pids count=" << pids.size() << ".";
+    std::unique_lock<std::mutex> lock(mtxPidSmapEnableCompleted);
+    for (pid_t pid : pids) {
+        pidSmapEnableCompleted.erase(pid);
+    }
+
+    // 持久化
+    RmrsOutStream builder;
+    builder << pidSmapEnableCompleted;
+    UbseByteBuffer buffer = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &buffer);
+    SafeDeleteArray(buffer.data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] Failed to store after remove, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Remove success, total pids="
+              << pidSmapEnableCompleted.size() << ".";
     return MEM_POOLING_OK;
 }
 
@@ -844,6 +900,7 @@ void GetSmapEnableCompletedValue(const std::string& keyPrefix, const std::string
 
 MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedList)
 {
+    LOG_INFO << "[PersistentStore][SmapEnableCompleted] Query start.";
     std::lock_guard<std::mutex> lock(mtxSmapEnableCompleted);
     std::unordered_set<int16_t> smapEnableCompleted;
     auto ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_SMAPENABLE_COMPLETED, &smapEnableCompleted,
@@ -856,6 +913,56 @@ MpResult SmapEnableCompleted::Query(std::vector<int16_t>& smapEnableCompletedLis
     for (const auto& numaId : smapEnableCompleted) {
         smapEnableCompletedList.push_back(numaId);
     }
+    std::string numaIdStr;
+    for (size_t i = 0; i < smapEnableCompletedList.size(); ++i) {
+        if (i != 0)
+            numaIdStr += ", ";
+        numaIdStr += std::to_string(smapEnableCompletedList[i]);
+    }
+    LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] Query success, smapEnableCompletedList=[" << numaIdStr << "].";
+    return MEM_POOLING_OK;
+}
+
+void GetPidSmapEnableCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                    void* ctx)
+{
+    if (ctx == nullptr) {
+        LOG_ERROR << "GetPidSmapEnableCompletedValue: ctx is null!";
+        return;
+    }
+    std::unordered_set<pid_t>& pidSmapEnableCompleted = *(static_cast<std::unordered_set<pid_t>*>(ctx));
+    RmrsInStream builder(buff.data, buff.len);
+    builder >> pidSmapEnableCompleted;
+    return;
+}
+
+// 查询当前所有已禁用但尚未enable的pid列表（从持久化加载）
+MpResult PidSmapEnableCompleted::Query(std::vector<pid_t>& pidSmapEnableCompletedList)
+{
+    std::lock_guard<std::mutex> lock(mtxPidSmapEnableCompleted);
+    std::unordered_set<pid_t> loadedSet;
+    auto ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &loadedSet,
+                                    GetPidSmapEnableCompletedValue);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] UbseStorageQueryData failed, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    pidSmapEnableCompletedList.clear();
+    pidSmapEnableCompletedList.reserve(loadedSet.size());
+    for (pid_t pid : loadedSet) {
+        pidSmapEnableCompletedList.push_back(pid);
+    }
+    // 同步内存缓存（可选）
+    pidSmapEnableCompleted = std::move(loadedSet);
+    std::string pidStr;
+    for (size_t i = 0; i < pidSmapEnableCompletedList.size(); ++i) {
+        if (i != 0)
+            pidStr += ", ";
+        pidStr += std::to_string(pidSmapEnableCompletedList[i]);
+    }
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Query success, pidSmapEnableCompletedList=[" << pidStr
+              << "].";
     return MEM_POOLING_OK;
 }
 
@@ -1052,6 +1159,26 @@ MpResult SmapEnableCompleted::PutRawData(UbseByteBuffer& data)
     return MEM_POOLING_OK;
 }
 
+// 用原始数据覆盖持久化存储并更新内存缓存
+MpResult PidSmapEnableCompleted::PutRawData(UbseByteBuffer& data)
+{
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] PutRawData start.";
+
+    std::lock_guard<std::mutex> locker(mtxPidSmapEnableCompleted);
+    auto ret = UbseStoragePutData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &data);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] UbseStoragePutData failed, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    // 重新加载到内存
+    pidSmapEnableCompleted.clear();
+    RmrsInStream builder(data.data, data.len);
+    builder >> pidSmapEnableCompleted;
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] PutRawData success, loaded "
+              << pidSmapEnableCompleted.size() << " entries.";
+    return MEM_POOLING_OK;
+}
+
 MpResult FaultHandleBorrowedDecision::PutRawData(UbseByteBuffer& data)
 {
     LOG_DEBUG << "[FaultHandleBorrowedDecision] PutRawData start.";
@@ -1210,6 +1337,41 @@ MpResult SmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
     data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
 
     LOG_DEBUG << "[PersistentStore][SmapEnableCompleted] GetSmapEnableCompletedRawData end.";
+    return MEM_POOLING_OK;
+}
+
+// 获取原始持久化数据（用于跨进程同步）
+MpResult PidSmapEnableCompleted::GetRawData(UbseByteBuffer& data, bool needLock)
+{
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] GetRawData start.";
+    std::unique_lock<std::mutex> locker(mtxPidSmapEnableCompleted, std::defer_lock);
+    if (needLock) {
+        locker.lock();
+    }
+
+    std::unordered_set<pid_t> loadedSet;
+    auto ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &loadedSet,
+                                    GetPidSmapEnableCompletedValue);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PersistentStore][PidSmapEnableCompleted] UbseStorageQueryData failed, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (loadedSet.empty()) {
+        data.len = 1;
+        data.data = new uint8_t[data.len];
+        data.data[0] = ' ';
+        data.freeFunc = [](uint8_t* p) {
+            delete[] p;
+        };
+        LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] Data is empty.";
+        return MEM_POOLING_OK;
+    }
+
+    RmrsOutStream builder;
+    builder << loadedSet;
+    data = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    LOG_DEBUG << "[PersistentStore][PidSmapEnableCompleted] GetRawData end, size=" << data.len;
     return MEM_POOLING_OK;
 }
 
@@ -2800,8 +2962,45 @@ uint32_t SmapEnableCompletedInit(UbseByteBuffer& buffer)
             if (retSmap != MEM_POOLING_OK) {
                 LOG_WARN << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId
                          << ", ret=" << retSmap << ".";
+                continue;
+            } else {
+                LOG_INFO << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId
+                         << ".";
+                SmapEnableCompleted::Instance().Remove(numaId);
             }
         }
+    }
+
+    return MEM_POOLING_OK;
+}
+
+uint32_t PidSmapEnableCompletedInit(UbseByteBuffer& buffer)
+{
+    MpResult ret = UbseStorageQueryData(KEYPREFIX_COMMON, KEYPREFIX_PID_SMAPENABLE_COMPLETED, &buffer, LoadDataBase);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] Failed to query database.";
+        ResetAndDeleteBuffer(buffer);
+        return MEM_POOLING_ERROR;
+    }
+
+    ret = mempooling::PidSmapEnableCompleted::Instance().PutRawData(buffer);
+    ResetAndDeleteBuffer(buffer);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] Failed to init pid SmapEnable data.";
+        return MEM_POOLING_ERROR;
+    }
+
+    std::vector<pid_t> pids;
+    ret = PidSmapEnableCompleted::Instance().Query(pids);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[PluginInit][PidSmapEnableCompleted] Query failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    if (!pids.empty()) {
+        LOG_DEBUG << "[PluginInit][PidSmapEnableCompleted] pids.size=" << pids.size()
+                  << ", Start to execute SmapEnable for each pid.";
+        SmapEnablePidsProcessOneByOne(pids);
     }
 
     return MEM_POOLING_OK;
@@ -2931,6 +3130,11 @@ uint32_t DataReloadInit()
 
     // 初始化SmapEnable记录，如果存在需enable的numaId则执行SmapEnable操作
     if (SmapEnableCompletedInit(buffer) != MEM_POOLING_OK) {
+        return MEM_POOLING_ERROR;
+    }
+
+    // 初始化PidSmapEnable记录，如果存在需enable的Pids则执行SmapEnable操作
+    if (PidSmapEnableCompletedInit(buffer) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
 

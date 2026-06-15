@@ -14,6 +14,7 @@
 #include "mockcpp/mockcpp.hpp"
 
 #include "ubse_node.h"
+#include "ubse_storage.h"
 #include "iostream"
 #include "mem_borrow_executor.cpp"
 #include "mem_json_def.h"
@@ -538,6 +539,74 @@ TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_Success)
     MpMemBorrowExecutorModule module;
     auto ret = module.DeleteFailedBorrowIds();
     EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+static int g_smapEnableNumaProcessCallCount = 0;
+
+MpResult MockGenerateSmapParamsForProcessMem(MemBorrowExecutor* This, const std::string& name,
+                                             std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg,
+                                             std::string& importNodeId, bool isFault)
+{
+    MigrateBackMsg msg;
+    msg.count = 1;
+    msg.payload[0].srcNid = 1;
+    msg.payload[0].destNid = 2;
+    msg.payload[0].memid = 100;
+    msg.taskID = 1;
+    migrateBackMsgs.push_back(msg);
+
+    enableMsg.nid = 1;
+    enableMsg.enable = 1;
+
+    importNodeId = "1";
+    return MEM_POOLING_OK;
+}
+
+uint32_t MockSmapEnableNumaProcess(EnableNodeMsg msg)
+{
+    g_smapEnableNumaProcessCallCount++;
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_EnableNumaProcess)
+{
+    g_smapEnableNumaProcessCallCount = 0;
+
+    MOCKER_CPP(&MemBorrowExecutor::GenerateSmapParamsForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, std::vector<MigrateBackMsg>&, EnableNodeMsg&,
+                           std::string&, bool))
+        .stubs()
+        .will(invoke(MockGenerateSmapParamsForProcessMem));
+
+    MOCKER_CPP(&MemBorrowExecutor::UpdateSmapRemoteNumaInfoBeforeMigrateBack,
+               MpResult(*)(const std::string&, const std::string&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(SmapMigrateBackProcess, uint32_t(*)(MigrateBackMsg)).stubs().will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&MpSmapHelper::GetLocalSmapBackResult, MpResult(*)(uint64_t)).stubs().will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsByMemfabric, MpResult(*)(const std::string&, const std::string&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(SmapEnableNumaProcess, uint32_t(*)(EnableNodeMsg)).stubs().will(invoke(MockSmapEnableNumaProcess));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    std::string name = "test";
+    std::string deleteName = "test";
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmapForProcessMem(name, deleteName, true);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(g_smapEnableNumaProcessCallCount, 1);
 }
 
 } // namespace mempooling

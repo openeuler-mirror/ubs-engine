@@ -18,6 +18,7 @@
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
+#include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "numa_info.h"
 #include "over_commit_fault_management_handler.h"
@@ -126,6 +127,9 @@ MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult>& 
         return MEM_POOLING_ERROR;
     }
 
+    // 检查removePid和smapEnable数据库
+    CheckAndExecutePersistence();
+
     // 冷数据迁移
     auto ratio = memMigrateResults.front().maxRatio;
     ret = MpSmapHelper::MigrateOutInOverCommit(memMigrateResults, ratio);
@@ -134,6 +138,108 @@ MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult>& 
         return ret;
     }
     return ret;
+}
+
+void OverCommitMsgHandler::CheckAndExecutePersistence()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecutePersistence.";
+    // 检查SmapEnable持久化数据库，若存在待enable的numaId，则执行SmapEnable
+    CheckAndExecuteSmapEnable();
+
+    // 检查RemovePids持久化数据库，若存在待remove的pid，则执行RemovePids
+    CheckAndExecuteRemovePid();
+}
+
+void OverCommitMsgHandler::CheckAndExecuteSmapEnable()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecuteSmapEnable.";
+    // 检查smapEnable数据库
+    std::vector<int16_t> smapEnableCompletedList;
+    auto ret = SmapEnableCompleted::Instance().Query(smapEnableCompletedList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to Query smapEnableCompletedList.";
+        return;
+    }
+    if (smapEnableCompletedList.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] smapEnableCompletedList is empty, no need to execute SmapEnable.";
+        return;
+    }
+
+    // 执行smapEnable
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] smapEnableCompletedList.size=" << smapEnableCompletedList.size()
+        << ", Start to execute SmapEnable.";
+    int successCount = 0;
+    for (auto& numaId : smapEnableCompletedList) {
+        EnableNodeMsg enableMsg;
+        enableMsg.nid = static_cast<int>(numaId);
+        enableMsg.enable = SMAP_ENABLE_NUMA;
+        ret = SmapEnableNumaProcess(enableMsg);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId << ".";
+            continue;
+        }
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId
+            << ", Start to Remove this numaId.";
+        ret = SmapEnableCompleted::Instance().Remove(numaId);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] Remove failed, numaId = " << numaId << ".";
+            continue;
+        }
+        successCount++;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess finished, totalCount = "
+        << smapEnableCompletedList.size() << ", successCount = " << successCount << ".";
+}
+
+void OverCommitMsgHandler::CheckAndExecuteRemovePid()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecuteRemovePid.";
+    // 检查removePid数据库
+    std::unordered_map<uint16_t, std::unordered_set<pid_t>> removePidCompletedList;
+    auto ret = RemovePidCompleted::Instance().Query(removePidCompletedList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to Query removePidList.";
+        return;
+    }
+    if (removePidCompletedList.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] removePidCompletedList is empty, no need to execute RemovePids.";
+        return;
+    }
+
+    // 执行removePids
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] removePidCompletedList.size = " << removePidCompletedList.size() << ".";
+    int successCount = 0;
+    for (const auto& [numaId, pids] : removePidCompletedList) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] Start to RemovePids, numaId = " << numaId << ", pids.size = " << pids.size() << ".";
+        std::vector<pid_t> pidsVec(pids.begin(), pids.end());
+        ret = RemoveLocalHandler(numaId, pidsVec);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePids, numaId = " << numaId << ".";
+            continue;
+        }
+        ret = RemovePidCompleted::Instance().Remove(numaId, pidsVec);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePid, numaId = " << numaId << ".";
+            continue;
+        }
+        successCount++;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] RemovePid success, numaId = " << numaId << ".";
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] CheckAndExecuteRemovePids finished, totalCount = " << removePidCompletedList.size()
+        << ", successCount = " << successCount << ".";
 }
 
 MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
@@ -270,9 +376,10 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
     auto ret = smapRemove(&removeMsg, static_cast<int>(MpConfiguration::GetInstance().GetMpSceneType()));
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal failed.";
-    } else {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
+        return MEM_POOLING_ERROR;
     }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
     return MEM_POOLING_OK;
 }
 
@@ -467,6 +574,15 @@ uint32_t InitOverCommitReg()
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "DisableSmapProcessMigrateRecvHandler reg failed res: " << ret;
+    }
+
+    // 超分场景memID故障处理 agent节点开启冷热流动
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_SMAP_PROCESS_MIGRATE_ENABLE};
+    ret =
+        UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "EnableSmapProcessMigrateRecvHandler reg failed res: " << ret;
     }
 
     // 超分场景memID故障处理 agent节点内存归还

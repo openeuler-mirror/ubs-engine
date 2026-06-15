@@ -19,6 +19,7 @@
 #include "fault_node_module.h"
 #include "mem_borrow_executor.h"
 #include "mem_manager.h"
+#include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "rmrs_serialize.h"
 
@@ -398,6 +399,8 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             LOG_ERROR << "[FaultManager][MemId] Smap Enable Process(disable) failed, ErrorCode=" << retSmap << ".";
             return MEM_POOLING_ERROR;
         }
+        // 持久化被disable的pids
+        PidSmapEnableCompleted::Instance().Update(pids);
     }
 
     if (pids.size() != 0) {
@@ -406,6 +409,7 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
             MpSmapHelper::SmapMigratePidRemoteNumaHelper(pids.data(), pids.size(), remoteNumaId, remoteNumaHuge);
         if (retRemote != MEM_POOLING_OK) {
             LOG_ERROR << "[FaultManager][MemId] Smap migrate pid remote NUMA failed ret=" << retRemote << ".";
+            MpSmapHelper::RollBackSmapEnablePids(pids);
             return MEM_POOLING_ERROR;
         }
         LOG_INFO << "[FaultManager][MemId] Smap migrate pid remote NUMA(not same nid) success.";
@@ -417,11 +421,12 @@ MpResult FaultMemIdExecute::VmsMigrateOtherRemoteNuma(std::vector<pid_t>& pids, 
 
     if (pids.size() != 0) {
         // 开启pid级别冷热流动
-        int retSmap02 = MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), SMAP_MIGRATE_ENABLE,
-                                                                     SMAP_MIGRATE_FLAGS);
-        if (retSmap02 != 0) {
-            LOG_ERROR << "[FaultManager][MemId] Smap Enable process(enable) failed, ErrorCode=" << retSmap02 << ".";
+        if (SmapEnablePidsProcess(pids) != MEM_POOLING_OK) {
+            LOG_ERROR << "[FaultManager][MemId] Smap Enable pids failed.";
             return MEM_POOLING_ERROR;
+        } else {
+            LOG_INFO << "[FaultManager][MemId] Smap Enable pids success, start to remove pids.";
+            PidSmapEnableCompleted::Instance().Remove(pids);
         }
     }
     LOG_INFO << "[FaultManager][MemId] VM migrate other remote NUMA success.";

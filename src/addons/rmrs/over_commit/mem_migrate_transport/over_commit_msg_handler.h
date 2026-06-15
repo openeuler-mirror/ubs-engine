@@ -70,6 +70,12 @@ public:
     static MpResult ProcessQueryLocalHandler(const std::vector<uint32_t>& numaIds, std::string& numa2pidMapJson,
                                              bool isReturn = false);
 
+    static void CheckAndExecutePersistence();
+
+    static void CheckAndExecuteSmapEnable();
+
+    static void CheckAndExecuteRemovePid();
+
 private:
     static void SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
                             UbseByteBuffer& resBuffer);

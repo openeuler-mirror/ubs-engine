@@ -23,6 +23,7 @@
 #include "over_commit_fault_node_module.h"
 #undef private
 
+#include "ubse_storage.h"
 #include "fault_node_module.h"
 #include "mempooling_interface.h"
 #include "mp_mem_json_util.h"
@@ -1286,6 +1287,200 @@ TEST_F(TestOverCommitFaultNodeModule, ProcessPendingMigration_PreCheck_AllNumasI
 
     EXPECT_EQ(ret, MEM_POOLING_OK);
     EXPECT_TRUE(pendingMigrations.find(9999) == pendingMigrations.end());
+}
+
+MpResult FilterValidPidListByLocalNodeNoOpMock(std::vector<pid_t>& pidList)
+{
+    return MEM_POOLING_OK;
+}
+
+uint32_t UbseStoragePutDataMock(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data)
+{
+    return MEM_POOLING_OK;
+}
+
+uint32_t UbseStorageQueryDataMock(const std::string& keyPrefix, const std::string& key, void* ctx,
+                                  UbseStorageDealDataFunc func)
+{
+    return MEM_POOLING_OK;
+}
+
+MpResult ExecuteFaultMemoryBorrowFailMock(OverCommitFaultNodeModule*, const std::vector<BorrowRecord>& borrowRecords,
+                                          std::vector<RemoteNumaFault>& remoteNumas)
+{
+    return MEM_POOLING_ERROR;
+}
+
+MpResult ExecuteFaultMemoryBorrowOkMock(OverCommitFaultNodeModule*, const std::vector<BorrowRecord>& borrowRecords,
+                                        std::vector<RemoteNumaFault>& remoteNumas)
+{
+    BorrowRecord record;
+    record.borrowNode = "local_node";
+    record.borrowLocalNuma = 0;
+    record.borrowRemoteNuma = 2;
+    record.size = 2048;
+    RemoteNumaFault fault(0, 2, 2048, record);
+    remoteNumas.push_back(fault);
+    return MEM_POOLING_OK;
+}
+
+MpResult EvaculateVmsFromFaultNumaFailMock(
+    OverCommitFaultNodeModule*, const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId,
+    const int16_t faultNumaId, std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
+    std::vector<RemoteNumaFault>& remoteNumas)
+{
+    return MEM_POOLING_ERROR;
+}
+
+void ClearPidSmapEnableCompleted()
+{
+    PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.clear();
+}
+
+/*
+ * 用例描述：BorrowIdGroupProcess中ExecuteFaultMemoryBorrow失败时，应调用RollBackSmapEnablePids回滚，
+ *           PidSmapEnableCompleted中不应存在被回滚的oldPids
+ * 测试步骤：
+ * 1. 先清空PidSmapEnableCompleted
+ * 2. Mock SmapEnableProcessMigrateHelper(disable)返回OK
+ * 3. Mock UbseStoragePutData/UbseStorageQueryData使PidSmapEnableCompleted::Update成功
+ * 4. Mock ExecuteFaultMemoryBorrow返回MEM_POOLING_ERROR
+ * 5. Mock FilterValidPidListByLocalNode使RollBackSmapEnablePids中FilterValidPidsByLocalNode成功
+ * 6. Mock SmapEnableProcessMigrateHelper(enable)返回OK使RollBackSmapEnablePids中SmapEnable成功
+ * 7. Mock UbseStoragePutData/UbseStorageQueryData使PidSmapEnableCompleted::Remove成功
+ * 8. 调用BorrowIdGroupProcess
+ * 预期结果：
+ * 1. 返回MEM_POOLING_ERROR
+ * 2. PidSmapEnableCompleted的pidSmapEnableCompleted中不存在vmInfos中的pid
+ */
+TEST_F(TestOverCommitFaultNodeModule, BorrowIdGroupProcess_ExecuteFaultMemoryBorrowFailed_RollBackSmapEnablePids)
+{
+    ClearPidSmapEnableCompleted();
+
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(invoke(UbseStoragePutDataMock));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(invoke(UbseStorageQueryDataMock));
+
+    MOCKER_CPP(&OverCommitFaultNodeModule::ExecuteFaultMemoryBorrow,
+               MpResult(*)(OverCommitFaultNodeModule*, const std::vector<BorrowRecord>&, std::vector<RemoteNumaFault>&))
+        .stubs()
+        .will(invoke(ExecuteFaultMemoryBorrowFailMock));
+
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(invoke(FilterValidPidListByLocalNodeNoOpMock));
+
+    std::unordered_map<int16_t, std::set<int16_t>> remoteNumaId2LocalNumaId;
+    remoteNumaId2LocalNumaId[1] = {0};
+    int16_t faultNumaId = 1;
+    std::vector<BorrowRecord> borrowRecords;
+    BorrowRecord record;
+    record.borrowNode = "local_node";
+    record.borrowLocalNuma = 0;
+    record.borrowRemoteNuma = 1;
+    record.name = "borrow_1";
+    record.size = 1024;
+    borrowRecords.push_back(record);
+
+    std::unordered_map<pid_t, mempooling::outinterface::VMInfo> vmInfos;
+    mempooling::outinterface::VMInfo vm;
+    vm.pid = 1234;
+    vm.totalLocalUsedMem = 1000;
+    vm.totalRemoteUsedMem = 1000;
+    vmInfos[1234] = vm;
+
+    OverCommitFaultNodeModule module;
+    auto ret = module.BorrowIdGroupProcess(remoteNumaId2LocalNumaId, faultNumaId, borrowRecords, vmInfos);
+
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_TRUE(PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.find(1234) ==
+                PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.end());
+}
+
+/*
+ * 用例描述：BorrowIdGroupProcess中EvaculateVmsFromFaultNuma失败时，应调用RollBackSmapEnablePids回滚，
+ *           PidSmapEnableCompleted中不应存在被回滚的oldPids
+ * 测试步骤：
+ * 1. 先清空PidSmapEnableCompleted
+ * 2. Mock SmapEnableProcessMigrateHelper(disable)返回OK
+ * 3. Mock UbseStoragePutData/UbseStorageQueryData使PidSmapEnableCompleted::Update成功
+ * 4. Mock ExecuteFaultMemoryBorrow返回MEM_POOLING_OK
+ * 5. Mock EvaculateVmsFromFaultNuma返回MEM_POOLING_ERROR
+ * 6. Mock FilterValidPidListByLocalNode使RollBackSmapEnablePids中FilterValidPidsByLocalNode成功
+ * 7. Mock SmapEnableProcessMigrateHelper(enable)返回OK使RollBackSmapEnablePids中SmapEnable成功
+ * 8. Mock UbseStoragePutData/UbseStorageQueryData使PidSmapEnableCompleted::Remove成功
+ * 9. 调用BorrowIdGroupProcess
+ * 预期结果：
+ * 1. 返回MEM_POOLING_ERROR
+ * 2. PidSmapEnableCompleted的pidSmapEnableCompleted中不存在vmInfos中的pid
+ */
+TEST_F(TestOverCommitFaultNodeModule, BorrowIdGroupProcess_EvaculateVmsFromFaultNumaFailed_RollBackSmapEnablePids)
+{
+    ClearPidSmapEnableCompleted();
+
+    MOCKER_CPP(&MpSmapHelper::SmapEnableProcessMigrateHelper, int (*)(pid_t*, size_t, int, int))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(invoke(UbseStoragePutDataMock));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(invoke(UbseStorageQueryDataMock));
+
+    MOCKER_CPP(&OverCommitFaultNodeModule::ExecuteFaultMemoryBorrow,
+               MpResult(*)(OverCommitFaultNodeModule*, const std::vector<BorrowRecord>&, std::vector<RemoteNumaFault>&))
+        .stubs()
+        .will(invoke(ExecuteFaultMemoryBorrowOkMock));
+
+    MOCKER_CPP(
+        &OverCommitFaultNodeModule::EvaculateVmsFromFaultNuma,
+        MpResult(*)(OverCommitFaultNodeModule*, const std::unordered_map<int16_t, std::set<int16_t>>&, const int16_t,
+                    std::unordered_map<pid_t, mempooling::outinterface::VMInfo>&, std::vector<RemoteNumaFault>&))
+        .stubs()
+        .will(invoke(EvaculateVmsFromFaultNumaFailMock));
+
+    MOCKER_CPP(&ResourceQuery::FilterValidPidListByLocalNode, MpResult(*)(std::vector<pid_t>&))
+        .stubs()
+        .will(invoke(FilterValidPidListByLocalNodeNoOpMock));
+
+    std::unordered_map<int16_t, std::set<int16_t>> remoteNumaId2LocalNumaId;
+    remoteNumaId2LocalNumaId[1] = {0};
+    int16_t faultNumaId = 1;
+    std::vector<BorrowRecord> borrowRecords;
+    BorrowRecord record;
+    record.borrowNode = "local_node";
+    record.borrowLocalNuma = 0;
+    record.borrowRemoteNuma = 1;
+    record.name = "borrow_1";
+    record.size = 1024;
+    borrowRecords.push_back(record);
+
+    std::unordered_map<pid_t, mempooling::outinterface::VMInfo> vmInfos;
+    mempooling::outinterface::VMInfo vm;
+    vm.pid = 1234;
+    vm.totalLocalUsedMem = 1000;
+    vm.totalRemoteUsedMem = 1000;
+    vmInfos[1234] = vm;
+
+    OverCommitFaultNodeModule module;
+    auto ret = module.BorrowIdGroupProcess(remoteNumaId2LocalNumaId, faultNumaId, borrowRecords, vmInfos);
+
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_TRUE(PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.find(1234) ==
+                PidSmapEnableCompleted::Instance().pidSmapEnableCompleted.end());
 }
 
 } // namespace mempooling::over_commit

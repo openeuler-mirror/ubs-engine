@@ -499,6 +499,7 @@ struct FaultNumaLockGuard {
     }
 };
 
+// numa级别冷热页流动恢复：smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaIds
 class SmapEnableCompleted {
 public:
     static SmapEnableCompleted& Instance()
@@ -516,6 +517,26 @@ private:
     // smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaId
     std::unordered_set<int16_t> smapEnableCompleted;
     std::mutex mtxSmapEnableCompleted;
+};
+
+// pid级别冷热页流动恢复：pidSmapEnableCompleted中存放的为disable以后尚未enable的pids
+class PidSmapEnableCompleted {
+public:
+    static PidSmapEnableCompleted& Instance()
+    {
+        static PidSmapEnableCompleted instance;
+        return instance;
+    }
+    MpResult Update(const std::vector<pid_t>& pids);
+    MpResult Remove(const std::vector<pid_t>& pids);
+    MpResult Query(std::vector<pid_t>& pidSmapEnableCompletedList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
+
+private:
+    // pidSmapEnableCompleted中存放的为disable以后尚未enable的remoteNumaId
+    std::unordered_set<pid_t> pidSmapEnableCompleted;
+    std::mutex mtxPidSmapEnableCompleted;
 };
 
 class FaultHandleBorrowedDecision {
