@@ -29,7 +29,6 @@
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
-#include "mp_heartbeat_monitor.h"
 #include "mp_module.h"
 #include "mp_smap_controller.h"
 #include "mp_smap_helper.h"

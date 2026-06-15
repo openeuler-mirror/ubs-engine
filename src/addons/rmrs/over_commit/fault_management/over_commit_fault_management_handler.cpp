@@ -142,7 +142,7 @@ void OverCommitFaultManagementHandler::MemIdExecuteResHandler(void* ctx, const U
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }
@@ -244,7 +244,7 @@ void OverCommitFaultManagementHandler::DisableSmapProcessMigrateResHandler(void*
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }
@@ -260,7 +260,7 @@ void OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteResHandler(void
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }
@@ -325,7 +325,7 @@ void OverCommitFaultManagementHandler::MemIdReturnExecuteResHandler(void* ctx, c
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }
@@ -379,7 +379,7 @@ void OverCommitFaultManagementHandler::FaultNumaProcessResHandler(void* ctx, con
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }
@@ -582,7 +582,7 @@ void OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessResHandler(void
         return;
     }
     auto* result = static_cast<uint32_t*>(ctx);
-    if (resCode != MEM_POOLING_OK || respData.len != MEM_POOLING_ERROR) {
+    if (resCode != MEM_POOLING_OK || respData.len != MEMID_SUCCESS_RESPONSE_DATA_LENGTH) {
         *result = MEM_POOLING_ERROR;
         return;
     }

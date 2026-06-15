@@ -179,7 +179,7 @@ bool RackCreateResourceWaterBorrowAttr::ParseVecOfWaterMallocAttr(JSON_MAP& wate
     }
 
     this->waterMallocAttr.lenderSizes.resize(lenderLocsVec.size());
-    for (size_t i = 0; i < lenderSizeVec.size(); ++i) {
+    for (size_t i = 0; i < lenderLocsVec.size(); ++i) {
         auto item = lenderSizeVec[0];
         if (!StrToULong(item, this->waterMallocAttr.lenderSizes[i])) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)

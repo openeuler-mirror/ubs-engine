@@ -594,6 +594,11 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] borrowId is empty, skip.";
         return MEM_POOLING_OK;
     }
+    if (borrowId2Size[borrowId] > borrowIdNuma2Size[presentNumaId]) {
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemReturn] borrowId2Size > borrowIdNuma2Size, skip. borrowId=" << borrowId;
+        return MEM_POOLING_ERROR;
+    }
     borrowIdNuma2Size[presentNumaId] -= borrowId2Size[borrowId];
     if (borrowIdNuma2Size[presentNumaId] == 0 && pids.size() != 0) {
         // 持久化pids

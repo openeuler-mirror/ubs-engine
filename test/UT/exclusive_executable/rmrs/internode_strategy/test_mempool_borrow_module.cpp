@@ -80,8 +80,14 @@ TEST_F(TestMemPoolBorrowModule, Init_TestSuccess)
 
 TEST_F(TestMemPoolBorrowModule, compareNodeMemInfo_TestSuccess)
 {
-    std::pair<std::string, NodeMemInfo> a = {"nodeA", NodeMemInfo{.totalBorrowableMem = 100}};
-    std::pair<std::string, NodeMemInfo> b = {"nodeB", NodeMemInfo{.totalBorrowableMem = 200}};
+    std::vector<NumaMemInfo> localnumaMemInfoA = {{.socketId = 0, .borrowableMem = 1000},
+                                                  {.socketId = 1, .borrowableMem = 2000}};
+    std::vector<NumaMemInfo> localnumaMemInfoB = {{.socketId = 0, .borrowableMem = 3000},
+                                                  {.socketId = 1, .borrowableMem = 4000}};
+    std::pair<std::string, NodeMemInfo> a = {
+        "nodeA", NodeMemInfo{.totalBorrowableMem = 3000, .localnumaMemInfo = localnumaMemInfoA}};
+    std::pair<std::string, NodeMemInfo> b = {
+        "nodeB", NodeMemInfo{.totalBorrowableMem = 7000, .localnumaMemInfo = localnumaMemInfoB}};
 
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowableInfo,
                MpResult(*)(const std::string& nodeId, NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem))
@@ -205,8 +211,14 @@ TEST_F(TestMemPoolBorrowModule, compareSocketMemInfo_TestSuccess)
 
 TEST_F(TestMemPoolBorrowModule, compareSocketMemInfo_TestFailed2)
 {
-    std::pair<std::string, NodeMemInfo> a = {"NodeA", NodeMemInfo{.totalBorrowableMem = 100}};
-    std::pair<std::string, NodeMemInfo> b = {"NodeB", NodeMemInfo{.totalBorrowableMem = 200}};
+    std::vector<NumaMemInfo> localnumaMemInfoA = {{.socketId = 0, .borrowableMem = 1000},
+                                                  {.socketId = 1, .borrowableMem = 2000}};
+    std::vector<NumaMemInfo> localnumaMemInfoB = {{.socketId = 0, .borrowableMem = 3000},
+                                                  {.socketId = 1, .borrowableMem = 4000}};
+    std::pair<std::string, NodeMemInfo> a = {
+        "nodeA", NodeMemInfo{.totalBorrowableMem = 3000, .localnumaMemInfo = localnumaMemInfoA}};
+    std::pair<std::string, NodeMemInfo> b = {
+        "nodeB", NodeMemInfo{.totalBorrowableMem = 7000, .localnumaMemInfo = localnumaMemInfoB}};
     std::unordered_map<std::string, std::unordered_set<uint16_t>> nodeIdToNumaIdSetMap;
     nodeIdToNumaIdSetMap["NodeA"] = {0, 1, 2};
     std::vector<RackMemNumaPair> borrowedItemVec;
@@ -221,7 +233,7 @@ TEST_F(TestMemPoolBorrowModule, compareSocketMemInfo_TestFailed2)
     SrcMemoryBorrowParam srcParam;
     bool flag = compareSocketMemInfo(nodeIdToNumaIdSetMap, borrowedItemVec, srcParam, a, b);
     GlobalMockObject::verify();
-    EXPECT_EQ(flag, true);
+    EXPECT_EQ(flag, false);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed1)

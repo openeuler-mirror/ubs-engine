@@ -222,6 +222,9 @@ void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer& req, UbseByteB
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[over-commit][ucache] Call turbo UCacheMigrateStrategy start.";
     if (!ValidateBuffer(req)) {
+        resp.data = nullptr;
+        resp.len = 0;
+        resp.freeFunc = nullptr;
         return;
     }
     UCacheMigrationStrategyParam param;
@@ -231,6 +234,9 @@ void UCacheSendMigrationStrategyRecvHandler(const UbseByteBuffer& req, UbseByteB
     if (!builderIn.Check()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[over-commit][ucache] Failed to deserialize UCacheMigrationStrategyParam.";
+        resp.data = nullptr;
+        resp.len = 0;
+        resp.freeFunc = nullptr;
         return;
     }
     uint32_t ret = MempoolingMessage::rmrsUCacheMigrateStrategy(param, result);

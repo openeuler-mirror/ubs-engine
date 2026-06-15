@@ -582,6 +582,10 @@ MpResult OverCommitFaultMemIdModule::SetAndDeleteResource(std::string borrowId,
     if (mBindType == NumaBindType::BIND_MULTIPLE) {
         srcParam.srcNumaId = -1;
     }
+    if (memBorrowInfos.empty()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "memBorrowInfos is empty.";
+        return MEM_POOLING_ERROR;
+    }
     memBorrowInfos[0].borrowSize -= faultMemSize;
     memBorrowInfos[0].borrowSize *= (1 - GetUcacheUsageRatio(srcParam.srcNid));
     auto setSmapRemoteNumaInfoSend = SetSmapRemoteNumaInfoSend(srcParam, memBorrowInfos);
@@ -982,8 +986,7 @@ MpResult OverCommitFaultMemIdModule::CheckBorrowedMemSizeForPidMigrate(OverCommi
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Bias too large, failed to adjust.";
         return MEM_POOLING_ERROR;
     }
-
-    if (bias >= BIAS_THRESHOLD_MID) {
+    if (bias > BIAS_THRESHOLD_MID) {
         adjustSize = ADJUST_SIZE_LARGE;
     } else if (bias >= BIAS_THRESHOLD_SMALL) {
         adjustSize = ADJUST_SIZE_MID;
@@ -1149,7 +1152,10 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
         if (vmLocalNumaInfo == numaInfos.end()) {
             return MEM_POOLING_ERROR;
         }
-        info.localFreeMem = vmLocalNumaInfo->metaData.numaPageInfo[HUGE_PAGE_SIZE].hugePageFree * HUGE_PAGE_SIZE;
+        auto numaPageIt = vmLocalNumaInfo->metaData.numaPageInfo.find(HUGE_PAGE_SIZE);
+        info.localFreeMem = (numaPageIt != vmLocalNumaInfo->metaData.numaPageInfo.end()) ?
+                                numaPageIt->second.hugePageFree * HUGE_PAGE_SIZE :
+                                0;
         if (info.remoteUsedMem > 0 && info.remoteNumaId == remoteNumaId) {
             vmNumaInfoWithSocketList.push_back(info);
             UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
