@@ -260,6 +260,15 @@ description: Expert C/C++ code review for openEuler Linux system-level software,
 - 是否有适当的注释解释"为什么"而非"是什么"
 - 日志是否充分且有意义
 
+#### 资料修改检查
+
+- 如果修改了src\cli目录下的代码，涉及新增/修改/删除命令或命令参数时，确认是否需要同步修改docs\zh\ubse\ubse_cli_user_guide.md，未修改则提一个检视意见
+- 如果修改了src\sdk\c\include目录下的代码，确认是否需要同步修改了docs\zh\ubse\ubse_api_reference.md，未修改则提一个检视意见
+- 如果修改了conf\ubse.conf，确认是否同步修改了docs\zh\ubse\ubse_configration_instructions.md，未修改则提一个检视意见
+
+#### 例外
+- 在报告内存泄漏之前，识别 Ref<T> 智能指针别名。参考规则文件：references/01-smart-pointer-alias.md
+
 ### 3. 项目特定规范检查
 
 #### C++规范
