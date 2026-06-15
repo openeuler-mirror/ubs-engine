@@ -19,6 +19,7 @@
 #include "ubse_election_role_global_agent.h"
 #include "ubse_election_role_global_initializer.h"
 #include "ubse_election_role_global_standby.h"
+#include "ubse_election_role_global_master.h"
 #include "ubse_net_util.h"
 
 namespace ubse::election {
@@ -126,6 +127,11 @@ void RoleMgr::SwitchGlobalRole(GlobalRoleType globalRoleType, RoleContext &ctx)
 {
     switch (globalRoleType) {
         case GlobalRoleType::GLOBAL_MASTER:
+            globalCurrentRole_ = SafeMakeShared<GlobalMaster>(ctx);
+            if (!globalCurrentRole_) {
+                UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
+                return;
+            }
             RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION, ctx.masterId);
             UBSE_LOG_INFO << "[ELECTION] SwitchRole Global Master, node_id = " << ctx.masterId << ".";
             break;

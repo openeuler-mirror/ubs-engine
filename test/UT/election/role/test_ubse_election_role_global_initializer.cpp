@@ -395,7 +395,7 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldSwitchGlobalMaster
 
     auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
     if (globalRole != nullptr) {
-        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_MASTER);
     }
 }
 
@@ -426,7 +426,7 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldSwitchGlobalMaster
 
     auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
     if (globalRole != nullptr) {
-        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_MASTER);
     }
 }
 
@@ -456,7 +456,7 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldSwitchGlobalMaster
 
     auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
     if (globalRole != nullptr) {
-        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_MASTER);
     }
 }
 
@@ -743,7 +743,7 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcRoleSwitch_ShouldSwitchMaster_
 
     auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
     if (globalRole != nullptr) {
-        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_INITIALIZER);
+        EXPECT_EQ(globalRole->GetGlobalRoleType(), GlobalRoleType::GLOBAL_MASTER);
     }
 }
 
