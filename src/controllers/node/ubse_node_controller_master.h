@@ -13,8 +13,13 @@
 #ifndef UBS_ENGINE_UBSE_NODE_CONTROLLER_MASTER_H
 #define UBS_ENGINE_UBSE_NODE_CONTROLLER_MASTER_H
 
+#include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
@@ -46,13 +51,19 @@ public:
      * 从节点周期采集上报处理回调
      * @param nodeInfo
      */
-    UbseResult UbseNodeReportHandler(const UbseNodeInfo& nodeInfo);
+    UbseResult UbseNodeReportHandler(const UbseNodeInfo &nodeInfo);
 
     /**
      * 从节点lcne拓扑变化采集上报回调
      * @param nodeInfo
      */
-    UbseResult UbseLcneTopologyChangeHandler(const UbseNodeInfo& nodeInfo);
+    UbseResult UbseLcneTopologyChangeHandler(const UbseNodeInfo &nodeInfo);
+
+    UbseResult UbseCabinetReportHandler(const std::vector<UbseNodeInfo> &infos);
+
+    UbseResult UbseGlobalReportHandler(const std::vector<UbseNodeInfo> &infos);
+
+    UbseResult UbseSingleNodeReportHandler(const UbseNodeInfo &info);
 
 private:
     UbseResult UbseMasterOnlineHandler(const std::string &nodeId);
@@ -79,13 +90,18 @@ private:
 
     UbseResult UbseNodeRasAfterFaultClearHandler(const std::string &nodeId);
 
+    UbseResult ReportSingleNodeChangeToPrev(const std::string &nodeId, const std::string &reason);
+
+    UbseResult ProcessGlobalStateAfterReport(const std::string &nodeId);
+
     void UbseNodeCleanAfterSwitchStandby();
 
     void UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action);
 
-    void UbseNodeRetryLedger(const std::string& nodeId);
-
-    UbseResult ReportAggregationTimerHandler();
+    /**
+     * 节点上报汇聚，每隔1min，打印一次节点上报记录
+     */
+    void ReportAggregation();
 
     UbseTaskExecutorPtr taskExecutor_{};
 
@@ -103,21 +119,19 @@ private:
 
     std::mutex taskExecMutex_;
 
-    static std::atomic<bool> s_reportTaskRunning;
-
     // 故障恢复阈值
     static constexpr int FAULT_REPORT_THRESHOLD = 150;
 
     // 平滑处理函数
-    void ExecuteNodeSmoothing(const std::string& nodeId);
+    void ExecuteNodeSmoothing(const std::string &nodeId);
 
-    void ClearFaultCounter(const std::string& nodeId);
+    void ClearFaultCounter(const std::string &nodeId);
 
-    int ProcessFaultCounter(const std::string& nodeId);
+    int ProcessFaultCounter(const std::string &nodeId);
 };
 
 /**
- * 注册Master端4个RPC处理器
+ * 注册Master端RPC处理器
  */
 UbseResult RegMasterMsgHandler();
 
@@ -136,6 +150,12 @@ UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &
  * @return UbseResult 处理结果
  */
 UbseResult UbseNodeReportNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult CabinetNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult GlobalNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult SingleNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 /**
  * 处理Agent查询全量节点列表

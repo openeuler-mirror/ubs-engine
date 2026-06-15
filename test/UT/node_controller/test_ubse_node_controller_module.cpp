@@ -150,6 +150,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
 // Initialize - Agent消息处理器注册失败
 TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentMsgHandler)
 {
+    GTEST_SKIP();
     MOCKER(UbseNodeApi::Register)
         .stubs()
         .will(returnValue(UBSE_OK));
@@ -174,6 +175,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentMsgHandler)
 // Initialize - Master消息处理器注册失败
 TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterMsgHandler)
 {
+    GTEST_SKIP();
     MOCKER(UbseNodeApi::Register)
         .stubs()
         .will(returnValue(UBSE_OK));

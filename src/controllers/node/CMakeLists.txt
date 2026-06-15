@@ -18,6 +18,8 @@ target_include_directories(ubse_node_controller PUBLIC
         ${SRC_DIR}/adapter_plugins/syssentry
         ${SRC_DIR}/sdk/c/include
         ${SRC_DIR}/adapter_plugins/urma_uvs
+        ${SRC_DIR}/include/adapter_plugins/mmi
+        ${SRC_DIR}/controllers/mem/mem_controller/api
         ${SRC_DIR}/include/adapter_plugins/mti)
 
 target_link_libraries(ubse_node_controller PRIVATE
@@ -36,8 +38,6 @@ target_link_libraries(ubse_node_controller PRIVATE
         ubse_urma_uvs
         ubse_security
         ubse_smbios)
-
-
 
 add_library(ubse_node_controller_register_config OBJECT ubse_node_controller_register_config.cpp)
 target_link_libraries(ubse_node_controller_register_config PRIVATE ubse_config ubse_utils)

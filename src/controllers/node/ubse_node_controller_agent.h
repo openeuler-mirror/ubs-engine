@@ -13,10 +13,10 @@
 #ifndef UBS_ENGINE_UBSE_NODE_CONTROLLER_AGENT_H
 #define UBS_ENGINE_UBSE_NODE_CONTROLLER_AGENT_H
 
+#include "ubse_com_module.h"
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
 #include "ubse_thread_pool.h"
-#include "ubse_com_module.h"
 
 namespace ubse::nodeController {
 using namespace ubse::common::def;
@@ -41,83 +41,115 @@ public:
 
 private:
     /**
-     * 周期采集上报节点内存&拓扑回调
-     */
+    * 周期采集上报节点内存&拓扑回调
+    */
     UbseResult UbseNodeInfoReportTimerHandler();
 
+    UbseResult UbseCabinetInfoReportTimerHandler();
+
+    UbseResult UbseGlobalInfoReportTimerHandler();
+
     /**
-     * 监听LCNE拓扑变更，采集上报节点内存&拓扑
-     * @param eventId
-     * @param eventMessage
-     * @return
-     */
+    * 监听LCNE拓扑变更，采集上报节点内存&拓扑
+    * @param eventId
+    * @param eventMessage
+    * @return
+    */
     static UbseResult UbseNodeInfoLcneNotifyHandler(std::string &eventId, std::string &eventMessage);
 
     void StartExec();
+
+    UbseResult ReportSingleNodeToPrev(const UbseNodeInfo &info);
+
+    UbseResult ReportCabinetFullInfo();
+
+    UbseResult ForwardSingleNodeToPrev(const UbseNodeInfo &info);
+
+    UbseResult ForwardCabinetFullToPrev();
 
     UbseTaskExecutorPtr taskExecutor_{};
 };
 
 /**
- * Agent向Master查询全量节点列表
- * @param nodeId 目标Master节点ID
- * @param infos 输出参数，全量节点信息列表
- * @return UbseResult 操作结果
- */
+* Agent向Master查询全量节点列表
+* @param nodeId 目标Master节点ID
+* @param infos 输出参数，全量节点信息列表
+* @return UbseResult 操作结果
+*/
 UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseNodeInfo> &infos);
 
 /**
- * Agent向Master查询全量链路信息
- * @param nodeId 目标Master节点ID
- * @param devDirConnectInfoRemote 输出参数，全量链路信息映射表
- * @return UbseResult 操作结果
- */
+* Agent向Master查询全量链路信息
+* @param nodeId 目标Master节点ID
+* @param devDirConnectInfoRemote 输出参数，全量链路信息映射表
+* @return UbseResult 操作结果
+*/
 UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
                                            std::map<std::string, PhysicalLink> &devDirConnectInfoRemote);
 
 /**
- * 注册Agent端消息处理器
- */
+* 注册Agent端消息处理器
+*/
 UbseResult RegAgentMsgHandler();
 
 /**
- * Agent处理Master的采集请求
- * @param req 请求数据，包含序列化的采集参数
- * @param resp 响应数据，返回当前节点的序列化信息
- * @return UbseResult 处理结果
- */
+* Agent处理Master的采集请求
+* @param req 请求数据，包含序列化的采集参数
+* @param resp 响应数据，返回当前节点的序列化信息
+* @return UbseResult 处理结果
+*/
 UbseResult CollectNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 /**
- * Agent向Master周期上报节点信息
- * @param nodeId 目标Master节点ID
- * @param info 要上报的节点信息
- * @return UbseResult 发送结果
- */
+* Agent向前驱节点周期上报本节点信息
+* @param nodeId 目标前驱节点ID
+* @param info 要上报的本节点信息
+* @return UbseResult 发送结果
+*/
 UbseResult UbseNodeReportNodeInfo(const std::string &nodeId, const UbseNodeInfo &info);
 
 /**
- * Agent向Master上报LCNE拓扑变化
- * @param nodeId 目标Master节点ID
- * @param info 包含拓扑变化的节点信息
- * @return UbseResult 发送结果
- */
+* Agent向Master上报LCNE拓扑变化
+* @param nodeId 目标Master节点ID
+* @param info 包含拓扑变化的节点信息
+* @return UbseResult 发送结果
+*/
 UbseResult LcneChangeReportNodeInfo(const std::string &nodeId, const UbseNodeInfo &info);
 
 /**
- * Master从Agent采集节点信息
- * @param nodeId 目标Agent节点ID
- * @param info 输出参数，采集到的节点信息
- * @return UbseResult 采集结果
- */
+* 向上级节点上报单节点变化信息
+*/
+UbseResult UbseCabinetReportSingleNode(const std::string &nodeId, const UbseNodeInfo &info);
+
+/**
+* 向上级节点上报当前节点掌握的全量节点信息
+*/
+UbseResult UbseCabinetReportFullInfo(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos);
+
+/**
+* PD主向全局主上报单节点变化信息
+*/
+UbseResult UbseGlobalReportSingleNode(const std::string &nodeId, const UbseNodeInfo &info);
+
+/**
+* PD主向全局主上报当前掌握的全量节点信息
+*/
+UbseResult UbseGlobalReportFullInfo(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos);
+
+/**
+* Master从Agent采集节点信息
+* @param nodeId 目标Agent节点ID
+* @param info 输出参数，采集到的节点信息
+* @return UbseResult 采集结果
+*/
 UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
 /**
- * Agent下发本节点urma topo
- * @param isBeforeElection 是否在选举完成前下发，默认为false
- * @return UbseResult 下发结果
- */
-UbseResult SetUrmaUvs(bool isBeforeElection);
+* Agent下发本节点urma topo
+* @param isBeforeElection 是否在选举完成前下发，默认为false
+* @return UbseResult 下发结果
+*/
+UbseResult SetUrmaUvs();
 
 /**
  * Agent发布 urma变化事件给 urmactl
