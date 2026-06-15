@@ -20,30 +20,28 @@ std::shared_ptr<RoleMgr> RoleMgr::instance_ = nullptr;
 
 std::shared_ptr<ElectionRole> RoleMgr::GetRole()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
     return currentRole_;
 }
 
 void RoleMgr::ProcTimer()
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    currentRole_->ProcTimer();
+    GetRole()->ProcTimer();
 }
 
 uint32_t RoleMgr::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt& rcvPkt, ElectionReplyPkt& reply)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return currentRole_->RecvPkt(srcID, rcvPkt, reply);
+    return GetRole()->RecvPkt(srcID, rcvPkt, reply);
 }
 
 void RoleMgr::SwitchRole(RoleType roleType, RoleContext& ctx)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
     RoleType role;
     bool flag = false;
     switch (roleType) {
         case RoleType::MASTER:
-            role = currentRole_->GetRoleType();
+            role = GetRole()->GetRoleType();
             if (role != RoleType::STANDBY) {
                 flag = true;
             }
