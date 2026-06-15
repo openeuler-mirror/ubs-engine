@@ -61,18 +61,22 @@ class UbsVirtAgentNodeInfoList(UbsVirtAgentBase):
         self.ubs_virt_agent_handle_result(result, "ubs_mem_fragmentation_node_info_list")
         node_info_list_result = []
 
-        if not node_info_list.node_infos or node_info_list.node_len == 0:
+        try:
+            if not node_info_list.node_infos or node_info_list.node_len == 0:
+                return node_info_list_result
+
+            for i in range(node_info_list.node_len):
+                node_info_ptr = ctypes.cast(
+                    ctypes.addressof(node_info_list.node_infos.contents) + i * ctypes.sizeof(NodeInfoC),
+                    ctypes.POINTER(NodeInfoC)
+                )
+                node_info_t = NodeInfoT.from_c_struct(node_info_ptr.contents)
+                node_info_list_result.append(node_info_t)
+
             return node_info_list_result
-
-        for i in range(node_info_list.node_len):
-            node_info_ptr = ctypes.cast(
-                ctypes.addressof(node_info_list.node_infos.contents) + i * ctypes.sizeof(NodeInfoC),
-                ctypes.POINTER(NodeInfoC)
-            )
-            node_info_t = NodeInfoT.from_c_struct(node_info_ptr.contents)
-            node_info_list_result.append(node_info_t)
-
-        return node_info_list_result
+        finally:
+            if hasattr(self.lib_ubse, 'free'):
+                node_info_list.free_c_memory(self.lib_ubse.free)
 
     def _setup_node_info_list_functions(self):
         """Setup function prototypes for node information list"""
