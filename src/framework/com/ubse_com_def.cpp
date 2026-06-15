@@ -598,8 +598,9 @@ void UbseComMessage::FreeMessage(UbseComMessagePtr& msg)
 UbseResult UbseComMessage::SetMessageBody(const uint8_t* data, uint32_t len)
 {
     if (UBSE_LIKELY((len != 0) && data != nullptr)) {
+        uint32_t buffSize = len; // Body buffer is allocated by AllocMessage(len).
         uint8_t* buff = static_cast<uint8_t*>(static_cast<void*>(this)) + sizeof(UbseComMessageHead);
-        auto ret = memcpy_s(buff, len, data, len);
+        auto ret = memcpy_s(buff, buffSize, data, len);
         if (UBSE_UNLIKELY(ret != EOK)) {
             return ret;
         }

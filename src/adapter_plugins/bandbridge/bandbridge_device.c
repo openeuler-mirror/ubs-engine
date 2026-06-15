@@ -165,24 +165,32 @@ static int bandbridge_close(struct inode* inode, struct file* filp)
 static int bandbridge_validate_user_buf(struct bandbridge_mbuf* tmpbuf)
 {
     int sq_alloc_size = bandbridge_ctrlq_get_sq_size();
-
+    if (tmpbuf == NULL) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] tmpbuf is NULL.\n");
+        return -EINVAL;
+    }
+    if (sq_alloc_size <= 0) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sq alloc size %d invalid.\n", sq_alloc_size);
+        return -EINVAL;
+    }
     if (tmpbuf->sendbuf_size <= 0 || tmpbuf->sendbuf_size > sq_alloc_size) {
         bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d.\n", tmpbuf->sendbuf_size,
                            sq_alloc_size);
         return -EINVAL;
-    }
-
-    int ret = bandbridge_ctrlq_check_sq_enough(tmpbuf->sendbuf_size);
-    if (ret != 0) {
-        bandbridge_log_err("[bandbridge_validate_user_buf] sq is not enough.\n");
-        return -ENOSPC;
     }
     return 0;
 }
 
 static int bandbridge_do_send_recv(struct bandbridge_mbuf* mbuf, struct bandbridge_mbuf* tmpbuf)
 {
+    int ret;
     mutex_lock(&g_bandbridge_ctx.bandbridge_lock);
+    ret = bandbridge_ctrlq_check_sq_enough(tmpbuf->sendbuf_size);
+    if (ret != 0) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] sq is not enough.\n");
+        return -ENOSPC;
+    }
     if (copy_from_user(mbuf->sendbuf, tmpbuf->sendbuf, tmpbuf->sendbuf_size)) {
         mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
         bandbridge_log_err("[bandbridge_do_send_recv] copy sendbuf from user failed.\n");
@@ -194,7 +202,7 @@ static int bandbridge_do_send_recv(struct bandbridge_mbuf* mbuf, struct bandbrid
 
     struct bandbridge_ctrlq_msg_header* head = (struct bandbridge_ctrlq_msg_header*)mbuf->sendbuf;
     u16 sseq = le16_to_cpu(head->seq);
-    int ret = bandbridge_ctrlq_receive_from_rq(mbuf->recvbuf, &mbuf->recvbuf_size, sseq);
+    ret = bandbridge_ctrlq_receive_from_rq(mbuf->recvbuf, &mbuf->recvbuf_size, sseq);
     if (ret != 0) {
         mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
         bandbridge_log_err("[bandbridge_do_send_recv] recv response from rq failed.\n");

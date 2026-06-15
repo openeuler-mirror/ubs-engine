@@ -6,7 +6,7 @@
 *          http://license.coscl.org.cn/MulanPSL2
 * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+* MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 * See the Mulan PSL v2 for more details.
 */
 
@@ -14,12 +14,29 @@
 
 #include <pthread.h>
 #include <sched.h>
+
 #include <cstdint>
+#include <cstring>
+#include <string>
+
 #include "trace_context.h"
 
 namespace ubse::event {
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
+
+namespace {
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
+} // namespace
 
 UbseEventThreadPool::UbseEventThreadPool(uint32_t numsHighThs, uint32_t numsMidThs, uint32_t numsLowThs,
                                          uint32_t numsQueueSize)
@@ -47,7 +64,8 @@ static void SetThreadPriority(uint32_t priority)
     sParam.sched_priority = static_cast<int>(priority);
     auto ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &sParam);
     if (ret != static_cast<int>(UBSE_OK)) {
-        UBSE_LOG_WARN << "set thread priority with " << FormatRetCode(ret) << "-" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_WARN << "set thread priority with " << FormatRetCode(ret) << "-" << SafeStrError(err);
     }
 }
 

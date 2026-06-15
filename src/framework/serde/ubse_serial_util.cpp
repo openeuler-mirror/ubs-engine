@@ -12,6 +12,8 @@
 
 #include "ubse_serial_util.h"
 
+#include <cstdint>
+
 #include "securec.h"
 
 namespace ubse::serial {
@@ -222,7 +224,8 @@ UbseSerialization& UbseSerialization::operator<<(UbseSerialization& kid)
     }
     writeTypeAndLen(mBuf_ + mLen_, static_cast<serial_type>(CTRL_TYPE::NEST_CTRL_CODE), static_cast<serial_len>(len));
     mLen_ += alignedHeadLen;
-    if (Unlikely(memcpy_s(mBuf_ + mLen_, len, kid.GetBuffer(), len) != EOK)) {
+    auto remaining = mCap_ - mLen_;
+    if (Unlikely(memcpy_s(mBuf_ + mLen_, remaining, kid.GetBuffer(), len) != EOK)) {
         mFlag_ = false;
         return *this;
     }
@@ -275,7 +278,8 @@ void UbseSerialization::add(const base_ptr_type* addr, common_len len, serial_ty
     }
     writeTypeAndLen(mBuf_ + mLen_, type, static_cast<serial_len>(len));
     mLen_ += alignedHeadLen;
-    if (Unlikely(memcpy_s(mBuf_ + mLen_, len, addr, len) != EOK)) {
+    auto remaining = mCap_ - mLen_;
+    if (Unlikely(memcpy_s(mBuf_ + mLen_, remaining, addr, len) != EOK)) {
         mFlag_ = false;
         return;
     }
@@ -300,7 +304,7 @@ bool UbseDeSerialization::Set(base_ptr_type* buf, common_len len, bool bNew)
         return false;
     }
     auto l = GetCode(buf, HeadBlockIndex::LEN_CODE_ID);
-    if (l != len || l % (alignBase) != 0) {
+    if (l != len || l % alignBase != 0) {
         mFlag_ = false;
         return false;
     }
@@ -310,7 +314,7 @@ bool UbseDeSerialization::Set(base_ptr_type* buf, common_len len, bool bNew)
             mFlag_ = false;
             return false;
         }
-        if (Unlikely(memcpy_s(mBuf_, len, buf, len) != EOK)) {
+        if (Unlikely(memcpy_s(mBuf_, len * sizeof(base_ptr_type), buf, len) != EOK)) {
             mFlag_ = false;
             delete[] mBuf_;
             mBuf_ = nullptr;

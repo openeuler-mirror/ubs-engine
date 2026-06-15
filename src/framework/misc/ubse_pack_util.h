@@ -137,7 +137,7 @@ public:
         // 写入字符串内容
         if (len > 0) {
             // 使用安全的内存复制函数
-            errno_t ret = memcpy_s(ptr_, len, str.data(), len);
+            errno_t ret = memcpy_s(ptr_, remaining_, str.data(), len);
             if (ret != EOK) {
                 return false;
             }

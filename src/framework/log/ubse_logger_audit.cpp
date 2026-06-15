@@ -13,8 +13,10 @@
 #include "ubse_logger_audit.h"
 
 #include <dlfcn.h>
+#include <cstring>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 #include <securec.h>
 
@@ -28,6 +30,16 @@ constexpr int AUDIT_RESULT_SUCCESS = 1; // success
 static bool g_loaded{false};            // 标识 libaudit 是否已成功加载
 static void* g_auditLibHandle{nullptr}; // 动态加载的 libaudit 库的句柄
 int g_auditfd = -1;
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
 
 template <typename T>
 inline int AuditDlsym(void* handle, T& ptr, std::string sym)
@@ -166,7 +178,9 @@ void AuditLoggerEntry::SendAuditMessage(RecordType type, const std::string& logM
         auto ret = g_auditLogUserMessageFunc(g_auditfd, RecordToAudit(type), logMessage.c_str(), nullptr, nullptr,
                                              nullptr, result);
         if (ret < 0) {
-            std::cerr << "Unable to send audit message " << logMessage.c_str() << ": " << strerror(errno) << std::endl;
+            int err = errno;
+            std::cerr << "Unable to send audit message " << logMessage.c_str() << ": " << SafeStrError(err)
+                      << std::endl;
         }
     }
 }
