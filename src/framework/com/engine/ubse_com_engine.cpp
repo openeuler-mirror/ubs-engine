@@ -516,6 +516,7 @@ UbseResult UbseComEngine::Start()
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     if (UbseSmbios::GetInstance().IsClosType()) {
         UBSE_LOG_INFO << "Clos type, skip start hcomservice";
+        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         return UBSE_OK;
     }
     auto ret = hcomNetService_->Start();

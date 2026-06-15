@@ -451,6 +451,10 @@ public:
         common_len len;
         *this >> array_len_capture(len);
         for (common_len i = 0; i < len; i++) {
+            if (!mFlag_) {
+                return *this;
+            }
+
             T_KEY key;
             *this >> key;
             *this >> map[key];
