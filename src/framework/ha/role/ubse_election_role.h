@@ -93,6 +93,7 @@ bool IsHeartBeatEnabled(HeartBeatStatus status);
 uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNodes);
 uint32_t SendGlobalElectionPkt(UBSE_ID_TYPE myselfID);
 void HandleGlobalMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
+void AcceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UBSE_ID_TYPE masterId);
 } // namespace ubse::election
 
 #endif // UBSE_ELECTION_ROLE_H

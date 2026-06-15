@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -20,7 +20,7 @@ namespace ubse::election {
 const std::string UBSE_ELECTION_GLOBAL_STANDBY_PROCTIMER = "UbseGlobalStandbyProcTimer";
 const std::string UBSE_ELECTION_STANDBY_DISCOVERY_TIMER = "UbseStandbyDiscoveryTimer";
 const std::string UBSE_ELECTION_GLOBAL_STANDBY_COM = "UbseGlobalStandbyComTimer";
-const std::string UBSE_ELECTION_STANDBY_PD_QUERY = "UbseStandbyPdQueryTimer";
+const std::string UBSE_ELECTION_GLOBAL_STANDBY_QUERY_LOCAL_MASTER = "UbseGlobalStandbyQueryLocalMasterTimer";
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::timer;
 using namespace ubse::context;
@@ -48,7 +48,7 @@ GlobalStandby::~GlobalStandby()
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_STANDBY_PROCTIMER);
     UbseTimerHandlerUnregister(UBSE_ELECTION_STANDBY_DISCOVERY_TIMER);
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_STANDBY_COM);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_STANDBY_PD_QUERY);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_STANDBY_QUERY_LOCAL_MASTER);
 }
 void GlobalStandby::RegisterTimers()
 {
@@ -82,7 +82,7 @@ void GlobalStandby::RegisterTimers()
             return UBSE_OK;
         }, UBSE_GLOBAL_COM_INTERVAL);
     UbseTimerHandlerRegister(
-        UBSE_ELECTION_STANDBY_PD_QUERY,
+        UBSE_ELECTION_GLOBAL_STANDBY_QUERY_LOCAL_MASTER,
         []() -> UbseResult {
             if (g_globalStop.load()) { return UBSE_OK; }
             auto globalRole = RoleMgr::GetInstance().GetGlobalRole();

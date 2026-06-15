@@ -1,5 +1,5 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -16,7 +16,7 @@
 namespace ubse::election {
 const std::string UBSE_ELECTION_GLOBAL_AGENT_PROCTIMER = "UbseGlobalAgentProcTimer";
 const std::string UBSE_ELECTION_GLOBAL_AGENT_COM = "UbseGlobalAgentComTimer";
-const std::string UBSE_ELECTION_AGENT_PD_QUERY = "UbseAgentPdQueryTimer";
+const std::string UBSE_ELECTION_GLOBAL_AGENT_QUERY_LOCAL_MASTER = "UbseGlobalAgentQueryLocalMasterTimer";
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
 using namespace ubse::context;
@@ -57,7 +57,7 @@ GlobalAgent::GlobalAgent(RoleContext &ctx) : globalTurnId_(0), lastHeartTime_()
             return UBSE_OK;
         }, UBSE_GLOBAL_COM_INTERVAL);
     UbseTimerHandlerRegister(
-        UBSE_ELECTION_AGENT_PD_QUERY,
+        UBSE_ELECTION_GLOBAL_AGENT_QUERY_LOCAL_MASTER,
         []() -> UbseResult {
             if (g_globalStop.load()) { return UBSE_OK; }
             auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
@@ -73,7 +73,7 @@ GlobalAgent::~GlobalAgent()
 {
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_AGENT_PROCTIMER);
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_AGENT_COM);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_AGENT_PD_QUERY);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_AGENT_QUERY_LOCAL_MASTER);
 }
 
 void GlobalAgent::ProcTimer()
