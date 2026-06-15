@@ -389,12 +389,27 @@ int FakeSmapQueryProcess(int numaId, smap::ProcessPayload* payload, int maxNum, 
 {
     *retLen = 1;
     payload[0].pid = 1234;
-    payload[0].ratio = 50; // 50%
+    payload[0].ratio = 50; // 50% for GetVmRatioOnFaultNumaBySmap test
+    payload[0].migrateMode = static_cast<uint8_t>(smap::MIG_RATIO_MODE);
     return MEM_POOLING_OK;
 }
 SmapQueryFuncType GetSmapGetRemoteProcessesFuncMock()
 {
     return FakeSmapQueryProcess;
+}
+
+// Mock: GetSmapGetRemoteProcessesFunc returns ratio=0 for RemovePidsOnRemoteNuma tests
+int FakeSmapQueryProcessZeroRatio(int numaId, smap::ProcessPayload* payload, int maxNum, int* retLen)
+{
+    *retLen = 1;
+    payload[0].pid = 1234;
+    payload[0].ratio = 0; // ratio=0 means can be removed directly
+    payload[0].migrateMode = static_cast<uint8_t>(smap::MIG_RATIO_MODE);
+    return MEM_POOLING_OK;
+}
+SmapQueryFuncType GetSmapGetRemoteProcessesFuncZeroRatioMock()
+{
+    return FakeSmapQueryProcessZeroRatio;
 }
 
 // Mock: GetSmapGetRemoteProcessesFunc returns nullptr
@@ -425,7 +440,27 @@ SmapQueryFuncType GetSmapGetRemoteProcessesFuncEmptyMock()
     return FakeSmapQueryProcessEmpty;
 }
 
-// Mock: smap query returns OK with multiple pids
+// Mock: smap query returns OK with multiple pids (ratio=0 for RemovePidsOnRemoteNuma)
+int FakeSmapQueryProcessZeroRatioMulti(int numaId, smap::ProcessPayload* payload, int maxNum, int* retLen)
+{
+    *retLen = 3;
+    payload[0].pid = 1001;
+    payload[0].ratio = 0;
+    payload[0].migrateMode = static_cast<uint8_t>(smap::MIG_RATIO_MODE);
+    payload[1].pid = 1002;
+    payload[1].ratio = 0;
+    payload[1].migrateMode = static_cast<uint8_t>(smap::MIG_RATIO_MODE);
+    payload[2].pid = 1003;
+    payload[2].ratio = 0;
+    payload[2].migrateMode = static_cast<uint8_t>(smap::MIG_RATIO_MODE);
+    return MEM_POOLING_OK;
+}
+SmapQueryFuncType GetSmapGetRemoteProcessesFuncZeroRatioMultiMock()
+{
+    return FakeSmapQueryProcessZeroRatioMulti;
+}
+
+// Mock: smap query returns OK with multiple pids (original, ratio not set)
 int FakeSmapQueryProcessMulti(int numaId, smap::ProcessPayload* payload, int maxNum, int* retLen)
 {
     *retLen = 3;
@@ -446,6 +481,15 @@ int SmapRemoveProcessTrackingHelperMock(const std::vector<pid_t>& pidVec, int fl
 {
     g_smapRemoveCalled = true;
     g_removedPids = pidVec;
+    return MEM_POOLING_OK;
+}
+
+bool g_smapRemovePidsCalled = false;
+std::vector<pid_t> g_removedPidsFromHelper;
+MpResult SmapRemovePidsHelperMock(const std::vector<pid_t>& pids, int16_t remoteNumaId)
+{
+    g_smapRemovePidsCalled = true;
+    g_removedPidsFromHelper = pids;
     return MEM_POOLING_OK;
 }
 
@@ -897,139 +941,103 @@ TEST_F(TestOverCommitFaultNodeModule, EvaculateVmsFromFaultNuma_NotFound_Fail)
  */
 TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_SmapFuncNull_NoAction)
 {
-    g_smapRemoveCalled = false;
-    g_removedPids.clear();
+    g_smapRemovePidsCalled = false;
+    g_removedPidsFromHelper.clear();
 
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncNullMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapRemoveProcessTrackingHelper, int (*)(const std::vector<pid_t>&, int))
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, MpResult(*)(const std::vector<pid_t>&, int16_t))
         .stubs()
-        .will(invoke(SmapRemoveProcessTrackingHelperMock));
+        .will(invoke(SmapRemovePidsHelperMock));
 
     OverCommitFaultNodeModule module;
     module.RemovePidsOnRemoteNuma(1);
 
-    EXPECT_FALSE(g_smapRemoveCalled);
+    EXPECT_FALSE(g_smapRemovePidsCalled);
 }
 
-/*
- * 用例描述：smap查询返回错误时，RemovePidsOnRemoteNuma应安全返回，不调用移除逻辑
- * 测试步骤：
- * 1. Mock GetSmapGetRemoteProcessesFunc 返回查询函数，该函数返回 MEM_POOLING_ERROR
- * 2. 调用 RemovePidsOnRemoteNuma
- * 预期结果：
- * 1. 函数正常返回
- * 2. SmapRemoveProcessTrackingHelper 不被调用
- */
 TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_SmapQueryFailed_NoAction)
 {
-    g_smapRemoveCalled = false;
-    g_removedPids.clear();
+    g_smapRemovePidsCalled = false;
+    g_removedPidsFromHelper.clear();
 
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncErrorMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapRemoveProcessTrackingHelper, int (*)(const std::vector<pid_t>&, int))
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, MpResult(*)(const std::vector<pid_t>&, int16_t))
         .stubs()
-        .will(invoke(SmapRemoveProcessTrackingHelperMock));
+        .will(invoke(SmapRemovePidsHelperMock));
 
     OverCommitFaultNodeModule module;
     module.RemovePidsOnRemoteNuma(1);
 
-    EXPECT_FALSE(g_smapRemoveCalled);
+    EXPECT_FALSE(g_smapRemovePidsCalled);
 }
 
-/*
- * 用例描述：smap查询成功但retLen为0时，不调用移除逻辑
- * 测试步骤：
- * 1. Mock GetSmapGetRemoteProcessesFunc 返回查询函数，该函数返回 MEM_POOLING_OK 且 retLen=0
- * 2. 调用 RemovePidsOnRemoteNuma
- * 预期结果：
- * 1. 函数正常返回
- * 2. SmapRemoveProcessTrackingHelper 不被调用
- */
 TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_NoPids_NoAction)
 {
-    g_smapRemoveCalled = false;
-    g_removedPids.clear();
+    g_smapRemovePidsCalled = false;
+    g_removedPidsFromHelper.clear();
 
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
         .will(invoke(GetSmapGetRemoteProcessesFuncEmptyMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapRemoveProcessTrackingHelper, int (*)(const std::vector<pid_t>&, int))
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, MpResult(*)(const std::vector<pid_t>&, int16_t))
         .stubs()
-        .will(invoke(SmapRemoveProcessTrackingHelperMock));
+        .will(invoke(SmapRemovePidsHelperMock));
 
     OverCommitFaultNodeModule module;
     module.RemovePidsOnRemoteNuma(1);
 
-    EXPECT_FALSE(g_smapRemoveCalled);
+    EXPECT_FALSE(g_smapRemovePidsCalled);
 }
 
-/*
- * 用例描述：smap查询成功且存在pid时，调用SmapRemoveProcessTrackingHelper移除所有pid
- * 测试步骤：
- * 1. Mock GetSmapGetRemoteProcessesFunc 返回查询函数，该函数返回3个pid (1001, 1002, 1003)
- * 2. 调用 RemovePidsOnRemoteNuma
- * 预期结果：
- * 1. SmapRemoveProcessTrackingHelper 被调用
- * 2. 传入的pid列表包含 1001, 1002, 1003
- */
 TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_WithPids_RemoveAll)
 {
-    g_smapRemoveCalled = false;
-    g_removedPids.clear();
+    g_smapRemovePidsCalled = false;
+    g_removedPidsFromHelper.clear();
 
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
-        .will(invoke(GetSmapGetRemoteProcessesFuncMultiMock));
+        .will(invoke(GetSmapGetRemoteProcessesFuncZeroRatioMultiMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapRemoveProcessTrackingHelper, int (*)(const std::vector<pid_t>&, int))
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, MpResult(*)(const std::vector<pid_t>&, int16_t))
         .stubs()
-        .will(invoke(SmapRemoveProcessTrackingHelperMock));
+        .will(invoke(SmapRemovePidsHelperMock));
 
     OverCommitFaultNodeModule module;
     module.RemovePidsOnRemoteNuma(2);
 
-    EXPECT_TRUE(g_smapRemoveCalled);
-    ASSERT_EQ(g_removedPids.size(), 3u);
-    EXPECT_EQ(g_removedPids[0], 1001);
-    EXPECT_EQ(g_removedPids[1], 1002);
-    EXPECT_EQ(g_removedPids[2], 1003);
+    EXPECT_TRUE(g_smapRemovePidsCalled);
+    ASSERT_EQ(g_removedPidsFromHelper.size(), 3u);
+    EXPECT_EQ(g_removedPidsFromHelper[0], 1001);
+    EXPECT_EQ(g_removedPidsFromHelper[1], 1002);
+    EXPECT_EQ(g_removedPidsFromHelper[2], 1003);
 }
 
-/*
- * 用例描述：smap查询成功且存在单个pid时，正确移除
- * 测试步骤：
- * 1. Mock GetSmapGetRemoteProcessesFunc 返回查询函数，该函数返回1个pid (1234)
- * 2. 调用 RemovePidsOnRemoteNuma
- * 预期结果：
- * 1. SmapRemoveProcessTrackingHelper 被调用
- * 2. 传入的pid列表仅包含 1234
- */
 TEST_F(TestOverCommitFaultNodeModule, RemovePidsOnRemoteNuma_SinglePid_RemoveCorrectly)
 {
-    g_smapRemoveCalled = false;
-    g_removedPids.clear();
+    g_smapRemovePidsCalled = false;
+    g_removedPidsFromHelper.clear();
 
     MOCKER_CPP(SmapModule::GetSmapGetRemoteProcessesFunc, SmapGetRemotePidsFunc(*)())
         .stubs()
-        .will(invoke(GetSmapGetRemoteProcessesFuncMock));
+        .will(invoke(GetSmapGetRemoteProcessesFuncZeroRatioMock));
 
-    MOCKER_CPP(&MpSmapHelper::SmapRemoveProcessTrackingHelper, int (*)(const std::vector<pid_t>&, int))
+    MOCKER_CPP(&MpSmapHelper::SmapRemovePidsHelper, MpResult(*)(const std::vector<pid_t>&, int16_t))
         .stubs()
-        .will(invoke(SmapRemoveProcessTrackingHelperMock));
+        .will(invoke(SmapRemovePidsHelperMock));
 
     OverCommitFaultNodeModule module;
     module.RemovePidsOnRemoteNuma(1);
 
-    EXPECT_TRUE(g_smapRemoveCalled);
-    ASSERT_EQ(g_removedPids.size(), 1u);
-    EXPECT_EQ(g_removedPids[0], 1234);
+    EXPECT_TRUE(g_smapRemovePidsCalled);
+    ASSERT_EQ(g_removedPidsFromHelper.size(), 1u);
+    EXPECT_EQ(g_removedPidsFromHelper[0], 1234);
 }
 
 // =========================================================================

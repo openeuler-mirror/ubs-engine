@@ -757,35 +757,42 @@ MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
     return MEM_POOLING_OK;
 }
 
-void OverCommitFaultNodeModule::RemovePidsOnRemoteNuma(int16_t remoteNumaId)
+MpResult OverCommitFaultNodeModule::RemovePidsOnRemoteNuma(int16_t remoteNumaId)
 {
     const auto smapQueryProcessConfig = mempooling::smap::SmapModule::GetSmapGetRemoteProcessesFunc();
     if (smapQueryProcessConfig == nullptr) {
         LOG_WARN << "smapQueryProcessConfig is null, continue returning memory.";
-        return;
+        return MEM_POOLING_OK;
     }
 
     smap::ProcessPayload processPayload[MpSmapHelper::SMAP_QUERY_PID_NUM];
     int retLen = 0;
-    auto smapRet = static_cast<MpResult>(
-        smapQueryProcessConfig(remoteNumaId, processPayload, MpSmapHelper::SMAP_QUERY_PID_NUM, &retLen));
+    auto smapRet = smapQueryProcessConfig(remoteNumaId, processPayload, MpSmapHelper::SMAP_QUERY_PID_NUM, &retLen);
     if (smapRet != MEM_POOLING_OK) {
         LOG_WARN << "smapQueryProcessConfig failed for numa " << remoteNumaId << ", ret=" << smapRet
                  << ", continue returning memory.";
-        return;
+        return MEM_POOLING_OK;
     }
 
     if (retLen <= 0) {
-        return;
+        return MEM_POOLING_OK;
     }
-
+    MpResult ret = MEM_POOLING_OK;
     std::vector<pid_t> pidsToRemove;
-    pidsToRemove.reserve(retLen);
     for (int i = 0; i < retLen; ++i) {
-        pidsToRemove.push_back(processPayload[i].pid);
+        uint8_t migrateMode = processPayload[i].migrateMode;
+        if ((processPayload[i].ratio > 0 && migrateMode == static_cast<uint8_t>(MIG_RATIO_MODE)) ||
+            (processPayload[i].memSize > 0 && migrateMode == static_cast<uint8_t>(MIG_MEMSIZE_MODE))) {
+            LOG_ERROR << "Detected pid " << processPayload[i].pid << " remotesize > 0.";
+            ret = MEM_POOLING_ERROR;
+        } else {
+            pidsToRemove.push_back(processPayload[i].pid);
+        }
     }
-    LOG_INFO << "Found " << retLen << " pids on remote numa " << remoteNumaId << ", removing before return.";
-    MpSmapHelper::SmapRemoveProcessTrackingHelper(pidsToRemove, 0);
+    LOG_INFO << "Found " << pidsToRemove.size() << " pids on remote numa " << remoteNumaId
+             << ", removing before return.";
+    (void)MpSmapHelper::SmapRemovePidsHelper(pidsToRemove, remoteNumaId);
+    return ret;
 }
 
 MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
@@ -802,9 +809,10 @@ MpResult OverCommitFaultNodeModule::ProcessSingleFaultRemoteNuma(
     // 2.1 如果这个远端numa上没有虚机，则直接归还这个远端
     if (vmDomainInfos.empty()) {
         LOG_DEBUG << "There is no vm in remote numa" << remoteNumaPair.first << ", begin to free memory.";
-
-        RemovePidsOnRemoteNuma(remoteNumaPair.first);
-
+        if (RemovePidsOnRemoteNuma(remoteNumaPair.first) != MEM_POOLING_OK) {
+            LOG_ERROR << "RemovePidsOnRemoteNuma Failed.";
+            return MEM_POOLING_ERROR;
+        }
         for (auto& record : remoteNumaPair.second) {
             MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(record.name, true, false, true);
             if (ret != MEM_POOLING_OK) {

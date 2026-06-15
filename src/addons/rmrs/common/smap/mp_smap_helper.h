@@ -107,6 +107,7 @@ public:
     static MpResult SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList);
     static MpResult GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
                                                 std::unordered_map<pid_t, smap::ProcessPayload>& processPayloadMap);
+    static MpResult SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId);
 
     static const int smapParamErrorCode;    // SMAP参数错误码 Invalid argument -22
     static const int smapDealErrorCode;     // SMAP处理异常错误码 -9

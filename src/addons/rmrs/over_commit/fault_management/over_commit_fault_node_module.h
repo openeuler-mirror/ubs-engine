@@ -120,7 +120,7 @@ public:
     MpResult ProcessSingleFaultRemoteNuma(
         const std::pair<const int16_t, std::vector<BorrowRecord>>& remoteNumaPair,
         const std::unordered_map<int16_t, std::set<int16_t>>& remoteNumaId2LocalNumaId);
-    void RemovePidsOnRemoteNuma(int16_t remoteNumaId);
+    MpResult RemovePidsOnRemoteNuma(int16_t remoteNumaId);
     MpResult GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
                                          std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos);
     MpResult EvaculateVmsStrategy(const std::unordered_map<pid_t, mempooling::outinterface::VMInfo>& vmInfos,
