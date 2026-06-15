@@ -597,12 +597,14 @@ $ ubsectl display memory -t borrow_detail -bt numa -n test
 **用法**
 
 ```shell
-ubsectl display memory -t numa_status
+ubsectl display memory -t numa_status [-all]
 ```
 
 **输入参数**
 
-无
+| 字段名                | 字段描述                                                     | 字段取值                                                     |
+| --------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| --all<br/>-a | 可选，查询大页内存信息                                       | 无                                    |
 
 **约束限制**
 
@@ -620,6 +622,12 @@ ubsectl只能在root，ubse用户中运行，可管理所有内存资源
 | used         | NUMA的内存使用量，单位: MB                                                      | 整数     |
 | free         | NUMA的内存空闲量，单位: MB                                                      | 整数     |
 | used_percent | 内存使用比例, 保留一位小数                                                         | 浮点数   |
+| 2M_total     | NUMA的2M大页总数量(4k页环境)                                                       | 整数     |        
+| 2M_free      | NUMA的2M大页的空闲数量(4k页环境)                                                   | 整数     |
+| 1G_total     | NUMA的1G大页总数量(4k页环境)                                                     | 整数     |
+| 1G_free      | NUMA的1G大页的空闲数量(4k页环境)                                                | 整数     |
+| 512M_total     | NUMA的512M大页总数量(64k页环境)                                                     | 整数     |
+| 512M_free      | NUMA的512M大页的空闲数量(64k页环境)                                                | 整数     |
 
 **示例**
 
@@ -630,6 +638,28 @@ node         numa    total   used   free   used_percent
 node-1(1)    0       1024    128    896    12.5       
 node-1(1)    1       8192    256    7936   3.1
 node-2(2)    0       1024    128    896    12.5   
+```
+
+查询当前集群中，所有numa设备的信息，包括大页内存信息(4k页环境)
+
+```shell
+ubsectl display memory -t numa_status --all
+-------------------------------------------------------------------------------------------------
+node         numa    total   used   free   used_percent   2M_total   2M_free   1G_total   1G_free
+node-1(1)    0       1024    128    896    12.5           10         10        0          0
+node-1(1)    1       8192    256    7936   3.1            10         10        0          0
+node-2(2)    0       1024    128    896    12.5           0          0         5          5
+```
+
+查询当前集群中，所有numa设备的信息，包括大页内存信息(64k页环境)
+
+```shell
+ubsectl display memory -t numa_status --all
+--------------------------------------------------------------------------------
+node         numa    total   used   free   used_percent   512M_total   512M_free
+node-1(1)    0       1024    128    896    12.5           512        256
+node-1(1)    1       8192    256    7936   3.1            1024        1024
+node-2(2)    0       1024    128    896    12.5           512         0
 ```
 
 ### 查询全量节点是否可借用内存信息
