@@ -96,6 +96,8 @@ public:
 
     static MpResult SmapMigrateBack(MigrateBackMsg& migrateBackMsg);
 
+    static MpResult SmapMigrateBackSync(MigrateBackMsg& migrateBackMsg);
+
     static MpResult SmapEnableNuma(EnableNodeMsg& enableMsg);
 
     static MpResult GetLocalSmapBackResult(uint64_t taskId);

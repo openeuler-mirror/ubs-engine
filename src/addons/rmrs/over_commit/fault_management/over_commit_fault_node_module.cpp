@@ -1005,6 +1005,9 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
 MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap)
 {
+    FaultNumaLockGuard lockGuard;
+    FaultNumaLock::Instance().AcquireShared(newRemoteNumaId);
+    lockGuard.sharedNumaIds.push_back(newRemoteNumaId);
     MigrateEscapeMsg msg{};
     int idx = 0;
     for (const auto& [srcNumaId, _] : remoteNumaSizeMap) {
@@ -1080,55 +1083,6 @@ MpResult FreeOldBorrowIds(const std::vector<std::string>& oldBorrowIds, const st
         }
     }
     return finalRet;
-}
-
-MpResult ExecuteMigrateForPid(const PidBorrowContext& ctx, uint16_t newRemoteNumaId)
-{
-    MigrateEscapeMsg msg{};
-    int idx = 0;
-    for (const auto& [srcNumaId, _] : ctx.remoteNumaSizeMap) {
-        if (idx >= MAX_NR_MIGOUT) {
-            LOG_WARN << "[FaultManager][Simplified] Too many remote NUMAs for pid=" << ctx.pid << ", truncating to "
-                     << MAX_NR_MIGOUT << ".";
-            break;
-        }
-        msg.payload[idx].pid = ctx.pid;
-        msg.payload[idx].srcNid = static_cast<int>(srcNumaId);
-        msg.payload[idx].destNid = static_cast<int>(newRemoteNumaId);
-        msg.payload[idx].migrateMode = MIG_MEMSIZE_MODE;
-        msg.payload[idx].memSize = 0;
-        idx++;
-    }
-    msg.count = idx;
-    if (msg.count == 0) {
-        LOG_ERROR << "[FaultManager][Simplified] No remote NUMAs for pid=" << ctx.pid << ".";
-        return MEM_POOLING_ERROR;
-    }
-
-    std::vector<UbseNumaMemoryDebtInfo> allDebtInfos;
-    if (MemBorrowExecutor::GetDebtInfosWithRetry(allDebtInfos) != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] GetDebtInfosWithRetry failed for pid=" << ctx.pid << ".";
-        return MEM_POOLING_ERROR;
-    }
-    auto validDebtInfos = MemBorrowExecutor::FilterValidDebtInfos(allDebtInfos);
-    uint64_t totalBorrowedKB =
-        MemBorrowExecutor::SumDebtInfosSizeBytesForRemoteNuma(validDebtInfos, static_cast<int16_t>(newRemoteNumaId)) /
-        1024;
-    over_commit::MemBorrowInfoWithSrc info{
-        .srcNumaId = 0, .presentNumaId = newRemoteNumaId, .borrowSize = totalBorrowedKB};
-    auto setRet = MpSmapHelper::SetSmapRemoteNumaInfo(-1, {info});
-    if (setRet != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] SetSmapRemoteNumaInfo failed for pid=" << ctx.pid
-                  << ", newRemoteNumaId=" << newRemoteNumaId << ".";
-    }
-
-    MpResult ret = MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(msg);
-    if (ret != MEM_POOLING_OK) {
-        LOG_ERROR << "[FaultManager][Simplified] SmapMigratePidMultiRemoteNumaHelperWithRetry "
-                  << "failed for pid=" << ctx.pid;
-        return MEM_POOLING_ERROR;
-    }
-    return MEM_POOLING_OK;
 }
 
 MpResult FinalizePidProcessing(const PidBorrowContext& ctx, const std::string& newBorrowId)
@@ -1319,7 +1273,7 @@ MpResult ProcessNewBorrowFlow(pid_t pid, int64_t startTime, const std::vector<Bo
 
     RecordPendingMigrationState(ctx, newBorrowId, newRemoteNumaId);
 
-    ret = ExecuteMigrateForPid(ctx, newRemoteNumaId);
+    ret = ExecuteMigrateForPidWithNuma(ctx.pid, newRemoteNumaId, ctx.remoteNumaSizeMap);
     if (ret != MEM_POOLING_OK) {
         LOG_ERROR << "[FaultManager][Simplified] ExecuteMigrateForPid failed for pid=" << ctx.pid
                   << ", borrowId=" << newBorrowId << " retained for retry.";

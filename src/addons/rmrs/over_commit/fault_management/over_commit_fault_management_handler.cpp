@@ -15,6 +15,7 @@
 #include <csignal>
 
 #include "mem_borrow_executor.h"
+#include "mem_manager.h"
 
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_module.h"
@@ -498,8 +499,28 @@ static MpResult FreeBorrowRecordsDirectly(const std::vector<BorrowRecord>& recor
     return finalRet;
 }
 
+static std::vector<uint16_t> CollectFaultRemoteNumaIds(const SimplifiedFaultRecordsInNode& records)
+{
+    std::unordered_set<uint16_t> numaSet;
+    for (const auto& [pid, borrowRecords] : records.pidBorrowMap) {
+        for (const auto& rec : borrowRecords) {
+            if (rec.borrowRemoteNuma >= 0) {
+                numaSet.insert(static_cast<uint16_t>(rec.borrowRemoteNuma));
+            }
+        }
+    }
+    return {numaSet.begin(), numaSet.end()};
+}
+
 MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
 {
+    auto numaIds = CollectFaultRemoteNumaIds(records);
+    FaultNumaLockGuard lockGuard;
+    for (auto numaId : numaIds) {
+        FaultNumaLock::Instance().AcquireExclusive(numaId);
+        lockGuard.exclusiveNumaIds.push_back(numaId);
+    }
+
     std::vector<std::pair<pid_t, uint64_t>> pidSizeList;
     for (const auto& entry : records.pidBorrowMap) {
         uint64_t totalSize = 0;

@@ -411,11 +411,8 @@ void DeletePersistenceSmapEnable(const int16_t& numaId)
 }
 
 static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector<MigrateBackMsg>& msgs,
-                                            const EnableNodeMsg& enableMsg, std::vector<uint64_t>& taskIds)
+                                            const EnableNodeMsg& enableMsg)
 {
-    if (SmapMigrateBackTaskIds::Instance().Query(name, taskIds) == MEM_POOLING_OK && !taskIds.empty()) {
-        return MEM_POOLING_OK;
-    }
     for (auto& msg : msgs) {
         if (msg.count <= 0) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -423,17 +420,13 @@ static MpResult DispatchMigrateBackIfNeeded(const std::string& name, std::vector
             return MEM_POOLING_ERROR;
         }
         PersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
-        if (SmapMigrateBackProcess(msg) != MEM_POOLING_OK) {
+        if (MpSmapHelper::SmapMigrateBackSync(msg) != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
             SmapEnableNumaProcess(enableMsg);
             DeletePersistenceSmapEnable(static_cast<int16_t>(msg.payload[0].srcNid));
             return MEM_POOLING_ERROR;
         }
-        taskIds.push_back(msg.taskID);
-    }
-    if (!taskIds.empty()) {
-        SmapMigrateBackTaskIds::Instance().Update(name, taskIds);
     }
     return MEM_POOLING_OK;
 }
@@ -445,7 +438,7 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
     EnableNodeMsg enableMsg;
     std::string importNodeId;
     auto retSmap = GenerateSmapParamsForProcessMem(deleteName, migrateBackMsgs, enableMsg, importNodeId, isFault);
-    if (retSmap != MEM_POOLING_OK) {
+    if (retSmap != MEM_POOLING_OK || migrateBackMsgs.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] GenerateParams failed.";
         return retSmap;
     }
@@ -455,37 +448,27 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
         return MEM_POOLING_ERROR;
     }
 
-    std::vector<uint64_t> taskIds;
-    if (DispatchMigrateBackIfNeeded(name, migrateBackMsgs, enableMsg, taskIds) != MEM_POOLING_OK) {
+    if (DispatchMigrateBackIfNeeded(name, migrateBackMsgs, enableMsg) != MEM_POOLING_OK) {
         return MEM_POOLING_ERROR;
     }
-    for (const auto& taskId : taskIds) {
-        if (MpSmapHelper::GetLocalSmapBackResult(taskId) != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] GetLocalSmapBackResult failed, taskId=" << taskId << ".";
-            return MEM_POOLING_ERROR;
-        }
-    }
-    SmapMigrateBackTaskIds::Instance().Remove(name);
 
-    if (MemFreeWithOpsByMemfabric(name, deleteName, isFault) != MEM_POOLING_OK) {
+    auto ret = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
+    if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed.";
-        return MEM_POOLING_ERROR;
+    } else {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemFree][MemBorrowExecute] MemBorrowExecutor frees memory success, borrow_id=" << name << ".";
+        MemReturnManager::Instance().RemovePendingReturn(name);
     }
-    MemReturnManager::Instance().RemovePendingReturn(name);
-
     retSmap = SmapEnableNumaProcess(enableMsg);
-    if (!migrateBackMsgs.empty()) {
-        DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgs[0].payload[0].srcNid));
-    }
+    DeletePersistenceSmapEnable(static_cast<int16_t>(migrateBackMsgs[0].payload[0].srcNid));
     if (retSmap != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemFree][MemFreeExecute] SmapEnableNumaProcess failed.";
         return MEM_POOLING_ERROR;
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[MemFree][MemBorrowExecute] MemBorrowExecutor frees memory success, borrow_id=" << name << ".";
-    return MEM_POOLING_OK;
+
+    return ret;
 }
 
 MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault)
