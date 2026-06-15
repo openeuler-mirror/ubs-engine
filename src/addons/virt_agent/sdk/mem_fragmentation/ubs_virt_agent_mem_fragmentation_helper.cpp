@@ -262,12 +262,12 @@ VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_in
         numa_len = static_cast<uint32_t>(numaInfos.size());
         if (numa_len == 0) {
             numa_infos = nullptr;
-            break;
+            continue;
         }
         numa_infos = static_cast<numa_info_t*>(malloc(numa_len * sizeof(numa_info_t)));
         if (numa_infos == nullptr) {
             numa_len = 0;
-            break;
+            continue;
         }
         for (uint32_t j = 0; j < numa_len; ++j) {
             numa_infos[j].timestamp = numaInfos[j].timestamp;
@@ -280,12 +280,16 @@ VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_in
             numa_infos[j].is_local = numaInfos[j].metaData.isLocal;
             numa_infos[j].mem_total = numaInfos[j].metaData.memTotal;
             numa_infos[j].mem_free = numaInfos[j].metaData.memFree;
+            numa_infos[j].numaPageInfoCount = numaInfos[j].metaData.numaPageInfo.size();
+            if (numa_infos[j].numaPageInfoCount == 0) {
+                numa_infos[j].huge_page_data = nullptr;
+                continue;
+            }
             numa_infos[j].huge_page_data = static_cast<numa_page_data*>(
                 malloc(numaInfos[j].metaData.numaPageInfo.size() * sizeof(numa_page_data)));
-            numa_infos[j].numaPageInfoCount = numaInfos[j].metaData.numaPageInfo.size();
             if (numa_infos[j].huge_page_data == nullptr) {
                 numa_infos[j].numaPageInfoCount = 0;
-                break;
+                continue;
             }
             uint32_t k = 0;
             for (const auto& [_numaId, numaPageInfo] : numaInfos[j].metaData.numaPageInfo) {
@@ -333,8 +337,9 @@ VmResult BorrowResultToCStyle(const std::vector<mem_borrow_result_c>& memBorrowR
         mem_borrow_result.mem_borrow_result_list = nullptr;
         return VM_OK;
     }
-    mem_borrow_result.mem_borrow_result_list = new (std::nothrow)
-        mem_borrow_result_c[mem_borrow_result.mem_borrow_result_list_len];
+    size_t list_len = mem_borrow_result.mem_borrow_result_list_len;
+    mem_borrow_result.mem_borrow_result_list =
+        static_cast<mem_borrow_result_c*>(malloc(list_len * sizeof(mem_borrow_result_c)));
     if (mem_borrow_result.mem_borrow_result_list == nullptr) {
         mem_borrow_result.mem_borrow_result_list_len = 0;
         return VM_ERROR;

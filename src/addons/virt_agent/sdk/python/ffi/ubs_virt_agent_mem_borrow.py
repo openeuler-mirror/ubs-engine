@@ -74,14 +74,19 @@ class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
 
         self.ubs_virt_agent_handle_result(result, "ubs_mem_borrow")
         result_list = []
-        if not borrow_result_c.mem_borrow_result_list or borrow_result_c.mem_borrow_result_list_len == 0:
+
+        try:
+            if not borrow_result_c.mem_borrow_result_list or borrow_result_c.mem_borrow_result_list_len == 0:
+                return result_list
+
+            for i in range(borrow_result_c.mem_borrow_result_list_len):
+                mem_borrow_result_t = MemBorrowResultT.from_c_struct(borrow_result_c.mem_borrow_result_list[i])
+                result_list.append(mem_borrow_result_t)
+
             return result_list
-
-        for i in range(borrow_result_c.mem_borrow_result_list_len):
-            mem_borrow_result_t = MemBorrowResultT.from_c_struct(borrow_result_c.mem_borrow_result_list[i])
-            result_list.append(mem_borrow_result_t)
-
-        return result_list
+        finally:
+            if hasattr(self.lib_ubse, 'free'):
+                borrow_result_c.free_c_memory(self.lib_ubse.free)
 
     @staticmethod
     def _convert_borrow_param_to_c(param: BorrowParamT) -> MemBorrowParamC:

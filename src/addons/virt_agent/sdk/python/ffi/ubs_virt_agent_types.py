@@ -276,6 +276,26 @@ class NodeInfoListC(ctypes.Structure):
         ("node_len", ctypes.c_uint32)
     ]
 
+    def free_c_memory(self, free_func):
+        """
+        Free memory occupied by this C structure.
+
+        Args:
+            free_func: A callable used to free C-allocated memory (e.g., libc.free).
+                       Should accept a ctypes pointer or c_void_p argument.
+        """
+        if self.node_infos:
+            for i in range(self.node_len):
+                node_info = self.node_infos[i]
+                if node_info.numa_infos:
+                    for j in range(node_info.numa_len):
+                        numa_info = node_info.numa_infos[j]
+                        if numa_info.numaPageInfo:
+                            free_func(numa_info.numaPageInfo)
+                    free_func(node_info.numa_infos)
+            free_func(self.node_infos)
+            self.node_infos = None
+
 
 # Memory Borrow (Big Memory VM) additional structures
 class NumaMetaInfoC(ctypes.Structure):
@@ -316,6 +336,18 @@ class MemBorrowResultC(ctypes.Structure):
         ("mem_borrow_result_list", ctypes.POINTER(MemBorrowResult)),
         ("mem_borrow_result_list_len", ctypes.c_uint16)
     ]
+
+    def free_c_memory(self, free_func):
+        """
+        Free memory occupied by this C structure.
+
+        Args:
+            free_func: A callable used to free C-allocated memory (e.g., libc.free).
+                       Should accept a ctypes pointer or c_void_p argument.
+        """
+        if self.mem_borrow_result_list:
+            free_func(self.mem_borrow_result_list)
+            self.mem_borrow_result_list = None
 
 
 class NumaQuotaC(ctypes.Structure):
