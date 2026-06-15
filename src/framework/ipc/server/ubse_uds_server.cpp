@@ -474,6 +474,53 @@ void UbseUDSServer::HandlePersistentSession(const UbseRequestHeader& header, int
     return;
 }
 
+void UbseUDSServer::RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId)
+{
+    std::lock_guard<std::mutex> lock(clientReqIdMutex_);
+    clientReqId_[requestId] = clientRequestId;
+}
+
+bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
+{
+    if (requestPermissionChecker_ == nullptr) {
+        return true;
+    }
+    auto ret = requestPermissionChecker_(session->clientInfo, header.moduleCode, header.opCode);
+    if (ret == UBSE_OK) {
+        return true;
+    }
+    UBSE_LOG_ERROR << "Request permission check failed, moduleCode=" << header.moduleCode
+                   << ", opCode=" << header.opCode << ", uid=" << session->clientInfo.uid
+                   << ", ret=" << FormatRetCode(ret);
+    UbseResponseMessage response{{ret, 0}, nullptr};
+    auto sendRet = SendResponse(requestId, response);
+    if (sendRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "send rsp failed, " << FormatRetCode(sendRet);
+    }
+    return false;
+}
+
+void UbseUDSServer::SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header,
+                                      std::vector<uint8_t>&& bodyData, const UbseRequestContext& context)
+{
+    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
+    if (taskExecutorModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        return;
+    }
+    auto taskExecutor = taskExecutorModule->Get("IpcExecutor");
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        return;
+    }
+    if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
+            this->HandleRequest(fd, header, data, context);
+        })) {
+        UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
+        CloseSession(session->fd);
+    }
+}
+
 void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHeader& header,
                                    std::vector<uint8_t>&& bodyData)
 {
@@ -486,9 +533,10 @@ void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHead
         return;
     }
     // 记录请求的clientId，通过长连接回复客户端消息时，客户端映射对应的请求
-    {
-        std::lock_guard<std::mutex> lock(clientReqIdMutex_); // 构造时自动加锁
-        clientReqId_[requestId] = header.clientRequestId;
+    RecordClientRequestId(requestId, header.clientRequestId);
+    // 权限校验
+    if (!CheckRequestPermission(session, header, requestId)) {
+        return;
     }
     bool isPersistent = (header.moduleCode == UBSE_LONG_LINK_REGISTER);
     // 长连接注册请求
@@ -516,22 +564,7 @@ void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHead
     session->state = SessionState::PROCESSING;
 
     // 提交任务到线程池
-    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
-    if (taskExecutorModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
-        return;
-    }
-    auto taskExecutor = taskExecutorModule->Get("IpcExecutor");
-    if (taskExecutor == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
-        return;
-    }
-    if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
-            this->HandleRequest(fd, header, data, context);
-        })) {
-        UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
-        CloseSession(session->fd);
-    }
+    SubmitRequestTask(session, header, std::move(bodyData), context);
 }
 
 void UbseUDSServer::HandleRequest(ClientSession* session)
@@ -732,6 +765,11 @@ void UbseUDSServer::CloseSession(int fd)
 void UbseUDSServer::RegisterHandler(UbseRequestHandler handler)
 {
     requestHandler_ = std::move(handler);
+}
+
+void UbseUDSServer::RegisterRequestPermissionChecker(UbseRequestPermissionChecker checker)
+{
+    requestPermissionChecker_ = std::move(checker);
 }
 
 uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessage& response)

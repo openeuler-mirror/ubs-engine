@@ -34,27 +34,23 @@ const uint16_t UDS_PERM = 0660;             // uds最小权限
 const uint16_t THREAD_POOL_SIZE = 8;        // 线程池size
 const uint16_t THREAD_POOL_QUEUE_SIZE = 16; // 线程池队列size
 
-static UbseIpcHandler DecorateHandlerWithReadinessCheck(const UbseIpcHandler& originalHandler,
-                                                        std::shared_ptr<UbseApiServerAuthManager>& authManager)
+static uint32_t CheckRequestPermission(const UbseClientInfo& clientInfo, uint16_t moduleCode, uint16_t opCode,
+                                       const std::shared_ptr<UbseApiServerAuthManager>& authManager)
 {
-    return
-        [originalHandler, authManager](const UbseIpcMessage& request, const UbseRequestContext& context) -> uint32_t {
-            if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
-                UBSE_LOG_ERROR << "Daemon is not ready";
-                return UBSE_ERR_DAEMON_UNREACHABLE;
-            }
-            std::string userName{};
-            if (ubse::utils::UbseOsUtil::GetUserNameById(context.clientInfo.uid, userName) != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to get username for UID: " << context.clientInfo.uid;
-                return UBSE_ERR_PERMISSION_DENIED;
-            }
-            if (!authManager->CheckPermission(userName, context.moduleCode, context.opCode)) {
-                UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
-                return UBSE_ERR_PERMISSION_DENIED;
-            }
-            // 调用原始处理函数
-            return originalHandler(request, context);
-        };
+    if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
+        UBSE_LOG_ERROR << "Daemon is not ready";
+        return UBSE_ERR_DAEMON_UNREACHABLE;
+    }
+    std::string userName{};
+    if (ubse::utils::UbseOsUtil::GetUserNameById(clientInfo.uid, userName) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get username for UID: " << clientInfo.uid;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
+    if (!authManager->CheckPermission(userName, moduleCode, opCode)) {
+        UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
+    return UBSE_OK;
 }
 
 UbseResult UbseApiServerModule::Initialize()
@@ -78,6 +74,10 @@ UbseResult UbseApiServerModule::Start()
         UBSE_LOG_ERROR << "Create ipc server failed";
         return UBSE_ERROR_NULLPTR;
     }
+    ipcServer_->RegisterRequestPermissionChecker(
+        [authManager = authManager_](const UbseClientInfo& clientInfo, uint16_t moduleCode, uint16_t opCode) {
+            return CheckRequestPermission(clientInfo, moduleCode, opCode, authManager);
+        });
 
     // 注册所有预加载的处理程序
     for (const auto& reg : pendingHandlers_) {
@@ -110,13 +110,16 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
 {
     // 注册object
     authManager_->AddObjectMapping(moduleCode, opCode, object);
-    // 注册handler
-    handler = DecorateHandlerWithReadinessCheck(handler, authManager_);
     if (ipcServer_ != nullptr) {
         return ipcServer_->RegisterHandler(moduleCode, opCode, handler);
     }
     pendingHandlers_.push_back({moduleCode, opCode, handler});
     return UBSE_OK;
+}
+
+void UbseApiServerModule::RegisterLongLinkObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object)
+{
+    authManager_->AddObjectMapping(moduleCode, opCode, object);
 }
 
 uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)

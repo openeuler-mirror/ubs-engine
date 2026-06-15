@@ -16,6 +16,7 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 #include "ubse_logger.h"
 #include "ubse_mem_api.h"
 #include "ubse_mem_async_processor.h"
@@ -417,6 +418,14 @@ UbseResult UbseMemControllerDispatcher::RegisterCliDispatcher()
 
 UbseResult UbseMemControllerDispatcher::RegisterSdkDispatcher()
 {
+    auto apiServer = ubse::context::UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
+    if (apiServer == nullptr) {
+        return UBSE_ERROR_NULLPTR;
+    }
+    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM, MEM_SHM_PERMISSION);
+    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD, MEM_FD_PERMISSION);
+    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA, MEM_NUMA_PERMISSION);
+
     auto ret = RegisterShmSdkDispatcher();
     if (ret != UBSE_OK) {
         return ret;

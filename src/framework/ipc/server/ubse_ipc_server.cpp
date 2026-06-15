@@ -46,6 +46,11 @@ uint32_t UbseIpcServer::RegisterHandler(uint16_t moduleCode, uint16_t opCode, Ub
     return UBSE_OK;
 }
 
+void UbseIpcServer::RegisterRequestPermissionChecker(UbseRequestPermissionChecker checker)
+{
+    udsServer_.RegisterRequestPermissionChecker(std::move(checker));
+}
+
 void UbseIpcServer::HandleRequest(const UbseRequestMessage& request, const UbseRequestContext& context)
 {
     UBSE_LOG_INFO << "Start handling API request, moduleCode = " << request.header.moduleCode

@@ -229,6 +229,37 @@ TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
     UbseUDSClient::GetInstance().Stop();
 }
 
+TEST_F(TestUbseIpcServer, LongLinkRegisterWhenPermissionDenied)
+{
+    server->RegisterRequestPermissionChecker(
+        [](const UbseClientInfo&, uint16_t, uint16_t) { return UBSE_ERR_PERMISSION_DENIED; });
+    EXPECT_EQ(server->Start(), UBSE_OK);
+    ubse_socket_path_set(GetSocketPath().c_str());
+    EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
+    ubs_mem_shm_fault_handler faultHandler = [](const char*, uint64_t, ubs_mem_fault_type_t) -> int32_t {
+        return 0;
+    };
+    EXPECT_EQ(ubse_shm_fault_register(faultHandler), UBSE_ERR_PERMISSION_DENIED);
+    UbseUDSClient::GetInstance().Stop();
+}
+
+TEST_F(TestUbseIpcServer, ShortLinkRequestWhenPermissionDenied)
+{
+    server->RegisterRequestPermissionChecker(
+        [](const UbseClientInfo&, uint16_t, uint16_t) { return UBSE_ERR_PERMISSION_DENIED; });
+    EXPECT_EQ(server->Start(), UBSE_OK);
+    sleep(1);
+    uint32_t len = 10;
+    auto* data = new uint8_t[len];
+    ubse_api_buffer_t requestData{data, len};
+    ubse_api_buffer_t responseData{};
+    ubse_socket_path_set(GetSocketPath().c_str());
+    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    EXPECT_EQ(ret, UBSE_ERR_PERMISSION_DENIED);
+    ubse_api_buffer_free(&responseData);
+    delete[] data;
+}
+
 TEST_F(TestUbseIpcServer, AsyncSendLongLink_WhenClientDestory)
 {
     GTEST_SKIP();
