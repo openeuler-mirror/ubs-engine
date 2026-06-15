@@ -28,7 +28,7 @@ using namespace ubse::common::def;
 using ubse::utils::UbseDlManager;
 
 constexpr int EID_SIZE = 16;
-constexpr int MAX_NAMESPACES_PER_CTRL = 32;
+constexpr int MAX_NAMESPACES_PER_CTRL = 64;
 constexpr uint32_t DEV_PATH_SIZE = 32;
 constexpr uint32_t SUBNQN_SIZE = 32;
 constexpr uint32_t GUID_SIZE = 16;
@@ -50,8 +50,9 @@ enum class DevStatusT : int {
 };
 
 typedef struct {
-    DevEidT devEid;
-    const char *devIp;
+    DevEidT srcEid;
+    DevEidT tgtEid;
+    char *devIp;
     bool useUb;
     char subNqn[SUBNQN_SIZE];
     uint32_t jettyId;
@@ -69,10 +70,13 @@ typedef struct {
 
 typedef struct {
     uint32_t namespaceId;
-    uint64_t nuse;
+    uint64_t maxLba;
+    uint64_t lbas;
+    uint64_t totalBytes;
+    uint64_t usedBytes;
     char devPath[DEV_PATH_SIZE];
-    char guid[GUID_SIZE];
-    char uuid[UUID_SIZE];
+    unsigned char guid[GUID_SIZE];
+    unsigned char uuid[UUID_SIZE];
     uint8_t userData[USER_DATA_SIZE];
     DevAddrT devAddr;
     NamespaceBaseAttrT baseAttr;
@@ -84,9 +88,9 @@ typedef struct {
     uint64_t unvmcap;
     bool sgls;
     uint32_t nsCount;
+    uint16_t cntlId;
     char name[DEV_NAME_SIZE];
     char devPath[DEV_PATH_SIZE];
-    uint16_t cntlId;
     char sn[SN_SIZE];
     char mn[MN_SIZE];
     DevAddrT devAddr;
@@ -104,9 +108,18 @@ public:
 
     uint32_t DeleteDevNameSpace(const UbseSsuDevNameSpace &nameSpace) override;
 
-    uint32_t AttachDevNameSpace(const UbseSsuDevNameSpace &nameSpace) override;
+    uint32_t AttachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace) override;
 
-    uint32_t DetachDevNameSpace(const UbseSsuDevNameSpace &nameSpace) override;
+    uint32_t DetachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace) override;
+
+    uint32_t AddNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                   const std::string &hostNqn) override;
+
+    uint32_t RemoveNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                      const std::string &hostNqn) override;
+
+    uint32_t GetNameSpaceAllowHostList(const UbseSsuDevNameSpace &nameSpace,
+                                       std::vector<std::string> &allowHostList) override;
 
     uint32_t CreateBlockDevice(const std::string &deviceName, const std::vector<std::string> &devicePathList,
                                const UbseCreateBlockDeviceOptions &options, std::string &devicePath) override;
@@ -121,11 +134,15 @@ public:
     UbseSsuAdapterImpl &operator=(UbseSsuAdapterImpl &&other) noexcept = delete;
 
 private:
-    using AcquireDevInfoFunc = int (*)(const DevAddrT*, const int, DevInfoT*);
-    using CreateNamespaceFunc = int (*)(DevNamespaceInfoT*);
-    using DeleteNamespaceFunc = int (*)(DevNamespaceInfoT*);
-    using AttachNamespaceFunc = int (*)(DevNamespaceInfoT*);
-    using DetachNamespaceFunc = int (*)(DevNamespaceInfoT*);
+    using AcquireDevInfoFunc = int (*)(const char*, const DevAddrT*, const int, DevInfoT*);
+    using CreateNamespaceFunc = int (*)(const char*, DevNamespaceInfoT*);
+    using DeleteNamespaceFunc = int (*)(const char*, DevNamespaceInfoT*);
+    using AttachNamespaceFunc = int (*)(const char*, DevNamespaceInfoT*);
+    using DetachNamespaceFunc = int (*)(const char*, DevNamespaceInfoT*);
+    using AddNamespaceAllowHostFunc = int (*)(const char*, DevNamespaceInfoT*, const char*);
+    using RemoveNamespaceAllowHostFunc = int (*)(const char*, DevNamespaceInfoT*, const char*);
+    using GetNamespaceAllowHostsFunc = int (*)(const char*, DevNamespaceInfoT*, char***, uint32_t*);
+    using FreeAllowHostsMemFunc = void (*)(char**, uint32_t);
 
     UbseSsuAdapterImpl();
 
@@ -136,6 +153,8 @@ private:
     uint32_t BuildDevAddrList(const std::vector<UbseSsuDevInfo>& ssuInfoList, std::vector<DevAddrT>& devList);
 
     void ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo& info);
+
+    uint32_t GetSrcEid(DevEidT &srcEid);
 
     uint32_t BuildNamespaceInfoForCreate(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);
     uint32_t BuildNamespaceInfoForBasic(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);
@@ -161,6 +180,10 @@ private:
     DeleteNamespaceFunc deleteNamespace_{};
     AttachNamespaceFunc attachNamespace_{};
     DetachNamespaceFunc detachNamespace_{};
+    AddNamespaceAllowHostFunc addNamespaceAllowHost_{};
+    RemoveNamespaceAllowHostFunc removeNamespaceAllowHost_{};
+    GetNamespaceAllowHostsFunc getNamespaceAllowHosts_{};
+    FreeAllowHostsMemFunc freeAllowHostsMem_{};
 };
 } // namespace ubse::adapter_plugins::ssu::def
 

@@ -17,10 +17,35 @@ namespace ubse::adapter_plugins::ssu::def {
 using ubse::adapter_plugins::ssu::def::UbseCreateBlockDeviceOptions;
 using ubse::adapter_plugins::ssu::def::UbseSsuDevInfo;
 using ubse::adapter_plugins::ssu::def::UbseSsuDevNameSpace;
+/*
+ * SSU 适配器抽象接口
+ *
+ * 定义 SSU（Solid State Unit）NVMe 存储设备的底层操作接口，包括：
+ *   - 物理设备信息查询（GetDevList）
+ *   - 命名空间生命周期管理（CreateDevNameSpace / DeleteDevNameSpace）
+ *   - 命名空间挂载/卸载（AttachDevNameSpace / DetachDevNameSpace）
+ *   - 访问权限控制（AddSubSystemAllowHost / RemoveSubSystemAllowHost 等）
+ *   - 块设备聚合管理（CreateBlockDevice / DeleteBlockDevice）
+ *
+ * 本接口采用抽象基类设计，具体实现由适配器插件提供，
+ * 通过 GetInstance 获取单例实例，实现与底层 NVMe 硬件的解耦。
+ *
+ * 接口调用约束：
+ *   - 仅 Master 节点可调用的接口：GetDevList、CreateDevNameSpace、DeleteDevNameSpace、
+ *     AddSubSystemAllowHost、RemoveSubSystemAllowHost、AddNameSpaceAllowHost、RemoveNameSpaceAllowHost
+ *   - Master 和 Agent 节点均可调用的接口：AttachDevNameSpace、DetachDevNameSpace、
+ *     CreateBlockDevice、DeleteBlockDevice
+ */
 class UbseSsuAdapterInterface {
 public:
+    /*
+     * 默认构造函数
+     */
     UbseSsuAdapterInterface() = default;
 
+    /*
+     * 默认虚析构函数
+     */
     virtual ~UbseSsuAdapterInterface() = default;
 
     /*
@@ -54,7 +79,7 @@ public:
      *   - guid 在算法规划阶段生成，确保失败重试时使用同一 guid 实现幂等
      *   - 创建失败无需回滚（无副作用）
      *
-     * @param nameSpace [inout] eid，guid，nsze，ncap，nsOptions，customData必填，返回的namespaceId等信息
+     * @param nameSpace  [inout] eid，guid，nsze，ncap，nsOptions，customData必填，返回的namespaceId等信息
      * @return 0 成功，非零失败
      */
     virtual uint32_t CreateDevNameSpace(UbseSsuDevNameSpace &nameSpace) = 0;
@@ -71,7 +96,7 @@ public:
      *   - 删除前应确保 NS 已 detach（状态为 DELETING）
      *   - NS 不存在时应返回成功（幂等性保证）
      *
-     * @param nameSpace 要删除的命名空间信息，guid 用于防误删验证
+     * @param nameSpace  要删除的命名空间信息，guid 用于防误删验证
      * @return 0 成功，非零失败
      */
     virtual uint32_t DeleteDevNameSpace(const UbseSsuDevNameSpace &nameSpace) = 0;
@@ -85,10 +110,11 @@ public:
      *     确认挂载的 NS 确实是目标 NS
      *   - 已 attach 的 NS 重复调用应返回当前 devicePath（幂等性）
      *
+     * @param hostNqn    Host 的 NVMe Qualified Name，标识发起挂载请求的主机
      * @param nameSpace  要挂载的命名空间信息，guid 用于验证
      * @return 0 成功，非零失败
      */
-    virtual uint32_t AttachDevNameSpace(const UbseSsuDevNameSpace &nameSpace) = 0;
+    virtual uint32_t AttachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace) = 0;
 
     /*
      * 将namespace 从host节点detach，由host节点调用，执行后，host节点会删除nvme设备
@@ -97,10 +123,61 @@ public:
      * 可靠性要求：
      *   - 已 detach 的 NS 重复调用应返回成功（幂等性）
      *
+     * @param hostNqn    Host 的 NVMe Qualified Name，标识发起卸载请求的主机
      * @param nameSpace  要detach的命名空间信息
      * @return 0 成功，非零失败
      */
-    virtual uint32_t DetachDevNameSpace(const UbseSsuDevNameSpace &nameSpace) = 0;
+    virtual uint32_t DetachDevNameSpace(const std::string &hostNqn, const UbseSsuDevNameSpace &nameSpace) = 0;
+
+    /*
+     * 将 Host 添加到命名空间的允许主机列表
+     * 只有Master节点可以调用此接口
+     *
+     * 在 Target 侧的指定命名空间上，将 Host NQN 添加到命名空间级别的访问控制列表，
+     * 授权该 Host 通过 NVMe-oF 协议访问该特定命名空间。
+     * 与 AddSubSystemAllowHost 不同，本接口实现命名空间粒度的细粒度访问控制。
+     *
+     * 可靠性要求：
+     *   - 已存在的 Host 重复添加应返回成功（幂等性保证）
+     *
+     * @param nameSpace  命名空间信息，subSystem 和 guid 用于定位目标命名空间
+     * @param hostNqn    被授权主机的 NVMe Qualified Name
+     * @return 0 成功，非零失败
+     */
+    virtual uint32_t AddNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                           const std::string &hostNqn) = 0;
+
+    /*
+     * 将 Host 从命名空间的允许主机列表中移除
+     * 只有Master节点可以调用此接口
+     *
+     * 在 Target 侧的指定命名空间上，将 Host NQN 从命名空间级别的访问控制列表中移除，
+     * 撤销该 Host 对该特定命名空间的访问权限。
+     *
+     * 可靠性要求：
+     *   - 不存在的 Host 移除应返回成功（幂等性保证）
+     *   - 移除前应确保该 Host 已断开与对应命名空间的连接
+     *
+     * @param nameSpace  命名空间信息，subSystem 和 guid 用于定位目标命名空间
+     * @param hostNqn    被撤销权限主机的 NVMe Qualified Name
+     * @return 0 成功，非零失败
+     */
+    virtual uint32_t RemoveNameSpaceAllowHost(const UbseSsuDevNameSpace &nameSpace,
+                                              const std::string &hostNqn) = 0;
+
+    /*
+     * 查询命名空间的允许主机列表
+     * 只有Master节点可以调用此接口
+     *
+     * 获取 Target 侧指定命名空间上已授权的 Host NQN 列表，
+     * 用于查询哪些 Host 被允许通过 NVMe-oF 协议访问该命名空间。
+     *
+     * @param nameSpace     命名空间信息，subSystem 和 guid 用于定位目标命名空间
+     * @param allowHostList [out] 返回已授权的 Host NQN 列表
+     * @return 0 成功，非零失败
+     */
+    virtual uint32_t GetNameSpaceAllowHostList(const UbseSsuDevNameSpace &nameSpace,
+                                               std::vector<std::string> &allowHostList) = 0;
 
     /*
      * 创建块设备

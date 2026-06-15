@@ -11,6 +11,7 @@ pkg_check_modules(GLIB REQUIRED glib-2.0)
 target_link_libraries(ubse_ssu PRIVATE
         ubse_logger
         ubse_utils
+        ubse_config
         ${LIBBLOCKDEV_LIBRARIES}
         ${GLIB_LIBRARIES}
 )
