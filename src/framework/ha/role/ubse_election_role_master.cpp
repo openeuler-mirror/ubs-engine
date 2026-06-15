@@ -372,23 +372,6 @@ void Master::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt &r
     }
 }
 
-void acceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UBSE_ID_TYPE masterId)
-{
-    if (rcvPkt.standbyId == masterId) {
-        RoleContext ctx;
-        ctx.masterId = rcvPkt.masterId;
-        ctx.turnId = rcvPkt.turnId;
-        ctx.standbyId = masterId;
-        RoleMgr::GetInstance().SwitchRole(RoleType::STANDBY, ctx);
-    } else {
-        RoleContext ctx;
-        ctx.masterId = rcvPkt.masterId;
-        ctx.turnId = rcvPkt.turnId;
-        RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
-    }
-    reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
-}
-
 uint32_t Master::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
     std::vector<UBSE_ID_TYPE> agentIds = GetAllAgentIDs();
@@ -414,10 +397,10 @@ uint32_t Master::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Elec
         if (agentIds.size() > partitionAgentIDs.size()) {
             reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
         } else if (agentIds.size() < partitionAgentIDs.size()) {
-            acceptNewMaster(rcvPkt, reply, masterId_);
+            AcceptNewMaster(rcvPkt, reply, masterId_);
         } else {
             if (rcvPkt.turnId > turnId_) {
-                acceptNewMaster(rcvPkt, reply, masterId_);
+                AcceptNewMaster(rcvPkt, reply, masterId_);
             } else if (rcvPkt.turnId == turnId_) {
                 HandleSplitBrainMerge(rcvPkt, reply);
             } else {

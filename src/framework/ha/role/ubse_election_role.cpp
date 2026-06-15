@@ -305,4 +305,21 @@ void HandleGlobalMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionRep
         reply.broadcast = 1;
     }
 }
+
+void AcceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UBSE_ID_TYPE masterId)
+{
+    if (rcvPkt.standbyId == masterId) {
+        RoleContext ctx;
+        ctx.masterId = rcvPkt.masterId;
+        ctx.turnId = rcvPkt.turnId;
+        ctx.standbyId = masterId;
+        RoleMgr::GetInstance().SwitchRole(RoleType::STANDBY, ctx);
+    } else {
+        RoleContext ctx;
+        ctx.masterId = rcvPkt.masterId;
+        ctx.turnId = rcvPkt.turnId;
+        RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
+    }
+    reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
+}
 }

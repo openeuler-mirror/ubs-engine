@@ -63,7 +63,11 @@ enum class UbseElectionEventType {
     MASTER_ONLINE_NOTIFICATION, // 主节点上线通知(在所有节点)
     NODE_UP,                    // 感知节点上线(只在主节点)
     NODE_DOWN,                  // 感知节点下线(只在主节点)
-    GLOBAL_MASTER_ONLINE_NOTIFICATION, // 全局主节点上线通知(在管理柜主节点)
+    GLOBAL_MASTER_ONLINE_NOTIFICATION,  // 全局主节点上线通知(在管理柜主节点)
+    GLOBAL_NODE_UP,                   // global standby agent上线（只在全局主）
+    GLOBAL_NODE_DOWN,                 // global standby agent下线（只在全局主）
+    GLOBAL_CASCADE_NODE_DOWN,         // global cascade下线
+    // GLOBAL_CASCADE_NODE_UP 当前没有业务需要，后续可按需增加
 
     COUNT
 };
@@ -82,6 +86,9 @@ constexpr std::array<UbseElectionEventType, static_cast<std::size_t>(UbseElectio
         UbseElectionEventType::NODE_UP,
         UbseElectionEventType::NODE_DOWN,
         UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION,
+        UbseElectionEventType::GLOBAL_NODE_UP,
+        UbseElectionEventType::GLOBAL_NODE_DOWN,
+        UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN,
     } };
 }
 
