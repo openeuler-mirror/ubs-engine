@@ -322,23 +322,23 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
     auto xalarmHandle = dlopen("libxalarm.so", RTLD_LAZY);
     if (xalarmHandle == nullptr) {
         UBSE_LOG_WARN << "[RAS] dlopen libxalarm.so fail";
-        SafeDeleteArray(ack, strlen(ack));
+        SafeDeleteArray(ack, size);
         return UBSE_RAS_ERROR_DLOPEN_XALARMD;
     }
     auto xalarmReportFunc = (XalarmReportEventFunc)dlsym(xalarmHandle, "xalarm_report_event");
     if (xalarmReportFunc == nullptr) {
-        SafeDeleteArray(ack, strlen(ack));
+        SafeDeleteArray(ack, size);
         dlclose(xalarmHandle);
         return UBSE_RAS_ERROR_DLSYM_XALARMD;
     }
-    ret = xalarmReportFunc(alarmFaultType, ack, strlen(ack));
+    ret = xalarmReportFunc(alarmFaultType, ack, size);
     if (ret < 0) {
-        SafeDeleteArray(ack, strlen(ack));
+        SafeDeleteArray(ack, size);
         dlclose(xalarmHandle);
         UBSE_LOG_WARN << "[RAS] Failed to send msg, ErrorCode=" << ret;
         return UBSE_RAS_ERROR_REPORT_TO_XALARMD;
     }
-    SafeDeleteArray(ack, strlen(ack));
+    SafeDeleteArray(ack, size);
     dlclose(xalarmHandle);
     return UBSE_OK;
 }
@@ -623,9 +623,13 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
     }
     msgId = msgVec[0];
     LogMemDebtInfoWithNode(faultType, faultNodeId);
+    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(faultNodeId);
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Get node info failed, nodeId=" << faultNodeId;
+        return UBSE_ERROR;
+    }
     // 如果是自故障节点上线以来，首次收到PANIC消息，则记录并清空过滤表
-    if (UbseNodeController::GetInstance().GetNodeById(faultNodeId).clusterState !=
-        UbseNodeClusterState::UBSE_NODE_FAULT) {
+    if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
         UBSE_LOG_INFO << "nodeId=" << faultNodeId << " fault, to clear handler result, msgId=" << msgId;
         ClearFaultHandlerResult(faultNodeId + "-" + msgId);
     }

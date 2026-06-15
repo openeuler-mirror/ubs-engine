@@ -57,6 +57,11 @@ TEST_F(TestUbseRasComHandler, HandleStateWhenHandlerIsNull)
     const UbseBaseMessagePtr rsp = new UbseRasMessage();
     UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
     UbseRasComHandler handler;
+    auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
+    request->SetData("0");
+    ubse::nodeController::UbseNodeInfo testNodeInfo;
+    testNodeInfo.nodeId = "0";
+    ubse::nodeController::UbseNodeController::GetInstance().UpdateNodeInfo("0", testNodeInfo);
     auto saveHandler = UbseRasHandler::GetInstance().nodeHandlerMap;
     UbseRasHandler::GetInstance().nodeHandlerMap = {};
     auto res = handler.Handle(req, rsp, &ctx);
@@ -77,6 +82,9 @@ TEST_F(TestUbseRasComHandler, HandleSuccess)
     };
     auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
     request->SetData("1");
+    ubse::nodeController::UbseNodeInfo testNodeInfo;
+    testNodeInfo.nodeId = "1";
+    ubse::nodeController::UbseNodeController::GetInstance().UpdateNodeInfo("1", testNodeInfo);
     auto saveHandler = UbseRasHandler::GetInstance().nodeHandlerMap;
     auto saveFaultHandler = UbseRasHandler::GetInstance().faultHandlerMap;
     UbseRasHandler::GetInstance().faultHandlerMap = {};
