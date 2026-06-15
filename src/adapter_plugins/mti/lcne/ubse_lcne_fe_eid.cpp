@@ -388,9 +388,6 @@ UbseResult UbseLcneFeEid::GetPortIdFromInterfaceName(std::string intfaceName, ui
 
 std::string UbseLcneFeEid::GetEidGroupId(std::string eid)
 {
-    if (!UbseSmbios::GetInstance().IsClosType()) {
-        return eid.substr(NO_0, NO_20);
-    }
     // EID 128位bit字符串，第121位到第125位为EID组ID
     std::string bitStr;
     if (ParseBaseEid(eid, bitStr) != UBSE_OK) {

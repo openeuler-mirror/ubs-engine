@@ -76,9 +76,13 @@ UbseResult UbseRasComHandler::Handle(const UbseBaseMessagePtr& req, const UbseBa
         UBSE_LOG_ERROR << "Invalid input, the nodeId or msgId should be integer in string format";
         return UBSE_ERROR_INVAL;
     }
+    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(request->GetData());
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Get node info failed, nodeId=" << request->GetData();
+        return UBSE_ERROR;
+    }
     // 检查节点是否已经处于fault状态，如果是则直接返回成功，使其BMC下电
-    if (UbseNodeController::GetInstance().GetNodeById(request->GetData()).clusterState ==
-        UbseNodeClusterState::UBSE_NODE_FAULT) {
+    if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
         response->SetResult(UBSE_OK);
         UBSE_LOG_INFO << "nodeId=" << request->GetData() << " is already fault";
         return UBSE_OK;
