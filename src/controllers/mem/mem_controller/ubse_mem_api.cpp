@@ -41,7 +41,7 @@
 #include "ubse_str_util.h"
 #include "src/sdk/c/include/ubs_engine.h"
 
-namespace usbe::mem::api {
+namespace ubse::mem::api {
 using namespace ubse::context;
 using namespace ubse::log;
 using namespace ::api::server;
@@ -945,4 +945,4 @@ uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage& buffer, const Ubse
     // 异步执行
     return ExecuteOperationAsync<UbseMemCliFdCreateDispatch>(context, std::move(req));
 }
-} // namespace usbe::mem::api
+} // namespace ubse::mem::api

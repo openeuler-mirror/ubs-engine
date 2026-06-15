@@ -719,7 +719,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemCreateWithLenderReqUnpackSuccess)
     uint32_t invalidLenderCnt = 0; // 无效的 lenderCnt
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &invalidLenderCnt, sizeof(uint32_t));
 
-    EXPECT_EQ(UbseMemCreateWithLenderReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemCreateWithLenderReqUnpack(buffer, memFdBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -1047,7 +1047,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
     ptr += sizeof(uint32_t);
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), name, nameLen);
 
-    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);
@@ -1064,7 +1064,7 @@ TEST_F(TestUbseMemApiConvert, UbseMemNumaCreateLenderReqUnpackSuccess)
     lenderCnt = 2; // 两个 lender
     memcpy_s(ptr, buffer.length - (ptr - buffer.buffer), &lenderCnt, sizeof(uint32_t));
 
-    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_SERIALIZE_FAILED);
+    EXPECT_EQ(UbseMemNumaCreateLenderReqUnpack(buffer, memNumaBorrowReq), UBSE_ERROR_DESERIALIZE_FAILED);
 
     // 清理缓冲区
     SafeDeleteArray(buffer.buffer);

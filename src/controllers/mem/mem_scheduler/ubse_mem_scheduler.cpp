@@ -223,7 +223,7 @@ uint64_t GetCheckMaskCodeByAddrReq(const UbseMemAddrBorrowReq& addrReq)
 uint64_t GetCheckMaskCodeByShareReq(const UbseMemShareBorrowReq& shareReq)
 {
     uint64_t checkMaskCode = CHECK_MEMORY_CONFIG_VALID | FILTER_NODE_IS_LENDER | FILTER_NODE_IS_DOWN |
-                             FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN;
+                             FILTER_LEND_TIME_OUT | FILTER_LINK_PORT_DOWN | CHECK_BORROW_SIZE_MEET_LIMIT;
     if (!shareReq.providerList.empty()) {
         checkMaskCode |= FILTER_SHARE_NODE_LIST;
     }

@@ -195,7 +195,7 @@ struct std::hash<ubse::mem::strategy::UbseMemNumaIndexLoc> {
     {
         static std::hash<int> intHash;
         static std::hash<int64_t> int64Hash;
-        return intHash(key.nodeIndex) ^ intHash(key.socketIndex) ^ int64Hash(key.nodeIndex);
+        return intHash(key.nodeIndex) ^ intHash(key.socketIndex) ^ int64Hash(key.numaIndex);
     }
 };
 namespace ubse::mem::strategy {

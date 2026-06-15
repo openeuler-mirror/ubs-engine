@@ -17,7 +17,7 @@
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
 
-namespace usbe::mem::api {
+namespace ubse::mem::api {
 using ::api::server::UbseApiServerModule;
 using ::api::server::UbseIpcMessage;
 using ::api::server::UbseRequestContext;
@@ -45,5 +45,5 @@ private:
     static uint32_t UbseCliShmGetDispatch(const UbseIpcMessage& buffer, const UbseRequestContext& context);
     static UbseResult UbseRegisterShmCliInterface(const std::shared_ptr<UbseApiServerModule>& apiServerModule);
 };
-} // namespace usbe::mem::api
+} // namespace ubse::mem::api
 #endif

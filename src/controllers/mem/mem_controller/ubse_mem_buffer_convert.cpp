@@ -291,6 +291,7 @@ uint32_t UbseMemShmCreateReqUnpack(const UbseIpcMessage& buffer, def::UbseMemShm
     // 解包flag
     if (!unpackUtil.UnpackUint64(memShmDispatcher.flag)) {
         UBSE_LOG_ERROR << "unpack flag failed.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     // 解包region
     auto ret = UnpackNodeList(memShmDispatcher.shmRegion, unpackUtil);
@@ -335,6 +336,7 @@ uint32_t UbseMemShmCreateWithAffinityReqUnpack(const UbseIpcMessage& buffer,
     // 解包flag
     if (!unpackUtil.UnpackUint64(memShmDispatcher.flag)) {
         UBSE_LOG_ERROR << "unpack flag failed.";
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
 
     // 解包affinitySocketId
@@ -536,6 +538,10 @@ static uint32_t UbseMemShmMemFaultGetResponsePackInner(const def::UbseMemShmMemS
     if (statusDesc.memIds.size() > UBS_MEM_MAX_MEMID_NUM) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
+    if (statusDesc.memIds.size() != statusDesc.faultTypes.size()) {
+        UBSE_LOG_ERROR << "memIds and faultTypes size mismatch";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
     packUtil.UbsePackUint32(statusDesc.memIds.size());
     for (int i = 0; i < statusDesc.memIds.size(); i++) {
         packUtil.UbsePackUint64(statusDesc.memIds[i]);
@@ -654,15 +660,15 @@ uint32_t UbseMemCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemF
     }
     // 解包 owner
     if (!UbseOwnerUnpack(unpackUtil, memFdBorrowReq.owner)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包lenderCnt
     uint32_t lenderCnt{};
     if (!unpackUtil.UnpackUint32(lenderCnt)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     if (lenderCnt > MAX_LENDER_CNT || lenderCnt == 0) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     memFdBorrowReq.size = 0;
     for (int i = 0; i < lenderCnt; ++i) {
@@ -672,11 +678,14 @@ uint32_t UbseMemCreateWithLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemF
         uint32_t socketId{};
         uint32_t portId{};
         if (LenderInfoUnpack(unpackUtil, numaLocation, lenderSize, socketId, portId) != UBSE_OK) {
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
         memFdBorrowReq.lenderLocs.push_back(std::move(numaLocation));
         memFdBorrowReq.lenderSizes.push_back(lenderSize);
-        memFdBorrowReq.size += lenderSize;
+        if (ubse::mem::util::SafeAdd(memFdBorrowReq.size, lenderSize, memFdBorrowReq.size)) {
+            UBSE_LOG_ERROR << "memFdBorrowReq.size overflow";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
     }
 
     return UBSE_OK;
@@ -824,10 +833,10 @@ uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemN
     // 解包lenderCnt
     uint32_t lenderCnt{};
     if (!unpackUtil.UnpackUint32(lenderCnt)) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     if (lenderCnt > MAX_LENDER_CNT || lenderCnt == 0) {
-        return UBSE_ERROR_SERIALIZE_FAILED;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     // 解包lender
     std::vector<UbseNumaLocation> lenderLocs{};
@@ -839,7 +848,7 @@ uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemN
         uint32_t portId{};
         uint32_t socketId{};
         if (LenderInfoUnpack(unpackUtil, numaLocation, lenderSize, socketId, portId) != UBSE_OK) {
-            return UBSE_ERROR_SERIALIZE_FAILED;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
         }
         if (portId != SDK_DEFAULT_VALUE) {
             linkInfo.lenderNode = numaLocation.nodeId;
@@ -848,7 +857,10 @@ uint32_t UbseMemNumaCreateLenderReqUnpack(const UbseIpcMessage& buffer, UbseMemN
             memNumaBorrowReq.lowWatermark = 0;
             memNumaBorrowReq.highWatermark = HIGH_WATER_MARK;
         }
-        memNumaBorrowReq.size += lenderSize;
+        if (ubse::mem::util::SafeAdd(memNumaBorrowReq.size, lenderSize, memNumaBorrowReq.size)) {
+            UBSE_LOG_ERROR << "memNumaBorrowReq.size overflow";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
         if (numaLocation.numaId == SDK_DEFAULT_VALUE) {
             continue;
         }

@@ -47,7 +47,7 @@ namespace ubse::mem_controller::ut {
 using namespace task_executor;
 using namespace ubse::message;
 using namespace ubse::mem::controller;
-using namespace usbe::mem::api;
+using namespace ubse::mem::api;
 using namespace mem::controller::message;
 using namespace ubse::mem::util;
 using namespace ubse::com;

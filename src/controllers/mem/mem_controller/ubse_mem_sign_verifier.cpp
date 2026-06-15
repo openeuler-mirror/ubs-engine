@@ -127,7 +127,7 @@ UbseResult ParseResponse(const std::string& rspJson, std::string& signedData, st
     Document doc;
     doc.Parse(rspJson.c_str());
     if (doc.HasParseError()) {
-        UBSE_LOG_ERROR << "Parse response json failed, error str is " << rspJson.c_str() << FormatRetCode(UBSE_ERROR);
+        UBSE_LOG_ERROR << "Parse response json failed, doc error=" << doc.GetParseError();
         return UBSE_ERROR;
     }
 

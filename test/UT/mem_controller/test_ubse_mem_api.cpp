@@ -33,7 +33,7 @@
 #include "ubse_mem_api.cpp"
 
 namespace ubse::mem_controller::ut {
-using namespace usbe::mem::api;
+using namespace ubse::mem::api;
 using namespace api::server;
 using namespace context;
 using namespace ubse::adapter_plugins::mmi;

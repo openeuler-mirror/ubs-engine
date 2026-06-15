@@ -18,7 +18,7 @@
 #include "ubse_node_controller_def.h"
 
 namespace ubse::mem::controller {
-using api::server::UbseIpcMessage;
+using ::api::server::UbseIpcMessage;
 using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemFdPermissionReq;
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;

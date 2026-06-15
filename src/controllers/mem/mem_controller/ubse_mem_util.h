@@ -182,6 +182,6 @@ private:
     std::unordered_map<Key, Value> map_;
 };
 
-UbseUdsInfo GenUdsInfo(const api::server::UbseRequestContext& context);
+UbseUdsInfo GenUdsInfo(const ::api::server::UbseRequestContext& context);
 } // namespace ubse::mem::util
 #endif // UBSE_MEM_UTILS_H

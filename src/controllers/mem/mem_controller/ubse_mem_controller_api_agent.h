@@ -19,8 +19,8 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::agent {
-using api::server::UbseIpcMessage;
-using api::server::UbseRequestContext;
+using ::api::server::UbseIpcMessage;
+using ::api::server::UbseRequestContext;
 using ubse::adapter_plugins::mmi::MemOperationType;
 using ubse::adapter_plugins::mmi::UbseMemAddrBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemFdBorrowReq;

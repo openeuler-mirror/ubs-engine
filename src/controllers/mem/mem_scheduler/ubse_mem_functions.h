@@ -23,6 +23,9 @@ constexpr uint16_t BYTES_PER_GB = 30;
 
 inline uint64_t CeilToN(const uint64_t x, const uint64_t n)
 {
+    if (n == 0) {
+        return 0;
+    }
     return ((x + n - 1) / n) * n;
 }
 

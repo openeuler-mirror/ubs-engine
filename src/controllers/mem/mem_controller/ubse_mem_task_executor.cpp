@@ -213,6 +213,7 @@ void UbseMemTaskExecutor::ExecuteTask(std::shared_ptr<UbseMemOperation> operatio
     apiServer->SendResponse(status, requestId, responseMessage);
     if (responseMessage.buffer != nullptr) {
         delete[] responseMessage.buffer;
+        responseMessage.buffer = nullptr;
     }
 }
 uint32_t UbseMemTaskExecutor::PrepareRequest(const UbseRequestContext& context, UbseMemBaseBorrowReq& req)

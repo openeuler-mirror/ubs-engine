@@ -1445,6 +1445,7 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr& r
                        << ", requestId=" << requestId;
     }
     delete[] message.buffer;
+    message.buffer = nullptr;
     return ret;
 }
 

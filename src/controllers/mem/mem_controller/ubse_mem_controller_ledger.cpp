@@ -1546,14 +1546,14 @@ bool IsImportRunningLastExportSuccess(const std::string& nodeId, const ImportObj
             message::UbseMemUpdateObjStatePtr updateObjPtr = new (std::nothrow) message::UbseMemUpdateObjState();
             if (updateObjPtr == nullptr) {
                 UBSE_LOG_ERROR << "Failed to new mem update obj state.";
-                return UBSE_ERROR_NULLPTR;
+                return false;
             }
             updateObjPtr->objType = resourceType;
             updateObjPtr->obj = obj;
             auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
             if (comModule == nullptr) {
                 UBSE_LOG_ERROR << "Failed to get com module.";
-                return UBSE_ERROR_NULLPTR;
+                return false;
             }
             SendParam sendParam(obj.req.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                                 static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK));
@@ -1562,10 +1562,9 @@ bool IsImportRunningLastExportSuccess(const std::string& nodeId, const ImportObj
             if (ret == UBSE_OK) {
                 UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
                               << ",update import node state rpc send success.";
-                return ret;
+                return true;
             }
-
-            return true;
+            return false;
         }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
                       << ", master state=export success, update import last export success.";
