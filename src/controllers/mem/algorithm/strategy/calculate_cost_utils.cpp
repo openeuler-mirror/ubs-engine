@@ -28,9 +28,6 @@ double MemPoolStrategyImpl::LatencyScore(MemLoc requestLocBR, int32_t requestSiz
         int targetIndex = mConfig_->GetSocketIndex(targetSocket.resLocs[0]); // 目标socket的index
         int latency = GetLatency(requestLocBR, targetIndex);
 
-        if (maxSysLatency == 0) {
-            return 0.0;
-        }
         score = (maxSysLatency == minSysLatency) ? latency * 1.0 / maxSysLatency :
                                                    (latency - minSysLatency) * 1.0 / (maxSysLatency - minSysLatency);
     } else {
@@ -62,9 +59,6 @@ double MemPoolStrategyImpl::ComputeShareLatencyScore(int32_t requestSizeS, const
     double score = 0;
     int32_t maxLatency = mConfig_->memLatencyInfo.maxSysLatency;
     int32_t numaNum = mConfig_->memStaticParam.numAvailNumas;
-    if (requestSizeS <= 0 || numaNum <= 0 || maxLatency <= 0) {
-        return 0.0;
-    }
     for (int i = 0; i < targetSocket.resLen; i++) {
         double numaRatio = 1.0 * targetSocket.resSizes[i] / requestSizeS;
         int32_t numaLatency = 0;

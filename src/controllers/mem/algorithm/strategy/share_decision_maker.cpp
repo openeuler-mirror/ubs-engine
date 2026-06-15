@@ -20,10 +20,6 @@ namespace tc::rs::mem {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_strategy");
 int ShareDecisionMaker::GetNumbSocket(int16_t hostId) const
 {
-    if (memConfig_ == nullptr) {
-        UBSE_LOG_ERROR << "memConfig_ is nullptr";
-        return 0;
-    }
     int socketNumPerHost = 0;
     for (auto& mAvailSocket : memConfig_->memAvailSockets) {
         if (mAvailSocket.hostId == hostId) {

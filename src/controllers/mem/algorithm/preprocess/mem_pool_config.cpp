@@ -238,9 +238,9 @@ BResult MemPoolConfig::SysLatencyProcess()
 
 void MemPoolConfig::CalculateLatency(int32_t& latency, int num)
 {
-    if (num <= 0) {
-        UBSE_LOG_ERROR << "SysLatencyProcess division by zero or negative number: " << num;
-        throw std::invalid_argument("Error! CalculateLatency is false while num is zero or negative number.");
+    if (num == 0) {
+        UBSE_LOG_ERROR << "SysLatencyProcess division by zero.";
+        throw std::invalid_argument("Error! CalculateLatency is false while num is zero.");
     }
     latency = latency / num;
 }
