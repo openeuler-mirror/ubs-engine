@@ -18,6 +18,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
+#include "ubse_security_module.h"
 #include "framework/misc/ubse_sequence_counter.h"
 #include "securec.h"
 
@@ -50,7 +51,10 @@ CtrlQMsgProxy& CtrlQMsgProxy::GetInstance()
 
 static UbseResult SendCtrlQMsg(BandBridgeMbuf& msgBuf)
 {
+    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
+    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
     int fd = open(BANDBRIDGE_DEV_NAME.c_str(), O_RDWR);
+    ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
     if (fd < 0) {
         UBSE_LOG_ERROR << "Open bandbridge dev failed";
         return UBSE_ERROR;
