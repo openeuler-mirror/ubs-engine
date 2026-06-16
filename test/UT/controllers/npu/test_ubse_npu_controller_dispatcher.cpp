@@ -24,7 +24,7 @@ UbseResult QueryLocalUbDevices(const UbseIpcMessage& req, const UbseRequestConte
 UbseResult AllocUbDevice(const UbseIpcMessage& req, const UbseRequestContext& context);
 UbseResult FreeUbDevice(const UbseIpcMessage& req, const UbseRequestContext& context);
 UbseResult QueryTidUbaSize(const UbseIpcMessage& req, const UbseRequestContext& context);
-}
+} // namespace ubse::npu::controller
 
 namespace ubse::npu::controller::ut {
 
