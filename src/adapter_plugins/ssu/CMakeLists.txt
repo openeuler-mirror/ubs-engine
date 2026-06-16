@@ -8,8 +8,12 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBBLOCKDEV REQUIRED blockdev)
 pkg_check_modules(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(ubse_ssu PRIVATE
-        ubse_logger
+target_link_libraries(ubse_ssu
+        PUBLIC
+        -lbd_lvm
+        -lbd_mdraid
+        PRIVATE
+        ubse_log
         ubse_utils
         ubse_config
         ${LIBBLOCKDEV_LIBRARIES}

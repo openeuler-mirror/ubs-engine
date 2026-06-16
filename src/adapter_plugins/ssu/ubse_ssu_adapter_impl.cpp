@@ -16,8 +16,10 @@
 #include <securec.h>
 #include <sstream>
 #include <glib.h>
+extern "C" {
 #include <blockdev/lvm.h>
 #include <blockdev/mdraid.h>
+}
 #include "ubse_conf.h"
 #include "src/framework/misc/ubse_os_util.h"
 
