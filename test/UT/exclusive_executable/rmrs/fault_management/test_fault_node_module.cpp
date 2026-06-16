@@ -1986,4 +1986,772 @@ TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_PartialFailed_ReturnsParti
     EXPECT_EQ(res, MEM_POOLING_PARTIAL_OK);
 }
 
+// ==================== FaultHandleMigrate ====================
+
+TEST_F(TestFaultNodeModule, FaultHandleMigrate_EchoHugepagesFailed_ReturnsError)
+{
+    MOCKER_CPP(&FaultMemIdExecute::EchoHugepages, MpResult(*)(FaultMemIdExecute*, uint64_t, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    std::vector<pid_t> pids = {100, 200};
+    MpResult res = FaultNodeModule::Instance().FaultHandleMigrate(5, 3, pids, 4096);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, FaultHandleMigrate_VmsMigrateFailed_RollbackAndReturnError)
+{
+    MOCKER_CPP(&FaultMemIdExecute::EchoHugepages, MpResult(*)(FaultMemIdExecute*, uint64_t, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultMemIdExecute::VmsMigrateOtherRemoteNuma,
+               MpResult(*)(FaultMemIdExecute*, std::vector<pid_t>&, uint16_t, uint16_t, std::string, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&FaultMemIdExecute::RollBackHugepages, MpResult(*)(FaultMemIdExecute*, uint16_t, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    std::vector<pid_t> pids = {100};
+    MpResult res = FaultNodeModule::Instance().FaultHandleMigrate(5, 3, pids, 2048);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, FaultHandleMigrate_AllSuccess_ReturnsOk)
+{
+    MOCKER_CPP(&FaultMemIdExecute::EchoHugepages, MpResult(*)(FaultMemIdExecute*, uint64_t, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultMemIdExecute::VmsMigrateOtherRemoteNuma,
+               MpResult(*)(FaultMemIdExecute*, std::vector<pid_t>&, uint16_t, uint16_t, std::string, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    std::vector<pid_t> pids = {100, 200};
+    MpResult res = FaultNodeModule::Instance().FaultHandleMigrate(5, 3, pids, 4096);
+    EXPECT_EQ(res, MEM_POOLING_OK);
+}
+
+// ==================== RPC Handlers ====================
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionResHandler_NullCtx_ReturnsEarly)
+{
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[4];
+    respData.len = 4;
+    // ctx is nullptr
+    GetBorrowedDecisionResHandler(nullptr, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    // Should not crash
+    SUCCEED();
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionResHandler_NullRespData_ReturnsEarly)
+{
+    std::vector<BorrowedDecision> decisions;
+    UbseByteBuffer respData = {nullptr, 0, nullptr};
+    GetBorrowedDecisionResHandler(&decisions, respData, MEM_POOLING_OK);
+    SUCCEED();
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionResHandler_ResCodeNotOk_DoesNotDeserialize)
+{
+    std::vector<BorrowedDecision> decisions;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[4];
+    respData.len = 4;
+    GetBorrowedDecisionResHandler(&decisions, respData, MEM_POOLING_ERROR);
+    delete[] respData.data;
+    EXPECT_TRUE(decisions.empty());
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionResHandler_ResCodeOk_Deserializes)
+{
+    std::vector<BorrowedDecision> decisions;
+    // Serialize an empty decision list
+    RmrsOutStream builder;
+    builder << decisions;
+    UbseByteBuffer respData = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+    GetBorrowedDecisionResHandler(&decisions, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    EXPECT_TRUE(decisions.empty());
+}
+
+// ==================== NumaLevelExecuteResHandler ====================
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_NullCtx_ReturnsEarly)
+{
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    NumaLevelExecuteResHandler(nullptr, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    SUCCEED();
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_ResCodeNotOk_SetsError)
+{
+    MpResult result = MEM_POOLING_OK;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    NumaLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
+    delete[] respData.data;
+    EXPECT_EQ(result, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_WrongLen_SetsError)
+{
+    MpResult result = MEM_POOLING_OK;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[8];
+    respData.len = 8; // not sizeof(MpResult)
+    NumaLevelExecuteResHandler(&result, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    EXPECT_EQ(result, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteResHandler_Success_SetsResult)
+{
+    MpResult result = MEM_POOLING_ERROR;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    *reinterpret_cast<MpResult*>(respData.data) = MEM_POOLING_OK;
+    NumaLevelExecuteResHandler(&result, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    EXPECT_EQ(result, MEM_POOLING_OK);
+}
+
+// ==================== BorrowIdLevelExecuteResHandler ====================
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteResHandler_NullCtx_ReturnsEarly)
+{
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    BorrowIdLevelExecuteResHandler(nullptr, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    SUCCEED();
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteResHandler_ResCodeNotOk_SetsError)
+{
+    MpResult result = MEM_POOLING_OK;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    BorrowIdLevelExecuteResHandler(&result, respData, MEM_POOLING_ERROR);
+    delete[] respData.data;
+    EXPECT_EQ(result, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteResHandler_Success_SetsResult)
+{
+    MpResult result = MEM_POOLING_ERROR;
+    UbseByteBuffer respData;
+    respData.data = new uint8_t[sizeof(MpResult)];
+    respData.len = sizeof(MpResult);
+    *reinterpret_cast<MpResult*>(respData.data) = MEM_POOLING_OK;
+    BorrowIdLevelExecuteResHandler(&result, respData, MEM_POOLING_OK);
+    delete[] respData.data;
+    EXPECT_EQ(result, MEM_POOLING_OK);
+}
+
+// ==================== GetBorrowedDecisionHandler ====================
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_QueryAllFailed_ReturnsError)
+{
+    MOCKER_CPP(&FaultHandleBorrowedDecision::QueryAll,
+               MpResult(*)(FaultHandleBorrowedDecision*, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    UbseByteBuffer req;
+    req.data = new uint8_t[4];
+    req.len = 4;
+    req.freeFunc = nullptr;
+    UbseByteBuffer resp;
+    uint32_t ret = GetBorrowedDecisionHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+MpResult TestQueryAll_Empty(FaultHandleBorrowedDecision* This, std::vector<BorrowedDecision>& decisionList)
+{
+    decisionList.clear();
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_QueryAllSuccessEmpty_ReturnsOk)
+{
+    MOCKER_CPP(&FaultHandleBorrowedDecision::QueryAll,
+               MpResult(*)(FaultHandleBorrowedDecision*, std::vector<BorrowedDecision>&))
+        .stubs()
+        .will(invoke(TestQueryAll_Empty));
+    UbseByteBuffer req;
+    req.data = new uint8_t[4];
+    req.len = 4;
+    req.freeFunc = nullptr;
+    UbseByteBuffer resp;
+    uint32_t ret = GetBorrowedDecisionHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+// ==================== GenerateNumaLevelDecision ====================
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_EmptyGroups_NoOp)
+{
+    std::vector<BorrowGroupResult> borrowGroups;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    // No crash, no output
+    SUCCEED();
+}
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_AlreadyBorrowIdLevel_Skipped)
+{
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].strategyType = BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    // Group should remain BORROW_ID_LEVEL (unchanged)
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY);
+}
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_AlreadyBorrowed_SkippedWithSuccessCnt)
+{
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].strategyType = BorrowStrategyType::NUMA_LEVEL_STRATEGY;
+    borrowGroups[0].numaDecision.isBorrowed = true;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::NUMA_LEVEL_STRATEGY);
+    EXPECT_TRUE(borrowGroups[0].numaDecision.isBorrowed);
+}
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_EmptyVmInfos_SetsReturnDirectly)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    BorrowRecord rec;
+    rec.name = "bid1";
+    rec.size = 256;
+    rec.borrowLocalNuma = 3;
+    rec.borrowSocketId = 1;
+    borrowGroups[0].records.push_back(rec);
+    borrowGroups[0].totalSize = 256;
+    // vmInfos is empty
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::NUMA_LEVEL_STRATEGY);
+    EXPECT_TRUE(borrowGroups[0].numaDecision.isReturnDirectly);
+    ASSERT_EQ(borrowGroups[0].numaDecision.oldNames.size(), 1u);
+    EXPECT_EQ(borrowGroups[0].numaDecision.oldNames[0], "bid1");
+}
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_FilterSnapshotEmpty_Skipped)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    borrowGroups[0].totalSize = 256;
+    FaultNumaVmInfo vm{101, 0, 5, 512};
+    borrowGroups[0].vmInfos.push_back(vm);
+    // Mock FilterSnapshotByBorrowNode to return empty
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(std::vector<ClusterSnapshotItem*>()));
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    // strategyType should stay default (STRATEGY_FAILED) since no decision was made
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+TEST_F(TestFaultNodeModule, GenerateNumaLevelDecision_BothPlanesFail_Skipped)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    borrowGroups[0].totalSize = 256;
+    FaultNumaVmInfo vm{101, 0, 5, 512};
+    borrowGroups[0].vmInfos.push_back(vm);
+
+    // FilterSnapshot returns candidates
+    ClusterSnapshotItem candidate;
+    candidate.nodeId = "Node2";
+    candidate.socketId = 2;
+    candidate.totalBlocks = 1;
+    candidate.canLentMemSize = 128;
+    candidate.numaCanLentMap[10] = 1;
+    std::vector<ClusterSnapshotItem*> candidates = {&candidate};
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(candidates));
+    // Mock TryBestFitAllocate to always fail
+    MOCKER_CPP(&FaultNodeModule::TryBestFitAllocate,
+               bool (*)(FaultNodeModule*, const BorrowGroupResult&, const std::vector<ClusterSnapshotItem*>&, uint64_t,
+                        bool, AllocResult&))
+        .stubs()
+        .will(returnValue(false));
+
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateNumaLevelDecision(borrowGroups, baseSnapshot, false);
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+// ==================== GenerateBorrowIdLevelDecision ====================
+
+TEST_F(TestFaultNodeModule, GenerateBorrowIdLevelDecision_AlreadyNumaLevel_Skipped)
+{
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].strategyType = BorrowStrategyType::NUMA_LEVEL_STRATEGY;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateBorrowIdLevelDecision(borrowGroups, baseSnapshot, false);
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::NUMA_LEVEL_STRATEGY);
+}
+
+TEST_F(TestFaultNodeModule, GenerateBorrowIdLevelDecision_EmptyCandidates_StrategyFailed)
+{
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    // Mock FilterSnapshot to return empty
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(std::vector<ClusterSnapshotItem*>()));
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateBorrowIdLevelDecision(borrowGroups, baseSnapshot, false);
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+TEST_F(TestFaultNodeModule, GenerateBorrowIdLevelDecision_EmptyVmInfosAndNoError_ReturnsDirectly)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    BorrowRecord rec;
+    rec.name = "bid1";
+    rec.size = 256;
+    borrowGroups[0].records.push_back(rec);
+    // vmInfos is empty, errCount starts at 0
+    ClusterSnapshotItem candidate;
+    candidate.nodeId = "Node2";
+    candidate.socketId = 1;
+    candidate.totalBlocks = 10;
+    candidate.canLentMemSize = 1280;
+    candidate.numaCanLentMap[10] = 10;
+    std::vector<ClusterSnapshotItem*> candidates = {&candidate};
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(candidates));
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateBorrowIdLevelDecision(borrowGroups, baseSnapshot, false);
+    // Should have isReturnDirectly decision
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::BORROW_ID_LEVEL_STRATEGY);
+    ASSERT_EQ(borrowGroups[0].borrowIdDecisions.size(), 1u);
+    EXPECT_TRUE(borrowGroups[0].borrowIdDecisions[0].isReturnDirectly);
+    EXPECT_EQ(borrowGroups[0].borrowIdDecisions[0].oldName, "bid1");
+}
+
+TEST_F(TestFaultNodeModule, GenerateBorrowIdLevelDecision_FindClosestVmFails_Skipped)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    BorrowRecord rec;
+    rec.name = "bid1";
+    rec.size = 256;
+    rec.borrowLocalNuma = 3;
+    rec.borrowSocketId = 1;
+    borrowGroups[0].records.push_back(rec);
+    FaultNumaVmInfo vm{101, 0, 5, 512};
+    borrowGroups[0].vmInfos.push_back(vm);
+    // FilterSnapshot returns candidates
+    ClusterSnapshotItem candidate;
+    candidate.nodeId = "Node2";
+    candidate.socketId = 1;
+    candidate.totalBlocks = 10;
+    candidate.canLentMemSize = 1280;
+    candidate.numaCanLentMap[10] = 10;
+    std::vector<ClusterSnapshotItem*> candidates = {&candidate};
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(candidates));
+    // Mock FindClosestVmForMemAlloc to fail
+    MOCKER_CPP(&FaultMemIdModule::FindClosestVmForMemAlloc,
+               MpResult(*)(FaultMemIdModule*, std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateBorrowIdLevelDecision(borrowGroups, baseSnapshot, false);
+    // All records failed → STRATEGY_FAILED
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+TEST_F(TestFaultNodeModule, GenerateBorrowIdLevelDecision_BestFitFails_ErcCountIncremented)
+{
+    FaultNodeModule::sBlockSizeKb = 128;
+    std::vector<BorrowGroupResult> borrowGroups(1);
+    borrowGroups[0].borrowNodeId = "Node1";
+    borrowGroups[0].borrowSocketId = 1;
+    BorrowRecord rec;
+    rec.name = "bid1";
+    rec.size = 256;
+    rec.borrowLocalNuma = 3;
+    rec.borrowSocketId = 1;
+    borrowGroups[0].records.push_back(rec);
+    FaultNumaVmInfo vm{101, 0, 5, 512};
+    borrowGroups[0].vmInfos.push_back(vm);
+    ClusterSnapshotItem candidate;
+    candidate.nodeId = "Node2";
+    candidate.socketId = 1;
+    candidate.totalBlocks = 10;
+    candidate.canLentMemSize = 1280;
+    candidate.numaCanLentMap[10] = 10;
+    std::vector<ClusterSnapshotItem*> candidates = {&candidate};
+    MOCKER_CPP(&FaultNodeModule::FilterSnapshotByBorrowNode,
+               std::vector<ClusterSnapshotItem*>(*)(FaultNodeModule*, const std::string&, uint16_t,
+                                                    std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(candidates));
+    MOCKER_CPP(&FaultMemIdModule::FindClosestVmForMemAlloc,
+               MpResult(*)(FaultMemIdModule*, std::vector<VmNumaInfo>&, uint64_t, std::vector<pid_t>&, uint64_t&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    // Mock TryBestFitAllocate to fail both planes
+    MOCKER_CPP(&FaultNodeModule::TryBestFitAllocate,
+               bool (*)(FaultNodeModule*, const BorrowGroupResult&, const std::vector<ClusterSnapshotItem*>&, uint64_t,
+                        bool, AllocResult&))
+        .stubs()
+        .will(returnValue(false));
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    FaultNodeModule::Instance().GenerateBorrowIdLevelDecision(borrowGroups, baseSnapshot, false);
+    // BestFit fails → STRATEGY_FAILED
+    EXPECT_EQ(borrowGroups[0].strategyType, BorrowStrategyType::STRATEGY_FAILED);
+}
+
+// ==================== NumaLevelExecute ====================
+
+TEST_F(TestFaultNodeModule, NumaLevelExecute_IsReturnDirectly_FreesOldMem)
+{
+    NumaLevelDecision decision;
+    decision.isReturnDirectly = true;
+    decision.oldNames = {"bid1", "bid2"};
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    BorrowGroupResult group;
+    std::map<std::string, MemBorrowExecuteResult> tmpRedirectionMap;
+    MpResult res = FaultNodeModule::Instance().NumaLevelExecute(group, decision, tmpRedirectionMap);
+    EXPECT_EQ(res, MEM_POOLING_OK);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecute_IsBorrowed_CallsBorrowedExecute)
+{
+    NumaLevelDecision decision;
+    decision.isBorrowed = true;
+    decision.borrowedDecision.presentNumaId = 5;
+    decision.borrowedDecision.oldNumaId = 3;
+    MOCKER_CPP(&FaultNodeModule::NumaLevelBorrowedExecute,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, NumaLevelBorrowedDecision))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    BorrowGroupResult group;
+    std::map<std::string, MemBorrowExecuteResult> tmpRedirectionMap;
+    MpResult res = FaultNodeModule::Instance().NumaLevelExecute(group, decision, tmpRedirectionMap);
+    EXPECT_EQ(res, MEM_POOLING_OK);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecute_Normal_CallsExecuteNormal)
+{
+    NumaLevelDecision decision;
+    // Neither isReturnDirectly nor isBorrowed
+    MOCKER_CPP(&FaultNodeModule::NumaLevelExecuteNormal,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, NumaLevelDecision,
+                           std::map<std::string, MemBorrowExecuteResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    BorrowGroupResult group;
+    std::map<std::string, MemBorrowExecuteResult> tmpRedirectionMap;
+    MpResult res = FaultNodeModule::Instance().NumaLevelExecute(group, decision, tmpRedirectionMap);
+    EXPECT_EQ(res, MEM_POOLING_OK);
+}
+
+// ==================== NumaLevelExecuteHandler ====================
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_NullReqData_ReturnsError)
+{
+    UbseByteBuffer req = {nullptr, 0, nullptr};
+    UbseByteBuffer resp;
+    uint32_t ret = NumaLevelExecuteHandler(req, resp);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteSuccess_ReturnsOk)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    group.numaDecision.isReturnDirectly = true;
+    // Serialize group
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    MOCKER_CPP(&FaultNodeModule::NumaLevelExecute,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, NumaLevelDecision,
+                           std::map<std::string, MemBorrowExecuteResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    UbseByteBuffer resp;
+    uint32_t ret = NumaLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    EXPECT_EQ(resp.len, sizeof(MpResult));
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWithRpcLen)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    group.numaDecision.isReturnDirectly = true;
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    MOCKER_CPP(&FaultNodeModule::NumaLevelExecute,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, NumaLevelDecision,
+                           std::map<std::string, MemBorrowExecuteResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    UbseByteBuffer resp;
+    uint32_t ret = NumaLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+// ==================== BorrowIdLevelExecuteHandler ====================
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_EmptyDecisions_ReturnsOk)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    // borrowIdDecisions is empty
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    UbseByteBuffer resp;
+    uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_ReturnDirectlyDecision_CallsReturnDirectly)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    BorrowIdLevelDecision dec;
+    dec.isReturnDirectly = true;
+    dec.oldName = "bid1";
+    group.borrowIdDecisions.push_back(dec);
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    UbseByteBuffer resp;
+    uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_BorrowedDecision_CallsBorrowedExecute)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    BorrowIdLevelDecision dec;
+    dec.isBorrowed = true;
+    dec.oldName = "bid1";
+    dec.borrowedDecision.presentNumaId = 5;
+    dec.borrowedDecision.oldNumaId = 3;
+    group.borrowIdDecisions.push_back(dec);
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    MOCKER_CPP(&FaultNodeModule::BorrowIdLevelBorrowedExecute,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, BorrowIdLevelBorrowedDecision))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    UbseByteBuffer resp;
+    uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrCountIncremented)
+{
+    BorrowGroupResult group;
+    group.borrowNodeId = "Node1";
+    group.remoteNumaId = 5;
+    BorrowIdLevelDecision dec;
+    // normal decision (not isReturnDirectly, not isBorrowed)
+    dec.oldName = "bid1";
+    dec.lentNodeId = "LentNode";
+    dec.lentSocketId = 2;
+    dec.lentNumaId = 10;
+    dec.lentMemSize = 1024;
+    dec.borrowNumaId = 3;
+    dec.borrowSocketId = 1;
+    dec.pids = {100};
+    group.borrowIdDecisions.push_back(dec);
+    RmrsOutStream builder;
+    builder << group;
+    UbseByteBuffer req = {builder.GetBufferPointer(), builder.GetSize(), nullptr};
+
+    MOCKER_CPP(&FaultNodeModule::BorrowIdLevelExecute,
+               MpResult(*)(FaultNodeModule*, const BorrowGroupResult&, BorrowIdLevelDecision))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    UbseByteBuffer resp;
+    uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
+    delete[] req.data;
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    if (resp.freeFunc != nullptr) {
+        resp.freeFunc(resp.data);
+    }
+}
+
+// ==================== ProcessBorrowOutNodeFaultParallel ====================
+
+TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_InfosCollectFailed_ReturnsError)
+{
+    MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
+                           std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyAllFailed_ReturnsError)
+{
+    MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
+                           std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&, std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecOk_ReturnsOk)
+{
+    MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
+                           std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&, std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleExecuteParallel,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
+    EXPECT_EQ(res, MEM_POOLING_OK);
+}
+
+TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecError_ReturnsError)
+{
+    MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
+                           std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&, std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleExecuteParallel,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyPartialOkExecOk_ReturnsError)
+{
+    MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
+               MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
+                           std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&, std::vector<ClusterSnapshotItem>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_PARTIAL_OK));
+    MOCKER_CPP(&FaultNodeModule::FaultHandleExecuteParallel,
+               MpResult(*)(FaultNodeModule*, std::vector<BorrowGroupResult>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
+    EXPECT_EQ(res, MEM_POOLING_ERROR);
+}
+
 } // namespace mempooling
