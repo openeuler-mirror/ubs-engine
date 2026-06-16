@@ -331,7 +331,7 @@ UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::stri
         dlclose(xalarmHandle);
         return UBSE_RAS_ERROR_DLSYM_XALARMD;
     }
-    ret = xalarmReportFunc(alarmFaultType, ack, size);
+    ret = xalarmReportFunc(alarmFaultType, ack, strlen(ack));
     if (ret < 0) {
         SafeDeleteArray(ack, size);
         dlclose(xalarmHandle);
