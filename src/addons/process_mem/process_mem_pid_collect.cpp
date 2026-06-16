@@ -36,7 +36,10 @@ std::vector<pid_t> GetChildrenPidsFallback(pid_t parentPid)
 {
     std::vector<pid_t> children;
     char cmd[256];
-    snprintf_s(cmd, sizeof(cmd), sizeof(cmd), "pgrep -P %d 2>/dev/null", parentPid);
+    int ret = snprintf_s(cmd, sizeof(cmd), sizeof(cmd), "pgrep -P %d 2>/dev/null", parentPid);
+    if (ret < 0) {
+        return children;
+    }
 
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
     if (!pipe)

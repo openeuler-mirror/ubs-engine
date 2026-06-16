@@ -82,7 +82,10 @@ int main(int argc, char* argv[])
     if (!UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliArgsParse(args)) {
         return UBSE_ERROR;
     }
-    signal(SIGALRM, SignalHandler);
+    if (signal(SIGALRM, SignalHandler) == SIG_ERR) {
+        UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: signal=SIGALRM error=register_failed\n");
+        return UBSE_ERROR;
+    }
     struct itimerval timer {
     };
     timer.it_value.tv_sec = TIMEOUT_SECONDS;

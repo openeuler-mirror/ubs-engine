@@ -11,6 +11,8 @@
  */
 #include "process_mem_pid_config_manager.h"
 
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 
 #include "ubse_error.h"
@@ -93,11 +95,15 @@ uint64_t ProcessMemPidConfigManager::GetExactStartTime(pid_t pid)
     if (fscanf_s(file,
                  "%*d %*[^)] %*c %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*lu %*lu %*d %*d %*d %*d %*d %*d %llu",
                  &starttime) == 1) {
-        fclose(file);
+        if (fclose(file) != 0) {
+            UBSE_LOG_WARN << "fclose_failed errno=" << errno << " error=" << std::strerror(errno);
+        }
         return static_cast<uint64_t>(starttime);
     }
 
-    fclose(file);
+    if (fclose(file) != 0) {
+        UBSE_LOG_WARN << "fclose_failed errno=" << errno << " error=" << std::strerror(errno);
+    }
     return 0;
 }
 

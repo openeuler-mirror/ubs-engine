@@ -96,8 +96,12 @@ void ubse_signal_handler(int sig)
 
 void ubse_setup_signal_handlers(void)
 {
-    signal(SIGINT, ubse_signal_handler);
-    signal(SIGTERM, ubse_signal_handler);
+    if (signal(SIGINT, ubse_signal_handler) == SIG_ERR) {
+        fprintf(stderr, "[MAIN] signal=SIGINT error=register_failed\n");
+    }
+    if (signal(SIGTERM, ubse_signal_handler) == SIG_ERR) {
+        fprintf(stderr, "[MAIN] signal=SIGTERM error=register_failed\n");
+    }
 }
 
 void ubse_print_fault_info(const char* memory_type, const char* name, uint64_t memid, ubs_mem_fault_type_t type)

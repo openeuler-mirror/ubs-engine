@@ -20,6 +20,8 @@
 #include <openssl/x509_vfy.h>
 #include <pwd.h>
 #include <sys/stat.h>
+#include <cerrno>
+#include <cstring>
 #include <fstream>
 
 #include "ubse_cert_def.h"
@@ -93,7 +95,10 @@ X509* UbseSslValidator::LoadAndValidateCert(const char* path, const char* name)
     }
 
     X509* cert = PEM_read_X509(fp, nullptr, nullptr, nullptr);
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        UBSE_LOG_WARN << "[CERT] fclose_failed file=" << name << " errno=" << errno
+                      << " error=" << std::strerror(errno);
+    }
 
     if (!cert) {
         UBSE_LOG_ERROR << "[CERT] Failed to parse PEM format for " << name << " at path=" << path;
@@ -144,10 +149,16 @@ EVP_PKEY* UbseSslValidator::LoadAndValidatePrivateKey(const char* keyPath, const
         int errorCode = ERR_get_error();
         UBSE_LOG_ERROR << "[CERT] Failed to parse " << name
                        << ". Incorrect password provided. sslErrorCode=" << errorCode;
-        fclose(fp);
+        if (fclose(fp) != 0) {
+            UBSE_LOG_WARN << "[CERT] fclose_failed file=" << name << " errno=" << errno
+                          << " error=" << std::strerror(errno);
+        }
         return nullptr;
     }
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        UBSE_LOG_WARN << "[CERT] fclose_failed file=" << name << " errno=" << errno
+                      << " error=" << std::strerror(errno);
+    }
     return pkey;
 }
 
@@ -203,7 +214,9 @@ bool UbseSslValidator::ValidateCRLIfExists()
     }
 
     X509_CRL* crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        UBSE_LOG_WARN << "[CERT] fclose_failed file=CRL errno=" << errno << " error=" << std::strerror(errno);
+    }
 
     if (!crl) {
         UBSE_LOG_ERROR << "[CERT] Failed to parse CRL file.";
@@ -291,7 +304,9 @@ bool UbseSslValidator::ConfigureCrlValidation(SSL_CTX* ctx)
     }
     ERR_clear_error();
     X509_CRL* crl = PEM_read_X509_CRL(fp, nullptr, nullptr, nullptr);
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        UBSE_LOG_WARN << "fclose_failed file=CRL errno=" << errno << " error=" << std::strerror(errno);
+    }
     if (!crl) {
         int errorCode = ERR_get_error();
         UBSE_LOG_ERROR << "Failed to parse CRL file, sslErrorCode=" << errorCode;

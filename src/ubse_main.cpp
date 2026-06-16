@@ -12,6 +12,7 @@
 
 #include <dlfcn.h>
 #include <csignal>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -46,9 +47,18 @@ int main(int argc, char* argv[])
 {
     InitializeAuditFunctions();
     // 注册exit信号,实现优雅退出
-    signal(SIGINT, SignalHandler);
-    signal(SIGTERM, SignalHandler);
-    signal(SIGPIPE, SignalHandler);
+    if (signal(SIGINT, SignalHandler) == SIG_ERR) {
+        std::cerr << "signal=SIGINT error=register_failed" << std::endl;
+        return static_cast<int>(UBSE_ERR_OPERATION_FAILED);
+    }
+    if (signal(SIGTERM, SignalHandler) == SIG_ERR) {
+        std::cerr << "signal=SIGTERM error=register_failed" << std::endl;
+        return static_cast<int>(UBSE_ERR_OPERATION_FAILED);
+    }
+    if (signal(SIGPIPE, SignalHandler) == SIG_ERR) {
+        std::cerr << "signal=SIGPIPE error=register_failed" << std::endl;
+        return static_cast<int>(UBSE_ERR_OPERATION_FAILED);
+    }
 
     // 启动上下文
     UbseResult ret = g_ubseContext.Run(argc, argv);
