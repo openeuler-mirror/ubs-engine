@@ -181,7 +181,58 @@ static void FillCachedNodeState(UbseNodeInfo &info)
 
 UbseResult UbseNodeInfoReport()
 {
-    return UBSE_OK;
+    UbseNodeInfo info = UbseNodeInfoCollect();
+    FillCachedNodeState(info);
+
+    if (info.nodeId.empty()) {
+        UBSE_LOG_ERROR << "[CLOS_REPORT] skip report, node id is empty";
+        return UBSE_ERROR;
+    }
+
+    auto role = GetClosRole();
+    if (role != UbseClosNodeRole::UNKNOWN) {
+        if (role == UbseClosNodeRole::GLOBAL_MASTER) {
+            UBSE_LOG_INFO << "[CLOS_REPORT] skip self node report on global master, nodeId=" << info.nodeId
+                          << ", podId=" << info.podId << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
+            return UBSE_OK;
+        }
+
+        std::string prevNodeId;
+        auto ret = GetPrevReportNodeId(prevNodeId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "get prev node failed, fallback to single master report, " << FormatRetCode(ret);
+        } else {
+            if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+                UBSE_LOG_INFO << "[CLOS_REPORT] skip self report, nodeId=" << info.nodeId
+                              << ", role=" << static_cast<uint32_t>(role);
+                return UBSE_OK;
+            }
+
+            UBSE_LOG_INFO << "[CLOS_REPORT] report self node to prev, nodeId=" << info.nodeId
+                          << ", podId=" << info.podId << ", prevNodeId=" << prevNodeId
+                          << ", role=" << static_cast<uint32_t>(role)
+                          << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
+
+            return UbseNodeReportNodeInfo(prevNodeId, info);
+        }
+    }
+
+    UbseRoleInfo masterInfo{};
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ubse get master node failed, skip report.";
+        return ret;
+    }
+
+    if (masterInfo.nodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_INFO << "[CLOS_REPORT] fallback report self node to master, nodeId=" << info.nodeId
+                  << ", podId=" << info.podId << ", masterNodeId=" << masterInfo.nodeId
+                  << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
+
+    return UbseNodeReportNodeInfo(masterInfo.nodeId, info);
 }
 
 UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
@@ -193,11 +244,31 @@ UbseResult UbseNodeControllerAgent::UbseNodeInfoReportTimerHandler()
 
 UbseResult UbseNodeControllerAgent::UbseCabinetInfoReportTimerHandler()
 {
+    if (!IsCabinetMaster()) {
+        return UBSE_OK;
+    }
+
+    taskExecutor_->Execute([this]() {
+        auto ret = ReportCabinetFullInfo();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "report cabinet full info failed, " << FormatRetCode(ret);
+        }
+    });
     return UBSE_OK;
 }
 
 UbseResult UbseNodeControllerAgent::UbseGlobalInfoReportTimerHandler()
 {
+    if (!IsPdMaster()) {
+        return UBSE_OK;
+    }
+
+    taskExecutor_->Execute([this]() {
+        auto ret = ForwardCabinetFullToPrev();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "forward full info to prev failed, " << FormatRetCode(ret);
+        }
+    });
     return UBSE_OK;
 }
 
@@ -309,29 +380,125 @@ static UbseResult SafeSerializeUbseNode(const UbseNodeInfo &info, UbseByteBuffer
 
 static UbseResult SafeSerializeUbseNodeList(const std::vector<UbseNodeInfo> &infos, UbseByteBuffer &buffer)
 {
-    (void)infos;
-    (void)buffer;
+    uint8_t *data = nullptr;
+    size_t size = 0;
+    auto ret = SerializeUbseNodeList(infos, data, size);
+    if (ret != UBSE_OK) {
+        if (data != nullptr) {
+            SafeDeleteArray(data, size);
+        }
+        return ret;
+    }
+
+    buffer = {data, size, [size](uint8_t *p) noexcept {
+        SafeDeleteArray(p, size);
+    }};
     return UBSE_OK;
 }
 
 static UbseResult SendSingleNodeReportByOpCode(const std::string &nodeId, const UbseNodeInfo &info,
                                                UbseNodeControllerOpCode opCode, const std::string &action)
 {
-    (void)nodeId;
-    (void)info;
-    (void)opCode;
-    (void)action;
-    return UBSE_OK;
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(opCode),
+        .address = nodeId,
+    };
+
+    struct SyncData {
+        UbseResult reportRet = UBSE_OK;
+        bool callbackCalled = false;
+        std::mutex mtx;
+        std::condition_variable cv;
+    };
+
+    auto syncData = std::make_shared<SyncData>();
+
+    UbseByteBuffer reqBuffer;
+    auto ret = SafeSerializeUbseNode(info, reqBuffer);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+                      [syncData, nodeId, action](void *, const UbseByteBuffer &, uint32_t resCode) -> void {
+        if (resCode != UBSE_OK) {
+            UBSE_LOG_ERROR << action << " nodeId=" << nodeId << " failed, " << FormatRetCode(resCode);
+            syncData->reportRet = resCode;
+        }
+        {
+            std::lock_guard<std::mutex> lock(syncData->mtx);
+            syncData->callbackCalled = true;
+        }
+        syncData->cv.notify_one();
+    });
+
+if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "send " << action << " nodeId=" << nodeId << " failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    std::unique_lock<std::mutex> lock(syncData->mtx);
+    auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
+    if (!syncData->cv.wait_for(lock, timeout, [syncData]() { return syncData->callbackCalled; })) {
+        UBSE_LOG_ERROR << action << " nodeId=" << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
+        return UBSE_ERROR_TIMEOUT;
+    }
+
+    return syncData->reportRet;
 }
 
 static UbseResult SendNodeListReportByOpCode(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos,
                                              UbseNodeControllerOpCode opCode, const std::string &action)
 {
-    (void)nodeId;
-    (void)infos;
-    (void)opCode;
-    (void)action;
-    return UBSE_OK;
+    const ubse::com::UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(opCode),
+        .address = nodeId,
+    };
+
+    struct SyncData {
+        UbseResult reportRet = UBSE_OK;
+        bool callbackCalled = false;
+        std::mutex mtx;
+        std::condition_variable cv;
+    };
+
+    auto syncData = std::make_shared<SyncData>();
+
+    UbseByteBuffer reqBuffer;
+    auto ret = SafeSerializeUbseNodeList(infos, reqBuffer);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    ret = UbseRpcSend(endpoint, reqBuffer, nullptr,
+                      [syncData, nodeId, action](void *, const UbseByteBuffer &, uint32_t resCode) -> void {
+        if (resCode != UBSE_OK) {
+            UBSE_LOG_ERROR << action << " nodeId=" << nodeId << " failed, " << FormatRetCode(resCode);
+            syncData->reportRet = resCode;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(syncData->mtx);
+            syncData->callbackCalled = true;
+        }
+        syncData->cv.notify_one();
+    });
+
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "send " << action << " nodeId=" << nodeId << " failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    std::unique_lock<std::mutex> lock(syncData->mtx);
+    auto timeout = std::chrono::milliseconds(UBSE_RPC_TIMEOUT_MS);
+    if (!syncData->cv.wait_for(lock, timeout, [syncData]() { return syncData->callbackCalled; })) {
+        UBSE_LOG_ERROR << action << " nodeId=" << nodeId << " timeout after " << UBSE_RPC_TIMEOUT_MS << "ms";
+        return UBSE_ERROR_TIMEOUT;
+    }
+
+    return syncData->reportRet;
 }
 
 // Agent向Master周期上报节点信息
@@ -693,24 +860,99 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
 
 UbseResult UbseNodeControllerAgent::ReportSingleNodeToPrev(const UbseNodeInfo &info)
 {
-    (void)info;
-    return UBSE_OK;
+    std::string prevNodeId;
+    auto ret = GetPrevReportNodeId(prevNodeId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    if (prevNodeId == info.nodeId) {
+        return UBSE_OK;
+    }
+
+    return UbseCabinetReportSingleNode(prevNodeId, info);
 }
 
 UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
 {
-    return UBSE_OK;
+    auto allNodes = UbseNodeController::GetInstance().GetLocalNodeInfos();
+
+    std::vector<UbseNodeInfo> infos{};
+    infos.reserve(allNodes.size());
+    for (const auto &[_, info] : allNodes) {
+        infos.push_back(info);
+    }
+    if (infos.empty()) {
+        return UBSE_OK;
+    }
+
+    std::string prevNodeId;
+    auto ret = GetPrevReportNodeId(prevNodeId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    if (prevNodeId == UbseNodeController::GetInstance().GetCurrentNodeId()) {
+        UBSE_LOG_INFO << "[CLOS_REPORT] skip cabinet full report to self, currentNodeId="
+                      << UbseNodeController::GetInstance().GetCurrentNodeId() << ", nodeCount=" << infos.size()
+                      << ", role=" << static_cast<uint32_t>(GetClosRole());
+        return UBSE_OK;
+    }
+
+    std::stringstream nodeList;
+    for (const auto &info : infos) {
+        nodeList << info.nodeId << "(pod=" << info.podId << ",state=" << static_cast<uint32_t>(info.clusterState)
+                 << "), ";
+    }
+
+    UBSE_LOG_INFO << "[CLOS_REPORT] cabinet full report node list, currentNodeId="
+                  << UbseNodeController::GetInstance().GetCurrentNodeId() << ", prevNodeId=" << prevNodeId
+                  << ", nodeCount=" << infos.size() << ", nodes=" << nodeList.str();
+
+    return UbseCabinetReportFullInfo(prevNodeId, infos);
 }
 
 UbseResult UbseNodeControllerAgent::ForwardSingleNodeToPrev(const UbseNodeInfo &info)
 {
-    (void)info;
-    return UBSE_OK;
+    std::string prevNodeId;
+    auto ret = GetPrevReportNodeId(prevNodeId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    return UbseGlobalReportSingleNode(prevNodeId, info);
 }
 
 UbseResult UbseNodeControllerAgent::ForwardCabinetFullToPrev()
 {
-    return UBSE_OK;
+    auto allNodes = UbseNodeController::GetInstance().GetLocalNodeInfos();
+
+    std::vector<UbseNodeInfo> infos{};
+    infos.reserve(allNodes.size());
+    for (const auto &[_, info] : allNodes) {
+        infos.push_back(info);
+    }
+    if (infos.empty()) {
+        return UBSE_OK;
+    }
+
+    std::string prevNodeId;
+    auto ret = GetPrevReportNodeId(prevNodeId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    std::stringstream nodeList;
+    for (const auto &info : infos) {
+        nodeList << info.nodeId << "(pod=" << info.podId << ",state=" << static_cast<uint32_t>(info.clusterState)
+                 << "), ";
+    }
+
+    UBSE_LOG_INFO << "[CLOS_REPORT] global full report node list, currentNodeId="
+                  << UbseNodeController::GetInstance().GetCurrentNodeId() << ", globalNodeId=" << prevNodeId
+                  << ", nodeCount=" << infos.size() << ", nodes=" << nodeList.str();
+
+    return UbseGlobalReportFullInfo(prevNodeId, infos);
 }
 
 UbseResult SetUrmaUvs()
