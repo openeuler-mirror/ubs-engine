@@ -38,7 +38,7 @@ using namespace ubse::common::def;
 const uint32_t CONNECT_RETRY_DURATION = 200; // 200毫秒
 constexpr size_t ERR_MSG_BUF_SIZE = 256;
 
-std::string SafeStrError(int errnum)
+static std::string SafeStrError(int errnum)
 {
     char errBuf[ERR_MSG_BUF_SIZE] = {0};
     if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {

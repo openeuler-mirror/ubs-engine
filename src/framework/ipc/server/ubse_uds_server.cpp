@@ -47,7 +47,7 @@ const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SESSION_CLOSE_WAITING_TIME = 30; // session等待会话自行关闭时间, 超时未关闭服务端主动关闭 单位s,
 constexpr size_t ERR_MSG_BUF_SIZE = 256;
 
-std::string SafeStrError(int errnum)
+static std::string SafeStrError(int errnum)
 {
     char errBuf[ERR_MSG_BUF_SIZE] = {0};
     if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {

@@ -108,7 +108,7 @@ add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
 add_subdirectory(storage)
 add_subdirectory(sdk)
-add_subdirectory(npu)
+add_subdirectory(controllers/npu)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
 
