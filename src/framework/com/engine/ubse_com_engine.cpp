@@ -696,24 +696,35 @@ bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyP
     std::getline(keyPassFile, keyPassContent);
     keyPassFile.close();
 
-    len = keyPassContent.length();
-    if (keyPassContent.length() > MAX_KEY_PASS_LENGTH) {
-        UBSE_LOG_ERROR << "Too large key pass content, size=" << len;
+    size_t contentLen = keyPassContent.length();
+    if (contentLen == 0 || contentLen > MAX_KEY_PASS_LENGTH) {
+        UBSE_LOG_ERROR << "Invalid key pass content size=" << contentLen;
         return false;
     }
-    keyPass = malloc(len + 1);
+
+    size_t allocSize = contentLen + 1;
+    if (allocSize > MAX_KEY_PASS_LENGTH + 1) {
+        UBSE_LOG_ERROR << "Invalid key pass alloc size=" << allocSize;
+        return false;
+    }
+
+    keyPass = malloc(allocSize);
     if (keyPass == nullptr) {
         UBSE_LOG_WARN << "Memory allocation failed";
         return false;
     }
 
-    errno_t cpyRet = memcpy_s(keyPass, len + 1, keyPassContent.c_str(), len);
+    errno_t cpyRet = memcpy_s(keyPass, allocSize, keyPassContent.c_str(), contentLen);
     if (cpyRet != EOK) {
         UBSE_LOG_ERROR << "Failed to translate keyPass file, " << FormatRetCode(cpyRet);
-        KeyPassErase(keyPass, len + 1);
+        KeyPassErase(keyPass, static_cast<int>(allocSize));
+        keyPass = nullptr;
         return false;
     }
-    static_cast<char*>(keyPass)[len] = '\0';
+
+    static_cast<char*>(keyPass)[contentLen] = '\0';
+    len = static_cast<int>(allocSize);
+
     value = SERVER_KEY_FILENAME;
     erase = std::bind(KeyPassErase, std::placeholders::_1, std::placeholders::_2);
 
@@ -744,16 +755,15 @@ void KeyPassErase(void* pass, int len)
         UBSE_LOG_INFO << "Pass is nullptr";
         return;
     }
-    size_t size;
+
     if (len < 0) {
         UBSE_LOG_WARN << "Invalid length: " << len;
-        size = malloc_usable_size(pass);
-    } else {
-        size = static_cast<size_t>(len);
+        return;
     }
+
+    size_t size = static_cast<size_t>(len);
     explicit_bzero(pass, size);
     free(pass);
-    pass = nullptr;
 }
 
 void UbseComEngine::RegisterQueryCb(QueryEidByNodeIdCb cb)

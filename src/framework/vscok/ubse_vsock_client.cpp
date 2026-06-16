@@ -161,7 +161,7 @@ int PemPasswordCallback(char* buf, int size, int rwflag, void* usrdata)
     if (len > size) {
         len = size; // 防止溢出
     }
-    memcpy_s(buf, len, value, len);
+    memcpy_s(buf, static_cast<size_t>(size), value, static_cast<size_t>(len));
     return len; // 返回实际写入的字节数
 }
 

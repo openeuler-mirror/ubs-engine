@@ -41,6 +41,7 @@ using UbseClientIpcHandlerMap = std::unordered_map<std::pair<uint16_t, uint16_t>
 std::mutex clientIpcHandlerMutex; // mutex锁
 static UbseClientIpcHandlerMap clientIpcHandlerMap{};
 static std::string ubseSocketPath = ubse::common::def::UBSE_UDS_SOCKET_PATH;
+constexpr uint32_t MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
 
 static uint32_t CopyResponseBody(const UbseResponseMessage& src, ubse_api_buffer_t* dest)
 {
@@ -48,6 +49,11 @@ static uint32_t CopyResponseBody(const UbseResponseMessage& src, ubse_api_buffer
     dest->length = 0;
     if (src.header.bodyLen == 0 || !src.body) {
         return UBSE_OK;
+    }
+    if (src.header.bodyLen > MAX_RESPONSE_SIZE) {
+        IPC_LOG_ERROR << "IPC response body length too large, bodyLen=" << src.header.bodyLen
+                      << ", maxResponseSize=" << MAX_RESPONSE_SIZE;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
     }
     dest->buffer = static_cast<uint8_t*>(malloc(src.header.bodyLen));
     if (!dest->buffer) {

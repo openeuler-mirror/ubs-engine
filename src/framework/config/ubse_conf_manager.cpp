@@ -6,9 +6,12 @@
 
 #include <dirent.h>
 #include <sys/stat.h>
+
+#include <cstring>
 #include <fstream>
 #include <regex>
 #include <sstream>
+#include <string>
 
 #include "ubse_conf_common_def.h"
 #include "ubse_context.h"
@@ -30,6 +33,16 @@ const std::regex VAL_CHARS(R"(^[a-zA-Z0-9\.\_\-\:\,\/\;]+$)");
 const uint32_t MAX_GROUP_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
 const uint32_t MAX_PROVIDER_SIZE = 64 * 64 + 64; // hostname最大长度64字节，最多支持64个节点，包含64个间隔符
 const std::map<std::string, uint32_t> whiteList = {{"group", MAX_GROUP_SIZE}, {"provider", MAX_PROVIDER_SIZE}};
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
 
 UbseResult TravelDepthLimitedFiles(std::vector<std::string>& filePaths, const std::string& path, int depth);
 
@@ -94,12 +107,15 @@ UbseResult UbseConfigManager::ParseFile(const std::string& filePath)
         return UBSE_CONF_ERROR_KEY_OFFSETMEMORY_ALLOCATION_FAILED;
     }
     if (realpath(filePath.c_str(), canonicalPath) == nullptr) {
-        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err=" << std::strerror(errno)
+        int err = errno;
+        std::cerr << "Warning: Could not canonicalize file path " << filePath << " ,err=" << SafeStrError(err)
                   << std::endl;
         delete[] canonicalPath;
+        canonicalPath = nullptr;
         return UBSE_CONF_ERROR_KEY_OFFSETPATH_CANONICALIZATION_FAILED;
     }
     delete[] canonicalPath;
+    canonicalPath = nullptr;
     return ReadConfFile(filePath);
 }
 

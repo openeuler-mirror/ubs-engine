@@ -89,10 +89,8 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         return {};
     }
     if (module->IsLeader()) {
-        rwMutex.lock_shared();
-        auto nodes = nodeInfos;
-        rwMutex.unlock_shared();
-        return nodes;
+        std::shared_lock<std::shared_mutex> lock(rwMutex);
+        return nodeInfos;
     }
     Node masterNode{};
     auto ret = module->UbseGetMasterNode(masterNode);

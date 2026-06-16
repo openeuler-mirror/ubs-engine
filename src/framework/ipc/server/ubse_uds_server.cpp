@@ -12,6 +12,9 @@
 
 #include "ubse_uds_server.h"
 
+#include <cstring>
+#include <string>
+
 #include <securec.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -42,6 +45,16 @@ const uint32_t DEFAULT_SEND_TIMEOUT = 5000; // Default data sending timeout in m
 const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SESSION_CLOSE_WAITING_TIME = 30; // session等待会话自行关闭时间, 超时未关闭服务端主动关闭 单位s,
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
 
 static bool CheckClientPermission(const UbseClientInfo& client, const UbseClientInfo& peer)
 {
@@ -57,7 +70,8 @@ static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
     ev.data.fd = fd;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
-        UBSE_LOG_ERROR << "Failed to add efd epoll=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to add efd epoll=" << SafeStrError(err);
         return false;
     }
     return true;
@@ -72,7 +86,8 @@ static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events)
     ev.data.fd = fd;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-        UBSE_LOG_ERROR << "Failed to mod epoll_ctl=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to mod epoll_ctl=" << SafeStrError(err);
         return false;
     }
     return true;
@@ -82,8 +97,9 @@ static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events)
 static void RemoveEpollEvent(int epoll_fd, int fd)
 {
     if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr) == -1) {
-        if (errno != EBADF) { // 过滤已关闭文件描述符的预期错误
-            UBSE_LOG_ERROR << "Failed to remove efd epoll=" << strerror(errno);
+        int err = errno;
+        if (err != EBADF) { // 过滤已关闭文件描述符的预期错误
+            UBSE_LOG_ERROR << "Failed to remove efd epoll=" << SafeStrError(err);
         }
     }
 }
@@ -201,13 +217,15 @@ uint32_t UbseUDSServer::BindSocket() const
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             if (result != 0) {
                 UBSE_LOG_ERROR << "Failed to create directory=" << dirPath;
-                free(canonicalPath);
                 return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
             }
             UBSE_LOG_INFO << "Success to create directory=" << dirPath;
+        } else {
+            free(canonicalPath);
+            canonicalPath = nullptr;
         }
-        free(canonicalPath);
     }
+
     struct sockaddr_un addr {
     };
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
@@ -235,9 +253,9 @@ uint32_t UbseUDSServer::BindSocket() const
     unlink(socketPath.c_str());
 
     // 绑定socket
-    if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
-        -1) { // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
-        UBSE_LOG_ERROR << "Failed to bind socket=" << strerror(errno);
+    if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to bind socket=" << SafeStrError(err);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
 
@@ -250,7 +268,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
     // 创建socket
     serverFd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (serverFd_ == -1) {
-        UBSE_LOG_ERROR << "Failed to create socket=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to create socket=" << SafeStrError(err);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
 
@@ -271,7 +290,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
     if (chmod(config_.socketPath.c_str(), config_.socketPermissions) == -1) {
-        UBSE_LOG_ERROR << "chmod failed=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "chmod failed=" << SafeStrError(err);
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         close(serverFd_);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
@@ -280,7 +300,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
 
     // 开始监听
     if (listen(serverFd_, config_.maxPersistentConnections + config_.maxTransientConnections) == -1) {
-        UBSE_LOG_ERROR << "Failed to listen=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to listen=" << SafeStrError(err);
         close(serverFd_);
         serverFd_ = -1;
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
@@ -365,8 +386,7 @@ void UbseUDSServer::HandleNewConnection()
         struct sockaddr_un client_addr {
         };
         socklen_t client_len = sizeof(client_addr);
-        int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len,
-                               SOCK_NONBLOCK); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len, SOCK_NONBLOCK);
         if (clientFd == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // 所有连接都已处理
@@ -766,34 +786,23 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     return UBSE_OK;
 }
 
-uint8_t UbseUDSServer::GetSlotId(ubse::election::UbseRoleInfo& roleInfo) const
-{
-    uint8_t slotId = 0;
-    SceneType sceneType = GetSceneType();
-    if (sceneType == SceneType::AI) {
-        return slotId;
-    }
-    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
-    if (ret != UBSE_OK) {
-        return slotId;
-    }
-    try {
-        uint64_t nodeId = std::stoul(roleInfo.nodeId);
-        if (nodeId <= std::numeric_limits<uint8_t>::max()) {
-            slotId = static_cast<uint8_t>(nodeId);
-        }
-    } catch (const std::exception& e) {
-        UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
-        slotId = 0; // 设置为默认值
-    }
-    return slotId;
-}
-
 // 生成并注册请求ID
 uint64_t UbseUDSServer::GenerateAndRegisterRequestId(int fd)
 {
+    uint8_t slotId = 0;
     ubse::election::UbseRoleInfo roleInfo{};
-    uint8_t slotId = GetSlotId(roleInfo);
+    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
+    if (ret == UBSE_OK) {
+        try {
+            uint64_t nodeId = std::stoul(roleInfo.nodeId);
+            if (nodeId <= std::numeric_limits<uint8_t>::max()) {
+                slotId = static_cast<uint8_t>(nodeId);
+            }
+        } catch (const std::exception& e) {
+            UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
+            slotId = 0; // 设置为默认值
+        }
+    }
     const int maxRetries = 3;
     int retryCount = 0;
     uint64_t requestId{};

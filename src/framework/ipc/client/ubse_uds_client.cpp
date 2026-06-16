@@ -19,6 +19,8 @@
 #include <sys/socket.h>
 #include <chrono>
 #include <csignal>
+#include <cstring>
+#include <string>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
@@ -28,13 +30,22 @@
 #include "ubse_ipc_socket.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_sync_req.h"
+#include "ubse_thread_pool.h"
 
 namespace ubse::ipc {
 using namespace ubse::common::def;
-using namespace ubse::task_executor;
 
 const uint32_t CONNECT_RETRY_DURATION = 200; // 200毫秒
-const uint64_t FAST_RETRY_THRESHOLD = 1000;  // 快速重试次数阈值
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
 
 UbseUDSClient::UbseUDSClient(const std::string& socketPath)
     : socketPath_(socketPath),
@@ -99,8 +110,7 @@ uint32_t UbseUDSClient::Connect()
 
 uint32_t UbseUDSClient::ConnectToServer(sockaddr_un& addr)
 {
-    int result = connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr),
-                         sizeof(addr)); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    int result = connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
     if (result < 0) {
         if (errno == EINPROGRESS) {
             // Wait for the connection to complete or timeout
@@ -109,7 +119,8 @@ uint32_t UbseUDSClient::ConnectToServer(sockaddr_un& addr)
                 return res;
             }
         } else {
-            IPC_LOG_ERROR << "Failed to connect: " << strerror(errno);
+            int err = errno;
+            IPC_LOG_ERROR << "Failed to connect: " << SafeStrError(err);
             Disconnect();
             return UBSE_ERR_IPC_CONNECTION_FAILED;
         }
@@ -140,7 +151,12 @@ uint32_t UbseUDSClient::HandleInProgressConnection()
             continue;
         }
         if (result <= 0) {
-            IPC_LOG_ERROR << "Connection timed out or failed: " << (result == 0 ? "Timeout" : strerror(errno));
+            if (result == 0) {
+                IPC_LOG_ERROR << "Connection timed out or failed: Timeout";
+            } else {
+                int err = errno;
+                IPC_LOG_ERROR << "Connection timed out or failed: " << SafeStrError(err);
+            }
             Disconnect();
             return UBSE_ERR_IPC_CONNECTION_FAILED;
         }
@@ -151,7 +167,7 @@ uint32_t UbseUDSClient::HandleInProgressConnection()
     int error = 0;
     socklen_t len = sizeof(error);
     if (getsockopt(sockFd_, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
-        IPC_LOG_ERROR << "Failed to get socket options: " << strerror(error);
+        IPC_LOG_ERROR << "Failed to get socket options: " << SafeStrError(error);
         Disconnect();
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
@@ -246,7 +262,8 @@ uint32_t UbseUDSClient::WaitForDataReadable(uint32_t timeoutMs)
             IPC_LOG_WARN << "Timeout occurred while waiting for response";
             return UBSE_ERR_TIMED_OUT;
         } else if (ready < 0) {
-            IPC_LOG_ERROR << "Error occurred in poll: " << strerror(errno);
+            int err = errno;
+            IPC_LOG_ERROR << "Error occurred in poll: " << SafeStrError(err);
             return UBSE_IPC_ERROR_RECV_FAILED;
         }
         break;
@@ -434,7 +451,8 @@ uint32_t UbseUDSClient::CreateEpoll()
 
     epollFd_ = epoll_create1(0);
     if (epollFd_ == -1) {
-        IPC_LOG_ERROR << "Failed to create epoll: " << strerror(errno);
+        int err = errno;
+        IPC_LOG_ERROR << "Failed to create epoll: " << SafeStrError(err);
         Disconnect();
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
@@ -444,7 +462,8 @@ uint32_t UbseUDSClient::CreateEpoll()
     ev.data.fd = sockFd_;
 
     if (epoll_ctl(epollFd_, EPOLL_CTL_ADD, sockFd_, &ev) == -1) {
-        IPC_LOG_ERROR << "Failed to add socket to epoll: " << strerror(errno);
+        int err = errno;
+        IPC_LOG_ERROR << "Failed to add socket to epoll: " << SafeStrError(err);
         // 先关闭epollFd_，再调用Disconnect
         if (epollFd_ != -1) {
             close(epollFd_);
@@ -575,6 +594,8 @@ void UbseUDSClient::CleanupReconnectThread()
     if (reconnectThread_.joinable()) {
         IPC_LOG_INFO << "cleaning up old reconnect thread";
         try {
+            // 设置停止标志
+            isReConnect_.store(false);
             // 如果线程仍在运行，等待线程完成
             IPC_LOG_WARN << "old reconnect thread still alive, joining";
             reconnectThread_.join(); // 等待线程结束
@@ -668,22 +689,30 @@ bool UbseUDSClient::StopCurrentConnection()
 
 bool UbseUDSClient::PerformReconnectAttempts()
 {
-    // 使用uint64_t避免长期运行时重连次数计数发生有符号整数溢出
-    uint64_t attempt = 0;
-    while (isReConnect_.load()) {
+    int attempt = 0;
+    const int maxAttempts = 20; // 限制最大尝试次数
+    while (isReConnect_.load() && attempt < maxAttempts) {
         attempt++;
         // 尝试连接
         if (LongLinkConnect() == UBSE_OK) {
             IPC_LOG_INFO << "reconnect success after " << attempt << " attempts";
             return true;
         }
-        if (attempt <= FAST_RETRY_THRESHOLD) {
-            // 前1000次每200ms快速重试，保证短暂断链场景快速恢复
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        } else {
-            // 超过1000次后每5s低频探测，减少长期不可达时的线程唤醒和系统调用开销
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+        // 每3次打印一次日志
+        if (attempt % 3 == 0) {
+            IPC_LOG_INFO << "reconnect attempt " << attempt << " failed";
         }
+        // 等待200ms，但每20ms检查一次停止标志
+        for (int i = 0; i < 10; i++) {
+            if (!isReConnect_.load()) {
+                IPC_LOG_INFO << "reconnect stopped at attempt " << attempt;
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+    }
+    if (attempt >= maxAttempts) {
+        IPC_LOG_ERROR << "reconnect failed after " << maxAttempts << " attempts";
     }
     return false;
 }
@@ -712,6 +741,7 @@ void UbseUDSClient::PerformListenerRegistration()
                 break; // 注册成功，跳出循环
             }
             // 注册失败
+
             IPC_LOG_ERROR << "listener registration failed: module=" << listener.first << ", op=" << listener.second
                           << " (attempt " << regAttempt << ")";
             // 等待1秒后重试
@@ -811,7 +841,8 @@ void UbseUDSClient::ExecuteEventLoop()
             if (errno == EINTR) {
                 continue; // 信号中断，继续循环
             }
-            IPC_LOG_ERROR << "epoll wait error: " << strerror(errno);
+            int err = errno;
+            IPC_LOG_ERROR << "epoll wait error: " << SafeStrError(err);
             break; // 错误，退出循环
         }
         ProcessEpollEvents(events, numEvents);
@@ -888,7 +919,7 @@ uint32_t UbseUDSClient::PerSistentConnect()
         return UBSE_OK;
     }
     isReConnect_.store(true);
-    taskExecutor_ = UbseTaskExecutor::Create("IpcExecutor", NO_10, NO_1024);
+    taskExecutor_ = ubse::task_executor::UbseTaskExecutor::Create("IpcExecutor", NO_10, NO_1024);
     if (taskExecutor_ != nullptr) {
         taskExecutor_->SetThreadName("ClientIpcExecutor");
     }
