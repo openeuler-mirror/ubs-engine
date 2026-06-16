@@ -12,8 +12,8 @@
 
 #include "test_ubse_context.h"
 
-#include "ubse_module.h"
 #include "ubse_error.h"
+#include "ubse_module.h"
 
 namespace ubse::ut::context {
 using namespace ubse::context;
@@ -26,6 +26,16 @@ const std::string ARG_NAME = "f";
 const std::string ARG_VAL = "conf";
 const std::string DASH_ARG_NAME = "-" + ARG_NAME;
 char *g_argv[] = {(char *)"", (char *)DASH_ARG_NAME.c_str(), (char *)ARG_VAL.c_str()};
+
+void RegisterMockModule(std::shared_ptr<MockUbseModule> mockModule)
+{
+    UbseModuleEntry entry;
+    entry.creator = [mockModule]() {
+        return mockModule;
+    };
+    entry.category = UbseModuleCategory::CORE;
+    UbseModuleRegistry::GetInstance().registry_[MockUbseModule::kModuleName] = entry;
+}
 
 TEST_F(TestUbseContext, EMPTYMODULES)
 {
@@ -49,17 +59,17 @@ TEST_F(TestUbseContext, ModuleNotRegisteredError)
 
 TEST_F(TestUbseContext, RegisterArgError)
 {
-    context.CreateModules(); // 创建模块
-    auto module = context.GetModule<MockUbseModule>().get();
-    EXPECT_CALL(*module, RegArgs()).WillOnce([]() { throw std::runtime_error(""); });
+    auto mockModule = std::make_shared<MockUbseModule>();
+    EXPECT_CALL(*mockModule, RegArgs()).WillOnce([]() { throw std::runtime_error(""); });
+    RegisterMockModule(mockModule);
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR_PARSE_ARGS_FAILED);
 }
 TEST_F(TestUbseContext, ParserArgsError)
 {
     char empty[3] = "";
     char *errArgv[] = {empty, const_cast<char *>(ARG_NAME.c_str()), const_cast<char *>(ARG_VAL.c_str())};
-    context.CreateModules(); // 创建模块
-    auto module = context.GetModule<MockUbseModule>().get();
+    auto module = std::make_shared<MockUbseModule>();
+    RegisterMockModule(module);
     EXPECT_CALL(*module, RegArgs()).WillRepeatedly(Return());
     EXPECT_EQ(context.Run(ARGC, errArgv, ProcessMode::MANAGER), UBSE_ERROR_PARSE_ARGS_FAILED);
     char tmp[2] = "-";
@@ -68,24 +78,24 @@ TEST_F(TestUbseContext, ParserArgsError)
 }
 TEST_F(TestUbseContext, InitModuleError)
 {
-    context.CreateModules(); // 创建模块
-    auto module = context.GetModule<MockUbseModule>().get();
-    EXPECT_CALL(*module, Initialize()).WillOnce(Return(UBSE_ERROR));
+    auto mockModule = std::make_shared<MockUbseModule>();
+    EXPECT_CALL(*mockModule, Initialize()).WillOnce(Return(UBSE_ERROR));
+    RegisterMockModule(mockModule);
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR);
 }
 TEST_F(TestUbseContext, StartModuleError)
 {
-    context.CreateModules(); // 创建模块
-    auto module = context.GetModule<MockUbseModule>().get();
-    EXPECT_CALL(*module, Initialize()).WillRepeatedly(Return(UBSE_OK));
-    EXPECT_CALL(*module, Start()).WillOnce(Return(UBSE_ERROR));
+    auto mockModule = std::make_shared<MockUbseModule>();
+    EXPECT_CALL(*mockModule, Initialize()).WillRepeatedly(Return(UBSE_OK));
+    EXPECT_CALL(*mockModule, Start()).WillOnce(Return(UBSE_ERROR));
+    RegisterMockModule(mockModule);
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_ERROR);
 }
 TEST_F(TestUbseContext, RunAllSuccess)
 {
-    context.CreateModules(); // 创建模块
-    auto module = context.GetModule<MockUbseModule>().get();
-    EXPECT_CALL(*module, Start()).WillRepeatedly(Return(UBSE_OK));
+    auto mockModule = std::make_shared<MockUbseModule>();
+    EXPECT_CALL(*mockModule, Start()).WillRepeatedly(Return(UBSE_OK));
+    RegisterMockModule(mockModule);
     EXPECT_EQ(context.Run(ARGC, g_argv, ProcessMode::MANAGER), UBSE_OK);
 }
 TEST_F(TestUbseContext, StopModuleError)
@@ -146,6 +156,7 @@ TEST_F(TestUbseContext, GetProcessMode)
 }
 void TestUbseContext::SetUp()
 {
+    g_globalStop.store(false);
     registry.registry_.clear();
     registry.RegisterCoreModule<MockUbseModule>();
 
@@ -154,6 +165,7 @@ void TestUbseContext::SetUp()
 
 void TestUbseContext::TearDown()
 {
+    context.Stop();
     Test::TearDown();
 }
-}
+} // namespace ubse::ut::context

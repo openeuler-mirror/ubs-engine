@@ -96,15 +96,6 @@ Requires: %{name} = %{version}-%{release}
 Development package for ucache plugin
 
 # ========================================================
-#                   SUBPACKAGE: ubs-engine-mem
-# ========================================================
-%package mem
-Summary: mem plugin
-Requires: %{name} = %{version}-%{release}
-%description mem
-Development package for mem plugin
-
-# ========================================================
 #                   SUBPACKAGE: ubs-engine-rmrs
 # ========================================================
 %package rmrs
@@ -177,6 +168,9 @@ fi
     fi \
     if grep -q '^# virt_agent=205' "$config_file"; then \
         sed -i 's/^# virt_agent=205/virt_agent=205/' "$config_file" \
+    fi \
+    if grep -q '^# mem_plugin=779' "$config_file"; then \
+        sed -i 's/^# mem_plugin=779/mem_plugin=779/' "$config_file" \
     fi \
     if ! grep -q 'mempooling=777' "$config_file"; then \
         echo "mempooling=777" >> "$config_file" \
@@ -411,6 +405,7 @@ fi
 %dir /etc/ubse/plugins
 %defattr(755,root,root,-)
 %dir /usr/lib64/ubse_plugin
+/usr/lib64/ubse_plugin/libmem_plugin.so
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
 
@@ -451,10 +446,6 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libucache_plugin.so
 
-
-%files mem
-%defattr(755,root,root,-)
-/usr/lib64/ubse_plugin/libmem_plugin.so
 
 %files rmrs
 %defattr(644,root,root,-)

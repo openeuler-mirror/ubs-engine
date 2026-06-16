@@ -10,14 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_plugin_module.h"
-#include "ubse_http_module.h"
+
+#include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_module.h"
 
 namespace ubse::plugin {
-CORE_MODULE_IMPL(UbsePluginModule);
+OPTIONAL_MODULE_IMPL(UbsePluginModule, election::UbseElectionModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbsePluginModule::Initialize()

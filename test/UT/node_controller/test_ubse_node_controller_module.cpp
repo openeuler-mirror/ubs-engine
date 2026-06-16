@@ -34,7 +34,10 @@ TEST_F(TestUbseNodeControllerModule, Start)
 {
     MOCKER_CPP(&UbseNodeControllerAgent::Start).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseNodeControllerMaster::Start).stubs().will(returnValue(UBSE_OK));
-
+    // 模拟全局函数 UbseRegRpcService
+    MOCKER(UbseRegRpcService)
+        .stubs()
+        .will(returnValue(UBSE_OK));
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Start(), UBSE_OK);
 }
@@ -147,62 +150,29 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
 }
 
-// Initialize - Agent消息处理器注册失败
-TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentMsgHandler)
+// Agent消息处理器注册失败
+TEST_F(TestUbseNodeControllerModule, Start_Fail_AgentMsgHandler)
 {
-    GTEST_SKIP();
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
-    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
-
     // UbseRegRpcService 第一次调用失败（RegAgentMsgHandler 中）
     MOCKER(UbseRegRpcService)
         .expects(atLeast(1))
         .will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
-    EXPECT_EQ(module.Initialize(), UBSE_ERROR);
+    EXPECT_EQ(module.Start(), UBSE_ERROR);
 }
 
-// Initialize - Master消息处理器注册失败
-TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterMsgHandler)
+// start - Master消息处理器注册失败
+TEST_F(TestUbseNodeControllerModule, RegMasterMsgHandler_Fail)
 {
-    GTEST_SKIP();
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
-    MOCKER_CPP(&UbseNodeControllerMaster::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
-    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
-
-    MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
-
-    // 让UbseRegRpcService返回失败
+    // 让第一次UbseRegRpcService调用就失败
     MOCKER(UbseRegRpcService)
-        .stubs()
+        .expects(atLeast(1))
         .will(returnValue(UBSE_ERROR));
 
-    UbseNodeControllerModule module{};
-    EXPECT_EQ(module.Initialize(), UBSE_ERROR);
+    // 直接调用RegMasterMsgHandler函数
+    auto ret = ubse::nodeController::RegMasterMsgHandler();
+    EXPECT_EQ(ret, UBSE_ERROR);
 }
 
 // Stop函数 - 模拟选举相关函数

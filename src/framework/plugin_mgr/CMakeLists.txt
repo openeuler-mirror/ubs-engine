@@ -3,7 +3,8 @@ add_library(ubse_plugin STATIC
         ubse_plugin_admission.cpp
         ubse_plugin_manager.cpp
         ubse_plugin_module.cpp
-        ubse_plugin.cpp)
+        ubse_plugin.cpp
+        ubse_plugin_loader.cpp)
 
 target_include_directories(ubse_plugin PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR})

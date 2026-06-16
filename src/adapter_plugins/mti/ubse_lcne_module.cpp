@@ -47,7 +47,7 @@ using namespace ubse::log;
 using namespace adapter_plugins::mti;
 using namespace ubse::common::def;
 using namespace ubse::adapter_plugins::smbios;
-OPTIONAL_MODULE_IMPL(UbseLcneModule, UbseTaskExecutorModule, UbseEventModule, UbseHttpModule);
+OPTIONAL_MODULE_IMPL(UbseLcneModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseLcneModule::GetLcneConf()

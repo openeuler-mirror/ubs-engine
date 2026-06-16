@@ -10,23 +10,24 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "sys_sentry_module.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "sentry_observer.h"
 #include "src/adapter_plugins/mti/ubse_lcne_module.h"
-#include "sys_sentry_module.h"
-#include "ubse_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_module.h"
 #include "ubse_os_util.h"
+#include "ubse_ras_module.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
-OPTIONAL_MODULE_IMPL(SysSentryModule);
+OPTIONAL_MODULE_IMPL(SysSentryModule, ubse::ras::UbseRasModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()

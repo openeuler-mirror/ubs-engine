@@ -11,12 +11,13 @@
  */
 
 #include "ubse_urma_controller_module.h"
-#include "ubse_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
+#include "ubse_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_thread_pool_module.h"
@@ -37,7 +38,7 @@ std::atomic<uint32_t> g_asyncHandlerCnt{0};
 std::set<std::string> g_RegTimerNames;
 std::mutex g_RegTimerNamesMtx;
 
-OPTIONAL_MODULE_IMPL(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
+OPTIONAL_MODULE_IMPL(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule, UbseElectionModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
@@ -131,10 +132,6 @@ UbseResult UbseUrmaControllerModule::Initialize()
         UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
         return ret;
     }
-    if (RpcReg() != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     ret = ubse::event::UbseSubEvent(nodeJoinEventId,
                                     ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler,
@@ -171,6 +168,9 @@ void DisconnectAllNormalLink()
 
 UbseResult UbseUrmaControllerModule::Start()
 {
+    if (RpcReg() != UBSE_OK) {
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 

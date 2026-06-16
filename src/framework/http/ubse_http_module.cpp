@@ -36,7 +36,7 @@ using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
 
-OPTIONAL_MODULE_IMPL(UbseHttpModule, UbseTaskExecutorModule);
+OPTIONAL_MODULE_IMPL(UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const size_t MAX_RESPONSE_BODY_SIZE = 2 * 1024 * 1024;

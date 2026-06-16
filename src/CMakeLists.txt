@@ -21,7 +21,6 @@ add_executable(ubse
         framework/storage/ubse_storage.cpp
         framework/event/ubse_event_module.cpp
         framework/log/ubse_logger_module.cpp
-        framework/plugin_mgr/ubse_plugin_module.cpp
         framework/http/ubse_http_module.cpp
         framework/node_mgr/ubse_node_mgr_module.cpp
         controllers/urma/ubse_urma_controller_module.cpp
@@ -37,7 +36,6 @@ add_executable(ubse
         framework/com/ubse_com.cpp
         framework/storage/ubse_storage.cpp
         framework/event/ubse_event.cpp
-        framework/plugin_mgr/ubse_plugin.cpp
         framework/trace_context/trace_context.cpp
         api_server/ubse_api_server.cpp
 )
@@ -51,7 +49,6 @@ target_link_libraries(ubse PRIVATE
         ubse_event
         ubse_storage
         ubse_log
-        ubse_plugin
         ubse_http
         ubse_election
         ubse_mti
@@ -70,6 +67,7 @@ target_link_libraries(ubse PRIVATE
 target_link_libraries(ubse PRIVATE
         -Wl,--whole-archive
         ubse_context
+        ubse_plugin
         ubse_mmi
         ubse_node_controller_register_config
         ubse_node_controller

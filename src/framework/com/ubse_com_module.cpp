@@ -25,6 +25,7 @@
 #include "ubse_error.h"
 #include "ubse_event_module.h"
 #include "ubse_file_util.h"
+#include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
@@ -35,8 +36,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::task_executor;
 using namespace ubse::election;
 using namespace ubse::config;
-OPTIONAL_MODULE_IMPL(UbseComModule, UbseConfModule,
-                              ubse::task_executor::UbseTaskExecutorModule, ubse::event::UbseEventModule);
+OPTIONAL_MODULE_IMPL(UbseComModule, mti::UbseLcneModule);
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
 const std::string UBSE_CERT_CONFIG_KEY = "cert.use";
 constexpr uint16_t NODE_UP_STATE = 1;

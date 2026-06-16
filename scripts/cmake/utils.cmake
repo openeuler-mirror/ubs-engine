@@ -168,6 +168,9 @@ macro(add_ut module)
     target_link_libraries(${UT_BINARY} PUBLIC
             GTest::gmock_main
             mockcpp
+            -Wl,--whole-archive
+            ubse_plugin
+            -Wl,--no-whole-archive
             ${module}
     )
     # 打破控制权限

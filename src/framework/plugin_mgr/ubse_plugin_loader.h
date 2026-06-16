@@ -9,14 +9,15 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-//
 
 #ifndef UBSE_PLUGIN_LOADER_H
 #define UBSE_PLUGIN_LOADER_H
 
 #include <string>
 #include <vector>
-namespace ubse::module {
+
+namespace ubse::plugin {
+
 class UbsePluginLoader {
 public:
     static UbsePluginLoader &GetInstance()
@@ -35,5 +36,6 @@ private:
     std::vector<void *> handles_;
 };
 
-} // namespace ubse::module
+} // namespace ubse::plugin
+
 #endif // UBSE_PLUGIN_LOADER_H

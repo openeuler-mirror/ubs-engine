@@ -80,6 +80,7 @@ TEST_F(TestUbseUrmaControllerModule, Initialize_TaskExecutorNull)
 TEST_F(TestUbseUrmaControllerModule, Start_ReturnsOk)
 {
     UbseUrmaControllerModule module;
+    MOCKER_CPP(RpcReg).stubs().will(returnValue(UBSE_OK));
     auto ret = module.Start();
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -289,16 +290,10 @@ TEST_F(TestUbseUrmaControllerModule, Initialize_RegisterFail)
     EXPECT_NE(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseUrmaControllerModule, Initialize_RpcRegFail)
+TEST_F(TestUbseUrmaControllerModule, Start_RpcRegFail)
 {
     UbseUrmaControllerModule module;
-    auto taskExec = std::make_shared<UbseTaskExecutorModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskExec));
-    MOCKER_CPP(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseUrmaControllerApi::Register).stubs().will(returnValue(UBSE_OK));
-    std::shared_ptr<UbseComModule> nullModule = nullptr;
-    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule));
-    auto ret = module.Initialize();
+    auto ret = module.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
