@@ -14,8 +14,8 @@
 #include <securec.h>
 #include <ubse_error.h>
 #include <mockcpp/mockcpp.hpp>
-#include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_msg_helper.h"
 #include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_message.h"
+#include "src/adapter_plugins/mti/out_of_band/message/ubse_ctrl_q_msg_helper.h"
 
 using namespace ubse::mti::ctrl_q;
 
