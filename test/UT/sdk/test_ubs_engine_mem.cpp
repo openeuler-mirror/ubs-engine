@@ -1293,7 +1293,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmCreateWithAffinityWhenFail)
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_INVAL));
     ret = ubs_mem_shm_create_with_affinity(g_validName, validSize, affSocketId, usr_info, flag, &validRegion,
                                            &validProvider);
-    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INTERNAL));
+    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INVALID_PARAM));
 }
 
 // ubs_mem_shm_create_with_lender
@@ -1442,7 +1442,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmDetachForAllSchene)
     // invoke_call 失败
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_INVAL));
     auto ret = ubs_mem_shm_detach(g_validName);
-    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INTERNAL));
+    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INVALID_PARAM));
     // 成功
     GlobalMockObject::verify();
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_OK));
@@ -1462,7 +1462,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmDeleteForAllSchene)
     // invoke_call 失败
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_INVAL));
     auto ret = ubs_mem_shm_delete(g_validName);
-    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INTERNAL));
+    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INVALID_PARAM));
     // 成功
     GlobalMockObject::verify();
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_OK));
@@ -1485,7 +1485,7 @@ TEST_F(TestUbsEngineMem, UbsMemShmFaultGetForAllSchene)
     // invoke_call 失败
     MOCKER_CPP(ubse_invoke_call).stubs().will(returnValue(UBSE_ERROR_INVAL));
     auto ret = ubs_mem_shm_fault_get(g_validName, &g_validFault);
-    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INTERNAL));
+    ASSERT_EQ(ret, static_cast<int32_t>(UBS_ENGINE_ERR_INVALID_PARAM));
     // 解包失败
     GlobalMockObject::verify();
     ubse_api_buffer_t smallRespBuffer = {.buffer = static_cast<uint8_t *>(malloc(1)), .length = 1};

@@ -34,7 +34,8 @@ static const std::string TYPE_CPU = "cpu";
 static const std::string DISPLAY_TOPO_T_OPTION = "type";
 // display topo option desc
 static const std::string DISPLAY_TOPO_TYPE_OPTION_TIP =
-    "Query topology information in a supernode. The option is as follows: cpu.";
+    "Query topology information in a supernode. The option is as follows: cpu."
+    "This command is not supported in CLOS mesh type topo";
 // display node input option error
 static const std::string DISPLAY_TOPO_TYPE_OPTION_REQUIRED =
     "ERROR: The request option -t or --type is required, and the supported param is as follows: cpu.";
@@ -45,9 +46,14 @@ static const std::string DISPLAY_TOPO_TYPE_PARAM_INVALID =
 static const std::string DISPLAY_NODE_N_OPTION = "node";
 // display node option desc
 static const std::string DISPLAY_NODE_N_OPTION_TIP =
-    "Specify the node ID. The range is from 1 to 255, the default value is local node ID.";
+    "Specify the node ID. The range is from 1 to 255, the default value is local node ID."
+    "Parameter 'node' is not supported in CLOS mesh type topo";
 // display node input option error
 static const std::string DISPLAY_NODE_PARAM_INVALID = "ERROR: Invalid node ID. Please specify a number between 1-255.";
+static const std::string DISPLAY_NOT_SUPPORT =
+    "ERROR: this command is not supported in current topo";
+static const std::string DISPLAY_NODE_NOT_SUPPORT =
+    "ERROR: Invalid request param, param -n is not supported in current topo";
 
 constexpr size_t NODE_LENGTH = 80; // hostname(slot_id), hostname最长为64
 
@@ -227,6 +233,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliSDKQueryCpuTopoF
 
     if (ret != UBSE_OK) {
         ubse_api_buffer_free(&respBuffer);
+        if (ret == UBSE_ERR_NOT_SUPPORTED) {
+            return UbseCliStringPromptReply(DISPLAY_NOT_SUPPORT);
+        }
         return UbseCliStringPromptReply("ERROR: IPC call failed");
     }
 
@@ -397,6 +406,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::QueryNodeInfo(const std
 
     // 处理IPC错误
     if (ret != UBSE_OK) {
+        if (ret == UBSE_ERR_NOT_SUPPORTED) {
+            return UbseCliStringPromptReply(DISPLAY_NODE_NOT_SUPPORT);
+        }
         return UbseCliStringPromptReply("ERROR: IPC call failed with error code " + std::to_string(ret));
     }
 

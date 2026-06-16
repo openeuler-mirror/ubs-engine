@@ -13,6 +13,7 @@
 #include "ubse_urma_controller_module.h"
 #include "ubse_com_module.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
@@ -22,7 +23,9 @@
 #include "ubse_timer.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_api.h"
+#include "ubse_urma_controller_qos.h"
 #include "ubse_urma_controller_rpc.h"
+#include "ubse_urma_controller_util.h"
 
 namespace ubse::urmaController {
 using namespace ubse::log;
@@ -31,28 +34,11 @@ using namespace ubse::task_executor;
 using namespace ubse::com;
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
-
-std::atomic<uint32_t> g_asyncHandlerCnt{0};
-std::set<std::string> g_RegTimerNames;
-std::mutex g_RegTimerNamesMtx;
+using namespace ubse::config;
+using namespace ubse::context;
 
 DYNAMIC_CREATE(UbseUrmaControllerModule, ubse::nodeController::UbseNodeControllerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
-
-AsyncHandlerGuard::AsyncHandlerGuard() : guardCnt(g_asyncHandlerCnt)
-{
-    guardCnt.fetch_add(1, std::memory_order_relaxed);
-}
-
-AsyncHandlerGuard::AsyncHandlerGuard(std::atomic<uint32_t> &cnt) : guardCnt(cnt)
-{
-    guardCnt.fetch_add(1, std::memory_order_relaxed);
-}
-
-AsyncHandlerGuard::~AsyncHandlerGuard()
-{
-    guardCnt.fetch_sub(1, std::memory_order_relaxed);
-}
 
 UbseResult RpcReg()
 {
@@ -71,10 +57,8 @@ UbseResult RpcReg()
 
     UbseComBaseMessageHandlerPtr pQueryDevHandler = new (std::nothrow) UbseUrmaDevQueryMessageHandler();
 
-    UbseComBaseMessageHandlerPtr pActivateUrmaInfoHandler = new (std::nothrow) UbseUrmaActivateUrmaInfoMessageHandler();
-
     if (pReportUrmaNodeInfoMessageHandler == nullptr || pBrocastUrmaInfoHandler == nullptr ||
-        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr || pActivateUrmaInfoHandler == nullptr) {
+        pQueryMessageHandler == nullptr || pQueryDevHandler == nullptr) {
         UBSE_LOG_ERROR << "Fail to create UbseComBaseMessageHandler";
         return UBSE_ERROR_NULLPTR;
     }
@@ -103,32 +87,25 @@ UbseResult RpcReg()
         UBSE_LOG_ERROR << "Failed to register report urma info handler for rpc";
         return ret;
     }
-
-    ret = comModule->RegRpcService<UbseUrmaActivateUrmaInfoReqSimpo, UbseUrmaActivateUrmaInfoRspSimpo>(
-        pActivateUrmaInfoHandler);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to register activate urma info handler for rpc";
-        return ret;
-    }
     return UBSE_OK;
 }
 
 UbseResult UbseUrmaControllerModule::Initialize()
 {
+    auto ret = UbseUrmaControllerApi::Register();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
+        return ret;
+    }
     // 注册消息处理函数,监听 topo变化事件
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
+    ret = taskExecutor->Create("UrmaExecutor", NO_4, NO_128);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to create HeartBeat Executor";
         return UBSE_ERROR_CONF_INVALID;
-    }
-    ret = UbseUrmaControllerApi::Register();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Registration of UbseUrmaControllerApi failed," << FormatRetCode(ret);
-        return ret;
     }
     if (RpcReg() != UBSE_OK) {
         return UBSE_ERROR;
@@ -136,7 +113,7 @@ UbseResult UbseUrmaControllerModule::Initialize()
 
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     ret = ubse::event::UbseSubEvent(nodeJoinEventId,
-                                    ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler,
+                                    ubse::urmaController::UbseUrmaController::GetInstance().UbseNodeJoinHandler,
                                     ubse::event::UbseEventPriority::HIGH);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeJoinEventId;
@@ -145,11 +122,13 @@ UbseResult UbseUrmaControllerModule::Initialize()
 
     std::string nodeTopoLinkChangeEventId = UBSE_EVENT_NODE_TOPO_LINK_CHANGE;
     ret = ubse::event::UbseSubEvent(nodeTopoLinkChangeEventId,
-                                    ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler,
+                                    ubse::urmaController::UbseUrmaController::GetInstance().UbseTopoLinkChangeHandler,
                                     ubse::event::UbseEventPriority::HIGH);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to Follow the event=" << nodeTopoLinkChangeEventId;
     }
+    // 初始化QoS配置，执行失败后异步重试，因此不判断返回值
+    (void)UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosInit();
     return ret;
 }
 
@@ -163,7 +142,7 @@ void DisconnectAllNormalLink()
         return;
     }
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &node : allNodes) {
+    for (const auto& node : allNodes) {
         comModule->RemoveChannel(node.second.nodeId, UbseChannelType::NORMAL);
     }
 }
@@ -177,101 +156,23 @@ void UbseUrmaControllerModule::Stop()
 {
     std::string nodeJoinEventId = UBSE_EVENT_NODE_JOIN;
     auto ret = ubse::event::UbseUnSubEvent(nodeJoinEventId,
-                                           ubse::urmaController::UrmaController::GetInstance().UbseNodeJoinHandler);
+                                           ubse::urmaController::UbseUrmaController::GetInstance().UbseNodeJoinHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeJoinEventId;
     }
 
     std::string nodeTopoLinkChangeEventId = UBSE_EVENT_NODE_TOPO_LINK_CHANGE;
-    ret = ubse::event::UbseUnSubEvent(nodeTopoLinkChangeEventId,
-                                      ubse::urmaController::UrmaController::GetInstance().UbseTopoLinkChangeHandler);
+    ret = ubse::event::UbseUnSubEvent(
+        nodeTopoLinkChangeEventId, ubse::urmaController::UbseUrmaController::GetInstance().UbseTopoLinkChangeHandler);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fail to unsub the event=" << nodeTopoLinkChangeEventId;
     }
     DisconnectAllNormalLink();
-    while (g_asyncHandlerCnt != 0) {
-        UBSE_LOG_INFO << "There are async operation, wait to stop";
-        sleep(1);
-    }
-    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    for (const auto &timerName : g_RegTimerNames) {
-        UBSE_LOG_INFO << "Unregister timer=" << timerName;
-        ubse::timer::UbseTimerHandlerUnregister(timerName);
-    }
-    auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-    if (taskExecutor == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get task executor module";
-        return;
-    }
-    taskExecutor->Remove("UrmaExecutor");
-    return;
-}
+    WaitAndCleanupRetryTasks();
 
-UbseResult DoTaskWithTimerCallback(const std::string &timerName, UbseUrmaRetryTaskHandler task)
-{
-    AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
-        UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
-        ubse::timer::UbseTimerHandlerUnregister(timerName);
-        return UBSE_OK;
+    auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (taskExecutor != nullptr) {
+        taskExecutor->Remove("UrmaExecutor");
     }
-    auto ret = task();
-    if (ret == UBSE_OK) {
-        UBSE_LOG_INFO << "Do timer task success, timer name=" << timerName;
-        ubse::timer::UbseTimerHandlerUnregister(timerName);
-        return UBSE_OK;
-    }
-    UBSE_LOG_WARN << "Do timer task failed, timer name=" << timerName << ", retry later";
-    if (g_globalStop) {
-        UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
-        ubse::timer::UbseTimerHandlerUnregister(timerName);
-    }
-    return ret;
-}
-
-UbseResult HandleTaskWithRetry(const std::string &executorName, const std::string &taskName, uint32_t timerInterval,
-                               UbseUrmaRetryTaskHandler task)
-{
-    UBSE_LOG_INFO << "HandleTaskWithRetry start, taskName=" << taskName;
-    AsyncHandlerGuard cntGuard;
-    if (g_globalStop) {
-        UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
-        return UBSE_OK;
-    }
-    if (task() == UBSE_OK) {
-        UBSE_LOG_INFO << "Do task success, taskName=" << taskName;
-        return UBSE_OK;
-    }
-    std::lock_guard<std::mutex> lock(g_RegTimerNamesMtx);
-    if (g_globalStop) {
-        UBSE_LOG_WARN << "Global stop flag is set, skipping register timer.";
-        return UBSE_OK;
-    }
-    g_RegTimerNames.insert(taskName);
-    UBSE_LOG_WARN << "Do task failed, taskName=" << taskName << ", retry later";
-    auto ret = ubse::timer::UbseTimerHandlerRegister(
-        taskName,
-        [executorName, taskName, task]() {
-            AsyncHandlerGuard innerCntGuard;
-            if (g_globalStop) {
-                UBSE_LOG_INFO << "Global stop flag is set, skipping timer task";
-                ubse::timer::UbseTimerHandlerUnregister(taskName);
-                return UBSE_OK;
-            }
-            auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-            if (taskExecutor == nullptr) {
-                UBSE_LOG_ERROR << "Get task executor failed";
-                return UBSE_ERROR_NULLPTR;
-            }
-            auto urmaExecutor = taskExecutor->Get(executorName);
-            if (urmaExecutor == nullptr) {
-                UBSE_LOG_ERROR << "Get task executor for urma failed";
-                return UBSE_ERROR_NULLPTR;
-            }
-            urmaExecutor->Execute([taskName, task]() { return DoTaskWithTimerCallback(taskName, task); });
-            return UBSE_OK;
-        },
-        timerInterval);
-    return ret;
 }
 } // namespace ubse::urmaController

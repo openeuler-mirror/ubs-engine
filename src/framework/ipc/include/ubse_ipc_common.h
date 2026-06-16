@@ -17,7 +17,8 @@
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum
+{
     UBSE_MEM = 0x0001,
     UBSE_ELECTION = 0x0002,
     UBSE_NODE = 0x0003,
@@ -25,13 +26,15 @@ typedef enum {
     UBSE_URMA = 0x0005,
 } ubse_ipc_module_code_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_LONGLINK_FAULT_SHM = 0x0001,
     UBSE_LONGLINK_FAULT_FD = 0x0002,
     UBSE_LONGLINK_FAULT_NUMA = 0x0003,
 } ubse_ipc_long_link_op_code_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_MEM_FD_CREATE = 0x0001,
     UBSE_MEM_FD_WITH_LEND_INFO = 0x0002,
     UBSE_MEM_FD_CREATE_WITH_CANDIDATE = 0x0003,
@@ -73,18 +76,19 @@ typedef enum {
     // todo 删除,创建和查询过程不同，各类型查询结构体和接口不同，需拆分
     UBSE_MEM_CLI_NUMA_STATE_QUERY = 0x0038,
 
-    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,               // NUMA创建(CLI)
-    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,     // NUMA借用关系查询(CLI)
-    UBSE_MEM_CLI_FD_CREATE = 0x0041,                 // FD创建(CLI)
-    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,       // FD借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                // SHM创建(CLI)
-    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,      // SHM借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                // SHM链接(CLI)
-    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                // SHM释放(CLI)
-    UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047 // 内存删除(聚合接口)(CLI)
+    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,                // NUMA创建(CLI)
+    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,      // NUMA借用关系查询(CLI)
+    UBSE_MEM_CLI_FD_CREATE = 0x0041,                  // FD创建(CLI)
+    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,        // FD借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                 // SHM创建(CLI)
+    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,       // SHM借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                 // SHM链接(CLI)
+    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                 // SHM释放(CLI)
+    UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
 } ubse_ipc_mem_op_code_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_NODE_LIST = 0x0001,
     UBSE_NODE_CPU_TOPO_LIST = 0x0002,
     UBSE_NODE_NUMA_MEM_GET = 0x0003,
@@ -94,20 +98,23 @@ typedef enum {
     UBSE_CLUSTER_INFO = 0x0007,
 } ubse_ipc_node_op_code_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_ELECTION_QUERY_NODE_ID = 0x0001,
 } ubse_ipc_election_op_code_t;
 
-typedef enum {
-    UBSE_URMA_QOS_SET = 0x0001,
-    UBSE_URMA_QOS_GET = 0x0002,
-    UBSE_URMA_QOS_RESET = 0x0003,
-    UBSE_URMA_CLI_QOS_GET = 0x0004,
-    UBSE_URMA_DEV_GET = 0x0005,
-    UBSE_URMA_DEV_ALLOC = 0x0006,
-    UBSE_URMA_DEV_FREE = 0x0007,
-    UBSE_URMA_CLI_DEV_GET = 0x0008,
-    UBSE_URMA_CLI_DEV_ACTIVATE = 0x0009,
+typedef enum
+{
+    UBSE_URMA_QOS_CREATE = 0x0001,
+    UBSE_URMA_QOS_DELETE = 0x0002,
+    UBSE_URMA_CLI_QOS_GET = 0x0003,
+    UBSE_URMA_DEV_GET = 0x0004,
+    UBSE_URMA_DEV_ALLOC = 0x0005,
+    UBSE_URMA_DEV_FREE = 0x0006,
+    UBSE_URMA_CLI_DEV_GET = 0x0007,
+    UBSE_URMA_CLI_QOS_CREATE = 0x0008,
+    UBSE_URMA_CLI_QOS_DELETE = 0x0009,
+    UBSE_URMA_QOS_GET = 0x000A,
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
 #ifdef __cplusplus

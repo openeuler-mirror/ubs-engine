@@ -155,40 +155,64 @@ TEST_F(TestUbseLcneTopology, CreateDevTopology_GetCnaFailed)
     UbseResult ret = topology.CreateDevTopology();
     EXPECT_EQ(UBSE_ERROR, ret);
 }
-
-TEST_F(TestUbseLcneTopology, PubUbseTopoChangeEvent)
+TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_Success)
 {
-    std::string message{};
-    UbseEventModule module;
-    std::shared_ptr<UbseEventModule> event = std::make_shared<UbseEventModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseEventModule>).stubs().will(returnValue(event));
-    const auto func = &UbseEventModule::UbsePubEvent;
-    MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
+    std::string linkUpDown = "link-up";
+    std::string interfaceName = "eth0";
 
     UbseLcneTopology topology;
-    UbseResult ret = topology.PubUbseTopoChangeEvent(message);
+    UbseDevName devName("1", "1");
+    UbseDeviceInfo deviceInfo;
+    deviceInfo.slotId = "1";
+    deviceInfo.chipId = "1";
+    UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.ifName = interfaceName;
+    portInfo.portId = "0";
+    std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
+    portMap[UbseDevPortName("0")] = portInfo;
+    topology.ubseTopologyInfo[devName] = {deviceInfo, portMap};
+
+    std::shared_ptr<UbseEventModule> event = std::make_shared<UbseEventModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseEventModule>).stubs().will(returnValue(event));
+    MOCKER_CPP(&UbseEventModule::UbsePubEvent).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult ret = topology.PubPortUpDownEvent(linkUpDown, interfaceName);
     EXPECT_EQ(UBSE_OK, ret);
 }
 
-TEST_F(TestUbseLcneTopology, PubUbseTopoChangeEvent_EventModuleNull)
+TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_InterfaceNotFound)
 {
-    std::string message{};
+    std::string linkUpDown = "link-up";
+    std::string interfaceName = "eth_not_exist";
+    
     UbseLcneTopology topology;
-    UbseResult ret = topology.PubUbseTopoChangeEvent(message);
+    UbseResult ret = topology.PubPortUpDownEvent(linkUpDown, interfaceName);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
 
-TEST_F(TestUbseLcneTopology, PubUbseTopoChangeEvent_PubEventFailed)
+TEST_F(TestUbseLcneTopology, PubPortUpDownEvent_PubEventFailed)
 {
-    std::string message{};
-    UbseEventModule module;
-    std::shared_ptr<UbseEventModule> event = std::make_shared<UbseEventModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseEventModule>).stubs().will(returnValue(event));
-    const auto func = &UbseEventModule::UbsePubEvent;
-    MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
+    std::string linkUpDown = "link-up";
+    std::string interfaceName = "eth1";
 
     UbseLcneTopology topology;
-    UbseResult ret = topology.PubUbseTopoChangeEvent(message);
+    UbseDevName devName("2", "2");
+    UbseDeviceInfo deviceInfo;
+    deviceInfo.slotId = "2";
+    deviceInfo.chipId = "2";
+    UbseMtiCpuTopoPortInfo portInfo;
+    portInfo.ifName = interfaceName;
+    portInfo.portId = "1";
+    std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
+    portMap[UbseDevPortName("1")] = portInfo;
+    topology.ubseTopologyInfo[devName] = {deviceInfo, portMap};
+
+    // Mock事件模块，让发布事件失败
+    std::shared_ptr<UbseEventModule> event = std::make_shared<UbseEventModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseEventModule>).stubs().will(returnValue(event));
+    MOCKER_CPP(&UbseEventModule::UbsePubEvent).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseResult ret = topology.PubPortUpDownEvent(linkUpDown, interfaceName);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
 
@@ -196,14 +220,30 @@ TEST_F(TestUbseLcneTopology, PortUpDownFunc)
 {
     UbseHttpRequest req{};
     UbseHttpResponse resp{};
-    const auto func = &UbseLcneTopology::CreateDevTopology;
-    MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
-    const auto func1 = &UbseLcneTopology::PubUbseTopoChangeEvent;
-    MOCKER_CPP(func1).stubs().will(returnValue(UBSE_ERROR));
+    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}"; 
+
+    MOCKER_CPP(&UbseLcneLinkInfo::ParseLinkUpDownReq).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseLcneTopology::CreateDevTopology).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseEventModule::UbsePubEvent).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseLcneTopology::PubPortUpDownEvent).stubs().will(returnValue(UBSE_OK));
 
     UbseLcneTopology topology;
     UbseResult ret = topology.PortUpDownFunc(req, resp);
     EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), resp.status);
+}
+
+TEST_F(TestUbseLcneTopology, PortUpDownFunc_Failed)
+{
+    UbseHttpRequest req{};
+    UbseHttpResponse resp{};
+    req.body = "{\"linkUpDown\":\"link-down\",\"interfaceName\":\"eth0\"}"; 
+    MOCKER_CPP(&UbseLcneLinkInfo::ParseLinkUpDownReq).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseLcneTopology topology;
+    UbseResult ret = topology.PortUpDownFunc(req, resp);
+    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), resp.status);
 }
 
 TEST_F(TestUbseLcneTopology, UbseDevGetTopology_Success)

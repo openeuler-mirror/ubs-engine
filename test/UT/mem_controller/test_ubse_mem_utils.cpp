@@ -37,8 +37,7 @@ void TestUbseMemUtils::TearDown()
 TEST_F(TestUbseMemUtils, GetExecutor)
 {
     std::shared_ptr<UbseTaskExecutorModule> nullModule = nullptr;
-    std::shared_ptr<UbseTaskExecutorModule> module =
-        std::make_shared<UbseTaskExecutorModule>();
+    std::shared_ptr<UbseTaskExecutorModule> module = std::make_shared<UbseTaskExecutorModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<UbseTaskExecutorModule>)
         .stubs()
         .will(returnValue(nullModule))
@@ -48,15 +47,12 @@ TEST_F(TestUbseMemUtils, GetExecutor)
 
     auto nullPtr = UbseTaskExecutor::Create(name, 0, 1000);
     auto ubseTaskExecutorPtr = UbseTaskExecutor::Create(name, 1, 1000);
-    MOCKER_CPP(&UbseTaskExecutorModule::Get)
-        .stubs()
-        .will(returnValue(nullPtr))
-        .then(returnValue(ubseTaskExecutorPtr));
+    MOCKER_CPP(&UbseTaskExecutorModule::Get).stubs().will(returnValue(nullPtr)).then(returnValue(ubseTaskExecutorPtr));
     EXPECT_EQ(GetExecutor(name), nullptr);
     EXPECT_EQ(GetExecutor(name), ubseTaskExecutorPtr);
 }
 
-UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule *, MtiNodeInfo &ubseNodeInfo)
+UbseResult MockUbseGetLocalNodeInfo(UbseLcneModule*, UbseMtiNodeInfo &ubseNodeInfo)
 {
     ubseNodeInfo.nodeId = "1";
     return UBSE_OK;
@@ -80,4 +76,4 @@ TEST_F(TestUbseMemUtils, GetCurNodeId)
     EXPECT_EQ("", GetCurNodeId());
     EXPECT_EQ("1", GetCurNodeId());
 }
-}
+} // namespace ubse::mem_controller::ut

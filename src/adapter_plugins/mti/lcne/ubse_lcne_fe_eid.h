@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_LCNE_VFE_EID_H
-#define UBSE_LCNE_VFE_EID_H
+#ifndef UBSE_LCNE_FE_EID_H
+#define UBSE_LCNE_FE_EID_H
 
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpMethod, UbseHttpResponse (ptr o...
 #include "ubse_lcne_def.h"    // for LcneServer
-#include "adapter_plugins/mti/ubse_mti_def.h"
 #include "ubse_xml.h"
+#include "adapter_plugins/mti/ubse_mti_def.h"
 
 namespace ubse::lcne {
 using namespace common::def;
@@ -25,35 +25,36 @@ using namespace ubse::http;
 using namespace ubse::adapter_plugins::mti;
 using namespace ubse::utils;
 
-class UbseLcneVfeEid {
+class UbseLcneFeEid {
 public:
-    static UbseLcneVfeEid &GetInstance()
+    static UbseLcneFeEid &GetInstance()
     {
-        static UbseLcneVfeEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
+        static UbseLcneFeEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
     // 发送请求
-    UbseResult GetVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
+    UbseResult GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
+    UbseResult GetComUrmaEidClos(UbseMtiIouInfo &iouInfo, UbseMtiEidGroup &feInfo);
 
 private:
-    UbseLcneVfeEid(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult UpdateVfeEid(UbseMtiIouInfo iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult ParseGetFeListResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos);
+    UbseLcneFeEid(std::string host, int port) : host(std::move(host)), port(port) {}
+    UbseResult UpdateFeType(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
+    UbseResult ParseFeTypeListResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos);
     UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos);
     UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseMtiFeInfo &feInfo);
     std::vector<std::string> ueIdlistSplit(const std::string &str, const std::string &delimiter);
-    UbseResult ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml> &ubseXml,
-                                       std::string &slotId, std::string &ubpuId, std::string &iouId);
-    UbseResult ProcessFeBindings(std::shared_ptr<UbseXml> &ubseXml, std::string &slotId, std::string &ubpuId,
-                                 std::string &iouId, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseMtiFeInfo *FindVfeInVector(std::string slotId, std::string ubpuId, std::string iouId, std::string entityId,
+    UbseResult ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml> &ubseXml, UbseMtiIouInfo &iouInfo);
+    UbseMtiFeInfo *FindVfeInVector(UbseMtiIouInfo &iouInfo, std::string entityId,
                                    std::vector<UbseMtiFeInfo> &allFeInfos);
     UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId);
+    UbseResult GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, UbseMtiEidGroup &feInfo);
+    std::string GetEidGroupId(std::string eid);
+
     std::string host;
     int port;
-    const std::string GET_VFE_LIST_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos";
-    const std::string GET_VFE_EID_URI =
+    const std::string GET_FE_LIST_URI = "/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos";
+    const std::string GET_FE_EID_URI =
         "/restconf/data/huawei-vbussw-service:vbussw-service/entity-urma-communication-infos";
 };
 } // namespace ubse::lcne
-#endif // UBSE_LCNE_VFE_EID_H
+#endif // UBSE_LCNE_FE_EID_H

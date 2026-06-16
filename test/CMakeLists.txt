@@ -80,6 +80,13 @@ else()
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
+
+    # If googletest source already exists locally, skip remote fetch
+    set(_gtest_src_dir "${CMAKE_BINARY_DIR}/_deps/googletest-src")
+    if(EXISTS "${_gtest_src_dir}/CMakeLists.txt")
+        set(FETCHCONTENT_SOURCE_DIR_GOOGLETEST "${_gtest_src_dir}")
+        message(STATUS "Using existing googletest source at ${_gtest_src_dir}")
+    endif()
     FetchContent_Declare(
             googletest
             GIT_REPOSITORY https://gitcode.com/GitHub_Trending/go/googletest.git

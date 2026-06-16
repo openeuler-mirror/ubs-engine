@@ -200,7 +200,7 @@ enum class LinkStatus {
     init,
     available, // 可用
     conflict, // 冲突,即两节点上报信息不一样，一节点上报有链路，一节点上报没有，或一节点暂未上报信息
-    outdated, // 过时，即MXE_NODE_UNKNOWN状态的信息
+    unavailable, // 不可用，即端口状态DOWN
 };
 
 struct PhysicalLink {
@@ -340,6 +340,9 @@ public:
     void UpdateConnect(PhysicalLink &physicalLink, std::string &linkId);
     void PrintDevDirConnectInfo();
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
+    // 由mem ctl初始化时调用，占用通信bonding
+    void OccupyComUrmaBonding();
+    bool IsHostUrmaDevOccupied() const;
 
 private:
     std::shared_mutex rwMutex;
@@ -351,6 +354,7 @@ private:
     std::shared_mutex devDirMutex;
     std::map<std::string, PhysicalLink>
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
+    bool isHostUrmaDevOccupied{false};
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

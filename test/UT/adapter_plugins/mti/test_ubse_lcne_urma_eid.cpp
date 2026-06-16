@@ -37,7 +37,7 @@ void TestUbseLcneUrmaEid::TearDown()
 
 TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap{};
     std::string responseXml = R"(<vbussw-service xmlns="urn:huawei:yang:huawei-vbussw-service">
      <static-urma-eids>
        <static-urma-eid>
@@ -112,20 +112,20 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData)
    </vbussw-service>)";
 
     EXPECT_EQ(UbseLcneUrmaEid::GetInstance().ParseGetUrmaEidResponse(responseXml, socketInfoMap), UBSE_OK);
-    UbseDevName devName1("1", "0");
+    UbseMtiIouInfo devName1{"1", "0", "1"};
     EXPECT_EQ(socketInfoMap[devName1].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-    EXPECT_EQ(socketInfoMap[devName1].portEidList["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
-    UbseDevName devName2("2", "1");
+    EXPECT_EQ(socketInfoMap[devName1].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
+    UbseMtiIouInfo devName2{"2", "1", "1"};
     EXPECT_EQ(socketInfoMap[devName2].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4323");
-    EXPECT_EQ(socketInfoMap[devName2].portEidList["1"], "1234:5678:8765:4321:1234:5678:8765:4322");
-    UbseDevName devName3("3", "1");
+    EXPECT_EQ(socketInfoMap[devName2].portEids["1"], "1234:5678:8765:4321:1234:5678:8765:4322");
+    UbseMtiIouInfo devName3{"3", "1", "1"};
     EXPECT_EQ(socketInfoMap[devName3].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4326");
-    EXPECT_EQ(socketInfoMap[devName3].portEidList["1"], "1234:5678:8765:4321:1234:5678:8765:4324");
+    EXPECT_EQ(socketInfoMap[devName3].portEids["1"], "1234:5678:8765:4321:1234:5678:8765:4324");
 }
 
 TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap{};
     std::string responseXml{};
 
     UbseResult ret = UbseLcneUrmaEid::GetInstance().ParseGetUrmaEidResponse(responseXml, socketInfoMap);
@@ -134,7 +134,7 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed)
 
 TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed1)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap{};
     std::string responseXml = R"(<vbussw-service xmlns="urn:huawei:yang:huawei-vbussw-service">
    </vbussw-service>)";
 
@@ -144,7 +144,7 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed1)
 
 TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed2)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap{};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap{};
     std::string responseXml = R"(<vbussw-service xmlns="urn:huawei:yang:huawei-vbussw-service">
      <static-urma-eids>
        <static-urma-eid>
@@ -163,25 +163,25 @@ TEST_F(TestUbseLcneUrmaEid, ParseXmlData_ParseFailed2)
 
 TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_Success)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap;
-    std::map<UbseDevName, UbseUrmaEidInfo> infomap;
-    UbseDevName devName1("1", "0");
-    UbseUrmaEidInfo info;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> infomap;
+    UbseMtiIouInfo devName1{"1", "0", "1"};
+    UbseMtiEidGroup info;
     info.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4321";
     std::string urmaEid = "1234:5678:8765:4321:1234:5678:8765:4325";
-    info.portEidList.emplace("2", urmaEid);
+    info.portEids.emplace("2", urmaEid);
     infomap.emplace(devName1, info);
-    UbseDevName devName2("2", "1");
-    UbseUrmaEidInfo info1;
+    UbseMtiIouInfo devName2{"2", "1", "1"};
+    UbseMtiEidGroup info1;
     info1.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4323";
     std::string urmaEid1 = "1234:5678:8765:4321:1234:5678:8765:4322";
-    info1.portEidList.emplace("1", urmaEid1);
+    info1.portEids.emplace("1", urmaEid1);
     infomap.emplace(devName2, info1);
-    UbseDevName devName3("3", "1");
-    UbseUrmaEidInfo info2;
+    UbseMtiIouInfo devName3{"3", "1", "1"};
+    UbseMtiEidGroup info2;
     info2.primaryEid = "1234:5678:8765:4321:1234:5678:8765:4326";
     std::string urmaEid2 = "1234:5678:8765:4321:1234:5678:8765:4324";
-    info2.portEidList.emplace("1", urmaEid2);
+    info2.portEids.emplace("1", urmaEid2);
     infomap.emplace(devName3, info2);
     UbseHttpRequest req;
     UbseHttpResponse rsp;
@@ -196,16 +196,16 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_Success)
     UbseResult ret = UbseLcneUrmaEid::GetInstance().GetUrmaEid(socketInfoMap);
     EXPECT_EQ(UBSE_OK, ret);
     EXPECT_EQ(socketInfoMap[devName1].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4321");
-    EXPECT_EQ(socketInfoMap[devName1].portEidList["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
+    EXPECT_EQ(socketInfoMap[devName1].portEids["2"], "1234:5678:8765:4321:1234:5678:8765:4325");
     EXPECT_EQ(socketInfoMap[devName2].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4323");
-    EXPECT_EQ(socketInfoMap[devName2].portEidList["1"], "1234:5678:8765:4321:1234:5678:8765:4322");
+    EXPECT_EQ(socketInfoMap[devName2].portEids["1"], "1234:5678:8765:4321:1234:5678:8765:4322");
     EXPECT_EQ(socketInfoMap[devName3].primaryEid, "1234:5678:8765:4321:1234:5678:8765:4326");
-    EXPECT_EQ(socketInfoMap[devName3].portEidList["1"], "1234:5678:8765:4321:1234:5678:8765:4324");
+    EXPECT_EQ(socketInfoMap[devName3].portEids["1"], "1234:5678:8765:4321:1234:5678:8765:4324");
 }
 
 TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_HttpSendFailed)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap;
     const auto func1 = &UbseHttpModule::HttpSend;
     MOCKER_CPP(func1).stubs().will(returnValue(UBSE_ERROR));
 
@@ -215,7 +215,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_HttpSendFailed)
 
 TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspStatusFailed)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = 404;
@@ -229,7 +229,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspStatusFailed)
 
 TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspEmpty)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
@@ -243,7 +243,7 @@ TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_RspEmpty)
 
 TEST_F(TestUbseLcneUrmaEid, GetUrmaEid_ParseFailed)
 {
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap;
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap;
     UbseHttpRequest req;
     UbseHttpResponse rsp;
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);

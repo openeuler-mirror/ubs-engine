@@ -112,12 +112,12 @@ TEST_F(TestSysSentryModule, GetEidsFailWhenDevVecSizeError)
         .stubs()
         .with(outBound(localNodeInfo))
         .will(returnValue(UBSE_OK));
-    UbseDevName dev1("1-");
-    UbseUrmaEidInfo info1{.primaryEid = "192.168.1.1"};
+    UbseMtiIouInfo dev1{"1", "", ""};
+    UbseMtiEidGroup info1{.primaryEid = "192.168.1.1"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     auto res = GetEids(clientEid, serverEids);
-    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+    ASSERT_EQ(res, UBSE_OK);
 }
 
 TEST_F(TestSysSentryModule, GetEids_LocalNodeInfoEmpty)
@@ -126,8 +126,8 @@ TEST_F(TestSysSentryModule, GetEids_LocalNodeInfoEmpty)
     std::string serverEids;
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
     MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
-    UbseDevName dev1("1-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid1"};
+    UbseMtiIouInfo dev1{"1", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid1"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     auto res = GetEids(clientEid, serverEids);
@@ -141,14 +141,14 @@ TEST_F(TestSysSentryModule, GetEidsSuccess)
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
     MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     lcneModule->ubseNodeInfo_.nodeId = "1";
-    UbseDevName dev1("1-1");
-    UbseDevName dev2("1-2");
-    UbseDevName dev3("2-1");
-    UbseDevName dev4("2-2");
-    UbseUrmaEidInfo info1{.primaryEid = "192.168.1.1"};
-    UbseUrmaEidInfo info2{.primaryEid = "192.168.1.2"};
-    UbseUrmaEidInfo info3{.primaryEid = "192.168.1.3"};
-    UbseUrmaEidInfo info4{.primaryEid = "192.168.1.4"};
+    UbseMtiIouInfo dev1{"1", "1", ""};
+    UbseMtiIouInfo dev2{"1", "2", ""};
+    UbseMtiIouInfo dev3{"2", "1", ""};
+    UbseMtiIouInfo dev4{"2", "2", ""};
+    UbseMtiEidGroup info1{.primaryEid = "192.168.1.1"};
+    UbseMtiEidGroup info2{.primaryEid = "192.168.1.2"};
+    UbseMtiEidGroup info3{.primaryEid = "192.168.1.3"};
+    UbseMtiEidGroup info4{.primaryEid = "192.168.1.4"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     lcneModule->allSocketComEid[dev2] = info2;
@@ -168,8 +168,8 @@ TEST_F(TestSysSentryModule, GetEids_LocalNodeNotInTopo)
     auto lcneModule = std::make_shared<ubse::mti::UbseLcneModule>();
     MOCKER_CPP(&ubse::context::UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(lcneModule));
     lcneModule->ubseNodeInfo_.nodeId = "999";
-    UbseDevName dev1("1-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid1"};
+    UbseMtiIouInfo dev1{"1", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid1"};
     lcneModule->allSocketComEid.clear();
     lcneModule->allSocketComEid[dev1] = info1;
     auto res = GetEids(clientEid, serverEids);
@@ -189,10 +189,10 @@ TEST_F(TestSysSentryModule, GetCurNodeCna)
     UbseDevName devName1_2("1-2");
     UbseDevName devName2_1("2-1");
     UbseDevName devName2_2("2-2");
-    UbseMtiCpuTopoInfo cpuTopoInfo1_1{.slotId = 1, .socketId = 1, .busNodeCna = 0x123, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo1_2{.slotId = 1, .socketId = 2, .busNodeCna = 0x456, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_1{.slotId = 2, .socketId = 1, .busNodeCna = 0x789, .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_2{.slotId = 2, .socketId = 2, .busNodeCna = 0xabc, .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo1_1{.nodeId = 1, .busNodeCna = 0x123, .chipId = "1", .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo1_2{.nodeId = 1, .busNodeCna = 0x456, .chipId = "2", .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo2_1{.nodeId = 2, .busNodeCna = 0x789, .chipId = "1", .portInfos = {}};
+    UbseMtiCpuTopoInfo cpuTopoInfo2_2{.nodeId = 2, .busNodeCna = 0xabc, .chipId = "2", .portInfos = {}};
     UbseMtiCpuTopoInfoMap topo;
     topo[devName1_1] = cpuTopoInfo1_1;
     topo[devName1_2] = cpuTopoInfo1_2;
@@ -231,7 +231,7 @@ TEST_F(TestSysSentryModule, GetCurNodeCna_SplitDevNameFail)
     UbseMtiCpuTopoInfoMap topo;
     UbseDevName badDev;
     badDev.devName = "node1";
-    topo[badDev] = {.slotId = 1, .busNodeCna = 0x123};
+    topo[badDev] = {.nodeId = 1, .busNodeCna = 0x123, .chipId = ""};
     MOCKER_CPP_VIRTUAL(&mtiInterface, &ubse::adapter_plugins::mti::UbseMtiInterface::GetClusterCpuTopo)
         .stubs()
         .with(outBound(topo))
@@ -291,24 +291,23 @@ TEST_F(TestSysSentryModule, ShellEscape_SpecialChars)
 
 TEST_F(TestSysSentryModule, ProcessEids_DevNameSplitFail)
 {
-    UbseDevName dev;
-    dev.devName = "node1";
-    UbseUrmaEidInfo info{.primaryEid = "eid1"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev, info}};
+    UbseMtiIouInfo iou{"1", "1", ""};
+    UbseMtiEidGroup info{.primaryEid = "eid1"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{iou, info}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
     auto ret = ProcessEids(socketInfoMap, "1", eids, eidGroup);
-    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
+    EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestSysSentryModule, ProcessEids_SingleNode)
 {
-    UbseDevName dev1("1-1");
-    UbseDevName dev2("1-2");
-    UbseUrmaEidInfo info1{.primaryEid = "eid_a"};
-    UbseUrmaEidInfo info2{.primaryEid = "eid_b"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1, info1}, {dev2, info2}};
+    UbseMtiIouInfo dev1{"1", "1", ""};
+    UbseMtiIouInfo dev2{"1", "2", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid_a"};
+    UbseMtiEidGroup info2{.primaryEid = "eid_b"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1, info1}, {dev2, info2}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
@@ -321,11 +320,11 @@ TEST_F(TestSysSentryModule, ProcessEids_SingleNode)
 
 TEST_F(TestSysSentryModule, ProcessEids_MultiNodeWithMerge)
 {
-    UbseDevName dev1_1("1-1");
-    UbseDevName dev2_1("2-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid_a"};
-    UbseUrmaEidInfo info2{.primaryEid = "eid_b"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}};
+    UbseMtiIouInfo dev1_1{"1", "1", ""};
+    UbseMtiIouInfo dev2_1{"2", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid_a"};
+    UbseMtiEidGroup info2{.primaryEid = "eid_b"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
@@ -338,13 +337,13 @@ TEST_F(TestSysSentryModule, ProcessEids_MultiNodeWithMerge)
 
 TEST_F(TestSysSentryModule, ProcessEids_DuplicateEidSkipped)
 {
-    UbseDevName dev1_1("1-1");
-    UbseDevName dev1_2("1-2");
-    UbseDevName dev2_1("2-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid_a"};
-    UbseUrmaEidInfo info2{.primaryEid = "eid_b"};
-    UbseUrmaEidInfo info3{.primaryEid = "eid_a"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1_1, info1}, {dev1_2, info2}, {dev2_1, info3}};
+    UbseMtiIouInfo dev1_1{"1", "1", ""};
+    UbseMtiIouInfo dev1_2{"1", "2", ""};
+    UbseMtiIouInfo dev2_1{"2", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid_a"};
+    UbseMtiEidGroup info2{.primaryEid = "eid_b"};
+    UbseMtiEidGroup info3{.primaryEid = "eid_a"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1_1, info1}, {dev1_2, info2}, {dev2_1, info3}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
@@ -357,11 +356,11 @@ TEST_F(TestSysSentryModule, ProcessEids_DuplicateEidSkipped)
 
 TEST_F(TestSysSentryModule, ProcessEids_EmptyEidSkipped)
 {
-    UbseDevName dev1_1("1-1");
-    UbseDevName dev2_1("2-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid_a"};
-    UbseUrmaEidInfo info2{.primaryEid = ""};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}};
+    UbseMtiIouInfo dev1_1{"1", "1", ""};
+    UbseMtiIouInfo dev2_1{"2", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid_a"};
+    UbseMtiEidGroup info2{.primaryEid = ""};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
@@ -371,13 +370,13 @@ TEST_F(TestSysSentryModule, ProcessEids_EmptyEidSkipped)
 
 TEST_F(TestSysSentryModule, ProcessEids_NodeCountMismatch)
 {
-    UbseDevName dev1_1("1-1");
-    UbseDevName dev1_2("1-2");
-    UbseDevName dev2_1("2-1");
-    UbseUrmaEidInfo info1{.primaryEid = "eid1"};
-    UbseUrmaEidInfo info2{.primaryEid = "eid2"};
-    UbseUrmaEidInfo info3{.primaryEid = "eid3"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1_1, info1}, {dev1_2, info2}, {dev2_1, info3}};
+    UbseMtiIouInfo dev1_1{"1", "1", ""};
+    UbseMtiIouInfo dev1_2{"1", "2", ""};
+    UbseMtiIouInfo dev2_1{"2", "1", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid1"};
+    UbseMtiEidGroup info2{.primaryEid = "eid2"};
+    UbseMtiEidGroup info3{.primaryEid = "eid3"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1_1, info1}, {dev1_2, info2}, {dev2_1, info3}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
@@ -387,13 +386,13 @@ TEST_F(TestSysSentryModule, ProcessEids_NodeCountMismatch)
 
 TEST_F(TestSysSentryModule, ProcessEids_RemoteNodeMoreEids)
 {
-    UbseDevName dev1_1("1-1");
-    UbseDevName dev2_1("2-1");
-    UbseDevName dev2_2("2-2");
-    UbseUrmaEidInfo info1{.primaryEid = "eid1"};
-    UbseUrmaEidInfo info2{.primaryEid = "eid2"};
-    UbseUrmaEidInfo info3{.primaryEid = "eid3"};
-    std::map<UbseDevName, UbseUrmaEidInfo> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}, {dev2_2, info3}};
+    UbseMtiIouInfo dev1_1{"1", "1", ""};
+    UbseMtiIouInfo dev2_1{"2", "1", ""};
+    UbseMtiIouInfo dev2_2{"2", "2", ""};
+    UbseMtiEidGroup info1{.primaryEid = "eid1"};
+    UbseMtiEidGroup info2{.primaryEid = "eid2"};
+    UbseMtiEidGroup info3{.primaryEid = "eid3"};
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> socketInfoMap = {{dev1_1, info1}, {dev2_1, info2}, {dev2_2, info3}};
     std::unordered_map<std::string, std::vector<std::string>> eids;
     std::vector<std::string> eidGroup;
 
