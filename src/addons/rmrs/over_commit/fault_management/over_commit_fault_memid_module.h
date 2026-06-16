@@ -92,6 +92,18 @@ struct OverCommitVmRemoteNumaInfoResult {
 struct OverCommitFaultVmNumaInfoResult {
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
 };
+
+// 查询节点NumaBindType，请求参数
+struct GetNumaBindTypeParam {
+    std::string nodeId;
+};
+
+// 查询节点NumaBindType，响应结果
+struct GetNumaBindTypeResult {
+    NumaBindType bindType = NumaBindType::BIND_INVALID;
+    uint32_t retCode = MEM_POOLING_ERROR;
+};
+
 struct OverCommitFaultMemIdExecuteParam {
     std::vector<pid_t> pids;
     int16_t localNumaId;

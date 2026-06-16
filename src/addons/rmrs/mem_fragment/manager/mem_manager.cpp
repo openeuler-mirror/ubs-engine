@@ -1963,7 +1963,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFault(const std::string node
     while (curRetryTimes < maxRetryTimes) {
         debtInfos.clear();
         auto ret = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
-        if (ret != UBSE_OK) {
+        if (ret != UBSE_OK && ret != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
             LOG_WARN << "[MemLedger][BorrowRecords] UbseGetNumaMemDebtInfo failed, retry=" << (curRetryTimes + 1)
                      << ", ret=" << static_cast<uint32_t>(ret) << ".";
             std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));

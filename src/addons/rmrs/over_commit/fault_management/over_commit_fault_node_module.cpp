@@ -62,7 +62,7 @@ MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFaultByMemId(const std::
     // 根据内存账本获取所有借入节点信息
     std::vector<UbseNumaMemoryDebtInfo> debtInfos;
     UbseResult retErrorCode = UbseGetNumaMemDebtInfoWithNode(nodeId, debtInfos);
-    if (retErrorCode != UBSE_OK) {
+    if (retErrorCode != UBSE_OK && retErrorCode != UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS) {
         LOG_WARN << "Get Debt failed , retErrorCode=" << static_cast<uint32_t>(retErrorCode) << ",nodeId=" << nodeId
                  << ".";
         return MEM_POOLING_ERROR;

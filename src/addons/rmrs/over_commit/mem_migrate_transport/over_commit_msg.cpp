@@ -334,4 +334,85 @@ uint32_t OverCommitMsg::SyncBindTypeDataRecvHandler(const UbseByteBuffer& req, U
     return MEM_POOLING_OK;
 }
 
+MpResult OverCommitMsg::GetNumaBindTypeRpc(const std::string& targetNodeId, const std::string& queryNodeId,
+                                           GetNumaBindTypeResult& result)
+{
+    LOG_DEBUG << "[OverCommit][MsgHandler] GetNumaBindTypeRpc to targetNode=" << targetNodeId
+              << ", queryNodeId=" << queryNodeId << ".";
+
+    UbseComEndpoint endpoint = {
+        .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GET_NUMA_BIND_TYPE_FROM_NODE, .address = targetNodeId};
+
+    GetNumaBindTypeParam param = {.nodeId = queryNodeId};
+    RmrsOutStream builder;
+    builder << param;
+
+    UbseByteBuffer reqData = {.data = builder.GetBufferPointer(), .len = builder.GetSize(), .freeFunc = nullptr};
+    reqData.freeFunc = [](uint8_t* data) {
+        delete[] data;
+    };
+
+    uint32_t ret = UbseRpcSend(endpoint, reqData, &result, GetNumaBindTypeResHandler);
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[OverCommit][MsgHandler] GetNumaBindTypeRpc UbseRpcSend failed, ret=" << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    LOG_INFO << "[OverCommit][MsgHandler] GetNumaBindTypeRpc success, bindType=" << BindTypeToStr(result.bindType)
+             << ".";
+    return static_cast<MpResult>(result.retCode);
+}
+
+MpResult OverCommitMsg::GetNumaBindTypeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    LOG_INFO << "[OverCommit][MsgHandler] GetNumaBindTypeRecvHandler start.";
+
+    if (req.data == nullptr || req.len == 0) {
+        LOG_ERROR << "[OverCommit][MsgHandler] GetNumaBindTypeRecvHandler req.data is nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+
+    GetNumaBindTypeParam param{};
+    RmrsInStream inBuilder(req.data, req.len);
+    inBuilder >> param;
+
+    NumaBindType bindType;
+    MpResult ret = OverCommitStorage::Instance().GetNumaBindType(param.nodeId, bindType);
+
+    GetNumaBindTypeResult result = {.bindType = bindType, .retCode = static_cast<uint32_t>(ret)};
+
+    RmrsOutStream outBuilder;
+    outBuilder << result;
+    resp.data = outBuilder.GetBufferPointer();
+    resp.len = outBuilder.GetSize();
+    resp.freeFunc = [](uint8_t* data) {
+        delete[] data;
+    };
+
+    if (ret != MEM_POOLING_OK) {
+        LOG_ERROR << "[OverCommit][MsgHandler] GetNumaBindTypeRecvHandler failed, nodeId=" << param.nodeId << ".";
+    }
+    LOG_INFO << "[OverCommit][MsgHandler] GetNumaBindTypeRecvHandler end, bindType=" << BindTypeToStr(result.bindType)
+             << ".";
+    return ret;
+}
+
+void OverCommitMsg::GetNumaBindTypeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
+{
+    if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
+        LOG_WARN << "[OverCommit][MsgHandler] GetNumaBindTypeResHandler ctx or respData is null.";
+        return;
+    }
+
+    auto* result = static_cast<GetNumaBindTypeResult*>(ctx);
+    if (resCode != MEM_POOLING_OK) {
+        LOG_ERROR << "[OverCommit][MsgHandler] GetNumaBindTypeResHandler RPC error, resCode=" << resCode << ".";
+        result->retCode = MEM_POOLING_ERROR;
+        result->bindType = NumaBindType::BIND_INVALID;
+    } else {
+        RmrsInStream inBuilder(respData.data, respData.len);
+        inBuilder >> *result;
+    }
+}
+
 } // namespace mempooling::over_commit

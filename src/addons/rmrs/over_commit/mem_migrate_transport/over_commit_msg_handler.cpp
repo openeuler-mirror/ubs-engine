@@ -617,6 +617,13 @@ uint32_t InitOverCommitReg()
             << "SimplifiedFaultNumaProcessRecvHandler reg failed res: " << ret;
     }
 
+    // 查询节点NumaBindType RPC handler
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_GET_NUMA_BIND_TYPE_FROM_NODE};
+    ret = UbseRegRpcService(endpoint, over_commit::OverCommitMsg::GetNumaBindTypeRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNumaBindTypeRecvHandler reg failed res: " << ret;
+    }
+
     return ret;
 }
 

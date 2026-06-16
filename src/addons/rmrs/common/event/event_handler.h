@@ -39,9 +39,7 @@ private:
 
     static MpResult HandleOverCommitNodeFault(const std::string& nodeId, bool isSimplified);
 
-    static void WaitForAllOtherNodesWorking(const std::string& nodeId, NodeType& nodeType);
-
-    static bool IsAllOtherNodesWorking(const std::string& nodeId);
+    static MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId);
 };
 } // namespace event
 } // namespace mempooling

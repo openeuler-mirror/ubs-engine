@@ -38,6 +38,16 @@ public:
 
     static MpResult SyncBindTypeDataRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
+    // RPC: 向指定节点查询 NumaBindType
+    static MpResult GetNumaBindTypeRpc(const std::string& targetNodeId, const std::string& queryNodeId,
+                                       GetNumaBindTypeResult& result);
+
+    // RPC 接收处理函数
+    static MpResult GetNumaBindTypeRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+    // RPC 响应处理函数
+    static void GetNumaBindTypeResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
+
     static void SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
                             UbseByteBuffer& resBuffer);
 

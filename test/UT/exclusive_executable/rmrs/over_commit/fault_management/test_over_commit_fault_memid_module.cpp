@@ -25,6 +25,7 @@
 #include "mp_string_util.h"
 #include "over_commit_def.h"
 #include "over_commit_fault_management_handler.h"
+#include "over_commit_msg.h"
 #include "rmrs_resource_query.h"
 #include "set_smap_remote_numa_info_send.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
@@ -41,6 +42,7 @@ public:
     void SetUp() override
     {
         cout << "[TestOverCommitFaultMemIdModule SetUp Begin]" << endl;
+        MOCKER(nanosleep).stubs().will(returnValue(0));
         cout << "[TestOverCommitFaultMemIdModule SetUp End]" << endl;
     }
     void TearDown() override
@@ -216,6 +218,22 @@ MpResult MockGetNumaBindType(OverCommitStorage* This, const std::string& nodeId,
     return MEM_POOLING_OK;
 }
 
+MpResult MockGetNumaBindTypeRpcSuccess(const std::string& targetNodeId, const std::string& queryNodeId,
+                                       GetNumaBindTypeResult& result)
+{
+    result.retCode = MEM_POOLING_OK;
+    result.bindType = NumaBindType::BIND_SINGLE;
+    return MEM_POOLING_OK;
+}
+
+MpResult MockGetNumaBindTypeRpcFail(const std::string& targetNodeId, const std::string& queryNodeId,
+                                    GetNumaBindTypeResult& result)
+{
+    result.retCode = MEM_POOLING_ERROR;
+    result.bindType = NumaBindType::BIND_INVALID;
+    return MEM_POOLING_ERROR;
+}
+
 uint32_t MockRackRpcSendReturnOk(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
                                  const UbseComRespHandler& handler)
 {
@@ -232,10 +250,10 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteSuccess)
     MemBorrowExecuteResult borrowExecuteResult;
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
-    MOCKER_CPP(&OverCommitStorage::GetNumaBindType,
-               MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
+    MOCKER_CPP(&over_commit::OverCommitMsg::GetNumaBindTypeRpc,
+               MpResult(*)(const std::string&, const std::string&, GetNumaBindTypeResult&))
         .stubs()
-        .will(invoke(MockGetNumaBindType));
+        .will(invoke(MockGetNumaBindTypeRpcSuccess));
     MOCKER_CPP(&UbseRpcSend,
                uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
@@ -253,10 +271,10 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFailed)
     MemBorrowExecuteResult borrowExecuteResult;
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
-    MOCKER_CPP(&OverCommitStorage::GetNumaBindType,
-               MpResult(*)(OverCommitStorage*, const std::string& nodeId, NumaBindType& value))
+    MOCKER_CPP(&over_commit::OverCommitMsg::GetNumaBindTypeRpc,
+               MpResult(*)(const std::string&, const std::string&, GetNumaBindTypeResult&))
         .stubs()
-        .will(invoke(MockGetNumaBindType));
+        .will(invoke(MockGetNumaBindTypeRpcSuccess));
 
     MOCKER_CPP(&MemManager::GetSocketId, MpResult(*)(const std::string& nodeId, const int& numaId, int& socketId))
         .stubs()
@@ -272,11 +290,11 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail1)
     MemBorrowExecuteResult borrowExecuteResult;
     borrowExecuteResult.borrowIds.push_back("1");
     borrowExecuteResult.presentNumaId.push_back(1);
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&))
+    // Mock GetNumaBindTypeRpc 返回错误，导致 MemBorrowExecute 失败
+    MOCKER_CPP(&over_commit::OverCommitMsg::GetNumaBindTypeRpc,
+               MpResult(*)(const std::string&, const std::string&, GetNumaBindTypeResult&))
         .stubs()
-        .will(returnValue(MEM_POOLING_ERROR));
+        .will(invoke(MockGetNumaBindTypeRpcFail));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -285,11 +303,16 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail1)
 TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail2)
 {
     MemBorrowExecuteResult borrowExecuteResult;
-    MOCKER_CPP(&MempoolBorrowModule::MemBorrowExecuteInOverCommit,
-               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<uint64_t>&, const WaterMark&,
-                           MemBorrowExecuteResult&))
+    // Mock GetNumaBindTypeRpc 成功，但 UbseRpcSend 返回空 borrowIds，导致最终失败
+    MOCKER_CPP(&over_commit::OverCommitMsg::GetNumaBindTypeRpc,
+               MpResult(*)(const std::string&, const std::string&, GetNumaBindTypeResult&))
         .stubs()
-        .will(returnValue(MEM_POOLING_OK));
+        .will(invoke(MockGetNumaBindTypeRpcSuccess));
+    // Mock UbseRpcSend 返回成功但 borrowIds 为空
+    MOCKER_CPP(&UbseRpcSend,
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
+        .stubs()
+        .will(invoke(MockRackRpcSendReturnOk));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
     EXPECT_EQ(ret, MEM_POOLING_ERROR); // 因为borrowIds.empty()，所以最后ret应该是错误
