@@ -376,16 +376,32 @@ uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterState
 
 uint32_t UbseNodeController::RegGlobalStateNotifyHandler(const UbseGlobalStateNotifyHandler &handler)
 {
-    (void)handler;
+    std::unique_lock<std::shared_mutex> lock(rwMutex);
+    globalNotifyHandlers.push_back(handler);
     return UBSE_OK;
 }
 
 uint32_t UbseNodeController::ExecGlobalStateNotifyHandler(const UbseNodeInfo &node)
 {
-    (void)node;
-    return UBSE_OK;
-}
+    std::vector<UbseGlobalStateNotifyHandler> handlers;
+    {
+        std::shared_lock<std::shared_mutex> lock(rwMutex);
+        handlers = globalNotifyHandlers;
+    }
 
+    UbseResult ret = UBSE_OK;
+    for (auto handler : handlers) {
+        if (handler == nullptr) {
+            continue;
+        }
+        ret |= handler(node);
+    }
+
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " exec global state notify failed, " << FormatRetCode(ret);
+    }
+    return ret;
+}
 void ExecLocalStateHandler(const UbseNodeInfo &nodeInfo, const std::vector<UbseLocalStateNotifyHandler> &handlers)
 {
     for (auto handler : handlers) {
@@ -433,7 +449,26 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
 
 static UbseNodeClusterState MergeClusterState(UbseNodeClusterState oldState, UbseNodeClusterState reportState)
 {
-    (void)reportState;
+    if (oldState == reportState) {
+        return oldState;
+    }
+
+    // 周期采集默认INIT不覆盖已有中心侧状态
+    if (reportState == UbseNodeClusterState::UBSE_NODE_INIT && oldState != UbseNodeClusterState::UBSE_NODE_INIT) {
+        return oldState;
+    }
+
+    // 上级收到下级已对账完成状态，允许INIT更新为WORKING
+    if (oldState == UbseNodeClusterState::UBSE_NODE_INIT && reportState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        return reportState;
+    }
+
+    // 故障/未知/预下电以本地状态机为准
+    if (oldState == UbseNodeClusterState::UBSE_NODE_FAULT || oldState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+        oldState == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
+        return oldState;
+    }
+
     return oldState;
 }
 
@@ -751,8 +786,24 @@ uint32_t GenerateFaultUbseNode(const std::string &nodeId, UbseNodeInfo &faultNod
 
 uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string &nodeId, UbseNodeGlobalState state)
 {
-    (void)nodeId;
-    (void)state;
+    std::unique_lock<std::shared_mutex> lock(rwMutex);
+    auto iter = nodeInfos.find(nodeId);
+    if (iter == nodeInfos.end()) {
+        UBSE_LOG_ERROR << "nodeId=" << nodeId
+                       << " global node info not found, skip update global state=" << static_cast<uint32_t>(state);
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    if (iter->second.globalState == UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId
+                      << " global state already ready, skip update state=" << static_cast<uint32_t>(state);
+        return UBSE_OK;
+    }
+
+    UBSE_LOG_INFO << "nodeId=" << nodeId
+                  << " update global state, current state=" << static_cast<uint32_t>(iter->second.globalState)
+                  << ", update state=" << static_cast<uint32_t>(state);
+    iter->second.globalState = state;
     return UBSE_OK;
 }
 
