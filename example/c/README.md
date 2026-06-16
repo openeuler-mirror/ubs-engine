@@ -239,7 +239,7 @@ sudo dnf install -y ubs-engine-client-libs
 
 启动 ubs engine 服务，各个节点均需启动。
 
-ubs engine 默认开启安全通信，需确保成功导入证书，否则集群状态可能异常，证书导入参考：[ubse_cli_user_guide](../../docs/zh/ubse/ubse_cli_user_guide.md#证书管理)，或修改配置文件 `/etc/ubse/ubse.conf`，将 `cert.use` 设置为 `false`，关闭安全通信。
+ubs engine 默认开启安全通信，需确保成功导入证书，否则集群状态可能异常，证书导入参考：[ubse_cli_user_guide](../../docs/zh/ubse_cli_user_guide.md#证书管理)，或修改配置文件 `/etc/ubse/ubse.conf`，将 `cert.use` 设置为 `false`，关闭安全通信。
 
 ```shell
 sudo systemctl start ubse
