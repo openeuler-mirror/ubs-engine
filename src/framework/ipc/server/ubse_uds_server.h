@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "ubse_api_server.h"
+#include "ubse_api_server_auth_manager.h"
 #include "ubse_api_server_def.h"
 #include "ubse_election.h"
 #include "ubse_ipc_message.h"
@@ -159,6 +160,10 @@ private:
     uint32_t CreateServerSocket();
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
+    void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);
+    bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
+    void SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
+                           const UbseRequestContext& context);
     void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);
     void RegisterLongLinkAsyncCallback(uint64_t reqId, UbseAsyncCallBack callBack);
 

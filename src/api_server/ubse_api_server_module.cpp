@@ -17,7 +17,6 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_os_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_uds_server.h"
 
@@ -34,29 +33,6 @@ const uint16_t UDS_PERM = 0660;             // uds最小权限
 const uint16_t THREAD_POOL_SIZE = 8;        // 线程池size
 const uint16_t THREAD_POOL_QUEUE_SIZE = 16; // 线程池队列size
 
-static UbseIpcHandler DecorateHandlerWithReadinessCheck(const UbseIpcHandler& originalHandler,
-                                                        std::shared_ptr<UbseApiServerAuthManager>& authManager)
-{
-    return
-        [originalHandler, authManager](const UbseIpcMessage& request, const UbseRequestContext& context) -> uint32_t {
-            if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
-                UBSE_LOG_ERROR << "Daemon is not ready";
-                return UBSE_ERR_DAEMON_UNREACHABLE;
-            }
-            std::string userName{};
-            if (ubse::utils::UbseOsUtil::GetUserNameById(context.clientInfo.uid, userName) != UBSE_OK) {
-                UBSE_LOG_ERROR << "Failed to get username for UID: " << context.clientInfo.uid;
-                return UBSE_ERR_PERMISSION_DENIED;
-            }
-            if (!authManager->CheckPermission(userName, context.moduleCode, context.opCode)) {
-                UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
-                return UBSE_ERR_PERMISSION_DENIED;
-            }
-            // 调用原始处理函数
-            return originalHandler(request, context);
-        };
-}
-
 UbseResult UbseApiServerModule::Initialize()
 {
     return UBSE_OK;
@@ -65,11 +41,12 @@ void UbseApiServerModule::UnInitialize() {}
 UbseResult UbseApiServerModule::Start()
 {
     // 初始化权限配置
-    auto ret = authManager_->LoadAuthConfig();
+    auto ret = UbseApiServerAuthManager::GetInstance().LoadAuthConfig();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Load auth config failed";
         return ret;
     }
+
     // 创建uds服务
     UbseUDSConfig udsConfig{UBSE_UDS_SOCKET_PATH, UDS_PERM, THREAD_POOL_SIZE, THREAD_POOL_QUEUE_SIZE};
 
@@ -109,9 +86,7 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
                                                    const std::string& object)
 {
     // 注册object
-    authManager_->AddObjectMapping(moduleCode, opCode, object);
-    // 注册handler
-    handler = DecorateHandlerWithReadinessCheck(handler, authManager_);
+    UbseApiServerAuthManager::GetInstance().AddObjectMapping(moduleCode, opCode, object);
     if (ipcServer_ != nullptr) {
         return ipcServer_->RegisterHandler(moduleCode, opCode, handler);
     }

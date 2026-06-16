@@ -17,6 +17,7 @@
 #include <sstream>
 
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_logger_module.h"
 
 namespace api::server {
@@ -36,6 +37,12 @@ const std::string UbseApiServerAuthManager::AUTH_ROLE = "auth.role";
 const std::string UbseApiServerAuthManager::ADMIN_ROLE = "admin";
 const std::string UbseApiServerAuthManager::ALL_OBJECT = "all";
 const std::vector<std::string> UbseApiServerAuthManager::BUILTIN_USERS = {"ubse", "root"};
+
+UbseApiServerAuthManager& UbseApiServerAuthManager::GetInstance()
+{
+    static UbseApiServerAuthManager authManager;
+    return authManager;
+}
 
 UbseApiServerAuthManager::UbseApiServerAuthManager()
 {

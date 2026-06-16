@@ -30,6 +30,8 @@ using ubse::config::UbseConfModule;
 
 class UbseApiServerAuthManager {
 public:
+    static UbseApiServerAuthManager& GetInstance();
+
     UbseApiServerAuthManager();
 
     ~UbseApiServerAuthManager() = default;
