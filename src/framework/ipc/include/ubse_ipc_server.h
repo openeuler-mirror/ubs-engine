@@ -54,8 +54,6 @@ public:
      */
     uint32_t RegisterHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler);
 
-    void RegisterRequestPermissionChecker(UbseRequestPermissionChecker checker);
-
     /* *
      * @brief 发送响应
      * @param statusCode 状态码

@@ -64,7 +64,10 @@ TEST_F(TestUbseMemControllerDispatcher, RegisterNumaSdkDispatcher)
 
 TEST_F(TestUbseMemControllerDispatcher, RegisterSdkDispatcher)
 {
-    EXPECT_EQ(UbseMemControllerDispatcher::RegisterSdkDispatcher(), UBSE_ERROR);
+    EXPECT_EQ(UbseMemControllerDispatcher::RegisterSdkDispatcher(), UBSE_ERROR_NULLPTR);
+    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseApiServerModule>()));
     MOCKER(UbseMemControllerDispatcher::RegisterShmSdkDispatcher).stubs().will(returnValue(UBSE_OK));
     MOCKER(UbseMemControllerDispatcher::RegisterNumaSdkDispatcher).stubs().will(returnValue(UBSE_OK));
     MOCKER(UbseMemControllerDispatcher::RegisterFdSdkDispatcher).stubs().will(returnValue(UBSE_OK));

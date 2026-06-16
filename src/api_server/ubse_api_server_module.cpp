@@ -17,7 +17,6 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_os_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_uds_server.h"
 
@@ -34,25 +33,6 @@ const uint16_t UDS_PERM = 0660;             // uds最小权限
 const uint16_t THREAD_POOL_SIZE = 8;        // 线程池size
 const uint16_t THREAD_POOL_QUEUE_SIZE = 16; // 线程池队列size
 
-static uint32_t CheckRequestPermission(const UbseClientInfo& clientInfo, uint16_t moduleCode, uint16_t opCode,
-                                       const std::shared_ptr<UbseApiServerAuthManager>& authManager)
-{
-    if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
-        UBSE_LOG_ERROR << "Daemon is not ready";
-        return UBSE_ERR_DAEMON_UNREACHABLE;
-    }
-    std::string userName{};
-    if (ubse::utils::UbseOsUtil::GetUserNameById(clientInfo.uid, userName) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get username for UID: " << clientInfo.uid;
-        return UBSE_ERR_PERMISSION_DENIED;
-    }
-    if (!authManager->CheckPermission(userName, moduleCode, opCode)) {
-        UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
-        return UBSE_ERR_PERMISSION_DENIED;
-    }
-    return UBSE_OK;
-}
-
 UbseResult UbseApiServerModule::Initialize()
 {
     return UBSE_OK;
@@ -61,11 +41,12 @@ void UbseApiServerModule::UnInitialize() {}
 UbseResult UbseApiServerModule::Start()
 {
     // 初始化权限配置
-    auto ret = authManager_->LoadAuthConfig();
+    auto ret = UbseApiServerAuthManager::GetInstance().LoadAuthConfig();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Load auth config failed";
         return ret;
     }
+
     // 创建uds服务
     UbseUDSConfig udsConfig{UBSE_UDS_SOCKET_PATH, UDS_PERM, THREAD_POOL_SIZE, THREAD_POOL_QUEUE_SIZE};
 
@@ -74,10 +55,6 @@ UbseResult UbseApiServerModule::Start()
         UBSE_LOG_ERROR << "Create ipc server failed";
         return UBSE_ERROR_NULLPTR;
     }
-    ipcServer_->RegisterRequestPermissionChecker(
-        [authManager = authManager_](const UbseClientInfo& clientInfo, uint16_t moduleCode, uint16_t opCode) {
-            return CheckRequestPermission(clientInfo, moduleCode, opCode, authManager);
-        });
 
     // 注册所有预加载的处理程序
     for (const auto& reg : pendingHandlers_) {
@@ -109,7 +86,7 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
                                                    const std::string& object)
 {
     // 注册object
-    authManager_->AddObjectMapping(moduleCode, opCode, object);
+    UbseApiServerAuthManager::GetInstance().AddObjectMapping(moduleCode, opCode, object);
     if (ipcServer_ != nullptr) {
         return ipcServer_->RegisterHandler(moduleCode, opCode, handler);
     }
@@ -119,7 +96,7 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
 
 void UbseApiServerModule::RegisterLongLinkObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object)
 {
-    authManager_->AddObjectMapping(moduleCode, opCode, object);
+    UbseApiServerAuthManager::GetInstance().AddObjectMapping(moduleCode, opCode, object);
 }
 
 uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)

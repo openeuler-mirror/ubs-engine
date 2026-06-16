@@ -13,7 +13,10 @@
 #ifndef UBSE_API_SERVER_MODULE_H
 #define UBSE_API_SERVER_MODULE_H
 
-#include "ubse_api_server_auth_manager.h"
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_server.h"
 #include "ubse_map_util.h"
@@ -62,8 +65,6 @@ private:
 
     std::unique_ptr<ubse::ipc::UbseIpcServer> ipcServer_{};
     std::vector<HandlerRegistration> pendingHandlers_; // 预注册处理器队列
-
-    std::shared_ptr<UbseApiServerAuthManager> authManager_ = std::make_shared<UbseApiServerAuthManager>();
 };
 } // namespace api::server
 

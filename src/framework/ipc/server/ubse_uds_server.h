@@ -15,11 +15,13 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <random>
 #include <string>
 #include <unordered_set>
 
 #include "ubse_api_server.h"
+#include "ubse_api_server_auth_manager.h"
 #include "ubse_api_server_def.h"
 #include "ubse_election.h"
 #include "ubse_ipc_message.h"
@@ -50,7 +52,6 @@ struct UbseAsyncCallBack {
 };
 
 using UbseRequestHandler = std::function<void(const UbseRequestMessage&, const UbseRequestContext&)>;
-using UbseRequestPermissionChecker = std::function<uint32_t(const UbseClientInfo&, uint16_t, uint16_t)>;
 // 长连接场景下，客户端在建立长连接后，向服务端注册监听的事件；服务端在收到对应的事件后选择fd进行通知;
 using UbseIpcLongLinkClientMap = ubse::utils::PairMap<uint16_t, uint16_t, std::unordered_set<int>>;
 
@@ -70,8 +71,6 @@ public:
     uint32_t SendResponse(uint64_t requestId, const UbseResponseMessage& response);
 
     void RegisterHandler(UbseRequestHandler handler);
-
-    void RegisterRequestPermissionChecker(UbseRequestPermissionChecker checker);
 
     uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo, void* ctx,
                                UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList);
@@ -117,7 +116,6 @@ private:
     std::map<int, ClientSession> sessions_;
 
     UbseRequestHandler requestHandler_{}; // request回调
-    UbseRequestPermissionChecker requestPermissionChecker_{};
 
     std::mutex requestMapMutex_;
     std::unordered_map<uint64_t, int> requestIdToFd_{}; // 请求ID到文件描述符的映射

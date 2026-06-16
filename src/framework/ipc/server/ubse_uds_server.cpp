@@ -482,10 +482,8 @@ void UbseUDSServer::RecordClientRequestId(uint64_t requestId, uint64_t clientReq
 
 bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
 {
-    if (requestPermissionChecker_ == nullptr) {
-        return true;
-    }
-    auto ret = requestPermissionChecker_(session->clientInfo, header.moduleCode, header.opCode);
+    auto ret = api::server::UbseApiServerAuthManager::GetInstance().CheckRequestPermission(
+        session->clientInfo, header.moduleCode, header.opCode);
     if (ret == UBSE_OK) {
         return true;
     }
@@ -765,11 +763,6 @@ void UbseUDSServer::CloseSession(int fd)
 void UbseUDSServer::RegisterHandler(UbseRequestHandler handler)
 {
     requestHandler_ = std::move(handler);
-}
-
-void UbseUDSServer::RegisterRequestPermissionChecker(UbseRequestPermissionChecker checker)
-{
-    requestPermissionChecker_ = std::move(checker);
 }
 
 uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessage& response)

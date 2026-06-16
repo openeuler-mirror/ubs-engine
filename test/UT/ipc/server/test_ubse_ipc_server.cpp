@@ -19,12 +19,14 @@
 #include <unistd.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_api_server_auth_manager.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_common_def.h"
 #include "ubse_ipc_utils.h"
+#include "ubse_os_util.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
 #include "src/framework/ipc/client/ubse_uds_client.h"
@@ -41,6 +43,15 @@ static std::string GetSocketPath()
 }
 
 const uint32_t TIMEOUT = 5; // 超时时间，单位秒
+
+static std::string g_stubUserName = "root";
+
+static UbseResult StubUserName(uid_t, std::string& userName)
+{
+    userName = g_stubUserName;
+    return UBSE_OK;
+}
+
 TestUbseIpcServer::TestUbseIpcServer() = default;
 void TestUbseIpcServer::SetUp()
 {
@@ -51,6 +62,11 @@ void TestUbseIpcServer::SetUp()
         std::make_shared<ubse::security::UbseSecurityModule>();
     UbseUDSConfig udsConfig{.socketPath = GetSocketPath()};
     server = std::make_unique<UbseIpcServer>(udsConfig);
+    api::server::UbseApiServerAuthManager::GetInstance().clear();
+    api::server::UbseApiServerAuthManager::GetInstance().AddObjectMapping(1, 1, "test.ipc.interface");
+    context::UbseContext::GetInstance().allModulesReady_.store(true);
+    g_stubUserName = "root";
+    MOCKER_CPP(&ubse::utils::UbseOsUtil::GetUserNameById).stubs().will(invoke(StubUserName));
     Test::SetUp();
 }
 
@@ -59,6 +75,8 @@ void TestUbseIpcServer::TearDown()
     server->Stop();
     unlink(GetSocketPath().c_str());
     context::UbseContext::GetInstance().moduleMap_.clear();
+    context::UbseContext::GetInstance().allModulesReady_.store(false);
+    api::server::UbseApiServerAuthManager::GetInstance().clear();
     GlobalMockObject::verify();
     Test::TearDown();
 }
@@ -195,6 +213,8 @@ TEST_F(TestUbseIpcServer, HandlerRequestWhenHandlerSuccess)
 
 TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
 {
+    api::server::UbseApiServerAuthManager::GetInstance().AddObjectMapping(
+        UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM, "test.ipc.long_link_fault");
     UbseMemFault shmFault{
         .memName = "name",
         .handleId = 1,
@@ -231,8 +251,7 @@ TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
 
 TEST_F(TestUbseIpcServer, LongLinkRegisterWhenPermissionDenied)
 {
-    server->RegisterRequestPermissionChecker(
-        [](const UbseClientInfo&, uint16_t, uint16_t) { return UBSE_ERR_PERMISSION_DENIED; });
+    g_stubUserName = "unauthorized_user";
     EXPECT_EQ(server->Start(), UBSE_OK);
     ubse_socket_path_set(GetSocketPath().c_str());
     EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
@@ -245,8 +264,7 @@ TEST_F(TestUbseIpcServer, LongLinkRegisterWhenPermissionDenied)
 
 TEST_F(TestUbseIpcServer, ShortLinkRequestWhenPermissionDenied)
 {
-    server->RegisterRequestPermissionChecker(
-        [](const UbseClientInfo&, uint16_t, uint16_t) { return UBSE_ERR_PERMISSION_DENIED; });
+    g_stubUserName = "unauthorized_user";
     EXPECT_EQ(server->Start(), UBSE_OK);
     sleep(1);
     uint32_t len = 10;
@@ -254,7 +272,7 @@ TEST_F(TestUbseIpcServer, ShortLinkRequestWhenPermissionDenied)
     ubse_api_buffer_t requestData{data, len};
     ubse_api_buffer_t responseData{};
     ubse_socket_path_set(GetSocketPath().c_str());
-    auto ret = ubse_invoke_call(1, 1, &requestData, &responseData);
+    auto ret = ubse_invoke_call(2, 2, &requestData, &responseData);
     EXPECT_EQ(ret, UBSE_ERR_PERMISSION_DENIED);
     ubse_api_buffer_free(&responseData);
     delete[] data;

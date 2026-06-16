@@ -17,7 +17,9 @@
 #include <sstream>
 
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "ubse_os_util.h"
 
 namespace api::server {
 using namespace ubse::log;
@@ -36,6 +38,12 @@ const std::string UbseApiServerAuthManager::AUTH_ROLE = "auth.role";
 const std::string UbseApiServerAuthManager::ADMIN_ROLE = "admin";
 const std::string UbseApiServerAuthManager::ALL_OBJECT = "all";
 const std::vector<std::string> UbseApiServerAuthManager::BUILTIN_USERS = {"ubse", "root"};
+
+UbseApiServerAuthManager& UbseApiServerAuthManager::GetInstance()
+{
+    static UbseApiServerAuthManager authManager;
+    return authManager;
+}
 
 UbseApiServerAuthManager::UbseApiServerAuthManager()
 {
@@ -223,6 +231,25 @@ void UbseApiServerAuthManager::clear()
 
     // 重新初始化内置权限
     InitializeBuiltinAuth();
+}
+
+uint32_t UbseApiServerAuthManager::CheckRequestPermission(const UbseClientInfo& clientInfo, uint16_t moduleCode,
+                                                          uint16_t opCode)
+{
+    if (!ubse::context::UbseContext::GetInstance().IsAllModulesReady()) {
+        UBSE_LOG_ERROR << "Daemon is not ready";
+        return UBSE_ERR_DAEMON_UNREACHABLE;
+    }
+    std::string userName{};
+    if (ubse::utils::UbseOsUtil::GetUserNameById(clientInfo.uid, userName) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get username for UID: " << clientInfo.uid;
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
+    if (!CheckPermission(userName, moduleCode, opCode)) {
+        UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
+        return UBSE_ERR_PERMISSION_DENIED;
+    }
+    return UBSE_OK;
 }
 
 bool UbseApiServerAuthManager::CheckPermission(const std::string& username, uint16_t moduleCode, uint16_t opCode)
