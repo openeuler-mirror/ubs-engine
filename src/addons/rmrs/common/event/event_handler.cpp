@@ -96,53 +96,21 @@ MpResult EventHandler::ResolveOverCommitMode(bool& isOverCommit, bool useSimplif
     return CheckIsOverCommitMode(isOverCommit);
 }
 
-bool EventHandler::IsAllOtherNodesWorking(const std::string& nodeId)
+MpResult EventHandler::IsAllOtherNodesWorkingOrFault(const std::string& nodeId)
 {
     const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
     for (const auto& [nId, nodeInfo] : allNodeInfo) {
-        if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
-            return false;
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[EventHandler] nodeId=" << nId << " in state of " << static_cast<int>(nodeInfo.clusterState) << ".";
+        if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
+            nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] Detect " << nId << " in state of " << static_cast<int>(nodeInfo.clusterState)
+                << " instead of working or fault.";
+            return MEM_POOLING_ERROR;
         }
     }
-    return true;
-}
-
-void EventHandler::WaitForAllOtherNodesWorking(const std::string& nodeId, NodeType& nodeType)
-{
-    auto timeoutSec = MpConfiguration::GetInstance().GetIpcTimeLimit();
-    auto startTime = std::chrono::steady_clock::now();
-    constexpr auto kRetryInterval = std::chrono::seconds(1);
-
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultManager] Start retry waiting for all other nodes working, nodeId=" << nodeId
-        << ", nodeType=" << static_cast<int>(nodeType) << ", timeout=" << timeoutSec << "s.";
-
-    while (!IsAllOtherNodesWorking(nodeId)) {
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - startTime);
-        if (elapsed.count() >= static_cast<int64_t>(timeoutSec)) {
-            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] Timeout waiting for all other nodes working, nodeId=" << nodeId
-                << ", nodeType=" << static_cast<int>(nodeType) << ", timeout=" << timeoutSec
-                << "s, continue processing.";
-            break;
-        }
-
-        std::this_thread::sleep_for(kRetryInterval);
-
-        MpResult res = FaultNodeModule::Instance().DetermineNodeTypeOverCommit(nodeId, nodeType);
-        if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] DetermineNodeType failed during retry, nodeId=" << nodeId
-                << ", will continue retrying.";
-            continue;
-        }
-    }
-
-    if (IsAllOtherNodesWorking(nodeId)) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] All other nodes working after retry, nodeId=" << nodeId
-            << ", nodeType=" << static_cast<int>(nodeType) << ".";
-    }
+    return MEM_POOLING_OK;
 }
 
 MpResult EventHandler::HandleOverCommitNodeFault(const std::string& nodeId, bool isSimplified)
@@ -154,22 +122,20 @@ MpResult EventHandler::HandleOverCommitNodeFault(const std::string& nodeId, bool
             << "[FaultManager] DetermineNodeType failed, nodeId=" << nodeId << ".";
         return res;
     }
-
-    // 当账本为空或存在其他节点不在工作状态时，持续尝试获取账本，直到其他节点都在工作状态
-    if (nodeType == NodeType::NO_RECORD || !IsAllOtherNodesWorking(nodeId)) {
-        WaitForAllOtherNodesWorking(nodeId, nodeType);
-    }
-
-    if (nodeType == NodeType::NO_RECORD) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] No debt record found after retry, nodeId=" << nodeId << ".";
-        return MEM_POOLING_ERROR;
-    }
     if (nodeType == NodeType::BORROW_IN) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] BORROW_IN Fault is handled by ubse, nodeId=" << nodeId << ".";
         return MEM_POOLING_OK;
     }
+
+    // 判断是否所有节点都在working或者fault状态
+    res = IsAllOtherNodesWorkingOrFault(nodeId);
+
+    if (nodeType == NodeType::NO_RECORD) {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] No debt record found nodeId=" << nodeId << ".";
+    }
+
     if (nodeType == NodeType::BORROW_OUT) {
         MpResult ret = isSimplified ?
                            OverCommitFaultNodeModule::Instance().ProcessBorrowOutNodeFaultSimplified(nodeId) :
@@ -180,7 +146,7 @@ MpResult EventHandler::HandleOverCommitNodeFault(const std::string& nodeId, bool
             return ret;
         }
     }
-    return MEM_POOLING_OK;
+    return res;
 }
 
 static MpResult FaultMemIdManageHelper(bool isOverCommit, std::string importNodeIdStr, uint64_t importMemId,

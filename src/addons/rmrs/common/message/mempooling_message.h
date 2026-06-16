@@ -69,6 +69,7 @@ const uint32_t OPCODE_NUMA_LEVEL_EXECUTE = 56;
 const uint32_t OPCODE_BORROW_ID_LEVEL_EXECUTE = 57;
 const uint32_t OPCODE_GET_BORROWED_DECISION = 58;
 const uint32_t OPCODE_SMAP_PROCESS_MIGRATE_ENABLE = 59;
+const uint32_t OPCODE_GET_NUMA_BIND_TYPE_FROM_NODE = 60;
 
 using OSTurboFunctionCaller = uint32_t (*)(const std::string& function, const TurboByteBuffer& params,
                                            TurboByteBuffer& result);

@@ -20,6 +20,7 @@
 #include "mp_string_util.h"
 #include "over_commit_def.h"
 #include "over_commit_fault_management_handler.h"
+#include "over_commit_msg.h"
 #include "over_commit_storage.h"
 #include "over_commit_ucache_strategy.h"
 #include "rmrs_resource_query.h"
@@ -228,13 +229,15 @@ MpResult MemBorrowExecute(SrcMemoryBorrowParam srcParam, uint64_t borrowSize, Wa
                           MemBorrowExecuteResult& borrowExecuteResult)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "Start borrow mem.";
-    NumaBindType bindType;
-    MpResult ret = OverCommitStorage::Instance().GetNumaBindType(srcParam.srcNid, bindType);
-    if (ret != MEM_POOLING_OK) {
-        return ret;
+    GetNumaBindTypeResult bindTypeResult;
+    MpResult ret = over_commit::OverCommitMsg::GetNumaBindTypeRpc(srcParam.srcNid, srcParam.srcNid, bindTypeResult);
+    if (ret != MEM_POOLING_OK || bindTypeResult.retCode != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << TAG << "GetNumaBindType failed, nodeId=" << srcParam.srcNid << ".";
+        return (ret != MEM_POOLING_OK) ? ret : static_cast<MpResult>(bindTypeResult.retCode);
     }
     uint16_t socketId = -1;
-    if (bindType == NumaBindType::BIND_SINGLE) {
+    if (bindTypeResult.bindType == NumaBindType::BIND_SINGLE) {
         MpResult retCode = MemManager::Instance().GetSocketId(srcParam.srcNid, srcParam.srcNumaId, socketId);
         if (retCode != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "GetSocketId failed. ret=" << retCode << ".";
