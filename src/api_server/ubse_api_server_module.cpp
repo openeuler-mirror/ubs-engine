@@ -94,11 +94,6 @@ UbseResult UbseApiServerModule::RegisterIpcHandler(uint16_t moduleCode, uint16_t
     return UBSE_OK;
 }
 
-void UbseApiServerModule::RegisterLongLinkObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object)
-{
-    UbseApiServerAuthManager::GetInstance().AddObjectMapping(moduleCode, opCode, object);
-}
-
 uint32_t UbseApiServerModule::SendResponse(uint32_t statusCode, uint64_t requestId, UbseIpcMessage& response)
 {
     if (ipcServer_ == nullptr) {

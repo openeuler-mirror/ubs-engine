@@ -422,9 +422,9 @@ UbseResult UbseMemControllerDispatcher::RegisterSdkDispatcher()
     if (apiServer == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM, MEM_SHM_PERMISSION);
-    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD, MEM_FD_PERMISSION);
-    apiServer->RegisterLongLinkObjectMapping(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA, MEM_NUMA_PERMISSION);
+    apiServer->RegisterIpcHandler(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM, nullptr, MEM_SHM_PERMISSION);
+    apiServer->RegisterIpcHandler(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD, nullptr, MEM_FD_PERMISSION);
+    apiServer->RegisterIpcHandler(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA, nullptr, MEM_NUMA_PERMISSION);
 
     auto ret = RegisterShmSdkDispatcher();
     if (ret != UBSE_OK) {

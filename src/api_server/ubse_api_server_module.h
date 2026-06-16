@@ -41,8 +41,6 @@ public:
     UbseResult RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler,
                                   const std::string& object = "");
 
-    void RegisterLongLinkObjectMapping(uint16_t moduleCode, uint16_t opCode, const std::string& object);
-
     /* *
      * @brief 发送响应
      * @param requestId

@@ -15,7 +15,6 @@
 
 #include <functional>
 #include <map>
-#include <memory>
 #include <random>
 #include <string>
 #include <unordered_set>
@@ -163,7 +162,6 @@ private:
     uint64_t GenerateAndRegisterRequestId(int fd);
     void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);
     bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
-    bool HandlePersistentRequest(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
     void SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
                            const UbseRequestContext& context);
     void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);

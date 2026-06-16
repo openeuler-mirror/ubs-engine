@@ -30,6 +30,7 @@
 #include "ubse_ipc_socket.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_logger.h"
+#include "ubse_os_util.h"
 #include "ubse_request_id_util.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
@@ -482,8 +483,24 @@ void UbseUDSServer::RecordClientRequestId(uint64_t requestId, uint64_t clientReq
 
 bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
 {
-    auto ret = api::server::UbseApiServerAuthManager::GetInstance().CheckRequestPermission(
-        session->clientInfo, header.moduleCode, header.opCode);
+    uint32_t ret = UBSE_OK;
+    if (!UbseContext::GetInstance().IsAllModulesReady()) {
+        UBSE_LOG_ERROR << "Daemon is not ready";
+        ret = UBSE_ERR_DAEMON_UNREACHABLE;
+    }
+
+    std::string userName{};
+    if (ret == UBSE_OK && ubse::utils::UbseOsUtil::GetUserNameById(session->clientInfo.uid, userName) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get username for UID: " << session->clientInfo.uid;
+        ret = UBSE_ERR_PERMISSION_DENIED;
+    }
+
+    if (ret == UBSE_OK && !api::server::UbseApiServerAuthManager::GetInstance().CheckPermission(
+                              userName, header.moduleCode, header.opCode)) {
+        UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
+        ret = UBSE_ERR_PERMISSION_DENIED;
+    }
+
     if (ret == UBSE_OK) {
         return true;
     }
