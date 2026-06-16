@@ -509,7 +509,7 @@ void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
 {
     std::lock_guard<std::mutex> lock(mtx_); // 加锁
     if (broadcast_[nodeId].activeStatus == HeartBeatState::ACTIVE) {
-        UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved: " << nodeId;
+        UBSE_LOG_INFO << "[ELECTION] Master NodeRemoved=" << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::NODE_DOWN, nodeId);
         broadcast_[nodeId].activeStatus = HeartBeatState::LOST;
         broadcast_[nodeId].masterOnlineBcStatus = NotifyStatus::NOT_BROADCAST;
