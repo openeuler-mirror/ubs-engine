@@ -67,7 +67,9 @@ static void FormatTimestamp(std::ostringstream& oss, uint64_t timestamp)
     // 初始化一个缓冲区来存储格式化后的日期时间
     char dateTimeBuffer[dateTimeBufferSize] = {0};
     // 使用本地时间格式化日期时间到缓冲区
-    strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime);
+    if (strftime(dateTimeBuffer, sizeof(dateTimeBuffer), "%Y-%m-%d %T.", &localTime) == 0) {
+        dateTimeBuffer[0] = '\0';
+    }
     // 将本地时间和GMT时间转换回秒
     std::time_t localSeconds = mktime(&localTime);
     std::time_t gmtSeconds = mktime(&gmtTime);
