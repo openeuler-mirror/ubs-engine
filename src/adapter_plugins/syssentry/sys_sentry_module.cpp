@@ -235,6 +235,13 @@ UbseResult SetSysSentryFaultReporter()
     std::string clientEid;
     std::string serverEids;
     std::string cna = "1";
+    std::vector<std::string> busNodeCnas;
+    if (auto ret = GetCurNodeCna(busNodeCnas); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get current node cna"; // 获取不到CNA不影响故障上报功能，因此不返回错误
+    }
+    if (!busNodeCnas.empty()) {
+        cna = busNodeCnas[0];
+    }
     auto ret = GetEids(clientEid, serverEids);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get eids";
