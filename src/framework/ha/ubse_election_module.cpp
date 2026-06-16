@@ -16,6 +16,7 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_pkt_handler.h"
+#include "ubse_smbios.h"
 #include "config.h"
 #include "role/ubse_election_role_mgr.h"
 
@@ -33,6 +34,11 @@ CONDITION_BASE_DYNAMIC_CREATE(context::GetSceneType() == context::SceneType::COM
 
 UbseResult UbseElectionModule::Initialize()
 {
+    if (!ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        // 非Clos组网，占用通信bonding
+        UBSE_LOG_INFO << "Non-clos type dected, election module will occupy com urma bonding";
+        UbseNodeController::GetInstance().OccupyComUrmaBonding();
+    }
     return UBSE_OK;
 }
 
