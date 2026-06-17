@@ -125,8 +125,7 @@ include(GoogleTest)
 
 add_subdirectory(UT)
 
-# IT subdirectory will be re-added when new IT framework is ready
-# add_subdirectory(IT)
+add_subdirectory(IT)
 
 add_custom_target(
         test
