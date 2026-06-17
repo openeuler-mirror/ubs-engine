@@ -13,17 +13,18 @@
 #include "ubse_mem_global_ledger_report.h"
 
 #include <algorithm>
+#include <limits>
 #include <new>
 
+#include "debt/ubse_mem_debt_info.h"
+#include "message/ubse_mem_controller_serial.h"
 #include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
 #include "ubse_context.h"
-#include "debt/ubse_mem_debt_info.h"
-#include "message/ubse_mem_controller_serial.h"
 #include "ubse_election_module.h"
+#include "ubse_logger_module.h"
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_global_ledger_summary_store.h"
-#include "ubse_logger_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_serial_util.h"
 
@@ -39,6 +40,7 @@ using namespace ubse::nodeController;
 namespace {
 constexpr size_t GLOBAL_LEDGER_MAX_SUMMARY_ITEMS = 4096;
 constexpr size_t GLOBAL_LEDGER_MAX_NUMA_INFOS = 1024;
+constexpr size_t GLOBAL_LEDGER_MAX_MEMIDS = 1024;
 
 UbseResult GetGlobalMasterNodeId(std::string &globalMasterNodeId)
 {
@@ -89,23 +91,54 @@ bool DeserializeNumaInfos(UbseDeSerialization &in, std::vector<UbseMemDebtNumaIn
     return true;
 }
 
+void SerializeMemIds(UbseSerialization &out, const std::vector<uint16_t> &memids)
+{
+    out << right_v<size_t>(memids.size());
+    for (const auto memid : memids) {
+        out << memid;
+    }
+}
+
+bool DeserializeMemIds(UbseDeSerialization &in, std::vector<uint16_t> &memids)
+{
+    size_t size{};
+    in >> size;
+    if (!in.Check() || size > GLOBAL_LEDGER_MAX_MEMIDS) {
+        UBSE_LOG_ERROR << "invalid global ledger memid size=" << size;
+        return false;
+    }
+    memids.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        in >> memids[i];
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "deserialize global ledger memid failed, index=" << i;
+            return false;
+        }
+    }
+    return true;
+}
+
 void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryItem &item)
 {
     uint32_t state = static_cast<uint32_t>(item.state);
     out << item.name;
-    SerializeNumaInfos(out, item.exportNumaInfos);
-    SerializeNumaInfos(out, item.importNumaInfos);
+    SerializeNumaInfos(out, item.numaInfos);
     out << item.blockSize << state;
+    ubse::mem::serial::UbseUdsInfoSerialization(out, item.userInfo);
+    SerializeMemIds(out, item.memids);
 }
 
 bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem &item)
 {
     uint32_t state{};
     in >> item.name;
-    if (!DeserializeNumaInfos(in, item.exportNumaInfos) || !DeserializeNumaInfos(in, item.importNumaInfos)) {
+    if (!DeserializeNumaInfos(in, item.numaInfos)) {
         return false;
     }
     in >> item.blockSize >> state;
+    if (!ubse::mem::serial::UbseUdsInfoDeserialization(in, item.userInfo) || !DeserializeMemIds(in, item.memids)) {
+        return false;
+    }
     if (!in.Check() || state > static_cast<uint32_t>(UBSE_MEM_IMPORT_DESTROYED)) {
         UBSE_LOG_ERROR << "deserialize global ledger summary item failed, state=" << state;
         return false;
@@ -284,8 +317,8 @@ UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &re
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
-    ubse::utils::Ref<UbseGlobalLedgerReportRespMessage> response =
-        new (std::nothrow) UbseGlobalLedgerReportRespMessage();
+    ubse::utils::Ref<UbseGlobalLedgerReportRespMessage> response = new (std::nothrow)
+        UbseGlobalLedgerReportRespMessage();
     if (response == nullptr) {
         UBSE_LOG_ERROR << "new global ledger rpc response message failed";
         return UBSE_ERROR_NULLPTR;
@@ -303,15 +336,53 @@ UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &re
 }
 } // namespace
 
-UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const std::string &name, const UbseMemAlgoResult &algoResult,
-                                                UbseMemState state)
+std::vector<uint16_t> BuildImportMemIds(const std::vector<UbseMemImportResult> &importResults)
+{
+    std::vector<uint16_t> memids;
+    memids.reserve(importResults.size());
+    for (const auto &result : importResults) {
+        if (result.memId > std::numeric_limits<uint16_t>::max()) {
+            UBSE_LOG_WARN << "global ledger import memId exceeds uint16_t, memId=" << result.memId;
+        }
+        memids.emplace_back(static_cast<uint16_t>(result.memId));
+    }
+    return memids;
+}
+
+std::vector<uint16_t> BuildExportMemIds(const std::vector<UbseMemObmmInfo> &exportObmmInfo)
+{
+    std::vector<uint16_t> memids;
+    memids.reserve(exportObmmInfo.size());
+    for (const auto &info : exportObmmInfo) {
+        if (info.memId > std::numeric_limits<uint16_t>::max()) {
+            UBSE_LOG_WARN << "global ledger export memId exceeds uint16_t, memId=" << info.memId;
+        }
+        memids.emplace_back(static_cast<uint16_t>(info.memId));
+    }
+    return memids;
+}
+
+UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowImportObj &obj)
 {
     UbseGlobalLedgerSummaryItem item{};
-    item.name = name;
-    item.exportNumaInfos = algoResult.exportNumaInfos;
-    item.importNumaInfos = algoResult.importNumaInfos;
-    item.blockSize = algoResult.blockSize;
-    item.state = state;
+    item.name = obj.req.name;
+    item.blockSize = obj.algoResult.blockSize;
+    item.state = obj.status.state;
+    item.numaInfos = obj.algoResult.importNumaInfos;
+    item.userInfo = obj.req.udsInfo;
+    item.memids = BuildImportMemIds(obj.status.importResults);
+    return item;
+}
+
+UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowExportObj &obj)
+{
+    UbseGlobalLedgerSummaryItem item{};
+    item.name = obj.req.name;
+    item.blockSize = obj.algoResult.blockSize;
+    item.state = obj.status.state;
+    item.numaInfos = obj.algoResult.exportNumaInfos;
+    item.userInfo = obj.req.udsInfo;
+    item.memids = BuildExportMemIds(obj.status.exportObmmInfo);
     return item;
 }
 
@@ -328,7 +399,7 @@ void AppendShmItems(const ObjMap &debtMap, UbseGlobalLedgerSummaryMap &items)
         if (IsDestroyedState(state)) {
             continue;
         }
-        items.emplace(ledgerKey, BuildShmSummaryItem(obj.req.name, obj.algoResult, state));
+        items.emplace(ledgerKey, BuildShmSummaryItem(obj));
     }
 }
 
@@ -354,8 +425,8 @@ UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
         return UBSE_ERROR_INVAL;
     }
 
-    ubse::utils::Ref<UbseGlobalLedgerSummaryReportMessage> request =
-        new (std::nothrow) UbseGlobalLedgerSummaryReportMessage();
+    ubse::utils::Ref<UbseGlobalLedgerSummaryReportMessage> request = new (std::nothrow)
+        UbseGlobalLedgerSummaryReportMessage();
     if (request == nullptr) {
         UBSE_LOG_ERROR << "new global ledger summary report message failed";
         return UBSE_ERROR_NULLPTR;
@@ -363,8 +434,8 @@ UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
     request->SetReport(summary);
 
     UbseResult reportRet = UBSE_OK;
-    auto ret = SendGlobalLedgerReport(static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT),
-                                      request, reportRet);
+    auto ret = SendGlobalLedgerReport(
+        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT), request, reportRet);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send global ledger summary report failed, nodeId=" << summary.nodeId << ", "
                        << FormatRetCode(ret);
@@ -430,8 +501,7 @@ UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
     UbseGlobalNodeLedgerSummary summary{};
     auto ret = QueryGlobalShmNodeLedgerSummary(nodeId, summary);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "query global ledger summary failed, nodeId=" << nodeId
-                       << ", " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "query global ledger summary failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
         return ret;
     }
 
@@ -439,8 +509,7 @@ UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
     if (ret == UBSE_OK) {
         UBSE_LOG_INFO << "submit global ledger summary success, nodeId=" << nodeId;
     } else {
-        UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << nodeId
-                       << ", " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
     }
     return ret;
 }

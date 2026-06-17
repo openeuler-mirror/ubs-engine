@@ -25,10 +25,11 @@ using namespace ubse::adapter_plugins::mmi;
 
 struct UbseGlobalLedgerSummaryItem {
     std::string name{};
-    std::vector<UbseMemDebtNumaInfo> exportNumaInfos{};
-    std::vector<UbseMemDebtNumaInfo> importNumaInfos{};
     uint32_t blockSize{128};
     UbseMemState state{UBSE_MEM_STATE_INIT};
+    std::vector<UbseMemDebtNumaInfo> numaInfos{}; // 导出或导入的numaInfos
+    UbseUdsInfo userInfo{};
+    std::vector<uint16_t> memids{}; // 导入或导出的memIds
 };
 
 using UbseGlobalLedgerSummaryMap = std::map<std::string, UbseGlobalLedgerSummaryItem>;
@@ -39,9 +40,9 @@ struct UbseGlobalLedgerSummary {
 };
 
 struct UbseGlobalNodeLedgerSummary {
-    std::string nodeId{};             // 当前上报的目标节点ID
-    std::string sourceMasterNodeId{}; // 上报该摘要的机柜主节点ID
-    uint64_t reportTimestampMs{0};    // 全局主落库时间戳
+    std::string nodeId{};                 // 当前上报的目标节点ID
+    std::string sourceMasterNodeId{};     // 上报该摘要的机柜主节点ID
+    uint64_t reportTimestampMs{0};        // 全局主落库时间戳
     UbseGlobalLedgerSummary shmSummary{}; // 共享内存账本摘要
 };
 
