@@ -37,7 +37,7 @@ UbseResult UbseElectionModule::Initialize()
     if (!ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
         // 非Clos组网，占用通信bonding
         UBSE_LOG_INFO << "Non-clos type dected, election module will occupy com urma bonding";
-        UbseNodeController::GetInstance().RegisterComUrmaBonding();
+        UbseNodeController::GetInstance().RegisterHostBonding();
     }
     return UBSE_OK;
 }

@@ -43,12 +43,10 @@ utils::ReadWriteLock g_invokeUrmaMutex;
 UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
-UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT], bool isClosType);
 
 UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
-    UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
     auto ret = FillNodeComInfo(current_node_id, allLinkInfo, bondingInfo, nodes);
     if (ret != UBSE_OK) {
@@ -78,7 +76,6 @@ UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const
 UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                   const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
-    UBSE_LOG_DEBUG << "Set Uvs Share Topo Info";
     std::vector<UbcoreTopoNode> nodes;
     auto ret = FillNodeComInfo(current_node_id, allLinkInfo, bondingInfo, nodes);
     if (ret != UBSE_OK) {
@@ -107,7 +104,6 @@ UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std:
 
 UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urmaSubpath)
 {
-    UBSE_LOG_DEBUG << "Get Name By UrmaEid, Eid=" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -136,7 +132,6 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
 
 UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isActive)
 {
-    UBSE_LOG_DEBUG << "Get State By UrmaEid, Eid=" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -165,7 +160,6 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isAc
 
 UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggrDevName)
 {
-    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid << ", aggrDevName=" << aggrDevName;
     if (aggrDevName.empty() || aggrDevName.size() >= AGGR_DEV_NAME_LEN) {
         UBSE_LOG_ERROR << "aggrDevName is empty or too long";
         return UBSE_ERROR_INVAL;
@@ -201,7 +195,6 @@ UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggr
 
 UbseResult UbseDeactiveBonding(const std::string& urmaEid)
 {
-    UBSE_LOG_DEBUG << "Deactivate Bonding Device, Eid =" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -344,6 +337,18 @@ UbseResult FillClosTopo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap
     return UBSE_OK;
 }
 
+UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT])
+{
+    std::string cnaStr;
+    if (ParseCnaFromEid(input, cnaStr) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    if (ConvertEidStrToHexCharList(cnaStr, cna) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& aggr_dev, bool isClosType)
 {
     auto fe_num = fes.size();
@@ -383,9 +388,9 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& 
                 UBSE_LOG_ERROR << "Failed to parse portEid=" << port.second;
                 return ret;
             }
-            if (auto ret = ExtractCnaFromEid(port.second, aggr_dev.fe[i].cna[portId], isClosType); ret != UBSE_OK) {
+            if (isClosType && ExtractCnaFromEid(port.second, aggr_dev.fe[i].cna[portId]) != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse cna from portEid=" << port.second;
-                return ret;
+                return UBSE_ERROR;
             }
         }
     }
@@ -515,26 +520,5 @@ UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IP
     // outBytes经过转换后，是长度为16的char数组.
     // 其格式为[0x42, 0x45, 0x49, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]
     return scanned == IPV6_BYTE_COUNT ? UBSE_OK : UBSE_ERROR;
-}
-
-UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT], bool isClosType)
-{
-    if (!isClosType) {
-        // 非Clos类型时CNA全为0，初始化cna为16字节0
-        auto ret = memset_s(cna, IPV6_BYTE_COUNT, 0, IPV6_BYTE_COUNT);
-        if (ret != EOK) {
-            UBSE_LOG_ERROR << "Failed to memset_s cna, ret=" << ret;
-            return UBSE_ERROR;
-        }
-        return UBSE_OK;
-    }
-    std::string cnaStr;
-    if (ParseCnaFromEid(input, cnaStr) != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-    if (ConvertEidStrToHexCharList(cnaStr, cna) != UBSE_OK) {
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
 }
 } // namespace ubse::urma

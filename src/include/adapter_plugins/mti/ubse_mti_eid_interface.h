@@ -34,14 +34,6 @@ constexpr size_t IPV6_SEGMENT_LENGTH = 4;
 std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe0Id, uint16_t fe1Id);
 
 /**
- * @brief 解析 EID 字符串 为128位bit字符串
- * @param baseEid 基础 EID
- * @param bitStr 128位bit字符串
- * @return 操作结果
- */
-uint32_t ParseBaseEid(const std::string& baseEid, std::string& bitStr);
-
-/**
  * @brief CLOS组网下，从EID字符串中解析CNA值
  * @param eid EID字符串
  * @param cna 解析出的CNA值

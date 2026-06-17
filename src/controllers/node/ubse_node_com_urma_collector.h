@@ -33,9 +33,10 @@ public:
         return instance;
     };
 
-    UbseResult GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
+    UbseResult GetAllHostPlanningBondings(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
-    UbseResult GetComUrmaByNodeId(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
+    UbseResult GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                              std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
     UbseResult FillComUrmaInfo();
 

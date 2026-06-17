@@ -13,6 +13,7 @@
 #include "test_ubse_mti_eid_interface.h"
 
 #include "ubse_error.h"
+#include "ubse_mti_eid_internal.h"
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 
 namespace ubse::utils {

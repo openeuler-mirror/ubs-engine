@@ -18,27 +18,11 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
+#include "ubse_urma_uvs_def.h"
 
 namespace ubse::urma {
 using ubse::common::def::UbseResult;
 using ubse::nodeController::PhysicalLink;
-
-struct UbseUrmaUvsFe {
-    std::string ubpuId;
-    std::string entityId;
-    std::string primaryEid;
-    std::map<std::string, std::string> portEid;
-};
-
-struct UbseUrmaUvsAggrDev {
-    std::string urmaDevEid;
-    std::vector<UbseUrmaUvsFe> feList;
-};
-
-struct UbseUrmaUvsNodeInfo {
-    std::string nodeId;
-    std::vector<UbseUrmaUvsAggrDev> devList;
-};
 
 /**
  * @brief 下发拓扑和聚合设备信息到urma_uvs

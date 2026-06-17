@@ -33,7 +33,6 @@
 #include "ubse_urma_def.h"
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "securec.h"
-#include "src/controllers/node/ubse_node_com_urma_collector.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -147,12 +146,12 @@ void UbseUrmaControllerManager::SetUrmaDevStateByDevEid(const std::string& urmaD
 UbseResult GetHostUrmaDev(const std::string& nodeId, UbseUrmaUvsNodeInfo& uvsInfo)
 {
     // 如果主机不占用bonding 0，则需要将host bonding插入到拓扑信息中
-    if (UbseSmbios::GetInstance().IsClosType() && !UbseNodeController::GetInstance().IsComUrmaBondingRegistered()) {
+    if (UbseSmbios::GetInstance().IsClosType() && !UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         UBSE_LOG_INFO << "Clos type detected, skip getting host urma dev";
         return UBSE_OK;
     }
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
+    auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
     if (ret != UBSE_OK || hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Get com urma info by nodeId=" << uvsInfo.nodeId << " failed";
         return UBSE_ERROR;
@@ -394,7 +393,7 @@ UbseResult BuildUrmaFeInfoFromMtiFe(const std::string& nodeId, const UbseMtiFeIn
         return UBSE_ERROR;
     }
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    if (UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+    if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
         hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
         return UBSE_ERROR;
@@ -450,7 +449,7 @@ std::string UbseUrmaControllerManager::GenerateUrmaDevName(const std::string& no
     if (UbseSmbios::GetInstance().IsClosType() && lcneFe0.fetype == UbseMtiFeType::PHYSICAL_TYPE) {
         // 1 PFE + 5VFE 或者 6 PFE场景，需要把原bonding_dev_0所在pfe的第6组EID组成bonding_dev_96，兼容此前版本，避免容器重建
         std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-        if (UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+        if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
             hostUrmaInfos.empty()) {
             UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
             return "";
@@ -648,7 +647,7 @@ UbseResult SplitFeInfosForClos(const std::string& nodeId, const std::vector<std:
     hostFeInfos.resize(feInfos.size());
 
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    if (UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+    if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
         hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
         return UBSE_ERROR;
@@ -683,7 +682,7 @@ UbseResult SplitFeInfosForClos(const std::string& nodeId, const std::vector<std:
         }
     }
     // 如果通信bonding被占用了，不能再将EID组分配给容器侧，需要过滤
-    if (UbseNodeController::GetInstance().IsComUrmaBondingRegistered()) {
+    if (UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         FilterCommEidGroupFromContainer(containerFeInfos, hostUrmaInfo);
     }
     return UBSE_OK;
@@ -699,7 +698,8 @@ UbseResult FilterFeInfosForNonClos(const std::string& nodeId, const std::vector<
     }
     containerFeInfos = feInfos;
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos); ret != UBSE_OK) {
+    if (auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
+        ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get all com urma info";
         return ret;
     }
@@ -1129,7 +1129,7 @@ std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseU
 UbseResult FetchCurNodeComDev(const std::string& nodeId, UbseUrmaUvsAggrDev& comDev)
 {
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
+    auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
     auto it = std::find_if(hostUrmaInfos.begin(), hostUrmaInfos.end(),
                            [&nodeId](const UbseUrmaUvsNodeInfo& info) { return info.nodeId == nodeId; });
     if (ret != UBSE_OK || it == hostUrmaInfos.end()) {
@@ -1175,7 +1175,7 @@ UbseResult UbseUrmaControllerManager::InsertHostUrmaDevInner()
         UBSE_LOG_WARN << "Invalid fe topology, skip insert communication bonding dev";
         return UBSE_ERROR;
     }
-    if (UbseNodeController::GetInstance().IsComUrmaBondingRegistered()) {
+    if (UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         UBSE_LOG_INFO << "Communication bonding dev is occupied, skip insert communication bonding dev";
         return UBSE_OK;
     }

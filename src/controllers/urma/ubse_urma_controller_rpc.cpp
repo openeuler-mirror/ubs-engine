@@ -241,7 +241,7 @@ void ActivateHostBonding()
     // 1pfe + 5vfe场景下，如果host bonding未被ubse占用，需要起定时器，创建设备预留给主机
     bool isClosType = adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
     FeTopoType feTopoType = UbseUrmaControllerManager::GetInstance().GetFeTopoType();
-    bool isHostUrmaDevOccupied = UbseNodeController::GetInstance().IsComUrmaBondingRegistered();
+    bool isHostUrmaDevOccupied = UbseNodeController::GetInstance().IsHostBondingRegistered();
     if (!isClosType || feTopoType != FeTopoType::PFE_VFE_HYBRID || isHostUrmaDevOccupied) {
         UBSE_LOG_INFO << "Skip activating host bonding, isClosType=" << static_cast<int>(isClosType)
                       << "fe topo=" << static_cast<int>(UbseUrmaControllerManager::GetInstance().GetFeTopoType())

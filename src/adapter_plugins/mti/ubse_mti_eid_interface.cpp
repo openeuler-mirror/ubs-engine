@@ -11,6 +11,7 @@
  */
 
 #include "ubse_mti_eid_interface.h"
+#include "ubse_mti_eid_internal.h"
 
 #include <array>
 #include <bitset>
@@ -24,6 +25,7 @@ namespace ubse::utils {
 using namespace common::def;
 constexpr uint8_t CNA_BIT_OFFSET = 96;
 constexpr uint8_t CNA_BIT_LEN = 24;
+constexpr uint8_t CNA_PLANAR_LEN = 4;
 
 std::string GenerateUrmaDevEid(uint16_t superPodId, uint32_t nodeId, uint16_t fe0Id, uint16_t fe1Id)
 {
@@ -122,7 +124,7 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
         return UBSE_ERROR;
     }
     // 检查替换区域是否超出bitStr范围
-    if (CNA_BIT_OFFSET + serverIdxHigh + NO_4 + serverIdxLow > bitStr.size()) {
+    if (CNA_BIT_OFFSET + serverIdxHigh + CNA_PLANAR_LEN + serverIdxLow > bitStr.size()) {
         return UBSE_ERROR;
     }
     // part1和part2转bit字符串
@@ -137,8 +139,8 @@ UbseResult OverwriteEid(uint32_t serverIdx, const std::string& baseEid, std::str
     // (positions 96-99)  替换为part1 (4位)
     // 其余部分不变
     std::string eidBitStr = bitStr.substr(0, CNA_BIT_OFFSET) + part1BitStr +
-                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh, NO_4) + part2BitStr +
-                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh + NO_4 + serverIdxLow);
+                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh, CNA_PLANAR_LEN) + part2BitStr +
+                            bitStr.substr(CNA_BIT_OFFSET + serverIdxHigh + CNA_PLANAR_LEN + serverIdxLow);
 
     ConstructEid(eidBitStr, result);
     return UBSE_OK;
