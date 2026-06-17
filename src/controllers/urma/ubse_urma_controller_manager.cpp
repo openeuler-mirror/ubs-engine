@@ -384,9 +384,9 @@ void FilterCommEidGroupFromContainer(std::vector<std::vector<UbseMtiFeInfo>>& co
     }
 }
 
-UbseResult CreateAndInsertUrmaInfoPreset(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
-                                         const UbseMtiFeInfo& lcneFe1, std::shared_ptr<UbseFeInfo>& urmaFe0,
-                                         std::shared_ptr<UbseFeInfo>& urmaFe1)
+UbseResult BuildUrmaFeInfoFromMtiFe(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
+                                    const UbseMtiFeInfo& lcneFe1, std::shared_ptr<UbseFeInfo>& urmaFe0,
+                                    std::shared_ptr<UbseFeInfo>& urmaFe1)
 {
     if (lcneFe0.fetype != lcneFe1.fetype) {
         UBSE_LOG_ERROR << "lcneFe0's fetype=" << static_cast<int>(lcneFe0.fetype)
@@ -476,7 +476,7 @@ EidGroup MakeEidGroup(UbseMtiEidGroup& src, const std::shared_ptr<UbseFeInfo>& f
     return EidGroup{.primaryEid = src.primaryEid, .portEids = std::move(src.portEids), .feInfo = feInfo};
 }
 
-void UbseUrmaControllerManager::CreateAndInsertUrmaInfoRollback(
+void UbseUrmaControllerManager::ConstructAndInsertUrmaBondingRollback(
     const UrmaDevRollbackState& state, std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
 {
     globalUrmaId.store(state.urmaId);
@@ -487,13 +487,13 @@ void UbseUrmaControllerManager::CreateAndInsertUrmaInfoRollback(
     }
 }
 
-UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(
+UbseResult UbseUrmaControllerManager::ConstructAndInsertUrmaBonding(
     const uint32_t serverIdx, const std::string& nodeId, UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1,
     std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
 {
     std::shared_ptr<UbseFeInfo> urmaFe0;
     std::shared_ptr<UbseFeInfo> urmaFe1;
-    if (CreateAndInsertUrmaInfoPreset(nodeId, lcneFe0, lcneFe1, urmaFe0, urmaFe1) != UBSE_OK) {
+    if (BuildUrmaFeInfoFromMtiFe(nodeId, lcneFe0, lcneFe1, urmaFe0, urmaFe1) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to do preset step when create urma bounding info";
         return UBSE_ERROR;
     }
@@ -514,7 +514,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(
         if (devEid.empty()) {
             UBSE_LOG_WARN << "Failed to generate urma eid, fe0's primary eid=" << lcneFe0.eidGroups[idx].primaryEid
                           << ", fe1's primary eid=" << lcneFe1.eidGroups[idx].primaryEid;
-            CreateAndInsertUrmaInfoRollback(state, urmaList);
+            ConstructAndInsertUrmaBondingRollback(state, urmaList);
             return UBSE_ERROR_AGAIN;
         }
         UbseUrmaInfo urmaInfo{.urmaDevEid = devEid, .urmaDevType = devType, .state = UrmaDevState::UNKNOWN};
@@ -524,7 +524,7 @@ UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo(
         if (urmaName.empty()) {
             UBSE_LOG_ERROR << "Failed to generate urma name, nodeId=" << nodeId
                            << ", fe0's entityId=" << lcneFe0.entityId << ", fe1's entityId=" << lcneFe1.entityId;
-            CreateAndInsertUrmaInfoRollback(state, urmaList);
+            ConstructAndInsertUrmaBondingRollback(state, urmaList);
             return UBSE_ERROR;
         }
         UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
@@ -811,7 +811,7 @@ void CalculateFeTopoType(const std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     UBSE_LOG_INFO << "Calculated fe topo type = " << static_cast<int>(topoType);
 }
 
-void SortAndLogContainerFeInfos(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
+void SortContainerFeInfos(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
 {
     // 根据ubpuId和iouId对fe排序，使得(ubpuId, iouId)小的在前面，保证进程重启后能构建出相同的bounding
     std::sort(feInfos.begin(), feInfos.end(), UbseFeVecCmp());
@@ -824,16 +824,16 @@ void SortAndLogContainerFeInfos(std::vector<std::vector<UbseMtiFeInfo>>& feInfos
     }
 }
 
-UbseResult ConstructNewUrmaInfoPreset(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
-                                      std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
-                                      std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
+UbseResult CheckAndStoreUrmaBonding(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                                    std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                                    std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
 {
     if (!ValidateLcneFeInfo(feInfos)) {
         UBSE_LOG_ERROR
             << "Invalid feInfos, there must be at least two set of fes, and all fields must be convertible to uint32_t";
         return UBSE_ERROR_INVAL;
     }
-    SortAndLogContainerFeInfos(feInfos);
+    SortContainerFeInfos(feInfos);
     if (SplitFeInfos(nodeId, feInfos, containerFeInfos, hostFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to split fe infos";
         return UBSE_ERROR;
@@ -847,7 +847,7 @@ UbseResult ConstructNewUrmaInfoPreset(const std::string& nodeId, std::vector<std
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::ProcessFeBounding(
+UbseResult UbseUrmaControllerManager::ProcessUrmaBondings(
     const std::string& nodeId, uint32_t serverIdx, std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
     std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
 {
@@ -870,7 +870,7 @@ UbseResult UbseUrmaControllerManager::ProcessFeBounding(
                           << ", fe1 info: entityId=" << lcneFe1.entityId;
             continue;
         }
-        if (CreateAndInsertUrmaInfo(serverIdx, nodeId, lcneFe0, lcneFe1, urmaList) != UBSE_OK) {
+        if (ConstructAndInsertUrmaBonding(serverIdx, nodeId, lcneFe0, lcneFe1, urmaList) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to create and insert urma info, fe0 entityId=" << lcneFe0.entityId
                            << ", fe1 entityId=" << lcneFe1.entityId;
             return UBSE_ERROR_AGAIN;
@@ -885,7 +885,7 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& no
     std::vector<std::vector<UbseMtiFeInfo>> containerFeInfos;
     std::vector<std::vector<UbseMtiFeInfo>> hostFeInfos;
     // 根据组网类型拆分/过滤FE：CLOS下按eidGroups拆为容器侧与主机侧，非CLOS下过滤通信bonding占用的FE及EID组，并对FE排序
-    if (ConstructNewUrmaInfoPreset(nodeId, feInfos, containerFeInfos, hostFeInfos) != UBSE_OK) {
+    if (CheckAndStoreUrmaBonding(nodeId, feInfos, containerFeInfos, hostFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to do preset step when construct new urma bounding info";
         return UBSE_ERROR;
     }
@@ -900,11 +900,11 @@ UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& no
         nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
     }
     // 分别基于容器侧与主机侧的FE组bonding
-    if (ProcessFeBounding(nodeId, serverIdx, containerFeInfos, nodeInfos[nodeId].urmaList) != UBSE_OK) {
+    if (ProcessUrmaBondings(nodeId, serverIdx, containerFeInfos, nodeInfos[nodeId].urmaList) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to process container fe bounding";
         return UBSE_ERROR_AGAIN;
     }
-    if (ProcessFeBounding(nodeId, serverIdx, hostFeInfos, nodeInfos[nodeId].hostUrmaList) != UBSE_OK) {
+    if (ProcessUrmaBondings(nodeId, serverIdx, hostFeInfos, nodeInfos[nodeId].hostUrmaList) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to process host fe bounding";
         return UBSE_ERROR_AGAIN;
     }
@@ -1037,7 +1037,6 @@ UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(bool isInferHostOn
     nodeInfos[nodeIdStr] = nodeInfos[basedNodeId];
     nodeInfos[nodeIdStr].nodeId = nodeIdStr;
     auto& nodeInfo = nodeInfos[nodeIdStr];
-    UBSE_LOG_DEBUG << "Infer urma dev info for nodeId=" << nodeIdStr << ", basedNodeId=" << basedNodeId;
     if (!isInferHostOnly) {
         auto ret = InferUrmaListDevInfo(serverIdx, nodeId, nodeInfo.urmaList);
         if (ret != UBSE_OK) {

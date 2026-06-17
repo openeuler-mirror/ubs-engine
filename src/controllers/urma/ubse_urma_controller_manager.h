@@ -216,9 +216,9 @@ private:
      * @param urmaList 目标URMA列表（容器侧urmaList或主机侧hostUrmaList）
      * @return UbseResult UBSE_OK表示成功，UBSE_ERROR_AGAIN表示需重试
      */
-    UbseResult CreateAndInsertUrmaInfo(const uint32_t serverIdx, const std::string& nodeId, UbseMtiFeInfo& lcneFe0,
-                                       UbseMtiFeInfo& lcneFe1,
-                                       std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
+    UbseResult ConstructAndInsertUrmaBonding(
+        const uint32_t serverIdx, const std::string& nodeId, UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1,
+        std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
 
     /**
      * @brief 遍历feInfos中配对的FE，逐一调用CreateAndInsertUrmaInfo完成bonding
@@ -231,9 +231,9 @@ private:
      * @param urmaList 目标URMA列表
      * @return UbseResult UBSE_OK表示成功，UBSE_ERROR_AGAIN表示需重试
      */
-    UbseResult ProcessFeBounding(const std::string& nodeId, uint32_t serverIdx,
-                                 std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
-                                 std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
+    UbseResult ProcessUrmaBondings(const std::string& nodeId, uint32_t serverIdx,
+                                   std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                                   std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
 
     /**
      * @brief 为单个节点推算URMA设备信息
@@ -269,8 +269,8 @@ private:
      * @param state 操作前保存的回滚状态快照
      * @param urmaList 目标URMA列表，从中删除已创建的设备
      */
-    void CreateAndInsertUrmaInfoRollback(const UrmaDevRollbackState& state,
-                                         std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
+    void ConstructAndInsertUrmaBondingRollback(
+        const UrmaDevRollbackState& state, std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList);
 
     void PrintNodeInfo(const UbseUrmaNodeInfo& nodeInfo);
 

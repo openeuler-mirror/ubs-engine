@@ -167,10 +167,11 @@ void RefreshUrmaDevStateByName(const std::string& nodeId, const std::string& urm
     }
 }
 
-static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, uint32_t batchNum, uint32_t batchSize,
-                                   const std::string& nodeId)
+static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, const std::string& nodeId)
 {
     bool isClos = UbseSmbios::GetInstance().IsClosType();
+    const uint32_t batchSize = isClos ? 32 : 0;
+    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize : 1;
     bool isBuildHostOnly = isPushShareTopoOnly;
     for (uint32_t i = 0; i < batchNum; ++i) {
         std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
@@ -194,16 +195,12 @@ static UbseResult PushUvsTopoBatch(bool isPushShareTopoOnly, uint32_t batchNum, 
 
 UbseResult PushNodesTopoToUvs(const std::string& nodeId)
 {
-    bool isClos = UbseSmbios::GetInstance().IsClosType();
-    const uint32_t batchSize = isClos ? 32 : 0;
-    const uint32_t batchNum = isClos ? (UBSE_CLOS_MAX_NODE_NUM + batchSize - 1) / batchSize : 1;
-
-    auto ret = PushUvsTopoBatch(false, batchNum, batchSize, nodeId);
+    auto ret = PushUvsTopoBatch(false, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=false, ret=" << ret;
         return ret;
     }
-    ret = PushUvsTopoBatch(true, batchNum, batchSize, nodeId);
+    ret = PushUvsTopoBatch(true, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=true, ret=" << ret;
         return ret;
