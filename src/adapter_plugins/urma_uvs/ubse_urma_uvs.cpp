@@ -24,6 +24,7 @@
 #include "ubse_str_util.h"
 #include "ubse_urma_topo_config.h"
 #include "ubse_urma_uvs_module.h"
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "lock/ubse_lock.h"
 #include "securec.h"
 
@@ -43,12 +44,11 @@ UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<P
                            const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo, std::vector<UbcoreTopoNode>& nodes);
 UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
 
-UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::vector<PhysicalLink>& allLinkInfo,
+UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
                                        const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
 {
-    UBSE_LOG_DEBUG << "Set Uvs Info";
     std::vector<UbcoreTopoNode> nodes;
-    auto ret = FillNodeComInfo(current_slot_id, allLinkInfo, bondingInfo, nodes);
+    auto ret = FillNodeComInfo(current_node_id, allLinkInfo, bondingInfo, nodes);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FillNodeComInfo failed";
         return ret;
@@ -73,9 +73,37 @@ UbseResult UbsePushTopoAndBondingToUvs(std::string& current_slot_id, const std::
     return UBSE_OK;
 }
 
+UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+                                  const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo)
+{
+    std::vector<UbcoreTopoNode> nodes;
+    auto ret = FillNodeComInfo(current_node_id, allLinkInfo, bondingInfo, nodes);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FillNodeComInfo failed";
+        return ret;
+    }
+    auto module = UbseContext::GetInstance().GetModule<UbseUrmaUvsModule>();
+    if (!module) {
+        UBSE_LOG_ERROR << "Get UbseUrmaUvsModule failed";
+        return UBSE_ERROR_MODULE_LOAD_FAILED;
+    }
+
+    if (module->uvsSetShareTopoInfo == nullptr) {
+        UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_share_topo_info'";
+        return UBSE_ERROR_NULLPTR;
+    }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
+    ret = module->uvsSetShareTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
+    if (UBSE_RESULT_FAIL(ret)) {
+        UBSE_LOG_ERROR << "Uvs failed to set share topology information, ErrorCode=" << ret;
+        return ret;
+    }
+    UBSE_LOG_INFO << "Set uvs share topo info success. node_size=" << nodes.size();
+    return UBSE_OK;
+}
+
 UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urmaSubpath)
 {
-    UBSE_LOG_DEBUG << "Get Name By UrmaEid, Eid =" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -95,7 +123,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
     ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << "Uvs failed to get device name";
+        UBSE_LOG_WARN << "Uvs failed to get device name, eid=" << urmaEid;
         return ret;
     }
     urmaSubpath = name;
@@ -104,7 +132,6 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
 
 UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isActive)
 {
-    UBSE_LOG_DEBUG << "Get State By UrmaEid, Eid =" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -133,7 +160,6 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isAc
 
 UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggrDevName)
 {
-    UBSE_LOG_DEBUG << "Activate Bonding Device, Eid =" << urmaEid << ", aggrDevName=" << aggrDevName;
     if (aggrDevName.empty() || aggrDevName.size() >= AGGR_DEV_NAME_LEN) {
         UBSE_LOG_ERROR << "aggrDevName is empty or too long";
         return UBSE_ERROR_INVAL;
@@ -169,7 +195,6 @@ UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggr
 
 UbseResult UbseDeactiveBonding(const std::string& urmaEid)
 {
-    UBSE_LOG_DEBUG << "Deactivate Bonding Device, Eid =" << urmaEid;
     char bondingEid[IPV6_BYTE_COUNT];
     auto ret = ConvertEidStrToHexCharList(urmaEid, bondingEid);
     if (ret != UBSE_OK) {
@@ -312,7 +337,19 @@ UbseResult FillClosTopo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap
     return UBSE_OK;
 }
 
-UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& aggr_dev)
+UbseResult ExtractCnaFromEid(const std::string& input, char cna[IPV6_BYTE_COUNT])
+{
+    std::string cnaStr;
+    if (ParseCnaFromEid(input, cnaStr) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    if (ConvertEidStrToHexCharList(cnaStr, cna) != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& aggr_dev, bool isClosType)
 {
     auto fe_num = fes.size();
     if (fe_num == 0) {
@@ -324,26 +361,22 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& 
         return UBSE_ERROR;
     }
     for (size_t i = 0; i < fe_num; i++) {
-        auto ret = ConvertStrToUint32(fes[i].ubpuId, aggr_dev.fe[i].chip_id);
-        if (ret != UBSE_OK) {
+        if (auto ret = ConvertStrToUint32(fes[i].ubpuId, aggr_dev.fe[i].chip_id); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Convert ubpuId failed, " << FormatRetCode(ret);
             return ret;
         }
         aggr_dev.fe[i].die_id = 1;
-        ret = ConvertStrToUint32(fes[i].entityId, aggr_dev.fe[i].entity_id);
-        if (ret != UBSE_OK) {
+        if (auto ret = ConvertStrToUint32(fes[i].entityId, aggr_dev.fe[i].entity_id); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Convert entityId failed, " << FormatRetCode(ret);
             return ret;
         }
-        ret = ConvertEidStrToHexCharList(fes[i].primaryEid, aggr_dev.fe[i].primary_eid);
-        if (ret != UBSE_OK) {
+        if (auto ret = ConvertEidStrToHexCharList(fes[i].primaryEid, aggr_dev.fe[i].primary_eid); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to parse primaryEid=" << fes[i].primaryEid;
             return ret;
         }
         for (auto& port : fes[i].portEid) {
             uint32_t portId;
-            ret = ConvertStrToUint32(port.first, portId);
-            if (ret != UBSE_OK) {
+            if (auto ret = ConvertStrToUint32(port.first, portId); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Convert portId failed, " << FormatRetCode(ret);
                 return ret;
             }
@@ -351,10 +384,13 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& 
                 UBSE_LOG_ERROR << "Port id exceeded";
                 return UBSE_ERROR;
             }
-            ret = ConvertEidStrToHexCharList(port.second, aggr_dev.fe[i].port_eid[portId]);
-            if (ret != UBSE_OK) {
+            if (auto ret = ConvertEidStrToHexCharList(port.second, aggr_dev.fe[i].port_eid[portId]); ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to parse portEid=" << port.second;
                 return ret;
+            }
+            if (isClosType && ExtractCnaFromEid(port.second, aggr_dev.fe[i].cna[portId]) != UBSE_OK) {
+                UBSE_LOG_ERROR << "Failed to parse cna from portEid=" << port.second;
+                return UBSE_ERROR;
             }
         }
     }
@@ -362,7 +398,7 @@ UbseResult FillFeInfo(const std::vector<UbseUrmaUvsFe>& fes, UbcoreTopoAggrDev& 
 }
 
 UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
-                           std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
+                           std::unordered_map<std::string, UbcoreTopoNode>& nodeMap, bool isClosType)
 {
     if (bondingInfo.empty()) {
         UBSE_LOG_ERROR << "No bonding info found";
@@ -383,7 +419,7 @@ UbseResult FillBondingInfo(const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
                 UBSE_LOG_ERROR << "Failed to parse bondingEid=" << info.devList[i].urmaDevEid;
                 return ret;
             }
-            ret = FillFeInfo(info.devList[i].feList, nodeMap[info.nodeId].aggr_dev[i]);
+            ret = FillFeInfo(info.devList[i].feList, nodeMap[info.nodeId].aggr_dev[i], isClosType);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to fill fe info for aggr_device.";
                 return ret;
@@ -446,7 +482,7 @@ UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<P
         UBSE_LOG_ERROR << "Failed to fill topo";
         return ret;
     }
-    ret = FillBondingInfo(bondingInfo, nodeMap);
+    ret = FillBondingInfo(bondingInfo, nodeMap, isClosType);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to fill bondingInfo";
         return ret;

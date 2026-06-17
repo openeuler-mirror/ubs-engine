@@ -12,10 +12,10 @@
 
 #include "ubse_lcne_fe_eid.h" // for Lcne_urma
 #include "ubse_error.h"
-#include "ubse_http_module.h"       // for UbseHttpModule
-#include "ubse_logger.h"            // for FormatRetCode, UBSE_DEFINE_THIS_MO...
-#include "ubse_mti_eid_interface.h" // for ParseBaseEid
-#include "ubse_pointer_process.h"   // for SafeDeleteArray
+#include "ubse_http_module.h"      // for UbseHttpModule
+#include "ubse_logger.h"           // for FormatRetCode, UBSE_DEFINE_THIS_MO...
+#include "ubse_mti_eid_internal.h" // for ParseBaseEid
+#include "ubse_pointer_process.h"  // for SafeDeleteArray
 #include "ubse_smbios.h"
 #include "ubse_str_util.h" // for ConvertStrToUint32
 #include "ubse_xml.h"      // for UbseXml, UbseXmlError // for UbseByteBuffer

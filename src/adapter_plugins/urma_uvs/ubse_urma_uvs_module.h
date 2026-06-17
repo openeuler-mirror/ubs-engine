@@ -25,6 +25,7 @@ using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
 
 using UvsSetTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_t topNum);
+using UvsSetShareTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_t topNum);
 using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char* urmaEid, char* buf, size_t len);
 using UvsCreateAggrDev = uint32_t (*)(char* aggrDevEid, const char* aggrDevName);
 using UvsDeleteAggrDev = uint32_t (*)(char* aggrDevEid);
@@ -49,6 +50,7 @@ struct UbcoreTopoFe {
     uint32_t entity_id;
     char primary_eid[EID_LEN];
     char port_eid[PORT_NUM][EID_LEN];
+    char cna[PORT_NUM][EID_LEN];
 };
 
 struct UbcoreTopoAggrDev {
@@ -77,6 +79,7 @@ public:
 
     // 提供函数指针访问
     UvsSetTopoInfo uvsSetTopoInfo = nullptr;
+    UvsSetShareTopoInfo uvsSetShareTopoInfo = nullptr;
     UvsGetDeviceNameByUrmaEid uvsGetDeviceNameByUrmaEid = nullptr;
     UvsCreateAggrDev uvsCreateAggrDev = nullptr;
     UvsDeleteAggrDev uvsDeleteAggrDev = nullptr;

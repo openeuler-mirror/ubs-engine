@@ -41,6 +41,11 @@ UbseResult UbseUrmaUvsModule::Initialize()
         UBSE_LOG_WARN << "Failed to find symbol 'uvs_set_topo_info'";
     }
 
+    uvsSetShareTopoInfo = (UvsSetShareTopoInfo)dlsym(handle, "uvs_set_share_topo_info");
+    if (uvsSetShareTopoInfo == nullptr) {
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_set_share_topo_info'";
+    }
+
     uvsGetDeviceNameByUrmaEid = (UvsGetDeviceNameByUrmaEid)dlsym(handle, "uvs_get_device_name_by_eid");
     if (uvsGetDeviceNameByUrmaEid == nullptr) {
         UBSE_LOG_WARN << "Failed to find symbol 'uvs_get_device_name_by_eid'";
@@ -81,6 +86,7 @@ void UbseUrmaUvsModule::Cleanup()
         dlclose(handle);
         handle = nullptr;
         uvsSetTopoInfo = nullptr;
+        uvsSetShareTopoInfo = nullptr;
         uvsGetDeviceNameByUrmaEid = nullptr;
         uvsCreateAggrDev = nullptr;
         uvsDeleteAggrDev = nullptr;

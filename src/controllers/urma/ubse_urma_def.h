@@ -178,6 +178,7 @@ struct UbseUrmaNodeInfo {
     std::string nodeId;
     std::map<std::string, UbseUrmaInfo, UrmaNameCompare>
         urmaList; // <urmaName, urmaInfo>，urmaName (urma_urmaId)是对北向唯一标识，由ubse生成
+    std::map<std::string, UbseUrmaInfo, UrmaNameCompare> hostUrmaList; // <urmaName, urmaInfo>，存储预留给主机urma dev
     uint64_t updateTimeStamp{0}; // 表示节点信息的更新序号，用于判断当前的是否为最新
     friend ubse::serial::UbseSerialization& operator<<(ubse::serial::UbseSerialization& serializer,
                                                        const UbseUrmaNodeInfo& info)

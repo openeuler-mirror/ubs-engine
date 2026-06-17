@@ -169,12 +169,12 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
     }
 
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = GetAllComUrma(hostUrmaInfos);
+    auto ret = GetAllHostPlanningBondings(hostUrmaInfos);
     if (ret != UBSE_OK || hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
-    if (!UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+    if (!UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         UBSE_LOG_INFO << "Com Urma bonding is not occupied, skip set com urma bonding.";
         return UBSE_OK;
     }
@@ -193,7 +193,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLi
     return ret;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+UbseResult UbseNodeComUrmaCollector::GetAllHostPlanningBondings(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
 {
     hostUrmaInfos.clear();
     hostUrmaInfos.reserve(comUrmaInfos.size());
@@ -206,8 +206,8 @@ UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeIn
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetComUrmaByNodeId(const std::string& nodeId,
-                                                        std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+UbseResult UbseNodeComUrmaCollector::GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                                                    std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
 {
     hostUrmaInfos.clear();
     auto it = comUrmaInfos.find(nodeId);

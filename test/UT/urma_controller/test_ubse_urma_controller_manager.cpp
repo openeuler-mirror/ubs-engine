@@ -61,7 +61,7 @@ TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev_Success)
     UbseUrmaUvsAggrDev aggrDev{.urmaDevEid = "1234"};
     nodeInfo.devList.push_back(aggrDev);
     std::vector<UbseUrmaUvsNodeInfo> mockHostUrmaInfos{nodeInfo};
-    MOCKER_CPP(&UbseNodeComUrmaCollector::GetComUrmaByNodeId)
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetPlanningHostBondingByNodeId)
         .stubs()
         .with(_, outBound(mockHostUrmaInfos))
         .will(returnValue(UBSE_OK));
@@ -74,7 +74,7 @@ TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev_Success)
 
 TEST_F(TestUbseUrmaControllerManager, GetHostUrmaDev_ComFailure)
 {
-    MOCKER_CPP(&UbseNodeComUrmaCollector::GetComUrmaByNodeId).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetPlanningHostBondingByNodeId).stubs().will(returnValue(UBSE_ERROR));
     UbseUrmaUvsNodeInfo uvsInfo{.nodeId = "1"};
     auto ret = GetHostUrmaDev("1", uvsInfo);
     EXPECT_EQ(ret, UBSE_ERROR);

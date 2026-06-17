@@ -24,6 +24,7 @@
 #include "ubse_election_module.h"
 #include "ubse_net_util.h"
 #include "ubse_node.h"
+#include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
@@ -1374,12 +1375,18 @@ uint32_t UbseNodeGetLinkUpNodes(std::vector<UbseRoleInfo>& roleInfos)
     return UbseGetAllNodeInfos(roleInfos);
 }
 
-void UbseNodeController::OccupyComUrmaBonding()
+void UbseNodeController::RegisterHostBonding()
 {
     isHostUrmaDevOccupied = true;
 }
-bool UbseNodeController::IsHostUrmaDevOccupied() const
+bool UbseNodeController::IsHostBondingRegistered() const
 {
     return isHostUrmaDevOccupied;
+}
+
+UbseResult UbseNodeController::GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                                              std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+{
+    return UbseNodeComUrmaCollector::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
 }
 } // namespace ubse::nodeController
