@@ -12,4 +12,7 @@ target_link_libraries(ubs-engine_ubse_mti_ut
         ubse_config
         ubse_event
         mti_out_of_band
+        ubse_node_controller
+        ubse_ras
+        syssentry
 )
