@@ -1759,6 +1759,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterNicRequest(const std::vector<std::sh
     UBSE_LOG_DEBUG << "Start Send UnRegister Nic Request, infos size: " << devList.size();
     UbseResult res = UBSE_ERROR;
     if (devList.empty()) {
+        UBSE_LOG_DEBUG << "UnRegister Nic List is empty.";
         return UBSE_OK;
     }
     auto busi = devList[0]->GetBondingDevBusi();
@@ -1791,6 +1792,7 @@ UbseResult UbseNpuManagerApi::SendUnRegisterVfeRequest(std::vector<std::shared_p
     UBSE_LOG_DEBUG << "Start Send UnRegister Vfe Request, infos size: " << devList.size();
     UbseResult res = UBSE_ERROR;
     if (devList.empty()) {
+        UBSE_LOG_DEBUG << "UnRegister Vfe List is empty.";
         return UBSE_OK;
     }
     auto busi = devList[0]->GetBondingDevBusi();
@@ -1826,6 +1828,10 @@ UbseResult UbseNpuManagerApi::SendRegisterVfeRequest(
     const std::vector<std::shared_ptr<CollectionDeviceIdevVfe>>& devList, bool& needRollback)
 {
     UBSE_LOG_DEBUG << "Start Send Vfe Register Request, infos size: " << devList.size();
+    if (devList.empty()) {
+        UBSE_LOG_DEBUG << "Vfe Register List is empty.";
+        return UBSE_OK;
+    }
     UbseResult res = UBSE_ERROR;
     std::vector<UbseMtiIdevVfe> mtiVfeList = ConvertToUbseMtiIdevVfeList(devList);
     UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
@@ -1856,6 +1862,10 @@ UbseResult UbseNpuManagerApi::SendRegisterNicRequest(const std::shared_ptr<Colle
                                                      const std::vector<std::shared_ptr<T>>& devList, bool& needRollback)
 {
     UBSE_LOG_DEBUG << "Start Send Nic Register Request, infos size: " << devList.size();
+    if (devList.empty()) {
+        UBSE_LOG_DEBUG << "Nic Register List is empty.";
+        return UBSE_OK;
+    }
     UbseResult res = UBSE_ERROR;
     std::vector<UbseMti1825Vf> mti1825VfList = ConvertToUbseMti1825Vf<T>(devList);
     UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
@@ -1884,7 +1894,10 @@ UbseResult UbseNpuManagerApi::SendRegisterNicRequest(const std::shared_ptr<Colle
 UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& unbindList)
 {
     UBSE_LOG_DEBUG << "Send Unbind Request, unbindInfoList size: " << unbindList.size();
-
+    if (unbindList.empty()) {
+        UBSE_LOG_DEBUG << "Unbind List is empty.";
+        return UBSE_OK;
+    }
     UbseResult res;
     bool checkRes = false;
     for (uint8_t i = 0; i < retryTime_; i++) {
@@ -1912,7 +1925,10 @@ UbseResult UbseNpuManagerApi::SendUnbindRequest(uint16_t upi, const std::vector<
 UbseResult UbseNpuManagerApi::SendBindRequest(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& bindList)
 {
     UBSE_LOG_DEBUG << "Send Bind Request, bindInfoList size: " << bindList.size();
-
+    if (bindList.empty()) {
+        UBSE_LOG_DEBUG << "Bind List is empty.";
+        return UBSE_OK;
+    }
     UbseResult res;
     bool checkRes = false;
     for (uint8_t i = 0; i < retryTime_; i++) {

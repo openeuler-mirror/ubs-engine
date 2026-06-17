@@ -23,6 +23,7 @@ static const uint8_t REG_IDEV_OP_CODE = 0x7;
 static const uint8_t UNREG_IDEV_OP_CODE = 0x8;
 static const uint8_t REG_DEV_OP_CODE = 0xF;
 static const uint8_t UNREG_DEV_OP_CODE = 0xE;
+static const uint8_t REG_DEV_CNT_CODE = 0x7F;
 
 struct UbseCtrlQRegIdevReqMsg {
     FixedHead head;
@@ -134,13 +135,14 @@ static UbseResult WriteDevReqMsg(const UbseMtiBusInst& busInstance, uint8_t slot
         UBSE_LOG_ERROR << "Set businstance failed";
         return UBSE_ERROR;
     }
+    auto& ref = *reinterpret_cast<UbseCtrlQRegDevReqMsg*>(&msg.blocks.front());
+    ref.slotId = slotId;
+    ref.feCount = regInfoList.size() & REG_DEV_CNT_CODE;
     auto blockStartPtr = reinterpret_cast<uint8_t*>(msg.blocks.data());
-    auto start = blockStartPtr + sizeof(UbseCtrlQRegIdevReqMsg);
+    auto start = blockStartPtr + sizeof(UbseCtrlQRegDevReqMsg);
     auto end = blockStartPtr + msg.blocks.size() * BASIC_BLOCK_SIZE;
     UbseCtrlQMsgWriteHelper writeHelper(start, end);
     try {
-        writeHelper.Write<uint8_t>(slotId);
-        writeHelper.Write<uint8_t>(regInfoList.size() & 0x7F);
         for (const auto& regInfo : regInfoList) {
             writeHelper.Write<DevRegInfo>(regInfo);
         }
@@ -194,7 +196,7 @@ UbseCtrlQReg1825FeToBusInstanceReqMsg::UbseCtrlQReg1825FeToBusInstanceReqMsg(con
                                                                              const std::vector<UbseMti1825Vf>& vfList)
     : busInstance_(busInstance),
       vfList_(vfList),
-      ICtrlQReqMsg(REG_DEV_OP_CODE, CalculateDevTotalSize(vfList_.size()))
+      ICtrlQReqMsg(REG_DEV_OP_CODE, CalculateDevTotalSize(vfList.size()))
 {
 }
 
@@ -235,7 +237,7 @@ UbseCtrlQUnReg1825FeFromBusInstanceReqMsg::UbseCtrlQUnReg1825FeFromBusInstanceRe
     const UbseMtiBusInst& busInstance, const std::vector<UbseMti1825Vf>& vfList)
     : busInstance_(busInstance),
       vfList_(vfList),
-      ICtrlQReqMsg(UNREG_DEV_OP_CODE, CalculateDevTotalSize(vfList_.size()))
+      ICtrlQReqMsg(UNREG_DEV_OP_CODE, CalculateDevTotalSize(vfList.size()))
 {
 }
 
