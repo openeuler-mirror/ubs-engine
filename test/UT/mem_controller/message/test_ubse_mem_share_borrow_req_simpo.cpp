@@ -10,48 +10,51 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "test_node_mem_debtInfo_query_req_simpo.h"
+#include "test_ubse_mem_share_borrow_req_simpo.h"
 
 #include <memory>
-#include "mockcpp/mockcpp.hpp"
-
 #include "ubse_error.h"
-#include "ubse_serial_util.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "message/ubse_mem_controller_serial.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::serial;
+using namespace ubse::mem::serial;
+using namespace ubse::adapter_plugins::mmi;
 
-void TestNodeMemDebtInfoQueryReqSimpo::SetUp()
+void TestUbseMemShareBorrowReqSimpo::SetUp()
 {
     Test::SetUp();
 }
 
-void TestNodeMemDebtInfoQueryReqSimpo::TearDown()
+void TestUbseMemShareBorrowReqSimpo::TearDown()
 {
     Test::TearDown();
     GlobalMockObject::verify();
 }
 
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Serialize)
+TEST_F(TestUbseMemShareBorrowReqSimpo, Serialize)
 {
-    obj.SetNodeId("test_node");
+    UbseMemShareBorrowReq req;
+    req.name = "test_share_borrow";
+    req.size = 4096;
+    obj.SetUbseMemShareBorrowReq(std::move(req));
     EXPECT_EQ(obj.Serialize(), UBSE_OK);
 }
 
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Serialize_CheckFail)
+TEST_F(TestUbseMemShareBorrowReqSimpo, Serialize_CheckFail)
 {
-    obj.SetNodeId("test");
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
+    UbseMemShareBorrowReq req;
+    req.name = "test";
+    obj.SetUbseMemShareBorrowReq(std::move(req));
+    MOCKER_CPP(&UbseMemShareBorrowReqSerialization).stubs().will(returnValue(false));
     EXPECT_EQ(obj.Serialize(), UBSE_ERROR);
 }
 
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize_NullInput)
+TEST_F(TestUbseMemShareBorrowReqSimpo, Deserialize_NullInput)
 {
     EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
 }
 
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize_BadData)
+TEST_F(TestUbseMemShareBorrowReqSimpo, Deserialize_BadData)
 {
     uint32_t size = 4;
     auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
@@ -59,17 +62,23 @@ TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize_BadData)
     EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
 }
 
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, SerializeDeserialize_RoundTrip)
+TEST_F(TestUbseMemShareBorrowReqSimpo, SerializeDeserialize_RoundTrip)
 {
-    obj.SetNodeId("roundtrip_node_42");
+    UbseMemShareBorrowReq req;
+    req.name = "roundtrip_share";
+    req.requestNodeId = "req_node";
+    req.size = 8192;
+    obj.SetUbseMemShareBorrowReq(std::move(req));
     EXPECT_EQ(obj.Serialize(), UBSE_OK);
 
     auto sharedData = obj.GetSharedOutputData();
     auto size = obj.SerializedDataSize();
 
-    NodeMemDebtInfoQueryReqSimpo obj2;
+    UbseMemShareBorrowReqSimpo obj2;
     obj2.SetInputRawDataFromShared(sharedData, size);
     EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
-    EXPECT_EQ(obj2.GetNodeId(), "roundtrip_node_42");
+    auto result = obj2.GetUbseMemShareBorrowReq();
+    EXPECT_EQ(result.name, "roundtrip_share");
+    EXPECT_EQ(result.size, 8192);
 }
 } // namespace ubse::mem::controller::message::ut

@@ -15,6 +15,7 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_api_server_module.h"
+#include "ubse_com_base.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -23,6 +24,7 @@
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mem_controller_numa_api.h"
+#include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_serial_util.h"
@@ -34,7 +36,24 @@
 #include "message/ubse_mem_return_req_simpo.h"
 #include "message/ubse_mem_share_attach_req_simpo.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "ubse_mem_controller_api_agent.cpp"
+#include "request_helper.h"
+
+namespace ubse::mem::controller::agent {
+UbseResult FillLinkInfo(const std::vector<std::string>& link, UbseMemNumaBorrowReq& numaBorrowReq);
+UbseResult CheckRemoteExist(const ubse::nodeController::UbsePortInfo& portInfo, std::vector<std::string> secondLink,
+                            std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos);
+UbseResult CheckLinkExist(std::vector<std::string> firstLink, std::vector<std::string> secondLink);
+void RegSpecifyLinkInfoCreateHandler();
+void DealBorrowWaitTimeOut(const std::string& name, const std::string& requestNodeId, const std::string& importNodeId,
+                           const MemOperationType& type);
+void SwitchReturnType(ubse::com::SendParam& sendParam, const MemOperationType& type);
+bool IsSocketExist(const uint32_t& socketId, const ubse::nodeController::UbseNodeInfo& nodeInfo,
+                   nodeController::UbseCpuLocation& location);
+} // namespace ubse::mem::controller::agent
+
+namespace ubse::mem::controller {
+bool IsHighSafety();
+}
 
 namespace ubse::mem_controller::ut {
 using namespace context;
@@ -43,10 +62,14 @@ using namespace ubse::serial;
 using namespace ubse::election;
 using namespace ubse::nodeController;
 using namespace ubse::config;
+using ::api::server::UbseApiServerModule;
+using ubse::com::SendParam;
+using ubse::com::UbseComModule;
 
 void TestUbseMemControllerApiAgent::SetUp()
 {
     Test::SetUp();
+    GlobalMockObject::reset();
 }
 void TestUbseMemControllerApiAgent::TearDown()
 {
@@ -54,33 +77,52 @@ void TestUbseMemControllerApiAgent::TearDown()
     GlobalMockObject::verify();
 }
 
-TEST_F(TestUbseMemControllerApiAgent, Init)
+TEST_F(TestUbseMemControllerApiAgent, Init_ConfModuleNull)
 {
-    GTEST_SKIP();
     std::shared_ptr<UbseConfModule> nullConfModule = nullptr;
-    std::shared_ptr<UbseConfModule> configModule = std::make_shared<UbseConfModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>)
-        .stubs()
-        .will(returnValue(configModule))
-        .then(returnValue(configModule));
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullConfModule));
     EXPECT_EQ(ubse::mem::controller::agent::Init(), UBSE_ERROR_NULLPTR);
-    MOCKER_CPP(&UbseConfModule::GetULongConf).stubs().will(returnValue(UBSE_OK));
+}
 
+TEST_F(TestUbseMemControllerApiAgent, Init_ExecutorModuleNull)
+{
+    std::shared_ptr<UbseConfModule> configModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(configModule));
+    MOCKER_CPP(&UbseConfModule::GetULongConf).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> nullModule = nullptr;
+    MOCKER_CPP(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(nullModule));
+    EXPECT_EQ(ubse::mem::controller::agent::Init(), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, Init_RegHandlerFailed)
+{
+    std::shared_ptr<UbseConfModule> configModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(configModule));
+    MOCKER_CPP(&UbseConfModule::GetULongConf).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> module =
         std::make_shared<task_executor::UbseTaskExecutorModule>();
-    MOCKER_CPP(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>)
+    MOCKER_CPP(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(module));
+    std::shared_ptr<UbseApiServerModule> apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&mem::controller::agent::UbseMemOperationRespHandler::RegUbseMemOperationRespHandlerToServer)
         .stubs()
-        .will(returnValue(nullModule))
-        .then(returnValue(module));
-    EXPECT_EQ(ubse::mem::controller::agent::Init(), UBSE_ERROR_NULLPTR);
-
-    MOCKER_CPP(&task_executor::UbseTaskExecutorModule::Create)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+        .will(returnValue(UBSE_ERROR));
     EXPECT_EQ(ubse::mem::controller::agent::Init(), UBSE_ERROR);
+}
 
+TEST_F(TestUbseMemControllerApiAgent, Init_Success)
+{
+    std::shared_ptr<UbseConfModule> configModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(configModule));
+    MOCKER_CPP(&UbseConfModule::GetULongConf).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<task_executor::UbseTaskExecutorModule> module =
+        std::make_shared<task_executor::UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(module));
+    MOCKER_CPP(&task_executor::UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseApiServerModule> apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&mem::controller::agent::UbseMemOperationRespHandler::RegUbseMemOperationRespHandlerToServer)
         .stubs()
         .will(returnValue(UBSE_OK));
@@ -776,7 +818,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_SignFail)
     req.size = 1024;
     UbseMemOperationResp resp{};
 
-    MOCKER(IsHighSafety).stubs().will(returnValue(true));
+    MOCKER(mem::controller::IsHighSafety).stubs().will(returnValue(true));
     MOCKER(&mem::controller::UbseMemSignVerifier::Sign).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = UbseMemFdBorrow(req, resp);
@@ -792,8 +834,8 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_FutureMgrNull)
     req.size = 1024;
     UbseMemOperationResp resp{};
 
-    MOCKER(IsHighSafety).reset();
-    MOCKER(IsHighSafety).stubs().will(returnValue(false));
+    MOCKER(mem::controller::IsHighSafety).reset();
+    MOCKER(mem::controller::IsHighSafety).stubs().will(returnValue(false));
     std::shared_ptr<FutureMgr> nullFutureMgr = nullptr;
     MOCKER(&FutureMgr::CreateInstance).stubs().will(returnValue(nullFutureMgr));
 
@@ -871,26 +913,292 @@ TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerGetCurrentNodeFail)
 
 TEST_F(TestUbseMemControllerApiAgent, DeleteMemoryHandlerMemoryReturnFail)
 {
-    // 准备测试数据
     UbseIpcMessage request{};
     UbseRequestContext context{};
-
-    // 构造有效的请求数据
     UbseSerialization serialization;
     serialization << "valid_name"
                   << "NUMA_RETURN";
     request.buffer = serialization.GetBuffer();
     request.length = serialization.GetLength();
-
-    // 模拟依赖项
     UbseRoleInfo currentNodeInfo;
     currentNodeInfo.nodeId = "1";
     MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNodeInfo)).will(returnValue(UBSE_OK));
-
-    // 模拟内存返回失败
     MOCKER(UbseMemReturn).stubs().will(returnValue(UBSE_ERROR));
-
-    // 执行测试
     EXPECT_EQ(DeleteMemoryHandler(request, context), UBSE_ERROR);
 }
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_WrongSize)
+{
+    std::string linkInfo = "0/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    EXPECT_EQ(DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_InvalidFirstLink)
+{
+    std::string linkInfo = "0-0-1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    EXPECT_EQ(DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_InvalidSecondLink)
+{
+    std::string linkInfo = "0/0/1-1-0-1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    EXPECT_EQ(DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_NodeMismatch)
+{
+    std::string linkInfo = "0/0/1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "999";
+    std::string errorMsg;
+
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "node0";
+    nodeInfo.slotId = 0;
+    nodeInfos["node0"] = nodeInfo;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+
+    EXPECT_EQ(DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, GetWaitTimeout_Test)
+{
+    std::chrono::seconds timeout = GetWaitTimeout();
+    EXPECT_GT(timeout.count(), 0);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillLinkInfo_ConvertSocketIdFail)
+{
+    std::vector<std::string> link = {"node1", "abc", "1"};
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    auto ret = ubse::mem::controller::agent::FillLinkInfo(link, numaBorrowReq);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, FillLinkInfo_ConvertPortFail)
+{
+    std::vector<std::string> link = {"node1", "0", "abc"};
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    auto ret = ubse::mem::controller::agent::FillLinkInfo(link, numaBorrowReq);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_ConvertFail)
+{
+    ubse::nodeController::UbsePortInfo portInfo;
+    portInfo.remoteChipId = "abc";
+    std::vector<std::string> secondLink = {"1", "0", "1"};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    auto ret = ubse::mem::controller::agent::CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_NodeNotFound)
+{
+    ubse::nodeController::UbsePortInfo portInfo;
+    portInfo.remoteChipId = "0";
+    portInfo.remoteSlotId = "999";
+    std::vector<std::string> secondLink = {"1", "0", "1"};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.slotId = 0;
+    nodeInfos["node0"] = nodeInfo;
+    auto ret = ubse::mem::controller::agent::CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_CpuInfoNotFound)
+{
+    ubse::nodeController::UbsePortInfo portInfo;
+    portInfo.remoteChipId = "0";
+    portInfo.remoteSlotId = "0";
+    std::vector<std::string> secondLink = {"1", "0", "1"};
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.slotId = 0;
+    nodeInfo.nodeId = "node0";
+    nodeInfos["node0"] = nodeInfo;
+    auto ret = ubse::mem::controller::agent::CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckRemoteExist_SecondLinkWrongSize)
+{
+    ubse::nodeController::UbsePortInfo portInfo;
+    portInfo.remoteChipId = "0";
+    portInfo.remoteSlotId = "0";
+    std::vector<std::string> secondLink = {"1", "0"};
+    ubse::nodeController::UbseCpuLocation cpuLoc;
+    cpuLoc.nodeId = "0";
+    cpuLoc.chipId = 0;
+    ubse::nodeController::UbseCpuInfo cpuInfo;
+    cpuInfo.socketId = 0;
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.slotId = 0;
+    nodeInfo.nodeId = "node0";
+    nodeInfo.cpuInfos[cpuLoc] = cpuInfo;
+    nodeInfos["node0"] = nodeInfo;
+    auto ret = ubse::mem::controller::agent::CheckRemoteExist(portInfo, secondLink, nodeInfos);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_InvalidSocketStr)
+{
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "node0";
+    nodeInfo.slotId = 0;
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    nodeInfos["node0"] = nodeInfo;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    std::vector<std::string> firstLink = {"0", "abc", "1"};
+    std::vector<std::string> secondLink = {"1", "0", "1"};
+    auto ret = ubse::mem::controller::agent::CheckLinkExist(firstLink, secondLink);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, CheckLinkExist_RemotePortMismatch)
+{
+    ubse::nodeController::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "node0";
+    nodeInfo.slotId = 0;
+    ubse::nodeController::UbseCpuLocation cpuLoc;
+    cpuLoc.nodeId = "node0";
+    cpuLoc.chipId = 0;
+    ubse::nodeController::UbseCpuInfo cpuInfo;
+    cpuInfo.socketId = 0;
+    ubse::nodeController::UbsePortInfo portInfo;
+    portInfo.portStatus = ubse::nodeController::PortStatus::UP;
+    portInfo.remotePortId = "0";
+    portInfo.remoteSlotId = "0";
+    cpuInfo.portInfos["1"] = portInfo;
+    nodeInfo.cpuInfos[cpuLoc] = cpuInfo;
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos;
+    nodeInfos["node0"] = nodeInfo;
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(nodeInfos));
+    std::vector<std::string> firstLink = {"0", "0", "1"};
+    std::vector<std::string> secondLink = {"1", "0", "999"};
+    auto ret = ubse::mem::controller::agent::CheckLinkExist(firstLink, secondLink);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_FirstLinkMatch)
+{
+    std::string linkInfo = "0/0/1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "0";
+    std::string errorMsg;
+    MOCKER_CPP(&ubse::mem::controller::agent::CheckLinkExist).stubs().will(returnValue(UBSE_OK));
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(numaBorrowReq.srcSocket, 0);
+    EXPECT_EQ(numaBorrowReq.linkInfo.lenderNode, "1");
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_SecondLinkMatch)
+{
+    std::string linkInfo = "0/0/1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "1";
+    std::string errorMsg;
+    MOCKER_CPP(&ubse::mem::controller::agent::CheckLinkExist).stubs().will(returnValue(UBSE_OK));
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(numaBorrowReq.srcSocket, 0);
+    EXPECT_EQ(numaBorrowReq.linkInfo.lenderNode, "0");
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_ConvertSrcSocketFail)
+{
+    std::string linkInfo = "0/abc/1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "0";
+    std::string errorMsg;
+    MOCKER_CPP(&ubse::mem::controller::agent::CheckLinkExist).stubs().will(returnValue(UBSE_OK));
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealLinkInfo_NodeMismatchAfterCheck)
+{
+    std::string linkInfo = "0/0/1-1/0/1";
+    ubse::mem::controller::agent::UbseMemNumaBorrowReq numaBorrowReq;
+    UbseRoleInfo currentNodeInfo;
+    currentNodeInfo.nodeId = "999";
+    std::string errorMsg;
+    MOCKER_CPP(&ubse::mem::controller::agent::CheckLinkExist).stubs().will(returnValue(UBSE_OK));
+    auto ret = DealLinkInfo(linkInfo, numaBorrowReq, currentNodeInfo, errorMsg);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealBorrowWaitTimeOut_ExecutorNull)
+{
+    ubse::task_executor::UbseTaskExecutorPtr nullExecutor;
+    MOCKER_CPP(&ubse::mem::util::GetExecutor).stubs().will(returnValue(nullExecutor));
+    EXPECT_NO_FATAL_FAILURE(
+        ubse::mem::controller::agent::DealBorrowWaitTimeOut("test", "node1", "node2", MemOperationType::FD_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, DealBorrowWaitTimeOut_Success)
+{
+    ubse::task_executor::UbseTaskExecutorPtr executor =
+        new ubse::task_executor::UbseTaskExecutor("ubseMemController", 1, 1);
+    MOCKER_CPP(&ubse::mem::util::GetExecutor).stubs().will(returnValue(executor));
+    MOCKER(UbseMemReturn).stubs().will(returnValue(UBSE_OK));
+    bool (task_executor::UbseTaskExecutor::*func)(const std::function<void()>& task) =
+        &task_executor::UbseTaskExecutor::Execute;
+    MOCKER(func).stubs().will(returnValue(true));
+    EXPECT_NO_FATAL_FAILURE(
+        ubse::mem::controller::agent::DealBorrowWaitTimeOut("test", "node1", "node2", MemOperationType::FD_RETURN));
+}
+
+TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_GetMasterFail)
+{
+    GlobalMockObject::reset();
+    UbseMemFdBorrowReq req{};
+    UbseMemOperationResp resp{};
+    MOCKER_CPP(&election::UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(ubse::mem::controller::agent::UbseMemFdBorrow(req, resp), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_ComModuleNull)
+{
+    GlobalMockObject::reset();
+    UbseMemFdBorrowReq req{};
+    UbseMemOperationResp resp{};
+    election::UbseRoleInfo masterInfo{};
+    masterInfo.nodeId = "1";
+    MOCKER_CPP(&election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> nullModule = nullptr;
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule));
+    MOCKER_CPP(&ubse::mem::controller::IsHighSafety).stubs().will(returnValue(false));
+    EXPECT_EQ(ubse::mem::controller::agent::UbseMemFdBorrow(req, resp), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseMemControllerApiAgent, UbseMemFdBorrow_SignFailed)
+{
+    UbseMemFdBorrowReq req{};
+    UbseMemOperationResp resp{};
+    MOCKER_CPP(&ubse::mem::controller::IsHighSafety).stubs().will(returnValue(true));
+    MOCKER_CPP(&ubse::mem::controller::UbseMemSignVerifier::Sign).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(ubse::mem::controller::agent::UbseMemFdBorrow(req, resp), UBSE_ERROR);
+}
+
 } // namespace ubse::mem_controller::ut
