@@ -31,28 +31,28 @@ UbseResult g_httpRet = UBSE_OK;
 const std::string ETS_PROFILE_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets</name>"
     "<vls><vl><vl-index>0</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>10</weight></vl><vl><vl-index>10</vl-index>"
-    "<priority-group-id>2</priority-group-id><schedule-mode>sp</schedule-mode><weight>1</weight></vl></vls>"
+    "</vl><vl><vl-index>10</vl-index>"
+    "<priority-group-id>2</priority-group-id></vl></vls>"
     "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs>"
+    "<cir>1000</cir><cbs>4096</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILE_WRAPPED_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets1</name>"
     "<vls><vl><vl-index>1</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight></vl></vls>"
+    "</vl></vls>"
     "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight><cir>1000</cir><cbs>4096</cbs>"
+    "<cir>1000</cir><cbs>4096</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILES_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets1</name>"
     "<vls><vl><vl-index>1</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight></vl></vls><priority-groups>"
-    "<priority-group><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode>"
-    "<weight>1</weight><cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile>"
+    "</vl></vls><priority-groups>"
+    "<priority-group><priority-group-id>1</priority-group-id>"
+    "<cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile>"
     "<ets-profile><name>test-ets2</name><vls><vl><vl-index>2</vl-index>"
-    "<priority-group-id>2</priority-group-id><schedule-mode>sp</schedule-mode><weight>2</weight></vl></vls>"
+    "<priority-group-id>2</priority-group-id></vl></vls>"
     "<priority-groups><priority-group><priority-group-id>2</priority-group-id>"
-    "<schedule-mode>sp</schedule-mode><weight>2</weight><cir>2000</cir><cbs>8192</cbs>"
+    "<cir>2000</cir><cbs>8192</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILE_NAME_ONLY_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile>"
@@ -128,7 +128,7 @@ TEST_F(TestUbseLcneEts, ParseEtsProfileResponseSuccess)
     EXPECT_EQ(profile.profileName, "test-ets");
     ASSERT_EQ(profile.vls.size(), 2);
     EXPECT_EQ(profile.vls[0].vlIndex, 0);
-    EXPECT_EQ(profile.vls[1].scheduleMode, UbseEtsScheduleMode::SP);
+    EXPECT_EQ(profile.vls[1].vlIndex, 10);
     ASSERT_EQ(profile.priorityGroups.size(), 1);
     EXPECT_EQ(profile.priorityGroups[0].cir, 1000);
     EXPECT_EQ(profile.priorityGroups[0].cbs, 4096);
@@ -169,9 +169,9 @@ TEST_F(TestUbseLcneEts, ParseEtsProfileResponseInvalidNumberFailed)
     std::string responseXml =
         "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets</name>"
         "<vls><vl><vl-index>invalid</vl-index><priority-group-id>1</priority-group-id>"
-        "<schedule-mode>dwrr</schedule-mode><weight>10</weight></vl></vls>"
+        "</vl></vls>"
         "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-        "<schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs>"
+        "<cir>1000</cir><cbs>4096</cbs>"
         "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
     UbseMtiEtsProfile profile;
     EXPECT_EQ(UbseLcneEts::GetInstance().ParseEtsProfileResponse(responseXml, profile), UBSE_ERROR);
@@ -203,6 +203,8 @@ TEST_F(TestUbseLcneEts, CreateEtsProfileSuccess)
     EXPECT_NE(g_request.body.find("<name>test-ets</name>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<vl-index>10</vl-index>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<priority-groups>"), std::string::npos);
+    EXPECT_EQ(g_request.body.find("<schedule-mode>"), std::string::npos);
+    EXPECT_EQ(g_request.body.find("<weight>"), std::string::npos);
 }
 
 TEST_F(TestUbseLcneEts, AddEtsVlsToProfileSuccess)
@@ -310,7 +312,6 @@ TEST_F(TestUbseLcneEts, QueryAllEtsProfilesSuccess)
     EXPECT_EQ(profiles[0].profileName, "test-ets1");
     EXPECT_EQ(profiles[1].profileName, "test-ets2");
     ASSERT_EQ(profiles[1].vls.size(), 1);
-    EXPECT_EQ(profiles[1].vls[0].scheduleMode, UbseEtsScheduleMode::SP);
 }
 
 TEST_F(TestUbseLcneEts, QueryAllEtsProfilesEmptyBodySuccess)
