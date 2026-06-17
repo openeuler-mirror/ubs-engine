@@ -321,6 +321,53 @@ uint32_t UBSRMRSMemFree(const std::string &nodeId);
 
 暂无
 
+## UBSRMRSMemFreeWithMigrate: 内存归还执行（按borrowId）
+
+### 摘要 SYNOPSIS
+
+```cpp
+#include "mempooling_interface.h"
+
+uint32_t UBSRMRSMemFreeWithMigrate(const std::string &borrowId);
+```
+
+### 描述 DESCRIPTION
+
+按 borrowId 粒度执行内存归还：根据指定的 borrowId 找到对应的债务记录（debtInfos），对其涉及的远端 NUMA 加排他锁，调用归还执行动作集完成内存归还（含迁移执行），返回执行结果。
+
+与 `UBSRMRSMemFree`（按 nodeId 归还整个节点的远端 NUMA 内存）不同，本接口以 borrowId 为最小粒度进行归还，主要用于容器超分场景下对单条借用记录的精确归还。
+
+### 参数 Parameters
+
+| name     | IN/OUT | description                |
+| -------- | ------ | -------------------------- |
+| borrowId | IN     | 内存借用记录 ID，不能为空。 |
+
+### 返回值 RETURN VALUE
+
+返回0：归还执行成功。
+
+返回1：失败通用错误码（例如 borrowId 为空、获取债务信息失败、并发受限等）。
+
+返回2：迁移过程中对应进程被删除。
+
+返回3：迁移失败通用错误码。
+
+返回4：内存资源删除失败。
+
+返回 `MEM_POOLING_HANDLING_FAULT`：归还涉及的远端 NUMA 处于故障处理中，加锁失败。
+
+### 约束 CONSTRAINTS
+
+- 本节点调用。
+- borrowId 不能为空，且必须是已存在的借用记录 ID。
+- 与其它内存归还接口通过归还互斥锁串行执行，**不支持并发调用**。
+- 归还执行前会对 borrowId 对应的远端 NUMA 加排他锁；若 NUMA 处于故障处理中，会拒绝本次归还。
+
+### 附注 NOTES
+
+暂无
+
 ## UBSRMRSMemBorrowRollback: 借用内存回滚
 
 ### 摘要 SYNOPSIS
@@ -892,19 +939,19 @@ int UBSRMRSSmapEnableProcessMigrate(std::vector<pid_t> pidVec, int enable, int f
 
 暂无
 
-## MigrateOut: 设置进程迁移到远端NUMA，异步调用接口
+## UBSRMRSMigrateOut: 设置进程迁移到远端NUMA，异步调用接口
 
 ### 摘要 SYNOPSIS
 
 ```cpp
 #include "mempooling_interface.h"
 
-int MigrateOut(const std::vector<MigrateOutPayload> &items, int pidType);
+int UBSRMRSMigrateOut(const std::vector<MigrateOutPayload> &items, int pidType);
 ```
 
 ### 描述 DESCRIPTION
 
-启用/禁用PID对应虚拟机的冷热迁移和迁回。
+设置进程迁移到远端NUMA，迁移大小为0时将进程全部迁回本地
 
 ### 参数 Parameters
 
@@ -927,14 +974,14 @@ int MigrateOut(const std::vector<MigrateOutPayload> &items, int pidType);
 
 暂无
 
-## Remove: 移除进程的冷热页迁移
+## UBSRMRSRemove: 移除进程的冷热页迁移
 
 ### 摘要 SYNOPSIS
 
 ```cpp
 #include "mempooling_interface.h"
 
-int Remove(const std::vector<pid_t>& pids, int pidType);
+int UBSRMRSRemove(const std::vector<pid_t>& pids, int pidType);
 ```
 
 ### 描述 DESCRIPTION
