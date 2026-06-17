@@ -369,8 +369,38 @@ uint32_t UbseNodeController::RegLocalStateNotifyHandler(const UbseLocalStateNoti
 // 注册中心侧节点状态变更回调
 uint32_t UbseNodeController::RegClusterStateNotifyHandler(const UbseClusterStateNotifyHandler &handler)
 {
-    std::unique_lock<std::shared_mutex> lock(rwMutex);
-    clusterNotifyHandlers.push_back(handler);
+    if (handler == nullptr) {
+        UBSE_LOG_ERROR << "register cluster state notify handler failed, handler is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    std::vector<UbseNodeInfo> nodeInfoList;
+    {
+        std::unique_lock<std::shared_mutex> lock(rwMutex);
+        clusterNotifyHandlers.push_back(handler);
+        nodeInfoList.reserve(nodeInfos.size());
+        for (const auto &[_, nodeInfo] : nodeInfos) {
+            nodeInfoList.push_back(nodeInfo);
+        }
+    }
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_WARN << "election module not load, skip sync current cluster state";
+        return UBSE_OK;
+    }
+    if (!module->IsLeader()) {
+        return UBSE_OK;
+    }
+    for (const auto &nodeInfo : nodeInfoList) {
+        auto ret = handler(nodeInfo);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "nodeId=" << nodeInfo.nodeId
+                           << " sync current cluster state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                           << " failed, " << FormatRetCode(ret);
+            continue;
+        }
+        UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId
+                      << " sync current cluster state=" << static_cast<uint32_t>(nodeInfo.clusterState) << " success";
+    }
     return UBSE_OK;
 }
 
@@ -402,6 +432,7 @@ uint32_t UbseNodeController::ExecGlobalStateNotifyHandler(const UbseNodeInfo &no
     }
     return ret;
 }
+
 void ExecLocalStateHandler(const UbseNodeInfo &nodeInfo, const std::vector<UbseLocalStateNotifyHandler> &handlers)
 {
     for (auto handler : handlers) {
@@ -447,28 +478,64 @@ UbseResult ExecClusterStateHandler(const UbseNodeInfo &nodeInfo,
     return ret;
 }
 
+bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterState updateState)
+{
+    switch (curState) {
+        case UbseNodeClusterState::UBSE_NODE_INIT:
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
+        case UbseNodeClusterState::UBSE_NODE_SMOOTHING:
+            return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
+        case UbseNodeClusterState::UBSE_NODE_WORKING:
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
+        case UbseNodeClusterState::UBSE_NODE_UNKNOWN:
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN;
+        case UbseNodeClusterState::UBSE_NODE_FAULT:
+            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
+        case UbseNodeClusterState::UBSE_NODE_PRE_BMC:
+            return updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
+                   updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
+        default: {
+            UBSE_LOG_ERROR << "unknown current state: " << static_cast<uint32_t>(curState);
+            return false;
+        }
+    }
+}
+
 static UbseNodeClusterState MergeClusterState(UbseNodeClusterState oldState, UbseNodeClusterState reportState)
 {
     if (oldState == reportState) {
         return oldState;
     }
 
-    // 周期采集默认INIT不覆盖已有中心侧状态
+    // 周期采集的默认INIT状态不能覆盖中心侧已有状态
     if (reportState == UbseNodeClusterState::UBSE_NODE_INIT && oldState != UbseNodeClusterState::UBSE_NODE_INIT) {
         return oldState;
     }
 
-    // 上级收到下级已对账完成状态，允许INIT更新为WORKING
+    // 上级接收的是状态快照，允许INIT直接同步为WORKING
     if (oldState == UbseNodeClusterState::UBSE_NODE_INIT && reportState == UbseNodeClusterState::UBSE_NODE_WORKING) {
         return reportState;
     }
 
-    // 故障/未知/预下电以本地状态机为准
-    if (oldState == UbseNodeClusterState::UBSE_NODE_FAULT || oldState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
-        oldState == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
-        return oldState;
+    // 其他状态需要符合节点状态机迁移规则
+    if (CanUpdateNodeClusterState(oldState, reportState)) {
+        return reportState;
     }
 
+    UBSE_LOG_WARN << "reject invalid cluster state transition, oldState=" << static_cast<uint32_t>(oldState)
+                  << ", reportState=" << static_cast<uint32_t>(reportState);
     return oldState;
 }
 
@@ -485,27 +552,36 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeI
     }
     UbseResult ret = UBSE_OK;
     rwMutex.lock();
-    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
-        UBSE_LOG_INFO << "nodeId=" << nodeId << " first add, update node info, current nodeId=" << GetCurrentNodeId();
-        info.clusterState = UbseNodeClusterState::UBSE_NODE_INIT;
+    auto iter = nodeInfos.find(nodeId);
+    if (iter == nodeInfos.end()) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId << " first add, update node info, current nodeId=" << GetCurrentNodeId()
+                      << ", reportClusterState=" << static_cast<uint32_t>(info.clusterState);
         nodeInfos[nodeId] = info;
         // 使用numaInfos更新拓扑数据中的本端信息
         UbseSocketIdChange(nodeId);
+        auto nodeInfoCopy = nodeInfos[nodeId];
+        auto localHandlers = localNotifyHandlers;
+        auto clusterHandlers = clusterNotifyHandlers;
         rwMutex.unlock();
+
         if (nodeId == currentNodeId) {
-            ExecLocalStateHandler(info, localNotifyHandlers);
+            ExecLocalStateHandler(nodeInfoCopy, localHandlers);
         }
-        ret = ExecClusterStateHandler(info, clusterNotifyHandlers);
+        ret = ExecClusterStateHandler(nodeInfoCopy, clusterHandlers);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "nodeId=" << nodeId << " first add notify cluster state failed, " << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "nodeId=" << nodeId << " first add notify cluster state failed, state="
+                           << static_cast<uint32_t>(nodeInfoCopy.clusterState) << ", " << FormatRetCode(ret);
         } else {
-            UBSE_LOG_INFO << "nodeId=" << nodeId << " first add notify cluster state success";
+            UBSE_LOG_INFO << "nodeId=" << nodeId << " first add notify cluster state success, state="
+                          << static_cast<uint32_t>(nodeInfoCopy.clusterState);
         }
         return ret;
     }
-    auto &existing = nodeInfos[nodeId];
+    auto &existing = iter->second;
+    auto oldClusterState = existing.clusterState;
     auto reportClusterState = info.clusterState;
-    info.clusterState = MergeClusterState(existing.clusterState, reportClusterState);
+
+    info.clusterState = MergeClusterState(oldClusterState, reportClusterState);
     info.localState = existing.localState;
     info.globalState = existing.globalState;
 
@@ -514,15 +590,31 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string &nodeId, UbseNodeI
         info.guid = existing.guid;
     }
     UBSE_LOG_INFO << "[CLOS_STATE_MERGE] update node info, nodeId=" << nodeId
-                  << ", oldClusterState=" << static_cast<uint32_t>(existing.clusterState)
+                  << ", oldClusterState=" << static_cast<uint32_t>(oldClusterState)
                   << ", reportClusterState=" << static_cast<uint32_t>(reportClusterState)
                   << ", mergedClusterState=" << static_cast<uint32_t>(info.clusterState);
 
     existing = info;
     // 使用numaInfos更新拓扑数据中的本端信息
     UbseSocketIdChange(nodeId);
+    auto nodeInfoCopy = existing;
+    auto handlers = clusterNotifyHandlers;
     rwMutex.unlock();
-    return UBSE_OK;
+    if (oldClusterState == nodeInfoCopy.clusterState) {
+        return UBSE_OK;
+    }
+    ret = ExecClusterStateHandler(nodeInfoCopy, handlers);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId=" << nodeId
+                       << " notify cluster state failed, oldState=" << static_cast<uint32_t>(oldClusterState)
+                       << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState) << ", "
+                       << FormatRetCode(ret);
+    } else {
+        UBSE_LOG_INFO << "nodeId=" << nodeId
+                      << " notify cluster state success, oldState=" << static_cast<uint32_t>(oldClusterState)
+                      << ", newState=" << static_cast<uint32_t>(nodeInfoCopy.clusterState);
+    }
+    return ret;
 }
 
 void LogOnSocketIdMismatch(const std::set<uint32_t> &lcneChipIdSet, const std::set<uint32_t> &osSocketIdSet)
@@ -713,41 +805,6 @@ void UbseNodeController::UpdateNodeInfoLocalState(UbseNodeLocalState state)
     // local 状态的变更，restore需要重试直到平滑成功;
     ExecLocalStateHandler(nodeInfos[currentNodeId], localNotifyHandlers);
     UBSE_LOG_INFO << "local node update local state to " << static_cast<uint32_t>(state);
-}
-
-bool CanUpdateNodeClusterState(UbseNodeClusterState curState, UbseNodeClusterState updateState)
-{
-    switch (curState) {
-        case UbseNodeClusterState::UBSE_NODE_INIT:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
-        case UbseNodeClusterState::UBSE_NODE_SMOOTHING:
-            return updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
-        case UbseNodeClusterState::UBSE_NODE_WORKING:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_PRE_BMC;
-        case UbseNodeClusterState::UBSE_NODE_UNKNOWN:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_UNKNOWN;
-        case UbseNodeClusterState::UBSE_NODE_FAULT:
-            return updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_FAULT;
-        case UbseNodeClusterState::UBSE_NODE_PRE_BMC:
-            return updateState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_WORKING ||
-                   updateState == UbseNodeClusterState::UBSE_NODE_SMOOTHING;
-        default: {
-            UBSE_LOG_ERROR << "unknown current state: " << static_cast<uint32_t>(curState);
-            return false;
-        }
-    }
 }
 
 uint32_t GenerateFaultUbseNode(const std::string &nodeId, UbseNodeInfo &faultNodeInfo)
