@@ -13,22 +13,20 @@
 #ifndef UBS_ENGINE_TEST_UBSE_MEM_ADDR_BORROW_EXPORTOBJ_SIMPO_H
 #define UBS_ENGINE_TEST_UBSE_MEM_ADDR_BORROW_EXPORTOBJ_SIMPO_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
+#include <gtest/gtest.h>
+#include <mockcpp/mockcpp.hpp>
 
 #include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::mem::controller::message;
 
 class TestUbseMemAddrBorrowExportobjSimpo : public testing::Test {
 public:
     void SetUp() override;
-
     void TearDown() override;
 
-private:
-    UbseMemAddrBorrowExportobjSimpoPtr obj;
+    UbseMemAddrBorrowExportobjSimpo obj;
 };
+
 } // namespace ubse::mem::controller::message::ut
 #endif // UBS_ENGINE_TEST_UBSE_MEM_ADDR_BORROW_EXPORTOBJ_SIMPO_H

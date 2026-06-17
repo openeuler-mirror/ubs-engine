@@ -13,21 +13,19 @@
 #ifndef UBSE_ENGINE_TEST_MXE_MEM_SHARE_BORROW_EXPORTOBJ_SIMPO_H
 #define UBSE_ENGINE_TEST_MXE_MEM_SHARE_BORROW_EXPORTOBJ_SIMPO_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
+#include <gtest/gtest.h>
+#include <mockcpp/mockcpp.hpp>
 
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::mem::controller::message;
+
 class TestUbseMemShareBorrowExportobjSimpo : public testing::Test {
 public:
     void SetUp() override;
-
     void TearDown() override;
 
-private:
-    UbseMemShareBorrowExportobjSimpoPtr obj;
+    UbseMemShareBorrowExportobjSimpo obj;
 };
 } // namespace ubse::mem::controller::message::ut
 

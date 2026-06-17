@@ -10,23 +10,23 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBS_ENGINE_TEST_NODE_MEM_DEBTINFO_QUERY_REQ_SIMPO_H
-#define UBS_ENGINE_TEST_NODE_MEM_DEBTINFO_QUERY_REQ_SIMPO_H
+#ifndef UBS_ENGINE_TEST_UBSE_MEM_LEDGER_RESP_SERIAL_H
+#define UBS_ENGINE_TEST_UBSE_MEM_LEDGER_RESP_SERIAL_H
 
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "message/ubse_mem_Ledger_resp_serial.h"
 
 namespace ubse::mem::controller::message::ut {
 
-class TestNodeMemDebtInfoQueryReqSimpo : public testing::Test {
+class TestUbseMemLedgerRespSerial : public testing::Test {
 public:
     void SetUp() override;
     void TearDown() override;
 
-    NodeMemDebtInfoQueryReqSimpo obj;
+    UbseMemLedgerRespSerial obj;
 };
 
 } // namespace ubse::mem::controller::message::ut
-#endif // UBS_ENGINE_TEST_NODE_MEM_DEBTINFO_QUERY_REQ_SIMPO_H
+#endif // UBS_ENGINE_TEST_UBSE_MEM_LEDGER_RESP_SERIAL_H

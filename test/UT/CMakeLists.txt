@@ -62,6 +62,10 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_node_controller_register_config
 )
 
+target_link_libraries(${UT_BINARY} PUBLIC
+        syssentry
+)
+
 include_directories(
         ${SRC_DIR}/framework/ipc
         ${SRC_DIR}/framework/ipc/include
