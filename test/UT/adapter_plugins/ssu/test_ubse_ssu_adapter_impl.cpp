@@ -233,6 +233,16 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_ZeroNcap)
     EXPECT_NE(ret, UBSE_OK);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_EidTooLong)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid(EID_SIZE + 5, 'X');
+    auto ns = MakeNameSpaceForCreate(eid, "nqn.create", 1024, 512);
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForCreate(ns, nsInfo);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
 TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_JettyIdSet)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
@@ -276,6 +286,16 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_ZeroNamespaceId)
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::string eid = MakeEid('D');
     auto ns = MakeNameSpaceForBasic(eid, "nqn.basic", 0, "guid");
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_EidTooLong)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid(EID_SIZE + 5, 'X');
+    auto ns = MakeNameSpaceForBasic(eid, "nqn.basic", 1, "guid");
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
     EXPECT_NE(ret, UBSE_OK);
@@ -429,6 +449,28 @@ TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_ZeroNamespaces)
     EXPECT_EQ(info.nameSpaces.size(), 0u);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, ConvertDevInfo_NamespaceGuidUuid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('E');
+    DevInfoT devInfo = MakeDevInfoT(eid, "nqn.guidtest", DevStatusT::DEV_ONLINE, 1);
+    auto &ns0 = devInfo.namespaces[0];
+    ns0.namespaceId = 5;
+    ns0.baseAttr.nsze = 200;
+    ns0.baseAttr.ncap = 150;
+    ns0.usedBytes = 80;
+    memset(ns0.guid, 0xAA, GUID_SIZE);
+    memset(ns0.uuid, 0xBB, UUID_SIZE);
+    UbseSsuDevInfo info;
+    impl.ConvertDevInfo(devInfo, info);
+    ASSERT_EQ(info.nameSpaces.size(), 1u);
+    EXPECT_EQ(info.nameSpaces[0].namespaceId, 5u);
+    EXPECT_EQ(info.nameSpaces[0].guid.size(), GUID_SIZE);
+    EXPECT_EQ(info.nameSpaces[0].uuid.size(), UUID_SIZE);
+    EXPECT_EQ(memcmp(info.nameSpaces[0].guid.c_str(), ns0.guid, GUID_SIZE), 0);
+    EXPECT_EQ(memcmp(info.nameSpaces[0].uuid.c_str(), ns0.uuid, UUID_SIZE), 0);
+}
+
 // ==================== GetSrcEid ====================
 
 TEST_F(TestUbseSsuAdapterImpl, GetSrcEid_Success)
@@ -548,6 +590,14 @@ TEST_F(TestUbseSsuAdapterImpl, AttachDevNameSpace_EmptyHostNqn)
     EXPECT_NE(ret, UBSE_OK);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, AttachDevNameSpace_InvalidEid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    auto ns = MakeNameSpaceForBasic("short", "nqn.attach", 1, "guid");
+    uint32_t ret = impl.AttachDevNameSpace("hostNqn", ns);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
 // ==================== DetachDevNameSpace ====================
 
 TEST_F(TestUbseSsuAdapterImpl, DetachDevNameSpace_EmptyHostNqn)
@@ -556,6 +606,14 @@ TEST_F(TestUbseSsuAdapterImpl, DetachDevNameSpace_EmptyHostNqn)
     std::string eid = MakeEid('F');
     auto ns = MakeNameSpaceForBasic(eid, "nqn.detach", 1, "guid");
     uint32_t ret = impl.DetachDevNameSpace("", ns);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, DetachDevNameSpace_InvalidEid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    auto ns = MakeNameSpaceForBasic("short", "nqn.detach", 1, "guid");
+    uint32_t ret = impl.DetachDevNameSpace("hostNqn", ns);
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -570,6 +628,14 @@ TEST_F(TestUbseSsuAdapterImpl, AddNameSpaceAllowHost_EmptyHostNqn)
     EXPECT_NE(ret, UBSE_OK);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, AddNameSpaceAllowHost_InvalidEid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    auto ns = MakeNameSpaceForBasic("short", "nqn.allow", 1, "guid");
+    uint32_t ret = impl.AddNameSpaceAllowHost(ns, "hostNqn");
+    EXPECT_NE(ret, UBSE_OK);
+}
+
 // ==================== RemoveNameSpaceAllowHost ====================
 
 TEST_F(TestUbseSsuAdapterImpl, RemoveNameSpaceAllowHost_EmptyHostNqn)
@@ -578,6 +644,25 @@ TEST_F(TestUbseSsuAdapterImpl, RemoveNameSpaceAllowHost_EmptyHostNqn)
     std::string eid = MakeEid('F');
     auto ns = MakeNameSpaceForBasic(eid, "nqn.allow", 1, "guid");
     uint32_t ret = impl.RemoveNameSpaceAllowHost(ns, "");
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, RemoveNameSpaceAllowHost_InvalidEid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    auto ns = MakeNameSpaceForBasic("short", "nqn.allow", 1, "guid");
+    uint32_t ret = impl.RemoveNameSpaceAllowHost(ns, "hostNqn");
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+// ==================== GetNameSpaceAllowHostList ====================
+
+TEST_F(TestUbseSsuAdapterImpl, GetNameSpaceAllowHostList_InvalidEid)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    auto ns = MakeNameSpaceForBasic("short", "nqn.allow", 1, "guid");
+    std::vector<std::string> allowHostList;
+    uint32_t ret = impl.GetNameSpaceAllowHostList(ns, allowHostList);
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -591,6 +676,60 @@ TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_InvalidPathNotById)
     std::string devicePath;
     uint32_t ret = impl.CreateBlockDevice("testdev", paths, opts, devicePath);
     EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_LinearModeInvalidPath)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths = {"/dev/nvme0n1"};
+    UbseCreateBlockDeviceOptions opts;
+    opts.addressingType = UbseSsuAddressingType::LINEAR;
+    std::string devicePath;
+    uint32_t ret = impl.CreateBlockDevice("testdev_linear", paths, opts, devicePath);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_EmptyPathList)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths;
+    UbseCreateBlockDeviceOptions opts;
+    std::string devicePath;
+    uint32_t ret = impl.CreateBlockDevice("testdev", paths, opts, devicePath);
+    EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_StripedModeInvalidPath)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths = {"/dev/nvme0n1", "/dev/nvme0n2"};
+    UbseCreateBlockDeviceOptions opts;
+    opts.addressingType = UbseSsuAddressingType::STRIPED;
+    opts.raidLevel = UbseSsuRaidLevel::RAID0;
+    std::string devicePath;
+    uint32_t ret = impl.CreateBlockDevice("testdev_striped", paths, opts, devicePath);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_Raid5InvalidPath)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths = {"/dev/nvme0n1", "/dev/nvme0n2", "/dev/nvme0n3"};
+    UbseCreateBlockDeviceOptions opts;
+    opts.addressingType = UbseSsuAddressingType::STRIPED;
+    opts.raidLevel = UbseSsuRaidLevel::RAID5;
+    std::string devicePath;
+    uint32_t ret = impl.CreateBlockDevice("testdev_raid5", paths, opts, devicePath);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+// ==================== DeleteBlockDevice ====================
+
+TEST_F(TestUbseSsuAdapterImpl, DeleteBlockDevice_NonExistentDevice)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    uint32_t ret = impl.DeleteBlockDevice("nonexistent_device_12345");
+    EXPECT_EQ(ret, UBSE_OK);
 }
 
 // ==================== VerifyNamespaceGuid ====================
@@ -610,6 +749,16 @@ TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceGuid_EmptyGuid)
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     UbseSsuDevNameSpace ns;
     ns.subSystem.eid = MakeEid('V');
+    ns.guid = "";
+    bool ret = impl.VerifyNamespaceGuid(ns);
+    EXPECT_FALSE(ret);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, VerifyNamespaceGuid_BothEidAndGuidEmpty)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    UbseSsuDevNameSpace ns;
+    ns.subSystem.eid = "";
     ns.guid = "";
     bool ret = impl.VerifyNamespaceGuid(ns);
     EXPECT_FALSE(ret);
@@ -711,6 +860,44 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_NmicFalse)
     EXPECT_FALSE(nsInfo.baseAttr.nmic);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_CustomDataCopied)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('C');
+    auto ns = MakeNameSpaceForCreate(eid, "nqn.custom", 100, 50);
+    memset(&ns.customData, 0xAB, sizeof(ns.customData));
+    ns.customData.version = 1;
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForCreate(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(nsInfo.userData[0], 1);
+    EXPECT_EQ(nsInfo.userData[1], 0xAB);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_SubNqnAtMaxSize)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('C');
+    std::string maxSubNqn(SUBNQN_SIZE - 1, 'n');
+    auto ns = MakeNameSpaceForCreate(eid, maxSubNqn, 100, 50);
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForCreate(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(std::string(nsInfo.devAddr.subNqn), maxSubNqn);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_NmicNonZero)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('C');
+    auto ns = MakeNameSpaceForCreate(eid, "nqn.nmic", 100, 50);
+    ns.nsOptions.nmic = 42;
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForCreate(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_TRUE(nsInfo.baseAttr.nmic);
+}
+
 // ==================== BuildNamespaceInfoForBasic Edge Cases ====================
 
 TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_SrcEidZeroed)
@@ -736,6 +923,39 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_GuidShorterThanMaxSize
     uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(memcmp(nsInfo.guid, shortGuid.c_str(), shortGuid.size()), 0);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_GuidLongerThanMaxSize)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('D');
+    std::string longGuid(GUID_SIZE + 10, 'G');
+    auto ns = MakeNameSpaceForBasic(eid, "nqn.basic", 5, longGuid);
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(memcmp(nsInfo.guid, longGuid.c_str(), GUID_SIZE), 0);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_EmptySubNqn)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('D');
+    auto ns = MakeNameSpaceForBasic(eid, "", 1, "guid");
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_SubNqnAtMaxSize)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('D');
+    std::string maxSubNqn(SUBNQN_SIZE - 1, 'n');
+    auto ns = MakeNameSpaceForBasic(eid, maxSubNqn, 5, "guid");
+    DevNamespaceInfoT nsInfo{};
+    uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
+    EXPECT_EQ(ret, UBSE_OK);
 }
 
 // ==================== ValidatePersistentPaths Edge Cases ====================
