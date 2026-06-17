@@ -32,6 +32,7 @@ const std::string UbseApiServerAuthManager::AUTH_USER_DEFAULT = "auth.user.defau
 const std::string UbseApiServerAuthManager::AUTH_ROLE_DEFAULT = "auth.role.default";
 const std::string UbseApiServerAuthManager::AUTH_USER = "auth.user";
 const std::string UbseApiServerAuthManager::AUTH_ROLE = "auth.role";
+const std::string UbseApiServerAuthManager::AUTH_VSOCK_CID2USER = "auth.vsock.cid2user";
 
 // 内置常量定义
 const std::string UbseApiServerAuthManager::ADMIN_ROLE = "admin";
@@ -81,6 +82,10 @@ UbseResult UbseApiServerAuthManager::LoadAuthConfig()
     ret = ParseUserConfig(confModule, AUTH_USER);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to read the user configuration, " << FormatRetCode(ret);
+    }
+    ret = ParseCid2UserConfig(confModule, AUTH_VSOCK_CID2USER);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to read vsock cid2user configuration, " << FormatRetCode(ret);
     }
     return UBSE_OK;
 }
@@ -164,6 +169,49 @@ uint32_t UbseApiServerAuthManager::ParseUserConfig(const std::shared_ptr<UbseCon
         }
     }
     return UBSE_OK;
+}
+
+uint32_t UbseApiServerAuthManager::ParseCid2UserConfig(const std::shared_ptr<UbseConfModule>& confModule,
+                                                       const std::string& configSection)
+{
+    std::map<std::string, std::map<std::string, std::string>> cidConfigVals{};
+
+    auto ret = confModule->GetAllConfigWithPrefix(configSection, cidConfigVals);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to read cid2user configuration for section: " << configSection << ", "
+                      << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto it = cidConfigVals.find(configSection);
+    if (it == cidConfigVals.end() || it->second.empty()) {
+        UBSE_LOG_WARN << "No configuration found or empty section: " << configSection;
+        return UBSE_ERROR_CONF_INVALID;
+    }
+
+    const auto& configVals = it->second;
+    for (const auto& [cidStr, userName] : configVals) {
+        try {
+            int cid = std::stoi(cidStr);
+            if (!userName.empty()) {
+                cidToUser_[cid] = userName;
+                UBSE_LOG_INFO << "Mapped vsock cid=" << cid << " to user=" << userName;
+            }
+        } catch (const std::exception& e) {
+            UBSE_LOG_ERROR << "Invalid cid value: " << cidStr << ", error: " << e.what();
+        }
+    }
+
+    return UBSE_OK;
+}
+
+std::string UbseApiServerAuthManager::GetVsockUserNameByCid(int cid) const
+{
+    auto it = cidToUser_.find(cid);
+    if (it != cidToUser_.end()) {
+        return it->second;
+    }
+    return "";
 }
 
 bool UbseApiServerAuthManager::IsValidUserConfig(const std::string& user, const std::string& role)

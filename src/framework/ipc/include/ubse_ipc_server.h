@@ -14,6 +14,7 @@
 #define UBSE_IPC_SERVER_H
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 
 #include "ubse_api_server.h"
@@ -75,7 +76,7 @@ public:
                                UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList);
 
 private:
-    UbseUDSServer udsServer_;
+    std::unique_ptr<UbseUDSServer> server_;
     std::mutex handlersMutex_{};
     UbseIpcHandlerMap apiInterfaceMap_{};
     void HandleRequest(const UbseRequestMessage& request, const UbseRequestContext& context);

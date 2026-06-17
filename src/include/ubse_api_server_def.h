@@ -22,9 +22,11 @@ struct UbseIpcMessage {
 };
 
 struct UbseClientInfo {
+    int type;
     uid_t uid; // user id
     gid_t gid; // group id
     pid_t pid; // process id
+    int cid;
 };
 
 struct UbseRequestContext {

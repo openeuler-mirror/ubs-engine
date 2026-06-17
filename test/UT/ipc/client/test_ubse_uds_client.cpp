@@ -19,11 +19,12 @@
 #include <sys/un.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_sync_req.h"
-#include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "src/framework/ipc/ubse_ipc_socket.h"
 
 namespace ubse::ut::ipc {
@@ -146,6 +147,14 @@ uint32_t MockRecvClientReqBodyFail(int, void* buffer, uint32_t length, int)
 TestUbseUdsClient::TestUbseUdsClient() = default;
 void TestUbseUdsClient::SetUp()
 {
+    auto& ctx = ubse::context::UbseContext::GetInstance();
+    ctx.RegisterModule<ubse::config::UbseConfModule>(
+        ubse::module::UbseModule::CreateModule<ubse::config::UbseConfModule>);
+    auto confModule = ctx.GetModule<ubse::config::UbseConfModule>();
+    if (confModule != nullptr) {
+        confModule->Initialize();
+        confModule->Start();
+    }
     client = std::make_unique<UbseUDSClient>("");
     Test::SetUp();
 }
@@ -153,6 +162,12 @@ void TestUbseUdsClient::SetUp()
 void TestUbseUdsClient::TearDown()
 {
     client.reset();
+    auto& ctx = ubse::context::UbseContext::GetInstance();
+    auto confModule = ctx.GetModule<ubse::config::UbseConfModule>();
+    if (confModule != nullptr) {
+        confModule->Stop();
+        confModule->UnInitialize();
+    }
     GlobalMockObject::reset((void*)SendMsg);
     GlobalMockObject::reset((void*)RecvMsg);
     GlobalMockObject::reset((void*)SerializeRequestMessage);
@@ -871,14 +886,14 @@ TEST_F(TestUbseUdsClient, ExecuteReconnectThread_WhenReconnectSuccess_DoRegistra
 TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenLongLinkConnectSuccess_ReturnTrue)
 {
     client->isReConnect_.store(true);
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
 
     auto ret = client->PerformReconnectAttempts();
 
     EXPECT_TRUE(ret);
 }
 
-// 用于控制 LongLinkConnect 的调用次数，模拟重连过程中外部停止重连
+// 用于控制 ConnectToServer 的调用次数，模拟重连过程中外部停止重连
 static int g_longLinkConnectCallCount = 0;
 static UbseUDSClient* g_testClient = nullptr;
 
@@ -899,7 +914,7 @@ TEST_F(TestUbseUdsClient, PerformReconnectAttempts_WhenStoppedMidway_ReturnFalse
     g_testClient = client.get();
     client->isReConnect_.store(true);
 
-    MOCKER_CPP(&UbseUDSClient::LongLinkConnect).stubs().will(invoke(MockLongLinkConnectStopOnSecondCall));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(invoke(MockLongLinkConnectStopOnSecondCall));
 
     auto ret = client->PerformReconnectAttempts();
 
@@ -1057,32 +1072,31 @@ TEST_F(TestUbseUdsClient, LongLinkConnect_WhenConnectFailed)
     EXPECT_EQ(client->LongLinkConnect(), UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
-TEST_F(TestUbseUdsClient, ConnectToServer_MemsetFailed)
+TEST_F(TestUbseUdsClient, ConnectToServer_ConnectFailed)
 {
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(-1));
-    sockaddr_un addr{};
-    auto ret = client->ConnectToServer(addr);
-    EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
-}
-
-TEST_F(TestUbseUdsClient, ConnectToServer_StrncpyFailed)
-{
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(EOK));
-    MOCKER(strncpy_s).stubs().will(returnValue(-1));
-    sockaddr_un addr{};
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
+    MOCKER(connect).stubs().will(returnValue(-1));
     auto ret = client->ConnectToServer(addr);
     EXPECT_EQ(ret, UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
 TEST_F(TestUbseUdsClient, ConnectToServer_ImmediateSuccess)
 {
-    client->sockFd_ = 10; // 模拟socket fd为10
-    MOCKER(memset_s).stubs().will(returnValue(EOK));
-    MOCKER(strncpy_s).stubs().will(returnValue(EOK));
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
     MOCKER(connect).stubs().will(returnValue(0));
-    sockaddr_un addr{};
+    auto ret = client->ConnectToServer(addr);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUdsClient, ConnectToServer_NonBlockingSuccess)
+{
+    client->sockFd_ = 10;
+    struct sockaddr_un addr = {};
+    MOCKER(connect).stubs().will(invoke(MockConnectTimeout));
+    MOCKER(poll).stubs().will(returnValue(1));
+    MOCKER(getsockopt).stubs().will(returnValue(0));
     auto ret = client->ConnectToServer(addr);
     EXPECT_EQ(ret, UBSE_OK);
 }

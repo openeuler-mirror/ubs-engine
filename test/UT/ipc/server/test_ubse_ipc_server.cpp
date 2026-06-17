@@ -62,6 +62,7 @@ void TestUbseIpcServer::SetUp()
         std::make_shared<ubse::security::UbseSecurityModule>();
     UbseUDSConfig udsConfig{.socketPath = GetSocketPath()};
     server = std::make_unique<UbseIpcServer>(udsConfig);
+    UbseUDSClient::GetInstance().Disconnect();
     api::server::UbseApiServerAuthManager::GetInstance().clear();
     api::server::UbseApiServerAuthManager::GetInstance().AddObjectMapping(1, 1, "test.ipc.interface");
     context::UbseContext::GetInstance().allModulesReady_.store(true);
@@ -236,6 +237,7 @@ TEST_F(TestUbseIpcServer, AsyncSendLongLinkSuccess)
     };
     std::vector<uint64_t> reqList{};
     EXPECT_EQ(server->Start(), UBSE_OK);
+    ubse_socket_path_set(GetSocketPath().c_str());
     EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
     ubs_mem_shm_fault_handler faultHandler = [](const char* name, uint64_t memid,
                                                 ubs_mem_fault_type_t type) -> int32_t {

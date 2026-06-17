@@ -61,11 +61,11 @@ class UbseUDSServer {
 public:
     explicit UbseUDSServer(UbseUDSConfig config);
 
-    ~UbseUDSServer() = default;
+    virtual ~UbseUDSServer() = default;
 
-    uint32_t Start();
+    virtual uint32_t Start();
 
-    void Stop();
+    virtual void Stop();
 
     uint32_t SendResponse(uint64_t requestId, const UbseResponseMessage& response);
 
@@ -74,7 +74,11 @@ public:
     uint32_t AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo, void* ctx,
                                UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList);
 
-private:
+protected:
+    UbseUDSConfig config_;
+    int serverFd_ = -1;
+    int epollFd_ = -1;
+
     enum class SessionState
     {
         CONNECT,
@@ -87,9 +91,9 @@ private:
 
     enum class SessionType
     {
-        PENDING,   // 待定
-        TRANSIENT, // 短链接
-        PERSISTENT // 长连接
+        PENDING,
+        TRANSIENT,
+        PERSISTENT
     };
 
     struct ClientSession {
@@ -99,35 +103,27 @@ private:
         SessionState state;
         std::vector<uint8_t> readBuffer;
         std::vector<uint8_t> writeBuffer;
-        std::chrono::steady_clock::time_point closingStartTime; // 进入预关闭状态的时间点
+        std::chrono::steady_clock::time_point closingStartTime;
     };
 
-    UbseUDSConfig config_;
-    int serverFd_ = -1;
-    int epollFd_ = -1;
+    virtual uint32_t CreateServerSocket();
+    virtual void HandleNewConnection();
+    virtual bool GetClientCredentials(int socketFd, UbseClientInfo& info);
+    virtual bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
 
     std::atomic<bool> running_{false};
-
-    std::thread eventLoopThread_{}; // epoll监听线程
-
-    std::mutex sessionsMutex_; // session锁
-
+    std::thread eventLoopThread_{};
+    std::mutex sessionsMutex_;
     std::map<int, ClientSession> sessions_;
-
-    UbseRequestHandler requestHandler_{}; // request回调
-
+    UbseRequestHandler requestHandler_{};
     std::mutex requestMapMutex_;
-    std::unordered_map<uint64_t, int> requestIdToFd_{}; // 请求ID到文件描述符的映射
-
-    std::unordered_map<uint64_t, uint64_t>
-        clientReqId_{}; // 请求ID到客户端消息的映射；用于长连接场景下，服务端给客户端回复同步消息
+    std::unordered_map<uint64_t, int> requestIdToFd_{};
+    std::unordered_map<uint64_t, uint64_t> clientReqId_{};
     std::mutex clientReqIdMutex_{};
-    UbseIpcLongLinkClientMap clientMap_{}; // 记录客户端订阅的长连接事件
+    UbseIpcLongLinkClientMap clientMap_{};
     std::mutex clientMapMutex_{};
-    // 记录reqId跟异步handler的映射;用于客户端给服务端回复异步消息
     std::unordered_map<uint64_t, UbseAsyncCallBack> asyncCallback_{};
     std::mutex asyncCallbackMutex_;
-
     ubse::utils::UbseRequestIdUtil requestIdUtil_{ubse::utils::UbseRequestType::SDK_REQUEST};
 
     struct UserCount {
@@ -136,32 +132,30 @@ private:
     };
 
     std::unordered_map<uid_t, UserCount> userStats_;
-
     uint32_t totalPending_ = 0;
     uint32_t globalTransient_ = 0;
     uint32_t globalPersistent_ = 0;
-
-    std::map<int, ClientSession> preClosingSessions_; // 预关闭的session
+    std::map<int, ClientSession> preClosingSessions_;
 
     bool AddPendingSession(int fd);
-
     bool UpgradeSession(int fd, bool isPersistent = false);
-
     void RemoveSession(int fd, bool isPreClosing = false);
 
+    static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events);
+    static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events);
+    static void RemoveEpollEvent(int epoll_fd, int fd);
+
+private:
     void EventLoopThread();
-    void HandleNewConnection();
     void HandleClientEvent(int fd, uint32_t events);
     void HandleRequest(int fd, const UbseRequestHeader& header, const std::vector<uint8_t>& buffer,
                        const UbseRequestContext& context);
     void CloseSession(int fd);
     void HandleRead(ClientSession* session);
     void HandleWrite(ClientSession* session);
-    uint32_t CreateServerSocket();
     uint32_t BindSocket() const;
     uint64_t GenerateAndRegisterRequestId(int fd);
     void RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId);
-    bool CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId);
     void SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData,
                            const UbseRequestContext& context);
     void ProcessRequest(ClientSession* session, const UbseRequestHeader& header, std::vector<uint8_t>&& bodyData);

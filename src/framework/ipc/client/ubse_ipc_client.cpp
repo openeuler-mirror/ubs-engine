@@ -15,9 +15,12 @@
 #include <securec.h>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <mutex>
 
 #include "ubse_common_def.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_common_def.h"
@@ -25,6 +28,7 @@
 #include "ubse_ipc_message.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_uds_client.h"
+#include "ubse_vsock_client.h"
 
 using namespace ubse::ipc;
 using UbseClientIpcHandler = std::function<uint32_t(const UbseRequestMessage&)>;
@@ -42,6 +46,27 @@ std::mutex clientIpcHandlerMutex; // mutex锁
 static UbseClientIpcHandlerMap clientIpcHandlerMap{};
 static std::string ubseSocketPath = ubse::common::def::UBSE_UDS_SOCKET_PATH;
 constexpr uint32_t MAX_RESPONSE_SIZE = 10 * 1024 * 1024;
+
+static bool IsVsockEnabled()
+{
+    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
+    if (ubseConfModule == nullptr) {
+        return false;
+    }
+    uint32_t cid = 0;
+    uint32_t port = 0;
+    auto retCid = ubseConfModule->GetConf<uint32_t>("ubse.proxy", "proxy.server.cid", cid);
+    auto retPort = ubseConfModule->GetConf<uint32_t>("ubse.proxy", "proxy.server.port", port);
+    return (retCid == UBSE_OK && retPort == UBSE_OK && cid > 0 && port > 0);
+}
+
+static ubse::ipc::UbseUDSClient& GetLongLinkClient()
+{
+    if (IsVsockEnabled()) {
+        return ubse::ipc::UbseVsockClient::GetInstance();
+    }
+    return ubse::ipc::UbseUDSClient::GetInstance();
+}
 
 static uint32_t CopyResponseBody(const UbseResponseMessage& src, ubse_api_buffer_t* dest)
 {
@@ -91,8 +116,13 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     response_data->buffer = nullptr;
     response_data->length = 0;
     // Establish connection
-    ubse::ipc::UbseUDSClient udsClient(ubseSocketPath);
-    auto ret = udsClient.Connect();
+    std::unique_ptr<ubse::ipc::UbseUDSClient> client;
+    if (IsVsockEnabled()) {
+        client = std::make_unique<ubse::ipc::UbseVsockClient>(ubseSocketPath);
+    } else {
+        client = std::make_unique<ubse::ipc::UbseUDSClient>(ubseSocketPath);
+    }
+    auto ret = client->Connect();
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "Failed to connect, error code: " << ret;
         return ret;
@@ -102,10 +132,10 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     UbseResponseMessage responseMessage{};
     // Send request
     IPC_LOG_INFO << "Sending request, module_code=" << module_code << ", op_code=" << op_code;
-    ret = udsClient.Send(requestMessage, responseMessage);
+    ret = client->Send(requestMessage, responseMessage);
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "Failed to send request, error code: " << ret;
-        udsClient.Disconnect();
+        client->Disconnect();
         return ret;
     }
     IPC_LOG_INFO << "Sending request successfully, module_code=" << module_code << ", op_code=" << op_code;
@@ -116,10 +146,10 @@ uint32_t ubse_invoke_call(uint16_t module_code, uint16_t op_code, const ubse_api
     }
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "Failed to copy response body, error code: " << ret;
-        udsClient.Disconnect();
+        client->Disconnect();
         return ret;
     }
-    udsClient.Disconnect();
+    client->Disconnect();
     return responseMessage.header.statusCode;
 }
 
@@ -149,11 +179,11 @@ void ubse_api_buffer_delete(ubse_api_buffer_t* apiBuffer)
 
 uint32_t ubse_long_link_connect(void)
 {
-    ubse::ipc::UbseUDSClient::GetInstance().SetSocketPath(ubseSocketPath);
-    auto ret = ubse::ipc::UbseUDSClient::GetInstance().PerSistentConnect();
+    GetLongLinkClient().SetSocketPath(ubseSocketPath);
+    auto ret = GetLongLinkClient().PerSistentConnect();
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "long link failed, err=" << ret;
-        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        GetLongLinkClient().Stop();
         return ret;
     } else {
         IPC_LOG_INFO << "long link success.";
@@ -190,13 +220,13 @@ void HandleRequest(const UbseRequestMessage& request, UbseResponseMessage& resp)
 
 void register_handler()
 {
-    ubse::ipc::UbseUDSClient::GetInstance().RegisterClientRequestHandler(HandleRequest);
+    GetLongLinkClient().RegisterClientRequestHandler(HandleRequest);
 }
 
 uint32_t ubse_register_listen_event(uint16_t moduleCode, uint16_t opCode)
 {
     // 向服务端注册监听的事件(长连接服务端需要知道事件发给哪个客户端)
-    auto ret = ubse::ipc::UbseUDSClient::GetInstance().RegisterLongLinkNotify(moduleCode, opCode);
+    auto ret = GetLongLinkClient().RegisterLongLinkNotify(moduleCode, opCode);
     if (ret != UBSE_OK) {
         IPC_LOG_ERROR << "register long link listen failed, moduleCode=" << moduleCode << ", opCode=" << opCode
                       << " ret=" << ret;
@@ -210,7 +240,7 @@ uint32_t ubse_shm_fault_register(ubs_mem_shm_fault_handler handler)
     // 向服务端注册故障监听事件
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_SHM);
     if (ret != UBSE_OK) {
-        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        GetLongLinkClient().Stop();
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
@@ -232,7 +262,7 @@ uint32_t ubse_fd_fault_register(ubs_mem_fd_fault_handler handler)
 {
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_FD);
     if (ret != UBSE_OK) {
-        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        GetLongLinkClient().Stop();
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);
@@ -254,7 +284,7 @@ uint32_t ubse_numa_fault_register(ubs_mem_numa_fault_handler handler)
 {
     uint32_t ret = ubse_register_listen_event(UBSE_LONG_LINK_REGISTER, UBSE_LONGLINK_FAULT_NUMA);
     if (ret != UBSE_OK) {
-        ubse::ipc::UbseUDSClient::GetInstance().Stop();
+        GetLongLinkClient().Stop();
         return ret;
     }
     std::lock_guard<std::mutex> lock(clientIpcHandlerMutex);

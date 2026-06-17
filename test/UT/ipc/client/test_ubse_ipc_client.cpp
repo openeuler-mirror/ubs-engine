@@ -51,7 +51,7 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_Nullptr)
 
 TEST_F(TestUbseIpcClient, UbseInvokeCall_ConnectFailed)
 {
-    MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     ubse_api_buffer_t request_data = {nullptr, 0};
     ubse_api_buffer_t response_data = {nullptr, 0};
     EXPECT_EQ(ubse_invoke_call(0, 0, &request_data, &response_data), UBSE_ERR_IPC_CONNECTION_FAILED);
@@ -59,7 +59,7 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_ConnectFailed)
 
 TEST_F(TestUbseIpcClient, UbseInvokeCall_SendFailed)
 {
-    MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseUDSClient::Send).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     ubse_api_buffer_t request_data = {nullptr, 0};
     ubse_api_buffer_t response_data = {nullptr, 0};
@@ -68,7 +68,7 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_SendFailed)
 
 TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyEmpty)
 {
-    MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
     UbseResponseMessage responseData{{0, 0}, nullptr};
     MOCKER_CPP(&UbseUDSClient::Send).stubs().with(_, outBound(responseData)).will(returnValue(UBSE_OK));
     ubse_api_buffer_t request_data = {nullptr, 0};
@@ -78,7 +78,7 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyEmpty)
 
 TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyFailed)
 {
-    MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
     auto buffer = new uint8_t[10];                     // 创建10字节的测试缓冲区
     UbseResponseMessage responseData{{0, 10}, buffer}; // bodyLen为10字节
     MOCKER_CPP(&UbseUDSClient::Send).stubs().with(_, outBound(responseData)).will(returnValue(UBSE_OK));
@@ -91,7 +91,7 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_CopyResponseBodyFailed)
 
 TEST_F(TestUbseIpcClient, UbseInvokeCall_Success)
 {
-    MOCKER_CPP(&UbseUDSClient::Connect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
     auto buffer = new uint8_t[10];                     // 创建10字节的测试缓冲区
     UbseResponseMessage responseData{{0, 10}, buffer}; // bodyLen为10字节
     MOCKER_CPP(&UbseUDSClient::Send).stubs().with(_, outBound(responseData)).will(returnValue(UBSE_OK));
@@ -104,14 +104,15 @@ TEST_F(TestUbseIpcClient, UbseInvokeCall_Success)
 
 TEST_F(TestUbseIpcClient, LongLinkConnect_WhenConnectFailed)
 {
-    MOCKER_CPP(&UbseUDSClient::PerSistentConnect).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     EXPECT_EQ(ubse_long_link_connect(), UBSE_ERR_IPC_CONNECTION_FAILED);
 }
 
 TEST_F(TestUbseIpcClient, LongLinkConnect_WhenConnectSuccess)
 {
-    MOCKER_CPP(&UbseUDSClient::PerSistentConnect).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUDSClient::ConnectToServer).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(ubse_long_link_connect(), UBSE_OK);
+    UbseUDSClient::GetInstance().Disconnect();
 }
 
 TEST_F(TestUbseIpcClient, ShmFaultRegister_WhenRegisterLongLinkNotifyFailed)
