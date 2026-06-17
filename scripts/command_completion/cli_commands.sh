@@ -68,6 +68,13 @@ commands='create display import delete check change remove detach attach'
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
+                        local mem_word
+                        for mem_word in "${COMP_WORDS[@]}"; do
+                            if [[ "${mem_word}" == "numa_status" ]]; then
+                                COMPREPLY=( $(compgen -W '--all' -- ${cur}) )
+                                return 0
+                            fi
+                        done
                         COMPREPLY=( $(compgen -W '--type --borrow-type --name' -- ${cur}) )
                         return 0
                     ;;
@@ -203,6 +210,13 @@ commands='create display import delete check change remove detach attach'
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
+                        local mem_word
+                        for mem_word in "${COMP_WORDS[@]}"; do
+                            if [[ "${mem_word}" == "numa_status" ]]; then
+                                COMPREPLY=( $(compgen -W '-a' -- ${cur}) )
+                                return 0
+                            fi
+                        done
                         COMPREPLY=( $(compgen -W '-t -n -bt' -- ${cur}) )
                         return 0
                     ;;
