@@ -179,13 +179,6 @@ UbseResult RegMasterMsgHandler()
 
 UbseResult UbseNodeControllerMaster::Initialize()
 {
-    // 注册消息处理器
-    auto ret = RegMasterMsgHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register master message handler failed, " << FormatRetCode(ret);
-        return ret;
-    }
-
     // 主上线；若当前为主节点，启动周期对账；否则清理资源
     UbseElectionHandlerBuilder Builder;
     Builder.SetHandler([this](UbseElectionEventType, UBSE_ID_TYPE nodeId) { return UbseMasterOnlineHandler(nodeId); });
@@ -297,6 +290,12 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
 
 UbseResult UbseNodeControllerMaster::Start()
 {
+    // 注册消息处理器
+    auto ret = RegMasterMsgHandler();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register master message handler failed, " << FormatRetCode(ret);
+        return ret;
+    }
     return UBSE_OK;
 }
 

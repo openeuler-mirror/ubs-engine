@@ -97,7 +97,9 @@ public:
 private:
     UbseContext() = default;
 
-    UbseResult CreateModules();
+    UbseResult CreateCoreModules();
+
+    UbseResult CreatePluginModules();
 
     void SetProcessMode(ProcessMode mode);
 
@@ -114,16 +116,20 @@ private:
     UbseResult RegisterArg();
 
     UbseResult ParserArgs(int argc, char *argv[]);
-
-    UbseResult InitAndStartModule();
+    UbseResult ProcessNonCoreModule();
+    UbseResult ProcessingCoreModule();
+    UbseResult InitAndStartCoreModules();
+    UbseResult InitAndStartNonCoreModules();
     UbseResult InitCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
     UbseResult StartCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
-    UbseResult InitAndStartNonCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
+    UbseResult InitNonCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
+    UbseResult StartNonCoreModules(std::chrono::time_point<std::chrono::system_clock>& moduleStartTime);
     void StopNonCoreModules();
     void DestroyNonCoreModules();
     void StopCoreModules();
     void DestroyCoreModules();
     void ResolveActivation();
+    void ResolveActivation(UbseModuleCategory category);
     void ActivateWithDependencies(const std::string& name);
     void ActivateWithDependenciesImpl(const std::string& name, std::set<std::string>& inStack);
     std::vector<std::string> TopologicalSort();

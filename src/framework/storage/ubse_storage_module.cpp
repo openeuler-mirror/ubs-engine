@@ -23,7 +23,7 @@ using namespace ubse::election;
 using namespace ubse::misc::fs;
 using namespace ubse::security;
 
-OPTIONAL_MODULE_IMPL(UbseStorageModule, UbseLoggerModule, UbseElectionModule);
+OPTIONAL_MODULE_IMPL(UbseStorageModule, UbseComModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 class UbseStorageModule::Impl {

@@ -81,7 +81,8 @@ enum class UbseOptionModule {
     UbseHttpModule,
     UbseStorageModule,
     UbseRasModule,
-    UbseNodeMgrModule
+    UbseNodeMgrModule,
+    UbsePluginModule,
 };
 
 inline std::string UbseModuleIdToString(UbseOptionModule id)
@@ -111,6 +112,8 @@ inline std::string UbseModuleIdToString(UbseOptionModule id)
             return "UbseRasModule";
         case UbseOptionModule::UbseNodeMgrModule:
             return "UbseNodeMgrModule";
+        case UbseOptionModule::UbsePluginModule:
+            return "UbsePluginModule";
         default:
             return "UnKnown";
     }

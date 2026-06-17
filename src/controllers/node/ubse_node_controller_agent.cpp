@@ -81,14 +81,6 @@ UbseResult RegAgentMsgHandler()
 UbseResult UbseNodeControllerAgent::Initialize()
 {
     UBSE_LOG_INFO << "UbseNodeControllerAgent init";
-
-    // 注册消息处理器
-    auto ret = RegAgentMsgHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
-        return ret;
-    }
-
     // 创建任务执行器
     taskExecutor_ = UbseTaskExecutor::Create("UbseNodeAgent", NO_1, NO_1024);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
@@ -307,7 +299,15 @@ void UbseNodeControllerAgent::StartExec()
 
 UbseResult UbseNodeControllerAgent::Start()
 {
-    taskExecutor_->Execute([this]() -> void { StartExec(); });
+    // 注册消息处理器
+    auto ret = RegAgentMsgHandler();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register agent message handler failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    taskExecutor_->Execute([this]() -> void {
+        StartExec();
+    });
     return UBSE_OK;
 }
 

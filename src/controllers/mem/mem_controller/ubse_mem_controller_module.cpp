@@ -29,17 +29,19 @@ using namespace ubse::mem::controller::rpc;
 using namespace ubse::mmi;
 using namespace adapter_plugins::mti::mami;
 using namespace ubse::utils;
-static constexpr auto G_UBSE_MEM_DEPS = std::array<UbseOptionModule, 10>{
+static constexpr auto G_UBSE_MEM_DEPS = std::array<UbseOptionModule, 12>{
     UbseOptionModule::UbseNodeControllerModule,
     UbseOptionModule::UbseElectionModule,
     UbseOptionModule::UbseMmiModule,
     UbseOptionModule::UbseLcneModule,
     UbseOptionModule::UbseComModule,
+    UbseOptionModule::UbseStorageModule,
     UbseOptionModule::UbseRasModule,
     UbseOptionModule::SysSentryModule,
     UbseOptionModule::UbseUrmaUvsModule,
     UbseOptionModule::UbseUrmaControllerModule,
     UbseOptionModule::UbseNodeMgrModule,
+    UbseOptionModule::UbsePluginModule,
 };
 PLUGIN_MODULE_IMPL(UbseMemControllerModule, G_UBSE_MEM_DEPS);
 UBSE_DEFINE_THIS_MODULE("ubse");

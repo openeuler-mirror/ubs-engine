@@ -27,9 +27,7 @@ TEST_F(TestUbseNodeControllerMaster, RegMasterMsgHandler)
 
 TEST_F(TestUbseNodeControllerMaster, Initialize)
 {
-    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     UbseNodeControllerMaster master{};
-    EXPECT_EQ(master.Initialize(), UBSE_ERROR);
     MOCKER(UbseElectionChangeAttachHandler).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseRasHandler::RegisterNodeHandler).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(master.Initialize(), UBSE_OK);
@@ -74,6 +72,8 @@ TEST_F(TestUbseNodeControllerMaster, UbseMasterOnlineHandler)
 TEST_F(TestUbseNodeControllerMaster, Start)
 {
     UbseNodeControllerMaster master{};
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(master.Start(), UBSE_ERROR);
     EXPECT_EQ(master.Start(), UBSE_OK);
 }
 

@@ -58,8 +58,16 @@ UbseResult UbseNodeControllerModule::Initialize()
 
 UbseResult UbseNodeControllerModule::Start()
 {
-    UbseNodeControllerAgent::GetInstance().Start();
-    UbseNodeControllerMaster::GetInstance().Start();
+    auto ret = UbseNodeControllerAgent::GetInstance().Start();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    ret = UbseNodeControllerMaster::GetInstance().Start();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
     return UBSE_OK;
 }
 

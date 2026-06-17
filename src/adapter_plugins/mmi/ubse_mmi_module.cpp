@@ -20,6 +20,7 @@
 #include "ubse_mem_instance_inner.h"
 #include "ubse_mem_types.h"
 #include "ubse_mmi_module.h"
+#include "ubse_election_module.h"
 #include "ubse_obmm_executor.h"
 
 namespace ubse::mmi {
@@ -27,7 +28,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
 
-OPTIONAL_MODULE_IMPL(UbseMmiModule);
+OPTIONAL_MODULE_IMPL(UbseMmiModule, election::UbseElectionModule);
 UbseResult UbseMmiModule::Initialize()
 {
     auto ret = RmObmmExecutor::GetInstance().Init();

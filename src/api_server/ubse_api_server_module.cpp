@@ -18,6 +18,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "ubse_logger_module.h"
 #include "ubse_os_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_uds_server.h"
@@ -27,7 +28,7 @@ using namespace ubse::ipc;
 using namespace ubse::config;
 using namespace ubse::log;
 
-CORE_MODULE_IMPL(UbseApiServerModule, UbseConfModule);
+CORE_MODULE_IMPL(UbseApiServerModule, UbseConfModule, UbseLoggerModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const uint16_t UDS_PERM = 0660;             // uds最小权限

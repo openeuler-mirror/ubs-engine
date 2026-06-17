@@ -35,17 +35,14 @@ TEST_F(TestUbseNodeControllerAgent, Initialize_Fail)
 {
     UbseNodeControllerAgent agent{};
 
-    MOCKER(RegAgentMsgHandler).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     MOCKER(&UbseTaskExecutor::Create).stubs().will(invoke(MockAgentCreateNullTaskPtr));
 
-    EXPECT_EQ(agent.Initialize(), UBSE_ERROR);
     EXPECT_EQ(agent.Initialize(), UBSE_ERROR_NULLPTR);
 }
 
 TEST_F(TestUbseNodeControllerAgent, Initialize)
 {
     UbseNodeControllerAgent agent{};
-    MOCKER(RegAgentMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_EQ(agent.Initialize(), UBSE_OK);
 }
@@ -153,6 +150,7 @@ TEST_F(TestUbseNodeControllerAgent, Start)
 {
     UbseNodeControllerAgent agent{};
     agent.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
+    MOCKER(RegAgentMsgHandler).stubs().will(returnValue(UBSE_OK));
     bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(agent.Start(), UBSE_OK);
