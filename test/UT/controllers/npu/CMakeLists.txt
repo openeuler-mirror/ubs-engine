@@ -1,5 +1,7 @@
 add_ut(npu_controller)
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_LINK_EXECUTABLE} -Wl,--start-group <LINK_LIBRARIES> -Wl,--end-group")
 target_link_libraries(${CMAKE_PROJECT_NAME}_npu_controller_ut PRIVATE
+        npu_controller
         npu_controller_core
         npu_resource_collection
         npu_controller_def
@@ -8,11 +10,30 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_npu_controller_ut PRIVATE
         ubse_utils
         ubse_context
         api_server
+        ubse_ipc_server
+        ubse_config
+        syssentry
+        mem_controller
+        ubse_mem_controller_debt
+        ubse_mem_scheduler
+        ubse_ras
+        ubse_node_controller
+        ubse_com
+        ubse_election
+        ubse_serial
+        ubse_http
+        ubse_controller
+        ubse_event
+        ubse_security
+        ubse_vsock_client
+        ubse_mem_decoder_utils
+        trace_context
 )
 target_include_directories(${CMAKE_PROJECT_NAME}_npu_controller_ut PRIVATE
         ${PROJECT_SOURCE_DIR}/src/include
         ${PROJECT_SOURCE_DIR}/src/controllers/npu
         ${PROJECT_SOURCE_DIR}/src/controllers/npu/resource_collection
+        ${PROJECT_SOURCE_DIR}/src/controllers/npu/vm_state_monitor
         ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mti
         ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mti/lcne
         ${PROJECT_SOURCE_DIR}/src/framework/ipc
