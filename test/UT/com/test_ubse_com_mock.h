@@ -27,6 +27,15 @@ public:
         return 0;
     }
     int32_t Reply(const UBSHcomReplyContext& ctx, const UBSHcomRequest& req, const Callback* done = nullptr) override {}
+    int32_t CallWithHlc(const UBSHcomRequest& req, UBSHcomResponse& rsp, const Callback* done = nullptr) override
+    {
+        return 0;
+    }
+    int32_t ReplyWithHlc(const UBSHcomReplyContext& ctx, const UBSHcomRequest& req,
+                         const Callback* done = nullptr) override
+    {
+        return 0;
+    }
     int32_t Put(const UBSHcomOneSideRequest& req, const Callback* done = nullptr) override {}
     int32_t Get(const UBSHcomOneSideRequest& req, const Callback* done = nullptr) override {}
     int32_t Recv(const UBSHcomServiceContext& context, uintptr_t address, uint32_t size,
