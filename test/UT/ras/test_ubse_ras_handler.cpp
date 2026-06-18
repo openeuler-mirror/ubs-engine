@@ -20,10 +20,14 @@
 
 namespace ubse::ras::ut {
 using namespace ubse::com;
-
+void MockMemService()
+{
+   std::shared_ptr<UbseMemService> memService = std::make_shared<UbseMemServiceImpl>();
+    MOCKER_CPP(GetMemService).stubs().will(returnValue(memService));
+}
 void TestUbseRasHandler::SetUp()
 {
-    GTEST_SKIP();
+    MockMemService();
     Test::SetUp();
 }
 

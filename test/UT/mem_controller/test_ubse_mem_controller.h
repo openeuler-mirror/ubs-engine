@@ -14,6 +14,7 @@
 #define UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_H
 
 #include "gtest/gtest.h"
+#include "mem/ubse_mem_service.h"
 #include "mockcpp/mockcpp.hpp"
 
 namespace ubse::mem_controller::ut {
@@ -21,13 +22,15 @@ using namespace ubse::mem_controller;
 
 class TestUbseMemController : public testing::Test {
 public:
-    TestUbseMemController() = default;
+    TestUbseMemController();
+    ~TestUbseMemController() override;
 
     void SetUp() override;
 
     void TearDown() override;
+private:
+    std::shared_ptr<service::mem::UbseMemService> memService_;
 };
 }
-
 
 #endif // UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_H

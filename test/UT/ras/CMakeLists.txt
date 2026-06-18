@@ -10,6 +10,9 @@ target_link_libraries(ubs-engine_ubse_ras_ut
         ubse_serial
         ubse_node_controller
         ubse_http
+        mem_plugin
+        ubse_mti
+        ubse_mmi
         ubse_controller
         ubse_event
         ubse_config

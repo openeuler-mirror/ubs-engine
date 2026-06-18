@@ -1,6 +1,6 @@
-add_ut(mem_controller)
+add_ut(mem_plugin)
 
-target_link_libraries(${CMAKE_PROJECT_NAME}_mem_controller_ut
+target_link_libraries(${CMAKE_PROJECT_NAME}_mem_plugin_ut
         PRIVATE
         mem_plugin
         mem_controller_adapter ubse_controller_rpc  ubse_controller_api
@@ -19,7 +19,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_mem_controller_ut
         ubse_mem_decoder_utils
         syssentry
         ubse_vsock_client
+        ubse_security
 )
-target_include_directories(${CMAKE_PROJECT_NAME}_mem_controller_ut PRIVATE
+target_include_directories(${CMAKE_PROJECT_NAME}_mem_plugin_ut PRIVATE
         ${PROJECT_SOURCE_DIR}/src/controllers/include
         ${PROJECT_SOURCE_DIR}/src/include)
