@@ -25,6 +25,7 @@ using namespace ubse::log;
 using namespace ::api::server;
 using namespace ubse::ipc;
 using namespace ubse::common::def;
+const std::string NPU_PERMISSION = "npu";
 /**
  * 执行函数
  * @param req 请求参数
@@ -115,10 +116,10 @@ UbseResult RegisterSdkDispatcher()
         UBSE_LOG_ERROR << "Get api server module failed";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_GET_HOST_DEVICES, QueryLocalUbDevices);
-    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_ALLOC_UB_DEVICES, AllocUbDevice);
-    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_FREE_UB_DEVICES, FreeUbDevice);
-    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_QUERY_UBA_TID_SIZE, QueryTidUbaSize);
+    auto ret = apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_GET_HOST_DEVICES, QueryLocalUbDevices, NPU_PERMISSION);
+    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_ALLOC_UB_DEVICES, AllocUbDevice, NPU_PERMISSION);
+    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_FREE_UB_DEVICES, FreeUbDevice, NPU_PERMISSION);
+    ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_QUERY_UBA_TID_SIZE, QueryTidUbaSize, NPU_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Registration of Npu SDK IPC-API failed.";
         return ret;
