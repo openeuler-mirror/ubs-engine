@@ -252,11 +252,6 @@ bool GetElectionWait()
     return electionWait;
 }
 
-bool IsHeartBeatEnabled(HeartBeatStatus status)
-{
-    return status == HeartBeatStatus::ENABLED;
-}
-
 uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNodes)
 {
     UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection: SIZE " << allNodes.size() << ".";
@@ -322,4 +317,39 @@ void AcceptNewMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UB
     }
     reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
 }
+
+UBSE_ID_TYPE ElectionRole::GetMasterNode()
+{
+    return INVALID_NODE_ID;
 }
+
+UBSE_ID_TYPE ElectionRole::GetStandbyNode()
+{
+    return INVALID_NODE_ID;
+}
+
+UBSE_ID_TYPE ElectionRole::GetGlobalMasterNode()
+{
+    return INVALID_NODE_ID;
+}
+
+UBSE_ID_TYPE ElectionRole::GetGlobalStandbyNode()
+{
+    return INVALID_NODE_ID;
+}
+
+std::unordered_set<UBSE_ID_TYPE> ElectionRole::GetCascadeGroupMasters()
+{
+    return {};
+}
+
+std::vector<UBSE_ID_TYPE> ElectionRole::GetCascadeGroupNodeIds()
+{
+    return {};
+}
+
+std::vector<UBSE_ID_TYPE> ElectionRole::GetManagingGroupNodeIds()
+{
+    return {};
+}
+} // namespace ubse::election

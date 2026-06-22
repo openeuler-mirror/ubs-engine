@@ -26,10 +26,6 @@ public:
 
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
 
-    UBSE_ID_TYPE GetMasterNode() override;
-
-    UBSE_ID_TYPE GetStandbyNode() override;
-
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
 
     uint8_t GetMasterStatus() override;

@@ -20,13 +20,15 @@ inline void ElectionPktSerialize(ubse::serial::UbseSerialization &out, ubse::ele
 {
     out << electionPkt.type << electionPkt.masterId << electionPkt.standbyId << electionPkt.turnId
         << electionPkt.sequenceId << electionPkt.agentCount << electionPkt.agentIds << electionPkt.masterStatus
-        << electionPkt.standbyStatus << electionPkt.broadcast << electionPkt.queryGroupNodeIds;
+        << electionPkt.standbyStatus << electionPkt.broadcast << electionPkt.queryGroupNodeIds
+        << electionPkt.globalMasterId << electionPkt.globalStandbyId;
 }
 inline void ElectionPktDeserialize(ubse::serial::UbseDeSerialization &in, ubse::election::ElectionPkt &electionPkt)
 {
     in >> electionPkt.type >> electionPkt.masterId >> electionPkt.standbyId >> electionPkt.turnId >>
         electionPkt.sequenceId >> electionPkt.agentCount >> electionPkt.agentIds >> electionPkt.masterStatus >>
-        electionPkt.standbyStatus >> electionPkt.broadcast >> electionPkt.queryGroupNodeIds;
+        electionPkt.standbyStatus >> electionPkt.broadcast >> electionPkt.queryGroupNodeIds
+        >> electionPkt.globalMasterId >> electionPkt.globalStandbyId;
 }
 inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization &out,
                                       ubse::election::ElectionReplyPkt &electionReplyPkt)

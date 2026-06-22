@@ -27,6 +27,10 @@ public:
 
     UBSE_ID_TYPE GetStandbyNode() override;
 
+    UBSE_ID_TYPE GetGlobalMasterNode() override;
+
+    UBSE_ID_TYPE GetGlobalStandbyNode() override;
+
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
 
     uint8_t GetMasterStatus() override;
@@ -55,8 +59,11 @@ private:
     uint64_t lastHeartTime_;
     UBSE_ID_TYPE masterId_;
     UBSE_ID_TYPE standbyId_;
+    UBSE_ID_TYPE globalMasterId_;
+    UBSE_ID_TYPE globalStandbyId_;
     std::vector<UBSE_ID_TYPE> agentIds_{};
     UBSE_ID_TYPE myselfID_;
+    std::string groupId_{};
     uint64_t turnId_;
     uint64_t sequenceId_ = 0;
     uint8_t masterStatus_ = 0;

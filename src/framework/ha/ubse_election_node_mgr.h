@@ -55,14 +55,18 @@ public:
 
     static ubse::nodeController::UbseNodeLocalState GetLocalNodeState();
     /* *
-     * @brief 从 LCNE 获取所有节点的状态信息
-     * @param allNodes 用于存储所有节点的信息
+     * @brief 从 节点发现 获取节点的状态信息
+     * 单层选主：当前所有节点
+     * 两级选主：当前组所有节点
+     * @param allNodes 用于存储节点的信息
      * @return 成功返回0，不成功返回非0
      */
     UbseResult GetAllNode(std::vector<Node> &allNodes);
 
     /* *
      * 获取所有邻居节点
+     * 单层选主：当前所有邻居节点
+     * 两级选主：当前组所有邻居节点
      * @param neighbourNodes 存储所有邻居节点的信息
      * @return 成功返回0
      */
@@ -100,6 +104,8 @@ public:
     UbseResult GetGroupIdByNodeId(const std::string &nodeId, std::string &groupId);
     // 获取当前节点的groupId
     UbseResult GetGroupId(std::string &groupId);
+    UbseResult GetUBEnable(bool &ubEnable);
+    bool IsHierarchicalElection() const;
 
 private:
     // 本地节点信息

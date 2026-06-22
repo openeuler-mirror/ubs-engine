@@ -92,7 +92,7 @@ TEST_F(TestUbseElectionRoleGlobalAgent, GetMasterNode_ShouldReturnMasterId_WhenC
     SetupGlobalAgentCommonMocks();
     RoleContext ctx = MakeAgentCtx();
     GlobalAgent agent(ctx);
-    EXPECT_EQ(agent.GetMasterNode(), "3");
+    EXPECT_EQ(agent.GetGlobalMasterNode(), "3");
 }
 
 TEST_F(TestUbseElectionRoleGlobalAgent, GetStandbyNode_ShouldReturnStandbyId_WhenCalled)
@@ -100,7 +100,7 @@ TEST_F(TestUbseElectionRoleGlobalAgent, GetStandbyNode_ShouldReturnStandbyId_Whe
     SetupGlobalAgentCommonMocks();
     RoleContext ctx = MakeAgentCtx();
     GlobalAgent agent(ctx);
-    EXPECT_EQ(agent.GetStandbyNode(), "5");
+    EXPECT_EQ(agent.GetGlobalStandbyNode(), "5");
 }
 
 TEST_F(TestUbseElectionRoleGlobalAgent, GetAgentNodes_ShouldReturnEmptyVector_WhenDefault)
@@ -221,8 +221,8 @@ TEST_F(TestUbseElectionRoleGlobalAgent, RecvPktForHeart_ShouldAcceptAndUpdate_Wh
 
     EXPECT_EQ(reply.replyId, "1");
     EXPECT_EQ(reply.replyResult, ELECTION_PKT_RESULT_ACCEPT);
-    EXPECT_EQ(agent.GetMasterNode(), "3");
-    EXPECT_EQ(agent.GetStandbyNode(), "5");
+    EXPECT_EQ(agent.GetGlobalMasterNode(), "3");
+    EXPECT_EQ(agent.GetGlobalStandbyNode(), "5");
     EXPECT_EQ(agent.GetTurnId(), 10);
     EXPECT_EQ(agent.GetMasterStatus(), 1);
     EXPECT_EQ(agent.GetStandbyStatus(), 0);

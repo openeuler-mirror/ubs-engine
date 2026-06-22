@@ -22,12 +22,15 @@ Standby::Standby(RoleContext &ctx) : turnId_(0), lastHeartTime_()
     Node myself;
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
         UBSE_LOG_ERROR << "[ELECTION] Master GetMyselfNode: no node found.";
-        return;
     }
 
     standbyId_ = myself.id;
     masterId_ = ctx.masterId;
     turnId_ = ctx.turnId;
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetGroupId failed";
+    }
     auto result = GetBootTime(lastHeartTime_);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
@@ -79,6 +82,11 @@ uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Election
         reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktForHeart(rcvPkt, reply);
+    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
+        reply.replyId = standbyId_;
+        reply.groupId = groupId_;
+        reply.masterId = masterId_;
+        reply.standbyId = standbyId_;
     }
     return 0;
 }
@@ -93,6 +101,8 @@ void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply
                 UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
             }
             masterStatus_ = rcvPkt.masterStatus;
+            globalMasterId_ = rcvPkt.globalMasterId;
+            globalStandbyId_ = rcvPkt.globalStandbyId;
             auto currentStatus = UbseContext::GetInstance().GetWorkReadiness();
             reply.standbyStatus = currentStatus;
             reply.replyId = standbyId_;
@@ -133,6 +143,16 @@ UBSE_ID_TYPE Standby::GetMasterNode()
 UBSE_ID_TYPE Standby::GetStandbyNode()
 {
     return standbyId_;
+}
+
+UBSE_ID_TYPE Standby::GetGlobalMasterNode()
+{
+    return globalMasterId_;
+}
+
+UBSE_ID_TYPE Standby::GetGlobalStandbyNode()
+{
+    return globalStandbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Standby::GetAgentNodes()

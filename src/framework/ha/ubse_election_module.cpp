@@ -147,49 +147,130 @@ void UbseElectionModule::UnInitialize() {}
 
 UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
 {
-    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
-    auto role = RoleMgr::GetInstance().GetRole();
+    auto& roleMgr = RoleMgr::GetInstance();
+    auto& electionNodeMgr = UbseElectionNodeMgr::GetInstance();
+
+    auto role = roleMgr.GetRole();
     if (!role) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
         return UBSE_ERROR;
     }
-    masterNode.id = role->GetMasterNode();
-    if (masterNode.id.empty()) {
-        UBSE_LOG_ERROR << "[ELECTION] masterNode Id is Empty";
+
+    // 根据选举模式获取 Master ID
+    UBSE_ID_TYPE masterId;
+    if (electionNodeMgr.IsHierarchicalElection()) {
+        masterId = role->GetGlobalMasterNode();
+    } else {
+        masterId = role->GetMasterNode();
+    }
+
+    if (masterId.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] Master node ID is empty";
         return UBSE_ERROR;
     }
-    auto ret = ubseElectionNodeMgr.GetNodeInfoByID(masterNode.id, masterNode.ip, masterNode.port);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] master nodeId =" << masterNode.id << " not in currentAllNodes.";
+
+    // 填充 masterNode 信息
+    masterNode.id = masterId;
+    auto nodeInfo = ubse::nodeMgr::GetUbseNodeById(masterId);
+
+    bool ubEnable = true;
+    electionNodeMgr.GetUBEnable(ubEnable);
+
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] Master nodeId=" << masterId << " not found in currentAllNodes";
         masterNode.ip = NODE_IP_NULL;
         masterNode.port = NODE_PORT_NULL;
+    } else {
+        masterNode.ip = ubEnable ? nodeInfo.bonding0Eid : nodeInfo.addr;
+        masterNode.port = TCP_LISTEN_PORT;
     }
-    return UBSE_OK;
-}
 
-UbseResult UbseElectionModule::GetLocalMasterNode(Node &localMasterNode)
-{
     return UBSE_OK;
 }
 
 UbseResult UbseElectionModule::UbseGetStandbyNode(Node &standbyNode)
 {
+    auto& roleMgr = RoleMgr::GetInstance();
+    auto& electionNodeMgr = UbseElectionNodeMgr::GetInstance();
+
+    auto role = roleMgr.GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return UBSE_ERROR;
+    }
+
+    // 根据选举模式获取 Standby ID
+    UBSE_ID_TYPE standbyId;
+    if (electionNodeMgr.IsHierarchicalElection()) {
+        standbyId = role->GetGlobalStandbyNode();
+    } else {
+        standbyId = role->GetStandbyNode();
+    }
+
+    if (standbyId.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] Standby node ID is empty";
+        return UBSE_ERROR;
+    }
+
+    // 填充 standbyNode 信息
+    standbyNode.id = standbyId;
+    auto nodeInfo = ubse::nodeMgr::GetUbseNodeById(standbyId);
+
+    bool ubEnable = true;
+    electionNodeMgr.GetUBEnable(ubEnable);
+
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] Standby nodeId=" << standbyId << " not found in currentAllNodes";
+        standbyNode.ip = NODE_IP_NULL;
+        standbyNode.port = NODE_PORT_NULL;
+    } else {
+        standbyNode.ip = ubEnable ? nodeInfo.bonding0Eid : nodeInfo.addr;
+        standbyNode.port = TCP_LISTEN_PORT;
+    }
+
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionModule::GetLocalMasterNode(Node &localMasterNode)
+{
     UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
     auto role = RoleMgr::GetInstance().GetRole();
     if (!role) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
         return UBSE_ERROR;
     }
-    standbyNode.id = role->GetStandbyNode();
-    if (standbyNode.id.empty()) {
+    localMasterNode.id = role->GetMasterNode();
+    if (localMasterNode.id.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] masterNode Id is Empty";
+        return UBSE_ERROR;
+    }
+    auto ret = ubseElectionNodeMgr.GetNodeInfoByID(localMasterNode.id, localMasterNode.ip, localMasterNode.port);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] master nodeId =" << localMasterNode.id << " not in currentAllNodes.";
+        localMasterNode.ip = NODE_IP_NULL;
+        localMasterNode.port = NODE_PORT_NULL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionModule::GetLocalStandbyNode(Node &localStandbyNode)
+{
+    UbseElectionNodeMgr &ubseElectionNodeMgr = UbseElectionNodeMgr::GetInstance();
+    auto role = RoleMgr::GetInstance().GetRole();
+    if (!role) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return UBSE_ERROR;
+    }
+    localStandbyNode.id = role->GetStandbyNode();
+    if (localStandbyNode.id.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] standbyNode Id is Empty";
         return UBSE_ERROR;
     }
-    auto ret = ubseElectionNodeMgr.GetNodeInfoByID(standbyNode.id, standbyNode.ip, standbyNode.port);
+    auto ret = ubseElectionNodeMgr.GetNodeInfoByID(localStandbyNode.id, localStandbyNode.ip, localStandbyNode.port);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[ELECTION] standby nodeId =" << standbyNode.id << " not in currentAllNodes.";
-        standbyNode.ip = NODE_IP_NULL;
-        standbyNode.port = NODE_PORT_NULL;
+        UBSE_LOG_WARN << "[ELECTION] standby nodeId =" << localStandbyNode.id << " not in currentAllNodes.";
+        localStandbyNode.ip = NODE_IP_NULL;
+        localStandbyNode.port = NODE_PORT_NULL;
     }
     return UBSE_OK;
 }

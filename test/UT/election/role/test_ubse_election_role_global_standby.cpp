@@ -70,8 +70,8 @@ TEST_F(TestUbseElectionRoleGlobalStandby, Constructor_ShouldInitMembers_WhenSucc
     RoleContext ctx = MakeStandbyCtx();
     GlobalStandby standby(ctx);
     EXPECT_EQ(standby.GetGlobalRoleType(), GlobalRoleType::GLOBAL_STANDBY);
-    EXPECT_EQ(standby.GetMasterNode(), "1");
-    EXPECT_EQ(standby.GetStandbyNode(), "2");
+    EXPECT_EQ(standby.GetGlobalMasterNode(), "1");
+    EXPECT_EQ(standby.GetGlobalStandbyNode(), "2");
     EXPECT_EQ(standby.GetTurnId(), 5);
 }
 
@@ -124,7 +124,7 @@ TEST_F(TestUbseElectionRoleGlobalStandby, GetMasterNode_ShouldReturnMasterId)
     SetupGlobalStandbyCommonMocks();
     RoleContext ctx = MakeStandbyCtx();
     GlobalStandby standby(ctx);
-    EXPECT_EQ(standby.GetMasterNode(), "1");
+    EXPECT_EQ(standby.GetGlobalMasterNode(), "1");
 }
 
 TEST_F(TestUbseElectionRoleGlobalStandby, GetStandbyNode_ShouldReturnMyselfId)
@@ -132,7 +132,7 @@ TEST_F(TestUbseElectionRoleGlobalStandby, GetStandbyNode_ShouldReturnMyselfId)
     SetupGlobalStandbyCommonMocks();
     RoleContext ctx = MakeStandbyCtx();
     GlobalStandby standby(ctx);
-    EXPECT_EQ(standby.GetStandbyNode(), "2");
+    EXPECT_EQ(standby.GetGlobalStandbyNode(), "2");
 }
 
 TEST_F(TestUbseElectionRoleGlobalStandby, GetAgentNodes_ShouldReturnEmptyByDefault)

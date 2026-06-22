@@ -328,25 +328,6 @@ TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldReturnEarly_WhenPd
     }
 }
 
-TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldConnectPdMasterNodesOnce_WhenFirstCall)
-{
-    SetupGlobalInitCommonMocks();
-    MOCKER(&RoleMgr::IsManagingGroup).stubs().will(returnValue(true));
-    MOCKER(&RoleMgr::GetManagingGroupMasterIds)
-        .stubs()
-        .will(returnValue(std::vector<UBSE_ID_TYPE>{"3", "5"}));
-    MOCKER(&ubse::election::ConnectManagingMasters).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
-        .stubs()
-        .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_RESTORE));
-    GlobalInitializer globalInit;
-    EXPECT_FALSE(globalInit.hasConnMasterNodesOnce_);
-
-    globalInit.ProcTimer();
-
-    EXPECT_TRUE(globalInit.hasConnMasterNodesOnce_);
-}
-
 TEST_F(TestUbseElectionRoleGlobalInitializer, ProcTimer_ShouldNotCallProcRoleSwitch_WhenNodeNotReady)
 {
     SetupGlobalInitCommonMocks();

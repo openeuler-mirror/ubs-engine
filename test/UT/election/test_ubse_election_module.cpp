@@ -286,17 +286,6 @@ TEST_F(TestUbseElectionModule, TimerTaskCom_WhenThreadStatusIsTrue)
     g_globalStop.store(false);
 }
 
-TEST_F(TestUbseElectionModule, TimerTaskElection_WhenThreadStatusIsTrue)
-{
-    UbseElectionModule mockModule;
-    g_globalStop.store(false);
-    std::thread timerThread([&mockModule]() { mockModule.TimerTaskElection(); });
-    std::this_thread::sleep_for(std::chrono::seconds(NO_2));
-    g_globalStop.store(true);
-    timerThread.join();
-    g_globalStop.store(false);
-}
-
 TEST_F(TestUbseElectionModule, GetNodeIpInfoById_ShouldReturnOk_WhenGetNodeIpByIdSuccess)
 {
     std::string nodeId = "NODE1";

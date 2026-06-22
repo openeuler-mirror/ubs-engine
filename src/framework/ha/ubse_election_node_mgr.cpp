@@ -37,7 +37,7 @@ UbseElectionNodeMgr &UbseElectionNodeMgr::GetInstance()
     return instance;
 }
 
-UbseResult GetUBEnable(bool &ubEnable)
+UbseResult UbseElectionNodeMgr::GetUBEnable(bool &ubEnable)
 {
     auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (ubseConfModule == nullptr) {
@@ -376,6 +376,7 @@ UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
         node.id = nodeStaticInfo.nodeId;
         node.ip = ubEnable? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
         node.port = TCP_LISTEN_PORT;
+        UBSE_LOG_INFO << "[ELECTION] group node id is " << node.id << ", ip is " << node.ip << ", port is " << node.port;
         groupNodes.push_back(node);
     }
     return UBSE_OK;
@@ -395,5 +396,10 @@ UbseResult UbseElectionNodeMgr::GetGroupIdByNodeId(const std::string &nodeId, st
     UBSE_LOG_INFO <<"[ELECTION] node id is "<< nodeId <<", group id is " << nodeInfo.groupId;
     groupId = std::to_string(nodeInfo.groupId);
     return UBSE_OK;
+}
+
+bool UbseElectionNodeMgr::IsHierarchicalElection() const
+{
+        return isHierarchicalElection_;
 }
 } // namespace ubse::election
