@@ -205,7 +205,7 @@ UbseResult FillUrmaUvsNodeInfo(bool isBuildHostOnly, UbseUrmaNodeInfo& nodeInfo,
     }
     if (!isBuildHostOnly) {
         // 如果tmpUvsInfo.devList为空，说明没有第17组EID，需要根据通信bonding是否被占用来判断是否需要将通信bonding插入到拓扑中
-        if (!tmpUvsInfo.devList.empty() && GetHostUrmaDev(nodeInfo.nodeId, tmpUvsInfo) != UBSE_OK) {
+        if (tmpUvsInfo.devList.empty() && GetHostUrmaDev(nodeInfo.nodeId, tmpUvsInfo) != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to get host urma dev for nodeId=" << nodeInfo.nodeId;
             return UBSE_ERROR;
         }
