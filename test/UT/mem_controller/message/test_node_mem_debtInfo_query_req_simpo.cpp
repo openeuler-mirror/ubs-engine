@@ -12,6 +12,7 @@
 
 #include "test_node_mem_debtInfo_query_req_simpo.h"
 
+#include <memory>
 #include "mockcpp/mockcpp.hpp"
 
 #include "ubse_error.h"
@@ -19,14 +20,11 @@
 #include "message/ubse_mem_debt_info_query_req_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::message;
-using namespace ubse::utils;
 using namespace ubse::serial;
 
 void TestNodeMemDebtInfoQueryReqSimpo::SetUp()
 {
     Test::SetUp();
-    obj = new NodeMemDebtInfoQueryReqSimpo();
 }
 
 void TestNodeMemDebtInfoQueryReqSimpo::TearDown()
@@ -35,46 +33,43 @@ void TestNodeMemDebtInfoQueryReqSimpo::TearDown()
     GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
 TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    MOCKER_CPP(&UbseSerialization::Check).reset();
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
+    obj.SetNodeId("test_node");
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
 }
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值
- * 3.判断Check函数返回false和true时Deserialize的行为
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2.Check函数返回false时，Deserialize返回UBSE_ERROR
- * 3.一切功能正常时，返回UBSE_OK
- */
-TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize)
+TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Serialize_CheckFail)
 {
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    obj.SetNodeId("test");
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
+    EXPECT_EQ(obj.Serialize(), UBSE_ERROR);
+}
 
+TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize_NullInput)
+{
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
+
+TEST_F(TestNodeMemDebtInfoQueryReqSimpo, Deserialize_BadData)
+{
     uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
+    auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
+    obj.SetInputRawDataFromShared(buffer, size);
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
 
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    MOCKER_CPP(&UbseDeSerialization::Check).reset();
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+TEST_F(TestNodeMemDebtInfoQueryReqSimpo, SerializeDeserialize_RoundTrip)
+{
+    obj.SetNodeId("roundtrip_node_42");
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
+
+    auto sharedData = obj.GetSharedOutputData();
+    auto size = obj.SerializedDataSize();
+
+    NodeMemDebtInfoQueryReqSimpo obj2;
+    obj2.SetInputRawDataFromShared(sharedData, size);
+    EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
+    EXPECT_EQ(obj2.GetNodeId(), "roundtrip_node_42");
 }
 } // namespace ubse::mem::controller::message::ut

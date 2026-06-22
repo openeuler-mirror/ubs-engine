@@ -33,7 +33,6 @@
 #include "ubse_urma_def.h"
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "securec.h"
-#include "src/controllers/node/ubse_node_com_urma_collector.h"
 
 namespace ubse::urmaController {
 using namespace ubse::election;
@@ -72,16 +71,6 @@ UbseResult UbseUrmaControllerManager::GetLocalUrmaDevInfoByNameInner(const std::
     }
     urmaInfo = nodeInfos[currentNodeInfo.nodeId].urmaList[urmaName];
     return UBSE_OK;
-}
-
-std::string GetVfeInfoKey(const UbseFeInfo& info)
-{
-    return info.slotId + "_" + info.ubpuId + "_" + info.iouId + "_" + info.entityId;
-}
-
-std::string GetVfeInfoKey(const UbseMtiFeInfo& info)
-{
-    return info.slotId + "_" + info.ubpuId + "_" + info.iouId + "_" + info.entityId;
 }
 
 UbseResult UbseUrmaControllerManager::AllocUrmaDev(const std::string& urmaName, std::vector<std::string>& feNames,
@@ -157,12 +146,12 @@ void UbseUrmaControllerManager::SetUrmaDevStateByDevEid(const std::string& urmaD
 UbseResult GetHostUrmaDev(const std::string& nodeId, UbseUrmaUvsNodeInfo& uvsInfo)
 {
     // 如果主机不占用bonding 0，则需要将host bonding插入到拓扑信息中
-    if (UbseSmbios::GetInstance().IsClosType() && !UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+    if (UbseSmbios::GetInstance().IsClosType() && !UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         UBSE_LOG_INFO << "Clos type detected, skip getting host urma dev";
         return UBSE_OK;
     }
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
+    auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
     if (ret != UBSE_OK || hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Get com urma info by nodeId=" << uvsInfo.nodeId << " failed";
         return UBSE_ERROR;
@@ -176,20 +165,10 @@ UbseResult GetHostUrmaDev(const std::string& nodeId, UbseUrmaUvsNodeInfo& uvsInf
     return UBSE_OK;
 }
 
-UbseResult FillUrmaUvsNodeInfo(UbseUrmaNodeInfo& nodeInfo, UbseUrmaUvsNodeInfo& tmpUvsInfo)
+UbseResult AppendUrmaListToUvsDevList(const std::map<std::string, UbseUrmaInfo, UrmaNameCompare>& urmaList,
+                                      UbseUrmaUvsNodeInfo& uvsInfo)
 {
-    tmpUvsInfo.nodeId = nodeInfo.nodeId;
-    if (UbseSmbios::GetInstance().IsClosType() &&
-        UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::INVALID) {
-        UBSE_LOG_WARN << "Clos type detected, but fe topo type is invalid, cannot filling urma uvs info for nodeId="
-                      << nodeInfo.nodeId;
-        return UBSE_ERROR;
-    }
-    if (GetHostUrmaDev(nodeInfo.nodeId, tmpUvsInfo) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get host urma dev for nodeId=" << nodeInfo.nodeId;
-        return UBSE_ERROR;
-    }
-    for (auto& urmaInfo : nodeInfo.urmaList) {
+    for (auto& urmaInfo : urmaList) {
         UbseUrmaUvsAggrDev dev{};
         dev.urmaDevEid = urmaInfo.second.urmaDevEid;
         for (auto& group : urmaInfo.second.eidGroups) {
@@ -204,13 +183,44 @@ UbseResult FillUrmaUvsNodeInfo(UbseUrmaNodeInfo& nodeInfo, UbseUrmaUvsNodeInfo& 
             feInfo.entityId = group.feInfo->entityId;
             dev.feList.push_back(feInfo);
         }
-        tmpUvsInfo.devList.push_back(dev);
+        uvsInfo.devList.push_back(dev);
     }
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(uint32_t startServerIdx, uint32_t batchNodeNum,
-                                                        std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
+UbseResult FillUrmaUvsNodeInfo(bool isBuildHostOnly, UbseUrmaNodeInfo& nodeInfo, UbseUrmaUvsNodeInfo& tmpUvsInfo)
+{
+    tmpUvsInfo.nodeId = nodeInfo.nodeId;
+    if (UbseSmbios::GetInstance().IsClosType() &&
+        UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::INVALID) {
+        UBSE_LOG_WARN << "Clos type detected, but fe topo type is invalid, cannot filling urma uvs info for nodeId="
+                      << nodeInfo.nodeId;
+        return UBSE_ERROR;
+    }
+    // 如果hostUrmaList不为空，通信bonding所在FE一定有17组EID，且通信bonding对应EID一定在第17组中。无论UBSE是否占用，都需要将第17组EID插入到拓扑中。
+    auto ret = AppendUrmaListToUvsDevList(nodeInfo.hostUrmaList, tmpUvsInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to append host urma list to uvs dev list, nodeId=" << nodeInfo.nodeId;
+        return ret;
+    }
+    if (!isBuildHostOnly) {
+        // 如果tmpUvsInfo.devList为空，说明没有第17组EID，需要根据通信bonding是否被占用来判断是否需要将通信bonding插入到拓扑中
+        if (tmpUvsInfo.devList.empty() && GetHostUrmaDev(nodeInfo.nodeId, tmpUvsInfo) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to get host urma dev for nodeId=" << nodeInfo.nodeId;
+            return UBSE_ERROR;
+        }
+        auto ret = AppendUrmaListToUvsDevList(nodeInfo.urmaList, tmpUvsInfo);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to append urma list to uvs dev list, nodeId=" << nodeInfo.nodeId;
+            return ret;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::BuildUvsTopoNodeInfo(bool isBuildHostOnly, uint32_t startServerIdx,
+                                                           uint32_t batchNodeNum,
+                                                           std::vector<UbseUrmaUvsNodeInfo>& uvsInfos)
 {
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
     if (curNode.nodeId.empty()) {
@@ -219,11 +229,11 @@ UbseResult UbseUrmaControllerManager::GetAllUvsTopoInfo(uint32_t startServerIdx,
     }
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
     // 只有CLOS组网才会推算其它节点拓扑
-    this->InferOtherNodesUrmaDevInfo(curNode.nodeId, startServerIdx, batchNodeNum);
+    this->InferOtherNodesUrmaDevInfo(isBuildHostOnly, curNode.nodeId, startServerIdx, batchNodeNum);
     for (auto& nodeInfo : nodeInfos) {
         UbseUrmaUvsNodeInfo tmpUvsInfo{};
-        if (FillUrmaUvsNodeInfo(nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Fill urma uvs info failed.";
+        if (FillUrmaUvsNodeInfo(isBuildHostOnly, nodeInfo.second, tmpUvsInfo) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Fill urma uvs info failed, nodeId=" << nodeInfo.second.nodeId;
             this->DeleteOtherNodesUrmaInfo(curNode.nodeId);
             return UBSE_ERROR;
         }
@@ -337,19 +347,67 @@ FeType ConvertLcneFeTypeToUrmaFeType(const UbseMtiFeType& lcneFeType)
     return FeType::BUTT_TYPE;
 }
 
-UbseResult CreateAndInsertUrmaInfoPreset(const UbseMtiFeInfo& lcneFe0, const UbseMtiFeInfo& lcneFe1,
-                                         std::shared_ptr<UbseFeInfo>& urmaFe0, std::shared_ptr<UbseFeInfo>& urmaFe1,
-                                         uint32_t& slotId)
+bool IsSameFeWithHostUrmaDev(const std::string& nodeId, const UbseUrmaUvsNodeInfo& hostUrmaInfo,
+                             const UbseMtiFeInfo& lcneFe)
+{
+    // Node模块返回数据时能够保证数组不越界
+    return std::find_if(lcneFe.eidGroups.begin(), lcneFe.eidGroups.end(),
+                        [&hostUrmaInfo](const UbseMtiEidGroup& group) {
+                            return group.primaryEid == hostUrmaInfo.devList[0].feList[0].primaryEid ||
+                                   group.primaryEid == hostUrmaInfo.devList[0].feList[1].primaryEid;
+                        }) != lcneFe.eidGroups.end();
+}
+
+void SwapCommEidGroupToHostPosition(std::vector<UbseMtiEidGroup>& eidGroups, const std::string& commPrimaryEid,
+                                    size_t hostIdx)
+{
+    for (size_t i = 0; i < eidGroups.size(); ++i) {
+        if (eidGroups[i].primaryEid == commPrimaryEid) {
+            std::swap(eidGroups[i], eidGroups[hostIdx]);
+            return;
+        }
+    }
+}
+
+void FilterCommEidGroupFromContainer(std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                                     const UbseUrmaUvsNodeInfo& hostUrmaInfo)
+{
+    for (size_t iouIdx = 0; iouIdx < containerFeInfos.size(); ++iouIdx) {
+        const auto& commPrimaryEid = hostUrmaInfo.devList[0].feList[iouIdx].primaryEid;
+        for (auto& fe : containerFeInfos[iouIdx]) {
+            auto it = std::remove_if(
+                fe.eidGroups.begin(), fe.eidGroups.end(),
+                [&commPrimaryEid](const UbseMtiEidGroup& group) { return group.primaryEid == commPrimaryEid; });
+            fe.eidGroups.erase(it, fe.eidGroups.end());
+        }
+    }
+}
+
+UbseResult BuildUrmaFeInfoFromMtiFe(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
+                                    const UbseMtiFeInfo& lcneFe1, std::shared_ptr<UbseFeInfo>& urmaFe0,
+                                    std::shared_ptr<UbseFeInfo>& urmaFe1)
 {
     if (lcneFe0.fetype != lcneFe1.fetype) {
         UBSE_LOG_ERROR << "lcneFe0's fetype=" << static_cast<int>(lcneFe0.fetype)
                        << " is not equal to lcneFe1's fetype=" << static_cast<int>(lcneFe1.fetype);
         return UBSE_ERROR;
     }
-    if (ConvertStrToUint32(lcneFe0.slotId, slotId) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to convert slotId=" << lcneFe0.slotId;
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+    if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+        hostUrmaInfos.empty()) {
+        UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
         return UBSE_ERROR;
     }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        bool isSame0 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe0);
+        bool isSame1 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe1);
+        if (isSame0 != isSame1) {
+            UBSE_LOG_ERROR << "Failed to check if lcneFe0 and lcneFe1 are same with host URMA dev, nodeId=" << nodeId
+                           << ", isSame0=" << isSame0 << ", isSame1=" << isSame1;
+            return UBSE_ERROR;
+        }
+    }
+
     try {
         urmaFe0 = std::make_shared<UbseFeInfo>(UbseFeInfo{.slotId = lcneFe0.slotId,
                                                           .ubpuId = lcneFe0.ubpuId,
@@ -385,14 +443,27 @@ uint64_t GenerateHwResId(const UbseMtiFeInfo& lcneFe)
     return (iouId << NO_32) | entityId;
 }
 
-std::string UbseUrmaControllerManager::GenerateBondingDevName(UbseMtiFeType feType)
+std::string UbseUrmaControllerManager::GenerateUrmaDevName(const std::string& nodeId, const UbseMtiFeInfo& lcneFe0,
+                                                           const UbseMtiFeInfo& lcneFe1, const size_t idx)
 {
-    if (UbseSmbios::GetInstance().IsClosType() &&
-        UbseUrmaControllerManager::GetInstance().GetFeTopoType() == FeTopoType::PFE_VFE_HYBRID) {
-        // 1 PFE + 5 VFE 混插场景，PFE有17组EID。当前bonding 0对应EID组已经过滤，因此当前第16组EID对应的bonding设备命名为bonding_dev_96，兼容此前版本，避免容器重建
-        static uint32_t pfeEidCnt = 0;
-        const uint32_t targetPfeEidGroupCnt = 16;
-        if (++pfeEidCnt == targetPfeEidGroupCnt) {
+    if (UbseSmbios::GetInstance().IsClosType() && lcneFe0.fetype == UbseMtiFeType::PHYSICAL_TYPE) {
+        // 1 PFE + 5VFE 或者 6 PFE场景，需要把原bonding_dev_0所在pfe的第6组EID组成bonding_dev_96，兼容此前版本，避免容器重建
+        std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+        if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+            hostUrmaInfos.empty()) {
+            UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
+            return "";
+        }
+        bool isSame0 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe0);
+        bool isSame1 = IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfos[0], lcneFe1);
+        if (isSame0 != isSame1) {
+            UBSE_LOG_ERROR << "Failed to check if lcneFe0 and lcneFe1 are same with host urma dev, nodeId=" << nodeId
+                           << ", fe0's ubpuId=" << lcneFe0.ubpuId << ", entityId=" << lcneFe0.entityId
+                           << ", fe1's ubpuId=" << lcneFe1.ubpuId << ", entityId=" << lcneFe1.entityId;
+            return "";
+        }
+        const uint32_t targetPfeEidGroupIdx = 15; // 下标从0开始
+        if (isSame0 && idx == targetPfeEidGroupIdx) {
             return "bonding_dev_96";
         }
     }
@@ -404,50 +475,63 @@ EidGroup MakeEidGroup(UbseMtiEidGroup& src, const std::shared_ptr<UbseFeInfo>& f
     return EidGroup{.primaryEid = src.primaryEid, .portEids = std::move(src.portEids), .feInfo = feInfo};
 }
 
-UbseResult UbseUrmaControllerManager::CreateAndInsertUrmaInfo([[maybe_unused]] const uint16_t superPodId,
-                                                              const uint32_t serverIdx, const std::string& nodeId,
-                                                              UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1)
+void UbseUrmaControllerManager::ConstructAndInsertUrmaBondingRollback(
+    const UrmaDevRollbackState& state, std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
 {
-    uint32_t slotId = 0;
+    globalUrmaId.store(state.urmaId);
+    globalFeId.store(state.feId);
+    // 删除该过程组建的urma dev
+    for (const auto& urmaName : state.urmaDevs) {
+        urmaList.erase(urmaName);
+    }
+}
+
+UbseResult UbseUrmaControllerManager::ConstructAndInsertUrmaBonding(
+    const uint32_t serverIdx, const std::string& nodeId, UbseMtiFeInfo& lcneFe0, UbseMtiFeInfo& lcneFe1,
+    std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
+{
     std::shared_ptr<UbseFeInfo> urmaFe0;
     std::shared_ptr<UbseFeInfo> urmaFe1;
-    if (CreateAndInsertUrmaInfoPreset(lcneFe0, lcneFe1, urmaFe0, urmaFe1, slotId) != UBSE_OK) {
+    if (BuildUrmaFeInfoFromMtiFe(nodeId, lcneFe0, lcneFe1, urmaFe0, urmaFe1) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to do preset step when create urma bounding info";
         return UBSE_ERROR;
     }
-    auto feKey0 = GetVfeInfoKey(lcneFe0);
-    auto feKey1 = GetVfeInfoKey(lcneFe1);
-    feIdMap[feKey0] = GenerateUniqueFeId();
-    feIdMap[feKey1] = GenerateUniqueFeId();
-    auto fe0Id = feIdMap[feKey0];
-    auto fe1Id = feIdMap[feKey1];
-    UrmaDevType devType = lcneFe0.eidGroups.size() > 1 && lcneFe1.eidGroups.size() > 1 ? UrmaDevType::SHARED :
-                                                                                         UrmaDevType::UNIQUE;
+    // 组bonding前保存初始状态，失败后需要回滚，恢复feId、urmaId和feKey，确保可重入
+    UrmaDevRollbackState state{.feId = globalFeId.load(), .urmaId = globalUrmaId.load()};
+    UrmaDevType devType = UrmaDevType::SHARED;
     size_t urmaBoundingNum = std::min(lcneFe0.eidGroups.size(), lcneFe1.eidGroups.size());
-    UBSE_LOG_INFO << "Fe0 " << feKey0 << " has " << lcneFe0.eidGroups.size() << " groups, Fe1 " << feKey1 << " has "
-                  << lcneFe1.eidGroups.size() << " groups";
+    UBSE_LOG_INFO << "Fe0 has " << lcneFe0.eidGroups.size() << " groups, Fe1 has " << lcneFe1.eidGroups.size()
+                  << " groups";
     if (nodeInfos.find(nodeId) == nodeInfos.end()) {
         nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
     }
     for (size_t idx = 0; idx < urmaBoundingNum; ++idx) {
         // 目前superPodId无意义，暂时取0
+        auto fe0Id = GenerateUniqueFeId();
+        auto fe1Id = GenerateUniqueFeId();
         std::string devEid = utils::GenerateUrmaDevEid(0, serverIdx + 1, fe0Id, fe1Id);
         if (devEid.empty()) {
             UBSE_LOG_WARN << "Failed to generate urma eid, fe0's primary eid=" << lcneFe0.eidGroups[idx].primaryEid
                           << ", fe1's primary eid=" << lcneFe1.eidGroups[idx].primaryEid;
-            continue;
+            ConstructAndInsertUrmaBondingRollback(state, urmaList);
+            return UBSE_ERROR_AGAIN;
         }
         UbseUrmaInfo urmaInfo{.urmaDevEid = devEid, .urmaDevType = devType, .state = UrmaDevState::UNKNOWN};
         urmaInfo.eidGroups.push_back(MakeEidGroup(lcneFe0.eidGroups[idx], urmaFe0));
         urmaInfo.eidGroups.push_back(MakeEidGroup(lcneFe1.eidGroups[idx], urmaFe1));
-        const std::string urmaName = GenerateBondingDevName(lcneFe0.fetype);
+        const std::string urmaName = GenerateUrmaDevName(nodeId, lcneFe0, lcneFe1, idx);
+        if (urmaName.empty()) {
+            UBSE_LOG_ERROR << "Failed to generate urma name, nodeId=" << nodeId
+                           << ", fe0's entityId=" << lcneFe0.entityId << ", fe1's entityId=" << lcneFe1.entityId;
+            ConstructAndInsertUrmaBondingRollback(state, urmaList);
+            return UBSE_ERROR;
+        }
         UBSE_LOG_INFO << "Add urmaInfo for nodeId=" << nodeId << ", urmaName=" << urmaName << ", devEid=" << devEid
                       << ", fe0's primaryEid=" << lcneFe0.eidGroups[idx].primaryEid
                       << ", fe1's primaryEid=" << lcneFe1.eidGroups[idx].primaryEid;
         urmaInfo.hwResId = GenerateHwResId(lcneFe0);
-        nodeInfos[nodeId].urmaList[urmaName] = urmaInfo;
-        fe0Id = GenerateUniqueFeId();
-        fe1Id = GenerateUniqueFeId();
+        urmaList[urmaName] = urmaInfo;
+        state.urmaDevs.push_back(urmaName);
     }
 
     return UBSE_OK;
@@ -469,6 +553,11 @@ bool ValidateLcneFeInfo(const std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     if (feInfos.size() < UBPU_BOUNDARY_CNT) {
         // 少于两种ubpuId，返回错误
         UBSE_LOG_ERROR << "Not enough boundary found";
+        return false;
+    }
+    if (feInfos[0].size() != feInfos[1].size()) {
+        // 不同ubpuId的fe数量不同，返回错误
+        UBSE_LOG_ERROR << "Fe0 and Fe1 have different number of eidGroups";
         return false;
     }
     if (feInfos.size() > UBPU_BOUNDARY_CNT) {
@@ -498,9 +587,6 @@ bool ValidateLcneFeInfo(const std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
 struct UbseFeVecCmp {
     bool operator()(const std::vector<UbseMtiFeInfo>& left, const std::vector<UbseMtiFeInfo>& right) const
     {
-        if (left[0].slotId != right[0].slotId) {
-            return CompareStringsNumerically(left[0].slotId, right[0].slotId);
-        }
         if (left[0].ubpuId != right[0].ubpuId) {
             return CompareStringsNumerically(left[0].ubpuId, right[0].ubpuId);
         }
@@ -515,28 +601,105 @@ struct UbseFeInfoCmp {
     }
 };
 
-bool UbseUrmaControllerManager::IsLcneFeUsed(const UbseMtiFeInfo& fe0, const UbseMtiFeInfo& fe1)
-{
-    auto feKey0 = GetVfeInfoKey(fe0);
-    auto feKey1 = GetVfeInfoKey(fe1);
-    if (feIdMap.find(feKey0) == feIdMap.end() && feIdMap.find(feKey1) != feIdMap.end() ||
-        feIdMap.find(feKey0) != feIdMap.end() && feIdMap.find(feKey1) == feIdMap.end()) {
-        UBSE_LOG_WARN << "There is only one fe in used, fe0 info: slotId=" << fe0.slotId << ", ubpuId=" << fe0.ubpuId
-                      << ", iouId=" << fe0.iouId << ", entityId=" << fe0.entityId << ", fe1 info: slotId=" << fe1.slotId
-                      << ", ubpuId=" << fe1.ubpuId << ", iouId=" << fe1.iouId << ", entityId=" << fe1.entityId;
-        return true;
+struct UbseEidGroupCmp {
+    bool operator()(const UbseMtiEidGroup& left, const UbseMtiEidGroup& right) const
+    {
+        return left.primaryEid < right.primaryEid;
     }
-    return feIdMap.find(feKey0) != feIdMap.end() && feIdMap.find(feKey1) != feIdMap.end();
+};
+
+bool UbseUrmaControllerManager::IsLcneFeUsed(
+    const UbseMtiFeInfo& fe0, const UbseMtiFeInfo& fe1,
+    const std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
+{
+    // 检查目标urmaList中是否已存在该fe pair的bonding，而非通过全局feIdMap判断
+    // 因为同一物理FE在CLOS模式下需要分别为容器侧和主机侧bonding，各自的urmaList独立
+    for (const auto& [urmaName, urmaInfo] : urmaList) {
+        if (urmaInfo.eidGroups.size() < UBPU_BOUNDARY_CNT) {
+            continue;
+        }
+        auto& groupFe0 = urmaInfo.eidGroups[0].feInfo;
+        auto& groupFe1 = urmaInfo.eidGroups[1].feInfo;
+        if (groupFe0 == nullptr || groupFe1 == nullptr) {
+            continue;
+        }
+        if (groupFe0->slotId == fe0.slotId && groupFe0->ubpuId == fe0.ubpuId && groupFe0->iouId == fe0.iouId &&
+            groupFe0->entityId == fe0.entityId && groupFe1->slotId == fe1.slotId && groupFe1->ubpuId == fe1.ubpuId &&
+            groupFe1->iouId == fe1.iouId && groupFe1->entityId == fe1.entityId) {
+            UBSE_LOG_INFO << "Fe pair already bonded in this urma list, skip it, fe0 entityId=" << fe0.entityId
+                          << ", fe1 entityId=" << fe1.entityId;
+            return true;
+        }
+    }
+    return false;
 }
 
-UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
+UbseResult SplitFeInfosForClos(const std::string& nodeId, const std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                               std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                               std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
 {
-    if (feInfos.size() != UBPU_BOUNDARY_CNT) {
-        UBSE_LOG_ERROR << "FeInfos size is not " << UBPU_BOUNDARY_CNT << ", size=" << feInfos.size();
-        return UBSE_ERROR_INVAL;
-    }
+    // CLOS组网下，保留所有FE，将每个FE的eidGroups按用途拆分：
+    // - 前16组EID组成可分配给容器的bonding → containerFeInfos
+    // - 第17组EID组成留在主机的bonding，用于向URMA下发共享CTP拓扑 → hostFeInfos
+    containerFeInfos.clear();
+    hostFeInfos.clear();
+    containerFeInfos.resize(feInfos.size());
+    hostFeInfos.resize(feInfos.size());
+
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    if (auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos); ret != UBSE_OK) {
+    if (UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos) != UBSE_OK ||
+        hostUrmaInfos.empty()) {
+        UBSE_LOG_ERROR << "Failed to get hostUrmaInfos for nodeId=" << nodeId << ", or hostUrmaInfos is empty";
+        return UBSE_ERROR;
+    }
+    auto& hostUrmaInfo = hostUrmaInfos[0];
+    constexpr size_t hostEidGroupIdx = 16; // 第17组EID的索引（0-based）
+    for (size_t iouIdx = 0; iouIdx < feInfos.size(); ++iouIdx) {
+        for (const auto& fe : feInfos[iouIdx]) {
+            if (fe.eidGroups.empty()) {
+                UBSE_LOG_WARN << "Fe has no eidGroups, skip it, entityId=" << fe.entityId;
+                continue;
+            }
+            if (fe.eidGroups.size() <= hostEidGroupIdx) {
+                // 不足17组，全部归容器侧
+                containerFeInfos[iouIdx].push_back(fe);
+                continue;
+            }
+            // >=17组：前16组归容器侧，第17组归主机侧
+            UbseMtiFeInfo workingFe = fe;
+            // 如果通信bonding（原bonding_dev_0）在当前FE上，第17组EID使用通信bonding，方便拓扑下发
+            if (IsSameFeWithHostUrmaDev(nodeId, hostUrmaInfo, workingFe)) {
+                SwapCommEidGroupToHostPosition(workingFe.eidGroups, hostUrmaInfo.devList[0].feList[iouIdx].primaryEid,
+                                               hostEidGroupIdx);
+            }
+            UbseMtiFeInfo containerFe = workingFe;
+            containerFe.eidGroups.assign(workingFe.eidGroups.begin(), workingFe.eidGroups.begin() + hostEidGroupIdx);
+            containerFeInfos[iouIdx].push_back(std::move(containerFe));
+            UbseMtiFeInfo hostFe = workingFe;
+            hostFe.eidGroups.clear();
+            hostFe.eidGroups.push_back(workingFe.eidGroups[hostEidGroupIdx]);
+            hostFeInfos[iouIdx].push_back(std::move(hostFe));
+        }
+    }
+    // 如果通信bonding被占用了，不能再将EID组分配给容器侧，需要过滤
+    if (UbseNodeController::GetInstance().IsHostBondingRegistered()) {
+        FilterCommEidGroupFromContainer(containerFeInfos, hostUrmaInfo);
+    }
+    return UBSE_OK;
+}
+
+UbseResult FilterFeInfosForNonClos(const std::string& nodeId, const std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                                   std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                                   std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
+{
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_WARN << "Current topo is clos mesh type";
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    containerFeInfos = feInfos;
+    std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
+    if (auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
+        ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get all com urma info";
         return ret;
     }
@@ -573,10 +736,10 @@ UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<Ubse
         return false;
     };
     // 返回true代表需要过滤传入的eidGroup
-    auto filterByEidGroup = [&filterPrimaryEids](UbseMtiEidGroup& eidGroup) -> bool {
+    auto filterByEidGroup = [&filterPrimaryEids](const UbseMtiEidGroup& eidGroup) -> bool {
         return eidGroup.primaryEid.empty() || filterPrimaryEids.find(eidGroup.primaryEid) != filterPrimaryEids.end();
     };
-    for (auto& feInfoIou : feInfos) {
+    for (auto& feInfoIou : containerFeInfos) {
         feInfoIou.erase(std::remove_if(feInfoIou.begin(), feInfoIou.end(), filterByEntityId), feInfoIou.end());
         for (auto& fe : feInfoIou) {
             fe.eidGroups.erase(std::remove_if(fe.eidGroups.begin(), fe.eidGroups.end(), filterByEidGroup),
@@ -584,6 +747,16 @@ UbseResult FilterFeInfos(const std::string& nodeId, std::vector<std::vector<Ubse
         }
     }
     return UBSE_OK;
+}
+
+UbseResult SplitFeInfos(const std::string& nodeId, const std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                        std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                        std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
+{
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return SplitFeInfosForClos(nodeId, feInfos, containerFeInfos, hostFeInfos);
+    }
+    return FilterFeInfosForNonClos(nodeId, feInfos, containerFeInfos, hostFeInfos);
 }
 
 void UbseUrmaControllerManager::SetFeTopoType(FeTopoType topoType)
@@ -596,7 +769,7 @@ FeTopoType UbseUrmaControllerManager::GetFeTopoType() const
     return feTopoType;
 }
 
-void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
+void CalculateFeTopoType(const std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
 {
     // 逐die(IOU)校验FE拓扑类型，每个IOU上必须为1个PFE+5个VFE
     // 且两个IOU的拓扑类型必须一致
@@ -638,16 +811,32 @@ void CalculateFeTopoType(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
     UBSE_LOG_INFO << "Calculated fe topo type = " << static_cast<int>(topoType);
 }
 
-UbseResult ConstructNewUrmaInfoPreset(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
+void SortContainerFeInfos(std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
 {
-    if (FilterFeInfos(nodeId, feInfos) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to filter fe infos";
-        return UBSE_ERROR;
+    // 根据ubpuId和iouId对fe排序，使得(ubpuId, iouId)小的在前面，保证进程重启后能构建出相同的bounding
+    std::sort(feInfos.begin(), feInfos.end(), UbseFeVecCmp());
+    // 按EntityId从小到大排序
+    for (auto& feInfo : feInfos) {
+        std::sort(feInfo.begin(), feInfo.end(), UbseFeInfoCmp());
+        for (auto& fe : feInfo) {
+            std::sort(fe.eidGroups.begin(), fe.eidGroups.end(), UbseEidGroupCmp());
+        }
     }
+}
+
+UbseResult CheckAndStoreUrmaBonding(const std::string& nodeId, std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+                                    std::vector<std::vector<UbseMtiFeInfo>>& containerFeInfos,
+                                    std::vector<std::vector<UbseMtiFeInfo>>& hostFeInfos)
+{
     if (!ValidateLcneFeInfo(feInfos)) {
         UBSE_LOG_ERROR
             << "Invalid feInfos, there must be at least two set of fes, and all fields must be convertible to uint32_t";
         return UBSE_ERROR_INVAL;
+    }
+    SortContainerFeInfos(feInfos);
+    if (SplitFeInfos(nodeId, feInfos, containerFeInfos, hostFeInfos) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to split fe infos";
+        return UBSE_ERROR;
     }
     CalculateFeTopoType(feInfos);
     if (UbseSmbios::GetInstance().IsClosType() &&
@@ -655,14 +844,36 @@ UbseResult ConstructNewUrmaInfoPreset(const std::string& nodeId, std::vector<std
         UBSE_LOG_WARN << "Non-clos network with invalid fe topology, the bonding result may be unstable";
         return UBSE_ERROR;
     }
-    // 根据ubpuId和iouId对fe排序，使得(ubpuId, iouId)小的在前面，保证进程重启后能构建出相同的bounding
-    std::sort(feInfos.begin(), feInfos.end(), UbseFeVecCmp());
-    // 按EntityId从小到大排序
-    for (auto& feInfo : feInfos) {
-        std::sort(feInfo.begin(), feInfo.end(), UbseFeInfoCmp());
-        for (auto& fe : feInfo) {
-            UBSE_LOG_DEBUG << "Fe info: slotId=" << fe.slotId << ", ubpuId=" << fe.ubpuId << ", iouId=" << fe.iouId
-                           << ", entityId=" << fe.entityId << ", eid group size=" << fe.eidGroups.size();
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::ProcessUrmaBondings(
+    const std::string& nodeId, uint32_t serverIdx, std::vector<std::vector<UbseMtiFeInfo>>& feInfos,
+    std::map<std::string, UbseUrmaInfo, ubse::urma::UrmaNameCompare>& urmaList)
+{
+    // 目前每次只从两个区域各取一个fe组成bonding
+    if (feInfos.size() != UBPU_BOUNDARY_CNT) {
+        UBSE_LOG_INFO << "There are not " << UBPU_BOUNDARY_CNT << " sets of fe infos";
+        return UBSE_OK; // FE的配置可能无法为主机预留EID，因此接受为空
+    }
+    size_t maxBoundingCnt = std::min(feInfos[0].size(), feInfos[1].size());
+    for (size_t i = 0; i < maxBoundingCnt; ++i) {
+        UbseMtiFeInfo& lcneFe0 = feInfos[0][i];
+        UbseMtiFeInfo& lcneFe1 = feInfos[1][i];
+        if (lcneFe0.eidGroups.empty() || lcneFe1.eidGroups.empty()) {
+            UBSE_LOG_WARN << "Eid group is empty, skip it, fe0 info: entityId=" << lcneFe0.entityId
+                          << ", eid group is empty, skip it, fe1 info: entityId=" << lcneFe1.entityId;
+            continue;
+        }
+        if (IsLcneFeUsed(lcneFe0, lcneFe1, urmaList)) {
+            UBSE_LOG_INFO << "Fe pair is used, skip it, fe0 info: entityId=" << lcneFe0.entityId
+                          << ", fe1 info: entityId=" << lcneFe1.entityId;
+            continue;
+        }
+        if (ConstructAndInsertUrmaBonding(serverIdx, nodeId, lcneFe0, lcneFe1, urmaList) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to create and insert urma info, fe0 entityId=" << lcneFe0.entityId
+                           << ", fe1 entityId=" << lcneFe1.entityId;
+            return UBSE_ERROR_AGAIN;
         }
     }
     return UBSE_OK;
@@ -671,49 +882,37 @@ UbseResult ConstructNewUrmaInfoPreset(const std::string& nodeId, std::vector<std
 UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& nodeId,
                                                            std::vector<std::vector<UbseMtiFeInfo>>& feInfos)
 {
-    if (ConstructNewUrmaInfoPreset(nodeId, feInfos) != UBSE_OK) {
+    std::vector<std::vector<UbseMtiFeInfo>> containerFeInfos;
+    std::vector<std::vector<UbseMtiFeInfo>> hostFeInfos;
+    // 根据组网类型拆分/过滤FE：CLOS下按eidGroups拆为容器侧与主机侧，非CLOS下过滤通信bonding占用的FE及EID组，并对FE排序
+    if (CheckAndStoreUrmaBonding(nodeId, feInfos, containerFeInfos, hostFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to do preset step when construct new urma bounding info";
         return UBSE_ERROR;
     }
-    uint16_t superPodId = 0;
     uint32_t serverIdx = 0;
-    if (UbseSmbios::GetInstance().GetSuperPodId(superPodId) != UBSE_OK ||
-        UbseSmbios::GetInstance().GetServerIdx(serverIdx) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get super pod id or server idx from smbios";
+    if (UbseSmbios::GetInstance().GetServerIdx(serverIdx) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get server idx from smbios";
         return UBSE_ERROR;
     }
     UBSE_LOG_INFO << "Begin to construct new bounding info for nodeId=" << nodeId;
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
-    // 目前每次只从两个区域各取一个fe组成bonding
-    size_t maxBoundingCnt = std::min(feInfos[0].size(), feInfos[1].size());
-    bool hasModified = false;
-    for (size_t i = 0; i < maxBoundingCnt; ++i) {
-        UbseMtiFeInfo& lcneFe0 = feInfos[0][i];
-        UbseMtiFeInfo& lcneFe1 = feInfos[1][i];
-        if (lcneFe0.eidGroups.empty() || lcneFe1.eidGroups.empty()) {
-            UBSE_LOG_WARN << "Eid group is empty, skip it, fe0 info: entityId=" << lcneFe0.entityId
-                          << ", eid group size=" << lcneFe0.eidGroups.size()
-                          << "Eid group is empty, skip it, fe1 info: entityId=" << lcneFe1.entityId
-                          << ", eid group size=" << lcneFe1.eidGroups.size();
-            continue;
-        }
-        if (IsLcneFeUsed(lcneFe0, lcneFe1)) {
-            UBSE_LOG_INFO << "LcneFe is used, skip it, fe0 info: slotId=" << lcneFe0.slotId
-                          << ", ubpuId=" << lcneFe0.ubpuId;
-            continue;
-        }
-        if (CreateAndInsertUrmaInfo(superPodId, serverIdx, nodeId, lcneFe0, lcneFe1) == UBSE_OK) {
-            hasModified = true;
-        }
+    if (nodeInfos.find(nodeId) == nodeInfos.end()) {
+        nodeInfos[nodeId] = UbseUrmaNodeInfo{.nodeId = nodeId};
     }
-    if (hasModified) {
-        UBSE_LOG_INFO << "Successfully constructed new URMA info for nodeId=" << nodeId;
-        nodeInfos[nodeId].updateTimeStamp =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count();
+    // 分别基于容器侧与主机侧的FE组bonding
+    if (ProcessUrmaBondings(nodeId, serverIdx, containerFeInfos, nodeInfos[nodeId].urmaList) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to process container fe bounding";
+        return UBSE_ERROR_AGAIN;
     }
-    // 将不被ubse占用的bonding 0（host bonding）加入到设备列表，拓展到96bonding或提供host bonding的激活
-    return InsertHostUrmaDevInner();
+    if (ProcessUrmaBondings(nodeId, serverIdx, hostFeInfos, nodeInfos[nodeId].hostUrmaList) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to process host fe bounding";
+        return UBSE_ERROR_AGAIN;
+    }
+    UBSE_LOG_INFO << "Successfully constructed new URMA info for nodeId=" << nodeId;
+    nodeInfos[nodeId].updateTimeStamp =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    return UBSE_OK;
 }
 
 UbseResult UbseUrmaControllerManager::ConstructNewUrmaInfo(const std::string& nodeId,
@@ -800,16 +999,10 @@ UbseResult InferEidGroup(uint32_t serverIdx, EidGroup& group)
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(uint16_t superPodId, uint32_t serverIdx,
-                                                              const std::string& basedNodeId)
+UbseResult InferUrmaListDevInfo(uint32_t serverIdx, uint32_t nodeId,
+                                std::map<std::string, UbseUrmaInfo, UrmaNameCompare>& urmaList)
 {
-    uint32_t nodeId = serverIdx + 1; // serverIdx 从0开始，nodeId从1开始
-    std::string nodeIdStr = std::to_string(nodeId);
-    nodeInfos[nodeIdStr] = nodeInfos[basedNodeId];
-    nodeInfos[nodeIdStr].nodeId = nodeIdStr;
-    auto& nodeInfo = nodeInfos[nodeIdStr];
-    UBSE_LOG_INFO << "Infer urma bonding info for nodeId=" << nodeIdStr << ", basedNodeId=" << basedNodeId;
-    for (auto& urmaInfo : nodeInfo.urmaList) {
+    for (auto& urmaInfo : urmaList) {
         std::pair<uint16_t, uint16_t> feIds;
         auto ret = ParseFeIdsFromEid(urmaInfo.second.urmaDevEid, feIds);
         if (ret != UBSE_OK) {
@@ -836,8 +1029,31 @@ UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(uint16_t superPodI
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(const std::string& basedNodeId, uint32_t startIdx,
-                                                                 uint32_t batchNodeNum)
+UbseResult UbseUrmaControllerManager::InferOneNodeUrmaDevInfo(bool isInferHostOnly, uint32_t serverIdx,
+                                                              const std::string& basedNodeId)
+{
+    uint32_t nodeId = serverIdx + 1; // serverIdx 从0开始，nodeId从1开始
+    std::string nodeIdStr = std::to_string(nodeId);
+    nodeInfos[nodeIdStr] = nodeInfos[basedNodeId];
+    nodeInfos[nodeIdStr].nodeId = nodeIdStr;
+    auto& nodeInfo = nodeInfos[nodeIdStr];
+    if (!isInferHostOnly) {
+        auto ret = InferUrmaListDevInfo(serverIdx, nodeId, nodeInfo.urmaList);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to infer urma dev info, nodeId=" << nodeIdStr;
+            return ret;
+        }
+    }
+    auto ret = InferUrmaListDevInfo(serverIdx, nodeId, nodeInfo.hostUrmaList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to infer host urma dev info, nodeId=" << nodeIdStr;
+        return ret;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(bool isInferHostOnly, const std::string& basedNodeId,
+                                                                 uint32_t startIdx, uint32_t batchNodeNum)
 {
     UbseMeshType meshType;
     uint32_t curServerIdx;
@@ -861,7 +1077,7 @@ UbseResult UbseUrmaControllerManager::InferOtherNodesUrmaDevInfo(const std::stri
             continue;
         }
         // superPodId无意义，先设为0
-        auto ret = InferOneNodeUrmaDevInfo(0, serverIdx, basedNodeId);
+        auto ret = InferOneNodeUrmaDevInfo(isInferHostOnly, serverIdx, basedNodeId);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to infer urma bonding info, serverIdx=" << serverIdx;
             continue;
@@ -913,7 +1129,7 @@ std::shared_ptr<UbseFeInfo> FindMatchingFeInfo(const std::map<std::string, UbseU
 UbseResult FetchCurNodeComDev(const std::string& nodeId, UbseUrmaUvsAggrDev& comDev)
 {
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = UbseNodeComUrmaCollector::GetInstance().GetComUrmaByNodeId(nodeId, hostUrmaInfos);
+    auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(nodeId, hostUrmaInfos);
     auto it = std::find_if(hostUrmaInfos.begin(), hostUrmaInfos.end(),
                            [&nodeId](const UbseUrmaUvsNodeInfo& info) { return info.nodeId == nodeId; });
     if (ret != UBSE_OK || it == hostUrmaInfos.end()) {
@@ -959,7 +1175,7 @@ UbseResult UbseUrmaControllerManager::InsertHostUrmaDevInner()
         UBSE_LOG_WARN << "Invalid fe topology, skip insert communication bonding dev";
         return UBSE_ERROR;
     }
-    if (UbseNodeController::GetInstance().IsHostUrmaDevOccupied()) {
+    if (UbseNodeController::GetInstance().IsHostBondingRegistered()) {
         UBSE_LOG_INFO << "Communication bonding dev is occupied, skip insert communication bonding dev";
         return UBSE_OK;
     }

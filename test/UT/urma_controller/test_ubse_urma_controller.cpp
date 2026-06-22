@@ -62,7 +62,7 @@ TEST_F(TestUbseUrmaController, GetUrmaDevEidByUrmaName_NotFound)
 TEST_F(TestUbseUrmaController, UbseGetLocalUrmaDevInfo_CallsGetAllUvsInfo)
 {
     std::vector<UbseUrmaDevBrief> devInfos;
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo).stubs().will(returnValue(UBSE_OK));
     UbseUrmaController::GetInstance().GetLocalUrmaDevs(devInfos);
     SUCCEED();
 }
@@ -204,13 +204,16 @@ TEST_F(TestUbseUrmaController, GetDirConnectInfo_HasEntries)
     EXPECT_EQ(ret[0].slotId, 0);
 }
 
-TEST_F(TestUbseUrmaController, UbseUrmaControllerSetUvsInfo_UrmaModuleNull)
+TEST_F(TestUbseUrmaController, SetFeTopoType_GetFeTopoType)
 {
-    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(g_nullUvsModule));
-    std::vector<PhysicalLink> links;
-    std::vector<UbseUrmaUvsNodeInfo> bondingInfo;
-    auto ret = UbseUrmaControllerSetUvsInfo("0", links, bondingInfo);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    UbseUrmaControllerManager::GetInstance().SetFeTopoType(FeTopoType::ALL_PFE);
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().GetFeTopoType(), FeTopoType::ALL_PFE);
+
+    UbseUrmaControllerManager::GetInstance().SetFeTopoType(FeTopoType::PFE_VFE_HYBRID);
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().GetFeTopoType(), FeTopoType::PFE_VFE_HYBRID);
+
+    UbseUrmaControllerManager::GetInstance().SetFeTopoType(FeTopoType::INVALID);
+    EXPECT_EQ(UbseUrmaControllerManager::GetInstance().GetFeTopoType(), FeTopoType::INVALID);
 }
 
 TEST_F(TestUbseUrmaController, DoTopoLinkChange_GlobalStop)
@@ -252,7 +255,7 @@ TEST_F(TestUbseUrmaController, DoTopoLinkChange_SetUvsInfoModuleNull)
     UbseNodeInfo curNode;
     curNode.nodeId = "0";
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(g_nullUvsModule));
     auto ret = UbseUrmaController::GetInstance().DoTopoLinkChange();
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -281,7 +284,7 @@ TEST_F(TestUbseUrmaController, DoTopoLinkChange_QueryUrmaInfoStateFails)
     curNode.nodeId = "0";
     curNode.slotId = 0;
     MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    MOCKER_CPP(&UbseUrmaControllerManager::GetAllUvsTopoInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo).stubs().will(returnValue(UBSE_OK));
     auto urmaModule = std::make_shared<UbseUrmaUvsModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(urmaModule));
     MOCKER_CPP(UbsePushTopoAndBondingToUvs).stubs().will(returnValue(UBSE_OK));
@@ -319,6 +322,18 @@ TEST_F(TestUbseUrmaController, DoNodeJoin_QueryAllPortsDownFails)
     MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_ERROR));
     auto ret = UbseUrmaController::GetInstance().DoNodeJoin("test");
     EXPECT_EQ(ret, UBSE_ERROR);
+}
+
+TEST_F(TestUbseUrmaController, GetUrmaNodeInfo_NonExistentNode)
+{
+    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo("non_existent_node");
+    EXPECT_EQ(nodeInfo.nodeId, "non_existent_node");
+}
+
+TEST_F(TestUbseUrmaController, GetUrmaUpdateTimeStamp_NonExistentNode)
+{
+    auto timestamp = UbseUrmaControllerManager::GetInstance().GetUrmaUpdateTimeStamp("non_existent_node");
+    EXPECT_EQ(timestamp, 0U);
 }
 
 } // namespace ubse::urmaController::ut

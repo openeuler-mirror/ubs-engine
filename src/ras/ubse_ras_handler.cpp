@@ -624,10 +624,6 @@ UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std
     msgId = msgVec[0];
     LogMemDebtInfoWithNode(faultType, faultNodeId);
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(faultNodeId);
-    if (nodeInfo.nodeId.empty()) {
-        UBSE_LOG_ERROR << "Get node info failed, nodeId=" << faultNodeId;
-        return UBSE_ERROR;
-    }
     // 如果是自故障节点上线以来，首次收到PANIC消息，则记录并清空过滤表
     if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
         UBSE_LOG_INFO << "nodeId=" << faultNodeId << " fault, to clear handler result, msgId=" << msgId;

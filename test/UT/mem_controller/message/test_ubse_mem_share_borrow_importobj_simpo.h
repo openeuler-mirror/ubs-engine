@@ -27,7 +27,7 @@ public:
     void TearDown() override;
 
 private:
-    UbseMemShareBorrowImportobjSimpoPtr obj;
+    UbseMemShareBorrowImportobjSimpo obj;
 };
 } // namespace ubse::mem::controller::message::ut
 

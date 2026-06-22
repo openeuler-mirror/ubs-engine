@@ -24,7 +24,6 @@ void ClearNodeInfosForTest()
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().nodeInfos.clear();
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().globalFeId = 0;
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().globalUrmaId = 0;
-    ubse::urmaController::UbseUrmaControllerManager::GetInstance().feIdMap.clear();
 }
 
 namespace ubse::urmaController::ut {

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "ubse_election.h"
+#include "adapter_plugins/urma/ubse_urma_uvs_def.h"
 
 namespace ubse::nodeController {
 enum class PortStatus
@@ -350,8 +351,10 @@ public:
     void PrintDevDirConnectInfo();
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
     // 由mem ctl初始化时调用，占用通信bonding
-    void OccupyComUrmaBonding();
-    bool IsHostUrmaDevOccupied() const;
+    void RegisterHostBonding();
+    bool IsHostBondingRegistered() const;
+    uint32_t GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                            std::vector<urma::UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
 private:
     std::shared_mutex rwMutex;

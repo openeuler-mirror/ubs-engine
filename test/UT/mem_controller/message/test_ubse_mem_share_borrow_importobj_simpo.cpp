@@ -12,24 +12,16 @@
 
 #include "test_ubse_mem_share_borrow_importobj_simpo.h"
 
-#include "mockcpp/mockcpp.hpp"
-
-#include "ubse_base_message.h"
 #include "ubse_error.h"
 #include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_share_borrow_importobj_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::utils;
 using namespace ubse::mem::serial;
 using namespace ubse::adapter_plugins::mmi;
-using namespace ubse::message;
 
 void TestUbseMemShareBorrowImportobjSimpo::SetUp()
 {
-    GTEST_SKIP();
     Test::SetUp();
-    obj = new UbseMemShareBorrowImportobjSimpo();
 }
 
 void TestUbseMemShareBorrowImportobjSimpo::TearDown()
@@ -38,43 +30,41 @@ void TestUbseMemShareBorrowImportobjSimpo::TearDown()
     GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
 TEST_F(TestUbseMemShareBorrowImportobjSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
+    UbseMemShareBorrowImportObj importObj;
+    importObj.req.name = "test_share_import";
+    obj.SetUbseMemShareBorrowImportobj(std::move(importObj));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
 }
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值，模拟并判断 UbseMemShareBorrowImportObjDeserialization 在失败和成功两种情况下Deserialize的返回值
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2. UbseMemShareBorrowImportObjDeserialization 失败时函数返回UBSE_ERROR
- * 3. UbseMemShareBorrowImportObjDeserialization 成功时函数返回UBSE_OK
- */
+TEST_F(TestUbseMemShareBorrowImportobjSimpo, Deserialize_NullInput)
+{
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
+
 TEST_F(TestUbseMemShareBorrowImportobjSimpo, Deserialize)
 {
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    UbseMemShareBorrowImportObj importObj;
+    importObj.req.name = "roundtrip_import";
+    obj.SetUbseMemShareBorrowImportobj(std::move(importObj));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
 
+    auto sharedData = obj.GetSharedOutputData();
+    auto size = obj.SerializedDataSize();
+
+    UbseMemShareBorrowImportobjSimpo obj2;
+    obj2.SetInputRawDataFromShared(sharedData, size);
+    EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
+    auto result = obj2.GetUbseMemShareBorrowImportObj();
+    EXPECT_EQ(result.req.name, "roundtrip_import");
+}
+
+TEST_F(TestUbseMemShareBorrowImportobjSimpo, Deserialize_BadData)
+{
     uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemShareBorrowImportObjDeserialization)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+    auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
+    obj.SetInputRawDataFromShared(buffer, size);
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
 }
 } // namespace ubse::mem::controller::message::ut

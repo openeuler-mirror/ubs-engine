@@ -10,24 +10,23 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
-#define UBSE_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
+#ifndef UBS_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
+#define UBS_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
 
-#include "gtest/gtest.h"
-#include "mockcpp/mockcpp.hpp"
+#include <gtest/gtest.h>
+#include <mockcpp/mockcpp.hpp>
 
 #include "message/ubse_mem_share_attach_req_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
+
 class TestUbseMemShareAttachReqSimpo : public testing::Test {
 public:
     void SetUp() override;
-
     void TearDown() override;
 
-private:
-    UbseMemShareAttachReqSimpoPtr obj;
+    UbseMemShareAttachReqSimpo obj;
 };
-} // namespace ubse::mem::controller::message::ut
 
-#endif // UBSE_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
+} // namespace ubse::mem::controller::message::ut
+#endif // UBS_ENGINE_TEST_UBSE_MEM_SHARE_ATTACH_REQ_SIMPO_H
