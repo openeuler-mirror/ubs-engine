@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "gtest/gtest.h"
+#include "it_console_log.h"
 
 namespace ubse::it::infra {
 
@@ -28,6 +29,17 @@ protected:
         workDir_ = "/tmp/ubs_engine_it_" + std::to_string(::getpid());
         binaryPath_ = std::filesystem::path(BUILD_DIRECTORY) / "bin" / "ubse_it_daemon";
         stubLibDir_ = std::filesystem::path(BUILD_DIRECTORY) / "lib";
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (!workDir_.empty()) {
+            std::error_code ec;
+            std::filesystem::remove_all(workDir_, ec);
+            if (ec) {
+                IT_LOG_WARN << "Failed to clean up work directory " << workDir_ << ": " << ec.message();
+            }
+        }
     }
 
     static std::string workDir_;

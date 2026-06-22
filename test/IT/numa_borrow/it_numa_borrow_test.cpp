@@ -56,6 +56,7 @@ protected:
             EXPECT_IT_OK(ret);
             cluster_.reset();
         }
+        ItTestFixture::TearDownTestSuite();
     }
 
     static std::unique_ptr<ubse::it::infra::ItCluster> cluster_;

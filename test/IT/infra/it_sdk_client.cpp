@@ -128,9 +128,6 @@ int32_t ItSdkClient::GetCurrentNodeId(std::string& currentNodeId)
         return ret;
     }
     currentNodeId = ExtractNodeIdFromNodeColumn(nodeInfo.node);
-    if (!nodeId_.empty()) {
-        currentNodeId = nodeId_;
-    }
     return UBS_SUCCESS;
 }
 

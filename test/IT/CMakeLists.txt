@@ -4,7 +4,6 @@ set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
 set(IT_INFRA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/infra)
 
 add_library(ubse_it_infra STATIC
-    ${IT_INFRA_DIR}/cluster_manager.cpp
     ${IT_INFRA_DIR}/node_process_manager.cpp
     ${IT_INFRA_DIR}/it_cluster.cpp
     ${IT_INFRA_DIR}/it_sdk_client.cpp
@@ -160,12 +159,17 @@ add_subdirectory(election)
 add_subdirectory(numa_borrow)
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
+get_property(IT_BINARIES GLOBAL PROPERTY UBSE_IT_BINARIES)
+
+# Aggregate target `it`: builds all IT binaries then runs all IT tests via ctest.
+# Individual <module>_it targets remain available for single-module runs.
 add_custom_target(it
-    COMMENT "Run IT test targets: ${IT_TEST_TARGETS}"
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "it_.*" --output-on-failure
+    COMMENT "Run all IT tests via ctest (labels matching 'it_.*')"
 )
 
-if(IT_TEST_TARGETS)
-    add_dependencies(it ${IT_TEST_TARGETS})
+if(IT_BINARIES)
+    add_dependencies(it ${IT_BINARIES})
 else()
-    message(WARNING "No IT test targets registered.")
+    message(WARNING "No IT test binaries registered.")
 endif()

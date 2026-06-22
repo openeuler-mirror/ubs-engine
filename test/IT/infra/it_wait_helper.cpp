@@ -106,10 +106,8 @@ UbseResult ItWaitHelper::WaitForNodeReadiness(const std::string& udsSocketPath, 
     return WaitForCondition(readinessCheck, timeoutMs, DEFAULT_POLL_INTERVAL_MS);
 }
 
-UbseResult ItWaitHelper::WaitForNodeRole(ItSdkClient& sdkClient, const std::string& nodeId,
-                                         const std::string& expectedRole, uint32_t timeoutMs)
+UbseResult ItWaitHelper::WaitForNodeRole(ItSdkClient& sdkClient, const std::string& expectedRole, uint32_t timeoutMs)
 {
-    (void)nodeId;
     auto roleCheck = [&]() -> bool {
         std::string role;
         int32_t ret = sdkClient.GetRole(role);

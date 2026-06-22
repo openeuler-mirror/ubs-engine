@@ -78,16 +78,15 @@ public:
     static UbseResult WaitForNodeReadiness(const std::string& udsSocketPath, uint32_t timeoutMs = 10000);
 
     /**
-     * @brief Wait for a specific node to have a specific election role.
+     * @brief Wait for the SDK client's connected node to have a specific election role.
      *
-     * @param sdkClient SDK client connected to any running node
-     * @param nodeId The node ID to check
+     * @param sdkClient SDK client connected to the node to check
      * @param expectedRole Expected role string (master/standby/agent)
      * @param timeoutMs Maximum wait time (default 30s)
      * @return UBSE_OK if node has the expected role
      */
-    static UbseResult WaitForNodeRole(ItSdkClient& sdkClient, const std::string& nodeId,
-                                      const std::string& expectedRole, uint32_t timeoutMs = 30000);
+    static UbseResult WaitForNodeRole(ItSdkClient& sdkClient, const std::string& expectedRole,
+                                      uint32_t timeoutMs = 30000);
 
     static constexpr uint32_t DEFAULT_ELECTION_TIMEOUT_MS = 30000;
     static constexpr uint32_t DEFAULT_POLL_INTERVAL_MS = 200;

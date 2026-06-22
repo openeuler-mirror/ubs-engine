@@ -44,6 +44,4 @@ TEST_F(ItSmokeTest, SingleNodeStartupAndSurvive)
 
     ret = cluster.StopCluster();
     EXPECT_IT_OK(ret);
-
-    // std::filesystem::remove_all(workDir_);
 }

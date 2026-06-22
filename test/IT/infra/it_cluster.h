@@ -19,7 +19,6 @@
 #include <string>
 #include <vector>
 
-#include "cluster_manager.h"
 #include "it_config_builder.h"
 #include "it_sdk_client.h"
 #include "it_wait_helper.h"
@@ -34,7 +33,7 @@ using ubse::common::def::UbseResult;
 /**
  * @brief Enhanced cluster manager for IT testing.
  *
- * Extends ClusterManager with:
+ * Provides:
  * - Parallel node startup (required for election convergence)
  * - Election convergence waiting
  * - Per-node SDK client management
@@ -50,8 +49,7 @@ public:
     /**
      * @brief Start all nodes in parallel and wait for election convergence.
      *
-     * Unlike ClusterManager::StartCluster which starts nodes sequentially,
-     * this starts all nodes simultaneously so they can discover each other
+     * Starts all nodes simultaneously so they can discover each other
      * and converge on master/standby/agent roles.
      *
      * @param electionTimeoutMs Timeout for election convergence (default 30s)
@@ -64,11 +62,6 @@ public:
      * @return UBSE_OK on success
      */
     UbseResult StopCluster();
-
-    /**
-     * @brief Get the underlying ClusterManager for basic operations.
-     */
-    ClusterManager& GetClusterManager();
 
     /**
      * @brief Get a node's process manager by nodeId.
@@ -152,7 +145,6 @@ private:
     std::string stubLibDir_;
     std::vector<NodeConfig> nodeConfigs_;
     std::vector<std::string> nodeIds_;
-    std::unique_ptr<ClusterManager> clusterMgr_;
     std::map<std::string, std::unique_ptr<NodeProcessManager>> nodes_;
     std::map<std::string, std::unique_ptr<ItSdkClient>> sdkClients_;
     bool clusterStarted_{false};

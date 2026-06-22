@@ -259,7 +259,7 @@ macro(add_it module)
         set(RUN_TEST "echo 'Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}'")
     endif ()
     add_custom_target(${module}_it
-            COMMAND bash -c "${RUN_TEST}" || true
+            COMMAND bash -c "${RUN_TEST}"
             COMMENT "Run IT testing: ${RUN_TEST}"
     )
     add_dependencies(${module}_it ${IT_BINARY})
@@ -271,6 +271,7 @@ macro(add_it module)
     add_dependencies(${module}_it urma_uvs_stub)
     add_dependencies(${module}_it xalarm_stub)
     set_property(GLOBAL APPEND PROPERTY UBSE_IT_TARGETS ${module}_it)
+    set_property(GLOBAL APPEND PROPERTY UBSE_IT_BINARIES ${IT_BINARY})
     gtest_discover_tests(${IT_BINARY} PROPERTIES LABELS "it_${module}")
 endmacro()
 

@@ -145,7 +145,6 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
         }
     }
 
-    clusterMgr_ = std::make_unique<ClusterManager>(binaryPath_, baseWorkDir_, nodeConfigs_);
     clusterStarted_ = true;
     IT_LOG_INFO << "All nodes started in parallel";
 
@@ -211,14 +210,6 @@ UbseResult ItCluster::StopCluster()
     nodes_.clear();
     clusterStarted_ = false;
     return UBSE_OK;
-}
-
-ClusterManager& ItCluster::GetClusterManager()
-{
-    if (!clusterMgr_) {
-        throw std::runtime_error("Cluster not initialized");
-    }
-    return *clusterMgr_;
 }
 
 NodeProcessManager& ItCluster::GetNodeProcess(const std::string& nodeId)
