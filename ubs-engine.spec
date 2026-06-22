@@ -20,7 +20,7 @@ BuildRequires:  systemd-devel >= 249
 BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.40.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.0-15
 BuildRequires:  numactl-libs >= 2.0
 BuildRequires:  ninja-build >= 1.10 bash bc coreutils sudo util-linux-user patch
-BuildRequires:  libvirt-devel >= 9.0
+BuildRequires:  libvirt-devel >= 9.0 kernel-devel
 Requires: glibc >= 2.34 libgcc >= 10.3 libstdc++ >= 10.3 libboundscheck >= v1.1 libxml2 >= 2.9 openssl-libs >= 3.0 cpp-httplib >= 0.40.0 ubs-comm-lib >= 1.0.0-15 obmm
 Requires: tar systemd
 Requires(pre): coreutils shadow systemd glibc-common
@@ -256,6 +256,14 @@ cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{bui
 mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
 cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
 
+#install bandbridge kernel module (only on aarch64 and if built)
+%ifarch aarch64
+if [ -f %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko ]; then
+    mkdir -p %{buildroot}/lib/modules/ubse
+    cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildroot}/lib/modules/ubse
+fi
+%endif
+
 
 #install python-sdk
 %py3_install
@@ -358,6 +366,11 @@ chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 chmod 700 "%{lcne_cert_dir}"
+%ifarch aarch64
+mkdir -p /lib/modules/$(uname -r)/extra
+ln -sf /lib/modules/ubse/bandbridge.ko /lib/modules/$(uname -r)/extra/bandbridge.ko
+depmod -a $(uname -r)
+%endif
 if [ "$ENABLE_AI" = "true" ]; then
  	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
 fi
@@ -373,6 +386,10 @@ set -e
 if [ "$1" -ne 0 ]; then
     exit 0
 fi
+%ifarch aarch64
+modprobe -r bandbridge 2>/dev/null || true
+rm -f /lib/modules/$(uname -r)/extra/bandbridge.ko
+%endif
 if systemctl cat %{service_name} >/dev/null 2>&1 ; then
     systemctl stop %{service_name} || true
     systemctl disable %{service_name} || true
@@ -388,6 +405,9 @@ if [ "$1" -ne 0 ]; then
 fi
 %{deleted_semaphore}
 %{remove_directory}
+%ifarch aarch64
+depmod -a $(uname -r)
+%endif
 systemctl daemon-reload
 remove_directory %{log_dir}
 remove_directory %{cert_dir}
@@ -416,6 +436,11 @@ fi
 %config(noreplace) /etc/ubse/topo/*.json
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
+%ifarch aarch64
+%defattr(644,root,root,-)
+%dir /lib/modules/ubse
+/lib/modules/ubse/bandbridge.ko
+%endif
 
 %files client-libs
 %defattr(755,root,root,-)
