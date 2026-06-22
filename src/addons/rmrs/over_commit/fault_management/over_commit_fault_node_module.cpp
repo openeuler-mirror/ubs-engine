@@ -710,16 +710,18 @@ MpResult OverCommitFaultNodeModule::ReturnFaultRemoteNumaMemory(const int16_t fa
         }
     }
 
+    MpResult finalRet = MEM_POOLING_OK;
     for (auto& remoteNuma : remoteNumas) {
         LOG_DEBUG << "Begin to free BorrowId=" << remoteNuma.borrowRecord.name;
         MpResult ret = MemBorrowExecutor::Instance().MemFreeWithOps(remoteNuma.borrowRecord.name, true, true, true);
         if (ret != MEM_POOLING_OK) {
             LOG_ERROR << "MemFreeWithOps failed, ret=" << ret << ", borrowId=" << remoteNuma.borrowRecord.name << ".";
+            finalRet = MEM_POOLING_ERROR;
             // 故障场景下继续归还，不中断
         }
     }
     LOG_DEBUG << "ReturnFaultRemoteNumaMemory end.";
-    return MEM_POOLING_OK;
+    return finalRet;
 }
 
 MpResult OverCommitFaultNodeModule::BorrowIdGroupProcess(
