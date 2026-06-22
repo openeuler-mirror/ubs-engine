@@ -116,7 +116,8 @@ UbseResult RegisterSdkDispatcher()
         UBSE_LOG_ERROR << "Get api server module failed";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_GET_HOST_DEVICES, QueryLocalUbDevices, NPU_PERMISSION);
+    auto ret =
+        apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_GET_HOST_DEVICES, QueryLocalUbDevices, NPU_PERMISSION);
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_ALLOC_UB_DEVICES, AllocUbDevice, NPU_PERMISSION);
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_FREE_UB_DEVICES, FreeUbDevice, NPU_PERMISSION);
     ret |= apiServerModule->RegisterIpcHandler(UBSE_NPU, UBSE_NPU_QUERY_UBA_TID_SIZE, QueryTidUbaSize, NPU_PERMISSION);

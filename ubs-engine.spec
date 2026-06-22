@@ -256,12 +256,10 @@ cp %{_builddir}/%{project_dir}/src/addons/rmrs/conf/plugin_mempooling.conf %{bui
 mkdir -p %{buildroot}/usr/local/mempooling/include/mempooling/
 cp %{_builddir}/%{project_dir}/src/addons/rmrs/interface/mempooling_interface.h %{buildroot}/usr/local/mempooling/include/mempooling/
 
-#install bandbridge kernel module (only on aarch64 and if built)
+#install bandbridge kernel module (only on aarch64)
 %ifarch aarch64
-if [ -f %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko ]; then
-    mkdir -p %{buildroot}/lib/modules/ubse
-    cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildroot}/lib/modules/ubse
-fi
+mkdir -p %{buildroot}/lib/modules/ubse
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildroot}/lib/modules/ubse
 %endif
 
 
@@ -367,9 +365,11 @@ chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 chmod 700 "%{lcne_cert_dir}"
 %ifarch aarch64
-mkdir -p /lib/modules/$(uname -r)/extra
-ln -sf /lib/modules/ubse/bandbridge.ko /lib/modules/$(uname -r)/extra/bandbridge.ko
-depmod -a $(uname -r)
+if [ -f /lib/modules/ubse/bandbridge.ko ]; then
+    mkdir -p /lib/modules/$(uname -r)/extra
+    ln -sf /lib/modules/ubse/bandbridge.ko /lib/modules/$(uname -r)/extra/bandbridge.ko
+    depmod -a $(uname -r)
+fi
 %endif
 if [ "$ENABLE_AI" = "true" ]; then
  	sed -i '/^Environment=SCENE_TYPE=/s/common/ai/' /usr/lib/systemd/system/ubse.service
@@ -387,8 +387,10 @@ if [ "$1" -ne 0 ]; then
     exit 0
 fi
 %ifarch aarch64
-modprobe -r bandbridge 2>/dev/null || true
-rm -f /lib/modules/$(uname -r)/extra/bandbridge.ko
+if [ -L /lib/modules/$(uname -r)/extra/bandbridge.ko ]; then
+    modprobe -r bandbridge 2>/dev/null || true
+    rm -f /lib/modules/$(uname -r)/extra/bandbridge.ko
+fi
 %endif
 if systemctl cat %{service_name} >/dev/null 2>&1 ; then
     systemctl stop %{service_name} || true
@@ -437,7 +439,7 @@ fi
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
 %ifarch aarch64
-%defattr(644,root,root,-)
+%defattr(644,root,root,755)
 %dir /lib/modules/ubse
 /lib/modules/ubse/bandbridge.ko
 %endif

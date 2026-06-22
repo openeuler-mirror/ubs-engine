@@ -35,6 +35,8 @@ static const std::unordered_map<std::string, std::vector<std::string>> ALL_OBJEC
     {"urma",
      {"ubs_urma_dev_get", "ubs_urma_dev_alloc", "ubs_urma_dev_free", "ubs_urma_qos_create", "ubs_urma_qos_delete",
       "ubs_urma_qos_get"}},
-   {"npu", {"ubs_npu_device_list_query", "ubs_npu_device_alloc", "ubs_npu_device_free", "ubs_npu_device_list_free", "ubs_uba_tid_size_query"}}};
+    {"npu",
+     {"ubs_npu_device_list_query", "ubs_npu_device_alloc", "ubs_npu_device_free", "ubs_npu_device_list_free",
+      "ubs_uba_tid_size_query"}}};
 
 #endif // UBS_ENGINE_OBJECT_DEF_H

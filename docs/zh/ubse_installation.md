@@ -56,7 +56,7 @@
   # 通过rpm包安装运行包
   # 安装主程序包
   # 智算场景，执行如下命令：
-  sudo ENABLE_AI=true dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
+  sudo env ENABLE_AI=true dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
   # 通算场景，执行如下命令：
   sudo dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
   # 安装客户端运行时库（第三方集成必需）
