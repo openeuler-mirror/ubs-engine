@@ -366,6 +366,7 @@ private:
     std::shared_mutex devDirMutex;
     std::map<std::string, PhysicalLink>
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> faultUpdateTimes; // fault状态更新时间
     bool isHostUrmaDevOccupied{false};
 };
 } // namespace ubse::nodeController
