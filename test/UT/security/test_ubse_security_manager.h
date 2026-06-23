@@ -12,7 +12,9 @@
 
 #ifndef TEST_UBSE_SECURITY_MANAGER_H
 #define TEST_UBSE_SECURITY_MANAGER_H
+
 #include <gtest/gtest.h>
+#include <mockcpp/mockcpp.hpp>
 
 namespace ubse::ut::security {
 class TestUbseSecurityManager : public testing::Test {
@@ -21,7 +23,6 @@ public:
 
 private:
     void SetUp() override;
-
     void TearDown() override;
 };
 } // namespace ubse::ut::security
