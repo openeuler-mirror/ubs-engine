@@ -600,7 +600,7 @@ TEST_F(TestMempoolingInterface, MemFreeFail_StageErrOnlyImport)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
 
-    // Mock UbseQueryResult 返回 UBSE_NOT_EXIST
+    // Mock UbseQueryResult 返回 UBSE_ERR_ONLY_IMPORT
     MOCKER_CPP(UbseQueryResult, int (*)(const std::string&, UbseMemResult&))
         .stubs()
         .will(invoke(UbseQueryResultOnlyImport));
