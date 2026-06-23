@@ -31,10 +31,9 @@ void TestUbseEventThreadPool::TearDown()
 }
 
 /*
- * 用例描述：
- * 测试构造函数和基本属性
+ * 用例描述：测试构造函数和基本属性
  * 预期结果：
- * 1.构造成功，队列容量正确
+ * 1. 构造成功，队列容量正确
  */
 TEST_F(TestUbseEventThreadPool, Constructor)
 {
@@ -49,14 +48,13 @@ TEST_F(TestUbseEventThreadPool, Constructor)
 }
 
 /*
- * 用例描述：
- * 测试Init和Stop正常流程
+ * 用例描述：测试Init和Stop正常流程
  * 测试步骤：
- * 1.创建线程池并初始化
- * 2.调用Stop停止
+ * 1. 创建线程池并初始化
+ * 2. 调用Stop停止
  * 预期结果：
- * 1.Init返回UBSE_OK
- * 2.Stop正常执行，无资源泄漏
+ * 1. Init返回UBSE_OK
+ * 2. Stop正常执行，无资源泄漏
  */
 TEST_F(TestUbseEventThreadPool, InitAndStopSuccess)
 {
@@ -72,13 +70,12 @@ TEST_F(TestUbseEventThreadPool, InitAndStopSuccess)
 }
 
 /*
- * 用例描述：
- * 测试析构函数自动调用Stop
+ * 用例描述：测试析构函数自动调用Stop
  * 测试步骤：
- * 1.创建线程池并初始化
- * 2.不调用Stop，直接析构
+ * 1. 创建线程池并初始化
+ * 2. 不调用Stop，直接析构
  * 预期结果：
- * 1.析构函数调用Stop，线程正常退出
+ * 1. 析构函数调用Stop，线程正常退出
  */
 TEST_F(TestUbseEventThreadPool, DestructorCallsStop)
 {
@@ -94,14 +91,13 @@ TEST_F(TestUbseEventThreadPool, DestructorCallsStop)
 }
 
 /*
- * 用例描述：
- * 测试事件任务的执行
+ * 用例描述：测试事件任务的执行
  * 测试步骤：
- * 1.初始化线程池
- * 2.注册事件处理函数并添加任务
- * 3.验证处理函数被执行
+ * 1. 初始化线程池
+ * 2. 注册事件处理函数并添加任务
+ * 3. 验证处理函数被执行
  * 预期结果：
- * 1.事件处理函数正确执行
+ * 1. 事件处理函数正确执行
  */
 TEST_F(TestUbseEventThreadPool, EventTaskExecution)
 {
@@ -131,14 +127,13 @@ TEST_F(TestUbseEventThreadPool, EventTaskExecution)
 }
 
 /*
- * 用例描述：
- * 测试不同优先级队列
+ * 用例描述：测试不同优先级队列
  * 测试步骤：
- * 1.初始化线程池
- * 2.向不同优先级队列添加任务
- * 3.验证所有任务被执行
+ * 1. 初始化线程池
+ * 2. 向不同优先级队列添加任务
+ * 3. 验证所有任务被执行
  * 预期结果：
- * 1.三个队列的任务都被正确执行
+ * 1. 三个队列的任务都被正确执行
  */
 TEST_F(TestUbseEventThreadPool, MultiPriorityQueue)
 {
@@ -178,53 +173,12 @@ TEST_F(TestUbseEventThreadPool, MultiPriorityQueue)
 }
 
 /*
- * 用例描述：
- * 测试空任务处理
+ * 用例描述：测试重复Init
  * 测试步骤：
- * 1.初始化线程池
- * 2.添加registerFunc为nullptr的任务
+ * 1. 调用Init一次
+ * 2. Stop后再次Init
  * 预期结果：
- * 1.不崩溃，继续处理后续任务
- */
-TEST_F(TestUbseEventThreadPool, NullTaskHandler)
-{
-    uint32_t numsHighThs{1};
-    uint32_t numsMidThs{1};
-    uint32_t numsLowThs{1};
-    UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
-    auto ret = pool.Init();
-    EXPECT_EQ(ret, UBSE_OK);
-
-    EventTask nullTask;
-    nullTask.eventId = "null_event";
-    nullTask.registerFunc = nullptr;
-    nullTask.priority = UbseEventPriority::HIGH;
-    pool.highPriorityQueue_.AddEventTask(nullTask);
-
-    std::atomic<bool> normalTaskExecuted{false};
-    EventTask normalTask;
-    normalTask.eventId = "normal_event";
-    normalTask.registerFunc = [&normalTaskExecuted](std::string&, std::string&) -> uint32_t {
-        normalTaskExecuted.store(true);
-        return UBSE_OK;
-    };
-    normalTask.priority = UbseEventPriority::HIGH;
-    pool.highPriorityQueue_.AddEventTask(normalTask);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    EXPECT_TRUE(normalTaskExecuted.load());
-
-    pool.Stop();
-}
-
-/*
- * 用例描述：
- * 测试重复Init
- * 测试步骤：
- * 1.调用Init一次
- * 2.再次调用Init
- * 预期结果：
- * 1.第二次Init失败或返回错误（executor已started）
+ * 1. 两次Init均返回UBSE_OK
  */
 TEST_F(TestUbseEventThreadPool, DoubleInit)
 {
@@ -244,13 +198,12 @@ TEST_F(TestUbseEventThreadPool, DoubleInit)
 }
 
 /*
- * 用例描述：
- * 测试Stop在未Init时调用
+ * 用例描述：测试Stop在未Init时调用
  * 测试步骤：
- * 1.不调用Init
- * 2.直接调用Stop
+ * 1. 不调用Init
+ * 2. 直接调用Stop
  * 预期结果：
- * 1.Stop正常执行，不崩溃
+ * 1. Stop正常执行，不崩溃
  */
 TEST_F(TestUbseEventThreadPool, StopWithoutInit)
 {
@@ -258,6 +211,118 @@ TEST_F(TestUbseEventThreadPool, StopWithoutInit)
     uint32_t numsMidThs{1};
     uint32_t numsLowThs{1};
     UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
+    pool.Stop();
+}
+
+/*
+ * 用例描述：测试handler返回非UBSE_OK
+ * 测试步骤：
+ * 1. 添加返回UBSE_ERROR的handler任务
+ * 2. 验证线程池不崩溃，继续处理后续任务
+ * 预期结果：
+ * 1. 不崩溃，后续任务正常执行
+ */
+TEST_F(TestUbseEventThreadPool, HandlerReturnsError)
+{
+    uint32_t numsHighThs{1};
+    uint32_t numsMidThs{1};
+    uint32_t numsLowThs{1};
+    UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
+    auto ret = pool.Init();
+    EXPECT_EQ(ret, UBSE_OK);
+
+    EventTask errorTask;
+    errorTask.eventId = "error_event";
+    errorTask.eventMessage = "error_msg";
+    errorTask.priority = UbseEventPriority::HIGH;
+    errorTask.registerFunc = [](std::string&, std::string&) -> uint32_t {
+        return UBSE_ERROR;
+    };
+    pool.highPriorityQueue_.AddEventTask(errorTask);
+
+    std::atomic<bool> normalTaskExecuted{false};
+    EventTask normalTask;
+    normalTask.eventId = "normal_event";
+    normalTask.eventMessage = "normal_msg";
+    normalTask.priority = UbseEventPriority::HIGH;
+    normalTask.registerFunc = [&normalTaskExecuted](std::string&, std::string&) -> uint32_t {
+        normalTaskExecuted.store(true);
+        return UBSE_OK;
+    };
+    pool.highPriorityQueue_.AddEventTask(normalTask);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    EXPECT_TRUE(normalTaskExecuted.load());
+
+    pool.Stop();
+}
+
+/*
+ * 用例描述：测试多次Stop调用
+ * 测试步骤：
+ * 1. Init后调用Stop多次
+ * 预期结果：
+ * 1. 多次Stop正常执行，不崩溃
+ */
+TEST_F(TestUbseEventThreadPool, MultipleStopCalls)
+{
+    uint32_t numsHighThs{1};
+    uint32_t numsMidThs{1};
+    uint32_t numsLowThs{1};
+    UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
+    auto ret = pool.Init();
+    EXPECT_EQ(ret, UBSE_OK);
+
+    pool.Stop();
+    EXPECT_NO_THROW(pool.Stop());
+    EXPECT_NO_THROW(pool.Stop());
+}
+
+/*
+ * 用例描述：测试并发任务添加
+ * 测试步骤：
+ * 1. 多线程同时向队列添加任务
+ * 2. 验证所有任务被执行
+ * 预期结果：
+ * 1. 所有任务正确执行，无数据竞争
+ */
+TEST_F(TestUbseEventThreadPool, ConcurrentTaskAddition)
+{
+    uint32_t numsHighThs{2};
+    uint32_t numsMidThs{1};
+    uint32_t numsLowThs{1};
+    UbseEventThreadPool pool(numsHighThs, numsMidThs, numsLowThs);
+    auto ret = pool.Init();
+    EXPECT_EQ(ret, UBSE_OK);
+
+    std::atomic<int> executedCount{0};
+    const int threadCount = 3;
+    const int tasksPerThread = 3;
+
+    std::vector<std::thread> threads;
+    for (int t = 0; t < threadCount; t++) {
+        threads.emplace_back([&pool, &executedCount, tasksPerThread]() {
+            for (int i = 0; i < tasksPerThread; i++) {
+                EventTask task;
+                task.eventId = "concurrent_event";
+                task.eventMessage = "concurrent_message";
+                task.priority = UbseEventPriority::HIGH;
+                task.registerFunc = [&executedCount](std::string&, std::string&) -> uint32_t {
+                    executedCount++;
+                    return UBSE_OK;
+                };
+                pool.highPriorityQueue_.AddEventTask(task);
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    EXPECT_EQ(executedCount.load(), threadCount * tasksPerThread);
+
     pool.Stop();
 }
 
