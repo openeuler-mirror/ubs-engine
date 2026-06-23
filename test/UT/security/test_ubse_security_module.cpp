@@ -13,7 +13,10 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
+#include <linux/capability.h>
+
 #include "ubse_error.h"
+#include "ubse_security.h"
 #include "ubse_security_manager.h"
 #include "ubse_security_module.h"
 
@@ -36,68 +39,193 @@ public:
 };
 
 /*
- * 用例描述：如下
- * 测试能力模块初始化成功的情况
- * 测试步骤：如下
- * 1. 调用Initialize函数
- * 2. 调用UnInitialize函数释放
- * 预期结果：如下
- * 1. 返回值为 UBSE_OK
+ * 用例描述：测试能力模块初始化成功
+ * 测试步骤：
+ * 1. MOCK GetCapabilities和SetInitialCapabilities成功
+ * 2. 调用Initialize函数
+ * 3. 调用UnInitialize函数
+ * 预期结果：
+ * 1. Initialize返回UBSE_OK
+ * 2. UnInitialize无异常
  */
 TEST_F(TestUbseSecurityModule, ModuleInitSuccess)
 {
-    GTEST_SKIP();
+    MOCKER(&ubse::security::UbseSecurityManager::GetCapabilities).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_OK, securityModule.Initialize());
     EXPECT_NO_THROW(securityModule.UnInitialize());
 }
 
 /*
- * 用例描述：如下
- * 测试能力模块初始化失败的情况
- * 测试步骤：如下
- * 1. MOCK UbseCapabilitiesManager::SetInitialCapabilities 调用失败
+ * 用例描述：测试能力模块初始化失败-GetCapabilities失败
+ * 测试步骤：
+ * 1. MOCK GetCapabilities返回UBSE_ERROR
  * 2. 调用Initialize函数
- * 预期结果：如下
+ * 预期结果：
  * 1. 返回值为 UBSE_ERROR
  */
-TEST_F(TestUbseSecurityModule, ModuleInitFail)
+TEST_F(TestUbseSecurityModule, ModuleInitFailGetCapFail)
 {
-    MOCKER(ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(&ubse::security::UbseSecurityManager::GetCapabilities).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
 }
 
 /*
- * 用例描述：如下
- * 测试能力模块启动成功的情况
- * 测试步骤：如下
- * 1. 调用Initialize函数
- * 2. 调用Start函数
- * 3. 调用Stop函数
- * 4. 调用UnInitialize函数释放
- * 预期结果：如下
- * 1. 返回值为 UBSE_OK
+ * 用例描述：测试能力模块初始化失败-SetInitialCapabilities失败
+ * 测试步骤：
+ * 1. MOCK GetCapabilities成功，SetInitialCapabilities失败
+ * 2. 调用Initialize函数
+ * 预期结果：
+ * 1. 返回值为 UBSE_ERROR
+ */
+TEST_F(TestUbseSecurityModule, ModuleInitFailSetCapFail)
+{
+    MOCKER(&ubse::security::UbseSecurityManager::GetCapabilities).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&ubse::security::UbseSecurityManager::SetInitialCapabilities).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, securityModule.Initialize());
+}
+
+/*
+ * 用例描述：测试能力模块启动成功
+ * 测试步骤：
+ * 1. 调用Start函数
+ * 2. 调用Stop函数
+ * 预期结果：
+ * 1. Start返回UBSE_OK
+ * 2. Stop无异常
  */
 TEST_F(TestUbseSecurityModule, ModuleStartSuccess)
 {
-    GTEST_SKIP();
-    EXPECT_EQ(UBSE_OK, securityModule.Initialize());
     EXPECT_EQ(UBSE_OK, securityModule.Start());
     EXPECT_NO_THROW(securityModule.Stop());
+}
+
+/*
+ * 用例描述：测试能力模块UnInitialize
+ * 测试步骤：
+ * 1. 调用UnInitialize函数
+ * 预期结果：
+ * 1. 无异常抛出
+ */
+TEST_F(TestUbseSecurityModule, ModuleUnInitialize)
+{
     EXPECT_NO_THROW(securityModule.UnInitialize());
 }
 
-TEST_F(TestUbseSecurityModule, testModifyEffectiveCapabilities)
+/*
+ * 用例描述：测试能力模块Stop
+ * 测试步骤：
+ * 1. 调用Stop函数
+ * 预期结果：
+ * 1. 无异常抛出
+ */
+TEST_F(TestUbseSecurityModule, ModuleStop)
 {
-    GTEST_SKIP();
-    std::vector<__u32> invalidCaps = {
-        CAP_KILL,
-    };
-    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(invalidCaps, true), UBSE_ERROR_INVAL);
-    std::vector<__u32> validCaps = {
-        CAP_FOWNER,
-        CAP_DAC_OVERRIDE,
-        CAP_CHOWN,
-    };
-    EXPECT_EQ(securityModule.ModifyEffectiveCapabilities(validCaps, true), UBSE_OK);
+    EXPECT_NO_THROW(securityModule.Stop());
 }
+
+/*
+ * 用例描述：测试修改有效能力-添加成功
+ * 测试步骤：
+ * 1. MOCK UbseSecurityManager::ModifyEffectiveCapabilities成功
+ * 2. 调用UbseSecurityModule::ModifyEffectiveCapabilities(caps, true)
+ * 预期结果：
+ * 1. 返回值为 UBSE_OK
+ */
+TEST_F(TestUbseSecurityModule, ModifyEffectiveCapabilitiesAddSuccess)
+{
+    MOCKER(&ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    std::vector<__u32> caps = {CAP_FOWNER};
+    EXPECT_EQ(UBSE_OK, securityModule.ModifyEffectiveCapabilities(caps, true));
+}
+
+/*
+ * 用例描述：测试修改有效能力-移除成功
+ * 测试步骤：
+ * 1. MOCK UbseSecurityManager::ModifyEffectiveCapabilities成功
+ * 2. 调用UbseSecurityModule::ModifyEffectiveCapabilities(caps, false)
+ * 预期结果：
+ * 1. 返回值为 UBSE_OK
+ */
+TEST_F(TestUbseSecurityModule, ModifyEffectiveCapabilitiesRemoveSuccess)
+{
+    MOCKER(&ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    std::vector<__u32> caps = {CAP_FOWNER};
+    EXPECT_EQ(UBSE_OK, securityModule.ModifyEffectiveCapabilities(caps, false));
+}
+
+/*
+ * 用例描述：测试修改有效能力-能力不在permitted集合
+ * 测试步骤：
+ * 1. MOCK UbseSecurityManager::ModifyEffectiveCapabilities返回UBSE_ERROR_INVAL
+ * 2. 调用UbseSecurityModule::ModifyEffectiveCapabilities
+ * 预期结果：
+ * 1. 返回值为 UBSE_ERROR_INVAL
+ */
+TEST_F(TestUbseSecurityModule, ModifyEffectiveCapabilitiesNotPermitted)
+{
+    MOCKER(&ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities)
+        .stubs()
+        .will(returnValue(UBSE_ERROR_INVAL));
+    std::vector<__u32> caps = {CAP_KILL};
+    EXPECT_EQ(UBSE_ERROR_INVAL, securityModule.ModifyEffectiveCapabilities(caps, true));
+}
+
+/*
+ * 用例描述：测试修改有效能力-底层失败
+ * 测试步骤：
+ * 1. MOCK UbseSecurityManager::ModifyEffectiveCapabilities返回UBSE_ERROR
+ * 2. 调用UbseSecurityModule::ModifyEffectiveCapabilities
+ * 预期结果：
+ * 1. 返回值为 UBSE_ERROR
+ */
+TEST_F(TestUbseSecurityModule, ModifyEffectiveCapabilitiesFail)
+{
+    MOCKER(&ubse::security::UbseSecurityManager::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
+    std::vector<__u32> caps = {CAP_FOWNER};
+    EXPECT_EQ(UBSE_ERROR, securityModule.ModifyEffectiveCapabilities(caps, true));
+}
+
+/*
+ * 用例描述：测试ChangeOverrideCapability添加
+ * 测试步骤：
+ * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities成功
+ * 2. 调用ChangeOverrideCapability(true)
+ * 预期结果：
+ * 1. 返回值为 UBSE_OK
+ */
+TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityAdd)
+{
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, ubse::security::ChangeOverrideCapability(true));
+}
+
+/*
+ * 用例描述：测试ChangeOverrideCapability移除
+ * 测试步骤：
+ * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities成功
+ * 2. 调用ChangeOverrideCapability(false)
+ * 预期结果：
+ * 1. 返回值为 UBSE_OK
+ */
+TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityRemove)
+{
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_OK, ubse::security::ChangeOverrideCapability(false));
+}
+
+/*
+ * 用例描述：测试ChangeOverrideCapability失败
+ * 测试步骤：
+ * 1. MOCK UbseSecurityModule::ModifyEffectiveCapabilities返回UBSE_ERROR
+ * 2. 调用ChangeOverrideCapability(true)
+ * 预期结果：
+ * 1. 返回值为 UBSE_ERROR
+ */
+TEST_F(TestUbseSecurityModule, ChangeOverrideCapabilityFail)
+{
+    MOCKER(&ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, ubse::security::ChangeOverrideCapability(true));
+}
+
 } // namespace ubse::ut::security
