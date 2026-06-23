@@ -37,6 +37,7 @@ declare -A MODULE_INCLUDE=(
     ["ubs-engine_virtagent_ut_independent_ut"]="src/addons/virt_agent"
     ["ubs-engine_rmrs_plugin_ut_independent_ut"]="src/addons/rmrs"
     ["ubs-engine_ucache_plugin_ut_independent_ut"]="src/addons/ucache"
+    ["ubs-engine_process_mem_ut_independent_ut"]="src/addons/process_mem"
 )
 
 COMMON_EXCLUDE=".h src/main/ test/ cmake-build-debug/"
@@ -48,6 +49,7 @@ declare -A MODULE_EXCLUDE=(
     ["ubs-engine_virtagent_ut_independent_ut"]="${COMMON_EXCLUDE}"
     ["ubs-engine_rmrs_plugin_ut_independent_ut"]="${COMMON_EXCLUDE}"
     ["ubs-engine_ucache_plugin_ut_independent_ut"]="${COMMON_EXCLUDE}"
+    ["ubs-engine_process_mem_ut_independent_ut"]="${COMMON_EXCLUDE}"
 )
 
 function resolve_coverage_filters() {
