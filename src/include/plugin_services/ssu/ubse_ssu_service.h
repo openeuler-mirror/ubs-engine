@@ -79,6 +79,7 @@ struct UbseSsuNameSpaceInfo {
 
 struct UbseSsuAllocResult {
     std::string name;                                // 请求标识，最大32个字符
+    UbseSsuAllocStrategy strategy;                   // 分配策略
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList; // 命名空间信息列表
 };
 
@@ -124,10 +125,25 @@ public:
      * 获取系统中所有已分配的SSU存储空间详细信息，包括命名空间列表、
      * 容量、LBA格式和使用类型等。
      *
-     * @return std::vector<UbseSsuAllocResult> 已分配空间信息列表
-     * @retval 空向量 无已分配空间或查询失败
+     * @param result [输出] 已分配空间信息列表
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual std::vector<UbseSsuAllocResult> ListAllocInfo();
+    virtual uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result);
+
+    /**
+     * @brief 根据名称获取已分配的存储空间信息
+     *
+     * 根据存储空间的名称查询其详细信息，包括命名空间列表、容量、LBA格式和使用类型等。
+     *
+     * @param name    存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param result  [输出] 已分配空间信息
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result);
 
     /**
      * @brief 分配SSU存储空间
