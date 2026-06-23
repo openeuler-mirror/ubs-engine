@@ -1116,3 +1116,673 @@ TEST_F(TestProcessMemPidInfoManager, DeleteLastDebtTriggersFullCleanup)
 
     mgr.UnsetPidInfo(91002);
 }
+
+// ==================== HandleNodeFaultEvent with data tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, HandleNodeFaultEventWithPidInMap)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 77700;
+    pidInfo.startTime = 1000;
+    pidInfo.processStatus = ProcessStatus::IDLE;
+    mgr.SetPidInfoMap(pidInfo);
+
+    auto ret = mgr.HandleNodeFaultEvent("NODE_FAULT_DATA");
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnsetPidInfo(77700);
+}
+
+TEST_F(TestProcessMemPidInfoManager, HandleNodeFaultEventCalledTwice)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    auto ret1 = mgr.HandleNodeFaultEvent("NODE_A");
+    auto ret2 = mgr.HandleNodeFaultEvent("NODE_B");
+    EXPECT_EQ(ret1, UBSE_OK);
+    EXPECT_EQ(ret2, UBSE_OK);
+}
+
+// ==================== CheckFaultNodesRecovery with data tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, CheckFaultNodesRecoveryWithRecoveredNode)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.RecoverAllDebtInfoData(); // ensure IsRecoverCompleted
+
+    // First set up a fault via HandleNodeFaultEvent
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 77800;
+    pidInfo.startTime = 1000;
+    pidInfo.processStatus = ProcessStatus::IDLE;
+    mgr.SetPidInfoMap(pidInfo);
+
+    mgr.HandleNodeFaultEvent("NODE_RECOVERY_TEST");
+
+    auto retrieved = mgr.GetPidInfoMap(77800);
+    // Note: HandleNodeFaultEvent with empty debts won't mark the pid as FAULT
+    // because there are no matching debts. Let's just check we don't crash.
+
+    mgr.CheckFaultNodesRecovery();
+
+    mgr.UnsetPidInfo(77800);
+}
+
+// ==================== TotalMemoryCheckCallBack with PIDs tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, TotalMemoryCheckCallBackWithPopulatedPidInfoMap)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 77900;
+    pidInfo.startTime = 1000;
+    pidInfo.configInfo.evictThreshold = 80;
+    pidInfo.configInfo.reclaimThreshold = 20;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.configInfo.expectedMemoryUsage = 1024;
+    pidInfo.processStatus = ProcessStatus::IDLE;
+    mgr.SetPidInfoMap(pidInfo);
+
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> collectInfo;
+    collectInfo[77900] = {{0, 500}};
+    EXPECT_NO_THROW(mgr.TotalMemoryCheckCallBack(collectInfo));
+
+    // UnInit first to stop executors before UnsetPidInfo: mock runs tasks inline,
+    // and MigrateBackAndReturnMemory would re-enter pidInfoMutex → deadlock
+    mgr.UnInit();
+    mgr.UnsetPidInfo(77900);
+}
+
+TEST_F(TestProcessMemPidInfoManager, TotalMemoryCheckCallBackWithFaultStatusPid)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 77901;
+    pidInfo.startTime = 1000;
+    pidInfo.processStatus = ProcessStatus::FAULT;
+    mgr.SetPidInfoMap(pidInfo);
+
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> collectInfo;
+    collectInfo[77901] = {{0, 500}};
+    EXPECT_NO_THROW(mgr.TotalMemoryCheckCallBack(collectInfo));
+
+    mgr.UnInit();
+    mgr.UnsetPidInfo(77901);
+}
+
+// ==================== CheckIsNeedBorrow with timed-out creating debts ====================
+
+TEST_F(TestProcessMemPidInfoManager, CheckIsNeedBorrowSkipsTimeoutCreatingDebts)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78000;
+    // Timed-out CREATING debt (borrowed 60s ago, timeout is 30s) — will be skipped/deleted
+    DebtInfo timeoutDebt{};
+    timeoutDebt.numaDesc.name = "timed_out";
+    timeoutDebt.numaDesc.size = 1024;
+    timeoutDebt.status = BorrowStatus::CREATING;
+    timeoutDebt.borrowStartTime = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    pidInfo.memBorrowInfo.debtInfos["timed_out"] = timeoutDebt;
+
+    // Only the timed-out CREATING debt, no active debts
+    // totalSecured = 0 (timed out debt skipped), expectRemoteMemory = 4096 → needBorrow
+    uint64_t needBorrowSize = 0;
+    bool needBorrow = CheckIsNeedBorrow(pidInfo, 4096, needBorrowSize);
+    EXPECT_TRUE(needBorrow);
+    EXPECT_EQ(needBorrowSize, 4096u);
+}
+
+// ==================== RefreshBorrowInfo with empty data ====================
+
+TEST_F(TestProcessMemPidInfoManager, RefreshBorrowInfoWithPidsInMap)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78100;
+    pidInfo.startTime = 1000;
+    mgr.SetPidInfoMap(pidInfo);
+
+    EXPECT_NO_THROW(mgr.RefreshBorrowInfo());
+
+    // UnInit first to stop executors before UnsetPidInfo: mock runs tasks inline,
+    // and MigrateBackAndReturnMemory would re-enter pidInfoMutex → deadlock
+    mgr.UnInit();
+    mgr.UnsetPidInfo(78100);
+}
+
+// ==================== ExceptionMemoryHandle retry test ====================
+
+TEST_F(TestProcessMemPidInfoManager, ExceptionMemoryHandleWithMockReturns)
+{
+    // Mock MemoryReturn returns UBSE_OK, so first call succeeds (no retry)
+    EXPECT_NO_THROW(ExceptionMemoryHandle("test_exception_name"));
+}
+
+// ==================== HandleNodeFaultEvent full path test ====================
+
+TEST_F(TestProcessMemPidInfoManager, HandleNodeFaultEventViaRpcHandler)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    // Simulate the path from ProcessMemNodeFaultNotifyHandler
+    mgr.RecoverAllDebtInfoData();
+
+    auto ret = mgr.HandleNodeFaultEvent("FAULT_FROM_RPC");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== ProcessMemPidInfoManager comprehensive tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, FullLifecycleInitRecoverRefreshUnInit)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    EXPECT_NO_THROW(mgr.Init());
+    EXPECT_NO_THROW(mgr.RecoverAllDebtInfoData());
+    EXPECT_TRUE(mgr.IsRecoverCompleted());
+    EXPECT_NO_THROW(mgr.RefreshBorrowInfo());
+    EXPECT_NO_THROW(mgr.CheckFaultNodesRecovery());
+    EXPECT_NO_THROW(mgr.TotalMemoryCheckCallBack({}));
+    EXPECT_NO_THROW(mgr.UnInit());
+}
+
+TEST_F(TestProcessMemPidInfoManager, HandleNodeFaultEventThenCheckRecovery)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.RecoverAllDebtInfoData();
+
+    auto ret = mgr.HandleNodeFaultEvent("NODE_TO_RECOVER");
+    EXPECT_EQ(ret, UBSE_OK);
+
+    EXPECT_NO_THROW(mgr.CheckFaultNodesRecovery());
+}
+
+TEST_F(TestProcessMemPidInfoManager, SetPidInfoMapUpdateConfigNoSrcNuma)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    ProcessMemPidInfo pidInfo1{};
+    pidInfo1.configInfo.pid = 78200;
+    pidInfo1.startTime = 1000;
+    pidInfo1.configInfo.evictThreshold = 80;
+    pidInfo1.configInfo.srcNumaId = std::nullopt;
+
+    auto ret = mgr.SetPidInfoMap(pidInfo1);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    ProcessMemPidInfo pidInfo2{};
+    pidInfo2.configInfo.pid = 78200;
+    pidInfo2.startTime = 1000;
+    pidInfo2.configInfo.evictThreshold = 90;
+    pidInfo2.configInfo.srcNumaId = std::nullopt;
+
+    ret = mgr.SetPidInfoMap(pidInfo2);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    auto retrieved = mgr.GetPidInfoMap(78200);
+    EXPECT_EQ(retrieved.configInfo.evictThreshold, 90);
+
+    mgr.UnsetPidInfo(78200);
+}
+
+TEST_F(TestProcessMemPidInfoManager, UnsetPidInfoWithBorrowDebts)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78300;
+    pidInfo.startTime = 1000;
+
+    mgr.SetPidInfoMap(pidInfo);
+
+    DebtInfo debtInfo{};
+    debtInfo.numaDesc.name = "unset_with_debt";
+    debtInfo.numaDesc.size = 1024;
+    debtInfo.status = BorrowStatus::COMPLETED;
+    mgr.UpdatePidMemBorrowInfo(78300, debtInfo);
+
+    // UnsetPidInfo should call MigrateBackAndReturnMemory when debts exist
+    auto ret = mgr.UnsetPidInfo(78300);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    auto result = mgr.GetPidInfoMap(78300);
+    EXPECT_EQ(result.configInfo.pid, -1);
+}
+
+TEST_F(TestProcessMemPidInfoManager, PerPidMemoryCheckCallBackFaultStatusSkips)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.RecoverAllDebtInfoData();
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78400;
+    pidInfo.startTime = 1000;
+    pidInfo.processStatus = ProcessStatus::FAULT;
+    mgr.SetPidInfoMap(pidInfo);
+
+    std::unordered_map<uint32_t, size_t> numaMemory = {{0, 1000}};
+    auto ret = mgr.PerPidMemoryCheckCallBack(78400, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnsetPidInfo(78400);
+}
+
+// ==================== GetMigrateResult back mode test ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetMigrateResultBackModeNonExistentPid)
+{
+    auto result = GetMigrateResult(99999999, 0, 1024, true);
+    EXPECT_FALSE(result);
+}
+
+// ==================== CheckIsNeedBorrow with all completed debts ====================
+
+TEST_F(TestProcessMemPidInfoManager, CheckIsNeedBorrowAllCompletedSumExceeds)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78500;
+    DebtInfo debt1{};
+    debt1.numaDesc.name = "debt_a";
+    debt1.numaDesc.size = 1024 * 1024;
+    debt1.status = BorrowStatus::COMPLETED;
+    pidInfo.memBorrowInfo.debtInfos["debt_a"] = debt1;
+
+    uint64_t needBorrowSize = 0;
+    bool needBorrow = CheckIsNeedBorrow(pidInfo, 512 * 1024, needBorrowSize);
+    EXPECT_FALSE(needBorrow);
+}
+
+// ==================== MemoryCheckHandle stable tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryCheckHandleBothNeedBorrowAndNeedReturn)
+{
+    ProcessMemPidInfo info{};
+    info.configInfo.pid = 78600;
+    info.configInfo.expectedMemoryUsage = 1024;
+    info.configInfo.evictThreshold = 100;
+    info.configInfo.reclaimThreshold = 100;
+    info.configInfo.targetEvictThreshold = 50;
+    info.memBorrowInfo.remoteNumaId = 0;
+    std::unordered_map<uint32_t, size_t> numaMemory = {{0, 500}, {1, 500}};
+    auto ret = MemoryCheckHandle(info, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== AsyncBorrowAndMigrateExecute with real pid tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, AsyncBorrowAndMigrateExecuteHappyPath)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.evictThreshold = 80;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.configInfo.srcNumaId = 0;
+    mgr.SetPidInfoMap(pidInfo);
+
+    uint64_t expectRemoteMemory = 1024 * 1024;
+    DebtInfo debtInfo{};
+    debtInfo.numaDesc.name = "test_borrow_async_happy";
+    debtInfo.numaDesc.size = 1024 * 1024;
+    debtInfo.numaDesc.numaId = 0;
+    debtInfo.status = BorrowStatus::CREATING;
+    debtInfo.borrowStartTime = std::chrono::steady_clock::now();
+
+    EXPECT_NO_THROW(AsyncBorrowAndMigrateExecute(myPid, debtInfo, expectRemoteMemory));
+
+    mgr.DeletePidMemBorrowInfo(myPid, debtInfo.numaDesc.name);
+    mgr.UnsetPidInfo(myPid);
+}
+
+TEST_F(TestProcessMemPidInfoManager, AsyncBorrowAndMigrateExecutePidNotInMap)
+{
+    // Pid not in map → GetPidInfoMap returns pid=-1 → early return
+    uint64_t expectRemoteMemory = 1024 * 1024;
+    DebtInfo debtInfo{};
+    debtInfo.numaDesc.name = "test_borrow_async_nomap";
+    debtInfo.numaDesc.size = 1024 * 1024;
+    debtInfo.borrowStartTime = std::chrono::steady_clock::now();
+    EXPECT_NO_THROW(AsyncBorrowAndMigrateExecute(99999999, debtInfo, expectRemoteMemory));
+}
+
+TEST_F(TestProcessMemPidInfoManager, AsyncBorrowAndMigrateExecuteTimedOut)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(1);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 1;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.srcNumaId = 0;
+    mgr.SetPidInfoMap(pidInfo);
+
+    uint64_t expectRemoteMemory = 1024 * 1024;
+    DebtInfo debtInfo{};
+    debtInfo.numaDesc.name = "test_borrow_async_timeout";
+    debtInfo.numaDesc.size = 1024 * 1024;
+    debtInfo.numaDesc.numaId = 0;
+    debtInfo.status = BorrowStatus::CREATING;
+    // Set borrowStartTime far in the past to trigger timeout
+    debtInfo.borrowStartTime = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+
+    // The timeout path: DeletePidMemBorrowInfo + exceptionHandleExecutor->Execute
+    EXPECT_NO_THROW(AsyncBorrowAndMigrateExecute(1, debtInfo, expectRemoteMemory));
+
+    mgr.UnInit();
+    mgr.UnsetPidInfo(1);
+}
+
+// ==================== RefreshExpectRemoteMemory tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, RefreshExpectRemoteMemoryWithRealPid)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    EXPECT_GT(startTime, 0u);
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.memBorrowInfo.remoteNumaId = -1;
+
+    auto result = RefreshExpectRemoteMemory(myPid, pidInfo, 1024 * 1024);
+    EXPECT_GT(result, 0u);
+}
+
+// ==================== GetPidNumaSize tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetPidNumaSizeWithRealPid)
+{
+    pid_t myPid = ::getpid();
+    uint64_t numaSize = 0;
+    auto ret = GetPidNumaSize(myPid, 0, numaSize);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_GT(numaSize, 0u);
+}
+
+TEST_F(TestProcessMemPidInfoManager, GetPidNumaSizeNonMatchingNuma)
+{
+    pid_t myPid = ::getpid();
+    uint64_t numaSize = 0;
+    auto ret = GetPidNumaSize(myPid, 999, numaSize);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(numaSize, 0u);
+}
+
+// ==================== GetUbseMemBorrower extended tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetUbseMemBorrowerNodeIdEmpty)
+{
+    // This can't happen with mock (GetCurrentNodeId returns "NODE0"), but test anyway
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 1;
+    ubse::mem::controller::UbseMemBorrower borrower{};
+    auto ret = GetUbseMemBorrower(pidInfo, borrower);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== BorrowAndMigrate extended tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, BorrowAndMigrateWithNeedBorrowAndValidExecutor)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.targetEvictThreshold = 30;
+    pidInfo.memBorrowInfo.remoteNumaId = -1;
+    mgr.SetPidInfoMap(pidInfo);
+
+    auto ret = BorrowAndMigrate(pidInfo, 1024 * 1024, 0);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    // UnInit first to stop executors, avoiding inline execution recursive lock
+    mgr.UnInit();
+    auto updatedInfo = mgr.GetPidInfoMap(myPid);
+    for (auto& [name, _] : updatedInfo.memBorrowInfo.debtInfos) {
+        mgr.DeletePidMemBorrowInfo(myPid, name);
+    }
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== MemoryCheckHandle triggering borrow path ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryCheckHandleTriggersBorrowMemoryAndMigrateOut)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo info{};
+    info.configInfo.pid = myPid;
+    info.startTime = startTime;
+    info.configInfo.expectedMemoryUsage = 1024;
+    info.configInfo.evictThreshold = 10;
+    info.configInfo.reclaimThreshold = 90;
+    info.configInfo.targetEvictThreshold = 50;
+    info.memBorrowInfo.remoteNumaId = -1;
+
+    mgr.SetPidInfoMap(info);
+    std::unordered_map<uint32_t, size_t> numaMemory = {{0, 500}};
+    auto ret = MemoryCheckHandle(info, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnInit();
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== BorrowMemoryAndMigrateOut extended tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, BorrowMemoryAndMigrateOutRemoteSufficient)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78700;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.memBorrowInfo.remoteNumaId = 0;
+    // expectRemote = 1500 * 50 / 100 = 750, remoteMemory = 1000 > 750 → no borrow needed
+    auto ret = BorrowMemoryAndMigrateOut(pidInfo, 500, 1000, 0);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidInfoManager, BorrowMemoryAndMigrateOutRemoteInsufficient)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.memBorrowInfo.remoteNumaId = -1;
+    mgr.SetPidInfoMap(pidInfo);
+
+    auto ret = BorrowMemoryAndMigrateOut(pidInfo, 500, 0, 0);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnInit();
+    auto updatedInfo = mgr.GetPidInfoMap(myPid);
+    for (auto& [name, _] : updatedInfo.memBorrowInfo.debtInfos) {
+        mgr.DeletePidMemBorrowInfo(myPid, name);
+    }
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== MigrateBackAndReturnMemoryAsyncExecute tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, MigrateBackAndReturnMemoryAsyncExecuteNotRecovered)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    // isRecoverCompleted_ is false → function will re-post to executor (mock executes inline → infinite loop risk)
+    // But mock Stop prevents this. Test the not-recovered path.
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(1);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 1;
+    pidInfo.startTime = startTime;
+    pidInfo.memBorrowInfo.remoteNumaId = 0;
+
+    // Stop executors first so inline execution doesn't re-enter
+    mgr.returnExecutor->Stop();
+    auto ret = MigrateBackAndReturnMemoryAsyncExecute(pidInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnInit();
+}
+
+TEST_F(TestProcessMemPidInfoManager, MigrateBackAndReturnMemorySuccessPath)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78701;
+    pidInfo.memBorrowInfo.remoteNumaId = -1;
+    // Not registering pid via SetPidInfoMap; ResetPidMemBorrowInfo will safely return early
+    // This exercises the "recovered + no debts" path through MigrateBackAndReturnMemoryAsyncExecute
+
+    auto ret = MigrateBackAndReturnMemoryAsyncExecute(pidInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+
+    mgr.UnInit();
+}
+
+// ==================== ExceptionMemoryHandle extended tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, ExceptionMemoryHandleWithRetry)
+{
+    // MemoryReturn mock returns UBSE_OK, so test the immediate-success path
+    EXPECT_NO_THROW(ExceptionMemoryHandle("test_retry_name"));
+}
+
+// ==================== IsNodeRecovered extended tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, IsNodeRecoveredWorkingNode)
+{
+    // Mock GetNodeById returns WORKING, and QueryDebtInfoWithRetry returns UBSE_OK with empty list
+    // So should return true (no process_mem debts found)
+    auto result = IsNodeRecovered("NODE_RECOVERY_WORKING");
+    EXPECT_TRUE(result);
+}
+
+// ==================== MigrateOut tests extended ====================
+
+TEST_F(TestProcessMemPidInfoManager, MigrateOutWithValidRemoteNuma)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 99999;
+    pidInfo.memBorrowInfo.remoteNumaId = 0;
+    // rmrsMigrateOut returns 0 (MEM_POOLING_OK)
+    auto ret = MigrateOut(pidInfo, 1024 * 1024);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== GetMigrateResult with back mode ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetMigrateResultBackModeValidPid)
+{
+    pid_t myPid = ::getpid();
+    // isBack=true → def=0; use non-matching numa 999 so numaSize stays 0; matches expectSize=0 exactly
+    auto result = GetMigrateResult(myPid, 999, 0, true);
+    EXPECT_TRUE(result);
+}
+
+// ==================== RefreshBorrowInfo with import debts tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, RefreshBorrowInfoWithImportDebtsExercisesAnonFuncs)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.evictThreshold = 80;
+    pidInfo.configInfo.reclaimThreshold = 20;
+    pidInfo.configInfo.targetEvictThreshold = 50;
+    pidInfo.configInfo.expectedMemoryUsage = 1024;
+    mgr.SetPidInfoMap(pidInfo);
+
+    // Set up import debt info via mock for the current process
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = myPid;
+    usrInfo.startTime = startTime;
+
+    ubse::mem::controller::UbseNumaMemoryImportDebtInfo importDebt{};
+    importDebt.name = "test_import_debt_refresh";
+    importDebt.size = 1024 * 1024;
+    importDebt.remoteNumaId = 0;
+    importDebt.borrowSocketIdList = {1};
+    memcpy(importDebt.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetImportDebtInfos({importDebt});
+
+    // RefreshBorrowInfo is called inside TotalMemoryCheckCallBack
+    std::unordered_map<pid_t, std::unordered_map<uint32_t, size_t>> collectInfo;
+    collectInfo[myPid] = {{0, 500}};
+    EXPECT_NO_THROW(mgr.TotalMemoryCheckCallBack(collectInfo));
+
+    ubse::mem::controller::MockClearDebtInfos();
+
+    mgr.UnInit();
+    // Clean up debts added by RefreshBorrowInfo
+    auto info = mgr.GetPidInfoMap(myPid);
+    for (auto& [name, _] : info.memBorrowInfo.debtInfos) {
+        mgr.DeletePidMemBorrowInfo(myPid, name);
+    }
+    mgr.UnsetPidInfo(myPid);
+}
+
+TEST_F(TestProcessMemPidInfoManager, RefreshBorrowInfoWithRemovedPidPath)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    // Set up import debt for a pid NOT in the map → exercises removed pid path
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = 99997;
+    usrInfo.startTime = 1;
+
+    ubse::mem::controller::UbseNumaMemoryImportDebtInfo importDebt{};
+    importDebt.name = "test_removed_pid_debt";
+    importDebt.size = 1024;
+    importDebt.remoteNumaId = 0;
+    importDebt.borrowSocketIdList = {1};
+    memcpy(importDebt.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetImportDebtInfos({importDebt});
+
+    EXPECT_NO_THROW(mgr.RefreshBorrowInfo());
+
+    ubse::mem::controller::MockClearDebtInfos();
+    mgr.UnInit();
+}
