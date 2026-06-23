@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <src/framework/serde/ubse_serial_util.h>
+#include <chrono>
 #include <queue>
 #include <regex>
 #include <set>
@@ -52,6 +53,7 @@ const uint32_t IPV4_LENGTH = 4;
 const uint32_t IPV6_LENGTH = 16;
 const size_t MAX_HOSTNAME_LENGTH = 63;
 constexpr size_t MAX_IP_ADDR_NUM = 1024;
+constexpr uint32_t FAULT_STATE_PROTECT_SECONDS = 60;
 
 /**
  * 从 LCNE 模块获取全量静态节点列表，用于选主模块查询全量节点列表，做选主操作
@@ -736,20 +738,44 @@ uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string& nodeI
         UbseNodeInfo faultNodeInfo{};
         (void)GenerateFaultUbseNode(nodeId, faultNodeInfo);
         nodeInfos[nodeId] = faultNodeInfo;
+        faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
         rwMutex.unlock();
         UBSE_LOG_WARN << "nodeId=" << nodeId << " cluster node info not collect, set default item.";
         return UBSE_OK;
     }
-    if (!CanUpdateNodeClusterState(nodeInfos[nodeId].clusterState, state)) {
+
+    auto curState = nodeInfos[nodeId].clusterState;
+    if (curState == UbseNodeClusterState::UBSE_NODE_FAULT && state != UbseNodeClusterState::UBSE_NODE_FAULT) {
+        auto iter = faultUpdateTimes.find(nodeId);
+        if (iter != faultUpdateTimes.end()) {
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - iter->second)
+                    .count();
+            if (elapsed < FAULT_STATE_PROTECT_SECONDS) {
+                rwMutex.unlock();
+                UBSE_LOG_WARN << "nodeId=" << nodeId << " is in fault protect period, skip update cluster state="
+                              << static_cast<uint32_t>(state) << ", elapsed=" << elapsed << "s";
+                return UBSE_OK;
+            }
+        }
+    }
+
+    if (!CanUpdateNodeClusterState(curState, state)) {
         rwMutex.unlock();
-        UBSE_LOG_ERROR << "nodeId=" << nodeId << " can not cluster local state, current state="
-                       << static_cast<uint32_t>(nodeInfos[nodeId].clusterState)
+        UBSE_LOG_ERROR << "nodeId=" << nodeId
+                       << " can not cluster local state, current state=" << static_cast<uint32_t>(curState)
                        << ", update state=" << static_cast<uint32_t>(state);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "nodeId=" << nodeId
-                  << " update cluster state, current state=" << static_cast<uint32_t>(nodeInfos[nodeId].clusterState)
+    UBSE_LOG_INFO << "nodeId=" << nodeId << " update cluster state, current state=" << static_cast<uint32_t>(curState)
                   << ", update state=" << static_cast<uint32_t>(state);
+
+    if (curState != UbseNodeClusterState::UBSE_NODE_FAULT && state == UbseNodeClusterState::UBSE_NODE_FAULT) {
+        faultUpdateTimes[nodeId] = std::chrono::steady_clock::now();
+    } else if (state != UbseNodeClusterState::UBSE_NODE_FAULT) {
+        faultUpdateTimes.erase(nodeId);
+    }
+
     nodeInfos[nodeId].clusterState = state;
     rwMutex.unlock();
     rwMutex.lock_shared();
