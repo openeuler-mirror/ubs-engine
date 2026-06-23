@@ -15,26 +15,73 @@
 
 namespace ubse::mem::controller {
 
+// Configurable mock data for tests
+static std::vector<UbseNumaMemoryDebtInfo> g_mockDebtInfos;
+static std::vector<UbseNumaMemoryImportDebtInfo> g_mockImportDebtInfos;
+static uint32_t g_mockNumaCreateError = UBSE_OK;
+static uint32_t g_mockNumaDeleteError = UBSE_OK;
+static uint32_t g_mockDebtInfoWithNodeError = UBSE_OK;
+
+void MockSetDebtInfos(const std::vector<UbseNumaMemoryDebtInfo>& infos)
+{
+    g_mockDebtInfos = infos;
+}
+void MockSetImportDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& infos)
+{
+    g_mockImportDebtInfos = infos;
+}
+void MockClearDebtInfos()
+{
+    g_mockDebtInfos.clear();
+    g_mockImportDebtInfos.clear();
+}
+void MockSetNumaCreateError(uint32_t err)
+{
+    g_mockNumaCreateError = err;
+}
+void MockSetNumaDeleteError(uint32_t err)
+{
+    g_mockNumaDeleteError = err;
+}
+void MockSetDebtInfoWithNodeError(uint32_t err)
+{
+    g_mockDebtInfoWithNodeError = err;
+}
+void MockResetAllErrors()
+{
+    g_mockDebtInfos.clear();
+    g_mockImportDebtInfos.clear();
+    g_mockNumaCreateError = UBSE_OK;
+    g_mockNumaDeleteError = UBSE_OK;
+    g_mockDebtInfoWithNodeError = UBSE_OK;
+}
+
 UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
+    if (g_mockDebtInfoWithNodeError != UBSE_OK) {
+        return g_mockDebtInfoWithNodeError;
+    }
+    if (!g_mockDebtInfos.empty()) {
+        debtInfos = g_mockDebtInfos;
+    }
     return UBSE_OK;
 }
 
 UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
-    return UBSE_OK;
+    return g_mockNumaDeleteError;
 }
 
 UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
                              UbseMemNumaDesc& desc)
 {
-    return UBSE_OK;
+    return g_mockNumaCreateError;
 }
 
 UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
                                           const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
 {
-    return UBSE_OK;
+    return g_mockNumaCreateError;
 }
 
 UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
@@ -54,6 +101,10 @@ uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMem
 
 UbseResult UbseGetNumaMemImportDebtInfoWithLocalNode(std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos)
 {
+    if (!g_mockImportDebtInfos.empty()) {
+        debtInfos = g_mockImportDebtInfos;
+        return UBSE_OK;
+    }
     return UBSE_OK;
 }
 

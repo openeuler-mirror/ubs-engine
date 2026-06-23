@@ -12,6 +12,8 @@
 
 #include "test_process_mem_pid_config_manager.h"
 
+#include "mock/ubse/mock_control.h"
+
 namespace ubse::ut::process_mem {
 using namespace ::process_mem::manager;
 using namespace ::process_mem::def;
@@ -44,6 +46,19 @@ TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistNonExistentPid)
     EXPECT_FALSE(result);
 }
 
+TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistValidPidWrongStartTime)
+{
+    bool result = ProcessMemPidConfigManager::IsPidInfoExist(1, 0);
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TestProcessMemPidConfigManager, IsPidInfoExistValidPid)
+{
+    auto exactStartTime = ProcessMemPidConfigManager::GetExactStartTime(1);
+    bool result = ProcessMemPidConfigManager::IsPidInfoExist(1, exactStartTime);
+    EXPECT_TRUE(result);
+}
+
 TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoInvalidPid)
 {
     ProcessMemPidInfo pidInfo{};
@@ -58,6 +73,15 @@ TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoNonExistentPid)
     ProcessMemPidInfo pidInfo{};
     pidInfo.configInfo.pid = 99999999;
     pidInfo.startTime = 12345;
+    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoValidPidWrongStartTime)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 1;
+    pidInfo.startTime = 0;
     bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
     EXPECT_FALSE(result);
 }
@@ -142,5 +166,66 @@ TEST_F(TestProcessMemPidConfigManager, QueryPidConfigCallbackValidBuffer)
 
     std::vector<ProcessMemPidInfo> pidInfos;
     EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "3333", buff, &pidInfos));
+}
+
+// ==================== Storage error path tests ====================
+
+TEST_F(TestProcessMemPidConfigManager, PersistPidConfigInfoStoragePutError)
+{
+    ubse::storage::MockSetStoragePutError(UBSE_ERROR);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 4001;
+    pidInfo.configInfo.evictThreshold = 80;
+    pidInfo.startTime = 1000;
+
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo));
+
+    ubse::storage::MockSetStoragePutError(UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidConfigManager, DeletePidConfigInfoStorageDeleteError)
+{
+    ubse::storage::MockSetStorageDeleteError(UBSE_ERROR);
+
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(4002));
+
+    ubse::storage::MockSetStorageDeleteError(UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidConfigManager, GetAllPersistedPidConfigInfoStorageQueryError)
+{
+    ubse::storage::MockSetStorageQueryError(UBSE_ERROR);
+
+    std::vector<ProcessMemPidInfo> pidInfos;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedPidConfigInfo(pidInfos));
+
+    ubse::storage::MockSetStorageQueryError(UBSE_OK);
+}
+
+// ==================== CheckPidConfigInfo with valid pid ====================
+
+TEST_F(TestProcessMemPidConfigManager, CheckPidConfigInfoValidPid)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 1;
+    auto exactStartTime = ProcessMemPidConfigManager::GetExactStartTime(1);
+    pidInfo.startTime = exactStartTime;
+    bool result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
+    EXPECT_TRUE(result);
+}
+
+// ==================== QueryPidConfigCallback with deserialization error path ====================
+
+TEST_F(TestProcessMemPidConfigManager, QueryPidConfigCallbackInvalidData)
+{
+    UbseByteBuffer buff{};
+    uint8_t badData = 0xFF;
+    buff.data = &badData;
+    buff.len = 1;
+
+    std::vector<ProcessMemPidInfo> pidInfos;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", buff, &pidInfos));
+    EXPECT_TRUE(pidInfos.empty());
 }
 } // namespace ubse::ut::process_mem

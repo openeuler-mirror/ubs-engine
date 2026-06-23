@@ -37,9 +37,20 @@ UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
     return ubseNodeInfo;
 }
 
+static std::string g_mockCurrentNodeId = "NODE0";
+
+void MockSetCurrentNodeId(const std::string& nodeId)
+{
+    g_mockCurrentNodeId = nodeId;
+}
+void MockResetCurrentNodeId()
+{
+    g_mockCurrentNodeId = "NODE0";
+}
+
 std::string UbseNodeController::GetCurrentNodeId()
 {
-    return "NODE0";
+    return g_mockCurrentNodeId;
 }
 
 UbseNodeInfo UbseNodeController::GetCurNode()
@@ -117,10 +128,4 @@ void UbseNodeController::PrintDevDirConnectInfo() {}
 
 void UbseNodeController::CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo) {}
 
-void UbseNodeController::OccupyComUrmaBonding() {}
-
-bool UbseNodeController::IsHostUrmaDevOccupied() const
-{
-    return false;
-}
 } // namespace ubse::nodeController

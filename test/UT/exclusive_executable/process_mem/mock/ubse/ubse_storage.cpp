@@ -14,19 +14,42 @@
 
 namespace ubse::storage {
 
+static uint32_t g_mockStoragePutError = 0;
+static uint32_t g_mockStorageQueryError = 0;
+static uint32_t g_mockStorageDeleteError = 0;
+
+void MockSetStoragePutError(uint32_t err)
+{
+    g_mockStoragePutError = err;
+}
+void MockSetStorageQueryError(uint32_t err)
+{
+    g_mockStorageQueryError = err;
+}
+void MockSetStorageDeleteError(uint32_t err)
+{
+    g_mockStorageDeleteError = err;
+}
+void MockResetStorageErrors()
+{
+    g_mockStoragePutError = 0;
+    g_mockStorageQueryError = 0;
+    g_mockStorageDeleteError = 0;
+}
+
 uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data)
 {
-    return 0;
+    return g_mockStoragePutError;
 }
 
 uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                               UbseStorageDealDataFunc func)
 {
-    return 0;
+    return g_mockStorageQueryError;
 }
 
 uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key)
 {
-    return 0;
+    return g_mockStorageDeleteError;
 }
 } // namespace ubse::storage
