@@ -517,6 +517,18 @@ TEST_F(TestMempoolingInterface, UcacheMigrate_Enabled_GenOK_SendOK)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
+uint32_t UbseQueryResultNotExist(const std::string& borrowId, UbseMemResult& result)
+{
+    result.stage = UbseMemStage::UBSE_NOT_EXIST;
+    return MEM_POOLING_OK;
+}
+
+uint32_t UbseQueryResultOnlyImport(const std::string& borrowId, UbseMemResult& result)
+{
+    result.stage = UbseMemStage::UBSE_ERR_ONLY_IMPORT;
+    return MEM_POOLING_OK;
+}
+
 TEST_F(TestMempoolingInterface, CallUpdateUcacheUsageRatioTEST)
 {
     std::vector<outinterface::VMPresetParam> vmPresetParams = {{0, 0}};
@@ -527,5 +539,76 @@ TEST_F(TestMempoolingInterface, CallUpdateUcacheUsageRatioTEST)
     outinterface::SrcMemoryBorrowParam srcParam{};
     MOCKER_CPP(&mempooling::MpConfiguration::GetUcacheEnable, bool (*)()).stubs().will(returnValue(true));
     CallUpdateUcacheUsageRatio(vmPresetParams, borrowRecord, srcParam);
+}
+
+TEST_F(TestMempoolingInterface, MemFreeFail_StageNotExist)
+{
+    std::unordered_map<std::string, uint64_t> borrowId2Size = {{"name1", 1024}};
+    std::unordered_map<uint16_t, uint64_t> borrowIdNuma2Size = {{5, 2048}};
+    std::unordered_map<std::uint16_t, std::vector<pid_t>> borrowNumaId2Pids = {{5, {1000}}};
+    std::unordered_map<std::string, std::uint16_t> borrowId2NumaId = {{"name1", 5}};
+    ReturnNeedMaps returnNeedMaps = {borrowId2Size, borrowIdNuma2Size, borrowNumaId2Pids, borrowId2NumaId};
+    uint16_t presentNumaId = 5;
+    std::string borrowId = "name1";
+    std::vector<pid_t> pids = {1000};
+    outinterface::SrcMemoryBorrowParam srcParam{};
+
+    // Mock SetSmapRemoteNumaLocalHandler 成功（第一次调用）
+    MOCKER_CPP(&OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<MemBorrowInfo>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    // Mock MemFreeWithOps 失败
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    // Mock UbseQueryResult 返回 UBSE_NOT_EXIST
+    MOCKER_CPP(UbseQueryResult, int (*)(const std::string&, UbseMemResult&))
+        .stubs()
+        .will(invoke(UbseQueryResultNotExist));
+
+    // 执行被测函数
+    uint32_t ret = ReturnBorrowId(srcParam, pids, borrowId, presentNumaId, returnNeedMaps);
+
+    // 验证返回成功（因为stage为NOT_EXIST时，函数返回MEM_POOLING_OK）
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+// Test case 2: MemFreeWithOps 失败，UbseQueryResult 返回 UBSE_ERR_ONLY_IMPORT
+TEST_F(TestMempoolingInterface, MemFreeFail_StageErrOnlyImport)
+{
+    std::unordered_map<std::string, uint64_t> borrowId2Size = {{"name1", 1024}};
+    std::unordered_map<uint16_t, uint64_t> borrowIdNuma2Size = {{5, 2048}};
+    std::unordered_map<std::uint16_t, std::vector<pid_t>> borrowNumaId2Pids = {{5, {1000}}};
+    std::unordered_map<std::string, std::uint16_t> borrowId2NumaId = {{"name1", 5}};
+    ReturnNeedMaps returnNeedMaps = {borrowId2Size, borrowIdNuma2Size, borrowNumaId2Pids, borrowId2NumaId};
+    uint16_t presentNumaId = 5;
+    std::string borrowId = "name1";
+    std::vector<pid_t> pids = {1000};
+    outinterface::SrcMemoryBorrowParam srcParam{};
+
+    // Mock SetSmapRemoteNumaLocalHandler 成功（第一次调用）
+    MOCKER_CPP(&OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler,
+               MpResult(*)(const SrcMemoryBorrowParam&, const std::vector<MemBorrowInfo>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    // Mock MemFreeWithOps 失败
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps, MpResult(MemBorrowExecutor::*)(const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    // Mock UbseQueryResult 返回 UBSE_ERR_ONLY_IMPORT
+    MOCKER_CPP(UbseQueryResult, int (*)(const std::string&, UbseMemResult&))
+        .stubs()
+        .will(invoke(UbseQueryResultOnlyImport));
+
+    // 执行被测函数
+    uint32_t ret = ReturnBorrowId(srcParam, pids, borrowId, presentNumaId, returnNeedMaps);
+
+    // 验证返回失败（因为stage为ERR_ONLY_IMPORT时，函数返回MEM_POOLING_ERROR）
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 } // namespace mempooling::ut::over_commit

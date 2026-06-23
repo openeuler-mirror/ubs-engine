@@ -618,7 +618,13 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] UbseQueryResult failed.";
             return MEM_POOLING_ERROR;
         }
-        if (result.stage == ubse::mem::controller::UbseMemStage::UBSE_EXIST) {
+
+        if (result.stage == ubse::mem::controller::UbseMemStage::UBSE_NOT_EXIST ||
+            result.stage == ubse::mem::controller::UbseMemStage::UBSE_ERR_WAIT_UNEXPORT) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MemReturn] borrowId=" << borrowId
+                << " not exist or wait unexport, result.stage=" << static_cast<uint32_t>(result.stage) << ".";
+        } else {
             borrowIdNuma2Size[presentNumaId] += borrowId2Size[borrowId];
             borrowSize = borrowIdNuma2Size[presentNumaId] * (1 - GetUcacheUsageRatio(srcParam.srcNid));
             memBorrowInfos = {{.presentNumaId = presentNumaId, .borrowSize = static_cast<uint64_t>(borrowSize)}};
@@ -626,7 +632,7 @@ uint32_t ReturnBorrowId(const SrcMemoryBorrowParam& srcParam, const std::vector<
             if (retCode != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn] Reset process remote numa failed.";
             }
-            return ret;
+            return MEM_POOLING_ERROR;
         }
     } else {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
