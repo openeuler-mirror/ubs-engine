@@ -499,6 +499,56 @@ struct FaultNumaLockGuard {
     }
 };
 
+class FaultNumaReservedLock {
+public:
+    static FaultNumaReservedLock& Instance()
+    {
+        static FaultNumaReservedLock instance;
+        return instance;
+    }
+
+    bool TryReserve(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (reservedNumas_.count(numaId) > 0) {
+            return false;
+        }
+        reservedNumas_.insert(numaId);
+        return true;
+    }
+
+    void Release(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        reservedNumas_.erase(numaId);
+    }
+
+    bool IsReserved(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        return reservedNumas_.count(numaId) > 0;
+    }
+
+private:
+    FaultNumaReservedLock() = default;
+    ~FaultNumaReservedLock() = default;
+    FaultNumaReservedLock(const FaultNumaReservedLock&) = delete;
+    FaultNumaReservedLock& operator=(const FaultNumaReservedLock&) = delete;
+
+    std::unordered_set<uint16_t> reservedNumas_;
+    std::mutex mutex_;
+};
+
+struct FaultNumaReservedGuard {
+    std::vector<uint16_t> numaIds;
+    ~FaultNumaReservedGuard()
+    {
+        for (auto numaId : numaIds) {
+            FaultNumaReservedLock::Instance().Release(numaId);
+        }
+    }
+};
+
 // numa级别冷热页流动恢复：smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaIds
 class SmapEnableCompleted {
 public:

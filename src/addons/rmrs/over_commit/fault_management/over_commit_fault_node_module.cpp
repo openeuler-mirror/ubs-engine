@@ -1033,6 +1033,13 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
 MpResult ExecuteMigrateForPidWithNuma(pid_t pid, uint16_t newRemoteNumaId,
                                       const std::unordered_map<uint16_t, uint64_t>& remoteNumaSizeMap)
 {
+    if (!FaultNumaReservedLock::Instance().TryReserve(newRemoteNumaId)) {
+        LOG_ERROR << "[FaultManager][Simplified] Fault target NUMA already reserved, newRemoteNumaId="
+                  << newRemoteNumaId << ".";
+        return MEM_POOLING_ERROR;
+    }
+    FaultNumaReservedGuard reservedGuard;
+    reservedGuard.numaIds.push_back(newRemoteNumaId);
     FaultNumaLockGuard lockGuard;
     FaultNumaLock::Instance().AcquireShared(newRemoteNumaId);
     lockGuard.sharedNumaIds.push_back(newRemoteNumaId);
