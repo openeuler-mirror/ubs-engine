@@ -13,8 +13,11 @@
 #include <unistd.h>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_ut_dir.h"
 #include "gtest/gtest.h"
@@ -23,6 +26,8 @@
 
 namespace ubse::ut::urma {
 using namespace ubse::common::def;
+using namespace ubse::config;
+using namespace ubse::context;
 using namespace ubse::urma;
 
 class TestUbseUrmaTopoConfig : public testing::Test {
@@ -51,6 +56,90 @@ protected:
 
     std::filesystem::path tempDir_;
 };
+
+TEST_F(TestUbseUrmaTopoConfig, GetUrmaTopoModeReturnsNonCrossWhenConfigModuleMissing)
+{
+    std::shared_ptr<UbseConfModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
+
+    EXPECT_EQ(GetUrmaTopoMode(), UbseUrmaTopoMode::NON_CROSS);
+}
+
+TEST_F(TestUbseUrmaTopoConfig, GetUrmaTopoModeReturnsNonCrossWhenGetConfigFails)
+{
+    auto module = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(GetUrmaTopoMode(), UbseUrmaTopoMode::NON_CROSS);
+}
+
+TEST_F(TestUbseUrmaTopoConfig, GetUrmaTopoModeReturnsHccsCross)
+{
+    auto module = std::make_shared<UbseConfModule>();
+    std::string topoMode = "hccs-cross";
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.urma")), eq(std::string("topo_mode")), outBound(topoMode))
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(GetUrmaTopoMode(), UbseUrmaTopoMode::HCCS_CROSS);
+}
+
+TEST_F(TestUbseUrmaTopoConfig, GetUrmaTopoModeReturnsNonCrossWhenConfigInvalid)
+{
+    auto module = std::make_shared<UbseConfModule>();
+    std::string topoMode = "invalid";
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.urma")), eq(std::string("topo_mode")), outBound(topoMode))
+        .will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(GetUrmaTopoMode(), UbseUrmaTopoMode::NON_CROSS);
+}
+
+TEST_F(TestUbseUrmaTopoConfig, LoadUrmaTopoConfigReturnsParseError)
+{
+    MOCKER_CPP(&ParseUrmaTopoConfig)
+        .stubs()
+        .with(eq(std::string("/etc/ubse/topo/non-cross.json")), any())
+        .will(returnValue(UBSE_ERROR_FILE_NOT_EXIST));
+
+    UbseUrmaTopoConfig topoConfig;
+    EXPECT_EQ(LoadUrmaTopoConfig(UbseUrmaTopoMode::NON_CROSS, topoConfig), UBSE_ERROR_FILE_NOT_EXIST);
+}
+
+TEST_F(TestUbseUrmaTopoConfig, LoadUrmaTopoConfigReturnsErrorWhenLinkTypeMismatch)
+{
+    UbseUrmaTopoConfig parsedConfig;
+    parsedConfig.linkType = "non-cross";
+    MOCKER_CPP(&ParseUrmaTopoConfig)
+        .stubs()
+        .with(eq(std::string("/etc/ubse/topo/hccs-cross.json")), outBound(parsedConfig))
+        .will(returnValue(UBSE_OK));
+
+    UbseUrmaTopoConfig topoConfig;
+    EXPECT_EQ(LoadUrmaTopoConfig(UbseUrmaTopoMode::HCCS_CROSS, topoConfig), UBSE_ERROR_INVAL);
+    EXPECT_EQ(topoConfig.linkType, "non-cross");
+}
+
+TEST_F(TestUbseUrmaTopoConfig, LoadUrmaTopoConfigSuccess)
+{
+    UbseUrmaTopoConfig parsedConfig;
+    parsedConfig.version = "1.0";
+    parsedConfig.linkType = "hccs-cross";
+    MOCKER_CPP(&ParseUrmaTopoConfig)
+        .stubs()
+        .with(eq(std::string("/etc/ubse/topo/hccs-cross.json")), outBound(parsedConfig))
+        .will(returnValue(UBSE_OK));
+
+    UbseUrmaTopoConfig topoConfig;
+    EXPECT_EQ(LoadUrmaTopoConfig(UbseUrmaTopoMode::HCCS_CROSS, topoConfig), UBSE_OK);
+    EXPECT_EQ(topoConfig.version, "1.0");
+    EXPECT_EQ(topoConfig.linkType, "hccs-cross");
+}
 
 /*
  * 用例描述：解析合法的 URMA 拓扑配置文件。
