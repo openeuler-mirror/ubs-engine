@@ -591,6 +591,15 @@ static std::vector<uint16_t> CollectFaultRemoteNumaIds(const SimplifiedFaultReco
 MpResult ProcessSimplifiedFaultPids(const SimplifiedFaultRecordsInNode& records)
 {
     auto numaIds = CollectFaultRemoteNumaIds(records);
+    FaultNumaReservedGuard reservedGuard;
+    for (auto numaId : numaIds) {
+        if (!FaultNumaReservedLock::Instance().TryReserve(numaId)) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[OverCommit][FaultManagement] Fault source NUMA already reserved, numaId=" << numaId << ".";
+            return MEM_POOLING_ERROR;
+        }
+        reservedGuard.numaIds.push_back(numaId);
+    }
     FaultNumaLockGuard lockGuard;
     for (auto numaId : numaIds) {
         FaultNumaLock::Instance().AcquireExclusive(numaId);
