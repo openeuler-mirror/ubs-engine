@@ -49,9 +49,7 @@ ItCluster::ItCluster(const std::string& binaryPath, const std::string& baseWorkD
 
 ItCluster::~ItCluster()
 {
-    if (clusterStarted_) {
-        StopCluster();
-    }
+    StopCluster();
 }
 
 UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
@@ -87,16 +85,6 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
         std::filesystem::create_directories(workDir + "/run");
         std::filesystem::create_directories(workDir + "/log");
 
-        // Set per-node env vars in parent process before fork.
-        // Child process inherits these, LD_PRELOAD stubs read them.
-        // Business code never reads these env vars.
-        setenv("UBSE_IT_NODE_ID", cfg.nodeId.c_str(), 1);
-        setenv("UBSE_IT_NODE_IP", cfg.ip.c_str(), 1);
-        setenv("UBSE_IT_LOCAL_IP", cfg.ip.c_str(), 1);
-        // Cluster-wide env vars: comma-separated lists of all node IDs and IPs
-        setenv("UBSE_IT_CLUSTER_NODES", allNodeIds.c_str(), 1);
-        setenv("UBSE_IT_CLUSTER_IPS", allClusterIps.c_str(), 1);
-
         NodeProcessConfig procConfig;
         procConfig.binaryPath = binaryPath_;
         procConfig.nodeId = cfg.nodeId;
@@ -111,36 +99,25 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
         ret = proc->Start();
         if (ret != UBSE_OK) {
             IT_LOG_ERROR << "Failed to start node " << cfg.nodeId;
-            // Stop any already-started nodes
-            for (auto& [id, p] : nodes_) {
-                if (p->IsRunning()) {
-                    p->Stop();
-                }
-            }
-            nodes_.clear();
+            StopCluster();
             return ret;
         }
         nodes_[cfg.nodeId] = std::move(proc);
     }
 
     // Phase 2: Wait for all nodes to become ready (UDS socket) in parallel
-    std::vector<std::future<UbseResult>> waitResults;
+    std::vector<std::pair<std::string, std::future<UbseResult>>> waitResults;
     for (auto& [id, proc] : nodes_) {
         NodeProcessManager* procPtr = proc.get();
         auto future = std::async(std::launch::async, [procPtr]() { return procPtr->WaitForStartup(30000); });
-        waitResults.push_back(std::move(future));
+        waitResults.emplace_back(id, std::move(future));
     }
 
-    for (size_t i = 0; i < waitResults.size(); ++i) {
-        UbseResult waitRet = waitResults[i].get();
+    for (auto& [nodeId, future] : waitResults) {
+        UbseResult waitRet = future.get();
         if (waitRet != UBSE_OK) {
-            IT_LOG_ERROR << "Node " << nodeIds_[i] << " did not start up in time";
-            for (auto& [id, proc] : nodes_) {
-                if (proc->IsRunning()) {
-                    proc->Stop();
-                }
-            }
-            nodes_.clear();
+            IT_LOG_ERROR << "Node " << nodeId << " did not start up in time";
+            StopCluster();
             return waitRet;
         }
     }
@@ -166,6 +143,7 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
     ret = WaitForElectionConvergence(electionTimeoutMs);
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Election did not converge within " << electionTimeoutMs << "ms";
+        StopCluster();
         return ret;
     }
 
@@ -173,7 +151,9 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
     for (auto& [id, client] : sdkClients_) {
         UbseResult initRet = client->Initialize();
         if (initRet != UBSE_OK) {
-            IT_LOG_WARN << "Failed to initialize SDK client for node " << id;
+            IT_LOG_ERROR << "Failed to initialize SDK client for node " << id;
+            StopCluster();
+            return initRet;
         }
     }
 
@@ -182,10 +162,6 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
 
 UbseResult ItCluster::StopCluster()
 {
-    if (!clusterStarted_) {
-        return UBSE_OK;
-    }
-
     // Finalize all SDK clients first
     for (auto& [id, client] : sdkClients_) {
         if (client) {
@@ -203,7 +179,7 @@ UbseResult ItCluster::StopCluster()
 
     for (const auto& id : ids) {
         auto it = nodes_.find(id);
-        if (it != nodes_.end() && it->second->IsRunning()) {
+        if (it != nodes_.end()) {
             it->second->Stop();
         }
     }
@@ -262,22 +238,7 @@ UbseResult ItCluster::KillNode(const std::string& nodeId)
         return UBSE_ERROR_DEF(1);
     }
 
-    pid_t pid = it->second->GetPid();
-    if (pid <= 0) {
-        IT_LOG_WARN << "Node " << nodeId << " not running, cannot kill";
-        return UBSE_OK;
-    }
-
-    if (kill(pid, SIGKILL) != 0) {
-        IT_LOG_ERROR << "Failed to SIGKILL node " << nodeId << ": " << strerror(errno);
-        return UBSE_ERROR_DEF(2);
-    }
-
-    // Wait for process to terminate
-    int status = 0;
-    waitpid(pid, &status, 0);
-    IT_LOG_INFO << "Node " << nodeId << " killed (pid " << pid << ")";
-    return UBSE_OK;
+    return it->second->Kill();
 }
 
 UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElection, uint32_t electionTimeoutMs)
@@ -287,6 +248,7 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
         IT_LOG_ERROR << "Node not found: " << nodeId;
         return UBSE_ERROR_DEF(1);
     }
+    it->second->Stop();
 
     // Re-create the process manager for this node
     std::string workDir = baseWorkDir_ + "/" + nodeId;
@@ -339,6 +301,7 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
     ret = proc->WaitForStartup(10000);
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Node " << nodeId << " did not start up in time after restart";
+        proc->Stop();
         return ret;
     }
 

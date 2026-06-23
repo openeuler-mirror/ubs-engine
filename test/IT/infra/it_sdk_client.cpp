@@ -20,6 +20,8 @@
 
 namespace ubse::it::infra {
 
+std::mutex ItSdkClient::sdkMutex_;
+
 ItSdkClient::ItSdkClient(const std::string& udsPath, const std::string& logDir, const std::string& cliBinaryPath,
                          const std::string& nodeId, const std::vector<std::string>& clusterNodeIds)
     : udsPath_(udsPath),
@@ -42,6 +44,7 @@ ItSdkClient::~ItSdkClient()
 
 UbseResult ItSdkClient::Initialize()
 {
+    std::lock_guard<std::mutex> lock(sdkMutex_);
     if (initialized_) {
         IT_LOG_INFO << "SDK client already initialized for " << udsPath_;
         return UBSE_OK;
@@ -60,12 +63,26 @@ UbseResult ItSdkClient::Initialize()
 
 void ItSdkClient::Finalize()
 {
+    std::lock_guard<std::mutex> lock(sdkMutex_);
     if (!initialized_) {
         return;
     }
-    ubs_engine_client_finalize();
     initialized_ = false;
     IT_LOG_INFO << "SDK client finalized for " << udsPath_;
+}
+
+int32_t ItSdkClient::InvokeSdk(const std::function<int32_t()>& operation)
+{
+    std::lock_guard<std::mutex> lock(sdkMutex_);
+    if (!initialized_) {
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    int32_t ret = ubs_engine_client_initialize(udsPath_.c_str());
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+    return operation();
 }
 
 bool ItSdkClient::IsInitialized() const
@@ -153,142 +170,91 @@ int32_t ItSdkClient::GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>& 
 
 int32_t ItSdkClient::TopoNodeList(ubs_topo_node_t** nodeList, uint32_t* nodeCnt)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_topo_node_list(nodeList, nodeCnt);
+    return InvokeSdk([&]() { return ubs_topo_node_list(nodeList, nodeCnt); });
 }
 
 int32_t ItSdkClient::TopoNodeLocalGet(ubs_topo_node_t* node)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_topo_node_local_get(node);
+    return InvokeSdk([&]() { return ubs_topo_node_local_get(node); });
 }
 
 int32_t ItSdkClient::TopoLinkList(ubs_topo_link_t** cpuLinks, uint32_t* cpuLinkCnt)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_topo_link_list(cpuLinks, cpuLinkCnt);
+    return InvokeSdk([&]() { return ubs_topo_link_list(cpuLinks, cpuLinkCnt); });
 }
 
 int32_t ItSdkClient::MemFdCreate(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
                                  ubs_mem_distance_t distance, ubs_mem_fd_desc_t* fdDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_fd_create(name, size, owner, mode, distance, fdDesc);
+    return InvokeSdk([&]() { return ubs_mem_fd_create(name, size, owner, mode, distance, fdDesc); });
 }
 
 int32_t ItSdkClient::MemFdGet(const char* name, ubs_mem_fd_desc_t* fdDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_fd_get(name, fdDesc);
+    return InvokeSdk([&]() { return ubs_mem_fd_get(name, fdDesc); });
 }
 
 int32_t ItSdkClient::MemFdDelete(const char* name)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_fd_delete(name);
+    return InvokeSdk([&]() { return ubs_mem_fd_delete(name); });
 }
 
 int32_t ItSdkClient::MemFdList(ubs_mem_fd_desc_t** fdDescs, uint32_t* fdDescCnt)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_fd_list(fdDescs, fdDescCnt);
+    return InvokeSdk([&]() { return ubs_mem_fd_list(fdDescs, fdDescCnt); });
 }
 
 int32_t ItSdkClient::MemNumastatGet(uint32_t slotId, ubs_mem_numastat_t** numaMems, uint32_t* numaMemCnt)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_numastat_get(slotId, numaMems, numaMemCnt);
+    return InvokeSdk([&]() { return ubs_mem_numastat_get(slotId, numaMems, numaMemCnt); });
 }
 
 int32_t ItSdkClient::MemNumaCreate(const char* name, uint64_t size, ubs_mem_distance_t distance,
                                    ubs_mem_numa_desc_t* numaDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_numa_create(name, size, distance, numaDesc);
+    return InvokeSdk([&]() { return ubs_mem_numa_create(name, size, distance, numaDesc); });
 }
 
 int32_t ItSdkClient::MemNumaGet(const char* name, ubs_mem_numa_desc_t* numaDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_numa_get(name, numaDesc);
+    return InvokeSdk([&]() { return ubs_mem_numa_get(name, numaDesc); });
 }
 
 int32_t ItSdkClient::MemNumaDelete(const char* name)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_numa_delete(name);
+    return InvokeSdk([&]() { return ubs_mem_numa_delete(name); });
 }
 
 int32_t ItSdkClient::MemShmCreate(const char* name, uint64_t size, uint8_t usrInfo[32], uint64_t flag,
                                   const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_create(name, size, usrInfo, flag, region, provider);
+    return InvokeSdk([&]() { return ubs_mem_shm_create(name, size, usrInfo, flag, region, provider); });
 }
 
 int32_t ItSdkClient::MemShmAttach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
                                   ubs_mem_shm_desc_t** shmDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_attach(name, owner, mode, shmDesc);
+    return InvokeSdk([&]() { return ubs_mem_shm_attach(name, owner, mode, shmDesc); });
 }
 
 int32_t ItSdkClient::MemShmDetach(const char* name)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_detach(name);
+    return InvokeSdk([&]() { return ubs_mem_shm_detach(name); });
 }
 
 int32_t ItSdkClient::MemShmDelete(const char* name)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_delete(name);
+    return InvokeSdk([&]() { return ubs_mem_shm_delete(name); });
 }
 
 int32_t ItSdkClient::MemShmGet(const char* name, ubs_mem_shm_desc_t** shmDesc)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_get(name, shmDesc);
+    return InvokeSdk([&]() { return ubs_mem_shm_get(name, shmDesc); });
 }
 
 int32_t ItSdkClient::MemShmList(ubs_mem_shm_desc_t** shmDescs, uint32_t* shmDescCnt)
 {
-    if (!initialized_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    return ubs_mem_shm_list(shmDescs, shmDescCnt);
+    return InvokeSdk([&]() { return ubs_mem_shm_list(shmDescs, shmDescCnt); });
 }
 
 const std::string& ItSdkClient::GetUdsPath() const

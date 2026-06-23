@@ -446,11 +446,19 @@ MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId, cons
     RegisterHandlers();
 }
 
+MockLcneServer::~MockLcneServer()
+{
+    Stop();
+}
+
 UbseResult MockLcneServer::Start()
 {
     if (running_) {
         IT_LOG_INFO << "MockLcneServer already running on " << udsPath_;
         return UBSE_OK;
+    }
+    if (serverThread_.joinable()) {
+        serverThread_.join();
     }
 
     std::filesystem::create_directories(std::filesystem::path(udsPath_).parent_path());
@@ -473,8 +481,7 @@ UbseResult MockLcneServer::Start()
 
 UbseResult MockLcneServer::Stop()
 {
-    if (!running_) {
-        IT_LOG_INFO << "MockLcneServer not running";
+    if (!running_ && !serverThread_.joinable()) {
         return UBSE_OK;
     }
 

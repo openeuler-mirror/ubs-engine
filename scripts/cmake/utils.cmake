@@ -197,58 +197,16 @@ macro(add_it module)
             ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/*.h
     )
-    # Module source files compiled directly into IT binary (same as ubse binary)
-    # These provide vtables/typeinfo that static libraries don't export
-    set(IT_MODULE_SOURCES
-            ${SRC_DIR}/framework/security/ubse_security_module.cpp
-            ${SRC_DIR}/framework/com/ubse_com_module.cpp
-            ${SRC_DIR}/framework/storage/ubse_storage.cpp
-            ${SRC_DIR}/framework/event/ubse_event_module.cpp
-            ${SRC_DIR}/framework/log/ubse_logger_module.cpp
-            ${SRC_DIR}/framework/plugin_mgr/ubse_plugin_module.cpp
-            ${SRC_DIR}/framework/http/ubse_http_module.cpp
-            ${SRC_DIR}/controllers/node/ubse_node_controller_module.cpp
-            ${SRC_DIR}/controllers/mem/mem_controller/ubse_mem_controller_module.cpp
-            ${SRC_DIR}/controllers/mem/mem_controller/ubse_mem_controller.cpp
-            ${SRC_DIR}/controllers/urma/ubse_urma_controller_module.cpp
-            ${SRC_DIR}/controllers/urma/ubse_urma_controller.cpp
-            ${SRC_DIR}/controllers/npu/ubse_npu_controller_module.cpp
-            ${SRC_DIR}/framework/ha/ubse_election_module.cpp
-            ${SRC_DIR}/adapter_plugins/syssentry/sys_sentry_module.cpp
-            ${SRC_DIR}/ras/ubse_ras_module.cpp
-            ${SRC_DIR}/api_server/ubse_api_server_module.cpp
-            ${SRC_DIR}/adapter_plugins/urma_uvs/ubse_urma_uvs_module.cpp
-            ${SRC_DIR}/framework/security/ubse_security.cpp
-            ${SRC_DIR}/framework/log/ubse_logger.cpp
-            ${SRC_DIR}/framework/com/ubse_com.cpp
-            ${SRC_DIR}/framework/storage/ubse_storage.cpp
-            ${SRC_DIR}/framework/event/ubse_event.cpp
-            ${SRC_DIR}/framework/plugin_mgr/ubse_plugin.cpp
-            ${SRC_DIR}/framework/trace_context/trace_context.cpp
-            ${SRC_DIR}/api_server/ubse_api_server.cpp
+    add_executable(${IT_BINARY} EXCLUDE_FROM_ALL
+            ${TEST_SOURCES}
+            ${CMAKE_SOURCE_DIR}/test/IT/main.cpp
     )
-    add_executable(${IT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES} ${CMAKE_SOURCE_DIR}/test/IT/main.cpp ${IT_MODULE_SOURCES})
-    target_include_directories(${IT_BINARY} PRIVATE ${CMAKE_BINARY_DIR}/rpc)
-    target_link_libraries(${IT_BINARY} PUBLIC
-            GTest::gmock_main
+    target_link_libraries(${IT_BINARY} PRIVATE
+            GTest::gtest
             ubse_it_infra
     )
-    # Force inclusion of register_config symbols (same as ubse binary)
-    target_link_libraries(${IT_BINARY} PUBLIC
-            -Wl,--whole-archive
-            ubse_node_controller_register_config
-            -Wl,--no-whole-archive
-    )
     target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
-    # Don't use --as-needed for IT binaries; static lib dependency chain requires all symbols
-    set_target_properties(${IT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--no-as-needed")
-    add_dependencies(${IT_BINARY} ubse)
-    add_dependencies(${IT_BINARY} ubsectl)
-    add_dependencies(${IT_BINARY} ubse_it_daemon)
-    add_dependencies(${IT_BINARY} ubse_interface_preload)
-    add_dependencies(${IT_BINARY} obmm_stub)
-    add_dependencies(${IT_BINARY} urma_uvs_stub)
-    add_dependencies(${IT_BINARY} xalarm_stub)
+    add_dependencies(${IT_BINARY} ubse_it_runtime)
     set(RUN_TEST "${CMAKE_BINARY_DIR}/bin/${IT_BINARY} \
 		--gtest_output=xml:${CMAKE_BINARY_DIR}/coverage/it/${module}_detail.xml")
     set(TRANS_PARAMS $ENV{TRANS_PARAMS})
@@ -263,13 +221,6 @@ macro(add_it module)
             COMMENT "Run IT testing: ${RUN_TEST}"
     )
     add_dependencies(${module}_it ${IT_BINARY})
-    add_dependencies(${module}_it ubse)
-    add_dependencies(${module}_it ubsectl)
-    add_dependencies(${module}_it ubse_it_daemon)
-    add_dependencies(${module}_it ubse_interface_preload)
-    add_dependencies(${module}_it obmm_stub)
-    add_dependencies(${module}_it urma_uvs_stub)
-    add_dependencies(${module}_it xalarm_stub)
     set_property(GLOBAL APPEND PROPERTY UBSE_IT_TARGETS ${module}_it)
     set_property(GLOBAL APPEND PROPERTY UBSE_IT_BINARIES ${IT_BINARY})
     gtest_discover_tests(${IT_BINARY} PROPERTIES LABELS "it_${module}")

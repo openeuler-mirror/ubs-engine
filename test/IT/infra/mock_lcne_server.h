@@ -13,6 +13,7 @@
 #ifndef MOCK_LCNE_SERVER_H
 #define MOCK_LCNE_SERVER_H
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <thread>
@@ -29,6 +30,7 @@ class MockLcneServer {
 public:
     // UDS mode: listen on Unix domain socket at udsPath, with slotId for multi-node scenarios
     MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds = {});
+    ~MockLcneServer();
 
     UbseResult Start();
     UbseResult Stop();
@@ -59,7 +61,7 @@ private:
     uint32_t slotId_ = 1;
     std::vector<uint32_t> clusterSlotIds_;
     std::thread serverThread_;
-    bool running_;
+    std::atomic_bool running_;
 };
 
 } // namespace ubse::it::infra

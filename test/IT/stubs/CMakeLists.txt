@@ -35,6 +35,12 @@ set_target_properties(xalarm_stub PROPERTIES
 # because LD_PRELOAD cannot intercept static-linked symbols.
 add_library(ubse_interface_preload SHARED ubse_interface_preload.cpp)
 
+add_library(ubse_capability_it_stub STATIC capability_stub.cpp)
+target_include_directories(ubse_capability_it_stub PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/framework/security
+    ${PROJECT_SOURCE_DIR}/src/include
+)
+
 # SMBIOS mock stub - STATIC library force-included via --whole-archive into ubse_it_daemon
 # to override real ubse_smbios symbols at link time. No LD_PRELOAD needed.
 add_subdirectory(smbios)

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
@@ -41,9 +42,11 @@ struct NodeProcessConfig {
 class NodeProcessManager {
 public:
     explicit NodeProcessManager(NodeProcessConfig config);
+    ~NodeProcessManager();
 
     UbseResult Start();
     UbseResult Stop();
+    UbseResult Kill();
     bool IsRunning() const;
     pid_t GetPid() const;
     UbseResult WaitForStartup(uint32_t timeoutMs);
@@ -57,10 +60,12 @@ public:
     const std::string& GetUdsSocketPath() const;
 
 private:
-    void SetupChildNamespace(bool isPrivileged);
-    void CreateSymlinkFallback();
+    UbseResult StopProcess(int signal);
+    void StopAuxiliaryServices();
     void CleanupSymlinks();
+    std::vector<std::string> BuildChildEnvironment() const;
     std::string binaryPath_;
+    std::string launcherPath_;
     std::string nodeId_;
     std::string nodeIp_;
     std::string workDir_;
@@ -69,13 +74,11 @@ private:
     std::string clusterIps_;
     std::vector<uint32_t> clusterSlotIds_;
     std::string stubLibDir_;
-    pid_t childPid_;
+    mutable pid_t childPid_;
     std::string udsSocketPath_;
     std::unique_ptr<MockLcneServer> mockLcneServer_;
     std::string lcneUdsWorkPath_;
     bool isPrivileged_{false};
-    bool symlinkCreatedRun_{false};
-    bool symlinkCreatedLog_{false};
 };
 
 } // namespace ubse::it::infra

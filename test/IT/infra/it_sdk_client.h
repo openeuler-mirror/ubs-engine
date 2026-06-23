@@ -13,8 +13,11 @@
 #ifndef IT_SDK_CLIENT_H
 #define IT_SDK_CLIENT_H
 
+#include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -86,7 +89,9 @@ public:
     const std::string& GetLogDir() const;
 
 private:
+    int32_t InvokeSdk(const std::function<int32_t()>& operation);
     static std::string ExtractNodeIdFromNodeColumn(const std::string& nodeName);
+    static std::mutex sdkMutex_;
 
     std::string udsPath_;
     std::string logDir_;
@@ -94,7 +99,7 @@ private:
     std::string nodeId_;
     std::vector<std::string> clusterNodeIds_;
     std::unique_ptr<ItCliInvoker> cliInvoker_;
-    bool initialized_{false};
+    std::atomic_bool initialized_{false};
 };
 
 } // namespace ubse::it::infra

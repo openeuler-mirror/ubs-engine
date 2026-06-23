@@ -19,8 +19,6 @@
  * in ubse_it_daemon.
  *
  * Current overrides:
- *   syscall(SYS_capget)  -> write all-permitted caps to output buffer, return 0
- *   syscall(SYS_capset)  -> return 0 (accept without actually setting)
  *   getgrnam("ubm_nuds") -> return fake group (bypass group lookup)
  *   getpwuid/getpwuid_r  -> return fake "ubse" user for IT peer permission checks
  *   connect(2) to election TCP peers -> bind source to this IT node IP first
@@ -28,10 +26,6 @@
  *   /var/run/ubse access -> redirect to this IT node runtime directory
  *   /etc/ubse access -> redirect to this IT node config directory
  *     (opendir, lstat, stat, fopen, realpath, access)
- *
- * capget MUST write valid data to the output buffer. Without it,
- * ModifyEffectiveCapabilities reads uninitialized stack data for the
- * "permitted" check, causing random UBSE_ERROR_INVAL failures.
  */
 
 #include <arpa/inet.h>
@@ -40,16 +34,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
-#include <linux/capability.h>
 #include <netinet/in.h>
 #include <pwd.h>
-#include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <string>
@@ -481,95 +472,6 @@ extern "C" int access(const char* pathname, int mode)
     std::string confRedirected = RedirectUbseConfPath(pathname);
     std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
     return real_access(finalRedirected.c_str(), mode);
-}
-
-// ============================================================
-// syscall stub: bypass capability checks
-// ============================================================
-
-static long (*real_syscall)(long, ...) = nullptr;
-
-static void init_real_syscall()
-{
-    if (real_syscall == nullptr) {
-        real_syscall = reinterpret_cast<long (*)(long, ...)>(dlsym(RTLD_NEXT, "syscall"));
-    }
-}
-
-// capget fills output with all capabilities permitted/effective so
-// ModifyEffectiveCapabilities' "permitted" check always passes.
-static void FillAllPermittedCaps(__user_cap_data_struct* capData)
-{
-    // V3 capability format: 2 x 32-bit segments covering caps 0-63.
-    // Set all bits in permitted and effective so every cap check succeeds.
-    // Inheritable left at 0 (matches real non-root behavior).
-    capData[0].permitted = 0xFFFFFFFF;
-    capData[0].effective = 0xFFFFFFFF;
-    capData[0].inheritable = 0;
-    capData[1].permitted = 0xFFFFFFFF;
-    capData[1].effective = 0xFFFFFFFF;
-    capData[1].inheritable = 0;
-}
-
-extern "C" long syscall(long number, ...)
-{
-    if (number == SYS_capget) {
-        va_list args;
-        va_start(args, number);
-        __user_cap_header_struct* hdr = va_arg(args, __user_cap_header_struct*);
-        __user_cap_data_struct* data = va_arg(args, __user_cap_data_struct*);
-        va_end(args);
-        if (hdr != nullptr) {
-            hdr->version = _LINUX_CAPABILITY_VERSION_3;
-            hdr->pid = 0;
-        }
-        if (data != nullptr) {
-            FillAllPermittedCaps(data);
-        }
-        return 0;
-    }
-    if (number == SYS_capset) {
-        return 0;
-    }
-    init_real_syscall();
-    if (real_syscall == nullptr) {
-        return -1;
-    }
-    va_list args;
-    va_start(args, number);
-    long arg1 = va_arg(args, long);
-    long arg2 = va_arg(args, long);
-    long arg3 = va_arg(args, long);
-    long arg4 = va_arg(args, long);
-    long arg5 = va_arg(args, long);
-    long arg6 = va_arg(args, long);
-    va_end(args);
-    if (number == SYS_connect) {
-        BindElectionTcpSourceIfNeeded(static_cast<int>(arg1), reinterpret_cast<const sockaddr*>(arg2),
-                                      static_cast<socklen_t>(arg3));
-        sockaddr_un redirected{};
-        socklen_t redirectedLen = 0;
-        if (BuildRedirectedLcneUdsAddr(reinterpret_cast<const sockaddr*>(arg2), static_cast<socklen_t>(arg3),
-                                       redirected, redirectedLen)) {
-            return real_syscall(number, arg1, reinterpret_cast<long>(&redirected), static_cast<long>(redirectedLen),
-                                arg4, arg5, arg6);
-        }
-        if (BuildRedirectedUbseUdsAddr(reinterpret_cast<const sockaddr*>(arg2), static_cast<socklen_t>(arg3),
-                                       redirected, redirectedLen)) {
-            return real_syscall(number, arg1, reinterpret_cast<long>(&redirected), static_cast<long>(redirectedLen),
-                                arg4, arg5, arg6);
-        }
-    }
-    if (number == SYS_bind) {
-        sockaddr_un redirected{};
-        socklen_t redirectedLen = 0;
-        if (BuildRedirectedUbseUdsAddr(reinterpret_cast<const sockaddr*>(arg2), static_cast<socklen_t>(arg3),
-                                       redirected, redirectedLen)) {
-            return real_syscall(number, arg1, reinterpret_cast<long>(&redirected), static_cast<long>(redirectedLen),
-                                arg4, arg5, arg6);
-        }
-    }
-    return real_syscall(number, arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 // ============================================================

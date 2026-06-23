@@ -1,4 +1,20 @@
-set(SRC_DIR ${PROJECT_SOURCE_DIR}/src)
+if(NOT TARGET ubse)
+    message(FATAL_ERROR "IT framework requires the production ubse target")
+endif()
+
+get_target_property(UBSE_DAEMON_SOURCE_DIR ubse SOURCE_DIR)
+get_target_property(UBSE_DAEMON_TARGET_SOURCES ubse SOURCES)
+if(NOT UBSE_DAEMON_TARGET_SOURCES)
+    message(FATAL_ERROR "Unable to derive IT daemon sources from the ubse target")
+endif()
+set(IT_DAEMON_SOURCES)
+foreach(source IN LISTS UBSE_DAEMON_TARGET_SOURCES)
+    if(IS_ABSOLUTE "${source}")
+        list(APPEND IT_DAEMON_SOURCES "${source}")
+    else()
+        list(APPEND IT_DAEMON_SOURCES "${UBSE_DAEMON_SOURCE_DIR}/${source}")
+    endif()
+endforeach()
 
 # IT test infrastructure library
 set(IT_INFRA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/infra)
@@ -13,46 +29,21 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/mock_lcne_server.cpp
 )
 
+add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
+    ${IT_INFRA_DIR}/node_launcher.cpp
+)
+target_compile_options(ubse_it_node_launcher PRIVATE ${DEBUG_FLAGS})
+
 target_include_directories(ubse_it_infra PUBLIC
     ${IT_INFRA_DIR}
     ${CMAKE_BINARY_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src/sdk/c/include
     ${PROJECT_SOURCE_DIR}/src/include
-    ${PROJECT_SOURCE_DIR}/src/framework/ipc/include
     ${PROJECT_SOURCE_DIR}/src/framework/ha
-    ${PROJECT_SOURCE_DIR}/src/controllers/include
-    ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mmi
-    ${PROJECT_SOURCE_DIR}/src/adapter_plugins/syssentry
-    ${PROJECT_SOURCE_DIR}/src/adapter_plugins/urma_uvs
 )
 
 target_link_libraries(ubse_it_infra PUBLIC
-    GTest::gmock_main
-    ubse_ipc_client
     ubse_sdk_static
-    # Same dependency chain as the ubse main binary (src/CMakeLists.txt)
-    ubse_security
-    ubse_context
-    ubse_config
-    ubse_com
-    ubse_event
-    ubse_storage
-    ubse_log
-    ubse_plugin
-    ubse_http
-    ubse_election
-    ubse_mti
-    ubse_node_controller
-    ubse_ras
-    syssentry
-    cert_api_static
-    api_server
-    rapidjson
-    trace_context
-    ubse_urma_uvs
-    ubse_urma_controller
-    npu_controller
-    ubse_controller
+    cpp-httplib
 )
 
 target_compile_options(ubse_it_infra PRIVATE ${DEBUG_FLAGS})
@@ -67,9 +58,6 @@ configure_file(
 # Build stub libraries
 add_subdirectory(stubs)
 
-# Smoke test subdirectory
-add_subdirectory(smoke)
-
 # =====================================================
 # IT daemon binary with mock SMBIOS
 # Same source files as ubse, but links ubse_smbios_mock via --whole-archive
@@ -78,33 +66,7 @@ add_subdirectory(smoke)
 # =====================================================
 
 add_executable(ubse_it_daemon EXCLUDE_FROM_ALL
-    ${SRC_DIR}/ubse_main.cpp
-        ${SRC_DIR}/framework/security/ubse_security_module.cpp
-        ${SRC_DIR}/framework/com/ubse_com_module.cpp
-        ${SRC_DIR}/framework/storage/ubse_storage.cpp
-        ${SRC_DIR}/framework/event/ubse_event_module.cpp
-        ${SRC_DIR}/framework/log/ubse_logger_module.cpp
-        ${SRC_DIR}/framework/plugin_mgr/ubse_plugin_module.cpp
-        ${SRC_DIR}/framework/http/ubse_http_module.cpp
-        ${SRC_DIR}/controllers/node/ubse_node_controller_module.cpp
-        ${SRC_DIR}/controllers/mem/mem_controller/ubse_mem_controller_module.cpp
-        ${SRC_DIR}/controllers/mem/mem_controller/ubse_mem_controller.cpp
-        ${SRC_DIR}/controllers/urma/ubse_urma_controller_module.cpp
-        ${SRC_DIR}/controllers/urma/ubse_urma_controller.cpp
-        ${SRC_DIR}/controllers/npu/ubse_npu_controller_module.cpp
-        ${SRC_DIR}/framework/ha/ubse_election_module.cpp
-        ${SRC_DIR}/adapter_plugins/syssentry/sys_sentry_module.cpp
-        ${SRC_DIR}/ras/ubse_ras_module.cpp
-        ${SRC_DIR}/api_server/ubse_api_server_module.cpp
-        ${SRC_DIR}/adapter_plugins/urma_uvs/ubse_urma_uvs_module.cpp
-        ${SRC_DIR}/framework/security/ubse_security.cpp
-        ${SRC_DIR}/framework/log/ubse_logger.cpp
-        ${SRC_DIR}/framework/com/ubse_com.cpp
-        ${SRC_DIR}/framework/storage/ubse_storage.cpp
-        ${SRC_DIR}/framework/event/ubse_event.cpp
-        ${SRC_DIR}/framework/plugin_mgr/ubse_plugin.cpp
-        ${SRC_DIR}/framework/trace_context/trace_context.cpp
-        ${SRC_DIR}/api_server/ubse_api_server.cpp
+    ${IT_DAEMON_SOURCES}
 )
 
 # mock SMBIOS must appear first in link order so its symbols override real ones
@@ -114,6 +76,7 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_mti_mock
         ubse_node_controller_it_mock
         ubse_com_engine_it_mock
+        ubse_capability_it_stub
         -Wl,--no-whole-archive
         ubse_security
         ubse_context
@@ -151,11 +114,21 @@ target_link_options(ubse_it_daemon PRIVATE
 
 target_compile_options(ubse_it_daemon PRIVATE ${DEBUG_FLAGS})
 target_include_directories(ubse_it_daemon PRIVATE ${CMAKE_BINARY_DIR}/rpc)
+add_dependencies(ubse_it_daemon ubse_it_node_launcher)
 
-# Election test subdirectory
+add_custom_target(ubse_it_runtime)
+add_dependencies(ubse_it_runtime
+    ubsectl
+    ubse_it_daemon
+    ubse_it_node_launcher
+    ubse_interface_preload
+    obmm_stub
+    urma_uvs_stub
+    xalarm_stub
+)
+
+add_subdirectory(smoke)
 add_subdirectory(election)
-
-# NUMA borrow test subdirectory
 add_subdirectory(numa_borrow)
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)

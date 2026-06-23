@@ -12,9 +12,8 @@
 
 #include "node_process_manager.h"
 
-#include <sched.h>
 #include <signal.h>
-#include <sys/mount.h>
+#include <spawn.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -24,15 +23,19 @@
 #include <filesystem>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "it_console_log.h"
 
+extern char** environ;
+
 namespace ubse::it::infra {
 
 NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
     : binaryPath_(std::move(config.binaryPath)),
+      launcherPath_((std::filesystem::path(binaryPath_).parent_path() / "ubse_it_node_launcher").string()),
       nodeId_(std::move(config.nodeId)),
       nodeIp_(std::move(config.nodeIp)),
       workDir_(std::move(config.workDir)),
@@ -46,6 +49,43 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
 {
 }
 
+NodeProcessManager::~NodeProcessManager()
+{
+    Stop();
+}
+
+std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
+{
+    std::vector<std::string> environment;
+    for (char** entry = environ; entry != nullptr && *entry != nullptr; ++entry) {
+        std::string value(*entry);
+        if (value.rfind("LD_LIBRARY_PATH=", 0) == 0 || value.rfind("LD_PRELOAD=", 0) == 0 ||
+            value.rfind("UBSE_IT_", 0) == 0 || value.rfind("UBSE_UDS_ADDRESS=", 0) == 0 ||
+            value.rfind(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX + "=", 0) == 0) {
+            continue;
+        }
+        environment.push_back(std::move(value));
+    }
+
+    environment.emplace_back("UBSE_IT_NODE_ID=" + nodeId_);
+    environment.emplace_back("UBSE_IT_NODE_IP=" + nodeIp_);
+    environment.emplace_back("UBSE_IT_LOCAL_IP=" + nodeIp_);
+    environment.emplace_back("UBSE_IT_CONF_DIR=" + workDir_);
+    environment.emplace_back("UBSE_IT_SLOT_ID=" + std::to_string(slotId_));
+    environment.emplace_back("UBSE_IT_CLUSTER_NODES=" + clusterNodeIds_);
+    environment.emplace_back("UBSE_IT_CLUSTER_IPS=" + clusterIps_);
+    environment.emplace_back("UBSE_IT_UDS_SOCKET_PATH=" + udsSocketPath_);
+    environment.emplace_back("UBSE_UDS_ADDRESS=" + udsSocketPath_);
+    environment.emplace_back("UBSE_IT_LCNE_UDS_PATH=" + lcneUdsWorkPath_);
+    environment.emplace_back("UBSE_IT_LOG_PATH=" + workDir_ + "/log");
+    environment.emplace_back(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX + "=" + workDir_ + "/hcom");
+    environment.emplace_back("UBSE_IT_MESH_TYPE=1");
+    environment.emplace_back("UBSE_IT_POD_ID=1");
+    environment.emplace_back("UBSE_IT_SUPER_POD_ID=1");
+    environment.emplace_back("UBSE_IT_SERVER_IDX=0");
+    return environment;
+}
+
 UbseResult NodeProcessManager::Start()
 {
     if (IsRunning()) {
@@ -56,6 +96,7 @@ UbseResult NodeProcessManager::Start()
     std::filesystem::create_directories(workDir_);
     std::filesystem::create_directories(workDir_ + "/run");
     std::filesystem::create_directories(workDir_ + "/log");
+    std::filesystem::create_directories(workDir_ + "/hcom");
 
     isPrivileged_ = (geteuid() == 0);
 
@@ -72,62 +113,29 @@ UbseResult NodeProcessManager::Start()
         return UBSE_ERROR_DEF(8);
     }
 
-    if (!isPrivileged_ && stubLibDir_.empty()) {
-        CreateSymlinkFallback();
+    if (!std::filesystem::exists(launcherPath_)) {
+        IT_LOG_ERROR << "IT node launcher not found: " << launcherPath_;
+        StopAuxiliaryServices();
+        return UBSE_ERROR_DEF(9);
     }
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        IT_LOG_ERROR << "Failed to fork for node " << nodeId_ << ": " << strerror(errno);
+    std::vector<std::string> environment = BuildChildEnvironment();
+    std::vector<char*> envp;
+    envp.reserve(environment.size() + 1);
+    for (auto& entry : environment) {
+        envp.push_back(entry.data());
+    }
+    envp.push_back(nullptr);
+
+    std::string privileged = isPrivileged_ ? "1" : "0";
+    std::vector<char*> argv = {launcherPath_.data(), binaryPath_.data(), workDir_.data(),
+                               privileged.data(),    stubLibDir_.data(), nullptr};
+    pid_t pid = -1;
+    int spawnRet = posix_spawn(&pid, launcherPath_.c_str(), nullptr, nullptr, argv.data(), envp.data());
+    if (spawnRet != 0) {
+        IT_LOG_ERROR << "Failed to spawn node " << nodeId_ << ": " << strerror(spawnRet);
+        StopAuxiliaryServices();
         return UBSE_ERROR_DEF(1);
-    }
-
-    if (pid == 0) {
-        SetupChildNamespace(isPrivileged_);
-
-        if (!stubLibDir_.empty()) {
-            setenv("LD_LIBRARY_PATH", stubLibDir_.c_str(), 1);
-            std::string preloadPath = stubLibDir_ + "/libubse_interface_preload.so";
-            setenv("LD_PRELOAD", preloadPath.c_str(), 1);
-        }
-
-        setenv("UBSE_IT_NODE_ID", nodeId_.c_str(), 1);
-        setenv("UBSE_IT_NODE_IP", nodeIp_.c_str(), 1);
-        setenv("UBSE_IT_LOCAL_IP", nodeIp_.c_str(), 1);
-        setenv("UBSE_IT_CONF_DIR", workDir_.c_str(), 1);
-        std::string slotId = std::to_string(slotId_);
-        setenv("UBSE_IT_SLOT_ID", slotId.c_str(), 1);
-        if (!clusterNodeIds_.empty()) {
-            setenv("UBSE_IT_CLUSTER_NODES", clusterNodeIds_.c_str(), 1);
-        }
-        if (!clusterIps_.empty()) {
-            setenv("UBSE_IT_CLUSTER_IPS", clusterIps_.c_str(), 1);
-        }
-        setenv("UBSE_IT_UDS_SOCKET_PATH", udsSocketPath_.c_str(), 1);
-        setenv("UBSE_UDS_ADDRESS", udsSocketPath_.c_str(), 1);
-        if (!lcneUdsWorkPath_.empty()) {
-            setenv("UBSE_IT_LCNE_UDS_PATH", lcneUdsWorkPath_.c_str(), 1);
-        }
-        std::string logPath = workDir_ + "/log";
-        setenv("UBSE_IT_LOG_PATH", logPath.c_str(), 1);
-        std::string hcomPath = workDir_ + "/hcom";
-        std::filesystem::create_directories(hcomPath);
-        setenv(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX.c_str(), hcomPath.c_str(), 1);
-
-        // SMBIOS mock environment variables (used by ubse_it_daemon's mock SMBIOS stub)
-        setenv("UBSE_IT_MESH_TYPE", "1", 1); // "1"=FULL_MESH, "8"=CLOS
-        setenv("UBSE_IT_POD_ID", "1", 1);
-        setenv("UBSE_IT_SUPER_POD_ID", "1", 1);
-        setenv("UBSE_IT_SERVER_IDX", "0", 1);
-
-        if (chdir(workDir_.c_str()) != 0) {
-            IT_LOG_ERROR << "Failed to chdir to " << workDir_ << ": " << strerror(errno);
-            _exit(1);
-        }
-
-        execl(binaryPath_.c_str(), binaryPath_.c_str(), static_cast<char*>(nullptr));
-        IT_LOG_ERROR << "Failed to exec " << binaryPath_ << ": " << strerror(errno);
-        _exit(1);
     }
 
     childPid_ = pid;
@@ -135,85 +143,52 @@ UbseResult NodeProcessManager::Start()
     return UBSE_OK;
 }
 
-void NodeProcessManager::SetupChildNamespace(bool isPrivileged)
+void NodeProcessManager::StopAuxiliaryServices()
 {
-    if (!isPrivileged) {
-        return;
+    if (mockLcneServer_) {
+        mockLcneServer_->Stop();
+        mockLcneServer_.reset();
     }
-
-    if (unshare(CLONE_NEWNS) != 0) {
-        IT_LOG_WARN << "unshare(CLONE_NEWNS) failed (errno=" << errno << "), proceeding without mount isolation";
-        return;
-    }
-
-    mount("none", "/", nullptr, MS_PRIVATE | MS_REC, nullptr);
-
-    std::string runDir = workDir_ + "/run";
-    if (!std::filesystem::exists("/var/run/ubse")) {
-        std::filesystem::create_directories("/var/run/ubse");
-    }
-    if (mount(runDir.c_str(), "/var/run/ubse", "none", MS_BIND, nullptr) != 0) {
-        IT_LOG_WARN << "bind mount /var/run/ubse failed (errno=" << errno << ")";
-    }
-
-    std::string logDir = workDir_ + "/log";
-    if (!std::filesystem::exists("/var/log/ubse")) {
-        std::filesystem::create_directories("/var/log/ubse");
-    }
-    if (mount(logDir.c_str(), "/var/log/ubse", "none", MS_BIND, nullptr) != 0) {
-        IT_LOG_WARN << "bind mount /var/log/ubse failed (errno=" << errno << ")";
-    }
-
-    std::string lcneUdsWorkParentDir = workDir_ + "/run/ubm/socket/ubm_nuds";
-    if (!std::filesystem::exists("/run/ubm/socket/ubm_nuds")) {
-        std::filesystem::create_directories("/run/ubm/socket/ubm_nuds");
-    }
-    if (mount(lcneUdsWorkParentDir.c_str(), "/run/ubm/socket/ubm_nuds", "none", MS_BIND, nullptr) != 0) {
-        IT_LOG_WARN << "bind mount /run/ubm/socket/ubm_nuds failed (errno=" << errno << ")";
-    }
-}
-
-void NodeProcessManager::CreateSymlinkFallback()
-{
-    std::string ubseRunDir = workDir_ + "/run";
-    try {
-        if (!std::filesystem::exists("/var/run/ubse")) {
-            std::filesystem::create_symlink(ubseRunDir, "/var/run/ubse");
-            symlinkCreatedRun_ = true;
-        } else if (std::filesystem::is_directory("/var/run/ubse")) {
-            IT_LOG_WARN << "/var/run/ubse already exists as directory, "
-                        << "daemon will use this path directly";
-        }
-    } catch (const std::filesystem::filesystem_error& e) {
-        IT_LOG_WARN << "Cannot create symlink /var/run/ubse -> " << ubseRunDir << ": " << e.what()
-                    << " (non-root, /var/run not writable)";
-    }
-    std::string ubseLogDir = workDir_ + "/log";
-    try {
-        if (!std::filesystem::exists("/var/log/ubse")) {
-            std::filesystem::create_symlink(ubseLogDir, "/var/log/ubse");
-            symlinkCreatedLog_ = true;
-        } else if (std::filesystem::is_directory("/var/log/ubse")) {
-            IT_LOG_WARN << "/var/log/ubse already exists as directory, "
-                        << "daemon will use this path directly";
-        }
-    } catch (const std::filesystem::filesystem_error& e) {
-        IT_LOG_WARN << "Cannot create symlink /var/log/ubse -> " << ubseLogDir << ": " << e.what()
-                    << " (non-root, /var/log not writable)";
-    }
+    CleanupSymlinks();
 }
 
 UbseResult NodeProcessManager::Stop()
 {
-    if (!IsRunning()) {
-        IT_LOG_INFO << "Node " << nodeId_ << " not running";
-        CleanupSymlinks();
+    if (childPid_ <= 0 && !mockLcneServer_) {
         return UBSE_OK;
     }
+    if (!IsRunning()) {
+        IT_LOG_INFO << "Node " << nodeId_ << " not running";
+        childPid_ = -1;
+        StopAuxiliaryServices();
+        return UBSE_OK;
+    }
+    return StopProcess(SIGTERM);
+}
 
-    if (kill(childPid_, SIGTERM) != 0) {
-        IT_LOG_ERROR << "Failed to send SIGTERM to node " << nodeId_ << ": " << strerror(errno);
+UbseResult NodeProcessManager::Kill()
+{
+    if (!IsRunning()) {
+        childPid_ = -1;
+        StopAuxiliaryServices();
+        return UBSE_OK;
+    }
+    return StopProcess(SIGKILL);
+}
+
+UbseResult NodeProcessManager::StopProcess(int signal)
+{
+    if (kill(childPid_, signal) != 0 && errno != ESRCH) {
+        IT_LOG_ERROR << "Failed to send signal " << signal << " to node " << nodeId_ << ": " << strerror(errno);
         return UBSE_ERROR_DEF(2);
+    }
+
+    if (signal == SIGKILL) {
+        int status = 0;
+        (void)waitpid(childPid_, &status, 0);
+        childPid_ = -1;
+        StopAuxiliaryServices();
+        return UBSE_OK;
     }
 
     constexpr uint32_t waitTimeoutMs = 5000;
@@ -225,15 +200,13 @@ UbseResult NodeProcessManager::Stop()
         if (ret == childPid_) {
             IT_LOG_INFO << "Node " << nodeId_ << " terminated gracefully";
             childPid_ = -1;
-            if (mockLcneServer_) {
-                mockLcneServer_->Stop();
-            }
-            CleanupSymlinks();
+            StopAuxiliaryServices();
             return UBSE_OK;
         }
         if (ret < 0) {
             IT_LOG_ERROR << "waitpid error for node " << nodeId_ << ": " << strerror(errno);
             childPid_ = -1;
+            StopAuxiliaryServices();
             return UBSE_ERROR_DEF(3);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
@@ -241,7 +214,7 @@ UbseResult NodeProcessManager::Stop()
     }
 
     IT_LOG_INFO << "Node " << nodeId_ << " did not terminate, sending SIGKILL";
-    if (kill(childPid_, SIGKILL) != 0) {
+    if (kill(childPid_, SIGKILL) != 0 && errno != ESRCH) {
         IT_LOG_ERROR << "Failed to send SIGKILL to node " << nodeId_ << ": " << strerror(errno);
         return UBSE_ERROR_DEF(4);
     }
@@ -251,10 +224,7 @@ UbseResult NodeProcessManager::Stop()
     if (ret == childPid_) {
         IT_LOG_INFO << "Node " << nodeId_ << " killed";
         childPid_ = -1;
-        if (mockLcneServer_) {
-            mockLcneServer_->Stop();
-        }
-        CleanupSymlinks();
+        StopAuxiliaryServices();
         return UBSE_OK;
     }
 
@@ -264,15 +234,7 @@ UbseResult NodeProcessManager::Stop()
 
 void NodeProcessManager::CleanupSymlinks()
 {
-    if (symlinkCreatedRun_) {
-        std::filesystem::remove("/var/run/ubse");
-        symlinkCreatedRun_ = false;
-    }
-    if (symlinkCreatedLog_) {
-        std::filesystem::remove("/var/log/ubse");
-        symlinkCreatedLog_ = false;
-    }
-    if (!lcneUdsWorkPath_.empty() && lcneUdsWorkPath_.find("/run/ubm") != std::string::npos) {
+    if (!lcneUdsWorkPath_.empty()) {
         unlink(lcneUdsWorkPath_.c_str());
     }
 }
@@ -284,6 +246,10 @@ bool NodeProcessManager::IsRunning() const
     }
     int status = 0;
     pid_t ret = waitpid(childPid_, &status, WNOHANG);
+    if (ret == childPid_ || (ret < 0 && errno == ECHILD)) {
+        childPid_ = -1;
+        return false;
+    }
     return ret == 0;
 }
 
@@ -295,18 +261,12 @@ pid_t NodeProcessManager::GetPid() const
 UbseResult NodeProcessManager::WaitForStartup(uint32_t timeoutMs)
 {
     constexpr uint32_t pollIntervalMs = 100;
-    std::string fallbackSocketPath = "/var/run/ubse/ubse.sock";
     uint32_t elapsed = 0;
     while (elapsed < timeoutMs) {
         struct stat st {
         };
         if (stat(udsSocketPath_.c_str(), &st) == 0) {
             IT_LOG_INFO << "Node " << nodeId_ << " UDS socket ready at " << udsSocketPath_;
-            return UBSE_OK;
-        }
-        if (stat(fallbackSocketPath.c_str(), &st) == 0) {
-            IT_LOG_INFO << "Node " << nodeId_ << " UDS socket ready at fallback " << fallbackSocketPath;
-            udsSocketPath_ = fallbackSocketPath;
             return UBSE_OK;
         }
         if (!IsRunning()) {
