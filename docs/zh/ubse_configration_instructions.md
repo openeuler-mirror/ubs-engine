@@ -195,14 +195,14 @@ roleA = objectA,objectB
 
 **表 1**  ubse\_auth\_default.conf配置说明 <a id="table8"></a>
 
-|序号|所属配置节|参数|说明|取值|配置节点|应用场景|
-|--|--|--|--|--|--|--|
-|1|[auth.user.default]|ubsmd|ubsmd用户|默认值：default_ubsm|所有节点|通算大数据场景|
-|2|ubs-scheduler|openstack插件用户|默认值：default_op|所有节点|通算虚拟化场景|
-|3|matrixplugin|k8s插件用户|默认值：default_k8s|所有节点|通算虚拟化场景|
-|4|[auth.role.default]|default_ubsm|ubsm场景角色|默认值：mem.fd,mem.numa,mem.shm,mem.stat,topo|所有节点|通算大数据场景|
-|5|default_op|openstack场景角色|默认值：topo|所有节点|通算虚拟化场景|
-|6|default_k8s|k8s场景角色|默认值：mem.numa,topo|所有节点|通算虚拟化场景|
+|序号|所属配置节|参数|说明|取值| 配置节点              |应用场景|
+|--|--|--|--|--|-------------------|--|
+|1|[auth.user.default]|ubsmd|ubsmd用户|默认值：default_ubsm| 所有节点              |通算大数据场景|
+|2|ubs-scheduler|openstack插件用户|默认值：default_op|所有节点| 通算虚拟化场景           |
+|3|matrixplugin|k8s插件用户|默认值：default_k8s|所有节点| 通算虚拟化场景           |
+|4|[auth.role.default]|default_ubsm|ubsm场景角色|默认值：mem.fd,mem.numa,mem.shm,mem.stat,topo| 所有节点              |通算大数据场景|
+|5|default_op|openstack场景角色|默认值：topo,npu|所有节点| 通算虚拟化场景及智算NPU直通虚机 |
+|6|default_k8s|k8s场景角色|默认值：mem.numa,topo|所有节点| 通算虚拟化场景           |
 
 **默认配置**
 
@@ -215,9 +215,21 @@ matrixplugin = default_k8s
 [auth.role.default]
 # Section for default role-to-permission mappings.
 default_ubsm = mem.fd,mem.numa,mem.shm,mem.stat,topo
-default_op = topo
+default_op = topo,npu
 default_k8s = mem.numa,topo
 ```
+
+**权限点说明**
+
+|权限点|关联接口|说明|适用场景|
+|--|--|--|--|
+|mem.fd|ubs\_mem\_fd\_create等|fd形态远端内存借用|通算大数据场景|
+|mem.numa|ubs\_mem\_numa\_create等|numa形态远端内存借用|通算大数据/虚拟化场景|
+|mem.shm|ubs\_mem\_shm\_create等|共享形态远端内存借用|通算大数据场景|
+|mem.stat|ubs\_mem\_numastat\_get|内存统计查询|通算大数据场景|
+|topo|ubs\_topo\_node\_list等|拓扑信息查询|所有场景|
+|urma|ubs\_urma\_dev\_get等|URMA设备管理|URMA通信场景|
+|npu|ubs\_npu\_device\_list\_query, ubs\_npu\_device\_alloc, ubs\_npu\_device\_free, ubs\_npu\_device\_list\_free, ubs\_uba\_tid\_size\_query|NPU设备查询/使能/去使能，允许调用NPU查询接口获取设备拓扑信息，以及NPU使能/去使能接口分配和释放UB设备资源|NPU直通虚机场景，openstack插件需查询NPU设备拓扑并按虚机需求分配/释放NPU资源|
 
 ## 场景化插件配置
 

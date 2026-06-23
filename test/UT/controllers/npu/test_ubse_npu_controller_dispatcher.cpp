@@ -53,7 +53,7 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryLocalUbDevices_ApiServerModuleNull)
     UbseRequestContext context{};
     TransRespMsg respMsg{nullptr, 0};
     MOCKER(QueryDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>)
         .stubs()
         .will(returnValue(std::shared_ptr<UbseApiServerModule>()));
     EXPECT_EQ(QueryLocalUbDevices(req, context), UBSE_ERROR_NULLPTR);
@@ -66,8 +66,8 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryLocalUbDevices_SendResponseFailed)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(QueryDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(QueryLocalUbDevices(req, context), UBSE_OK);
 }
 
@@ -78,8 +78,8 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryLocalUbDevices_Success)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(QueryDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(QueryLocalUbDevices(req, context), UBSE_OK);
 }
 
@@ -97,7 +97,7 @@ TEST_F(TestUbseNpuControllerDispatcher, AllocUbDevice_ApiServerModuleNull)
     UbseRequestContext context{};
     TransRespMsg respMsg{nullptr, 0};
     MOCKER(AllocDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>)
         .stubs()
         .will(returnValue(std::shared_ptr<UbseApiServerModule>()));
     EXPECT_EQ(AllocUbDevice(req, context), UBSE_ERROR_NULLPTR);
@@ -110,8 +110,8 @@ TEST_F(TestUbseNpuControllerDispatcher, AllocUbDevice_SendResponseFailed)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(AllocDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(AllocUbDevice(req, context), UBSE_OK);
 }
 
@@ -122,8 +122,8 @@ TEST_F(TestUbseNpuControllerDispatcher, AllocUbDevice_Success)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(AllocDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(AllocUbDevice(req, context), UBSE_OK);
 }
 
@@ -141,7 +141,7 @@ TEST_F(TestUbseNpuControllerDispatcher, FreeUbDevice_ApiServerModuleNull)
     UbseRequestContext context{};
     TransRespMsg respMsg{nullptr, 0};
     MOCKER(FreeDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>)
         .stubs()
         .will(returnValue(std::shared_ptr<UbseApiServerModule>()));
     EXPECT_EQ(FreeUbDevice(req, context), UBSE_ERROR_NULLPTR);
@@ -154,8 +154,8 @@ TEST_F(TestUbseNpuControllerDispatcher, FreeUbDevice_SendResponseFailed)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(FreeDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(FreeUbDevice(req, context), UBSE_OK);
 }
 
@@ -166,8 +166,8 @@ TEST_F(TestUbseNpuControllerDispatcher, FreeUbDevice_Success)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(FreeDeviceExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(FreeUbDevice(req, context), UBSE_OK);
 }
 
@@ -185,7 +185,7 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryTidUbaSize_ApiServerModuleNull)
     UbseRequestContext context{};
     TransRespMsg respMsg{nullptr, 0};
     MOCKER(QueryTidUbaSizeExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>)
         .stubs()
         .will(returnValue(std::shared_ptr<UbseApiServerModule>()));
     EXPECT_EQ(QueryTidUbaSize(req, context), UBSE_ERROR_NULLPTR);
@@ -198,8 +198,8 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryTidUbaSize_SendResponseFailed)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(QueryTidUbaSizeExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(QueryTidUbaSize(req, context), UBSE_OK);
 }
 
@@ -210,14 +210,14 @@ TEST_F(TestUbseNpuControllerDispatcher, QueryTidUbaSize_Success)
     TransRespMsg respMsg{nullptr, 0};
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
     MOCKER(QueryTidUbaSizeExecute).stubs().with(any(), outBound(respMsg)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(QueryTidUbaSize(req, context), UBSE_OK);
 }
 
 TEST_F(TestUbseNpuControllerDispatcher, RegisterSdkDispatcher_ApiServerModuleNull)
 {
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>)
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>)
         .stubs()
         .will(returnValue(std::shared_ptr<UbseApiServerModule>()));
     EXPECT_EQ(RegisterSdkDispatcher(), UBSE_ERROR_NULLPTR);
@@ -226,16 +226,16 @@ TEST_F(TestUbseNpuControllerDispatcher, RegisterSdkDispatcher_ApiServerModuleNul
 TEST_F(TestUbseNpuControllerDispatcher, RegisterSdkDispatcher_RegisterFailed)
 {
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(RegisterSdkDispatcher(), UBSE_OK);
 }
 
 TEST_F(TestUbseNpuControllerDispatcher, RegisterSdkDispatcher_Success)
 {
     auto apiServerModule = std::make_shared<UbseApiServerModule>();
-    MOCKER(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
-    MOCKER(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiServerModule));
+    MOCKER_CPP(&UbseApiServerModule::RegisterIpcHandler).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(RegisterSdkDispatcher(), UBSE_OK);
 }
 

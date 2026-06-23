@@ -27,7 +27,7 @@ ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /var/run/sysSentry/contr
 ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /usr/bin/sentryctl  &>/dev/null || echo 'Unable to set sentryctl acl'"
 ExecStartPre=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe bandbridge 2>/dev/null || echo 'Unable to load bandbridge module'; fi"
 ExecStart=/usr/bin/ubse
-ExecStopPost=+/bin/sh -c "modprobe -r bandbridge 2>/dev/null || true"
+ExecStopPost=+/bin/sh -c "if [ \"$SCENE_TYPE\" = 'ai' ]; then modprobe -r bandbridge 2>/dev/null || true; fi"
 Restart=on-failure
 CapabilityBoundingSet=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_SYS_NICE CAP_DAC_OVERRIDE CAP_FOWNER CAP_CHOWN CAP_AUDIT_WRITE CAP_NET_ADMIN CAP_SYS_PTRACE CAP_DAC_READ_SEARCH

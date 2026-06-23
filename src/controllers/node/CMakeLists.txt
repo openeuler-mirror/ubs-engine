@@ -35,6 +35,7 @@ target_link_libraries(ubse_node_controller PRIVATE
         ubse_urma_uvs
         ubse_security
         ubse_smbios
+        syssentry
         ubse_controller_includes)
 
 

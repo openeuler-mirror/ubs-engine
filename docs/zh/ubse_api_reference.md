@@ -4224,6 +4224,574 @@ int main(void)
 }
 ```
 
+## libubse npu
+
+### ubs\_npu\_device\_list\_query
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list);
+```
+
+**描述 DESCRIPTION**
+
+查询系统中所有UB设备列表，包括NPU、BUS INSTANCE、NIC PFE、NIC VFE和UB CTRL等设备类型的拓扑属性信息。
+
+**参数 PARAMETERS**
+
+| name         | IN/OUT | description                                                        |
+| ------------ | ------ | ------------------------------------------------------------------ |
+| device\_list | OUT    | UB设备列表，调用方需预先申请内存，查询完成后需使用 `ubs_npu_device_list_free` 释放内部动态分配的子结构 |
+
+- 数据结构说明
+
+```c
+#define MACRO_UBSE_UB_DEVICE_GUID_SIZE 32
+#define MACRO_UBSE_UB_UPI_STR_SIZE 4
+
+typedef enum {
+    UBS_BUSI = 1,
+    UBS_NPU = 2,
+    UBS_NIC_PFE = 3,
+    UBS_NIC_VFE = 4,
+    UBS_UBCTRL = 5
+} ubs_device_type;
+
+typedef struct {
+    ubs_device_type device_type;
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint8_t die_id;
+    uint16_t pf_id;
+    uint16_t vf_id;
+} ubs_ub_devices_type_t;
+
+typedef struct {
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t affinity_devices_count;
+    ubs_ub_devices_type_t affinity_devices[];
+} npu_attr_t;
+
+typedef struct {
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t sub_devices_count;
+    ubs_ub_devices_type_t sub_devices[];
+} busi_attr_t;
+
+typedef struct {
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint16_t pf_id;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t affinity_devices_count;
+    ubs_ub_devices_type_t affinity_devices[];
+} nic_pfe_attr_t;
+
+typedef struct {
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint16_t pf_id;
+    uint16_t vf_id;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t affinity_devices_count;
+    ubs_ub_devices_type_t affinity_devices[];
+} nic_vfe_attr_t;
+
+typedef struct {
+    uint8_t slot_id;
+    uint8_t chip_id;
+    uint8_t die_id;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+} ubctrl_attr_t;
+
+typedef struct {
+    ubs_device_type type;
+    npu_attr_t* attr;
+} ubs_npu_t;
+
+typedef struct {
+    ubs_device_type type;
+    busi_attr_t* attr;
+} ubs_busi_t;
+
+typedef struct {
+    ubs_device_type type;
+    nic_pfe_attr_t* attr;
+} ubs_nic_pfe_t;
+
+typedef struct {
+    ubs_device_type type;
+    nic_vfe_attr_t* attr;
+} ubs_nic_vfe_t;
+
+typedef struct {
+    ubs_device_type type;
+    ubctrl_attr_t* attr;
+} ubs_ubctrl_t;
+
+typedef struct {
+    ubs_ubctrl_t* ubctrl_ptr;
+    uint8_t ubctrl_cnt;
+    ubs_nic_pfe_t* nic_pfe_ptr;
+    uint8_t nic_pfe_cnt;
+    ubs_nic_vfe_t* nic_vfe_ptr;
+    uint8_t nic_vfe_cnt;
+    ubs_npu_t* npu_ptr;
+    uint8_t npu_cnt;
+    ubs_busi_t* busi_ptr;
+    uint8_t busi_cnt;
+} ubs_ub_devices_list_t;
+```
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+
+**约束 CONSTRAINTS**
+
+调用方需预先申请 `ubs_ub_devices_list_t` 结构体内存，传入有效指针。
+
+查询完成后需调用 `ubs_npu_device_list_free` 释放内部动态分配的子结构（如 `attr` 指针、`affinity_devices` 柔性数组等），但不能 `free` 调用方自身申请的 `device_list` 结构体本身。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，查询UB设备列表。
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ub_devices_list_t device_list = {0};
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_npu_device_list_query(&device_list);
+    if (UBS_SUCCESS != ret) {
+        perror("query device list failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("npu_cnt=%u, busi_cnt=%u\n", device_list.npu_cnt, device_list.busi_cnt);
+
+    ubs_npu_device_list_free(&device_list);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_npu\_device\_alloc
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
+                             ubs_ub_devices_list_t* device_list);
+```
+
+**描述 DESCRIPTION**
+
+根据指定的UPI和设备需求列表，分配UB设备资源，返回新创建的bus实例GUID以及更新后的设备列表。
+
+**参数 PARAMETERS**
+
+| name                      | IN/OUT | description                                                        |
+| ------------------------- | ------ | ------------------------------------------------------------------ |
+| alloc\_info               | IN     | 分配请求信息，包含UPI字符串、bus实例GUID和目标设备列表                      |
+| new\_bus\_instance\_guid  | OUT    | 新创建的bus实例GUID，长度为 `MACRO_UBSE_UB_DEVICE_GUID_SIZE`，调用方需预先申请内存 |
+| device\_list              | OUT    | 分配后的UB设备列表，调用方需预先申请内存，完成后需使用 `ubs_npu_device_list_free` 释放内部子结构 |
+
+- 数据结构说明
+
+```c
+#define MACRO_UBSE_UB_UPI_STR_SIZE 4
+#define MACRO_UBSE_UB_DEVICE_GUID_SIZE 32
+
+typedef struct {
+    uint8_t upi_str[MACRO_UBSE_UB_UPI_STR_SIZE];
+    uint8_t bus_instance_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE];
+    uint8_t ub_dev_list_count;
+    ubs_ub_devices_type_t* ub_dev_list;
+} ubs_ub_alloc_devices_info_t;
+```
+
+字段说明：
+
+| 字段                    | 描述                                                           |
+| ---------------------- | ------------------------------------------------------------ |
+| upi\_str               | UPI标识，取值范围 `[1, 0x7fff-1001]`                               |
+| bus\_instance\_guid    | 已有的bus实例GUID；传入空GUID（全0）表示创建新bus实例                    |
+| ub\_dev\_list\_count   | 目标设备列表中的设备数量                                                 |
+| ub\_dev\_list          | 目标设备列表指针，指定需要分配的设备类型和位置信息                                   |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description            |
+| ------------------------------------ | ---------------------- |
+| UBS\_ERR\_NULL\_POINTER              | 空指针                    |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败            |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过           |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时            |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误            |
+| UBS\_ENGINE\_ERR\_OUT\_OF\_RANGE     | UPI取值超出有效范围            |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | bus实例GUID不存在           |
+| UBS\_ENGINE\_ERR\_EXISTED            | bus实例已存在               |
+
+**约束 CONSTRAINTS**
+
+UPI取值范围 `[1, 0x7fff-1001]`，超出范围返回 `UBS_ENGINE_ERR_OUT_OF_RANGE`。
+
+`bus_instance_guid` 传入全0时创建新bus实例，传入非全0时在已有bus实例上追加设备。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，分配UB设备资源。
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ub_devices_type_t dev = {
+        .device_type = UBS_NPU,
+        .slot_id = 1,
+        .chip_id = 0,
+        .die_id = 0,
+        .pf_id = 0,
+        .vf_id = 0
+    };
+    ubs_ub_alloc_devices_info_t alloc_info = {0};
+    uint8_t new_guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {0};
+    ubs_ub_devices_list_t device_list = {0};
+
+    alloc_info.upi_str[0] = 1;
+    alloc_info.ub_dev_list_count = 1;
+    alloc_info.ub_dev_list = &dev;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_npu_device_alloc(&alloc_info, new_guid, &device_list);
+    if (UBS_SUCCESS != ret) {
+        perror("alloc device failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    ubs_npu_device_list_free(&device_list);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_npu\_device\_free
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+int32_t ubs_npu_device_free(ubs_ub_alloc_devices_info_t* alloc_info);
+```
+
+**描述 DESCRIPTION**
+
+释放已分配的UB设备资源，根据指定的UPI和bus实例GUID回收对应的设备。
+
+**参数 PARAMETERS**
+
+| name         | IN/OUT | description                                           |
+| ------------ | ------ | ----------------------------------------------------- |
+| alloc\_info  | IN     | 释放请求信息，包含UPI字符串、bus实例GUID和需要释放的设备列表 |
+
+- 数据结构说明
+
+同 `ubs_npu_device_alloc` 中的 `ubs_ub_alloc_devices_info_t` 结构体。
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | bus实例不存在    |
+
+**约束 CONSTRAINTS**
+
+只能释放已分配的设备资源。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，释放已分配的UB设备。
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ub_devices_type_t dev = {
+        .device_type = UBS_NPU,
+        .slot_id = 1,
+        .chip_id = 0
+    };
+    ubs_ub_alloc_devices_info_t alloc_info = {0};
+
+    alloc_info.upi_str[0] = 1;
+    alloc_info.ub_dev_list_count = 1;
+    alloc_info.ub_dev_list = &dev;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_npu_device_free(&alloc_info);
+    if (UBS_SUCCESS != ret) {
+        perror("free device failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_npu\_device\_list\_free
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+void ubs_npu_device_list_free(ubs_ub_devices_list_t* device_list);
+```
+
+**描述 DESCRIPTION**
+
+释放 `ubs_npu_device_list_query` 或 `ubs_npu_device_alloc` 返回的设备列表中动态分配的内部子结构（如各设备类型的 `attr` 指针、柔性数组 `affinity_devices` 等），但不释放调用方自身申请的 `device_list` 结构体。
+
+**参数 PARAMETERS**
+
+| name         | IN/OUT | description                                  |
+| ------------ | ------ | -------------------------------------------- |
+| device\_list | IN     | 需要释放内部子结构的设备列表，由调用方申请内存 |
+
+**返回值 RETURN VALUE**
+
+无。
+
+**错误 ERRORS**
+
+无。
+
+**约束 CONSTRAINTS**
+
+该函数仅释放设备列表内部动态分配的子结构，不释放 `device_list` 本身。调用方需自行管理 `device_list` 结构体的生命周期。
+
+重复调用可能导致未定义行为，应确保每个 `device_list` 只调用一次。
+
+**附注 NOTES**
+
+调用顺序：先 `ubs_npu_device_list_free` 释放内部子结构，再由调用方释放自身申请的 `device_list` 内存（如栈上分配则无需 `free`）。
+
+**样例 EXAMPLES**
+
+以下程序演示查询设备列表后释放内部子结构。
+
+```c
+#include <stdio.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    ubs_ub_devices_list_t device_list = {0};
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_npu_device_list_query(&device_list);
+    if (UBS_SUCCESS != ret) {
+        perror("query device list failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    ubs_npu_device_list_free(&device_list);
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
+### ubs\_uba\_tid\_size\_query
+
+**库 LIBRARY**
+
+ubse库 (/usr/lib64/libubse-client.so)
+
+**摘要 SYNOPSIS**
+
+```c
+#include <ubs_engine_npu.h>
+int32_t ubs_uba_tid_size_query(uint8_t* bus_instance_guid, uint32_t* tid, uint64_t* uba, uint64_t* size);
+```
+
+**描述 DESCRIPTION**
+
+根据bus实例GUID查询对应的UBA地址、TID标识和可用size信息。
+
+**参数 PARAMETERS**
+
+| name                     | IN/OUT | description                                            |
+| ------------------------ | ------ | ------------------------------------------------------ |
+| bus\_instance\_guid      | IN     | bus实例GUID，长度为 `MACRO_UBSE_UB_DEVICE_GUID_SIZE` |
+| tid                      | OUT    | TID标识                                                |
+| uba                      | OUT    | UBA地址                                                |
+| size                     | OUT    | 可用size大小，单位Byte                                   |
+
+**返回值 RETURN VALUE**
+
+返回 `UBS_SUCCESS` 表示成功，返回其他值表示失败，请见 `错误 ERRORS`。
+
+**错误 ERRORS**
+
+| Error                                | Description  |
+| ------------------------------------ | ------------ |
+| UBS\_ERR\_NULL\_POINTER              | 空指针          |
+| UBS\_ENGINE\_ERR\_CONNECTION\_FAILED | 连接UBSE服务端失败  |
+| UBS\_ENGINE\_ERR\_AUTH\_FAILED       | UBSE服务端鉴权不通过 |
+| UBS\_ENGINE\_ERR\_TIMEOUT            | UBSE服务端处理超时  |
+| UBS\_ENGINE\_ERR\_INTERNAL           | UBSE服务端内部错误  |
+| UBS\_ENGINE\_ERR\_NOT\_EXIST         | bus实例不存在    |
+
+**约束 CONSTRAINTS**
+
+传入的 `bus_instance_guid` 必须是有效的已分配bus实例GUID。
+
+**附注 NOTES**
+
+暂无。
+
+**样例 EXAMPLES**
+
+以下程序初始化UBSE客户端，查询指定bus实例的UBA TID size信息。
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ubs_engine.h>
+#include <ubs_engine_npu.h>
+
+int main(void)
+{
+    int32_t ret;
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {0};
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+
+    ret = ubs_engine_client_initialize("/var/run/ubse/ubse.sock");
+    if (UBS_SUCCESS != ret) {
+        perror("init failed");
+        return -1;
+    }
+
+    ret = ubs_uba_tid_size_query(guid, &tid, &uba, &size);
+    if (UBS_SUCCESS != ret) {
+        perror("query uba tid size failed");
+        ubs_engine_client_finalize();
+        return -1;
+    }
+
+    printf("tid=%u, uba=%lu, size=%lu\n", tid, uba, size);
+
+    ubs_engine_client_finalize();
+    return 0;
+}
+```
+
 ## UBSE 内存控制器接口说明文档
 
 **概述**
