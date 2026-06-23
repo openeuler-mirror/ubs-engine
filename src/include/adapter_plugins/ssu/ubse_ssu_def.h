@@ -17,6 +17,8 @@
 #include <vector>
 namespace ubse::adapter_plugins::ssu::def {
 const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 48;
+const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 52;
+const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 68;
 const uint8_t UBSE_SSU_MAX_RACK_NUM = 2;
 const uint8_t UBSE_SSU_MAX_HOST_NUM = 128;
 
@@ -48,17 +50,18 @@ enum class UbseSsuState : uint32_t {
 // │  └───────────────────────────────────┘  │
 // └─────────────────────────────────────────┘
 
+// 重启恢复账本依据
 struct UbseSsuDevNameSpaceCustomData {
     uint8_t version;                     // 版本标识
     char name[UBSE_SSU_MAX_NAME_LENGTH]; // 请求唯一标识
+    char defaultNqn[UBSE_SSU_MAX_NQN_LENGTH]; // 默认NQN，例子：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
+    uint32_t uid;                           // 使用方进程的运行用户的uid
+    char userName[UBSE_SSU_MAX_USER_NAME_LENGTH]; // 使用方进程的运行用户的名称
     uint8_t usingType;                   // ns用途类型：0-独占，1-共享
-    uint8_t addressingType;              // ns地址类型：0-线性地址，1-非线性地址
+    uint8_t allocStrategy;              // 分配策略：0-线性编址，1-条带化
     uint8_t raidLevel;                   // raid级别
     uint8_t nsNum;                       // ns数量
     uint64_t totalBytes;                 // ns总容量（字节）
-    uint8_t
-        allowHosts[UBSE_SSU_MAX_RACK_NUM]
-                  [UBSE_SSU_MAX_HOST_NUM]; // ns允许挂载的host列表,数组下标为节点编号，1表示允许挂载，0表示不允许挂载
     uint32_t crc; // crc校验
 } __attribute__((packed));
 
@@ -116,6 +119,7 @@ struct UbseSsuDevInfo {
     std::vector<UbseSsuDevNameSpace> nameSpaces;               // ssu物理设备命名空间信息
     std::vector<UbseSsuDevNameSpaceAttachInfo> attachInfoList; // namespace挂载节点信息
     UbseSsuState state;                                        // ssu物理设备状态
+    std::string upi;                                           // 设备所属UPI（租户隔离标识）
 };
 
 enum class UbseSsuRaidLevel : uint8_t {
