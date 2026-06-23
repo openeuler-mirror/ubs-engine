@@ -100,7 +100,7 @@ void ConstructEid(const std::string& bitStr, std::string& eid)
         std::bitset<NO_16> bits(bitChunk);
         uint16_t value = bits.to_ulong();
         char hexStr[10];
-        auto res = snprintf_s(hexStr, sizeof(hexStr), sizeof(hexStr) - 1, "%04X", value);
+        auto res = snprintf_s(hexStr, sizeof(hexStr), sizeof(hexStr) - 1, "%04x", value);
         if (res == -1) {
             return;
         }

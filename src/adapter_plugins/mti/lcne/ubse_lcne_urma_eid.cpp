@@ -10,7 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_lcne_urma_eid.h" // for Lcne_urma
-#include <cstdint>              // for uint32_t, uint8_t
+#include <algorithm>
+#include <cctype>
+#include <cstdint>
 #include <iostream>
 #include "securec.h" // for memcpy_s, EOK
 
@@ -26,8 +28,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace ubse::http;
-using namespace ::ubse::adapter_plugins::mti;
-void OutPutUrmaEidResultToLog(std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& urmaEidMap)
+using namespace ubse::adapter_plugins::mti;
+void OutPutUrmaEidResultToLog(std::map<UbseMtiIouInfo, UbseMtiEidGroup>& urmaEidMap)
 {
     std::ostringstream oss;
     for (auto& item : urmaEidMap) {
@@ -77,7 +79,7 @@ bool IsValidUrmaEid(const std::string& eid)
 }
 
 // 校验整个 comUrmaInfoMap
-UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, adapter_plugins::mti::UbseMtiEidGroup>& comUrmaInfoMap)
+UbseResult ValidateAllComEid(const std::map<UbseMtiIouInfo, UbseMtiEidGroup>& comUrmaInfoMap)
 {
     for (const auto& pair : comUrmaInfoMap) {
         const auto& socketInfo = pair.second;
@@ -138,6 +140,27 @@ UbseResult UbseLcneUrmaEid::GetUrmaEid(std::map<UbseMtiIouInfo, UbseMtiEidGroup>
     return UBSE_OK;
 }
 
+static UbseResult ParseUrmaEidInfos(std::shared_ptr<UbseXml>& ubseXml, UbseMtiEidGroup& socketInfo)
+{
+    int urmaEidInfoIndex = 0;
+    while (ubseXml->Next("urma-eid-info", urmaEidInfoIndex) != nullptr) {
+        std::string urmaEid = ubseXml->Child("urma-eid")->Text();
+        std::transform(urmaEid.begin(), urmaEid.end(), urmaEid.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (ubseXml->Next("physical-port") != nullptr) {
+            ubseXml->Previous();
+            std::string port = ubseXml->Child("physical-port")->Text();
+            socketInfo.portEids[port] = urmaEid;
+        } else if (ubseXml->Next("port-group-id") != nullptr) {
+            ubseXml->Previous();
+            socketInfo.primaryEid = urmaEid;
+        }
+        ubseXml->Previous();
+        urmaEidInfoIndex++;
+    }
+    return UBSE_OK;
+}
+
 UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string& responseStr,
                                                     std::map<UbseMtiIouInfo, UbseMtiEidGroup>& ss)
 {
@@ -168,20 +191,10 @@ UbseResult UbseLcneUrmaEid::ParseGetUrmaEidResponse(const std::string& responseS
         if (ubseXml == nullptr) {
             return UBSE_ERROR;
         }
-        adapter_plugins::mti::UbseMtiEidGroup socketInfo{};
+        UbseMtiEidGroup socketInfo{};
         socketInfo.entityId = entityId;
-        int urmaEidInfoIndex = 0;
-        while (ubseXml->Next("urma-eid-info", urmaEidInfoIndex) != nullptr) {
-            if (ubseXml->Next("physical-port") != nullptr) {
-                ubseXml->Previous();
-                std::string port = ubseXml->Child("physical-port")->Text();
-                socketInfo.portEids[port] = ubseXml->Child("urma-eid")->Text();
-            } else if (ubseXml->Next("port-group-id") != nullptr) {
-                ubseXml->Previous();
-                socketInfo.primaryEid = ubseXml->Child("urma-eid")->Text();
-            }
-            ubseXml->Previous();
-            urmaEidInfoIndex++;
+        if (ParseUrmaEidInfos(ubseXml, socketInfo) != UBSE_OK) {
+            return UBSE_ERROR;
         }
         comUrmaInfoMap[iouInfo] = socketInfo;
         ubseXml->Previous();

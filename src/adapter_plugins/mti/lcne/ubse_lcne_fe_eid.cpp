@@ -11,6 +11,8 @@
  */
 
 #include "ubse_lcne_fe_eid.h" // for Lcne_urma
+#include <algorithm>
+#include <cctype>
 #include "ubse_error.h"
 #include "ubse_http_module.h"      // for UbseHttpModule
 #include "ubse_logger.h"           // for FormatRetCode, UBSE_DEFINE_THIS_MO...
@@ -265,6 +267,7 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
             continue;
         }
         std::string eid = ubseEidXml->Text();
+        std::transform(eid.begin(), eid.end(), eid.begin(), [](unsigned char c) { return std::tolower(c); });
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
             eidGroups[GetEidGroupId(eid)].primaryEid = eid;
