@@ -21,11 +21,11 @@
  * - xalarm_report_event: returns 0 (success, no actual alarm sent)
  */
 
+#include <stddef.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
-#include <sys/time.h>
-#include <stddef.h>
 
 #ifndef ALARM_INFO_MAX_PARAS_LEN
 #define ALARM_INFO_MAX_PARAS_LEN 8192
@@ -58,8 +58,7 @@ int xalarm_report_event(unsigned short usAlarmId, char* pucParas, size_t len)
     return 0;
 }
 
-int xalarm_register_event(struct alarm_register** register_info,
-                           struct alarm_subscription_info id_filter)
+int xalarm_register_event(struct alarm_register** register_info, struct alarm_subscription_info id_filter)
 {
     if (register_info == nullptr) {
         return -1;
@@ -93,5 +92,4 @@ void xalarm_unregister_event(struct alarm_register** register_info)
     free(*register_info);
     *register_info = nullptr;
 }
-
 }

@@ -61,8 +61,7 @@ public:
     ItConfigBuilder& WithCertUse(bool useCert = false);
 
     /** @brief Add an arbitrary key=value override in a specific section. */
-    ItConfigBuilder& WithOverride(const std::string& section, const std::string& key,
-                                  const std::string& value);
+    ItConfigBuilder& WithOverride(const std::string& section, const std::string& key, const std::string& value);
 
     /** @brief Generate config files for all nodes. Returns UBSE_OK on success. */
     UbseResult GenerateAllConfigs(const std::string& templatePath = "");
@@ -74,8 +73,8 @@ private:
     std::string FindTemplatePath(const std::string& templatePath);
     std::string BuildClusterIpList() const;
     std::string ApplyOverrides(const std::string& configContent);
-    void ReplaceOrInsertConfigLine(std::string& content, const std::string& key,
-                                   const std::string& newLine, const std::string& section);
+    void ReplaceOrInsertConfigLine(std::string& content, const std::string& key, const std::string& newLine,
+                                   const std::string& section);
 
     std::vector<NodeConfig> nodeConfigs_;
     std::string baseWorkDir_;

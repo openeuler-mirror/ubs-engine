@@ -298,7 +298,8 @@ UbseResult NodeProcessManager::WaitForStartup(uint32_t timeoutMs)
     std::string fallbackSocketPath = "/var/run/ubse/ubse.sock";
     uint32_t elapsed = 0;
     while (elapsed < timeoutMs) {
-        struct stat st{};
+        struct stat st {
+        };
         if (stat(udsSocketPath_.c_str(), &st) == 0) {
             IT_LOG_INFO << "Node " << nodeId_ << " UDS socket ready at " << udsSocketPath_;
             return UBSE_OK;

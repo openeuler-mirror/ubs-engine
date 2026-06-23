@@ -19,12 +19,12 @@
 #include <string>
 #include <vector>
 
+#include "ubse_common_def.h"
+#include "ubse_error.h"
 #include "it_config_builder.h"
 #include "it_sdk_client.h"
 #include "it_wait_helper.h"
 #include "node_process_manager.h"
-#include "ubse_common_def.h"
-#include "ubse_error.h"
 
 namespace ubse::it::infra {
 
@@ -41,8 +41,8 @@ using ubse::common::def::UbseResult;
  */
 class ItCluster {
 public:
-    ItCluster(const std::string& binaryPath, const std::string& baseWorkDir,
-              const std::vector<NodeConfig>& nodeConfigs, const std::string& stubLibDir = "");
+    ItCluster(const std::string& binaryPath, const std::string& baseWorkDir, const std::vector<NodeConfig>& nodeConfigs,
+              const std::string& stubLibDir = "");
 
     ~ItCluster();
 
@@ -100,8 +100,7 @@ public:
      * @param electionTimeoutMs Timeout for election convergence if waitForElection is true
      * @return UBSE_OK on success
      */
-    UbseResult RestartNode(const std::string& nodeId, bool waitForElection = true,
-                           uint32_t electionTimeoutMs = 30000);
+    UbseResult RestartNode(const std::string& nodeId, bool waitForElection = true, uint32_t electionTimeoutMs = 30000);
 
     /**
      * @brief Check if a specific node is running.

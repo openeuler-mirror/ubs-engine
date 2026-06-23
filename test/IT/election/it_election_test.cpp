@@ -15,12 +15,13 @@
 #include <string>
 #include <vector>
 
+#include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_cluster.h"
 #include "it_test_fixture.h"
-#include "ubse_common_def.h"
 
-class ItElectionTest : public ubse::it::infra::ItTestFixture {};
+class ItElectionTest : public ubse::it::infra::ItTestFixture {
+};
 
 namespace {
 
@@ -57,9 +58,7 @@ ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster,
 
 TEST_F(ItElectionTest, SingleNodeElectionConvergence)
 {
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.1", 8082, 1}
-    };
+    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {{"1", "127.0.0.1", 8082, 1}};
 
     ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
 
@@ -83,10 +82,7 @@ TEST_F(ItElectionTest, SingleNodeElectionConvergence)
 
 TEST_F(ItElectionTest, TwoNodeElectionChoosesSingleMasterAndStandby)
 {
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.2", 8082, 1},
-        {"2", "127.0.0.3", 8083, 2}
-    };
+    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {{"1", "127.0.0.2", 8082, 1}, {"2", "127.0.0.3", 8083, 2}};
 
     ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
 

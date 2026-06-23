@@ -24,6 +24,7 @@
  * Export/import records are tracked in a static map for consistency.
  */
 
+#include <unistd.h>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -32,9 +33,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unistd.h>
-
-
 
 #ifndef UBSE_EID_LENGTH
 #define UBSE_EID_LENGTH 16
@@ -71,14 +69,10 @@ struct obmm_preimport_info {
 
 using mem_id = uint64_t;
 
-
-
 static std::atomic<uint64_t> g_next_mem_id{1000};
 static std::mutex g_records_mutex;
 static std::map<mem_id, obmm_mem_desc*> g_export_records;
 static std::map<mem_id, int> g_import_numa_records;
-
-
 
 static bool should_fail(const char* operation)
 {
@@ -88,7 +82,7 @@ static bool should_fail(const char* operation)
     }
     std::string list(fail_list);
     std::string op(operation);
-    
+
     size_t pos = 0;
     while (pos < list.size()) {
         size_t comma = list.find(',', pos);
@@ -115,12 +109,9 @@ static void apply_delay()
     }
 }
 
-
-
 extern "C" {
 
-mem_id obmm_export(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags,
-                   struct obmm_mem_desc* desc)
+mem_id obmm_export(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags, struct obmm_mem_desc* desc)
 {
     apply_delay();
     if (should_fail("export")) {
@@ -194,8 +185,7 @@ int obmm_unimport(mem_id id, unsigned long flags)
     return 0;
 }
 
-mem_id obmm_export_useraddr(int pid, void* va, size_t size, unsigned long flags,
-                             struct obmm_mem_desc* desc)
+mem_id obmm_export_useraddr(int pid, void* va, size_t size, unsigned long flags, struct obmm_mem_desc* desc)
 {
     apply_delay();
     if (should_fail("export_useraddr")) {
@@ -254,5 +244,4 @@ int obmm_unpreimport(const struct obmm_preimport_info* preimport_info, unsigned 
 
     return 0;
 }
-
 }

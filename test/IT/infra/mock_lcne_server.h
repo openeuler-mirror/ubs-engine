@@ -17,9 +17,9 @@
 #include <string>
 #include <thread>
 
-#include "httplib.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "httplib.h"
 
 namespace ubse::it::infra {
 
@@ -28,15 +28,17 @@ using ubse::common::def::UbseResult;
 class MockLcneServer {
 public:
     // UDS mode: listen on Unix domain socket at udsPath, with slotId for multi-node scenarios
-    MockLcneServer(const std::string& udsPath, uint32_t slotId,
-                   const std::vector<uint32_t>& clusterSlotIds = {});
+    MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds = {});
 
     UbseResult Start();
     UbseResult Stop();
     bool IsReady();
     UbseResult WaitForReady(uint32_t timeoutMs);
 
-    uint32_t GetSlotId() const { return slotId_; }
+    uint32_t GetSlotId() const
+    {
+        return slotId_;
+    }
 
 private:
     void RegisterHandlers();

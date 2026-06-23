@@ -20,13 +20,12 @@
 #include "it_config_builder.h"
 #include "it_test_fixture.h"
 
-class ItSmokeTest : public ubse::it::infra::ItTestFixture {};
+class ItSmokeTest : public ubse::it::infra::ItTestFixture {
+};
 
 TEST_F(ItSmokeTest, SingleNodeStartupAndSurvive)
 {
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.1", 8082, 1}
-    };
+    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {{"1", "127.0.0.1", 8082, 1}};
 
     ubse::it::infra::ItConfigBuilder builder(nodeConfigs, workDir_);
     auto ret = builder.WithClusterIps({"127.0.0.1"}).WithCertUse(false).GenerateAllConfigs();

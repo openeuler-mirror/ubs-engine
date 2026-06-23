@@ -13,14 +13,14 @@
 #ifndef NODE_PROCESS_MANAGER_H
 #define NODE_PROCESS_MANAGER_H
 
+#include <sys/types.h>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <sys/types.h>
 
-#include "mock_lcne_server.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "mock_lcne_server.h"
 
 namespace ubse::it::infra {
 
@@ -47,7 +47,10 @@ public:
     bool IsRunning() const;
     pid_t GetPid() const;
     UbseResult WaitForStartup(uint32_t timeoutMs);
-    bool IsPrivilegedMode() const { return isPrivileged_; }
+    bool IsPrivilegedMode() const
+    {
+        return isPrivileged_;
+    }
 
     const std::string& GetNodeId() const;
     const std::string& GetWorkDir() const;

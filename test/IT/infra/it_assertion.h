@@ -15,8 +15,8 @@
 
 #include <gtest/gtest.h>
 
-#include "ubse_error.h"
 #include "ubse_election.h"
+#include "ubse_error.h"
 #include "ubs_error.h"
 
 /**
@@ -28,20 +28,16 @@
 
 // --- SDK return code assertions ---
 // ASSERT_IT_OK: Fatal assertion that SDK call returned UBS_SUCCESS
-#define ASSERT_IT_OK(expr) \
-    ASSERT_EQ(expr, UBS_SUCCESS) << "Expected UBS_SUCCESS but got: " << (expr)
+#define ASSERT_IT_OK(expr) ASSERT_EQ(expr, UBS_SUCCESS) << "Expected UBS_SUCCESS but got: " << (expr)
 
 // EXPECT_IT_OK: Non-fatal assertion that SDK call returned UBS_SUCCESS
-#define EXPECT_IT_OK(expr) \
-    EXPECT_EQ(expr, UBS_SUCCESS) << "Expected UBS_SUCCESS but got: " << (expr)
+#define EXPECT_IT_OK(expr) EXPECT_EQ(expr, UBS_SUCCESS) << "Expected UBS_SUCCESS but got: " << (expr)
 
 // ASSERT_IT_FAIL: Fatal assertion that SDK call returned non-SUCCESS
-#define ASSERT_IT_FAIL(expr) \
-    ASSERT_NE(expr, UBS_SUCCESS) << "Expected failure but got UBS_SUCCESS"
+#define ASSERT_IT_FAIL(expr) ASSERT_NE(expr, UBS_SUCCESS) << "Expected failure but got UBS_SUCCESS"
 
 // EXPECT_IT_FAIL: Non-fatal assertion that SDK call returned non-SUCCESS
-#define EXPECT_IT_FAIL(expr) \
-    EXPECT_NE(expr, UBS_SUCCESS) << "Expected failure but got UBS_SUCCESS"
+#define EXPECT_IT_FAIL(expr) EXPECT_NE(expr, UBS_SUCCESS) << "Expected failure but got UBS_SUCCESS"
 
 // ASSERT_IT_ERROR: Fatal assertion that SDK call returned a specific error code
 #define ASSERT_IT_ERROR(expr, expectedError) \
@@ -53,12 +49,10 @@
 
 // --- UBSE internal result assertions ---
 // ASSERT_UBSE_OK: Fatal assertion that internal result is UBSE_OK
-#define ASSERT_UBSE_OK(expr) \
-    ASSERT_EQ(static_cast<uint32_t>(expr), UBSE_OK) << "Expected UBSE_OK but got: " << (expr)
+#define ASSERT_UBSE_OK(expr) ASSERT_EQ(static_cast<uint32_t>(expr), UBSE_OK) << "Expected UBSE_OK but got: " << (expr)
 
 // EXPECT_UBSE_OK: Non-fatal assertion that internal result is UBSE_OK
-#define EXPECT_UBSE_OK(expr) \
-    EXPECT_EQ(static_cast<uint32_t>(expr), UBSE_OK) << "Expected UBSE_OK but got: " << (expr)
+#define EXPECT_UBSE_OK(expr) EXPECT_EQ(static_cast<uint32_t>(expr), UBSE_OK) << "Expected UBSE_OK but got: " << (expr)
 
 // --- Election state assertions ---
 // ASSERT_ELECTION_CONVERGED: Fatal assertion that election has converged

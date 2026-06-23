@@ -12,35 +12,33 @@
 
 #include "mock_lcne_server.h"
 
-#include <chrono>
-#include <filesystem>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <chrono>
+#include <filesystem>
 
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
 
-static const std::string HOST_INFO_XML =
-    "<vbussw-inventory xmlns=\"urn:huawei:yang:huawei-vbussw-inventory\">\n"
-    "  <logic-entities>\n"
-    "    <logic-entity>\n"
-    "      <bus-instance-eid>0x413</bus-instance-eid>\n"
-    "      <guid>12-3456-7-8-abcd-ef01-234512-6789abcd</guid>\n"
-    "      <type>host</type>\n"
-    "      <upi>0x1231</upi>\n"
-    "      <state>online</state>\n"
-    "      <try-times>1</try-times>\n"
-    "    </logic-entity>\n"
-    "  </logic-entities>\n"
-    "</vbussw-inventory>";
+static const std::string HOST_INFO_XML = "<vbussw-inventory xmlns=\"urn:huawei:yang:huawei-vbussw-inventory\">\n"
+                                         "  <logic-entities>\n"
+                                         "    <logic-entity>\n"
+                                         "      <bus-instance-eid>0x413</bus-instance-eid>\n"
+                                         "      <guid>12-3456-7-8-abcd-ef01-234512-6789abcd</guid>\n"
+                                         "      <type>host</type>\n"
+                                         "      <upi>0x1231</upi>\n"
+                                         "      <state>online</state>\n"
+                                         "      <try-times>1</try-times>\n"
+                                         "    </logic-entity>\n"
+                                         "  </logic-entities>\n"
+                                         "</vbussw-inventory>";
 
-static const std::string SUBSCRIPTION_RESPONSE_XML =
-    "<restconf>\n"
-    "  <rpc_reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-    "    <result>ok</result>\n"
-    "  </rpc_reply>\n"
-    "</restconf>";
+static const std::string SUBSCRIPTION_RESPONSE_XML = "<restconf>\n"
+                                                     "  <rpc_reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+                                                     "    <result>ok</result>\n"
+                                                     "  </rpc_reply>\n"
+                                                     "</restconf>";
 
 std::string MockLcneServer::GenerateBusInstanceXml() const
 {
@@ -50,12 +48,16 @@ std::string MockLcneServer::GenerateBusInstanceXml() const
            "         <host-bus-instance-eid>0x10401</host-bus-instance-eid>\n"
            "         <physical-entity-mappings>\n"
            "           <physical-entity-mapping>\n"
-           "             <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "             <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "             <chip-id>1</chip-id>\n"
            "             <die-id>1</die-id>\n"
            "           </physical-entity-mapping>\n"
            "           <physical-entity-mapping>\n"
-           "             <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "             <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "             <chip-id>2</chip-id>\n"
            "             <die-id>1</die-id>\n"
            "           </physical-entity-mapping>\n"
@@ -70,7 +72,9 @@ std::string MockLcneServer::GenerateIoDieInfoXml() const
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <iou-infos>\n"
            "    <iou-info>\n"
-           "      <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "      <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
            "      <bus-controller-eid>0x00000</bus-controller-eid>\n"
@@ -90,7 +94,9 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
 
     int portId = 0;
     xml += "    <node>\n"
-           "      <slot>" + std::to_string(slotId_) + "</slot>\n"
+           "      <slot>" +
+           std::to_string(slotId_) +
+           "</slot>\n"
            "      <ubpu>1</ubpu>\n"
            "      <iou>1</iou>\n"
            "      <ubpu-type>CPU</ubpu-type>\n"
@@ -98,11 +104,17 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
 
     // Self-loop port (port 0)
     xml += "        <physical-port>\n"
-           "          <physical-port-id>" + std::to_string(portId) + "</physical-port-id>\n"
-           "          <interface-name>eth" + std::to_string(portId) + "</interface-name>\n"
+           "          <physical-port-id>" +
+           std::to_string(portId) +
+           "</physical-port-id>\n"
+           "          <interface-name>eth" +
+           std::to_string(portId) +
+           "</interface-name>\n"
            "          <physical-port-role>server</physical-port-role>\n"
            "          <physical-port-status>up</physical-port-status>\n"
-           "          <remote-slot>" + std::to_string(slotId_) + "</remote-slot>\n"
+           "          <remote-slot>" +
+           std::to_string(slotId_) +
+           "</remote-slot>\n"
            "          <remote-ubpu>1</remote-ubpu>\n"
            "          <remote-iou>1</remote-iou>\n"
            "          <remote-physical-port-id>0</remote-physical-port-id>\n"
@@ -115,11 +127,17 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
             continue;
         }
         xml += "        <physical-port>\n"
-               "          <physical-port-id>" + std::to_string(portId) + "</physical-port-id>\n"
-               "          <interface-name>eth" + std::to_string(portId) + "</interface-name>\n"
+               "          <physical-port-id>" +
+               std::to_string(portId) +
+               "</physical-port-id>\n"
+               "          <interface-name>eth" +
+               std::to_string(portId) +
+               "</interface-name>\n"
                "          <physical-port-role>server</physical-port-role>\n"
                "          <physical-port-status>up</physical-port-status>\n"
-               "          <remote-slot>" + std::to_string(remoteSlot) + "</remote-slot>\n"
+               "          <remote-slot>" +
+               std::to_string(remoteSlot) +
+               "</remote-slot>\n"
                "          <remote-ubpu>1</remote-ubpu>\n"
                "          <remote-iou>1</remote-iou>\n"
                "          <remote-physical-port-id>0</remote-physical-port-id>\n"
@@ -136,7 +154,9 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
             continue;
         }
         xml += "    <node>\n"
-               "      <slot>" + std::to_string(remoteSlot) + "</slot>\n"
+               "      <slot>" +
+               std::to_string(remoteSlot) +
+               "</slot>\n"
                "      <ubpu>1</ubpu>\n"
                "      <iou>1</iou>\n"
                "      <ubpu-type>CPU</ubpu-type>\n"
@@ -146,7 +166,9 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
                "          <interface-name>eth0</interface-name>\n"
                "          <physical-port-role>server</physical-port-role>\n"
                "          <physical-port-status>up</physical-port-status>\n"
-               "          <remote-slot>" + std::to_string(slotId_) + "</remote-slot>\n"
+               "          <remote-slot>" +
+               std::to_string(slotId_) +
+               "</remote-slot>\n"
                "          <remote-ubpu>1</remote-ubpu>\n"
                "          <remote-iou>1</remote-iou>\n"
                "          <remote-physical-port-id>0</remote-physical-port-id>\n"
@@ -164,7 +186,9 @@ std::string MockLcneServer::GenerateTopologyCnaXml() const
     return "<lingqu-topology xmlns=\"urn:huawei:yang:huawei-lingqu-topology\">\n"
            "  <addresses>\n"
            "    <address>\n"
-           "      <slot>" + std::to_string(slotId_) + "</slot>\n"
+           "      <slot>" +
+           std::to_string(slotId_) +
+           "</slot>\n"
            "      <ubpu>1</ubpu>\n"
            "      <iou>1</iou>\n"
            "      <cna-id>0x0085a7</cna-id>\n"
@@ -187,7 +211,9 @@ std::string MockLcneServer::GenerateUrmaEidXml() const
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <static-urma-eids>\n"
            "    <static-urma-eid>\n"
-           "      <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "      <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
            "      <entity-id>0</entity-id>\n"
@@ -211,7 +237,9 @@ std::string MockLcneServer::GenerateFeEidXml() const
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <entity-urma-communication-infos>\n"
            "    <entity-urma-communication-info>\n"
-           "      <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "      <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
            "      <urma-communication-entity-ids>\n"
@@ -239,7 +267,9 @@ std::string MockLcneServer::GenerateFeBindingXml() const
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <mue-ue-binding-infos>\n"
            "    <mue-ue-binding-info>\n"
-           "      <slot-id>" + std::to_string(slotId_) + "</slot-id>\n"
+           "      <slot-id>" +
+           std::to_string(slotId_) +
+           "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
            "      <mue-ue-bindings>\n"
@@ -407,9 +437,11 @@ void MockLcneServer::RegisterHandlers()
                 });
 }
 
-MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId,
-                               const std::vector<uint32_t>& clusterSlotIds)
-    : udsPath_(udsPath), slotId_(slotId), clusterSlotIds_(clusterSlotIds), running_(false)
+MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds)
+    : udsPath_(udsPath),
+      slotId_(slotId),
+      clusterSlotIds_(clusterSlotIds),
+      running_(false)
 {
     RegisterHandlers();
 }
@@ -460,7 +492,8 @@ UbseResult MockLcneServer::Stop()
 
 bool MockLcneServer::IsReady()
 {
-    struct stat st {};
+    struct stat st {
+    };
     return stat(udsPath_.c_str(), &st) == 0;
 }
 

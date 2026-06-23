@@ -12,25 +12,25 @@
 
 #include "it_cluster.h"
 
+#include <signal.h>
+#include <sys/wait.h>
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <future>
 #include <stdexcept>
 #include <utility>
-#include <signal.h>
-#include <sys/wait.h>
 
+#include "ubse_error.h"
 #include "it_config_builder.h"
+#include "it_console_log.h"
 #include "it_sdk_client.h"
 #include "it_wait_helper.h"
 #include "node_process_manager.h"
-#include "ubse_error.h"
-#include "it_console_log.h"
 
 namespace ubse::it::infra {
 ItCluster::ItCluster(const std::string& binaryPath, const std::string& baseWorkDir,
-                       const std::vector<NodeConfig>& nodeConfigs, const std::string& stubLibDir)
+                     const std::vector<NodeConfig>& nodeConfigs, const std::string& stubLibDir)
     : binaryPath_(binaryPath),
       cliBinaryPath_((std::filesystem::path(binaryPath).parent_path() / "ubsectl").string()),
       baseWorkDir_(baseWorkDir),
@@ -280,8 +280,7 @@ UbseResult ItCluster::KillNode(const std::string& nodeId)
     return UBSE_OK;
 }
 
-UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElection,
-                                  uint32_t electionTimeoutMs)
+UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElection, uint32_t electionTimeoutMs)
 {
     auto it = nodes_.find(nodeId);
     if (it == nodes_.end()) {

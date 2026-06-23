@@ -16,12 +16,12 @@
 #include <string>
 #include <vector>
 
+#include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_cluster.h"
 #include "it_console_log.h"
 #include "it_test_fixture.h"
 #include "it_wait_helper.h"
-#include "ubse_common_def.h"
 #include "ubs_engine_mem.h"
 
 class ItNumaBorrowTest : public ubse::it::infra::ItTestFixture {
@@ -33,8 +33,8 @@ protected:
         nodeConfigs_ = {{lenderNodeId_, "127.0.0.2", 8082, lenderSlotId_},
                         {borrowerNodeId_, "127.0.0.3", 8083, borrowerSlotId_}};
 
-        cluster_ = std::make_unique<ubse::it::infra::ItCluster>(
-            binaryPath_.string(), workDir_, nodeConfigs_, stubLibDir_.string());
+        cluster_ = std::make_unique<ubse::it::infra::ItCluster>(binaryPath_.string(), workDir_, nodeConfigs_,
+                                                                stubLibDir_.string());
 
         IT_LOG_INFO << "Starting two-node cluster for NUMA borrow tests...";
         auto ret = cluster_->StartClusterParallel(30000);

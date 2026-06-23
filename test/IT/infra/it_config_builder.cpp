@@ -17,15 +17,17 @@
 #include <sstream>
 #include <string>
 
-#include "ubse_it_dir.h"
 #include "ubse_error.h"
+#include "ubse_it_dir.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
 
 ItConfigBuilder::ItConfigBuilder(const std::vector<NodeConfig>& nodeConfigs, const std::string& baseWorkDir)
-    : nodeConfigs_(nodeConfigs), baseWorkDir_(baseWorkDir)
-{}
+    : nodeConfigs_(nodeConfigs),
+      baseWorkDir_(baseWorkDir)
+{
+}
 
 ItConfigBuilder& ItConfigBuilder::WithClusterIps(const std::vector<std::string>& clusterIps)
 {
@@ -115,7 +117,7 @@ std::string ItConfigBuilder::ApplyOverrides(const std::string& configContent)
 }
 
 void ItConfigBuilder::ReplaceOrInsertConfigLine(std::string& content, const std::string& key,
-                                                  const std::string& newLine, const std::string& section)
+                                                const std::string& newLine, const std::string& section)
 {
     std::string sectionHeader = "[" + section + "]";
     size_t sectionStart = content.find(sectionHeader);
@@ -193,8 +195,7 @@ void ItConfigBuilder::ReplaceOrInsertConfigLine(std::string& content, const std:
     content.insert(sectionContentStart, newLine);
 }
 
-UbseResult ItConfigBuilder::GenerateConfig(const NodeConfig& nodeConfig,
-                                           const std::string& outputDir,
+UbseResult ItConfigBuilder::GenerateConfig(const NodeConfig& nodeConfig, const std::string& outputDir,
                                            const std::string& templatePath)
 {
     std::string tmplPath = FindTemplatePath(templatePath);

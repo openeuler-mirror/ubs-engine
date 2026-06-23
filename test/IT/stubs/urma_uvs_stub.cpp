@@ -46,5 +46,4 @@ uint32_t uvs_delete_agg_dev(char* aggrDevEid)
 {
     return 0;
 }
-
 }
