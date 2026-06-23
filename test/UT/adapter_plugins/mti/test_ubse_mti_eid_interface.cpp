@@ -106,11 +106,11 @@ TEST_F(TestUbseMtiEidInterface, ParseBaseEid_EmptyString)
  */
 TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_Normal)
 {
-    std::string eid = "0000:0000:0044:5200:0010:0000:140B:C510";
+    std::string eid = "0000:0000:0044:5200:0010:0000:140b:c510";
     std::string cna;
     auto ret = ParseCnaFromEid(eid, cna);
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(cna, "0000:0000:0000:0000:0000:0000:140B:C500");
+    EXPECT_EQ(cna, "0000:0000:0000:0000:0000:0000:140b:c500");
 }
 
 TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_EmptyString)
@@ -123,7 +123,7 @@ TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_EmptyString)
 
 TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_InvalidFormat)
 {
-    std::string eid = "0000:0000:0044:5200:0010:0000:140B:C510:0000";
+    std::string eid = "0000:0000:0044:5200:0010:0000:140b:c510:0000";
     std::string cna;
     auto ret = ParseCnaFromEid(eid, cna);
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -131,8 +131,8 @@ TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_InvalidFormat)
 
 TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_SameCna)
 {
-    std::string eid1 = "0000:0000:0044:5200:0010:0000:140B:C520";
-    std::string eid2 = "0000:0000:0044:5200:0010:0000:140B:C518";
+    std::string eid1 = "0000:0000:0044:5200:0010:0000:140b:c520";
+    std::string eid2 = "0000:0000:0044:5200:0010:0000:140b:c518";
     std::string cna1;
     std::string cna2;
     auto ret1 = ParseCnaFromEid(eid1, cna1);
@@ -201,7 +201,7 @@ TEST_F(TestUbseMtiEidInterface, OverwriteEid_ServerIdx_DifferentResult)
     EXPECT_EQ(ret3, UBSE_OK);
     EXPECT_EQ(result1, "0000:0000:0004:0200:0010:0000:1400:0500");
     EXPECT_EQ(result2, "0000:0000:0004:0200:0010:0000:1405:8500");
-    EXPECT_EQ(result3, "0000:0000:0004:0200:0010:0000:14FF:8500");
+    EXPECT_EQ(result3, "0000:0000:0004:0200:0010:0000:14ff:8500");
 }
 
 TEST_F(TestUbseMtiEidInterface, OverwriteEid_ServerIdx_InvalidBaseEid)
