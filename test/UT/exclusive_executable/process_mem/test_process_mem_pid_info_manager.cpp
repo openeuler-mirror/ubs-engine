@@ -1786,3 +1786,764 @@ TEST_F(TestProcessMemPidInfoManager, RefreshBorrowInfoWithRemovedPidPath)
     ubse::mem::controller::MockClearDebtInfos();
     mgr.UnInit();
 }
+
+// ==================== RecoverAllDebtInfoData with debts tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, RecoverAllDebtInfoDataWithDebtInfos)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.srcNumaId = 0;
+    mgr.SetPidInfoMap(pidInfo);
+
+    // Set up debt info via mock
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = myPid;
+    usrInfo.startTime = startTime;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debtInfo{};
+    debtInfo.name = "test_recover_debt";
+    debtInfo.size = 1024 * 1024;
+    debtInfo.remoteNumaId = 0;
+    debtInfo.borrowNodeId = "NODE0";
+    debtInfo.borrowSocketIdList = {1};
+    memcpy(debtInfo.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debtInfo});
+
+    EXPECT_NO_THROW(mgr.RecoverAllDebtInfoData());
+    EXPECT_TRUE(mgr.IsRecoverCompleted());
+
+    ubse::mem::controller::MockClearDebtInfos();
+
+    mgr.UnInit();
+    auto info = mgr.GetPidInfoMap(myPid);
+    for (auto& [name, _] : info.memBorrowInfo.debtInfos) {
+        mgr.DeletePidMemBorrowInfo(myPid, name);
+    }
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== ValidateSrcNumaIdOnCurrentNode tests (bridge) ====================
+
+TEST_F(TestProcessMemPidInfoManager, ValidateSrcNumaIdNoValue)
+{
+    ::process_mem::def::ProcessMemPidConfigInfo configInfo{};
+    configInfo.srcNumaId = std::nullopt;
+    auto ret = ::process_mem::pid::bridge::ValidateSrcNumaIdOnCurrentNode(configInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidInfoManager, ValidateSrcNumaIdNotFoundOnNode)
+{
+    // Mock GetCurNode returns empty numaInfos, so any srcNumaId won't be found
+    ::process_mem::def::ProcessMemPidConfigInfo configInfo{};
+    configInfo.srcNumaId = 5;
+    auto ret = ::process_mem::pid::bridge::ValidateSrcNumaIdOnCurrentNode(configInfo);
+    EXPECT_EQ(ret, UBSE_ERR_NOT_EXIST);
+}
+
+// ==================== GetNumaInfoFromToken exception path tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetNumaInfoFromTokenExceptionPath)
+{
+    // Malformed token that throws in stoi/stoull: "N=" with no digits after =
+    // But the condition checks token.size() > 2, "N=" is size 2, so won't enter the if
+    // "N0=abc" enters the try block, stoull("abc") throws → catch returns false
+    std::unordered_map<uint32_t, size_t> numaMemDistribution;
+    bool result = ::process_mem::collect::GetNumaInfoFromToken("N0=abc", 4096, numaMemDistribution);
+    EXPECT_FALSE(result);
+}
+
+// ==================== GetPidInfoByCollect with real pid ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetPidInfoByCollectWithRealPid)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    ::process_mem::collect::CollectInfoMap pidCollectInfo;
+    auto ret = ::process_mem::collect::GetPidInfoByCollect(pidInfo, pidCollectInfo);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(pidInfo.processStatus, ::process_mem::def::ProcessStatus::IDLE);
+    EXPECT_FALSE(pidCollectInfo.empty());
+}
+
+// ==================== CheckIsNeedBorrow with CREATING timed out debts ====================
+
+TEST_F(TestProcessMemPidInfoManager, CheckIsNeedBorrowSkipsAllTimedOutAndReturnsNeed)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 78800;
+    // All debts are timed-out CREATING → total secured = 0 → needBorrow
+    ::process_mem::def::DebtInfo debt1{};
+    debt1.numaDesc.name = "timed_out_1";
+    debt1.numaDesc.size = 1024;
+    debt1.status = ::process_mem::def::BorrowStatus::CREATING;
+    debt1.borrowStartTime = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    pidInfo.memBorrowInfo.debtInfos["timed_out_1"] = debt1;
+
+    ::process_mem::def::DebtInfo debt2{};
+    debt2.numaDesc.name = "timed_out_2";
+    debt2.numaDesc.size = 2048;
+    debt2.status = ::process_mem::def::BorrowStatus::CREATING;
+    debt2.borrowStartTime = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+    pidInfo.memBorrowInfo.debtInfos["timed_out_2"] = debt2;
+
+    uint64_t needBorrowSize = 0;
+    bool needBorrow = CheckIsNeedBorrow(pidInfo, 4096, needBorrowSize);
+    EXPECT_TRUE(needBorrow);
+    EXPECT_EQ(needBorrowSize, 4096u);
+}
+
+// ==================== MemoryCheckHandle with missing local numa ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryCheckHandleMissingLocalNuma)
+{
+    ::process_mem::def::ProcessMemPidInfo info{};
+    info.configInfo.pid = 78900;
+    info.configInfo.expectedMemoryUsage = 1024;
+    info.configInfo.evictThreshold = 50;
+    info.configInfo.reclaimThreshold = 10;
+    info.configInfo.targetEvictThreshold = 30;
+    info.memBorrowInfo.remoteNumaId = -1;
+    // numa 0 not in numaMemory → localMemory stays 0 → 0 > expectedMemory(1024) * evictThreshold(50)/100 → 0 > 512 → false → no borrow
+    // 0 * 100 = 0 >= reclaimThreshold(10) * expectedMemory(1024) → 0 >= 10240 → false → no return
+    std::unordered_map<uint32_t, size_t> numaMemory = {{1, 500}};
+    auto ret = MemoryCheckHandle(info, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== MemoryCheckHandle with extra numa nodes ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryCheckHandleWithExtraNuma)
+{
+    ::process_mem::def::ProcessMemPidInfo info{};
+    info.configInfo.pid = 78901;
+    info.configInfo.expectedMemoryUsage = 1024;
+    info.configInfo.evictThreshold = 80;
+    info.configInfo.reclaimThreshold = 50;
+    info.configInfo.targetEvictThreshold = 30;
+    info.memBorrowInfo.remoteNumaId = 0;
+    // local numa (0): 600, remote numa (1): 200
+    // totalRemote = 200, localMemory = 600
+    // 600 > 1024*80/100=819 → false → no borrow
+    // 600*100=60000 >= 50*1024=51200 → true → need return
+    std::unordered_map<uint32_t, size_t> numaMemory = {{0, 600}, {1, 200}};
+    auto ret = MemoryCheckHandle(info, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== GenerateSimpleName edge case ====================
+
+TEST_F(TestProcessMemPidInfoManager, GenerateSimpleNameProducesUniqueNames)
+{
+    std::string name1 = GenerateSimpleName(100);
+    std::string name2 = GenerateSimpleName(200);
+    EXPECT_NE(name1, name2);
+}
+
+// ==================== IsNodeRecovered edge cases ====================
+
+TEST_F(TestProcessMemPidInfoManager, IsNodeRecoveredWithShortNodeId)
+{
+    // Mock works with any nodeId - no debts returned → recovered
+    auto result = IsNodeRecovered("N");
+    EXPECT_TRUE(result);
+}
+
+// ==================== SendSetPidMapErrorResponse tests (bridge) ====================
+
+TEST_F(TestProcessMemPidInfoManager, SendSetPidMapErrorResponseNotExist)
+{
+    auto ret = ::process_mem::pid::bridge::SendSetPidMapErrorResponse(UBSE_ERR_NOT_EXIST, 100);
+    // Returns SendPidSetResponse result; mock may fail but exercises all branches
+    (void)ret;
+}
+
+TEST_F(TestProcessMemPidInfoManager, SendSetPidMapErrorResponseInvalidArg)
+{
+    auto ret = ::process_mem::pid::bridge::SendSetPidMapErrorResponse(UBSE_ERR_INVALID_ARG, 200);
+    (void)ret;
+}
+
+TEST_F(TestProcessMemPidInfoManager, SendSetPidMapErrorResponseResourceBusy)
+{
+    auto ret = ::process_mem::pid::bridge::SendSetPidMapErrorResponse(UBSE_ERR_RESOURCE_BUSY, 300);
+    (void)ret;
+}
+
+TEST_F(TestProcessMemPidInfoManager, SendSetPidMapErrorResponseUnknown)
+{
+    auto ret = ::process_mem::pid::bridge::SendSetPidMapErrorResponse(UBSE_ERROR, 400);
+    (void)ret;
+}
+
+// ==================== CheckIsNeedBorrow edge case tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, CheckIsNeedBorrowEmptyExpectZero)
+{
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 79000;
+    uint64_t needBorrowSize = 999;
+    bool needBorrow = CheckIsNeedBorrow(pidInfo, 0, needBorrowSize);
+    // expectRemoteMemory(0) <= totalSecured(0) → returns false, needBorrowSize unchanged
+    EXPECT_FALSE(needBorrow);
+}
+
+TEST_F(TestProcessMemPidInfoManager, CheckIsNeedBorrowMixedCompletedAndCreating)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 79001;
+    // One completed debt
+    ::process_mem::def::DebtInfo completed{};
+    completed.numaDesc.name = "completed_debt_mixed";
+    completed.numaDesc.size = 1024;
+    completed.status = ::process_mem::def::BorrowStatus::COMPLETED;
+    pidInfo.memBorrowInfo.debtInfos["completed_debt_mixed"] = completed;
+    // One active creating debt (not timed out, so counts toward totalSecured)
+    ::process_mem::def::DebtInfo creating{};
+    creating.numaDesc.name = "creating_debt_mixed";
+    creating.numaDesc.size = 512;
+    creating.status = ::process_mem::def::BorrowStatus::CREATING;
+    creating.borrowStartTime = std::chrono::steady_clock::now();
+    pidInfo.memBorrowInfo.debtInfos["creating_debt_mixed"] = creating;
+
+    uint64_t needBorrowSize = 0;
+    // totalSecured = completed(1024) + creating(512) = 1536, expect=2048 → needBorrow=true, needSize=512
+    bool needBorrow = CheckIsNeedBorrow(pidInfo, 2048, needBorrowSize);
+    EXPECT_TRUE(needBorrow);
+    EXPECT_EQ(needBorrowSize, 512u);
+}
+
+// ==================== MemoryCheckHandle with numas on both local and remote ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryCheckHandleLocalNumaNotConfigured)
+{
+    ::process_mem::def::ProcessMemPidInfo info{};
+    info.configInfo.pid = 79100;
+    info.configInfo.expectedMemoryUsage = 1024;
+    info.configInfo.evictThreshold = 10;
+    info.configInfo.reclaimThreshold = 90;
+    info.configInfo.targetEvictThreshold = 50;
+    info.memBorrowInfo.remoteNumaId = -1;
+    // No numa data for local (0) → local stays 0 → need borrow
+    // 0 * 100 = 0 <= evict(10) * expected(1024) = 10240 → need borrow
+    std::unordered_map<uint32_t, size_t> numaMemory = {};
+    auto ret = MemoryCheckHandle(info, numaMemory);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== GetMigrateResult with isBack=false tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetMigrateResultNonBackMode)
+{
+    pid_t myPid = ::getpid();
+    // isBack=false → def=10MiB, larger tolerance
+    auto result = GetMigrateResult(myPid, 999, 0, false);
+    // Default threshold is 10MiB, so even a large mismatch still passes
+    EXPECT_TRUE(result);
+}
+
+// ==================== RecoverAllDebtInfoData filter path tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, RecoverAllDebtInfoDataWithNonProcessMemDebt)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    mgr.SetPidInfoMap(pidInfo);
+
+    // Debt with non-PROCESS_MEM pluginId → IsProcessMemDebt returns false → skipped
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = static_cast<::process_mem::def::UsrInfoPluginType>(99);
+    usrInfo.pid = myPid;
+    usrInfo.startTime = startTime;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debtInfo{};
+    debtInfo.name = "non_process_mem_debt";
+    debtInfo.size = 1024;
+    debtInfo.remoteNumaId = 0;
+    debtInfo.borrowNodeId = "NODE0";
+    memcpy(debtInfo.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debtInfo});
+
+    EXPECT_NO_THROW(mgr.RecoverAllDebtInfoData());
+    EXPECT_TRUE(mgr.IsRecoverCompleted());
+
+    ubse::mem::controller::MockClearDebtInfos();
+    mgr.UnInit();
+    mgr.UnsetPidInfo(myPid);
+}
+
+TEST_F(TestProcessMemPidInfoManager, RecoverAllDebtInfoDataWithBorrowNodeMismatch)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    mgr.SetPidInfoMap(pidInfo);
+
+    // Debt with non-matching borrowNodeId → skipped at line 998
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = myPid;
+    usrInfo.startTime = startTime;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debtInfo{};
+    debtInfo.name = "mismatched_node_debt";
+    debtInfo.size = 2048;
+    debtInfo.remoteNumaId = 0;
+    debtInfo.borrowNodeId = "OTHER_NODE"; // != "NODE0" from mock → skipped
+    memcpy(debtInfo.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debtInfo});
+
+    EXPECT_NO_THROW(mgr.RecoverAllDebtInfoData());
+    EXPECT_TRUE(mgr.IsRecoverCompleted());
+
+    ubse::mem::controller::MockClearDebtInfos();
+    mgr.UnInit();
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== HandleNodeFaultEvent with non-PROCESS_MEM debt ====================
+
+TEST_F(TestProcessMemPidInfoManager, HandleNodeFaultEventSkipsNonProcessMemDebt)
+{
+    auto& mgr = ProcessMemPidInfoManager::GetInstance();
+    mgr.Init();
+    mgr.RecoverAllDebtInfoData();
+
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    ASSERT_GT(startTime, 0u);
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    mgr.SetPidInfoMap(pidInfo);
+
+    // Non-PROCESS_MEM debt → IsProcessMemDebt returns false → skipped
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = static_cast<::process_mem::def::UsrInfoPluginType>(99);
+    usrInfo.pid = myPid;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debtInfo{};
+    debtInfo.name = "fault_non_proc_debt";
+    debtInfo.lentNodeId = "NODE_FAULT_SKIP";
+    memcpy(debtInfo.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debtInfo});
+
+    auto ret = mgr.HandleNodeFaultEvent("NODE_FAULT_SKIP");
+    EXPECT_EQ(ret, UBSE_OK);
+
+    ubse::mem::controller::MockClearDebtInfos();
+    mgr.UnInit();
+    mgr.UnsetPidInfo(myPid);
+}
+
+// ==================== Config manager tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, QueryPidConfigCallbackNullBuffer)
+{
+    UbseByteBuffer nullBuf{nullptr, 0};
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", nullBuf, nullptr));
+}
+
+TEST_F(TestProcessMemPidInfoManager, QueryPidConfigCallbackZeroLenBuffer)
+{
+    uint8_t data = 0;
+    UbseByteBuffer buf{&data, 0};
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", buf, nullptr));
+}
+
+TEST_F(TestProcessMemPidInfoManager, QueryPidConfigCallbackBadData)
+{
+    uint8_t badData[] = {0xFF, 0xFF, 0xFF, 0xFF};
+    UbseByteBuffer buf{badData, sizeof(badData)};
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("prefix", "key", buf, nullptr));
+}
+
+TEST_F(TestProcessMemPidInfoManager, QueryPidConfigCallbackWithInvalidCtx)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    if (startTime == 0) {
+        GTEST_SKIP() << "Cannot read /proc/pid/stat for current pid";
+    }
+
+    ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    pidInfo.configInfo.evictThreshold = 80;
+
+    ubse::serial::UbseSerialization serializer;
+    pidInfo.SerializePidInfo(serializer);
+    UbseByteBuffer buf{serializer.GetBuffer(), serializer.GetLength()};
+
+    std::vector<::process_mem::def::ProcessMemPidInfo> pidInfos;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::QueryPidConfigCallback("p", "k", buf, &pidInfos));
+    EXPECT_EQ(pidInfos.size(), 1u);
+}
+
+TEST_F(TestProcessMemPidInfoManager, IsPidInfoExistValidPid)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    if (startTime == 0) {
+        GTEST_SKIP() << "Cannot read /proc/pid/stat for current pid";
+    }
+    auto result = ProcessMemPidConfigManager::IsPidInfoExist(myPid, startTime);
+    EXPECT_TRUE(result);
+}
+
+TEST_F(TestProcessMemPidInfoManager, IsPidInfoExistNonExistentPid)
+{
+    auto result = ProcessMemPidConfigManager::IsPidInfoExist(99999999, 1);
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TestProcessMemPidInfoManager, CheckPidConfigInfoValid)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    if (startTime == 0) {
+        GTEST_SKIP() << "Cannot read /proc/pid/stat for current pid";
+    }
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime;
+    auto result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
+    EXPECT_TRUE(result);
+}
+
+TEST_F(TestProcessMemPidInfoManager, CheckPidConfigInfoMismatch)
+{
+    pid_t myPid = ::getpid();
+    auto startTime = ProcessMemPidConfigManager::GetExactStartTime(myPid);
+    if (startTime == 0) {
+        GTEST_SKIP() << "Cannot read /proc/pid/stat for current pid";
+    }
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = myPid;
+    pidInfo.startTime = startTime + 99999; // mismatched
+    auto result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TestProcessMemPidInfoManager, CheckPidConfigInfoNonExistentPid)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 99999999;
+    pidInfo.startTime = 1;
+    auto result = ProcessMemPidConfigManager::CheckPidConfigInfo(pidInfo);
+    EXPECT_FALSE(result);
+}
+
+TEST_F(TestProcessMemPidInfoManager, DeletePidConfigInfoNonExistent)
+{
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(99999999));
+}
+
+// ==================== CycleCollectNumaInfo test ====================
+
+TEST_F(TestProcessMemPidInfoManager, CycleCollectNumaInfoBasic)
+{
+    auto& collector = ::process_mem::collect::ProcessMemPidCollect::GetInstance();
+    auto ret = collector.CycleCollectNumaInfo();
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== CollectChildPids test ====================
+
+TEST_F(TestProcessMemPidInfoManager, CollectChildPidsWithGetpid)
+{
+    pid_t myPid = ::getpid();
+    ::process_mem::collect::CollectInfoMap pidCollectInfo;
+    ::process_mem::def::ProcessMemPidConfigInfo configInfo{};
+    configInfo.pid = myPid;
+    auto& collector = ::process_mem::collect::ProcessMemPidCollect::GetInstance();
+    EXPECT_NO_THROW(collector.CollectChildPids(myPid, configInfo, pidCollectInfo));
+}
+
+// ==================== Bridge NotifyBorrowNodesOnFault tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, NotifyBorrowNodesOnFaultNoTargets)
+{
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::NotifyBorrowNodesOnFault("FAULT_NODE_NO_TARGET");
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidInfoManager, NotifyBorrowNodesOnFaultWithMockDebts)
+{
+    // Set up debt info with non-matching lentNodeId → still no targets notified
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = 1;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debt{};
+    debt.name = "notify_test";
+    debt.lentNodeId = "OTHER_NODE";
+    debt.borrowNodeId = "NODE0"; // same as current → excluded
+    memcpy(debt.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debt});
+
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::NotifyBorrowNodesOnFault("FAULT_NODE_WITH_DATA");
+    EXPECT_EQ(ret, UBSE_OK);
+
+    ubse::mem::controller::MockClearDebtInfos();
+}
+
+TEST_F(TestProcessMemPidInfoManager, NotifyBorrowNodesOnFaultWithRemoteTargets)
+{
+    // Set up debt with borrowNodeId != currentNodeId → should be collected as target
+    ::process_mem::def::ProcessMemUsrInfo usrInfo{};
+    usrInfo.pluginId = ::process_mem::def::UsrInfoPluginType::PROCESS_MEM;
+    usrInfo.pid = 1;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debt{};
+    debt.name = "remote_target";
+    debt.lentNodeId = "FAULT_REMOTE";
+    debt.borrowNodeId = "REMOTE_NODE"; // != "NODE0" → collected
+    memcpy(debt.usrInfo, &usrInfo, sizeof(usrInfo));
+
+    ubse::mem::controller::MockSetDebtInfos({debt});
+
+    // This will try to send RPC to REMOTE_NODE, which will likely fail in UT but shouldn't crash
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::NotifyBorrowNodesOnFault("FAULT_REMOTE");
+    // RPC will fail in UT → firstError will be set
+    (void)ret;
+
+    ubse::mem::controller::MockClearDebtInfos();
+}
+
+// ==================== Bridge GetRemoteNumaSocketInfo tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, GetRemoteNumaSocketInfoNoDebts)
+{
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    desc.exportNode.slotId = 0;
+    uint32_t socketId = 0;
+    uint64_t numaId = 0;
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::GetRemoteNumaSocketInfo(desc, socketId, numaId);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidInfoManager, GetRemoteNumaSocketInfoWithMatchingDebt)
+{
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    desc.name = "matching_debt";
+    desc.importNode.slotId = 5;
+    desc.exportNode.slotId = 5;
+
+    ubse::mem::controller::UbseNumaMemoryDebtInfo debt{};
+    debt.name = "matching_debt";
+    debt.borrowNodeId = "5";
+    debt.lentSocketIdList = {2};
+    debt.lentNumaIdList = {100};
+
+    ubse::mem::controller::MockSetDebtInfos({debt});
+
+    uint32_t socketId = 0;
+    uint64_t numaId = 0;
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::GetRemoteNumaSocketInfo(desc, socketId, numaId);
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(socketId, 2u);
+    EXPECT_EQ(numaId, 100u);
+
+    ubse::mem::controller::MockClearDebtInfos();
+}
+
+// ==================== Bridge SendPidSetResponse test ====================
+
+TEST_F(TestProcessMemPidInfoManager, SendPidSetResponseBasic)
+{
+    auto ret = ::process_mem::pid::bridge::SendPidSetResponse(0, "test error", 12345);
+    // In UT environment, SendResponse will likely fail → non-zero return
+    (void)ret;
+}
+
+// ==================== Bridge MemoryReturn test ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryReturnBasic)
+{
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryReturn("test_mem_return");
+    // Mock UbseMemNumaDelete returns UBSE_OK, so this should succeed
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== Config manager persistence tests ====================
+
+TEST_F(TestProcessMemPidInfoManager, PersistPidConfigInfoBasic)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = 79001;
+    pidInfo.startTime = 12345;
+    pidInfo.configInfo.evictThreshold = 80;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::PersistPidConfigInfo(pidInfo));
+}
+
+TEST_F(TestProcessMemPidInfoManager, GetAllPersistedPidConfigInfoBasic)
+{
+    std::vector<::process_mem::def::ProcessMemPidInfo> pidInfos;
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::GetAllPersistedPidConfigInfo(pidInfos));
+}
+
+TEST_F(TestProcessMemPidInfoManager, DeletePidConfigInfoBasic)
+{
+    EXPECT_NO_THROW(ProcessMemPidConfigManager::DeletePidConfigInfo(79001));
+}
+
+// ==================== Bridge MemoryBorrow test ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryBorrowExportSlotDefault)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = ::getpid();
+    pidInfo.memBorrowInfo.exportSlotId = -1;
+
+    ubse::mem::controller::UbseMemBorrower borrower{};
+    ::process_mem::pid::bridge::MemoryBorrowRequest request{};
+    request.name = "test_borrow";
+    request.size = 1024 * 1024;
+
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryBorrow(pidInfo, borrower, request, desc);
+    // Mock UbseMemNumaCreate returns UBSE_OK
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestProcessMemPidInfoManager, MemoryBorrowExportSlotWithCandidate)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = ::getpid();
+    pidInfo.memBorrowInfo.exportSlotId = 3;
+
+    ubse::mem::controller::UbseMemBorrower borrower{};
+    ::process_mem::pid::bridge::MemoryBorrowRequest request{};
+    request.name = "test_borrow_candidate";
+    request.size = 2048 * 1024;
+
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryBorrow(pidInfo, borrower, request, desc);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+// ==================== Bridge FaultHandler test ====================
+
+TEST_F(TestProcessMemPidInfoManager, FaultHandlerBasic)
+{
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::FaultHandler(ubse::ras::ALARM_PANIC_EVENT,
+                                                                             "FAULT_NODE_FOR_TEST");
+    (void)ret;
+}
+
+// ==================== Bridge ProcessMemNodeFaultNotifyHandler test ====================
+
+TEST_F(TestProcessMemPidInfoManager, ProcessMemNodeFaultNotifyHandlerBasic)
+{
+    ubse::serial::UbseSerialization serializer;
+    serializer << std::string("NODE_FAULT_NOTIFY");
+    UbseByteBuffer req{serializer.GetBuffer(), serializer.GetLength(), nullptr};
+    UbseByteBuffer resp{};
+    EXPECT_NO_THROW(::process_mem::pid::bridge::ProcessMemPidBridge::ProcessMemNodeFaultNotifyHandler(req, resp));
+}
+
+// ==================== Bridge error path tests with mock error injection ====================
+
+TEST_F(TestProcessMemPidInfoManager, MemoryBorrowCreateError)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = ::getpid();
+    pidInfo.memBorrowInfo.exportSlotId = -1;
+
+    ubse::mem::controller::UbseMemBorrower borrower{};
+    ::process_mem::pid::bridge::MemoryBorrowRequest request{};
+    request.name = "test_borrow_err";
+    request.size = 1024 * 1024;
+
+    ubse::mem::controller::MockSetNumaCreateError(UBSE_ERROR);
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryBorrow(pidInfo, borrower, request, desc);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    ubse::mem::controller::MockResetAllErrors();
+}
+
+TEST_F(TestProcessMemPidInfoManager, MemoryBorrowWithCandidateError)
+{
+    ::process_mem::def::ProcessMemPidInfo pidInfo{};
+    pidInfo.configInfo.pid = ::getpid();
+    pidInfo.memBorrowInfo.exportSlotId = 3;
+
+    ubse::mem::controller::UbseMemBorrower borrower{};
+    ::process_mem::pid::bridge::MemoryBorrowRequest request{};
+    request.name = "test_borrow_cand_err";
+    request.size = 2048 * 1024;
+
+    ubse::mem::controller::MockSetNumaCreateError(UBSE_ERROR);
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryBorrow(pidInfo, borrower, request, desc);
+    EXPECT_EQ(ret, UBSE_ERROR);
+    ubse::mem::controller::MockResetAllErrors();
+}
+
+TEST_F(TestProcessMemPidInfoManager, MemoryReturnEmptyNodeId)
+{
+    ubse::nodeController::MockSetCurrentNodeId("");
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryReturn("test_empty_node");
+    EXPECT_EQ(ret, UBSE_ERROR);
+    ubse::nodeController::MockResetCurrentNodeId();
+}
+
+TEST_F(TestProcessMemPidInfoManager, MemoryReturnDeleteError)
+{
+    ubse::mem::controller::MockSetNumaDeleteError(UBSE_ERROR);
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::MemoryReturn("test_delete_err");
+    EXPECT_EQ(ret, UBSE_ERROR);
+    ubse::mem::controller::MockResetAllErrors();
+}
+
+TEST_F(TestProcessMemPidInfoManager, GetRemoteNumaSocketInfoRetryAndError)
+{
+    ubse::mem::controller::MockSetDebtInfoWithNodeError(UBSE_ERROR);
+
+    ubse::mem::controller::UbseMemNumaDesc desc{};
+    uint32_t socketId = 0;
+    uint64_t numaId = 0;
+    auto ret = ::process_mem::pid::bridge::ProcessMemPidBridge::GetRemoteNumaSocketInfo(desc, socketId, numaId);
+    EXPECT_NE(ret, UBSE_OK);
+
+    ubse::mem::controller::MockResetAllErrors();
+}
+
+} // namespace ubse::ut::process_mem
