@@ -358,7 +358,15 @@ function build_cmake() {
     if [[ "$generator" == 'Ninja' ]]; then
         force_colored_output='ON'
     fi
-
+    if rpm -q kernel-devel >/dev/null 2>&1; then
+        KERNEL_VERSION=$(rpm -q kernel-devel | head -1 | awk -F 'kernel-devel-' '{print $2}')
+    else
+        KERNEL_VERSION=$(uname -r)
+    fi
+    if [[ ! "$KERNEL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+ ]]; then
+        log_error "Invalid KERNEL_VERSION: $KERNEL_VERSION"
+        exit 1
+    fi
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
@@ -377,6 +385,7 @@ function build_cmake() {
         -DB_VERSION="${deploy_version}"
         -DENABLE_UB="${enable_ub}"
         -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
+        -DKERNEL_VERSION="${KERNEL_VERSION}"
     )
     [[ -n "${toolchain_file}" ]] && cmake_args+=(-DCMAKE_TOOLCHAIN_FILE="${toolchain_file}")
     cmake "${cmake_args[@]}"

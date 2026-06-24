@@ -34,6 +34,9 @@
   ```bash
   # 注：需要系统配置了openEuler release 24.03 (LTS-SP3)镜像源
   # 安装主程序包
+  # 智算场景，执行如下命令：
+  sudo env ENABLE_AI=true dnf install -y ubs-engine
+  # 通算场景，执行如下命令：
   sudo dnf install -y ubs-engine
   # 安装客户端运行时库（第三方集成必需）
   sudo dnf install -y ubs-engine-client-libs
@@ -52,6 +55,9 @@
   ```bash
   # 通过rpm包安装运行包
   # 安装主程序包
+  # 智算场景，执行如下命令：
+  sudo env ENABLE_AI=true dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
+  # 通算场景，执行如下命令：
   sudo dnf install -y ubs-engine-<version>-<release>.aarch64.rpm
   # 安装客户端运行时库（第三方集成必需）
   sudo dnf install -y ubs-engine-client-libs-<version>-<release>.aarch64.rpm
@@ -61,7 +67,7 @@
 
 ## 安装结果
 
-- ubs-engine 主程序安装结果：
+ ubs-engine 主程序安装结果：
 
   | 路径                                  | 用途          |
   |-------------------------------------| -------------|
@@ -73,6 +79,8 @@
   | /var/lib/ubse/data                  | 持久化数据    |
   | /var/lib/ubse/lcne_cert/            | 高安部署证书目录|
   | /var/run/ubse/                      | 运行时 socket |
+  | /lib/modules/ubse/bandbridge.ko              | NPU直通虚机和LCNE进行带外通信 |
+  | /lib/modules/$(uname -r)/extra/bandbridge.ko | 软链接，指向/lib/modules/ubse/bandbridge.ko             |
 
 - ubs-engine 客户端运行库安装结果：
 
