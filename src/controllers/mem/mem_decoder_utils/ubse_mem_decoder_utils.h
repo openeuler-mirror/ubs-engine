@@ -23,6 +23,12 @@ using adapter_plugins::mti::mami::UbseMamiMemHandleValue;
 using adapter_plugins::mti::mami::UbseMamiMemImportResult;
 using common::def::UbseResult;
 
+struct DecoderBorrowType {
+    static constexpr std::string_view ADDR = "addr";
+    static constexpr std::string_view FD = "fd";
+    static constexpr std::string_view NUMA = "numa";
+    static constexpr std::string_view SHARE = "share";
+};
 struct ImportDecoderParam {
     uint8_t importType;
     uint8_t decoderIdx;

@@ -344,7 +344,7 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
             trustRingData.signedData = importDecoderParam.trustRingData.lendSignedDatas[i];
             trustRingData.type = importDecoderParam.type;
         }
-        if (usePreOnline) {
+        if (usePreOnline && importDecoderParam.type == decoder::utils::DecoderBorrowType::NUMA) {
             auto res = AddDecoderEntryByPreOnline(loc, mamiImportInfo, status, trustRingData);
             if (res == UBSE_OK) {
                 continue;

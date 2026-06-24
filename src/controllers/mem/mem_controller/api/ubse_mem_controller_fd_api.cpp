@@ -726,7 +726,7 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj& importObj, const std::
     importParam.flag |= UB_MEMORY_IMPORT_SHARE_TYPE;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
-    importParam.type = "fd";
+    importParam.type = decoder::utils::DecoderBorrowType::FD;
     {
         std::shared_lock lock(GetDecoderImportMutex());
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
