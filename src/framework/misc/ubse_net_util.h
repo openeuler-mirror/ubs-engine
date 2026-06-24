@@ -12,6 +12,7 @@
 
 #ifndef UBSE_MANAGER_UBSE_NET_UTIL_H
 #define UBSE_MANAGER_UBSE_NET_UTIL_H
+#include <string>
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
@@ -22,12 +23,6 @@ class UbseNetUtil {
 public:
     static uint32_t ParseIpList(const std::string &ipListStr, std::vector<std::string> &ipList);
 
-    /**
-     * 获取当前节点上与给定远端地址地址处于同一网络平面地址
-     * @param remoteIp [in] 给定远端地址
-     * @param localIp [out] 本节点上与给定远端地址处于同一网络平面的地址
-     * @return
-     */
     static uint32_t FindLocalIpByRemote(const std::string &remoteIp, std::string &localIp);
 
     static uint32_t FindLocalIpInIpList(std::vector<std::string> ipList, std::string &localIp);

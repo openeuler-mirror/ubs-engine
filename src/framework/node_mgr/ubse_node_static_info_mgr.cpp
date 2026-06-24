@@ -238,4 +238,4 @@ bool UbseNodeStaticInfoMgr::IsApplyUrmaDev()
     std::shared_lock lock(nodeMutex_);
     return isApplyUrmaDev;
 }
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr

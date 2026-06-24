@@ -59,4 +59,15 @@ UbseResult UbseNodeDiscoveryListSerial::Deserialize()
     }
     return UBSE_OK;
 }
-} // namespace ubse::nodeDiscovery
+
+std::string UbseNodeDiscoveryListSerial::ToString() const
+{
+    std::string ret = "[";
+    for (auto &node : nodeList_) {
+        ret += "{SuperPodId=" + std::to_string(node.superPodId) + ", groupId=" +
+    std::to_string(node.groupId) + ", nodeId=" + node.nodeId + ", ip=" + node.addr + "};";
+    }
+    ret += "]";
+    return ret;
+}
+} // namespace ubse::nodeMgr

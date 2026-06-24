@@ -102,4 +102,4 @@ TEST_F(TestUbseNodeDiscoveryConfigMode, GenerateClusterTopo)
     UbseNodeDiscoveryConfigMode::GetInstance().GenerateClusterTopo(nodeList);
     EXPECT_EQ(5, UbseNodeStaticInfoMgr::GetInstance().GetAllNodes().size());
 }
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr

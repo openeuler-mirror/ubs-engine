@@ -89,6 +89,6 @@ private:
     NodeMap nodes_{};
     mutable std::shared_mutex nodeMutex_{};
 };
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
 
 #endif // UBS_ENGINE_UBSE_NODE_STATIC_INFO_MGR_H

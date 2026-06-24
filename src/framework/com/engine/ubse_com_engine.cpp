@@ -1063,7 +1063,8 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext &context)
     msgCtx.SetOpCode(opCode);
     msgCtx.SetModuleCode(moduleCode);
     ParseContextMsg(context, msg, msgCtx);
-    if (moduleCode != static_cast<uint16_t>(UbseModuleCode::ELECTION)) {
+    if (moduleCode != static_cast<uint16_t>(UbseModuleCode::ELECTION) &&
+        moduleCode != static_cast<uint16_t>(UbseModuleCode::NODE_MGR)) {
         if (!VerifyMsg(msgCtx)) {
             UBSE_LOG_ERROR << "The message for module=" << moduleCode << ", op code=" << opCode
                            << " , is not the trans between master and agent.";
