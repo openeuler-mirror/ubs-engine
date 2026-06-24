@@ -13,7 +13,6 @@
 #include "mockcpp/mockcpp.hpp"
 #include "test_router.h"
 
-// 引入被测代码及其依赖的头文件
 #include "router.h"
 #include "vm_migrate.h"
 #include "case_conf_sdk_server.h"
@@ -30,7 +29,6 @@ void TestRouter::TearDown()
     GlobalMockObject::verify();
     Test::TearDown();
 }
-
 
 // 1、VMCommonSdkServerInit
 
@@ -102,7 +100,7 @@ TEST_F(TestRouter, VMMemFragSdkServerInit_Failed)
 
 // 3、ContainerSdkServerInit
 
-// TEST7: 注册成功
+// TEST7: 成功
 TEST_F(TestRouter, ContainerSdkServerInit_Success)
 {
     MOCKER(&VirtContainerSdk::Register).stubs().will(returnValue(VM_OK));
@@ -111,7 +109,7 @@ TEST_F(TestRouter, ContainerSdkServerInit_Success)
     EXPECT_EQ(ret, VM_OK);
 }
 
-// TEST8: 注册失败
+// TEST8: 失败
 TEST_F(TestRouter, ContainerSdkServerInit_Failed)
 {
     MOCKER(&VirtContainerSdk::Register).stubs().will(returnValue(VM_ERROR));
