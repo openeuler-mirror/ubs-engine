@@ -132,7 +132,7 @@ add_dependencies(ubse_it_runtime
 set(UBSE_IT_MODULES
     smoke
     election
-    numa_borrow
+    mem_borrow
 )
 
 set(UBSE_IT_NON_MODULE_DIRS

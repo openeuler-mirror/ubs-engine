@@ -1,1 +1,0 @@
-add_it(numa_borrow)
