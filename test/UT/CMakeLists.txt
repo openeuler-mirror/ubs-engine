@@ -56,6 +56,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         npu_controller
         ubse_urma_controller
         ubse_urma_uvs
+        ubse_smbios
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
