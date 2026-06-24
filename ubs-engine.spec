@@ -53,6 +53,7 @@ Development package for processmem plugin
 Summary: UBSE client shared library for third-party integration
 Provides: %{lib_name}.so.%{lib_soversion}
 Requires: libboundscheck, libstdc++
+Conflicts: %{name} < %{version}-%{release}
 Obsoletes: %{name}-client-libs < %{version}-%{release}
 Provides: %{name}-client-libs = %{version}-%{release}
 
