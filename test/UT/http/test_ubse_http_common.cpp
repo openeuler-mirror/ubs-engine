@@ -32,16 +32,22 @@ void TestUbseHttpCommon::TearDown()
  * 用例描述：
  * 测试UbseHttpMethodToString方法
  * 测试步骤：
- * 1.传入参数为UBSE_HTTP_METHOD_GET，校验输出
- * 2.传入参数为UBSE_HTTP_METHOD_INVALID，校验输出
+ * 1.遍历所有合法HTTP方法，校验输出
+ * 2.传入非法方法，校验输出
  * 预期结果：
- * 1.输出为"GET"
- * 2.输出为"INVALID"
+ * 1.合法方法输出对应字符串
+ * 2.非法方法输出"INVALID"
  */
 TEST_F(TestUbseHttpCommon, UbseHttpMethodToString)
 {
-    UbseHttpMethod method = UbseHttpMethod::UBSE_HTTP_METHOD_GET;
-    EXPECT_EQ(UbseHttpMethodToString(method), "GET");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_GET), "GET");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_HEAD), "HEAD");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_POST), "POST");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_PUT), "PUT");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_DELETE), "DELETE");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT), "CONNECT");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_TRACE), "TRACE");
+    EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_PATCH), "PATCH");
     EXPECT_EQ(UbseHttpMethodToString(UbseHttpMethod::UBSE_HTTP_METHOD_INVALID), "INVALID");
 }
 
@@ -49,15 +55,24 @@ TEST_F(TestUbseHttpCommon, UbseHttpMethodToString)
  * 用例描述：
  * 测试StringToUbseHttpMethod方法
  * 测试步骤：
- * 1.传入参数为"HEAD"，校验输出
- * 2.传入参数为R"INVALID"，校验输出
+ * 1.遍历所有合法HTTP方法字符串，校验输出
+ * 2.传入非法字符串，校验输出
  * 预期结果：
- * 1.输出为UBSE_HTTP_METHOD_HEAD
- * 2.输出为UBSE_HTTP_METHOD_INVALID
+ * 1.合法字符串输出对应方法枚举
+ * 2.非法字符串输出UBSE_HTTP_METHOD_INVALID
  */
 TEST_F(TestUbseHttpCommon, StringToUbseHttpMethod)
 {
+    EXPECT_EQ(StringToUbseHttpMethod("GET"), UbseHttpMethod::UBSE_HTTP_METHOD_GET);
     EXPECT_EQ(StringToUbseHttpMethod("HEAD"), UbseHttpMethod::UBSE_HTTP_METHOD_HEAD);
+    EXPECT_EQ(StringToUbseHttpMethod("POST"), UbseHttpMethod::UBSE_HTTP_METHOD_POST);
+    EXPECT_EQ(StringToUbseHttpMethod("PUT"), UbseHttpMethod::UBSE_HTTP_METHOD_PUT);
+    EXPECT_EQ(StringToUbseHttpMethod("DELETE"), UbseHttpMethod::UBSE_HTTP_METHOD_DELETE);
+    EXPECT_EQ(StringToUbseHttpMethod("CONNECT"), UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT);
+    EXPECT_EQ(StringToUbseHttpMethod("TRACE"), UbseHttpMethod::UBSE_HTTP_METHOD_TRACE);
+    EXPECT_EQ(StringToUbseHttpMethod("PATCH"), UbseHttpMethod::UBSE_HTTP_METHOD_PATCH);
     EXPECT_EQ(StringToUbseHttpMethod("INVALID"), UbseHttpMethod::UBSE_HTTP_METHOD_INVALID);
+    EXPECT_EQ(StringToUbseHttpMethod("unknownmethod"), UbseHttpMethod::UBSE_HTTP_METHOD_INVALID);
+    EXPECT_EQ(StringToUbseHttpMethod(""), UbseHttpMethod::UBSE_HTTP_METHOD_INVALID);
 }
 } // namespace ubse::ut::http

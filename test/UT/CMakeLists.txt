@@ -42,6 +42,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_mmi
         mem_controller
         cert_api_static
+        ubse_cert
         ubse_ras
         ubse_timer
         ubse_context
