@@ -15,27 +15,26 @@
 
 // 引入被测代码及其依赖的头文件
 #include "router.h"
-#include "vm_migrate.h"             // VmMigrate::Register
-#include "case_conf_sdk_server.h"   // VirtCaseConfSdk::Register
-#include "mem_fragmentation_sdk_server.h"  // VirtMemFragSdk::QueryRegister / Register
-#include "container_sdk_server.h"   // VirtContainerSdk::Register
+#include "vm_migrate.h"
+#include "case_conf_sdk_server.h"
+#include "mem_fragmentation_sdk_server.h"
+#include "container_sdk_server.h"
 
-using namespace vm;          // VM_OK / VM_ERROR / VmResult / VmMigrate 等符号位于 namespace vm
+using namespace vm;
 namespace ubse::ut::vm {
 
 void TestRouter::SetUp() { Test::SetUp(); }
 
 void TestRouter::TearDown()
 {
-    GlobalMockObject::verify();  // 检查所有 MOCKER 至少被调用一次
+    GlobalMockObject::verify();
     Test::TearDown();
 }
 
-// ========================================================
-// 一、VMCommonSdkServerInit
-// ========================================================
 
-// 用例1: 全部注册成功 → VM_OK
+// 1、VMCommonSdkServerInit
+
+// TEST1: 全部成功
 TEST_F(TestRouter, VMCommonSdkServerInit_AllSuccess)
 {
     // 三个 Register 都打桩为成功
@@ -47,7 +46,7 @@ TEST_F(TestRouter, VMCommonSdkServerInit_AllSuccess)
     EXPECT_EQ(ret, VM_OK);
 }
 
-// 用例2: 第一步 VmMigrate::Register 失败 → 直接返回错误
+// TEST2: 第一步 VmMigrate::Register 失败
 TEST_F(TestRouter, VMCommonSdkServerInit_VmMigrateFailed)
 {
     MOCKER(&VmMigrate::Register).stubs().will(returnValue(VM_ERROR));
@@ -59,7 +58,7 @@ TEST_F(TestRouter, VMCommonSdkServerInit_VmMigrateFailed)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-// 用例3: 第二步 VirtMemFragSdk::QueryRegister 失败
+// TEST3: 第二步 VirtMemFragSdk::QueryRegister 失败
 TEST_F(TestRouter, VMCommonSdkServerInit_MemFragQueryFailed)
 {
     MOCKER(&VmMigrate::Register).stubs().will(returnValue(VM_OK));
@@ -70,7 +69,7 @@ TEST_F(TestRouter, VMCommonSdkServerInit_MemFragQueryFailed)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-// 用例4: 第三步 VirtCaseConfSdk::Register 失败
+// TEST4: 第三步 VirtCaseConfSdk::Register 失败
 TEST_F(TestRouter, VMCommonSdkServerInit_CaseConfFailed)
 {
     MOCKER(&VmMigrate::Register).stubs().will(returnValue(VM_OK));
@@ -81,11 +80,9 @@ TEST_F(TestRouter, VMCommonSdkServerInit_CaseConfFailed)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-// ========================================================
-// 二、VMMemFragSdkServerInit
-// ========================================================
+// 2、VMMemFragSdkServerInit
 
-// 用例5: 注册成功
+// TEST5: 成功
 TEST_F(TestRouter, VMMemFragSdkServerInit_Success)
 {
     MOCKER(&VirtMemFragSdk::Register).stubs().will(returnValue(VM_OK));
@@ -94,7 +91,7 @@ TEST_F(TestRouter, VMMemFragSdkServerInit_Success)
     EXPECT_EQ(ret, VM_OK);
 }
 
-// 用例6: 注册失败
+// TEST6: 失败
 TEST_F(TestRouter, VMMemFragSdkServerInit_Failed)
 {
     MOCKER(&VirtMemFragSdk::Register).stubs().will(returnValue(VM_ERROR));
@@ -103,11 +100,9 @@ TEST_F(TestRouter, VMMemFragSdkServerInit_Failed)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-// ========================================================
-// 三、ContainerSdkServerInit
-// ========================================================
+// 3、ContainerSdkServerInit
 
-// 用例7: 注册成功
+// TEST7: 注册成功
 TEST_F(TestRouter, ContainerSdkServerInit_Success)
 {
     MOCKER(&VirtContainerSdk::Register).stubs().will(returnValue(VM_OK));
@@ -116,7 +111,7 @@ TEST_F(TestRouter, ContainerSdkServerInit_Success)
     EXPECT_EQ(ret, VM_OK);
 }
 
-// 用例8: 注册失败
+// TEST8: 注册失败
 TEST_F(TestRouter, ContainerSdkServerInit_Failed)
 {
     MOCKER(&VirtContainerSdk::Register).stubs().will(returnValue(VM_ERROR));
