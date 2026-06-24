@@ -16,7 +16,9 @@
 #include <ubse_com.h>
 #include <ubse_election.h>
 #include <ubse_security.h>
+#include <chrono>
 #include <mockcpp/mockcpp.hpp>
+#include <thread>
 #include <vector>
 
 #include "gmock/gmock-actions.h"
@@ -47,6 +49,8 @@ void TestMemFragmentationSdkServer::SetUp()
 
 void TestMemFragmentationSdkServer::TearDown()
 {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    GlobalMockObject::verify();
     Test::TearDown();
 }
 
@@ -1340,9 +1344,12 @@ TEST_F(TestMemFragmentationSdkServer, MemReturn_ShouldReturnError_WhenSendRespon
     std::vector<uint8_t> buffer(nodeId.begin(), nodeId.end());
     req.buffer = buffer.data();
     req.length = buffer.size();
+    MOCKER(&VmConfiguration::GetNodeId).stubs().will(returnValue(std::string("1")));
     MOCKER(MempoolingModule::UBSRMRSMemFree).stubs().will(invoke(MockUBSRMRSMemFreeOK));
     MOCKER(SendResponse).stubs().will(returnValue(VM_ERROR));
     EXPECT_EQ(VirtMemFragSdk::MemReturn(req, context), VM_ERROR);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    MOCKER(&VmConfiguration::GetNodeId).reset();
     MOCKER(MempoolingModule::UBSRMRSMemFree).reset();
     MOCKER(SendResponse).reset();
 }
@@ -1502,6 +1509,7 @@ TEST_F(TestMemFragmentationSdkServer, StartMemBorrowAsync_Success)
     MOCKER(VirtMemFragSdk::SetSrcNodeHugePage).stubs().will(returnValue(VM_OK));
     uint32_t ret = VirtMemFragSdk::MemBorrowExecute(req, context);
     EXPECT_EQ(ret, VM_OK);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
     MOCKER(VirtMemFragSdk::SetSrcNodeHugePage).reset();
     MOCKER(SendResponse).reset();
@@ -2018,6 +2026,7 @@ TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnError_WhenS
         .stubs();
 
     EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
     MOCKER(StringToC).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
@@ -2045,6 +2054,7 @@ TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnError_WhenT
 
     // 这里模拟线程创建失败的情况，实际线程创建失败会在运行时抛出异常
     EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
     MOCKER(StringToC).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
@@ -2071,6 +2081,7 @@ TEST_F(TestMemFragmentationSdkServer, AsyncMemBorrowExec_ShouldReturnOk_WhenEver
         .stubs();
 
     EXPECT_EQ(VirtMemFragSdk::AsyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
     MOCKER(StringToC).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
