@@ -18,15 +18,21 @@
 #include "ubse_election.h"
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_urma_controller.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_rpc.h"
+#include "ubse_urma_controller_util.h"
 #include "ubse_urma_def.h"
 #include "ubse_urma_uvs_module.h"
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
 #include "test_ubse_urma_controller_def.h"
+
+namespace ubse::urmaController {
+bool IsUrmaDevActivated(const std::string& urmaName);
+} // namespace ubse::urmaController
 
 namespace ubse::urmaController::ut {
 
@@ -38,6 +44,8 @@ using namespace ubse::context;
 using namespace ubse::com;
 using namespace ubse::task_executor;
 using namespace ubse::timer;
+using namespace ubse::common::def;
+using namespace ubse::adapter_plugins::smbios;
 
 static std::shared_ptr<UbseTaskExecutorModule> g_nullTaskExec;
 static std::shared_ptr<UbseComModule> g_nullComModule;
@@ -334,6 +342,385 @@ TEST_F(TestUbseUrmaController, GetUrmaUpdateTimeStamp_NonExistentNode)
 {
     auto timestamp = UbseUrmaControllerManager::GetInstance().GetUrmaUpdateTimeStamp("non_existent_node");
     EXPECT_EQ(timestamp, 0U);
+}
+
+TEST_F(TestUbseUrmaController, IsUrmaDevActivated)
+{
+    ClearNodeInfosForTest();
+    UbseRoleInfo role;
+    role.nodeId = "0";
+    UbseUrmaInfo urmaInfo;
+    urmaInfo.urmaDevEid = "eid";
+
+    urmaInfo.subPath = "";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    EXPECT_FALSE(IsUrmaDevActivated("test_urma"));
+    GlobalMockObject::verify();
+
+    urmaInfo.subPath = "/dev/test";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    EXPECT_TRUE(IsUrmaDevActivated("test_urma"));
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, IsUrmaDevCreated)
+{
+    UbseUrmaInfo urmaInfo{.subPath = ""};
+    EXPECT_FALSE(UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo));
+    GlobalMockObject::verify();
+
+    urmaInfo.subPath = "/dev/test";
+    urmaInfo.urmaDevEid = "eid";
+    bool isActivate = false;
+    MOCKER_CPP(UbseGetBondingActiveStateByEid).stubs().with(_, outBound(isActivate)).will(returnValue(UBSE_ERROR));
+    EXPECT_FALSE(UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo));
+    GlobalMockObject::verify();
+
+    urmaInfo.eidGroups.clear();
+    isActivate = true;
+    MOCKER_CPP(UbseGetBondingActiveStateByEid).stubs().with(_, outBound(isActivate)).will(returnValue(UBSE_OK));
+    EXPECT_FALSE(UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo));
+    GlobalMockObject::verify();
+
+    urmaInfo.eidGroups.resize(1);
+    urmaInfo.eidGroups[0].feInfo = nullptr;
+    MOCKER_CPP(UbseGetBondingActiveStateByEid).stubs().with(_, outBound(isActivate)).will(returnValue(UBSE_OK));
+    EXPECT_FALSE(UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo));
+    GlobalMockObject::verify();
+
+    urmaInfo.eidGroups[0].feInfo = std::make_shared<UbseFeInfo>();
+    urmaInfo.eidGroups[0].feInfo->name = "fe_name";
+    urmaInfo.eidGroups[0].primaryEid = "primary_eid";
+    MOCKER_CPP(UbseGetBondingActiveStateByEid).stubs().with(_, outBound(isActivate)).will(returnValue(UBSE_OK));
+    EXPECT_TRUE(UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo));
+}
+
+TEST_F(TestUbseUrmaController, UbseFreeUrmaDev)
+{
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseFreeUrmaDev("test"), UBSE_OK);
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseFreeUrmaDev("any"), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaController, UbseUrmaGetDevs)
+{
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(UbseNodeInfo{}));
+    std::vector<std::string> nameInfo;
+    std::vector<uint32_t> status;
+    std::vector<uint64_t> hwResIds;
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseUrmaGetDevs(nameInfo, status, hwResIds), UBSE_ERROR);
+    GlobalMockObject::verify();
+
+    ClearNodeInfosForTest();
+    UbseNodeInfo curNode;
+    curNode.nodeId = "0";
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+    bool isAllPortDown = false;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseUrmaGetDevs(nameInfo, status, hwResIds), UBSE_OK);
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, UbseAllocUrmaDev)
+{
+    bool isAllPortDown = false;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_ERROR));
+    UbseUrmaDevPath devPaths;
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseAllocUrmaDev("test_urma", devPaths), UBSE_ERROR);
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::GetLocalUrmaDevInfoByName).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseAllocUrmaDev("test_urma", devPaths), UBSE_ERROR);
+    GlobalMockObject::verify();
+
+    ClearNodeInfosForTest();
+    UbseRoleInfo role;
+    role.nodeId = "0";
+    UbseUrmaInfo urmaInfo;
+    urmaInfo.urmaDevEid = "act_eid";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(false)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseActiveBonding).stubs().with(_, _).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().with(_, outBound(std::string("sub_path"))).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::AllocUrmaDev)
+        .stubs()
+        .with(_, outBound(std::vector<std::string>{"fe1", "fe2", "fe3"}), outBound(std::string("eid1")))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseAllocUrmaDev("test_urma", devPaths), UBSE_OK);
+    EXPECT_EQ(devPaths.bondingPath, "/dev/uburma/fe1");
+    EXPECT_EQ(devPaths.bondingEid, "eid1");
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, GetDirConnectInfo_FallsBackOnEmptyMap)
+{
+    MOCKER_CPP(&UbseNodeController::UbseGetDirConnectInfo)
+        .stubs()
+        .will(returnValue(std::map<std::string, PhysicalLink>{}));
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeTopo).stubs().will(returnValue(UBSE_OK));
+    EXPECT_TRUE(GetDirConnectInfo().empty());
+}
+
+TEST_F(TestUbseUrmaController, DoNodeJoin)
+{
+    UbseNodeInfo curNode;
+    curNode.nodeId = "test";
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+    auto constructFn = static_cast<UbseResult (UbseUrmaControllerManager::*)(const std::string&,
+                                                                             std::vector<std::vector<UbseMtiFeInfo>>&)>(
+        &UbseUrmaControllerManager::ConstructNewUrmaInfo);
+    MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_OK));
+    bool isAllPortDown = true;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(ReportUrmaNodeInfoToMaster).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().DoNodeJoin("test"), UBSE_OK);
+    GlobalMockObject::verify();
+
+    curNode.slotId = 0;
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeIouList).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
+    MOCKER_CPP(constructFn).stubs().will(returnValue(UBSE_OK));
+    isAllPortDown = false;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(ReportUrmaNodeInfoToMaster).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().DoNodeJoin("test"), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaController, FillUrmaDevByUvsInfo)
+{
+    UbseUrmaUvsAggrDev dev;
+    dev.urmaDevEid = "bonding_eid";
+    UbseUrmaUvsFe fe;
+    fe.primaryEid = "fe_eid";
+    dev.feList.push_back(fe);
+
+    ClearNodeInfosForTest();
+    std::string subpath = "/dev/urma/test";
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().with(_, outBound(subpath)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::SetUrmaSubPath).stubs();
+    MOCKER_CPP(&UbseUrmaControllerManager::SetFeName).stubs();
+    EXPECT_EQ(FillUrmaDevByUvsInfo(dev), UBSE_OK);
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NE(FillUrmaDevByUvsInfo(dev), UBSE_OK);
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().with(_, outBound(subpath)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaControllerManager::SetUrmaSubPath).stubs();
+    ubse::context::g_globalStop = true;
+    EXPECT_EQ(FillUrmaDevByUvsInfo(dev), UBSE_OK);
+    ubse::context::g_globalStop = false;
+}
+
+TEST_F(TestUbseUrmaController, FillUrmaDevsByUvsInfo)
+{
+    std::vector<UbseUrmaUvsNodeInfo> uvsInfos;
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo("no_such_node", uvsInfos);
+    EXPECT_TRUE(true);
+    GlobalMockObject::verify();
+
+    UbseUrmaUvsNodeInfo info;
+    info.nodeId = "other";
+    uvsInfos.push_back(info);
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo("nonexistent", uvsInfos);
+    GlobalMockObject::verify();
+
+    info.nodeId = "0";
+    uvsInfos.clear();
+    uvsInfos.push_back(info);
+    std::shared_ptr<UbseUrmaUvsModule> nullMod;
+    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(nullMod));
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo("0", uvsInfos);
+
+    GlobalMockObject::verify();
+
+    UbseUrmaController::GetInstance().FillUrmaDevsByUvsInfo("0", uvsInfos);
+}
+
+TEST_F(TestUbseUrmaController, GetLocalUrmaDevs_GetNodeInfoFails)
+{
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    std::vector<UbseUrmaDevBrief> devInfos;
+    UbseUrmaController::GetInstance().GetLocalUrmaDevs(devInfos);
+    EXPECT_TRUE(devInfos.empty());
+}
+
+TEST_F(TestUbseUrmaController, PushNodesTopoToUvs)
+{
+    ClearNodeInfosForTest();
+    UbseUrmaUvsNodeInfo uvsInfo;
+    uvsInfo.nodeId = "0";
+    UbseUrmaUvsAggrDev dev;
+    dev.urmaDevEid = "eid";
+    uvsInfo.devList.push_back(dev);
+    std::vector<UbseUrmaUvsNodeInfo> uvsInfos{uvsInfo};
+
+    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo)
+        .stubs()
+        .with(_, _, _, outBound(uvsInfos))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbsePushTopoAndBondingToUvs).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbsePushShareTopoToUvs).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    EXPECT_EQ(PushNodesTopoToUvs("0"), UBSE_OK);
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo)
+        .stubs()
+        .with(_, _, _, outBound(uvsInfos))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbsePushTopoAndBondingToUvs).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NE(PushNodesTopoToUvs("0"), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaController, RefreshAllUrmaDevsState_AllPortsDown)
+{
+    ClearNodeInfosForTest();
+    MOCKER_CPP(QueryAllPortsDown).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseUrmaControllerManager::SetAllUrmaDevStateForNode).stubs();
+    RefreshAllUrmaDevsState("0");
+}
+
+TEST_F(TestUbseUrmaController, RefreshUrmaDevStateByName)
+{
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(false)).will(returnValue(UBSE_ERROR));
+    RefreshUrmaDevStateByName("0", "test_urma");
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(true)).will(returnValue(UBSE_OK));
+    RefreshUrmaDevStateByName("0", "test_urma");
+    GlobalMockObject::verify();
+
+    ClearNodeInfosForTest();
+    bool isAllPortDown = false;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_OK));
+    UbseUrmaNodeInfo nodeInfo;
+    nodeInfo.nodeId = "0";
+    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaNodeInfo).stubs().will(returnValue(nodeInfo));
+    RefreshUrmaDevStateByName("0", "nonexistent");
+    GlobalMockObject::verify();
+
+    UbseRoleInfo role;
+    role.nodeId = "0";
+    UbseUrmaInfo urmaInfo;
+    urmaInfo.urmaDevEid = "test_eid";
+    urmaInfo.subPath = "/dev/test";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(false)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseGetBondingActiveStateByEid).stubs().with(_, outBound(true)).will(returnValue(UBSE_OK));
+    RefreshUrmaDevStateByName("0", "test_urma");
+
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, HandleTopoLinkChangeWithRetry)
+{
+    MOCKER_CPP(HandleTaskWithRetry).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().HandleTopoLinkChangeWithRetry(), UBSE_OK);
+    GlobalMockObject::verify();
+
+    ubse::context::g_globalStop = true;
+    EXPECT_EQ(UbseUrmaController::GetInstance().HandleTopoLinkChangeWithRetry(), UBSE_OK);
+    ubse::context::g_globalStop = false;
+}
+
+TEST_F(TestUbseUrmaController, HandleNodeJoinWithRetry)
+{
+    MOCKER_CPP(HandleTaskWithRetry).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().HandleNodeJoinWithRetry("test_node"), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaController, GetUrmaDevEidByUrmaName_Success)
+{
+    ClearNodeInfosForTest();
+    UbseRoleInfo role;
+    role.nodeId = "0";
+    UbseUrmaInfo urmaInfo;
+    urmaInfo.urmaDevEid = "test_eid";
+    urmaInfo.subPath = "/dev/test";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(GetUrmaDevEidByUrmaName("test_urma"), "test_eid");
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, ActivateSpecifyUrmaDev)
+{
+    ClearNodeInfosForTest();
+    EXPECT_EQ(UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev("nonexistent"),
+              UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED);
+    GlobalMockObject::verify();
+
+    UbseRoleInfo role;
+    role.nodeId = "0";
+    UbseUrmaInfo urmaInfo;
+    urmaInfo.urmaDevEid = "act_eid";
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseActiveBonding).stubs().with(_, _).will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev("test_urma"), UBSE_ERROR_AGAIN);
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+    GlobalMockObject::verify();
+
+    EidGroup eidGroup;
+    eidGroup.primaryEid = "pri_eid";
+    urmaInfo.eidGroups.push_back(eidGroup);
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseActiveBonding).stubs().with(_, _).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().with(_, outBound(std::string("sub_path"))).will(returnValue(UBSE_OK));
+    EXPECT_EQ(UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev("test_urma"), UBSE_OK);
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+    GlobalMockObject::verify();
+
+    UbseUrmaControllerManager::GetInstance().nodeInfos["0"].urmaList["test_urma"] = urmaInfo;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(role)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseActiveBonding).stubs().with(_, _).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetUrmaSubpathByEid).stubs().with(_, outBound(std::string("sub_path"))).will(returnValue(UBSE_OK));
+    ubse::context::g_globalStop = true;
+    EXPECT_EQ(UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev("test_urma"), UBSE_OK);
+    ubse::context::g_globalStop = false;
+    UbseUrmaControllerManager::GetInstance().nodeInfos = {};
+}
+
+TEST_F(TestUbseUrmaController, UbseGetUrmaDevsByRpc_NullComModule)
+{
+    std::vector<UbseUrmaDevBrief> urmaInfo;
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseGetUrmaDevsByRpc(0, urmaInfo), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseUrmaController, GetUrmaVfeFromEidGroup_HasFeInfo)
+{
+    auto feInfo = std::make_shared<UbseFeInfo>();
+    EidGroup eidGroup;
+    eidGroup.feInfo = feInfo;
+    EXPECT_EQ(GetUrmaVfeFromEidGroup(eidGroup), feInfo);
+}
+
+TEST_F(TestUbseUrmaController, UbseTopoLinkChangeHandler_NullTaskExecutor)
+{
+    std::string eventId, eventMsg;
+    EXPECT_EQ(UbseUrmaController::GetInstance().UbseTopoLinkChangeHandler(eventId, eventMsg), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseUrmaController, QueryAllPortsDown)
+{
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeTopo)
+        .stubs()
+        .with(outBound(std::vector<PhysicalLink>{}))
+        .will(returnValue(UBSE_OK));
+    bool isAllPortDown = false;
+    EXPECT_EQ(QueryAllPortsDown(isAllPortDown), UBSE_OK);
+    EXPECT_TRUE(isAllPortDown);
+    GlobalMockObject::verify();
+
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodeTopo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(QueryAllPortsDown(isAllPortDown), UBSE_URMACONTRL_ERROR_QUERY_PORTS_STATUS_FAILED);
 }
 
 } // namespace ubse::urmaController::ut

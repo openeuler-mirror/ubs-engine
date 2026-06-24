@@ -51,7 +51,6 @@ AsyncHandlerGuard::~AsyncHandlerGuard()
     guardCnt.fetch_sub(1, std::memory_order_relaxed);
 }
 
-namespace {
 UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTaskHandler task)
 {
     AsyncHandlerGuard cntGuard;
@@ -73,7 +72,6 @@ UbseResult DoTaskWithTimerCallback(const std::string& timerName, UbseUrmaRetryTa
     }
     return ret;
 }
-} // namespace
 
 UbseResult RegisterUrmaRetryTimer(const std::string& executorName, const std::string& taskName, uint32_t timerInterval,
                                   UbseUrmaRetryTaskHandler task)

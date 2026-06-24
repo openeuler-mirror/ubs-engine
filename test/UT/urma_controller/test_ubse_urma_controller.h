@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <mockcpp/mokc.h>
 #include "ubse_urma_controller_manager.h"
-void ClearNodeInfosForTest()
+inline void ClearNodeInfosForTest()
 {
     ubse::utils::WriteLocker<ubse::utils::ReadWriteLock> writeLock(
         &ubse::urmaController::UbseUrmaControllerManager::GetInstance().rwLock);
@@ -43,5 +43,9 @@ protected:
     }
 };
 } // namespace ubse::urmaController::ut
+
+namespace ubse::urmaController {
+UbseResult FillUrmaDevByUvsInfo(ubse::urma::UbseUrmaUvsAggrDev& dev);
+} // namespace ubse::urmaController
 
 #endif // TEST_UBSE_URMA_CONTROLLER_H

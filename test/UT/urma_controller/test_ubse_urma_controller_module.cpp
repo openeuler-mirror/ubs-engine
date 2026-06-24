@@ -254,4 +254,45 @@ TEST_F(TestUbseUrmaControllerModule, DisconnectAllNormalLink_Success)
     EXPECT_NO_THROW(DisconnectAllNormalLink());
 }
 
+TEST_F(TestUbseUrmaControllerModule, Stop)
+{
+    UbseUrmaControllerModule module;
+
+    // NotEnabled
+    module.enabled_ = false;
+    EXPECT_NO_THROW(module.Stop());
+
+    // TaskExecutorNull
+    module.enabled_ = true;
+    MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_OK));
+    auto comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    std::unordered_map<std::string, UbseNodeInfo> emptyNodes;
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodes));
+    std::shared_ptr<UbseTaskExecutorModule> nullTaskExec;
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(nullTaskExec));
+    MOCKER_CPP(WaitAndCleanupRetryTasks).stubs();
+    EXPECT_NO_THROW(module.Stop());
+    GlobalMockObject::verify();
+
+    // Enabled
+    module.enabled_ = true;
+    MOCKER_CPP(UbseUnSubEvent).stubs().will(returnValue(UBSE_OK));
+    comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    MOCKER_CPP(&UbseNodeController::GetAllNodes).stubs().will(returnValue(emptyNodes));
+    auto taskExec = std::make_shared<UbseTaskExecutorModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskExec));
+    MOCKER_CPP(&UbseTaskExecutorModule::Remove).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(WaitAndCleanupRetryTasks).stubs();
+    EXPECT_NO_THROW(module.Stop());
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestUbseUrmaControllerModule, UnInitialize)
+{
+    UbseUrmaControllerModule module;
+    EXPECT_NO_THROW(module.UnInitialize());
+}
+
 } // namespace ubse::urmaControllerModule::ut
