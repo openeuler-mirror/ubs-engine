@@ -10,19 +10,22 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "mockcpp/mockcpp.hpp"
 #include "test_router.h"
+#include "mockcpp/mockcpp.hpp"
 
+#include "case_conf_sdk_server.h"
+#include "container_sdk_server.h"
+#include "mem_fragmentation_sdk_server.h"
 #include "router.h"
 #include "vm_migrate.h"
-#include "case_conf_sdk_server.h"
-#include "mem_fragmentation_sdk_server.h"
-#include "container_sdk_server.h"
 
 using namespace vm;
 namespace ubse::ut::vm {
 
-void TestRouter::SetUp() { Test::SetUp(); }
+void TestRouter::SetUp()
+{
+    Test::SetUp();
+}
 
 void TestRouter::TearDown()
 {
