@@ -29,9 +29,9 @@ public:
 
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
 
-    UBSE_ID_TYPE GetMasterNode() override;
+    UBSE_ID_TYPE GetGlobalMasterNode() override;
 
-    UBSE_ID_TYPE GetStandbyNode() override;
+    UBSE_ID_TYPE GetGlobalStandbyNode() override;
 
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
 
@@ -55,7 +55,7 @@ private:
     void PrepareHeartBeatPkt(ElectionPkt &pkt);
     void ReplaceStandbyNode(ElectionPkt &pkt);
     void HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt &reply);
-    std::vector<UBSE_ID_TYPE> GetAllAgentIDs();
+    std::vector<UBSE_ID_TYPE> GetAllGlobalAgentIds() const;
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus();
     UbseResult SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);

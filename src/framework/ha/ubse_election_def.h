@@ -24,9 +24,9 @@
 
 namespace ubse::election {
 constexpr uint16_t UBSE_GLOBAL_PROC_INTERVAL = 1; // 单位秒
-constexpr uint16_t UBSE_GLOBAL_DISCOVERY_INTERVAL = 1; // 单位秒
 constexpr uint16_t UBSE_GLOBAL_COM_INTERVAL = 1; // 单位秒
 constexpr uint16_t UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL = 1; // 单位秒
+constexpr uint16_t UBSE_GLOBAL_QUERY_COM_INTERVAL = 1; // 单位秒
 constexpr uint16_t UBSE_QUERY_NODES_INTERVAL = 10; // 单位秒
 constexpr const char *INVALID_NODE_ID = "";
 constexpr const uint32_t DEFAULT_HEART_BEAT_TIME = 2000;
@@ -159,6 +159,8 @@ struct ElectionPkt {
     uint8_t standbyStatus = NOT_READY;
     uint8_t broadcast = static_cast<uint8_t>(NotifyStatus::NOT_BROADCAST);
     std::vector<UBSE_ID_TYPE> queryGroupNodeIds;
+    UBSE_ID_TYPE globalMasterId; // global节点给自己组内的节点发组内心跳通知全局主节点ID
+    UBSE_ID_TYPE globalStandbyId;
 };
 
 constexpr int ELECTION_PKT_RESULT_ACCEPT = 0;
@@ -194,6 +196,7 @@ struct CallbackQueryCtx {
     std::mutex *queryMtx = nullptr;
     std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> *groupStates;
     std::string *globalMasterId;
+    std::string *globalStandbyId;
     std::string destId{};
 };
 } // namespace ubse::election

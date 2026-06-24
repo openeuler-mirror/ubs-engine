@@ -70,6 +70,10 @@ public:
         return roleMgr;
     }
 
+    // 删除拷贝构造函数和赋值运算符
+    RoleMgr(const RoleMgr &) = delete;
+    RoleMgr &operator=(const RoleMgr &) = delete;
+
     std::shared_ptr<ElectionRole> GetRole();
 
     std::shared_ptr<ElectionRole> GetGlobalRole();
@@ -99,6 +103,7 @@ public:
     void QueryManagingMaster();
     std::vector<UBSE_ID_TYPE> GetManagingGroupMasterIds();
     UBSE_ID_TYPE GetGlobalMasterId();
+    UBSE_ID_TYPE GetGlobalStandbyId();
     
     /* *
      * 获取指定组信息
@@ -204,7 +209,7 @@ private:
     std::shared_mutex topologyMtx_{};
     std::unordered_map<std::string, UBSE_ID_TYPE> discoveryTargetByGroup{}; // groupId:长连节点
     std::unordered_map<std::string, uint32_t> connFailedCntByGroup{}; // groupId:丢失次数
-    std::unordered_map<std::string, GroupSummaryInfo> groupStates{}; // groupId:主备信息(管理组)
+    std::unordered_map<std::string, GroupSummaryInfo> groupStates{}; // 查询的得到的其他组的主备信息; k:v -> groupId:主备信息(管理组)
     std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> mountedGroupStates{}; // groupId:主备信息(挂载组)
     // 管理组GroupId:管理组节点idList
     std::unordered_map<UBSE_ID_TYPE, std::vector<UBSE_ID_TYPE>> managingGroupNodeIdsMap{};
@@ -213,6 +218,7 @@ private:
     // 管理组GroupId:上一次上报的挂载组MasterId
     std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> managingGroupMountedMasterMap{};
     UBSE_ID_TYPE globalMasterId_{}; // 通过query报文查询得到
+    UBSE_ID_TYPE globalStandbyId_{};
     uint16_t managingGroupCount_ = 0; // 管理组数量缓存
     static std::shared_ptr<RoleMgr> instance_;
     std::shared_ptr<ElectionRole> currentRole_;

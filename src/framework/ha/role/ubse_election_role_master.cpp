@@ -52,14 +52,19 @@ Master::Master(RoleContext &ctx) : turnId_(0), sequenceId_(), workStatus_(IS_REA
     Node myself;
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
         UBSE_LOG_ERROR << "[ELECTION] Master GetMyselfNode: no node found.";
-        return;
+        masterId_ = INVALID_NODE_ID;
+    } else {
+        masterId_ = myself.id;
     }
-    masterId_ = myself.id;
     standbyId_ = ctx.standbyId;
     std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
     turnId_ = ctx.turnId + 1;
     sequenceId_ = 0;
     InitNodesStatus(allNodes);
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetGroupId fail";
+    }
     UBSE_LOG_INFO << "[ELECTION] Master start ProcTimer: " << masterId_ << ".";
     stopping_ = false;
     activeCount_ = 0;
@@ -76,21 +81,6 @@ std::vector<UBSE_ID_TYPE> Master::GetAllAgentIDs()
     }
 
     return result;
-}
-
-void Master::DealBroadcast(ElectionReplyPkt &reply, const UBSE_ID_TYPE &id)
-{
-    if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
-        broadcast_[id].heartBeatLossCnt = 0;
-        broadcast_[id].activeStatus = HeartBeatState::ACTIVE;
-        if (reply.broadcast == 1) {
-            broadcast_[reply.replyId].masterOnlineBcStatus = NotifyStatus::BROADCAST;
-        } else {
-            broadcast_[reply.replyId].masterOnlineBcTimes += 1;
-        }
-    } else {
-        DealHbCnt(id);
-    }
 }
 
 void Master::DealHbCnt(const UBSE_ID_TYPE &id)
@@ -156,6 +146,8 @@ void Master::PrepareElectionPkt(ElectionPkt &pkt)
     auto currentStatus = UbseContext::GetInstance().GetWorkReadiness();
     pkt.masterStatus = currentStatus;
     pkt.standbyStatus = standbyStatus_;
+    pkt.globalMasterId = GetGlobalMasterNode();
+    pkt.globalStandbyId = GetGlobalStandbyNode();
 }
 
 void Master::ReplaceStandbyNode(ElectionPkt &pkt)
@@ -193,7 +185,7 @@ void Master::ProcTimer()
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
-    if ((current - lastTimeMs_) > GetHeartTimeInterval() && IsHeartBeatEnabled(heartBeatStatus_)) {
+    if ((current - lastTimeMs_) > GetHeartTimeInterval()) {
         std::unique_lock<std::mutex> lock(mtx_);
         ElectionPkt pkt;
         ElectionReplyPkt reply;
@@ -427,28 +419,59 @@ uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionR
         return 0;
     }
     // 主收到心跳 两种场景，1：主假死后恢复 2：脑裂合并
-    if (rcvPkt.type == ELECTION_PKT_TYPE_HEART && IsHeartBeatEnabled(heartBeatStatus_)) {
+    if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktHeart(srcID, rcvPkt, reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         RecvPktElection(srcID, rcvPkt, reply);
+    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
+        reply.replyId = masterId_;
+        reply.groupId = groupId_;
+        reply.masterId = masterId_;
+        reply.standbyId = standbyId_;
     }
     return 0;
 }
 
 UBSE_ID_TYPE Master::GetMasterNode()
 {
-    Node myself;
-    UbseResult result = UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself);
-    if (result != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] Invalid local master node.";
-        return INVALID_NODE_ID;
-    }
-    return myself.id;
+    return masterId_;
 }
 
 UBSE_ID_TYPE Master::GetStandbyNode()
 {
     return standbyId_;
+}
+
+UBSE_ID_TYPE Master::GetGlobalMasterNode()
+{
+    UBSE_ID_TYPE result = INVALID_NODE_ID;
+    auto& roleMgr = RoleMgr::GetInstance();
+
+    if (roleMgr.IsManagingGroup(groupId_)) {
+        auto globalRole = roleMgr.GetGlobalRole();
+        if (globalRole != nullptr) {
+            result = globalRole->GetGlobalMasterNode();
+        }
+    } else {
+        result = roleMgr.GetGlobalMasterId();
+    }
+    return result;
+}
+
+UBSE_ID_TYPE Master::GetGlobalStandbyNode()
+{
+    UBSE_ID_TYPE result = INVALID_NODE_ID;
+    auto& roleMgr = RoleMgr::GetInstance();
+
+    if (roleMgr.IsManagingGroup(groupId_)) {
+        auto globalRole = roleMgr.GetGlobalRole();
+        if (globalRole != nullptr) {
+            result = globalRole->GetGlobalStandbyNode();
+        }
+    } else {
+        result = roleMgr.GetGlobalStandbyId();
+    }
+    return result;
 }
 
 std::vector<UBSE_ID_TYPE> Master::GetAgentNodes()
@@ -470,6 +493,7 @@ uint8_t Master::GetStandbyStatus()
 std::vector<UBSE_ID_TYPE> Master::GetActiveNodes()
 {
     std::vector<UBSE_ID_TYPE> activeNodes{};
+    std::lock_guard<std::mutex> lock(mtx_);  // 加锁
     for (const auto &node : broadcast_) {
         if (node.second.activeStatus == HeartBeatState::ACTIVE) {
             activeNodes.push_back(node.first);
@@ -495,14 +519,5 @@ void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
     if (nodeId == standbyId_) {
         standbyId_ = INVALID_NODE_ID;
     }
-}
-
-std::unordered_set<UBSE_ID_TYPE> Master::GetMountedGroupMasters()
-{
-    std::unordered_set<UBSE_ID_TYPE> result;
-    for (const auto &kv : mountedGroupNodeIds_) {
-        result.insert(kv.first);
-    }
-    return result;
 }
 }

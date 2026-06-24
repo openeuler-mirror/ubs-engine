@@ -56,11 +56,25 @@ public:
     UbseResult UbseGetMasterNode(Node &masterNode);
 
     /* *
+   * 查询全局唯一备节点信息
+   * @param[out] 返回集群唯一备节点信息
+   * @return UBSE_OK 成功，UBSE_ERROR 失败
+   */
+    UbseResult UbseGetStandbyNode(Node &standbyNode);
+
+    /* *
      * 查询组内主节点信息
      * @param[out] 返回组内主节点信息
      * @return UBSE_OK 成功，UBSE_ERROR 失败
      */
     UbseResult GetLocalMasterNode(Node &localMasterNode);
+
+    /* *
+    * 查询组内备节点信息
+    * @param[out] 返回组内备节点信息
+    * @return UBSE_OK 成功，UBSE_ERROR 失败
+    */
+    UbseResult GetLocalStandbyNode(Node &localStandbyNode);
 
     /* *
      * @brief 获取当前节点视角的HA拓扑信息
@@ -76,12 +90,6 @@ public:
      * @return UBSE_OK 成功，UBSE_ERROR 失败
      */
     UbseResult GetHaTopologyInfo(HaTopologyInfo &haTopology);
-
-    /* *
-     * 查询备节点ID
-     * @param standbyNode 备节点信息
-     */
-    UbseResult UbseGetStandbyNode(Node &standbyNode);
 
     /* *
      * 查询当前节点ID

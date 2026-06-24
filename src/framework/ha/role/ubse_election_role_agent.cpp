@@ -23,7 +23,11 @@ Agent::Agent(RoleContext &ctx) : turnId_(0), lastHeartTime_()
     myselfID_ = myself.id;
     masterId_ = ctx.masterId;
     standbyId_ = ctx.standbyId;
-    auto ret = GetBootTime(lastHeartTime_);
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetGroupId fail";
+    }
+    ret = GetBootTime(lastHeartTime_);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
@@ -76,6 +80,11 @@ uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionRe
         RecvPktForSelect(reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktForHeart(rcvPkt, reply);
+    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
+        reply.replyId = myselfID_;
+        reply.groupId = groupId_;
+        reply.masterId = masterId_;
+        reply.standbyId = standbyId_;
     } else {
         UBSE_LOG_WARN << "[ELECTION] Agent rcvPkt.type: " << rcvPkt.type << ".";
     }
@@ -95,6 +104,8 @@ void Agent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
         sequenceId_ = rcvPkt.sequenceId;
         masterId_ = rcvPkt.masterId;
         standbyId_ = rcvPkt.standbyId;
+        globalMasterId_ = rcvPkt.globalMasterId;
+        globalStandbyId_ = rcvPkt.globalStandbyId;
         if (turnId_ < rcvPkt.turnId) {
             turnId_ = rcvPkt.turnId;
         }
@@ -163,6 +174,16 @@ UBSE_ID_TYPE Agent::GetMasterNode()
 UBSE_ID_TYPE Agent::GetStandbyNode()
 {
     return standbyId_;
+}
+
+UBSE_ID_TYPE Agent::GetGlobalMasterNode()
+{
+    return globalMasterId_;
+}
+
+UBSE_ID_TYPE Agent::GetGlobalStandbyNode()
+{
+    return globalStandbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Agent::GetAgentNodes()

@@ -66,7 +66,7 @@ void GlobalStandby::RegisterTimers()
             auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
             if (globalRole != nullptr) { RoleMgr::GetInstance().ConnectInterManagingGroup(); }
             return UBSE_OK;
-        }, UBSE_GLOBAL_DISCOVERY_INTERVAL);
+        }, UBSE_GLOBAL_QUERY_COM_INTERVAL);
     UbseTimerHandlerRegister(
         UBSE_ELECTION_GLOBAL_STANDBY_COM,
         []() -> UbseResult {
@@ -124,12 +124,12 @@ void GlobalStandby::FillGroupRoleInfo(ElectionReplyPkt &reply)
 {
     auto groupRole = RoleMgr::GetInstance().GetRole();
     if (groupRole != nullptr) {
-        auto mountedMasters = groupRole->GetMountedGroupMasters();
+        auto mountedMasters = groupRole->GetCascadeGroupMasters();
         if (!mountedMasters.empty()) {
             reply.mountedGroupMasterId = *mountedMasters.begin();
         }
-        reply.managingGroupNodeIds = groupRole->GetPdGroupNodeIds();
-        reply.mountedGroupNodeIds = groupRole->GetMountedGroupNodeIds();
+        reply.managingGroupNodeIds = groupRole->GetManagingGroupNodeIds();
+        reply.mountedGroupNodeIds = groupRole->GetCascadeGroupNodeIds();
     }
 }
 
@@ -176,12 +176,12 @@ void GlobalStandby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt 
     }
 }
 
-UBSE_ID_TYPE GlobalStandby::GetMasterNode()
+UBSE_ID_TYPE GlobalStandby::GetGlobalMasterNode()
 {
     return globalMasterId_;
 }
 
-UBSE_ID_TYPE GlobalStandby::GetStandbyNode()
+UBSE_ID_TYPE GlobalStandby::GetGlobalStandbyNode()
 {
     return globalStandbyId_;
 }

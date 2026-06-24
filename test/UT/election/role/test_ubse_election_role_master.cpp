@@ -179,6 +179,7 @@ TEST_F(TestUbseElectionRoleMaster, ReplaceStandbyNode_OverThreshold)
     master.stopping_ = false;
     master.activeCount_ = 0;
     ElectionPkt pkt;
+    pkt.standbyId = "Node2";
     master.ReplaceStandbyNode(pkt);
     EXPECT_EQ(master.standbyId_, pkt.standbyId);
 }
@@ -310,18 +311,6 @@ TEST_F(TestUbseElectionRoleMaster, SendHeartBeat_ShouldReturnError)
     MOCKER(&ubse::com::UbseComModule::RpcAsyncSend<UbseComBaseBufferMessagePtr>).stubs().will(returnValue(UBSE_ERROR));
     auto result = master.SendHeartBeat(master.standbyId_, pkt);
     EXPECT_EQ(result, UBSE_ERROR);
-}
-
-TEST_F(TestUbseElectionRoleMaster, DealBroadcast)
-{
-    ElectionReplyPkt reply{};
-    RoleContext ctx;
-    Master master(ctx);
-    master.stopping_ = false;
-    master.activeCount_ = 0;
-    master.masterId_ = "Node0";
-    master.standbyId_ = "Node1";
-    EXPECT_NO_THROW(master.DealBroadcast(reply, master.standbyId_));
 }
 
 TEST_F(TestUbseElectionRoleMaster, UpdateBroadcastStatus_WhenNodeActive)

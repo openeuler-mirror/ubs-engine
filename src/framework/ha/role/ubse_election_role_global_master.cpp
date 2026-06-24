@@ -51,7 +51,7 @@ GlobalMaster::GlobalMaster(RoleContext &ctx) : globalTurnId_(0)
                 RoleMgr::GetInstance().ConnectInterManagingGroup();
             }
             return UBSE_OK;
-        }, UBSE_GLOBAL_DISCOVERY_INTERVAL);
+        }, UBSE_GLOBAL_QUERY_COM_INTERVAL);
     UbseTimerHandlerRegister(
         UBSE_ELECTION_GLOBAL_MASTER_COM,
         []() -> UbseResult {
@@ -99,7 +99,7 @@ GlobalMaster::~GlobalMaster()
     UBSE_LOG_INFO <<"[ELECTION] Global Master destruction completed";
 }
 
-std::vector<UBSE_ID_TYPE> GlobalMaster::GetAllAgentIDs()
+std::vector<UBSE_ID_TYPE> GlobalMaster::GetAllGlobalAgentIds() const
 {
     std::vector<UBSE_ID_TYPE> result;
 
@@ -134,7 +134,7 @@ void GlobalMaster::PrepareHeartBeatPkt(ElectionPkt &pkt)
     pkt.masterId = nodeId_;
     pkt.standbyId = globalStandbyId_;
     pkt.turnId = globalTurnId_;
-    pkt.agentIds = GetAllAgentIDs();
+    pkt.agentIds = GetAllGlobalAgentIds();
     pkt.agentCount = pkt.agentIds.size();
     auto currentStatus = UbseContext::GetInstance().GetWorkReadiness();
     pkt.masterStatus = currentStatus;
@@ -449,7 +449,7 @@ void GlobalMaster::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReply
 
 uint32_t GlobalMaster::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
-    std::vector<UBSE_ID_TYPE> agentIds = GetAllAgentIDs();
+    std::vector<UBSE_ID_TYPE> agentIds = GetAllGlobalAgentIds();
     if (globalStandbyId_ != INVALID_NODE_ID) {
         agentIds.push_back(globalStandbyId_);
     }
@@ -459,12 +459,6 @@ uint32_t GlobalMaster::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt
         partitionAgentIDs.push_back(rcvPkt.standbyId);
     }
 
-    std::vector<Node> allNodes{};
-    UbseResult result = UbseElectionNodeMgr::GetInstance().GetAllNode(allNodes);
-    if (result == UBSE_ERROR) {
-        UBSE_LOG_ERROR << "[ELECTION] GetAllNode: no node found.";
-        return UBSE_ERROR;
-    }
     auto groupMap = nodeMgr::GetAllNodesStoredByGroup();
     auto managingGroupCount = groupMap.size() / 2;
     // 当前集群数量大于一半管理柜的数量，则拒绝其他所有心跳
@@ -512,19 +506,12 @@ uint32_t GlobalMaster::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Ele
     return 0;
 }
 
-UBSE_ID_TYPE GlobalMaster::GetMasterNode()
+UBSE_ID_TYPE GlobalMaster::GetGlobalMasterNode()
 {
-    Node myself;
-    UbseResult result = UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself);
-    if (result != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] Invalid local master node.";
-        return INVALID_NODE_ID;
-    }
-    UBSE_LOG_INFO << "GlobalMaster::GetMasterNode"  << myself.id;
-    return myself.id;
+    return nodeId_;
 }
 
-UBSE_ID_TYPE GlobalMaster::GetStandbyNode()
+UBSE_ID_TYPE GlobalMaster::GetGlobalStandbyNode()
 {
     return globalStandbyId_;
 }

@@ -147,12 +147,13 @@ void GlobalAgent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &r
         reply.broadcast = static_cast<uint8_t>(NotifyStatus::BROADCAST);
         auto groupRole = RoleMgr::GetInstance().GetRole();
         if (groupRole != nullptr) {
-            auto mountedMasters = groupRole->GetMountedGroupMasters();
+            auto mountedMasters = groupRole->GetCascadeGroupMasters();
             if (!mountedMasters.empty()) {
                 reply.mountedGroupMasterId = *mountedMasters.begin();
             }
-            reply.managingGroupNodeIds = groupRole->GetPdGroupNodeIds();
-            reply.mountedGroupNodeIds = groupRole->GetMountedGroupNodeIds();
+
+            reply.managingGroupNodeIds = groupRole->GetManagingGroupNodeIds();
+            reply.mountedGroupNodeIds = groupRole->GetCascadeGroupNodeIds();
         }
         if (rcvPkt.standbyId == myselfID_) {
             RoleContext ctx;
@@ -206,12 +207,12 @@ void GlobalAgent::RecvPktForSelect(ElectionReplyPkt &reply) const
     }
 }
 
-UBSE_ID_TYPE GlobalAgent::GetMasterNode()
+UBSE_ID_TYPE GlobalAgent::GetGlobalMasterNode()
 {
     return globalMasterId_;
 }
 
-UBSE_ID_TYPE GlobalAgent::GetStandbyNode()
+UBSE_ID_TYPE GlobalAgent::GetGlobalStandbyNode()
 {
     return globalStandbyId_;
 }

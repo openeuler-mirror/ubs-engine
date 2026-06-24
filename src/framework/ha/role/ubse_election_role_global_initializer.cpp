@@ -15,10 +15,10 @@
 #include "ubse_timer.h"
 
 namespace ubse::election {
-const std::string UBSE_ELECTION_GLOBAL_INIT_PROCTIMER = "UbseGlobalInitProcTimer";
-const std::string UBSE_ELECTION_INIT_DISCOVERY_TIMER = "UbseInitDiscoveryTimer";
+const std::string UBSE_ELECTION_GLOBAL_INIT_TIMER = "UbseGlobalInitTimer";
 const std::string UBSE_ELECTION_GLOBAL_INIT_COM = "UbseGlobalInitComTimer";
-const std::string UBSE_ELECTION_GLOBAL_INIT_QUERY_LOCAL_MASTER = "UbseGlobalInitQueryLocalMasterTimer";
+const std::string UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER = "UbseGlobalInitQueryTimer";
+const std::string UBSE_ELECTION_GLOBAL_INIT_QUERY_COM = "UbseGlobalInitQueryComTimer";
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::timer;
 using namespace ubse::context;
@@ -41,31 +41,25 @@ GlobalInitializer::GlobalInitializer() : lastTimeMs_(0)
     RegisterTimers();
     UBSE_LOG_INFO << "[ELECTION] Global Initializer: " << myselfID_ << ".";
 }
+
 GlobalInitializer::~GlobalInitializer()
 {
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_PROCTIMER);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_INIT_DISCOVERY_TIMER);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_TIMER);
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_COM);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_LOCAL_MASTER);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_COM);
 }
 
 void GlobalInitializer::RegisterTimers()
 {
     UbseTimerHandlerRegister(
-        UBSE_ELECTION_GLOBAL_INIT_PROCTIMER,
+        UBSE_ELECTION_GLOBAL_INIT_TIMER,
         []() -> UbseResult {
             if (g_globalStop.load()) { return UBSE_OK; }
             RoleMgr::GetInstance().GlobalProcTimer();
             return UBSE_OK;
         }, UBSE_GLOBAL_PROC_INTERVAL);
-    UbseTimerHandlerRegister(
-        UBSE_ELECTION_INIT_DISCOVERY_TIMER,
-        []() -> UbseResult {
-            if (g_globalStop.load()) { return UBSE_OK; }
-            auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
-            if (globalRole != nullptr) { RoleMgr::GetInstance().ConnectInterManagingGroup(); }
-            return UBSE_OK;
-        }, UBSE_GLOBAL_DISCOVERY_INTERVAL);
+
     UbseTimerHandlerRegister(
         UBSE_ELECTION_GLOBAL_INIT_COM,
         []() -> UbseResult {
@@ -79,14 +73,24 @@ void GlobalInitializer::RegisterTimers()
             }
             return UBSE_OK;
         }, UBSE_GLOBAL_COM_INTERVAL);
+
     UbseTimerHandlerRegister(
-        UBSE_ELECTION_GLOBAL_INIT_QUERY_LOCAL_MASTER,
+        UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER,
         []() -> UbseResult {
             if (g_globalStop.load()) { return UBSE_OK; }
             auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
             if (globalRole != nullptr) { RoleMgr::GetInstance().QueryManagingMaster(); }
             return UBSE_OK;
         }, UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL);
+
+    UbseTimerHandlerRegister(
+        UBSE_ELECTION_GLOBAL_INIT_QUERY_COM,
+        []() -> UbseResult {
+            if (g_globalStop.load()) { return UBSE_OK; }
+            auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+            if (globalRole != nullptr) { RoleMgr::GetInstance().ConnectInterManagingGroup(); }
+            return UBSE_OK;
+        }, UBSE_GLOBAL_QUERY_COM_INTERVAL);
 }
 
 void GlobalInitializer::CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &masterIds, RoleContext ctx)
@@ -145,17 +149,6 @@ void GlobalInitializer::ProcTimer()
     }
 
     std::vector<UBSE_ID_TYPE> pdMasterIds = RoleMgr::GetInstance().GetManagingGroupMasterIds();
-    if (pdMasterIds.empty()) {
-        UBSE_LOG_DEBUG << "[ELECTION] ManagingGroup MasterIds is empty.";
-        return;
-    }
-
-    // pd num >= 5 尝试建链一轮 再进行全局选主
-    if (!hasConnMasterNodesOnce_) {
-        ConnectManagingMasters();
-        hasConnMasterNodesOnce_ = true;
-    }
-
     UbseNodeLocalState localState = UbseElectionNodeMgr::GetInstance().GetLocalNodeState();
     if (localState == UbseNodeLocalState::UBSE_NODE_READY) {
         std::vector<Node> masterIds{};
@@ -216,16 +209,6 @@ uint32_t GlobalInitializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt
         }
     }
     return UBSE_OK;
-}
-
-UBSE_ID_TYPE GlobalInitializer::GetMasterNode()
-{
-    return INVALID_NODE_ID;
-}
-
-UBSE_ID_TYPE GlobalInitializer::GetStandbyNode()
-{
-    return INVALID_NODE_ID;
 }
 
 std::vector<UBSE_ID_TYPE> GlobalInitializer::GetAgentNodes()

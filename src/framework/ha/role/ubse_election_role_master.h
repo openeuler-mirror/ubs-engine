@@ -41,6 +41,10 @@ public:
 
     UBSE_ID_TYPE GetStandbyNode() override;
 
+    UBSE_ID_TYPE GetGlobalMasterNode() override;
+
+    UBSE_ID_TYPE GetGlobalStandbyNode() override;
+
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
 
     RoleType GetRoleType() override
@@ -57,10 +61,7 @@ public:
 
     uint8_t GetStandbyStatus() override;
 
-    std::unordered_set<UBSE_ID_TYPE> GetMountedGroupMasters() override;
-
     void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override;
-    void DealBroadcast(ElectionReplyPkt &reply, const UBSE_ID_TYPE &id);
     void DealHbCnt(const UBSE_ID_TYPE &id);
 
     /* *
@@ -87,13 +88,12 @@ private:
     uint64_t sequenceId_;
     uint8_t workStatus_;
     uint8_t standbyStatus_ = 0;
-    HeartBeatStatus heartBeatStatus_ = HeartBeatStatus::ENABLED;
     std::map<UBSE_ID_TYPE, BroadcastStatus> broadcast_;
     std::vector<UBSE_ID_TYPE> preNodes_{};
     std::mutex mtx_;  // 互斥锁
     std::atomic<bool> stopping_{};     // Master 是否正在销毁
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
-    std::unordered_map<UBSE_ID_TYPE, std::vector<UBSE_ID_TYPE>> mountedGroupNodeIds_;
+    UBSE_ID_TYPE groupId_{};
 };
 #undef MODULE_LOG_NAME
 

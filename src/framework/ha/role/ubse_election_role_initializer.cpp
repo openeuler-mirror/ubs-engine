@@ -147,16 +147,6 @@ uint32_t Initializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Elec
     return UBSE_OK;
 }
 
-UBSE_ID_TYPE Initializer::GetMasterNode()
-{
-    return INVALID_NODE_ID;
-}
-
-UBSE_ID_TYPE Initializer::GetStandbyNode()
-{
-    return INVALID_NODE_ID;
-}
-
 std::vector<UBSE_ID_TYPE> Initializer::GetAgentNodes()
 {
     return {};

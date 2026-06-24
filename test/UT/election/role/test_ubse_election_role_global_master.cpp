@@ -87,7 +87,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, GetStandbyNode_ShouldReturnStandbyId_Wh
     SetupGlobalMasterCommonMocks();
     RoleContext ctx = MakeGlobalMasterCtx();
     GlobalMaster master(ctx);
-    EXPECT_EQ(master.GetStandbyNode(), "2");
+    EXPECT_EQ(master.GetGlobalStandbyNode(), "2");
 }
 
 TEST_F(TestUbseElectionRoleGlobalMaster, GetMasterNode_ShouldReturnMyselfId_WhenCalled)
@@ -95,7 +95,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, GetMasterNode_ShouldReturnMyselfId_When
     SetupGlobalMasterCommonMocks();
     RoleContext ctx = MakeGlobalMasterCtx();
     GlobalMaster master(ctx);
-    EXPECT_EQ(master.GetMasterNode(), "1");
+    EXPECT_EQ(master.GetGlobalMasterNode(), "1");
 }
 
 TEST_F(TestUbseElectionRoleGlobalMaster, GetStandbyStatus_ShouldReturnDefault_WhenCalled)
@@ -195,7 +195,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, GetAllAgentIDs_ShouldReturnActiveAgents
     master.globalStandbyAgentBroadcast_["3"] = BroadcastStatus::WithActiveStatus();
     master.globalStandbyAgentBroadcast_["4"] = BroadcastStatus::Default();
 
-    auto agents = master.GetAllAgentIDs();
+    auto agents = master.GetAllGlobalAgentIds();
     EXPECT_EQ(agents.size(), 1u);
     EXPECT_EQ(agents[0], "3");
 }

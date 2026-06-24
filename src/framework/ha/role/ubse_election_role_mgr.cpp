@@ -90,7 +90,14 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_MASTER, ctx.masterId);
             }
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
-            UBSE_LOG_INFO << "[ELECTION] SwitchRole Master, node_id = " << ctx.masterId << ".";
+            if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()) {
+                globalCurrentRole_ = SafeMakeShared<GlobalInitializer>();
+                if (!globalCurrentRole_) {
+                    UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
+                    return;
+                }
+            }
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Group Master, node_id = " << ctx.masterId << ".";
             break;
         case RoleType::STANDBY:
             currentRole_ = SafeMakeShared<Standby>(ctx);
@@ -98,8 +105,9 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
+            globalCurrentRole_ = nullptr;
             RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_STANDBY, ctx.standbyId);
-            UBSE_LOG_INFO << "[ELECTION] SwitchRole Standby: " << ctx.standbyId << ".";
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Group Standby: " << ctx.standbyId << ".";
             break;
         case RoleType::AGENT:
             currentRole_ = SafeMakeShared<Agent>(ctx);
@@ -107,10 +115,11 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
+            globalCurrentRole_ = nullptr;
             RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_AGENT, ctx.standbyId);
-            UBSE_LOG_INFO << "[ELECTION] SwitchRole Agent.";
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Group Agent.";
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
-            UBSE_LOG_INFO << "[ELECTION] The Master is online: " << ctx.masterId << ", turnId is: " << ctx.turnId;
+            UBSE_LOG_INFO << "[ELECTION] The Group Master is online: " << ctx.masterId << ", turnId is: " << ctx.turnId;
             break;
         case RoleType::INITIALIZER:
             currentRole_ = SafeMakeShared<Initializer>();
@@ -118,7 +127,8 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared currentRole failed.";
                 return;
             }
-            UBSE_LOG_INFO << "[ELECTION] SwitchRole Initializer.";
+            globalCurrentRole_ = nullptr;
+            UBSE_LOG_INFO << "[ELECTION] SwitchRole Group Initializer.";
             break;
     }
 }
@@ -385,7 +395,8 @@ void RoleMgr::QueryManagingMaster()
     }
 }
 static void UpdateGroupStateAndRedirect(const ElectionReplyPkt& reply, std::mutex& queryMtx,
-                                        std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo>& groupStates)
+                                        std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo>& groupStates,
+                                        std::string& globalStandbyId, std::string& globalMasterId)
 {
     // 检查回复者是否为真正的Master
     bool needUpdateTarget = false;
@@ -401,6 +412,8 @@ static void UpdateGroupStateAndRedirect(const ElectionReplyPkt& reply, std::mute
         if (!reply.groupId.empty() && !reply.masterId.empty()) {
             groupStates[reply.groupId] = {reply.groupId, reply.masterId, reply.standbyId};
         }
+        globalStandbyId = reply.standbyId;
+        globalMasterId = reply.masterId;
     }
 
     // 如果回复者不是真正的Master，重定向到真正的Master
@@ -420,6 +433,7 @@ void AsyncDealQueryReply(void* ctx, void* recv, uint32_t len, int32_t result)
     auto& groupStates = *context->groupStates;
     auto& queryMtx = *context->queryMtx;
     auto& globalMasterId = *context->globalMasterId;
+    auto& globalStandbyId = *context->globalStandbyId;
     if (result != UBSE_OK) {
         UBSE_LOG_INFO << "[ELECTION] Failed to query information.";
         return;
@@ -449,7 +463,7 @@ void AsyncDealQueryReply(void* ctx, void* recv, uint32_t len, int32_t result)
         UBSE_LOG_DEBUG << "[ELECTION] node = " << nodeId <<"stopped.";
         return;
     }
-    UpdateGroupStateAndRedirect(reply, queryMtx, groupStates);
+    UpdateGroupStateAndRedirect(reply, queryMtx, groupStates, globalStandbyId, globalMasterId);
     SafeDelete(context);
 }
 
@@ -479,6 +493,7 @@ UbseResult RoleMgr::SendQueryInformation(UBSE_ID_TYPE destId, const ElectionPkt 
     context->destId = destId;
     context->queryMtx = &queryMutex_;
     context->globalMasterId = &globalMasterId_;
+    context->globalStandbyId = &globalStandbyId_;
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealQueryReply;
     callback.cbCtx = reinterpret_cast<void *>(context);
@@ -504,7 +519,14 @@ std::vector<UBSE_ID_TYPE> RoleMgr::GetManagingGroupMasterIds()
 
 UBSE_ID_TYPE RoleMgr::GetGlobalMasterId()
 {
+    std::lock_guard<std::mutex> lock(queryMutex_);
     return globalMasterId_;
+}
+
+UBSE_ID_TYPE RoleMgr::GetGlobalStandbyId()
+{
+    std::lock_guard<std::mutex> lock(queryMutex_);
+    return globalStandbyId_;
 }
 
 UbseResult RoleMgr::GetGroupState(const UBSE_ID_TYPE &groupId, GroupSummaryInfo &state)
@@ -527,7 +549,7 @@ std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> RoleMgr::GetAllGroupStates()
 
 UbseResult RoleMgr::GetMountedGroupState(const UBSE_ID_TYPE &groupId, GroupSummaryInfo &state)
 {
-    std::lock_guard<std::mutex> lock(queryMutex_);
+    std::lock_guard<std::shared_mutex> lock(topologyMtx_);
     auto it = mountedGroupStates.find(groupId);
     if (it == mountedGroupStates.end()) {
         UBSE_LOG_WARN << "[ELECTION] Group " << groupId << " not found in mountedGroupStates";
