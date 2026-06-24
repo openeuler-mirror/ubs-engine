@@ -764,7 +764,7 @@ uint32_t NumaImportRunningHandler(UbseMemOperationResp& resp, UbseMemNumaBorrowI
     importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
-    importParam.type = "numa";
+    importParam.type = decoder::utils::DecoderBorrowType::NUMA;
     {
         std::shared_lock lock(GetDecoderImportMutex());
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);

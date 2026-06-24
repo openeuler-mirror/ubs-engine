@@ -1102,7 +1102,7 @@ uint32_t RealImportDecoder(const std::pair<uint32_t, uint32_t>& chipDiePair, Ubs
     decoder::utils::MemDecoderUtils::SetImportDecoderParam(importParam, importObj.req.ubseMemPrivData);
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
-    importParam.type = "share";
+    importParam.type = decoder::utils::DecoderBorrowType::SHARE;
     res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "ImportToAddDecoderEntry failed, res=" << res;

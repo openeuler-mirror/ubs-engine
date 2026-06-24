@@ -665,7 +665,7 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
     importParam.decoderIdx = decoderId;
     importParam.isHighSafety = IsHighSafety();
     importParam.trustRingData = importObj.req.trustRingData;
-    importParam.type = "addr";
+    importParam.type = decoder::utils::DecoderBorrowType::ADDR;
     {
         std::shared_lock lock(GetDecoderImportMutex());
         res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
