@@ -17,11 +17,14 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
 using namespace ubse::context;
+
+extern utils::ReadWriteLock g_invokeUrmaMutex;
 
 CONDITION_DYNAMIC_CREATE(GetSceneType() == SceneType::COMMON, UbseUrmaUvsModule);
 
@@ -82,6 +85,7 @@ void UbseUrmaUvsModule::Stop() {}
 
 void UbseUrmaUvsModule::Cleanup()
 {
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (handle != nullptr) {
         dlclose(handle);
         handle = nullptr;

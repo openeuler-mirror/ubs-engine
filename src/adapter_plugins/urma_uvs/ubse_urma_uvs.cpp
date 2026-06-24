@@ -59,11 +59,11 @@ UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (module->uvsSetTopoInfo == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_topo_info'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsSetTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set topology information, ErrorCode=" << ret;
@@ -88,11 +88,11 @@ UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std:
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (module->uvsSetShareTopoInfo == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_set_share_topo_info'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsSetShareTopoInfo(nodes.data(), sizeof(UbcoreTopoNode), static_cast<uint32_t>(nodes.size()));
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to set share topology information, ErrorCode=" << ret;
@@ -116,11 +116,11 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urma
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     char name[DEV_NAME_LEN];
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     if (module->uvsGetDeviceNameByUrmaEid == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_WARN << "Uvs failed to get device name, eid=" << urmaEid;
@@ -144,11 +144,11 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isAc
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     char name[DEV_NAME_LEN];
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     if (module->uvsGetDeviceNameByUrmaEid == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_get_device_name_by_eid'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&g_invokeUrmaMutex);
     ret = module->uvsGetDeviceNameByUrmaEid(bondingEid, name, DEV_NAME_LEN);
     if (UBSE_RESULT_FAIL(ret)) {
         isActive = false;
@@ -180,11 +180,11 @@ UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggr
         UBSE_LOG_ERROR << "Get UbseUrmaUvsModule failed";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (module->uvsCreateAggrDev == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_create_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsCreateAggrDev(bondingEid, aggrDevName.c_str());
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to activate bonding device, ErrorCode=" << ret;
@@ -206,11 +206,11 @@ UbseResult UbseDeactiveBonding(const std::string& urmaEid)
         UBSE_LOG_ERROR << "Get UbseUrmaUvsModule failed";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (module->uvsDeleteAggrDev == nullptr) {
         UBSE_LOG_ERROR << "Failed to find symbol 'uvs_delete_agg_dev'";
         return UBSE_ERROR_NULLPTR;
     }
-    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     ret = module->uvsDeleteAggrDev(bondingEid);
     if (UBSE_RESULT_FAIL(ret)) {
         UBSE_LOG_ERROR << "Uvs failed to deactivate bonding device, ErrorCode=" << ret;
