@@ -14,7 +14,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
@@ -30,14 +29,8 @@ protected:
     {
         ItTestFixture::SetUpTestSuite();
 
-        nodeConfigs_ = {{lenderNodeId_, "127.0.0.2", 8082, lenderSlotId_},
-                        {borrowerNodeId_, "127.0.0.3", 8083, borrowerSlotId_}};
-
-        cluster_ = std::make_unique<ubse::it::infra::ItCluster>(binaryPath_.string(), workDir_, nodeConfigs_,
-                                                                stubLibDir_.string());
-
         IT_LOG_INFO << "Starting two-node cluster for NUMA borrow tests...";
-        auto ret = cluster_->StartClusterParallel(30000);
+        auto ret = Cluster().TwoNode().Start(cluster_);
         ASSERT_IT_OK(ret);
 
         std::string masterNodeId;
@@ -60,7 +53,6 @@ protected:
     }
 
     static std::unique_ptr<ubse::it::infra::ItCluster> cluster_;
-    static std::vector<ubse::it::infra::NodeConfig> nodeConfigs_;
 
     static constexpr const char* lenderNodeId_ = "1";
     static constexpr const char* borrowerNodeId_ = "2";
@@ -69,7 +61,6 @@ protected:
 };
 
 inline std::unique_ptr<ubse::it::infra::ItCluster> ItNumaBorrowTest::cluster_;
-inline std::vector<ubse::it::infra::NodeConfig> ItNumaBorrowTest::nodeConfigs_;
 
 TEST_F(ItNumaBorrowTest, TwoNodeNumaNormalBorrow)
 {

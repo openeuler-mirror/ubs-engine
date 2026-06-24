@@ -20,17 +20,11 @@
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "it_cluster_spec.h"
 
 namespace ubse::it::infra {
 
 using ubse::common::def::UbseResult;
-
-struct NodeConfig {
-    std::string nodeId;
-    std::string ip;
-    uint16_t port;
-    uint32_t slotId = 1;
-};
 
 /**
  * @brief Unified config generator for IT tests.
@@ -52,7 +46,7 @@ struct NodeConfig {
  */
 class ItConfigBuilder {
 public:
-    explicit ItConfigBuilder(const std::vector<NodeConfig>& nodeConfigs, const std::string& baseWorkDir);
+    explicit ItConfigBuilder(const std::vector<NodeSpec>& nodeSpecs, const std::string& baseWorkDir);
 
     /** @brief Set cluster IP list for [ubse.rpc] cluster.ipList. Mandatory. */
     ItConfigBuilder& WithClusterIps(const std::vector<std::string>& clusterIps);
@@ -67,8 +61,7 @@ public:
     UbseResult GenerateAllConfigs(const std::string& templatePath = "");
 
 private:
-    UbseResult GenerateConfig(const NodeConfig& nodeConfig, const std::string& outputDir,
-                              const std::string& templatePath);
+    UbseResult GenerateConfig(const NodeSpec& nodeSpec, const std::string& outputDir, const std::string& templatePath);
 
     std::string FindTemplatePath(const std::string& templatePath);
     std::string BuildClusterIpList() const;
@@ -76,7 +69,7 @@ private:
     void ReplaceOrInsertConfigLine(std::string& content, const std::string& key, const std::string& newLine,
                                    const std::string& section);
 
-    std::vector<NodeConfig> nodeConfigs_;
+    std::vector<NodeSpec> nodeSpecs_;
     std::string baseWorkDir_;
     std::vector<std::string> clusterIps_;
     bool certUse_ = false;

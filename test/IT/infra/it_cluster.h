@@ -21,6 +21,7 @@
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "it_cluster_spec.h"
 #include "it_config_builder.h"
 #include "it_sdk_client.h"
 #include "it_wait_helper.h"
@@ -41,8 +42,7 @@ using ubse::common::def::UbseResult;
  */
 class ItCluster {
 public:
-    ItCluster(const std::string& binaryPath, const std::string& baseWorkDir, const std::vector<NodeConfig>& nodeConfigs,
-              const std::string& stubLibDir = "");
+    explicit ItCluster(ClusterSpec spec);
 
     ~ItCluster();
 
@@ -142,7 +142,8 @@ private:
     std::string cliBinaryPath_;
     std::string baseWorkDir_;
     std::string stubLibDir_;
-    std::vector<NodeConfig> nodeConfigs_;
+    std::vector<NodeSpec> nodeSpecs_;
+    ClusterSpec clusterSpec_;
     std::vector<std::string> nodeIds_;
     std::map<std::string, std::unique_ptr<NodeProcessManager>> nodes_;
     std::map<std::string, std::unique_ptr<ItSdkClient>> sdkClients_;

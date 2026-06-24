@@ -22,6 +22,8 @@ set(IT_INFRA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/infra)
 add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/node_process_manager.cpp
     ${IT_INFRA_DIR}/it_cluster.cpp
+    ${IT_INFRA_DIR}/it_cluster_spec.cpp
+    ${IT_INFRA_DIR}/it_cluster_builder.cpp
     ${IT_INFRA_DIR}/it_sdk_client.cpp
     ${IT_INFRA_DIR}/it_cli_invoker.cpp
     ${IT_INFRA_DIR}/it_config_builder.cpp
@@ -127,17 +129,55 @@ add_dependencies(ubse_it_runtime
     xalarm_stub
 )
 
-add_subdirectory(smoke)
-add_subdirectory(election)
-add_subdirectory(numa_borrow)
+set(UBSE_IT_MODULES
+    smoke
+    election
+    numa_borrow
+)
+
+set(UBSE_IT_NON_MODULE_DIRS
+    config_builder
+    infra
+    stubs
+)
+
+file(GLOB UBSE_IT_CHILDREN LIST_DIRECTORIES true RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
+foreach(child IN LISTS UBSE_IT_CHILDREN)
+    if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${child}" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${child}/CMakeLists.txt")
+        list(FIND UBSE_IT_MODULES "${child}" registered_module_index)
+        list(FIND UBSE_IT_NON_MODULE_DIRS "${child}" non_module_index)
+        if(registered_module_index EQUAL -1 AND non_module_index EQUAL -1)
+            message(FATAL_ERROR "IT module directory '${child}' has CMakeLists.txt but is not listed in UBSE_IT_MODULES")
+        endif()
+    endif()
+endforeach()
+
+foreach(module IN LISTS UBSE_IT_MODULES)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${module}/CMakeLists.txt")
+        message(FATAL_ERROR "Registered IT module '${module}' does not have CMakeLists.txt")
+    endif()
+    add_subdirectory(${module})
+endforeach()
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
 get_property(IT_BINARIES GLOBAL PROPERTY UBSE_IT_BINARIES)
 
 # Aggregate target `it`: builds all IT binaries then runs all IT tests via ctest.
 # Individual <module>_it targets remain available for single-module runs.
+if(SKIP_RUN_TESTS)
+    set(IT_RUN_ALL_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT tests, only build registered IT binaries")
+else()
+    set(IT_RUN_ALL_COMMAND
+        ${CMAKE_CTEST_COMMAND}
+        --test-dir ${CMAKE_BINARY_DIR}/test
+        -L "^it_.*"
+        --output-on-failure
+        --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+        --no-tests=error
+    )
+endif()
 add_custom_target(it
-    COMMAND ${CMAKE_CTEST_COMMAND} -L "it_.*" --output-on-failure
+    COMMAND ${IT_RUN_ALL_COMMAND}
     COMMENT "Run all IT tests via ctest (labels matching 'it_.*')"
 )
 

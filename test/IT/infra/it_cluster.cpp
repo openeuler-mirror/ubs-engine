@@ -29,22 +29,15 @@
 #include "node_process_manager.h"
 
 namespace ubse::it::infra {
-ItCluster::ItCluster(const std::string& binaryPath, const std::string& baseWorkDir,
-                     const std::vector<NodeConfig>& nodeConfigs, const std::string& stubLibDir)
-    : binaryPath_(binaryPath),
-      cliBinaryPath_((std::filesystem::path(binaryPath).parent_path() / "ubsectl").string()),
-      baseWorkDir_(baseWorkDir),
-      stubLibDir_(stubLibDir),
-      nodeConfigs_(nodeConfigs)
+ItCluster::ItCluster(ClusterSpec spec) : clusterSpec_(std::move(spec))
 {
-    for (size_t i = 0; i < nodeConfigs_.size(); ++i) {
-        if (nodeConfigs_[i].slotId == 0) {
-            nodeConfigs_[i].slotId = static_cast<uint32_t>(i + 1);
-        }
-    }
-    for (const auto& cfg : nodeConfigs_) {
-        nodeIds_.push_back(cfg.nodeId);
-    }
+    clusterSpec_.Normalize();
+    binaryPath_ = clusterSpec_.binaryPath;
+    cliBinaryPath_ = clusterSpec_.cliBinaryPath;
+    baseWorkDir_ = clusterSpec_.baseWorkDir;
+    stubLibDir_ = clusterSpec_.stubLibDir;
+    nodeSpecs_ = clusterSpec_.nodes;
+    nodeIds_ = clusterSpec_.NodeIds();
 }
 
 ItCluster::~ItCluster()
@@ -54,47 +47,29 @@ ItCluster::~ItCluster()
 
 UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
 {
-    std::vector<std::string> clusterIps;
-    std::string allNodeIds;
-    std::string allClusterIps;
-    std::vector<uint32_t> allSlotIds;
-    for (const auto& cfg : nodeConfigs_) {
-        clusterIps.push_back(cfg.ip);
-        allSlotIds.push_back(cfg.slotId);
-    }
-    for (size_t i = 0; i < nodeConfigs_.size(); ++i) {
-        if (i > 0) {
-            allNodeIds += ",";
-            allClusterIps += ",";
-        }
-        allNodeIds += nodeConfigs_[i].nodeId;
-        allClusterIps += nodeConfigs_[i].ip;
-    }
-
-    ItConfigBuilder configBuilder(nodeConfigs_, baseWorkDir_);
-    UbseResult ret = configBuilder.WithClusterIps(clusterIps).WithCertUse(false).GenerateAllConfigs();
+    ItConfigBuilder configBuilder(nodeSpecs_, baseWorkDir_);
+    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps()).WithCertUse(false).GenerateAllConfigs();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to generate cluster configs";
         return ret;
     }
 
     // Phase 1: Fork all node processes simultaneously (no wait between forks)
-    for (const auto& cfg : nodeConfigs_) {
-        std::string workDir = baseWorkDir_ + "/" + cfg.nodeId;
-        std::filesystem::create_directories(workDir);
-        std::filesystem::create_directories(workDir + "/run");
-        std::filesystem::create_directories(workDir + "/log");
+    for (const auto& cfg : nodeSpecs_) {
+        std::filesystem::create_directories(cfg.workDir);
+        std::filesystem::create_directories(cfg.RunDir());
+        std::filesystem::create_directories(cfg.LogDir());
 
         NodeProcessConfig procConfig;
         procConfig.binaryPath = binaryPath_;
         procConfig.nodeId = cfg.nodeId;
         procConfig.nodeIp = cfg.ip;
-        procConfig.workDir = workDir;
+        procConfig.workDir = cfg.workDir;
         procConfig.slotId = cfg.slotId;
         procConfig.stubLibDir = stubLibDir_;
-        procConfig.clusterNodeIds = allNodeIds;
-        procConfig.clusterIps = allClusterIps;
-        procConfig.clusterSlotIds = allSlotIds;
+        procConfig.clusterNodeIds = clusterSpec_.JoinedNodeIds();
+        procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
+        procConfig.clusterSlotIds = clusterSpec_.SlotIds();
         auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
         ret = proc->Start();
         if (ret != UBSE_OK) {
@@ -109,7 +84,8 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
     std::vector<std::pair<std::string, std::future<UbseResult>>> waitResults;
     for (auto& [id, proc] : nodes_) {
         NodeProcessManager* procPtr = proc.get();
-        auto future = std::async(std::launch::async, [procPtr]() { return procPtr->WaitForStartup(30000); });
+        auto future = std::async(std::launch::async,
+                                 [this, procPtr]() { return procPtr->WaitForStartup(clusterSpec_.startupTimeoutMs); });
         waitResults.emplace_back(id, std::move(future));
     }
 
@@ -127,15 +103,14 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
 
     // Phase 3a: Create SDK client objects
     // Each node's UDS socket is at workDir/run/ubse.sock (mount namespace maps this to /var/run/ubse/ubse.sock)
-    for (const auto& cfg : nodeConfigs_) {
+    for (const auto& cfg : nodeSpecs_) {
         auto procIt = nodes_.find(cfg.nodeId);
         if (procIt == nodes_.end() || !procIt->second) {
             IT_LOG_ERROR << "Node process not found for " << cfg.nodeId;
             return UBSE_ERROR_DEF(1);
         }
         std::string udsPath = procIt->second->GetUdsSocketPath();
-        std::string logDir = baseWorkDir_ + "/" + cfg.nodeId + "/log";
-        auto client = std::make_unique<ItSdkClient>(udsPath, logDir, cliBinaryPath_, cfg.nodeId, nodeIds_);
+        auto client = std::make_unique<ItSdkClient>(udsPath, cfg.LogDir(), cliBinaryPath_, cfg.nodeId, nodeIds_);
         sdkClients_[cfg.nodeId] = std::move(client);
     }
 
@@ -202,11 +177,16 @@ ItSdkClient& ItCluster::GetSdkClient(const std::string& nodeId)
     auto it = sdkClients_.find(nodeId);
     if (it == sdkClients_.end() || !it->second) {
         std::string udsPath = baseWorkDir_ + "/" + nodeId + "/run/ubse.sock";
+        std::string logDir = baseWorkDir_ + "/" + nodeId + "/log";
+        const NodeSpec* nodeSpec = clusterSpec_.FindNode(nodeId);
+        if (nodeSpec != nullptr) {
+            udsPath = nodeSpec->UdsSocketPath();
+            logDir = nodeSpec->LogDir();
+        }
         auto procIt = nodes_.find(nodeId);
         if (procIt != nodes_.end() && procIt->second) {
             udsPath = procIt->second->GetUdsSocketPath();
         }
-        std::string logDir = baseWorkDir_ + "/" + nodeId + "/log";
         auto client = std::make_unique<ItSdkClient>(udsPath, logDir, cliBinaryPath_, nodeId, nodeIds_);
         UbseResult ret = client->Initialize();
         if (ret != UBSE_OK) {
@@ -250,47 +230,22 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
     }
     it->second->Stop();
 
-    // Re-create the process manager for this node
-    std::string workDir = baseWorkDir_ + "/" + nodeId;
-
-    uint32_t slotId = 1;
-    for (const auto& cfg : nodeConfigs_) {
-        if (cfg.nodeId == nodeId) {
-            slotId = cfg.slotId;
-            break;
-        }
-    }
-
-    std::string allNodeIds;
-    std::string allClusterIps;
-    std::vector<uint32_t> allSlotIds;
-    for (size_t i = 0; i < nodeConfigs_.size(); ++i) {
-        if (i > 0) {
-            allNodeIds += ",";
-            allClusterIps += ",";
-        }
-        allNodeIds += nodeConfigs_[i].nodeId;
-        allClusterIps += nodeConfigs_[i].ip;
-        allSlotIds.push_back(nodeConfigs_[i].slotId);
-    }
-    std::string nodeIp;
-    for (const auto& cfg : nodeConfigs_) {
-        if (cfg.nodeId == nodeId) {
-            nodeIp = cfg.ip;
-            break;
-        }
+    const NodeSpec* nodeSpec = clusterSpec_.FindNode(nodeId);
+    if (nodeSpec == nullptr) {
+        IT_LOG_ERROR << "Node spec not found: " << nodeId;
+        return UBSE_ERROR_DEF(1);
     }
 
     NodeProcessConfig procConfig;
     procConfig.binaryPath = binaryPath_;
     procConfig.nodeId = nodeId;
-    procConfig.nodeIp = nodeIp;
-    procConfig.workDir = workDir;
-    procConfig.slotId = slotId;
+    procConfig.nodeIp = nodeSpec->ip;
+    procConfig.workDir = nodeSpec->workDir;
+    procConfig.slotId = nodeSpec->slotId;
     procConfig.stubLibDir = stubLibDir_;
-    procConfig.clusterNodeIds = allNodeIds;
-    procConfig.clusterIps = allClusterIps;
-    procConfig.clusterSlotIds = allSlotIds;
+    procConfig.clusterNodeIds = clusterSpec_.JoinedNodeIds();
+    procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
+    procConfig.clusterSlotIds = clusterSpec_.SlotIds();
     auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
     UbseResult ret = proc->Start();
     if (ret != UBSE_OK) {

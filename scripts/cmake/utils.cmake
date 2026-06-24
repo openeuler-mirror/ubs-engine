@@ -191,8 +191,30 @@ macro(add_ut module)
     gtest_discover_tests(${UT_BINARY} PROPERTIES LABELS "${module}")
 endmacro()
 
+set(UBSE_IT_TEST_TIMEOUT_SECONDS "180" CACHE STRING "Default timeout in seconds for each IT CTest case")
+set(UBSE_IT_DISCOVERY_TIMEOUT_SECONDS "30" CACHE STRING "Timeout in seconds for IT GTest discovery")
+
+function(ubse_gtest_filter_to_ctest_regex output_var gtest_filter)
+    set(regex "${gtest_filter}")
+    string(FIND "${regex}" "-" negative_filter_pos)
+    if (NOT negative_filter_pos EQUAL -1)
+        string(SUBSTRING "${regex}" 0 ${negative_filter_pos} regex)
+    endif ()
+    if ("${regex}" STREQUAL "")
+        set(regex "*")
+    endif ()
+    string(REPLACE "." "\\." regex "${regex}")
+    string(REPLACE "*" ".*" regex "${regex}")
+    string(REPLACE "?" "." regex "${regex}")
+    string(REPLACE ":" "|" regex "${regex}")
+    set(${output_var} "^(${regex})$" PARENT_SCOPE)
+endfunction()
+
 macro(add_it module)
     set(IT_BINARY ${CMAKE_PROJECT_NAME}_${module}_it)
+    set(IT_LABEL it_${module})
+    set(IT_XML_OUTPUT_DIR ${CMAKE_BINARY_DIR}/coverage/it)
+    file(MAKE_DIRECTORY ${IT_XML_OUTPUT_DIR})
     file(GLOB_RECURSE TEST_SOURCES LIST_DIRECTORIES false
             ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/*.h
@@ -207,23 +229,49 @@ macro(add_it module)
     )
     target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
     add_dependencies(${IT_BINARY} ubse_it_runtime)
-    set(RUN_TEST "${CMAKE_BINARY_DIR}/bin/${IT_BINARY} \
-		--gtest_output=xml:${CMAKE_BINARY_DIR}/coverage/it/${module}_detail.xml")
-    set(TRANS_PARAMS $ENV{TRANS_PARAMS})
+
+    set(IT_CTEST_ARGS
+            --test-dir ${CMAKE_BINARY_DIR}/test
+            -L "^${IT_LABEL}$"
+            --output-on-failure
+            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+            --no-tests=error
+    )
+    set(TRANS_PARAMS "$ENV{TRANS_PARAMS}")
     if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
-        set(RUN_TEST "${RUN_TEST} ${TRANS_PARAMS}")
+        separate_arguments(IT_TRANS_PARAMS UNIX_COMMAND "${TRANS_PARAMS}")
+        foreach (IT_TRANS_PARAM IN LISTS IT_TRANS_PARAMS)
+            if (IT_TRANS_PARAM MATCHES "^--gtest_filter=(.*)$")
+                ubse_gtest_filter_to_ctest_regex(IT_CTEST_FILTER_REGEX "${CMAKE_MATCH_1}")
+                list(APPEND IT_CTEST_ARGS -R "${IT_CTEST_FILTER_REGEX}")
+            elseif (IT_TRANS_PARAM MATCHES "^--gtest_")
+                message(WARNING "Ignoring unsupported GTest argument for CTest-based IT target: ${IT_TRANS_PARAM}")
+            else ()
+                message(WARNING "Ignoring unsupported IT target argument for CTest-based IT target: ${IT_TRANS_PARAM}")
+            endif ()
+        endforeach ()
     endif ()
+
     if (SKIP_RUN_TESTS)
-        set(RUN_TEST "echo 'Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}'")
+        set(IT_RUN_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}")
+    else ()
+        set(IT_RUN_COMMAND ${CMAKE_CTEST_COMMAND} ${IT_CTEST_ARGS})
     endif ()
     add_custom_target(${module}_it
-            COMMAND bash -c "${RUN_TEST}"
-            COMMENT "Run IT testing: ${RUN_TEST}"
+            COMMAND ${IT_RUN_COMMAND}
+            COMMENT "Run IT testing via ctest label ${IT_LABEL}"
     )
     add_dependencies(${module}_it ${IT_BINARY})
     set_property(GLOBAL APPEND PROPERTY UBSE_IT_TARGETS ${module}_it)
     set_property(GLOBAL APPEND PROPERTY UBSE_IT_BINARIES ${IT_BINARY})
-    gtest_discover_tests(${IT_BINARY} PROPERTIES LABELS "it_${module}")
+    gtest_discover_tests(${IT_BINARY}
+            DISCOVERY_TIMEOUT ${UBSE_IT_DISCOVERY_TIMEOUT_SECONDS}
+            XML_OUTPUT_DIR ${IT_XML_OUTPUT_DIR}
+            PROPERTIES
+                    LABELS ${IT_LABEL}
+                    RESOURCE_LOCK ubse_it
+                    TIMEOUT ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+    )
 endmacro()
 
 macro(add_independent_exec_ut executable_name)

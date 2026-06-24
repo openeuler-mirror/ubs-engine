@@ -23,8 +23,8 @@
 
 namespace ubse::it::infra {
 
-ItConfigBuilder::ItConfigBuilder(const std::vector<NodeConfig>& nodeConfigs, const std::string& baseWorkDir)
-    : nodeConfigs_(nodeConfigs),
+ItConfigBuilder::ItConfigBuilder(const std::vector<NodeSpec>& nodeSpecs, const std::string& baseWorkDir)
+    : nodeSpecs_(nodeSpecs),
       baseWorkDir_(baseWorkDir)
 {
 }
@@ -50,11 +50,11 @@ ItConfigBuilder& ItConfigBuilder::WithOverride(const std::string& section, const
 
 UbseResult ItConfigBuilder::GenerateAllConfigs(const std::string& templatePath)
 {
-    for (const auto& cfg : nodeConfigs_) {
-        std::string outputDir = baseWorkDir_ + "/" + cfg.nodeId;
-        UbseResult ret = GenerateConfig(cfg, outputDir, templatePath);
+    for (const auto& spec : nodeSpecs_) {
+        std::string outputDir = spec.workDir.empty() ? baseWorkDir_ + "/" + spec.nodeId : spec.workDir;
+        UbseResult ret = GenerateConfig(spec, outputDir, templatePath);
         if (ret != UBSE_OK) {
-            IT_LOG_ERROR << "Failed to generate config for node " << cfg.nodeId;
+            IT_LOG_ERROR << "Failed to generate config for node " << spec.nodeId;
             return ret;
         }
     }
@@ -195,7 +195,7 @@ void ItConfigBuilder::ReplaceOrInsertConfigLine(std::string& content, const std:
     content.insert(sectionContentStart, newLine);
 }
 
-UbseResult ItConfigBuilder::GenerateConfig(const NodeConfig& nodeConfig, const std::string& outputDir,
+UbseResult ItConfigBuilder::GenerateConfig(const NodeSpec& nodeSpec, const std::string& outputDir,
                                            const std::string& templatePath)
 {
     std::string tmplPath = FindTemplatePath(templatePath);
@@ -227,7 +227,7 @@ UbseResult ItConfigBuilder::GenerateConfig(const NodeConfig& nodeConfig, const s
     ofs << configContent;
     ofs.close();
 
-    IT_LOG_INFO << "Generated config for node " << nodeConfig.nodeId << " at " << outputPath;
+    IT_LOG_INFO << "Generated config for node " << nodeSpec.nodeId << " at " << outputPath;
     return UBSE_OK;
 }
 

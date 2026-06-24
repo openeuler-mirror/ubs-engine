@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "gtest/gtest.h"
+#include "it_cluster_builder.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
@@ -40,6 +41,11 @@ protected:
                 IT_LOG_WARN << "Failed to clean up work directory " << workDir_ << ": " << ec.message();
             }
         }
+    }
+
+    static ItClusterBuilder Cluster()
+    {
+        return ItClusterBuilder::FromRuntimePaths(binaryPath_, workDir_, stubLibDir_);
     }
 
     static std::string workDir_;

@@ -12,8 +12,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
 #include <string>
-#include <vector>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
@@ -32,23 +32,22 @@ struct ElectionRoles {
     std::string standbyNodeId;
 };
 
-ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster,
-                                   const std::vector<ubse::it::infra::NodeConfig>& nodeConfigs)
+ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster)
 {
     ElectionRoles roles;
-    for (const auto& nodeConfig : nodeConfigs) {
-        auto& sdkClient = cluster.GetSdkClient(nodeConfig.nodeId);
+    for (const auto& nodeId : cluster.GetNodeIds()) {
+        auto& sdkClient = cluster.GetSdkClient(nodeId);
         std::string role;
         int32_t sdkRet = sdkClient.GetRole(role);
         EXPECT_EQ(sdkRet, UBS_SUCCESS);
         if (role == ubse::election::ELECTION_ROLE_MASTER) {
             ++roles.masterCount;
-            roles.masterNodeId = nodeConfig.nodeId;
+            roles.masterNodeId = nodeId;
         } else if (role == ubse::election::ELECTION_ROLE_STANDBY) {
             ++roles.standbyCount;
-            roles.standbyNodeId = nodeConfig.nodeId;
+            roles.standbyNodeId = nodeId;
         } else {
-            ADD_FAILURE() << "Unexpected election role for " << nodeConfig.nodeId << ": " << role;
+            ADD_FAILURE() << "Unexpected election role for " << nodeId << ": " << role;
         }
     }
     return roles;
@@ -58,48 +57,42 @@ ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster,
 
 TEST_F(ItElectionTest, SingleNodeElectionConvergence)
 {
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {{"1", "127.0.0.1", 8082, 1}};
-
-    ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
-
-    auto ret = cluster.StartClusterParallel(15000);
-    EXPECT_IT_OK(ret);
+    std::unique_ptr<ubse::it::infra::ItCluster> cluster;
+    auto ret = Cluster().SingleNode().ElectionTimeoutMs(15000).Start(cluster);
+    ASSERT_IT_OK(ret);
 
     std::string masterNodeId;
-    ret = cluster.GetMasterNodeId(masterNodeId);
+    ret = cluster->GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
     EXPECT_EQ(masterNodeId, "1");
 
-    auto& sdkClient = cluster.GetSdkClient("1");
+    auto& sdkClient = cluster->GetSdkClient("1");
     std::string role;
     int32_t sdkRet = sdkClient.GetRole(role);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     EXPECT_EQ(role, ubse::election::ELECTION_ROLE_MASTER);
 
-    ret = cluster.StopCluster();
+    ret = cluster->StopCluster();
     EXPECT_IT_OK(ret);
 }
 
 TEST_F(ItElectionTest, TwoNodeElectionChoosesSingleMasterAndStandby)
 {
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {{"1", "127.0.0.2", 8082, 1}, {"2", "127.0.0.3", 8083, 2}};
-
-    ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
-
-    auto ret = cluster.StartClusterParallel(30000);
+    std::unique_ptr<ubse::it::infra::ItCluster> cluster;
+    auto ret = Cluster().TwoNode().Start(cluster);
     ASSERT_IT_OK(ret);
 
     std::string masterNodeId;
-    ret = cluster.GetMasterNodeId(masterNodeId);
+    ret = cluster->GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
 
-    auto roles = CollectElectionRoles(cluster, nodeConfigs);
+    auto roles = CollectElectionRoles(*cluster);
     EXPECT_EQ(roles.masterCount, 1U);
     EXPECT_EQ(roles.standbyCount, 1U);
     EXPECT_EQ(roles.masterNodeId, "1");
     EXPECT_EQ(roles.standbyNodeId, "2");
     EXPECT_EQ(masterNodeId, roles.masterNodeId);
 
-    ret = cluster.StopCluster();
+    ret = cluster->StopCluster();
     EXPECT_IT_OK(ret);
 }

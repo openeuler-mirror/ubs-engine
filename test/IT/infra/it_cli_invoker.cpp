@@ -62,6 +62,19 @@ std::string BuildCliEnvPrefix(const std::string& cliBinaryPath, const std::strin
     return envPrefix;
 }
 
+std::string TrimTrailingNewlines(std::string output)
+{
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) {
+        output.pop_back();
+    }
+    return output;
+}
+
+void LogCliOutput(const std::string& output)
+{
+    IT_LOG_INFO << "CLI command output:\n" << TrimTrailingNewlines(output);
+}
+
 } // namespace
 
 ItCliInvoker::ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath)
@@ -83,7 +96,7 @@ int32_t ItCliInvoker::QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos)
         IT_LOG_ERROR << "CLI command returned error: " << output;
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
-    IT_LOG_INFO << "CLI command output: " << output;
+    LogCliOutput(output);
     return ParseTableOutput(output, nodeInfos);
 }
 
@@ -103,7 +116,7 @@ int32_t ItCliInvoker::QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nod
         IT_LOG_ERROR << "CLI command returned error: " << output;
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
-    IT_LOG_INFO << "CLI command output: " << output;
+    LogCliOutput(output);
     std::vector<ItNodeInfo> nodeInfos;
     int32_t ret = ParseTableOutput(output, nodeInfos);
     if (ret != UBS_SUCCESS || nodeInfos.empty()) {
