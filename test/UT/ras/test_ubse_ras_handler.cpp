@@ -927,4 +927,418 @@ TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWithResultCaching)
     // handler 返回错误，所以 IsHandlerDone 应返回 false（只有 UBSE_OK 才算 done）
     ASSERT_FALSE(IsHandlerDone(msgId, "test_handler"));
 }
+
+// ==================== AddProcessedMsgId / MsgIdHasBeenProcessed / ClearAllMsgId 测试 ====================
+
+TEST_F(TestUbseRasHandler, AddProcessedMsgIdSingleEntry)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.ClearAllMsgId();
+    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("add_processed_1"));
+    handler.AddProcessedMsgId("add_processed_1");
+    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("add_processed_1"));
+    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("add_processed_2"));
+    handler.ClearAllMsgId();
+}
+
+TEST_F(TestUbseRasHandler, MsgIdHasBeenProcessedMultipleEntries)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.ClearAllMsgId();
+    handler.AddProcessedMsgId("multi_1");
+    handler.AddProcessedMsgId("multi_2");
+    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("multi_1"));
+    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("multi_2"));
+    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("multi_3"));
+    handler.ClearAllMsgId();
+}
+
+TEST_F(TestUbseRasHandler, ClearAllMsgIdClearsProcessedSet)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.AddProcessedMsgId("clear_test_1");
+    handler.AddProcessedMsgId("clear_test_2");
+    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("clear_test_1"));
+    handler.ClearAllMsgId();
+    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("clear_test_1"));
+    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("clear_test_2"));
+}
+
+// ==================== CallOneNodeHandleRetry 测试 ====================
+
+TEST_F(TestUbseRasHandler, CallOneNodeHandleRetrySuccessImmediate)
+{
+    NodeHandler handlerFunc = [](const std::string& nodeId) -> UbseResult {
+        return UBSE_OK;
+    };
+    auto ret = CallOneNodeHandleRetry(handlerFunc, "1");
+    ASSERT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseRasHandler, CallOneNodeHandleRetryAllFail)
+{
+    int callCount = 0;
+    NodeHandler handlerFunc = [&callCount](const std::string& nodeId) -> UbseResult {
+        callCount++;
+        return UBSE_ERROR;
+    };
+    MOCKER(sleep).stubs().will(returnValue(0u));
+    auto ret = CallOneNodeHandleRetry(handlerFunc, "1");
+    ASSERT_EQ(ret, UBSE_ERROR);
+    ASSERT_GT(callCount, 1);
+}
+
+TEST_F(TestUbseRasHandler, CallOneNodeHandleRetrySuccessAfterRetries)
+{
+    int callCount = 0;
+    NodeHandler handlerFunc = [&callCount](const std::string& nodeId) -> UbseResult {
+        callCount++;
+        if (callCount < 3) {
+            return UBSE_ERROR;
+        }
+        return UBSE_OK;
+    };
+    MOCKER(sleep).stubs().will(returnValue(0u));
+    auto ret = CallOneNodeHandleRetry(handlerFunc, "1");
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(callCount, 3);
+}
+
+// ==================== ReportBMCFaultToMaster 测试 ====================
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterWhenFaultNodeIsMaster)
+{
+    auto res = ReportBMCFaultToMaster("info", "same_node", "same_node");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterWhenComModuleNull)
+{
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>)
+        .stubs()
+        .will(returnValue(std::shared_ptr<UbseComModule>(nullptr)));
+    auto res = ReportBMCFaultToMaster("info", "fault_node", "master_node");
+    ASSERT_EQ(res, UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterWhenRpcSendFail)
+{
+    auto comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
+    response->SetResult(UBSE_OK);
+    MOCKER_CPP(func).stubs().with(_, _, outBound(response), _).will(returnValue(UBSE_ERROR));
+    auto res = ReportBMCFaultToMaster("info", "fault_node", "master_node");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterWhenResponseNotOk)
+{
+    auto comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
+    response->SetResult(UBSE_ERROR);
+    MOCKER_CPP(func).stubs().with(_, _, outBound(response), _).will(returnValue(UBSE_OK));
+    auto res = ReportBMCFaultToMaster("info", "fault_node", "master_node");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterSuccess)
+{
+    auto comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
+    response->SetResult(UBSE_OK);
+    MOCKER_CPP(func).stubs().with(_, _, outBound(response), _).will(returnValue(UBSE_OK));
+    auto res = ReportBMCFaultToMaster("info", "fault_node", "master_node");
+    ASSERT_EQ(res, UBSE_OK);
+}
+
+// ==================== HandleBMCFault 测试 ====================
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultWhenMsgIdInvalid)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    auto res = handler.HandleBMCFault("not_a_number");
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultWhenOnlyOneNodeInCluster)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(true));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("12345");
+    ASSERT_EQ(res, UBSE_OK);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFault2GetCurrentNodeInfoFail)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    auto res = handler.HandleBMCFault("12345");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFault3SendSwitchRoleFail)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_ERROR));
+    auto res = handler.HandleBMCFault("12345");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFault4GetMasterInfoFail)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
+    auto res = handler.HandleBMCFault("12345");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFault5ReportBMCFaultFails)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_ERROR));
+    auto res = handler.HandleBMCFault("12345");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+// ==================== HandleMemoryFault 测试 ====================
+
+TEST_F(TestUbseRasHandler, HandleMemoryFaultWhenNoHandlerRegistered)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.faultHandlerMap.clear();
+    auto res = handler.HandleMemoryFault(ALARM_OOM_EVENT, "test_info");
+    // ExecuteFaultHandler returns UBSE_OK when no handler registered, then HandleMemoryFault also returns UBSE_OK
+    ASSERT_EQ(res, UBSE_OK);
+}
+
+TEST_F(TestUbseRasHandler, HandleMemoryFaultWhenHandlerReturnsError)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.faultHandlerMap.clear();
+    ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
+    AlarmFaultHandler func = [](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
+        return UBSE_ERROR;
+    };
+    handler.faultHandlerMap[type][AlarmHandlerPriority::HIGH].emplace_back("test_handler", func);
+    auto res = handler.HandleMemoryFault(type, "test_info");
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
+// ==================== ClearFaultHandlerResult 测试 ====================
+
+TEST_F(TestUbseRasHandler, ClearFaultHandlerResultClearsHandlers)
+{
+    SetHandlerResult("clear_fault_msg", "handler1", UBSE_ERROR);
+    ASSERT_FALSE(IsHandlerDone("clear_fault_msg", "handler1"));
+    ClearFaultHandlerResult("clear_fault_msg");
+    ASSERT_EQ(GetResultFromHandlersByMsg("clear_fault_msg"), UBSE_OK);
+    ASSERT_FALSE(IsHandlerDone("clear_fault_msg", "handler1"));
+}
+
+// ==================== ExecuteFaultHandler (无 msgId 重载) 测试 ====================
+
+TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWithoutMsgIdNoHandlerRegistered)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.faultHandlerMap.clear();
+    ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
+    std::string faultInfo = "test";
+    auto res = handler.ExecuteFaultHandler(type, faultInfo);
+    ASSERT_EQ(res, UBSE_OK);
+}
+
+TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWithoutMsgIdWithHandler)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    handler.faultHandlerMap.clear();
+    ALARM_FAULT_TYPE type = ALARM_OOM_EVENT;
+    std::string faultInfo = "test";
+    AlarmFaultHandler func = [](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
+        return UBSE_OK;
+    };
+    handler.faultHandlerMap[type][AlarmHandlerPriority::HIGH].emplace_back("test_handler", func);
+    auto res = handler.ExecuteFaultHandler(type, faultInfo);
+    ASSERT_EQ(res, UBSE_OK);
+}
+
+// ==================== CallNodeHandle 测试 ====================
+
+TEST_F(TestUbseRasHandler, CallNodeHandleWhenTypeNotRegistered)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    auto saveHandler = handler.nodeHandlerMap;
+    handler.nodeHandlerMap.clear();
+    auto ret = handler.CallNodeHandle(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE, "1");
+    handler.nodeHandlerMap = saveHandler;
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, CallNodeHandleWhenNodeIdEmpty)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    NodeHandler func = [](const std::string& nodeId) -> uint32_t {
+        return UBSE_OK;
+    };
+    auto saveHandler = handler.nodeHandlerMap;
+    handler.nodeHandlerMap.clear();
+    handler.nodeHandlerMap[NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE].emplace_back(func);
+    auto ret = handler.CallNodeHandle(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE, "");
+    handler.nodeHandlerMap = saveHandler;
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, CallNodeHandleWhenHandlerIsNull)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    auto saveHandler = handler.nodeHandlerMap;
+    handler.nodeHandlerMap.clear();
+    handler.nodeHandlerMap[NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE].emplace_back(nullptr);
+    auto ret = handler.CallNodeHandle(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE, "1");
+    handler.nodeHandlerMap = saveHandler;
+    ASSERT_EQ(ret, UBSE_ERROR);
+}
+
+// ==================== RegisterNodeHandler 空 handler 测试 ====================
+
+TEST_F(TestUbseRasHandler, RegisterNodeHandlerWithNullHandler)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    NodeHandler nullFunc = nullptr;
+    auto saveHandler = handler.nodeHandlerMap;
+    handler.nodeHandlerMap.clear();
+    auto ret = handler.RegisterNodeHandler(NodeHandlerType::PRE_FAULT_STATE_HANDLER_TYPE, nullFunc);
+    handler.nodeHandlerMap = saveHandler;
+    ASSERT_EQ(ret, UBSE_ERROR_NULLPTR);
+}
+
+// ==================== HandleOomFault 额外路径测试 ====================
+
+TEST_F(TestUbseRasHandler, HandleOomFaultWhenOomHandlerFails)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
+                  .pucParas = "1650_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],"
+                              "sync:1,timeout:30000,reason:2}"};
+    handler.ClearAllMsgId();
+    handler.faultHandlerMap.clear();
+    // Register a handler that fails
+    AlarmFaultHandler failFunc = [](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
+        return UBSE_ERROR;
+    };
+    handler.faultHandlerMap[ALARM_OOM_EVENT][AlarmHandlerPriority::HIGH].emplace_back("fail_handler", failFunc);
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleOomFault(&msg);
+    ASSERT_EQ(res, UBSE_OK); // Always acks
+}
+
+// ==================== ProcessExportObj 额外测试 ====================
+
+TEST_F(TestUbseRasHandler, ProcessExportObjWithNonSuccessState)
+{
+    ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj numaExporetObj;
+    numaExporetObj.status.state = ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_RUNNING;
+    std::unordered_map<std::string, DebtInfo> numaMemoryDebtInfoMap;
+    EXPECT_NO_THROW(ProcessExportObj("Fd", "1", numaExporetObj, "1", numaMemoryDebtInfoMap));
+}
+
+TEST_F(TestUbseRasHandler, ProcessExportObjWithBorrowNodeIdSameAsCurrent)
+{
+    ubse::adapter_plugins::mmi::UbseMemBorrowExportBaseObj numaExporetObj;
+    numaExporetObj.status.state = ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_EXPORT_SUCCESS;
+    std::unordered_map<std::string, DebtInfo> numaMemoryDebtInfoMap;
+    std::string borrowNodeId = "1"; // Same as current node id
+    std::string lentNodeId = "2";
+    MOCKER(GetBorrowNodeId).stubs().will(returnValue(borrowNodeId));
+    MOCKER(GetLentNodeId).stubs().will(returnValue(lentNodeId));
+    EXPECT_NO_THROW(ProcessExportObj("Fd", "1", numaExporetObj, "1", numaMemoryDebtInfoMap));
+}
+
+// ==================== ProcessImportObj 额外测试 ====================
+
+TEST_F(TestUbseRasHandler, ProcessImportObjWithNonSuccessState)
+{
+    ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj numaImportObj;
+    numaImportObj.status.state = ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_RUNNING;
+    std::unordered_map<std::string, DebtInfo> numaMemoryDebtInfoMap;
+    EXPECT_NO_THROW(ProcessImportObj("Fd", "1", numaImportObj, "1", numaMemoryDebtInfoMap));
+}
+
+TEST_F(TestUbseRasHandler, ProcessImportObjWithLentNodeIdSameAsCurrent)
+{
+    ubse::adapter_plugins::mmi::UbseMemBorrowImportBaseObj numaImportObj;
+    numaImportObj.status.state = ubse::adapter_plugins::mmi::UbseMemState::UBSE_MEM_IMPORT_SUCCESS;
+    std::unordered_map<std::string, DebtInfo> numaMemoryDebtInfoMap;
+    std::string borrowNodeId = "2";
+    std::string lentNodeId = "1"; // Same as current node id
+    MOCKER(GetBorrowNodeId).stubs().will(returnValue(borrowNodeId));
+    MOCKER(GetLentNodeId).stubs().will(returnValue(lentNodeId));
+    MOCKER(IsNodeInStaticList).stubs().will(returnValue(true));
+    EXPECT_NO_THROW(ProcessImportObj("Fd", "1", numaImportObj, "1", numaMemoryDebtInfoMap));
+}
+
+// ==================== ProcessDebtInfo 空map测试 ====================
+
+TEST_F(TestUbseRasHandler, ProcessDebtInfoWithEmptyMap)
+{
+    ubse::adapter_plugins::mmi::NodeMemDebtInfoMap memDebtInfoMap;
+    std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> allNodeInfos;
+    EXPECT_NO_THROW(ProcessDebtInfo(memDebtInfoMap, "1", allNodeInfos));
+}
+
+// ==================== SwitchRoleWhenMasterFault 测试 ====================
+
+TEST_F(TestUbseRasHandler, SwitchRoleWhenMasterFaultStandbyCase)
+{
+    UbseRoleInfo masterInfo("1", ELECTION_ROLE_MASTER, 1);
+    UbseRoleInfo currentInfo("1", ELECTION_ROLE_STANDBY, 1);
+    std::string faultInfo = "1";
+    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>)
+        .stubs()
+        .will(returnValue(std::make_shared<UbseElectionModule>()));
+    MOCKER_CPP(&UbseElectionModule::SwitchMasterFromStandby).stubs();
+    SwitchRoleWhenMasterFault(faultInfo);
+    // Should not crash
+}
+
+// ==================== LogMemDebtInfoWithNode 额外路径测试 ====================
+
+TEST_F(TestUbseRasHandler, LogMemDebtInfoWithNodeWhenInStaticList)
+{
+    MOCKER(IsNodeInStaticList).stubs().will(returnValue(true));
+    EXPECT_NO_THROW(LogMemDebtInfoWithNode(ALARM_OOM_EVENT, "1"));
+}
+
+TEST_F(TestUbseRasHandler, LogMemDebtInfoWithNodeWhenNotInStaticList)
+{
+    MOCKER(IsNodeInStaticList).stubs().will(returnValue(false));
+    EXPECT_NO_THROW(LogMemDebtInfoWithNode(ALARM_OOM_EVENT, "1"));
+}
+
+// ==================== IsNodeInStaticList 测试 ====================
+
+TEST_F(TestUbseRasHandler, IsNodeInStaticListEmptyList)
+{
+    std::vector<ubse::nodeController::UbseNodeInfo> staticNodeInfos;
+    auto result = IsNodeInStaticList("1", staticNodeInfos);
+    ASSERT_FALSE(result);
+}
 } // namespace ubse::ras::ut

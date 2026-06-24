@@ -4,6 +4,7 @@ target_link_libraries(ubs-engine_ubse_urma_controller_ut
         ubse_urma_controller
         ubse_serial
         ubse_node_controller
+        ubse_mti
         syssentry
 )
 

@@ -47,4 +47,16 @@ TEST_F(TestUbseRasModule, StartSuccess)
     auto res = module->Start();
     ASSERT_EQ(res, UBSE_OK);
 }
+
+TEST_F(TestUbseRasModule, UnInitialize)
+{
+    auto module = std::make_shared<UbseRasModule>();
+    EXPECT_NO_THROW(module->UnInitialize());
+}
+
+TEST_F(TestUbseRasModule, Stop)
+{
+    auto module = std::make_shared<UbseRasModule>();
+    EXPECT_NO_THROW(module->Stop());
+}
 } // namespace ubse::ras::ut
