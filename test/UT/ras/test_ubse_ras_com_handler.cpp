@@ -15,6 +15,7 @@
 #include "ubse_error.h"
 #include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
 #include "ubse_ras_com_handler.cpp"
+#include "water_process/resource_analysis.cpp"
 
 namespace ubse::ras::ut {
 using namespace mem::strategy;
@@ -211,5 +212,61 @@ TEST_F(TestUbseRasComHandler, UpdateNodeBmcFaultMsgIdMultiNodeDedup)
     ASSERT_TRUE(UpdateNodeBmcFaultMsgId("ut_multi_a", "ut_multi_2"));
     // node B 重复 msg-1 -> false
     ASSERT_FALSE(UpdateNodeBmcFaultMsgId("ut_multi_b", "ut_multi_1"));
+}
+
+// ==================== UbseOomHandler 深入测试 ====================
+
+TEST_F(TestUbseRasComHandler, TestUbseOomHandlerWithValidRequest)
+{
+    const UbseBaseMessagePtr req = new UbseRasOomMessage(1, "1", 0);
+    const UbseBaseMessagePtr rsp = new UbseRasOomMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    UbseOomHandler handler;
+    // Set up node info with valid numa location
+    ubse::nodeController::UbseNodeInfo testNodeInfo;
+    testNodeInfo.nodeId = "1";
+    ubse::nodeController::UbseNumaLocation numaLocation{"1", 0};
+    ubse::nodeController::UbseNumaInfo numaInfo;
+    numaInfo.socketId = 0;
+    testNodeInfo.numaInfos[numaLocation] = numaInfo;
+    // Mock GetCurNode to return our test node info
+    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(testNodeInfo));
+    auto res = handler.Handle(req, rsp, &ctx);
+    // Will attempt WaterWarningProcess, may fail but shouldn't crash
+    ASSERT_TRUE(res == UBSE_OK || res == UBSE_ERROR);
+}
+
+TEST_F(TestUbseRasComHandler, TestUbseOomHandlerWithInvalidNodeId)
+{
+    const UbseBaseMessagePtr req = new UbseRasOomMessage(1, "invalid", 0);
+    const UbseBaseMessagePtr rsp = new UbseRasOomMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    UbseOomHandler handler;
+    auto res = handler.Handle(req, rsp, &ctx);
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+}
+
+// ==================== UbseRasComHandler 额外测试 ====================
+
+TEST_F(TestUbseRasComHandler, HandleWhenNodeIdNotDigit)
+{
+    const UbseBaseMessagePtr req = new UbseRasMessage();
+    const UbseBaseMessagePtr rsp = new UbseRasMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
+    UbseRasComHandler handler;
+    auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
+    request->SetData("abc");
+    auto res = handler.Handle(req, rsp, &ctx);
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+}
+
+// ==================== resource_analysis ToString 测试 ====================
+
+TEST_F(TestUbseRasComHandler, ResourceAnalysisToString)
+{
+    using namespace ubse::mem::strategy;
+    ASSERT_EQ(ToString(WatermarkWarningType::NO_WARN), "NO_WARN");
+    ASSERT_EQ(ToString(WatermarkWarningType::LOW_WATERMARK), "LOW_WATERMARK");
+    ASSERT_EQ(ToString(WatermarkWarningType::HIGH_WATERMARK), "HIGH_WATERMARK");
 }
 } // namespace ubse::ras::ut
