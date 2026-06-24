@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,20 +10,19 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef UBSE_MANAGER_TEST_UBSE_HTTP_START_H
-#define UBSE_MANAGER_TEST_UBSE_HTTP_START_H
+#ifndef TEST_UBSE_CERT_VALIDATOR_H
+#define TEST_UBSE_CERT_VALIDATOR_H
 
 #include <gtest/gtest.h>
-#include "mockcpp/mockcpp.hpp"
 
-namespace ubse::ut::http {
-class TestUbseHttpStart : public testing::Test {
+namespace ubse::ut::cert {
+class TestUbseCertValidator : public testing::Test {
 public:
-    TestUbseHttpStart();
+    TestUbseCertValidator() = default;
 
-    void SetUp();
-    void TearDown();
+    void SetUp() override;
+
+    void TearDown() override;
 };
-} // namespace ubse::ut::http
-
-#endif // UBSE_MANAGER_TEST_UBSE_HTTP_START_H
+} // namespace ubse::ut::cert
+#endif // TEST_UBSE_CERT_VALIDATOR_H

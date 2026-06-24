@@ -17,9 +17,11 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_file_util.h"
 #include "ubse_http_common.h"
 #include "ubse_http_server.h"
 #include "ubse_pointer_process.h"
+#include "ubse_security_module.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::ut::http {
@@ -27,6 +29,8 @@ using namespace ubse::http;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::common::def;
+using namespace ubse::security;
+using namespace ubse::utils;
 using namespace httplib;
 
 constexpr const uint32_t DEFAULT_TCP_SERVER_PORT = 8082;
@@ -277,5 +281,24 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest200)
     UbseHttpServer::GetInstance().HandleRequest(req, resp);
     EXPECT_EQ(resp.status, OK_200);
     GlobalMockObject::verify();
+}
+TEST_F(TestUbseHttpTcpServer, RegisterRoute_Duplicate)
+{
+    UbseHttpServer::GetInstance().RegisterRoute("/test", "GET", TestHandlerForTcpReg);
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().RegisterRoute("/test", "GET", TestHandlerForTcpReg));
+}
+
+TEST_F(TestUbseHttpTcpServer, GetParentDirectory)
+{
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("/a/b/c"), "/a/b");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("abc"), "");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("/"), "");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory(""), "");
+}
+TEST_F(TestUbseHttpTcpServer, UdsRun_DirectoryCreationFailed)
+{
+    MOCKER(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseFileUtil::CreateAndChmodDirectory).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(UbseHttpServer::GetInstance().UdsRun());
 }
 } // namespace ubse::ut::http
