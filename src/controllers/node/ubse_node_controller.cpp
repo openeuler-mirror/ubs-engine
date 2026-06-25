@@ -432,11 +432,12 @@ uint32_t UbseNodeController::UpdateNodeInfo(const std::string& nodeId, UbseNodeI
         nodeInfos[nodeId] = info;
         // 使用numaInfos更新拓扑数据中的本端信息
         UbseSocketIdChange(nodeId);
+        auto notifyInfo = nodeInfos[nodeId];
         rwMutex.unlock();
         if (nodeId == currentNodeId) {
-            ExecLocalStateHandler(info, localNotifyHandlers);
+            ExecLocalStateHandler(notifyInfo, localNotifyHandlers);
         }
-        ret = ExecClusterStateHandler(info, clusterNotifyHandlers);
+        ret = ExecClusterStateHandler(notifyInfo, clusterNotifyHandlers);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " first add notify cluster state failed, " << FormatRetCode(ret);
         } else {
