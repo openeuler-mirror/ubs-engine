@@ -11,18 +11,18 @@
  */
 
 #include "test_ubse_com_engine.h"
+#include <sys/stat.h>
+#include <fstream>
 #include "../test_ubse_com_mock.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
 #include "ubse_com_def.h"
 #include "ubse_election.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
-#include <fstream>
-#include <sys/stat.h>
 
 namespace ubse::com {
 const std::string GetCurRoleStr();
 void VarifyFailReply(UbseComMessageCtx &message);
-}
+} // namespace ubse::com
 
 namespace ubse::ut::com {
 using namespace ubse::com;
@@ -245,7 +245,7 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
     MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
-    delete(req);
+    delete (req);
 }
 
 TEST_F(TestUbseComEngine, TestGetChannelById)
@@ -286,9 +286,11 @@ TEST_F(TestUbseComEngine, TestRemoveChannel)
 TEST_F(TestUbseComEngine, TestStart)
 {
     UbseComEngineInfo info;
+    info.SetName("TestStartEngine");
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
+    MOCKER_CPP_VIRTUAL(mockService, &UBSHcomService::Start).stubs().will(returnValue(static_cast<int32_t>(UBSE_OK)));
     EXPECT_EQ(UBSE_OK, mockengine.Start());
 }
 
@@ -483,8 +485,15 @@ void TestUbseComEngineManager::TearDown()
 TEST_F(TestUbseComEngineManager, TestCreateEngine)
 {
     UbseComEngineInfo engineInfo;
+    engineInfo.SetName("TestCreateEngine");
+    engineInfo.SetEngineType(UbseEngineType::SERVER);
+    engineInfo.SetProtocol(UbseProtocol::TCP);
+    engineInfo.SetNodeId("TestNode");
+    engineInfo.SetIpInfo(std::make_pair("127.0.0.1", MOCK_PORT));
     UbseComLinkStateNotify notify = MockNotify;
+    MOCKER(&UbseComEngine::Start).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(manager.CreateEngine(engineInfo, MockNotify), UBSE_OK);
+    manager.DeleteEngine("TestCreateEngine");
 }
 
 TEST_F(TestUbseComEngineManager, TestDeleteEngine)
@@ -599,7 +608,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgSend)
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseComChannelInfo::GetChannel).stubs().will(invoke(MockGetChannel));
     EXPECT_EQ(UbseCommunication::UbseComMsgSend(engineName, message, retData), UBSE_OK);
-    delete(req);
+    delete (req);
 }
 
 TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
@@ -622,7 +631,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseComChannelInfo::GetChannel).stubs().will(invoke(MockGetChannel));
     EXPECT_EQ(UbseCommunication::UbseComMsgAsyncSend(engineName, message, usrCb), UBSE_OK);
-    delete(req);
+    delete (req);
 }
 
 TEST_F(TestUbseCommunication, TestGetChannel)
@@ -647,7 +656,7 @@ TEST_F(TestUbseCommunication, TestGetChannel)
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseCommunication::UbseComMsgSend(engineName, message, retData), UBSE_COM_ERROR_CHANNEL_NULL);
     UbseCommunication::RemoveChannel(engineName, dstId, channelType);
-    delete(req);
+    delete (req);
 }
 
 TEST_F(TestUbseCommunication, TestUbseComMsgReply)
@@ -861,8 +870,8 @@ TEST_F(TestUbseComEngine, TestGetRemoteNodeIdChannelPtrNull)
     UbseComEngine engine(ubseComEngineInfo, nullptr, linkStateNotify, linkManager);
     std::string engineName = "engine";
     std::string remoteNodeId;
-    EXPECT_EQ(UBSE_ERROR_NULLPTR, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL,
-                                                         channelPtr, engineName, remoteNodeId));
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, engine.GetRemoteNodeId(ubseComChannelConnectInfo, UbseChannelType::NORMAL, channelPtr,
+                                                         engineName, remoteNodeId));
 }
 
 TEST_F(TestUbseComEngine, TestGetRemoteNodeIdByCallFail)
@@ -890,7 +899,7 @@ TEST_F(TestUbseComEngine, TestVarifyFailReply)
     MOCKER(&UbseCommunication::UbseComMsgReply).stubs();
     EXPECT_NO_THROW(VarifyFailReply(message));
     GlobalMockObject::verify();
-    delete(req);
+    delete (req);
 }
 
 /*

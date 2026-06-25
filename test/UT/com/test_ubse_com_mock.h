@@ -22,7 +22,10 @@ public:
     TestChannel() {}
     ~TestChannel() override {}
     int32_t Send(const UBSHcomRequest &req, const Callback *done = nullptr) override {}
-    int32_t Call(const UBSHcomRequest &req, UBSHcomResponse &rsp, const Callback *done = nullptr) override { return 0; }
+    int32_t Call(const UBSHcomRequest &req, UBSHcomResponse &rsp, const Callback *done = nullptr) override
+    {
+        return 0;
+    }
     int32_t Reply(const UBSHcomReplyContext &ctx, const UBSHcomRequest &req, const Callback *done = nullptr) override {}
     int32_t CallWithHlc(const UBSHcomRequest& req, UBSHcomResponse& rsp, const Callback* done = nullptr) override
     {
@@ -56,12 +59,12 @@ public:
     }
     int32_t SendFds(int fds[], uint32_t len) override {}
     int32_t ReceiveFds(int fds[], uint32_t len, int32_t timeoutSec) override {}
-    auto SpliceMessage(const UBSHcomNetRequestContext &ctx,
-                       bool isResp) -> std::tuple<SpliceMessageResultType, SerResult, std::string> override
+    auto SpliceMessage(const UBSHcomNetRequestContext &ctx, bool isResp)
+        -> std::tuple<SpliceMessageResultType, SerResult, std::string> override
     {
     }
     SerResult Initialize(std::vector<UBSHcomEndpointPtr> &ep, uintptr_t ctxMemPool, uintptr_t periodicMgr,
-                          uintptr_t pgTable)
+                         uintptr_t pgTable)
     {
     }
     SerResult Initialize(std::vector<UBSHcomEndpointPtr> &ep, uintptr_t ctxMemPool, uintptr_t periodicMgr,
@@ -98,5 +101,5 @@ public:
     UBSHcomChannelCallBackType GetCallBackType() override {}
     void SetEnableMrCache(bool) override {}
 };
-}
+} // namespace ubse::ut::com
 #endif // UBS_ENGINE_TEST_UBSE_COM_MOCK_H
