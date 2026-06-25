@@ -363,10 +363,6 @@ function build_cmake() {
     else
         KERNEL_VERSION=$(uname -r)
     fi
-    if [[ ! "$KERNEL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+ ]]; then
-        log_error "Invalid KERNEL_VERSION: $KERNEL_VERSION"
-        exit 1
-    fi
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
