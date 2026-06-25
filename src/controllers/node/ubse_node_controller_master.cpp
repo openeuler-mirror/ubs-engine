@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <condition_variable>
 #include <mutex>
+#include <unordered_set>
 
 #include "ubse_common_def.h"
 #include "ubse_election.h"
@@ -57,6 +58,8 @@ constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
 std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 std::atomic<bool> UbseNodeControllerMaster::s_reportTaskRunning{false};
+static std::mutex g_ledgerRetryTimerMutex;
+static std::unordered_set<std::string> g_ledgerRetryTimers;
 
 // Master端消息处理注册
 UbseResult RegMasterMsgHandler()
@@ -273,6 +276,13 @@ void UbseNodeControllerMaster::UbseNodeCycleLedger(const std::string& nodeId)
     UbseNodeControllerLockMgr::WriteUnLock(nodeId);
 }
 
+static void UbseUnregisterLedgerRetryTimer(const std::string& timerName)
+{
+    (void)UbseTimerHandlerUnregister(timerName);
+    std::lock_guard<std::mutex> lock(g_ledgerRetryTimerMutex);
+    g_ledgerRetryTimers.erase(timerName);
+}
+
 void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string& nodeId)
 {
     // 获取节点锁
@@ -282,7 +292,8 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string& nodeId)
     // 检查节点是否存在
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
     if (nodeInfo.nodeId.empty()) {
-        UBSE_LOG_WARN << "nodeId=" << nodeId << " not report, will skip";
+        UBSE_LOG_WARN << "nodeId=" << nodeId << " not report, cancel retry timer";
+        UbseUnregisterLedgerRetryTimer(timerName);
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
@@ -292,7 +303,7 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string& nodeId)
         nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " is in fault state, cancel retry timer";
         // 取消对账定时器
-        (void)UbseTimerHandlerUnregister(timerName);
+        UbseUnregisterLedgerRetryTimer(timerName);
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
@@ -307,7 +318,7 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string& nodeId)
         nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_UNKNOWN) {
         UBSE_LOG_INFO << "nodeId=" << nodeId << " changed to fault state after ledger, cancel retry timer";
         // 取消对账定时器
-        (void)UbseTimerHandlerUnregister(timerName);
+        UbseUnregisterLedgerRetryTimer(timerName);
         UbseNodeControllerLockMgr::WriteUnLock(nodeId);
         return;
     }
@@ -325,7 +336,7 @@ void UbseNodeControllerMaster::UbseNodeRetryLedger(const std::string& nodeId)
         return;
     }
     // 对账成功，取消对账定时器
-    (void)UbseTimerHandlerUnregister(timerName);
+    UbseUnregisterLedgerRetryTimer(timerName);
     UBSE_LOG_INFO << "nodeId=" << nodeId << " retry ledger success, timer cleaned";
     // 将节点状态切换至WORKING
     UbseNodeController::GetInstance().UpdateNodeInfoClusterState(nodeId, UbseNodeClusterState::UBSE_NODE_WORKING);
@@ -364,6 +375,9 @@ void UbseNodeControllerMaster::UbseNodeLedger(const std::string& nodeId)
             UBSE_LEDGER_RETRY_INTERVAL);
         if (registerRet != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to register retry timer for node: " << nodeId;
+        } else {
+            std::lock_guard<std::mutex> lock(g_ledgerRetryTimerMutex);
+            g_ledgerRetryTimers.insert(timerName);
         }
         return;
     }
@@ -629,9 +643,6 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
 {
     UBSE_LOG_INFO << "Start cleaning master resources...";
 
-    // 清理节点信息
-    UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
-
     // 停止上报聚合定时器
     UbseTimerHandlerUnregister("UbseReportAggregation");
 
@@ -639,20 +650,28 @@ void UbseNodeControllerMaster::UbseNodeCleanAfterSwitchStandby()
     UBSE_LOG_INFO << "Stopping master ledger timer...";
     UbseTimerHandlerUnregister(UBSE_NODE_MASTER_LEDGER_TIMER);
 
-    // 清理所有节点的重试定时器
-    UBSE_LOG_INFO << "Cleaning all node retry timers...";
-    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto& node : nodeInfos) {
-        std::string timerName = "UbseNodeLedgerRetry_" + node.first;
-        UbseTimerHandlerUnregister(timerName);
-    }
-
     // 停止任务执行器
     UBSE_LOG_INFO << "Stopping task executor...";
     if (taskExecutor_ != nullptr) {
         taskExecutor_->Stop();
         UBSE_LOG_INFO << "Task executor stopped";
     }
+
+    // 清理所有节点的重试定时器
+    UBSE_LOG_INFO << "Cleaning all node retry timers...";
+    std::vector<std::string> retryTimers;
+    {
+        std::lock_guard<std::mutex> lock(g_ledgerRetryTimerMutex);
+        retryTimers.assign(g_ledgerRetryTimers.begin(), g_ledgerRetryTimers.end());
+        g_ledgerRetryTimers.clear();
+    }
+
+    for (const auto& timerName : retryTimers) {
+        UbseTimerHandlerUnregister(timerName);
+    }
+
+    // 清理节点信息
+    UbseNodeController::GetInstance().CleanAfterMasterSwitchRole();
 
     UBSE_LOG_INFO << "Master cleanup completed";
 }
