@@ -11,99 +11,87 @@
  */
 
 #include "test_ubse_cert.h"
+#include <linux/limits.h>
+#include <sys/stat.h>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <mockcpp/mockcpp.hpp>
 #include <sstream>
 #include <string>
 
 #include "ubse_cert_cli_import.h"
+#include "ubse_cert_file_utils.h"
 #include "ubse_error.h"
 
 namespace ubse::ut::cert {
 using namespace ubse::cli::cert;
-std::string get_current_path()
-{
-    return std::filesystem::current_path().string();
-}
-int crate_cert_demo()
-{
-    std::string certDir = get_current_path();
-    std::string serverPath = certDir + "target/" + "server.pem";
-    std::string trustPath = certDir + "target/" + "trust.pem";
-    std::string serverKeyPath = certDir + "target/" + "server_key.pem";
-    std::string passwordPath = certDir + "target/" + "key_pwd.txt";
-    std::string serverCertPath = certDir + "target/" + "server_cert.pem";
-    std::string trustCertPath = certDir + "target/" + "trust_cert.pem";
-    int ret = UBSE_OK;
+using namespace common::def;
 
-    // 确保目标目录存在，如果不存在则创建
-    try {
-        if (!std::filesystem::exists(certDir)) {
-            std::filesystem::create_directories(certDir);
-            chmod(certDir.c_str(), 0700);
+class TempFile {
+public:
+    explicit TempFile(const std::filesystem::path& dir = std::filesystem::temp_directory_path())
+        : path_(dir / RandomName())
+    {
+        std::ofstream(path_.native());
+    }
+
+    explicit TempFile(const std::filesystem::path& dir, const std::string& content) : path_(dir / RandomName())
+    {
+        std::ofstream f(path_.native());
+        f << content;
+    }
+
+    ~TempFile()
+    {
+        if (std::filesystem::exists(path_)) {
+            std::filesystem::remove(path_);
         }
-    } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "Failed to create directory: " << e.what() << std::endl;
-        return 1;
     }
 
-    // 写入目标文件
-    std::ofstream destServerCertFile(serverPath, std::ios::binary);
-    std::ofstream destTrustCertFile(trustPath, std::ios::binary);
-    std::ofstream destServerKeyFile(serverKeyPath, std::ios::binary);
-    std::ofstream destPasswordFile(passwordPath, std::ios::binary);
-
-    if (!destServerCertFile || !destTrustCertFile || !destServerKeyFile || !destPasswordFile) {
-        std::cerr << "Failed to create destination certificate files" << std::endl;
-        return 1;
-    }
-    std::string serverContent = "server cert demo";
-    std::string trustContent = "trust cert demo";
-    std::string serverKeyContent = "server key demo";
-    std::string passwordContent = "password demo";
-
-    std::ifstream serverCertFile(serverCertPath, std::ios::binary);
-    std::ifstream trustCertFile(trustCertPath, std::ios::binary);
-    std::ifstream serverKeyFile(serverKeyPath, std::ios::binary);
-    destServerCertFile << serverCertFile.rdbuf();
-    destTrustCertFile << trustCertFile.rdbuf();
-    destServerKeyFile << serverKeyFile.rdbuf();
-    std::string passphrase = GetInteractiveInput("请输入密码: ");
-    destPasswordFile << passphrase;
-
-    // 关闭文件
-    destServerCertFile.close();
-    destTrustCertFile.close();
-    destServerKeyFile.close();
-    return 0;
-}
-
-int clean_cert_file()
-{
-    std::string certDir = get_current_path();
-    std::string serverPath = certDir + "target/" + "server.pem";
-    std::string trustPath = certDir + "target/" + "trust.pem";
-    std::string serverKeyPath = certDir + "target/" + "server_key.pem";
-    if (std::filesystem::exists(serverPath)) {
-        std::filesystem::remove(serverPath);
-        std::cout << "Removed file: " << serverPath << std::endl;
-    }
-    if (std::filesystem::exists(trustPath)) {
-        std::filesystem::remove(trustPath);
-        std::cout << "Removed file: " << trustPath << std::endl;
+    const std::filesystem::path& path() const
+    {
+        return path_;
     }
 
-    if (std::filesystem::exists(serverKeyPath)) {
-        std::filesystem::remove(serverKeyPath);
-        std::cout << "Removed file: " << serverKeyPath << std::endl;
+private:
+    std::filesystem::path path_;
+    static std::string RandomName()
+    {
+        return "tmp_cert_" + std::to_string(time(nullptr));
     }
-}
+};
+
+class TempDir {
+public:
+    explicit TempDir(const std::filesystem::path& base = std::filesystem::temp_directory_path())
+        : path_(base / RandomName())
+    {
+        std::filesystem::create_directory(path_);
+    }
+
+    ~TempDir()
+    {
+        if (std::filesystem::exists(path_)) {
+            std::filesystem::remove_all(path_);
+        }
+    }
+
+    const std::filesystem::path& path() const
+    {
+        return path_;
+    }
+
+private:
+    std::filesystem::path path_;
+    static std::string RandomName()
+    {
+        return "tmpdir_cert_" + std::to_string(time(nullptr));
+    }
+};
 
 void TestUbseCert::SetUp()
 {
-    crate_cert_demo();
     Test::SetUp();
 }
 
@@ -111,17 +99,113 @@ void TestUbseCert::TearDown()
 {
     Test::TearDown();
     GlobalMockObject::verify();
-    clean_cert_file();
 }
 
-TEST_F(TestUbseCert, Import_cert_valid)
+TEST(TestUbseCertIsSymlink, ReturnsTrueForSymlink)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    std::filesystem::path symlink = "/tmp/cert_test_symlink";
+    std::filesystem::create_symlink(tempFile->path(), symlink);
+    EXPECT_TRUE(FileUtils::IsSymlink(symlink));
+    std::filesystem::remove(tempFile->path());
+    std::filesystem::remove(symlink);
+}
+
+TEST(TestUbseCertIsSymlink, ReturnsFalseForRegularFile)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    EXPECT_FALSE(FileUtils::IsSymlink(tempFile->path()));
+}
+
+TEST(TestUbseCertIsSymlink, ReturnsFalseForNonExistentPath)
+{
+    EXPECT_FALSE(FileUtils::IsSymlink("/nonexistent/path"));
+}
+
+TEST(TestUbseCertIsHardLink, RegularFileReturnsFalse)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    EXPECT_FALSE(FileUtils::IsHardLink(tempFile->path()));
+}
+
+TEST(TestUbseCertIsHardLink, NonExistentPathReturnsFalse)
+{
+    EXPECT_FALSE(FileUtils::IsHardLink("/nonexistent/path"));
+}
+
+TEST(TestUbseCertIsCanonicalPath, PathExceedsPathMaxReturnsFalse)
+{
+    std::string longPath(PATH_MAX + 1, 'a');
+    std::string errMsg;
+    EXPECT_FALSE(FileUtils::IsCanonicalPath(longPath, errMsg));
+    EXPECT_FALSE(errMsg.empty());
+}
+
+TEST(TestUbseCertIsCanonicalPath, SymlinkReturnsFalse)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    std::filesystem::path symlink = "/tmp/cert_test_canonical_symlink";
+    std::filesystem::create_symlink(tempFile->path(), symlink);
+    std::string errMsg;
+    EXPECT_FALSE(FileUtils::IsCanonicalPath(symlink, errMsg));
+    EXPECT_FALSE(errMsg.empty());
+    std::filesystem::remove(tempFile->path());
+    std::filesystem::remove(symlink);
+}
+
+TEST(TestUbseCertIsCanonicalPath, NonExistentPathReturnsFalse)
+{
+    std::string errMsg;
+    EXPECT_FALSE(FileUtils::IsCanonicalPath("/nonexistent/cert/test", errMsg));
+    EXPECT_FALSE(errMsg.empty());
+}
+
+TEST(TestUbseCertIsCanonicalPath, ValidFileReturnsTrue)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    std::string errMsg;
+    char resolvedPath[PATH_MAX + 1] = {};
+    EXPECT_NE(realpath(tempFile->path().c_str(), resolvedPath), nullptr);
+    EXPECT_TRUE(FileUtils::IsCanonicalPath(resolvedPath, errMsg));
+}
+
+TEST(TestUbseCertCheckFilePathValid, NonExistentFileReturnsFalse)
+{
+    std::string errMsg;
+    EXPECT_FALSE(CheckFilePathValid("/nonexistent/cert/file.pem", true, errMsg));
+    EXPECT_FALSE(errMsg.empty());
+}
+
+TEST(TestUbseCertCheckFilePathValid, DirectoryWhenExpectingFileReturnsFalse)
+{
+    TempDir tempDir;
+    std::string errMsg;
+    EXPECT_FALSE(CheckFilePathValid(tempDir.path(), true, errMsg));
+}
+
+TEST(TestUbseCertCheckFilePathValid, ValidRegularFileReturnsTrue)
+{
+    auto tempFile = std::make_unique<TempFile>();
+    std::string errMsg;
+    bool result = CheckFilePathValid(tempFile->path(), true, errMsg);
+    EXPECT_TRUE(result);
+}
+
+TEST(TestUbseCertImportCertSet, WithoutCrlFailsWhenCertDirMissing)
 {
     std::string errMsg{};
-    std::string certDir = get_current_path();
-    std::string serverPath = certDir + "server.pem";
-    std::string trustPath = certDir + "trust.pem";
-    std::string serverKeyPath = certDir + "server_key.pem";
+    std::string serverPath = "/nonexistent/server.pem";
+    std::string trustPath = "/nonexistent/trust.pem";
+    std::string serverKeyPath = "/nonexistent/server_key.pem";
     bool ret = ImportCertSet(serverPath, trustPath, serverKeyPath, "", errMsg);
     EXPECT_FALSE(ret);
+    EXPECT_FALSE(errMsg.empty());
+}
+
+TEST(TestUbseCertDeleteCertSet, FailsWhenCertDirMissing)
+{
+    std::string errMsg{};
+    UbseResult ret = DeleteCertSet(errMsg);
+    EXPECT_EQ(ret, UBSE_ERROR_FILE_NOT_EXIST);
 }
 } // namespace ubse::ut::cert
