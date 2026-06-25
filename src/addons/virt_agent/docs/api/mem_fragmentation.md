@@ -100,7 +100,7 @@ int main(void)
     };
     borrow_strategy_c borrow_strategy;
     ret = ubs_virt_agent_mem_borrow_strategy(&src_param, &borrow_strategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_borrow_strategy failed.\n");
         return -1;
     }
@@ -199,7 +199,7 @@ int main(void)
     };
     mem_borrow_result_c result;
     ret = ubs_virt_agent_mem_borrow_execute(&borrow_setting, &result);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_borrow_execute failed.\n");
         return -1;
     }
@@ -302,7 +302,7 @@ int main(void)
     };
     MemMigrateStrategy strategy;
     ret = ubs_virt_agent_mem_migrate_strategy(&srcParam, &strategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_migrate_strategy failed.\n");
         return -1;
     }
@@ -392,7 +392,7 @@ int main(void)
             .waitingTime = 1000
     };
     ret = ubs_virt_agent_mem_migrate_execute(&srcParam);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_migrate_execute failed.\n");
         return -1;
     }
@@ -466,7 +466,7 @@ int main(void)
     char *task_id;
     uint32_t task_id_len;
     ret = ubs_virt_agent_mem_return(isAsync, &task_id, &task_id_len);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_return failed.\n");
         return -1;
     }
@@ -550,7 +550,7 @@ int main(void)
             .borrow_id_size = 1
     };
     ret = ubs_virt_agent_mem_rollback(&srcParam);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_rollback failed.\n");
         return -1;
     }
@@ -641,7 +641,7 @@ int main(void)
             .entry_count = 3
     };
     ret = ubs_virt_agent_mem_fragmentation_node_anti_affinity(&dict);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_node_anti_affinity failed.\n");
         return -1;
     }
@@ -724,9 +724,9 @@ int main(void)
     int32_t ret;
     char task_id[128] = "abc123";
     uint32_t task_id_len = 6;
-    async_task_info_c *result
+    async_task_info_c *result;
     ret = ubs_virt_agent_sync_task_query(task_id, task_id_len, &result);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_sync_task_query failed.\n");
         return -1;
     }

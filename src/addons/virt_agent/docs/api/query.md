@@ -25,7 +25,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
 - 数据结构说明
 
 ```c
-VIRT_MAX_NODE_ID_LENGTH = 48
+VIRT_MEM_MAX_NODE_ID_LENGTH = 48
 VIRT_MAX_UUID_LENGTH = 37
 VIRT_MAX_NAME_LENGTH = 128
 VIRT_MAX_STATE_LENGTH = 128
@@ -37,7 +37,7 @@ typedef struct {
 } numa_page_data;
 typedef struct {
     time_t timestamp;
-    char node_id[VIRT_MAX_NODE_ID_LENGTH];
+    char node_id[VIRT_MEM_MAX_NODE_ID_LENGTH];
     char host_name[UBS_VA_HOST_NAME_MAX];
     int16_t numa_id;
     int16_t socket_id;             // Socket ID mapped to CPUs bound to this NUMA
@@ -85,10 +85,10 @@ typedef struct {
 int main(void)
 {
     int32_t ret;
-    numa_info_t* node_list = null;
+    numa_info_t* node_list = NULL;
     uint32_t node_cnt;
     ret = ubs_virt_agent_mem_fragmentation_node_info(&node_list, &node_cnt);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_node_info failed.\n");
         return -1;
     }
@@ -178,10 +178,10 @@ typedef struct {
 int main(void)
 {
     int32_t ret;
-    vm_domain_info_t* vm_info_list = null;
+    vm_domain_info_t* vm_info_list = NULL;
     uint32_t vm_info_cnt;
     ret = ubs_virt_agent_mem_fragmentation_vm_info(&vm_info_list, &vm_info_cnt);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_mem_fragmentation_vm_info failed.\n");
         return -1;
     }

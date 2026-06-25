@@ -61,7 +61,7 @@ int main(void)
     char opt[128] = "true";
     char uuid[128] = "xxxx";
     ret = update_page_flow_and_status(opt, uuid);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("update_page_flow_and_status failed.\n");
         return -1;
     }
@@ -92,10 +92,10 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
 
 | name            | IN/OUT | description |
 |-----------------|--------|-------------|
-| vmMemoryMB      | OUT    | 虚拟机内存大小     |
-| uuid            | OUT    | 虚拟机UUID     |
-| destHostName    | OUT    | 目标主机名       |
-| destNumaId      | OUT    | 目标NUMA ID   |
+| vmMemoryMB      | IN     | 虚拟机内存大小     |
+| uuid            | IN     | 虚拟机UUID     |
+| destHostName    | IN     | 目标主机名       |
+| destNumaId      | IN     | 目标NUMA ID   |
 | migrateStrategy | OUT    | 迁移决策结果      |
 
 ## 返回值 RETURN VALUE
@@ -140,7 +140,7 @@ int main(void)
     uint32_t destNumaId = 0;
     uint32_t migrateStrategy;
     ret = ubs_virt_agent_make_migrate_decision(vmMemoryMB, uuid, destHostName, destNumaId, &migrateStrategy);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("ubs_virt_agent_make_migrate_decision failed.\n");
         return -1;
     }
@@ -191,7 +191,7 @@ libvirt与virt_agent通信超时时间设置。
 
 ## 约束 CONSTRAINTS
 
-暂无
+timeout 必须 > 0 且 <= 1200，单位为秒(s）
 
 ## 附注 NOTES
 
@@ -210,7 +210,7 @@ int main(void)
     int32_t ret;
     uint16_t timeout = 128;
     ret = RackStartIpcClientWithTimeout(timeout);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("RackStartIpcClientWithTimeout failed.\n");
         return -1;
     }
@@ -299,7 +299,7 @@ libvirt与virt_agent异步调用接口
 | name            | IN/OUT | description                  |
 |-----------------|--------|------------------------------|
 | request      | IN     | libvirt调用virt_agent传参（json）  |
-| callback            | OUT    | libvirt调用virt_agent回调函数的函数指针 |
+| callback            | IN     | libvirt调用virt_agent回调函数的函数指针 |
 
 - 数据结构说明
 

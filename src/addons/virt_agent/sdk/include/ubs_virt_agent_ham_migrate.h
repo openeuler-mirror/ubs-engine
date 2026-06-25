@@ -55,7 +55,7 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
 
 /**
  * @brief  set IPC client timeout for Rack module
- * @param timeout [IN] desired timeout value in milliseconds; must be > 0 and <= ipctimeout_max
+ * @param timeout [IN] desired timeout value in seconds; must be > 0 and <= ipctimeout_max
  */
 virt_agent_ret_t RackStartIpcClientWithTimeout(uint16_t timeout);
 
