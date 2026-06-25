@@ -22,6 +22,7 @@
 #include <algorithm>        // for max
 #include <utility>          // for pair, move
 
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
@@ -29,7 +30,6 @@
 #include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::com {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -94,7 +94,7 @@ void UbseComBaseMessageHandlerManager::AddHandler(UbseComBaseMessageHandlerPtr h
     }
     std::lock_guard<std::mutex> lock(gLock_);
     std::string key = engineName + KEY_SEP + std::to_string(handler->GetModuleCode()) + KEY_SEP +
-        std::to_string(handler->GetOpCode());
+                      std::to_string(handler->GetOpCode());
     gHandlerMap_.emplace(key, handler);
 }
 
@@ -168,8 +168,8 @@ std::vector<UbseLinkInfo> UbseComBase::QueryLinkInfo(const std::string &engineNa
     for (const auto &kv : iter->second) {
         std::string chType = "UnChangedLink";
         auto timeStamp = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-                                               std::chrono::high_resolution_clock::now().time_since_epoch())
-                                               .count());
+                                                   std::chrono::high_resolution_clock::now().time_since_epoch())
+                                                   .count());
         if (kv.first == changeNodeId) {
             chType = GetChannelType(ch);
         }
@@ -278,11 +278,20 @@ void UbseComBase::SetHandlerExecutor(const HandlerExecutor &handlerExecutor)
     gHandlerExecutor_ = handlerExecutor;
 }
 
+const HandlerExecutor &UbseComBase::GetHandlerExecutor()
+{
+    return gHandlerExecutor_;
+}
+
+const HandlerExecutor &UbseComBase::GetIpcHandlerExecutor()
+{
+    return gIpcHandlerExecutor_;
+}
+
 void UbseComBase::SetLinkEventHandler(const LinkEventHandler &handler)
 {
     gLinkEventHandler_ = handler;
 }
-
 
 std::vector<UbseLinkInfo> UbseComBase::GetAllLinkInfo()
 {
@@ -326,9 +335,15 @@ bool UbseComBaseMessageHandlerCtx::IsRemoteCall() const
     return isRemoteCall_;
 }
 
-UbseComBaseMessageHandlerCtx::UbseComBaseMessageHandlerCtx(std::string engineName, uint64_t channelId, uintptr_t rspCtx, std::string dstId_)
-    : engineName_(std::move(engineName)), channelId_(channelId), rspCtx_(rspCtx), crc_(0), dstId_(dstId_)
-{}
+UbseComBaseMessageHandlerCtx::UbseComBaseMessageHandlerCtx(std::string engineName, uint64_t channelId, uintptr_t rspCtx,
+                                                           std::string dstId_)
+    : engineName_(std::move(engineName)),
+      channelId_(channelId),
+      rspCtx_(rspCtx),
+      crc_(0),
+      dstId_(dstId_)
+{
+}
 
 const std::string &UbseComBaseMessageHandlerCtx::GetEngineName() const
 {
@@ -438,8 +453,11 @@ void UbseComBase::SetQueryEidByNodeIdCb(QueryEidByNodeIdCb cb)
 }
 
 UbseLinkInfo::UbseLinkInfo(std::string nodeId, UbseLinkState state, uint64_t timeStamp)
-    : nodeId_(std::move(nodeId)), state_(state), timeStamp_(timeStamp)
-{}
+    : nodeId_(std::move(nodeId)),
+      state_(state),
+      timeStamp_(timeStamp)
+{
+}
 
 UbseComBaseBufferMessage::UbseComBaseBufferMessage(uint8_t *data, uint32_t len) : data_(data), len_(len)
 {

@@ -3,6 +3,7 @@ add_library(UbseCom STATIC
         engine/ubse_com_engine.cpp
         ubse_com_def.cpp
         ubse_com_base.cpp
+        ubse_route_table.cpp
         rpc/ubse_rpc_server.cpp
         intercom/ubse_inter_com.cpp
 )

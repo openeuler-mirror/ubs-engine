@@ -14,10 +14,10 @@
 #define UBSE_INTER_COM_H
 #include <atomic>
 #include <condition_variable>
+#include "trace_context.h"
 #include "ubse_base_message.h"
 #include "ubse_com_base.h"
 #include "ubse_thread_pool_module.h"
-#include "trace_context.h"
 
 using namespace ubse::message;
 
@@ -63,7 +63,7 @@ public:
         WriteLocker<ReadWriteLock> lock(&rwLock_);
         if (hdl.moduleCode >= MODULES_SIZE || hdl.opCode >= OP_CODE_SIZE) {
             UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << hdl.moduleCode << ", op code is "
-                         << hdl.opCode;
+                           << hdl.opCode;
             return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
         }
         handlerMap_[hdl.moduleCode][hdl.opCode] = hdl;
@@ -74,7 +74,7 @@ public:
     {
         if (moduleCode >= MODULES_SIZE || opCode >= OP_CODE_SIZE) {
             UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << moduleCode << ", op code is "
-                         << opCode;
+                           << opCode;
             return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
         }
         UbseMqHandler hdl{};
@@ -95,8 +95,8 @@ public:
             UBSE_LOG_ERROR << "Request or response id nullptr. ";
             return UBSE_ERROR_NULLPTR;
         }
-        UbseComMessagePtr msg =
-            TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(), param.GetModuleCode());
+        UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(),
+                                                param.GetModuleCode(), param.GetRemoteId());
         if (msg == nullptr) {
             UBSE_LOG_ERROR << "node " << param.GetRemoteId() << " trans req msg failed";
             return UBSE_ERROR;
@@ -114,7 +114,7 @@ public:
         auto ret = TransResponse(UbseBaseMessage::Convert<TRsp>(response), input.retData, withCopy);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "node " << param.GetRemoteId() << " trans " << param.GetRemoteId() << " response failed,"
-                         << FormatRetCode(ret);
+                           << FormatRetCode(ret);
         }
         UbseComMessage::FreeMessage(msg);
         UbseComMessage::FreeMessage(input.retData.data);
@@ -128,12 +128,12 @@ public:
         uint32_t reqSize = 0;
         auto ret = request.Serialize(buffer, reqSize);
         if (ret != UBSE_OK || buffer == nullptr) {
-            UBSE_LOG_ERROR << "sync send serialize failed, moduleCode=" << moduleCode
-                           << ", opCode=" << opCode << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "sync send serialize failed, moduleCode=" << moduleCode << ", opCode=" << opCode
+                           << FormatRetCode(ret);
             return ret;
         }
 
-        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, targetNodeId, buffer, reqSize);
         auto remoteId = targetNodeId;
         if (!reqBuffer || reqBuffer->empty()) {
             UBSE_LOG_ERROR << "node " << remoteId << " encode req msg failed.";
@@ -155,8 +155,7 @@ public:
 
         ret = response.Deserialize(input.retData.data, input.retData.len);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << " deserialize " << remoteId << " response failed, "
-                           << FormatRetCode(ret);
+            UBSE_LOG_ERROR << " deserialize " << remoteId << " response failed, " << FormatRetCode(ret);
         }
         UbseComMessage::FreeMessage(input.retData.data);
         return ret;
@@ -169,8 +168,8 @@ public:
             UBSE_LOG_ERROR << "Request is nullptr. ";
             return UBSE_ERROR_NULLPTR;
         }
-        UbseComMessagePtr msg =
-            TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), sendParam.GetOpCode(), sendParam.GetModuleCode());
+        UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), sendParam.GetOpCode(),
+                                                sendParam.GetModuleCode(), sendParam.GetRemoteId());
         UbseComMessageCtx transMessage{msg, sendParam.GetRemoteId(), sendParam.GetRemoteId(), UbseChannelType::NORMAL};
         auto hdl = GetHandler(sendParam.GetModuleCode(), sendParam.GetOpCode());
         if (hdl.handler == nullptr) {
@@ -198,12 +197,12 @@ public:
         uint32_t reqSize = 0;
         auto ret = request.Serialize(buffer, reqSize);
         if (ret != UBSE_OK || buffer == nullptr) {
-            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode
-                           << ", opCode=" << opCode << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode << ", opCode=" << opCode
+                           << FormatRetCode(ret);
             return ret;
         }
 
-        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, targetNodeId, buffer, reqSize);
         auto remoteId = targetNodeId;
         if (!reqBuffer || reqBuffer->empty()) {
             UBSE_LOG_ERROR << "node " << remoteId << " encode req msg failed.";
@@ -272,7 +271,7 @@ public:
         auto handlerRet = handler->Handle(reqPtr, respPtr, ctx);
         if (handlerRet != UBSE_OK) {
             UBSE_LOG_ERROR << "module " << handler->GetModuleCode() << " opCode " << handler->GetOpCode()
-                         << " exec failed," << FormatRetCode(handlerRet);
+                           << " exec failed," << FormatRetCode(handlerRet);
             respPtr->SetErrCode(handlerRet);
         }
         ret = respPtr->Serialize();
@@ -314,16 +313,16 @@ public:
             UBSE_LOG_ERROR << "module=" << moduleCode << ", opCode=" << opCode << " receiver response not exists";
             return;
         }
-        
+
         std::unique_ptr<uint8_t[]> buffer;
         uint32_t respSize = 0;
         auto ret = response->Serialize(buffer, respSize);
         if (ret != UBSE_OK || buffer == nullptr) {
-            UBSE_LOG_ERROR << "serialize failed, moduleCode=" << moduleCode
-                           << ", opCode=" << opCode << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "serialize failed, moduleCode=" << moduleCode << ", opCode=" << opCode
+                           << FormatRetCode(ret);
             return;
         }
-        
+
         MqEndpointReply(input, buffer, respSize);
     }
 
@@ -368,7 +367,7 @@ public:
             UBSE_LOG_ERROR << "Crate object failed. ";
             return;
         }
-        
+
         auto res = memcpy_s(input.retData.data, bufferSize, buffer.get(), bufferSize);
         if (res != EOK) {
             UBSE_LOG_ERROR << "Fail to copy response data";

@@ -30,8 +30,11 @@ using namespace ubse::com;
 
 class UbseComModule : public UbseModule {
 public:
-    static constexpr const char* kModuleName = "UbseComModule";
-    std::string Name() const override { return kModuleName; }
+    static constexpr const char *kModuleName = "UbseComModule";
+    std::string Name() const override
+    {
+        return kModuleName;
+    }
     UbseResult Initialize() override;
 
     void UnInitialize() override;
@@ -82,8 +85,7 @@ public:
         if (rpcServer_ != nullptr) {
             return rpcServer_->RegMessageHandler(moduleCode, opCode);
         }
-        UBSE_LOG_ERROR << "reg rpc service failed, module code= " << moduleCode
-                       << ", op code: " << opCode << ". ";
+        UBSE_LOG_ERROR << "reg rpc service failed, module code= " << moduleCode << ", op code: " << opCode << ". ";
         return UBSE_ERROR;
     }
 
@@ -171,14 +173,62 @@ public:
     std::vector<UbseLinkInfo> GetAllServerLinkInfo();
     void AddServerLinkNotifyFunc(const LinkNotifyFunction &func);
 
+    /**
+     * @brief 添加路由表项，用于多跳转发路径配置
+     * @details 以 (dstNodeId, priority) 为键；键相同值相同时幂等，
+     *         键相同值不同或表项无效时拒绝。
+     *
+     *         支持三种路由类型：
+     *         1. 精确路由：capacity=0, dstNodeId=目标节点ID
+     *            Lookup 仅命中完全相同的 dstNodeId，适合点对点转发。
+     *
+     *         2. 分组路由：capacity=2^n（n≥1）, dstNodeId=组内任一节点ID
+     *            Lookup 时将 (dstNodeId-1) 低 n 位置 0 得到分组 ID，
+     *            同一分组内所有节点共享该路由。适合机柜级转发
+     *            （例如 capacity=8 覆盖节点 1~8）。
+     *
+     *         3. 默认路由：dstNodeId="0", capacity=UINT32_MAX
+     *            Lookup 未命中其他路由时的兜底，匹配任意目的地。
+     *
+     *         约束：
+     *         - priority=0 预留给直连路由，对外 API 只接受 priority≥1。
+     *         - capacity 必须为 0 或 2 的幂。
+     *
+     * @param[in] entry 路由表项
+     * @return UBSE_OK                      — 添加成功，或键相同值相同（幂等）
+     *         UBSE_COM_ERROR_ROUTE_EXISTED — 键相同但值不同
+     *         UBSE_COM_ERROR_ROUTE_INVAL  — 表项无效（dstNodeId为空、priority超范围、capacity非2的幂等）
+     */
+    UbseResult AddRoute(const RouteEntry &entry)
+    {
+        if (rpcServer_ != nullptr) {
+            return rpcServer_->AddRoute(entry);
+        }
+        UBSE_LOG_ERROR << "rpc server null, cannot add route";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    /**
+     * @brief 删除目的节点的路由表项
+     * @details 可删除精确路由、分组路由和默认路由（nodeId="0"）。
+     *         不会删除 priority=0 的直连路由（链路断开时由通信框架自动清理）。
+     * @param[in] nodeId 目的节点 ID
+     */
+    void DelRoute(const std::string &nodeId)
+    {
+        if (rpcServer_ != nullptr) {
+            rpcServer_->DelRoute(nodeId);
+        }
+    }
+
 private:
-    UbseComBasePtr rpcServer_{ nullptr };
+    UbseComBasePtr rpcServer_{nullptr};
 
     UbseResult RpcServerStart();
     UbseResult InitUbseCom(const std::string &localNodeId, const std::string &localIp);
     const std::string GetCurRoleStr();
     bool IsCurrentNode(const std::string &nodeId);
-    ubse::context::UbseContext &ctx_{ ubse::context::UbseContext::GetInstance() };
+    ubse::context::UbseContext &ctx_{ubse::context::UbseContext::GetInstance()};
     std::shared_ptr<UbseInterCom> queueRef_;
 };
 
