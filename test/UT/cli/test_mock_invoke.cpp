@@ -651,3 +651,117 @@ uint32_t mock_urma_qos_invoke_call_normal(uint16_t module_code, uint16_t op_code
     }
     return UBSE_OK;
 }
+
+uint32_t mock_pid_op_success(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                             ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    int successCode = 1;
+    std::string errMsg;
+    ser << successCode << errMsg;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_pid_op_failed(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                            ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    int successCode = 0;
+    std::string errMsg = "test error";
+    ser << successCode << errMsg;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_pid_print_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                              ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    size_t count = 0;
+    ser << count;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_pid_print_success(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    size_t count = 1;
+    ser << count;
+    int pidVal = 42;
+    int evictThreshold = 80;
+    int targetEvictThreshold = 70;
+    int reclaimThreshold = 60;
+    uint64_t expectedMemoryUsage = 1024;
+    uint64_t hasSrcNuma = 0;
+    ser << pidVal << evictThreshold << targetEvictThreshold << reclaimThreshold << expectedMemoryUsage << hasSrcNuma;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+uint32_t mock_pid_print_deserialize_failed(uint16_t module_code, uint16_t op_code,
+                                           const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data)
+{
+    UbseSerialization ser;
+    std::string garbage = "not a size_t value";
+    ser << garbage;
+    response_data->buffer = static_cast<uint8_t*>(malloc(ser.GetLength()));
+    response_data->length = 0;
+    if (!response_data->buffer) {
+        return UBSE_ERROR;
+    }
+    response_data->length = (uint32_t)ser.GetLength();
+    if (memcpy_s(response_data->buffer, ser.GetLength(), ser.GetBuffer(), ser.GetLength()) != EOK) {
+        free(response_data->buffer);
+        response_data->buffer = nullptr;
+        response_data->length = 0;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}

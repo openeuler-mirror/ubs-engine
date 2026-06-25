@@ -120,4 +120,16 @@ uint32_t mock_shm_detach_ubse_invoke_call_normal(uint16_t module_code, uint16_t 
                                                  const ubse_api_buffer_t* request_data,
                                                  ubse_api_buffer_t* response_data);
 
+// Process Mem PID mocks
+uint32_t mock_pid_op_success(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                             ubse_api_buffer_t* response_data);
+uint32_t mock_pid_op_failed(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                            ubse_api_buffer_t* response_data);
+uint32_t mock_pid_print_empty(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                              ubse_api_buffer_t* response_data);
+uint32_t mock_pid_print_success(uint16_t module_code, uint16_t op_code, const ubse_api_buffer_t* request_data,
+                                ubse_api_buffer_t* response_data);
+uint32_t mock_pid_print_deserialize_failed(uint16_t module_code, uint16_t op_code,
+                                           const ubse_api_buffer_t* request_data, ubse_api_buffer_t* response_data);
+
 #endif

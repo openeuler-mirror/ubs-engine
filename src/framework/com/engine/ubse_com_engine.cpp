@@ -604,7 +604,7 @@ void UbseComEngine::InitEngineOptions()
     hcomNetService_->SetMaxConnectionCount(NO_500);
     hcomNetService_->SetEnableMrCache(true);
     hcomNetService_->SetCtxStoreCapacity(NO_2048);
-    hcomNetService_->SetActiveBackup(true);
+    hcomNetService_->SetActiveBackup(false);
 }
 
 void UbseComEngine::RegisterEngineHandlers()
