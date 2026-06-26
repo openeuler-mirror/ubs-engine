@@ -101,6 +101,8 @@ class UbseCliResultEcho {
 public:
     virtual void UbseCliDisplayResult() = 0;
 
+    virtual std::string UbseCliGetResultStr() const = 0;
+
     virtual ~UbseCliResultEcho() = default;
 };
 
@@ -110,6 +112,11 @@ public:
     explicit UbseCliStringEcho(std::string string_result) : ubseStringResult_(std::move(string_result)) {}
 
     void UbseCliDisplayResult() final;
+
+    std::string UbseCliGetResultStr() const override
+    {
+        return ubseStringResult_;
+    }
 
 private:
     std::string ubseStringResult_{};
@@ -125,6 +132,11 @@ public:
 
     void UbseCliDisplayResult() final;
 
+    std::string UbseCliGetResultStr() const override
+    {
+        return "";
+    }
+
 private:
     UbseCliVariableCellInfo ubseCliVariableCellInfo_{};
 };
@@ -136,6 +148,11 @@ public:
         : ubseCliVariableCellsInfo_(variable_cells_info){};
 
     void UbseCliDisplayResult() final;
+
+    std::string UbseCliGetResultStr() const override
+    {
+        return "";
+    }
 
 private:
     std::vector<UbseCliVariableCellInfo> ubseCliVariableCellsInfo_{};
