@@ -26,6 +26,6 @@ public:
 
     void TearDown() override;
 };
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
 
 #endif // UBS_ENGINE_TEST_UBSE_NODE_DISCOVERY_CONFIG_MODE_H

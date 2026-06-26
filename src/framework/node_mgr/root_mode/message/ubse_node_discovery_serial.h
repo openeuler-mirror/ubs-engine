@@ -46,9 +46,11 @@ public:
 
     UbseResult Deserialize() override;
 
+    std::string ToString() const override;
+
 private:
     UbseNodeStaticInfo node_;
 };
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr
 
 #endif // UBS_ENGINE_UBSE_NODE_DISCOVERY_SERIAL_H

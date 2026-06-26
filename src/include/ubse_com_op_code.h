@@ -49,6 +49,8 @@ enum class UbseModuleCode {
     VM = 0x000A,                   // 虚拟机模块
 
     UBSE_URMA = 0x000B,            // URMA Controller模块
+
+    NODE_MGR = 0x000C,       // 节点发现模块
 };
 
 // 内存基础操作码
@@ -219,6 +221,11 @@ enum class UbseUrmaRpcOpCode {
     URMA_RPC_DEV_QUERY = 0x0004,
     URMA_RPC_DEV_ACTIVATE = 0x0005,
     BUTT = 0x0006,
+};
+
+enum class UbseNodeMgrOpCode {
+    NODE_INFO_REPORT = 0x0001,     // 节点发现, 普通节点向根节点上报本节点信息
+    NODE_INFO_BROADCAST = 0x0002, // 节点发现,根节点向普通节点下发/其余根节点同步全量节点信息
 };
 } // namespace ubse::com
 #endif // UBSE_COM_OP_CODE_H

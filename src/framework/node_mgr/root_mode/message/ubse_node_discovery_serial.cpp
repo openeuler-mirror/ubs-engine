@@ -86,4 +86,11 @@ UbseResult UbseNodeDiscoverySerial::Deserialize()
     }
     return UBSE_OK;
 }
-} // namespace ubse::nodeDiscovery
+
+std::string UbseNodeDiscoverySerial::ToString() const
+{
+    std::string ret = "{SuperPodId=" + std::to_string(node_.superPodId) + ", groupId=" +
+        std::to_string(node_.groupId) + ", nodeId=" + node_.nodeId + ", ip=" + node_.addr + "}";
+    return ret;
+}
+} // namespace ubse::nodeMgr
