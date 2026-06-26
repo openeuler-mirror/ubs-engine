@@ -18,7 +18,7 @@
 namespace ubse::adapter_plugins::ssu::def {
 const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 48;
 const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 52;
-const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 68;
+const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 69;
 const uint8_t UBSE_SSU_MAX_RACK_NUM = 2;
 const uint8_t UBSE_SSU_MAX_HOST_NUM = 128;
 

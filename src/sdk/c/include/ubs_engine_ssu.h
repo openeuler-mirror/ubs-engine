@@ -1,0 +1,375 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#ifndef UBS_ENGINE_SSU_H
+#define UBS_ENGINE_SSU_H
+
+#include <stdint.h>
+#include <sys/types.h>
+#include "ubs_error.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define UBS_SSU_MAX_NAME_LENGTH 48        // 请求标识最大48个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_RESULT_NAME_LENGTH 32 // 结果名称最大32个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_USER_NAME_LENGTH 32   // 使用方进程运行用户名称最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_TENANT_LENGTH 17      // 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_NQN_LENGTH 69         // NVMe NQN最大长度69个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_EID_LENGTH 17         // EID最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_UUID_LENGTH 37        // UUID标准长度37个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_DEV_PATH_LENGTH 63    // 设备路径最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_DEV_NAME_LENGTH 33    // 聚合块设备名称最大长度, 含结尾字符'\0'
+#define UBS_SSU_RAID5_MIN_MEMBER_NUM 3    // RAID5最少成员设备数
+
+// LBA格式, 值为对应字节数
+typedef enum {
+    UBS_SSU_LBA_FORMAT_512 = 512, // 512B
+    UBS_SSU_LBA_FORMAT_4K = 4096, // 4K
+} ubs_ssu_lba_format_t;
+
+// 聚合RAID级别
+typedef enum {
+    UBS_SSU_RAID0 = 0, // RAID0条带化
+    UBS_SSU_RAID5 = 5, // RAID5条带化带校验
+} ubs_ssu_raid_level_t;
+
+// 条带化chunk大小, 值为对应KB数, 需满足ubs_ssu_lba_format_t的整数倍
+typedef enum {
+    UBS_SSU_CHUNK_SIZE_4K = 4,     // 4KB
+    UBS_SSU_CHUNK_SIZE_16K = 16,   // 16KB
+    UBS_SSU_CHUNK_SIZE_32K = 32,   // 32KB
+    UBS_SSU_CHUNK_SIZE_64K = 64,   // 64KB
+    UBS_SSU_CHUNK_SIZE_128K = 128, // 128KB
+    UBS_SSU_CHUNK_SIZE_256K = 256, // 256KB
+    UBS_SSU_CHUNK_SIZE_512K = 512, // 512KB
+} ubs_ssu_chunk_size_t;
+
+// 设备使用类型
+typedef enum {
+    UBS_SSU_USING_TYPE_EXCLUSIVE = 0, // 独占
+    UBS_SSU_USING_TYPE_SHARED = 1,    // 共享
+} ubs_ssu_using_type_t;
+
+// 分配策略
+typedef enum {
+    UBS_SSU_ALLOC_STRATEGY_STRIPED = 0, // 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
+    UBS_SSU_ALLOC_STRATEGY_LINEAR = 1,  // 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+} ubs_ssu_alloc_strategy_t;
+
+// 分配存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];        // 请求标识, 最大48个字符
+    uint64_t ns_size;                          // 申请总容量, 单位字节; 条带化策略时需整除ns_num,
+                                               // 且整除后需为chunk_size的整数倍
+    uint32_t ns_num;                           // 命名空间数量, 等于1时strategy不生效
+    ubs_ssu_lba_format_t lba_format;           // LBA格式
+    ubs_ssu_alloc_strategy_t strategy;         // 分配策略
+    ubs_ssu_using_type_t using_type;           // 设备用途类型
+    uint8_t tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
+} ubs_ssu_alloc_space_req_t;
+
+// 命名空间信息
+typedef struct {
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];          // Source EID
+    char tgt_eid[UBS_SSU_MAX_EID_LENGTH];          // Target EID
+    char sub_nqn[UBS_SSU_MAX_NQN_LENGTH];          // 子系统NQN
+    char default_host_nqn[UBS_SSU_MAX_NQN_LENGTH]; // 默认NQN, 例: nqn.2024-01.com.huawei:uuid:12345678-...
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH];         // 物理设备UUID
+    uint32_t namespace_id;                         // 命名空间ID
+    char ns_dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]; // 命名空间设备路径
+    uint64_t ns_size;                              // 分配的容量, 单位字节
+    ubs_ssu_lba_format_t lba_format;               // LBA格式
+    ubs_ssu_using_type_t using_type;               // 设备用途类型
+} ubs_ssu_namespace_info_t;
+// 分配存储空间结果
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];   // 请求标识, 最大32个字符
+    ubs_ssu_alloc_strategy_t strategy;    // 分配策略
+    uint32_t namespace_cnt;               // 命名空间信息数量
+    ubs_ssu_namespace_info_t *namespaces; // 命名空间信息列表, 由SDK内部动态分配, 需通过释放接口回收
+} ubs_ssu_alloc_result_t;
+
+// 条带化挂载请求参数
+typedef struct {
+    char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称, 由外部指定
+    ubs_ssu_raid_level_t level;                 // RAID级别(UBS_SSU_RAID0或UBS_SSU_RAID5)
+    ubs_ssu_chunk_size_t chunk_size;            // 条带化的chunk大小, 仅支持4KB/16KB/32KB/64KB/128KB/256KB/512KB
+} ubs_ssu_striped_attach_req_t;
+
+/**
+ * @brief 列出所有已分配的存储空间信息
+ *
+ * 获取系统中所有已分配的SSU存储空间详细信息, 包括命名空间列表、容量、LBA格式和使用类型等。
+ *
+ * @param results [OUT] 已分配空间信息列表, 调用成功时由SDK内部动态分配, 调用方需通过
+ *                      ubs_ssu_alloc_info_list_free接口主动释放内存
+ * @param result_cnt [OUT] 已分配空间信息数量
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *result_cnt);
+
+/**
+ * @brief 释放ubs_ssu_alloc_info_list返回的存储空间信息列表
+ *
+ * @param results [IN] ubs_ssu_alloc_info_list返回的列表指针
+ * @param result_cnt [IN] 列表元素数量, 与ubs_ssu_alloc_info_list输出的result_cnt一致
+ */
+void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t *results, uint32_t result_cnt);
+
+/**
+ * @brief 根据名称获取已分配的存储空间信息
+ *
+ * 根据存储空间的名称查询其详细信息, 包括命名空间列表、容量、LBA格式和使用类型等。
+ *
+ * @param name [IN] 存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
+ * @param result [IN/OUT] 已分配空间信息, 由调用方分配结构体内存;
+ *                        其中namespaces指针由SDK内部动态分配, 调用方需通过
+ *                        ubs_ssu_alloc_info_free接口主动释放
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_alloc_info_get(const char *name, ubs_ssu_alloc_result_t *result);
+
+/**
+ * @brief 释放ubs_ssu_alloc_info_get返回结果中动态分配的命名空间列表
+ *
+ * @param result [IN] ubs_ssu_alloc_info_get输出的结果, 仅释放其内部namespaces指针指向的内存,
+ *                    不释放result本身
+ */
+void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t *result);
+
+/**
+ * @brief 分配SSU存储空间
+ *
+ * 根据请求参数分配指定数量和大小的命名空间, 支持顺序分配和分布式分配两种策略。
+ *
+ * @param req [IN] 分配请求参数
+ * @param result [IN/OUT] 分配结果, 包含已分配的命名空间信息列表, 由调用方分配结构体内存;
+ *                        其中namespaces指针由SDK内部动态分配, 调用方需通过
+ *                        ubs_ssu_alloc_info_free接口主动释放
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:参数超出范围(ns_size不满足整除条件或name超长等);
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_EXISTED:存储空间已存在;
+ * UBS_ENGINE_ERR_ALLOCATE:算法分配失败;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 当ns_num为1时, strategy参数不生效
+ */
+int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t *result);
+
+/**
+ * @brief 释放已分配的存储空间
+ *
+ * 释放之前通过ubs_ssu_space_alloc分配的存储空间及其关联的所有命名空间。
+ *
+ * @param name [IN] 要释放的存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 释放操作具有幂等性, 释放不存在的空间应返回成功
+ */
+int32_t ubs_ssu_space_free(const char *name);
+
+/**
+ * @brief 添加存储空间访问权限
+ *
+ * 为指定的Host授予对已分配存储空间的访问权限, 在Target侧将Host NQN添加到子系统的
+ * 允许主机列表中, 使该Host可以通过NVMe-oF协议访问对应命名空间。
+ *
+ * @param name [IN] 存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
+ * @param nqn [IN] Host的NVMe Qualified Name, 标识被授权的主机
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或nqn参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 重复添加同一Host的访问权限应返回成功(幂等性保证)
+ */
+int32_t ubs_ssu_access_permission_add(const char *name, const char *nqn);
+
+/**
+ * @brief 移除存储空间访问权限
+ *
+ * 撤销指定Host对已分配存储空间的访问权限, 在Target侧将Host NQN从子系统的
+ * 允许主机列表中移除, 使该Host无法再通过NVMe-oF协议访问对应命名空间。
+ *
+ * @param name [IN] 存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
+ * @param nqn [IN] Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或nqn参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 移除不存在的访问权限应返回成功(幂等性保证)
+ * @note 移除权限前应确保该Host已断开与对应命名空间的连接
+ */
+int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
+
+/**
+ * @brief 挂载已分配的存储空间
+ *
+ * 将指定的存储空间挂载到系统, 使其可被主机访问。
+ *
+ * @param name [IN] 要挂载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param dev_path [OUT] 挂载后的设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_space_attach(const char *name, const char *host_nqn, char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+
+/**
+ * @brief 卸载已分配的存储空间
+ *
+ * 将指定的存储空间从系统卸载, 释放设备占用。
+ *
+ * @param name [IN] 要卸载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 卸载前需确保没有进程正在使用该存储空间
+ */
+int32_t ubs_ssu_space_detach(const char *name, const char *host_nqn);
+
+/**
+ * @brief 挂载线性编址的存储空间
+ *
+ * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
+ *
+ * @param name [IN] 要挂载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param dev_name [IN] 聚合后的块设备名称, 由外部指定
+ * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或dev_name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note 线性编址模式下, 数据按顺序填充各成员设备
+ */
+int32_t ubs_ssu_linear_space_attach(const char *name, const char *host_nqn, const char *dev_name,
+                                    char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+
+/**
+ * @brief 卸载线性编址的存储空间
+ *
+ * 将线性聚合的块设备卸载并释放。
+ *
+ * @param name [IN] 要卸载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param dev_name [IN] 聚合后的块设备名称
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或dev_name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_linear_space_detach(const char *name, const char *host_nqn, const char *dev_name);
+
+/**
+ * @brief 挂载条带化编址的存储空间
+ *
+ * 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
+ *
+ * @param name [IN] 要挂载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param req [IN] 条带化挂载请求参数, 包含块设备名称、RAID级别和chunk大小
+ * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ERR_INVALID_ARG:level或chunk_size参数无效;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ *
+ * @note RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
+ */
+int32_t ubs_ssu_striped_space_attach(const char *name, const char *host_nqn, const ubs_ssu_striped_attach_req_t *req,
+                                     char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+
+/**
+ * @brief 卸载条带化编址的存储空间
+ *
+ * 将条带化聚合的块设备卸载并释放。
+ *
+ * @param name [IN] 要卸载的存储空间标识
+ * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param dev_name [IN] 聚合后的块设备名称
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name或dev_name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_striped_space_detach(const char *name, const char *host_nqn, const char *dev_name);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // UBS_ENGINE_SSU_H
