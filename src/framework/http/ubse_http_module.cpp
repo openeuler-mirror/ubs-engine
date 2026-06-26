@@ -172,7 +172,15 @@ bool UbseHttpModule::TcpSend(httplib::Request& httpReq, httplib::Response& httpR
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
     cli.set_path_encode(false);
     SSL_CTX* ctx = static_cast<SSL_CTX*>(cli.tls_context());
-    if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
+    if (ctx == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get SSL context from client";
+        return false;
+    }
+    if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
+        UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
+        return false;
+    }
+    if (!cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
         UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
         return false;
     }

@@ -47,6 +47,7 @@ std::once_flag UbseHttpServer::initInstanceFlag_;
 constexpr uint32_t START_TIMEOUT = 3000;
 constexpr uint32_t SLEEP_TIME = 100;
 constexpr mode_t FOLDER_PEUBSEISSION = 0755;
+constexpr size_t HTTP_HEADER_SEPARATOR_SIZE = 4;
 
 bool SetSocketFilePermission()
 {
@@ -154,6 +155,16 @@ std::string UbseHttpServer::GenerateQueryString(const std::multimap<std::string,
 
 UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request& req, UbseHttpRequest& request)
 {
+    if (!req.headers.empty()) {
+        size_t headerSize = 0;
+        for (const auto& pair : req.headers) {
+            headerSize += pair.first.size() + pair.second.size() + HTTP_HEADER_SEPARATOR_SIZE;
+        }
+        if (headerSize > httpMaxHeaderSize) {
+            UBSE_LOG_ERROR << "HttpMsg headers is oversize";
+            return UBSE_HTTP_ERROR_MSG_OVERSIZE;
+        }
+    }
     if (!req.params.empty()) {
         std::string queryStr = GenerateQueryString(req.params);
         if (queryStr.size() > httpMaxQuerySize) {
@@ -259,6 +270,10 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
     }
     // 配置客户端证书验证（mTLS）
     SSL_CTX* ctx = static_cast<SSL_CTX*>(sslServer->tls_context());
+    if (ctx == nullptr) {
+        UBSE_LOG_ERROR << "Failed to set SSL context for server";
+        return nullptr;
+    }
     if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
         // 设置失败，可能是 OpenSSL 版本过低或不支持 TLS 1.3
         UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
