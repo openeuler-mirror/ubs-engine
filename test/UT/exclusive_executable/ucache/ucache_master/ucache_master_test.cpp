@@ -12,6 +12,7 @@
 
 #include <time.h>
 #include <ubse_com.h>
+#include <atomic>
 #include <ctime>
 #include <thread>
 
@@ -34,6 +35,14 @@ using namespace ucache::data_collect;
 using namespace ubse::com;
 
 unsigned long oneGB = 0x40000000UL;
+
+std::atomic<uint32_t> g_collectDataCallCnt{0};
+
+uint32_t MockCollectData()
+{
+    g_collectDataCallCnt.fetch_add(1);
+    return UCACHE_OK;
+}
 
 class UcacheMasterTest : public ::testing::Test {
 protected:
@@ -206,12 +215,17 @@ TEST_F(UcacheMasterTest, UcacheMasterMainSuccessTest)
     GetRawDatas(rawDatas);
     DataCollect::SetBorrowStrategyRawData(rawDatas);
 
-    MOCKER(DataCollect::CollectData).stubs().will(returnValue(UCACHE_OK));
+    g_collectDataCallCnt.store(0);
+    MOCKER(DataCollect::CollectData).stubs().will(invoke(MockCollectData));
 
     MOCKER(ucache::borrow_action::ExecuteBorrowActions).stubs().will(returnValue(UCACHE_OK));
-    Init();
     ucache::fault_handler::EventHandler::gNodeFaultFlag.store(false);
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    EXPECT_EQ(Init(), UCACHE_OK);
+    const auto waitUntil = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (g_collectDataCallCnt.load() == 0 && std::chrono::steady_clock::now() < waitUntil) {
+        std::this_thread::yield();
+    }
+    EXPECT_GT(g_collectDataCallCnt.load(), 0U);
     Exit();
 }
 
