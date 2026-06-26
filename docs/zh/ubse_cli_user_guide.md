@@ -540,8 +540,9 @@ memory4      numa    node-2(2)     node-3(3)   1(216)      1300            expor
 memory5      fd      node-1(1)     node-3(3)   1(216)      1400            importing    -
 memory6      numa                  node-3(3)   1(216)      1300            unexporting  -
 memory7      fd      node-1(1)     node-3(3)   1(216)      1400            unimporting  -
-memory8      numa    node-2(2)                             1500            fault        -
-memory9      fd                    node-3(3)   1(216)      1500            fault        -
+memory8      numa    node-2(2)     -(3)        1(216)      1500            fault        5,6,7
+memory9      fd      -(2)          node-3(3)   1(216)      1500            fault        -
+memory10     share   node-1(1)     -(3)        1(216)      1200            fault        8,9
 ------------------------------------------------------------------------------------------------
 ```
 
