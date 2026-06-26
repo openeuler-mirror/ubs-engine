@@ -44,13 +44,13 @@ enum class UbseSsuUsingType : uint8_t {
 };
 
 enum class UbseSsuAllocStrategy : uint8_t {
-    LINEAR = 0, // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
+    LINEAR = 0,  // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
     STRIPED = 1, // 分布式策略，尽量从多个设备分配，均等分配，适用于条带化编址使用场景
 };
 
 struct UbseSsuAllocIdentityInfo {
     std::string userName; // 使用方进程的运行用户的名称
-    uid_t uid; // 使用方进程的运行用户的uid
+    uid_t uid;            // 使用方进程的运行用户的uid
 };
 
 struct UbseSsuAllocSpaceReq {
@@ -61,14 +61,14 @@ struct UbseSsuAllocSpaceReq {
     UbseSsuAllocStrategy strategy; // 分配策略
     UbseSsuUsingType usingType = UbseSsuUsingType::EXCLUSIVE; // 设备用途类型
     UbseSsuAllocIdentityInfo identityInfo;                    // 使用方进程的运行用户的uid和userName
-    std::string upi;              // 请求方UPI（租户隔离标识）
+    std::string tenant;                                       // 请求方tenant（租户隔离标识）
 };
 
 struct UbseSsuNameSpaceInfo {
     std::string srcEid;         // Source EID
     std::string tgtEid;         // Target EID
     std::string subNqn;         // 子系统NQN
-    std::string defaultHostNqn;     // 默认NQN，例子：nqn.2024-01.com.huawei:uuid:12345678-1234-1234-1234-1234567890ab
+    std::string defaultHostNqn; // 默认NQN，例子：nqn.2024-01.com.huawei:uuid:12345678-1234-1234-1234-1234567890ab
     std::string nsUuid;         // 物理设备UUID
     uint32_t namespaceId;       // 命名空间ID
     std::string nsDevPath;      // 命名空间设备路径
@@ -78,17 +78,23 @@ struct UbseSsuNameSpaceInfo {
 };
 
 struct UbseSsuAllocResult {
-    std::string name;                                // 请求标识，最大32个字符
+    std::string name;                                // 请求标识，最大48个字符
     UbseSsuAllocStrategy strategy;                   // 分配策略
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList; // 命名空间信息列表
 };
 
+struct UbseSsuStripedAttachReq {
+    std::string devName;               // 聚合后的块设备名称，由外部指定
+    UbseSsuAggregationRaidLevel level; // RAID级别（RAID0 或 RAID5）
+    UbseSsuChunkSize chunkSize;        // 条带化的chunk大小，单位KB
+};
+
 enum class UbseSsuNsState : uint8_t {
-    IDLE = 0,       // 初始/失败回退
-    CREATING = 1,   // Master正在创建NS
-    CREATED = 2,    // NS创建完成，等待Agent Attach
-    ATTACHING = 3,  // Agent正在Attach
-    ATTACHED = 4,   // 全部完成
+    IDLE = 0,      // 初始/失败回退
+    CREATING = 1,  // Master正在创建NS
+    CREATED = 2,   // NS创建完成，等待Agent Attach
+    ATTACHING = 3, // Agent正在Attach
+    ATTACHED = 4,  // 全部完成
 };
 
 /**
@@ -221,14 +227,15 @@ public:
      * 将指定的存储空间挂载到系统，使其可被主机访问。
      *
      * @param name     要挂载的存储空间标识
+     * @param nqn  Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity 使用方进程的身份信息，包含 userName 和 uid
      * @param devPath  [输出] 挂载后的设备路径
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t AttachSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                 std::string &devPath);
+    virtual uint32_t AttachSpace(const std::string &name, const std::string &nqn,
+                                 const UbseSsuAllocIdentityInfo &identity, std::string &devPath);
 
     /**
      * @brief 卸载已分配的存储空间
@@ -236,6 +243,7 @@ public:
      * 将指定的存储空间从系统卸载，释放设备占用。
      *
      * @param name  要卸载的存储空间标识
+     * @param nqn  Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity 使用方进程的身份信息，包含 userName 和 uid
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -243,7 +251,8 @@ public:
      *
      * @note 卸载前需确保没有进程正在使用该存储空间
      */
-    virtual uint32_t DetachSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
+    virtual uint32_t DetachSpace(const std::string &name, const std::string &nqn,
+                                 const UbseSsuAllocIdentityInfo &identity);
 
     /**
      * @brief 挂载线性编址的存储空间
@@ -251,6 +260,7 @@ public:
      * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
      *
      * @param name     要挂载的存储空间标识
+     * @param nqn  Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity 使用方进程的身份信息，包含 userName 和 uid
      * @param devName  聚合后的块设备名称（由外部指定）
      * @param devPath  [输出] 挂载后的聚合设备路径
@@ -260,8 +270,9 @@ public:
      *
      * @note 线性编址模式下，数据按顺序填充各成员设备
      */
-    virtual uint32_t AttachLinearSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                       const std::string &devName, std::string &devPath);
+    virtual uint32_t AttachLinearSpace(const std::string &name, const std::string &nqn,
+                                       const UbseSsuAllocIdentityInfo &identity, const std::string &devName,
+                                       std::string &devPath);
 
     /**
      * @brief 卸载线性编址的存储空间
@@ -269,14 +280,15 @@ public:
      * 将线性聚合的块设备卸载并释放。
      *
      * @param name     要卸载的存储空间标识
+     * @param nqn  Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity 使用方进程的身份信息，包含 userName 和 uid
      * @param devName  聚合后的块设备名称
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t DetachLinearSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                       const std::string &devName);
+    virtual uint32_t DetachLinearSpace(const std::string &name, const std::string &nqn,
+                                       const UbseSsuAllocIdentityInfo &identity, const std::string &devName);
 
     /**
      * @brief 挂载条带化编址的存储空间
@@ -285,21 +297,20 @@ public:
      * 支持 RAID0 和 RAID5 两种级别。
      *
      * @param name      要挂载的存储空间标识
+     * @param nqn  Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity  使用方进程的身份信息，包含 userName 和 uid
-     * @param devName   聚合后的块设备名称（由外部指定）
-     * @param level     RAID 级别（RAID0 或 RAID5）
-     * @param chunkSize 条带化的 chunk 大小，单位 KB，仅支持 4KB/16KB/32KB/64KB/128KB/256KB/512KB
+     * @param req       条带化挂载请求参数，包含块设备名称、RAID级别和chunk大小
      * @param devPath    [输出] 挂载后的聚合设备路径
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      *
      * @note RAID5 至少需要 3 个成员设备
-     * @see UbseSsuAggregationRaidLevel, UbseSsuChunkSize
+     * @see UbseSsuStripedAttachReq, UbseSsuAggregationRaidLevel, UbseSsuChunkSize
      */
-    virtual uint32_t AttachStripedSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                        const std::string &devName, UbseSsuAggregationRaidLevel level,
-                                        UbseSsuChunkSize chunkSize, std::string &devPath);
+    virtual uint32_t AttachStripedSpace(const std::string &name, const std::string &nqn,
+                                        const UbseSsuAllocIdentityInfo &identity, const UbseSsuStripedAttachReq &req,
+                                        std::string &devPath);
 
     /**
      * @brief 卸载条带化编址的存储空间
@@ -307,14 +318,15 @@ public:
      * 将条带化聚合的块设备卸载并释放。
      *
      * @param name     要卸载的存储空间标识
+     * @param nqn   Host 的 NVMe Qualified Name，标识被撤销权限的主机
      * @param identity 使用方进程的身份信息，包含 userName 和 uid
      * @param devName  聚合后的块设备名称
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t DetachStripedSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                        const std::string &devName);
+    virtual uint32_t DetachStripedSpace(const std::string &name, const std::string &nqn,
+                                        const UbseSsuAllocIdentityInfo &identity, const std::string &devName);
 };
 } // namespace ubse::plugin::service::ssu
 #endif // UBSE_SSU_SERVICE_H
