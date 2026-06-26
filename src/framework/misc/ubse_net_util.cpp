@@ -18,6 +18,7 @@
 #include <netinet/in.h>
 #include <securec.h>
 #include <regex>
+#include <unistd.h>
 
 #include <fstream>
 #include <sstream>
@@ -53,49 +54,42 @@ uint32_t UbseNetUtil::ParseIpList(const std::string &ipListStr, std::vector<std:
 
 uint32_t UbseNetUtil::FindLocalIpByRemote(const std::string &remoteIp, std::string &localIp)
 {
-    uint32_t rootIp = 0;
-    if (auto ret = IpV4ToInt(remoteIp, rootIp); ret != UBSE_OK) {
-        return ret;
-    }
-    ifaddrs *ifaddr = nullptr;
-    if (getifaddrs(&ifaddr) == -1) {
-        UBSE_LOG_ERROR << "get interface address failed";
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
         return UBSE_ERROR;
     }
-    for (ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
-        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) {
-            continue;
-        }
-        if (ifa->ifa_flags & IFF_LOOPBACK) {
-            continue;
-        }
-        if (!(ifa->ifa_flags & IFF_UP)) {
-            continue;
-        }
-        if (!ifa->ifa_netmask) {
-            continue;
-        }
-        sockaddr_in addrIn;
-        sockaddr_in maskIn;
-        memcpy_s(&addrIn, sizeof(sockaddr_in), ifa->ifa_addr, sizeof(sockaddr_in));
-        memcpy_s(&maskIn, sizeof(sockaddr_in), ifa->ifa_netmask, sizeof(sockaddr_in));
 
-        uint32_t ip = ntohl(addrIn.sin_addr.s_addr);
-        uint32_t netmask = ntohl(maskIn.sin_addr.s_addr);
-        uint32_t localNet = ip & netmask;
-        uint32_t rootNet = rootIp & netmask;
-        if (localNet == rootNet) {
-            uint32_t hostBits = ~netmask;
-            if ((ip & hostBits) != 0 && (ip & hostBits) != hostBits) {
-                localIp = IntToIpV4(ip);
-                freeifaddrs(ifaddr);
-                return UBSE_OK;
-            }
-        }
+    sockaddr_in remoteAddr{};
+    remoteAddr.sin_family = AF_INET;
+    remoteAddr.sin_port = htons(TCP_LISTEN_PORT);
+    if (inet_pton(AF_INET, remoteIp.c_str(), &remoteAddr.sin_addr) != 1) {
+        close(sock);
+        return UBSE_ERROR;
     }
-    freeifaddrs(ifaddr);
-    UBSE_LOG_ERROR << "current node are not on the same network plane with ip" << remoteIp;
-    return UBSE_ERROR;
+
+    // UDP connect 不会真正发送任何数据包
+    // 它只是让内核查询路由表，确定到达 remoteIp 应该用哪个本地接口
+    if (connect(sock, reinterpret_cast<sockaddr *>(&remoteAddr), sizeof(remoteAddr)) != 0) {
+        close(sock);
+        return UBSE_ERROR;
+    }
+
+    sockaddr_in localAddr{};
+    socklen_t localLen = sizeof(localAddr);
+    if (getsockname(sock, reinterpret_cast<sockaddr *>(&localAddr), &localLen) != 0) {
+        close(sock);
+        return UBSE_ERROR;
+    }
+
+    char buf[INET_ADDRSTRLEN]{};
+    if (inet_ntop(AF_INET, &localAddr.sin_addr, buf, sizeof(buf)) == nullptr) {
+        close(sock);
+        return UBSE_ERROR;
+    }
+
+    localIp = buf;
+    close(sock);
+    return UBSE_OK;
 }
 
 uint32_t UbseNetUtil::FindLocalIpInIpList(std::vector<std::string> ipList, std::string &localIp)

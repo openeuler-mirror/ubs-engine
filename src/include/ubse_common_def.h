@@ -116,6 +116,7 @@ const std::string UBSE_EVENT_XALARM_KERNEL_REBOOT_ACK = "ALARM_KERNEL_REBOOT_ACK
 const std::string UBSE_EVENT_FAULT_UPDATE = "ubse.resource.fault.update";
 const std::string UBSE_EVENT_TOPOLOGY_CHANGE = "UbseTopologyChangeEvent";
 const std::string UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE = "UbseClusterTopologyChangeEvent";
+const std::string UBSE_EVENT_NODE_DISCOVERY = "ubse.node.discovery";
 const std::string MEM_FAULT_FILE_PATH = "/var/log/ubse/mem_fault";
 const std::string ORCHESTRATE_REQUEST_URL = "/ubse/resource_request/";
 const std::string UBSE_UDS_ADDRESS_ENV_VAR = "UBSE_UDS_ADDRESS";

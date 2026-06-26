@@ -58,4 +58,4 @@ TEST_F(TestUbseNodeDiscoveryRootMode, Serialize)
     EXPECT_EQ(1, result[0].feEidList["5"].portEids.size());
     EXPECT_EQ("4245:4944:0000:0000:0000:0000:0100:0002", result[0].feEidList["5"].portEids["3"]);
 }
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr

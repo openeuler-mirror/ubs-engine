@@ -76,4 +76,4 @@ void UbseNodeDiscoveryConfigMode::GenerateClusterTopo(const std::vector<std::str
 }
 
 void UbseNodeDiscoveryConfigMode::UnInit() {}
-} // namespace ubse::nodeDiscovery
+} // namespace ubse::nodeMgr

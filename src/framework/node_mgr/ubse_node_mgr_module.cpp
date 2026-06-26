@@ -13,11 +13,11 @@
 #include "ubse_node_mgr_module.h"
 
 #include "conf_mode/ubse_node_discovery_config_mode.h"
-#include "ubse_urma_uvs_module.h"
+#include "root_mode/ubse_node_discovery_common.h"
 #include "static_mode/ubse_node_discovery_static_mode.h"
-#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_node_static_info_mgr.h"
+#include "ubse_urma_uvs_module.h"
 
 namespace ubse::nodeMgr {
 using namespace ubse::urma;
