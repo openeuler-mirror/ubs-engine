@@ -107,7 +107,7 @@ std::vector<UBSE_ID_TYPE> GlobalMaster::GetAllGlobalAgentIds() const
         if (node.second.activeStatus == HeartBeatState::ACTIVE
             && node.first != nodeId_ && node.first != globalStandbyId_) {
             result.push_back(node.first);
-        }
+            }
     }
 
     return result;
@@ -124,7 +124,7 @@ void GlobalMaster::DealHbCnt(const UBSE_ID_TYPE &id)
             || globalStandbyAgentBroadcast_[id].heartBeatLossCnt % NO_15 ==0) {
             UBSE_LOG_WARN << "[ELECTION] nodeId=" << id << ", nodeStatus=" << int(globalStandbyAgentBroadcast_[id].activeStatus)
                           << ", heartBeatLossCnt=" << globalStandbyAgentBroadcast_[id].heartBeatLossCnt;
-        }
+            }
     }
 }
 
@@ -153,7 +153,7 @@ void GlobalMaster::ReplaceStandbyNode(ElectionPkt &pkt)
             pkt.standbyId = globalStandbyId_;
             UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId = " << globalStandbyId_;
         }
-    }
+        }
 }
 
 void GlobalMaster::ProcTimer()
@@ -180,7 +180,7 @@ void GlobalMaster::ProcTimer()
             UBSE_LOG_DEBUG << "[ELECTION] ProcTimer MASTER send pkt id is: " << id;
             pkt.broadcast = static_cast<uint8_t>(globalStandbyAgentBroadcast_[id].masterOnlineBcStatus);
             lock.unlock();
-            auto ret = SendHeartBeat(id, pkt);
+            auto ret = SendGlobalHeartBeat(id, pkt);
             if (ret !=UBSE_OK) {
                 UBSE_LOG_ERROR << "[ELECTION] send heart to nodeId= "<< id << " failed";
             }
@@ -252,83 +252,13 @@ void UpdateGlobalBroadcastStatus(const std::string &nodeId, const ElectionReplyP
     status = reply.standbyStatus;
 }
 
-void UpdateGroupStateAndNodeIds(const ElectionReplyPkt& reply, std::mutex& mtx)
-{
-    if (reply.groupId.empty() || reply.masterId.empty()) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(mtx);
-
-    RoleMgr::GetInstance().UpdateMountedGroupState(reply.groupId,
-        {reply.groupId, reply.masterId, reply.standbyId});
-
-    if (!reply.managingGroupNodeIds.empty()) {
-        RoleMgr::GetInstance().UpdateManagingGroupNodeIds(reply.groupId, reply.managingGroupNodeIds);
-        UBSE_LOG_INFO << "[ELECTION] GlobalMaster collecting Managing group node id list: groupId=" << reply.groupId
-                      << ", nodeCount=" << reply.managingGroupNodeIds.size();
-    }
-
-    if (!reply.mountedGroupNodeIds.empty()) {
-        RoleMgr::GetInstance().UpdateMountedGroupNodeIds(reply.groupId, reply.mountedGroupNodeIds);
-        UBSE_LOG_INFO << "[ELECTION] GlobalMaster collecting mounted group node ID list: groupId=" << reply.groupId
-                      << ", nodeCount=" << reply.mountedGroupNodeIds.size();
-    }
-}
-
-void UpdateMountedGroupMasterInfo(const ElectionReplyPkt& reply, std::mutex& mtx)
-{
-    if (reply.mountedGroupMasterId.empty() || reply.mountedGroupMasterId == INVALID_NODE_ID) {
-        return;
-    }
-
-    UBSE_ID_TYPE mountedGroupId;
-    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupIdByNodeId(reply.mountedGroupMasterId, mountedGroupId);
-    if (ret != UBSE_OK || mountedGroupId.empty()) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(mtx);
-    RoleMgr::GetInstance().UpdateMountedGroupState(mountedGroupId,
-        {mountedGroupId, reply.mountedGroupMasterId, INVALID_NODE_ID});
-    UBSE_LOG_INFO << "[ELECTION] GlobalMaster collecting mounted group info: groupId=" << mountedGroupId
-                  << ", masterId=" << reply.mountedGroupMasterId;
-}
-
-void HandleMountedMasterChange(const ElectionReplyPkt& reply)
-{
-    auto pdGroupMountedMasterMap = RoleMgr::GetInstance().GetManagingGroupMountedMasterMap();
-    auto it = pdGroupMountedMasterMap.find(reply.groupId);
-    if (it == pdGroupMountedMasterMap.end()) {
-        return;
-    }
-
-    UBSE_ID_TYPE previousMountedMasterId = it->second;
-    UBSE_ID_TYPE currentMountedMasterId = reply.mountedGroupMasterId.empty()
-        ? INVALID_NODE_ID : reply.mountedGroupMasterId;
-
-    // 检测挂载组主节点下线
-    if (previousMountedMasterId != INVALID_NODE_ID && previousMountedMasterId != currentMountedMasterId) {
-        UBSE_LOG_INFO << "[ELECTION] Mounted group master offline: managingGroupId=" << reply.groupId
-                      << ", previousMountedMasterId=" << previousMountedMasterId
-                      << ", currentMountedMasterId=" << currentMountedMasterId;
-        if (!g_globalStop.load()) {
-            RoleMgr::GetInstance().RoleChangeNotifyAsync(
-                UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousMountedMasterId);
-        }
-    }
-
-    // 更新当前挂载组主节点
-    RoleMgr::GetInstance().UpdateManagingGroupMountedMaster(reply.groupId,
-        reply.mountedGroupMasterId.empty() ? INVALID_NODE_ID : reply.mountedGroupMasterId);
-}
-
 // 处理选举回复消息
-void ProcessGlobalReply(CallbackCtx* context, int32_t result, void* recv, uint32_t len)
+void ProcessGlobalReply(GlobalCallbackCtx* context, int32_t result, void* recv, uint32_t len)
 {
     const auto& nodeId = context->destId;
     auto& mtx = *context->mtx;
     auto& broad = *context->broadcast;
+    auto& globalStandbyAgentGroupTopologies = *context->globalStandbyAgentGroupTopologies;
     auto& status = *context->standbyStatus;
     if (result != 0) {
         UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << nodeId
@@ -361,14 +291,20 @@ void ProcessGlobalReply(CallbackCtx* context, int32_t result, void* recv, uint32
         return;
     }
     UpdateGlobalBroadcastStatus(nodeId, reply, broad, status, mtx);
-    UpdateGroupStateAndNodeIds(reply, mtx);
-    UpdateMountedGroupMasterInfo(reply, mtx);
-    HandleMountedMasterChange(reply);
+    std::lock_guard<std::mutex> lock(mtx);
+    if (!reply.groupId.empty() && !reply.managingGroupNodeIds.empty()) {
+        globalStandbyAgentGroupTopologies[reply.groupId] = GroupTopology{
+            reply.groupId,
+            true,
+            reply.masterId,
+            reply.standbyId,
+            reply.managingGroupNodeIds};
+    }
 }
 
 void AsyncDealGlobalReply(void* ctx, void* recv, uint32_t len, int32_t result)
 {
-    auto* context = static_cast<CallbackCtx*>(ctx);
+    auto* context = static_cast<GlobalCallbackCtx*>(ctx);
     if (context == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Received null context in callback";
         return;
@@ -387,7 +323,7 @@ void AsyncDealGlobalReply(void* ctx, void* recv, uint32_t len, int32_t result)
     SafeDelete(context);
 }
 
-uint32_t GlobalMaster::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
+uint32_t GlobalMaster::SendGlobalHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt)
 {
     UbseContext &ubseContext = UbseContext::GetInstance();
     auto rackComModule = ubseContext.GetModule<UbseComModule>();
@@ -403,13 +339,14 @@ uint32_t GlobalMaster::SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt
     }
     ubse::com::SendParam sendParam(destID, static_cast<uint16_t>(UbseModuleCode::ELECTION),
                                    static_cast<uint16_t>(UbseElectionOpCode::ELECTION_PKT), UbseChannelType::NORMAL);
-    auto context = new (std::nothrow) CallbackCtx;
+    auto context = new (std::nothrow) GlobalCallbackCtx;
     if (context == nullptr) {
-        UBSE_LOG_ERROR << "[ELECTION] New context failed.";
+        UBSE_LOG_ERROR << "[ELECTION] New GlobalCallbackCtx failed.";
         return UBSE_ERROR_NULLPTR;
     }
     std::unique_lock<std::mutex> lock(mtx_);
     context->broadcast = &globalStandbyAgentBroadcast_;
+    context->globalStandbyAgentGroupTopologies = &globalStandbyAgentGroupTopologies_;
     context->destId = destID;
     context->standbyStatus = &globalStandbyStatus_;
     context->mtx = &mtx_;
@@ -564,7 +501,7 @@ void GlobalMaster::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
 
 uint64_t GlobalMaster::GetTurnId()
 {
-return globalTurnId_;
+    return globalTurnId_;
 }
 
 RoleType GlobalMaster::GetRoleType()
@@ -575,6 +512,32 @@ RoleType GlobalMaster::GetRoleType()
 GlobalRoleType GlobalMaster::GetGlobalRoleType()
 {
     return GlobalRoleType::GLOBAL_MASTER;
+}
+
+void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        cascadeGroupReport_ = rcvInfo;
+        // 回复全局主备
+        replyInfo.nodeId = nodeId_;
+        replyInfo.groupMasterId = nodeId_;
+        replyInfo.groupStandbyId = globalStandbyId_;
+    }
+}
+
+InterGroupInfo GlobalMaster::GetCascadeGroupReport()
+{
+    return cascadeGroupReport_;
+}
+
+std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()
+{
+    std::lock_guard<std::mutex> lock(mtx_);
+    std::vector<GroupTopology> managingGroupTopologies{};
+    for (const auto &node : globalStandbyAgentGroupTopologies_) {
+        managingGroupTopologies.push_back(node.second);
+    }
+    return managingGroupTopologies;
 }
 
 }

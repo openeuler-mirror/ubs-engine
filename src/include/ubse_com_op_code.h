@@ -102,6 +102,7 @@ enum class UbseMemOpCode {
 // 选举模块操作码
 enum class UbseElectionOpCode {
     ELECTION_PKT = 0x0001,                         // 选举包
+    ELECTION_INTER_GROUP_INFO = 0x0002,            // 组间信息
 };
 
 // 存储模块操作码

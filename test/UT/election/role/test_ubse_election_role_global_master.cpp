@@ -234,7 +234,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, SetNodeDownStatus_ShouldDoNothing_WhenN
     EXPECT_NO_THROW(master.SetNodeDownStatus("3"));
 }
 
-TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldSendHeartBeat_WhenIntervalExceeded)
+TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldSendGlobalHeartBeat_WhenIntervalExceeded)
 {
     SetupGlobalMasterCommonMocks();
     MOCKER(&ubse::election::GetBootTime).stubs().with(outBound(g_bootTimeLarge)).will(returnValue(UBSE_OK));
@@ -253,7 +253,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldSendHeartBeat_WhenInter
     EXPECT_NO_THROW(master.ProcTimer());
 }
 
-TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldNotSendHeartBeat_WhenIntervalNotExceeded)
+TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldNotSendGlobalHeartBeat_WhenIntervalNotExceeded)
 {
     SetupGlobalMasterCommonMocks();
     MOCKER(&ubse::election::GetBootTime).stubs().with(outBound(g_bootTimeSmall)).will(returnValue(UBSE_OK));
@@ -318,7 +318,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, ProcTimer_ShouldReplaceStandby_WhenStan
     EXPECT_NO_THROW(master.ProcTimer());
 }
 
-TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnError_WhenComModuleNull)
+TEST_F(TestUbseElectionRoleGlobalMaster, SendGlobalHeartBeat_ShouldReturnError_WhenComModuleNull)
 {
     SetupGlobalMasterCommonMocks();
     RoleContext ctx = MakeGlobalMasterCtx();
@@ -329,11 +329,11 @@ TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnError_WhenCom
         .will(returnValue(std::shared_ptr<UbseComModule>(nullptr)));
 
     ElectionPkt pkt;
-    auto ret = master.SendHeartBeat("2", pkt);
+    auto ret = master.SendGlobalHeartBeat("2", pkt);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnOk_WhenSuccess)
+TEST_F(TestUbseElectionRoleGlobalMaster, SendGlobalHeartBeat_ShouldReturnOk_WhenSuccess)
 {
     SetupGlobalMasterCommonMocks();
     RoleContext ctx = MakeGlobalMasterCtx();
@@ -344,11 +344,11 @@ TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnOk_WhenSucces
     MOCKER(&ubse::com::UbseComModule::RpcAsyncSend<UbseBaseMessagePtr>).stubs().will(returnValue(UBSE_OK));
 
     ElectionPkt pkt;
-    auto ret = master.SendHeartBeat("2", pkt);
+    auto ret = master.SendGlobalHeartBeat("2", pkt);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnError_WhenRpcAsyncSendFail)
+TEST_F(TestUbseElectionRoleGlobalMaster, SendGlobalHeartBeat_ShouldReturnError_WhenRpcAsyncSendFail)
 {
     SetupGlobalMasterCommonMocks();
     RoleContext ctx = MakeGlobalMasterCtx();
@@ -359,7 +359,7 @@ TEST_F(TestUbseElectionRoleGlobalMaster, SendHeartBeat_ShouldReturnError_WhenRpc
     MOCKER(&ubse::com::UbseComModule::RpcAsyncSend<UbseBaseMessagePtr>).stubs().will(returnValue(UBSE_ERROR));
 
     ElectionPkt pkt;
-    auto ret = master.SendHeartBeat("2", pkt);
+    auto ret = master.SendGlobalHeartBeat("2", pkt);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 

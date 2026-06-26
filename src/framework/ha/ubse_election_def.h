@@ -73,19 +73,21 @@ enum class UbseNodeChangeState {
 struct NodeRoleInfo {
     UBSE_ID_TYPE nodeId;
     RoleType groupRole;
-    RoleType globalRole;
+    GlobalRoleType globalRole;
 };
+
 struct GroupTopology {
     UBSE_ID_TYPE groupId;
     bool isManagingGroup; // 是否为管理组
     UBSE_ID_TYPE groupMasterId;
     UBSE_ID_TYPE groupStandbyId;
-    std::vector<NodeRoleInfo> groupNodes;
-    std::vector<GroupTopology> mountedGroups;
+    std::vector<UBSE_ID_TYPE> groupNodes;
 };
+
 struct HaTopologyInfo {
     NodeRoleInfo currentNode;
-    std::vector<GroupTopology> groups;
+    GroupTopology currentGroup; // 当前节点所在组信息
+    std::vector<GroupTopology> groups; // 所有global组及挂载组节点信息
 };
 
 struct Node {
@@ -111,9 +113,10 @@ struct Node {
 };
 constexpr int ELECTION_PKT_TYPE_SELECT = 0;
 constexpr int ELECTION_PKT_TYPE_HEART = 1;
-constexpr int ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER = 2;
+constexpr int ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER = 2;
 constexpr int ELECTION_PKT_TYPE_GLOBAL_SELECT = 3;
 constexpr int ELECTION_PKT_TYPE_GLOBAL_HEART = 4;
+constexpr int ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT = 5;
 
 enum class NotifyStatus : uint8_t {
     NOT_BROADCAST = 0,
@@ -163,6 +166,15 @@ struct ElectionPkt {
     UBSE_ID_TYPE globalStandbyId;
 };
 
+struct InterGroupInfo {
+    uint8_t type;
+    UBSE_ID_TYPE nodeId;
+    UBSE_ID_TYPE groupId;
+    UBSE_ID_TYPE groupMasterId;
+    UBSE_ID_TYPE groupStandbyId;
+    std::vector<UBSE_ID_TYPE> groupNodeIds;
+};
+
 constexpr int ELECTION_PKT_RESULT_ACCEPT = 0;
 constexpr int ELECTION_PKT_TYPE_REJECT = 1;
 constexpr int ELECTION_PKT_TYPE_REJECT_HAS_MASTER = 2;
@@ -178,13 +190,21 @@ struct ElectionReplyPkt {
     uint64_t turnId = 0;
     uint8_t standbyStatus = NOT_READY;
     uint8_t broadcast = static_cast<uint8_t>(NotifyStatus::NOT_BROADCAST);
-    UBSE_ID_TYPE mountedGroupMasterId;
     std::vector<UBSE_ID_TYPE> managingGroupNodeIds;
-    std::vector<UBSE_ID_TYPE> mountedGroupNodeIds;
 };
 
 struct CallbackCtx {
     std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::string destId{};
+    uint8_t *standbyStatus;
+    std::mutex *mtx = nullptr;
+    std::atomic<bool> *stopping;
+    std::atomic<int> *activeCount;
+};
+
+struct GlobalCallbackCtx {
+    std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::map<UBSE_ID_TYPE, GroupTopology> *globalStandbyAgentGroupTopologies;
     std::string destId{};
     uint8_t *standbyStatus;
     std::mutex *mtx = nullptr;

@@ -423,13 +423,20 @@ uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionR
         RecvPktHeart(srcID, rcvPkt, reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         RecvPktElection(srcID, rcvPkt, reply);
-    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
-        reply.replyId = masterId_;
-        reply.groupId = groupId_;
-        reply.masterId = masterId_;
-        reply.standbyId = standbyId_;
     }
     return 0;
+}
+
+void Master::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER) {
+        replyInfo.groupId = groupId_;
+        replyInfo.nodeId = masterId_;
+        replyInfo.groupMasterId = masterId_;
+        replyInfo.groupStandbyId = standbyId_;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] Master rcvInterGroupInfo.type: " << rcvInfo.type << ".";
+    }
 }
 
 UBSE_ID_TYPE Master::GetMasterNode()
@@ -445,31 +452,20 @@ UBSE_ID_TYPE Master::GetStandbyNode()
 UBSE_ID_TYPE Master::GetGlobalMasterNode()
 {
     UBSE_ID_TYPE result = INVALID_NODE_ID;
-    auto& roleMgr = RoleMgr::GetInstance();
-
-    if (roleMgr.IsManagingGroup(groupId_)) {
-        auto globalRole = roleMgr.GetGlobalRole();
-        if (globalRole != nullptr) {
-            result = globalRole->GetGlobalMasterNode();
-        }
-    } else {
-        result = roleMgr.GetGlobalMasterId();
+    auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        result = globalRole->GetGlobalMasterNode();
     }
+
     return result;
 }
 
 UBSE_ID_TYPE Master::GetGlobalStandbyNode()
 {
     UBSE_ID_TYPE result = INVALID_NODE_ID;
-    auto& roleMgr = RoleMgr::GetInstance();
-
-    if (roleMgr.IsManagingGroup(groupId_)) {
-        auto globalRole = roleMgr.GetGlobalRole();
-        if (globalRole != nullptr) {
-            result = globalRole->GetGlobalStandbyNode();
-        }
-    } else {
-        result = roleMgr.GetGlobalStandbyId();
+    auto globalRole =RoleMgr::GetInstance().GetGlobalRole();
+    if (globalRole != nullptr) {
+        result = globalRole->GetGlobalStandbyNode();
     }
     return result;
 }

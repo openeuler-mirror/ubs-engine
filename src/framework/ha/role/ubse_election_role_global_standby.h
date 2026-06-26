@@ -21,6 +21,7 @@ public:
     ~GlobalStandby();
     void ProcTimer() override;
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
+    void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
     UBSE_ID_TYPE GetGlobalMasterNode() override;
     UBSE_ID_TYPE GetGlobalStandbyNode() override;
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
@@ -46,17 +47,20 @@ public:
         return globalTurnId_;
     }
 
+    InterGroupInfo GetCascadeGroupReport() override;
+
 private:
     uint64_t lastHeartTime_;
     UBSE_ID_TYPE globalMasterId_{};
     UBSE_ID_TYPE globalStandbyId_{};
     std::vector<UBSE_ID_TYPE> globalAgentIds_{};
+    std::string groupId_{};
     uint64_t globalTurnId_;
     uint8_t globalMasterStatus_ = 0;
+    InterGroupInfo cascadeGroupReport_;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
     void RegisterTimers();
-    void FillGroupRoleInfo(ElectionReplyPkt &reply);
 };
 }
 

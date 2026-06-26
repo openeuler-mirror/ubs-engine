@@ -80,16 +80,23 @@ uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionRe
         RecvPktForSelect(reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktForHeart(rcvPkt, reply);
-    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
-        reply.replyId = myselfID_;
-        reply.groupId = groupId_;
-        reply.masterId = masterId_;
-        reply.standbyId = standbyId_;
     } else {
         UBSE_LOG_WARN << "[ELECTION] Agent rcvPkt.type: " << rcvPkt.type << ".";
     }
 
     return 0;
+}
+
+void Agent::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER) {
+        replyInfo.groupId = groupId_;
+        replyInfo.nodeId = myselfID_;
+        replyInfo.groupMasterId = masterId_;
+        replyInfo.groupStandbyId = standbyId_;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] Agent rcvInterGroupInfo.type: " << rcvInfo.type << ".";
+    }
 }
 
 void Agent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)

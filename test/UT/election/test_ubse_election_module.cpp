@@ -197,6 +197,7 @@ TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_OK_WhenRegisterHttpHandler
     UbseElectionModule module;
     ubse::context::UbseContext::GetInstance().SetProcessMode(ubse::context::ProcessMode::MANAGER);
     MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionGroupInfoHandler::RegElectionGroupInfoHandler).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> taskModule =
         std::make_shared<task_executor::UbseTaskExecutorModule>();
     MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
@@ -255,6 +256,7 @@ TEST_F(TestUbseElectionModule, Start_ShouldReturnUBSE_ERROR_MODULE_LOAD_FAILED_W
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
     MOCKER_CPP_VIRTUAL(commMgr.get(), &ubse::election::UbseElectionCommMgr::Start).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseElectionPktHandler::RegElectionPktHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseElectionGroupInfoHandler::RegElectionGroupInfoHandler).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<task_executor::UbseTaskExecutorModule> nullTaskModule = nullptr;
     MOCKER(&UbseContext::GetModule<task_executor::UbseTaskExecutorModule>).stubs().will(returnValue(nullTaskModule));
     UbseResult result = module.Start();

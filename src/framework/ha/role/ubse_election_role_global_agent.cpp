@@ -29,7 +29,11 @@ GlobalAgent::GlobalAgent(RoleContext &ctx) : globalTurnId_(0), lastHeartTime_()
     myselfID_ = myself.id;
     globalMasterId_ = ctx.masterId;
     globalStandbyId_ = ctx.standbyId;
-    auto ret = GetBootTime(lastHeartTime_);
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] GetGroupId fail";
+    }
+    ret = GetBootTime(lastHeartTime_);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
@@ -145,15 +149,23 @@ void GlobalAgent::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &r
         reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
         globalAgentIds_ = rcvPkt.agentIds;
         reply.broadcast = static_cast<uint8_t>(NotifyStatus::BROADCAST);
+        reply.groupId = groupId_;
         auto groupRole = RoleMgr::GetInstance().GetRole();
         if (groupRole != nullptr) {
-            auto mountedMasters = groupRole->GetCascadeGroupMasters();
-            if (!mountedMasters.empty()) {
-                reply.mountedGroupMasterId = *mountedMasters.begin();
+            std::vector<UBSE_ID_TYPE> agentNodes = groupRole->GetAgentNodes();
+            reply.standbyId = groupRole->GetStandbyNode();
+            reply.masterId = groupRole->GetMasterNode();
+            if (reply.standbyId != INVALID_NODE_ID) {
+                reply.managingGroupNodeIds.push_back(reply.standbyId);
             }
-
-            reply.managingGroupNodeIds = groupRole->GetManagingGroupNodeIds();
-            reply.mountedGroupNodeIds = groupRole->GetCascadeGroupNodeIds();
+            if (reply.masterId != INVALID_NODE_ID) {
+                reply.managingGroupNodeIds.push_back(reply.masterId);
+            }
+            for (auto &node : agentNodes) {
+                if (node != reply.masterId && node != reply.standbyId) {
+                    reply.managingGroupNodeIds.push_back(node);
+                }
+            }
         }
         if (rcvPkt.standbyId == myselfID_) {
             RoleContext ctx;
@@ -250,5 +262,35 @@ bool GlobalAgent::IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const
     uint32_t maxAllowedHeartbeatInterval = heartbeatMultiplier * GetHeartTimeInterval();
     // 判断时间差是否超过了允许的最大间隔时间
     return timeSinceLastHeartbeat > maxAllowedHeartbeatInterval;
+}
+
+void GlobalAgent::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
+        cascadeGroupReport_ = rcvInfo;
+        UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
+
+        if (previousCascadeMasterId != currentCascadeMasterId) {
+            if (!previousCascadeMasterId.empty()) {
+                UBSE_LOG_INFO << "[ELECTION] Cascade group master offline: previousCascadeMasterId="
+                              << previousCascadeMasterId
+                              << ", currentCascadeMasterId=" << currentCascadeMasterId;
+                if (!g_globalStop.load()) {
+                    RoleMgr::GetInstance().RoleChangeNotifyAsync(
+                        UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
+                }
+            }
+        }
+
+        replyInfo.nodeId = myselfID_;
+        replyInfo.groupMasterId = globalMasterId_;
+        replyInfo.groupStandbyId = globalStandbyId_;
+    }
+}
+
+InterGroupInfo GlobalAgent::GetCascadeGroupReport()
+{
+    return cascadeGroupReport_;
 }
 } // namespace ubse::election

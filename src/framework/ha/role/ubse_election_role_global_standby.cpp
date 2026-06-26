@@ -35,6 +35,10 @@ GlobalStandby::GlobalStandby(RoleContext &ctx) : globalTurnId_(0), lastHeartTime
     globalStandbyId_ = myself.id;
     globalMasterId_ = ctx.masterId;
     globalTurnId_ = ctx.turnId;
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] GetGroupId fail";
+    }
     auto result = GetBootTime(lastHeartTime_);
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
@@ -120,19 +124,6 @@ uint32_t GlobalStandby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, El
     return 0;
 }
 
-void GlobalStandby::FillGroupRoleInfo(ElectionReplyPkt &reply)
-{
-    auto groupRole = RoleMgr::GetInstance().GetRole();
-    if (groupRole != nullptr) {
-        auto mountedMasters = groupRole->GetCascadeGroupMasters();
-        if (!mountedMasters.empty()) {
-            reply.mountedGroupMasterId = *mountedMasters.begin();
-        }
-        reply.managingGroupNodeIds = groupRole->GetManagingGroupNodeIds();
-        reply.mountedGroupNodeIds = groupRole->GetCascadeGroupNodeIds();
-    }
-}
-
 void GlobalStandby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
 {
     if (rcvPkt.masterId == globalMasterId_) {
@@ -148,7 +139,24 @@ void GlobalStandby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt 
             reply.replyId = globalStandbyId_;
             reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
             globalAgentIds_ = rcvPkt.agentIds;
-            FillGroupRoleInfo(reply);
+            reply.groupId = groupId_;
+            auto groupRole = RoleMgr::GetInstance().GetRole();
+            if (groupRole != nullptr) {
+                std::vector<UBSE_ID_TYPE> agentNodes = groupRole->GetAgentNodes();
+                reply.standbyId = groupRole->GetStandbyNode();
+                reply.masterId = groupRole->GetMasterNode();
+                if (reply.standbyId != INVALID_NODE_ID) {
+                    reply.managingGroupNodeIds.push_back(reply.standbyId);
+                }
+                if (reply.masterId != INVALID_NODE_ID) {
+                    reply.managingGroupNodeIds.push_back(reply.masterId);
+                }
+                for (auto &node : agentNodes) {
+                    if (node != reply.masterId && node != reply.standbyId) {
+                        reply.managingGroupNodeIds.push_back(node);
+                    }
+                }
+            }
             HandleGlobalMasterOnlineNotification(rcvPkt, reply);
         } else {
             RoleContext ctx;
@@ -220,5 +228,35 @@ bool GlobalStandby::IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) cons
     uint32_t maxAllowedHeartbeatInterval = heartbeatMultiplier * GetHeartTimeInterval();
     // 判断时间差是否超过了允许的最大间隔时间
     return timeSinceLastHeartbeat > maxAllowedHeartbeatInterval;
+}
+
+void GlobalStandby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
+        cascadeGroupReport_ = rcvInfo;
+        UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
+
+        if (previousCascadeMasterId != currentCascadeMasterId) {
+            if (!previousCascadeMasterId.empty()) {
+                UBSE_LOG_INFO << "[ELECTION] Cascade group master offline: previousCascadeMasterId="
+                              << previousCascadeMasterId
+                              << ", currentCascadeMasterId=" << currentCascadeMasterId;
+                if (!g_globalStop.load()) {
+                    RoleMgr::GetInstance().RoleChangeNotifyAsync(
+                        UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
+                }
+            }
+        }
+        // 回复全局主备
+        replyInfo.nodeId = globalStandbyId_;
+        replyInfo.groupMasterId = globalMasterId_;
+        replyInfo.groupStandbyId = globalStandbyId_;
+    }
+}
+
+InterGroupInfo GlobalStandby::GetCascadeGroupReport()
+{
+    return cascadeGroupReport_;
 }
 } // namespace ubse::election

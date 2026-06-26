@@ -31,6 +31,8 @@ public:
 
     virtual uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) = 0;
 
+    virtual void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo);
+
     virtual UBSE_ID_TYPE GetMasterNode();
 
     virtual UBSE_ID_TYPE GetStandbyNode();
@@ -56,11 +58,9 @@ public:
 
     virtual uint64_t GetTurnId() = 0;
 
-    virtual std::unordered_set<UBSE_ID_TYPE> GetCascadeGroupMasters();
+    virtual InterGroupInfo GetCascadeGroupReport();
 
-    virtual std::vector<UBSE_ID_TYPE> GetCascadeGroupNodeIds();
-
-    virtual std::vector<UBSE_ID_TYPE> GetManagingGroupNodeIds();
+    virtual std::vector<GroupTopology> GetManagingGroupNodeIds();
 
     static uint32_t GetHeartTimeInterval()
     {
