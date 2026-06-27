@@ -27,9 +27,46 @@ namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
 using namespace vm::mempooling;
 
+thread_local std::shared_ptr<BorrowCompletionState> g_tlsBorrowCompletionState;
 std::condition_variable StatusManager::migrateCv;
 std::condition_variable StatusManager::borrowCv;
 std::atomic_bool StatusManager::firstMigFlag(true);
+
+std::mutex StatusManager::g_inFlightBorrowMutex;
+std::map<std::string, std::shared_ptr<std::shared_future<VmResult>>> StatusManager::g_inFlightBorrowMap;
+std::mutex StatusManager::g_taskCvMutex;
+std::condition_variable StatusManager::g_taskCv;
+
+void StatusManager::SetBorrowCompletionState(std::shared_ptr<BorrowCompletionState> state)
+{
+    g_tlsBorrowCompletionState = std::move(state);
+}
+
+std::shared_ptr<BorrowCompletionState> StatusManager::GetAndClearBorrowCompletionState()
+{
+    return std::move(g_tlsBorrowCompletionState);
+}
+
+std::shared_ptr<std::shared_future<VmResult>> StatusManager::GetInFlightBorrowSharedFuture(const std::string& hostId,
+                                                                                           const int16_t& socketId,
+                                                                                           const int16_t& numaId)
+{
+    std::ostringstream oss;
+    oss << "\"" << hostId << "\"," << socketId << "," << numaId;
+    const std::string key = oss.str();
+    std::scoped_lock lock(g_inFlightBorrowMutex);
+    if (const auto it = g_inFlightBorrowMap.find(key); it != g_inFlightBorrowMap.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
+void StatusManager::WaitForTaskCompletion(const std::string& hostId, int16_t socketId, int16_t numaId)
+{
+    std::unique_lock lock(g_taskCvMutex);
+    g_taskCv.wait(lock, [&hostId, &socketId, &numaId]() { return !StillInTask(hostId, socketId, numaId); });
+}
+
 VmResult StatusManager::Init()
 {
     UBSE_LOG_INFO << "StatusManager::Init()";
@@ -358,9 +395,18 @@ void StatusManager::EscapeStrategyHandle(EscapeAction& escapeAction)
 }
 void StatusManager::WhetherEnterBorrowQueue(const EscapeAction& escapeAction)
 {
+    auto state = GetAndClearBorrowCompletionState();
     AddTaskFilterSet(escapeAction.curNodeLoc);
-    std::unique_lock<std::mutex> borrowLocLock(borrowMutex);
-    g_borrowQueue.push(escapeAction);
+
+    if (state) {
+        // Store shared_future in in-flight map for cross-OOM waiting
+        auto shFuture = std::make_shared<std::shared_future<VmResult>>(state->future);
+        std::scoped_lock lock(g_inFlightBorrowMutex);
+        g_inFlightBorrowMap[escapeAction.curNodeLoc.toString()] = std::move(shFuture);
+    }
+
+    std::unique_lock borrowLocLock(borrowMutex);
+    g_borrowQueue.push(BorrowTask{escapeAction, std::move(state)});
     UBSE_LOG_INFO << "Memory borrow information enqueues, borrow_queue_size = " << g_borrowQueue.size();
     UBSE_LOG_INFO << "start to notify borrowCv.";
     borrowCv.notify_all();
@@ -378,10 +424,11 @@ void StatusManager::BorrowQueueOperation()
         }
         UBSE_LOG_INFO << "[borrow] notify borrowCv.";
 
-        auto [actionType, strategyTips, curNodeLoc, returnMemNames, borrowSizes] = g_borrowQueue.front();
+        auto [action, completionState] = std::move(g_borrowQueue.front());
         g_borrowQueue.pop();
         UBSE_LOG_INFO << "[borrow] Memory borrow information is dequeued, borrow_queue_size = " << g_borrowQueue.size();
 
+        auto& [actionType, strategyTips, curNodeLoc, returnMemNames, borrowSizes] = action;
         std::lock_guard lockGuard(ResourceCollect::mAllLock);
         std::vector<pid_t> pids = ResourceCollect.GetPidsOnNuma(curNodeLoc, "withOutMigrating");
         if (pids.empty()) {
@@ -389,10 +436,19 @@ void StatusManager::BorrowQueueOperation()
             UBSE_LOG_WARN << "[borrow] pid is empty.";
             continue;
         }
+        VmResult borrowResult = VM_OK;
         VmTaskCounter::StartTask("memoryBorrow");
         MemoryBorrowOperation(curNodeLoc, pids, borrowSizes);
         RemoveTaskFilterSet(curNodeLoc);
         VmTaskCounter::CompleteTask("memoryBorrow");
+        if (completionState) {
+            completionState->promise.set_value(borrowResult);
+        }
+        // Clean up in-flight borrow map
+        {
+            std::scoped_lock lock(g_inFlightBorrowMutex);
+            g_inFlightBorrowMap.erase(curNodeLoc.toString());
+        }
     }
 }
 
@@ -404,8 +460,11 @@ void StatusManager::AddTaskFilterSet(const VMNodeLocInfo& nodeLocInfo)
 
 void StatusManager::RemoveTaskFilterSet(const VMNodeLocInfo& nodeLocInfo)
 {
-    WriteLocker lock(&taskFilterSetLock_);
-    g_taskFilterSet.erase(nodeLocInfo.toString());
+    {
+        WriteLocker lock(&taskFilterSetLock_);
+        g_taskFilterSet.erase(nodeLocInfo.toString());
+    }
+    g_taskCv.notify_all();
 }
 
 bool StatusManager::StillInTask(const std::string& hostId, const int16_t& socketId, const int16_t& numaId)

@@ -15,12 +15,15 @@
 #define VM_ALARM_HANDLER_H
 
 #include <ubse_mem_controller.h>
+#include <ubse_ras.h>
 
 #include "mem_handler.h"
 #include "vm_struct.h"
 
 namespace vm {
 using namespace ubse::mem::controller;
+const uint16_t HUGE_PAGE_OOM = 2;
+const uint16_t DEFAULT_ASYNC_MIGRATE_WAIT_SECONDES = 10;
 
 struct UbsVirtNumaMemoryDebtInfo : UbseNumaMemoryImportDebtInfo {
     int16_t numaId;
@@ -46,6 +49,7 @@ public:
     static VmResult AlarmEventHandler(AlarmNumaInfo& alarmNumaInfo, std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
                                       WatermarkWarningType eventType);
     static VmResult MemNotifyEventHandler(std::string& eventId, std::string& eventMessage);
+    static VmResult OomEventHandler(const Notify& notify);
 
 private:
     AlarmHandler() = default;
@@ -63,7 +67,14 @@ private:
                                      AlarmNumaInfo& alarmNumaInfo);
     static VmResult ConvertUbseDebtInfosToVirtDebtInfos(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos,
                                                         std::vector<UbsVirtNumaMemoryDebtInfo>& virtDebtInfos);
-    static VmResult ParseOomMessage(const std::string& eventMessage, Notify& notify);
+
+    // RAS fault handler adapter for OOM events
+    static uint32_t OomAdapter(ubse::ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
+
+    // Process OOM escape actions (debt infos → alarm info → dispatch → wait for result)
+    static VmResult ProcessOomActions(const Notify& notify);
+    static VmResult ParseOomMsg(const std::string& input, uint16_t& numaCount, std::vector<uint16_t>& numaIds,
+                                uint8_t& reason);
 };
 } // namespace vm
 #endif // VM_ALARM_HANDLER_H

@@ -252,14 +252,8 @@ VmResult MemHandler::TransNotify(const std::string& notifyMessage, Notify& notif
         UBSE_LOG_ERROR << "Invalid JSON format, notifyMessage=" << notifyMessage;
         return VM_ERROR;
     }
-    uint32_t ret = msgJson.HasMember("waterNotify") && msgJson["waterNotify"].IsBool();
-    if (!ret) {
-        notify.waterNotify = false;
-        UBSE_LOG_INFO << "A Notify message may be from memory, message=" << notifyMessage;
-        return VM_OK;
-    }
     std::string nodeId;
-    ret = VMJsonUtil::GetString(msgJson, "nodeId", nodeId);
+    auto ret = VMJsonUtil::GetString(msgJson, "nodeId", nodeId);
     notify.nodeId = nodeId;
     double numVal = 0;
     ret |= VMJsonUtil::GetNumber(msgJson, "percent", numVal);
