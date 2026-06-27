@@ -252,4 +252,8 @@ UbseResult UbseMtiInterfaceDefault::UbseQueryInterfaceEtsProfile(const std::stri
     return lcne::UbseLcneEts::GetInstance().QueryInterfaceEtsProfile(interfaceName, profileName);
 }
 
+UbseResult UbseMtiInterfaceDefault::UbseSaveEtsProfile()
+{
+    return lcne::UbseLcneEts::GetInstance().SaveEtsProfile();
+}
 } // namespace ubse::adapter_plugins::mti

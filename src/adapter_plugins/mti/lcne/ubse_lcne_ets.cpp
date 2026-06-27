@@ -29,10 +29,12 @@ using namespace ubse::adapter_plugins::mti;
 
 const std::string LCNE_ETS_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles";
 const std::string LCNE_ETS_INTERFACE_URI = "/restconf/data/huawei-ifm:ifm/interfaces/interface";
+const std::string LCNE_ETS_SAVE_URI = "/restconf/operations/cfg:save";
 const std::string LCNE_ETS_APPLICATION_SUFFIX = "/huawei-ub-qos:ub-qos/ets-application";
 const std::string LCNE_ETS_YANG_DATA_XML = "application/yang-data+xml";
 const std::string LCNE_ETS_XML = "application/xml";
 const std::string LCNE_ETS_XML_NS = "urn:huawei:yang:huawei-ub-qos";
+const std::string LCNE_ETS_SAVE_XML_NS = "urn:huawei:yang:huawei-cfg";
 const std::string LCNE_ETS_SCHEDULE_MODE_DWRR = "dwrr";
 const std::string LCNE_ETS_SCHEDULE_MODE_SP = "sp";
 
@@ -595,6 +597,51 @@ UbseResult UbseLcneEts::QueryInterfaceEtsProfile(const std::string& interfaceNam
         return UBSE_ERROR;
     }
     return ParseInterfaceEtsProfileResponse(rsp.body, profileName);
+}
+
+UbseResult UbseLcneEts::BuildSaveEtsProfileXml(std::string& xmlStr)
+{
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create();
+    if (ubseXml == nullptr) {
+        UBSE_LOG_ERROR << "[MTI] Make xml pointer failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    ubseXml->AddNode("save");
+    ubseXml->Attr("xmlns", LCNE_ETS_SAVE_XML_NS);
+    const std::string saveFileName = "startup.zip";
+    const std::string shareableMode = "default";
+    AddTextNode(ubseXml, "filename", saveFileName);
+    AddTextNode(ubseXml, "shareable-mode", shareableMode);
+    ubseXml->Printer(xmlStr);
+    return UBSE_OK;
+}
+
+UbseResult UbseLcneEts::SaveEtsProfile()
+{
+    UbseHttpRequest req;
+    UbseHttpResponse rsp;
+
+    req.method = "POST";
+    req.path = LCNE_ETS_SAVE_URI;
+    std::string body;
+    auto ret = BuildSaveEtsProfileXml(body);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[MTI] BuildSaveEtsProfileXml failed.";
+        return ret;
+    }
+    req.body = body;
+
+    ret = SendEtsRequest(req, rsp);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK) &&
+        rsp.status != static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT)) {
+        UBSE_LOG_ERROR << "[MTI] SaveEtsProfile HTTP status error. Status: " << rsp.status;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
 }
 
 UbseResult UbseLcneEts::BuildEtsProfileXml(const UbseMtiEtsProfile& etsProfile, std::string& xmlStr)

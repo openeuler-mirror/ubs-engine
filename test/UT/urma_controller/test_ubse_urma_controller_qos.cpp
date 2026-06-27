@@ -15,7 +15,9 @@
 #include "ubse_node_com_urma_collector.h"
 #include "ubse_node_controller.h"
 #include "ubse_smbios.h"
+#define private public
 #include "ubse_urma_controller_qos.h"
+#undef private
 
 namespace ubse::urmaControllerQos::ut {
 
@@ -130,17 +132,6 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ClassifyAppliedEtsInterfaces)
     EXPECT_EQ(targetNames.size(), 1);
 }
 
-TEST_F(TestUbseUrmaControllerQos, EtsTemplate_InitQosEtsRetry)
-{
-    ubse::context::g_globalStop = true;
-    EtsTemplate tmpl;
-    EXPECT_EQ(tmpl.InitQosEtsRetry(), UBSE_OK);
-    ubse::context::g_globalStop = false;
-
-    tmpl.SetEtsProfileState(EtsQosProfileState::ETS_PROFILE_APPLIED);
-    EXPECT_EQ(tmpl.InitQosEtsRetry(), UBSE_OK);
-}
-
 TEST_F(TestUbseUrmaControllerQos, EtsTemplate_GetAllUbInterfaceNameFromMti)
 {
     std::vector<PhysicalLink> links{{.interfaceName = "eth0"}, {.interfaceName = "eth1"}};
@@ -160,7 +151,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_QueryInterfacesError)
     auto& mti = GetMti();
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile).stubs().will(returnValue(UBSE_ERROR));
     EtsTemplate tmpl;
-    auto ret = tmpl.Delete();
+    auto ret = tmpl.TryDelete();
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -176,6 +167,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_NoMatchingInterfaces)
         .stubs()
         .with(outBound(applied))
         .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
     EtsTemplate tmpl;
     auto ret = tmpl.Delete();
@@ -196,7 +188,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_RemoveInterfaceFails)
         .will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsProfileFromInterface).stubs().will(returnValue(UBSE_ERROR));
     EtsTemplate tmpl;
-    auto ret = tmpl.Delete();
+    auto ret = tmpl.TryDelete();
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -222,7 +214,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_RemoveVlsFails)
         .will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsVlsFromProfile).stubs().will(returnValue(UBSE_ERROR));
     EtsTemplate tmpl;
-    auto ret = tmpl.Delete();
+    auto ret = tmpl.TryDelete();
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -251,7 +243,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_RemovePriorityGroupsFails)
         .stubs()
         .will(returnValue(UBSE_ERROR));
     EtsTemplate tmpl;
-    auto ret = tmpl.Delete();
+    auto ret = tmpl.TryDelete();
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -280,6 +272,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Delete_Success)
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsPriorityGroupsFromProfile)
         .stubs()
         .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     EtsTemplate tmpl;
     auto ret = tmpl.Delete();
     EXPECT_EQ(ret, UBSE_OK);
@@ -381,17 +374,17 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Query_Success)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseUrmaControllerQos, EtsTemplate_CreatePreset_InitInnerFails)
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ValidateAndPrepare_InitInnerFails)
 {
     auto& mti = GetMti();
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile).stubs().will(returnValue(UBSE_ERROR));
     EtsTemplate tmpl;
     std::vector<EtsQosConfig> configs;
-    auto ret = tmpl.CreatePreset(configs);
+    auto ret = tmpl.ValidateAndPrepare(configs);
     EXPECT_NE(ret, UBSE_OK);
 }
 
-TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Create_InitInnerFails)
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryCreate_InitInnerFails)
 {
     auto& mti = GetMti();
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile).stubs().will(returnValue(UBSE_ERROR));
@@ -399,7 +392,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Create_InitInnerFails)
     std::vector<EtsQosConfig> configs;
     EtsQosConfig cfg{.priority = EtsPriority::PRI_0, .bandwidth = 100};
     configs.push_back(cfg);
-    auto ret = tmpl.Create(configs);
+    auto ret = tmpl.TryCreate(configs);
     EXPECT_NE(ret, UBSE_OK);
 }
 
@@ -409,7 +402,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_CreateEtsProfileIfNotExist)
     EtsTemplate tmpl;
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(false), UBSE_OK);
+    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(), UBSE_OK);
     GlobalMockObject::verify();
 
     UbseMtiEtsProfile profile{.profileName = ETS_QOS_PROFILE_NAME};
@@ -417,11 +410,11 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_CreateEtsProfileIfNotExist)
         .stubs()
         .with(_, outBound(profile))
         .will(returnValue(UBSE_OK));
-    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(false), UBSE_OK);
+    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(), UBSE_OK);
     GlobalMockObject::verify();
 
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(false), UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
+    EXPECT_EQ(tmpl.CreateEtsProfileIfNotExist(), UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
 TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ApplyToRemainingPorts_Success)
@@ -432,7 +425,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ApplyToRemainingPorts_Success)
     std::set<std::string> allPorts{"eth0"};
     std::set<std::string> allApplied{"eth0"};
     std::set<std::string> targetApplied{"eth0"};
-    auto ret = tmpl.ApplyToRemainingPorts(false, allPorts, allApplied, targetApplied);
+    auto ret = tmpl.ApplyToRemainingPorts(allPorts, allApplied, targetApplied);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -445,7 +438,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ApplyToRemainingPorts_RemoveFromIn
     std::set<std::string> allPorts{"eth0"};
     std::set<std::string> allApplied{"eth0"};
     std::set<std::string> targetApplied{"eth1"}; // not in targetApplied
-    auto ret = tmpl.ApplyToRemainingPorts(false, allPorts, allApplied, targetApplied);
+    auto ret = tmpl.ApplyToRemainingPorts(allPorts, allApplied, targetApplied);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -475,7 +468,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ApplyToRemainingPorts_RemoveFails)
     std::set<std::string> allPorts{"eth0"};
     std::set<std::string> allApplied{"eth0"};
     std::set<std::string> targetApplied{};
-    auto ret = tmpl.ApplyToRemainingPorts(false, allPorts, allApplied, targetApplied);
+    auto ret = tmpl.ApplyToRemainingPorts(allPorts, allApplied, targetApplied);
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -487,7 +480,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ApplyToRemainingPorts_ApplyFails)
     std::set<std::string> allPorts{"eth0"};
     std::set<std::string> allApplied{};
     std::set<std::string> targetApplied{};
-    auto ret = tmpl.ApplyToRemainingPorts(false, allPorts, allApplied, targetApplied);
+    auto ret = tmpl.ApplyToRemainingPorts(allPorts, allApplied, targetApplied);
     EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
 }
 
@@ -511,6 +504,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Init)
         .stubs()
         .with(_, outBound(existingProfile))
         .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     EtsTemplate tmpl;
     EXPECT_EQ(tmpl.Init(), UBSE_OK);
     GlobalMockObject::verify();
@@ -529,6 +523,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Init)
         .stubs()
         .with(_, outBound(existingProfile))
         .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(tmpl.Init(), UBSE_OK);
 }
 
@@ -548,6 +543,7 @@ TEST_F(TestUbseUrmaControllerQos, EtsTemplate_Create_AllConditions)
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseApplyEtsProfileToInterface).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     EtsTemplate tmpl;
     std::vector<EtsQosConfig> configs;
     EtsQosConfig cfg{.priority = EtsPriority::PRI_0, .bandwidth = 100};
@@ -579,6 +575,7 @@ TEST_F(TestUbseUrmaControllerQos, UbseUrmaControllerQos_Init_Clos)
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseApplyEtsProfileToInterface).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
     auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosInit();
     EXPECT_EQ(ret, UBSE_OK);
@@ -610,6 +607,7 @@ TEST_F(TestUbseUrmaControllerQos, UbseUrmaControllerQos_Create_Success)
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseApplyEtsProfileToInterface).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     UbseUrmaControllerQos<EtsQosConfig>::GetInstance().qosTemplate_ = std::make_unique<EtsTemplate>();
     std::vector<EtsQosConfig> configs;
     EtsQosConfig cfg{.priority = EtsPriority::PRI_0, .bandwidth = 100};
@@ -643,6 +641,7 @@ TEST_F(TestUbseUrmaControllerQos, UbseUrmaControllerQos_Delete_Success)
     MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsPriorityGroupsFromProfile)
         .stubs()
         .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
     UbseUrmaControllerQos<EtsQosConfig>::GetInstance().qosTemplate_ = std::make_unique<EtsTemplate>();
     auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosDelete();
     EXPECT_EQ(ret, UBSE_OK);
@@ -677,6 +676,187 @@ TEST_F(TestUbseUrmaControllerQos, UbseUrmaControllerQos_Query_Success)
     UbseUrmaControllerQos<EtsQosConfig>::GetInstance().qosTemplate_ = std::make_unique<EtsTemplate>();
     std::vector<EtsQosConfig> configs;
     auto ret = UbseUrmaControllerQos<EtsQosConfig>::GetInstance().UbseUrmaQosQuery(configs);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryCreate_BothPriorities)
+{
+    auto& mti = GetMti();
+    // InitInner: no ports → create profile infra
+    std::vector<UbseMtiInterfaceEtsApplication> emptyApplied;
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(emptyApplied))
+        .will(returnValue(UBSE_OK));
+    std::vector<PhysicalLink> emptyLinks;
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodePorts)
+        .stubs()
+        .with(outBound(emptyLinks))
+        .will(returnValue(UBSE_OK));
+    // ValidateConfig: no existing profile → passes
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
+
+    EtsTemplate tmpl;
+    std::vector<EtsQosConfig> configs;
+    configs.push_back({.priority = EtsPriority::PRI_0, .bandwidth = 100});
+    configs.push_back({.priority = EtsPriority::PRI_1, .bandwidth = 200});
+    auto ret = tmpl.TryCreate(configs);
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryCreate_UbseCreateEtsProfileFails)
+{
+    auto& mti = GetMti();
+    // InitInner: all ports already applied → early return
+    std::vector<UbseMtiInterfaceEtsApplication> applied;
+    UbseMtiInterfaceEtsApplication app{.interfaceName = "eth0", .etsProfileName = ETS_QOS_PROFILE_NAME};
+    applied.push_back(app);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(applied))
+        .will(returnValue(UBSE_OK));
+    std::vector<PhysicalLink> links{{.interfaceName = "eth0"}};
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodePorts).stubs().with(outBound(links)).will(returnValue(UBSE_OK));
+    // ValidateConfig: no existing profile → passes
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
+    // TryCreate: UbseCreateEtsProfile fails
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_ERROR));
+
+    EtsTemplate tmpl;
+    std::vector<EtsQosConfig> configs;
+    configs.push_back({.priority = EtsPriority::PRI_0, .bandwidth = 100});
+    auto ret = tmpl.TryCreate(configs);
+    EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryCreate_UbseSaveEtsProfileFails)
+{
+    auto& mti = GetMti();
+    // InitInner: all ports already applied → early return
+    std::vector<UbseMtiInterfaceEtsApplication> applied;
+    UbseMtiInterfaceEtsApplication app{.interfaceName = "eth0", .etsProfileName = ETS_QOS_PROFILE_NAME};
+    applied.push_back(app);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(applied))
+        .will(returnValue(UBSE_OK));
+    std::vector<PhysicalLink> links{{.interfaceName = "eth0"}};
+    MOCKER_CPP(&UbseNodeComUrmaCollector::GetCurNodePorts).stubs().with(outBound(links)).will(returnValue(UBSE_OK));
+    // ValidateConfig: no existing profile → passes
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile).stubs().will(returnValue(UBSE_MTI_ERROR_NOT_EXIST));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseCreateEtsProfile).stubs().will(returnValue(UBSE_OK));
+    // TryCreate: UbseSaveEtsProfile fails
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_ERROR));
+
+    EtsTemplate tmpl;
+    std::vector<EtsQosConfig> configs;
+    configs.push_back({.priority = EtsPriority::PRI_0, .bandwidth = 100});
+    auto ret = tmpl.TryCreate(configs);
+    EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryDelete_NoVls)
+{
+    auto& mti = GetMti();
+    std::vector<UbseMtiInterfaceEtsApplication> applied;
+    UbseMtiInterfaceEtsApplication app{.interfaceName = "iface", .etsProfileName = ETS_QOS_PROFILE_NAME};
+    applied.push_back(app);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(applied))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsProfileFromInterface).stubs().will(returnValue(UBSE_OK));
+    // Profile with priority groups but no VLs
+    UbseMtiEtsProfile profile;
+    profile.profileName = ETS_QOS_PROFILE_NAME;
+    profile.priorityGroups.resize(1);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile)
+        .stubs()
+        .with(_, outBound(profile))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsPriorityGroupsFromProfile)
+        .stubs()
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
+
+    EtsTemplate tmpl;
+    auto ret = tmpl.TryDelete();
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryDelete_NoPriorityGroups)
+{
+    auto& mti = GetMti();
+    std::vector<UbseMtiInterfaceEtsApplication> applied;
+    UbseMtiInterfaceEtsApplication app{.interfaceName = "iface", .etsProfileName = ETS_QOS_PROFILE_NAME};
+    applied.push_back(app);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(applied))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsProfileFromInterface).stubs().will(returnValue(UBSE_OK));
+    // Profile with VLs but no priority groups
+    UbseMtiEtsProfile profile;
+    profile.profileName = ETS_QOS_PROFILE_NAME;
+    profile.vls.resize(1);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile)
+        .stubs()
+        .with(_, outBound(profile))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsVlsFromProfile).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_OK));
+
+    EtsTemplate tmpl;
+    auto ret = tmpl.TryDelete();
+    EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_TryDelete_UbseSaveEtsProfileFails)
+{
+    auto& mti = GetMti();
+    std::vector<UbseMtiInterfaceEtsApplication> applied;
+    UbseMtiInterfaceEtsApplication app{.interfaceName = "iface", .etsProfileName = ETS_QOS_PROFILE_NAME};
+    applied.push_back(app);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryAllInterfaceEtsProfile)
+        .stubs()
+        .with(outBound(applied))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsProfileFromInterface).stubs().will(returnValue(UBSE_OK));
+    UbseMtiEtsProfile profile;
+    profile.profileName = ETS_QOS_PROFILE_NAME;
+    profile.vls.resize(1);
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile)
+        .stubs()
+        .with(_, outBound(profile))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseRemoveEtsVlsFromProfile).stubs().will(returnValue(UBSE_OK));
+    // TryDelete: UbseSaveEtsProfile fails
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseSaveEtsProfile).stubs().will(returnValue(UBSE_ERROR));
+
+    EtsTemplate tmpl;
+    auto ret = tmpl.TryDelete();
+    EXPECT_EQ(ret, UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED);
+}
+
+TEST_F(TestUbseUrmaControllerQos, EtsTemplate_ValidateConfig_ConfigMatchProfile)
+{
+    auto& mti = GetMti();
+    UbseMtiEtsProfile profile;
+    profile.profileName = ETS_QOS_PROFILE_NAME;
+    profile.priorityGroups.resize(1);
+    profile.priorityGroups[0].priorityGroupId = 0;
+    profile.priorityGroups[0].cir = 100;
+    MOCKER_CPP_VIRTUAL(mti, &UbseMtiInterface::UbseQueryEtsProfile)
+        .stubs()
+        .with(_, outBound(profile))
+        .will(returnValue(UBSE_OK));
+
+    EtsTemplate tmpl;
+    std::vector<EtsQosConfig> configs;
+    configs.push_back({.priority = EtsPriority::PRI_0, .bandwidth = 100});
+    auto ret = tmpl.ValidateConfig(configs);
     EXPECT_EQ(ret, UBSE_OK);
 }
 
