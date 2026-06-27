@@ -264,29 +264,6 @@ TEST_F(TestUbseRasOomHandler, SmapUrgentMigrateOutWhenFuncNull)
     smapUrgentMigrateOutFunc = savedFunc;
 }
 
-// ==================== InitOomHandler 测试 ====================
-
-TEST_F(TestUbseRasOomHandler, InitOomHandlerWhenDlopenFail)
-{
-    void* nullHandle = static_cast<void*>(nullptr);
-    MOCKER_CPP(dlopen).stubs().will(returnValue(nullHandle));
-    MOCKER_CPP(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    auto ret = InitOomHandler();
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseRasOomHandler, InitOomHandlerWhenDlsymFail)
-{
-    void* dummyHandle = reinterpret_cast<void*>(0x1);
-    void* nullSym = static_cast<void*>(nullptr);
-    MOCKER_CPP(dlopen).stubs().will(returnValue(dummyHandle));
-    MOCKER_CPP(dlsym).stubs().will(returnValue(nullSym));
-    MOCKER_CPP(dlclose).stubs().will(returnValue(0));
-    MOCKER_CPP(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
-    auto ret = InitOomHandler();
-    ASSERT_EQ(ret, UBSE_ERROR);
-}
-
 // ==================== OomHandler 其他路径测试 ====================
 
 TEST_F(TestUbseRasOomHandler, OomHandlerInvalidFormat)

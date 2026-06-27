@@ -207,6 +207,7 @@
 #define UBSE_RAS_ERROR_SWITCHING_ROLE UBSE_INTERNAL_ERROR_DEF(608)             /* 主备倒换中 */
 #define UBSE_RAS_ERROR_SET_FAULT_EVENT_ON UBSE_INTERNAL_ERROR_DEF(609)         /* 打开故障事件开关失败 */
 #define UBSE_RAS_ERROR_SET_SENTRY_REPORTER UBSE_INTERNAL_ERROR_DEF(610)        /* 向sysSentry配置EID失败 */
+#define UBSE_RAS_ERROR_FAULT_PENDING_EXIST UBSE_INTERNAL_ERROR_DEF(611)        /* 故障正在被其它线程处理 */
 
 /* ====================== MMI错误码 (10700~10799) ====================== */
 #define UBSE_MMI_OBMM_OP_FAILED UBSE_INTERNAL_ERROR_DEF(700)  /* OBMM 接口调用失败 */

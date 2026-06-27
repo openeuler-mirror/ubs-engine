@@ -315,50 +315,6 @@ UbseResult ForwardOomEventToManager(uint64_t memNeed, NumaId oomNumaId)
     return response->GetErrCode();
 }
 
-UbseResult InitOomHandler()
-{
-    std::vector<__u32> caps{CAP_DAC_OVERRIDE};
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    static constexpr auto obmmPath = "libubturbo_client.so";
-    void* handle = dlopen(obmmPath, RTLD_NOW); // 生命周期与进程一致,进程结束后释放
-    if (handle == nullptr) {
-        UBSE_LOG_WARN << "Dlopen libubturbo_client.so failed, error is " << dlerror();
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-        return UBSE_ERROR;
-    }
-
-    smapUrgentMigrateOutFunc = reinterpret_cast<SmapUrgentMigrateOutPtr>(
-        dlsym(handle, "ubturbo_smap_urgent_migrate_out")); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
-    UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-    if (smapUrgentMigrateOutFunc == nullptr) {
-        UBSE_LOG_ERROR << "Dlopen SmapUrgentMigrateOut failed " << dlerror();
-        dlclose(handle);
-        return UBSE_ERROR;
-    }
-    auto ret = RegisterAlarmFaultHandler({ALARM_OOM_EVENT, "oom_handle", OomHandler});
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register alarm fault oom failed, " << FormatRetCode(ret);
-        dlclose(handle);
-        smapUrgentMigrateOutFunc = nullptr;
-        return ret;
-    }
-    auto comModulePtr = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (comModulePtr == nullptr) {
-        UBSE_LOG_ERROR << "Get com module failed. ";
-        dlclose(handle);
-        smapUrgentMigrateOutFunc = nullptr;
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseComBaseMessageHandlerPtr ubseOomHandlerPtr = new (std::nothrow) UbseOomHandler();
-    ret = comModulePtr->RegRpcService<UbseRasOomMessage, UbseRasOomMessage>(ubseOomHandlerPtr);
-    if (ret != UBSE_OK) {
-        dlclose(handle);
-        smapUrgentMigrateOutFunc = nullptr;
-        UBSE_LOG_ERROR << "Reg rpc service fail, " << FormatRetCode(ret);
-    }
-    return ret;
-}
-
 static long GetMillisecondsTime()
 {
     auto now = std::chrono::system_clock::now();
