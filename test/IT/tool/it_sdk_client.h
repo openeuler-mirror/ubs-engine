@@ -27,6 +27,7 @@
 #include "it_cli_invoker.h"
 #include "ubs_engine.h"
 #include "ubs_engine_mem.h"
+#include "ubs_engine_npu.h"
 #include "ubs_engine_topo.h"
 #include "ubs_error.h"
 
@@ -84,6 +85,13 @@ public:
     int32_t MemShmDelete(const char* name);
     int32_t MemShmGet(const char* name, ubs_mem_shm_desc_t** shmDesc);
     int32_t MemShmList(ubs_mem_shm_desc_t** shmDescs, uint32_t* shmDescCnt);
+    // --- NPU APIs ---
+    int32_t NpuDeviceListQuery(ubs_ub_devices_list_t* deviceList);
+    int32_t NpuDeviceAlloc(ubs_ub_alloc_devices_info_t* allocInfo, uint8_t* newBusInstanceGuid,
+                           ubs_ub_devices_list_t* deviceList);
+    int32_t NpuDeviceFree(ubs_ub_alloc_devices_info_t* allocInfo);
+    void NpuDeviceListFree(ubs_ub_devices_list_t* deviceList);
+    int32_t UbaTidSizeQuery(uint8_t* busInstanceGuid, uint32_t* tid, uint64_t* uba, uint64_t* size);
 
     const std::string& GetUdsPath() const;
     const std::string& GetLogDir() const;

@@ -257,6 +257,45 @@ int32_t ItSdkClient::MemShmList(ubs_mem_shm_desc_t** shmDescs, uint32_t* shmDesc
     return InvokeSdk([&]() { return ubs_mem_shm_list(shmDescs, shmDescCnt); });
 }
 
+// --- NPU APIs ---
+int32_t ItSdkClient::NpuDeviceListQuery(ubs_ub_devices_list_t* deviceList)
+{
+    if (!initialized_) {
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    return ubs_npu_device_list_query(deviceList);
+}
+
+int32_t ItSdkClient::NpuDeviceAlloc(ubs_ub_alloc_devices_info_t* allocInfo, uint8_t* newBusInstanceGuid,
+                                     ubs_ub_devices_list_t* deviceList)
+{
+    if (!initialized_) {
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    return ubs_npu_device_alloc(allocInfo, newBusInstanceGuid, deviceList);
+}
+
+int32_t ItSdkClient::NpuDeviceFree(ubs_ub_alloc_devices_info_t* allocInfo)
+{
+    if (!initialized_) {
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    return ubs_npu_device_free(allocInfo);
+}
+
+void ItSdkClient::NpuDeviceListFree(ubs_ub_devices_list_t* deviceList)
+{
+    ubs_npu_device_list_free(deviceList);
+}
+
+int32_t ItSdkClient::UbaTidSizeQuery(uint8_t* busInstanceGuid, uint32_t* tid, uint64_t* uba, uint64_t* size)
+{
+    if (!initialized_) {
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    return ubs_uba_tid_size_query(busInstanceGuid, tid, uba, size);
+}
+
 const std::string& ItSdkClient::GetUdsPath() const
 {
     return udsPath_;

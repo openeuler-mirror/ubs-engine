@@ -93,6 +93,7 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_node_controller_it_mock
         ubse_com_engine_it_mock
         ubse_capability_it_stub
+        ubse_npu_controller_it_mock
         -Wl,--no-whole-archive
         ubse_security
         ubse_context
@@ -175,6 +176,9 @@ foreach(module IN LISTS UBSE_IT_MODULES)
     endif()
     add_subdirectory(${IT_TESTS_DIR}/${module} ${CMAKE_BINARY_DIR}/test/IT/${module})
 endforeach()
+
+# NPU test subdirectory
+add_subdirectory(npu)
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
 get_property(IT_BINARIES GLOBAL PROPERTY UBSE_IT_BINARIES)
