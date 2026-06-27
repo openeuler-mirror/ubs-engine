@@ -985,12 +985,12 @@ uint32_t AddrReturnExistImport(UbseMemAddrBorrowImportObj& importObj, UbseMemAdd
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
         exportObj.isDestroyedReportReceived = false;
         auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
-        auto ret = SendAddrExportObj(exportObj, true, exportNodeId);
-        if (ret != UBSE_OK) {
+        if (auto ret = SendAddrExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
             BorrowFailedAdvice(ProcessType::RETURN_FAILED, name, "APP_PRI_BORROW", 0, exportNodeId, requestNodeId, ret,
                                MemAdvice::COMM_FAILED);
+            return DealSendAddrUnExportObjFailed(resp, name, exportObj);
         }
-        return ret;
+        return UBSE_OK;
     }
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
@@ -1081,12 +1081,12 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq& req, UbseMemOperationResp& re
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
         exportObj.isDestroyedReportReceived = false;
-        auto ret = SendAddrExportObj(exportObj, true, exportObj.req.exportNodeId);
-        if (ret != UBSE_OK) {
+        if (auto ret = SendAddrExportObj(exportObj, true, exportObj.req.exportNodeId); ret != UBSE_OK) {
             BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_PRI_BORROW", 0, exportObj.req.exportNodeId,
                                req.requestNodeId, ret, MemAdvice::COMM_FAILED);
+            return DealSendAddrUnExportObjFailed(resp, req.name, exportObj);
         }
-        return ret;
+        return UBSE_OK;
     }
     return AddrReturnExistImport(importObj, exportObj, status.hasExport, req, resp);
 }

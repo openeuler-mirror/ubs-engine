@@ -1127,7 +1127,12 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq& req, UbseMemOperationR
     exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     exportObj.isDestroyedReportReceived = false;
-    return SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+    if (auto ret = SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId); ret != UBSE_OK) {
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "WATER_BORROW", 0, "", req.requestNodeId, ret,
+                           MemAdvice::COMM_FAILED);
+        return DealSendFdUnExportObjFailed(resp, req, req.name, exportObj);
+    }
+    return UBSE_OK;
 }
 
 uint32_t FdReturnExistImport(UbseMemFdBorrowImportObj& importObj, UbseMemFdBorrowExportObj& exportObj, bool hasExport,
@@ -1148,7 +1153,12 @@ uint32_t FdReturnExistImport(UbseMemFdBorrowImportObj& importObj, UbseMemFdBorro
         exportObj.req.requestId = req.requestId;
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
-        return SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+        if (auto ret = SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+            ret != UBSE_OK) {
+            DealSendFdUnExportObjFailed(resp, req, name, exportObj);
+            return UBSE_ERROR;
+        }
+        return UBSE_OK;
     }
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
@@ -1240,12 +1250,10 @@ uint32_t UbseMemFdReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp
     }
     result.exportObj.returnReq = req;
     result.importObj.returnReq = req;
-    uint32_t ret = UBSE_OK;
     if (!result.hasImport) {
-        ret = HandleSingleExportReturn(req, resp, result.exportObj);
-    } else {
-        ret = FdReturnExistImport(result.importObj, result.exportObj, result.hasExport, req, resp);
+        return HandleSingleExportReturn(req, resp, result.exportObj);
     }
+    uint32_t ret = FdReturnExistImport(result.importObj, result.exportObj, result.hasExport, req, resp);
     if (ret != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "WATER_BORROW", 0, "", req.importNodeId, ret,
                            MemAdvice::COMM_FAILED);

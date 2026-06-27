@@ -1109,7 +1109,12 @@ uint32_t NumaReturnExistImport(UbseMemNumaBorrowImportObj& importObj, bool hasEx
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
         exportObj.req.requestId = req.requestId;
-        return SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+        if (auto ret = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+            ret != UBSE_OK) {
+            DealSendNumaUnExportObjFailed(resp, name, exportObj);
+            return UBSE_ERROR;
+        }
+        return UBSE_OK;
     }
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
@@ -1139,7 +1144,12 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq& req, UbseMemOperationR
                                           "Single export failed get exportNumaInfos.", UBSE_ERR_INTERNAL,
                                           MemOperationType::NUMA_RETURN);
     }
-    return SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
+    if (auto ret = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId); ret != UBSE_OK) {
+        BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
+                           MemAdvice::COMM_FAILED);
+        return DealSendNumaUnExportObjFailed(resp, req.name, exportObj);
+    }
+    return UBSE_OK;
 }
 
 uint32_t CheckNumaReturn(const UbseMemReturnReq& req, UbseMemOperationResp& resp, UbseMemBorrowStatus& status,
@@ -1214,11 +1224,7 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq& req, UbseMemOperationResp& re
     exportObj.returnReq = req;
     importObj.returnReq = req;
     if (!status.hasImport) {
-        if (auto ret = HandleSingleExportReturn(req, resp, exportObj); ret != UBSE_OK) {
-            BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
-                               MemAdvice::COMM_FAILED);
-            return ret;
-        }
+        return HandleSingleExportReturn(req, resp, exportObj);
     }
     if (auto ret = NumaReturnExistImport(importObj, status.hasExport, exportObj, req, resp); ret != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::RETURN_FAILED, req.name, "APP_NUMA_BORROW", 0, "", req.requestNodeId, ret,
