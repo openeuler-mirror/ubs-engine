@@ -13,10 +13,12 @@
 #include "ubse_ras_handler.h"
 #include <dlfcn.h>
 #include <cctype>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <utility>
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
@@ -49,11 +51,17 @@ using namespace ubse::com;
 using namespace ubse::context;
 using namespace ubse::utils;
 
+struct HandlerResult {
+    ALARM_FAULT_TYPE alarmFaultType; // 故障类型
+    uint64_t timestamp;              // 记录时的时间戳
+    uint32_t retCode;                // 故障处理函数执行结果
+};
+
 // handler 执行结果缓存及其互斥锁，由下列存取函数统一保护：
 //   IsHandlerDone / SetHandlerResult / GetResultFromHandlersByMsg / ClearHandlerResult / ClearAllHandlerResults
-static std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_handlerResultMap{};
+static std::unordered_map<std::string, std::unordered_map<std::string, HandlerResult>>
+    g_handlerResultMap{}; // <msg, <handlerName, result>>
 static std::mutex g_handlerResultMutex;
-
 static bool IsHandlerDone(const std::string& msg, const std::string& handlerName)
 {
     std::lock_guard<std::mutex> lock(g_handlerResultMutex);
@@ -62,13 +70,20 @@ static bool IsHandlerDone(const std::string& msg, const std::string& handlerName
         return false;
     }
     auto handlerIt = msgIt->second.find(handlerName);
-    return handlerIt != msgIt->second.end() && handlerIt->second == UBSE_OK;
+    return handlerIt != msgIt->second.end() && handlerIt->second.retCode == UBSE_OK;
 }
 
-static void SetHandlerResult(const std::string& msg, const std::string& handlerName, uint32_t result)
+static uint64_t GetTimestamp()
+{
+    auto now = std::chrono::system_clock::now();
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count());
+}
+
+static void SetHandlerResult(ALARM_FAULT_TYPE faultType, const std::string& msg, const std::string& handlerName,
+                             uint32_t retCode)
 {
     std::lock_guard<std::mutex> lock(g_handlerResultMutex);
-    g_handlerResultMap[msg][handlerName] = result;
+    g_handlerResultMap[msg][handlerName] = {faultType, GetTimestamp(), retCode};
 }
 
 static UbseResult GetResultFromHandlersByMsg(const std::string& msg)
@@ -79,8 +94,8 @@ static UbseResult GetResultFromHandlersByMsg(const std::string& msg)
         return UBSE_OK;
     }
     for (const auto& result : msgIt->second) {
-        if (result.second != UBSE_OK) {
-            return static_cast<UbseResult>(result.second);
+        if (result.second.retCode != UBSE_OK) {
+            return static_cast<UbseResult>(result.second.retCode);
         }
     }
     return UBSE_OK;
@@ -92,6 +107,46 @@ static void ClearAllHandlerResults()
     g_handlerResultMap.clear();
 }
 
+constexpr uint64_t UBSE_RAS_FAULT_HANDLE_RESULT_EXPIRE_TIME_MS =
+    1000 * 60 * 10; // 故障结果过期时间，单位：MS，默认10分钟
+static void ClearExpiredHandlerResult()
+{
+    UBSE_LOG_INFO << "Start clear expired handler result";
+    std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+    auto now = GetTimestamp();
+    for (auto& msgResult : g_handlerResultMap) {
+        for (auto it = msgResult.second.begin(); it != msgResult.second.end();) {
+            if (now - it->second.timestamp > UBSE_RAS_FAULT_HANDLE_RESULT_EXPIRE_TIME_MS &&
+                it->second.alarmFaultType == ALARM_OOM_EVENT) { // 影响最小化，只清除OOM故障结果
+                UBSE_LOG_INFO << "Clear expired OOM handler result for msg: " << msgResult.first
+                              << ", handlerName: " << it->first;
+                it = msgResult.second.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    UBSE_LOG_INFO << "Finish clear expired handler result";
+}
+
+static void SubmitClearExpiredHandlerResult()
+{
+    auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
+    if (taskModule == nullptr) {
+        UBSE_LOG_ERROR << "Get task module failed";
+        return;
+    }
+    ubse::task_executor::UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_FAULT_HANDLE_THREAD_POOL);
+    if (executor == nullptr) {
+        UBSE_LOG_WARN << "Get oom fault handle thread pool executor failed";
+        return;
+    }
+    bool submitSuccess = executor->Execute([]() -> void { ClearExpiredHandlerResult(); });
+    if (!submitSuccess) {
+        UBSE_LOG_WARN << "Submit clear expired handler result task failed";
+        return;
+    }
+}
 struct DebtInfo {
     std::string name; // 资源名称标识
     std::string borrowNodeId;
@@ -499,49 +554,131 @@ UbseResult UbseRasHandler::HandleBMCFault(const std::string& info)
     return ReportAckToSysSentry(ALARM_REBOOT_ACK_EVENT, ackStr);
 }
 
-UbseResult UbseRasHandler::HandleOomFault(alarm_msg* msg)
+// OOM事件信息，从info字符串中解析得到
+struct OomEventInfo {
+    std::string msgId;     // 消息ID
+    int sync;              // 是否需要响应sysSentry
+    int reason;            // OOM原因，取值为2代表大页OOM
+    int nrNid;             // 触发OOM的NUMA节点ID数量
+    std::vector<int> nids; // NUMA节点ID列表
+};
+
+static std::vector<int> SplitNids(const std::string& nidStr)
 {
-    if (msg == nullptr) {
-        UBSE_LOG_ERROR << "msg is nullptr. ";
-        return UBSE_ERROR_NULLPTR;
-    }
-    std::string info(msg->pucParas);
-    {
-        std::regex pattern(R"(^(\d+)_\{nr_nid:(\d+),nid:\[(-?\d+(?:,-?\d+)*)\],)"
-                           R"(sync:(\d+),timeout:(\d+),reason:(\d+)\})");
-        std::smatch match;
-        if (!std::regex_match(info, match, pattern)) {
-            UBSE_LOG_ERROR << "The oom message format is invalid";
-            return UBSE_ERROR_INVAL;
+    std::vector<int> nids;
+    std::stringstream ss(nidStr);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+        try {
+            int nid = std::stoi(item);
+            if (nid >= 0) {
+                nids.push_back(nid);
+            }
+        } catch (const std::exception& e) {
+            UBSE_LOG_ERROR << "SplitNids exception=" << e.what();
         }
     }
-    std::vector<std::string> msgVec;
-    ubse::utils::Split(info, "_", msgVec);
-    uint64_t unusedMsgId;
-    if (msgVec.size() <= 1 || ConvertStrToUint64(msgVec[0], unusedMsgId) != UBSE_OK) {
-        UBSE_LOG_ERROR << "msg pucParas is invalid, msg=" << info;
-        return UBSE_ERROR_NULLPTR;
+    return nids;
+}
+
+// 从OOM info中解析出sync、reason、nr_nid、nid
+static UbseResult ParseOomEventInfo(const std::string& info, OomEventInfo& eventInfo)
+{
+    std::regex pattern(R"(^(\d+)_\{nr_nid:(\d+),nid:\[(-?\d+(?:,-?\d+)*)\],)"
+                       R"(sync:(\d+),timeout:(\d+),reason:(\d+)\})");
+    std::smatch match;
+    if (!std::regex_match(info, match, pattern)) {
+        UBSE_LOG_ERROR << "The oom message format is invalid, info=" << info;
+        return UBSE_ERROR_INVAL;
     }
-    std::string msgId = msgVec[0];
-    uint64_t validateMsgId; // 仅用于校验外部数据
-    if (ubse::utils::ConvertStrToUint64(msgId, validateMsgId) != UBSE_OK) {
+    constexpr uint32_t nrNidIdx = 2;
+    constexpr uint32_t nidArrayIdx = 3;
+    constexpr uint32_t syncIdx = 4;
+    constexpr uint32_t reasonIdx = 6;
+    UbseResult convertRet = UBSE_OK;
+    eventInfo.msgId = match[1].str();
+    uint64_t unusedMsgId;
+    if (ubse::utils::ConvertStrToUint64(eventInfo.msgId, unusedMsgId) != UBSE_OK) {
         UBSE_LOG_ERROR << "Invalid msg id, expect integer represented as a string";
         return UBSE_ERROR_INVAL;
     }
-    if (MsgIdHasBeenProcessed(msgId)) {
-        UBSE_LOG_INFO << "Fault msg is duplicated, and will skip, msgId=" << msgId;
-        return UBSE_RAS_ERROR_MSG_DUPLICATION;
+    convertRet |= ubse::utils::ConvertStrToInt(match[nrNidIdx].str(), eventInfo.nrNid);
+    eventInfo.nids = SplitNids(match[nidArrayIdx].str());
+    convertRet |= ubse::utils::ConvertStrToInt(match[syncIdx].str(), eventInfo.sync);
+    convertRet |= ubse::utils::ConvertStrToInt(match[reasonIdx].str(), eventInfo.reason);
+    if (convertRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to parse oom event info";
+        return UBSE_ERROR_INVAL;
     }
-    std::string timeval =
-        ",timesec:" + std::to_string(msg->AlarmTime.tv_sec) + ",timeusec:" + std::to_string(msg->AlarmTime.tv_usec);
-    auto index = info.size() - 1;
-    info.insert(index, timeval);
-    auto ret = ExecuteFaultHandler(ALARM_OOM_EVENT, info, msgId);
+    return UBSE_OK;
+}
+
+void UbseRasHandler::ExecuteFaultHandlerTask(ALARM_FAULT_TYPE faultType, const std::string& faultInfo,
+                                             const std::string& msgId, const std::string& faultId, bool needReportAck)
+{
+    UBSE_LOG_INFO << "ExecuteFaultHandlerTask, faultType=" << faultType << ", faultInfo=" << faultInfo
+                  << ", msgId=" << msgId << ", faultId=" << faultId
+                  << ", needReportAck=" << static_cast<int>(needReportAck);
+    if (!UbseRasHandler::GetInstance().AddPendingFaultId(faultId)) {
+        UBSE_LOG_INFO << "Fault is being processed by another thread, skip, faultId=" << faultId;
+        return;
+    }
+    auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(faultType, faultInfo, faultId);
     if (ret == UBSE_OK) {
-        AddProcessedMsgId(msgId);
+        UBSE_LOG_INFO << "Fault handle success, faultId=" << faultId;
+        // 完全处理成功后，响应sysSentry
+        std::string ackStr = msgId + "_" + std::to_string(ret);
+        if (needReportAck && ReportAckToSysSentry(faultType + 1, ackStr) != UBSE_OK) {
+            UBSE_LOG_WARN << "Report ack to sysSentry failed, msgId=" << msgId;
+        }
     }
-    std::string ackStr = msgId + "_" + std::to_string(ret);
-    return ReportAckToSysSentry(ALARM_OOM_ACK_EVENT, ackStr);
+    UBSE_LOG_INFO << "Fault handle end, ret=" << FormatRetCode(ret);
+    UbseRasHandler::GetInstance().DelPendingFaultId(faultId);
+}
+
+std::string BuildOomStrFromEventInfo(const OomEventInfo& eventInfo)
+{
+    // 格式为"nrNid_numa1_numa2_..._reason"
+    std::string oomStr = std::to_string(eventInfo.nids.size());
+    for (int nid : eventInfo.nids) {
+        oomStr += "_" + std::to_string(nid);
+    }
+    oomStr += "_" + std::to_string(eventInfo.reason);
+    return oomStr;
+}
+
+UbseResult UbseRasHandler::HandleOomFault(alarm_msg* msg)
+{
+    if (msg == nullptr) {
+        UBSE_LOG_ERROR << "msg is nullptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    std::string info(msg->pucParas);
+    OomEventInfo eventInfo;
+    if (ParseOomEventInfo(info, eventInfo) != UBSE_OK) {
+        UBSE_LOG_WARN << "Oom message format is invalid";
+        return UBSE_ERROR_INVAL;
+    }
+    std::string msgId = eventInfo.msgId;
+    auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<task_executor::UbseTaskExecutorModule>();
+    if (taskModule == nullptr) {
+        UBSE_LOG_ERROR << "Get task module failed";
+        return UBSE_ERROR;
+    }
+    ubse::task_executor::UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_FAULT_HANDLE_THREAD_POOL);
+    if (executor == nullptr) {
+        UBSE_LOG_WARN << "Get oom fault handle thread pool executor failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    const std::string oomStr = BuildOomStrFromEventInfo(eventInfo);
+    bool submitSuccess = executor->Execute([needReportAck = eventInfo.sync == 1, msgId, oomStr]() -> void {
+        UbseRasHandler::GetInstance().ExecuteFaultHandlerTask(ALARM_OOM_EVENT, oomStr, msgId, msgId, needReportAck);
+    });
+    if (!submitSuccess) {
+        UBSE_LOG_WARN << "Submit oom fault handler task failed, msgId=" << msgId;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
 }
 
 void SwitchRoleWhenMasterFault(std::string& faultInfo)
@@ -681,8 +818,6 @@ UbseResult UbseRasHandler::StartRasHandler()
         UBSE_LOG_ERROR << "Reg rpc service fail, " << FormatRetCode(ret);
         return ret;
     }
-    // 初始化oom处理流程
-    InitOomHandler();
     std::string eventId = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
     ret = UbseSubEvent(eventId, [](std::string& eventId, const std::string& eventMessage) {
         auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_NET_FAULT, eventMessage);
@@ -721,17 +856,17 @@ UbseResult UbseRasHandler::ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const
     auto handlersMap = faultHandlerMap[faultType];
     for (const auto& handlers : handlersMap) {
         for (const auto& handler : handlers.second) {
-            UBSE_LOG_DEBUG << "Handler execute, type=" << faultType << "; priority=" << static_cast<int>(handlers.first)
-                           << "; name=" << handler.first;
+            UBSE_LOG_INFO << "Handler execute, type=" << faultType << "; priority=" << static_cast<int>(handlers.first)
+                          << "; name=" << handler.first;
             if (IsHandlerDone(msg, handler.first)) {
-                UBSE_LOG_DEBUG << "Handler " << handler.first << " is already done. ";
+                UBSE_LOG_INFO << "Handler " << handler.first << " is already done. ";
                 continue;
             }
             if (handler.second == nullptr) {
                 continue;
             }
             auto retTmp = handler.second(faultType, faultInfo);
-            SetHandlerResult(msg, handler.first, retTmp);
+            SetHandlerResult(faultType, msg, handler.first, retTmp);
             UBSE_LOG_INFO << "Handler execute finished, type=" << faultType << "; name=" << handler.first
                           << "; priority=" << static_cast<int>(handlers.first) << "; result=" << retTmp;
         }
@@ -897,20 +1032,54 @@ UbseResult UbseRasHandler::CallNodeHandle(const NodeHandlerType& handlerType, co
     return UBSE_OK;
 }
 
-void UbseRasHandler::AddProcessedMsgId(const std::string& msgId)
-{
-    processedMsgId.insert(msgId);
-}
-
 void UbseRasHandler::ClearAllMsgId()
 {
     UBSE_LOG_INFO << "Clear all processed msg id";
-    processedMsgId.clear();
     ClearAllHandlerResults();
 }
 
-bool UbseRasHandler::MsgIdHasBeenProcessed(const std::string& msgId) const
+bool UbseRasHandler::IsPendingFaultExisted(const std::string& faultId)
 {
-    return processedMsgId.find(msgId) != processedMsgId.end();
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&pendingFaultIdLock);
+    return pendingFaultId.find(faultId) != pendingFaultId.end();
 }
+
+bool UbseRasHandler::AddPendingFaultId(const std::string& faultId)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&pendingFaultIdLock);
+    if (pendingFaultId.find(faultId) != pendingFaultId.end()) {
+        UBSE_LOG_WARN << "Add pending fault id failed, faultId=" << faultId << ", it has been added";
+        return false;
+    }
+    pendingFaultId.insert(faultId);
+    UBSE_LOG_INFO << "Add pending fault id success, faultId=" << faultId;
+    return true;
+}
+
+void UbseRasHandler::DelPendingFaultId(const std::string& faultId)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&pendingFaultIdLock);
+    pendingFaultId.erase(faultId);
+    UBSE_LOG_INFO << "Delete pending fault id success, faultId=" << faultId;
+}
+
+UbseResult UbseRasHandler::RegisterFaultHandleResultClearTimer()
+{
+    UBSE_LOG_INFO << "Register fault handle result clean timer";
+    const uint32_t cleanInterval = 5 * 60; // 故障结果清理间隔，单位: 秒，默认5分钟
+    auto ret = ubse::timer::UbseTimerHandlerRegister(
+        UBSE_RAS_FAULT_HANDLE_RESULT_CLEAN_TIMER,
+        []() -> UbseResult {
+            if (g_globalStop) {
+                UBSE_LOG_INFO << "detect global stop flag, will stop fault handle result clean timer";
+                ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_FAULT_HANDLE_RESULT_CLEAN_TIMER);
+                return UBSE_OK;
+            }
+            SubmitClearExpiredHandlerResult();
+            return UBSE_OK;
+        },
+        cleanInterval);
+    return ret;
+}
+
 } // namespace ubse::ras

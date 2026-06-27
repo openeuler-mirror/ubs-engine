@@ -29,6 +29,8 @@ using NodeHandler = std::function<UbseResult(const std::string& nodeId)>;
 
 constexpr std::array<char, 11> SPECIAL_CHAR_WHITE_LIST{'_', '{', '}', '\'', '\"', ':', '[', ']', ',', ' ', '-'};
 
+const std::string UBSE_RAS_FAULT_HANDLE_THREAD_POOL = "ubse_ras_fault_handle_thread_pool";
+const std::string UBSE_RAS_FAULT_HANDLE_RESULT_CLEAN_TIMER = "ubse_ras_fault_handle_result_clean_timer";
 inline bool IsAllowedSpecialChar(char ch)
 {
     return std::find(SPECIAL_CHAR_WHITE_LIST.begin(), SPECIAL_CHAR_WHITE_LIST.end(), ch) !=
@@ -118,20 +120,17 @@ public:
     UbseResult CallNodeHandle(const NodeHandlerType& handlerType, const std::string& nodeId);
 
     /**
-     * 记录成功处理故障的msgId
-     * @param msgId 故障对应的msgId
-     */
-    void AddProcessedMsgId(const std::string& msgId);
-
-    /**
       * sysSentry内核重插时，清除所有msgId
       */
     void ClearAllMsgId();
 
-    /**
-       * 给定msgId，判断是否已处理过
-       */
-    bool MsgIdHasBeenProcessed(const std::string& msgId) const;
+    bool IsPendingFaultExisted(const std::string& faultId);
+
+    bool AddPendingFaultId(const std::string& faultId);
+
+    void DelPendingFaultId(const std::string& faultId);
+
+    UbseResult RegisterFaultHandleResultClearTimer();
 
 private:
     /*
@@ -169,12 +168,16 @@ private:
     UbseResult ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string& faultInfo, const std::string& msg);
     UbseResult ExecuteFaultHandler(ALARM_FAULT_TYPE faultType, const std::string& faultInfo);
 
+    void ExecuteFaultHandlerTask(ALARM_FAULT_TYPE faultType, const std::string& faultInfo, const std::string& msg,
+                                 const std::string& faultId, bool needReportAck);
+
 private:
     static UbseRasHandler instance;
     std::unordered_map<ALARM_FAULT_TYPE, std::map<AlarmHandlerPriority, HandlerMap>> faultHandlerMap{};
     NodeStateHandler nodeStateHandler;
     std::unordered_map<NodeHandlerType, std::vector<NodeHandler>> nodeHandlerMap;
-    std::set<std::string> processedMsgId; // 已成功处理故障对应的msgId
+    std::set<std::string> pendingFaultId; // 异步处理中的故障id，OOM故障取值msgId，其它类型故障（暂时是单线程）暂不存储
+    utils::ReadWriteLock pendingFaultIdLock; // 异步处理中的故障id锁
 };
 
 bool IsMemInitFinished();

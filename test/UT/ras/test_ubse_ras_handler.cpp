@@ -794,21 +794,21 @@ TEST_F(TestUbseRasHandler, IsHandlerDoneWhenMsgNotFound)
 // IsHandlerDone: handler 不在 msg 下，应返回 false
 TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerNotFound)
 {
-    SetHandlerResult("isdone_msg1", "handler1", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "isdone_msg1", "handler1", UBSE_OK);
     ASSERT_FALSE(IsHandlerDone("isdone_msg1", "handler2")); // handler2 不存在
 }
 
 // IsHandlerDone: handler 结果为 UBSE_OK，应返回 true
 TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerOk)
 {
-    SetHandlerResult("isdone_ok", "handler1", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "isdone_ok", "handler1", UBSE_OK);
     ASSERT_TRUE(IsHandlerDone("isdone_ok", "handler1"));
 }
 
 // IsHandlerDone: handler 结果为非 UBSE_OK，应返回 false
 TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerFailed)
 {
-    SetHandlerResult("isdone_fail", "handler1", UBSE_ERROR);
+    SetHandlerResult(ALARM_OOM_EVENT, "isdone_fail", "handler1", UBSE_ERROR);
     ASSERT_FALSE(IsHandlerDone("isdone_fail", "handler1"));
 }
 
@@ -817,16 +817,16 @@ TEST_F(TestUbseRasHandler, IsHandlerDoneWhenHandlerFailed)
 // SetHandlerResult: 设置新 handler 结果，可通过 GetResultFromHandlersByMsg 获取
 TEST_F(TestUbseRasHandler, SetHandlerResultNewEntry)
 {
-    SetHandlerResult("set_result_new", "handler1", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "set_result_new", "handler1", UBSE_OK);
     ASSERT_EQ(GetResultFromHandlersByMsg("set_result_new"), UBSE_OK);
 }
 
 // SetHandlerResult: 覆盖已有 handler 结果
 TEST_F(TestUbseRasHandler, SetHandlerResultOverwrite)
 {
-    SetHandlerResult("set_result_overwrite", "handler1", UBSE_ERROR);
+    SetHandlerResult(ALARM_OOM_EVENT, "set_result_overwrite", "handler1", UBSE_ERROR);
     ASSERT_EQ(GetResultFromHandlersByMsg("set_result_overwrite"), UBSE_ERROR);
-    SetHandlerResult("set_result_overwrite", "handler1", UBSE_OK); // 覆盖为 OK
+    SetHandlerResult(ALARM_OOM_EVENT, "set_result_overwrite", "handler1", UBSE_OK); // 覆盖为 OK
     ASSERT_EQ(GetResultFromHandlersByMsg("set_result_overwrite"), UBSE_OK);
 }
 
@@ -841,24 +841,24 @@ TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgWhenMsgNotFound)
 // GetResultFromHandlersByMsg: 所有 handler 都返回 OK，应返回 UBSE_OK
 TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgAllOk)
 {
-    SetHandlerResult("get_result_all_ok", "handler1", UBSE_OK);
-    SetHandlerResult("get_result_all_ok", "handler2", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_all_ok", "handler1", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_all_ok", "handler2", UBSE_OK);
     ASSERT_EQ(GetResultFromHandlersByMsg("get_result_all_ok"), UBSE_OK);
 }
 
 // GetResultFromHandlersByMsg: 存在一个失败的 handler，应返回其错误码
 TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgHasError)
 {
-    SetHandlerResult("get_result_has_err", "handler1", UBSE_OK);
-    SetHandlerResult("get_result_has_err", "handler2", UBSE_ERROR_INVAL);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_has_err", "handler1", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_has_err", "handler2", UBSE_ERROR_INVAL);
     ASSERT_EQ(GetResultFromHandlersByMsg("get_result_has_err"), UBSE_ERROR_INVAL);
 }
 
 // GetResultFromHandlersByMsg: 多个 handler 失败，返回第一个非 OK 的错误码
 TEST_F(TestUbseRasHandler, GetResultFromHandlersByMsgFirstError)
 {
-    SetHandlerResult("get_result_first_err", "handler1", UBSE_ERROR_NULLPTR);
-    SetHandlerResult("get_result_first_err", "handler2", UBSE_ERROR_INVAL);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_first_err", "handler1", UBSE_ERROR_NULLPTR);
+    SetHandlerResult(ALARM_OOM_EVENT, "get_result_first_err", "handler2", UBSE_ERROR_INVAL);
     // 由于 unordered_map 迭代顺序不确定，检查结果是非 OK 即可
     auto result = GetResultFromHandlersByMsg("get_result_first_err");
     ASSERT_NE(result, UBSE_OK);
@@ -875,8 +875,8 @@ TEST_F(TestUbseRasHandler, ClearAllHandlerResultsEmpty)
 // ClearAllHandlerResults: 清除非空 map，清除后查询应返回 UBSE_OK
 TEST_F(TestUbseRasHandler, ClearAllHandlerResultsNonEmpty)
 {
-    SetHandlerResult("clear_nonempty_1", "handler1", UBSE_ERROR);
-    SetHandlerResult("clear_nonempty_2", "handler1", UBSE_ERROR);
+    SetHandlerResult(ALARM_OOM_EVENT, "clear_nonempty_1", "handler1", UBSE_ERROR);
+    SetHandlerResult(ALARM_OOM_EVENT, "clear_nonempty_2", "handler1", UBSE_ERROR);
     ClearAllHandlerResults();
     ASSERT_EQ(GetResultFromHandlersByMsg("clear_nonempty_1"), UBSE_OK);
     ASSERT_EQ(GetResultFromHandlersByMsg("clear_nonempty_2"), UBSE_OK);
@@ -901,7 +901,7 @@ TEST_F(TestUbseRasHandler, ExecuteFaultHandlerSkipDoneHandler)
     std::string msgId = "integration_msg";
 
     // 预置 handler 为已完成状态
-    SetHandlerResult(msgId, "test_handler", UBSE_OK);
+    SetHandlerResult(ALARM_OOM_EVENT, msgId, "test_handler", UBSE_OK);
 
     auto res = handler.ExecuteFaultHandler(type, faultInfo, msgId);
     ASSERT_EQ(res, UBSE_OK);
@@ -926,42 +926,6 @@ TEST_F(TestUbseRasHandler, ExecuteFaultHandlerWithResultCaching)
     ASSERT_EQ(res, UBSE_ERROR_INVAL);
     // handler 返回错误，所以 IsHandlerDone 应返回 false（只有 UBSE_OK 才算 done）
     ASSERT_FALSE(IsHandlerDone(msgId, "test_handler"));
-}
-
-// ==================== AddProcessedMsgId / MsgIdHasBeenProcessed / ClearAllMsgId 测试 ====================
-
-TEST_F(TestUbseRasHandler, AddProcessedMsgIdSingleEntry)
-{
-    auto& handler = UbseRasHandler::GetInstance();
-    handler.ClearAllMsgId();
-    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("add_processed_1"));
-    handler.AddProcessedMsgId("add_processed_1");
-    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("add_processed_1"));
-    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("add_processed_2"));
-    handler.ClearAllMsgId();
-}
-
-TEST_F(TestUbseRasHandler, MsgIdHasBeenProcessedMultipleEntries)
-{
-    auto& handler = UbseRasHandler::GetInstance();
-    handler.ClearAllMsgId();
-    handler.AddProcessedMsgId("multi_1");
-    handler.AddProcessedMsgId("multi_2");
-    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("multi_1"));
-    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("multi_2"));
-    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("multi_3"));
-    handler.ClearAllMsgId();
-}
-
-TEST_F(TestUbseRasHandler, ClearAllMsgIdClearsProcessedSet)
-{
-    auto& handler = UbseRasHandler::GetInstance();
-    handler.AddProcessedMsgId("clear_test_1");
-    handler.AddProcessedMsgId("clear_test_2");
-    ASSERT_TRUE(handler.MsgIdHasBeenProcessed("clear_test_1"));
-    handler.ClearAllMsgId();
-    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("clear_test_1"));
-    ASSERT_FALSE(handler.MsgIdHasBeenProcessed("clear_test_2"));
 }
 
 // ==================== CallOneNodeHandleRetry 测试 ====================
@@ -1145,7 +1109,7 @@ TEST_F(TestUbseRasHandler, HandleMemoryFaultWhenHandlerReturnsError)
 
 TEST_F(TestUbseRasHandler, ClearFaultHandlerResultClearsHandlers)
 {
-    SetHandlerResult("clear_fault_msg", "handler1", UBSE_ERROR);
+    SetHandlerResult(ALARM_OOM_EVENT, "clear_fault_msg", "handler1", UBSE_ERROR);
     ASSERT_FALSE(IsHandlerDone("clear_fault_msg", "handler1"));
     ClearFaultHandlerResult("clear_fault_msg");
     ASSERT_EQ(GetResultFromHandlersByMsg("clear_fault_msg"), UBSE_OK);
@@ -1230,22 +1194,23 @@ TEST_F(TestUbseRasHandler, RegisterNodeHandlerWithNullHandler)
 
 // ==================== HandleOomFault 额外路径测试 ====================
 
-TEST_F(TestUbseRasHandler, HandleOomFaultWhenOomHandlerFails)
+TEST_F(TestUbseRasHandler, HandleOomFaultWhenMsgFormatInvalid)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT, .pucParas = "invalid_format"};
+    auto res = handler.HandleOomFault(&msg);
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, HandleOomFaultWhenTaskModuleNotAvailable)
 {
     auto& handler = UbseRasHandler::GetInstance();
     alarm_msg msg{.usAlarmId = ALARM_OOM_EVENT,
                   .pucParas = "1650_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],"
                               "sync:1,timeout:30000,reason:2}"};
-    handler.ClearAllMsgId();
-    handler.faultHandlerMap.clear();
-    // Register a handler that fails
-    AlarmFaultHandler failFunc = [](ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo) -> uint32_t {
-        return UBSE_ERROR;
-    };
-    handler.faultHandlerMap[ALARM_OOM_EVENT][AlarmHandlerPriority::HIGH].emplace_back("fail_handler", failFunc);
-    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    // Task module is not set up in test environment, so HandleOomFault will fail with UBSE_ERROR
     auto res = handler.HandleOomFault(&msg);
-    ASSERT_EQ(res, UBSE_OK); // Always acks
+    ASSERT_EQ(res, UBSE_ERROR);
 }
 
 // ==================== ProcessExportObj 额外测试 ====================
@@ -1340,5 +1305,236 @@ TEST_F(TestUbseRasHandler, IsNodeInStaticListEmptyList)
     std::vector<ubse::nodeController::UbseNodeInfo> staticNodeInfos;
     auto result = IsNodeInStaticList("1", staticNodeInfos);
     ASSERT_FALSE(result);
+}
+
+// ==================== ParseOomEventInfo 测试 ====================
+
+TEST_F(TestUbseRasHandler, ParseOomEventInfoValid)
+{
+    OomEventInfo eventInfo;
+    auto ret =
+        ParseOomEventInfo("1650_{nr_nid:1,nid:[0,-1,-1,-1,-1,-1,-1,-1],sync:1,timeout:30000,reason:2}", eventInfo);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(eventInfo.msgId, "1650");
+    ASSERT_EQ(eventInfo.sync, 1);
+    ASSERT_EQ(eventInfo.reason, 2);
+    ASSERT_EQ(eventInfo.nrNid, 1);
+    // SplitNids in ubse_ras_handler.cpp filters negative nids
+    ASSERT_EQ(eventInfo.nids.size(), 1u);
+    ASSERT_EQ(eventInfo.nids[0], 0);
+}
+
+TEST_F(TestUbseRasHandler, ParseOomEventInfoValidAllNonNegative)
+{
+    OomEventInfo eventInfo;
+    auto ret = ParseOomEventInfo("100_{nr_nid:3,nid:[0,1,2],sync:0,timeout:10000,reason:0}", eventInfo);
+    ASSERT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(eventInfo.msgId, "100");
+    ASSERT_EQ(eventInfo.sync, 0);
+    ASSERT_EQ(eventInfo.reason, 0);
+    ASSERT_EQ(eventInfo.nrNid, 3);
+    ASSERT_EQ(eventInfo.nids.size(), 3u);
+    ASSERT_EQ(eventInfo.nids[0], 0);
+    ASSERT_EQ(eventInfo.nids[1], 1);
+    ASSERT_EQ(eventInfo.nids[2], 2);
+}
+
+TEST_F(TestUbseRasHandler, ParseOomEventInfoInvalidFormat)
+{
+    OomEventInfo eventInfo;
+    auto ret = ParseOomEventInfo("invalid_format", eventInfo);
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, ParseOomEventInfoInvalidMsgId)
+{
+    OomEventInfo eventInfo;
+    auto ret = ParseOomEventInfo("abc_{nr_nid:1,nid:[0],sync:1,timeout:30000,reason:2}", eventInfo);
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasHandler, ParseOomEventInfoMissingBrace)
+{
+    OomEventInfo eventInfo;
+    auto ret = ParseOomEventInfo("1650_{nr_nid:1,nid:[0],sync:1,timeout:30000,reason:2", eventInfo);
+    ASSERT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+// ==================== BuildOomStrFromEventInfo 测试 ====================
+
+TEST_F(TestUbseRasHandler, BuildOomStrFromEventInfoSingleNid)
+{
+    OomEventInfo eventInfo;
+    eventInfo.msgId = "1650";
+    eventInfo.sync = 1;
+    eventInfo.reason = 2;
+    eventInfo.nrNid = 1;
+    eventInfo.nids = {0};
+    auto result = BuildOomStrFromEventInfo(eventInfo);
+    ASSERT_EQ(result, "1_0_2");
+}
+
+TEST_F(TestUbseRasHandler, BuildOomStrFromEventInfoMultipleNids)
+{
+    OomEventInfo eventInfo;
+    eventInfo.msgId = "1650";
+    eventInfo.sync = 1;
+    eventInfo.reason = 2;
+    eventInfo.nrNid = 3;
+    eventInfo.nids = {0, 1, 2};
+    auto result = BuildOomStrFromEventInfo(eventInfo);
+    ASSERT_EQ(result, "3_0_1_2_2");
+}
+
+TEST_F(TestUbseRasHandler, BuildOomStrFromEventInfoEmptyNids)
+{
+    OomEventInfo eventInfo;
+    eventInfo.msgId = "1650";
+    eventInfo.sync = 1;
+    eventInfo.reason = 0;
+    eventInfo.nrNid = 0;
+    eventInfo.nids = {};
+    auto result = BuildOomStrFromEventInfo(eventInfo);
+    ASSERT_EQ(result, "0_0");
+}
+
+// ==================== SplitNids (ubse_ras_handler.cpp 版本: 过滤负数) 测试 ====================
+
+TEST_F(TestUbseRasHandler, SplitNidsFiltersNegative)
+{
+    auto result = SplitNids("0,-1,-1,-1");
+    ASSERT_EQ(result.size(), 1u);
+    ASSERT_EQ(result[0], 0);
+}
+
+TEST_F(TestUbseRasHandler, SplitNidsAllNegative)
+{
+    auto result = SplitNids("-1,-2,-3");
+    ASSERT_TRUE(result.empty());
+}
+
+TEST_F(TestUbseRasHandler, SplitNidsAllNonNegative)
+{
+    auto result = SplitNids("0,1,2,3");
+    ASSERT_EQ(result.size(), 4u);
+}
+
+TEST_F(TestUbseRasHandler, SplitNidsEmptyString)
+{
+    auto result = SplitNids("");
+    ASSERT_TRUE(result.empty());
+}
+
+// ==================== ClearExpiredHandlerResult 测试 ====================
+
+TEST_F(TestUbseRasHandler, ClearExpiredHandlerResultRemovesExpiredOomEntry)
+{
+    ClearAllHandlerResults();
+    SetHandlerResult(ALARM_OOM_EVENT, "expired_msg", "handler1", UBSE_OK);
+    // Set timestamp to 0 to make it long-expired
+    {
+        std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+        g_handlerResultMap["expired_msg"]["handler1"].timestamp = 0;
+    }
+    ClearExpiredHandlerResult();
+    ASSERT_FALSE(IsHandlerDone("expired_msg", "handler1"));
+}
+
+TEST_F(TestUbseRasHandler, ClearExpiredHandlerResultKeepsRecentEntry)
+{
+    ClearAllHandlerResults();
+    SetHandlerResult(ALARM_OOM_EVENT, "recent_msg", "handler1", UBSE_OK);
+    // timestamp is current time from SetHandlerResult, should NOT be expired
+    ClearExpiredHandlerResult();
+    ASSERT_TRUE(IsHandlerDone("recent_msg", "handler1"));
+}
+
+TEST_F(TestUbseRasHandler, ClearExpiredHandlerResultKeepsNonOomEntry)
+{
+    ClearAllHandlerResults();
+    SetHandlerResult(ALARM_REBOOT_EVENT, "non_oom_msg", "handler1", UBSE_OK);
+    // Even with old timestamp, non-OOM entries should survive
+    {
+        std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+        g_handlerResultMap["non_oom_msg"]["handler1"].timestamp = 0;
+    }
+    ClearExpiredHandlerResult();
+    ASSERT_TRUE(IsHandlerDone("non_oom_msg", "handler1"));
+}
+
+TEST_F(TestUbseRasHandler, ClearExpiredHandlerResultMixedEntries)
+{
+    ClearAllHandlerResults();
+    // Expired OOM entry
+    SetHandlerResult(ALARM_OOM_EVENT, "mixed_msg", "oom_handler", UBSE_OK);
+    {
+        std::lock_guard<std::mutex> lock(g_handlerResultMutex);
+        g_handlerResultMap["mixed_msg"]["oom_handler"].timestamp = 0;
+    }
+    // Non-expired OOM entry in same msg
+    SetHandlerResult(ALARM_OOM_EVENT, "mixed_msg", "recent_handler", UBSE_OK);
+    ClearExpiredHandlerResult();
+    ASSERT_FALSE(IsHandlerDone("mixed_msg", "oom_handler"));
+    ASSERT_TRUE(IsHandlerDone("mixed_msg", "recent_handler"));
+}
+
+TEST_F(TestUbseRasHandler, ClearExpiredHandlerResultEmptyMap)
+{
+    ClearAllHandlerResults();
+    EXPECT_NO_THROW(ClearExpiredHandlerResult());
+}
+
+// ==================== IsPendingFaultExisted / AddPendingFaultId / DelPendingFaultId 测试 ====================
+
+TEST_F(TestUbseRasHandler, AddPendingFaultIdNew)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_FALSE(handler.IsPendingFaultExisted("pending_new"));
+    ASSERT_TRUE(handler.AddPendingFaultId("pending_new"));
+    ASSERT_TRUE(handler.IsPendingFaultExisted("pending_new"));
+    handler.DelPendingFaultId("pending_new");
+}
+
+TEST_F(TestUbseRasHandler, AddPendingFaultIdDuplicate)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_TRUE(handler.AddPendingFaultId("pending_dup"));
+    ASSERT_FALSE(handler.AddPendingFaultId("pending_dup"));
+    handler.DelPendingFaultId("pending_dup");
+}
+
+TEST_F(TestUbseRasHandler, IsPendingFaultExistedNotFound)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_FALSE(handler.IsPendingFaultExisted("nonexistent_pending_fault"));
+}
+
+TEST_F(TestUbseRasHandler, DelPendingFaultIdRemovesEntry)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_TRUE(handler.AddPendingFaultId("pending_del"));
+    ASSERT_TRUE(handler.IsPendingFaultExisted("pending_del"));
+    handler.DelPendingFaultId("pending_del");
+    ASSERT_FALSE(handler.IsPendingFaultExisted("pending_del"));
+}
+
+TEST_F(TestUbseRasHandler, DelPendingFaultIdNonexistent)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_FALSE(handler.IsPendingFaultExisted("pending_nonexist"));
+    EXPECT_NO_THROW(handler.DelPendingFaultId("pending_nonexist"));
+}
+
+TEST_F(TestUbseRasHandler, AddPendingFaultIdMultipleDifferent)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    ASSERT_TRUE(handler.AddPendingFaultId("pending_multi_1"));
+    ASSERT_TRUE(handler.AddPendingFaultId("pending_multi_2"));
+    ASSERT_TRUE(handler.IsPendingFaultExisted("pending_multi_1"));
+    ASSERT_TRUE(handler.IsPendingFaultExisted("pending_multi_2"));
+    handler.DelPendingFaultId("pending_multi_1");
+    ASSERT_FALSE(handler.IsPendingFaultExisted("pending_multi_1"));
+    ASSERT_TRUE(handler.IsPendingFaultExisted("pending_multi_2"));
+    handler.DelPendingFaultId("pending_multi_2");
 }
 } // namespace ubse::ras::ut
