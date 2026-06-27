@@ -15,6 +15,8 @@
 #define VM_STATUS_MANAGER_H
 
 #include <condition_variable>
+#include <future>
+#include <memory>
 #include <queue>
 #include <set>
 #include "mempooling_module.h"
@@ -25,6 +27,16 @@ namespace vm {
 class StatusManager;
 
 using GlobalNumaInfoMap = std::map<VMNodeLocInfo, GlobalNumaInfo>;
+
+struct BorrowCompletionState {
+    std::promise<VmResult> promise;
+    std::shared_future<VmResult> future; // share of promise.get_future(), set by caller before TLS move
+};
+
+struct BorrowTask {
+    EscapeAction action;
+    std::shared_ptr<BorrowCompletionState> completionState;
+};
 
 class StatusManager {
 public:
@@ -52,6 +64,18 @@ public:
 
     static void WhetherEnterBorrowQueue(const EscapeAction& escapeAction);
 
+    // Thread-local borrow state for OOM event result waiting
+    static void SetBorrowCompletionState(std::shared_ptr<BorrowCompletionState> state);
+    static std::shared_ptr<BorrowCompletionState> GetAndClearBorrowCompletionState();
+
+    // In-flight borrow shared_future for cross-OOM waiting
+    static std::shared_ptr<std::shared_future<VmResult>> GetInFlightBorrowSharedFuture(const std::string& hostId,
+                                                                                       const int16_t& socketId,
+                                                                                       const int16_t& numaId);
+
+    // Wait for a non-borrow task running on the given node to complete
+    static void WaitForTaskCompletion(const std::string& hostId, int16_t socketId, int16_t numaId);
+
     VmResult Init();
 
     static void LoadGlobalBorrowMap();
@@ -70,13 +94,22 @@ public:
     }
 
 private:
-    static inline std::queue<EscapeAction> g_borrowQueue{};
+    static inline std::queue<BorrowTask> g_borrowQueue{};
     static inline std::mutex borrowMutex{};
     static inline std::mutex returnMutex{};
     static std::atomic<bool> firstMigFlag;
 
     static inline ReadWriteLock taskFilterSetLock_{};
     static inline std::set<std::string> g_taskFilterSet{};
+
+    // In-flight borrow tracking: maps nodeLoc key → shared_future for OOM waiters
+    static std::mutex g_inFlightBorrowMutex;
+    static std::map<std::string, std::shared_ptr<std::shared_future<VmResult>>> g_inFlightBorrowMap;
+
+    // Task completion notification for non-borrow waiters
+    static std::mutex g_taskCvMutex;
+    static std::condition_variable g_taskCv;
+
     std::vector<bool> mRSStatus{true};
 
     static void CleanEmptyBorrowRes(mempooling::MemBorrowExecuteResult& result);

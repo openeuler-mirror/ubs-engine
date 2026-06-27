@@ -373,4 +373,78 @@ TEST_F(TestStatusManager, ReturnByBorrowIdStatusFail2)
     const auto ret = StatusManager::ReturnByBorrowIdStatus(srcMemoryBorrowParam, BorrowIdStatuses);
     EXPECT_EQ(ret, VM_ERROR);
 }
+// ===================== BorrowCompletionState Tests =====================
+
+TEST_F(TestStatusManager, BorrowCompletionStateSetGetClear)
+{
+    // Test SetBorrowCompletionState and GetAndClearBorrowCompletionState
+    auto state = std::make_shared<BorrowCompletionState>();
+    EXPECT_NE(state, nullptr);
+
+    // Initially no state
+    auto initial = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(initial, nullptr);
+
+    // Set then get
+    StatusManager::SetBorrowCompletionState(state);
+    auto retrieved = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(retrieved, state);
+
+    // After clear, should be null again
+    auto afterClear = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(afterClear, nullptr);
+}
+
+TEST_F(TestStatusManager, BorrowCompletionStateOverwrite)
+{
+    // Overwrite existing state should work
+    auto state1 = std::make_shared<BorrowCompletionState>();
+    auto state2 = std::make_shared<BorrowCompletionState>();
+
+    StatusManager::SetBorrowCompletionState(state1);
+    // Overwrite without getting
+    StatusManager::SetBorrowCompletionState(state2);
+    // Should get state2 (the last one)
+    auto retrieved = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(retrieved, state2);
+    // state1 promise is destroyed (unique, not shared)
+}
+
+TEST_F(TestStatusManager, WhetherEnterBorrowQueueConsumesState)
+{
+    // Verify that WhetherEnterBorrowQueue consumes the thread-local state
+    auto state = std::make_shared<BorrowCompletionState>();
+    StatusManager::SetBorrowCompletionState(state);
+
+    VMNodeLocInfo nodeLoc = {"host1", "host-id-1", 0, 0};
+    EscapeAction escapeAction;
+    escapeAction.actionType = EscapeActionType::BORROW;
+    escapeAction.curNodeLoc = nodeLoc;
+    escapeAction.borrowSizes = {1024, 2048};
+
+    // This should consume the state from thread_local and push BorrowTask to queue
+    StatusManager::GetInstance().WhetherEnterBorrowQueue(escapeAction);
+
+    // State should be consumed (moved into queue)
+    auto remaining = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(remaining, nullptr);
+}
+
+TEST_F(TestStatusManager, WhetherEnterBorrowQueueNoState)
+{
+    // Verify WhetherEnterBorrowQueue works even without a pre-set state
+    VMNodeLocInfo nodeLoc = {"host1", "host-id-1", 0, 0};
+    EscapeAction escapeAction;
+    escapeAction.actionType = EscapeActionType::BORROW;
+    escapeAction.curNodeLoc = nodeLoc;
+    escapeAction.borrowSizes = {1024, 2048};
+
+    // No state set before call
+    StatusManager::GetInstance().WhetherEnterBorrowQueue(escapeAction);
+
+    // Should not crash; state remains null
+    auto remaining = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(remaining, nullptr);
+}
+
 } // namespace ubse::ut::vm
