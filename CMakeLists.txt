@@ -128,9 +128,13 @@ add_subdirectory(src)
 
 set(ENABLE_UBSE_TESTING 0)
 
+option(ENABLE_IT_TESTS "Build IT tests with election timer threads enabled (ENABLE_UBSE_TESTING=0)" OFF)
+
 if (BUILD_TESTS)
     set(CMAKE_SKIP_RPATH OFF)
-    set(ENABLE_UBSE_TESTING 1)
+    if (NOT ENABLE_IT_TESTS)
+        set(ENABLE_UBSE_TESTING 1)
+    endif ()
     add_subdirectory(test)
 endif ()
 

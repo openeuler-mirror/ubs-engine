@@ -96,6 +96,7 @@ generator="Unix Makefiles"
 
 enable_coverage="OFF"
 enable_test="OFF"
+enable_it_tests="OFF"
 skip_run_tests="OFF"
 force_colored_output="OFF"
 deploy_version="2.0.0.B098"
@@ -331,9 +332,14 @@ function clean() {
 # 执行 CMake 构建
 function build_cmake() {
     # 启用测试
-    if [[ "$build_target" == 'test' || "$build_target" == 'ut' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" == 'pt' ]]; then
+    if [[ "$build_target" == 'test' || "$build_target" == 'ut' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" =~ _it$ || "$build_target" == 'ubse_it_daemon' || "$build_target" == 'pt' ]]; then
         enable_test='ON'
         build_type='Debug'
+    fi
+
+    # IT 测试需要 UBSE_IT_TEST_MODE 编译宏，由 ENABLE_IT_TESTS 控制
+    if [[ "$build_target" == 'it' || "$build_target" =~ _it$ || "$build_target" == 'ubse_it_daemon' ]]; then
+        enable_it_tests='ON'
     fi
 
     # 根据构建类型选择不同构建目录
@@ -371,6 +377,7 @@ function build_cmake() {
         -DCMAKE_BUILD_TYPE="${build_type}"
         -DCMAKE_CXX_STANDARD="${std}"
         -DBUILD_TESTS="${enable_test}"
+        -DENABLE_IT_TESTS=${enable_it_tests} \
         -DENABLE_COVERAGE="${enable_coverage}"
         -DSOURCE_COMPILING="${enable_source_compiling}"
         -DSKIP_RUN_TESTS="${skip_run_tests}"

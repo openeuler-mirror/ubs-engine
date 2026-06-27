@@ -123,8 +123,9 @@ set(TEST_DIR ${PROJECT_SOURCE_DIR}/test)
 enable_testing()
 include(GoogleTest)
 
-add_subdirectory(IT)
 add_subdirectory(UT)
+
+add_subdirectory(IT)
 
 add_custom_target(
         test
@@ -132,4 +133,4 @@ add_custom_target(
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         COMMENT "Merge coverage data to test_detail.xml"
 )
-add_dependencies(test ut it)
+add_dependencies(test ut)
