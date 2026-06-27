@@ -757,12 +757,8 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::Src
     auto ret = setSmapRemoteNumaInfoSend.SendMsg();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << TAG << "SetSmapRemoteNumaInfoSend failed. ret= " << ret << ".";
-        return MEM_POOLING_ERROR;
+            << TAG << "SetSmapRemoteNumaInfoSend failed, start to memFree. ret= " << ret << ".";
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "FaultNuma remove, nodeId=" << oSrcParam.srcNid
-                                                      << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
-    FaultNuma::Instance().RemoveFaultNuma(oSrcParam.srcNid, preRemoteNumaId);
 
     UbseComEndpoint endpoint_fm_memfree_execute = {
         .moduleId = MP_MODULE_CODE,
@@ -781,6 +777,9 @@ MpResult OverCommitFaultMemIdModule::MemFreeDirectlyExecuteRpc(outinterface::Src
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeDirectlyExecuteRpc failed.";
         return ret;
     }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "FaultNuma remove, nodeId=" << oSrcParam.srcNid
+                                                      << ", numaId=" << memBorrowInfos[0].presentNumaId << ".";
+    FaultNuma::Instance().RemoveFaultNuma(oSrcParam.srcNid, preRemoteNumaId);
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "MemFreeDirectlyExecuteRpc success.";
     return MEM_POOLING_OK;
 }
