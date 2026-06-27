@@ -163,6 +163,10 @@ public:
     {
         return UBSE_OK;
     }
+    common::def::UbseResult UbseSaveEtsProfile()
+    {
+        return UBSE_OK;
+    }
 
 private:
     UbseMtiInterfaceDefault defaultImpl_;

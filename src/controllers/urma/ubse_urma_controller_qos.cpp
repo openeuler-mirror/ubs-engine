@@ -39,11 +39,36 @@ using namespace ubse::nodeController;
 static const std::map<EtsPriority, std::vector<uint8_t>> priorityToVlsMap = {{EtsPriority::PRI_0, {NO_1, NO_2}},
                                                                              {EtsPriority::PRI_1, {NO_8, NO_9}}};
 
+const uint32_t MAX_ETS_OPERATION_RETRY_COUNT = 3;
 void EtsTemplate::SetEtsProfileState(EtsQosProfileState state)
 {
     // 加锁，确保线程安全
     std::lock_guard<std::mutex> lock(mutex_);
     state_ = state;
+}
+
+bool IsConfigMatchProfile(const std::vector<EtsQosConfig>& configs, const UbseMtiEtsProfile& etsProfile)
+{
+    if (configs.size() != etsProfile.priorityGroups.size()) {
+        return false;
+    }
+    // 将现有 profile 的 priority groups 转为 map: priorityGroupId → cir
+    std::map<uint8_t, uint32_t> existing;
+    for (const auto& pg : etsProfile.priorityGroups) {
+        existing[static_cast<uint8_t>(pg.priorityGroupId)] = pg.cir;
+    }
+
+    // 逐一比对 configs 中的每一项
+    for (const auto& cfg : configs) {
+        auto it = existing.find(static_cast<uint8_t>(cfg.priority));
+        if (it == existing.end()) {
+            return false;
+        }
+        if (it->second != cfg.bandwidth) {
+            return false;
+        }
+    }
+    return true;
 }
 
 UbseResult EtsTemplate::ValidateConfig(const std::vector<EtsQosConfig>& configs)
@@ -73,42 +98,11 @@ UbseResult EtsTemplate::ValidateConfig(const std::vector<EtsQosConfig>& configs)
             UBSE_LOG_ERROR << "Duplicate priority=" << static_cast<uint32_t>(cfg.priority);
             return UBSE_ERROR_INVAL;
         }
-        if (!etsProfile.priorityGroups.empty()) {
+        if (!etsProfile.priorityGroups.empty() && !IsConfigMatchProfile(configs, etsProfile)) {
             UBSE_LOG_WARN << "ETS QoS profile has priority groups, not support config priority="
                           << static_cast<uint32_t>(cfg.priority);
             return UBSE_URMACONTRL_ERROR_PRIO_GROUP_EXIST;
         }
-    }
-    return UBSE_OK;
-}
-
-UbseResult EtsTemplate::InitQosEtsRetry()
-{
-    if (context::g_globalStop) {
-        UBSE_LOG_INFO << "Global stop, no need to retry";
-        return UBSE_OK;
-    }
-    if (state_ == EtsQosProfileState::ETS_PROFILE_APPLIED) {
-        UBSE_LOG_INFO << "ETS QoS profile applied on all ports, no need to retry";
-        return UBSE_OK;
-    }
-    std::string taskExecutor = "UrmaExecutor";
-    std::string taskName = "UrmaQosEtsInitRetryTimer";
-    auto task = [this]() {
-        if (context::g_globalStop) {
-            UBSE_LOG_INFO << "Global stop, no need to retry";
-            return UBSE_OK;
-        }
-        if (this->state_ == EtsQosProfileState::ETS_PROFILE_APPLIED) {
-            UBSE_LOG_INFO << "ETS QoS profile applied on all ports, no need to retry";
-            return UBSE_OK;
-        }
-        return this->InitInner(false);
-    };
-    // 定时器每10s执行一次
-    if (auto ret = RegisterUrmaRetryTimer(taskExecutor, taskName, NO_10, task); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to register QoS ETS init retry timer," << FormatRetCode(ret);
-        return ret;
     }
     return UBSE_OK;
 }
@@ -132,17 +126,39 @@ void EtsTemplate::ClassifyAppliedEtsInterfaces(
 
 UbseResult EtsTemplate::Init()
 {
-    return InitInner(true);
+    // 定时器重试
+    if (context::g_globalStop) {
+        UBSE_LOG_INFO << "Global stop, no need to retry";
+        return UBSE_OK;
+    }
+    std::string taskExecutor = "UrmaExecutor";
+    std::string taskName = "UrmaQosEtsInitRetryTimer";
+    auto task = [this]() {
+        if (context::g_globalStop) {
+            UBSE_LOG_INFO << "Global stop, no need to retry";
+            return UBSE_OK;
+        }
+        if (auto ret = this->InitInner(); ret != UBSE_OK) {
+            return ret;
+        }
+        return UbseMtiInterface::GetInstance().UbseSaveEtsProfile();
+    };
+    // 定时器每10s执行一次
+    if (auto ret = HandleTaskWithRetry(taskExecutor, taskName, NO_10, task); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register QoS ETS init retry timer," << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
 }
 
-UbseResult EtsTemplate::InitInner(bool isRetry)
+UbseResult EtsTemplate::InitInner()
 {
     // 调用MTI接口查询已应用ETS模板的所有接口
     std::vector<UbseMtiInterfaceEtsApplication> appliedEtsInterfaces;
     auto ret = UbseMtiInterface::GetInstance().UbseQueryAllInterfaceEtsProfile(appliedEtsInterfaces);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to query all applied ETS interfaces," << FormatRetCode(ret);
-        return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+        return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
     std::set<std::string> targetEtsAppliedInterfaceNames;
     std::set<std::string> allAppliedInterfaceNames;
@@ -152,8 +168,9 @@ UbseResult EtsTemplate::InitInner(bool isRetry)
     ret = GetAllUbInterfaceNameFromMti(allUbInterfaces);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get all ub interfaces";
-        return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+        return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
+    // 如果所有port都已应用ETS配置，直接返回
     if (!allUbInterfaces.empty() &&
         std::includes(targetEtsAppliedInterfaceNames.begin(), targetEtsAppliedInterfaceNames.end(),
                       allUbInterfaces.begin(), allUbInterfaces.end())) {
@@ -162,22 +179,21 @@ UbseResult EtsTemplate::InitInner(bool isRetry)
         return UBSE_OK;
     }
     // 确保ETS模板存在，不存在则创建
-    ret = this->CreateEtsProfileIfNotExist(isRetry);
+    ret = this->CreateEtsProfileIfNotExist();
     if (ret != UBSE_OK) {
         return ret;
     }
     // 将ETS模板应用到未覆盖的port
-    return this->ApplyToRemainingPorts(isRetry, allUbInterfaces, allAppliedInterfaceNames,
-                                       targetEtsAppliedInterfaceNames);
+    return this->ApplyToRemainingPorts(allUbInterfaces, allAppliedInterfaceNames, targetEtsAppliedInterfaceNames);
 }
 
-UbseResult EtsTemplate::CreateEtsProfileIfNotExist(bool isRetry)
+UbseResult EtsTemplate::CreateEtsProfileIfNotExist()
 {
     UbseMtiEtsProfile etsProfile;
     auto ret = UbseMtiInterface::GetInstance().UbseQueryEtsProfile(ETS_QOS_PROFILE_NAME, etsProfile);
     if (ret != UBSE_OK && ret != UBSE_MTI_ERROR_NOT_EXIST) {
         UBSE_LOG_ERROR << "Failed to query ETS profile," << FormatRetCode(ret);
-        return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+        return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
     if (etsProfile.profileName != ETS_QOS_PROFILE_NAME) {
         UBSE_LOG_INFO << "ETS profile " << ETS_QOS_PROFILE_NAME << " not exist, will create";
@@ -188,14 +204,14 @@ UbseResult EtsTemplate::CreateEtsProfileIfNotExist(bool isRetry)
         ret = UbseMtiInterface::GetInstance().UbseCreateEtsProfile(etsProfile);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to create ETS profile," << FormatRetCode(ret);
-            return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+            return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
         }
     }
     this->SetEtsProfileState(EtsQosProfileState::ETS_PROFILE_NOT_APPLIED);
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::ApplyToRemainingPorts(bool isRetry, const std::set<std::string>& allUbInterfaces,
+UbseResult EtsTemplate::ApplyToRemainingPorts(const std::set<std::string>& allUbInterfaces,
                                               const std::set<std::string>& allAppliedInterfaceNames,
                                               const std::set<std::string>& targetEtsAppliedInterfaceNames)
 {
@@ -207,13 +223,13 @@ UbseResult EtsTemplate::ApplyToRemainingPorts(bool isRetry, const std::set<std::
             auto ret = UbseMtiInterface::GetInstance().UbseRemoveEtsProfileFromInterface(interfaceName);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to delete ETS profile from interface," << FormatRetCode(ret);
-                return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+                return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
             }
         }
         auto ret = UbseMtiInterface::GetInstance().UbseApplyEtsProfileToInterface(interfaceName, ETS_QOS_PROFILE_NAME);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to apply ETS profile to interface," << FormatRetCode(ret);
-            return isRetry ? this->InitQosEtsRetry() : UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+            return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
         }
     }
     this->SetEtsProfileState(EtsQosProfileState::ETS_PROFILE_APPLIED);
@@ -238,9 +254,9 @@ UbseResult EtsTemplate::GetAllUbInterfaceNameFromMti(std::set<std::string>& allU
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::CreatePreset(const std::vector<EtsQosConfig>& configs)
+UbseResult EtsTemplate::ValidateAndPrepare(const std::vector<EtsQosConfig>& configs)
 {
-    auto ret = this->InitInner(false);
+    auto ret = this->InitInner();
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to init ETS template," << FormatRetCode(ret);
         return ret;
@@ -253,12 +269,13 @@ UbseResult EtsTemplate::CreatePreset(const std::vector<EtsQosConfig>& configs)
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
+UbseResult EtsTemplate::TryCreate(const std::vector<EtsQosConfig>& configs)
 {
     UBSE_LOG_INFO << "Will create ETS template with " << configs.size()
                   << " priority groups, ETS QoS profile state=" << static_cast<int>(state_);
-    if (auto ret = CreatePreset(configs); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to do ETS cretion preset," << FormatRetCode(ret) << ", cannot create priority groups";
+    if (auto ret = ValidateAndPrepare(configs); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to do ETS creation prepare," << FormatRetCode(ret)
+                       << ", cannot create priority groups";
         return ret;
     }
     UbseMtiEtsProfile etsProfiles;
@@ -267,8 +284,6 @@ UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
     etsProfiles.priorityGroups.clear();
     for (const auto& config : configs) {
         UbseEtsPriorityGroup prioGroup{.priorityGroupId = static_cast<uint8_t>(config.priority),
-                                       .scheduleMode = UbseEtsScheduleMode::SP,
-                                       .weight = NO_1,
                                        .cir = config.bandwidth};
         auto it = priorityToVlsMap.find(config.priority);
         if (it == priorityToVlsMap.end()) {
@@ -278,10 +293,7 @@ UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
 
         std::string vlIndicesStr;
         for (const auto& vlIndex : it->second) {
-            UbseEtsVl vl{.vlIndex = vlIndex,
-                         .priorityGroupId = static_cast<uint8_t>(config.priority),
-                         .scheduleMode = UbseEtsScheduleMode::SP,
-                         .weight = NO_1};
+            UbseEtsVl vl{.vlIndex = vlIndex, .priorityGroupId = static_cast<uint8_t>(config.priority)};
             etsProfiles.vls.push_back(vl);
             if (!vlIndicesStr.empty()) {
                 vlIndicesStr += ", ";
@@ -298,13 +310,31 @@ UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
         UBSE_LOG_ERROR << "Failed to create ETS profile," << FormatRetCode(ret);
         return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
+    if (auto ret = UbseMtiInterface::GetInstance().UbseSaveEtsProfile(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to save ETS profile," << FormatRetCode(ret);
+        return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+    }
     UBSE_LOG_INFO << "ETS template created";
     return UBSE_OK;
 }
 
-UbseResult EtsTemplate::Delete()
+UbseResult EtsTemplate::Create(const std::vector<EtsQosConfig>& configs)
 {
-    // 取消所有接口上的ETS配置
+    uint32_t retryCount = 0;
+    while (retryCount++ < MAX_ETS_OPERATION_RETRY_COUNT) {
+        UBSE_LOG_INFO << "Try to create ETS template, retryCount=" << retryCount;
+        auto ret = TryCreate(configs);
+        // 如果配置成功或者参数错误，直接返回
+        if (ret == UBSE_OK || ret == UBSE_ERROR_INVAL) {
+            return ret;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    return UBSE_URMACONTRL_ERROR_NEED_RETRY;
+}
+
+UbseResult RemoveEtsApplicationOnAllIntfaces()
+{
     std::vector<UbseMtiInterfaceEtsApplication> appliedEtsInterfaces;
     auto ret = UbseMtiInterface::GetInstance().UbseQueryAllInterfaceEtsProfile(appliedEtsInterfaces);
     if (ret != UBSE_OK) {
@@ -326,14 +356,29 @@ UbseResult EtsTemplate::Delete()
             return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
         }
     }
+    return UBSE_OK;
+}
+
+UbseResult EtsTemplate::TryDelete()
+{
+    // 取消所有接口上的ETS配置
+    if (auto ret = RemoveEtsApplicationOnAllIntfaces(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to remove ETS application on all interfaces," << FormatRetCode(ret);
+        return ret;
+    }
+    // 取消接口配置后，删除名为ETS_QOS_PROFILE_NAME的ETS配置
     UbseMtiEtsProfile etsProfiles;
-    ret = UbseMtiInterface::GetInstance().UbseQueryEtsProfile(ETS_QOS_PROFILE_NAME, etsProfiles);
+    auto ret = UbseMtiInterface::GetInstance().UbseQueryEtsProfile(ETS_QOS_PROFILE_NAME, etsProfiles);
     if (ret != UBSE_OK && ret != UBSE_MTI_ERROR_NOT_EXIST) {
         UBSE_LOG_ERROR << "Failed to query QoS ETS profile," << FormatRetCode(ret);
         return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
     }
     if (etsProfiles.profileName != ETS_QOS_PROFILE_NAME) {
         UBSE_LOG_WARN << "ETS profile name not match," << etsProfiles.profileName << ", or no priority groups";
+        if (ret = UbseMtiInterface::GetInstance().UbseSaveEtsProfile(); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to save ETS profile," << FormatRetCode(ret);
+            return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+        }
         return UBSE_OK;
     }
     if (!etsProfiles.vls.empty()) {
@@ -350,8 +395,27 @@ UbseResult EtsTemplate::Delete()
             return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
         }
     }
+    if (ret = UbseMtiInterface::GetInstance().UbseSaveEtsProfile(); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to save ETS profile," << FormatRetCode(ret);
+        return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED;
+    }
     UBSE_LOG_INFO << "ETS template deleted";
     return UBSE_OK;
+}
+UbseResult EtsTemplate::Delete()
+{
+    uint32_t retryCount = 0;
+    while (retryCount++ < MAX_ETS_OPERATION_RETRY_COUNT) {
+        UBSE_LOG_INFO << "Try to delete ETS template, retryCount=" << retryCount;
+        auto ret = TryDelete();
+        // 如果配置成功或者参数错误，直接返回
+        if (ret == UBSE_OK) {
+            UBSE_LOG_INFO << "ETS template deleted successfully";
+            return ret;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    return UBSE_URMACONTRL_ERROR_NEED_RETRY;
 }
 
 UbseResult EtsTemplate::Query(std::vector<EtsQosConfig>& configs)

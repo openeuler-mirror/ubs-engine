@@ -209,6 +209,12 @@ public:
      */
     virtual common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
                                                                  std::string& profileName) = 0;
+
+    /**
+    * @brief 保存ETS配置
+    * @return 成功返回0, 失败返回非0
+    */
+    virtual common::def::UbseResult UbseSaveEtsProfile() = 0;
 };
 } // namespace ubse::adapter_plugins::mti
 #endif // UBSE_MTI_INTERFACE_H

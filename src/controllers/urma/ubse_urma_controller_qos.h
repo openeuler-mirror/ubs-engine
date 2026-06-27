@@ -108,16 +108,30 @@ public:
     common::def::UbseResult Query(std::vector<EtsQosConfig>& configs) override;
 
 private:
-    common::def::UbseResult InitInner(bool isRetry);
-    common::def::UbseResult CreatePreset(const std::vector<EtsQosConfig>& configs);
+    common::def::UbseResult TryCreate(const std::vector<EtsQosConfig>& configs);
+    common::def::UbseResult TryDelete();
+    /**
+     * @brief 将 ETS QoS 模板初始化到所有网口，使其具备带宽调度能力。
+     *
+     * 最终效果：
+     * 1. ETS 模板（ETS_QOS_PROFILE_NAME）已创建（不存在则新建）；
+     * 2. 该模板已应用到本节点所有 UB 网口；
+     * 3. 模板状态置为 ETS_PROFILE_APPLIED。
+     *
+     * 如果所有网口已经应用了该模板，本函数为幂等操作，直接返回 UBSE_OK。
+     *
+     * @return UBSE_OK                        所有网口均已应用 ETS 模板
+     * @return UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED  MTI 接口访问失败
+     */
+    common::def::UbseResult InitInner();
+    common::def::UbseResult ValidateAndPrepare(const std::vector<EtsQosConfig>& configs);
     common::def::UbseResult ValidateConfig(const std::vector<EtsQosConfig>& configs);
-    common::def::UbseResult InitQosEtsRetry();
     void SetEtsProfileState(EtsQosProfileState state);
-    common::def::UbseResult CreateEtsProfileIfNotExist(bool isRetry);
+    common::def::UbseResult CreateEtsProfileIfNotExist();
     void ClassifyAppliedEtsInterfaces(
         const std::vector<adapter_plugins::mti::UbseMtiInterfaceEtsApplication>& appliedEtsInterfaces,
         std::set<std::string>& allAppliedInterfacesName, std::set<std::string>& targetEtsAppliedInterfacesName);
-    common::def::UbseResult ApplyToRemainingPorts(bool isRetry, const std::set<std::string>& allUbPorts,
+    common::def::UbseResult ApplyToRemainingPorts(const std::set<std::string>& allUbPorts,
                                                   const std::set<std::string>& allAppliedInterfaceNames,
                                                   const std::set<std::string>& targetEtsAppliedInterfaces);
     common::def::UbseResult GetAllUbInterfaceNameFromMti(std::set<std::string>& allUbInterfaceNames);
