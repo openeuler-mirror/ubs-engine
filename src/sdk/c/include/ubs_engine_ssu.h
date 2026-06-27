@@ -21,16 +21,17 @@
 extern "C" {
 #endif
 
-#define UBS_SSU_MAX_NAME_LENGTH 48        // 请求标识最大48个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_RESULT_NAME_LENGTH 32 // 结果名称最大32个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_USER_NAME_LENGTH 32   // 使用方进程运行用户名称最大长度, 含结尾字符'\0'
-#define UBS_SSU_MAX_TENANT_LENGTH 17      // 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
-#define UBS_SSU_MAX_NQN_LENGTH 69         // NVMe NQN最大长度69个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_EID_LENGTH 17         // EID最大长度, 含结尾字符'\0'
-#define UBS_SSU_MAX_UUID_LENGTH 37        // UUID标准长度37个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_DEV_PATH_LENGTH 63    // 设备路径最大长度, 含结尾字符'\0'
-#define UBS_SSU_MAX_DEV_NAME_LENGTH 33    // 聚合块设备名称最大长度, 含结尾字符'\0'
-#define UBS_SSU_RAID5_MIN_MEMBER_NUM 3    // RAID5最少成员设备数
+#define UBS_SSU_MAX_NAME_LENGTH 48          // 请求标识最大48个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_RESULT_NAME_LENGTH 32   // 结果名称最大32个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_USER_NAME_LENGTH 32     // 使用方进程运行用户名称最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_TENANT_LENGTH 17        // 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_NQN_LENGTH 69           // NVMe NQN最大长度69个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_EID_LENGTH 17           // EID最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_UUID_LENGTH 37          // UUID标准长度37个字符, 含结尾字符'\0'
+#define UBS_SSU_MAX_DEV_PATH_LENGTH 63      // 设备路径最大长度, 含结尾字符'\0'
+#define UBS_SSU_MAX_DEV_NAME_LENGTH 33      // 聚合块设备名称最大长度, 含结尾字符'\0'
+#define UBS_SSU_RAID5_MIN_MEMBER_NUM 3      // RAID5最少成员设备数
+#define UBS_SSU_BUS_INSTANCE_GUID_LENGTH 32 // 总线实例GUID长度32个字符
 
 // LBA格式, 值为对应字节数
 typedef enum {
@@ -64,29 +65,27 @@ typedef enum {
 // 分配策略
 typedef enum {
     UBS_SSU_ALLOC_STRATEGY_STRIPED = 0, // 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
-    UBS_SSU_ALLOC_STRATEGY_LINEAR = 1,  // 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+    UBS_SSU_ALLOC_STRATEGY_LINEAR = 1, // 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
 } ubs_ssu_alloc_strategy_t;
 
 // 分配存储空间请求参数
 typedef struct {
-    char name[UBS_SSU_MAX_NAME_LENGTH];        // 请求标识, 最大48个字符
-    uint64_t ns_size;                          // 申请总容量, 单位字节; 条带化策略时需整除ns_num,
-                                               // 且整除后需为chunk_size的整数倍
-    uint32_t ns_num;                           // 命名空间数量, 等于1时strategy不生效
-    ubs_ssu_lba_format_t lba_format;           // LBA格式
-    ubs_ssu_alloc_strategy_t strategy;         // 分配策略
-    ubs_ssu_using_type_t using_type;           // 设备用途类型
-    uint8_t tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
+    char name[UBS_SSU_MAX_NAME_LENGTH];     // 请求标识, 最大48个字符
+    uint64_t ns_size;                       // 申请总容量, 单位字节; 条带化策略时需整除ns_num,
+                                            // 且整除后需为chunk_size的整数倍
+    uint32_t ns_num;                        // 命名空间数量, 等于1时strategy不生效
+    ubs_ssu_lba_format_t lba_format;        // LBA格式
+    ubs_ssu_alloc_strategy_t strategy;      // 分配策略
+    ubs_ssu_using_type_t using_type;        // 设备用途类型
+    char tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
 } ubs_ssu_alloc_space_req_t;
 
 // 命名空间信息
 typedef struct {
-    char src_eid[UBS_SSU_MAX_EID_LENGTH];          // Source EID
     char tgt_eid[UBS_SSU_MAX_EID_LENGTH];          // Target EID
-    char sub_nqn[UBS_SSU_MAX_NQN_LENGTH];          // 子系统NQN
-    char default_host_nqn[UBS_SSU_MAX_NQN_LENGTH]; // 默认NQN, 例: nqn.2024-01.com.huawei:uuid:12345678-...
+    char tgt_nqn[UBS_SSU_MAX_NQN_LENGTH];          // 子系统NQN
     char ns_uuid[UBS_SSU_MAX_UUID_LENGTH];         // 物理设备UUID
-    uint32_t namespace_id;                         // 命名空间ID
+    uint32_t ns_id;                                // 命名空间ID
     char ns_dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]; // 命名空间设备路径
     uint64_t ns_size;                              // 分配的容量, 单位字节
     ubs_ssu_lba_format_t lba_format;               // LBA格式
@@ -94,9 +93,9 @@ typedef struct {
 } ubs_ssu_namespace_info_t;
 // 分配存储空间结果
 typedef struct {
-    char name[UBS_SSU_MAX_NAME_LENGTH];   // 请求标识, 最大32个字符
-    ubs_ssu_alloc_strategy_t strategy;    // 分配策略
-    uint32_t namespace_cnt;               // 命名空间信息数量
+    char name[UBS_SSU_MAX_NAME_LENGTH]; // 请求标识, 最大32个字符
+    ubs_ssu_alloc_strategy_t strategy;  // 分配策略
+    uint32_t namespace_cnt;             // 命名空间信息数量
     ubs_ssu_namespace_info_t *namespaces; // 命名空间信息列表, 由SDK内部动态分配, 需通过释放接口回收
 } ubs_ssu_alloc_result_t;
 
@@ -104,8 +103,45 @@ typedef struct {
 typedef struct {
     char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称, 由外部指定
     ubs_ssu_raid_level_t level;                 // RAID级别(UBS_SSU_RAID0或UBS_SSU_RAID5)
-    ubs_ssu_chunk_size_t chunk_size;            // 条带化的chunk大小, 仅支持4KB/16KB/32KB/64KB/128KB/256KB/512KB
+    ubs_ssu_chunk_size_t chunk_size; // 条带化的chunk大小, 仅支持4KB/16KB/32KB/64KB/128KB/256KB/512KB
 } ubs_ssu_striped_attach_req_t;
+
+// 虚拟功能单元(VFE)信息
+typedef struct {
+    uint8_t slot_id; // 槽位ID
+    uint8_t chip_id; // 芯片ID
+    uint8_t die_id;  // Die ID
+    uint16_t pfe_id; // 物理功能单元ID
+    uint16_t vfe_id; // 虚拟功能单元ID
+} ubs_ub_vfe_t;
+
+// 功能单元(FE)信息, 包含所属PFE及其下的VFE列表
+typedef struct {
+    uint8_t slot_id;        // 槽位ID
+    uint8_t chip_id;        // 芯片ID
+    uint8_t die_id;         // Die ID
+    uint16_t pfe_id;        // 物理功能单元ID
+    uint8_t vfe_cnt;        // VFE数量
+    ubs_ub_vfe_t *vfe_list; // VFE列表, 由SDK内部动态分配, 需通过释放接口回收
+} ubs_ub_fe_t;
+
+// 存储空间连接信息
+typedef struct {
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];  // Source EID
+    char tgt_eid[UBS_SSU_MAX_EID_LENGTH];  // Target EID
+    char tgt_nqn[UBS_SSU_MAX_NQN_LENGTH];  // Target NQN
+    char host_nqn[UBS_SSU_MAX_NQN_LENGTH]; // 默认NQN, 例: nqn.2024-01.com.huawei:uuid:12345678-...
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 物理设备UUID
+    uint32_t ns_id;                        // 命名空间ID
+} ubs_ssu_connect_info_t;
+
+// 存储空间状态
+typedef struct {
+    char ns_uuid[UBS_SSU_MAX_UUID_LENGTH]; // 物理设备UUID
+    uint32_t ns_id;                        // 命名空间ID
+    uint64_t total_size;                   // 总容量, 单位字节
+    uint64_t used_size;                    // 已用容量, 单位字节
+} ubs_ssu_ns_stats_t;
 
 /**
  * @brief 列出所有已分配的存储空间信息
@@ -159,6 +195,62 @@ int32_t ubs_ssu_alloc_info_get(const char *name, ubs_ssu_alloc_result_t *result)
  *                    不释放result本身
  */
 void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t *result);
+
+/**
+ * @brief 获取存储空间的命名空间统计信息
+ *
+ * 查询指定存储空间下各命名空间的容量使用情况, 包括总容量和已用容量。
+ *
+ * @param name [IN] 存储空间标识
+ * @param ns_stats_list [OUT] 命名空间统计信息列表, 调用成功时由SDK内部动态分配, 调用方需主动释放内存
+ * @param ns_stats_cnt [OUT] 命名空间统计信息数量
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_ns_stats_get(const char *name, ubs_ssu_ns_stats_t **ns_stats_list, uint32_t *ns_stats_cnt);
+
+/**
+ * @brief 释放ubs_ssu_ns_stats_get返回的命名空间统计信息列表
+ *
+ * @param ns_stats_list [IN] ubs_ssu_ns_stats_get返回的列表指针
+ * @param ns_stats_cnt [IN] 列表元素数量, 与ubs_ssu_ns_stats_get输出的ns_stats_cnt一致
+ */
+void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list, uint32_t *ns_stats_cnt);
+
+/**
+ * @brief 获取存储空间的连接信息
+ *
+ * 查询指定存储空间在指定VFE上的NVMe连接信息, 包括子系统NQN、Host NQN、命名空间ID等。
+ *
+ * @param name [IN] 存储空间标识
+ * @param vfe [IN] VFE信息, 可选参数，如果指定vfe，连接信息里的src_eid为指定vfe的eid，否则src_eid为host侧分配给ssu的fe的eid
+ * @param connect_info_list [OUT] 连接信息列表, 调用成功时由SDK内部动态分配, 调用方需主动释放内存
+ * @param connect_info_cnt [OUT] 连接信息数量
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:存储空间或VFE不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_connect_info_get(const char *name, ubs_ub_vfe_t *vfe, ubs_ssu_connect_info_t **connect_info_list,
+                                 uint32_t *connect_info_cnt);
+
+/**
+ * @brief 释放ubs_ssu_connect_info_get返回的连接信息列表
+ *
+ * @param connect_info_list [IN] ubs_ssu_connect_info_get返回的列表指针
+ * @param connect_info_cnt [IN] 列表元素数量, 与ubs_ssu_connect_info_get输出的connect_info_cnt一致
+ */
+void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint32_t *connect_info_cnt);
 
 /**
  * @brief 分配SSU存储空间
@@ -367,6 +459,69 @@ int32_t ubs_ssu_striped_space_attach(const char *name, const char *host_nqn, con
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 int32_t ubs_ssu_striped_space_detach(const char *name, const char *host_nqn, const char *dev_name);
+
+/**
+ * @brief 获取功能单元设备列表
+ *
+ * 查询系统中所有FE设备信息, 包括每个PFE下的VFE列表。
+ *
+ * @param fe_list [OUT] FE设备信息列表, 调用成功时由SDK内部动态分配, 调用方需通过
+ *                      ubs_ssu_fe_device_list_free接口主动释放内存
+ * @param fe_cnt [OUT] FE设备数量
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_fe_device_list(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
+
+/**
+ * @brief 释放ubs_ssu_fe_device_list返回的FE设备列表
+ *
+ * @param fe_list [IN] ubs_ssu_fe_device_list返回的列表指针
+ * @param fe_cnt [IN] 列表元素数量, 与ubs_ssu_fe_device_list输出的fe_cnt一致
+ */
+void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
+
+/**
+ * @brief 将VFE绑定到虚拟机
+ *
+ * 将指定的虚拟功能单元绑定到目标虚拟机, 使虚拟机可通过该VFE访问存储资源。
+ *
+ * @param upi [IN] 租户隔离标识
+ * @param vfe [IN] 要绑定的VFE信息
+ * @param bus_instance_guid [IN,OUT] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_MAX_UUID_LENGTH
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:VFE或虚拟机不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
+                                uint8_t bus_instance_guid[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]);
+
+/**
+ * @brief 释放VFE设备
+ *
+ * 将已分配的虚拟功能单元从目标虚拟机释放, 回收VFE设备资源。
+ *
+ * @param upi [IN] 租户隔离标识
+ * @param vfe [IN] 要释放的VFE信息
+ * @param bus_instance_guid [IN] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_BUS_INSTANCE_GUID_LENGTH
+ * @return UBS_SUCCESS:操作成功;
+ * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
+ * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
+ * UBS_ENGINE_ERR_NOT_EXIST:VFE或虚拟机不存在;
+ * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
+ * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
+ */
+int32_t ubs_ssu_fe_device_free(uint32_t upi, ubs_ub_vfe_t *vfe,
+                               uint8_t bus_instance_guid[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]);
 
 #ifdef __cplusplus
 }
