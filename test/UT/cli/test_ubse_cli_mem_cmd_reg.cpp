@@ -41,6 +41,13 @@ ParsedResponse ParseResponseBuffer(const ubse_api_buffer_t& responseBuffer);
 std::shared_ptr<UbseCliResultEcho> HandleTimeoutRetry(const std::string& name);
 bool LinkIsMatch(const std::string& str);
 bool SizeIsMatch(const std::string& str, size_t& size);
+std::string FormatHostnameSlot(const std::string& hostname, uint32_t slotId);
+bool CheckBorrowDetailType(const std::string& type);
+bool CheckDeleteType(const std::string& type);
+void EnsureDotAtEnd(std::string& str);
+bool IsValidIntegerString(const std::string& s);
+bool SizeConversion(const std::string& str, uint64_t& size);
+bool ParseRegionString(const std::string& regionStr, std::vector<uint32_t>& regions);
 
 class UbseCliMemDisplayBorrowDetail::UbseCliMemDisplayBorrowDetailImpl {
 public:
@@ -348,7 +355,7 @@ TEST_F(TestUbseCliMemCmdReg, UbseCliGetAllDebtInfoInvokeFailed)
     std::vector<ubse::mem::controller::message::FlatDebtInformation> borrow_account;
     std::vector<ubse::mem::controller::message::FlatDebtInformation> lend_account;
     UbseCliMemDisplayBorrowDetail::UbseCliMemDisplayBorrowDetailImpl query;
-    auto res = query.UbseCliGetIdsWithHostName(node_id_with_hostname);
+    auto res = query.UbseCliGetAllDebtInfo(node_id_with_hostname, borrow_account, lend_account, {});
     EXPECT_FALSE(res);
     MOCKER(&ubse_invoke_call).reset();
 }
@@ -528,5 +535,378 @@ TEST_F(TestUbseCliMemCmdReg, ConfigInvokeNormal)
     std::map<std::basic_string<char>, std::basic_string<char>> params{{"type", "config"}};
     EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, CheckBorrowDetailTypeValid)
+{
+    EXPECT_TRUE(CheckBorrowDetailType("fd"));
+    EXPECT_TRUE(CheckBorrowDetailType("numa"));
+    EXPECT_TRUE(CheckBorrowDetailType("share"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, CheckBorrowDetailTypeInvalid)
+{
+    EXPECT_FALSE(CheckBorrowDetailType(""));
+    EXPECT_FALSE(CheckBorrowDetailType("addr"));
+    EXPECT_FALSE(CheckBorrowDetailType("invalid"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, CheckDeleteTypeValid)
+{
+    EXPECT_TRUE(CheckDeleteType("fd"));
+    EXPECT_TRUE(CheckDeleteType("numa"));
+    EXPECT_TRUE(CheckDeleteType("addr"));
+    EXPECT_TRUE(CheckDeleteType("share"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, CheckDeleteTypeInvalid)
+{
+    EXPECT_FALSE(CheckDeleteType(""));
+    EXPECT_FALSE(CheckDeleteType("invalid"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, FormatHostnameSlotEmpty)
+{
+    EXPECT_EQ(FormatHostnameSlot("", 1), "-(1)");
+}
+
+TEST_F(TestUbseCliMemCmdReg, FormatHostnameSlotWithHostname)
+{
+    EXPECT_EQ(FormatHostnameSlot("node1", 5), "node1(5)");
+}
+
+TEST_F(TestUbseCliMemCmdReg, IsValidIntegerStringEmpty)
+{
+    EXPECT_FALSE(IsValidIntegerString(""));
+}
+
+TEST_F(TestUbseCliMemCmdReg, IsValidIntegerStringLeadingZero)
+{
+    EXPECT_FALSE(IsValidIntegerString("0123"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, IsValidIntegerStringNonDigit)
+{
+    EXPECT_FALSE(IsValidIntegerString("12a3"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, IsValidIntegerStringValid)
+{
+    EXPECT_TRUE(IsValidIntegerString("0"));
+    EXPECT_TRUE(IsValidIntegerString("123"));
+    EXPECT_TRUE(IsValidIntegerString("4194304"));
+}
+
+TEST_F(TestUbseCliMemCmdReg, EnsureDotAtEndEmpty)
+{
+    std::string s;
+    EnsureDotAtEnd(s);
+    EXPECT_TRUE(s.empty());
+}
+
+TEST_F(TestUbseCliMemCmdReg, EnsureDotAtEndAlreadyHasDot)
+{
+    std::string s = "error.";
+    EnsureDotAtEnd(s);
+    EXPECT_EQ(s, "error.");
+}
+
+TEST_F(TestUbseCliMemCmdReg, EnsureDotAtEndAddsDot)
+{
+    std::string s = "error occurred";
+    EnsureDotAtEnd(s);
+    EXPECT_EQ(s, "error occurred.");
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionIntegerG)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("1G", size));
+    EXPECT_EQ(size, 1ULL * 1024 * 1024 * 1024);
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionIntegerM)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("128M", size));
+    EXPECT_EQ(size, 128ULL * 1024 * 1024);
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionDecimalG)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("1.5G", size));
+    EXPECT_EQ(size, 1610612736ULL); // 1.5 * 1024^3
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionDecimalM)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("0.25M", size));
+    EXPECT_EQ(size, 262144ULL); // 0.25 * 1024^2
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionKB)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("100K", size));
+    EXPECT_EQ(size, 102400ULL);
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionBytes)
+{
+    uint64_t size = 0;
+    EXPECT_TRUE(SizeConversion("512B", size));
+    EXPECT_EQ(size, 512ULL);
+}
+
+TEST_F(TestUbseCliMemCmdReg, SizeConversionInvalid)
+{
+    uint64_t size = 0;
+    EXPECT_FALSE(SizeConversion("", size));
+    EXPECT_FALSE(SizeConversion("abc", size));
+    EXPECT_FALSE(SizeConversion("1.5X", size));
+    EXPECT_FALSE(SizeConversion("1.234M", size)); // 3 decimal places
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringEmpty)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_FALSE(ParseRegionString("", regions));
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringLeadingComma)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_FALSE(ParseRegionString(",1,2", regions));
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringTrailingComma)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_FALSE(ParseRegionString("1,2,", regions));
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringNonNumeric)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_FALSE(ParseRegionString("1,a,3", regions));
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringValid)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_TRUE(ParseRegionString("1,2,3", regions));
+    ASSERT_EQ(regions.size(), 3);
+    EXPECT_EQ(regions[0], 1);
+    EXPECT_EQ(regions[1], 2);
+    EXPECT_EQ(regions[2], 3);
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseRegionStringSingle)
+{
+    std::vector<uint32_t> regions;
+    EXPECT_TRUE(ParseRegionString("5", regions));
+    ASSERT_EQ(regions.size(), 1);
+    EXPECT_EQ(regions[0], 5);
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseResponseBufferDeserFailed)
+{
+    uint8_t emptyBuf[1] = {0};
+    ubse_api_buffer_t buf{emptyBuf, 0};
+    auto result = ParseResponseBuffer(buf);
+    EXPECT_FALSE(result.success);
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseResponseBufferInvalidState)
+{
+    UbseSerialization ser;
+    ser << std::string("test_name") << std::string("abc");
+    uint8_t buffer[256];
+    auto len = ser.GetLength();
+    memcpy_s(buffer, sizeof(buffer), ser.GetBuffer(), len);
+    ubse_api_buffer_t buf{buffer, static_cast<uint32_t>(len)};
+    auto result = ParseResponseBuffer(buf);
+    EXPECT_FALSE(result.success);
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseResponseBufferStageExist)
+{
+    UbseSerialization ser;
+    ser << std::string("test_name") << std::string("3"); // UBSE_EXIST = 3
+    ser << right_v<int64_t>(0) << std::string("export_node") << std::string("import_node");
+    uint8_t buffer[256];
+    auto len = ser.GetLength();
+    memcpy_s(buffer, sizeof(buffer), ser.GetBuffer(), len);
+    ubse_api_buffer_t buf{buffer, static_cast<uint32_t>(len)};
+    auto result = ParseResponseBuffer(buf);
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.name, "test_name");
+    EXPECT_EQ(result.numaId, 0);
+}
+
+TEST_F(TestUbseCliMemCmdReg, ParseResponseBufferStageNotExist)
+{
+    UbseSerialization ser;
+    ser << std::string("test_name") << std::string("0"); // UBSE_NOT_EXIST = 0
+    uint8_t buffer[256];
+    auto len = ser.GetLength();
+    memcpy_s(buffer, sizeof(buffer), ser.GetBuffer(), len);
+    ubse_api_buffer_t buf{buffer, static_cast<uint32_t>(len)};
+    auto result = ParseResponseBuffer(buf);
+    EXPECT_TRUE(result.success);
+    EXPECT_EQ(result.name, "test_name");
+    EXPECT_EQ(result.stage, ubse::mem::controller::UbseMemStage::UBSE_NOT_EXIST);
+}
+
+TEST_F(TestUbseCliMemCmdReg, DisplayProcessMemFuncNoType)
+{
+    std::map<std::string, std::string> params;
+    auto result = UbseCliRegMemModule::DisplayProcessMemFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, DisplayProcessMemFuncInvalidType)
+{
+    std::map<std::string, std::string> params;
+    params["type"] = "invalid";
+    auto result = UbseCliRegMemModule::DisplayProcessMemFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemQueryFuncBorrowTypeDetailUnsupported)
+{
+    std::map<std::string, std::string> params;
+    params["type"] = "node_borrow";
+    params["borrow-type"] = "fd";
+    auto result = UbseCliRegMemModule::UbseCliMemQueryFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemQueryFuncNameUnsupported)
+{
+    std::map<std::string, std::string> params;
+    params["type"] = "node_borrow";
+    params["name"] = "test";
+    auto result = UbseCliRegMemModule::UbseCliMemQueryFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemQueryFuncBorrowTypeInvalid)
+{
+    std::map<std::string, std::string> params;
+    params["type"] = "borrow_detail";
+    params["borrow-type"] = "invalid";
+    auto result = UbseCliRegMemModule::UbseCliMemQueryFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemQueryFuncNameInvalid)
+{
+    std::map<std::string, std::string> params;
+    params["type"] = "borrow_detail";
+    params["name"] = "invalid name!";
+    auto result = UbseCliRegMemModule::UbseCliMemQueryFunc(params);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, NodeLendInvokeFailed)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
+    std::map<std::string, std::string> params{{"type", "node_lend"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, NodeLendInvokeErrorSize)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_error_size));
+    std::map<std::string, std::string> params{{"type", "node_lend"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, NodeLendInvokeEmpty)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_empty));
+    std::map<std::string, std::string> params{{"type", "node_lend"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, NumaStatusInvokeFailed)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
+    std::map<std::string, std::string> params{{"type", "numa_status"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, NumaStatusInvokeEmpty)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_empty));
+    std::map<std::string, std::string> params{{"type", "numa_status"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, ConfigInvokeFailed)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_failed));
+    std::map<std::string, std::string> params{{"type", "config"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, ConfigInvokeEmpty)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ubse_invoke_call_empty));
+    std::map<std::string, std::string> params{{"type", "config"}};
+    EXPECT_NO_THROW(UbseCliRegMemModule::UbseCliMemQueryFunc(params)->UbseCliDisplayResult());
+    MOCKER(&ubse_invoke_call).reset();
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliProcessNumaStatusDataNormal)
+{
+    UbseSerialization ser;
+    size_t infoSize = 1;
+    ser << std::string("node1") << std::string("0") << std::string("65536") << std::string("16384")
+        << std::string("49152") << std::string("25%");
+    uint8_t buffer[256];
+    auto len = ser.GetLength();
+    memcpy_s(buffer, sizeof(buffer), ser.GetBuffer(), len);
+    UbseDeSerialization deser(buffer, len);
+    auto result = UbseCliRegMemModule::UbseCliProcessNumaStatusData(deser, infoSize, false);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliProcessNumaStatusDataDeserFailed)
+{
+    uint8_t emptyBuf[1] = {0};
+    UbseDeSerialization deser(emptyBuf, 0);
+    auto result = UbseCliRegMemModule::UbseCliProcessNumaStatusData(deser, 1, false);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemoryStatusDataNormal)
+{
+    UbseSerialization ser;
+    size_t infoSize = 1;
+    ser << std::string("node1") << std::string("ok") << std::string("All good");
+    uint8_t buffer[256];
+    auto len = ser.GetLength();
+    memcpy_s(buffer, sizeof(buffer), ser.GetBuffer(), len);
+    UbseDeSerialization deser(buffer, len);
+    auto result = UbseCliRegMemModule::UbseCliMemoryStatusData(deser, infoSize);
+    EXPECT_NE(result, nullptr);
+}
+
+TEST_F(TestUbseCliMemCmdReg, UbseCliMemoryStatusDataDeserFailed)
+{
+    uint8_t emptyBuf[1] = {0};
+    UbseDeSerialization deser(emptyBuf, 0);
+    auto result = UbseCliRegMemModule::UbseCliMemoryStatusData(deser, 1);
+    EXPECT_NE(result, nullptr);
 }
 } // namespace ubse::ut::cli
