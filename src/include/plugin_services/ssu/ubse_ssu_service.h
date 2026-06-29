@@ -38,13 +38,8 @@ enum class UbseSsuChunkSize : uint32_t {
     CHUNK_SIZE_512K = 512, // 512KB
 };
 
-enum class UbseSsuUsingType : uint8_t {
-    EXCLUSIVE = 0, // 独占
-    SHARED = 1,    // 共享
-};
-
 enum class UbseSsuAllocStrategy : uint8_t {
-    LINEAR = 0,  // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
+    LINEAR = 0, // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
     STRIPED = 1, // 分布式策略，尽量从多个设备分配，均等分配，适用于条带化编址使用场景
 };
 
@@ -54,27 +49,24 @@ struct UbseSsuAllocIdentityInfo {
 };
 
 struct UbseSsuAllocSpaceReq {
-    std::string name;              // 请求标识，最大48个字符
-    uint64_t nsSize;               // 申请总容量，单位字节, 条带化策略时，需整除nsNum且整除后需要为chunkSize的整数倍
-    uint32_t nsNum;                // 命名空间数量，等于1时，strategy不生效
-    UbseSsuLBAFormat lbaFormat;    // LBA 格式
-    UbseSsuAllocStrategy strategy; // 分配策略
-    UbseSsuUsingType usingType = UbseSsuUsingType::EXCLUSIVE; // 设备用途类型
-    UbseSsuAllocIdentityInfo identityInfo;                    // 使用方进程的运行用户的uid和userName
-    std::string tenant;                                       // 请求方tenant（租户隔离标识）
+    std::string name; // 请求标识，最大48个字符
+    uint64_t nsSize; // 申请总容量，单位字节, 条带化策略时，需整除nsNum且整除后需要为chunkSize的整数倍
+    uint32_t nsNum;                        // 命名空间数量，等于1时，strategy不生效
+    UbseSsuLBAFormat lbaFormat;            // LBA 格式
+    UbseSsuAllocStrategy strategy;         // 分配策略
+    UbseSsuAllocIdentityInfo identityInfo; // 使用方进程的运行用户的uid和userName
+    std::string tenant;                    // 请求方tenant（租户隔离标识）
 };
 
 struct UbseSsuNameSpaceInfo {
-    std::string srcEid;         // Source EID
     std::string tgtEid;         // Target EID
-    std::string subNqn;         // 子系统NQN
+    std::string tgtNqn;         // TargetNQN
     std::string defaultHostNqn; // 默认NQN，例子：nqn.2024-01.com.huawei:uuid:12345678-1234-1234-1234-1234567890ab
     std::string nsUuid;         // 物理设备UUID
     uint32_t namespaceId;       // 命名空间ID
     std::string nsDevPath;      // 命名空间设备路径
     uint64_t nsSize;            // 分配的容量，单位字节
     UbseSsuLBAFormat lbaFormat; // LBA 格式
-    UbseSsuUsingType usingType; // 设备用途类型
 };
 
 struct UbseSsuAllocResult {
@@ -95,6 +87,42 @@ enum class UbseSsuNsState : uint8_t {
     CREATED = 2,   // NS创建完成，等待Agent Attach
     ATTACHING = 3, // Agent正在Attach
     ATTACHED = 4,  // 全部完成
+};
+
+// 虚拟功能单元(VFE)信息
+struct UbseSsuVfe {
+    uint8_t slotId; // 槽位ID
+    uint8_t chipId; // 芯片ID
+    uint8_t dieId;  // Die ID
+    uint16_t pfeId; // 物理功能单元ID
+    uint16_t vfeId; // 虚拟功能单元ID
+};
+
+// 功能单元(FE)信息, 包含所属PFE及其下的VFE列表
+struct UbseSsuFe {
+    uint8_t slotId;                  // 槽位ID
+    uint8_t chipId;                  // 芯片ID
+    uint8_t dieId;                   // Die ID
+    uint16_t pfeId;                  // 物理功能单元ID
+    std::vector<UbseSsuVfe> vfeList; // VFE列表, 由SDK内部动态分配, 需通过释放接口回收
+};
+
+// 存储空间连接信息
+struct UbseSsuConnectInfo {
+    std::string srcEid;  // Source EID
+    std::string tgtEid;  // Target EID
+    std::string tgtNqn;  // Target NQN
+    std::string hostNqn; // 默认NQN, 例: nqn.2024-01.com.huawei:uuid:12345678-...
+    std::string nsUuid;  // 物理设备UUID
+    uint32_t nsId;       // 命名空间ID
+};
+
+// 存储空间状态
+struct UbseSsuNsStats {
+    std::string nsUuid; // 物理设备UUID
+    uint32_t nsId;      // 命名空间ID
+    uint64_t totalSize; // 总容量, 单位字节
+    uint64_t usedSize;  // 已用容量, 单位字节
 };
 
 /**
@@ -128,28 +156,62 @@ public:
     /**
      * @brief 列出所有已分配的存储空间信息
      *
-     * 获取系统中所有已分配的SSU存储空间详细信息，包括命名空间列表、
-     * 容量、LBA格式和使用类型等。
+     * 获取系统中所有已分配的SSU存储空间详细信息, 包括命名空间列表、容量、LBA格式和使用类型等。
      *
-     * @param result [输出] 已分配空间信息列表
+     * @param result   [输出] 已分配空间信息列表
+     * @param identity 调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result);
+    virtual uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result, const UbseSsuAllocIdentityInfo &identity);
 
     /**
      * @brief 根据名称获取已分配的存储空间信息
      *
      * 根据存储空间的名称查询其详细信息，包括命名空间列表、容量、LBA格式和使用类型等。
      *
-     * @param name    存储空间标识（与 AllocSpace 时的 name 参数一致）
-     * @param result  [输出] 已分配空间信息
+     * @param name     存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param result   [输出] 已分配空间信息
+     * @param identity 调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result);
+    virtual uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+                                        const UbseSsuAllocIdentityInfo &identity);
+
+    /**
+     * @brief 获取存储空间的命名空间统计信息
+     *
+     * 查询指定存储空间下各命名空间的容量使用情况, 包括总容量和已用容量。
+     *
+     * @param name       存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param statsList  [输出] 命名空间统计信息列表
+     * @param identity   调用方身份信息, 包含用户名和uid
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t GetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                                const UbseSsuAllocIdentityInfo &identity);
+
+    /**
+     * @brief 获取存储空间的连接信息
+     *
+     * 查询指定存储空间在指定VFE上的NVMe连接信息, 包括子系统NQN、Host NQN、命名空间ID等。
+     *
+     * @param name             存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param vfe              VFE信息, 指定查询的虚拟功能单元
+     * @param connectInfoList  [输出] 连接信息列表
+     * @param identity         调用方身份信息, 包含用户名和uid
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t GetConnectInfo(const std::string &name, const UbseSsuVfe &vfe,
+                                    std::vector<UbseSsuConnectInfo> &connectInfoList,
+                                    const UbseSsuAllocIdentityInfo &identity);
 
     /**
      * @brief 分配SSU存储空间
@@ -327,6 +389,46 @@ public:
      */
     virtual uint32_t DetachStripedSpace(const std::string &name, const std::string &nqn,
                                         const UbseSsuAllocIdentityInfo &identity, const std::string &devName);
+
+    /**
+     * @brief 获取FE设备列表
+     *
+     * 查询系统中所有FE设备信息, 包括每个PFE下的VFE列表。
+     *
+     * @param feList [输出] FE设备信息列表
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList);
+
+    /**
+     * @brief 分配VFE设备
+     *
+     * 将指定的虚拟功能单元分配给目标虚拟机, 使虚拟机可通过该VFE访问存储资源。
+     *
+     * @param upi              租户隔离标识
+     * @param vfe              要分配的VFE信息
+     * @param busInstanceGuid  [输入，输出] 总线实例GUID, 标识目标虚拟机
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid);
+
+    /**
+     * @brief 释放VFE设备
+     *
+     * 将已分配的虚拟功能单元从目标虚拟机释放, 回收VFE设备资源。
+     *
+     * @param upi              租户隔离标识
+     * @param vfe              要释放的VFE信息
+     * @param busInstanceGuid  总线实例GUID, 标识目标虚拟机
+     * @return uint32_t 错误码
+     * @retval 0 成功
+     * @retval 非零 失败，具体错误码由实现定义
+     */
+    virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid);
 };
 } // namespace ubse::plugin::service::ssu
 #endif // UBSE_SSU_SERVICE_H

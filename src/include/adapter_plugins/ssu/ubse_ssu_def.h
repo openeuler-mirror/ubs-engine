@@ -54,15 +54,15 @@ enum class UbseSsuState : uint32_t {
 struct UbseSsuDevNameSpaceCustomData {
     uint8_t version;                     // 版本标识
     char name[UBSE_SSU_MAX_NAME_LENGTH]; // 请求唯一标识
-    char defaultNqn[UBSE_SSU_MAX_NQN_LENGTH]; // 默认NQN，例子：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
-    uint32_t uid;                           // 使用方进程的运行用户的uid
+    char defaultNqn
+        [UBSE_SSU_MAX_NQN_LENGTH]; // 默认NQN，例子：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
+    uint32_t uid;                  // 使用方进程的运行用户的uid
     char userName[UBSE_SSU_MAX_USER_NAME_LENGTH]; // 使用方进程的运行用户的名称
-    uint8_t usingType;                   // ns用途类型：0-独占，1-共享
-    uint8_t allocStrategy;              // 分配策略：0-线性编址，1-条带化
-    uint8_t raidLevel;                   // raid级别
-    uint8_t nsNum;                       // ns数量
-    uint64_t totalBytes;                 // ns总容量（字节）
-    uint32_t crc; // crc校验
+    uint8_t allocStrategy;                        // 分配策略：0-线性编址，1-条带化
+    uint8_t raidLevel;                            // raid级别
+    uint8_t nsNum;                                // ns数量
+    uint64_t totalBytes;                          // ns总容量（字节）
+    uint32_t crc;                                 // crc校验
 } __attribute__((packed));
 
 // 参数	    缩写	说明	               默认值
@@ -80,8 +80,8 @@ struct UbseSsuNamespaceOptions {
 };
 
 struct UbseSsuDevSubSystem {
-    std::string eid;    // ssu物理设备eid
-    std::string subNqn; // 子系统NQN
+    std::string eid;     // ssu物理设备eid
+    std::string subNqn;  // 子系统NQN
     uint32_t jettyId{0}; // jetty id
 };
 
