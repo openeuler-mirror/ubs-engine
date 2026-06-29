@@ -63,10 +63,10 @@ public:
      * For scene types that do not include ElectionModule (e.g. AI/NPU scene).
      * Only waits for UDS socket readiness, then initializes SDK clients directly.
      *
-     * @param startupTimeoutMs Timeout for daemon startup / UDS readiness (default 30s)
+     * Startup timeout is taken from clusterSpec_.startupTimeoutMs (set by builder).
      * @return UBSE_OK on success
      */
-    UbseResult StartClusterNoElection(uint32_t startupTimeoutMs = 30000);
+    UbseResult StartClusterNoElection();
 
     /**
      * @brief Stop all nodes (reverse order).

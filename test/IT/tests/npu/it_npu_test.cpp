@@ -10,50 +10,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
-
-#include <cstdlib>
-#include <string>
-#include <vector>
+#include <cstring>
 
 #include "it_assertion.h"
-#include "it_cluster.h"
-#include "it_config_builder.h"
 #include "it_console_log.h"
-#include "it_test_fixture.h"
 #include "ubs_engine_npu.h"
+#include "zhisuan_npu_single_node_scenario.h"
 
-class ItNpuTest : public ubse::it::infra::ItTestFixture {};
+using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
 
-TEST_F(ItNpuTest, SingleNodeNpuDeviceListQuery)
+TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
 {
-    setenv("SCENE_TYPE", "ai", 1);
-
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.1", 8082, 1}
-    };
-
-    ubse::it::infra::ItConfigBuilder builder(nodeConfigs, workDir_);
-    auto ret = builder.WithClusterIps({"127.0.0.1"}).WithCertUse(false).GenerateAllConfigs();
-    ASSERT_IT_OK(ret);
-
-    setenv("UBSE_IT_CLUSTER_NODES", "1", 1);
-    setenv("UBSE_IT_CLUSTER_IPS", "127.0.0.1", 1);
-
-    ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
-    ret = cluster.StartClusterNoElection(30000);
-    ASSERT_IT_OK(ret);
-    ASSERT_TRUE(cluster.IsNodeRunning("1"));
-
-    auto& client = cluster.GetSdkClient("1");
+    auto& client = Cluster().GetSdkClient("1");
     ubs_ub_devices_list_t devList = {};
     int32_t sdkRet = client.NpuDeviceListQuery(&devList);
     IT_LOG_INFO << "NpuDeviceListQuery returned: " << sdkRet;
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
 
     if (sdkRet == UBS_SUCCESS) {
-        IT_LOG_INFO << "NPU count: " << devList.npu_cnt
-                    << ", BUSI count: " << devList.busi_cnt
+        IT_LOG_INFO << "NPU count: " << devList.npu_cnt << ", BUSI count: " << devList.busi_cnt
                     << ", NIC_PFE count: " << devList.nic_pfe_cnt;
 
         EXPECT_GT(devList.npu_cnt, 0u) << "Should have at least one NPU device";
@@ -76,32 +51,11 @@ TEST_F(ItNpuTest, SingleNodeNpuDeviceListQuery)
     }
 
     client.NpuDeviceListFree(&devList);
-
-    ret = cluster.StopCluster();
-    EXPECT_IT_OK(ret);
 }
 
-TEST_F(ItNpuTest, SingleNodeNpuDeviceAllocFreeLifecycle)
+TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
 {
-    setenv("SCENE_TYPE", "ai", 1);
-
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.1", 8082, 1}
-    };
-
-    ubse::it::infra::ItConfigBuilder builder(nodeConfigs, workDir_);
-    auto ret = builder.WithClusterIps({"127.0.0.1"}).WithCertUse(false).GenerateAllConfigs();
-    ASSERT_IT_OK(ret);
-
-    setenv("UBSE_IT_CLUSTER_NODES", "1", 1);
-    setenv("UBSE_IT_CLUSTER_IPS", "127.0.0.1", 1);
-
-    ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
-    ret = cluster.StartClusterNoElection(30000);
-    ASSERT_IT_OK(ret);
-    ASSERT_TRUE(cluster.IsNodeRunning("1"));
-
-    auto& client = cluster.GetSdkClient("1");
+    auto& client = Cluster().GetSdkClient("1");
 
     ubs_ub_alloc_devices_info_t allocInfo = {};
     uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'6', '4', '\0', '\0'};
@@ -128,8 +82,7 @@ TEST_F(ItNpuTest, SingleNodeNpuDeviceAllocFreeLifecycle)
     EXPECT_EQ(sdkRet, UBS_SUCCESS) << "NPU alloc should succeed";
 
     if (sdkRet == UBS_SUCCESS) {
-        IT_LOG_INFO << "Alloc NPU count: " << allocDevList.npu_cnt
-                    << ", BUSI count: " << allocDevList.busi_cnt
+        IT_LOG_INFO << "Alloc NPU count: " << allocDevList.npu_cnt << ", BUSI count: " << allocDevList.busi_cnt
                     << ", NIC_PFE count: " << allocDevList.nic_pfe_cnt;
         EXPECT_GT(allocDevList.npu_cnt, 0u) << "Alloc should return at least one NPU";
         EXPECT_GT(allocDevList.busi_cnt, 0u) << "Alloc should return at least one VM BUSI";
@@ -171,32 +124,11 @@ TEST_F(ItNpuTest, SingleNodeNpuDeviceAllocFreeLifecycle)
     EXPECT_EQ(sdkRet, UBS_SUCCESS) << "NPU free should succeed";
 
     client.NpuDeviceListFree(&allocDevList);
-
-    ret = cluster.StopCluster();
-    EXPECT_IT_OK(ret);
 }
 
-TEST_F(ItNpuTest, SingleNodeNpuUbaTidSizeQueryAfterAlloc)
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
 {
-    setenv("SCENE_TYPE", "ai", 1);
-
-    std::vector<ubse::it::infra::NodeConfig> nodeConfigs = {
-        {"1", "127.0.0.1", 8082, 1}
-    };
-
-    ubse::it::infra::ItConfigBuilder builder(nodeConfigs, workDir_);
-    auto ret = builder.WithClusterIps({"127.0.0.1"}).WithCertUse(false).GenerateAllConfigs();
-    ASSERT_IT_OK(ret);
-
-    setenv("UBSE_IT_CLUSTER_NODES", "1", 1);
-    setenv("UBSE_IT_CLUSTER_IPS", "127.0.0.1", 1);
-
-    ubse::it::infra::ItCluster cluster(binaryPath_.string(), workDir_, nodeConfigs, stubLibDir_.string());
-    ret = cluster.StartClusterNoElection(30000);
-    ASSERT_IT_OK(ret);
-    ASSERT_TRUE(cluster.IsNodeRunning("1"));
-
-    auto& client = cluster.GetSdkClient("1");
+    auto& client = Cluster().GetSdkClient("1");
 
     ubs_ub_alloc_devices_info_t allocInfo = {};
     uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'6', '4', '\0', '\0'};
@@ -227,8 +159,8 @@ TEST_F(ItNpuTest, SingleNodeNpuUbaTidSizeQueryAfterAlloc)
 
         IT_LOG_INFO << "Querying UBA/TID/Size with allocated bus instance GUID";
         sdkRet = client.UbaTidSizeQuery(newBusInstanceGuid, &tid, &uba, &size);
-        IT_LOG_INFO << "UbaTidSizeQuery returned: " << sdkRet
-                    << ", tid=" << tid << ", uba=" << uba << ", size=" << size;
+        IT_LOG_INFO << "UbaTidSizeQuery returned: " << sdkRet << ", tid=" << tid << ", uba=" << uba
+                    << ", size=" << size;
         EXPECT_EQ(sdkRet, UBS_SUCCESS) << "UbaTidSize query should succeed with valid GUID";
         EXPECT_EQ(tid, 1u);
         EXPECT_EQ(uba, 0x1000ull);
@@ -253,7 +185,4 @@ TEST_F(ItNpuTest, SingleNodeNpuUbaTidSizeQueryAfterAlloc)
     EXPECT_EQ(sdkRet, UBS_SUCCESS) << "NPU free should succeed after UbaTidSize query";
 
     client.NpuDeviceListFree(&allocDevList);
-
-    ret = cluster.StopCluster();
-    EXPECT_IT_OK(ret);
 }

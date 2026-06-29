@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -44,6 +45,7 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
       clusterIps_(std::move(config.clusterIps)),
       clusterSlotIds_(std::move(config.clusterSlotIds)),
       stubLibDir_(std::move(config.stubLibDir)),
+      sceneType_(std::move(config.sceneType)),
       childPid_(-1),
       udsSocketPath_(workDir_ + "/run/ubse.sock")
 {
@@ -83,6 +85,9 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     environment.emplace_back("UBSE_IT_POD_ID=1");
     environment.emplace_back("UBSE_IT_SUPER_POD_ID=1");
     environment.emplace_back("UBSE_IT_SERVER_IDX=0");
+    if (!sceneType_.empty()) {
+        environment.emplace_back("SCENE_TYPE=" + sceneType_);
+    }
     return environment;
 }
 
@@ -278,6 +283,35 @@ UbseResult NodeProcessManager::WaitForStartup(uint32_t timeoutMs)
     }
     IT_LOG_ERROR << "Node " << nodeId_ << " startup timed out after " << timeoutMs << "ms";
     return UBSE_ERROR_DEF(7);
+}
+
+UbseResult NodeProcessManager::WaitForDaemonReady(uint32_t timeoutMs)
+{
+    constexpr uint32_t pollIntervalMs = 100;
+    std::string logPath = workDir_ + "/log/ubse.log";
+    std::string readyMarker = "ubse service started successfully.";
+    uint32_t elapsed = 0;
+    while (elapsed < timeoutMs) {
+        if (!IsRunning()) {
+            IT_LOG_ERROR << "Node " << nodeId_ << " process died while waiting for daemon readiness";
+            return UBSE_ERROR_DEF(6);
+        }
+        std::ifstream logFile(logPath);
+        if (logFile.is_open()) {
+            std::string line;
+            while (std::getline(logFile, line)) {
+                if (line.find(readyMarker) != std::string::npos) {
+                    IT_LOG_INFO << "Node " << nodeId_ << " daemon fully ready";
+                    return UBSE_OK;
+                }
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
+        elapsed += pollIntervalMs;
+    }
+    IT_LOG_WARN << "Node " << nodeId_ << " daemon readiness not confirmed after " << timeoutMs
+                << "ms, proceeding anyway";
+    return UBSE_OK;
 }
 
 const std::string& NodeProcessManager::GetNodeId() const

@@ -70,6 +70,7 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
         procConfig.clusterNodeIds = clusterSpec_.JoinedNodeIds();
         procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
         procConfig.clusterSlotIds = clusterSpec_.SlotIds();
+        procConfig.sceneType = clusterSpec_.sceneType;
         auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
         ret = proc->Start();
         if (ret != UBSE_OK) {
@@ -135,110 +136,80 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
     return UBSE_OK;
 }
 
-UbseResult ItCluster::StartClusterNoElection(uint32_t startupTimeoutMs)
+UbseResult ItCluster::StartClusterNoElection()
 {
-    const char* asanEnabled = std::getenv("UBSE_IT_ASAN_ENABLED");
-    if (asanEnabled != nullptr && std::string(asanEnabled) == "true") {
-        startupTimeoutMs *= 2;
-    }
-
-    std::vector<std::string> clusterIps;
-    std::string allNodeIds;
-    std::string allClusterIps;
-    std::vector<uint32_t> allSlotIds;
-    for (const auto& cfg : nodeConfigs_) {
-        clusterIps.push_back(cfg.ip);
-        allSlotIds.push_back(cfg.slotId);
-    }
-    for (size_t i = 0; i < nodeConfigs_.size(); ++i) {
-        if (i > 0) {
-            allNodeIds += ",";
-            allClusterIps += ",";
-        }
-        allNodeIds += nodeConfigs_[i].nodeId;
-        allClusterIps += nodeConfigs_[i].ip;
-    }
-
-    ItConfigBuilder configBuilder(nodeConfigs_, baseWorkDir_);
-    UbseResult ret = configBuilder.WithClusterIps(clusterIps).WithCertUse(false).GenerateAllConfigs();
+    ItConfigBuilder configBuilder(nodeSpecs_, baseWorkDir_);
+    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps()).WithCertUse(false).GenerateAllConfigs();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to generate cluster configs";
         return ret;
     }
 
     // Phase 1: Fork all node processes simultaneously
-    for (const auto& cfg : nodeConfigs_) {
-        std::string workDir = baseWorkDir_ + "/" + cfg.nodeId;
-        std::filesystem::create_directories(workDir);
-        std::filesystem::create_directories(workDir + "/run");
-        std::filesystem::create_directories(workDir + "/log");
-
-        setenv("UBSE_IT_NODE_ID", cfg.nodeId.c_str(), 1);
-        setenv("UBSE_IT_NODE_IP", cfg.ip.c_str(), 1);
-        setenv("UBSE_IT_LOCAL_IP", cfg.ip.c_str(), 1);
-        setenv("UBSE_IT_CLUSTER_NODES", allNodeIds.c_str(), 1);
-        setenv("UBSE_IT_CLUSTER_IPS", allClusterIps.c_str(), 1);
+    for (const auto& cfg : nodeSpecs_) {
+        std::filesystem::create_directories(cfg.workDir);
+        std::filesystem::create_directories(cfg.RunDir());
+        std::filesystem::create_directories(cfg.LogDir());
 
         NodeProcessConfig procConfig;
         procConfig.binaryPath = binaryPath_;
         procConfig.nodeId = cfg.nodeId;
         procConfig.nodeIp = cfg.ip;
-        procConfig.workDir = workDir;
+        procConfig.workDir = cfg.workDir;
         procConfig.slotId = cfg.slotId;
         procConfig.stubLibDir = stubLibDir_;
-        procConfig.clusterNodeIds = allNodeIds;
-        procConfig.clusterIps = allClusterIps;
-        procConfig.clusterSlotIds = allSlotIds;
+        procConfig.clusterNodeIds = clusterSpec_.JoinedNodeIds();
+        procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
+        procConfig.clusterSlotIds = clusterSpec_.SlotIds();
+        procConfig.sceneType = clusterSpec_.sceneType;
         auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
         ret = proc->Start();
         if (ret != UBSE_OK) {
             IT_LOG_ERROR << "Failed to start node " << cfg.nodeId;
-            for (auto& [id, p] : nodes_) {
-                if (p->IsRunning()) {
-                    p->Stop();
-                }
-            }
-            nodes_.clear();
+            StopCluster();
             return ret;
         }
         nodes_[cfg.nodeId] = std::move(proc);
     }
 
     // Phase 2: Wait for all nodes to become ready (UDS socket) in parallel
-    std::vector<std::future<UbseResult>> waitResults;
+    std::vector<std::pair<std::string, std::future<UbseResult>>> waitResults;
     for (auto& [id, proc] : nodes_) {
         NodeProcessManager* procPtr = proc.get();
         auto future = std::async(std::launch::async,
-                                  [procPtr, startupTimeoutMs]() { return procPtr->WaitForStartup(startupTimeoutMs); });
-        waitResults.push_back(std::move(future));
+                                 [this, procPtr]() { return procPtr->WaitForStartup(clusterSpec_.startupTimeoutMs); });
+        waitResults.emplace_back(id, std::move(future));
     }
 
-    for (size_t i = 0; i < waitResults.size(); ++i) {
-        UbseResult waitRet = waitResults[i].get();
+    for (auto& [nodeId, future] : waitResults) {
+        UbseResult waitRet = future.get();
         if (waitRet != UBSE_OK) {
-            IT_LOG_ERROR << "Node " << nodeIds_[i] << " did not start up in time";
-            for (auto& [id, proc] : nodes_) {
-                proc->Stop();
-            }
-            nodes_.clear();
+            IT_LOG_ERROR << "Node " << nodeId << " did not start up in time";
+            StopCluster();
             return waitRet;
         }
     }
 
-    clusterMgr_ = std::make_unique<ClusterManager>(binaryPath_, baseWorkDir_, nodeConfigs_);
+    // Phase 2b: Wait for daemon modules to be fully ready (no election convergence to rely on)
+    for (auto& [id, proc] : nodes_) {
+        UbseResult readyRet = proc->WaitForDaemonReady(clusterSpec_.startupTimeoutMs);
+        if (readyRet != UBSE_OK) {
+            IT_LOG_WARN << "Node " << id << " daemon readiness wait failed, proceeding anyway";
+        }
+    }
+
     clusterStarted_ = true;
     IT_LOG_INFO << "All nodes started (no election wait)";
 
     // Phase 3a: Create SDK client objects
-    for (const auto& cfg : nodeConfigs_) {
+    for (const auto& cfg : nodeSpecs_) {
         auto procIt = nodes_.find(cfg.nodeId);
         if (procIt == nodes_.end() || !procIt->second) {
             IT_LOG_ERROR << "Node process not found for " << cfg.nodeId;
             return UBSE_ERROR_DEF(1);
         }
         std::string udsPath = procIt->second->GetUdsSocketPath();
-        std::string logDir = baseWorkDir_ + "/" + cfg.nodeId + "/log";
-        auto client = std::make_unique<ItSdkClient>(udsPath, logDir, cliBinaryPath_, cfg.nodeId, nodeIds_);
+        auto client = std::make_unique<ItSdkClient>(udsPath, cfg.LogDir(), cliBinaryPath_, cfg.nodeId, nodeIds_);
         sdkClients_[cfg.nodeId] = std::move(client);
     }
 
@@ -248,7 +219,9 @@ UbseResult ItCluster::StartClusterNoElection(uint32_t startupTimeoutMs)
     for (auto& [id, client] : sdkClients_) {
         UbseResult initRet = client->Initialize();
         if (initRet != UBSE_OK) {
-            IT_LOG_WARN << "Failed to initialize SDK client for node " << id;
+            IT_LOG_ERROR << "Failed to initialize SDK client for node " << id;
+            StopCluster();
+            return initRet;
         }
     }
 
@@ -366,6 +339,7 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
     procConfig.clusterNodeIds = clusterSpec_.JoinedNodeIds();
     procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
     procConfig.clusterSlotIds = clusterSpec_.SlotIds();
+    procConfig.sceneType = clusterSpec_.sceneType;
     auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
     UbseResult ret = proc->Start();
     if (ret != UBSE_OK) {

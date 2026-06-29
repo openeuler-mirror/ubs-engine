@@ -41,6 +41,7 @@ add_library(ubse_it_infra STATIC
     ${IT_TOOL_DIR}/mock_lcne_server.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
+    ${IT_SCENARIOS_DIR}/zhisuan_npu_single_node_scenario.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
@@ -148,6 +149,7 @@ set(UBSE_IT_MODULES
     smoke
     election
     mem_borrow
+    npu
 )
 
 set(UBSE_IT_NON_MODULE_DIRS
@@ -176,9 +178,6 @@ foreach(module IN LISTS UBSE_IT_MODULES)
     endif()
     add_subdirectory(${IT_TESTS_DIR}/${module} ${CMAKE_BINARY_DIR}/test/IT/${module})
 endforeach()
-
-# NPU test subdirectory
-add_subdirectory(npu)
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
 get_property(IT_BINARIES GLOBAL PROPERTY UBSE_IT_BINARIES)

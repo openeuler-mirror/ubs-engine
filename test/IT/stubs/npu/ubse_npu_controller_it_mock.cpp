@@ -10,17 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <sys/wait.h>
 #include <array>
 #include <cstdio>
 #include <cstring>
 #include <memory>
-#include <sys/wait.h>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "ubse_mti_urma.h"
 #include "ubse_mti_1825.h"
 #include "ubse_mti_bus_instance.h"
+#include "ubse_mti_urma.h"
 #include "ubse_npu_monitor_service_api.h"
 #include "ubse_os_util.h"
 
@@ -72,30 +72,29 @@ public:
     }
 
     UbseResult BindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
-                          std::vector<bool>& resList) override
+                         std::vector<bool>& resList) override
     {
         resList.assign(vfeDavidList.size(), true);
         return UBSE_OK;
     }
 
     UbseResult UnBindDavid(uint16_t upi, const std::vector<UbseMtiIdevVfeDavidPair>& vfeDavidList,
-                            std::vector<bool>& resList) override
+                           std::vector<bool>& resList) override
     {
         resList.assign(vfeDavidList.size(), true);
         return UBSE_OK;
     }
 
-    UbseResult RegDavidFeToVmBusInstance(const UbseMtiBusInst& busInstance,
-                                          const std::vector<UbseMtiIdevVfe>& vfeList,
-                                          std::vector<bool>& resList) override
+    UbseResult RegDavidFeToVmBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMtiIdevVfe>& vfeList,
+                                         std::vector<bool>& resList) override
     {
         resList.assign(vfeList.size(), true);
         return UBSE_OK;
     }
 
     UbseResult UnRegDavidFeFromVmBusInstance(const UbseMtiBusInst& busInstance,
-                                              const std::vector<UbseMtiIdevVfe>& vfeList,
-                                              std::vector<bool>& resList) override
+                                             const std::vector<UbseMtiIdevVfe>& vfeList,
+                                             std::vector<bool>& resList) override
     {
         resList.assign(vfeList.size(), true);
         return UBSE_OK;
@@ -119,33 +118,30 @@ public:
         return UBSE_OK;
     }
 
-    UbseResult Reg1825FeToHostBusInstance(const UbseMtiBusInst& busInstance,
-                                           const std::vector<UbseMti1825Vf>& vfList,
-                                           std::vector<bool>& resList) override
+    UbseResult Reg1825FeToHostBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMti1825Vf>& vfList,
+                                          std::vector<bool>& resList) override
     {
         resList.assign(vfList.size(), true);
         return UBSE_OK;
     }
 
     UbseResult UnReg1825FeFromHostBusInstance(const UbseMtiBusInst& busInstance,
-                                               const std::vector<UbseMti1825Vf>& vfList,
-                                               std::vector<bool>& resList) override
+                                              const std::vector<UbseMti1825Vf>& vfList,
+                                              std::vector<bool>& resList) override
     {
         resList.assign(vfList.size(), true);
         return UBSE_OK;
     }
 
-    UbseResult Reg1825FeToVmBusInstance(const UbseMtiBusInst& busInstance,
-                                         const std::vector<UbseMti1825Vf>& vfList,
-                                         std::vector<bool>& resList) override
+    UbseResult Reg1825FeToVmBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMti1825Vf>& vfList,
+                                        std::vector<bool>& resList) override
     {
         resList.assign(vfList.size(), true);
         return UBSE_OK;
     }
 
-    UbseResult UnReg1825FeFromVmBusInstance(const UbseMtiBusInst& busInstance,
-                                             const std::vector<UbseMti1825Vf>& vfList,
-                                             std::vector<bool>& resList) override
+    UbseResult UnReg1825FeFromVmBusInstance(const UbseMtiBusInst& busInstance, const std::vector<UbseMti1825Vf>& vfList,
+                                            std::vector<bool>& resList) override
     {
         resList.assign(vfList.size(), true);
         return UBSE_OK;
@@ -184,8 +180,7 @@ public:
         return UBSE_OK;
     }
 
-    UbseResult GetD2hMemory(const UbseMtiBusInst& busInstance, uint32_t& tid, uint64_t& uba,
-                             uint64_t& size) override
+    UbseResult GetD2hMemory(const UbseMtiBusInst& busInstance, uint32_t& tid, uint64_t& uba, uint64_t& size) override
     {
         tid = 1;
         uba = 0x1000;
