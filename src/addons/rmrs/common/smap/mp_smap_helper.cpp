@@ -271,6 +271,19 @@ MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string& filePath, uin
 
 MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize)
 {
+    // 1. 获取或创建该 numa 对应的 mutex
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex); // 保护 map 的读写
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            // operator[] 会默认构造一个 std::mutex
+            mtx = &numaAllocMutexMap[numaId];
+        } else {
+            mtx = &it->second;
+        }
+    } // mapMutex 在这里解锁
+
     const int MAX_RETRY = 100;
     int retryCnt = 0;
 
@@ -395,6 +408,22 @@ MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t>& remoteNumaIds, st
 
 MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize)
 {
+    // 1. 获取或创建该 numa 对应的 mutex
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex); // 保护 map 的读写
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            // operator[] 会默认构造一个 std::mutex
+            mtx = &numaAllocMutexMap[numaId];
+        } else {
+            mtx = &it->second;
+        }
+    } // mapMutex 在这里解锁
+
+    // 2. 锁定该numa的专用mutex
+    std::lock_guard<std::mutex> lock(*mtx);
+
     const int MAX_RETRY = 100;
     int retryCnt = 0;
     std::string filePath;
