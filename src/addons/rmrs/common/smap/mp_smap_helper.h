@@ -137,6 +137,8 @@ private:
     const std::string HUGEPAGES_PATH_HEAD = "/sys/devices/system/node/node";
     const std::string HUGEPAGES_PATH_TAIL = "/hugepages/hugepages-2048kB/nr_hugepages";
     const std::string FD_SMAP_VM_DEVICE = "/dev/smap_vm_device";
+    std::unordered_map<uint64_t, std::mutex> numaAllocMutexMap;
+    std::mutex mapMutex;
 };
 
 } // namespace mempooling::smap
