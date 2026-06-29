@@ -284,6 +284,9 @@ MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borr
         }
     } // mapMutex 在这里解锁
 
+    // 2. 锁定该numa的专用mutex
+    std::lock_guard<std::mutex> lock(*mtx);
+
     const int MAX_RETRY = 100;
     int retryCnt = 0;
 
