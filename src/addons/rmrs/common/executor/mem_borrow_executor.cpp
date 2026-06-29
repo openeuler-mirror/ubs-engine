@@ -476,6 +476,30 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmapForProcessMem(const std::string&
     return ret;
 }
 
+bool CheckCriticalError(int numaId)
+{
+    // 为1代表NUMA故障直接归还，其他情况继续执行
+    std::string filePath = "/sys/devices/system/node/node" + std::to_string(numaId) + "/critical_err";
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "Node " << numaId << ": File " << filePath << " not found or permission denied.";
+        return false;
+    }
+    std::string content;
+    if (!(file >> content)) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Node " << numaId << ": Failed to read file content.";
+        return false;
+    }
+
+    if (content == "1") {
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "Node " << numaId << ": critical_error is 1.";
+        return true;
+    }
+
+    return false;
+}
+
 MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault)
 {
     std::vector<MigrateBackMsg> migrateBackMsgList;
@@ -497,6 +521,10 @@ MpResult MemBorrowExecutor::MemFreeWithOpsBySmap(const std::string& name, const 
     for (auto& migrateBackMsg : migrateBackMsgList) {
         retSmap = SmapMigrateBackProcess(migrateBackMsg);
         if (retSmap != MEM_POOLING_OK) {
+            int numaId = migrateBackMsg.payload[0].srcNid;
+            if (CheckCriticalError(numaId)) {
+                break;
+            }
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemFree][MemFreeExecute] Smap migrate back execute failed.";
             retSmap = SmapEnableNumaProcess(enableMsg);
