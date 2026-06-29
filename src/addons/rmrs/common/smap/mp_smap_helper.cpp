@@ -285,7 +285,9 @@ MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borr
     } // mapMutex 在这里解锁
 
     // 2. 锁定该numa的专用mutex
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Try to get lock for numaId=" << numaId << ".";
     std::lock_guard<std::mutex> lock(*mtx);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get lock success.";
 
     const int MAX_RETRY = 100;
     int retryCnt = 0;
@@ -425,7 +427,9 @@ MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borro
     } // mapMutex 在这里解锁
 
     // 2. 锁定该numa的专用mutex
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Try to get lock for numaId=" << numaId << ".";
     std::lock_guard<std::mutex> lock(*mtx);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get lock success.";
 
     const int MAX_RETRY = 100;
     int retryCnt = 0;
