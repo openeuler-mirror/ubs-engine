@@ -16,11 +16,12 @@
 #include <string>
 #include <vector>
 namespace ubse::adapter_plugins::ssu::def {
-const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 48;
-const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 52;
-const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 69;
+const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 49; // 包含结尾'\0'
+const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 53; // 包含结尾'\0'
+const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 69; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_RACK_NUM = 2;
 const uint8_t UBSE_SSU_MAX_HOST_NUM = 128;
+const uint8_t UBS_SSU_MAX_TENANT_LENGTH = 17; // 包含结尾'\0'
 
 enum class UbseSsuState : uint32_t {
     ONLINE = 0,
@@ -58,7 +59,8 @@ struct UbseSsuDevNameSpaceCustomData {
         [UBSE_SSU_MAX_NQN_LENGTH]; // 默认NQN，例子：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
     uint32_t uid;                  // 使用方进程的运行用户的uid
     char userName[UBSE_SSU_MAX_USER_NAME_LENGTH]; // 使用方进程的运行用户的名称
-    uint8_t allocStrategy;                        // 分配策略：0-线性编址，1-条带化
+    char tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方tenant（租户隔离标识）
+    uint8_t allocStrategy;                        // 分配策略：0-条带化，1-线性编址
     uint8_t raidLevel;                            // raid级别
     uint8_t nsNum;                                // ns数量
     uint64_t totalBytes;                          // ns总容量（字节）
