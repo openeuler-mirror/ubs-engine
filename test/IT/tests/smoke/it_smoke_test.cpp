@@ -12,24 +12,12 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
-#include <string>
-
 #include "it_assertion.h"
-#include "it_cluster.h"
-#include "it_test_fixture.h"
+#include "tongsuan_1d_full_mesh_single_node_scenario.h"
 
-class ItSmokeTest : public ubse::it::infra::ItTestFixture {
-};
+using ubse::it::infra::Tongsuan1dFullMeshSingleNodeNormalConfigScenario;
 
-TEST_F(ItSmokeTest, SingleNodeStartupAndSurvive)
+TEST_F(Tongsuan1dFullMeshSingleNodeNormalConfigScenario, SingleNodeStartupAndSurvive)
 {
-    std::unique_ptr<ubse::it::infra::ItCluster> cluster;
-    auto ret = Cluster().SingleNode().Start(cluster);
-    ASSERT_IT_OK(ret);
-
-    EXPECT_TRUE(cluster->IsNodeRunning("1"));
-
-    ret = cluster->StopCluster();
-    EXPECT_IT_OK(ret);
+    EXPECT_TRUE(Cluster().IsNodeRunning("1"));
 }

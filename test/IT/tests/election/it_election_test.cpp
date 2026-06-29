@@ -12,16 +12,16 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
-#include "it_cluster.h"
-#include "it_test_fixture.h"
+#include "tongsuan_1d_full_mesh_single_node_scenario.h"
+#include "tongsuan_1d_full_mesh_two_nodes_scenario.h"
 
-class ItElectionTest : public ubse::it::infra::ItTestFixture {
-};
+using ubse::it::infra::ItCluster;
+using ubse::it::infra::Tongsuan1dFullMeshSingleNodeNormalConfigScenario;
+using ubse::it::infra::Tongsuan1dFullMeshTwoNodesNormalConfigScenario;
 
 namespace {
 
@@ -32,7 +32,7 @@ struct ElectionRoles {
     std::string standbyNodeId;
 };
 
-ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster)
+ElectionRoles CollectElectionRoles(ItCluster& cluster)
 {
     ElectionRoles roles;
     for (const auto& nodeId : cluster.GetNodeIds()) {
@@ -55,44 +55,30 @@ ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster)
 
 } // namespace
 
-TEST_F(ItElectionTest, SingleNodeElectionConvergence)
+TEST_F(Tongsuan1dFullMeshSingleNodeNormalConfigScenario, SingleNodeElectionConvergence)
 {
-    std::unique_ptr<ubse::it::infra::ItCluster> cluster;
-    auto ret = Cluster().SingleNode().ElectionTimeoutMs(15000).Start(cluster);
-    ASSERT_IT_OK(ret);
-
     std::string masterNodeId;
-    ret = cluster->GetMasterNodeId(masterNodeId);
+    auto ret = Cluster().GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
     EXPECT_EQ(masterNodeId, "1");
 
-    auto& sdkClient = cluster->GetSdkClient("1");
+    auto& sdkClient = Cluster().GetSdkClient("1");
     std::string role;
     int32_t sdkRet = sdkClient.GetRole(role);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     EXPECT_EQ(role, ubse::election::ELECTION_ROLE_MASTER);
-
-    ret = cluster->StopCluster();
-    EXPECT_IT_OK(ret);
 }
 
-TEST_F(ItElectionTest, TwoNodeElectionChoosesSingleMasterAndStandby)
+TEST_F(Tongsuan1dFullMeshTwoNodesNormalConfigScenario, TwoNodeElectionChoosesSingleMasterAndStandby)
 {
-    std::unique_ptr<ubse::it::infra::ItCluster> cluster;
-    auto ret = Cluster().TwoNode().Start(cluster);
-    ASSERT_IT_OK(ret);
-
     std::string masterNodeId;
-    ret = cluster->GetMasterNodeId(masterNodeId);
+    auto ret = Cluster().GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
 
-    auto roles = CollectElectionRoles(*cluster);
+    auto roles = CollectElectionRoles(Cluster());
     EXPECT_EQ(roles.masterCount, 1U);
     EXPECT_EQ(roles.standbyCount, 1U);
     EXPECT_EQ(roles.masterNodeId, "1");
     EXPECT_EQ(roles.standbyNodeId, "2");
     EXPECT_EQ(masterNodeId, roles.masterNodeId);
-
-    ret = cluster->StopCluster();
-    EXPECT_IT_OK(ret);
 }

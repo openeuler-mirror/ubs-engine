@@ -12,60 +12,32 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
-#include "it_cluster.h"
 #include "it_console_log.h"
-#include "it_test_fixture.h"
 #include "it_wait_helper.h"
+#include "tongsuan_1d_full_mesh_two_nodes_scenario.h"
 #include "ubs_engine_mem.h"
 
-class ItNumaBorrowTest : public ubse::it::infra::ItTestFixture {
-protected:
-    static void SetUpTestSuite()
-    {
-        ItTestFixture::SetUpTestSuite();
+using ubse::it::infra::ItCluster;
+using ubse::it::infra::ItWaitHelper;
+using ubse::it::infra::Tongsuan1dFullMeshTwoNodesNormalConfigScenario;
 
-        IT_LOG_INFO << "Starting two-node cluster for NUMA borrow tests...";
-        auto ret = Cluster().TwoNode().Start(cluster_);
-        ASSERT_IT_OK(ret);
+namespace {
 
-        std::string masterNodeId;
-        ret = cluster_->GetMasterNodeId(masterNodeId);
-        ASSERT_IT_OK(ret);
-        IT_LOG_INFO << "Master node: " << masterNodeId;
-        ASSERT_EQ(masterNodeId, lenderNodeId_) << "Two-node NUMA borrow test expects node 1 to be the lender";
-        IT_LOG_INFO << "Borrower node: " << borrowerNodeId_ << ", Lender node: " << lenderNodeId_;
-    }
+constexpr const char* lenderNodeId = "1";
+constexpr const char* borrowerNodeId = "2";
+constexpr uint32_t lenderSlotId = 1;
+constexpr uint32_t borrowerSlotId = 2;
 
-    static void TearDownTestSuite()
-    {
-        if (cluster_) {
-            IT_LOG_INFO << "Stopping cluster...";
-            auto ret = cluster_->StopCluster();
-            EXPECT_IT_OK(ret);
-            cluster_.reset();
-        }
-        ItTestFixture::TearDownTestSuite();
-    }
+} // namespace
 
-    static std::unique_ptr<ubse::it::infra::ItCluster> cluster_;
-
-    static constexpr const char* lenderNodeId_ = "1";
-    static constexpr const char* borrowerNodeId_ = "2";
-    static constexpr uint32_t lenderSlotId_ = 1;
-    static constexpr uint32_t borrowerSlotId_ = 2;
-};
-
-inline std::unique_ptr<ubse::it::infra::ItCluster> ItNumaBorrowTest::cluster_;
-
-TEST_F(ItNumaBorrowTest, TwoNodeNumaNormalBorrow)
+TEST_F(Tongsuan1dFullMeshTwoNodesNormalConfigScenario, TwoNodeNumaNormalBorrow)
 {
-    auto& borrowerClient = cluster_->GetSdkClient(borrowerNodeId_);
-    IT_LOG_INFO << "Borrower SDK client initialized on node " << borrowerNodeId_;
+    auto& borrowerClient = Cluster().GetSdkClient(borrowerNodeId);
+    IT_LOG_INFO << "Borrower SDK client initialized on node " << borrowerNodeId;
 
     constexpr uint64_t borrowSize = UBS_MEM_MIN_SIZE;
     const char* borrowName = "it_numa_normal_borrow";
@@ -77,7 +49,7 @@ TEST_F(ItNumaBorrowTest, TwoNodeNumaNormalBorrow)
     IT_LOG_INFO << "NUMA borrow created, initial stage=" << numaDesc.mem_stage;
 
     IT_LOG_INFO << "Waiting for borrow to reach UBSE_EXIST state...";
-    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
+    auto waitRet = ItWaitHelper::WaitForCondition(
         [&]() {
             ubs_mem_numa_desc_t desc{};
             int32_t getRet = borrowerClient.MemNumaGet(borrowName, &desc);
@@ -97,8 +69,8 @@ TEST_F(ItNumaBorrowTest, TwoNodeNumaNormalBorrow)
     EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
     EXPECT_EQ(verifyDesc.size, borrowSize);
     EXPECT_GE(verifyDesc.numaid, 0);
-    EXPECT_EQ(verifyDesc.import_node.slot_id, borrowerSlotId_);
-    EXPECT_EQ(verifyDesc.export_node.slot_id, lenderSlotId_);
+    EXPECT_EQ(verifyDesc.import_node.slot_id, borrowerSlotId);
+    EXPECT_EQ(verifyDesc.export_node.slot_id, lenderSlotId);
     IT_LOG_INFO << "Borrow verified: stage=" << verifyDesc.mem_stage << ", size=" << verifyDesc.size
                 << ", numaid=" << verifyDesc.numaid << ", importSlot=" << verifyDesc.import_node.slot_id
                 << ", exportSlot=" << verifyDesc.export_node.slot_id;
