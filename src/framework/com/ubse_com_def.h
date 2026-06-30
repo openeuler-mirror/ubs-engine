@@ -33,57 +33,68 @@ using UbseComCallBackForHA = std::function<UbseResult(const std::string &remoteI
 // 大数据场景下，默认单次最大发送数据量大小，单位MB
 const uint32_t DEFAULT_MAX_SENDRECEIVE_SIZE = 1;      // 注意规避
 const uint32_t DEFAULT_SEND_RECEIVE_SEG_COUNT = 4200; // 注意规避
+static constexpr size_t FINAL_DST_ID_SIZE = 16;       // uint32_t 十进制最大10位 + '0'
 const uint32_t MAX_MAX_SENDRECEIVE_SIZE = 500;
 const uint32_t MIN_MAX_SENDRECEIVE_SIZE = 1;
 const uint32_t MIN_SEND_RECEIVE_SEG_COUNT = 4;
 
-enum class executorType {
+enum class executorType
+{
     HEARTBEAT = 0,
     COM = 1
 };
 
-enum class UbseEngineType {
+enum class UbseEngineType
+{
     CLIENT = 0,
     SERVER
 };
 
-enum class UbseProtocol {
+enum class UbseProtocol
+{
     TCP = 1,
     UDS,
     HCCS,
     UBC
 };
 
-enum class UbseWorkerMode {
+enum class UbseWorkerMode
+{
     NET_BUSY_POLLING = 0, // Worker保持空转，CPU占用高，性能高。
     NET_EVENT_POLLING     // Worker采用事件驱动，CPU占用低，性能相比略低。
 };
 
-enum class UbseLinkState {
+enum class UbseLinkState
+{
     LINK_UP = 0,
     LINK_DOWN,
     LINK_STATE_UNKNOWN
 };
 
-enum class UbseChannelType {
+enum class UbseChannelType
+{
     NORMAL, // 双向通道
 };
 
-enum class UbseComLogLevel {
+enum class UbseComLogLevel
+{
     DEBUG = 0,
     INFO = 1,
     WARN = 2,
     ERROR = 3,
 };
 
-enum class UbseReplyResult {
+enum class UbseReplyResult
+{
     OK = 0,
     ERR = 1,
     ERR_NO_HANDLER = 2,
     ERR_NO_REPLY = 3,
     ERR_TOO_LARGE_REPLY = 4,
     ERR_CH_NOT_IN_MAP = 5,
-    ERR_VERIFY_FAIL = 6
+    ERR_VERIFY_FAIL = 6,
+    ERR_FORWARD_FAIL = 7, // 消息转发失败
+    ERR_INVALID = 8,      // 无效消息
 };
 
 struct ConnectOption {
@@ -197,7 +208,7 @@ private:
     std::string workGroup_;                                       // hcom的workgroup配置信息
     std::string name_;                                            // 引擎名
     UbseComLogFunc logFunc_{};                                    // 注册给hcom的日志钩子函数
-    uint64_t maxSendReceiveSize_ = DEFAULT_MAX_SENDRECEIVE_SIZE;  // 大数据场景下，单次最大发送数据量大小，单位MB
+    uint64_t maxSendReceiveSize_ = DEFAULT_MAX_SENDRECEIVE_SIZE; // 大数据场景下，单次最大发送数据量大小，单位MB
     IsReconnectHook reconnectHook_ = nullptr; // 通道断连后重连钩子     // 大数据场景下，单次最大发送数据量大小，单位MB
     ShouldDoReconnectCb shouldDoReconnectCb_ = nullptr;
     QueryEidByNodeIdCb queryEidByNodeIdCb_ = nullptr;
@@ -347,12 +358,28 @@ public:
         return traceId_;
     }
 
+    inline void SetFinalDstNodeId(const std::string &id)
+    {
+        size_t copyLen = std::min(id.size(), FINAL_DST_ID_SIZE - 1);
+        auto ret = memcpy_s(finalDstNodeId_, FINAL_DST_ID_SIZE, id.c_str(), copyLen);
+        if (ret != EOK) {
+            return;
+        }
+        finalDstNodeId_[copyLen] = '\0';
+    }
+
+    inline std::string GetFinalDstNodeId() const
+    {
+        return finalDstNodeId_;
+    }
+
 private:
     uint16_t opCode_;     // 操作码
     uint16_t moduleCode_; // 模块码
     uint32_t bodyLen_;    // 消息体长度
     uint32_t crc_;
     char traceId_[TRACE_ID_SIZE];
+    char finalDstNodeId_[FINAL_DST_ID_SIZE]{};
 };
 
 class UbseComMessage {
@@ -372,6 +399,16 @@ public:
     uint8_t *GetMessageBody();
 
     uint32_t GetMessageBodyLen();
+
+    inline void SetFinalDstNodeId(const std::string &id)
+    {
+        head_.SetFinalDstNodeId(id);
+    }
+
+    inline std::string GetFinalDstNodeId() const
+    {
+        return head_.GetFinalDstNodeId();
+    }
 
 private:
     UbseComMessageHead head_; // 消息头
@@ -510,9 +547,10 @@ struct UbseComTcpStr {
 };
 
 UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const uint16_t &opCode,
-                                  const uint16_t moduleCode);
+                                  const uint16_t moduleCode, const std::string &finalDstNodeId);
 
 std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, const uint16_t &moduleCode,
+                                                       const std::string &finalDstNodeId,
                                                        std::unique_ptr<uint8_t[]> &reqData, uint32_t reqDataSize);
 
 UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &retData, bool withCopy = false);
@@ -538,5 +576,5 @@ std::string UbseReplyResultToString(UbseReplyResult result);
 std::pair<std::string, UbseChannelType> SplitPayload(const std::string &payload);
 
 UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol);
-} // namespace UBSE::com
+} // namespace ubse::com
 #endif // UBSE_COM_DEF_H

@@ -28,8 +28,8 @@
 #include "engine/ubse_com_engine.h" // for UbseCommunication
 #include "trace_context.h"
 #include "ubse_base_message.h" // for UbseBaseMessage, UbseBaseMessag...
-#include "ubse_com_def.h"      // for UbseComMessageCtx, UbseComMessage
 #include "ubse_com.h"
+#include "ubse_com_def.h" // for UbseComMessageCtx, UbseComMessage
 #include "ubse_com_op_code.h"
 #include "ubse_common_def.h"      // for UbseResult, UBSE_AGENT_IPC_SERV...
 #include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
@@ -118,10 +118,15 @@ private:
 class SendParam {
 public:
     SendParam(std::string remoteId, uint16_t moduleCode, uint16_t opCode, UbseChannelType channelType)
-        : remoteId_(std::move(remoteId)), moduleCode_(moduleCode), opCode_(opCode), channelType_(channelType){};
+        : remoteId_(std::move(remoteId)),
+          moduleCode_(moduleCode),
+          opCode_(opCode),
+          channelType_(channelType){};
 
     SendParam(std::string remoteId, uint16_t moduleCode, uint16_t opCode)
-        : remoteId_(std::move(remoteId)), moduleCode_(moduleCode), opCode_(opCode){};
+        : remoteId_(std::move(remoteId)),
+          moduleCode_(moduleCode),
+          opCode_(opCode){};
 
     const std::string &GetRemoteId() const;
 
@@ -176,6 +181,17 @@ void Reply(UbseComMessageCtx &message, UbseBaseMessagePtr response);
 
 void ReplyCallback(void *ctx, void *recv, uint32_t len, int32_t result);
 
+/**
+ * @brief 将finalDstNodeId写入线缆消息头
+ * @param msg 线缆消息指针
+ * @param finalDst 最终目的节点ID
+ */
+inline void SetFinalDstOnMessage(UbseComMessagePtr msg, const std::string &finalDst)
+{
+    auto *ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
+    ucMsg->SetFinalDstNodeId(finalDst);
+}
+
 class UbseLinkInfo {
 public:
     UbseLinkInfo(std::string nodeId, UbseLinkState state);
@@ -183,7 +199,10 @@ public:
     UbseLinkInfo(std::string nodeId, UbseLinkState state, uint64_t timeStamp);
 
     UbseLinkInfo(std::string nodeId, UbseLinkState state, uint64_t timeStamp, std::string chType)
-        : nodeId_(std::move(nodeId)), state_(state), timeStamp_(timeStamp), changeChType_(std::move(chType))
+        : nodeId_(std::move(nodeId)),
+          state_(state),
+          timeStamp_(timeStamp),
+          changeChType_(std::move(chType))
 
     {
     }
@@ -206,7 +225,7 @@ public:
 private:
     std::string nodeId_;
     UbseLinkState state_;
-    uint64_t timeStamp_{ 0 };
+    uint64_t timeStamp_{0};
     std::string changeChType_;
 };
 
@@ -283,6 +302,10 @@ public:
 
     static void SetHandlerExecutor(const HandlerExecutor &handlerExecutor);
 
+    static const HandlerExecutor &GetHandlerExecutor();
+
+    static const HandlerExecutor &GetIpcHandlerExecutor();
+
     static void SetLinkEventHandler(const LinkEventHandler &handler);
 
     static int16_t GetTimeOut();
@@ -306,7 +329,9 @@ public:
         UbseComMsgHandler hdl{};
         hdl.opCode = handlerPtr->GetOpCode();
         hdl.moduleCode = handlerPtr->GetModuleCode();
-        hdl.handler = [](UbseComMessageCtx &message) { HandleRequest<TReq, TRsp>(message); };
+        hdl.handler = [](UbseComMessageCtx &message) {
+            HandleRequest<TReq, TRsp>(message);
+        };
         return UbseCommunication::RegUbseComMsgHandler(name_, hdl);
     }
 
@@ -315,7 +340,9 @@ public:
         UbseComMsgHandler hdl{};
         hdl.opCode = opCode;
         hdl.moduleCode = moduleCode;
-        hdl.handler = [](UbseComMessageCtx &message) { HandleEndpointRequest(message); };
+        hdl.handler = [](UbseComMessageCtx &message) {
+            HandleEndpointRequest(message);
+        };
         return UbseCommunication::RegUbseComMsgHandler(name_, hdl);
     }
 
@@ -329,26 +356,35 @@ public:
     template <class TReq, class TRsp>
     UbseResult Send(const SendParam &param, TReq &request, TRsp &response, const bool withCopy = false)
     {
-        UbseComMessagePtr msg =
-            TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(), param.GetModuleCode());
+        UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(),
+                                                param.GetModuleCode(), param.GetRemoteId());
         if (msg == nullptr) {
             UBSE_LOG_ERROR << "node " << nodeId_ << " trans req msg failed";
             return UBSE_ERROR;
         }
+        std::string nextHop;
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine != nullptr) {
+            nextHop = engine->GetRouteTable().Lookup(param.GetRemoteId());
+            if (nextHop == engine->GetEngineInfo().GetNodeId()) {
+                UBSE_LOG_ERROR << "node " << nodeId_ << " send msg to self, finalDst=" << param.GetRemoteId();
+                return UBSE_ERROR;
+            }
+        }
+        UBSE_LOG_DEBUG << "node " << nodeId_ << " send msg to " << nextHop << ", finalDst=" << param.GetRemoteId();
         UbseChannelType type = param.GetChannelType();
-        UbseComMessageCtx transMessage{ msg, nodeId_, param.GetRemoteId(), type };
+        UbseComMessageCtx transMessage{msg, nodeId_, nextHop, type};
         UbseComDataDesc retData(nullptr, 0);
         auto ret = UbseCommunication::UbseComMsgSend(name_, transMessage, retData);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "node " << nodeId_ << " call " << param.GetRemoteId() << " failed, " <<
-                FormatRetCode(ret);
+            UBSE_LOG_ERROR << "node " << nodeId_ << " call " << nextHop << " failed, " << FormatRetCode(ret);
             UbseComMessage::FreeMessage(msg);
             return ret;
         }
         ret = TransResponse(UbseBaseMessage::Convert<TRsp>(response), retData, withCopy);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "node " << nodeId_ << " trans " << param.GetRemoteId() << " response failed," <<
-                FormatRetCode(ret);
+            UBSE_LOG_ERROR << "node " << nodeId_ << " trans " << param.GetRemoteId() << " response failed,"
+                           << FormatRetCode(ret);
         }
         UbseComMessage::FreeMessage(msg);
         SafeFree(retData.data);
@@ -367,25 +403,33 @@ public:
             return ret;
         }
 
-        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, targetNodeId, buffer, reqSize);
         if (!reqBuffer || reqBuffer->empty()) {
             UBSE_LOG_ERROR << "node " << nodeId_ << " encode req msg failed.";
             return UBSE_ERROR;
         }
         UbseChannelType type = UbseChannelType::NORMAL;
-        auto remoteId = targetNodeId;
-        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, remoteId, type};
+        std::string nextHop;
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine != nullptr) {
+            nextHop = engine->GetRouteTable().Lookup(targetNodeId);
+            if (nextHop == engine->GetEngineInfo().GetNodeId()) {
+                UBSE_LOG_ERROR << "node " << nodeId_ << " send msg to self, finalDst=" << targetNodeId;
+                return UBSE_ERROR;
+            }
+        }
+        UBSE_LOG_DEBUG << "node " << nodeId_ << " send msg to " << nextHop << ", finalDst=" << targetNodeId;
+        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, nextHop, type};
         UbseComDataDesc retData(nullptr, 0);
         ret = UbseCommunication::UbseComMsgSend(name_, transMessage, retData);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "node " << nodeId_ << " call " << remoteId << " failed, "
-                           << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "node " << nodeId_ << " call " << nextHop << " failed, " << FormatRetCode(ret);
             return ret;
         }
 
         ret = response.Deserialize(retData.data, retData.len);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "node " << nodeId_ << " deserialize " << remoteId << " response failed, "
+            UBSE_LOG_ERROR << "node " << nodeId_ << " deserialize " << nextHop << " response failed, "
                            << FormatRetCode(ret);
         }
         SafeFree(retData.data);
@@ -402,14 +446,24 @@ public:
     template <class TReq>
     UbseResult AsyncSend(const SendParam &param, TReq &request, const UbseComCallback &usrCb)
     {
-        UbseComMessagePtr msg =
-            TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(), param.GetModuleCode());
+        UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(),
+                                                param.GetModuleCode(), param.GetRemoteId());
         if (msg == nullptr) {
             UBSE_LOG_ERROR << "trans req msg failed";
             return UBSE_ERROR;
         }
         UbseChannelType type = param.GetChannelType();
-        UbseComMessageCtx transMessage{ msg, nodeId_, param.GetRemoteId(), type };
+        std::string nextHop;
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine != nullptr) {
+            nextHop = engine->GetRouteTable().Lookup(param.GetRemoteId());
+            if (nextHop == engine->GetEngineInfo().GetNodeId()) {
+                UBSE_LOG_ERROR << "node " << nodeId_ << " send msg to self, finalDst=" << param.GetRemoteId();
+                return UBSE_ERROR;
+            }
+        }
+        UBSE_LOG_DEBUG << "node " << nodeId_ << " send msg to " << nextHop << ", finalDst=" << param.GetRemoteId();
+        UbseComMessageCtx transMessage{msg, nodeId_, nextHop, type};
         auto ret = UbseCommunication::UbseComMsgAsyncSend(name_, transMessage, usrCb);
         UbseComMessage::FreeMessage(msg);
         return ret;
@@ -422,19 +476,29 @@ public:
         uint32_t reqSize = 0;
         auto ret = request.Serialize(buffer, reqSize);
         if (ret != UBSE_OK || buffer == nullptr) {
-            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode
-                           << ", opCode=" << opCode << FormatRetCode(ret);
+            UBSE_LOG_ERROR << "async send serialize failed, moduleCode=" << moduleCode << ", opCode=" << opCode
+                           << FormatRetCode(ret);
             return ret;
         }
 
-        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, buffer, reqSize);
+        auto reqBuffer = EncodeRequestMsg(opCode, moduleCode, targetNodeId, buffer, reqSize);
         if (!reqBuffer || reqBuffer->empty()) {
             UBSE_LOG_ERROR << "node " << nodeId_ << " encode req msg failed.";
             return UBSE_ERROR;
         }
         UbseChannelType type = UbseChannelType::NORMAL;
         auto remoteId = targetNodeId;
-        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, remoteId, type};
+        std::string nextHop;
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine != nullptr) {
+            nextHop = engine->GetRouteTable().Lookup(remoteId);
+            if (nextHop == engine->GetEngineInfo().GetNodeId()) {
+                UBSE_LOG_ERROR << "node " << nodeId_ << " send msg to self, finalDst=" << targetNodeId;
+                return UBSE_ERROR;
+            }
+        }
+        UBSE_LOG_DEBUG << "node " << nodeId_ << " send msg to " << nextHop << ", finalDst=" << remoteId;
+        UbseComMessageCtx transMessage{reqBuffer->data(), nodeId_, nextHop, type};
         ret = UbseCommunication::UbseComMsgAsyncSend(name_, transMessage, usrCb);
 
         return ret;
@@ -461,6 +525,26 @@ public:
     void AddLinkNotifyFunc(const LinkNotifyFunction &func);
 
     std::string GetNodeIdByIp(const std::string &ip);
+
+    UbseResult AddRoute(const RouteEntry &entry)
+    {
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine == nullptr) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " engine not found for AddRoute";
+            return UBSE_COM_ERROR_GET_ENGINE_FAIL;
+        }
+        return engine->GetRouteTable().AddRoute(entry);
+    }
+
+    void DelRoute(const std::string &nodeId)
+    {
+        auto *engine = UbseComEngineManager::GetEngine(name_);
+        if (engine == nullptr) {
+            UBSE_LOG_ERROR << "node " << nodeId_ << " engine not found for DelRoute";
+            return;
+        }
+        engine->GetRouteTable().DelRoute(nodeId);
+    }
 
 protected:
     static void CheckSdkEventAndNotify(const std::string &engineName, const std::string &curNodeId,
@@ -560,7 +644,7 @@ private:
     }
 
     static void SubmitReceiverTask(uint32_t crc, const UbseRpcEndpoint &endpoint, UbseComMessageCtx &message,
-                                  std::shared_ptr<std::vector<uint8_t>> reqData, uint32_t reqSize)
+                                   std::shared_ptr<std::vector<uint8_t>> reqData, uint32_t reqSize)
     {
         auto moduleCode = endpoint.GetModuleCode();
         auto opCode = endpoint.GetOpCode();
@@ -580,9 +664,8 @@ private:
         executor(
             [crc, moduleCode, opCode, handler, reqData, reqSize, message] {
                 TraceContext::SetTraceId(message.GetTraceId());
-                auto ctx = new (std::nothrow)
-                    UbseComBaseMessageHandlerCtx(message.GetEngineName(), message.GetChannelId(),
-                                          message.GetRspCtx(), message.GetDstId());
+                auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx(
+                    message.GetEngineName(), message.GetChannelId(), message.GetRspCtx(), message.GetDstId());
                 if (ctx == nullptr) {
                     UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode
                                    << " new UbseComBaseMessageHandlerCtx fail";
@@ -594,7 +677,7 @@ private:
                 ctx->SetRemoteCall(message.IsRemoteCall());
                 auto resp = std::unique_ptr<UbseRpcMessage>(nullptr);
                 handler(reqData->data(), reqSize, resp);
-                
+
                 UbseComMessageCtx msgCtx(message.GetEngineName(), message.GetRspCtx(), message.GetChannelId(),
                                          message.GetDstId());
                 msgCtx.SetChannelPtr(msgCtx.GetChannelPtr());
@@ -635,8 +718,8 @@ private:
         executor(
             [crc, moduleCode, opCode, handler, reqPtr, respPtr, message] {
                 TraceContext::SetTraceId(message.GetTraceId());
-                auto ctx = new (std::nothrow)
-                    UbseComBaseMessageHandlerCtx(message.GetEngineName(), message.GetChannelId(), message.GetRspCtx(), message.GetDstId());
+                auto ctx = new (std::nothrow) UbseComBaseMessageHandlerCtx(
+                    message.GetEngineName(), message.GetChannelId(), message.GetRspCtx(), message.GetDstId());
                 if (ctx == nullptr) {
                     UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode
                                    << " new UbseComBaseMessageHandlerCtx fail";

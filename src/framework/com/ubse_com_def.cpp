@@ -16,6 +16,7 @@
 #include <fstream>
 #include <regex>
 
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
 #include "trace_context.h"
 #include "ubse_context.h"
@@ -24,7 +25,6 @@
 #include "ubse_net_util.h"
 #include "ubse_pointer_process.h"
 #include "ubse_str_util.h"
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::com {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -330,7 +330,7 @@ std::string UbseComChannelInfo::ConvertUbseComChannelInfoToString()
     return infoStr;
 }
 
-constexpr const char* PAYLOAD_SPLIT_SEP = "@";
+constexpr const char *PAYLOAD_SPLIT_SEP = "@";
 
 UbseChannelType StringToChannelType(const std::string &type)
 {
@@ -616,7 +616,7 @@ uint32_t UbseComMessage::GetMessageBodyLen()
 }
 
 UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const uint16_t &opCode,
-                                  const uint16_t moduleCode)
+                                  const uint16_t moduleCode, const std::string &finalDstNodeId)
 {
     if (requestMsg == nullptr) {
         UBSE_LOG_ERROR << "request is nullptr.";
@@ -639,6 +639,7 @@ UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const ui
     msgHead.SetModuleCode(moduleCode);
     msgHead.SetBodyLen(bodyLen);
     msgHead.SetTraceId(TraceContext::GetTraceId());
+    msgHead.SetFinalDstNodeId(finalDstNodeId);
     auto reqMsgData = requestMsg->SerializedData();
     auto crc = CrcUtil::SoftCrc32(reqMsgData, bodyLen, 1);
     msgHead.SetCrc(crc);
@@ -654,6 +655,7 @@ UbseComMessagePtr TransRequestMsg(const UbseBaseMessagePtr &requestMsg, const ui
 }
 
 std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, const uint16_t &moduleCode,
+                                                       const std::string &finalDstNodeId,
                                                        std::unique_ptr<uint8_t[]> &reqData, uint32_t reqDataSize)
 {
     auto reqMsg = SafeMakeShared<std::vector<uint8_t>>(sizeof(UbseComMessageHead) + reqDataSize);
@@ -666,6 +668,7 @@ std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, c
     msgHead->SetModuleCode(moduleCode);
     msgHead->SetBodyLen(reqDataSize);
     msgHead->SetTraceId(TraceContext::GetTraceId());
+    msgHead->SetFinalDstNodeId(finalDstNodeId);
 
     auto crc = CrcUtil::SoftCrc32(reqData.get(), reqDataSize, 1);
     msgHead->SetCrc(crc);
@@ -768,7 +771,8 @@ struct UbseIpV6Addr {
     uint8_t addr[16]; // 16个字符存储ipv6地址
 };
 
-enum class UbseIpType {
+enum class UbseIpType
+{
     UBSE_IP_V4 = 0,
     UBSE_IP_V6
 };

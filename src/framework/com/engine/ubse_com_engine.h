@@ -20,6 +20,7 @@
 #include "ubse_com_def.h"
 #include "ubse_error.h"
 #include "ubse_map_util.h"
+#include "ubse_route_table.h"
 
 #include <condition_variable>
 
@@ -33,7 +34,8 @@ using NodeChannelMap = std::map<std::string, std::map<UbseChannelType, UbseComCh
 using NodeIpIdMap = std::map<std::string, std::string>;
 using ChannelIdMap = std::map<uint64_t, UbseComChannelInfo>;
 
-enum OpCodeType : uint16_t {
+enum OpCodeType : uint16_t
+{
     DEFAULT = 0,
     GET_REMOTE_ID = 1,
     ASK_REMOTE_INFO_OFFSET = 100,
@@ -201,6 +203,11 @@ public:
 
     std::string GetNodeIdByIp(const std::string &ip);
 
+    UbseRouteTable &GetRouteTable()
+    {
+        return routeTable_;
+    }
+
     UBSHcomService *GetHcomService() const;
 
 protected:
@@ -239,6 +246,12 @@ protected:
     UbseResult HandleRemoteCall(UBSHcomServiceContext &context);
 
     UbseResult NormalRequestHandle(UBSHcomServiceContext &context);
+
+    void ForwardMessage(UbseComMessageCtx &msgCtx, const std::string &finalDst);
+
+    static UbseComMessagePtr CopyForwardMsg(UbseComMessageCtx &msgCtx);
+
+    static void SubmitForward(const std::string &engineName, UbseComMessageCtx fwCtx);
 
     void ParseContextMsg(UBSHcomServiceContext &context, UbseComMessage *msg, UbseComMessageCtx &msgCtx);
 
@@ -283,9 +296,9 @@ protected:
     UbseComLinkStateNotify linkStateNotify_;   // 通道状态变更回调函数
     std::atomic<bool> deleted_{false};         // 引擎是否销毁
     std::mutex serviceMutex_;
-    UbseComLinkManager linkManager_;           // 连接通道管理器
-    HandlerMap handlerMap_{};                  // 操作函数映射表，一个引擎一个表
-    ubse::utils::ReadWriteLock rwLock_;        // 读写锁
+    UbseComLinkManager linkManager_;    // 连接通道管理器
+    HandlerMap handlerMap_{};           // 操作函数映射表，一个引擎一个表
+    ubse::utils::ReadWriteLock rwLock_; // 读写锁
     std::atomic<uint32_t> reconnectThreadNum_{0};
     std::map<std::string, std::set<UbseChannelType>> connectingMap_;
     std::map<std::string, UbseComChannelInfo> NewChannelIdMap_;
@@ -295,6 +308,7 @@ protected:
     int16_t heartBeatTimeout_;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
     QueryEidByNodeIdCb queryCb_ = nullptr;
+    UbseRouteTable routeTable_;
 };
 
 class UbseComEngineManager {
@@ -410,14 +424,10 @@ public:
 };
 
 bool CertCallback(const std::string &name, std::string &value);
-bool PrivateKeyCallback(
-    const std::string &name,
-    std::string &value,
-    void *&keyPass,
-    int &len,
-    UBSHcomTLSEraseKeypass &erase);
+bool PrivateKeyCallback(const std::string &name, std::string &value, void *&keyPass, int &len,
+                        UBSHcomTLSEraseKeypass &erase);
 bool CACallback(const std::string &name, std::string &caPath, std::string &crlPath,
-    UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb);
+                UBSHcomPeerCertVerifyType &peerCertVerifyType, UBSHcomTLSCertVerifyCallback &cb);
 void KeyPassErase(void *pass, int len);
 } // namespace ubse::com
 #endif // UBSE_COM_ENGINE_H

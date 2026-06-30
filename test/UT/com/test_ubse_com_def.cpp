@@ -443,7 +443,7 @@ TEST_F(TestUbseComDef, TestConvertUbseComChannelInfoToString)
 
     std::string channelInfoString = channelInfo.ConvertUbseComChannelInfoToString();
     EXPECT_EQ("engine_name=RpcServer; channel_type=0; channel_id=1; cur_node_id=0; remote_node_id=1; ",
-        channelInfoString);
+              channelInfoString);
 }
 
 /*
@@ -665,11 +665,11 @@ TEST_F(TestUbseComDef, TestGetUdsInfoFromNetServiceContext)
  */
 TEST_F(TestUbseComDef, TransRequestMsg)
 {
-    EXPECT_EQ(nullptr, TransRequestMsg(nullptr, 0, 0));
+    EXPECT_EQ(nullptr, TransRequestMsg(nullptr, 0, 0, ""));
     TestRpcMessage *msg = new TestRpcMessage(UBSE_ERROR_SERIALIZE_FAILED, UBSE_OK);
-    EXPECT_EQ(nullptr, TransRequestMsg(msg, 0, 0));
+    EXPECT_EQ(nullptr, TransRequestMsg(msg, 0, 0, ""));
     TestRpcMessage *successMsg = new TestRpcMessage(UBSE_OK, UBSE_OK);
-    UbseComMessagePtr result = TransRequestMsg(successMsg, 0, 0);
+    UbseComMessagePtr result = TransRequestMsg(successMsg, 0, 0, "");
     auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(result));
     std::string str;
     str.append(reinterpret_cast<VOS_CHAR *>(ucMsg->GetMessageBody()), 4); // 4是data空间大小
@@ -845,7 +845,7 @@ TEST_F(TestUbseComDef, EncodeRequestMsgSuccess)
     std::string testData = "test_data";
     auto reqData = std::make_unique<uint8_t[]>(testData.size());
     memcpy(reqData.get(), testData.data(), testData.size());
-    auto result = EncodeRequestMsg(opCode, moduleCode, reqData, testData.size());
+    auto result = EncodeRequestMsg(opCode, moduleCode, "", reqData, testData.size());
     EXPECT_FALSE(result->empty());
     EXPECT_EQ(sizeof(UbseComMessageHead) + testData.size(), result->size());
 }
@@ -863,7 +863,7 @@ TEST_F(TestUbseComDef, EncodeRequestMsgEmptyData)
     uint16_t opCode = 1;
     uint16_t moduleCode = 2;
     auto reqData = std::make_unique<uint8_t[]>(0);
-    auto result = EncodeRequestMsg(opCode, moduleCode, reqData, 0);
+    auto result = EncodeRequestMsg(opCode, moduleCode, "", reqData, 0);
     EXPECT_TRUE(result == nullptr);
 }
 } // namespace ubse::ut::com
