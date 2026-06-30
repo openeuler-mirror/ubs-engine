@@ -16,28 +16,41 @@ foreach(source IN LISTS UBSE_DAEMON_TARGET_SOURCES)
     endif()
 endforeach()
 
-# IT test infrastructure library
-set(IT_INFRA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/infra)
+# =====================================================
+# Directory layout:
+#   tool/       - Framework infrastructure (cluster mgmt, SDK client, etc.)
+#   scenarios/  - Scenario definitions (cluster lifecycle per TestSuite)
+#   tests/      - Test cases organized by business domain
+#   stubs/      - Mock/Stub libraries for hardware dependency replacement
+# =====================================================
 
+set(IT_TOOL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tool)
+set(IT_SCENARIOS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scenarios)
+set(IT_TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+# IT test infrastructure library
 add_library(ubse_it_infra STATIC
-    ${IT_INFRA_DIR}/node_process_manager.cpp
-    ${IT_INFRA_DIR}/it_cluster.cpp
-    ${IT_INFRA_DIR}/it_cluster_spec.cpp
-    ${IT_INFRA_DIR}/it_cluster_builder.cpp
-    ${IT_INFRA_DIR}/it_sdk_client.cpp
-    ${IT_INFRA_DIR}/it_cli_invoker.cpp
-    ${IT_INFRA_DIR}/it_config_builder.cpp
-    ${IT_INFRA_DIR}/it_wait_helper.cpp
-    ${IT_INFRA_DIR}/mock_lcne_server.cpp
+    ${IT_TOOL_DIR}/node_process_manager.cpp
+    ${IT_TOOL_DIR}/it_cluster.cpp
+    ${IT_TOOL_DIR}/it_cluster_spec.cpp
+    ${IT_TOOL_DIR}/it_cluster_builder.cpp
+    ${IT_TOOL_DIR}/it_sdk_client.cpp
+    ${IT_TOOL_DIR}/it_cli_invoker.cpp
+    ${IT_TOOL_DIR}/it_config_builder.cpp
+    ${IT_TOOL_DIR}/it_wait_helper.cpp
+    ${IT_TOOL_DIR}/mock_lcne_server.cpp
+    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
+    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
-    ${IT_INFRA_DIR}/node_launcher.cpp
+    ${IT_TOOL_DIR}/node_launcher.cpp
 )
 target_compile_options(ubse_it_node_launcher PRIVATE ${DEBUG_FLAGS})
 
 target_include_directories(ubse_it_infra PUBLIC
-    ${IT_INFRA_DIR}
+    ${IT_TOOL_DIR}
+    ${IT_SCENARIOS_DIR}
     ${CMAKE_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/src/include
     ${PROJECT_SOURCE_DIR}/src/framework/ha
@@ -46,6 +59,7 @@ target_include_directories(ubse_it_infra PUBLIC
 target_link_libraries(ubse_it_infra PUBLIC
     ubse_sdk_static
     cpp-httplib
+    GTest::gtest
 )
 
 target_compile_options(ubse_it_infra PRIVATE ${DEBUG_FLAGS})
@@ -136,11 +150,13 @@ set(UBSE_IT_MODULES
 )
 
 set(UBSE_IT_NON_MODULE_DIRS
-    config_builder
-    infra
+    scenarios
     stubs
+    tests
+    tool
 )
 
+# Validate that all directories with CMakeLists.txt are either registered modules or explicitly excluded
 file(GLOB UBSE_IT_CHILDREN LIST_DIRECTORIES true RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
 foreach(child IN LISTS UBSE_IT_CHILDREN)
     if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${child}" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${child}/CMakeLists.txt")
@@ -152,11 +168,12 @@ foreach(child IN LISTS UBSE_IT_CHILDREN)
     endif()
 endforeach()
 
+# Add IT test modules from tests/ subdirectory
 foreach(module IN LISTS UBSE_IT_MODULES)
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${module}/CMakeLists.txt")
-        message(FATAL_ERROR "Registered IT module '${module}' does not have CMakeLists.txt")
+    if(NOT EXISTS "${IT_TESTS_DIR}/${module}/CMakeLists.txt")
+        message(FATAL_ERROR "Registered IT module '${module}' does not have CMakeLists.txt in ${IT_TESTS_DIR}/${module}")
     endif()
-    add_subdirectory(${module})
+    add_subdirectory(${IT_TESTS_DIR}/${module} ${CMAKE_BINARY_DIR}/test/IT/${module})
 endforeach()
 
 get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
