@@ -1764,4 +1764,762 @@ TEST_F(TestUbseNpuResourceCollection, CollectNicAddNicFeFailTest)
     rc.ClearAllDevices();
 }
 
+// === QueryBusiSubDevices tests ===
+
+TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesNicPfeFoundTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiEid eid{};
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 2;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicPfeDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicPfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    UbseMtiGuid mtiGuid{};
+    mtiGuid[0] = 0xef;
+    mtiGuid[1] = 0xab;
+    mtiGuid[2] = 0x89;
+    mtiGuid[3] = 0x67;
+    mtiGuid[4] = 0x45;
+    mtiGuid[5] = 0x23;
+    mtiGuid[6] = 0x01;
+    for (size_t i = 7; i < 16; i++) {
+        mtiGuid[i] = 0x00;
+    }
+    std::vector<UbseMtiGuid> guids;
+    guids.push_back(mtiGuid);
+    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundVmBusiTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiEid eid{};
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    vfeLoc.guid = "abcd1234567890abcdef01234567890";
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    auto vfeDev = CollectionDevice::CollectionToBase(vfe);
+    rc.SetDevice(vfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    UbseMtiGuid mtiGuid{};
+    mtiGuid[0] = 0x90;
+    mtiGuid[1] = 0x78;
+    mtiGuid[2] = 0x56;
+    mtiGuid[3] = 0x34;
+    mtiGuid[4] = 0x12;
+    mtiGuid[5] = 0xab;
+    mtiGuid[6] = 0xcd;
+    for (size_t i = 7; i < 16; i++) {
+        mtiGuid[i] = 0x00;
+    }
+    std::vector<UbseMtiGuid> guids;
+    guids.push_back(mtiGuid);
+    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesVfeFoundHostBusiTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiEid eid{};
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    vfeLoc.guid = "abcd1234567890abcdef01234567890";
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    auto vfeDev = CollectionDevice::CollectionToBase(vfe);
+    rc.SetDevice(vfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "0",
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
+    UbseMtiGuid mtiGuid{};
+    mtiGuid[0] = 0x90;
+    mtiGuid[1] = 0x78;
+    mtiGuid[2] = 0x56;
+    mtiGuid[3] = 0x34;
+    mtiGuid[4] = 0x12;
+    mtiGuid[5] = 0xab;
+    mtiGuid[6] = 0xcd;
+    for (size_t i = 7; i < 16; i++) {
+        mtiGuid[i] = 0x00;
+    }
+    std::vector<UbseMtiGuid> guids;
+    guids.push_back(mtiGuid);
+    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, QueryBusiSubDevicesDeviceNotFoundTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiEid eid{};
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef0123456789", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    UbseMtiGuid mtiGuid{};
+    mtiGuid[0] = 0xff;
+    for (size_t i = 1; i < 16; i++) {
+        mtiGuid[i] = 0x00;
+    }
+    std::vector<UbseMtiGuid> guids;
+    guids.push_back(mtiGuid);
+    EXPECT_EQ(rc.QueryBusiSubDevices(guids, busi), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === CollectBusInstance tests ===
+
+TEST_F(TestUbseNpuResourceCollection, CollectBusInstanceGetListFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    auto& busiInst = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busiInst, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectBusInstance(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectBusInstanceSuccessTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiBusInst busInst;
+    busInst.type = UbseMtiBusInstanceType::VM;
+    busInst.upi = 100;
+    UbseMtiGuid busiGuid{};
+    busiGuid[0] = 0x0f;
+    for (size_t i = 1; i < 16; i++) {
+        busiGuid[i] = 0x00;
+    }
+    busInst.guid = busiGuid;
+    std::vector<UbseMtiBusInst> busInstanceList;
+    busInstanceList.push_back(busInst);
+    auto& busiInstMti = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busiInstMti, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .with(outBound(busInstanceList))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(rc.CollectBusInstance(), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectBusInstanceExistingGuidTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiEid eid{};
+    auto busi = std::make_shared<CollectionDeviceBusi>("0f0000000000000000000000000000f0", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    auto busiDev = CollectionDevice::CollectionToBase(busi);
+    rc.SetDevice(busiDev);
+    UbseMtiBusInst busInst;
+    busInst.type = UbseMtiBusInstanceType::VM;
+    busInst.upi = 100;
+    UbseMtiGuid busiGuid{};
+    busiGuid[0] = 0xf0;
+    busiGuid[15] = 0x0f;
+    for (size_t i = 1; i < 15; i++) {
+        busiGuid[i] = 0x00;
+    }
+    busInst.guid = busiGuid;
+    std::vector<UbseMtiBusInst> busInstanceList;
+    busInstanceList.push_back(busInst);
+    auto& busiInstMti = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busiInstMti, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .with(outBound(busInstanceList))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(rc.CollectBusInstance(), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === CollectDavidAffinityNic tests ===
+
+TEST_F(TestUbseNpuResourceCollection, CollectDavidAffinityNicGetProductTypeFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectDavidAffinityNic(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectDavidAffinityNicSuccessTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto davidDev = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(davidDev);
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 11;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicDev);
+    std::string output = "00 00 00 00 00 00 00 00 00 00 ff";
+    const auto execFunc = &ubse::utils::UbseOsUtil::Exec;
+    MOCKER_CPP(execFunc).stubs().with(_, outBound(output)).will(returnValue(UBSE_OK));
+    EXPECT_EQ(rc.CollectDavidAffinityNic(), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === CollectStaticResource error path tests ===
+
+TEST_F(TestUbseNpuResourceCollection, CollectStaticResourceUbCtrlFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeList).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectStaticResource(), UBSE_ERROR);
+    EXPECT_EQ(rc.state_, CollectionState::WAIT_INIT);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectStaticResourceIdevPfeDavidFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiIdevPfe idevPfe;
+    idevPfe.ubController.chipId = 1;
+    idevPfe.ubController.dieId = 2;
+    idevPfe.pfeId = 3;
+    std::vector<UbseMtiIdevPfe> feList;
+    feList.push_back(idevPfe);
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeList)
+        .stubs()
+        .with(outBound(feList))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeDavidMapping)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectStaticResource(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectStaticResourceNicFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiIdevPfe idevPfe;
+    idevPfe.ubController.chipId = 1;
+    idevPfe.ubController.dieId = 2;
+    idevPfe.pfeId = 3;
+    std::vector<UbseMtiIdevPfe> feList;
+    feList.push_back(idevPfe);
+    UbseMtiIdevFeDavidMapping mapping;
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeList)
+        .stubs()
+        .with(outBound(feList))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeDavidMapping)
+        .stubs()
+        .with(outBound(mapping))
+        .will(returnValue(UBSE_OK));
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectStaticResource(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, CollectStaticResourceBusInstanceFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::WAIT_INIT;
+    UbseMtiIdevPfe idevPfe;
+    idevPfe.ubController.chipId = 1;
+    idevPfe.ubController.dieId = 2;
+    idevPfe.pfeId = 3;
+    std::vector<UbseMtiIdevPfe> feList;
+    feList.push_back(idevPfe);
+    UbseMtiIdevFeDavidMapping mapping;
+    UbseMti1825Pf mti1825Pf;
+    mti1825Pf.slotId = 1;
+    mti1825Pf.chipId = 2;
+    mti1825Pf.dieId = 3;
+    mti1825Pf.pfId = 4;
+    UbseMtiGuid pfeGuid{};
+    pfeGuid[0] = 0x0d;
+    mti1825Pf.guid = pfeGuid;
+    std::vector<UbseMti1825Pf> pfList;
+    pfList.push_back(mti1825Pf);
+    auto& urma = ubse::mti::urma::UbseMtiUrma::GetInstance();
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeList)
+        .stubs()
+        .with(outBound(feList))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP_VIRTUAL(urma, &ubse::mti::urma::UbseMtiUrma::GetIdevFeDavidMapping)
+        .stubs()
+        .with(outBound(mapping))
+        .will(returnValue(UBSE_OK));
+    auto& mti1825 = ubse::mti::_1825::UbseMti1825::GetInstance();
+    MOCKER_CPP_VIRTUAL(mti1825, &ubse::mti::_1825::UbseMti1825::Get1825FeList)
+        .stubs()
+        .with(outBound(pfList))
+        .will(returnValue(UBSE_OK));
+    auto& busiInst = ubse::mti::bus_instance::UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busiInst, &ubse::mti::bus_instance::UbseMtiBusInstance::GetBusInstanceList)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(rc.CollectStaticResource(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+// === BindVfeToNpu with busi entries ===
+
+TEST_F(TestUbseNpuResourceCollection, BindVfeToNpuWithBusiAndSubIdevsTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    UbseMtiEid eid{};
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    vfeLoc.guid = "abcd1234567890abcdef01234567890";
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    auto vfeDev = CollectionDevice::CollectionToBase(vfe);
+    rc.SetDevice(vfeDev);
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 1;
+    pfeLoc.dieId = 2;
+    pfeLoc.pfeId = 3;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    auto pfeDev = CollectionDevice::CollectionToBase(pfe);
+    rc.SetDevice(pfeDev);
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 4;
+    davidLoc.chipId = 5;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto davidDev = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(davidDev);
+    rc.BindDevice(davidDev, pfeDev);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef01234567", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    busi->SetSubDevIdev(vfe);
+    auto busiBase = CollectionDevice::CollectionToBase(busi);
+    rc.SetDevice(busiBase);
+    EXPECT_EQ(rc.BindVfeToNpu(), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === GenerateDavidNicMap POD tests ===
+
+TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod16Test)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 23;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto device = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(device);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_16_1825, davidDevIdTo1825DevId), UBSE_OK);
+    EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, GenerateDavidNicMapPod32Test)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 23;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto device = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(device);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    EXPECT_EQ(rc.GenerateDavidNicMap(ProductType::POD_32_1825, davidDevIdTo1825DevId), UBSE_OK);
+    EXPECT_FALSE(davidDevIdTo1825DevId.empty());
+    rc.ClearAllDevices();
+}
+
+// === SetDavidAffinityNic null tests ===
+
+TEST_F(TestUbseNpuResourceCollection, SetDavidAffinityNicDavidNullTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    UbseMtiEid eid{};
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 2;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicDev);
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto davidDev = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(davidDev);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    davidDevIdTo1825DevId[david->GetIdStr()] = "nonexistent_nic_id";
+    EXPECT_EQ(rc.SetDavidAffinityNic(davidDevIdTo1825DevId), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, SetDavidAffinityNicNicNullTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 1;
+    davidLoc.chipId = 1;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    auto davidDev = CollectionDevice::CollectionToBase(david);
+    rc.SetDevice(davidDev);
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 11;
+    nicPfeLoc.pfeId = 3;
+    nicPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicDev = CollectionDevice::CollectionToBase(nicPfe);
+    rc.SetDevice(nicDev);
+    CollectionDavidDevIdTo1825DevId davidDevIdTo1825DevId;
+    davidDevIdTo1825DevId[david->GetIdStr()] = nicPfe->GetIdStr();
+    EXPECT_EQ(rc.SetDavidAffinityNic(davidDevIdTo1825DevId), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === ManageBusiAndVfeBinding isComSharedFe test ===
+
+TEST_F(TestUbseNpuResourceCollection, ManageBusiAndVfeBindingSharedFeTest)
+{
+    UbseMtiEid eid{};
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    vfe->SetIsComSharedFe(true);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef01234567", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    EXPECT_EQ(ManageBusiAndVfeBinding(busi, vfe, true), UBSE_OK);
+    EXPECT_EQ(busi->GetSubDevIdev().size(), 1);
+}
+
+// === ManageIdevAndDavidBinding V_IDEV fallback test ===
+
+TEST_F(TestUbseNpuResourceCollection, ManageIdevAndDavidBindingVfeFallbackTest)
+{
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    CollectDeviceLoc davidLoc;
+    davidLoc.slotId = 5;
+    davidLoc.chipId = 6;
+    auto david = std::make_shared<CollectionDeviceDavid>(davidLoc);
+    EXPECT_EQ(ManageIdevAndDavidBinding(vfe, david, true), UBSE_OK);
+    EXPECT_NE(david->GetBondingIdev(), nullptr);
+    auto bondingIdev = david->GetBondingIdev();
+    EXPECT_EQ(bondingIdev->GetType(), CollectionDeviceType::V_IDEV);
+}
+
+// === AddDavidAndBindToIdevPfe null pfe cast test ===
+
+TEST_F(TestUbseNpuResourceCollection, AddDavidAndBindToIdevPfeNullPfeCastTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    UbseMtiEid eid{};
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "0123456789abcdef0123456789abcdef";
+    auto wrongTypeDev = std::make_shared<CollectionDeviceBusi>("0123456789abcdef0123456789abcdef", eid, "100",
+                                                               CollectionDeviceType::VM_BUSINSTANCE);
+    auto wrongTypeBase = CollectionDevice::CollectionToBase(wrongTypeDev);
+    rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::P_IDEV)][wrongTypeBase->GetIdStr()] = wrongTypeBase;
+    CollectDeviceLoc davidDevLoc;
+    davidDevLoc.slotId = 4;
+    davidDevLoc.chipId = 5;
+    CollectDeviceLoc pfeDevLoc;
+    pfeDevLoc.chipId = 1;
+    pfeDevLoc.dieId = 2;
+    pfeDevLoc.pfeId = 3;
+    EXPECT_EQ(rc.AddDavidAndBindToIdevPfe(davidDevLoc, pfeDevLoc), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+// === SetDeviceWithGuid HOST_BUSINSTANCE test ===
+
+TEST_F(TestUbseNpuResourceCollection, SetDeviceWithGuidHostBusiTest)
+{
+    UbseMtiEid eid{};
+    CollectDeviceLoc loc;
+    loc.guid = "0123456789abcdef0123456789abcdef";
+    auto dev = std::make_shared<CollectionDeviceBusi>("0123456789abcdef0123456789abcdef", eid, "100",
+                                                      CollectionDeviceType::HOST_BUSINSTANCE);
+    std::shared_ptr<CollectionDevice> device = CollectionDevice::CollectionToBase(dev);
+    CollectionGuidToDevice guidToDevice;
+    EXPECT_EQ(SetDeviceWithGuid(device, guidToDevice), UBSE_OK);
+    EXPECT_NE(guidToDevice.find(device->GetGuid()), guidToDevice.end());
+}
+
+TEST_F(TestUbseNpuResourceCollection, SetDeviceWithGuidNicVfeExistingTest)
+{
+    UbseMtiEid eid{};
+    CollectDeviceLoc loc;
+    loc.slotId = 1;
+    loc.chipId = 2;
+    loc.pfeId = 3;
+    loc.vfeId = 4;
+    loc.guid = "0123456789abcdef0123456789abcdef";
+    auto dev1 = std::make_shared<CollectionDeviceNicVfe>(loc);
+    std::shared_ptr<CollectionDevice> device1 = CollectionDevice::CollectionToBase(dev1);
+    CollectionGuidToDevice guidToDevice;
+    guidToDevice[device1->GetGuid()] = device1;
+    auto dev2 = std::make_shared<CollectionDeviceNicVfe>(loc);
+    std::shared_ptr<CollectionDevice> device2 = CollectionDevice::CollectionToBase(dev2);
+    EXPECT_EQ(SetDeviceWithGuid(device2, guidToDevice), UBSE_OK);
+}
+
+// === GetDeviceByDevId incomplete map test ===
+
+TEST_F(TestUbseNpuResourceCollection, GetDeviceByDevIdIncompleteMapTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    auto savedSize = rc.devIdToDevice_.size();
+    rc.devIdToDevice_.clear();
+    EXPECT_EQ(rc.GetDeviceByDevId("someid", CollectionDeviceType::VM_BUSINSTANCE), nullptr);
+    rc.devIdToDevice_.resize(savedSize);
+    rc.ClearAllDevices();
+}
+
+// === SetDeviceWithDevId fail in SetDevice ===
+
+TEST_F(TestUbseNpuResourceCollection, SetDeviceWithDevIdFailInSetDeviceTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    UbseMtiEid eid{};
+    auto invalidDev = std::make_shared<CollectionDeviceBusi>("guid1234567890abcdef012345678901", eid, "100",
+                                                             CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT);
+    auto invalidDevice = CollectionDevice::CollectionToBase(invalidDev);
+    EXPECT_EQ(rc.SetDevice(invalidDevice), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+// === AddDavidAndBindToIdevPfe SetDevice fail ===
+
+TEST_F(TestUbseNpuResourceCollection, AddDavidAndBindToIdevPfeBindDeviceFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 1;
+    pfeLoc.dieId = 2;
+    pfeLoc.pfeId = 3;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    auto pfeDev = CollectionDevice::CollectionToBase(pfe);
+    rc.SetDevice(pfeDev);
+    CollectDeviceLoc davidDevLoc;
+    davidDevLoc.slotId = 4;
+    davidDevLoc.chipId = 5;
+    CollectDeviceLoc pfeDevLoc;
+    pfeDevLoc.chipId = 1;
+    pfeDevLoc.dieId = 2;
+    pfeDevLoc.pfeId = 3;
+    EXPECT_EQ(rc.AddDavidAndBindToIdevPfe(davidDevLoc, pfeDevLoc), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === ManageBusiAndNicVfeBinding unbinding with previous busi ===
+
+TEST_F(TestUbseNpuResourceCollection, ManageBusiAndNicVfeBindingUnbindingWithPreviousTest)
+{
+    UbseMtiEid eid{};
+    CollectDeviceLoc nicVfeLoc;
+    nicVfeLoc.slotId = 1;
+    nicVfeLoc.chipId = 2;
+    nicVfeLoc.pfeId = 3;
+    nicVfeLoc.vfeId = 4;
+    auto nicVfe = std::make_shared<CollectionDeviceNicVfe>(nicVfeLoc);
+    auto busi1 = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef01234561", eid, "100",
+                                                        CollectionDeviceType::VM_BUSINSTANCE);
+    auto busi2 = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef01234562", eid, "200",
+                                                        CollectionDeviceType::VM_BUSINSTANCE);
+    nicVfe->SetBondingDevBusi(busi1);
+    EXPECT_EQ(ManageBusiAndNicVfeBinding(busi1, nicVfe, false), UBSE_OK);
+}
+
+// === ManageBusiAndNicPfeBinding unbinding ===
+
+TEST_F(TestUbseNpuResourceCollection, ManageBusiAndNicPfeBindingUnbindingTest)
+{
+    UbseMtiEid eid{};
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 1;
+    nicPfeLoc.chipId = 2;
+    nicPfeLoc.pfeId = 3;
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto busi = std::make_shared<CollectionDeviceBusi>("busiguid1234567890abcdef01234567", eid, "100",
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    ManageBusiAndNicPfeBinding(busi, nicPfe, true);
+    EXPECT_EQ(ManageBusiAndNicPfeBinding(busi, nicPfe, false), UBSE_OK);
+    EXPECT_TRUE(busi->GetSubDevNicPfe().empty());
+    EXPECT_EQ(nicPfe->GetBondingDevBusi(), nullptr);
+}
+
+// === ManageIdevAndDavidBinding with previous bonding unbind ===
+
+TEST_F(TestUbseNpuResourceCollection, ManageIdevAndDavidBindingUnbindingWithPreviousTest)
+{
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 1;
+    pfeLoc.dieId = 2;
+    pfeLoc.pfeId = 3;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    CollectDeviceLoc davidLoc1;
+    davidLoc1.slotId = 4;
+    davidLoc1.chipId = 5;
+    auto david1 = std::make_shared<CollectionDeviceDavid>(davidLoc1);
+    CollectDeviceLoc davidLoc2;
+    davidLoc2.slotId = 6;
+    davidLoc2.chipId = 7;
+    auto david2 = std::make_shared<CollectionDeviceDavid>(davidLoc2);
+    CollectDeviceLoc pfeLoc2;
+    pfeLoc2.chipId = 8;
+    pfeLoc2.dieId = 9;
+    pfeLoc2.pfeId = 10;
+    auto pfe2 = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc2);
+    pfe->SetBondingDevDavid(david1);
+    david2->SetBondingIdev(CollectionDevice::CollectionToBase(pfe2));
+    EXPECT_EQ(ManageIdevAndDavidBinding(pfe, david2, false), UBSE_OK);
+    EXPECT_EQ(pfe->GetBondingDevDavid(), nullptr);
+    EXPECT_EQ(david2->GetBondingIdev(), nullptr);
+}
+
+// === CollectStaticResource FINISH state ===
+
+TEST_F(TestUbseNpuResourceCollection, CollectStaticResourceFinishStateTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    rc.state_ = CollectionState::FINISH;
+    EXPECT_EQ(rc.CollectStaticResource(), UBSE_ERROR);
+    rc.ClearAllDevices();
+}
+
+// === AddDevIdevPfe/Vfe SetDevice fail ===
+
+TEST_F(TestUbseNpuResourceCollection, AddDevIdevPfeSetDeviceFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    UbseMtiEid eid{};
+    auto invalidDev =
+        std::make_shared<CollectionDeviceBusi>("guid", eid, "100", CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT);
+    auto invalidBase = CollectionDevice::CollectionToBase(invalidDev);
+    CollectDeviceLoc ubCtrlLoc;
+    ubCtrlLoc.chipId = 1;
+    ubCtrlLoc.dieId = 2;
+    auto ubCtrl = std::make_shared<CollectionDeviceUbCtrl>(ubCtrlLoc);
+    auto ubCtrlBase = CollectionDevice::CollectionToBase(ubCtrl);
+    rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::UBCONTROLLER)][invalidBase->GetIdStr()] = invalidBase;
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 1;
+    pfeLoc.dieId = 2;
+    pfeLoc.pfeId = 3;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    EXPECT_EQ(rc.AddDevIdevPfe(ubCtrl, pfe), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+TEST_F(TestUbseNpuResourceCollection, AddDevIdevVfeSetDeviceFailTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    UbseMtiEid eid{};
+    auto invalidDev =
+        std::make_shared<CollectionDeviceBusi>("guid", eid, "100", CollectionDeviceType::COLLECTION_DEVICE_TYPE_COUNT);
+    auto invalidBase = CollectionDevice::CollectionToBase(invalidDev);
+    rc.devIdToDevice_[DeviceTypeToUint8(CollectionDeviceType::V_IDEV)][invalidBase->GetIdStr()] = invalidBase;
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 1;
+    pfeLoc.dieId = 2;
+    pfeLoc.pfeId = 3;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 1;
+    vfeLoc.dieId = 2;
+    vfeLoc.pfeId = 3;
+    vfeLoc.vfeId = 4;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    EXPECT_EQ(rc.AddDevIdevVfe(pfe, vfe), UBSE_OK);
+    rc.ClearAllDevices();
+}
+
+// === GetDeviceHostBusInstance incomplete map ===
+
+TEST_F(TestUbseNpuResourceCollection, GetDeviceHostBusInstanceIncompleteMapTest)
+{
+    auto& rc = ResourceCollection::GetInstance();
+    rc.ClearAllDevices();
+    auto savedSize = rc.devIdToDevice_.size();
+    rc.devIdToDevice_.clear();
+    EXPECT_EQ(rc.GetDeviceHostBusInstance(), nullptr);
+    rc.devIdToDevice_.resize(savedSize);
+    rc.ClearAllDevices();
+}
+
+// === SplitLines with only whitespace ===
+
+TEST_F(TestUbseNpuResourceCollection, SplitLinesOnlyWhitespaceTest)
+{
+    auto lines = ResourceCollection::GetInstance().SplitLines("   \n   \n   ");
+    EXPECT_TRUE(lines.empty());
+}
+
 } // namespace ubse::npu::controller::ut
