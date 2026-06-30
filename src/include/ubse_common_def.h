@@ -64,6 +64,7 @@ constexpr int16_t UBSE_UDS_MODE = 666;
 constexpr size_t httpMaxBodySize = 524288;
 constexpr size_t httpMaxStrSize = 504;
 constexpr size_t httpMaxQuerySize = 11264;
+constexpr size_t httpMaxHeaderSize = 8 * 1024;
 constexpr uint32_t STACK_WANT_DEPTH = 20;
 constexpr uint32_t STACK_IGNORE_DEPTH = 0;
 constexpr uint32_t PRINTSIG = 35;

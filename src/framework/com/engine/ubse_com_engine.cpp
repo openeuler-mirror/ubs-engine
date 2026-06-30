@@ -1059,7 +1059,7 @@ bool UbseComEngine::VerifyMsg(UbseComMessageCtx& msgCtx)
     ubse::election::UbseRoleInfo masterInfo;
     auto ret = ubse::election::UbseGetMasterInfo(masterInfo);
     if (ret != UBSE_OK) {
-        return true;
+        return false;
     }
     UbseComChannelInfo channelInfo;
     ret = GetChannelById(msgCtx.GetChannelId(), channelInfo);

@@ -24,7 +24,6 @@
 namespace ubse::http {
 using ubse::common::def::UbseResult;
 using ubse::module::UbseModule;
-const size_t MAX_TOTAL_HEADERS_SIZE = 8 * 1024; // 8KB
 
 class UbseHttpModule : public UbseModule {
 public:

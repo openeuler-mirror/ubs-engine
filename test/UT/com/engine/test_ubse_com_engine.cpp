@@ -218,7 +218,7 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     std::string agentRole = "agent";
     MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
     MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
+    EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
     GlobalMockObject::verify();
 
     ubse::election::UbseRoleInfo masterInfo{"MasterNode", "master"};
