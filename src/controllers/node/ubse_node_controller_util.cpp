@@ -154,7 +154,7 @@ static bool IsNodeInGroup(const ubse::election::GroupTopology &group, const std:
     }
 
     for (const auto &node : group.groupNodes) {
-        if (node.nodeId == nodeId) {
+        if (node == nodeId) {
             return true;
         }
     }
@@ -171,11 +171,6 @@ static const ubse::election::GroupTopology *FindGroupByNodeId(const std::vector<
         if (IsNodeInGroup(group, nodeId)) {
             matchedParentGroup = parentGroup;
             return &group;
-        }
-
-        auto matchedGroup = FindGroupByNodeId(group.mountedGroups, nodeId, &group, matchedParentGroup);
-        if (matchedGroup != nullptr) {
-            return matchedGroup;
         }
     }
 

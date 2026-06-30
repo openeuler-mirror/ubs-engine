@@ -14,12 +14,13 @@
 #include <memory>
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_election_group_info_simpo.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_role_global_agent.h"
 #include "ubse_election_role_global_initializer.h"
-#include "ubse_election_role_global_standby.h"
 #include "ubse_election_role_global_master.h"
+#include "ubse_election_role_global_standby.h"
 #include "ubse_net_util.h"
 
 namespace ubse::election {
@@ -58,8 +59,7 @@ uint32_t RoleMgr::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, Electio
 {
     std::lock_guard<std::mutex> lock(mutex_);
     uint32_t ret;
-    if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT || rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER ||
-        rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
+    if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT || rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         ret = GetRole()->RecvPkt(srcID, rcvPkt, reply);
     } else if (GetGlobalRole() != nullptr &&
         (rcvPkt.type == ELECTION_PKT_TYPE_GLOBAL_SELECT || rcvPkt.type == ELECTION_PKT_TYPE_GLOBAL_HEART)) {
@@ -69,6 +69,16 @@ uint32_t RoleMgr::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt &rcvPkt, Electio
         ret = UBSE_ERROR;
     }
     return ret;
+}
+
+void RoleMgr::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER) {
+        GetRole()->RecvInterGroupInfo(rcvInfo, replyInfo);
+    } else if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        GetGlobalRole()->RecvInterGroupInfo(rcvInfo, replyInfo);
+    }
 }
 
 void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
@@ -368,23 +378,8 @@ void RoleMgr::ConnectInterManagingGroup()
 
 void RoleMgr::QueryManagingMaster()
 {
-    ElectionPkt pkt{};
-    pkt.type = ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER;
-    Node myself;
-    if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
-        UBSE_LOG_ERROR << "[ELECTION] Master GetMyselfNode: no node found.";
-        return;
-    }
-    pkt.masterId = myself.id;
-
-    std::vector<Node> groupNodes;
-    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupNodes(groupNodes);
-    if (ret == UBSE_OK) {
-        for (const auto &node : groupNodes) {
-            pkt.queryGroupNodeIds.push_back(node.id);
-        }
-    }
-
+    InterGroupInfo pkt{};
+    pkt.type = ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER;
     std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> discoveryNodes =
         RoleMgr::GetInstance().GetCommMgr()->GetInterManagementGroupLinkMap();
     for (const auto &item : discoveryNodes) {
@@ -394,26 +389,23 @@ void RoleMgr::QueryManagingMaster()
         }
     }
 }
-static void UpdateGroupStateAndRedirect(const ElectionReplyPkt& reply, std::mutex& queryMtx,
-                                        std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo>& groupStates,
-                                        std::string& globalStandbyId, std::string& globalMasterId)
+static void UpdateGroupStateAndRedirect(const InterGroupInfo& reply, std::mutex& queryMtx,
+                                        std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo>& groupStates)
 {
     // 检查回复者是否为真正的Master
     bool needUpdateTarget = false;
     UBSE_ID_TYPE realMasterId;
-    if (!reply.replyId.empty() && !reply.masterId.empty() && reply.replyId != reply.masterId) {
+    if (!reply.nodeId.empty() && !reply.groupMasterId.empty() && reply.nodeId != reply.groupMasterId) {
         needUpdateTarget = true;
-        realMasterId = reply.masterId;
+        realMasterId = reply.groupMasterId;
     }
 
     // 更新本地缓存（加锁保护）
     {
         std::lock_guard<std::mutex> lock(queryMtx);
-        if (!reply.groupId.empty() && !reply.masterId.empty()) {
-            groupStates[reply.groupId] = {reply.groupId, reply.masterId, reply.standbyId};
+        if (!reply.groupId.empty() && !reply.groupMasterId.empty()) {
+            groupStates[reply.groupId] = {reply.groupId, reply.groupMasterId, reply.groupStandbyId};
         }
-        globalStandbyId = reply.standbyId;
-        globalMasterId = reply.masterId;
     }
 
     // 如果回复者不是真正的Master，重定向到真正的Master
@@ -432,13 +424,11 @@ void AsyncDealQueryReply(void* ctx, void* recv, uint32_t len, int32_t result)
     const auto& nodeId = context->destId;
     auto& groupStates = *context->groupStates;
     auto& queryMtx = *context->queryMtx;
-    auto& globalMasterId = *context->globalMasterId;
-    auto& globalStandbyId = *context->globalStandbyId;
     if (result != UBSE_OK) {
         UBSE_LOG_INFO << "[ELECTION] Failed to query information.";
         return;
     }
-    UbseBaseMessagePtr respMsg = new (std::nothrow) message::UbseElectionReplyPktSimpo();
+    UbseBaseMessagePtr respMsg = new (std::nothrow) message::UbseElectionGroupInfoSimpo();
     if (respMsg == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to allocate response message.";
         return;
@@ -453,21 +443,21 @@ void AsyncDealQueryReply(void* ctx, void* recv, uint32_t len, int32_t result)
         UBSE_LOG_ERROR << "[ELECTION] Failed to deserialize response message." << FormatRetCode(ret);
         return;
     }
-    auto* replyMsg = dynamic_cast<UbseElectionReplyPktSimpo*>(respMsg.Get());
+    auto* replyMsg = dynamic_cast<UbseElectionGroupInfoSimpo*>(respMsg.Get());
     if (!replyMsg) {
-        UBSE_LOG_ERROR << "[ELECTION] cast to UbseElectionReplyPktSimpo failed";
+        UBSE_LOG_ERROR << "[ELECTION] cast to UbseElectionGroupInfoSimpo failed";
         return;
     }
-    ElectionReplyPkt reply = replyMsg->GetElectionReplyPkt();
-    if (reply.replyResult == ELECTION_PKT_REPLY_GLOBAL_STOP) {
+    InterGroupInfo reply = replyMsg->GetInterGroupInfo();
+    if (reply.type == ELECTION_PKT_REPLY_GLOBAL_STOP) {
         UBSE_LOG_DEBUG << "[ELECTION] node = " << nodeId <<"stopped.";
         return;
     }
-    UpdateGroupStateAndRedirect(reply, queryMtx, groupStates, globalStandbyId, globalMasterId);
+    UpdateGroupStateAndRedirect(reply, queryMtx, groupStates);
     SafeDelete(context);
 }
 
-UbseResult RoleMgr::SendQueryInformation(UBSE_ID_TYPE destId, const ElectionPkt &pkt)
+UbseResult RoleMgr::SendQueryInformation(UBSE_ID_TYPE destId, const InterGroupInfo &pkt)
 {
     UbseContext &ubseContext = UbseContext::GetInstance();
     auto rackComModule = ubseContext.GetModule<UbseComModule>();
@@ -475,14 +465,15 @@ UbseResult RoleMgr::SendQueryInformation(UBSE_ID_TYPE destId, const ElectionPkt 
         UBSE_LOG_ERROR << "[ELECTION] get rackComModule failed";
         return UBSE_ERROR;
     }
-    ElectionPkt electionPkt{ pkt };
-    UbseBaseMessagePtr electionSimpoPtr = new (std::nothrow) UbseElectionPktSimpo(electionPkt);
+    InterGroupInfo electionPkt{ pkt };
+    UbseBaseMessagePtr electionSimpoPtr = new (std::nothrow) UbseElectionGroupInfoSimpo(electionPkt);
     if (electionSimpoPtr == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Newing RackElectionPktSimpo failed.";
         return UBSE_ERROR;
     }
     ubse::com::SendParam sendParam(destId, static_cast<uint16_t>(UbseModuleCode::ELECTION),
-                                   static_cast<uint16_t>(UbseElectionOpCode::ELECTION_PKT), UbseChannelType::NORMAL);
+                                   static_cast<uint16_t>(UbseElectionOpCode::ELECTION_INTER_GROUP_INFO),
+                                   UbseChannelType::NORMAL);
     auto context = new (std::nothrow) CallbackQueryCtx;
     if (context == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] New context failed.";
@@ -492,8 +483,6 @@ UbseResult RoleMgr::SendQueryInformation(UBSE_ID_TYPE destId, const ElectionPkt 
     context->groupStates = &groupStates;
     context->destId = destId;
     context->queryMtx = &queryMutex_;
-    context->globalMasterId = &globalMasterId_;
-    context->globalStandbyId = &globalStandbyId_;
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealQueryReply;
     callback.cbCtx = reinterpret_cast<void *>(context);
@@ -517,18 +506,6 @@ std::vector<UBSE_ID_TYPE> RoleMgr::GetManagingGroupMasterIds()
     return pdGroupMasterIds;
 }
 
-UBSE_ID_TYPE RoleMgr::GetGlobalMasterId()
-{
-    std::lock_guard<std::mutex> lock(queryMutex_);
-    return globalMasterId_;
-}
-
-UBSE_ID_TYPE RoleMgr::GetGlobalStandbyId()
-{
-    std::lock_guard<std::mutex> lock(queryMutex_);
-    return globalStandbyId_;
-}
-
 UbseResult RoleMgr::GetGroupState(const UBSE_ID_TYPE &groupId, GroupSummaryInfo &state)
 {
     std::lock_guard<std::mutex> lock(queryMutex_);
@@ -545,66 +522,6 @@ std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> RoleMgr::GetAllGroupStates()
 {
     std::lock_guard<std::mutex> lock(queryMutex_);
     return groupStates;
-}
-
-UbseResult RoleMgr::GetMountedGroupState(const UBSE_ID_TYPE &groupId, GroupSummaryInfo &state)
-{
-    std::lock_guard<std::shared_mutex> lock(topologyMtx_);
-    auto it = mountedGroupStates.find(groupId);
-    if (it == mountedGroupStates.end()) {
-        UBSE_LOG_WARN << "[ELECTION] Group " << groupId << " not found in mountedGroupStates";
-        return UBSE_ERROR;
-    }
-    state = it->second;
-    return UBSE_OK;
-}
-
-std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> RoleMgr::GetMountedGroupStates()
-{
-    std::shared_lock<std::shared_mutex> lock(topologyMtx_);
-    return mountedGroupStates;
-}
-
-std::unordered_map<UBSE_ID_TYPE, std::vector<UBSE_ID_TYPE>> RoleMgr::GetManagingGroupNodeIdsMap()
-{
-    std::shared_lock<std::shared_mutex> lock(topologyMtx_);
-    return managingGroupNodeIdsMap;
-}
-
-std::unordered_map<UBSE_ID_TYPE, std::vector<UBSE_ID_TYPE>> RoleMgr::GetMountedGroupNodeIdsMap()
-{
-    std::shared_lock<std::shared_mutex> lock(topologyMtx_);
-    return mountedGroupNodeIdsMap;
-}
-
-std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> RoleMgr::GetManagingGroupMountedMasterMap()
-{
-    std::shared_lock<std::shared_mutex> lock(topologyMtx_);
-    return managingGroupMountedMasterMap;
-}
-
-void RoleMgr::UpdateMountedGroupState(const UBSE_ID_TYPE &groupId, const GroupSummaryInfo &state)
-{
-    std::unique_lock<std::shared_mutex> lock(topologyMtx_);
-    mountedGroupStates[groupId] = state;
-}
-
-void RoleMgr::UpdateManagingGroupNodeIds(const UBSE_ID_TYPE &groupId, const std::vector<UBSE_ID_TYPE> &nodeIds)
-{
-    std::unique_lock<std::shared_mutex> lock(topologyMtx_);
-    managingGroupNodeIdsMap[groupId] = nodeIds;
-}
-
-void RoleMgr::UpdateMountedGroupNodeIds(const UBSE_ID_TYPE &groupId, const std::vector<UBSE_ID_TYPE> &nodeIds)
-{
-    std::unique_lock<std::shared_mutex> lock(topologyMtx_);
-    mountedGroupNodeIdsMap[groupId] = nodeIds;
-}
-
-void RoleMgr::UpdateManagingGroupMountedMaster(const UBSE_ID_TYPE &groupId, const UBSE_ID_TYPE &mountedMasterId)
-{
-    std::unique_lock<std::shared_mutex> lock(topologyMtx_);
-    managingGroupMountedMasterMap[groupId] = mountedMasterId;
 }
 
 void RoleMgr::UpdateDiscoveryTarget(const UBSE_ID_TYPE &groupId, const UBSE_ID_TYPE &targetNodeId)

@@ -22,6 +22,10 @@ public:
     void ProcTimer() override;
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
 
+    UBSE_ID_TYPE GetGlobalMasterNode() override;
+
+    UBSE_ID_TYPE GetGlobalStandbyNode() override;
+
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
 
     uint8_t GetMasterStatus() override;
@@ -51,6 +55,8 @@ private:
     void ProcRoleSwitch(const std::vector<Node> &masterIds);
     void CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &allNodes, RoleContext ctx);
     void RegisterTimers();
+    UbseResult SendCascadeInformation(UBSE_ID_TYPE destId, const InterGroupInfo &cascadeRepo);
+    void ReportCascadeGroupToManagingGroup();
 private:
     uint64_t startTimeMs_;
     uint64_t lastTimeMs_;
@@ -60,6 +66,9 @@ private:
     uint8_t masterStatus_ = 0;
     uint8_t standbyStatus_ = 0;
     bool isStartTimeSet_ = false;
+    std::mutex cascadeMtx_{};
+    UBSE_ID_TYPE globalMasterId_; // 当前节点为global_cascade时，记录global_master节点
+    UBSE_ID_TYPE globalStandbyId_; // 当前节点为global_cascade时，记录global_standby节点
 };
 }
 

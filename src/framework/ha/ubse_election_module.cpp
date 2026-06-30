@@ -96,6 +96,13 @@ UbseResult UbseElectionModule::Start()
         UBSE_LOG_ERROR << "[ELECTION] UbseElectionModule handler error";
         return UBSE_ERROR;
     }
+
+    ret = UbseElectionGroupInfoHandler::RegElectionGroupInfoHandler();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] UbseElectionGroupInfoHandler error";
+        return UBSE_ERROR;
+    }
+
     auto currentRole = RoleMgr::GetInstance().GetRole();
     if (!currentRole) {
         UBSE_LOG_ERROR << "[ELECTION] currentRole is null";
@@ -397,8 +404,111 @@ void UbseElectionModule::SwitchAgentFromMaster()
     RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
 }
 
+GroupTopology BuildGroupTopology(const GroupSummaryInfo &state, const std::vector<UBSE_ID_TYPE> &groupAgentIds,
+    bool isManagingGroup)
+{
+    GroupTopology topology;
+    topology.groupId = state.groupId;
+    topology.isManagingGroup = isManagingGroup;
+    topology.groupMasterId = state.groupMasterId;
+    topology.groupStandbyId = state.groupStandbyId;
+    topology.groupNodes.push_back(topology.groupMasterId);
+    topology.groupNodes.push_back(topology.groupStandbyId);
+    for (const auto &nodeId : groupAgentIds) {
+        topology.groupNodes.push_back(nodeId);
+    }
+    return topology;
+}
+
+UbseResult BuildGlobalMasterRoleTopology(HaTopologyInfo &haTopology,
+    const std::shared_ptr<ElectionRole> &role, const std::shared_ptr<ElectionRole> &globalRole,
+    const UBSE_ID_TYPE &myGroupId, bool isManaging)
+{
+    GroupSummaryInfo state;
+    state.groupId = myGroupId;
+    state.groupMasterId = role->GetMasterNode();
+    state.groupStandbyId = role->GetStandbyNode();
+    GroupTopology curTopo = BuildGroupTopology(state, role->GetAgentNodes(), isManaging);
+    haTopology.currentGroup = std::move(curTopo);
+
+    auto cascadeInfo = globalRole->GetCascadeGroupReport();
+    haTopology.groups.push_back({cascadeInfo.groupId, false, cascadeInfo.groupMasterId,
+        cascadeInfo.groupStandbyId, cascadeInfo.groupNodeIds});
+
+    auto globalAgentIds = globalRole->GetManagingGroupNodeIds();
+    for (const auto &globalAgentId : globalAgentIds) {
+        haTopology.groups.push_back(globalAgentId);
+    }
+    return UBSE_OK;
+}
+
+UbseResult BuildGlobalStandbyAgentRoleTopology(HaTopologyInfo &haTopology,
+    const std::shared_ptr<ElectionRole> &role, const std::shared_ptr<ElectionRole> &globalRole,
+    const UBSE_ID_TYPE &myGroupId, bool isManaging)
+{
+    GroupSummaryInfo state;
+    state.groupId = myGroupId;
+    state.groupMasterId = role->GetMasterNode();
+    state.groupStandbyId = role->GetStandbyNode();
+    GroupTopology curTopo = BuildGroupTopology(state, role->GetAgentNodes(), isManaging);
+    haTopology.currentGroup = std::move(curTopo);
+
+    auto cascadeInfo = globalRole->GetCascadeGroupReport();
+    haTopology.groups.push_back({cascadeInfo.groupId, false, cascadeInfo.groupMasterId,
+        cascadeInfo.groupStandbyId, cascadeInfo.groupNodeIds});
+
+    return UBSE_OK;
+}
+
+UbseResult BuildLocalGroupTopology(HaTopologyInfo &haTopology,
+    const std::shared_ptr<ElectionRole> &role, const UBSE_ID_TYPE &myGroupId, bool isManaging)
+{
+    GroupSummaryInfo state;
+    state.groupId = myGroupId;
+    state.groupMasterId = role->GetMasterNode();
+    state.groupStandbyId = role->GetStandbyNode();
+    GroupTopology curTopo = BuildGroupTopology(state, role->GetAgentNodes(), isManaging);
+    haTopology.currentGroup = std::move(curTopo);
+    return UBSE_OK;
+}
+
 UbseResult UbseElectionModule::GetHaTopologyInfo(HaTopologyInfo &haTopology)
 {
-    return UBSE_OK;
+    haTopology = {};
+
+    auto &roleMgr = RoleMgr::GetInstance();
+    auto role = roleMgr.GetRole();
+    if (role == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get RoleMgrInstance";
+        return UBSE_ERROR;
+    }
+
+    Node currentNode;
+    if (UbseElectionNodeMgr::GetInstance().GetMyselfNode(currentNode) != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Get currentNode Failed";
+        return UBSE_ERROR;
+    }
+
+    UBSE_ID_TYPE myGroupId;
+    if (UbseElectionNodeMgr::GetInstance().GetGroupId(myGroupId) != UBSE_OK || myGroupId.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] Get groupId failed";
+        return UBSE_ERROR;
+    }
+
+    auto globalRolePtr = roleMgr.GetGlobalRole();
+    GlobalRoleType globalRole = (globalRolePtr != nullptr) ? globalRolePtr->GetGlobalRoleType()
+                                                           : GlobalRoleType::GLOBAL_NONE;
+    haTopology.currentNode.nodeId = currentNode.id;
+    haTopology.currentNode.groupRole = role->GetRoleType();
+    haTopology.currentNode.globalRole = globalRole;
+    bool isManaging = roleMgr.IsManagingGroup(myGroupId);
+
+    if (globalRole == GlobalRoleType::GLOBAL_MASTER) {
+        return BuildGlobalMasterRoleTopology(haTopology, role, globalRolePtr, myGroupId, isManaging);
+    }
+    if (globalRole == GlobalRoleType::GLOBAL_STANDBY || globalRole == GlobalRoleType::GLOBAL_AGENT) {
+        return BuildGlobalStandbyAgentRoleTopology(haTopology, role, globalRolePtr, myGroupId, isManaging);
+    }
+    return BuildLocalGroupTopology(haTopology, role, myGroupId, isManaging);
 }
 } // namespace ubse::election

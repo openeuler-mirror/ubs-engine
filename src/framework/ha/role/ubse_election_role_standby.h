@@ -22,6 +22,7 @@ public:
     explicit Standby(RoleContext &ctx);
     void ProcTimer() override;
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
+    void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
     UBSE_ID_TYPE GetMasterNode() override;
     UBSE_ID_TYPE GetStandbyNode() override;
     UBSE_ID_TYPE GetGlobalMasterNode() override;

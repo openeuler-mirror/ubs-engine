@@ -15,6 +15,7 @@
 #include "ubse_base_message.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_election_group_info_simpo.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
@@ -72,6 +73,53 @@ UbseResult UbseElectionPktHandler::Handle(const UbseBaseMessagePtr &req, const U
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] ElectionRecvPkt deal failed.";
     }
+    response->SetResponse(ubseResponse);
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionGroupInfoHandler::RegElectionGroupInfoHandler()
+{
+    UbseContext &ubseContext = UbseContext::GetInstance();
+    auto ubseComModule = ubseContext.GetModule<UbseComModule>();
+    if (ubseComModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] get ubseComModule failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseComBaseMessageHandlerPtr ubseElectionGroupInfoHandler = new (std::nothrow) UbseElectionGroupInfoHandler();
+    if (ubseElectionGroupInfoHandler == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] register ubseElectionGroupInfoHandler new failed";
+        return UBSE_ERROR;
+    }
+    // 注册
+    UbseResult ret =
+        ubseComModule->RegRpcService<UbseElectionGroupInfoSimpo, UbseElectionGroupInfoSimpo>(ubseElectionGroupInfoHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] ubseElectionGroupInfoHandler RegRpc failed";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionGroupInfoHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                                          UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    UbseElectionGroupInfoSimpoPtr request = UbseBaseMessage::DeConvert<UbseElectionGroupInfoSimpo>(req);
+    if (request == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] new UbseElectionCascadeRepoSimpo failed," << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseElectionGroupInfoSimpoPtr response = UbseBaseMessage::DeConvert<UbseElectionGroupInfoSimpo>(rsp);
+    if (response == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] new UbseElectionGroupInfoSimpo failed," << FormatRetCode(UBSE_ERROR_NULLPTR);
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    InterGroupInfo ubseRequest = request->GetInterGroupInfo();
+    InterGroupInfo ubseResponse = response->GetInterGroupInfo();
+    if (g_globalStop.load()) {
+        ubseResponse.type = ELECTION_PKT_REPLY_GLOBAL_STOP;
+    }
+    RoleMgr::GetInstance().RecvInterGroupInfo(ubseRequest, ubseResponse);
     response->SetResponse(ubseResponse);
     return UBSE_OK;
 }

@@ -38,5 +38,26 @@ public:
         return static_cast<uint16_t>(UbseModuleCode::ELECTION);
     }
 };
+
+class UbseElectionGroupInfoHandler : public UbseComBaseMessageHandler {
+public:
+    UbseElectionGroupInfoHandler() = default;
+
+    static UbseResult RegElectionGroupInfoHandler();
+
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+        UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    inline uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseElectionOpCode::ELECTION_INTER_GROUP_INFO);
+    }
+
+    inline uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::ELECTION);
+    }
+};
+using UbseElectionGroupInfoHandlerPtr = Ref<UbseElectionGroupInfoHandler>;
 }
 #endif // UBSE_ELECTION_PKT_HANDLER_H

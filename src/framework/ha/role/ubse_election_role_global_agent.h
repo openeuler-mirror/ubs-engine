@@ -23,6 +23,8 @@ public:
 
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
 
+    void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
+
     UBSE_ID_TYPE GetGlobalMasterNode() override;
 
     UBSE_ID_TYPE GetGlobalStandbyNode() override;
@@ -32,6 +34,8 @@ public:
     uint8_t GetMasterStatus() override;
 
     uint8_t GetStandbyStatus() override;
+
+    InterGroupInfo GetCascadeGroupReport() override;
 
     void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override
     {
@@ -64,10 +68,12 @@ private:
     UBSE_ID_TYPE globalMasterId_;
     UBSE_ID_TYPE globalStandbyId_;
     std::vector<UBSE_ID_TYPE> globalAgentIds_{};
+    std::string groupId_{};
     UBSE_ID_TYPE myselfID_;
     uint64_t globalTurnId_;
     uint8_t masterStatus_ = 0;
     uint8_t standbyStatus_ = 0;
+    InterGroupInfo cascadeGroupReport_;
 };
 }
 #endif // UBS_ENGINE_UBSE_ELECTION_ROLE_GLOBAL_AGENT_H

@@ -36,8 +36,7 @@ inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization &out,
     out << electionReplyPkt.type << electionReplyPkt.replyId << electionReplyPkt.groupId << electionReplyPkt.replyResult
         << electionReplyPkt.masterId << electionReplyPkt.standbyId
         << electionReplyPkt.turnId << electionReplyPkt.standbyStatus
-        << electionReplyPkt.broadcast << electionReplyPkt.mountedGroupMasterId
-        << electionReplyPkt.managingGroupNodeIds << electionReplyPkt.mountedGroupNodeIds;
+        << electionReplyPkt.broadcast << electionReplyPkt.managingGroupNodeIds;
 }
 inline void ElectionReplyPktDeserialize(ubse::serial::UbseDeSerialization &in,
                                         ubse::election::ElectionReplyPkt &electionReplyPkt)
@@ -45,8 +44,21 @@ inline void ElectionReplyPktDeserialize(ubse::serial::UbseDeSerialization &in,
     in >> electionReplyPkt.type >> electionReplyPkt.replyId >> electionReplyPkt.groupId >>
         electionReplyPkt.replyResult >> electionReplyPkt.masterId >> electionReplyPkt.standbyId >>
         electionReplyPkt.turnId >> electionReplyPkt.standbyStatus >>
-        electionReplyPkt.broadcast >> electionReplyPkt.mountedGroupMasterId >>
-        electionReplyPkt.managingGroupNodeIds >> electionReplyPkt.mountedGroupNodeIds;
+        electionReplyPkt.broadcast >> electionReplyPkt.managingGroupNodeIds;
+}
+
+inline void InterGroupInfoSerialize(ubse::serial::UbseSerialization &out,
+                                        ubse::election::InterGroupInfo &interGroupInfo)
+{
+    out << interGroupInfo.type << interGroupInfo.nodeId << interGroupInfo.groupId << interGroupInfo.groupMasterId
+        << interGroupInfo.groupStandbyId << interGroupInfo.groupNodeIds;
+}
+
+inline void InterGroupInfoDeserialize(ubse::serial::UbseDeSerialization &in,
+                                        ubse::election::InterGroupInfo &interGroupInfo)
+{
+    in >> interGroupInfo.type >> interGroupInfo.nodeId >> interGroupInfo.groupId >> interGroupInfo.groupMasterId >>
+        interGroupInfo.groupStandbyId >> interGroupInfo.groupNodeIds;
 }
 } // namespace ubse::election::data::conversion
 #endif // UBSE_ELECTION_DATA_CONVERSION_H

@@ -62,7 +62,7 @@ static bool IsNodeInGroup(const ubse::election::GroupTopology &group, const std:
     }
 
     for (const auto &node : group.groupNodes) {
-        if (node.nodeId == nodeId) {
+        if (node == nodeId) {
             return true;
         }
     }
@@ -77,17 +77,13 @@ static const ubse::election::GroupTopology *FindGroupByNodeId(
         if (IsNodeInGroup(group, nodeId)) {
             return &group;
         }
-
-        auto matchedGroup = FindGroupByNodeId(group.mountedGroups, nodeId);
-        if (matchedGroup != nullptr) {
-            return matchedGroup;
-        }
     }
 
     return nullptr;
 }
 
 static void CollectGroupNodeIds(const ubse::election::GroupTopology &group, bool includeMountedGroups,
+                                const std::vector<ubse::election::GroupTopology> &groups,
                                 std::unordered_set<std::string> &nodeIds)
 {
     if (!group.groupMasterId.empty()) {
@@ -99,8 +95,8 @@ static void CollectGroupNodeIds(const ubse::election::GroupTopology &group, bool
     }
 
     for (const auto &node : group.groupNodes) {
-        if (!node.nodeId.empty()) {
-            nodeIds.insert(node.nodeId);
+        if (!node.empty()) {
+            nodeIds.insert(node);
         }
     }
 
@@ -108,8 +104,8 @@ static void CollectGroupNodeIds(const ubse::election::GroupTopology &group, bool
         return;
     }
 
-    for (const auto &mountedGroup : group.mountedGroups) {
-        CollectGroupNodeIds(mountedGroup, true, nodeIds);
+    for (const auto &mountedGroup : groups) {
+        CollectGroupNodeIds(mountedGroup, false, {}, nodeIds);
     }
 }
 
@@ -835,11 +831,11 @@ UbseResult UbseNodeControllerMaster::UbseNodeDownHandler(const std::string &node
             if (group->isManagingGroup) {
                 UBSE_LOG_INFO << "[CLOS_EVENT] pd master down, update managing group and mounted groups, nodeId="
                               << nodeId << ", groupId=" << group->groupId;
-                CollectGroupNodeIds(*group, true, affectedNodeIds);
+                CollectGroupNodeIds(*group, true, topology.groups, affectedNodeIds);
             } else {
                 UBSE_LOG_INFO << "[CLOS_EVENT] cabinet master down, update cabinet group, nodeId=" << nodeId
                               << ", groupId=" << group->groupId;
-                CollectGroupNodeIds(*group, false, affectedNodeIds);
+                CollectGroupNodeIds(*group, false, topology.groups, affectedNodeIds);
             }
         } else {
             UBSE_LOG_INFO << "[CLOS_EVENT] ordinary node down, only update node, nodeId=" << nodeId

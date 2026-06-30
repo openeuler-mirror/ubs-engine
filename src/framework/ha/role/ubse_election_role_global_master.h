@@ -29,6 +29,8 @@ public:
 
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
 
+    void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
+
     UBSE_ID_TYPE GetGlobalMasterNode() override;
 
     UBSE_ID_TYPE GetGlobalStandbyNode() override;
@@ -47,6 +49,11 @@ public:
 
     void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override;
 
+    InterGroupInfo GetCascadeGroupReport() override;
+
+    std::vector<GroupTopology> GetManagingGroupNodeIds() override;
+
+
 private:
     uint32_t RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply);
     uint32_t RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply);
@@ -58,7 +65,7 @@ private:
     std::vector<UBSE_ID_TYPE> GetAllGlobalAgentIds() const;
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus();
-    UbseResult SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
+    UbseResult SendGlobalHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
 
 private:
     UBSE_ID_TYPE nodeId_{}; // 当前节点id = globalMasterId
@@ -71,6 +78,8 @@ private:
     std::mutex mtx_{};  // 互斥锁
     std::atomic<bool> stopping_{};     // Master 是否正在销毁
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
+    InterGroupInfo cascadeGroupReport_{};
+    std::map<UBSE_ID_TYPE, GroupTopology> globalStandbyAgentGroupTopologies_{};
 };
 #undef MODULE_LOG_NAME
 }

@@ -338,18 +338,15 @@ UBSE_ID_TYPE ElectionRole::GetGlobalStandbyNode()
     return INVALID_NODE_ID;
 }
 
-std::unordered_set<UBSE_ID_TYPE> ElectionRole::GetCascadeGroupMasters()
+InterGroupInfo ElectionRole::GetCascadeGroupReport()
 {
     return {};
 }
 
-std::vector<UBSE_ID_TYPE> ElectionRole::GetCascadeGroupNodeIds()
+std::vector<GroupTopology> ElectionRole::GetManagingGroupNodeIds()
 {
     return {};
 }
 
-std::vector<UBSE_ID_TYPE> ElectionRole::GetManagingGroupNodeIds()
-{
-    return {};
-}
+void ElectionRole::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo){}
 } // namespace ubse::election

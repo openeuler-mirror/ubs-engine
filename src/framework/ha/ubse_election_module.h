@@ -79,13 +79,9 @@ public:
     /* *
      * @brief 获取当前节点视角的HA拓扑信息
      *
-     * - GLOBAL_MASTER + MASTER：返回全量拓扑
-     * - GLOBAL_STANDBY + MASTER：返回本组及其挂载组全量
-     * - GLOBAL_AGENT + MASTER：返回本组及其挂载组全量
-     * - MASTER + NONE：返回本挂载组全量 + 管理组的master
-     * - STANDBY + NONE：返回本组master
-     * - AGENT + NODE：返回本组master
-     *
+     * - GLOBAL_MASTER：返回所有global组主节点及挂载组节点信息
+     * - GLOBAL_STANDBY/GLOBAL_AGENT：返回本组及其挂载组节点信息
+     * - GLOBAL_CASCADE/STANDBY/AGENT：返回本组节点信息
      * @param haTopology [out] 输出拓扑信息结构体
      * @return UBSE_OK 成功，UBSE_ERROR 失败
      */

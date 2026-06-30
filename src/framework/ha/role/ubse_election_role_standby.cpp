@@ -82,14 +82,22 @@ uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, Election
         reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktForHeart(rcvPkt, reply);
-    } else if (rcvPkt.type == ELECTION_PKT_TYPE_QUERY_LOCAL_MASTER) {
-        reply.replyId = standbyId_;
-        reply.groupId = groupId_;
-        reply.masterId = masterId_;
-        reply.standbyId = standbyId_;
     }
     return 0;
 }
+
+void Standby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
+{
+    if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER) {
+        replyInfo.groupId = groupId_;
+        replyInfo.nodeId = standbyId_;
+        replyInfo.groupMasterId = masterId_;
+        replyInfo.groupStandbyId = standbyId_;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] Standby rcvInterGroupInfo.type: " << rcvInfo.type << ".";
+    }
+}
+
 void Standby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
 {
     if (rcvPkt.masterId == masterId_) {

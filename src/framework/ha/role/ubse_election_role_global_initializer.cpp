@@ -11,6 +11,7 @@
  */
 
 #include "ubse_election_role_global_initializer.h"
+#include "ubse_election_group_info_simpo.h"
 #include "ubse_election_role_mgr.h"
 #include "ubse_timer.h"
 
@@ -76,10 +77,13 @@ void GlobalInitializer::RegisterTimers()
 
     UbseTimerHandlerRegister(
         UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER,
-        []() -> UbseResult {
+        [this]() -> UbseResult {
             if (g_globalStop.load()) { return UBSE_OK; }
             auto globalRole = RoleMgr::GetInstance().GetGlobalRole();
-            if (globalRole != nullptr) { RoleMgr::GetInstance().QueryManagingMaster(); }
+            if (globalRole != nullptr) {
+                RoleMgr::GetInstance().QueryManagingMaster();
+                ReportCascadeGroupToManagingGroup();
+            }
             return UBSE_OK;
         }, UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL);
 
@@ -224,5 +228,137 @@ uint8_t GlobalInitializer::GetMasterStatus()
 uint8_t GlobalInitializer::GetStandbyStatus()
 {
     return standbyStatus_;
+}
+
+void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
+{
+    auto* context = static_cast<CallbackQueryCtx*>(ctx);
+    if (context == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Received null context in callback";
+        return;
+    }
+    const auto& nodeId = context->destId;
+    auto& globalMasterId = *context->globalMasterId;
+    auto& globalStandbyId = *context->globalStandbyId;
+    auto& cascadeMtx = *context->queryMtx;
+
+    if (result != UBSE_OK) {
+        UBSE_LOG_INFO << "[ELECTION] Failed to query information.";
+        return;
+    }
+    UbseBaseMessagePtr respMsg = new (std::nothrow) message::UbseElectionGroupInfoSimpo();
+    if (respMsg == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to allocate response message.";
+        return;
+    }
+    auto ret = respMsg->SetInputRawData(static_cast<uint8_t*>(recv), len);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] SendQueryInformation failed." << FormatRetCode(ret);
+        return;
+    }
+    ret = respMsg->Deserialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to deserialize response message." << FormatRetCode(ret);
+        return;
+    }
+    auto* replyMsg = dynamic_cast<message::UbseElectionGroupInfoSimpo *>(respMsg.Get());
+    if (!replyMsg) {
+        UBSE_LOG_ERROR << "[ELECTION] cast to UbseElectionGroupInfoSimpo failed";
+        return;
+    }
+    InterGroupInfo reply = replyMsg->GetInterGroupInfo();
+    if (reply.type == ELECTION_PKT_REPLY_GLOBAL_STOP) {
+        UBSE_LOG_DEBUG << "[ELECTION] node = " << nodeId <<"stopped.";
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lck(cascadeMtx);
+        globalStandbyId = reply.groupStandbyId;
+        globalMasterId = reply.groupMasterId;
+    }
+    SafeDelete(context);
+}
+
+UbseResult GlobalInitializer::SendCascadeInformation(UBSE_ID_TYPE destId, const InterGroupInfo &cascadeRepo)
+{
+    UbseContext &ubseContext = UbseContext::GetInstance();
+    auto rackComModule = ubseContext.GetModule<UbseComModule>();
+    if (rackComModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] get rackComModule failed";
+        return UBSE_ERROR;
+    }
+    InterGroupInfo electionCascade{ cascadeRepo };
+    UbseBaseMessagePtr electionSimpoPtr = new (std::nothrow) message::UbseElectionGroupInfoSimpo(electionCascade);
+    if (electionSimpoPtr == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Newing UbseElectionGroupInfoSimpo failed.";
+        return UBSE_ERROR;
+    }
+    ubse::com::SendParam sendParam(destId, static_cast<uint16_t>(UbseModuleCode::ELECTION),
+                                   static_cast<uint16_t>(UbseElectionOpCode::ELECTION_INTER_GROUP_INFO),
+                                   UbseChannelType::NORMAL);
+    auto context = new (std::nothrow) CallbackQueryCtx;
+    if (context == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] New context failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    std::unique_lock<std::mutex> lock(cascadeMtx_);
+    context->destId = destId;
+    context->globalMasterId = &globalMasterId_;
+    context->globalStandbyId = &globalStandbyId_;
+    context->queryMtx = &cascadeMtx_;
+    ubse::com::UbseComCallback callback;
+    callback.cb = AsyncDealCascadeReply;
+    callback.cbCtx = reinterpret_cast<void *>(context);
+    lock.unlock();
+    auto retCode = rackComModule->RpcAsyncSend(sendParam, electionSimpoPtr, callback);
+    if (retCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Send dispatch failed : " << destId;
+        SafeDelete(context);
+        return retCode;
+    }
+    return UBSE_OK;
+}
+
+void GlobalInitializer::ReportCascadeGroupToManagingGroup()
+{
+    if (RoleMgr::GetInstance().IsManagingGroup(groupId_)) {
+        return;
+    }
+    InterGroupInfo cascadeGroupReport{};
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(cascadeGroupReport.groupId);
+    if (ret != UBSE_OK || cascadeGroupReport.groupId.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetGroupId fail";
+        return;
+    }
+    auto role = RoleMgr::GetInstance().GetRole();
+    cascadeGroupReport.groupMasterId = role->GetMasterNode();
+    cascadeGroupReport.groupStandbyId = role->GetStandbyNode();
+    cascadeGroupReport.groupNodeIds.push_back(cascadeGroupReport.groupMasterId);
+    cascadeGroupReport.groupNodeIds.push_back(cascadeGroupReport.groupStandbyId);
+    for (const auto &agentNode : role->GetAgentNodes()) {
+        cascadeGroupReport.groupNodeIds.push_back(agentNode);
+    }
+
+    std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> discoveryNodes =
+        RoleMgr::GetInstance().GetCommMgr()->GetInterManagementGroupLinkMap();
+    for (const auto &item : discoveryNodes) {
+        auto sendRet = SendCascadeInformation(item.second, cascadeGroupReport);
+        if (sendRet != UBSE_OK) {
+            UBSE_LOG_WARN << "[ELECTION] SendCascadeInformation failed." << item.second;
+        }
+    }
+}
+
+UBSE_ID_TYPE GlobalInitializer::GetGlobalMasterNode()
+{
+    std::lock_guard<std::mutex> lock(cascadeMtx_);
+    return globalMasterId_;
+}
+
+UBSE_ID_TYPE GlobalInitializer::GetGlobalStandbyNode()
+{
+    std::lock_guard<std::mutex> lock(cascadeMtx_);
+    return globalStandbyId_;
 }
 }
