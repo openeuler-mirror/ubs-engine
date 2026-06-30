@@ -14,7 +14,6 @@
 #define UBSE_SSU_RPC_PROCESSOR_H
 
 #include <cstdint>
-#include "ubse_com_op_code.h"
 
 namespace ubse::ssu::controller {
 

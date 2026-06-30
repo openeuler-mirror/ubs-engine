@@ -19,8 +19,14 @@
 
 namespace ubse::ssu::message {
 
-using namespace ubse::com;
 using namespace ubse::plugin::service::ssu;
+
+struct UbseSsuAllocReq {
+    std::string requestId;
+    std::string requestNodeId;
+    UbseSsuAllocIdentityInfo identityInfo;
+    UbseSsuAllocSpaceReq allocReq{};
+};
 
 struct UbseSsuAllocResp {
     std::string requestId;
@@ -29,27 +35,23 @@ struct UbseSsuAllocResp {
     UbseSsuAllocResult allocResult;
 };
 
-class UbseSsuAllocReqMsg : public UbseRpcMessage {
+class UbseSsuAllocReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuAllocReqMsg() = default;
 
     void SetSsuAllocRequest(const std::string &requestId, const std::string &requestNodeId,
-                            const UbseSsuAllocSpaceReq &req);
+                            const UbseSsuAllocIdentityInfo &identity, const UbseSsuAllocSpaceReq &req);
     
-    const std::string &GetRequestId() const;
-    const std::string &GetRequestNodeId() const;
-    const UbseSsuAllocSpaceReq &GetAllocRequest() const;
+    const UbseSsuAllocReq &GetAllocRequest() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
     uint32_t Deserialize(const uint8_t *data, uint32_t size) override;
 
 private:
-    std::string requestId_;
-    std::string requestNodeId_;
-    UbseSsuAllocSpaceReq allocReq_{};
+    UbseSsuAllocReq req_{};
 };
 
-class UbseSsuAllocRespMsg : public UbseRpcMessage {
+class UbseSsuAllocRespMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuAllocRespMsg() = default;
 
