@@ -15,7 +15,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <queue>
-#include <regex>
 #include <set>
 
 #include "ubse_com_base.h"
@@ -65,7 +64,8 @@ void FillTelemetryNodeData(const std::string& nodeId, const UbseNodeInfo& nodeIn
     telData.nodeId = nodeId;
     telData.hostname = nodeInfo.hostName;
 
-    std::map<uint32_t, SocketData> socketMap;
+    std::unordered_map<uint32_t, SocketData> socketMap;
+    socketMap.reserve(nodeInfo.numaInfos.size());
 
     // 处理 NUMA 信息
     for (const auto& [loc, numaInfo] : nodeInfo.numaInfos) {
@@ -89,6 +89,7 @@ void FillTelemetryNodeData(const std::string& nodeId, const UbseNodeInfo& nodeIn
         }
     }
 
+    telData.sockets.reserve(socketMap.size());
     for (auto& [_, sock] : socketMap) {
         telData.sockets.push_back(std::move(sock));
     }
@@ -101,8 +102,7 @@ void BuildDevTopologyAndMappings(const std::string& nodeId, const UbseNodeInfo& 
 {
     for (const auto& [loc, cpuInfo] : nodeInfo.cpuInfos) {
         std::string devNameStr = nodeId + "-" + cpuInfo.chipId;
-        UbseDevName devName;
-        devName.devName = devNameStr;
+        UbseDevName devName(devNameStr);
 
         UbseDeviceInfo devInfo;
         devInfo.devName = devName;
@@ -113,50 +113,37 @@ void BuildDevTopologyAndMappings(const std::string& nodeId, const UbseNodeInfo& 
         devInfo.eid = cpuInfo.eid;
         devInfo.guid = cpuInfo.guid;
         devInfo.busNodeCna = cpuInfo.busNodeCna;
-
+        // 填充映射表
+        devNameToNodeIdMap[devName.devName] = nodeId;
+        nodeIdToDevNameMap[nodeId].insert(devName.devName);
         // 构建 UbsePortMap
         std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash> portMap;
-
         for (const auto& [portLoc, portInfo] : cpuInfo.portInfos) {
+            if (portInfo.remoteSlotId == "-" || portInfo.remoteChipId == "-" || portInfo.remotePortId == "-") {
+                continue;
+            }
             adapter_plugins::mti::UbseMtiCpuTopoPortInfo port;
             port.portId = portInfo.portId;
             port.ifName = portInfo.ifName;
             port.portRole = portInfo.portRole;
             port.portStatus = static_cast<UbseMtiCpuTopoPortStatus>(portInfo.portStatus);
-
-            // 手动构造 devPortName
             UbseDevPortName devPortName(std::to_string(nodeInfo.slotId), cpuInfo.chipId, cpuInfo.cardId,
                                         portInfo.portId);
-
             // 对端信息
+            UbseDevName peerDevName(portInfo.remoteSlotId, portInfo.remoteChipId);
             port.remoteSlotId = portInfo.remoteSlotId;
             port.remoteChipId = portInfo.remoteChipId;
             port.remoteCardId = portInfo.remoteCardId;
             port.remoteIfName = portInfo.remoteIfName;
-            port.remoteDevName = {portInfo.remoteSlotId, portInfo.remoteChipId};
+            port.remoteDevName = peerDevName;
             port.remotePortId = portInfo.remotePortId;
-
             portMap[devPortName] = port;
+            // 填充对端映射表
+            devNameToNodeIdMap[peerDevName.devName] = port.remoteSlotId;
+            nodeIdToDevNameMap[port.remoteSlotId].insert(peerDevName.devName);
         }
-
         // 插入拓扑
         devTopologyInfo[devName] = std::make_pair(devInfo, portMap);
-
-        // 填充映射表
-        devNameToNodeIdMap[devName.devName] = nodeId;
-        nodeIdToDevNameMap[nodeId].insert(devName.devName);
-
-        // 处理对端映射（模仿旧逻辑）
-        for (const auto& [portName, portInfo] : cpuInfo.portInfos) {
-            UbseDevName peerDevName = {portInfo.remoteSlotId, portInfo.remoteChipId};
-            if (!peerDevName.devName.empty()) {
-                const std::string& peerDevNameStr = peerDevName.devName;
-                const std::string& peerNodeId = portInfo.remoteSlotId; // 模仿旧代码
-
-                devNameToNodeIdMap[peerDevNameStr] = peerNodeId;
-                nodeIdToDevNameMap[peerNodeId].insert(peerDevNameStr);
-            }
-        }
     }
 }
 
@@ -480,26 +467,14 @@ UbseResult UbseGetTopologyInfoByJump(const JumpCount& jump, UbseDevTopology& dev
     return UBSE_ERROR;
 }
 
-UbseResult DevNameRemoveNodeName(const std::string& remoteDevNameStr, std::string& remoteDevSocketNameStr)
-{
-    std::regex pattern(R"((\w+)-(\w+))");
-
-    std::smatch matches; // 用于保存匹配结果
-
-    if (std::regex_match(remoteDevNameStr, matches, pattern)) {
-        remoteDevSocketNameStr = matches[2].str(); // 2用于获取节点内设备名称
-    } else {
-        UBSE_LOG_ERROR << "The remoteDevNameStr " << remoteDevNameStr << " is not in the correct format.";
-        return UBSE_ERROR;
-    }
-
-    return UBSE_OK;
-}
-
 UbseResult UbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
                                       std::string& remoteNodeName, std::string& remoteDevSocketNameStr,
                                       const std::string& remoteDevNameStr)
 {
+    if (remoteDevNameStr.empty() || std::count(remoteDevNameStr.begin(), remoteDevNameStr.end(), '-') != 1) {
+        UBSE_LOG_ERROR << "The remoteDevNameStr=" << remoteDevNameStr << " is invalid.";
+        return UBSE_ERROR;
+    }
     auto it = devNameToNodeIdMap.find(remoteDevNameStr);
     if (it == devNameToNodeIdMap.end()) {
         UBSE_LOG_ERROR << "The remoteDevName " << remoteDevNameStr << " cannot match any str in devNameToNodeIdMap.";
@@ -507,12 +482,7 @@ UbseResult UbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::strin
     }
     remoteNodeName = it->second;
     // 设备名-> socket名
-    auto ret = DevNameRemoveNodeName(remoteDevNameStr, remoteDevSocketNameStr);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to parse the regular expression." << remoteDevNameStr << "Failed. "
-                       << FormatRetCode(ret);
-        return ret;
-    }
+    remoteDevSocketNameStr = GetSocketId(remoteDevNameStr);
     return UBSE_OK;
 }
 
@@ -706,52 +676,55 @@ UbseResult UbseNodeGetBorrowNodeCna(UbseNodeMemCnaInfoOutput& ubseNodeMemCnaInfo
                    << "is not directly linked to exportDevName: " << exportDevName.devName;
     return UBSE_ERROR;
 }
-UbseResult MemFillPerEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                              std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
-                              const std::string& localDevName, const std::pair<TopologyEdgeInfo, int>& edge,
-                              UbseNodeData& ubseNodeData)
+UbseResult MemFillPerEdgeData(std::vector<MemNodeData>& nodeDataVec, const std::string& remoteNodeId,
+                              const std::string& remoteDevNameStr, UbseNodeData& ubseNodeData)
 {
-    std::string remoteDevNodeName;
-    std::string remoteDevSocketNameStr;
-    std::string remoteDevNameStr = edge.first.remoteDevName; // 对端DevName
-    // 提取对端设备信息
-    auto ret =
-        UbseNodeExtractDevNameInfo(devNameToNodeIdMap, remoteDevNodeName, remoteDevSocketNameStr, remoteDevNameStr);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Extract DevName=" << remoteDevNameStr << " Failed. " << FormatRetCode(ret);
-        return ret;
-    }
-    // 遥测数据，数据库里存在遥测数据就填充，不存在就不填充。
-    TelemetrySocketData telemetrySocketData{};
-    telemetrySocketData = UbseNodePadSocketData(remoteDevNodeName, remoteDevSocketNameStr, remoteDevNameStr,
-                                                telemetrySocketData, ubseNodeData.nodeDbMap);
-    MemNodeData memNodeData(std::move(telemetrySocketData));
+    MemNodeData memNodeData{};
+    memNodeData.nodeId = remoteNodeId;
+    memNodeData.socket.socketId = GetSocketId(remoteDevNameStr);
 
-    // 选举数据
-    auto itRole1 = ubseNodeData.nodeRoleMap.find(remoteDevNodeName);
-    if (itRole1 != ubseNodeData.nodeRoleMap.end()) {
-        memNodeData.isRegisterRm = true;
+    auto itDb = ubseNodeData.nodeDbMap.find(remoteNodeId);
+    if (itDb != ubseNodeData.nodeDbMap.end()) {
+        const auto& nodeData = itDb->second;
+        memNodeData.hostname = nodeData.hostname;
+        auto itSocket =
+            std::find_if(nodeData.sockets.begin(), nodeData.sockets.end(),
+                         [&memNodeData](const SocketData& sd) { return sd.socketId == memNodeData.socket.socketId; });
+        if (itSocket != nodeData.sockets.end()) {
+            memNodeData.socket = *itSocket;
+        } else {
+            UBSE_LOG_WARN << "The socketId=" << memNodeData.socket.socketId << " does not exist in the database.";
+        }
     } else {
-        memNodeData.isRegisterRm = false;
+        UBSE_LOG_WARN << "The nodeId=" << remoteNodeId << " of remoteDevName=" << remoteDevNameStr
+                      << " does not exist in the database.";
     }
 
-    nodeTopology[localDevName].emplace_back(memNodeData);
-
+    memNodeData.isRegisterRm = (ubseNodeData.nodeRoleMap.count(remoteNodeId) > 0);
+    nodeDataVec.emplace_back(std::move(memNodeData));
     return UBSE_OK;
 }
-UbseResult MemFillAllEdgeData(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology,
-                              std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
-                              const std::string& localDevName, std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData,
-                              UbseNodeData& ubseNodeData)
+UbseResult MemFillAllEdgeData(std::vector<MemNodeData>& nodeDataVec,
+                              const std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                              const std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, UbseNodeData& ubseNodeData)
 {
-    for (auto& edge : edgeData) {
-        // 只要1跳
+    for (const auto& edge : edgeData) {
         if (edge.second != 1) {
+            continue; // 仅处理1跳数据
+        }
+        const std::string& remoteDevName = edge.first.remoteDevName;
+        if (remoteDevName.empty() || std::count(remoteDevName.begin(), remoteDevName.end(), '-') != 1) {
+            UBSE_LOG_WARN << "The remoteDevName=" << remoteDevName << " is invalid.";
             continue;
         }
-        auto ret = MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData);
+        auto itDev = devNameToNodeIdMap.find(remoteDevName);
+        if (itDev == devNameToNodeIdMap.end()) {
+            UBSE_LOG_WARN << "Find DevName=" << remoteDevName << " from devNameToNodeIdMap Failed.";
+            continue;
+        }
+        auto ret = MemFillPerEdgeData(nodeDataVec, itDev->second, remoteDevName, ubseNodeData);
         if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "MemFillPerEdgeData Failed. " << FormatRetCode(ret);
+            UBSE_LOG_WARN << "MemFillPerEdgeData Failed for DevName=" << remoteDevName << ". " << FormatRetCode(ret);
             continue;
         }
     }
@@ -763,17 +736,15 @@ UbseResult MemTopoGetResult(std::unordered_map<std::string, std::vector<MemNodeD
                             std::unordered_map<std::string, std::vector<std::pair<TopologyEdgeInfo, int>>>& edgeDataMap,
                             UbseNodeData& ubseNodeData)
 {
-    for (auto& edgeInfo : edgeDataMap) {
-        std::string localDevNameStr = edgeInfo.first;
-        std::vector<std::pair<TopologyEdgeInfo, int>> edgeData = edgeInfo.second;
+    for (auto& [localDevNameStr, edgeData] : edgeDataMap) {
+        auto& nodeDataVec = nodeTopology[localDevNameStr]; // 提前获取引用，统一在此处初始化vector
         if (edgeData.empty()) {
-            nodeTopology[localDevNameStr] = {};
-            continue;
+            continue; // 保持vector为空，无需显式赋值
         }
         UbseDevName localDevName(localDevNameStr);
         auto it = devTopologyInfo.find(localDevName);
         if (it != devTopologyInfo.end() && it->second.first.type == UbseDevType::CPU) {
-            auto ret = MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevNameStr, edgeData, ubseNodeData);
+            auto ret = MemFillAllEdgeData(nodeDataVec, devNameToNodeIdMap, edgeData, ubseNodeData);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "MemFillAllEdgeData Failed. " << FormatRetCode(ret);
                 return ret;
