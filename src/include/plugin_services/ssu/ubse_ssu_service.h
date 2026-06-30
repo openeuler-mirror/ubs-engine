@@ -39,8 +39,8 @@ enum class UbseSsuChunkSize : uint32_t {
 };
 
 enum class UbseSsuAllocStrategy : uint8_t {
-    LINEAR = 0, // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
-    STRIPED = 1, // 分布式策略，尽量从多个设备分配，均等分配，适用于条带化编址使用场景
+    STRIPED = 0, // 分布式策略，尽量从多个设备分配，均等分配，适用于条带化编址使用场景
+    LINEAR = 1, // 顺序策略，尽量从单个设备分配，可能均等也可能不均等分配，适用于线性编址使用场景
 };
 
 struct UbseSsuAllocIdentityInfo {
@@ -61,7 +61,6 @@ struct UbseSsuAllocSpaceReq {
 struct UbseSsuNameSpaceInfo {
     std::string tgtEid;         // Target EID
     std::string tgtNqn;         // TargetNQN
-    std::string defaultHostNqn; // 默认NQN，例子：nqn.2024-01.com.huawei:uuid:12345678-1234-1234-1234-1234567890ab
     std::string nsUuid;         // 物理设备UUID
     uint32_t namespaceId;       // 命名空间ID
     std::string nsDevPath;      // 命名空间设备路径

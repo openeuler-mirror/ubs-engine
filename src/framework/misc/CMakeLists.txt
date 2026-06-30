@@ -9,6 +9,7 @@ add_library(ubse_utils STATIC
         ubse_fs.cpp
         ubse_dl_manager.cpp
         ubse_future_mgr.cpp
+        ubse_logging_lock_guard.cpp
 )
 target_link_libraries(ubse_utils PUBLIC rapidjson boundscheck ${CMAKE_DL_LIBS})
 

@@ -51,6 +51,8 @@ enum class UbseModuleCode {
     UBSE_URMA = 0x000B,            // URMA Controller模块
 
     NODE_MGR = 0x000C,       // 节点发现模块
+
+    UBSE_SSU = 0x000D,             // SSU控制器模块
 };
 
 // 内存基础操作码
@@ -227,6 +229,15 @@ enum class UbseUrmaRpcOpCode {
 enum class UbseNodeMgrOpCode {
     NODE_INFO_REPORT = 0x0001,     // 节点发现, 普通节点向根节点上报本节点信息
     NODE_INFO_BROADCAST = 0x0002, // 节点发现,根节点向普通节点下发/其余根节点同步全量节点信息
+};
+
+// SSU控制器模块操作码
+enum class UbseSsuOpCode {
+    UBSE_SSU_ALLOC_REQ = 0x0001,     // SSU空间分配请求
+    UBSE_SSU_ALLOC_RESP = 0x0002,    // SSU空间分配响应
+    UBSE_SSU_STATUS_UPDATE = 0x0003, // SSU状态更新
+    UBSE_SSU_FREE_REQ = 0x0004,      // SSU空间释放请求
+    UBSE_SSU_FREE_RESP = 0x0005,     // SSU空间释放响应
 };
 } // namespace ubse::com
 #endif // UBSE_COM_OP_CODE_H
