@@ -207,7 +207,9 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& al
             UBSE_LOG_WARN << "ubseNodeInfo nodeId is empty, nodeId =" << nodeInfo.nodeId;
             continue;
         }
-        if (relatedNodeIds.find(ubseNodeInfo.nodeId) == relatedNodeIds.end()) {
+        // 检查条件为已初始化完成，relatedNodeIds非空且nodeId在relatedNodeIds中时,防止节点重启后账本数据为空不进行单导入账本处理操作
+        if (UbseInitLedgerState::GetInstance().IsInitLedgerDone(targetNodeId) && !relatedNodeIds.empty() &&
+            relatedNodeIds.find(ubseNodeInfo.nodeId) == relatedNodeIds.end()) {
             UBSE_LOG_INFO << "skip ledger for nodeId=" << nodeInfo.nodeId
                           << ", not in relatedNodeIds, targetNodeId=" << targetNodeId;
             continue;
