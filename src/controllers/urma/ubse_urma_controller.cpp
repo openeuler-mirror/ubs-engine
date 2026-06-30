@@ -215,9 +215,7 @@ UbseResult UbseUrmaController::DoTopoLinkChange()
         return UBSE_OK;
     }
     auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    if (auto ret = PushNodesTopoToUvs(curNode.nodeId); ret != UBSE_OK) {
-        return ret;
-    }
+
     // 向urma重新查询bounding状态，并更新状态
     RefreshAllUrmaDevsState(curNode.nodeId);
     return UBSE_OK;
