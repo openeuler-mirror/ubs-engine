@@ -148,6 +148,18 @@ public:
      */
     const std::vector<std::string>& GetNodeIds() const;
 
+    /**
+     * @brief Inject an alarm event to a specific node's xalarm FIFO.
+     *
+     * The event flows through the real syssentry SentryEventListen → RAS handler chain.
+     *
+     * @param nodeId  Target node to receive the event
+     * @param alarmId Alarm event ID (e.g. 1003 for BMC reboot)
+     * @param paras   Event parameters string
+     * @return UBSE_OK on success
+     */
+    UbseResult InjectAlarmEvent(const std::string& nodeId, unsigned short alarmId, const std::string& paras);
+
 private:
     std::string binaryPath_;
     std::string cliBinaryPath_;

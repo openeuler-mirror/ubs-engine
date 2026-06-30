@@ -43,6 +43,7 @@ struct ClusterSpec {
     std::vector<NodeSpec> nodes;
     uint32_t startupTimeoutMs = 30000;
     std::string sceneType;
+    bool mockPluginEnabled = true;
 
     static ClusterSpec FromRuntimePaths(const std::string& binaryPath, const std::string& baseWorkDir,
                                         const std::vector<NodeSpec>& nodes, const std::string& stubLibDir = "");

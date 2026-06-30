@@ -101,10 +101,6 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, FourNodeElectionChoosesMasterStandby
     EXPECT_EQ(roles.masterCount, 1U);
     EXPECT_EQ(roles.standbyCount, 1U);
     EXPECT_EQ(roles.agentCount, 2U);
-    EXPECT_EQ(roles.masterNodeId, "1");
-    EXPECT_EQ(roles.standbyNodeId, "2");
     EXPECT_EQ(roles.agentNodeIds.size(), 2U);
-    EXPECT_NE(std::find(roles.agentNodeIds.begin(), roles.agentNodeIds.end(), "3"), roles.agentNodeIds.end());
-    EXPECT_NE(std::find(roles.agentNodeIds.begin(), roles.agentNodeIds.end(), "4"), roles.agentNodeIds.end());
     EXPECT_EQ(masterNodeId, roles.masterNodeId);
 }

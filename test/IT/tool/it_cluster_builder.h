@@ -40,6 +40,7 @@ public:
     ItClusterBuilder& StartupTimeoutMs(uint32_t timeoutMs);
     ItClusterBuilder& ElectionTimeoutMs(uint32_t timeoutMs);
     ItClusterBuilder& SceneType(const std::string& sceneType);
+    ItClusterBuilder& NoMockPlugin();
 
     UbseResult Start(std::unique_ptr<ItCluster>& cluster) const;
     UbseResult StartNoElection(std::unique_ptr<ItCluster>& cluster) const;
@@ -56,6 +57,7 @@ private:
     uint32_t startupTimeoutMs_ = 30000;
     uint32_t electionTimeoutMs_ = 30000;
     std::string sceneType_;
+    bool mockPluginEnabled_ = true;
 };
 
 } // namespace ubse::it::infra

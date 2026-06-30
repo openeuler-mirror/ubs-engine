@@ -52,6 +52,15 @@ constexpr const char* UBSE_DEFAULT_LCNE_UDS_PATH = "/run/ubm/socket/ubm_nuds/res
 constexpr const char* UBSE_DEFAULT_RUNTIME_DIR = "/var/run/ubse";
 constexpr const char* UBSE_IT_UDS_SOCKET_PATH_ENV = "UBSE_IT_UDS_SOCKET_PATH";
 constexpr const char* UBSE_IT_AUTH_USER = "ubse";
+constexpr const char* UBSE_OBMM_DEV_PREFIX = "/dev/obmm_shmdev";
+
+bool IsObmmDevicePath(const char* path)
+{
+    if (path == nullptr) {
+        return false;
+    }
+    return strncmp(path, UBSE_OBMM_DEV_PREFIX, strlen(UBSE_OBMM_DEV_PREFIX)) == 0;
+}
 
 bool CsvContainsIp(const char* csv, in_addr_t ip)
 {
@@ -309,6 +318,17 @@ extern "C" DIR* opendir(const char* name)
 
 extern "C" int lstat(const char* path, struct stat* buf)
 {
+    // OBMM device files don't exist in IT; return a fake stat result
+    if (IsObmmDevicePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFCHR | 0660;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
     init_real_conf_funcs();
     if (real_lstat == nullptr) {
         errno = ENOSYS;
@@ -335,6 +355,17 @@ extern "C" FILE* fopen(const char* path, const char* mode) __attribute__((alias(
 
 extern "C" int stat(const char* path, struct stat* buf)
 {
+    // OBMM device files don't exist in IT; return a fake stat result
+    if (IsObmmDevicePath(path)) {
+        if (buf != nullptr) {
+            memset(buf, 0, sizeof(struct stat));
+            buf->st_mode = S_IFCHR | 0660;
+            buf->st_uid = getuid();
+            buf->st_gid = getgid();
+        }
+        return 0;
+    }
+
     init_real_conf_funcs();
     if (real_stat == nullptr) {
         errno = ENOSYS;
@@ -426,6 +457,11 @@ extern "C" int mkdir(const char* pathname, mode_t mode)
 
 extern "C" int chmod(const char* pathname, mode_t mode)
 {
+    // OBMM device files don't exist in IT; chmod is a no-op for them
+    if (IsObmmDevicePath(pathname)) {
+        return 0;
+    }
+
     init_real_runtime_funcs();
     if (real_chmod == nullptr) {
         errno = ENOSYS;
@@ -438,6 +474,11 @@ extern "C" int chmod(const char* pathname, mode_t mode)
 
 extern "C" int chown(const char* pathname, uid_t owner, gid_t group)
 {
+    // OBMM device files don't exist in IT; chown is a no-op for them
+    if (IsObmmDevicePath(pathname)) {
+        return 0;
+    }
+
     init_real_runtime_funcs();
     if (real_chown == nullptr) {
         errno = ENOSYS;
@@ -462,6 +503,11 @@ extern "C" int unlink(const char* pathname)
 
 extern "C" int access(const char* pathname, int mode)
 {
+    // OBMM device files don't exist in IT; pretend they are accessible
+    if (IsObmmDevicePath(pathname)) {
+        return 0;
+    }
+
     init_real_runtime_funcs();
     init_real_conf_funcs();
     if (real_access == nullptr) {

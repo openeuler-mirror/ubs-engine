@@ -48,6 +48,12 @@ ItConfigBuilder& ItConfigBuilder::WithOverride(const std::string& section, const
     return *this;
 }
 
+ItConfigBuilder& ItConfigBuilder::WithMockPlugin(bool enable)
+{
+    mockPluginEnabled_ = enable;
+    return *this;
+}
+
 UbseResult ItConfigBuilder::GenerateAllConfigs(const std::string& templatePath)
 {
     for (const auto& spec : nodeSpecs_) {
@@ -228,7 +234,45 @@ UbseResult ItConfigBuilder::GenerateConfig(const NodeSpec& nodeSpec, const std::
     ofs.close();
 
     IT_LOG_INFO << "Generated config for node " << nodeSpec.nodeId << " at " << outputPath;
+
+    // Overlay with mock configs from stubs directories (overwrite if exists)
+    // Only copy when mockPluginEnabled_ is true. The daemon loads auxiliary configs
+    // from /etc/ubse/ first, then from the work directory. We do NOT copy from the
+    // source conf/ directory here because that would overwrite environment-specific
+    // configs (e.g. ubse_plugin_admission.conf with all plugins commented out).
+    if (mockPluginEnabled_) {
+        std::filesystem::path stubConfDir = std::filesystem::path(IT_DIRECTORY) / "stubs" / "mock_plugin" / "conf";
+        if (std::filesystem::exists(stubConfDir)) {
+            CopyAuxiliaryConfigs(stubConfDir, outputDir);
+        }
+    }
+
     return UBSE_OK;
+}
+
+void ItConfigBuilder::CopyAuxiliaryConfigs(const std::filesystem::path& srcConfDir, const std::string& outputDir)
+{
+    // Patterns: plugin_*.conf and ubse_plugin_admission.conf
+    if (!std::filesystem::exists(srcConfDir) || !std::filesystem::is_directory(srcConfDir)) {
+        return;
+    }
+    for (const auto& entry : std::filesystem::directory_iterator(srcConfDir)) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        std::string filename = entry.path().filename().string();
+        // Only copy plugin config files and admission config
+        if (filename.rfind("plugin_", 0) == 0 && filename.size() >= 6 &&
+            filename.substr(filename.size() - 5) == ".conf") {
+            std::filesystem::copy_file(entry.path(), outputDir + "/" + filename,
+                                       std::filesystem::copy_options::overwrite_existing);
+            IT_LOG_INFO << "Copied plugin config: " << filename;
+        } else if (filename == "ubse_plugin_admission.conf") {
+            std::filesystem::copy_file(entry.path(), outputDir + "/" + filename,
+                                       std::filesystem::copy_options::overwrite_existing);
+            IT_LOG_INFO << "Copied admission config: " << filename;
+        }
+    }
 }
 
 } // namespace ubse::it::infra
