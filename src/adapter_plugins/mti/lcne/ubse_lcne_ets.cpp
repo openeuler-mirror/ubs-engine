@@ -29,7 +29,7 @@ using namespace ubse::adapter_plugins::mti;
 
 const std::string LCNE_ETS_URI = "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles";
 const std::string LCNE_ETS_INTERFACE_URI = "/restconf/data/huawei-ifm:ifm/interfaces/interface";
-const std::string LCNE_ETS_SAVE_URI = "/restconf/operations/cfg:save";
+const std::string LCNE_ETS_SAVE_URI = "/restconf/operations/ietf-netconf:copy-config";
 const std::string LCNE_ETS_APPLICATION_SUFFIX = "/huawei-ub-qos:ub-qos/ets-application";
 const std::string LCNE_ETS_YANG_DATA_XML = "application/yang-data+xml";
 const std::string LCNE_ETS_XML = "application/xml";
@@ -607,12 +607,9 @@ UbseResult UbseLcneEts::BuildSaveEtsProfileXml(std::string& xmlStr)
         return UBSE_ERROR_NULLPTR;
     }
 
-    ubseXml->AddNode("save");
-    ubseXml->Attr("xmlns", LCNE_ETS_SAVE_XML_NS);
-    const std::string saveFileName = "startup.zip";
-    const std::string shareableMode = "default";
-    AddTextNode(ubseXml, "filename", saveFileName);
-    AddTextNode(ubseXml, "shareable-mode", shareableMode);
+    ubseXml->AddNode("copy-config");
+    AddTextNode(ubseXml, "target", "<startup/>");
+    AddTextNode(ubseXml, "source", "<running/>");
     ubseXml->Printer(xmlStr);
     return UBSE_OK;
 }
@@ -631,6 +628,7 @@ UbseResult UbseLcneEts::SaveEtsProfile()
         return ret;
     }
     req.body = body;
+    UBSE_LOG_INFO << "[MTI] SaveEtsProfile request body: " << body;
 
     ret = SendEtsRequest(req, rsp);
     if (ret != UBSE_OK) {
