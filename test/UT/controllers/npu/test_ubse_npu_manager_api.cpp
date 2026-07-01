@@ -19,12 +19,105 @@ namespace ubse::npu::controller::ut {
 void TestUbseNpuManagerApi::SetUp()
 {
     Test::SetUp();
+    topo_ = BuildTopology();
 }
 
 void TestUbseNpuManagerApi::TearDown()
 {
     Test::TearDown();
     GlobalMockObject::verify();
+}
+
+DeviceTopology TestUbseNpuManagerApi::BuildTopology()
+{
+    DeviceTopology topo;
+
+    topo.hostBusiLoc.guid = "01234567abcdef01234567abcdef0100";
+    topo.hostBusiLoc.upi = "0";
+
+    topo.vmBusiLoc.guid = "01234567abcdef01234567abcdef0200";
+    topo.vmBusiLoc.upi = "1";
+
+    topo.npuLoc.slotId = 1;
+    topo.npuLoc.chipId = 2;
+    topo.npuLoc.guid = "01234567abcdef01234567abcdef0300";
+
+    topo.ubctlLoc.chipId = 2;
+    topo.ubctlLoc.dieId = 0;
+    topo.ubctlLoc.slotId = 1;
+
+    topo.idevPfeLoc.chipId = 2;
+    topo.idevPfeLoc.dieId = 0;
+    topo.idevPfeLoc.pfeId = 1;
+    topo.idevPfeLoc.guid = "01234567abcdef01234567abcdef0400";
+
+    topo.idevVfeLoc.chipId = 2;
+    topo.idevVfeLoc.dieId = 0;
+    topo.idevVfeLoc.pfeId = 1;
+    topo.idevVfeLoc.vfeId = 3;
+    topo.idevVfeLoc.guid = "01234567abcdef01234567abcdef0500";
+
+    topo.nicPfeLoc.slotId = 1;
+    topo.nicPfeLoc.chipId = 2;
+    topo.nicPfeLoc.pfeId = 3;
+    topo.nicPfeLoc.guid = "01234567abcdef01234567abcdef0600";
+
+    topo.nicVfeLoc.slotId = 1;
+    topo.nicVfeLoc.chipId = 2;
+    topo.nicVfeLoc.pfeId = 3;
+    topo.nicVfeLoc.vfeId = 4;
+    topo.nicVfeLoc.guid = "01234567abcdef01234567abcdef0700";
+
+    topo.hostBusi = std::make_shared<CollectionDeviceBusi>(
+        topo.hostBusiLoc.guid, topo.hostBusiLoc.eid, topo.hostBusiLoc.upi, CollectionDeviceType::HOST_BUSINSTANCE);
+    topo.vmBusi = std::make_shared<CollectionDeviceBusi>(topo.vmBusiLoc.guid, topo.vmBusiLoc.eid, topo.vmBusiLoc.upi,
+                                                         CollectionDeviceType::VM_BUSINSTANCE);
+    topo.npu = std::make_shared<CollectionDeviceDavid>(topo.npuLoc);
+    topo.ubctl = std::make_shared<CollectionDeviceUbCtrl>(topo.ubctlLoc);
+    topo.idevPfe = std::make_shared<CollectionDeviceIdevPfe>(topo.idevPfeLoc);
+    topo.idevVfe = std::make_shared<CollectionDeviceIdevVfe>(topo.idevVfeLoc);
+    topo.nicPfe = std::make_shared<CollectionDeviceNicPfe>(topo.nicPfeLoc);
+    topo.nicVfe = std::make_shared<CollectionDeviceNicVfe>(topo.nicVfeLoc);
+
+    topo.idevPfe->SetParentUbCtl(topo.ubctl);
+    topo.idevPfe->SetSubDevIdev(topo.idevVfe);
+    topo.idevVfe->SetParentPfe(topo.idevPfe);
+    topo.idevVfe->SetBondingDevDavid(topo.npu);
+    topo.npu->SetBondingIdev(CollectionDevice::CollectionToBase(topo.idevVfe));
+
+    topo.hostBusi->SetSubDevNicPfe(topo.nicPfe);
+    topo.hostBusi->SetSubDevNicVfe(topo.nicVfe);
+
+    topo.vmBusi->SetSubDevIdev(topo.idevVfe);
+    topo.vmBusi->SetSubDevNicPfe(topo.nicPfe);
+    topo.vmBusi->SetSubDevNicVfe(topo.nicVfe);
+    topo.idevVfe->SetBondingDevBusi(topo.vmBusi);
+    topo.nicPfe->SetBondingDevBusi(topo.vmBusi);
+    topo.nicVfe->SetBondingDevBusi(topo.vmBusi);
+
+    return topo;
+}
+
+void TestUbseNpuManagerApi::PopulateCollection(const DeviceTopology& topo)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+    auto baseHostBusi = CollectionDevice::CollectionToBase(topo.hostBusi);
+    auto baseVmBusi = CollectionDevice::CollectionToBase(topo.vmBusi);
+    auto baseNpu = CollectionDevice::CollectionToBase(topo.npu);
+    auto baseUbctl = CollectionDevice::CollectionToBase(topo.ubctl);
+    auto baseIdevPfe = CollectionDevice::CollectionToBase(topo.idevPfe);
+    auto baseIdevVfe = CollectionDevice::CollectionToBase(topo.idevVfe);
+    auto baseNicPfe = CollectionDevice::CollectionToBase(topo.nicPfe);
+    auto baseNicVfe = CollectionDevice::CollectionToBase(topo.nicVfe);
+    collection.SetDevice(baseHostBusi);
+    collection.SetDevice(baseVmBusi);
+    collection.SetDevice(baseNpu);
+    collection.SetDevice(baseUbctl);
+    collection.SetDevice(baseIdevPfe);
+    collection.SetDevice(baseIdevVfe);
+    collection.SetDevice(baseNicPfe);
+    collection.SetDevice(baseNicVfe);
 }
 
 TEST_F(TestUbseNpuManagerApi, GetInstanceReturnsSingleton)
@@ -59,25 +152,13 @@ TEST_F(TestUbseNpuManagerApi, CheckBusiWithNullptr)
 
 TEST_F(TestUbseNpuManagerApi, CheckBusiWithHostBusInstance)
 {
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "busi-guid-12345678901234567890123456";
-    busiLoc.upi = "1";
-
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::HOST_BUSINSTANCE);
-    UbseResult result = CheckBusi(busi);
+    UbseResult result = CheckBusi(topo_.hostBusi);
     EXPECT_EQ(result, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseNpuManagerApi, CheckBusiWithVmBusInstance)
 {
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "busi-guid-12345678901234567890123456";
-    busiLoc.upi = "1";
-
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
-    UbseResult result = CheckBusi(busi);
+    UbseResult result = CheckBusi(topo_.vmBusi);
     EXPECT_EQ(result, UBSE_OK);
 }
 
@@ -196,27 +277,16 @@ TEST_F(TestUbseNpuManagerApi, UpdateFailedVfeListAllSuccess)
 
 TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiDavidSuccess)
 {
-    CollectDeviceLoc npuLoc;
-    npuLoc.slotId = 1;
-    npuLoc.chipId = 2;
-
-    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
-    UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(npu);
-    EXPECT_EQ(mtiDavid.slotId, npuLoc.slotId);
-    EXPECT_EQ(mtiDavid.chipId, npuLoc.chipId);
+    UbseMtiDavid mtiDavid = ConvertToUbseMtiDavid(topo_.npu);
+    EXPECT_EQ(mtiDavid.slotId, topo_.npuLoc.slotId);
+    EXPECT_EQ(mtiDavid.chipId, topo_.npuLoc.chipId);
     EXPECT_EQ(mtiDavid.channelId, 0xff);
 }
 
 TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiBusiSuccess)
 {
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "busi-guid-12345678901234567890123456";
-    busiLoc.upi = "1";
-
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
-    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(busi);
-    EXPECT_EQ(mtiBusi.eid, busi->GetEid());
+    UbseMtiBusInst mtiBusi = ConvertToUbseMtiBusi(topo_.vmBusi);
+    EXPECT_EQ(mtiBusi.eid, topo_.vmBusi->GetEid());
 }
 
 TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiIdevVfeWithNullptr)
@@ -267,36 +337,12 @@ TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiIdevVfeWithNullUbCtl)
 
 TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiIdevVfeSuccess)
 {
-    CollectDeviceLoc idevVfeLoc;
-    idevVfeLoc.chipId = 2;
-    idevVfeLoc.dieId = 0;
-    idevVfeLoc.pfeId = 1;
-    idevVfeLoc.vfeId = 2;
-    idevVfeLoc.guid = "idev-guid-1234567890123456789012345";
-
-    CollectDeviceLoc idevPfeLoc;
-    idevPfeLoc.chipId = 2;
-    idevPfeLoc.dieId = 0;
-    idevPfeLoc.pfeId = 1;
-
-    CollectDeviceLoc ubctlLoc;
-    ubctlLoc.chipId = 2;
-    ubctlLoc.dieId = 0;
-    ubctlLoc.slotId = 1;
-
-    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
-    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
-    auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
-
-    idevVfe->SetParentPfe(idevPfe);
-    idevPfe->SetParentUbCtl(ubctl);
-
-    UbseMtiIdevVfe mtiVfe = ConvertToUbseMtiIdevVfe(idevVfe);
-    EXPECT_EQ(mtiVfe.pfeId, idevVfeLoc.pfeId);
-    EXPECT_EQ(mtiVfe.vfeId, idevVfeLoc.vfeId);
-    EXPECT_EQ(mtiVfe.ubController.chipId, ubctlLoc.chipId);
-    EXPECT_EQ(mtiVfe.ubController.dieId, ubctlLoc.dieId);
-    EXPECT_EQ(mtiVfe.ubController.slotId, ubctlLoc.slotId);
+    UbseMtiIdevVfe mtiVfe = ConvertToUbseMtiIdevVfe(topo_.idevVfe);
+    EXPECT_EQ(mtiVfe.pfeId, topo_.idevVfeLoc.pfeId);
+    EXPECT_EQ(mtiVfe.vfeId, topo_.idevVfeLoc.vfeId);
+    EXPECT_EQ(mtiVfe.ubController.chipId, topo_.ubctlLoc.chipId);
+    EXPECT_EQ(mtiVfe.ubController.dieId, topo_.ubctlLoc.dieId);
+    EXPECT_EQ(mtiVfe.ubController.slotId, topo_.ubctlLoc.slotId);
 }
 
 TEST_F(TestUbseNpuManagerApi, ConvertToUbseMtiIdevVfeListSuccess)
@@ -407,23 +453,17 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithNullIdev)
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithVfeIdevNoBusi)
 {
-    CollectDeviceLoc npuLoc;
-    npuLoc.slotId = 1;
-    npuLoc.chipId = 2;
+    CollectDeviceLoc idevVfeLocNoBusi;
+    idevVfeLocNoBusi.chipId = 2;
+    idevVfeLocNoBusi.dieId = 0;
+    idevVfeLocNoBusi.pfeId = 1;
+    idevVfeLocNoBusi.vfeId = 1;
 
-    CollectDeviceLoc idevVfeLoc;
-    idevVfeLoc.chipId = 2;
-    idevVfeLoc.dieId = 0;
-    idevVfeLoc.pfeId = 1;
-    idevVfeLoc.vfeId = 1;
-    idevVfeLoc.guid = "idev-guid-1234567890123456789012345";
+    auto npuNoBusi = std::make_shared<CollectionDeviceDavid>(topo_.npuLoc);
+    auto idevVfeNoBusi = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLocNoBusi);
+    npuNoBusi->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfeNoBusi));
 
-    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
-    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
-
-    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
-
-    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npu};
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npuNoBusi};
     std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> occupiedNpuMap;
 
     UbseResult result = CheckOccupiedNpus(npuList, occupiedNpuMap);
@@ -433,37 +473,14 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithVfeIdevNoBusi)
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithVfeIdevVmBusi)
 {
-    CollectDeviceLoc npuLoc;
-    npuLoc.slotId = 1;
-    npuLoc.chipId = 2;
-
-    CollectDeviceLoc idevVfeLoc;
-    idevVfeLoc.chipId = 2;
-    idevVfeLoc.dieId = 0;
-    idevVfeLoc.pfeId = 1;
-    idevVfeLoc.vfeId = 1;
-    idevVfeLoc.guid = "idev-guid-1234567890123456789012345";
-
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "vm-busi-guid-1234567890123456789012";
-    busiLoc.upi = "1";
-
-    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
-    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
-
-    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
-    idevVfe->SetBondingDevBusi(busi);
-
-    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npu};
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {topo_.npu};
     std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> occupiedNpuMap;
 
     UbseResult result = CheckOccupiedNpus(npuList, occupiedNpuMap);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(occupiedNpuMap.size(), 1);
-    EXPECT_EQ(occupiedNpuMap.count(busiLoc.guid), 1);
-    EXPECT_EQ(occupiedNpuMap[busiLoc.guid].size(), 1);
+    EXPECT_EQ(occupiedNpuMap.count(topo_.vmBusiLoc.guid), 1);
+    EXPECT_EQ(occupiedNpuMap[topo_.vmBusiLoc.guid].size(), 1);
 }
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithPfeIdevVmBusi)
@@ -505,6 +522,53 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithPfeIdevVmBusi)
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(occupiedNpuMap.size(), 1);
     EXPECT_EQ(occupiedNpuMap.count(busiLoc.guid), 1);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusVIdevCastFailed)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevPfeLoc;
+    idevPfeLoc.chipId = 2;
+    idevPfeLoc.dieId = 0;
+    idevPfeLoc.pfeId = 1;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
+    idevPfe->SetType(CollectionDeviceType::V_IDEV);
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevPfe));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npu};
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> occupiedNpuMap;
+
+    UbseResult result = CheckOccupiedNpus(npuList, occupiedNpuMap);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusPIdevCastFailed)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevVfeLoc;
+    idevVfeLoc.chipId = 2;
+    idevVfeLoc.dieId = 0;
+    idevVfeLoc.pfeId = 1;
+    idevVfeLoc.vfeId = 3;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
+    idevVfe->SetType(CollectionDeviceType::P_IDEV);
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npu};
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> occupiedNpuMap;
+
+    UbseResult result = CheckOccupiedNpus(npuList, occupiedNpuMap);
+    EXPECT_EQ(result, UBSE_ERROR);
 }
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNpusWithPfeIdevNullVfe)
@@ -564,7 +628,6 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNicPfesWithNullBusi)
     nicLoc.slotId = 1;
     nicLoc.chipId = 2;
     nicLoc.pfeId = 3;
-    nicLoc.guid = "nic-guid-1234567890123456789012345";
 
     auto nic = std::make_shared<CollectionDeviceNicPfe>(nicLoc);
     std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicList = {nic};
@@ -605,29 +668,13 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNicPfesWithHostBusi)
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNicPfesWithVmBusi)
 {
-    CollectDeviceLoc nicLoc;
-    nicLoc.slotId = 1;
-    nicLoc.chipId = 2;
-    nicLoc.pfeId = 3;
-    nicLoc.guid = "nic-guid-1234567890123456789012345";
-
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "vm-busi-guid-1234567890123456789012";
-    busiLoc.upi = "1";
-
-    auto nic = std::make_shared<CollectionDeviceNicPfe>(nicLoc);
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
-
-    nic->SetBondingDevBusi(busi);
-
-    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicList = {nic};
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicList = {topo_.nicPfe};
     std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicPfe>>> occupiedNicMap;
     std::vector<std::shared_ptr<CollectionDeviceNicPfe>> recoverNics;
 
     CheckOccupiedNicPfes(nicList, occupiedNicMap, recoverNics);
     EXPECT_EQ(occupiedNicMap.size(), 1);
-    EXPECT_EQ(occupiedNicMap.count(busiLoc.guid), 1);
+    EXPECT_EQ(occupiedNicMap.count(topo_.vmBusiLoc.guid), 1);
     EXPECT_TRUE(recoverNics.empty());
 }
 
@@ -674,29 +721,12 @@ TEST_F(TestUbseNpuManagerApi, CheckOccupiedNicVfesWithNullBusi)
 
 TEST_F(TestUbseNpuManagerApi, CheckOccupiedNicVfesWithVmBusi)
 {
-    CollectDeviceLoc nicLoc;
-    nicLoc.slotId = 1;
-    nicLoc.chipId = 2;
-    nicLoc.pfeId = 3;
-    nicLoc.vfeId = 4;
-    nicLoc.guid = "nic-vfe-guid-1234567890123456789012";
-
-    CollectDeviceLoc busiLoc;
-    busiLoc.guid = "vm-busi-guid-1234567890123456789012";
-    busiLoc.upi = "1";
-
-    auto nic = std::make_shared<CollectionDeviceNicVfe>(nicLoc);
-    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
-                                                       CollectionDeviceType::VM_BUSINSTANCE);
-
-    nic->SetBondingDevBusi(busi);
-
-    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicList = {nic};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicList = {topo_.nicVfe};
     std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicVfe>>> occupiedNicMap;
 
     CheckOccupiedNicVfes(nicList, occupiedNicMap);
     EXPECT_EQ(occupiedNicMap.size(), 1);
-    EXPECT_EQ(occupiedNicMap.count(busiLoc.guid), 1);
+    EXPECT_EQ(occupiedNicMap.count(topo_.vmBusiLoc.guid), 1);
 }
 
 /*
@@ -759,17 +789,31 @@ TEST_F(TestUbseNpuManagerApi, CheckAndHandleOccupiedDevicesEmptyLists)
 
 TEST_F(TestUbseNpuManagerApi, CheckAndHandleOccupiedDevicesWithNullIdev)
 {
-    CollectDeviceLoc npuLoc;
-    npuLoc.slotId = 1;
-    npuLoc.chipId = 2;
-
-    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto npu = std::make_shared<CollectionDeviceDavid>(topo_.npuLoc);
     std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {npu};
     std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
     std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
 
     UbseResult result = CheckAndHandleOccupiedDevices(npuList, nicPfeList, nicVfeList);
     EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckAndHandleOccupiedDevicesSuccess)
+{
+    PopulateCollection(topo_);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {topo_.npu};
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList = {topo_.nicVfe};
+
+    MOCKER(&UnregisterAndUnbindNpus).stubs().will(returnValue(UBSE_OK));
+
+    MOCKER(&UnregisterAndRegisterNicPfes).stubs().will(returnValue(UBSE_OK));
+
+    MOCKER(&UnregisterNicVfes).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult result = CheckAndHandleOccupiedDevices(npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
 }
 
 /*
@@ -907,6 +951,569 @@ TEST_F(TestUbseNpuManagerApi, FilterDeviceVMBusiNpuDiff)
     UbseResult result = FilterDeviceVMBusi(busi, npuList, nicPfeList, nicVfeList);
     EXPECT_EQ(npuList.size(), 1);
     EXPECT_EQ(npuList[0], npu2);
+}
+
+/*
+ * ============================================================================
+ * QueryVmBusInstances 相关函数测试
+ * ============================================================================
+ */
+
+/*
+ * ============================================================================
+ * QueryNpuDevices 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, QueryNpuDevicesEmptyMap)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    auto result = QueryNpuDevices(collection);
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_TRUE(result.second.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryNpuDevicesSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto result = QueryNpuDevices(ResourceCollection::GetInstance());
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_EQ(result.second.size(), 1);
+
+    auto npuRes = std::dynamic_pointer_cast<NpuResource>(result.second[0]);
+    EXPECT_NE(npuRes, nullptr);
+    EXPECT_EQ(npuRes->GetType(), ResourceType::NPU);
+    EXPECT_EQ(npuRes->slotId_, topo_.npuLoc.slotId);
+    EXPECT_EQ(npuRes->chipId_, topo_.npuLoc.chipId);
+    EXPECT_EQ(npuRes->guid_, topo_.idevVfeLoc.guid);
+    EXPECT_EQ(npuRes->busInstanceGuid_, topo_.vmBusiLoc.guid);
+
+    bool foundUbctl = false;
+    for (const auto& aff : npuRes->affinityDevices_) {
+        if (aff.type == ResourceType::UBCONTROLLER && aff.slotId == topo_.ubctlLoc.slotId &&
+            aff.chipId == topo_.ubctlLoc.chipId && aff.dieId == topo_.ubctlLoc.dieId) {
+            foundUbctl = true;
+        }
+    }
+    EXPECT_TRUE(foundUbctl);
+}
+
+/*
+ * ============================================================================
+ * QueryNicPfeDevices 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, QueryNicPfeDevicesEmptyMap)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    auto result = QueryNicPfeDevices(collection);
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_TRUE(result.second.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryNicPfeDevicesSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto result = QueryNicPfeDevices(ResourceCollection::GetInstance());
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_EQ(result.second.size(), 1);
+
+    auto nicRes = std::dynamic_pointer_cast<NicPfeResource>(result.second[0]);
+    EXPECT_NE(nicRes, nullptr);
+    EXPECT_EQ(nicRes->GetType(), ResourceType::NIC_PFE);
+    EXPECT_EQ(nicRes->slotId_, topo_.nicPfeLoc.slotId);
+    EXPECT_EQ(nicRes->chipId_, topo_.nicPfeLoc.chipId);
+    EXPECT_EQ(nicRes->pfId_, topo_.nicPfeLoc.pfeId);
+    EXPECT_EQ(nicRes->guid_, topo_.nicPfeLoc.guid);
+    EXPECT_EQ(nicRes->busInstanceGuid_, topo_.vmBusiLoc.guid);
+}
+
+/*
+ * ============================================================================
+ * QueryNicVfeDevices 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, QueryNicVfeDevicesEmptyMap)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    auto result = QueryNicVfeDevices(collection);
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_TRUE(result.second.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryNicVfeDevicesSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto result = QueryNicVfeDevices(ResourceCollection::GetInstance());
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_EQ(result.second.size(), 1);
+
+    auto nicRes = std::dynamic_pointer_cast<NicVfeResource>(result.second[0]);
+    EXPECT_NE(nicRes, nullptr);
+    EXPECT_EQ(nicRes->GetType(), ResourceType::NIC_VFE);
+    EXPECT_EQ(nicRes->slotId_, topo_.nicVfeLoc.slotId);
+    EXPECT_EQ(nicRes->chipId_, topo_.nicVfeLoc.chipId);
+    EXPECT_EQ(nicRes->pfId_, topo_.nicVfeLoc.pfeId);
+    EXPECT_EQ(nicRes->vfId_, topo_.nicVfeLoc.vfeId);
+    EXPECT_EQ(nicRes->guid_, topo_.nicVfeLoc.guid);
+    EXPECT_EQ(nicRes->busInstanceGuid_, topo_.vmBusiLoc.guid);
+}
+
+/*
+ * ============================================================================
+ * QueryAllDevicesImpl 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, QueryAllDevicesImplSuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+
+    PopulateCollection(topo_);
+
+    std::vector<std::shared_ptr<IResource>> devList;
+    UbseResult result = QueryAllDevicesImpl(devList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_GE(devList.size(), 2);
+
+    bool foundBusi = false;
+    bool foundNpu = false;
+    for (const auto& res : devList) {
+        if (res->GetType() == ResourceType::BUSINSTANCE) {
+            auto busiRes = std::dynamic_pointer_cast<BusiResource>(res);
+            EXPECT_EQ(busiRes->guid_, topo_.vmBusiLoc.guid);
+            foundBusi = true;
+        }
+        if (res->GetType() == ResourceType::NPU) {
+            auto npuRes = std::dynamic_pointer_cast<NpuResource>(res);
+            EXPECT_EQ(npuRes->slotId_, topo_.npuLoc.slotId);
+            EXPECT_EQ(npuRes->chipId_, topo_.npuLoc.chipId);
+            foundNpu = true;
+        }
+    }
+    EXPECT_TRUE(foundBusi);
+    EXPECT_TRUE(foundNpu);
+}
+
+/*
+ * ============================================================================
+ * UbseGetAllocDeviceList 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListNpuSuccess)
+{
+    PopulateCollection(topo_);
+
+    UbseAllocRequest requestInfo;
+    UbDevice dev;
+    dev.type = ResourceType::NPU;
+    dev.slotId = topo_.npuLoc.slotId;
+    dev.chipId = topo_.npuLoc.chipId;
+    requestInfo.ubDevList.push_back(dev);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(npuList.size(), 1);
+    EXPECT_TRUE(nicPfeList.empty());
+    EXPECT_TRUE(nicVfeList.empty());
+
+    auto npuDev = npuList[0];
+    auto npuLoc = npuDev->GetDeviceLoc();
+    EXPECT_EQ(npuLoc.slotId, topo_.npuLoc.slotId);
+    EXPECT_EQ(npuLoc.chipId, topo_.npuLoc.chipId);
+}
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListNpuNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    UbseAllocRequest requestInfo;
+    UbDevice dev;
+    dev.type = ResourceType::NPU;
+    dev.slotId = 99;
+    dev.chipId = 99;
+    requestInfo.ubDevList.push_back(dev);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListInvalidType)
+{
+    UbseAllocRequest requestInfo;
+    UbDevice dev;
+    dev.type = static_cast<ResourceType>(99);
+    dev.slotId = 1;
+    dev.chipId = 2;
+    requestInfo.ubDevList.push_back(dev);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListNicPfeSuccess)
+{
+    PopulateCollection(topo_);
+
+    UbseAllocRequest requestInfo;
+    UbDevice dev;
+    dev.type = ResourceType::NIC_PFE;
+    dev.slotId = topo_.nicPfeLoc.slotId;
+    dev.chipId = topo_.nicPfeLoc.chipId;
+    dev.pfId = topo_.nicPfeLoc.pfeId;
+    requestInfo.ubDevList.push_back(dev);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(npuList.empty());
+    EXPECT_EQ(nicPfeList.size(), 1);
+    EXPECT_TRUE(nicVfeList.empty());
+
+    auto nicDev = nicPfeList[0];
+    auto nicLoc = nicDev->GetDeviceLoc();
+    EXPECT_EQ(nicLoc.slotId, topo_.nicPfeLoc.slotId);
+    EXPECT_EQ(nicLoc.chipId, topo_.nicPfeLoc.chipId);
+    EXPECT_EQ(nicLoc.pfeId, topo_.nicPfeLoc.pfeId);
+}
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListNicVfeSuccess)
+{
+    PopulateCollection(topo_);
+
+    UbseAllocRequest requestInfo;
+    UbDevice dev;
+    dev.type = ResourceType::NIC_VFE;
+    dev.slotId = topo_.nicVfeLoc.slotId;
+    dev.chipId = topo_.nicVfeLoc.chipId;
+    dev.pfId = topo_.nicVfeLoc.pfeId;
+    dev.vfId = topo_.nicVfeLoc.vfeId;
+    requestInfo.ubDevList.push_back(dev);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(npuList.empty());
+    EXPECT_TRUE(nicPfeList.empty());
+    EXPECT_EQ(nicVfeList.size(), 1);
+
+    auto nicDev = nicVfeList[0];
+    auto nicLoc = nicDev->GetDeviceLoc();
+    EXPECT_EQ(nicLoc.slotId, topo_.nicVfeLoc.slotId);
+    EXPECT_EQ(nicLoc.chipId, topo_.nicVfeLoc.chipId);
+    EXPECT_EQ(nicLoc.pfeId, topo_.nicVfeLoc.pfeId);
+    EXPECT_EQ(nicLoc.vfeId, topo_.nicVfeLoc.vfeId);
+}
+
+TEST_F(TestUbseNpuManagerApi, UbseGetAllocDeviceListMixedDevices)
+{
+    PopulateCollection(topo_);
+
+    UbseAllocRequest requestInfo;
+    UbDevice dev1;
+    dev1.type = ResourceType::NPU;
+    dev1.slotId = topo_.npuLoc.slotId;
+    dev1.chipId = topo_.npuLoc.chipId;
+    requestInfo.ubDevList.push_back(dev1);
+
+    UbDevice dev2;
+    dev2.type = ResourceType::NIC_PFE;
+    dev2.slotId = topo_.nicPfeLoc.slotId;
+    dev2.chipId = topo_.nicPfeLoc.chipId;
+    dev2.pfId = topo_.nicPfeLoc.pfeId;
+    requestInfo.ubDevList.push_back(dev2);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = UbseGetAllocDeviceList(requestInfo, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(npuList.size(), 1);
+    EXPECT_EQ(nicPfeList.size(), 1);
+    EXPECT_TRUE(nicVfeList.empty());
+
+    auto npuDev = npuList[0];
+    auto npuLoc = npuDev->GetDeviceLoc();
+    EXPECT_EQ(npuLoc.slotId, topo_.npuLoc.slotId);
+    EXPECT_EQ(npuLoc.chipId, topo_.npuLoc.chipId);
+
+    auto nicDev = nicPfeList[0];
+    auto nicLoc = nicDev->GetDeviceLoc();
+    EXPECT_EQ(nicLoc.slotId, topo_.nicPfeLoc.slotId);
+    EXPECT_EQ(nicLoc.chipId, topo_.nicPfeLoc.chipId);
+    EXPECT_EQ(nicLoc.pfeId, topo_.nicPfeLoc.pfeId);
+}
+
+/*
+ * ============================================================================
+ * AllocDevicesImpl 相关函数测试
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesImplCollectionNotReady)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = false;
+
+    MOCKER_CPP(&ResourceCollection::CollectStaticResource)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
+
+    UbseAllocRequest requestInfo;
+    std::vector<std::shared_ptr<IResource>> devList;
+    std::string busInstanceGuid;
+
+    UbseResult result = AllocDevicesImpl(requestInfo, busInstanceGuid, devList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesImplInvalidBusInstanceGuid)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+    manager.cv_.notify_all();
+
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    UbseAllocRequest requestInfo;
+    requestInfo.busInstanceGuid = "nonexistent-guid-1234567890123456789012";
+
+    std::vector<std::shared_ptr<IResource>> devList;
+    std::string busInstanceGuid;
+
+    UbseResult result = AllocDevicesImpl(requestInfo, busInstanceGuid, devList);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+/*
+ * ============================================================================
+ * AllocNic 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, AllocNicEmptyLists)
+{
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    std::string busInstanceGuid = "vm-busi-guid";
+
+    UbseResult result = AllocNic(nicPfeList, nicVfeList, busInstanceGuid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocNicPfeNoHostBusi)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    CollectDeviceLoc nicLoc;
+    nicLoc.slotId = 1;
+    nicLoc.chipId = 2;
+    nicLoc.pfeId = 3;
+    nicLoc.guid = "nic-pfe-guid-12345678901234567890123456";
+
+    auto nic = std::make_shared<CollectionDeviceNicPfe>(nicLoc);
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {nic};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    std::string busInstanceGuid = "vm-busi-guid";
+
+    UbseResult result = AllocNic(nicPfeList, nicVfeList, busInstanceGuid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+/*
+ * ============================================================================
+ * CheckCollection 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, CheckCollectionReady)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+
+    UbseResult result = CheckCollection("test action");
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckCollectionNotReadyRetrySuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = false;
+
+    MOCKER_CPP(&ResourceCollection::CollectStaticResource).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult result = CheckCollection("test action");
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(manager.collectionReady_, true);
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+}
+
+TEST_F(TestUbseNpuManagerApi, CheckCollectionNotReadyRetryFailed)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = false;
+
+    MOCKER_CPP(&ResourceCollection::CollectStaticResource).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseResult result = CheckCollection("test action");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+/*
+ * ============================================================================
+ * FreeUbDevicesImpl 相关函数测试
+ * ============================================================================
+ */
+
+TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplInvalidUpi)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "1234567890abcdef1234567890abcdef";
+    busiLoc.upi = "not_a_hex_number";
+
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    auto baseBusi = CollectionDevice::CollectionToBase(busi);
+    collection.SetDevice(baseBusi);
+
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+
+    UbseAllocRequest requestInfo;
+    requestInfo.busInstanceGuid = busiLoc.guid;
+
+    UbseResult result = FreeUbDevicesImpl(requestInfo);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplNullBondingDavid)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "abcdef1234567890abcdef1234567890";
+    busiLoc.upi = "1";
+
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 3;
+
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    vfe->SetIsComSharedFe(false);
+    busi->SetSubDevIdev(vfe);
+
+    auto baseBusi = CollectionDevice::CollectionToBase(busi);
+    collection.SetDevice(baseBusi);
+
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+
+    UbseAllocRequest requestInfo;
+    requestInfo.busInstanceGuid = busiLoc.guid;
+
+    UbseResult result = FreeUbDevicesImpl(requestInfo);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplSharedFeOnlySkip)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "7890abcdef1234567890abcdef123456";
+    busiLoc.upi = "1";
+
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 3;
+
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    vfe->SetIsComSharedFe(true);
+    busi->SetSubDevIdev(vfe);
+
+    auto baseBusi = CollectionDevice::CollectionToBase(busi);
+    collection.SetDevice(baseBusi);
+
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+
+    UbseAllocRequest requestInfo;
+    requestInfo.busInstanceGuid = busiLoc.guid;
+
+    MOCKER(&FreeUbDevicesAction).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult result = FreeUbDevicesImpl(requestInfo);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = true;
+    manager.state_ = UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+
+    UbseAllocRequest requestInfo;
+    requestInfo.busInstanceGuid = topo_.vmBusiLoc.guid;
+
+    MOCKER(&FreeUbDevicesAction).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult result = FreeUbDevicesImpl(requestInfo);
+    EXPECT_EQ(result, UBSE_OK);
 }
 
 } // namespace ubse::npu::controller::ut

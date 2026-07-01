@@ -256,7 +256,7 @@ UbseResult UbseNpuControllerProcess::BusInstanceToResource(const std::shared_ptr
     for (auto& nic : nicPfes) {
         CollectDeviceLoc nicLoc = nic->GetDeviceLoc();
         busRes->AddSubDevice(
-            {.type = ResourceType::NIC_VFE, .slotId = nicLoc.slotId, .chipId = nicLoc.chipId, .pfId = nicLoc.pfeId});
+            {.type = ResourceType::NIC_PFE, .slotId = nicLoc.slotId, .chipId = nicLoc.chipId, .pfId = nicLoc.pfeId});
         UBSE_LOG_DEBUG << "nic: " << nicLoc.slotId << "-" << nicLoc.chipId << "-" << nicLoc.pfeId
                        << " added to busRes.subDevices";
     }

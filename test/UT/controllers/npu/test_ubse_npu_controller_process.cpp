@@ -377,7 +377,7 @@ TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithNicPfe)
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(busRes->guid_, busiLoc.guid);
     EXPECT_EQ(busRes->subDevices_.size(), 1);
-    EXPECT_EQ(busRes->subDevices_[0].type, ResourceType::NIC_VFE);
+    EXPECT_EQ(busRes->subDevices_[0].type, ResourceType::NIC_PFE);
     EXPECT_EQ(busRes->subDevices_[0].slotId, nicPfeLoc.slotId);
     EXPECT_EQ(busRes->subDevices_[0].chipId, nicPfeLoc.chipId);
     EXPECT_EQ(busRes->subDevices_[0].pfId, nicPfeLoc.pfeId);

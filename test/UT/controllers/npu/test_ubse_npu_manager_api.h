@@ -20,12 +20,39 @@
 #include "ubse_npu_resource_collection_def.h"
 
 namespace ubse::npu::controller::ut {
+
+struct DeviceTopology {
+    CollectDeviceLoc hostBusiLoc;
+    CollectDeviceLoc vmBusiLoc;
+    CollectDeviceLoc npuLoc;
+    CollectDeviceLoc ubctlLoc;
+    CollectDeviceLoc idevPfeLoc;
+    CollectDeviceLoc idevVfeLoc;
+    CollectDeviceLoc nicPfeLoc;
+    CollectDeviceLoc nicVfeLoc;
+
+    std::shared_ptr<CollectionDeviceBusi> hostBusi;
+    std::shared_ptr<CollectionDeviceBusi> vmBusi;
+    std::shared_ptr<CollectionDeviceDavid> npu;
+    std::shared_ptr<CollectionDeviceUbCtrl> ubctl;
+    std::shared_ptr<CollectionDeviceIdevPfe> idevPfe;
+    std::shared_ptr<CollectionDeviceIdevVfe> idevVfe;
+    std::shared_ptr<CollectionDeviceNicPfe> nicPfe;
+    std::shared_ptr<CollectionDeviceNicVfe> nicVfe;
+};
+
 class TestUbseNpuManagerApi : public testing::Test {
 public:
     TestUbseNpuManagerApi() = default;
     void SetUp() override;
     void TearDown() override;
+
+    DeviceTopology BuildTopology();
+    void PopulateCollection(const DeviceTopology& topo);
+
+    DeviceTopology topo_;
 };
+
 } // namespace ubse::npu::controller::ut
 
 #endif // TEST_UBSE_NPU_MANAGER_API_H
