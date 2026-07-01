@@ -56,12 +56,6 @@ typedef enum {
     UBS_SSU_CHUNK_SIZE_512K = 512, // 512KB
 } ubs_ssu_chunk_size_t;
 
-// 设备使用类型
-typedef enum {
-    UBS_SSU_USING_TYPE_EXCLUSIVE = 0, // 独占
-    UBS_SSU_USING_TYPE_SHARED = 1,    // 共享
-} ubs_ssu_using_type_t;
-
 // 分配策略
 typedef enum {
     UBS_SSU_ALLOC_STRATEGY_STRIPED = 0, // 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
@@ -76,7 +70,6 @@ typedef struct {
     uint32_t ns_num;                        // 命名空间数量, 等于1时strategy不生效
     ubs_ssu_lba_format_t lba_format;        // LBA格式
     ubs_ssu_alloc_strategy_t strategy;      // 分配策略
-    ubs_ssu_using_type_t using_type;        // 设备用途类型
     char tenant[UBS_SSU_MAX_TENANT_LENGTH]; // 请求方租户隔离标识
 } ubs_ssu_alloc_space_req_t;
 
@@ -89,7 +82,6 @@ typedef struct {
     char ns_dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]; // 命名空间设备路径
     uint64_t ns_size;                              // 分配的容量, 单位字节
     ubs_ssu_lba_format_t lba_format;               // LBA格式
-    ubs_ssu_using_type_t using_type;               // 设备用途类型
 } ubs_ssu_namespace_info_t;
 // 分配存储空间结果
 typedef struct {
@@ -246,7 +238,13 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint3
  * @note 当ns_num为1时, strategy参数不生效
  */
 int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t *result);
-
+/**
+ * @brief 释放ubs_ssu_alloc_result_t中动态分配的命名空间列表
+ *
+ * @param result [IN] ubs_ssu_alloc_result_t, 仅释放其内部namespaces指针指向的内存,
+ *                    不释放result本身
+ */
+void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t *result);
 /**
  * @brief 释放已分配的存储空间
  *
