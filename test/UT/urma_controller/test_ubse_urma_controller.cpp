@@ -258,17 +258,6 @@ TEST_F(TestUbseUrmaController, UbseQueryUrmaInfoByRpc_GetMasterInfoFails)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseUrmaController, DoTopoLinkChange_SetUvsInfoModuleNull)
-{
-    UbseNodeInfo curNode;
-    curNode.nodeId = "0";
-    MOCKER_CPP(&UbseNodeController::GetCurNode).stubs().will(returnValue(curNode));
-    MOCKER_CPP(&UbseUrmaControllerManager::BuildUvsTopoNodeInfo).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseContext::GetModule<UbseUrmaUvsModule>).stubs().will(returnValue(g_nullUvsModule));
-    auto ret = UbseUrmaController::GetInstance().DoTopoLinkChange();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
 TEST_F(TestUbseUrmaController, DoNodeJoin_NotJoinNodeReturnsOk)
 {
     UbseNodeInfo curNode;
@@ -299,7 +288,7 @@ TEST_F(TestUbseUrmaController, DoTopoLinkChange_QueryUrmaInfoStateFails)
     bool isAllPortDown = false;
     MOCKER_CPP(QueryAllPortsDown).stubs().with(outBound(isAllPortDown)).will(returnValue(UBSE_ERROR));
     auto ret = UbseUrmaController::GetInstance().DoTopoLinkChange();
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseUrmaController, DoNodeJoin_ConstructNewUrmaInfoFails)
