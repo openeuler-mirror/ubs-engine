@@ -23,7 +23,7 @@
 
 using ubse::it::infra::ItCluster;
 using ubse::it::infra::ItWaitHelper;
-using ubse::it::infra::Tongsuan1dFullMeshTwoNodesNormalConfigScenario;
+using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
 
 namespace {
 
@@ -34,7 +34,7 @@ constexpr uint32_t borrowerSlotId = 2;
 
 } // namespace
 
-TEST_F(Tongsuan1dFullMeshTwoNodesNormalConfigScenario, TwoNodeNumaNormalBorrow)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeNumaNormalBorrow)
 {
     auto& borrowerClient = Cluster().GetSdkClient(borrowerNodeId);
     IT_LOG_INFO << "Borrower SDK client initialized on node " << borrowerNodeId;

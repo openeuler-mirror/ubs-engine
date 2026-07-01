@@ -17,10 +17,10 @@
 
 namespace ubse::it::infra {
 
-std::unique_ptr<ItCluster> Tongsuan1dFullMeshSingleNodeNormalConfigScenario::cluster_;
-std::string Tongsuan1dFullMeshSingleNodeNormalConfigScenario::workDir_;
+std::unique_ptr<ItCluster> Tongsuan1dFullMeshSingleNodeScenario::cluster_;
+std::string Tongsuan1dFullMeshSingleNodeScenario::workDir_;
 
-void Tongsuan1dFullMeshSingleNodeNormalConfigScenario::SetUpTestSuite()
+void Tongsuan1dFullMeshSingleNodeScenario::SetUpTestSuite()
 {
     IT_LOG_INFO << "Tongsuan1dFullmatchSingleNodeScenario: starting single-node cluster...";
     auto ret = MakeBuilder().SingleNode().Start(cluster_);
@@ -28,7 +28,7 @@ void Tongsuan1dFullMeshSingleNodeNormalConfigScenario::SetUpTestSuite()
     IT_LOG_INFO << "Tongsuan1dFullmatchSingleNodeScenario: cluster started";
 }
 
-void Tongsuan1dFullMeshSingleNodeNormalConfigScenario::TearDownTestSuite()
+void Tongsuan1dFullMeshSingleNodeScenario::TearDownTestSuite()
 {
     if (cluster_) {
         IT_LOG_INFO << "Tongsuan1dFullmatchSingleNodeScenario: stopping cluster...";

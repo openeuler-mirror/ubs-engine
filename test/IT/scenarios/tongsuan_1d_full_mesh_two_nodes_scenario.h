@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef TONGSUAN_1D_FULLMATCH_TWO_NODE_SCENARIO_H
-#define TONGSUAN_1D_FULLMATCH_TWO_NODE_SCENARIO_H
+#ifndef TONGSUAN_1D_FULL_MESH_TWO_NODE_SCENARIO_H
+#define TONGSUAN_1D_FULL_MESH_TWO_NODE_SCENARIO_H
 
 #include <memory>
 #include <string>
@@ -27,7 +27,7 @@ namespace ubse::it::infra {
  * SetUpTestSuite 启动双节点集群并等待选举收敛，TearDownTestSuite 停止。
  * 所有 TEST_F(Tongsuan1dFullMeshTwoNodeScenario, ...) 共享同一集群实例。
  */
-class Tongsuan1dFullMeshTwoNodesNormalConfigScenario : public ItScenarioFixture {
+class Tongsuan1dFullMeshTwoNodesScenario : public ItScenarioFixture {
 public:
     static void SetUpTestSuite();
     static void TearDownTestSuite();
@@ -44,4 +44,4 @@ private:
 
 } // namespace ubse::it::infra
 
-#endif // TONGSUAN_1D_FULLMATCH_TWO_NODE_SCENARIO_H
+#endif // TONGSUAN_1D_FULL_MESH_TWO_NODE_SCENARIO_H
