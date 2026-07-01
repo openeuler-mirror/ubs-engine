@@ -166,35 +166,7 @@ int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *resu
  * @param results [IN] ubs_ssu_alloc_info_list返回的列表指针
  * @param result_cnt [IN] 列表元素数量, 与ubs_ssu_alloc_info_list输出的result_cnt一致
  */
-void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t *results, uint32_t result_cnt);
-
-/**
- * @brief 根据名称获取已分配的存储空间信息
- *
- * 根据存储空间的名称查询其详细信息, 包括命名空间列表、容量、LBA格式和使用类型等。
- *
- * @param name [IN] 存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
- * @param result [IN/OUT] 已分配空间信息, 由调用方分配结构体内存;
- *                        其中namespaces指针由SDK内部动态分配, 调用方需通过
- *                        ubs_ssu_alloc_info_free接口主动释放
- * @return UBS_SUCCESS:操作成功;
- * UBS_ERR_NULL_POINTER:空指针;
- * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
- * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
- * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
- * UBS_ENGINE_ERR_NOT_EXIST:存储空间不存在;
- * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
- * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
- */
-int32_t ubs_ssu_alloc_info_get(const char *name, ubs_ssu_alloc_result_t *result);
-
-/**
- * @brief 释放ubs_ssu_alloc_info_get返回结果中动态分配的命名空间列表
- *
- * @param result [IN] ubs_ssu_alloc_info_get输出的结果, 仅释放其内部namespaces指针指向的内存,
- *                    不释放result本身
- */
-void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t *result);
+void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t **results, uint32_t result_cnt);
 
 /**
  * @brief 获取存储空间的命名空间统计信息

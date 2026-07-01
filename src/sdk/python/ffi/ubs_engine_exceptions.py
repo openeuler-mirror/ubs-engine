@@ -86,3 +86,18 @@ class UbsEngineOutOfRangeError(UbsError):
 class UbsEngineNotExistError(UbsError):
     """借用关系不存在"""
     pass
+
+
+class UbsErrInvalidArg(UbsError):
+    """无效参数"""
+    pass
+
+
+class UbsEngineExistedError(UbsError):
+    """实例已存在"""
+    pass
+
+
+class UbsEngineAllocateError(UbsError):
+    """算法分配失败"""
+    pass
