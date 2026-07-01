@@ -61,8 +61,10 @@ const int MempoolMigrateModule::hugepagetype = 2048;                       // 2M
 constexpr uint64_t MAX_BORROW_PER_NODE_KB = 1073741824ULL;  // 1TB in KB
 constexpr uint64_t MAX_BORROW_PER_SOCKET_KB = 536870912ULL; // 512GB in KB
 constexpr uint64_t HUGEPAGE_1G_KB = 1048576ULL;
+constexpr uint64_t HUGEPAGE_512M_KB = 524288ULL;
 constexpr uint64_t MB_TO_KBYTES = 1024ULL;
 constexpr uint64_t NUM_TO_RATIO = 100ULL;
+constexpr long PAGE_64K_BYTES = 64L * 1024L;
 
 struct ReservedInfo1G {
     uint64_t reservedRatio;
@@ -925,6 +927,31 @@ static MpResult GetSocketIdByNumaId(const std::vector<mempooling::exportV2::Numa
     return MEM_POOLING_ERROR;
 }
 
+struct BorrowableHugepageInfo {
+    uint32_t nrHugepages;
+    uint32_t freeHugepages;
+    uint64_t hugePageKB;
+    std::string hugePageTag;
+};
+
+static BorrowableHugepageInfo GetBorrowableHugepageInfo(const UbseNumaInfo& numaInfo)
+{
+    BorrowableHugepageInfo info{};
+    long basePageSize = MpConfiguration::GetInstance().GetBasePageSize();
+    if (basePageSize == PAGE_64K_BYTES) {
+        info.nrHugepages = numaInfo.nr_hugepages_512M;
+        info.freeHugepages = numaInfo.free_hugepages_512M;
+        info.hugePageKB = HUGEPAGE_512M_KB;
+        info.hugePageTag = "512M";
+    } else {
+        info.nrHugepages = numaInfo.nr_hugepages_1G;
+        info.freeHugepages = numaInfo.free_hugepages_1G;
+        info.hugePageKB = HUGEPAGE_1G_KB;
+        info.hugePageTag = "1G";
+    }
+    return info;
+}
+
 static void CalculatePerNumaBorrowSize(const std::vector<int16_t>& srcNumaIds, uint64_t borrowSize,
                                        uint64_t blockSizeKB, mempooling::outinterface::BorrowStrategy borrowStrategy,
                                        std::vector<uint64_t>& perNumaSizes)
@@ -976,16 +1003,17 @@ static uint64_t CalculateBorrowableMem(const UbseNumaInfo& numaInfo,
                                        const std::string& reservedKey)
 {
     uint64_t borrowableMem = 0;
+    BorrowableHugepageInfo hp = GetBorrowableHugepageInfo(numaInfo);
 
     auto riIt = reservedInfo1GMap.find(reservedKey);
     if (riIt != reservedInfo1GMap.end()) {
         const ReservedInfo1G& ri = riIt->second;
-        uint64_t reservedMem = numaInfo.nr_hugepages_1G * HUGEPAGE_1G_KB * ri.reservedRatio / NUM_TO_RATIO;
+        uint64_t reservedMem = hp.nrHugepages * hp.hugePageKB * ri.reservedRatio / NUM_TO_RATIO;
         uint64_t theoreticalBorrowable = reservedMem - ri.memLent - ri.memShared;
-        uint64_t physicalFree = numaInfo.free_hugepages_1G * HUGEPAGE_1G_KB;
+        uint64_t physicalFree = hp.freeHugepages * hp.hugePageKB;
         borrowableMem = std::min(theoreticalBorrowable, physicalFree);
     } else {
-        borrowableMem = numaInfo.free_hugepages_1G * HUGEPAGE_1G_KB;
+        borrowableMem = hp.freeHugepages * hp.hugePageKB;
     }
 
     return borrowableMem;
@@ -1089,7 +1117,8 @@ static void CalculateNodeTotalMemMap(BatchBorrowContext& ctx)
 
         uint64_t totalBorrowable = 0;
         for (const auto& [numaLocation, numaInfo] : nodeInfo.numaInfos) {
-            if (numaInfo.nr_hugepages_1G == 0 || numaInfo.free_hugepages_1G == 0) {
+            BorrowableHugepageInfo hp = GetBorrowableHugepageInfo(numaInfo);
+            if (hp.nrHugepages == 0 || hp.freeHugepages == 0) {
                 continue;
             }
 
@@ -1117,15 +1146,16 @@ static void ConstructCandidateNumas(BatchBorrowContext& ctx)
         }
 
         for (const auto& [numaLocation, numaInfo] : nodeInfo.numaInfos) {
-            if (numaInfo.nr_hugepages_1G == 0) {
-                LOG_WARN << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId
-                         << " has no 1G hugepage config, skipping.";
+            BorrowableHugepageInfo hp = GetBorrowableHugepageInfo(numaInfo);
+            if (hp.nrHugepages == 0) {
+                LOG_WARN << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId << " has no "
+                         << hp.hugePageTag << " hugepage config, skipping.";
                 continue;
             }
 
-            if (numaInfo.free_hugepages_1G == 0) {
-                LOG_DEBUG << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId
-                          << " has 0 free 1G hugepages, skipping.";
+            if (hp.freeHugepages == 0) {
+                LOG_DEBUG << "[BatchBorrow] Node " << nodeId << " numa " << numaLocation.numaId << " has 0 free "
+                          << hp.hugePageTag << " hugepages, skipping.";
                 continue;
             }
 
@@ -1159,9 +1189,10 @@ static void ConstructCandidateNumas(BatchBorrowContext& ctx)
             }
             ctx.candidatesByPlane[planeIndex].insert(candidate);
 
-            LOG_INFO << "[BatchBorrow] Add 1G hugepage candidate: nodeId=" << nodeId << ", socket=" << numaInfo.socketId
-                     << ", numa=" << numaLocation.numaId << ", available=" << borrowableMem << "KB"
-                     << ", free1GPages=" << numaInfo.free_hugepages_1G << ", borrowCount=" << candidate.borrowCount
+            LOG_INFO << "[BatchBorrow] Add " << hp.hugePageTag << " hugepage candidate: nodeId=" << nodeId
+                     << ", socket=" << numaInfo.socketId << ", numa=" << numaLocation.numaId
+                     << ", available=" << borrowableMem << "KB"
+                     << ", freeHugepages=" << hp.freeHugepages << ", borrowCount=" << candidate.borrowCount
                      << ", plane=" << planeIndex;
         }
     }
