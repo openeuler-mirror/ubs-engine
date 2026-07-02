@@ -615,3 +615,326 @@ MockNamespace *FindNamespace(MockDevice &dev, uint32_t namespaceId)
 }
 
 } // namespace
+
+extern "C" {
+
+int acquire_dev_info(const char *adminNqn, const DevAddrT *devList, const int devCount, DevInfoT *outDevInfo)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("acquire")) {
+        return -1;
+    }
+
+    if (devCount > 0 && (devList == nullptr || outDevInfo == nullptr)) {
+        return -1;
+    }
+
+    for (int i = 0; i < devCount; ++i) {
+        MockDevice *dev = EnsureDevice(devList[i]);
+        if (dev == nullptr) {
+            return -1;
+        }
+        CopyDevInfo(*dev, outDevInfo[i]);
+    }
+    return 0;
+}
+
+int create_namespace(const char *adminNqn, DevNamespaceInfoT *nsInfo)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("create")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr) {
+        return -1;
+    }
+
+    if (nsInfo->baseAttr.nsze == 0 || nsInfo->baseAttr.ncap == 0) {
+        return -1;
+    }
+
+    MockDevice *dev = EnsureDevice(nsInfo->devAddr);
+    if (dev == nullptr) {
+        return -1;
+    }
+
+    if (dev->namespaces.size() > MAX_NAMESPACES_PER_CTRL) {
+        return -1;
+    }
+
+    uint64_t lbaSize = (nsInfo->baseAttr.flbas == 0) ? 512ULL : 4096ULL;
+
+    if (nsInfo->baseAttr.ncap > UINT64_MAX / lbaSize) {
+        return -1;
+    }
+    uint64_t requiredBytes = nsInfo->baseAttr.ncap * lbaSize;
+    if (requiredBytes > dev->unvmcap) {
+        return -1;
+    }
+
+    MockNamespace ns;
+    ns.info = *nsInfo;
+    ns.info.usedBytes = 0;
+    ns.info.state = DevStatusT::DEV_ONLINE;
+    ns.info.maxLba = nsInfo->baseAttr.nsze - 1;
+    ns.info.lbas = nsInfo->baseAttr.nsze;
+
+    if (nsInfo->baseAttr.nsze > UINT64_MAX / lbaSize) {
+        return -1;
+    }
+    ns.info.totalBytes = nsInfo->baseAttr.nsze * lbaSize;
+
+    ns.info.namespaceId = dev->nextNamespaceId++;
+
+    UbseSsuDevNameSpaceCustomData *customData =
+        reinterpret_cast<UbseSsuDevNameSpaceCustomData *>(ns.info.userData);
+    memset(customData, 0, sizeof(*customData));
+    customData->version = 1;
+    snprintf(customData->name, sizeof(customData->name), "MOCK_NS_%u", ns.info.namespaceId);
+    customData->raidLevel = 0;
+    customData->nsNum = 1;
+    customData->totalBytes = ns.info.totalBytes;
+    customData->crc = 0;
+
+    for (uint32_t i = 0; i < GUID_SIZE; ++i) {
+        ns.info.guid[i] = static_cast<unsigned char>(ns.info.namespaceId + i);
+    }
+    for (uint32_t i = 0; i < UUID_SIZE; ++i) {
+        ns.info.uuid[i] = static_cast<unsigned char>(ns.info.namespaceId + i + 0x80);
+    }
+
+    std::string nsDevPath = std::string(dev->devPath) + "n" + std::to_string(ns.info.namespaceId);
+    std::strncpy(ns.info.devPath, nsDevPath.c_str(), DEV_PATH_SIZE - 1);
+
+    *nsInfo = ns.info;
+
+    dev->unvmcap -= requiredBytes;
+    dev->namespaces.push_back(std::move(ns));
+
+    SaveJsonConfig();
+    return 0;
+}
+
+int delete_namespace(const char *adminNqn, DevNamespaceInfoT *nsInfo)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("delete")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        return 0;
+    }
+
+    for (auto it = dev->namespaces.begin(); it != dev->namespaces.end(); ++it) {
+        if (it->info.namespaceId == nsInfo->namespaceId) {
+            uint64_t lbaSize = (it->info.baseAttr.flbas == 0) ? 512ULL : 4096ULL;
+            dev->unvmcap += it->info.baseAttr.ncap * lbaSize;
+            dev->namespaces.erase(it);
+            SaveJsonConfig();
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+int attach_namespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("attach")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr || hostNqn == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        return -1;
+    }
+
+    MockNamespace *ns = FindNamespace(*dev, nsInfo->namespaceId);
+    if (ns == nullptr) {
+        return -1;
+    }
+
+    ns->allowedNqns[hostNqn] = 0;
+
+    SaveJsonConfig();
+
+    return 0;
+}
+
+int detach_namespace(const char *hostNqn, DevNamespaceInfoT *nsInfo)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("detach")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr || hostNqn == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        return 0;
+    }
+
+    MockNamespace *ns = FindNamespace(*dev, nsInfo->namespaceId);
+    if (ns == nullptr) {
+        return 0;
+    }
+
+    ns->allowedNqns.erase(hostNqn);
+
+    SaveJsonConfig();
+
+    return 0;
+}
+
+int add_namespace_allow_host(const char *adminNqn, DevNamespaceInfoT *nsInfo, const char *hostNqn)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("add_allow")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr || hostNqn == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        return -1;
+    }
+
+    MockNamespace *ns = FindNamespace(*dev, nsInfo->namespaceId);
+    if (ns == nullptr) {
+        return -1;
+    }
+
+    ns->allowedNqns[hostNqn] = 0;
+
+    SaveJsonConfig();
+
+    return 0;
+}
+
+int remove_namespace_allow_host(const char *adminNqn, DevNamespaceInfoT *nsInfo, const char *hostNqn)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("remove_allow")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr || hostNqn == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        return 0;
+    }
+
+    MockNamespace *ns = FindNamespace(*dev, nsInfo->namespaceId);
+    if (ns == nullptr) {
+        return 0;
+    }
+
+    ns->allowedNqns.erase(hostNqn);
+
+    SaveJsonConfig();
+
+    return 0;
+}
+
+int get_namespace_allow_hosts(const char *adminNqn, DevNamespaceInfoT *nsInfo, char ***hosts, uint32_t *count)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+
+    if (ShouldFail("get_allow")) {
+        return -1;
+    }
+
+    if (nsInfo == nullptr || hosts == nullptr || count == nullptr) {
+        return -1;
+    }
+
+    MockDevice *dev = FindDevice(nsInfo->devAddr.tgtEid);
+    if (dev == nullptr) {
+        *count = 0;
+        *hosts = nullptr;
+        return 0;
+    }
+
+    MockNamespace *ns = FindNamespace(*dev, nsInfo->namespaceId);
+    if (ns == nullptr) {
+        *count = 0;
+        *hosts = nullptr;
+        return 0;
+    }
+
+    *count = static_cast<uint32_t>(ns->allowedNqns.size());
+    if (*count == 0) {
+        *hosts = nullptr;
+        return 0;
+    }
+
+    *hosts = static_cast<char **>(malloc(sizeof(char *) * (*count)));
+    if (*hosts == nullptr) {
+        return -1;
+    }
+    uint32_t idx = 0;
+    for (const auto &pair : ns->allowedNqns) {
+        (*hosts)[idx] = strdup(pair.first.c_str());
+        if ((*hosts)[idx] == nullptr) {
+            for (uint32_t j = 0; j < idx; ++j) {
+                free((*hosts)[j]);
+            }
+            free(*hosts);
+            *hosts = nullptr;
+            *count = 0;
+            return -1;
+        }
+        idx++;
+    }
+
+    return 0;
+}
+
+void free_allow_hosts_mem(char **hosts, uint32_t count)
+{
+    if (hosts == nullptr) {
+        return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        free(hosts[i]);
+    }
+    free(hosts);
+}
+
+void mock_ssu_reset()
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_devices.clear();
+    g_nextCntlId = 1;
+    g_configLoaded = false;
+}
+
+} // extern "C"
