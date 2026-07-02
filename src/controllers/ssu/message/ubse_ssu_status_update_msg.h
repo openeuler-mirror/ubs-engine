@@ -14,13 +14,10 @@
 #define UBSE_SSU_STATUS_REQ_MSG_H
 
 #include "ubse_com.h"
-#include "ubse_serial_util.h"
 #include "ubse_ssu_service.h"
 
 namespace ubse::ssu::message {
 
-using namespace ubse::com;
-using namespace ubse::serial;
 using namespace ubse::plugin::service::ssu;
 
 struct UbseSsuStatusUpdateReq {
@@ -32,7 +29,7 @@ struct UbseSsuStatusUpdateRsp {
     uint32_t errorCode{0};
 };
 
-class UbseSsuStatusReqMsg : public UbseRpcMessage {
+class UbseSsuStatusReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusReqMsg() = default;
 
@@ -46,7 +43,7 @@ private:
     UbseSsuStatusUpdateReq req_{};
 };
 
-class UbseSsuStatusRspMsg : public UbseRpcMessage {
+class UbseSsuStatusRspMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusRspMsg() = default;
 

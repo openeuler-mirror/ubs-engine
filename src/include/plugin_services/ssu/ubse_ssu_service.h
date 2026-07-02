@@ -54,7 +54,6 @@ struct UbseSsuAllocSpaceReq {
     uint32_t nsNum;                        // 命名空间数量，等于1时，strategy不生效
     UbseSsuLBAFormat lbaFormat;            // LBA 格式
     UbseSsuAllocStrategy strategy;         // 分配策略
-    UbseSsuAllocIdentityInfo identityInfo; // 使用方进程的运行用户的uid和userName
     std::string tenant;                    // 请求方tenant（租户隔离标识）
 };
 
@@ -219,6 +218,7 @@ public:
      * 分布式分配两种策略。
      *
      * @param req     分配请求参数
+     * @param identity 调用方身份信息, 包含用户名和uid
      * @param result  [输出] 分配结果，包含已分配的命名空间信息列表
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -227,21 +227,23 @@ public:
      * @note 当 nsNum 为 1 时，strategy 参数不生效
      * @see UbseSsuAllocSpaceReq, UbseSsuAllocResult
      */
-    virtual uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, UbseSsuAllocResult &result);
+    virtual uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
+                                UbseSsuAllocResult &result);
 
     /**
      * @brief 释放已分配的存储空间
      *
      * 释放之前通过 AllocSpace 分配的存储空间及其关联的所有命名空间。
      *
-     * @param name  要释放的存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param name     要释放的存储空间标识（与 AllocSpace 时的 name 参数一致）
+     * @param identity 调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      *
      * @note 释放操作具有幂等性，释放不存在的空间应返回成功
      */
-    virtual uint32_t FreeSpace(const std::string &name);
+    virtual uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
 
     /**
      * @brief 添加存储空间访问权限

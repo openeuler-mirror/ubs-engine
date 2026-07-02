@@ -362,6 +362,16 @@ public:
         return mFlag_;
     }
 
+    /**
+     * @brief 主动标记反序列化失败
+     * @details 用于业务层在反序列化过程中检测到语义非法（如数组长度超限）时，
+     *          让随后的 Check() 返回 false，使上层 Deserialize 统一返回错误码
+     */
+    inline void SetFail()
+    {
+        mFlag_ = false;
+    }
+
     template <typename T, typename = std::enable_if_t<std::is_convertible_v<T, base_type>>>
     UbseDeSerialization &operator >> (T &param)
     {

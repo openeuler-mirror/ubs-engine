@@ -15,15 +15,17 @@
 
 #include <string>
 #include "ubse_com.h"
+#include "ubse_ssu_service.h"
 
 namespace ubse::ssu::message {
 
-using namespace ubse::com;
+using namespace ubse::plugin::service::ssu;
 
 struct UbseSsuFreeReq {
     std::string requestId;
     std::string requestNodeId;
     std::string name;
+    UbseSsuAllocIdentityInfo identityInfo;
 };
 
 struct UbseSsuFreeResp {
@@ -31,12 +33,13 @@ struct UbseSsuFreeResp {
     uint32_t errorCode{0};
 };
 
-class UbseSsuFreeReqMsg : public UbseRpcMessage {
+class UbseSsuFreeReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuFreeReqMsg() = default;
 
-    void SetSsuFreeRequest(const std::string &requestId, const std::string &requestNodeId, const std::string &name);
-    UbseSsuFreeReq GetSsuFreeRequest() const;
+    void SetSsuFreeRequest(const std::string &requestId, const std::string &requestNodeId, const std::string &name,
+                           const UbseSsuAllocIdentityInfo &identity);
+    const UbseSsuFreeReq &GetSsuFreeRequest() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
     uint32_t Deserialize(const uint8_t *data, uint32_t size) override;
@@ -45,7 +48,7 @@ private:
     UbseSsuFreeReq req_{};
 };
 
-class UbseSsuFreeRespMsg : public UbseRpcMessage {
+class UbseSsuFreeRespMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuFreeRespMsg() = default;
 

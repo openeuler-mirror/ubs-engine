@@ -38,9 +38,10 @@ public:
     // 从设备列表进行账本构建，用于初始化或重启恢复账本
     void RebuildLedgerFromDevList();
 
-    uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, UbseSsuAllocResult &result) override;
+    uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
+                        UbseSsuAllocResult &result) override;
 
-    uint32_t FreeSpace(const std::string &name) override;
+    uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) override;
 
     uint32_t AttachSpace(const std::string &name, const std::string &nqn, const UbseSsuAllocIdentityInfo &identity,
                          std::string &devPath) override;
