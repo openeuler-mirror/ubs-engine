@@ -84,6 +84,8 @@ public:
     // 获得当前节点的深度
     int GetDeepth();
 
+    bool IsValid() const;
+
 private:
     explicit UbseXml(const std::string& xml);
     UbseXml();

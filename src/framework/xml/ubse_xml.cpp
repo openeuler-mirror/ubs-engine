@@ -531,6 +531,11 @@ int UbseXml::GetDeepth()
     return this->listNode->depth;
 }
 
+bool UbseXml::IsValid() const
+{
+    return curNode != nullptr;
+}
+
 /**
 * 析构函数
 */
