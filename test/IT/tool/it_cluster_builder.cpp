@@ -70,6 +70,12 @@ ItClusterBuilder& ItClusterBuilder::ElectionTimeoutMs(uint32_t timeoutMs)
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::SceneType(const std::string& sceneType)
+{
+    sceneType_ = sceneType;
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -82,10 +88,23 @@ UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
     return cluster->StartClusterParallel(electionTimeoutMs_);
 }
 
+UbseResult ItClusterBuilder::StartNoElection(std::unique_ptr<ItCluster>& cluster) const
+{
+    if (nodes_.empty()) {
+        IT_LOG_ERROR << "IT cluster has no nodes. Call SingleNode(), TwoNode(), or Nodes() before StartNoElection().";
+        return UBSE_ERROR_DEF(1);
+    }
+
+    auto spec = BuildSpec();
+    cluster = std::make_unique<ItCluster>(std::move(spec));
+    return cluster->StartClusterNoElection();
+}
+
 ClusterSpec ItClusterBuilder::BuildSpec() const
 {
     auto spec = ClusterSpec::FromRuntimePaths(binaryPath_.string(), baseWorkDir_, nodes_, stubLibDir_.string());
     spec.startupTimeoutMs = startupTimeoutMs_;
+    spec.sceneType = sceneType_;
     spec.Normalize();
     return spec;
 }

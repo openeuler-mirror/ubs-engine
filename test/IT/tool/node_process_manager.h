@@ -37,6 +37,7 @@ struct NodeProcessConfig {
     std::string clusterNodeIds;
     std::string clusterIps;
     std::vector<uint32_t> clusterSlotIds;
+    std::string sceneType;
 };
 
 class NodeProcessManager {
@@ -50,6 +51,7 @@ public:
     bool IsRunning() const;
     pid_t GetPid() const;
     UbseResult WaitForStartup(uint32_t timeoutMs);
+    UbseResult WaitForDaemonReady(uint32_t timeoutMs);
     bool IsPrivilegedMode() const
     {
         return isPrivileged_;
@@ -74,6 +76,7 @@ private:
     std::string clusterIps_;
     std::vector<uint32_t> clusterSlotIds_;
     std::string stubLibDir_;
+    std::string sceneType_;
     mutable pid_t childPid_;
     std::string udsSocketPath_;
     std::unique_ptr<MockLcneServer> mockLcneServer_;

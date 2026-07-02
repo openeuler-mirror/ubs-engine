@@ -58,6 +58,17 @@ public:
     UbseResult StartClusterParallel(uint32_t electionTimeoutMs = 30000);
 
     /**
+     * @brief Start all nodes in parallel without waiting for election convergence.
+     *
+     * For scene types that do not include ElectionModule (e.g. AI/NPU scene).
+     * Only waits for UDS socket readiness, then initializes SDK clients directly.
+     *
+     * Startup timeout is taken from clusterSpec_.startupTimeoutMs (set by builder).
+     * @return UBSE_OK on success
+     */
+    UbseResult StartClusterNoElection();
+
+    /**
      * @brief Stop all nodes (reverse order).
      * @return UBSE_OK on success
      */

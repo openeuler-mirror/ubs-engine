@@ -42,6 +42,7 @@ add_library(ubse_it_infra STATIC
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_four_nodes_scenario.cpp
+    ${IT_SCENARIOS_DIR}/zhisuan_npu_single_node_scenario.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
@@ -94,6 +95,7 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_node_controller_it_mock
         ubse_com_engine_it_mock
         ubse_capability_it_stub
+        ubse_npu_controller_it_mock
         -Wl,--no-whole-archive
         ubse_security
         ubse_context
@@ -148,6 +150,7 @@ set(UBSE_IT_MODULES
     smoke
     election
     mem_borrow
+    npu
 )
 
 set(UBSE_IT_NON_MODULE_DIRS

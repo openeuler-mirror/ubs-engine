@@ -39,8 +39,10 @@ public:
     ItClusterBuilder& Nodes(std::vector<NodeSpec> nodes);
     ItClusterBuilder& StartupTimeoutMs(uint32_t timeoutMs);
     ItClusterBuilder& ElectionTimeoutMs(uint32_t timeoutMs);
+    ItClusterBuilder& SceneType(const std::string& sceneType);
 
     UbseResult Start(std::unique_ptr<ItCluster>& cluster) const;
+    UbseResult StartNoElection(std::unique_ptr<ItCluster>& cluster) const;
 
 private:
     ItClusterBuilder(std::filesystem::path binaryPath, std::string baseWorkDir, std::filesystem::path stubLibDir);
@@ -53,6 +55,7 @@ private:
     std::vector<NodeSpec> nodes_;
     uint32_t startupTimeoutMs_ = 30000;
     uint32_t electionTimeoutMs_ = 30000;
+    std::string sceneType_;
 };
 
 } // namespace ubse::it::infra
