@@ -197,7 +197,7 @@ struct UbseNodeInfo {
     UbseAllocator allocator{UbseAllocator::BUDDY_HIGHMEM}; // 使用不同的内存类型余量借用决策
     uint32_t pmdMapping{100};                              // 控制每个numa上能导出的内存总量，单位%
     uint32_t blockSize{128};                               // 芯片表项内存拆分粒度大小，单位M
-    uint32_t podId{0};                                     // 所在机柜号
+    uint32_t groupId{0};                                     // 所在机柜号
     uint32_t exportTotalTimes{1024};                       // 单个socket的总导出次数，一个节点上的两个socket配置相同
     UbseNodeSysSentryState sysSentryState{
         UbseNodeSysSentryState::UBSE_NODE_SYSSENTRY_UNKNOWN};               // 本节点sysSentry服务状态

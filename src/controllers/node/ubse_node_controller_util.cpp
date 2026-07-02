@@ -100,37 +100,37 @@ UbseAllocator GetAllocator()
     return UbseAllocator::BUDDY_HIGHMEM;
 }
 
-uint32_t GetPodId()
+uint32_t GetGroupId()
 {
     auto currentNode = ubse::nodeMgr::GetCurrentNode();
     if (currentNode.groupId != 0) {
         return currentNode.groupId;
     }
 
-    uint32_t podId = 0;
-    auto ret = GetUbseConf("ubse.node", "pod_id", podId);
+    uint32_t groupId = 0;
+    auto ret = GetUbseConf("ubse.node", "group_id", groupId);
     if (ret == UBSE_OK) {
-        return podId;
+        return groupId;
     }
 
-    ret = GetUbseConf("ubse.node", "group_id", podId);
+    ret = GetUbseConf("ubse.node", "group_id", groupId);
     if (ret == UBSE_OK) {
-        return podId;
+        return groupId;
     }
 
-    std::string podIdStr;
-    ret = GetUbseConf("ubse.node", "pod_id", podIdStr);
+    std::string groupIdStr;
+    ret = GetUbseConf("ubse.node", "group_id", groupIdStr);
     if (ret != UBSE_OK) {
-        ret = GetUbseConf("ubse.node", "group_id", podIdStr);
+        ret = GetUbseConf("ubse.node", "group_id", groupIdStr);
     }
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "read pod id from node mgr and config failed, use default podId=0";
+        UBSE_LOG_WARN << "read group id from node mgr and config failed, use default groupId=0";
         return 0;
     }
 
     uint32_t parsed = 0;
-    if (ubse::utils::ConvertStrToUint32(podIdStr, parsed) != UBSE_OK) {
-        UBSE_LOG_WARN << "parse pod id config failed, value=" << podIdStr << ", use default podId=0";
+    if (ubse::utils::ConvertStrToUint32(groupIdStr, parsed) != UBSE_OK) {
+        UBSE_LOG_WARN << "parse group id config failed, value=" << groupIdStr << ", use default groupId=0";
         return 0;
     }
 
@@ -449,7 +449,7 @@ void GetCurNodeInfo(UbseNodeInfo &info)
     if (info.allocator == UbseAllocator::BUDDY_HIGHMEM && info.pmdMapping == MAX_PERCENT) {
         UBSE_LOG_WARN << "buddy_highmem not expected at 100%, continue if Ok";
     }
-    info.podId = GetPodId();
+    info.groupId = GetGroupId();
 }
 
 uint32_t IpToUint32(const std::string &ipStr, uint32_t &ip)

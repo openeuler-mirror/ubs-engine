@@ -1063,7 +1063,7 @@ UbseResult GetUbseCpuInfoOffset(
 UbseResult GetUbseNodeInfoOffset(UbseNodeInfo info, UbseSerialization &outStream)
 {
     outStream << info.nodeId << info.slotId << info.bondingEid << info.hostName << info.comIp << info.guid
-              << enum_v(info.allocator) << info.pmdMapping << info.blockSize << info.podId;
+              << enum_v(info.allocator) << info.pmdMapping << info.blockSize << info.groupId;
 
     UbseSerialization ipAddrOffset;
     auto ret = GetUbseIpAddrVecOffset(info.ipList, ipAddrOffset);
@@ -1313,7 +1313,7 @@ uint32_t ParseNodeInfo(UbseNodeInfo &info, UbseDeSerialization &inStream)
     inStream >> enum_v(info.allocator);
     inStream >> info.pmdMapping;
     inStream >> info.blockSize;
-    inStream >> info.podId;
+    inStream >> info.groupId;
     UbseDeSerialization ipAddrOffset;
     UbseDeSerialization numaInfoOffset;
     UbseDeSerialization cpuInfoOffset;

@@ -147,7 +147,7 @@ UbseNodeInfo UbseNodeInfoCollect()
         return UbseNodeController::GetInstance().GetCurNode();
     }
 
-    UBSE_LOG_INFO << "[MEM_COLLECT] success, nodeId=" << info.nodeId << ", podId=" << info.podId
+    UBSE_LOG_INFO << "[MEM_COLLECT] success, nodeId=" << info.nodeId << ", groupId=" << info.groupId
                   << ", numaCount=" << info.numaInfos.size() << ", cpuCount=" << info.cpuInfos.size();
 
     ret = UbseNodeController::GetInstance().UpdateNodeInfo(info.nodeId, info);
@@ -185,7 +185,7 @@ UbseResult UbseNodeInfoReport()
     if (role != UbseClosNodeRole::UNKNOWN) {
         if (role == UbseClosNodeRole::GLOBAL_MASTER) {
             UBSE_LOG_INFO << "[CLOS_REPORT] skip self node report on global master, nodeId=" << info.nodeId
-                          << ", podId=" << info.podId << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
+                          << ", groupId=" << info.groupId << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
             return UBSE_OK;
         }
 
@@ -201,7 +201,7 @@ UbseResult UbseNodeInfoReport()
             }
 
             UBSE_LOG_INFO << "[CLOS_REPORT] report self node to prev, nodeId=" << info.nodeId
-                          << ", podId=" << info.podId << ", prevNodeId=" << prevNodeId
+                          << ", groupId=" << info.groupId << ", prevNodeId=" << prevNodeId
                           << ", role=" << static_cast<uint32_t>(role)
                           << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
 
@@ -221,7 +221,7 @@ UbseResult UbseNodeInfoReport()
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] fallback report self node to master, nodeId=" << info.nodeId
-                  << ", podId=" << info.podId << ", masterNodeId=" << masterInfo.nodeId
+                  << ", groupId=" << info.groupId << ", masterNodeId=" << masterInfo.nodeId
                   << ", clusterState=" << static_cast<uint32_t>(info.clusterState);
 
     return UbseNodeReportNodeInfo(masterInfo.nodeId, info);
@@ -901,7 +901,7 @@ UbseResult UbseNodeControllerAgent::ReportCabinetFullInfo()
 
     std::stringstream nodeList;
     for (const auto &info : infos) {
-        nodeList << info.nodeId << "(pod=" << info.podId << ",state=" << static_cast<uint32_t>(info.clusterState)
+        nodeList << info.nodeId << "(group=" << info.groupId << ",state=" << static_cast<uint32_t>(info.clusterState)
                  << "), ";
     }
 
@@ -944,7 +944,7 @@ UbseResult UbseNodeControllerAgent::ForwardCabinetFullToPrev()
 
     std::stringstream nodeList;
     for (const auto &info : infos) {
-        nodeList << info.nodeId << "(pod=" << info.podId << ",state=" << static_cast<uint32_t>(info.clusterState)
+        nodeList << info.nodeId << "(group=" << info.groupId << ",state=" << static_cast<uint32_t>(info.clusterState)
                  << "), ";
     }
 
