@@ -5,13 +5,13 @@
  * You may obtain a copy of Mulan PSL v2 at:
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
- * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef TONGSUAN_1D_FULL_MESH_SINGLE_NODE_SCENARIO_H
-#define TONGSUAN_1D_FULL_MESH_SINGLE_NODE_SCENARIO_H
+#ifndef TONGSUAN_1D_FULL_MESH_FOUR_NODES_SCENARIO_H
+#define TONGSUAN_1D_FULL_MESH_FOUR_NODES_SCENARIO_H
 
 #include <memory>
 #include <string>
@@ -22,12 +22,13 @@
 namespace ubse::it::infra {
 
 /**
- * @brief 通算1D FullMatch 单节点场景
+ * @brief 通算1D FullMatch 四节点场景
  *
- * SetUpTestSuite 启动单节点集群，TearDownTestSuite 停止。
- * 所有 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, ...) 共享同一集群实例。
+ * SetUpTestSuite 启动四节点集群并等待选举收敛，TearDownTestSuite 停止。
+ * 集群包含 1 master + 1 standby + 2 agent。
+ * 所有 TEST_F(Tongsuan1dFullMeshFourNodesScenario, ...) 共享同一集群实例。
  */
-class Tongsuan1dFullMeshSingleNodeScenario : public ItScenarioFixture {
+class Tongsuan1dFullMeshFourNodesScenario : public ItScenarioFixture {
 public:
     static void SetUpTestSuite();
     static void TearDownTestSuite();
@@ -44,4 +45,4 @@ private:
 
 } // namespace ubse::it::infra
 
-#endif // TONGSUAN_1D_FULL_MESH_SINGLE_NODE_SCENARIO_H
+#endif // TONGSUAN_1D_FULL_MESH_FOUR_NODES_SCENARIO_H

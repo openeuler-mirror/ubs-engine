@@ -45,6 +45,7 @@ public:
 private:
     void RegisterHandlers();
     std::string GenerateBusInstanceXml() const;
+    std::string GenerateHostInfoXml() const;
     std::string GenerateIoDieInfoXml() const;
     std::string GenerateTopologyNodesXml() const;
     std::string GenerateTopologyCnaXml() const;

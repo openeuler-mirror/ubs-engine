@@ -15,9 +15,9 @@
 #include "it_assertion.h"
 #include "tongsuan_1d_full_mesh_single_node_scenario.h"
 
-using ubse::it::infra::Tongsuan1dFullMeshSingleNodeNormalConfigScenario;
+using ubse::it::infra::Tongsuan1dFullMeshSingleNodeScenario;
 
-TEST_F(Tongsuan1dFullMeshSingleNodeNormalConfigScenario, SingleNodeStartupAndSurvive)
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, SingleNodeStartupAndSurvive)
 {
     EXPECT_TRUE(Cluster().IsNodeRunning("1"));
 }
