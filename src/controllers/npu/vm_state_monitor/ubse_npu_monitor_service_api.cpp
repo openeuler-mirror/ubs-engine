@@ -85,48 +85,51 @@ bool QueryAndReset(const std::string& busInstance)
 std::string GetBusInstance(std::string_view xmlStr)
 {
     std::string guid;
-    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(xmlStr.data());
-    if (ubseXml == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get ubse xml.";
+    auto ubseXml = UbseXml::Create(xmlStr.data());
+    if (!ubseXml) {
+        UBSE_LOG_ERROR << "Failed to create ubse xml.";
         return guid;
     }
-    const auto ret = ubseXml->Parse();
-    if (ret != UbseXmlError::OK) {
+    if (ubseXml->Parse() != UbseXmlError::OK) {
         UBSE_LOG_ERROR << "Failed to parse ubse xml.";
         return guid;
     }
     ubseXml = ubseXml->Child("devices");
-    if (!ubseXml) {
+    if (!ubseXml->IsValid()) {
         UBSE_LOG_ERROR << "Failed to get devices.";
         return guid;
     }
-    int num = 0;
-    auto controller = ubseXml->Child("controller", num);
-    while (controller != nullptr) {
-        std::string type = controller->Attr("type");
-        if (type == "ub") {
-            ubseXml = ubseXml->Child("devices");
-            controller = ubseXml->Child("controller", num);
-            auto sourceNode = controller->Child("source");
-            if (sourceNode == nullptr) {
-                UBSE_LOG_ERROR << "Failed to get source node.";
-                return guid;
-            }
-            auto busInstanceNode = sourceNode->Child("businstance");
-            if (busInstanceNode == nullptr) {
-                UBSE_LOG_ERROR << "Failed to get businstance node.";
-                return guid;
-            }
-            guid = busInstanceNode->Attr("guid");
-            if (guid.empty()) {
-                UBSE_LOG_ERROR << "Failed to get guid node.";
-                return guid;
-            }
-            return guid;
+    int ubIdx = -1;
+    constexpr int MAX_CONTROLLER_COUNT = 256;
+    for (int num = 0; num < MAX_CONTROLLER_COUNT; num++) {
+        ubseXml->Back();
+        ubseXml = ubseXml->Child("devices")->Child("controller", num);
+        if (!ubseXml->IsValid()) {
+            break;
         }
-        ubseXml = ubseXml->Child("devices");
-        num++;
-        controller = ubseXml->Child("controller", num);
+        if (ubseXml->Attr("type") == "ub") {
+            ubIdx = num;
+            break;
+        }
+    }
+    if (ubIdx < 0) {
+        UBSE_LOG_ERROR << "Failed to get ub controller.";
+        return guid;
+    }
+    ubseXml->Back();
+    ubseXml = ubseXml->Child("devices")->Child("controller", ubIdx)->Child("source");
+    if (!ubseXml->IsValid()) {
+        UBSE_LOG_ERROR << "Failed to get source.";
+        return guid;
+    }
+    ubseXml = ubseXml->Child("businstance");
+    if (!ubseXml->IsValid()) {
+        UBSE_LOG_ERROR << "Failed to get businstance.";
+        return guid;
+    }
+    guid = ubseXml->Attr("guid");
+    if (guid.empty()) {
+        UBSE_LOG_ERROR << "Failed to get guid.";
     }
     return guid;
 }
