@@ -530,4 +530,241 @@ TEST_F(TestUbseNpuControllerProcess, SetNicVfeLocationSuccess)
     EXPECT_EQ(nicRes->vfId_, nicLoc.vfeId);
 }
 
+TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithVfeIdevNoBusi)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevVfeLoc;
+    idevVfeLoc.chipId = 2;
+    idevVfeLoc.dieId = 0;
+    idevVfeLoc.pfeId = 1;
+    idevVfeLoc.vfeId = 1;
+    idevVfeLoc.guid = "0123456789abcdef0123456789abcdef";
+
+    CollectDeviceLoc idevPfeLoc;
+    idevPfeLoc.chipId = 2;
+    idevPfeLoc.dieId = 0;
+    idevPfeLoc.pfeId = 1;
+
+    CollectDeviceLoc ubctlLoc;
+    ubctlLoc.chipId = 2;
+    ubctlLoc.dieId = 0;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
+    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
+    auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
+    auto npuRes = std::make_shared<NpuResource>();
+
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
+    idevVfe->SetParentPfe(idevPfe);
+    idevPfe->SetParentUbCtl(ubctl);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNpuToResource(npu, npuRes);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithAffinityNicPfeAndNicVfe)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevVfeLoc;
+    idevVfeLoc.chipId = 2;
+    idevVfeLoc.dieId = 0;
+    idevVfeLoc.pfeId = 1;
+    idevVfeLoc.vfeId = 1;
+    idevVfeLoc.guid = "0123456789abcdef0123456789abcdef";
+
+    CollectDeviceLoc idevPfeLoc;
+    idevPfeLoc.chipId = 2;
+    idevPfeLoc.dieId = 0;
+    idevPfeLoc.pfeId = 1;
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "busi-guid-12345678901234567890123456";
+    busiLoc.upi = "1";
+
+    CollectDeviceLoc ubctlLoc;
+    ubctlLoc.chipId = 2;
+    ubctlLoc.dieId = 0;
+
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 5;
+    nicPfeLoc.chipId = 6;
+    nicPfeLoc.pfeId = 3;
+
+    CollectDeviceLoc nicVfeLoc;
+    nicVfeLoc.slotId = 7;
+    nicVfeLoc.chipId = 8;
+    nicVfeLoc.pfeId = 4;
+    nicVfeLoc.vfeId = 1;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
+    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto nicVfe = std::make_shared<CollectionDeviceNicVfe>(nicVfeLoc);
+    auto npuRes = std::make_shared<NpuResource>();
+
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevVfe));
+    idevPfe->SetSubDevIdev(idevVfe);
+    idevVfe->SetParentPfe(idevPfe);
+    idevVfe->SetBondingDevBusi(busi);
+    idevPfe->SetParentUbCtl(ubctl);
+    npu->SetAffinityDevNicPfe(nicPfe);
+    npu->SetAffinityDevNicVfe(nicVfe);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNpuToResource(npu, npuRes);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(npuRes->slotId_, npuLoc.slotId);
+    EXPECT_EQ(npuRes->chipId_, npuLoc.chipId);
+    EXPECT_EQ(npuRes->busInstanceGuid_, busiLoc.guid);
+    EXPECT_EQ(npuRes->guid_, idevVfeLoc.guid);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 3);
+    EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::NIC_PFE);
+    EXPECT_EQ(npuRes->affinityDevices_[1].slotId, nicPfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].chipId, nicPfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].pfId, nicPfeLoc.pfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].type, ResourceType::NIC_VFE);
+    EXPECT_EQ(npuRes->affinityDevices_[2].slotId, nicVfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].chipId, nicVfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].pfId, nicVfeLoc.pfeId);
+    EXPECT_EQ(npuRes->affinityDevices_[2].vfId, nicVfeLoc.vfeId);
+}
+
+TEST_F(TestUbseNpuControllerProcess, DeviceNpuToResourceWithOnlyAffinityNicPfe)
+{
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+
+    CollectDeviceLoc idevPfeLoc;
+    idevPfeLoc.chipId = 2;
+    idevPfeLoc.dieId = 0;
+    idevPfeLoc.pfeId = 1;
+    idevPfeLoc.guid = "0123456789abcdef0123456789abcdef";
+
+    CollectDeviceLoc ubctlLoc;
+    ubctlLoc.chipId = 2;
+    ubctlLoc.dieId = 0;
+
+    CollectDeviceLoc nicPfeLoc;
+    nicPfeLoc.slotId = 5;
+    nicPfeLoc.chipId = 6;
+    nicPfeLoc.pfeId = 3;
+
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+    auto idevPfe = std::make_shared<CollectionDeviceIdevPfe>(idevPfeLoc);
+    auto ubctl = std::make_shared<CollectionDeviceUbCtrl>(ubctlLoc);
+    auto nicPfe = std::make_shared<CollectionDeviceNicPfe>(nicPfeLoc);
+    auto npuRes = std::make_shared<NpuResource>();
+
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(idevPfe));
+    idevPfe->SetParentUbCtl(ubctl);
+    npu->SetAffinityDevNicPfe(nicPfe);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNpuToResource(npu, npuRes);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(npuRes->affinityDevices_.size(), 2);
+    EXPECT_EQ(npuRes->affinityDevices_[0].type, ResourceType::UBCONTROLLER);
+    EXPECT_EQ(npuRes->affinityDevices_[1].type, ResourceType::NIC_PFE);
+    EXPECT_EQ(npuRes->affinityDevices_[1].slotId, nicPfeLoc.slotId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].chipId, nicPfeLoc.chipId);
+    EXPECT_EQ(npuRes->affinityDevices_[1].pfId, nicPfeLoc.pfeId);
+}
+
+TEST_F(TestUbseNpuControllerProcess, BusInstanceToResourceWithIdevVfeNoBondingDavid)
+{
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "busi-guid-12345678901234567890123456";
+    busiLoc.upi = "1";
+
+    CollectDeviceLoc idevVfeLoc;
+    idevVfeLoc.chipId = 2;
+    idevVfeLoc.dieId = 0;
+    idevVfeLoc.pfeId = 1;
+    idevVfeLoc.vfeId = 1;
+    idevVfeLoc.guid = "idev-guid-1234567890123456789012345";
+
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::VM_BUSINSTANCE);
+    auto idevVfe = std::make_shared<CollectionDeviceIdevVfe>(idevVfeLoc);
+    auto busRes = std::make_shared<BusiResource>();
+
+    busi->SetSubDevIdev(idevVfe);
+
+    UbseResult result = UbseNpuControllerProcess::BusInstanceToResource(busi, busRes);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(busRes->guid_, busiLoc.guid);
+    EXPECT_EQ(busRes->subDevices_.size(), 0);
+}
+
+TEST_F(TestUbseNpuControllerProcess, DeviceNicPfeToResourceWithBusi)
+{
+    CollectDeviceLoc nicLoc;
+    nicLoc.slotId = 1;
+    nicLoc.chipId = 2;
+    nicLoc.pfeId = 3;
+    nicLoc.guid = "nic-guid-1234567890123456789012345";
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "busi-guid-12345678901234567890123456";
+    busiLoc.upi = "1";
+
+    auto nic = std::make_shared<CollectionDeviceNicPfe>(nicLoc);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
+    auto nicRes = std::make_shared<NicPfeResource>();
+
+    nic->SetBondingDevBusi(busi);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNicPfeToResource(nic, nicRes);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nicRes->slotId_, nicLoc.slotId);
+    EXPECT_EQ(nicRes->chipId_, nicLoc.chipId);
+    EXPECT_EQ(nicRes->pfId_, nicLoc.pfeId);
+    EXPECT_EQ(nicRes->guid_, nicLoc.guid);
+    EXPECT_EQ(nicRes->busInstanceGuid_, busiLoc.guid);
+    EXPECT_EQ(nicRes->affinityDevices_.size(), 0);
+}
+
+TEST_F(TestUbseNpuControllerProcess, DeviceNicVfeToResourceWithBusi)
+{
+    CollectDeviceLoc nicLoc;
+    nicLoc.slotId = 1;
+    nicLoc.chipId = 2;
+    nicLoc.pfeId = 3;
+    nicLoc.vfeId = 4;
+    nicLoc.guid = "nic-guid-1234567890123456789012345";
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "busi-guid-12345678901234567890123456";
+    busiLoc.upi = "1";
+
+    auto nic = std::make_shared<CollectionDeviceNicVfe>(nicLoc);
+    auto busi = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                       CollectionDeviceType::HOST_BUSINSTANCE);
+    auto nicRes = std::make_shared<NicVfeResource>();
+
+    nic->SetBondingDevBusi(busi);
+
+    UbseResult result = UbseNpuControllerProcess::DeviceNicVfeToResource(nic, nicRes);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(nicRes->slotId_, nicLoc.slotId);
+    EXPECT_EQ(nicRes->chipId_, nicLoc.chipId);
+    EXPECT_EQ(nicRes->pfId_, nicLoc.pfeId);
+    EXPECT_EQ(nicRes->vfId_, nicLoc.vfeId);
+    EXPECT_EQ(nicRes->guid_, nicLoc.guid);
+    EXPECT_EQ(nicRes->busInstanceGuid_, busiLoc.guid);
+    EXPECT_EQ(nicRes->affinityDevices_.size(), 0);
+}
+
 } // namespace ubse::npu::controller::ut
