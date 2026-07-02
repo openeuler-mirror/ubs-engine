@@ -63,7 +63,7 @@ void GetCurNodeInfo(UbseNodeInfo &info);
 
 UbseAllocator GetAllocator();
 
-uint32_t GetPodId();
+uint32_t GetGroupId();
 
 ubse::common::def::UbseResult GetClosHaTopology(ubse::election::HaTopologyInfo &topology);
 

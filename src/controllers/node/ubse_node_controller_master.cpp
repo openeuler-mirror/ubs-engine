@@ -261,7 +261,7 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
 
         auto selfNodeInfo = UbseNodeController::GetInstance().GetNodeById(selfNodeId);
         UBSE_LOG_INFO << "[CLOS_REPORT] master self state change report trigger, nodeId=" << selfNodeId
-                      << ", podId=" << selfNodeInfo.podId
+                      << ", groupId=" << selfNodeInfo.groupId
                       << ", clusterState=" << static_cast<uint32_t>(selfNodeInfo.clusterState);
 
         auto reportRet = ReportSingleNodeChangeToPrev(selfNodeId, "master self ledger");
@@ -460,7 +460,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo &n
 
     auto cachedNodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeInfoCopy.nodeId);
 
-    UBSE_LOG_INFO << "[CLOS_RECV] receive local node report, nodeId=" << nodeInfo.nodeId << ", podId=" << nodeInfo.podId
+    UBSE_LOG_INFO << "[CLOS_RECV] receive local node report, nodeId=" << nodeInfo.nodeId << ", groupId=" << nodeInfo.groupId
                   << ", currentNodeId=" << UbseNodeController::GetInstance().GetCurrentNodeId()
                   << ", role=" << static_cast<uint32_t>(GetClosRole())
                   << ", reportClusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
@@ -521,7 +521,7 @@ UbseResult UbseNodeControllerMaster::UbseCabinetReportHandler(const std::vector<
         }
 
         UBSE_LOG_INFO << "[CLOS_RECV] update node from cabinet full report, nodeId=" << nodeInfo.nodeId
-                      << ", podId=" << nodeInfo.podId
+                      << ", groupId=" << nodeInfo.groupId
                       << ", reportClusterState=" << static_cast<uint32_t>(info.clusterState)
                       << ", cachedClusterState=" << static_cast<uint32_t>(nodeInfo.clusterState);
 
@@ -552,7 +552,7 @@ UbseResult UbseNodeControllerMaster::UbseGlobalReportHandler(const std::vector<U
         }
 
         UBSE_LOG_INFO << "[CLOS_RECV] update node from global full report, nodeId=" << nodeInfo.nodeId
-                      << ", podId=" << nodeInfo.podId
+                      << ", groupId=" << nodeInfo.groupId
                       << ", reportClusterState=" << static_cast<uint32_t>(info.clusterState)
                       << ", cachedClusterState=" << static_cast<uint32_t>(nodeInfo.clusterState);
 
@@ -581,7 +581,7 @@ UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeI
 
     UBSE_LOG_INFO << "[CLOS_RECV] receive single node change, currentNodeId="
                   << UbseNodeController::GetInstance().GetCurrentNodeId() << ", role=" << static_cast<uint32_t>(role)
-                  << ", nodeId=" << nodeInfo.nodeId << ", podId=" << nodeInfo.podId
+                  << ", nodeId=" << nodeInfo.nodeId << ", groupId=" << nodeInfo.groupId
                   << ", reportClusterState=" << static_cast<uint32_t>(info.clusterState)
                   << ", cachedClusterState=" << static_cast<uint32_t>(nodeInfo.clusterState);
 
@@ -607,7 +607,7 @@ UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeI
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] pd master forward single node to global, nodeId=" << nodeInfo.nodeId
-                  << ", podId=" << nodeInfo.podId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                  << ", groupId=" << nodeInfo.groupId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
                   << ", globalNodeId=" << prevNodeId;
 
     return UbseGlobalReportSingleNode(prevNodeId, nodeInfo);
@@ -635,15 +635,15 @@ UbseResult UbseNodeControllerMaster::ProcessGlobalStateAfterReport(const std::st
         return UBSE_ERROR_NULLPTR;
     }
 
-    if (nodeInfo.podId == curNodeInfo.podId) {
+    if (nodeInfo.groupId == curNodeInfo.groupId) {
         UBSE_LOG_INFO << "[GLOBAL_STATE] node is in the same cabinet with global master, set ready directly, nodeId="
-                      << nodeId << ", podId=" << nodeInfo.podId;
+                      << nodeId << ", groupId=" << nodeInfo.groupId;
         return UbseNodeController::GetInstance().UpdateNodeInfoGlobalState(nodeId,
                                                                            UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY);
     }
 
     UBSE_LOG_INFO << "[GLOBAL_STATE] node global state init, start recovery callback, nodeId=" << nodeId
-                  << ", podId=" << nodeInfo.podId << ", globalMasterPodId=" << curNodeInfo.podId;
+                  << ", groupId=" << nodeInfo.groupId << ", globalMasterGroupId=" << curNodeInfo.groupId;
 
     auto ret = UbseNodeController::GetInstance().ExecGlobalStateNotifyHandler(nodeInfo);
     if (ret != UBSE_OK) {
@@ -688,7 +688,7 @@ UbseResult UbseNodeControllerMaster::ReportSingleNodeChangeToPrev(const std::str
     }
 
     UBSE_LOG_INFO << "[CLOS_REPORT] report single node change to prev, nodeId=" << nodeId
-                  << ", podId=" << nodeInfo.podId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                  << ", groupId=" << nodeInfo.groupId << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState)
                   << ", reason=" << reason << ", prevNodeId=" << prevNodeId << ", role=" << static_cast<uint32_t>(role);
 
     if (role == UbseClosNodeRole::PD_MASTER) {
@@ -764,7 +764,7 @@ void UbseNodeControllerMaster::UbseNodeUpHandlerExec(const std::string &nodeId)
     UbseNodeUpLedger(nodeId);
 
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
-    UBSE_LOG_INFO << "[CLOS_REPORT] node up report trigger, nodeId=" << nodeId << ", podId=" << nodeInfo.podId
+    UBSE_LOG_INFO << "[CLOS_REPORT] node up report trigger, nodeId=" << nodeId << ", groupId=" << nodeInfo.groupId
                   << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState);
 
     auto reportRet = ReportSingleNodeChangeToPrev(nodeId, "node up");
@@ -951,7 +951,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeRasAfterFaultClearHandler(const std
 
             auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(nodeId);
             UBSE_LOG_INFO << "[CLOS_REPORT] ras fault clear report trigger, nodeId=" << nodeId
-                          << ", podId=" << nodeInfo.podId
+                          << ", groupId=" << nodeInfo.groupId
                           << ", clusterState=" << static_cast<uint32_t>(nodeInfo.clusterState);
 
             auto reportRet = ReportSingleNodeChangeToPrev(nodeId, "ras fault clear");
