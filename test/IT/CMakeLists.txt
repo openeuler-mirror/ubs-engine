@@ -41,6 +41,7 @@ add_library(ubse_it_infra STATIC
     ${IT_TOOL_DIR}/mock_lcne_server.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
+    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_four_nodes_scenario.cpp
     ${IT_SCENARIOS_DIR}/zhisuan_npu_single_node_scenario.cpp
 )
 

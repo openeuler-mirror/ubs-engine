@@ -45,6 +45,13 @@ ItClusterBuilder& ItClusterBuilder::TwoNode()
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::FourNode()
+{
+    nodes_ = {NodeSpec{"1", "127.0.0.2", 8082, 1}, NodeSpec{"2", "127.0.0.3", 8083, 2},
+              NodeSpec{"3", "127.0.0.4", 8084, 3}, NodeSpec{"4", "127.0.0.5", 8085, 4}};
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::Nodes(std::vector<NodeSpec> nodes)
 {
     nodes_ = std::move(nodes);

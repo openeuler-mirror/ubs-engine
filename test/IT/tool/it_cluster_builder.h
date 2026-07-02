@@ -35,6 +35,7 @@ public:
 
     ItClusterBuilder& SingleNode();
     ItClusterBuilder& TwoNode();
+    ItClusterBuilder& FourNode();
     ItClusterBuilder& Nodes(std::vector<NodeSpec> nodes);
     ItClusterBuilder& StartupTimeoutMs(uint32_t timeoutMs);
     ItClusterBuilder& ElectionTimeoutMs(uint32_t timeoutMs);

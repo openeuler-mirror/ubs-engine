@@ -5,33 +5,33 @@
  * You may obtain a copy of Mulan PSL v2 at:
  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
- * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
 
-#include "tongsuan_1d_full_mesh_two_nodes_scenario.h"
+#include "tongsuan_1d_full_mesh_four_nodes_scenario.h"
 
 #include "it_assertion.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
 
-std::unique_ptr<ItCluster> Tongsuan1dFullMeshTwoNodesScenario::cluster_;
-std::string Tongsuan1dFullMeshTwoNodesScenario::workDir_;
+std::unique_ptr<ItCluster> Tongsuan1dFullMeshFourNodesScenario::cluster_;
+std::string Tongsuan1dFullMeshFourNodesScenario::workDir_;
 
-void Tongsuan1dFullMeshTwoNodesScenario::SetUpTestSuite()
+void Tongsuan1dFullMeshFourNodesScenario::SetUpTestSuite()
 {
-    IT_LOG_INFO << "Tongsuan1dFullmatchTwoNodeScenario: starting two-node cluster...";
-    auto ret = MakeBuilder().TwoNode().Start(cluster_);
+    IT_LOG_INFO << "Tongsuan1dFullmatchFourNodeScenario: starting four-node cluster...";
+    auto ret = MakeBuilder().FourNode().Start(cluster_);
     ASSERT_IT_OK(ret);
-    IT_LOG_INFO << "Tongsuan1dFullmatchTwoNodeScenario: cluster started";
+    IT_LOG_INFO << "Tongsuan1dFullmatchFourNodeScenario: cluster started";
 }
 
-void Tongsuan1dFullMeshTwoNodesScenario::TearDownTestSuite()
+void Tongsuan1dFullMeshFourNodesScenario::TearDownTestSuite()
 {
     if (cluster_) {
-        IT_LOG_INFO << "Tongsuan1dFullmatchTwoNodeScenario: stopping cluster...";
+        IT_LOG_INFO << "Tongsuan1dFullmatchFourNodeScenario: stopping cluster...";
         cluster_->StopCluster();
         cluster_.reset();
     }
