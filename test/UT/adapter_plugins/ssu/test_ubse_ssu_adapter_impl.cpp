@@ -565,6 +565,10 @@ TEST_F(TestUbseSsuAdapterImpl, DlOpenLib_FailWhenLibNotFound)
     impl.getNamespaceAllowHosts_ = nullptr;
     impl.freeAllowHostsMem_ = nullptr;
 
+    MOCKER_CPP(&dlopen).stubs().will(returnValue(static_cast<void *>(nullptr)));
+ 	char dlerrorMsg[] = "mock dlopen failed";
+ 	MOCKER_CPP(dlerror).stubs().will(returnValue(static_cast<char *>(dlerrorMsg)));
+
     UbseResult ret = impl.DlOpenLib();
     EXPECT_NE(ret, UBSE_OK);
 }
