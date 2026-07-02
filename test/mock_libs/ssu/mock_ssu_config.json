@@ -1,0 +1,57 @@
+{
+    "devices": [
+        {
+            "tnvmcap": 107374182400,
+            "unvmcap": 21474836480,
+            "cntlId": 1,
+            "devPath": "/dev/nvme0",
+            "sn": "MOCK_SN_1",
+            "mn": "MOCK_MN_1",
+            "eid": "00000000000000000000000000000001",
+            "subNqn": "nqn.2014-08.org.nvmexpress:uuid:00000001",
+            "state": 0,
+            "namespaces": [
+                {
+                    "namespaceId": 1,
+                    "usedBytes": 0,
+                    "devPath": "/dev/nvme0n1",
+                    "guid": "0102030405060708090a0b0c0d0e0f10",
+                    "uuid": "8182838485868788898a8b8c8d8e8f90",
+                    "userData": {
+                        "version": 1,
+                        "name": "MOCK_NS_1",
+                        "defaultNqn": "nqn.2014-08.org.nvmexpress:uuid:00000001",
+                        "uid": 1000,
+                        "userName": "testuser",
+                        "tenant": "default",
+                        "allocStrategy": 1,
+                        "raidLevel": 0,
+                        "nsNum": 1,
+                        "totalBytes": 107374182400,
+                        "crc": 0
+                    },
+                    "state": 0,
+                    "nsze": 209715200,
+                    "ncap": 209715200,
+                    "flbas": 0,
+                    "dps": 0,
+                    "anagrpid": 0,
+                    "nvmsetid": 0,
+                    "nmic": false
+                }
+            ]
+        },
+        {
+            "tnvmcap": 53687091200,
+            "unvmcap": 10737418240,
+            "cntlId": 2,
+            "devPath": "/dev/nvme1",
+            "sn": "MOCK_SN_2",
+            "mn": "MOCK_MN_2",
+            "eid": "00000000000000000000000000000002",
+            "subNqn": "nqn.2014-08.org.nvmexpress:uuid:00000002",
+            "state": 0,
+            "namespaces": []
+        }
+    ]
+}
