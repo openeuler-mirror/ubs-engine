@@ -53,7 +53,7 @@ UbseSerialization::UbseSerialization()
       mCap_(std::max(AlignTo(INIT_CAPACITY), mLen_)),
       mFlag_(true)
 {
-    mBuf_ = new (std::nothrow) base_ptr_type[mCap_];
+    mBuf_ = new (std::nothrow) base_ptr_type[mCap_]();
     if (Unlikely(mBuf_ == nullptr)) {
         mFlag_ = false;
         return;
