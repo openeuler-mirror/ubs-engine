@@ -60,6 +60,9 @@ public:
     const std::string& GetNodeId() const;
     const std::string& GetWorkDir() const;
     const std::string& GetUdsSocketPath() const;
+    const std::string& GetXalarmFifoPath() const;
+
+    UbseResult InjectAlarmEvent(unsigned short alarmId, const std::string& paras);
 
 private:
     UbseResult StopProcess(int signal);
@@ -79,6 +82,7 @@ private:
     std::string sceneType_;
     mutable pid_t childPid_;
     std::string udsSocketPath_;
+    std::string xalarmFifoPath_;
     std::unique_ptr<MockLcneServer> mockLcneServer_;
     std::string lcneUdsWorkPath_;
     bool isPrivileged_{false};

@@ -48,7 +48,10 @@ ItCluster::~ItCluster()
 UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
 {
     ItConfigBuilder configBuilder(nodeSpecs_, baseWorkDir_);
-    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps()).WithCertUse(false).GenerateAllConfigs();
+    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
+                         .WithCertUse(false)
+                         .WithMockPlugin(clusterSpec_.mockPluginEnabled)
+                         .GenerateAllConfigs();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to generate cluster configs";
         return ret;
@@ -139,7 +142,10 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
 UbseResult ItCluster::StartClusterNoElection()
 {
     ItConfigBuilder configBuilder(nodeSpecs_, baseWorkDir_);
-    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps()).WithCertUse(false).GenerateAllConfigs();
+    UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
+                         .WithCertUse(false)
+                         .WithMockPlugin(clusterSpec_.mockPluginEnabled)
+                         .GenerateAllConfigs();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to generate cluster configs";
         return ret;
@@ -424,6 +430,16 @@ UbseResult ItCluster::GetMasterNodeId(std::string& masterNodeId)
 const std::vector<std::string>& ItCluster::GetNodeIds() const
 {
     return nodeIds_;
+}
+
+UbseResult ItCluster::InjectAlarmEvent(const std::string& nodeId, unsigned short alarmId, const std::string& paras)
+{
+    auto it = nodes_.find(nodeId);
+    if (it == nodes_.end()) {
+        IT_LOG_ERROR << "Node not found for alarm injection: " << nodeId;
+        return UBSE_ERROR_DEF(1);
+    }
+    return it->second->InjectAlarmEvent(alarmId, paras);
 }
 
 } // namespace ubse::it::infra

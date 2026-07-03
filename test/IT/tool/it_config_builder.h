@@ -14,6 +14,7 @@
 #define IT_CONFIG_BUILDER_H
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <string>
 #include <vector>
@@ -57,6 +58,9 @@ public:
     /** @brief Add an arbitrary key=value override in a specific section. */
     ItConfigBuilder& WithOverride(const std::string& section, const std::string& key, const std::string& value);
 
+    /** @brief Enable or disable mock plugin config overlay. Defaults to true. */
+    ItConfigBuilder& WithMockPlugin(bool enable);
+
     /** @brief Generate config files for all nodes. Returns UBSE_OK on success. */
     UbseResult GenerateAllConfigs(const std::string& templatePath = "");
 
@@ -68,11 +72,13 @@ private:
     std::string ApplyOverrides(const std::string& configContent);
     void ReplaceOrInsertConfigLine(std::string& content, const std::string& key, const std::string& newLine,
                                    const std::string& section);
+    void CopyAuxiliaryConfigs(const std::filesystem::path& srcConfDir, const std::string& outputDir);
 
     std::vector<NodeSpec> nodeSpecs_;
     std::string baseWorkDir_;
     std::vector<std::string> clusterIps_;
     bool certUse_ = false;
+    bool mockPluginEnabled_ = true;
     std::map<std::string, std::map<std::string, std::string>> overrides_;
 };
 

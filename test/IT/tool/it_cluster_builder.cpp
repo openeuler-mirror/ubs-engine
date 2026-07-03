@@ -76,6 +76,12 @@ ItClusterBuilder& ItClusterBuilder::SceneType(const std::string& sceneType)
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::NoMockPlugin()
+{
+    mockPluginEnabled_ = false;
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -105,6 +111,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     auto spec = ClusterSpec::FromRuntimePaths(binaryPath_.string(), baseWorkDir_, nodes_, stubLibDir_.string());
     spec.startupTimeoutMs = startupTimeoutMs_;
     spec.sceneType = sceneType_;
+    spec.mockPluginEnabled = mockPluginEnabled_;
     spec.Normalize();
     return spec;
 }

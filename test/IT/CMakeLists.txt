@@ -39,6 +39,7 @@ add_library(ubse_it_infra STATIC
     ${IT_TOOL_DIR}/it_config_builder.cpp
     ${IT_TOOL_DIR}/it_wait_helper.cpp
     ${IT_TOOL_DIR}/mock_lcne_server.cpp
+    ${IT_TOOL_DIR}/it_xalarm_helper.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
     ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_four_nodes_scenario.cpp
@@ -144,6 +145,7 @@ add_dependencies(ubse_it_runtime
     obmm_stub
     urma_uvs_stub
     xalarm_stub
+    mock_plugin
 )
 
 set(UBSE_IT_MODULES
@@ -151,6 +153,7 @@ set(UBSE_IT_MODULES
     election
     mem_borrow
     npu
+    fault
 )
 
 set(UBSE_IT_NON_MODULE_DIRS

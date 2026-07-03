@@ -23,7 +23,7 @@ std::string ZhisuanNpuSingleNodeScenario::workDir_;
 void ZhisuanNpuSingleNodeScenario::SetUpTestSuite()
 {
     IT_LOG_INFO << "ZhisuanNpuSingleNodeScenario: starting single-node AI cluster...";
-    auto ret = MakeBuilder().SingleNode().SceneType("ai").StartNoElection(cluster_);
+    auto ret = MakeBuilder().SingleNode().SceneType("ai").NoMockPlugin().StartNoElection(cluster_);
     ASSERT_IT_OK(ret);
     IT_LOG_INFO << "ZhisuanNpuSingleNodeScenario: cluster started";
 }

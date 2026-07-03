@@ -29,6 +29,7 @@
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "it_console_log.h"
+#include "it_xalarm_helper.h"
 
 extern char** environ;
 
@@ -47,7 +48,8 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
       stubLibDir_(std::move(config.stubLibDir)),
       sceneType_(std::move(config.sceneType)),
       childPid_(-1),
-      udsSocketPath_(workDir_ + "/run/ubse.sock")
+      udsSocketPath_(workDir_ + "/run/ubse.sock"),
+      xalarmFifoPath_(workDir_ + "/run/xalarm_fifo")
 {
 }
 
@@ -88,6 +90,7 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     if (!sceneType_.empty()) {
         environment.emplace_back("SCENE_TYPE=" + sceneType_);
     }
+    environment.emplace_back("UBSE_IT_XALARM_FIFO_PATH=" + xalarmFifoPath_);
     return environment;
 }
 
@@ -102,6 +105,11 @@ UbseResult NodeProcessManager::Start()
     std::filesystem::create_directories(workDir_ + "/run");
     std::filesystem::create_directories(workDir_ + "/log");
     std::filesystem::create_directories(workDir_ + "/hcom");
+
+    /* Create xalarm FIFO (idempotent, already done by stub if daemon started first) */
+    if (mkfifo(xalarmFifoPath_.c_str(), 0666) != 0 && errno != EEXIST) {
+        IT_LOG_WARN << "Failed to create xalarm FIFO at " << xalarmFifoPath_ << ": " << strerror(errno);
+    }
 
     isPrivileged_ = (geteuid() == 0);
 
@@ -153,6 +161,9 @@ void NodeProcessManager::StopAuxiliaryServices()
     if (mockLcneServer_) {
         mockLcneServer_->Stop();
         mockLcneServer_.reset();
+    }
+    if (!xalarmFifoPath_.empty()) {
+        unlink(xalarmFifoPath_.c_str());
     }
     CleanupSymlinks();
 }
@@ -327,6 +338,16 @@ const std::string& NodeProcessManager::GetWorkDir() const
 const std::string& NodeProcessManager::GetUdsSocketPath() const
 {
     return udsSocketPath_;
+}
+
+const std::string& NodeProcessManager::GetXalarmFifoPath() const
+{
+    return xalarmFifoPath_;
+}
+
+UbseResult NodeProcessManager::InjectAlarmEvent(unsigned short alarmId, const std::string& paras)
+{
+    return ItXalarmHelper::InjectEvent(xalarmFifoPath_, alarmId, paras);
 }
 
 } // namespace ubse::it::infra
