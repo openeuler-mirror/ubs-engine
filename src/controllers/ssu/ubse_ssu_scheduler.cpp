@@ -38,23 +38,25 @@ UbseSsuAllocationResult MakeError(UbseSsuAllocRetCode code, const std::string &m
 UbseSsuAllocationResult AllocateStriped(const std::vector<UbseSsuFilterDev> &filterDevs,
                                         const UbseSsuAllocRequest &request)
 {
-    // 条带大小
-    uint64_t stripeSize = static_cast<uint64_t>(request.chunkSize) * request.nsNum;
-    if (request.nsNum == 0 || stripeSize == 0) {
-        UBSE_LOG_ERROR << "chunkSize is zero or stripeSize is zero or nsNum is zero";
+    if (request.nsNum == 0 || request.allocSize % request.nsNum != 0) {
+        UBSE_LOG_ERROR << "nsNum is zero or allocSize is not divisible by nsNum";
         return MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
-                         "Allocation Failed: chunkSize is zero or stripeSize is zero or nsNum is zero");
+                         "Allocation Failed: nsNum is zero or allocSize is not divisible by nsNum");
     }
-    // 分配总大小需要为条带倍数，向上对齐
-    uint64_t alignedReqAllocSize = ((request.allocSize + stripeSize - 1) / stripeSize) * stripeSize;
-    uint64_t alignedNsSize = alignedReqAllocSize / request.nsNum;
+    // 条带化分配的request输入需要保证满足两个条件：
+    // 1. allocSize是nsNum的整数倍
+    // 2. 整除结果singleNsSize是UbseSsuChunkSize的倍数（同时满足了sectorSize的倍数要求）
+    // scheduler仅校验allocSize可被nsNum整除（见PreCheckHandler）。
+    // singleNsSize需为chunkSize及sectorSize整数倍的对齐保证由上层调用方（service层）负责
+    uint64_t singleNsSize = request.allocSize / request.nsNum;
+    
     // 前nsNum个设备中剩余空间最小的设备是否足够存储每个ns
     uint64_t minFreeInGroup = filterDevs[request.nsNum - 1].freeBytes;
-    if (alignedNsSize > minFreeInGroup) {
-        UBSE_LOG_ERROR << "each NS requires " << alignedNsSize
+    if (singleNsSize > minFreeInGroup) {
+        UBSE_LOG_ERROR << "each NS requires " << singleNsSize
                        << " bytes but minimum free device only has " << minFreeInGroup << " bytes";
         return MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
-                         "Allocation Failed: each NS requires " + std::to_string(alignedNsSize) +
+                         "Allocation Failed: each NS requires " + std::to_string(singleNsSize) +
                          " bytes but minimum free device only has " + std::to_string(minFreeInGroup) + " bytes");
     }
 
@@ -64,7 +66,7 @@ UbseSsuAllocationResult AllocateStriped(const std::vector<UbseSsuFilterDev> &fil
                                    filterDevs[0].sectorBytes,
                                    {}};
     for (uint32_t i = 0; i < request.nsNum; ++i) {
-        res.eidNsSizeList.push_back({filterDevs[i].eid, alignedNsSize});
+        res.eidNsSizeList.push_back({filterDevs[i].eid, singleNsSize});
     }
     UBSE_LOG_INFO << "Striped Allocation Result: " << res.msg;
     return res;
@@ -187,15 +189,20 @@ std::vector<UbseSsuFilterDev> PreprocessDevices(const std::vector<UbseSsuDevInfo
         uint64_t freeBytes = (dev.totalBytes > dev.usedBytes) ? (dev.totalBytes - dev.usedBytes) : 0;
         uint64_t sectorSize = request.lbaSize == 0 ? DEFAULT_SECTOR_SIZE : request.lbaSize;
         uint32_t nsCount = static_cast<uint32_t>(dev.nameSpaces.size());
-        filterDevs.push_back({dev.subSystem.eid, freeBytes, sectorSize, nsCount});
+        std::string tenant;
+        if (!dev.nameSpaces.empty()) {
+            tenant =
+                std::string(dev.nameSpaces[0].customData.tenant,
+                            strnlen(dev.nameSpaces[0].customData.tenant, sizeof(dev.nameSpaces[0].customData.tenant)));
+        }
+        filterDevs.push_back({dev.subSystem.eid, freeBytes, sectorSize, nsCount, tenant});
     }
 
     // 针对条带化增加容量初筛策略，过滤掉不足容纳条带化Namespace分配的设备
     if (request.addressingType == UbseSsuAddressingType::STRIPED) {
-        // 条带大小
-        uint64_t stripeSize = static_cast<uint64_t>(request.chunkSize) * request.nsNum;
-        uint64_t alignedReqAllocSize = ((request.allocSize + stripeSize - 1) / stripeSize) * stripeSize;
-        uint64_t targetPerNs = alignedReqAllocSize / request.nsNum;
+        // STRIPED条带化分配时，request输入需要保证满足allocSize是nsNum的倍数
+        // 此处默认已经校验通过
+        uint64_t targetPerNs = request.allocSize / request.nsNum;
         // 过滤空间不够单Namespace分配的设备
         filterDevs.erase(std::remove_if(filterDevs.begin(), filterDevs.end(),
                                         [targetPerNs](const UbseSsuFilterDev &dev) {
@@ -224,6 +231,15 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
         return false;
     }
 
+    // VALIDATE - 检查条带化分配时，allocSize是否是nsNum的倍数
+    if (ctx.request.addressingType == UbseSsuAddressingType::STRIPED &&
+        ctx.request.allocSize % ctx.request.nsNum != 0) {
+        UBSE_LOG_ERROR << "allocSize is not divisible by nsNum in STRIPED addressing type";
+        ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                               "Allocation Failed: allocSize is not divisible by nsNum in STRIPED addressing type");
+        return false;
+    }
+
     // PREPROCESS - 设备信息预过滤，过滤掉不满足条件的设备，并按剩余空间降序、nsCount升序排序
     ctx.selectedDevs = PreprocessDevices(ctx.devices, ctx.request);
     if (ctx.selectedDevs.empty()) {
@@ -239,6 +255,29 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
         ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
                                "Allocation Failed: only " + std::to_string(ctx.selectedDevs.size()) +
                                " devices available, but " + std::to_string(ctx.request.nsNum) + " required");
+        return false;
+    }
+    return true;
+}
+
+bool UbseSsuTenantIsolationFilter::Handle(UbseSsuAllocationContext &ctx)
+{
+    const auto &requestTenant = ctx.request.tenant;
+    // 过滤掉tenant不匹配的设备，device.tenant为空时保留（即，该设备未被tenant隔离）
+    // requestTenant为空时，所有device.tenant非空的设备均会被过滤掉，确保无租户请求不会占用已被租户隔离的设备
+    auto it = std::remove_if(ctx.selectedDevs.begin(), ctx.selectedDevs.end(),
+        [&requestTenant](const UbseSsuFilterDev &dev) {
+            return !dev.tenant.empty() && dev.tenant != requestTenant;
+        });
+    ctx.selectedDevs.erase(it, ctx.selectedDevs.end());
+
+    // 检查过滤后的设备数量，是否足够用于指定的nsNum数量,每个设备只分配一个namespace
+    if (ctx.selectedDevs.size() < ctx.request.nsNum) {
+        UBSE_LOG_ERROR << "Tenant isolation: only " << ctx.selectedDevs.size()
+                       << " devices match tenant=" << requestTenant
+                       << ", but " << ctx.request.nsNum << " required";
+        ctx.result = MakeError(UbseSsuAllocRetCode::INSUFFICIENT_SPACE,
+                               "Tenant isolation: insufficient devices matching tenant=" + requestTenant);
         return false;
     }
     return true;
@@ -273,6 +312,8 @@ UbseSsuScheduler::UbseSsuScheduler()
 {
     chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::PRE_CHECK),
                      std::make_shared<PreCheckHandler>());
+    chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::PRE_CHECK),
+                     std::make_shared<UbseSsuTenantIsolationFilter>());
     chain_.AddFilter(static_cast<uint32_t>(UbseSsuFilterGroupId::ALGORITHM),
                      std::make_shared<UbseSsuAllocateAlgorithmHandler>());
 }
