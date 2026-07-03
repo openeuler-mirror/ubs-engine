@@ -21,7 +21,8 @@
 
 namespace ubse::ssu::service {
 
-// ReservationMgr 用于管理设备的预扣除和预释放容量，因为collector更新有时间间隔
+// ReservationMgr 用于管理设备的预扣除和预释放容量
+// 由于collector更新有时间间隔（30s），用于计算更新间隔内的设备可用容量计算
 class UbseSsuReservationMgr {
 public:
     UbseSsuReservationMgr() = default;
@@ -45,9 +46,9 @@ public:
     void Clear();
 
 private:
-    // 记录eid对应的预扣除字节数
+    // 记录eid对应设备的预扣除字节数
     std::unordered_map<std::string, uint64_t> reservedBytes_;
-    // 记录eid对应的预释放字节数
+    // 记录eid对应设备的预释放字节数
     std::unordered_map<std::string, uint64_t> releasedBytes_;
     mutable std::mutex mtx_;
 };

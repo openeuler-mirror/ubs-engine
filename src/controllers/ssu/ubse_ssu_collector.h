@@ -44,7 +44,7 @@ public:
     std::vector<UbseSsuDevInfo> GetCachedDevList();
     // 获取缓存的设备map
     std::unordered_map<std::string, UbseSsuDevInfoPtr> GetCachedDevMap();
-    // 原子读取设备列表并叠加预留调整量，避免读取cachedDevMap_和reservationMgr_之间的并发不一致
+    // 读取设备列表并叠加预留调整量，避免读取cachedDevMap_和reservationMgr_之间的并发不一致
     std::vector<UbseSsuDevInfo> GetDevListWithReservations();
 
     // 添加预扣除容量
@@ -54,22 +54,25 @@ public:
     // 释放预扣除容量，用于创建ns失败时回滚
     void ReleaseReservation(const std::vector<std::pair<std::string, uint64_t>> &eidBytesList);
 
-    // 标记预留操作开始/结束，CollectDeviceList 仅在无进行中的操作(创建ns)时清空预留
-    // 防止定时器在 ExecuteAlloc (AddReserveSpace ~ CreateDevNameSpaces 之间) 误清预留导致超分
+    // 标记预留操作开始/结束，CollectDeviceList 仅在无进行中的操作(创建ns/删除ns)时清空预留
+    // 防止误清预留导致超分/不足分
+    // OnReserveBegin和OnReserveEnd必须成对调用
     void OnReserveBegin();
     void OnReserveEnd();
 
 private:
     // 收集设备列表并更新缓存，作为定时任务
     uint32_t CollectDeviceList();
-    
+    // 定时器是否已启动
+    std::atomic<bool> timerStarted_{false};
     // 缓存的设备列表，用于快速查找设备信息
     std::unordered_map<std::string, UbseSsuDevInfoPtr> cachedDevMap_;
-    // 设备列表读写锁，保护并发读取
-    mutable std::shared_mutex devListCacheMtx_;
     // 设备预留管理器，用于记录预扣除及预释放容量
     UbseSsuReservationMgr reservationMgr_;
-    // 正在进行中的操作数量，用于判断是否清空预留
+    
+    // 设备列表读写锁，保护并发读取
+    mutable std::shared_mutex devListCacheMtx_;
+    // 进行中的操作数量，用于判断是否清空预留
     std::atomic<int32_t> pendingOps_{0};
 };
 
