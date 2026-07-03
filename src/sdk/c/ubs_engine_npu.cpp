@@ -31,6 +31,9 @@ constexpr size_t GUID_SIZE = MACRO_UBSE_UB_DEVICE_GUID_SIZE;
 
 int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
 {
+    if (device_list == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
     ubse_api_buffer_t requestBuffer = {nullptr, 0};
     ubse_api_buffer_t responseBuffer = {nullptr, 0};
 
@@ -62,6 +65,9 @@ int32_t ubs_npu_device_list_query(ubs_ub_devices_list_t* device_list)
 int32_t ubs_npu_device_alloc(ubs_ub_alloc_devices_info_t* alloc_info, uint8_t* new_bus_instance_guid,
                              ubs_ub_devices_list_t* device_list)
 {
+    if (new_bus_instance_guid == nullptr || device_list == nullptr) {
+        return UBS_ERR_NULL_POINTER;
+    }
     ubs_error_t ret = UbseNpuAllocInfoIsValid(alloc_info);
     if (ret != UBS_SUCCESS) {
         return static_cast<int32_t>(ret);
