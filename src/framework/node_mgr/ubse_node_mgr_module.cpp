@@ -14,6 +14,7 @@
 
 #include "conf_mode/ubse_node_discovery_config_mode.h"
 #include "root_mode/ubse_node_discovery_common.h"
+#include "root_mode/ubse_node_discovery_root.h"
 #include "static_mode/ubse_node_discovery_static_mode.h"
 #include "ubse_error.h"
 #include "ubse_node_static_info_mgr.h"
@@ -35,9 +36,13 @@ UbseResult UbseNodeMgrModule::Start()
         case NodeDiscoveryMode::TCP_CONFIG_CLOS_MODE:
         case NodeDiscoveryMode::TCP_CONFIG_FULL_MESH_MODE:
             return UbseNodeDiscoveryConfigMode::GetInstance().Init();
-        case NodeDiscoveryMode::TCP_ROOT_MODE:
-            // todo: support root
-            return UBSE_OK;
+        case NodeDiscoveryMode::TCP_ROOT_MODE: {
+            auto ret = UbseNodeDiscoveryCommon::GetInstance().Init();
+            if (ret != UBSE_OK) {
+                return ret;
+            }
+            return UbseNodeDiscoveryRoot::GetInstance().Init();
+        }
         case NodeDiscoveryMode::URMA_CLOS_MODE:
         case NodeDiscoveryMode::URMA_FULL_MESH_MODE:
             return UbseNodeDiscoveryStaticMode::GetInstance().Init();
@@ -48,7 +53,11 @@ UbseResult UbseNodeMgrModule::Start()
 
 void UbseNodeMgrModule::Stop()
 {
-    // Do Nothing
+    NodeDiscoveryMode mode = UbseNodeStaticInfoMgr::GetInstance().GetNodeDiscoveryMode();
+    if (mode == NodeDiscoveryMode::TCP_ROOT_MODE) {
+        UbseNodeDiscoveryRoot::Destroy();
+        UbseNodeDiscoveryCommon::Destroy();
+    }
 }
 
 void UbseNodeMgrModule::UnInitialize()

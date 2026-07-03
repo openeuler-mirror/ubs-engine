@@ -20,8 +20,7 @@
 
 #include "ubse_com_base.h"
 #include "ubse_com_module.h"
-#include "ubse_def.h"
-#include "ubse_error.h"
+#include "ubse_common_def.h"
 #include "ubse_thread_pool.h"
 #include "ubse_node_mgr_def.h"
 
@@ -33,6 +32,7 @@ class UbseNodeDiscoveryCommon {
 public:
     static UbseNodeDiscoveryCommon &GetInstance()
     {
+        std::lock_guard lock(instanceMutex_);
         if (instance_ == nullptr) {
             instance_ = new UbseNodeDiscoveryCommon();
         }
@@ -41,6 +41,7 @@ public:
 
     static void Destroy()
     {
+        std::lock_guard lock(instanceMutex_);
         if (instance_ != nullptr) {
             instance_->UnInit();
             delete instance_;
@@ -90,6 +91,7 @@ private:
     std::string GetConnectedNonDefaultRoot();
 
     static UbseNodeDiscoveryCommon *instance_;
+    static std::mutex instanceMutex_;
     std::string defaultRoot_{};
     std::string connectedNonDefaultRoot_{};
     UbseTaskExecutorPtr taskExecutor_{};
@@ -111,35 +113,6 @@ public:
     uint16_t GetOpCode() override;
 
     uint16_t GetModuleCode() override;
-};
-
-class NodeDiscoveryLockGuard {
-public:
-    explicit NodeDiscoveryLockGuard(const std::string &key);
-    ~NodeDiscoveryLockGuard();
-    NodeDiscoveryLockGuard(const NodeDiscoveryLockGuard &) = delete;
-    NodeDiscoveryLockGuard &operator=(const NodeDiscoveryLockGuard &) = delete;
-    NodeDiscoveryLockGuard(NodeDiscoveryLockGuard &&) = delete;
-    NodeDiscoveryLockGuard &operator=(NodeDiscoveryLockGuard &&) = delete;
-
-private:
-    static std::shared_ptr<std::shared_mutex> GetLock(const std::string &key);
-
-    static std::mutex mutex_;
-    static std::unordered_map<std::string, std::shared_ptr<std::shared_mutex>> locks_;
-
-    std::shared_ptr<std::shared_mutex> lock_;
-};
-
-struct NodeState {
-    std::string nodeId;
-    uint32_t ubseLinkState;
-    std::string channelType;
-};
-
-class NodeDiscoveryParseEvent {
-public:
-    static std::vector<NodeState> ParseNodeStateEventMessage(const std::string &eventMessage);
 };
 } // namespace ubse::nodeMgr
 
