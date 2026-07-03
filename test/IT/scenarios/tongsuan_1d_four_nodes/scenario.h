@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,14 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
+#include "it_scenario_fixture.h"
 
-#include "it_assertion.h"
-#include "tongsuan_1d_full_mesh_single_node_scenario.h"
-
-using ubse::it::infra::Tongsuan1dFullMeshSingleNodeScenario;
-
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, SingleNodeStartupAndSurvive)
-{
-    EXPECT_TRUE(Cluster().IsNodeRunning("1"));
-}
+// 通算1D四节点全互联场景：启动四节点集群，验证1主+1备+2代理的选举拓扑及故障注入
+IT_DEFINE_SCENARIO(Tongsuan1dFullMeshFourNodesScenario, MakeBuilder().FourNode().Start(cluster_))

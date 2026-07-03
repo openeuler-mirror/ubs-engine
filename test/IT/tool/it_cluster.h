@@ -149,6 +149,14 @@ public:
     const std::vector<std::string>& GetNodeIds() const;
 
     /**
+     * @brief Get the base work directory used by this cluster.
+     *
+     * The base work directory is the root under which per-node work directories
+     * are created. Useful for cleanup after cluster teardown.
+     */
+    const std::string& GetBaseWorkDir() const;
+
+    /**
      * @brief Inject an alarm event to a specific node's xalarm FIFO.
      *
      * The event flows through the real syssentry SentryEventListen → RAS handler chain.

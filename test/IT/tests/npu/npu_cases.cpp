@@ -10,18 +10,22 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "npu_cases.h"
+
 #include <cstring>
+
+#include <gtest/gtest.h>
 
 #include "it_assertion.h"
 #include "it_console_log.h"
 #include "ubs_engine_npu.h"
-#include "zhisuan_npu_single_node_scenario.h"
 
-using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
+namespace ubse::it::tests::npu {
 
-TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
+// NPU设备列表查询测试：查询设备列表并验证NPU/NIC_PFE设备属性
+void RunDeviceListQueryTest(ubse::it::infra::ItCluster& cluster)
 {
-    auto& client = Cluster().GetSdkClient("1");
+    auto& client = cluster.GetSdkClient("1");
     ubs_ub_devices_list_t devList = {};
     int32_t sdkRet = client.NpuDeviceListQuery(&devList);
     IT_LOG_INFO << "NpuDeviceListQuery returned: " << sdkRet;
@@ -53,9 +57,10 @@ TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
     client.NpuDeviceListFree(&devList);
 }
 
-TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
+// NPU设备分配+释放生命周期测试：分配NPU+NIC_PFE → 验证属性 → 释放设备
+void RunDeviceAllocFreeLifecycleTest(ubse::it::infra::ItCluster& cluster)
 {
-    auto& client = Cluster().GetSdkClient("1");
+    auto& client = cluster.GetSdkClient("1");
 
     ubs_ub_alloc_devices_info_t allocInfo = {};
     uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'6', '4', '\0', '\0'};
@@ -126,9 +131,10 @@ TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
     client.NpuDeviceListFree(&allocDevList);
 }
 
-TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
+// UBA/TID/Size查询测试：先分配设备，再查询UBA地址、TID和Size
+void RunUbaTidSizeQueryTest(ubse::it::infra::ItCluster& cluster)
 {
-    auto& client = Cluster().GetSdkClient("1");
+    auto& client = cluster.GetSdkClient("1");
 
     ubs_ub_alloc_devices_info_t allocInfo = {};
     uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'6', '4', '\0', '\0'};
@@ -186,3 +192,5 @@ TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
 
     client.NpuDeviceListFree(&allocDevList);
 }
+
+} // namespace ubse::it::tests::npu

@@ -40,10 +40,6 @@ add_library(ubse_it_infra STATIC
     ${IT_TOOL_DIR}/it_wait_helper.cpp
     ${IT_TOOL_DIR}/mock_lcne_server.cpp
     ${IT_TOOL_DIR}/it_xalarm_helper.cpp
-    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_single_node_scenario.cpp
-    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_two_nodes_scenario.cpp
-    ${IT_SCENARIOS_DIR}/tongsuan_1d_full_mesh_four_nodes_scenario.cpp
-    ${IT_SCENARIOS_DIR}/zhisuan_npu_single_node_scenario.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
@@ -53,7 +49,6 @@ target_compile_options(ubse_it_node_launcher PRIVATE ${DEBUG_FLAGS})
 
 target_include_directories(ubse_it_infra PUBLIC
     ${IT_TOOL_DIR}
-    ${IT_SCENARIOS_DIR}
     ${CMAKE_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/src/include
     ${PROJECT_SOURCE_DIR}/src/framework/ha
@@ -148,53 +143,57 @@ add_dependencies(ubse_it_runtime
     mock_plugin
 )
 
-set(UBSE_IT_MODULES
-    smoke
-    election
-    mem_borrow
-    npu
-    fault
-)
+# =====================================================
+# Shared test logic (cases modules) — compiled as static libraries
+# =====================================================
+add_subdirectory(${IT_TESTS_DIR} ${CMAKE_BINARY_DIR}/test/IT/cases)
 
+# =====================================================
+# Scene-driven IT tests — one binary per scene
+# =====================================================
 set(UBSE_IT_NON_MODULE_DIRS
+    tool
     scenarios
     stubs
     tests
-    tool
 )
 
-# Validate that all directories with CMakeLists.txt are either registered modules or explicitly excluded
 file(GLOB UBSE_IT_CHILDREN LIST_DIRECTORIES true RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
 foreach(child IN LISTS UBSE_IT_CHILDREN)
     if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${child}" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${child}/CMakeLists.txt")
-        list(FIND UBSE_IT_MODULES "${child}" registered_module_index)
         list(FIND UBSE_IT_NON_MODULE_DIRS "${child}" non_module_index)
-        if(registered_module_index EQUAL -1 AND non_module_index EQUAL -1)
-            message(FATAL_ERROR "IT module directory '${child}' has CMakeLists.txt but is not listed in UBSE_IT_MODULES")
+        if(non_module_index EQUAL -1)
+            message(FATAL_ERROR "Unexpected directory with CMakeLists.txt: '${child}' — add to UBSE_IT_NON_MODULE_DIRS if intentional")
         endif()
     endif()
 endforeach()
 
-# Add IT test modules from tests/ subdirectory
-foreach(module IN LISTS UBSE_IT_MODULES)
-    if(NOT EXISTS "${IT_TESTS_DIR}/${module}/CMakeLists.txt")
-        message(FATAL_ERROR "Registered IT module '${module}' does not have CMakeLists.txt in ${IT_TESTS_DIR}/${module}")
+set(UBSE_IT_SCENARIOS
+    tongsuan_1d_single_node
+    tongsuan_1d_two_nodes
+    tongsuan_1d_four_nodes
+    zhisuan_npu_single_node
+)
+
+foreach(scene IN LISTS UBSE_IT_SCENARIOS)
+    if(NOT EXISTS "${IT_SCENARIOS_DIR}/${scene}/CMakeLists.txt")
+        message(FATAL_ERROR "Registered IT scene '${scene}' does not have CMakeLists.txt in ${IT_SCENARIOS_DIR}/${scene}")
     endif()
-    add_subdirectory(${IT_TESTS_DIR}/${module} ${CMAKE_BINARY_DIR}/test/IT/${module})
+    add_subdirectory(${IT_SCENARIOS_DIR}/${scene} ${CMAKE_BINARY_DIR}/test/IT/scene_${scene})
 endforeach()
 
-get_property(IT_TEST_TARGETS GLOBAL PROPERTY UBSE_IT_TARGETS)
-get_property(IT_BINARIES GLOBAL PROPERTY UBSE_IT_BINARIES)
+get_property(IT_SCENE_BINARIES GLOBAL PROPERTY UBSE_IT_SCENE_BINARIES)
 
-# Aggregate target `it`: builds all IT binaries then runs all IT tests via ctest.
-# Individual <module>_it targets remain available for single-module runs.
+# Aggregate target `it`: builds all scene binaries then runs all IT tests.
+# Usage: bash build.sh it
+# Single scene: bash build.sh single_node_it
 if(SKIP_RUN_TESTS)
-    set(IT_RUN_ALL_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT tests, only build registered IT binaries")
+    set(IT_RUN_ALL_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT tests, only build scene binaries")
 else()
     set(IT_RUN_ALL_COMMAND
         ${CMAKE_CTEST_COMMAND}
         --test-dir ${CMAKE_BINARY_DIR}/test
-        -L "^it_.*"
+        -L "^it_scene_.*"
         --output-on-failure
         --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
         --no-tests=error
@@ -202,11 +201,11 @@ else()
 endif()
 add_custom_target(it
     COMMAND ${IT_RUN_ALL_COMMAND}
-    COMMENT "Run all IT tests via ctest (labels matching 'it_.*')"
+    COMMENT "Run all scene-driven IT tests (bash build.sh it)"
 )
 
-if(IT_BINARIES)
-    add_dependencies(it ${IT_BINARIES})
+if(IT_SCENE_BINARIES)
+    add_dependencies(it ${IT_SCENE_BINARIES})
 else()
-    message(WARNING "No IT test binaries registered.")
+    message(WARNING "No IT scene binaries registered.")
 endif()

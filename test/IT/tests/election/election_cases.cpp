@@ -10,34 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
+#include "election_cases.h"
 
-#include <algorithm>
-#include <string>
+#include <gtest/gtest.h>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
-#include "tongsuan_1d_full_mesh_four_nodes_scenario.h"
-#include "tongsuan_1d_full_mesh_single_node_scenario.h"
-#include "tongsuan_1d_full_mesh_two_nodes_scenario.h"
 
-using ubse::it::infra::ItCluster;
-using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
-using ubse::it::infra::Tongsuan1dFullMeshSingleNodeScenario;
-using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
+namespace ubse::it::tests::election {
 
-namespace {
-
-struct ElectionRoles {
-    uint32_t masterCount{0};
-    uint32_t standbyCount{0};
-    uint32_t agentCount{0};
-    std::string masterNodeId;
-    std::string standbyNodeId;
-    std::vector<std::string> agentNodeIds;
-};
-
-ElectionRoles CollectElectionRoles(ItCluster& cluster)
+// 遍历集群所有节点，统计各选举角色的数量
+ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster)
 {
     ElectionRoles roles;
     for (const auto& nodeId : cluster.GetNodeIds()) {
@@ -61,29 +44,33 @@ ElectionRoles CollectElectionRoles(ItCluster& cluster)
     return roles;
 }
 
-} // namespace
-
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, SingleNodeElectionConvergence)
+// 单节点选举测试：验证节点"1"成为主节点
+void RunSingleNodeElectionTest(ubse::it::infra::ItCluster& cluster)
 {
+    // 验证主节点ID为"1"
     std::string masterNodeId;
-    auto ret = Cluster().GetMasterNodeId(masterNodeId);
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
     EXPECT_EQ(masterNodeId, "1");
 
-    auto& sdkClient = Cluster().GetSdkClient("1");
+    // 验证节点"1"的角色为MASTER
+    auto& sdkClient = cluster.GetSdkClient("1");
     std::string role;
     int32_t sdkRet = sdkClient.GetRole(role);
     EXPECT_EQ(sdkRet, UBS_SUCCESS);
     EXPECT_EQ(role, ubse::election::ELECTION_ROLE_MASTER);
 }
 
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeElectionChoosesSingleMasterAndStandby)
+// 双节点选举测试：验证集群收敛为1主+1备
+void RunTwoNodeElectionTest(ubse::it::infra::ItCluster& cluster)
 {
+    // 获取主节点ID
     std::string masterNodeId;
-    auto ret = Cluster().GetMasterNodeId(masterNodeId);
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
 
-    auto roles = CollectElectionRoles(Cluster());
+    // 统计选举角色：期望1主+1备
+    auto roles = CollectElectionRoles(cluster);
     EXPECT_EQ(roles.masterCount, 1U);
     EXPECT_EQ(roles.standbyCount, 1U);
     EXPECT_EQ(roles.masterNodeId, "1");
@@ -91,16 +78,21 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeElectionChoosesSingleMasterAnd
     EXPECT_EQ(masterNodeId, roles.masterNodeId);
 }
 
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, FourNodeElectionChoosesMasterStandbyAndTwoAgents)
+// 四节点选举测试：验证集群收敛为1主+1备+2代理
+void RunFourNodeElectionTest(ubse::it::infra::ItCluster& cluster)
 {
+    // 获取主节点ID
     std::string masterNodeId;
-    auto ret = Cluster().GetMasterNodeId(masterNodeId);
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
 
-    auto roles = CollectElectionRoles(Cluster());
+    // 统计选举角色：期望1主+1备+2代理
+    auto roles = CollectElectionRoles(cluster);
     EXPECT_EQ(roles.masterCount, 1U);
     EXPECT_EQ(roles.standbyCount, 1U);
     EXPECT_EQ(roles.agentCount, 2U);
     EXPECT_EQ(roles.agentNodeIds.size(), 2U);
     EXPECT_EQ(masterNodeId, roles.masterNodeId);
 }
+
+} // namespace ubse::it::tests::election

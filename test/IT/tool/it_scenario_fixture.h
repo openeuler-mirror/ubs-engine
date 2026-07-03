@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "gtest/gtest.h"
+#include "it_assertion.h"
 #include "it_cluster_builder.h"
 #include "it_console_log.h"
 
@@ -81,6 +82,61 @@ protected:
         }
     }
 };
+
+/**
+ * @brief Macro to define a scenario class with minimal boilerplate.
+ *
+ * Usage:
+ *   IT_DEFINE_SCENARIO(Tongsuan1dFullMeshSingleNodeScenario,
+ *       MakeBuilder().SingleNode().Start(cluster_))
+ *
+ * The macro generates a class inheriting ItScenarioFixture with:
+ *   - SetUpTestSuite() that executes the startup expression and captures workDir_
+ *   - TearDownTestSuite() that stops the cluster and cleans up the work directory
+ *   - Cluster() accessor that returns a reference to the shared ItCluster instance
+ *
+ * Each scenario is compiled as a separate binary, so static member definitions
+ * in the header do not cause ODR violations.
+ *
+ * @param ClassName  Name of the generated scenario class.
+ * @param startup_expr  Expression that builds and starts the cluster.
+ *                      Must populate `cluster_` (a std::unique_ptr<ItCluster>&).
+ */
+#define IT_DEFINE_SCENARIO(ClassName, startup_expr)                \
+    namespace ubse::it::infra {                                    \
+    class ClassName : public ItScenarioFixture {                   \
+    public:                                                        \
+        static void SetUpTestSuite()                               \
+        {                                                          \
+            IT_LOG_INFO << #ClassName ": starting cluster...";     \
+            auto ret = startup_expr;                               \
+            ASSERT_IT_OK(ret);                                     \
+            if (cluster_) {                                        \
+                workDir_ = cluster_->GetBaseWorkDir();             \
+            }                                                      \
+            IT_LOG_INFO << #ClassName ": cluster started";         \
+        }                                                          \
+        static void TearDownTestSuite()                            \
+        {                                                          \
+            if (cluster_) {                                        \
+                IT_LOG_INFO << #ClassName ": stopping cluster..."; \
+                cluster_->StopCluster();                           \
+                cluster_.reset();                                  \
+            }                                                      \
+            CleanupWorkDir(workDir_);                              \
+        }                                                          \
+        static ItCluster& Cluster()                                \
+        {                                                          \
+            return *cluster_;                                      \
+        }                                                          \
+                                                                   \
+    private:                                                       \
+        static std::unique_ptr<ItCluster> cluster_;                \
+        static std::string workDir_;                               \
+    };                                                             \
+    std::unique_ptr<ItCluster> ClassName::cluster_;                \
+    std::string ClassName::workDir_;                               \
+    } /* namespace ubse::it::infra */
 
 } // namespace ubse::it::infra
 
