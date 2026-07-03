@@ -80,6 +80,11 @@ GlobalAgent::~GlobalAgent()
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_AGENT_QUERY_LOCAL_MASTER);
 }
 
+void GlobalAgent::CleanupRoutes()
+{
+    DeleteDownstreamGroupRoute();
+}
+
 void GlobalAgent::ProcTimer()
 {
     // 从节点丢失主的心跳次数阈值，约定从节点丢失心跳次数阈值比备节点的多2次。
@@ -264,6 +269,47 @@ bool GlobalAgent::IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const
     return timeSinceLastHeartbeat > maxAllowedHeartbeatInterval;
 }
 
+void GlobalAgent::AddDownstreamGroupRoute(const InterGroupInfo &cascadeInfo)
+{
+    if (cascadeInfo.nodeId.empty() || cascadeInfo.nodeId != cascadeInfo.groupMasterId) {
+        return;
+    }
+    uint32_t capability = UbseElectionNodeMgr::GetInstance().GetCapability();
+    RouteEntry entry;
+    entry.dstNodeId = cascadeInfo.groupMasterId;
+    entry.capacity = capability;
+    entry.priority = 64;
+    entry.nextHopNodeId = cascadeInfo.groupMasterId;
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] AddDownstreamGroupRoute: Getting ComModule failed.";
+        return;
+    }
+    if (comModule->AddRoute(entry) == UBSE_OK) {
+        downstreamRouteEntry_ = entry;
+        UBSE_LOG_INFO << "[ELECTION] AddDownstreamGroupRoute: dstNodeId=" << entry.dstNodeId
+                      << ", capacity=" << entry.capacity
+                      << ", nextHopNodeId=" << entry.nextHopNodeId;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] AddDownstreamGroupRoute: AddRoute fail.";
+    }
+}
+
+void GlobalAgent::DeleteDownstreamGroupRoute()
+{
+    if (downstreamRouteEntry_.dstNodeId.empty()) {
+        return;
+    }
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] DeleteDownstreamGroupRoute: Getting ComModule failed.";
+        return;
+    }
+    UBSE_LOG_INFO << "[ELECTION] DeleteDownstreamGroupRoute: dstNodeId=" << downstreamRouteEntry_.dstNodeId;
+    comModule->DelRoute(downstreamRouteEntry_.dstNodeId);
+    downstreamRouteEntry_ = {};
+}
+
 void GlobalAgent::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
 {
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
@@ -281,6 +327,8 @@ void GlobalAgent::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupIn
                         UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
                 }
             }
+            DeleteDownstreamGroupRoute();
+            AddDownstreamGroupRoute(rcvInfo);
         }
 
         replyInfo.nodeId = myselfID_;

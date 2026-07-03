@@ -83,6 +83,9 @@ void RoleMgr::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &
 
 void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
 {
+    if (currentRole_) {
+        currentRole_->CleanupRoutes();
+    }
     RoleType role;
     bool flag = false;
     switch (roleType) {
@@ -145,6 +148,9 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
 
 void RoleMgr::SwitchGlobalRole(GlobalRoleType globalRoleType, RoleContext &ctx)
 {
+    if (globalCurrentRole_) {
+        globalCurrentRole_->CleanupRoutes();
+    }
     switch (globalRoleType) {
         case GlobalRoleType::GLOBAL_MASTER:
             globalCurrentRole_ = SafeMakeShared<GlobalMaster>(ctx);

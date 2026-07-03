@@ -27,6 +27,7 @@ Standby::Standby(RoleContext &ctx) : turnId_(0), lastHeartTime_()
     standbyId_ = myself.id;
     masterId_ = ctx.masterId;
     turnId_ = ctx.turnId;
+    AddDefaultRouteToCom(masterId_);
     auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
     if (ret != UBSE_OK || groupId_.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] GetGroupId failed";
@@ -36,6 +37,11 @@ Standby::Standby(RoleContext &ctx) : turnId_(0), lastHeartTime_()
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
     UBSE_LOG_INFO << "[ELECTION] Standby start ProcTimer: " << standbyId_ << ".";
+}
+
+void Standby::CleanupRoutes()
+{
+    DeleteDefaultRouteToCom();
 }
 
 void Standby::ProcTimer()
@@ -197,5 +203,32 @@ bool Standby::IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const
     uint32_t maxAllowedHeartbeatInterval = heartbeatMultiplier * GetHeartTimeInterval();
     // 判断时间差是否超过了允许的最大间隔时间
     return timeSinceLastHeartbeat > maxAllowedHeartbeatInterval;
+}
+
+void Standby::AddDefaultRouteToCom(const UBSE_ID_TYPE &nextHopNodeId)
+{
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] Agent InitComRoute: Getting ComModule failed.";
+        return;
+    }
+    RouteEntry entry;
+    entry.dstNodeId = "0";
+    entry.capacity = UINT32_MAX;
+    entry.priority = 127;
+    entry.nextHopNodeId = nextHopNodeId;
+    if (comModule->AddRoute(entry) != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Agent InitComRoute: AddRoute fail.";
+    }
+}
+
+void Standby::DeleteDefaultRouteToCom()
+{
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] Agent InitComRoute: Getting ComModule failed.";
+        return;
+    }
+    comModule->DelRoute("0");
 }
 } // namespace ubse::election

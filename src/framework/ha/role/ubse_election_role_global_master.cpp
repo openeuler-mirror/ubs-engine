@@ -14,6 +14,7 @@
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_role_mgr.h"
+#include "ubse_node_mgr.h"
 #include "ubse_timer.h"
 
 namespace ubse::election {
@@ -83,6 +84,7 @@ GlobalMaster::GlobalMaster(RoleContext &ctx) : globalTurnId_(0)
     UBSE_LOG_INFO << "[ELECTION] Master start ProcTimer: " << nodeId_ << ".";
     stopping_ = false;
     activeCount_ = 0;
+    InitManagingToCascadeNodeIds();
 }
 
 GlobalMaster::~GlobalMaster()
@@ -224,11 +226,23 @@ void GlobalMaster::DealNodeUpdate()
     for (const auto &nodeId : addNodes) {
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeAdded: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_UP, nodeId);
+        auto nodeInfo = nodeMgr::GetUbseNodeById(nodeId);
+        auto it = managingToCascadeNodeId_.find(std::to_string(nodeInfo.groupId));
+        if (it == managingToCascadeNodeId_.end()) { continue; }
+        uint16_t cascadeGroupId = nodeInfo.groupId + managingToCascadeNodeId_.size();
+        AddDownstreamGroupRoute(std::to_string(cascadeGroupId), it->second, nodeId);
     }
 
     for (const auto &nodeId : removeNodes) {
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
+        for (const auto &kv : managingToCascadeNodeId_) {
+            uint16_t cascadeGroupId = static_cast<uint16_t>(std::stoul(kv.first)) + managingToCascadeNodeId_.size();
+            auto it = downstreamRouteEntries_.find(std::to_string(cascadeGroupId));
+            if (it != downstreamRouteEntries_.end() && it->second.nextHopNodeId == nodeId) {
+                DeleteDownstreamGroupRoute(std::to_string(cascadeGroupId));
+            }
+        }
     }
 }
 
@@ -517,7 +531,23 @@ GlobalRoleType GlobalMaster::GetGlobalRoleType()
 void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
 {
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
         cascadeGroupReport_ = rcvInfo;
+        UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
+
+        if (previousCascadeMasterId != currentCascadeMasterId) {
+            if (!previousCascadeMasterId.empty()) {
+                UBSE_LOG_INFO << "[ELECTION] Cascade group master offline: previousCascadeMasterId="
+                              << previousCascadeMasterId
+                              << ", currentCascadeMasterId=" << currentCascadeMasterId;
+                if (!g_globalStop.load()) {
+                    RoleMgr::GetInstance().RoleChangeNotifyAsync(
+                        UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
+                }
+            }
+            DeleteDownstreamGroupRoute(rcvInfo.groupId);
+            AddDownstreamGroupRoute(rcvInfo.groupId, currentCascadeMasterId, currentCascadeMasterId);
+        }
         // 回复全局主备
         replyInfo.nodeId = nodeId_;
         replyInfo.groupMasterId = nodeId_;
@@ -528,6 +558,76 @@ void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupI
 InterGroupInfo GlobalMaster::GetCascadeGroupReport()
 {
     return cascadeGroupReport_;
+}
+
+void GlobalMaster::CleanupRoutes()
+{
+    DeleteAllDownstreamGroupRoutes();
+}
+
+void GlobalMaster::InitManagingToCascadeNodeIds()
+{
+    auto groupMap = nodeMgr::GetAllNodesStoredByGroup();
+    if (groupMap.empty() || groupMap.size() % 2 != 0) { return; }
+    std::vector<uint16_t> sortedGroupIds;
+    for (const auto &kv : groupMap) { sortedGroupIds.push_back(kv.first); }
+    std::sort(sortedGroupIds.begin(), sortedGroupIds.end());
+    uint16_t managingGroupCount = sortedGroupIds.size() / 2;
+    for (size_t i = 0; i < managingGroupCount; ++i) {
+        uint16_t managingGroupId = sortedGroupIds[i];
+        uint16_t cascadeGroupId = sortedGroupIds[i + managingGroupCount];
+        const auto &cascadeNodes = groupMap[cascadeGroupId];
+        if (cascadeNodes.empty()) { continue; }
+        managingToCascadeNodeId_[std::to_string(managingGroupId)] = cascadeNodes[NO_0].nodeId;
+    }
+}
+
+void GlobalMaster::AddDownstreamGroupRoute(const UBSE_ID_TYPE &groupId, const UBSE_ID_TYPE &dstNodeId,
+    const UBSE_ID_TYPE &nextHopNodeId)
+{
+    if (dstNodeId.empty() || nextHopNodeId.empty()) { return; }
+    uint32_t capability = UbseElectionNodeMgr::GetInstance().GetCapability();
+    RouteEntry entry;
+    entry.dstNodeId = dstNodeId;
+    entry.capacity = capability;
+    entry.priority = 64;
+    entry.nextHopNodeId = nextHopNodeId;
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] AddDownstreamGroupRoute: Getting ComModule failed.";
+        return;
+    }
+    if (comModule->AddRoute(entry) == UBSE_OK) {
+        downstreamRouteEntries_[groupId] = entry;
+        UBSE_LOG_INFO << "[ELECTION] AddDownstreamGroupRoute: groupId=" << groupId
+                      << ", dstNodeId=" << entry.dstNodeId
+                      << ", capacity=" << entry.capacity
+                      << ", nextHopNodeId=" << entry.nextHopNodeId;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] AddDownstreamGroupRoute: AddRoute fail, groupId=" << groupId;
+    }
+}
+
+void GlobalMaster::DeleteDownstreamGroupRoute(const UBSE_ID_TYPE &groupId)
+{
+    auto it = downstreamRouteEntries_.find(groupId);
+    if (it == downstreamRouteEntries_.end()) { return; }
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) { return; }
+    UBSE_LOG_INFO << "[ELECTION] DeleteDownstreamGroupRoute: groupId=" << groupId
+                  << ", dstNodeId=" << it->second.dstNodeId;
+    comModule->DelRoute(it->second.dstNodeId);
+    downstreamRouteEntries_.erase(it);
+}
+
+void GlobalMaster::DeleteAllDownstreamGroupRoutes()
+{
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) { return; }
+    for (const auto &pair : downstreamRouteEntries_) {
+        comModule->DelRoute(pair.second.dstNodeId);
+    }
+    downstreamRouteEntries_.clear();
 }
 
 std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()

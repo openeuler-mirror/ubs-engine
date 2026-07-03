@@ -56,6 +56,8 @@ public:
 
     virtual void SetNodeDownStatus(UBSE_ID_TYPE nodeId) = 0;
 
+    virtual void CleanupRoutes() {}
+
     virtual uint64_t GetTurnId() = 0;
 
     virtual InterGroupInfo GetCascadeGroupReport();
