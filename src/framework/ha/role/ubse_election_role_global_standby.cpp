@@ -54,6 +54,11 @@ GlobalStandby::~GlobalStandby()
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_STANDBY_COM);
     UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_STANDBY_QUERY_LOCAL_MASTER);
 }
+
+void GlobalStandby::CleanupRoutes()
+{
+    DeleteDownstreamGroupRoute();
+}
 void GlobalStandby::RegisterTimers()
 {
     UbseTimerHandlerRegister(
@@ -247,6 +252,8 @@ void GlobalStandby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroup
                         UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, previousCascadeMasterId);
                 }
             }
+            DeleteDownstreamGroupRoute();
+            AddDownstreamGroupRoute(rcvInfo);
         }
         // 回复全局主备
         replyInfo.nodeId = globalStandbyId_;
@@ -258,5 +265,46 @@ void GlobalStandby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroup
 InterGroupInfo GlobalStandby::GetCascadeGroupReport()
 {
     return cascadeGroupReport_;
+}
+
+void GlobalStandby::AddDownstreamGroupRoute(const InterGroupInfo &cascadeInfo)
+{
+    if (cascadeInfo.nodeId.empty() || cascadeInfo.nodeId != cascadeInfo.groupMasterId) {
+        return;
+    }
+    uint32_t capability = UbseElectionNodeMgr::GetInstance().GetCapability();
+    RouteEntry entry;
+    entry.dstNodeId = cascadeInfo.groupMasterId;
+    entry.capacity = capability;
+    entry.priority = 64;
+    entry.nextHopNodeId = cascadeInfo.groupMasterId;
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] AddDownstreamGroupRoute: Getting ComModule failed.";
+        return;
+    }
+    if (comModule->AddRoute(entry) == UBSE_OK) {
+        downstreamRouteEntry_ = entry;
+        UBSE_LOG_INFO << "[ELECTION] AddDownstreamGroupRoute: dstNodeId=" << entry.dstNodeId
+                      << ", capacity=" << entry.capacity
+                      << ", nextHopNodeId=" << entry.nextHopNodeId;
+    } else {
+        UBSE_LOG_WARN << "[ELECTION] AddDownstreamGroupRoute: AddRoute fail.";
+    }
+}
+
+void GlobalStandby::DeleteDownstreamGroupRoute()
+{
+    if (downstreamRouteEntry_.dstNodeId.empty()) {
+        return;
+    }
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] DeleteDownstreamGroupRoute: Getting ComModule failed.";
+        return;
+    }
+    UBSE_LOG_INFO << "[ELECTION] DeleteDownstreamGroupRoute: dstNodeId=" << downstreamRouteEntry_.dstNodeId;
+    comModule->DelRoute(downstreamRouteEntry_.dstNodeId);
+    downstreamRouteEntry_ = {};
 }
 } // namespace ubse::election

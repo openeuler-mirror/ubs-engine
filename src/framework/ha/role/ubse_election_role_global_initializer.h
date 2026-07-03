@@ -37,6 +37,8 @@ public:
         nodeId = INVALID_NODE_ID;
     };
 
+    void CleanupRoutes() override;
+
     RoleType GetRoleType() override
     {
         return RoleType::MASTER;
@@ -69,6 +71,7 @@ private:
     std::mutex cascadeMtx_{};
     UBSE_ID_TYPE globalMasterId_; // 当前节点为global_cascade时，记录global_master节点
     UBSE_ID_TYPE globalStandbyId_; // 当前节点为global_cascade时，记录global_standby节点
+    UBSE_ID_TYPE upstreamNextHopId_; // 上行默认路由的nextHop节点ID
 };
 }
 

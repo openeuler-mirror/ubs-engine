@@ -217,6 +217,7 @@ struct CallbackQueryCtx {
     std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> *groupStates;
     std::string *globalMasterId;
     std::string *globalStandbyId;
+    std::string *upstreamNextHopId;
     std::string destId{};
 };
 } // namespace ubse::election

@@ -43,14 +43,6 @@ GlobalInitializer::GlobalInitializer() : lastTimeMs_(0)
     UBSE_LOG_INFO << "[ELECTION] Global Initializer: " << myselfID_ << ".";
 }
 
-GlobalInitializer::~GlobalInitializer()
-{
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_TIMER);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_COM);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER);
-    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_COM);
-}
-
 void GlobalInitializer::RegisterTimers()
 {
     UbseTimerHandlerRegister(
@@ -230,6 +222,37 @@ uint8_t GlobalInitializer::GetStandbyStatus()
     return standbyStatus_;
 }
 
+void AddUpstreamRouteToCom(const UBSE_ID_TYPE &nextHopNodeId)
+{
+    if (nextHopNodeId.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] AddUpstreamRouteToCom: nextHopNodeId is empty.";
+        return;
+    }
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] AddUpstreamRouteToCom: Getting ComModule failed.";
+        return;
+    }
+    RouteEntry entry;
+    entry.dstNodeId = "0";
+    entry.capacity = UINT32_MAX;
+    entry.priority = 127;
+    entry.nextHopNodeId = nextHopNodeId;
+    if (comModule->AddRoute(entry) != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] AddUpstreamRouteToCom: AddRoute fail.";
+    }
+}
+
+void DeleteUpstreamRouteToCom()
+{
+    auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] DeleteUpstreamRouteToCom: Getting ComModule failed.";
+        return;
+    }
+    comModule->DelRoute("0");
+}
+
 void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
 {
     auto* context = static_cast<CallbackQueryCtx*>(ctx);
@@ -271,10 +294,28 @@ void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
         UBSE_LOG_DEBUG << "[ELECTION] node = " << nodeId <<"stopped.";
         return;
     }
+    if (reply.nodeId.empty() || reply.groupMasterId.empty()) {
+        UBSE_LOG_WARN << "[ELECTION] Cascade reply fields empty, skip.";
+        SafeDelete(context);
+        return;
+    }
     {
         std::lock_guard<std::mutex> lck(cascadeMtx);
         globalStandbyId = reply.groupStandbyId;
         globalMasterId = reply.groupMasterId;
+        auto& upstreamNextHopId = *context->upstreamNextHopId;
+        if (reply.nodeId == globalMasterId) {
+            // 当前节点为global_master时，删除上行路由
+            if (!upstreamNextHopId.empty()) {
+                DeleteUpstreamRouteToCom();
+                upstreamNextHopId.clear();
+            }
+        } else if (reply.nodeId != upstreamNextHopId) {
+            // 当前节点为global_agent时，查询到的master_id与上行路由不同时，删除并添加上行路由
+            DeleteUpstreamRouteToCom();
+            AddUpstreamRouteToCom(reply.nodeId);
+            upstreamNextHopId = reply.nodeId;
+        }
     }
     SafeDelete(context);
 }
@@ -306,6 +347,7 @@ UbseResult GlobalInitializer::SendCascadeInformation(UBSE_ID_TYPE destId, const 
     context->destId = destId;
     context->globalMasterId = &globalMasterId_;
     context->globalStandbyId = &globalStandbyId_;
+    context->upstreamNextHopId = &upstreamNextHopId_;
     context->queryMtx = &cascadeMtx_;
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealCascadeReply;
@@ -326,6 +368,8 @@ void GlobalInitializer::ReportCascadeGroupToManagingGroup()
         return;
     }
     InterGroupInfo cascadeGroupReport{};
+    cascadeGroupReport.type = ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT;
+    cascadeGroupReport.nodeId = myselfID_; // 上报当前节点ID = groupMasterId
     auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(cascadeGroupReport.groupId);
     if (ret != UBSE_OK || cascadeGroupReport.groupId.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] GetGroupId fail";
@@ -360,5 +404,18 @@ UBSE_ID_TYPE GlobalInitializer::GetGlobalStandbyNode()
 {
     std::lock_guard<std::mutex> lock(cascadeMtx_);
     return globalStandbyId_;
+}
+
+GlobalInitializer::~GlobalInitializer()
+{
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_TIMER);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_COM);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_TIMER);
+    UbseTimerHandlerUnregister(UBSE_ELECTION_GLOBAL_INIT_QUERY_COM);
+}
+
+void GlobalInitializer::CleanupRoutes()
+{
+    DeleteUpstreamRouteToCom();
 }
 }

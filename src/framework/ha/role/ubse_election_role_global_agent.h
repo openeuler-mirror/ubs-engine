@@ -57,12 +57,16 @@ public:
         return globalTurnId_;
     }
 
+    void CleanupRoutes() override;
+
 private:
     void HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     void RecvPktForSelect(ElectionReplyPkt &reply) const;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
     void DisconnectAgents(const ElectionPkt &rcvPkt);
+    void AddDownstreamGroupRoute(const InterGroupInfo &cascadeInfo);
+    void DeleteDownstreamGroupRoute();
 private:
     uint64_t lastHeartTime_;
     UBSE_ID_TYPE globalMasterId_;
@@ -74,6 +78,7 @@ private:
     uint8_t masterStatus_ = 0;
     uint8_t standbyStatus_ = 0;
     InterGroupInfo cascadeGroupReport_;
+    RouteEntry downstreamRouteEntry_;
 };
 }
 #endif // UBS_ENGINE_UBSE_ELECTION_ROLE_GLOBAL_AGENT_H

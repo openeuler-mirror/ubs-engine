@@ -80,6 +80,14 @@ private:
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
     InterGroupInfo cascadeGroupReport_{};
     std::map<UBSE_ID_TYPE, GroupTopology> globalStandbyAgentGroupTopologies_{};
+    void InitManagingToCascadeNodeIds();
+    void AddDownstreamGroupRoute(const UBSE_ID_TYPE &groupId, const UBSE_ID_TYPE &dstNodeId,
+                                  const UBSE_ID_TYPE &nextHopNodeId);
+    void DeleteDownstreamGroupRoute(const UBSE_ID_TYPE &groupId);
+    void DeleteAllDownstreamGroupRoutes();
+    void CleanupRoutes() override;
+    std::map<UBSE_ID_TYPE, RouteEntry> downstreamRouteEntries_;
+    std::map<UBSE_ID_TYPE, UBSE_ID_TYPE> managingToCascadeNodeId_;
 };
 #undef MODULE_LOG_NAME
 }

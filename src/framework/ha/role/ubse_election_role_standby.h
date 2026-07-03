@@ -41,6 +41,7 @@ public:
     {
         return turnId_;
     }
+    void CleanupRoutes() override;
 
 private:
     uint64_t lastHeartTime_;
@@ -57,6 +58,8 @@ private:
     void SwitchMaster();
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
+    void AddDefaultRouteToCom(const UBSE_ID_TYPE &nextHopNodeId);
+    void DeleteDefaultRouteToCom();
 };
 } // namespace ubse::election
 #endif // UBSE_ELECTION_ROLE_STANDBY_H

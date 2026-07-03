@@ -106,6 +106,7 @@ public:
     UbseResult GetGroupId(std::string &groupId);
     UbseResult GetUBEnable(bool &ubEnable);
     bool IsHierarchicalElection() const;
+    uint32_t GetCapability();
 
 private:
     // 本地节点信息

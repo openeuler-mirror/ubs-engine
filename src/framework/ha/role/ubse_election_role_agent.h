@@ -41,6 +41,8 @@ public:
 
     void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override {};
 
+    void CleanupRoutes() override;
+
     RoleType GetRoleType() override
     {
         return RoleType::AGENT;
@@ -52,6 +54,8 @@ public:
     }
 
 private:
+    void AddDefaultRouteToCom(const UBSE_ID_TYPE &nextHopNodeId);
+    void DeleteDefaultRouteToCom();
     void HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     void RecvPktForSelect(ElectionReplyPkt &reply) const;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
