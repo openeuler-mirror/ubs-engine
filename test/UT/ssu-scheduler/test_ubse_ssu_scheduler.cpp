@@ -11,16 +11,15 @@
  */
 
 #include "test_ubse_ssu_scheduler.h"
-
+#include <securec.h>
 #include <algorithm>
 
 namespace ubse::ssu::scheduler::ut {
 
 using namespace ubse::adapter_plugins::ssu::def;
 
-UbseSsuDevInfo TestUbseSsuScheduler::MakeDev(const std::string &eid,
-                                                                              uint64_t totalBytes, uint64_t usedBytes,
-                                                                              uint32_t nsCount, UbseSsuState state)
+UbseSsuDevInfo TestUbseSsuScheduler::MakeDev(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes,
+                                             uint32_t nsCount, UbseSsuState state)
 {
     UbseSsuDevInfo dev;
     dev.subSystem.eid = eid;
@@ -32,6 +31,17 @@ UbseSsuDevInfo TestUbseSsuScheduler::MakeDev(const std::string &eid,
         ns.namespaceId = i + 1;
         dev.nameSpaces.push_back(ns);
     }
+    return dev;
+}
+
+UbseSsuDevInfo TestUbseSsuScheduler::MakeDevWithTenant(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes,
+                                                       const std::string &tenant, uint32_t nsCount, UbseSsuState state)
+{
+    // 租户隔离的设备 nsCount至少要 >= 1
+    EXPECT_GE(nsCount, 1u);
+    auto dev = MakeDev(eid, totalBytes, usedBytes, nsCount, state);
+    strncpy_s(dev.nameSpaces[0].customData.tenant, sizeof(dev.nameSpaces[0].customData.tenant), tenant.c_str(),
+              tenant.size());
     return dev;
 }
 
@@ -247,6 +257,36 @@ TEST_F(TestUbseSsuScheduler, PreCheckSuccessSortByFreeAndNsCount)
 
 /*
  * 用例描述：
+ * PreCheckHandler 在 STRIPED 模式下 allocSize 不能被 nsNum 整除时返回参数非法
+ * 测试步骤：
+ * 1、构造 3 个在线设备
+ * 2、STRIPED 模式请求 allocSize=1024、nsNum=3（1024 % 3 != 0）
+ * 3、调用 PreCheckHandler::Handle
+ * 预期结果：
+ * 1、返回 false
+ * 2、ctx.result.ret == INVALID_PARAM
+ * 3、ctx.selectedDevs 为空
+ */
+TEST_F(TestUbseSsuScheduler, PreCheckStripedAllocSizeNotDivisible)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0), MakeDev("eid-2", 1024, 0),
+                                        MakeDev("eid-3", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 3;
+    req.addressingType = UbseSsuAddressingType::STRIPED;
+    UbseSsuAllocationContext ctx(devs, req);
+
+    PreCheckHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INVALID_PARAM);
+    EXPECT_TRUE(ctx.selectedDevs.empty());
+}
+
+/*
+ * 用例描述：
  * AlgorithmHandler 在 lbaSize 为 0 时返回参数非法
  * 测试步骤：
  * 1、手动准备 ctx.selectedDevs
@@ -264,7 +304,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearLbaSizeZero)
     req.lbaSize = 0;
     req.addressingType = UbseSsuAddressingType::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -293,8 +333,8 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearInsufficientSpace)
     req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 256, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 256, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 256, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 256, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -325,8 +365,8 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearSuccess)
     req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -364,8 +404,8 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearAlignUpToSector)
     req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -384,7 +424,7 @@ TEST_F(TestUbseSsuScheduler, AlgorithmLinearAlignUpToSector)
  * AlgorithmHandler 在 STRIPED 模式下成功完成条带化分配
  * 测试步骤：
  * 1、ctx.selectedDevs 为 2 个设备，各有 1024 字节
- * 2、请求 1024 字节、chunk=512、nsNum=2
+ * 2、请求 1024 字节、nsNum=2
  * 3、调用 AlgorithmHandler::Handle
  * 预期结果：
  * 1、返回 true
@@ -396,11 +436,10 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedSuccess)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.chunkSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -415,40 +454,10 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedSuccess)
 
 /*
  * 用例描述：
- * AlgorithmHandler 在 STRIPED 模式下 chunkSize=0 时返回参数非法
- * 测试步骤：
- * 1、ctx.selectedDevs 为 2 个设备
- * 2、chunkSize=0
- * 3、调用 AlgorithmHandler::Handle
- * 预期结果：
- * 1、返回 false
- * 2、ctx.result.ret == INVALID_PARAM
- */
-TEST_F(TestUbseSsuScheduler, AlgorithmStripedChunkSizeZero)
-{
-    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0), MakeDev("eid-2", 1024, 0)};
-    UbseSsuAllocRequest req;
-    req.allocSize = 1024;
-    req.nsNum = 2;
-    req.chunkSize = 0;
-    req.addressingType = UbseSsuAddressingType::STRIPED;
-    UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0});
-
-    UbseSsuAllocateAlgorithmHandler handler;
-    bool ok = handler.Handle(ctx);
-
-    EXPECT_FALSE(ok);
-    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INVALID_PARAM);
-}
-
-/*
- * 用例描述：
  * AlgorithmHandler 在 STRIPED 模式下，单设备空间不足时返回空间不足
  * 测试步骤：
  * 1、ctx.selectedDevs 为 2 个设备（第二个仅剩 256）
- * 2、请求 1024、chunk=512
+ * 2、请求 1024
  * 3、调用 AlgorithmHandler::Handle
  * 预期结果：
  * 1、返回 false
@@ -460,11 +469,10 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedInsufficientSpace)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.chunkSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 256, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 256, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -475,26 +483,25 @@ TEST_F(TestUbseSsuScheduler, AlgorithmStripedInsufficientSpace)
 
 /*
  * 用例描述：
- * AlgorithmHandler 在 STRIPED 模式下，allocSize 非条带整数倍时向上对齐
+ * AlgorithmHandler 在 STRIPED 模式下，allocSize 可被 nsNum 整除时均分分配
  * 测试步骤：
- * 1、ctx.selectedDevs 为 2 个设备，各有 2048 字节
- * 2、请求 600、chunk=512、nsNum=2（stripeSize=1024，向上对齐到 1024）
+ * 1、ctx.selectedDevs 为 2 个设备，各有 4096 字节
+ * 2、请求 1024、nsNum=2（singleNsSize=512）
  * 3、调用 AlgorithmHandler::Handle
  * 预期结果：
  * 1、返回 true
- * 2、每个 eid 分配大小为 512（向上对齐后 stripeSize=1024 -> 512/设备）
+ * 2、每个 eid 分配大小为 512
  */
-TEST_F(TestUbseSsuScheduler, AlgorithmStripedAlignUpToStripe)
+TEST_F(TestUbseSsuScheduler, AlgorithmStripedEvenlyDivisible)
 {
     std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 4096, 0), MakeDev("eid-2", 4096, 0)};
     UbseSsuAllocRequest req;
-    req.allocSize = 600;
+    req.allocSize = 1024;
     req.nsNum = 2;
-    req.chunkSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 4096, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 4096, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 4096, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 4096, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -528,9 +535,9 @@ TEST_F(TestUbseSsuScheduler, AlgorithmSelectedDevsFilteredAfterSuccess)
     req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::LINEAR;
     UbseSsuAllocationContext ctx(devs, req);
-    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0});
-    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0});
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, ""});
 
     UbseSsuAllocateAlgorithmHandler handler;
     bool ok = handler.Handle(ctx);
@@ -616,7 +623,6 @@ TEST_F(TestUbseSsuScheduler, SchedulerExecuteStripedSuccess)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
-    req.chunkSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 
@@ -681,6 +687,213 @@ TEST_F(TestUbseSsuScheduler, SchedulerAddNullFilterIgnored)
     auto ret = scheduler.Execute(ctx);
 
     EXPECT_EQ(ret, UbseSsuAllocRetCode::OK);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 在请求tenant为空时过滤掉所有带租户标识的设备
+ * 测试步骤：
+ * 1、构造tenant不同的设备列表（均带租户标识）
+ * 2、请求tenant为空
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回false
+ * 2、ctx.result.ret == INSUFFICIENT_SPACE
+ * 3、selectedDevs为空（带租户标识的设备均被过滤掉）
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationEmptyReqTenantFiltersTenantDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, "tenant-B"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INSUFFICIENT_SPACE);
+    EXPECT_EQ(ctx.selectedDevs.size(), 0u);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 在请求tenant为空时保留未关联租户的设备
+ * 测试步骤：
+ * 1、构造3个设备：tenant-A、空tenant、tenant-B
+ * 2、请求tenant为空，nsNum=1
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs仅保留空tenant的设备
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationEmptyReqTenantKeepsNonTenantDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, ""),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 1;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, "tenant-B"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.selectedDevs.size(), 1u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-2");
+    EXPECT_TRUE(ctx.selectedDevs[0].tenant.empty());
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 过滤掉Tenant不匹配的设备
+ * 测试步骤：
+ * 1、构造3个设备：tenant-A、tenant-A、tenant-B
+ * 2、请求Tenant为tenant-A
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs仅保留tenant-A的2个设备
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationFiltersMismatchedDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, "tenant-B"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.selectedDevs.size(), 2u);
+    for (const auto &dev : ctx.selectedDevs) {
+        EXPECT_EQ(dev.tenant, "tenant-A");
+    }
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 在tenant不匹配设备不足时返回失败
+ * 测试步骤：
+ * 1、构造2个设备：tenant-A、tenant-B
+ * 2、请求tenant为tenant-A，nsNum=2
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回false
+ * 2、ctx.result.ret == INSUFFICIENT_SPACE
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationInsufficientMatchedDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, "tenant-B"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INSUFFICIENT_SPACE);
+}
+
+/*
+ * 用例描述：
+ * UbseSsuTenantIsolationFilter 保留tenant为空的设备（未关联tenant的设备可分配给任何租户）
+ * 测试步骤：
+ * 1、构造3个设备：tenant-A、空tenant、tenant-B
+ * 2、请求tenant为tenant-A，nsNum=2
+ * 3、调用UbseSsuTenantIsolationFilter::Handle
+ * 预期结果：
+ * 1、返回true
+ * 2、selectedDevs保留tenant-A和空tenant的设备
+ */
+TEST_F(TestUbseSsuScheduler, TenantIsolationKeepsEmptyTenantDevices)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDevWithTenant("eid-1", 1024, 0, "tenant-A"),
+                                        MakeDevWithTenant("eid-2", 1024, 0, ""),
+                                        MakeDevWithTenant("eid-3", 1024, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+    ctx.selectedDevs.push_back({"eid-1", 1024, 512, 0, "tenant-A"});
+    ctx.selectedDevs.push_back({"eid-2", 1024, 512, 0, ""});
+    ctx.selectedDevs.push_back({"eid-3", 1024, 512, 0, "tenant-B"});
+
+    UbseSsuTenantIsolationFilter filter;
+    bool ok = filter.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.selectedDevs.size(), 2u);
+    EXPECT_EQ(ctx.selectedDevs[0].eid, "eid-1");
+    EXPECT_EQ(ctx.selectedDevs[1].eid, "eid-2");
+}
+
+/*
+ * 用例描述：
+ * UbseSsuScheduler 集成tenant隔离策略，仅分配匹配tenant的设备
+ * 测试步骤：
+ * 1、构造4个设备：2个tenant-A、2个tenant-B
+ * 2、请求tenant为tenant-A，nsNum=2
+ * 3、调用UbseSsuScheduler::Execute
+ * 预期结果：
+ * 1、返回OK
+ * 2、分配结果中的设备均属于tenant-A
+ */
+TEST_F(TestUbseSsuScheduler, SchedulerTenantIsolationIntegration)
+{
+    std::vector<UbseSsuDevInfo> devs = {
+        MakeDevWithTenant("eid-1", 2048, 0, "tenant-A"), MakeDevWithTenant("eid-2", 2048, 0, "tenant-A"),
+        MakeDevWithTenant("eid-3", 2048, 0, "tenant-B"), MakeDevWithTenant("eid-4", 2048, 0, "tenant-B")};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 2;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    req.tenant = "tenant-A";
+    UbseSsuAllocationContext ctx(devs, req);
+
+    UbseSsuScheduler scheduler;
+    auto ret = scheduler.Execute(ctx);
+
+    EXPECT_EQ(ret, UbseSsuAllocRetCode::OK);
+    ASSERT_EQ(ctx.result.eidNsSizeList.size(), 2u);
+    for (const auto &p : ctx.result.eidNsSizeList) {
+        EXPECT_TRUE(p.first == "eid-1" || p.first == "eid-2");
+    }
 }
 
 } // namespace ubse::ssu::scheduler::ut

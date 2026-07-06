@@ -24,6 +24,8 @@
 #include "ubse_ssu_scheduler.h"
 
 namespace ubse::ssu::scheduler::ut {
+    
+using namespace ubse::adapter_plugins::ssu::def;
 
 class TestUbseSsuScheduler : public testing::Test {
 public:
@@ -35,9 +37,13 @@ public:
 
 protected:
     // 构造一个在线的 SSU 设备
-    static ubse::adapter_plugins::ssu::def::UbseSsuDevInfo MakeDev(
-        const std::string &eid, uint64_t totalBytes, uint64_t usedBytes, uint32_t nsCount = 0,
-        ubse::adapter_plugins::ssu::def::UbseSsuState state = ubse::adapter_plugins::ssu::def::UbseSsuState::ONLINE);
+    static UbseSsuDevInfo MakeDev(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes, uint32_t nsCount = 0,
+                                  UbseSsuState state = UbseSsuState::ONLINE);
+
+    // 构造一个在线的 SSU 设备，指定tenant
+    static UbseSsuDevInfo MakeDevWithTenant(const std::string &eid, uint64_t totalBytes, uint64_t usedBytes,
+                                            const std::string &tenant, uint32_t nsCount = 1,
+                                            UbseSsuState state = UbseSsuState::ONLINE);
 };
 
 class CustomFilter : public UbseFilter<UbseSsuAllocationContext> {

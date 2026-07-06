@@ -121,7 +121,6 @@ struct UbseSsuDevInfo {
     std::vector<UbseSsuDevNameSpace> nameSpaces;               // ssu物理设备命名空间信息
     std::vector<UbseSsuDevNameSpaceAttachInfo> attachInfoList; // namespace挂载节点信息
     UbseSsuState state;                                        // ssu物理设备状态
-    std::string upi;                                           // 设备所属UPI（租户隔离标识）
 };
 
 enum class UbseSsuRaidLevel : uint8_t {

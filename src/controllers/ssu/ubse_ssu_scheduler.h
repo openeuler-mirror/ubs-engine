@@ -25,9 +25,9 @@ using namespace ubse::filter_chain;
 struct UbseSsuAllocRequest {
     uint64_t allocSize = 0; // 请求分配大小（字节）
     uint32_t nsNum = 0; // 分配设备（namespace）数量，分配不了这数量将返回失败
-    uint32_t chunkSize = 0; // chunk大小（字节），仅条带化有效。ns大小需要是chunkSize的整数倍
     uint32_t lbaSize = 0; // 扇区大小（字节)
     UbseSsuAddressingType addressingType = UbseSsuAddressingType::LINEAR; // 编址类型
+    std::string tenant; // 请求方租户（租户隔离标识）
 };
 
 enum class UbseSsuAllocRetCode : uint32_t {
@@ -47,10 +47,11 @@ struct UbseSsuAllocationResult {
 
 // 责任链各节点输出中间结果
 struct UbseSsuFilterDev {
-    std::string eid;
-    uint64_t freeBytes;
-    uint64_t sectorBytes;
-    uint32_t nsCount = 0;
+    std::string eid; // 设备EID
+    uint64_t freeBytes = 0; // 设备可用空间（字节）
+    uint64_t sectorBytes = 0; // 扇区大小（字节）
+    uint32_t nsCount = 0; // 设备已有的namespace数量
+    std::string tenant; // 设备租户（租户隔离标识）
 };
 
 class UbseSsuAllocationContext {
@@ -67,6 +68,11 @@ public:
 };
 
 class PreCheckHandler : public UbseFilter<UbseSsuAllocationContext> {
+public:
+    bool Handle(UbseSsuAllocationContext &ctx) override;
+};
+
+class UbseSsuTenantIsolationFilter : public UbseFilter<UbseSsuAllocationContext> {
 public:
     bool Handle(UbseSsuAllocationContext &ctx) override;
 };
