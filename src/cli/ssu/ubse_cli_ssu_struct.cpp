@@ -17,6 +17,11 @@
 
 namespace ubse::cli::reg {
 namespace {
+// allocation 列表反序列化上限，复用 ONCE_LIMIT_LEN。
+constexpr size_t SSU_CLI_MAX_ALLOCATIONS = static_cast<size_t>(ubse::serial::ONCE_LIMIT_LEN);
+// 单次 allocation 内 namespace 列表反序列化上限，复用 SSU_CLI_MAX_NS_NUM。
+constexpr size_t SSU_CLI_MAX_NAMESPACES_PER_ALLOCATION = static_cast<size_t>(SSU_CLI_MAX_NS_NUM);
+
 // 枚举以 uint32 上线：与枚举底层类型（uint8_t）解耦，稳定线报文布局，
 // 即便 UbseSsu* 枚举底层类型调整也不影响已部署端点的兼容性。
 template <typename Enum>
@@ -72,25 +77,26 @@ bool SerializeVector(ubse::serial::UbseSerialization &stream, const std::vector<
     return stream.Check();
 }
 
-// 向量反序列化：先读长度前缀，clear+reserve 后逐元素反序列化并 move 入容器。
-// 长度前缀损坏或元素反序列化失败即整体失败，已读入的部分元素随返回 false 被丢弃。
+// 向量反序列化：先读长度前缀并校验调用点给出的上限，再逐元素反序列化到临时容器。
+// 长度前缀损坏、超过上限或元素反序列化失败即整体失败，且不修改原容器。
 template <typename T>
-bool DeserializeVector(ubse::serial::UbseDeSerialization &stream, std::vector<T> &values)
+bool DeserializeVector(ubse::serial::UbseDeSerialization &stream, std::vector<T> &values, size_t maxCount)
 {
     size_t size = 0;
     stream >> ubse::serial::array_len_capture(size);
-    if (!stream.Check()) {
+    if (!stream.Check() || size > maxCount) {
         return false;
     }
-    values.clear();
-    values.reserve(size);
+    std::vector<T> decoded;
+    decoded.reserve(size);
     for (size_t i = 0; i < size; ++i) {
         T value;
         if (!value.Deserialize(stream)) {
             return false;
         }
-        values.emplace_back(std::move(value));
+        decoded.emplace_back(std::move(value));
     }
+    values = std::move(decoded);
     return stream.Check();
 }
 
@@ -190,7 +196,7 @@ bool UbseCliSsuAllocResult::Deserialize(ubse::serial::UbseDeSerialization &strea
     if (!DeserializeEnumFromUint32(stream, strategy, IsValidAllocStrategyRaw)) {
         return false;
     }
-    if (!DeserializeVector(stream, nameSpaceList)) {
+    if (!DeserializeVector(stream, nameSpaceList, SSU_CLI_MAX_NAMESPACES_PER_ALLOCATION)) {
         return false;
     }
     return stream.Check();
@@ -203,6 +209,6 @@ bool UbseCliSsuAllocListRsp::Serialize(ubse::serial::UbseSerialization &stream) 
 
 bool UbseCliSsuAllocListRsp::Deserialize(ubse::serial::UbseDeSerialization &stream)
 {
-    return DeserializeVector(stream, allocations);
+    return DeserializeVector(stream, allocations, SSU_CLI_MAX_ALLOCATIONS);
 }
 } // namespace ubse::cli::reg

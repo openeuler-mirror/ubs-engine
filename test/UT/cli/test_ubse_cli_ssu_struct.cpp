@@ -38,6 +38,25 @@ UbseSsuAllocIdentityInfo MakeIdentity(const std::string &userName, uid_t uid)
 {
     return UbseSsuAllocIdentityInfo{userName, uid};
 }
+
+void ForgeFirstArrayLength(ubse::serial::UbseSerialization &serializer, ubse::serial::common_len forgedLength)
+{
+    auto *buffer = serializer.GetBuffer();
+    auto bufferSize = serializer.GetLength();
+    for (ubse::serial::common_len offset = 0; offset + sizeof(ubse::serial::serial_head) <= bufferSize;
+         offset += sizeof(ubse::serial::serial_head)) {
+        auto *head = reinterpret_cast<ubse::serial::serial_head *>(buffer + offset);
+        auto type = static_cast<ubse::serial::serial_type>(*head >> ubse::serial::LEN_CTRL_OFFSET);
+        auto length = *head & ubse::serial::LEN_CTRL_MASK;
+        if (type == static_cast<ubse::serial::serial_type>(ubse::serial::CTRL_TYPE::ARRAY_CTRL_CODE) && length == 0) {
+            *head = (static_cast<ubse::serial::serial_head>(ubse::serial::CTRL_TYPE::ARRAY_CTRL_CODE)
+                     << ubse::serial::LEN_CTRL_OFFSET) |
+                    static_cast<ubse::serial::serial_head>(forgedLength);
+            return;
+        }
+    }
+    ADD_FAILURE() << "array length header not found";
+}
 } // namespace
 
 // 摘要请求往返：identityInfo 的 userName/uid 编码后再解码应保持一致。
@@ -182,6 +201,48 @@ TEST(TestUbseCliSsuStruct, BadBufferFailsDeserialize)
     ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
 
     EXPECT_FALSE(output.Deserialize(deserializer));
+}
+
+// 摘要响应中的 allocations 用单次序列化内容字节上限作为防御性数量上限；若服务端伪造出超过该上限的
+// 数组长度，CLI 应直接拒绝，且不能先清空已有结果后再在后续元素读取阶段失败。
+TEST(TestUbseCliSsuStruct, ListRspRejectsTooManyAllocationsBeforeMutatingVector)
+{
+    ubse::serial::UbseSerialization serializer;
+    serializer << ubse::serial::array_len_insert(0);
+    ForgeFirstArrayLength(serializer, ubse::serial::ONCE_LIMIT_LEN + 1);
+
+    UbseCliSsuAllocListRsp output;
+    UbseCliSsuAllocResult existing;
+    existing.name = "existing-allocation";
+    output.allocations = {existing};
+    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
+
+    EXPECT_FALSE(output.Deserialize(deserializer));
+    EXPECT_TRUE(deserializer.Check());
+    ASSERT_EQ(output.allocations.size(), 1U);
+    EXPECT_EQ(output.allocations[0].name, "existing-allocation");
+}
+
+// 分配结果中的 nameSpaceList 长度来自服务端响应，超过单次分配 NS 上限时应直接拒绝，
+// 避免按伪造长度 reserve/resize 导致 CLI 内存异常。
+TEST(TestUbseCliSsuStruct, AllocResultRejectsTooManyNamespacesBeforeMutatingVector)
+{
+    ubse::serial::UbseSerialization serializer;
+    serializer << std::string("alloc-space-1");
+    uint32_t strategy = static_cast<uint32_t>(UbseSsuAllocStrategy::LINEAR);
+    serializer << strategy;
+    serializer << ubse::serial::array_len_insert(SSU_CLI_MAX_NS_NUM + 1);
+
+    UbseCliSsuAllocResult output;
+    output.nameSpaceList = {
+        {"e2", "nqn.2024-01:target", "uuid-existing", 1, "/dev/nvme0n1", 10ULL * 1024 * 1024 * 1024,
+         UbseSsuLBAFormat::LBA_FORMAT_512},
+    };
+    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
+
+    EXPECT_FALSE(output.Deserialize(deserializer));
+    ASSERT_EQ(output.nameSpaceList.size(), 1U);
+    EXPECT_EQ(output.nameSpaceList[0].nsUuid, "uuid-existing");
 }
 
 // 锁定枚举线报文数值：LBA/Strategy 的底层值变化即告警，防回退破坏与适配器层的对齐。
