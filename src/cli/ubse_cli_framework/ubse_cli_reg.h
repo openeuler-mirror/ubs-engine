@@ -97,6 +97,10 @@ public:
 
     void UbseCliRegister(std::vector<UbseCliCommandInfo> &commands_info);
 
+    // 设置程序上下文:program_name 非空时更新 programName_(用于 help/usage 输出中的程序名);
+    // 为空时保持原值不变(默认值为 "ubsectl")。show_type_in_usage 始终更新,控制 usage 中是否显示 type。
+    void UbseCliSetProgramContext(const std::string &program_name, bool show_type_in_usage);
+
     bool UbseCliCommandExist(const std::string &command_key);
 
     bool UbseCliHelpInfoParse(const std::vector<std::string> &args);
@@ -105,6 +109,8 @@ public:
     {
         this->creators_.clear();
         this->fullCommandInfo_.clear();
+        this->programName_ = "ubsectl";
+        this->showTypeInUsage_ = true;
     }
 
     UbseCliCommandInfo &UbseCliGetMatchCommand()
@@ -115,6 +121,11 @@ public:
     UbseCliParse &UbseCliGetParseTool()
     {
         return this->parseTool_;
+    }
+
+    const std::string &UbseCliGetProgramName() const
+    {
+        return this->programName_;
     }
 
 private:
@@ -135,6 +146,8 @@ private:
     std::unordered_map<std::string, UbseCliModuleCreator> creators_{};
     std::unordered_map<std::string, UbseCliCommandInfo> fullCommandInfo_;
     UbseCliCommandInfo matchCommand_{};
+    std::string programName_{ "ubsectl" };
+    bool showTypeInUsage_{ true };
 };
 
 // Register module base class, all registered modules need to inherit this class.
