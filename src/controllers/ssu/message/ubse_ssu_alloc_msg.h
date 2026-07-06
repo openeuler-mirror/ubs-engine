@@ -39,9 +39,9 @@ class UbseSsuAllocReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuAllocReqMsg() = default;
 
-    void SetSsuAllocRequest(const std::string &requestId, const std::string &requestNodeId,
-                            const UbseSsuAllocIdentityInfo &identity, const UbseSsuAllocSpaceReq &req);
-    
+    UbseSsuAllocReqMsg(const std::string &requestId, const std::string &requestNodeId,
+                       const UbseSsuAllocIdentityInfo &identity, const UbseSsuAllocSpaceReq &req);
+
     const UbseSsuAllocReq &GetAllocRequest() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
@@ -55,7 +55,7 @@ class UbseSsuAllocRespMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuAllocRespMsg() = default;
 
-    void SetSsuAllocResp(const UbseSsuAllocResp &resp);
+    explicit UbseSsuAllocRespMsg(const UbseSsuAllocResp &resp);
     const UbseSsuAllocResp &GetSsuAllocResp() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;

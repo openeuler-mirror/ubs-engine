@@ -65,6 +65,7 @@ struct UbseSsuNameSpaceInfo {
     std::string nsDevPath;      // 命名空间设备路径
     uint64_t nsSize;            // 分配的容量，单位字节
     UbseSsuLBAFormat lbaFormat; // LBA 格式
+    std::vector<std::string> allowHostNqnList; // 允许挂载的HostNQN列表
 };
 
 struct UbseSsuAllocResult {

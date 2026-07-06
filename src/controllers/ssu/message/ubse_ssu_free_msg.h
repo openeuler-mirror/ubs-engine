@@ -37,8 +37,9 @@ class UbseSsuFreeReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuFreeReqMsg() = default;
 
-    void SetSsuFreeRequest(const std::string &requestId, const std::string &requestNodeId, const std::string &name,
-                           const UbseSsuAllocIdentityInfo &identity);
+    UbseSsuFreeReqMsg(const std::string &requestId, const std::string &requestNodeId, const std::string &name,
+                      const UbseSsuAllocIdentityInfo &identity);
+    
     const UbseSsuFreeReq &GetSsuFreeRequest() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
@@ -52,7 +53,7 @@ class UbseSsuFreeRespMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuFreeRespMsg() = default;
 
-    void SetSsuFreeResponse(const UbseSsuFreeResp &resp);
+    explicit UbseSsuFreeRespMsg(const UbseSsuFreeResp &resp);
     const UbseSsuFreeResp &GetSsuFreeResponse() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;

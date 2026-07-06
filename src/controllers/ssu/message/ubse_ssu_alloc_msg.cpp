@@ -23,23 +23,15 @@ using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-void UbseSsuAllocReqMsg::SetSsuAllocRequest(const std::string &requestId, const std::string &requestNodeId,
-                                            const UbseSsuAllocIdentityInfo &identity, const UbseSsuAllocSpaceReq &req)
+UbseSsuAllocReqMsg::UbseSsuAllocReqMsg(const std::string &requestId, const std::string &requestNodeId,
+    const UbseSsuAllocIdentityInfo &identity, const UbseSsuAllocSpaceReq &req)
+    : req_{requestId, requestNodeId, identity, req}
 {
-    req_.requestId = requestId;
-    req_.requestNodeId = requestNodeId;
-    req_.identityInfo = identity;
-    req_.allocReq = req;
 }
 
 const UbseSsuAllocReq &UbseSsuAllocReqMsg::GetAllocRequest() const
 {
     return req_;
-}
-
-void UbseSsuAllocRespMsg::SetSsuAllocResp(const UbseSsuAllocResp &resp)
-{
-    resp_ = resp;
 }
 
 const UbseSsuAllocResp &UbseSsuAllocRespMsg::GetSsuAllocResp() const
@@ -50,14 +42,16 @@ const UbseSsuAllocResp &UbseSsuAllocRespMsg::GetSsuAllocResp() const
 UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuNameSpaceInfo &info)
 {
     serializer << info.tgtEid << info.tgtNqn << info.nsUuid << info.namespaceId
-               << info.nsDevPath << info.nsSize << enum_v(info.lbaFormat);
+               << info.nsDevPath << info.nsSize << enum_v(info.lbaFormat)
+               << info.allowHostNqnList;
     return serializer;
 }
 
 UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuNameSpaceInfo &info)
 {
     deserializer >> info.tgtEid >> info.tgtNqn >> info.nsUuid >> info.namespaceId
-                 >> info.nsDevPath >> info.nsSize >> enum_v(info.lbaFormat);
+                 >> info.nsDevPath >> info.nsSize >> enum_v(info.lbaFormat)
+                 >> info.allowHostNqnList;
     return deserializer;
 }
 
@@ -72,7 +66,7 @@ UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuAllocR
     return serializer;
 }
 
-ubse::serial::UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAllocResult &result)
+UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuAllocResult &result)
 {
     deserializer >> result.name;
     uint32_t size = 0;
@@ -130,6 +124,10 @@ uint32_t UbseSsuAllocReqMsg::Deserialize(const uint8_t *data, uint32_t size)
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+UbseSsuAllocRespMsg::UbseSsuAllocRespMsg(const UbseSsuAllocResp &resp) : resp_(resp)
+{
 }
 
 uint32_t UbseSsuAllocRespMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const

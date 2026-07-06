@@ -33,7 +33,8 @@ class UbseSsuStatusReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusReqMsg() = default;
 
-    void SetStatusUpdateReq(const UbseSsuStatusUpdateReq &req);
+    UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state);
+
     const UbseSsuStatusUpdateReq &GetStatusUpdateReq() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
@@ -47,7 +48,7 @@ class UbseSsuStatusRspMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusRspMsg() = default;
 
-    void SetStatusUpdateRsp(const UbseSsuStatusUpdateRsp &rsp);
+    explicit UbseSsuStatusRspMsg(const UbseSsuStatusUpdateRsp &rsp);
     const UbseSsuStatusUpdateRsp &GetStatusUpdateRsp() const;
 
     uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;

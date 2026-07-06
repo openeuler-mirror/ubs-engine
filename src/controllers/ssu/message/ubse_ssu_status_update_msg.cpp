@@ -23,19 +23,14 @@ using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-void UbseSsuStatusReqMsg::SetStatusUpdateReq(const UbseSsuStatusUpdateReq &req)
+UbseSsuStatusReqMsg::UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state)
+    : req_{name, state}
 {
-    req_ = req;
 }
 
 const UbseSsuStatusUpdateReq &UbseSsuStatusReqMsg::GetStatusUpdateReq() const
 {
     return req_;
-}
-
-void UbseSsuStatusRspMsg::SetStatusUpdateRsp(const UbseSsuStatusUpdateRsp &rsp)
-{
-    rsp_ = rsp;
 }
 
 const UbseSsuStatusUpdateRsp &UbseSsuStatusRspMsg::GetStatusUpdateRsp() const
@@ -89,6 +84,10 @@ uint32_t UbseSsuStatusReqMsg::Deserialize(const uint8_t *data, uint32_t size)
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+UbseSsuStatusRspMsg::UbseSsuStatusRspMsg(const UbseSsuStatusUpdateRsp &rsp) : rsp_(rsp)
+{
 }
 
 uint32_t UbseSsuStatusRspMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
