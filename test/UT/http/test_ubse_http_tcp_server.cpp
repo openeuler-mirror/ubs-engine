@@ -56,27 +56,34 @@ void TestUbseHttpTcpServer::TearDown()
  */
 TEST_F(TestUbseHttpTcpServer, StartAndStopTcpServer)
 {
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
-    MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseHttpServer::GetInstance().Start(true), false);
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    UbseHttpServer::Config config;
+    config.name = "TestTcpServer";
+    config.useUds = false;
+    config.useSsl = true;
+    config.listenAddr = "127.0.0.1";
+    config.port = TCP_SERVER_PORT;
+    config.udsPath = "";
+
+    UbseHttpServer server(config);
+    EXPECT_EQ(server.Start(), false);
+    EXPECT_NO_THROW(server.Stop());
     GlobalMockObject::verify();
 }
 
 TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
 {
     GTEST_SKIP();
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    ubse::adapter_plugins::mti::UbseMtiNodeInfo ubseNodeInfo{"Node1", "127.0.0.1"};
-    MOCKER(ubse::mti::UbseGetLocalNodeInfo).stubs().with(outBound(ubseNodeInfo)).will(returnValue(UBSE_OK));
-    struct group testGroup{.gr_name = "ubm_nuds"};
-    MOCKER(getgrnam).stubs().will(returnValue(&testGroup));
+    UbseHttpServer::Config config;
+    config.name = "TestUdsServer";
+    config.useUds = true;
+    config.useSsl = false;
+    config.listenAddr = "";
+    config.port = 0;
+    config.udsPath = "/tmp/test_uds.sock";
 
-    EXPECT_EQ(UbseHttpServer::GetInstance().Start(false), false);
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().Stop());
+    UbseHttpServer server(config);
+    EXPECT_EQ(server.Start(), false);
+    EXPECT_NO_THROW(server.Stop());
     GlobalMockObject::verify();
 }
 
@@ -90,12 +97,16 @@ TEST_F(TestUbseHttpTcpServer, StartAndStopUdsServer)
  */
 TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidParamsSize)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     UbseHttpRequest request{};
     httplib::Request req{};
 
     std::string testString(httpMaxQuerySize + 1, 'a'); // 设置测试字符串长度为param最大值加1
     req.params.insert(std::make_pair("param1", testString));
-    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
+    EXPECT_EQ(server.ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
 }
 
 /*
@@ -108,13 +119,17 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidParamsSize)
  */
 TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidBodySize)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     UbseHttpRequest request{};
     httplib::Request req{};
 
     std::string testBodyString(httpMaxBodySize + 1, 'a'); // 设置测试字符串长度为body最大值加1
     req.params.insert(std::make_pair("param1", "value1"));
     req.body = testBodyString;
-    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
+    EXPECT_EQ(server.ValidateHttpRequest(req, request), UBSE_HTTP_ERROR_MSG_OVERSIZE);
 }
 
 /*
@@ -130,16 +145,20 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequestFailedCauseInvalidBodySize)
  */
 TEST_F(TestUbseHttpTcpServer, ValidateHttpRequest)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     UbseHttpRequest request{};
     httplib::Request req{};
 
     req.params.insert(std::make_pair("param1", "value1"));
     req.body = "testRequestBody";
     req.method = "INVALIDTYPE";
-    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_ERROR);
+    EXPECT_EQ(server.ValidateHttpRequest(req, request), UBSE_ERROR);
 
     req.method = "GET";
-    EXPECT_EQ(UbseHttpServer::GetInstance().ValidateHttpRequest(req, request), UBSE_OK);
+    EXPECT_EQ(server.ValidateHttpRequest(req, request), UBSE_OK);
 }
 
 /*
@@ -154,9 +173,11 @@ TEST_F(TestUbseHttpTcpServer, ValidateHttpRequest)
 TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfMoudleFailed)
 {
     uint32_t port = 0;
-    std::shared_ptr<UbseConfModule> nullModule = nullptr;
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    config.port = DEFAULT_TCP_SERVER_PORT;
+    UbseHttpServer server(config);
+    EXPECT_NO_THROW(server.GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
@@ -181,14 +202,14 @@ static UbseResult GetConfMocker(UbseConfModule *This, std::string &section, std:
 TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfFailed)
 {
     uint32_t port = 0;
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    config.port = DEFAULT_TCP_SERVER_PORT;
+    UbseHttpServer server(config);
+    EXPECT_NO_THROW(server.GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 
-    MOCKER(&UbseConfModule::GetConf<uint32_t>).stubs().will(invoke(GetConfMocker));
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
+    EXPECT_NO_THROW(server.GetTcpServerPort(port));
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
@@ -212,10 +233,11 @@ static UbseResult GetConfMockerWithValidPort(UbseConfModule *This, std::string &
 TEST_F(TestUbseHttpTcpServer, GetTcpServerPortSucceed)
 {
     uint32_t port = 0;
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(module));
-    MOCKER(&UbseConfModule::GetConf<uint32_t>).stubs().will(invoke(GetConfMockerWithValidPort));
-    EXPECT_NO_THROW(UbseHttpServer::GetInstance().GetTcpServerPort(port));
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    config.port = TCP_SERVER_PORT;
+    UbseHttpServer server(config);
+    EXPECT_NO_THROW(server.GetTcpServerPort(port));
     EXPECT_EQ(port, TCP_SERVER_PORT);
 }
 
@@ -227,6 +249,10 @@ static uint32_t TestHandlerForTcpReg(const UbseHttpRequest &req, UbseHttpRespons
 
 TEST_F(TestUbseHttpTcpServer, HandleRequest400)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     httplib::Request req{};
     httplib::Response resp{};
 
@@ -236,7 +262,7 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest400)
     req.path = "";
 
     MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_ERROR));
-    UbseHttpServer::GetInstance().HandleRequest(req, resp);
+    server.HandleRequest(req, resp);
     EXPECT_EQ(resp.status, BadRequest_400);
 
     GlobalMockObject::verify();
@@ -244,6 +270,10 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest400)
 
 TEST_F(TestUbseHttpTcpServer, HandleRequest404)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     httplib::Request req{};
     httplib::Response resp{};
 
@@ -253,7 +283,7 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest404)
     req.path = "";
 
     MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
-    UbseHttpServer::GetInstance().HandleRequest(req, resp);
+    server.HandleRequest(req, resp);
     EXPECT_EQ(resp.status, NotFound_404);
 
     GlobalMockObject::verify();
@@ -261,6 +291,10 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest404)
 
 TEST_F(TestUbseHttpTcpServer, HandleRequest200)
 {
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
     httplib::Request req{};
     httplib::Response resp{};
 
@@ -271,8 +305,8 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest200)
 
     MOCKER(&UbseHttpServer::ValidateHttpRequest).stubs().will(returnValue(UBSE_OK));
 
-    UbseHttpServer::GetInstance().RegisterRoute(req.path, req.method, TestHandlerForTcpReg);
-    UbseHttpServer::GetInstance().HandleRequest(req, resp);
+    server.RegisterRoute(req.path, req.method, TestHandlerForTcpReg);
+    server.HandleRequest(req, resp);
     EXPECT_EQ(resp.status, OK_200);
     GlobalMockObject::verify();
 }

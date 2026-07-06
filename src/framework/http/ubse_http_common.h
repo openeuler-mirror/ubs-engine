@@ -106,12 +106,22 @@ struct UbseHttpResponse {
     int status;
 };
 
+// Peer certificate information extracted from mTLS handshake.
+// All fields are empty when no client certificate is presented (e.g. HTTP request,
+// or HTTPS without mTLS enforced).
+struct UbseHttpPeerCert {
+    std::string cn;   // Common Name (NID_commonName)
+    std::string ou;   // Organizational Unit (NID_organizationalUnitName)
+    bool present{false};  // Whether a peer certificate was provided
+};
+
 struct UbseHttpRequest {
     std::string method;
     std::string path;
     std::multimap<std::string, std::string> params;
     std::unordered_multimap<std::string, std::string> headers;
     std::string body;
+    UbseHttpPeerCert peerCert;  // Client certificate info from mTLS handshake
 };
 
 /**

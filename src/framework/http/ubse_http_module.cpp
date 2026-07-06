@@ -42,6 +42,27 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 const size_t MAX_RESPONSE_BODY_SIZE = 2 * 1024 * 1024;
 int UbseHttpModule::port = DEFAULT_UBM_SERVER_PORT;
 bool UbseHttpModule::isTcpServer = false;
+std::unique_ptr<UbseHttpServer> UbseHttpModule::httpServer_ = nullptr;
+
+namespace {
+// 调用方初始化时填写的证书路径，路径格式如 "/var/lib/ubse/lcne_cert/server.pem"
+constexpr const char *SERVER_CERT_FILE = "/var/lib/ubse/lcne_cert/server.pem";
+constexpr const char *TRUST_CERT_FILE = "/var/lib/ubse/lcne_cert/trust.pem";
+constexpr const char *CRL_FILE = "/var/lib/ubse/lcne_cert/ca.crl";
+constexpr const char *SERVER_KEY_FILE = "/var/lib/ubse/lcne_cert/server_key.pem";
+constexpr const char *PASSWORD_FILE = "/var/lib/ubse/lcne_cert/key_pwd.txt";
+
+cert::UbseCertPaths MakeCertPaths()
+{
+    cert::UbseCertPaths paths;
+    paths.serverCertFile = SERVER_CERT_FILE;
+    paths.trustCertFile = TRUST_CERT_FILE;
+    paths.crlFile = CRL_FILE;
+    paths.serverKeyFile = SERVER_KEY_FILE;
+    paths.passwordFile = PASSWORD_FILE;
+    return paths;
+}
+} // namespace
 
 UbseResult UbseHttpModule::Initialize()
 {
@@ -72,7 +93,8 @@ UbseResult UbseHttpModule::Initialize()
             port = static_cast<int>(portValue);
         }
         // 开启TCP通信时、需要对相关的证书进行校验
-        if (!cert::UbseSslValidator::ValidateAll()) {
+        cert::UbseSslValidator validator(MakeCertPaths());
+        if (!validator.ValidateAll()) {
             UBSE_LOG_ERROR << "Init https server failed, please check cert file.";
             return UBSE_ERROR;
         }
@@ -87,10 +109,38 @@ UbseResult UbseHttpModule::Start()
 {
     UBSE_LOG_INFO << "Start HTTP server. HTTP type is " << (isTcpServer ? "TCP" : "UDS");
     try {
-        if (UbseHttpServer::GetInstance().Start(isTcpServer)) {
+        UbseHttpServer::Config config;
+        config.name = "UbsEngineMain";
+        config.useUds = !isTcpServer;
+        config.useSsl = isTcpServer;
+        config.certPaths = MakeCertPaths();
+
+        if (isTcpServer) {
+            config.port = port;
+            std::string listenAddr = "127.0.0.1";
+            auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
+            if (confModule != nullptr) {
+                std::string confAddr;
+                auto ret = confModule->GetConf(UBSE_UBFM_SECTION, "ubse.server.listenAddr", confAddr);
+                if (ret == UBSE_OK && !confAddr.empty()) {
+                    listenAddr = confAddr;
+                }
+            }
+            config.listenAddr = listenAddr;
+            config.udsPath = "";
+        } else {
+            config.port = 0;
+            config.listenAddr = "";
+            config.udsPath = UBSE_UBM_UDS_ADDRESS;
+        }
+
+        httpServer_ = std::make_unique<UbseHttpServer>(config);
+        if (httpServer_->Start()) {
             return UBSE_OK;
         }
+        httpServer_.reset();
     } catch (const std::exception &e) {
+        httpServer_.reset();
         UBSE_LOG_ERROR << "Failed to start server, error=" << e.what();
     }
     UBSE_LOG_ERROR << "Failed to start server";
@@ -100,17 +150,30 @@ UbseResult UbseHttpModule::Start()
 void UbseHttpModule::Stop()
 {
     try {
-        UbseHttpServer::GetInstance().Stop();
+        if (httpServer_) {
+            httpServer_->Stop();
+            httpServer_.reset();
+        }
         UBSE_LOG_INFO << "http stop end";
     } catch (const std::exception &e) {
         UBSE_LOG_ERROR << "Failed to stop server, error=" << e.what();
     }
 }
 
+UbseHttpServer* UbseHttpModule::GetServer()
+{
+    return httpServer_.get();
+}
+
 UbseResult UbseHttpModule::RegHttpService(UbseHttpMethod method, const std::string &url, UbseHttpHandlerFunc func)
 {
     try {
-        UbseHttpServer::GetInstance().RegisterRoute(url, UbseHttpMethodToString(method), std::move(func));
+        if (httpServer_) {
+            httpServer_->RegisterRoute(url, UbseHttpMethodToString(method), std::move(func));
+        } else {
+            UBSE_LOG_ERROR << "Http server not started yet, cannot register route: " << url;
+            return UBSE_ERROR;
+        }
     } catch (const std::exception &) {
         UBSE_LOG_ERROR << "Failed to RegisterRoute.";
         return UBSE_ERROR;
@@ -149,7 +212,9 @@ UbseResult UbseHttpModule::MakeError(uint32_t code)
 bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpRsp, httplib::Error &error)
 {
     // UBFM TCP服务端口为本机，端口为配置文件中读取的端口
-    SecureBuffer serverKeyPassword = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+    auto certPaths = MakeCertPaths();
+    cert::UbseSslValidator validator(certPaths);
+    SecureBuffer serverKeyPassword = validator.LoadPassword();
     if (serverKeyPassword.size() == 0) {
         UBSE_LOG_ERROR << "ServerKeyPassword is empty!";
         return false;
@@ -165,13 +230,13 @@ bool UbseHttpModule::TcpSend(httplib::Request &httpReq, httplib::Response &httpR
         UBSE_LOG_WARN << "Get ubm.server.hostname failed or value is empty, will use default value: localhost";
         hostName = "localhost";
     }
-    SSLClient cli(hostName, port, UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
+    SSLClient cli(hostName, port, certPaths.serverCertFile, certPaths.serverKeyFile,
                   serverKeyPassword.c_str());
-    cli.set_ca_cert_path(UbseSSLConfig::TrustCertFile);
+    cli.set_ca_cert_path(certPaths.trustCertFile);
     cli.set_connection_timeout(5, 0); // 设置连接超时时间为5s
     cli.set_path_encode(false);
     SSL_CTX* ctx = static_cast<SSL_CTX*>(cli.tls_context());
-    if (ctx && !cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
+    if (ctx && !validator.ConfigureCrlValidation(ctx)) {
         UBSE_LOG_ERROR << "Failed to configure CRL validation for client";
         return false;
     }
