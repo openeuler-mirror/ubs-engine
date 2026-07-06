@@ -11,11 +11,19 @@
 */
 #ifndef UBSE_SSL_CONFIG_PATH_H
 #define UBSE_SSL_CONFIG_PATH_H
-namespace UbseSSLConfig {
-inline constexpr const char *ServerCertFile = "/var/lib/ubse/lcne_cert/server.pem";
-inline constexpr const char *TrustCertFile = "/var/lib/ubse/lcne_cert/trust.pem";
-inline constexpr const char *CrlFile = "/var/lib/ubse/lcne_cert/ca.crl";
-inline constexpr const char *ServerKeyFile = "/var/lib/ubse/lcne_cert/server_key.pem";
-inline constexpr const char *PasswordFile = "/var/lib/ubse/lcne_cert/key_pwd.txt";
-} // namespace UbseSSLConfig
+#include <string>
+namespace ubse::cert {
+/**
+ * @brief 证书相关文件路径集合
+ *
+ * 调用方初始化时填充各路径，路径格式如 "/var/lib/ubse/lcne_cert/server.pem"。
+ */
+struct UbseCertPaths {
+    std::string serverCertFile;  // 服务端证书文件路径
+    std::string serverKeyFile;   // 服务端私钥文件路径
+    std::string trustCertFile;   // 信任CA证书文件路径
+    std::string crlFile;         // 证书吊销列表文件路径
+    std::string passwordFile;    // 私钥密码文件路径
+};
+} // namespace ubse::cert
 #endif

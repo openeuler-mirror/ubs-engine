@@ -35,8 +35,18 @@ constexpr uint32_t HOST_PORT = 6174;
 constexpr uint32_t HOST_CID = 0;
 constexpr uint32_t BUF_SIZE = 4096;
 
+// vsock 客户端使用的证书路径
+constexpr const char *SERVER_CERT_FILE = "/var/lib/ubse/lcne_cert/server.pem";
+constexpr const char *TRUST_CERT_FILE = "/var/lib/ubse/lcne_cert/trust.pem";
+constexpr const char *SERVER_KEY_FILE = "/var/lib/ubse/lcne_cert/server_key.pem";
+constexpr const char *PASSWORD_FILE = "/var/lib/ubse/lcne_cert/key_pwd.txt";
+
 UbseVsockClient::UbseVsockClient() : sockFd_(INVALID_SOCK_FD), hostPort_(HOST_PORT), hostCid_(HOST_CID)
 {
+    certPaths_.serverCertFile = SERVER_CERT_FILE;
+    certPaths_.trustCertFile = TRUST_CERT_FILE;
+    certPaths_.serverKeyFile = SERVER_KEY_FILE;
+    certPaths_.passwordFile = PASSWORD_FILE;
     auto ubseConfModule = context::UbseContext::GetInstance().GetModule<config::UbseConfModule>();
     if (ubseConfModule == nullptr) {
         UBSE_LOG_ERROR << "Get config info failed, " << FormatRetCode(UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -131,6 +141,7 @@ void UbseVsockClient::Disconnect()
             ssl_ = nullptr;
         }
         close(sockFd_);
+        sockFd_ = INVALID_SOCK_FD;
     }
 }
 
@@ -163,20 +174,23 @@ SSL_CTX *UbseVsockClient::InitSslCtx()
 
     if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
         UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
+        SSL_CTX_free(ctx);
         return nullptr;
     }
 
-    if (!cert::UbseSslValidator::CheckAllFileExist()) {
+    cert::UbseSslValidator validator(certPaths_);
+    if (!validator.CheckAllFileExist()) {
+        SSL_CTX_free(ctx);
         return nullptr;
     }
 
-    password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+    password = validator.LoadPassword();
     SSL_CTX_set_default_passwd_cb(ctx, PemPasswordCallback);
     SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)(password.c_str()));
 
     // 1. 加载客户端证书+私钥（供服务端验证）
-    if (SSL_CTX_use_certificate_file(ctx, UbseSSLConfig::ServerCertFile, SSL_FILETYPE_PEM) <= 0 ||
-        SSL_CTX_use_PrivateKey_file(ctx, UbseSSLConfig::ServerKeyFile, SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, certPaths_.serverCertFile.c_str(), SSL_FILETYPE_PEM) <= 0 ||
+        SSL_CTX_use_PrivateKey_file(ctx, certPaths_.serverKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
         UBSE_LOG_ERROR << "SSL_CTX_use_certificate_file or SSL_CTX_use_PrivateKey_file failed";
         SSL_CTX_free(ctx);
         return nullptr;
@@ -188,7 +202,7 @@ SSL_CTX *UbseVsockClient::InitSslCtx()
         return nullptr;
     }
 
-    if (SSL_CTX_load_verify_locations(ctx, UbseSSLConfig::TrustCertFile, nullptr) != 1) {
+    if (SSL_CTX_load_verify_locations(ctx, certPaths_.trustCertFile.c_str(), nullptr) != 1) {
         UBSE_LOG_ERROR << "SSL_CTX_load_verify_locations failed.";
         SSL_CTX_free(ctx);
         return nullptr;

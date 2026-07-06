@@ -20,6 +20,7 @@
 
 #include "ubse_common_def.h"  // for UbseResult
 #include "ubse_http_common.h" // for UbseHttpResponse (ptr only), UbseHttpRe...
+#include "ubse_http_server.h" // for UbseHttpServer
 #include "ubse_module.h"      // for UbseModule
 namespace ubse::http {
 using namespace ubse::module;
@@ -45,12 +46,15 @@ public:
 
     static UbseResult UbseHttpPostJsonRequest(const std::string &path, const std::string &body, std::string &jsonRsp);
 
+    static UbseHttpServer* GetServer();
+
 private:
     static UbseResult MakeError(uint32_t code);
     static bool TcpSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
     static void UdsSend(httplib::Request &req, httplib::Response &rsp, httplib::Error &error);
     static bool isTcpServer;
     static int port;
+    static std::unique_ptr<UbseHttpServer> httpServer_;
 };
 } // namespace ubse::http
 

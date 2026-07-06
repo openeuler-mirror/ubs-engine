@@ -18,6 +18,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 
+#include "src/include/cert/ubse_cert_def.h"
 #include "ubse_secure_buffer.h"
 
 namespace ubse::vsock {
@@ -68,6 +69,7 @@ private:
     uint32_t hostCid_{0};
     bool isInitOk_ = false;
     utils::SecureBuffer password;
+    cert::UbseCertPaths certPaths_;
 };
 
 } // namespace ubse::vsock

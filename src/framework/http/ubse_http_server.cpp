@@ -11,6 +11,7 @@
  */
 #include "ubse_http_server.h"
 
+#include <arpa/inet.h>
 #include <cerrno>
 #include <grp.h>
 #include <securec.h>
@@ -42,19 +43,15 @@ using namespace ubse::config;
 using namespace ubse::utils;
 using namespace ubse::security;
 
-std::unique_ptr<UbseHttpServer> UbseHttpServer::instance_ = nullptr;
-std::once_flag UbseHttpServer::initInstanceFlag_;
 constexpr uint32_t START_TIMEOUT = 3000;
 constexpr uint32_t SLEEP_TIME = 100;
-constexpr mode_t FOLDER_PEUBSEISSION = 0755;
+constexpr mode_t FOLDER_PERMISSION = 0755;
 
-bool SetSocketFilePermission()
+bool SetSocketFilePermission(const std::string &udsAddress)
 {
-    // 重置 uds socket 文件权限为 660，防止不同环境权限不一致
-    std::string udsAddress = UBSE_UBM_UDS_ADDRESS;
     uint32_t retryTime = 0;
     while (access(udsAddress.c_str(), F_OK) == -1 && retryTime++ < START_TIMEOUT) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME)); // 当文件不存在，等待100ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
         retryTime += SLEEP_TIME;
     }
 
@@ -82,22 +79,32 @@ bool SetSocketFilePermission()
     return true;
 }
 
-bool UbseHttpServer::Start(bool isTcpServer)
+UbseHttpServer::UbseHttpServer(const Config &config)
+    : config_(config), running_(false)
+{
+}
+
+UbseHttpServer::~UbseHttpServer()
+{
+    Stop();
+}
+
+bool UbseHttpServer::Start()
 {
     try {
-        if (isTcpServer) {
-            serverThread_ = std::thread(&UbseHttpServer::TcpRun, this);
-        } else {
+        if (config_.useUds) {
             serverThread_ = std::thread(&UbseHttpServer::UdsRun, this);
+        } else {
+            serverThread_ = std::thread(&UbseHttpServer::TcpRun, this);
         }
     } catch (const std::system_error &) {
-        UBSE_LOG_ERROR << "Failed to create thread.";
+        UBSE_LOG_ERROR << "Failed to create thread for " << config_.name;
         return false;
     }
     uint32_t retryTime = 0;
     while (retryTime <= START_TIMEOUT) {
         if (server_ && server_->is_running()) {
-            return isTcpServer || SetSocketFilePermission();
+            return !config_.useUds || SetSocketFilePermission(config_.udsPath);
         }
         retryTime += SLEEP_TIME;
         std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
@@ -114,10 +121,10 @@ void UbseHttpServer::Stop()
         serverThread_.join();
     }
 
-    // 删除 UDS socket 文件
-    std::string udsAddress = UBSE_UBM_UDS_ADDRESS;
-    if (unlink(udsAddress.c_str()) != 0 && errno != ENOENT) {
-        UBSE_LOG_ERROR << "Failed to delete UDS socket file: " << strerror(errno);
+    if (config_.useUds && !config_.udsPath.empty()) {
+        if (unlink(config_.udsPath.c_str()) != 0 && errno != ENOENT) {
+            UBSE_LOG_ERROR << "Failed to delete UDS socket file: " << strerror(errno);
+        }
     }
 }
 
@@ -136,13 +143,44 @@ static void ProcessRequestHeadersAndParams(const httplib::Request &req, UbseHttp
     }
 }
 
+// Extract peer certificate info from the mTLS handshake and fill request.peerCert.
+// present is set to true only when a client certificate was actually provided.
+static void FillPeerCertInfo(const httplib::Request &req, UbseHttpRequest &request)
+{
+#ifdef CPPHTTPLIB_SSL_ENABLED
+    if (req.ssl == nullptr) {
+        return;  // non-HTTPS request, leave peerCert default (present=false)
+    }
+    // tls::const_session_t is `const void*` pointing to the OpenSSL SSL object
+    SSL *ssl = const_cast<SSL *>(static_cast<const SSL *>(req.ssl));
+    X509 *cert = SSL_get1_peer_certificate(ssl);
+    if (cert == nullptr) {
+        return;  // client did not present a certificate
+    }
+    X509_NAME *name = X509_get_subject_name(cert);
+    char buf[256] = {0};
+    if (X509_NAME_get_text_by_NID(name, NID_commonName, buf, sizeof(buf)) > 0) {
+        request.peerCert.cn = buf;
+    }
+    memset_s(buf, sizeof(buf), 0, sizeof(buf));
+    if (X509_NAME_get_text_by_NID(name, NID_organizationalUnitName, buf, sizeof(buf)) > 0) {
+        request.peerCert.ou = buf;
+    }
+    X509_free(cert);
+    request.peerCert.present = true;
+#else
+    (void)req;
+    (void)request;
+#endif
+}
+
 std::string UbseHttpServer::GenerateQueryString(const std::multimap<std::string, std::string> &queryParams)
 {
     std::string queryString;
     bool first = true;
     for (const auto &param : queryParams) {
         if (!first) {
-            queryString.append("&"); // 添加分隔符
+            queryString.append("&");
         }
         first = false;
         queryString.append(param.first);
@@ -175,7 +213,7 @@ UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request &req, Ubse
 
 void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Response &res)
 {
-    UBSE_LOG_INFO << "Receive request, uri=" << req.path << ", method=" << req.method;
+    UBSE_LOG_INFO << "[" << config_.name << "] Receive request, uri=" << req.path << ", method=" << req.method;
     UbseHttpRequest request{};
     if (ValidateHttpRequest(req, request) != UBSE_OK) {
         res.status = BadRequest_400;
@@ -184,11 +222,12 @@ void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Respons
     }
     request.path = req.path;
     ProcessRequestHeadersAndParams(req, request);
+    FillPeerCertInfo(req, request);
     UbseHttpResponse response{};
     std::string routeKey = req.method + req.path;
     auto it = routes_.find(routeKey);
     if (it == routes_.end()) {
-        UBSE_LOG_ERROR << "url=" << req.path << "has not been registered in tcp server.";
+        UBSE_LOG_ERROR << "[" << config_.name << "] url=" << req.path << " has not been registered.";
         res.status = NotFound_404;
         res.set_content("Not Found", "text/plain");
         return;
@@ -214,59 +253,40 @@ void UbseHttpServer::RegisterRoute(const std::string &path, const std::string &m
     std::lock_guard<std::mutex> lock(routesMutex_);
     auto it = routes_.find(routeKey);
     if (it != routes_.end()) {
-        UBSE_LOG_WARN << "url=" << path << " has already been registered in server.";
+        UBSE_LOG_WARN << "[" << config_.name << "] url=" << path << " has already been registered.";
         return;
     }
     routes_[routeKey] = handler;
-    UBSE_LOG_INFO << "register method= " << method << ", url= " << path << " for http server.";
-    return;
-}
-
-void UbseHttpServer::GetTcpServerPort(uint32_t &port)
-{
-    port = DEFAULT_TCP_SERVER_PORT;
-    auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (module == nullptr) {
-        UBSE_LOG_ERROR << "[HTTP] GetTcpServerPort GetModule failed.";
-        return;
-    }
-
-    UbseResult ret = module->GetConf<uint32_t>(UBSE_UBFM_SECTION, UBSE_HTTP_TCP_SERVER_PORT, port);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[HTTP] GetTcpServerPort get ubse.server.port failed, will use default value: "
-                       << DEFAULT_TCP_SERVER_PORT;
-    }
-    if (!UbseNetUtil::IsPortVaLid(port)) {
-        UBSE_LOG_ERROR << "ubse.server.port=" << port
-                       << " is out of range[1024, 65535], will use default value: " << DEFAULT_TCP_SERVER_PORT;
-        port = DEFAULT_TCP_SERVER_PORT;
-    }
+    UBSE_LOG_INFO << "[" << config_.name << "] register method= " << method << ", url= " << path;
 }
 
 std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
 {
-    password = cert::UbseSslValidator::LoadPasswordFromFile(UbseSSLConfig::PasswordFile);
+    cert::UbseSslValidator validator(config_.certPaths);
+    password = validator.LoadPassword();
     if (password.size() == 0) {
-        UBSE_LOG_ERROR << "Private key password not found.";
+        UBSE_LOG_ERROR << "[" << config_.name << "] Private key password not found.";
         return nullptr;
     }
-    auto sslServer = std::make_unique<httplib::SSLServer>(UbseSSLConfig::ServerCertFile, UbseSSLConfig::ServerKeyFile,
-                                                          UbseSSLConfig::TrustCertFile, nullptr, password.c_str());
+    auto sslServer = std::make_unique<httplib::SSLServer>(config_.certPaths.serverCertFile.c_str(),
+                                                          config_.certPaths.serverKeyFile.c_str(),
+                                                          config_.certPaths.trustCertFile.c_str(), nullptr,
+                                                          password.c_str());
     if (!sslServer || !sslServer->is_valid()) {
-        UBSE_LOG_ERROR << "Failed to initialize SSL server.";
+        UBSE_LOG_ERROR << "[" << config_.name << "] Failed to initialize SSL server.";
         return nullptr;
     }
     // 配置客户端证书验证（mTLS）
     SSL_CTX* ctx = static_cast<SSL_CTX*>(sslServer->tls_context());
     if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
         // 设置失败，可能是 OpenSSL 版本过低或不支持 TLS 1.3
-        UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
+        UBSE_LOG_ERROR << "[" << config_.name << "] Failed to set min protocol version: TLS1_3_VERSION";
         return nullptr;
     }
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
     // 配置证书吊销列表（CRL）验证
-    if (!cert::UbseSslValidator::ConfigureCrlValidation(ctx)) {
-        UBSE_LOG_ERROR << "Failed to configure CRL validation for server";
+    if (!validator.ConfigureCrlValidation(ctx)) {
+        UBSE_LOG_ERROR << "[" << config_.name << "] Failed to configure CRL validation for server";
         return nullptr;
     }
     sslServer->new_task_queue = []() -> httplib::ThreadPool* {
@@ -278,45 +298,25 @@ std::unique_ptr<httplib::SSLServer> UbseHttpServer::CreateSslServer()
 void UbseHttpServer::TcpRun()
 {
     try {
-        server_ = CreateSslServer();
-        if (!server_) {
+        auto sslServer = CreateSslServer();
+        if (!sslServer) {
             throw std::runtime_error("Failed to create SSL server.");
         }
-        server_->Get("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Post("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Put("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Delete("/.*",
-                        [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Patch("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
 
-        uint32_t port = 0;
-        GetTcpServerPort(port);
-        UBSE_LOG_INFO << "TCP server start listening on port=" << port;
+        sslServer->Get("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+        sslServer->Post("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+        sslServer->Put("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+        sslServer->Delete("/.*",
+                          [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+        sslServer->Patch("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
 
-        // 检查端口是否被占用
-        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (sockfd < 0) {
-            throw std::runtime_error("Failed to create socket.");
-        }
+        UBSE_LOG_INFO << "[" << config_.name << "] TCP server start listening on addr=" << config_.listenAddr
+                      << ", port=" << config_.port;
 
-        sockaddr_in addr;
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = INADDR_ANY;
-        addr.sin_port = htons(port);
-
-        // 尝试绑定
-        if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-            close(sockfd);
-            throw std::runtime_error("Port " + std::to_string(port) + " is already in use.");
-        }
-
-        // 关闭套接字
-        close(sockfd);
-
-        std::string eid = "127.0.0.1";
-        server_->listen(eid, port);
+        server_ = std::move(sslServer);
+        server_->listen(config_.listenAddr, config_.port);
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "Error starting server=" << e.what();
+        UBSE_LOG_ERROR << "[" << config_.name << "] Error starting server=" << e.what();
     }
 }
 
@@ -328,7 +328,7 @@ void UbseHttpServer::UdsRun()
             return new httplib::ThreadPool(NO_1, NO_8);
         };
         if (!server_) {
-            throw std::runtime_error("Failed to create SSL server.");
+            throw std::runtime_error("Failed to create server.");
         }
         server_->Get("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
         server_->Post("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
@@ -337,34 +337,33 @@ void UbseHttpServer::UdsRun()
                         [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
         server_->Patch("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
 
-        std::string udsAddress = UBSE_UBM_UDS_ADDRESS;
+        std::string udsAddress = config_.udsPath.empty() ? UBSE_UBM_UDS_ADDRESS : config_.udsPath;
 
         const auto udsParentPath = GetParentDirectory(udsAddress);
         std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        if (UbseFileUtil::CreateAndChmodDirectory(udsParentPath, FOLDER_PEUBSEISSION) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Uds file directory= " << udsParentPath << " is unavailable.";
+        if (UbseFileUtil::CreateAndChmodDirectory(udsParentPath, FOLDER_PERMISSION) != UBSE_OK) {
+            UBSE_LOG_ERROR << "[" << config_.name << "] Uds file directory= " << udsParentPath << " is unavailable.";
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             return;
         }
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
 
-        // 如果 socket 文件已存在，先删掉
         auto res = unlink(udsAddress.c_str());
         if (res != 0 && errno != ENOENT) {
-            UBSE_LOG_ERROR << "unlink uds file fail, errno= " << errno;
+            UBSE_LOG_ERROR << "[" << config_.name << "] unlink uds file fail, errno= " << errno;
             return;
         }
 
         bool ret = server_->set_address_family(AF_UNIX).listen(udsAddress, 80);
         if (!ret) {
-            UBSE_LOG_ERROR << "start server fail";
+            UBSE_LOG_ERROR << "[" << config_.name << "] start server fail";
             return;
         }
         // listen接口为阻塞接口，当服务停止，将打印此日志
-        UBSE_LOG_INFO << "uds server stopped";
+        UBSE_LOG_INFO << "[" << config_.name << "] uds server stopped";
     } catch (const std::exception &e) {
-        UBSE_LOG_ERROR << "ERROR starting server= " << e.what();
+        UBSE_LOG_ERROR << "[" << config_.name << "] ERROR starting server= " << e.what();
     }
 }
 

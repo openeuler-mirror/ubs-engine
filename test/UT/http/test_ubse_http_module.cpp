@@ -56,7 +56,12 @@ TEST_F(TestUbseHttpModule, ShouldReturnUBSE_OK_When_Strat_Return_True)
 {
     std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
-    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
+    uint32_t cid = 1;
+    uint32_t port = DEFAULT_UBM_SERVER_PORT;
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(cid)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(port)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_OK);
@@ -74,10 +79,19 @@ TEST_F(TestUbseHttpModule, ShouldReturnUBSE_OK_When_Strat_Return_True)
  */
 TEST_F(TestUbseHttpModule, ShouldReturnUBSE_ERROR_When_Strat_Return_False)
 {
-    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(false));
+    std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    uint32_t cid = 1;
+    uint32_t port = DEFAULT_UBM_SERVER_PORT;
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(cid)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(port)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    EXPECT_EQ(UBSE_OK, testRHM.Initialize());
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(false));
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_ERROR);
     testRHM.Stop();
+    testRHM.UnInitialize();
 }
 
 static uint32_t TestHandler(const UbseHttpRequest &req, UbseHttpResponse &resp)
@@ -104,9 +118,12 @@ TEST_F(TestUbseHttpModule, Initialize_TcpDefault)
     EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, testRHM.Initialize());
     std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_OK));
-    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
-    MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    uint32_t cid = 1;
+    uint32_t defaultPort = DEFAULT_UBM_SERVER_PORT;
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(cid)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(defaultPort)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_OK);
@@ -118,10 +135,18 @@ TEST_F(TestUbseHttpModule, Initialize_Conf)
 {
     std::shared_ptr<UbseConfModule> conf = std::make_shared<UbseConfModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(conf));
+    uint32_t cid = 1;
     uint32_t port = 8082;
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().with(mockcpp::any(), mockcpp::any(), outBound(port)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseHttpServer::Start).stubs().will(returnValue(true));
-    MOCKER(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(cid))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::any(), outBound(port))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&cert::UbseSslValidator::ValidateAll).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseHttpServer::Start).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, testRHM.Initialize());
     auto ret = testRHM.Start();
     EXPECT_EQ(ret, UBSE_OK);
