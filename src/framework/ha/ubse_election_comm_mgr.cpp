@@ -454,6 +454,9 @@ UbseResult UbseElectionCommMgr::Start()
     if (ElectionSubEvent() != UBSE_OK) {
         return UBSE_ERROR;
     }
+    if (UbseElectionNodeMgr::GetInstance().ElectionSubNodeDiscoveryEvent() != UBSE_OK) {
+        return UBSE_ERROR;
+    }
     Node currentNode;
     if (UbseElectionNodeMgr::GetInstance().GetMyselfNode(currentNode) != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] Get myself node failed";
