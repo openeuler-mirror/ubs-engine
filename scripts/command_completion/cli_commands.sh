@@ -4,6 +4,57 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 #
 
+function _ubse_ssu_command_completion() {
+    local cur=${COMP_WORDS[COMP_CWORD]}
+    local cmd=${COMP_WORDS[COMP_CWORD-1]}
+
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W 'display create' -- ${cur}) )
+        return 0
+    fi
+
+    if [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
+        COMPREPLY=( $(compgen -W 'alloc_summary alloc_detail' -- ${cur}) )
+        return 0
+    fi
+
+    if [[ "${cmd}" == '--lba' || "${cmd}" == '-l' ]]; then
+        COMPREPLY=( $(compgen -W '512B 4K' -- ${cur}) )
+        return 0
+    fi
+
+    if [[ "${cmd}" == '--strategy' || "${cmd}" == '-r' ]]; then
+        COMPREPLY=( $(compgen -W 'Linear Striped' -- ${cur}) )
+        return 0
+    fi
+
+    case ${COMP_WORDS[1]} in
+        'display')
+            if [[ "${cur}" == --* ]] ; then
+                COMPREPLY=( $(compgen -W '--type --name' -- ${cur}) )
+                return 0
+            elif [[ "${cur}" == -* ]]; then
+                COMPREPLY=( $(compgen -W '-t -n' -- ${cur}) )
+                return 0
+            fi
+        ;;
+        'create')
+            if [[ "${cur}" == --* ]] ; then
+                COMPREPLY=( $(compgen -W '--name --size --lba --ns_num --strategy' -- ${cur}) )
+                return 0
+            elif [[ "${cur}" == -* ]]; then
+                COMPREPLY=( $(compgen -W '-n -s -l -m -r' -- ${cur}) )
+                return 0
+            fi
+        ;;
+        '*')
+            return 0
+        ;;
+    esac
+
+    return 0
+}
+
 function _ubse_commond_completion() {
     COMPREPLY=()
 
@@ -14,6 +65,11 @@ function _ubse_commond_completion() {
     commands='create display import delete check change remove detach attach urma'
     display_types='topo memory cluster cert node urma'
     check_types='memory'
+
+    if [[ ${COMP_WORDS[0]} == *ubsectl-ssu ]]; then
+        _ubse_ssu_command_completion
+        return 0
+    fi
 
     case "${cmd}" in
         *'ubsectl')
@@ -308,3 +364,4 @@ function _ubse_commond_completion() {
 }
 
 complete -F _ubse_commond_completion ubsectl
+complete -F _ubse_commond_completion ubsectl-ssu

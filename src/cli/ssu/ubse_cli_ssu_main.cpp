@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -9,11 +9,16 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <string>
+
 #include "ubse_cli_main_utils.h"
+#include "ubse_cli_reg.h"
 #include "ubse_error.h"
 
 using namespace ubse::cli::reg;
 using namespace ubse::cli::framework;
+
+const std::string SSU_TYPE = "ssu";
 
 int main(int argc, char *argv[])
 {
@@ -24,7 +29,16 @@ int main(int argc, char *argv[])
 
     auto &registry = UbseCliModuleRegistry::GetInstance();
     registry.UbseCliCallAllModuleSignUp();
-    auto args = UbseCliBuildArgs(argc, argv);
+    registry.UbseCliSetProgramContext("ubsectl-ssu", false);
+
+    auto args = UbseCliBuildArgs(argc, argv, 1);
+    if (args.size() == 1 && registry.UbseCliHelpInfoParse(args)) {
+        return UBSE_OK;
+    }
+    if (!args.empty()) {
+        args.insert(args.begin() + 1, SSU_TYPE);
+    }
+
     validRet = UbseCliValidateArgsByWhitelist(args);
     if (validRet != UBSE_OK) {
         return validRet;
