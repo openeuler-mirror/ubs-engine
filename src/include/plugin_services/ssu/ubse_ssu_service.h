@@ -200,14 +200,14 @@ public:
      * 查询指定存储空间在指定VFE上的NVMe连接信息, 包括子系统NQN、Host NQN、命名空间ID等。
      *
      * @param name             存储空间标识（与 AllocSpace 时的 name 参数一致）
-     * @param vfe              VFE信息, 指定查询的虚拟功能单元
+     * @param vfe              VFE信息, 指定查询的虚拟功能单元,可选，传空取host fe eid
      * @param connectInfoList  [输出] 连接信息列表
      * @param identity         调用方身份信息, 包含用户名和uid
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t GetConnectInfo(const std::string &name, const UbseSsuVfe &vfe,
+    virtual uint32_t GetConnectInfo(const std::string &name, const UbseSsuVfe *vfe,
                                     std::vector<UbseSsuConnectInfo> &connectInfoList,
                                     const UbseSsuAllocIdentityInfo &identity);
 
@@ -431,5 +431,12 @@ public:
      */
     virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid);
 };
+
+inline std::shared_ptr<UbseSsuService> GetSsuService()
+{
+    auto weakPtr =
+        ubse::service::UbseServiceRegistry::GetInstance().GetService<UbseSsuService>(UbseSsuService::kServiceName);
+    return weakPtr.lock();
+}
 } // namespace ubse::plugin::service::ssu
 #endif // UBSE_SSU_SERVICE_H
