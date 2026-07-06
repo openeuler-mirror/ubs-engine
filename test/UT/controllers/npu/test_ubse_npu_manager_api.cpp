@@ -2595,7 +2595,12 @@ TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueBackGroundRunsQueue)
 
     EXPECT_EQ(manager.futureProcedure_.size(), 1);
     manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
-    EXPECT_EQ(manager.state_, UbseNpuManagerApi::NpuManagerState::FREE_BG);
+
+    std::unique_lock<std::mutex> lock(manager.mtx_);
+    ASSERT_TRUE(manager.cv_.wait_for(lock, std::chrono::seconds(5), [&manager]() {
+        return manager.state_ == UbseNpuManagerApi::NpuManagerState::AVAILABLE;
+    }));
+    EXPECT_TRUE(manager.futureProcedure_.empty());
 }
 
 TEST_F(TestUbseNpuManagerApi, SetStateRollbackBg)
