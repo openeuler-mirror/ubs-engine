@@ -1516,4 +1516,1093 @@ TEST_F(TestUbseNpuManagerApi, FreeUbDevicesImplSuccess)
     EXPECT_EQ(result, UBSE_OK);
 }
 
+TEST_F(TestUbseNpuManagerApi, SetStateRollbackTriggersRollBack)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
+
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::ROLLBACK);
+    EXPECT_EQ(manager.state_, UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
+}
+
+TEST_F(TestUbseNpuManagerApi, SetStateRunningAllocClearsHistory)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.operationHistory_.push(op);
+
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+    EXPECT_TRUE(manager.operationHistory_.empty());
+    EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
+}
+
+TEST_F(TestUbseNpuManagerApi, SetStateRunningFreeClearsFuture)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.futureProcedure_.push(op);
+
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_FREE);
+    EXPECT_TRUE(manager.futureProcedure_.empty());
+    EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
+}
+
+TEST_F(TestUbseNpuManagerApi, FilterUnregisteredDevicesReturnsNotInBusi)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc vfeLoc2;
+    vfeLoc2.chipId = 3;
+    vfeLoc2.dieId = 1;
+    vfeLoc2.pfeId = 2;
+    vfeLoc2.vfeId = 2;
+    vfeLoc2.guid = "idev-vfe2-guid-1234567890123456789012";
+    auto vfe2 = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc2);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe, vfe2};
+    auto result = UbseNpuManagerApi::GetInstance().FilterUnregisteredDevices(devList, topo_.vmBusi);
+
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0]->GetIdStr(), vfe2->GetIdStr());
+}
+
+TEST_F(TestUbseNpuManagerApi, FilterRegisteredDevicesReturnsInBusi)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc vfeLoc2;
+    vfeLoc2.chipId = 3;
+    vfeLoc2.dieId = 1;
+    vfeLoc2.pfeId = 2;
+    vfeLoc2.vfeId = 2;
+    vfeLoc2.guid = "idev-vfe2-guid-1234567890123456789012";
+    auto vfe2 = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc2);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe, vfe2};
+    auto result = UbseNpuManagerApi::GetInstance().FilterRegisteredDevices(devList, topo_.vmBusi);
+
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0]->GetIdStr(), topo_.idevVfe->GetIdStr());
+}
+
+TEST_F(TestUbseNpuManagerApi, PrepareRegisterInfosSkipsNull)
+{
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 3;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {nullptr, vfe};
+    auto result = UbseNpuManagerApi::GetInstance().PrepareRegisterInfos(devList);
+
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0]->GetIdStr(), vfe->GetIdStr());
+}
+
+TEST_F(TestUbseNpuManagerApi, PrepareUnRegisterInfosSkipsNull)
+{
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 3;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {nullptr, vfe};
+    auto result = UbseNpuManagerApi::GetInstance().PrepareUnRegisterInfos(devList);
+
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0]->GetIdStr(), vfe->GetIdStr());
+}
+
+TEST_F(TestUbseNpuManagerApi, ConvertToUbseMti1825VfNicPfe)
+{
+    auto result = ConvertToUbseMti1825Vf<CollectionDeviceNicPfe>({topo_.nicPfe});
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0].slotId, topo_.nicPfeLoc.slotId);
+    EXPECT_EQ(result[0].chipId, topo_.nicPfeLoc.chipId);
+    EXPECT_EQ(result[0].pfId, topo_.nicPfeLoc.pfeId);
+}
+
+TEST_F(TestUbseNpuManagerApi, ConvertToUbseMti1825VfNicVfe)
+{
+    auto result = ConvertToUbseMti1825Vf<CollectionDeviceNicVfe>({topo_.nicVfe});
+    EXPECT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0].slotId, topo_.nicVfeLoc.slotId);
+    EXPECT_EQ(result[0].chipId, topo_.nicVfeLoc.chipId);
+    EXPECT_EQ(result[0].pfId, topo_.nicVfeLoc.pfeId);
+    EXPECT_EQ(result[0].vfId, topo_.nicVfeLoc.vfeId);
+}
+
+TEST_F(TestUbseNpuManagerApi, ConvertToUbseMti1825VfSkipsNull)
+{
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> devList = {nullptr};
+    auto result = ConvertToUbseMti1825Vf<CollectionDeviceNicPfe>(devList);
+    EXPECT_EQ(result.size(), 0);
+}
+
+TEST_F(TestUbseNpuManagerApi, ResetNpuDavidListSuccess)
+{
+    MOCKER_CPP(&ubse::npu::vm_monitor::ResetNpu).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().ResetNpu(devList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, ResetNpuDavidListFailure)
+{
+    MOCKER_CPP(&ubse::npu::vm_monitor::ResetNpu).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().ResetNpu(devList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, ResetNpuUbDeviceListSuccess)
+{
+    MOCKER_CPP(&ubse::npu::vm_monitor::ResetNpu).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<UbDevice> ubDevList;
+    UbDevice dev;
+    dev.type = ResourceType::NPU;
+    dev.chipId = 2;
+    ubDevList.push_back(dev);
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().ResetNpu(ubDevList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, ResetNpuUbDeviceListSkipsNonNpu)
+{
+    std::vector<UbDevice> ubDevList;
+    UbDevice dev;
+    dev.type = ResourceType::NIC_PFE;
+    dev.chipId = 2;
+    ubDevList.push_back(dev);
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().ResetNpu(ubDevList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, ResetNpuUbDeviceListFailure)
+{
+    MOCKER_CPP(&ubse::npu::vm_monitor::ResetNpu).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<UbDevice> ubDevList;
+    UbDevice dev;
+    dev.type = ResourceType::NPU;
+    dev.chipId = 2;
+    ubDevList.push_back(dev);
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().ResetNpu(ubDevList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, HandleOccupiedFilterDeviceVMBusiEmptyAll)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = HandleOccupiedFilterDeviceVMBusi(topo_.vmBusi, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, HandleOccupiedFilterDeviceVMBusiNpuUnbindFail)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnbindVfeDavid).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {topo_.npu};
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = HandleOccupiedFilterDeviceVMBusi(topo_.vmBusi, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, HandleOccupiedFilterDeviceVMBusiNicPfeUnregFail)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnbindVfeDavid).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterIDevFromBusi).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&RegisterNicPfesToHost).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterNicFromBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList = {topo_.npu};
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = HandleOccupiedFilterDeviceVMBusi(topo_.vmBusi, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, ClearEmptyVMBusInstanceNoNicPfeNoIdev)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    CollectDeviceLoc emptyBusiLoc;
+    emptyBusiLoc.guid = "empty-busi-guid-1234567890123456789012";
+    emptyBusiLoc.upi = "1";
+    auto emptyBusi = std::make_shared<CollectionDeviceBusi>(emptyBusiLoc.guid, emptyBusiLoc.eid, emptyBusiLoc.upi,
+                                                            CollectionDeviceType::VM_BUSINSTANCE);
+    auto baseEmptyBusi = CollectionDevice::CollectionToBase(emptyBusi);
+    ResourceCollection::GetInstance().SetDevice(baseEmptyBusi);
+
+    MOCKER_CPP(&UbseNpuManagerApi::DestroyVMBusi).stubs().will(returnValue(UBSE_OK));
+
+    ClearEmptyVMBusInstance();
+}
+
+TEST_F(TestUbseNpuManagerApi, ClearEmptyVMBusInstanceHasNicPfeNoDestroy)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "nic-pfe-busi-guid-1234567890123456789012";
+    busiLoc.upi = "1";
+    auto busiWithPfe = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                              CollectionDeviceType::VM_BUSINSTANCE);
+    busiWithPfe->SetSubDevNicPfe(topo_.nicPfe);
+    auto baseBusi = CollectionDevice::CollectionToBase(busiWithPfe);
+    ResourceCollection::GetInstance().SetDevice(baseBusi);
+
+    MOCKER_CPP(&UbseNpuManagerApi::DestroyVMBusi).expects(never());
+
+    ClearEmptyVMBusInstance();
+}
+
+TEST_F(TestUbseNpuManagerApi, ClearEmptyVMBusInstanceHasNonSharedVfeNoDestroy)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc busiLoc;
+    busiLoc.guid = "vfe-busi-guid-1234567890123456789012";
+    busiLoc.upi = "1";
+    auto busiWithVfe = std::make_shared<CollectionDeviceBusi>(busiLoc.guid, busiLoc.eid, busiLoc.upi,
+                                                              CollectionDeviceType::VM_BUSINSTANCE);
+    CollectDeviceLoc vfeLoc;
+    vfeLoc.chipId = 2;
+    vfeLoc.dieId = 0;
+    vfeLoc.pfeId = 1;
+    vfeLoc.vfeId = 3;
+    auto vfe = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc);
+    vfe->SetIsComSharedFe(false);
+    busiWithVfe->SetSubDevIdev(vfe);
+    auto baseBusi = CollectionDevice::CollectionToBase(busiWithVfe);
+    ResourceCollection::GetInstance().SetDevice(baseBusi);
+
+    MOCKER_CPP(&UbseNpuManagerApi::DestroyVMBusi).expects(never());
+
+    ClearEmptyVMBusInstance();
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesPreparationEmptyBusInstanceGuid)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER(&CheckAndHandleOccupiedDevices).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = AllocDevicesPreparation("", npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesPreparationWithBusInstanceGuidBusiNull)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = AllocDevicesPreparation("nonexistent-guid", npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesPreparationFilterFail)
+{
+    PopulateCollection(topo_);
+
+    MOCKER(&FilterDeviceVMBusi).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = AllocDevicesPreparation(topo_.vmBusiLoc.guid, npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocDevicesPreparationOccupiedFail)
+{
+    PopulateCollection(topo_);
+
+    MOCKER(&CheckAndHandleOccupiedDevices).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npuList;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+
+    UbseResult result = AllocDevicesPreparation("", npuList, nicPfeList, nicVfeList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryVmBusInstancesEmpty)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    auto result = QueryVmBusInstances(collection);
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_TRUE(result.second.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, QueryVmBusInstancesSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto result = QueryVmBusInstances(ResourceCollection::GetInstance());
+    EXPECT_EQ(result.first, UBSE_OK);
+    EXPECT_EQ(result.second.size(), 1);
+
+    auto busiRes = std::dynamic_pointer_cast<BusiResource>(result.second[0]);
+    EXPECT_NE(busiRes, nullptr);
+    EXPECT_EQ(busiRes->guid_, topo_.vmBusiLoc.guid);
+}
+
+TEST_F(TestUbseNpuManagerApi, RollBackSuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.operationHistory_.push(op);
+
+    UbseResult result = manager.RollBack();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(manager.operationHistory_.empty());
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+}
+
+TEST_F(TestUbseNpuManagerApi, RollBackFailureCreatesBgThread)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_ERROR;
+    };
+    manager.operationHistory_.push(op);
+
+    UbseResult result = manager.RollBack();
+    EXPECT_EQ(result, UBSE_ERROR);
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::ROLLBACK_BG);
+}
+
+TEST_F(TestUbseNpuManagerApi, RollBackEmptyHistory)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    while (!manager.operationHistory_.empty()) {
+        manager.operationHistory_.pop();
+    }
+
+    UbseResult result = manager.RollBack();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_EQ(manager.GetState(), UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+}
+
+TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueSuccess)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.futureProcedure_.push(op);
+
+    UbseResult result = manager.ExecuteFreeQueue();
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_TRUE(manager.futureProcedure_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueFailure)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_ERROR;
+    };
+    manager.futureProcedure_.push(op);
+
+    UbseResult result = manager.ExecuteFreeQueue();
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterIDevFromBusiBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterIDevFromBusiNullDavid)
+{
+    PopulateCollection(topo_);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {nullptr};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterIDevFromBusiNullIdev)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 99;
+    npuLoc.chipId = 99;
+    auto npuNoIdev = std::make_shared<CollectionDeviceDavid>(npuLoc);
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {npuNoIdev};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterIDevFromBusiVfeMismatchSize)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+    auto npuPfeIdev = std::make_shared<CollectionDeviceDavid>(npuLoc);
+
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 2;
+    pfeLoc.dieId = 0;
+    pfeLoc.pfeId = 1;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    npuPfeIdev->SetBondingIdev(CollectionDevice::CollectionToBase(pfe));
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterVfeFromBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {npuPfeIdev};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterIDevToBusiBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterIDevToBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterIDevToBusiWithPfeIdevEmptyVfe)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 1;
+    npuLoc.chipId = 2;
+    auto npu = std::make_shared<CollectionDeviceDavid>(npuLoc);
+
+    CollectDeviceLoc pfeLoc;
+    pfeLoc.chipId = 2;
+    pfeLoc.dieId = 0;
+    pfeLoc.pfeId = 1;
+    auto pfe = std::make_shared<CollectionDeviceIdevPfe>(pfeLoc);
+    npu->SetBondingIdev(CollectionDevice::CollectionToBase(pfe));
+
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterVfeToBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterIDevToBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterIDevToBusiMismatchSize)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc npuLoc;
+    npuLoc.slotId = 99;
+    npuLoc.chipId = 99;
+    auto npuNoIdev = std::make_shared<CollectionDeviceDavid>(npuLoc);
+
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterVfeToBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {npuNoIdev};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterIDevToBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterNicFromBusiPfeBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> devList = {topo_.nicPfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterNicFromBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterNicToBusiPfeBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> devList = {topo_.nicPfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterNicToBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, CreateVMBusiSuccess)
+{
+    UbseMtiBusInst mtiBusi;
+    mtiBusi.eid = {1, 2, 3, 4, 5, 6, 7, 8};
+    for (int i = 0; i < 16; i++) {
+        mtiBusi.guid[i] = static_cast<uint8_t>(i);
+    }
+
+    auto& busInstance = UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busInstance, &UbseMtiBusInstance::CreateVmBusInstance).stubs().will(returnValue(UBSE_OK));
+
+    CollectionGuid busiGuid;
+    UbseResult result = UbseNpuManagerApi::GetInstance().CreateVMBusi(1, busiGuid);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(busiGuid.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, CreateVMBusiFailure)
+{
+    auto& busInstance = UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busInstance, &UbseMtiBusInstance::CreateVmBusInstance).stubs().will(returnValue(UBSE_ERROR));
+
+    CollectionGuid busiGuid;
+    UbseResult result = UbseNpuManagerApi::GetInstance().CreateVMBusi(1, busiGuid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, DestroyVMBusiBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().DestroyVMBusi("nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, DestroyVMBusiSuccess)
+{
+    PopulateCollection(topo_);
+
+    auto& busInstance = UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busInstance, &UbseMtiBusInstance::DestroyVmBusInstance).stubs().will(returnValue(UBSE_OK));
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().DestroyVMBusi(topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, DestroyVMBusiFailure)
+{
+    PopulateCollection(topo_);
+
+    auto& busInstance = UbseMtiBusInstance::GetInstance();
+    MOCKER_CPP_VIRTUAL(busInstance, &UbseMtiBusInstance::DestroyVmBusInstance).stubs().will(returnValue(UBSE_ERROR));
+
+    UbseResult result = UbseNpuManagerApi::GetInstance().DestroyVMBusi(topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterVfeToBusiBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterVfeToBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterVfeToBusiEmptyAfterFilter)
+{
+    PopulateCollection(topo_);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterVfeToBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterVfeFromBusiBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterVfeFromBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterVfeFromBusiEmptyAfterFilter)
+{
+    PopulateCollection(topo_);
+
+    CollectDeviceLoc vfeLoc2;
+    vfeLoc2.chipId = 99;
+    vfeLoc2.dieId = 1;
+    vfeLoc2.pfeId = 2;
+    vfeLoc2.vfeId = 2;
+    vfeLoc2.guid = "not-in-busi-vfe-guid-1234567890123456789012";
+    auto vfeNotInBusi = std::make_shared<CollectionDeviceIdevVfe>(vfeLoc2);
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {vfeNotInBusi};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterVfeFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterNicFromBusiVfeBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> devList = {topo_.nicVfe};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterNicFromBusi(devList, "nonexistent-guid");
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, GetCollectionReadyDefaultFalse)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.collectionReady_ = false;
+    EXPECT_FALSE(manager.GetCollectionReady());
+
+    manager.SetCollectionReady(true);
+    EXPECT_TRUE(manager.GetCollectionReady());
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocNicWithNicPfeSuccess)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterNicFromBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterNicToBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    std::string busInstanceGuid = topo_.vmBusiLoc.guid;
+
+    UbseResult result = AllocNic(nicPfeList, nicVfeList, busInstanceGuid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocNicWithNicPfeUnregFail)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterNicFromBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList;
+    std::string busInstanceGuid = topo_.vmBusiLoc.guid;
+
+    UbseResult result = AllocNic(nicPfeList, nicVfeList, busInstanceGuid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, AllocNicWithNicVfeRegisterFail)
+{
+    PopulateCollection(topo_);
+    UbseNpuManagerApi::GetInstance().SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterNicToBusi<CollectionDeviceNicVfe>).stubs().will(returnValue(UBSE_ERROR));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfeList;
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfeList = {topo_.nicVfe};
+    std::string busInstanceGuid = topo_.vmBusiLoc.guid;
+
+    UbseResult result = AllocNic(nicPfeList, nicVfeList, busInstanceGuid);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnbindVfeDavidEmptyList)
+{
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList;
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnbindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnbindVfeDavidNullDev)
+{
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {nullptr};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnbindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnbindVfeDavidSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendUnbindRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = manager.UnbindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(manager.operationHistory_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, UnbindVfeDavidFailRollback)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendUnbindRequest).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseNpuManagerApi::SendBindRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = manager.UnbindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, BindVfeDavidSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendBindRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = manager.BindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(manager.operationHistory_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, BindVfeDavidFailRollback)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendBindRequest).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseNpuManagerApi::SendUnbindRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = manager.BindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, BindVfeDavidNullDev)
+{
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {nullptr};
+    UbseResult result = UbseNpuManagerApi::GetInstance().BindVfeDavid(1, devList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, FreeQueueBuildsFutureProcedures)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+    while (!manager.futureProcedure_.empty()) {
+        manager.futureProcedure_.pop();
+    }
+
+    UbseAllocRequest req;
+    req.upiStr = 1;
+    req.busInstanceGuid = topo_.vmBusiLoc.guid;
+    UbDevice ubDev;
+    ubDev.chipId = 1;
+    ubDev.type = ResourceType::NPU;
+    req.ubDevList = {ubDev};
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> npus = {topo_.npu};
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfes = {topo_.nicPfe};
+    std::vector<std::shared_ptr<CollectionDeviceNicVfe>> nicVfes = {topo_.nicVfe};
+
+    manager.FreeQueue(req, topo_.vmBusiLoc.guid, npus, nicPfes, nicVfes);
+    EXPECT_EQ(manager.futureProcedure_.size(), 7);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendUnbindRequestEmpty)
+{
+    std::vector<UbseMtiIdevVfeDavidPair> emptyList;
+    UbseResult result = UbseNpuManagerApi::GetInstance().SendUnbindRequest(1, emptyList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendBindRequestEmpty)
+{
+    std::vector<UbseMtiIdevVfeDavidPair> emptyList;
+    UbseResult result = UbseNpuManagerApi::GetInstance().SendBindRequest(1, emptyList);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendUnRegisterNicRequestEmpty)
+{
+    bool needRollback = false;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> emptyList;
+    UbseResult result =
+        UbseNpuManagerApi::GetInstance().SendUnRegisterNicRequest<CollectionDeviceNicPfe>(emptyList, needRollback);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(needRollback);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendRegisterNicRequestEmpty)
+{
+    bool needRollback = false;
+    auto busi = topo_.vmBusi;
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> emptyList;
+    UbseResult result =
+        UbseNpuManagerApi::GetInstance().SendRegisterNicRequest<CollectionDeviceNicPfe>(busi, emptyList, needRollback);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(needRollback);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendUnRegisterVfeRequestEmpty)
+{
+    bool needRollback = false;
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> emptyList;
+    UbseResult result = UbseNpuManagerApi::GetInstance().SendUnRegisterVfeRequest(emptyList, needRollback);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(needRollback);
+}
+
+TEST_F(TestUbseNpuManagerApi, SendRegisterVfeRequestEmpty)
+{
+    bool needRollback = false;
+    auto busi = topo_.vmBusi;
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> emptyList;
+    UbseResult result = UbseNpuManagerApi::GetInstance().SendRegisterVfeRequest(busi, emptyList, needRollback);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(needRollback);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnregisterAndUnbindNpusSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnbindVfeDavid).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterIDevFromBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> npuMap;
+    npuMap[topo_.vmBusiLoc.guid] = {topo_.npu};
+
+    UbseResult result = UnregisterAndUnbindNpus(npuMap);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnregisterAndUnbindNpusBusiNotFound)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceDavid>>> npuMap;
+    npuMap["invalid-guid"] = {topo_.npu};
+
+    UbseResult result = UnregisterAndUnbindNpus(npuMap);
+    EXPECT_EQ(result, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterNicPfesToHostSuccess)
+{
+    PopulateCollection(topo_);
+
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterNicToBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfes = {topo_.nicPfe};
+    UbseResult result = RegisterNicPfesToHost(nicPfes);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterNicPfesToHostNoHostBusi)
+{
+    auto& collection = ResourceCollection::GetInstance();
+    collection.ClearAllDevices();
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> nicPfes = {topo_.nicPfe};
+    UbseResult result = RegisterNicPfesToHost(nicPfes);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnregisterAndRegisterNicPfesSuccess)
+{
+    PopulateCollection(topo_);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterNicFromBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterNicToBusi<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicPfe>>> nicMap;
+    nicMap[topo_.vmBusiLoc.guid] = {topo_.nicPfe};
+
+    UbseResult result = UnregisterAndRegisterNicPfes(nicMap);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnregisterNicVfesSuccess)
+{
+    PopulateCollection(topo_);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterNicFromBusi<CollectionDeviceNicVfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::map<std::string, std::vector<std::shared_ptr<CollectionDeviceNicVfe>>> nicMap;
+    nicMap[topo_.vmBusiLoc.guid] = {topo_.nicVfe};
+
+    UbseResult result = UnregisterNicVfes(nicMap);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterIDevToBusiSuccess)
+{
+    PopulateCollection(topo_);
+
+    MOCKER_CPP(&UbseNpuManagerApi::RegisterVfeToBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().RegisterIDevToBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterIDevFromBusiSuccess)
+{
+    PopulateCollection(topo_);
+
+    MOCKER_CPP(&UbseNpuManagerApi::UnRegisterVfeFromBusi).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceDavid>> devList = {topo_.npu};
+    UbseResult result = UbseNpuManagerApi::GetInstance().UnRegisterIDevFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterNicFromBusiPfeSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendUnRegisterNicRequest<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> devList = {topo_.nicPfe};
+    UbseResult result = manager.UnRegisterNicFromBusi<CollectionDeviceNicPfe>(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(manager.operationHistory_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterNicToBusiPfeSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendRegisterNicRequest<CollectionDeviceNicPfe>).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceNicPfe>> devList = {topo_.nicPfe};
+    UbseResult result = manager.RegisterNicToBusi<CollectionDeviceNicPfe>(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(manager.operationHistory_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, RegisterVfeToBusiSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendRegisterVfeRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList;
+    auto freshVfe = std::make_shared<CollectionDeviceIdevVfe>(topo_.idevVfeLoc);
+    devList.push_back(freshVfe);
+    UbseResult result = manager.RegisterVfeToBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
+TEST_F(TestUbseNpuManagerApi, UnRegisterVfeFromBusiSuccess)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::RUNNING_ALLOC);
+
+    MOCKER_CPP(&UbseNpuManagerApi::SendUnRegisterVfeRequest).stubs().will(returnValue(UBSE_OK));
+
+    std::vector<std::shared_ptr<CollectionDeviceIdevVfe>> devList = {topo_.idevVfe};
+    UbseResult result = manager.UnRegisterVfeFromBusi(devList, topo_.vmBusiLoc.guid);
+    EXPECT_EQ(result, UBSE_OK);
+    EXPECT_FALSE(manager.operationHistory_.empty());
+}
+
+TEST_F(TestUbseNpuManagerApi, ExecuteFreeQueueBackGroundRunsQueue)
+{
+    PopulateCollection(topo_);
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::AVAILABLE);
+
+    while (!manager.futureProcedure_.empty()) {
+        manager.futureProcedure_.pop();
+    }
+
+    auto op = std::make_shared<OperationHistory>();
+    op->operation = []() -> UbseResult {
+        return UBSE_OK;
+    };
+    manager.futureProcedure_.push(op);
+
+    EXPECT_EQ(manager.futureProcedure_.size(), 1);
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::FREE_BG);
+    EXPECT_EQ(manager.state_, UbseNpuManagerApi::NpuManagerState::FREE_BG);
+}
+
+TEST_F(TestUbseNpuManagerApi, SetStateRollbackBg)
+{
+    auto& manager = UbseNpuManagerApi::GetInstance();
+    manager.SetState(UbseNpuManagerApi::NpuManagerState::ROLLBACK_BG);
+    EXPECT_EQ(manager.retryTime_, COMMON_RETRY_TIME);
+}
+
 } // namespace ubse::npu::controller::ut
