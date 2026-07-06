@@ -35,6 +35,21 @@ public:
         remaining_ -= sizeof(uint8_t);
         return true;
     }
+
+    bool UbsePackUint16(uint16_t value)
+    {
+        if (remaining_ < sizeof(uint16_t)) {
+            return false;
+        }
+        errno_t ret = memcpy_s(ptr_, sizeof(uint16_t), &value, sizeof(uint16_t));
+        if (ret != EOK) {
+            return false;
+        }
+        ptr_ += sizeof(uint16_t);
+        remaining_ -= sizeof(uint16_t);
+        return true;
+    }
+
     bool UbsePackUint32(uint32_t value)
     {
         if (remaining_ < sizeof(uint32_t)) {
