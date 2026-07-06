@@ -19,19 +19,37 @@
 
 namespace ubse::cli::reg {
 using namespace ubse::cli::framework;
+namespace {
+const std::string SHORT_HELP_ARG = "-h";
+const std::string LONG_HELP_ARG = "--help";
+
+bool IsHelpArg(const std::string &arg)
+{
+    return arg == SHORT_HELP_ARG || arg == LONG_HELP_ARG;
+}
+
+void DisplayHelpArgsUsageError(const std::string &programName)
+{
+    UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Please enter " + programName + " " +
+                                                                 SHORT_HELP_ARG + " or " + LONG_HELP_ARG +
+                                                                 " for more info.");
+}
+} // namespace
 
 bool UbseCliParse::UbseCliArgsParse(const std::vector<std::string> &args)
 {
     if (args.size() <
         2) { // The number of parameters must be greater than or equal to 2 in order to proceed with the parsing.
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-            "ERROR: Unrecognized command.Please try 'ubsectl --help' for more info.\n");
+            "ERROR: Unrecognized command.Please try '" + UbseCliModuleRegistry::GetInstance().UbseCliGetProgramName() +
+            " --help' for more info.\n");
         return false;
     }
     std::string command_key = std::string(args[0] + "_" + args[1]);
     if (!UbseCliModuleRegistry::GetInstance().UbseCliCommandExist(command_key)) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-            "ERROR: Unrecognized command.Please try 'ubsectl --help' for more info.\n");
+            "ERROR: Unrecognized command.Please try '" + UbseCliModuleRegistry::GetInstance().UbseCliGetProgramName() +
+            " --help' for more info.\n");
         return false;
     }
     if (args.size() < 3) { // A parameter count of less than 3 indicates that there are no parameter options available.
@@ -208,6 +226,14 @@ void UbseCliModuleRegistry::UbseCliRegister(std::vector<UbseCliCommandInfo> &com
     }
 }
 
+void UbseCliModuleRegistry::UbseCliSetProgramContext(const std::string &program_name, bool show_type_in_usage)
+{
+    if (!program_name.empty()) {
+        programName_ = program_name;
+    }
+    showTypeInUsage_ = show_type_in_usage;
+}
+
 void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string &command_key,
     const UbseCliCommandInfo &command_info)
 {
@@ -257,7 +283,7 @@ bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string> 
         return true;
     }
     const std::string &last_arg = args.back();
-    if (last_arg != "-h" && last_arg != "--help") {
+    if (!IsHelpArg(last_arg)) {
         return false;
     }
 
@@ -272,8 +298,7 @@ bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string> 
             UbseCliModuleRegistry::GetInstance().UbseCliDisplayCommandOptionsHelpInfo(args[0], args[1]);
             return true;
         default:
-            UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-                "ERROR: Please enter ubsectl -h or --help for more info.");
+            DisplayHelpArgsUsageError(programName_);
             return true;
     }
 }
@@ -290,8 +315,12 @@ void UbseCliModuleRegistry::UbseCliDisplayHelpInfo()
         return;
     }
     for (const auto &key_command_info : this->fullCommandInfo_) {
-        UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("  Usage: ubsectl " +
-            key_command_info.second.command + " " + key_command_info.second.type + "[OPTIONS]\nOPTIONS:\n");
+        std::string usage = "  Usage: " + programName_ + " " + key_command_info.second.command;
+        if (showTypeInUsage_) {
+            usage += " " + key_command_info.second.type;
+        }
+        usage += "[OPTIONS]\nOPTIONS:\n";
+        UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(usage);
         UbseCliDisplayParamsHelpInfo(key_command_info.second.options, line_width_limit);
     }
 }
@@ -309,8 +338,8 @@ void UbseCliModuleRegistry::UbseCliDisplayCommandOptionsHelpInfo(const std::stri
         UbseCliDisplayParamsHelpInfo(this->fullCommandInfo_[key].options, line_width_limit);
     } else {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
-            "INFO: The command does not exist or does not support parameters.Please try 'ubsectl "
-            "--help' for more info.");
+            "INFO: The command does not exist or does not support parameters.Please try '" + programName_ +
+            " --help' for more info.");
     }
 }
 
