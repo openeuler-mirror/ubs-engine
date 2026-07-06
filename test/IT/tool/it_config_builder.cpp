@@ -111,6 +111,14 @@ std::string ItConfigBuilder::ApplyOverrides(const std::string& configContent)
     std::string certLine = std::string("cert.use=") + (certUse_ ? "true" : "false") + "\n";
     ReplaceOrInsertConfigLine(content, "cert.use", certLine, "ubse.rpc");
 
+    // IT acceleration: reduce heartbeat interval to speed up election convergence.
+    // Production defaults (2000ms × 3 = 6s) are unnecessarily slow for IT tests.
+    // With IT override (5000ms × 3 = 15s), verify if election wait logic works correctly.
+    std::string hbIntervalLine = "heartbeat.timeInterval=2000\n";
+    ReplaceOrInsertConfigLine(content, "heartbeat.timeInterval", hbIntervalLine, "ubse.election");
+    std::string hbLostLine = "heartbeat.lostThreshold=3\n";
+    ReplaceOrInsertConfigLine(content, "heartbeat.lostThreshold", hbLostLine, "ubse.election");
+
     // Additional overrides via WithOverride()
     for (const auto& [section, keys] : overrides_) {
         for (const auto& [key, value] : keys) {

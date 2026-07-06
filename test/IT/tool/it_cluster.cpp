@@ -196,14 +196,6 @@ UbseResult ItCluster::StartClusterNoElection()
         }
     }
 
-    // Phase 2b: Wait for daemon modules to be fully ready (no election convergence to rely on)
-    for (auto& [id, proc] : nodes_) {
-        UbseResult readyRet = proc->WaitForDaemonReady(clusterSpec_.startupTimeoutMs);
-        if (readyRet != UBSE_OK) {
-            IT_LOG_WARN << "Node " << id << " daemon readiness wait failed, proceeding anyway";
-        }
-    }
-
     clusterStarted_ = true;
     IT_LOG_INFO << "All nodes started (no election wait)";
 
@@ -430,6 +422,11 @@ UbseResult ItCluster::GetMasterNodeId(std::string& masterNodeId)
 const std::vector<std::string>& ItCluster::GetNodeIds() const
 {
     return nodeIds_;
+}
+
+const std::string& ItCluster::GetBaseWorkDir() const
+{
+    return baseWorkDir_;
 }
 
 UbseResult ItCluster::InjectAlarmEvent(const std::string& nodeId, unsigned short alarmId, const std::string& paras)

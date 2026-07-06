@@ -10,35 +10,32 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
+#include "mem_borrow_cases.h"
 
-#include <string>
+#include <gtest/gtest.h>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_console_log.h"
 #include "it_wait_helper.h"
-#include "tongsuan_1d_full_mesh_two_nodes_scenario.h"
 #include "ubs_engine_mem.h"
 
-using ubse::it::infra::ItCluster;
-using ubse::it::infra::ItWaitHelper;
-using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
+namespace ubse::it::tests::mem_borrow {
 
 namespace {
-
-constexpr const char* lenderNodeId = "1";
-constexpr const char* borrowerNodeId = "2";
-constexpr uint32_t lenderSlotId = 1;
-constexpr uint32_t borrowerSlotId = 2;
-
+constexpr const char* lenderNodeId = "1";   // 借出方节点
+constexpr const char* borrowerNodeId = "2"; // 借用方节点
+constexpr uint32_t lenderSlotId = 1;        // 借出方槽位
+constexpr uint32_t borrowerSlotId = 2;      // 借用方槽位
 } // namespace
 
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeNumaNormalBorrow)
+// 两节点NUMA正常借用生命周期测试
+void RunNumaNormalBorrowTest(ubse::it::infra::ItCluster& cluster)
 {
-    auto& borrowerClient = Cluster().GetSdkClient(borrowerNodeId);
+    auto& borrowerClient = cluster.GetSdkClient(borrowerNodeId);
     IT_LOG_INFO << "Borrower SDK client initialized on node " << borrowerNodeId;
 
+    // 第一步：创建NUMA借用
     constexpr uint64_t borrowSize = UBS_MEM_MIN_SIZE;
     const char* borrowName = "it_numa_normal_borrow";
     ubs_mem_numa_desc_t numaDesc{};
@@ -48,8 +45,9 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeNumaNormalBorrow)
     ASSERT_IT_OK(sdkRet);
     IT_LOG_INFO << "NUMA borrow created, initial stage=" << numaDesc.mem_stage;
 
+    // 第二步：轮询等待借用达到UBSE_EXIST就绪状态
     IT_LOG_INFO << "Waiting for borrow to reach UBSE_EXIST state...";
-    auto waitRet = ItWaitHelper::WaitForCondition(
+    auto waitRet = ubse::it::infra::ItWaitHelper::WaitForCondition(
         [&]() {
             ubs_mem_numa_desc_t desc{};
             int32_t getRet = borrowerClient.MemNumaGet(borrowName, &desc);
@@ -63,6 +61,7 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeNumaNormalBorrow)
         15000, 200);
     EXPECT_IT_OK(waitRet);
 
+    // 第三步：验证借用属性（状态、大小、NUMA ID、导入导出槽位）
     ubs_mem_numa_desc_t verifyDesc{};
     sdkRet = borrowerClient.MemNumaGet(borrowName, &verifyDesc);
     EXPECT_IT_OK(sdkRet);
@@ -75,7 +74,10 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, TwoNodeNumaNormalBorrow)
                 << ", numaid=" << verifyDesc.numaid << ", importSlot=" << verifyDesc.import_node.slot_id
                 << ", exportSlot=" << verifyDesc.export_node.slot_id;
 
+    // 第四步：删除借用，释放资源
     IT_LOG_INFO << "Deleting NUMA borrow: " << borrowName;
     sdkRet = borrowerClient.MemNumaDelete(borrowName);
     EXPECT_IT_OK(sdkRet);
 }
+
+} // namespace ubse::it::tests::mem_borrow
