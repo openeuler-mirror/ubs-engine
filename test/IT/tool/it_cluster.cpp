@@ -74,6 +74,7 @@ UbseResult ItCluster::StartClusterParallel(uint32_t electionTimeoutMs)
         procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
         procConfig.clusterSlotIds = clusterSpec_.SlotIds();
         procConfig.sceneType = clusterSpec_.sceneType;
+        procConfig.meshType = clusterSpec_.meshType;
         auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
         ret = proc->Start();
         if (ret != UBSE_OK) {
@@ -168,6 +169,7 @@ UbseResult ItCluster::StartClusterNoElection()
         procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
         procConfig.clusterSlotIds = clusterSpec_.SlotIds();
         procConfig.sceneType = clusterSpec_.sceneType;
+        procConfig.meshType = clusterSpec_.meshType;
         auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
         ret = proc->Start();
         if (ret != UBSE_OK) {
@@ -338,6 +340,7 @@ UbseResult ItCluster::RestartNode(const std::string& nodeId, bool waitForElectio
     procConfig.clusterIps = clusterSpec_.JoinedClusterIps();
     procConfig.clusterSlotIds = clusterSpec_.SlotIds();
     procConfig.sceneType = clusterSpec_.sceneType;
+    procConfig.meshType = clusterSpec_.meshType;
     auto proc = std::make_unique<NodeProcessManager>(std::move(procConfig));
     UbseResult ret = proc->Start();
     if (ret != UBSE_OK) {

@@ -76,6 +76,12 @@ ItClusterBuilder& ItClusterBuilder::SceneType(const std::string& sceneType)
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::MeshType(uint32_t meshType)
+{
+    meshType_ = meshType;
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::NoMockPlugin()
 {
     mockPluginEnabled_ = false;
@@ -112,6 +118,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.startupTimeoutMs = startupTimeoutMs_;
     spec.sceneType = sceneType_;
     spec.mockPluginEnabled = mockPluginEnabled_;
+    spec.meshType = meshType_;
     spec.Normalize();
     return spec;
 }

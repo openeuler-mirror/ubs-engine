@@ -284,6 +284,31 @@ int32_t ItSdkClient::UbaTidSizeQuery(uint8_t* busInstanceGuid, uint32_t* tid, ui
     return InvokeSdk([&]() { return ubs_uba_tid_size_query(busInstanceGuid, tid, uba, size); });
 }
 
+// --- URMA QoS APIs ---
+int32_t ItSdkClient::UrmaQosCreate(const ubs_urma_qos_config_t* configs, uint32_t count)
+{
+    return InvokeSdk([&]() { return ubs_urma_qos_create(configs, count); });
+}
+
+int32_t ItSdkClient::UrmaQosDelete()
+{
+    return InvokeSdk([&]() { return ubs_urma_qos_delete(); });
+}
+
+int32_t ItSdkClient::UrmaQosGet(ubs_urma_qos_config_t** configs, uint32_t* count)
+{
+    return InvokeSdk([&]() { return ubs_urma_qos_get(configs, count); });
+}
+
+std::string ItSdkClient::ExecCli(const std::string& args) const
+{
+    if (!cliInvoker_) {
+        IT_LOG_WARN << "CLI invoker is unavailable";
+        return "";
+    }
+    return cliInvoker_->ExecCli(args);
+}
+
 const std::string& ItSdkClient::GetUdsPath() const
 {
     return udsPath_;

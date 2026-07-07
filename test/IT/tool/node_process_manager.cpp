@@ -47,6 +47,7 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
       clusterSlotIds_(std::move(config.clusterSlotIds)),
       stubLibDir_(std::move(config.stubLibDir)),
       sceneType_(std::move(config.sceneType)),
+      meshType_(config.meshType),
       childPid_(-1),
       udsSocketPath_(workDir_ + "/run/ubse.sock"),
       xalarmFifoPath_(workDir_ + "/run/xalarm_fifo")
@@ -83,7 +84,7 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     environment.emplace_back("UBSE_IT_LCNE_UDS_PATH=" + lcneUdsWorkPath_);
     environment.emplace_back("UBSE_IT_LOG_PATH=" + workDir_ + "/log");
     environment.emplace_back(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX + "=" + workDir_ + "/hcom");
-    environment.emplace_back("UBSE_IT_MESH_TYPE=1");
+    environment.emplace_back("UBSE_IT_MESH_TYPE=" + std::to_string(meshType_));
     environment.emplace_back("UBSE_IT_POD_ID=1");
     environment.emplace_back("UBSE_IT_SUPER_POD_ID=1");
     environment.emplace_back("UBSE_IT_SERVER_IDX=0");

@@ -14,6 +14,7 @@ target_include_directories(ubse_mti_mock PRIVATE
     ${PROJECT_SOURCE_DIR}/src/adapter_plugins/mti/lcne
     ${PROJECT_SOURCE_DIR}/src/framework/context
     ${PROJECT_SOURCE_DIR}/src/framework/election
+    ${PROJECT_SOURCE_DIR}/src/framework/http
     ${CMAKE_BINARY_DIR}/include
 )
 target_link_libraries(ubse_mti_mock PRIVATE
