@@ -225,14 +225,40 @@ void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Respons
     FillPeerCertInfo(req, request);
     UbseHttpResponse response{};
     std::string routeKey = req.method + req.path;
-    auto it = routes_.find(routeKey);
-    if (it == routes_.end()) {
-        UBSE_LOG_ERROR << "[" << config_.name << "] url=" << req.path << " has not been registered.";
-        res.status = NotFound_404;
-        res.set_content("Not Found", "text/plain");
-        return;
+    // 与 RegisterRoute 使用同一把锁，避免并发遍历与插入导致迭代器失效或数据损坏。
+    // 仅保护路由查找阶段，找到 handler 后释放锁再执行，避免长耗时handler序列化所有请求。
+    UbseHttpHandlerFunc handler;
+    {
+        std::lock_guard<std::mutex> lock(routesMutex_);
+        auto it = routes_.find(routeKey);
+        if (it == routes_.end()) {
+            // 前缀匹配兜底：处理动态路径参数路由（如 DELETE /ubse/v1/ssu/spaces/{name}）
+            // 以'/'结尾的注册路由作为前缀路由，请求路径在前缀之后有附加内容时匹配命中
+            std::string bestMatchKey;
+            for (const auto &route : routes_) {
+                const std::string &key = route.first;
+                if (key.empty() || key.back() != '/') {
+                    continue;
+                }
+                if (routeKey.size() > key.size() && routeKey.compare(0, key.size(), key) == 0) {
+                    if (key.size() > bestMatchKey.size()) {
+                        bestMatchKey = key;
+                    }
+                }
+            }
+            if (!bestMatchKey.empty()) {
+                it = routes_.find(bestMatchKey);
+            }
+        }
+        if (it == routes_.end()) {
+            UBSE_LOG_ERROR << "[" << config_.name << "] url=" << req.path << " has not been registered.";
+            res.status = NotFound_404;
+            res.set_content("Not Found", "text/plain");
+            return;
+        }
+        handler = it->second;
     }
-    it->second(request, response);
+    handler(request, response);
     BuildResponse(res, response);
 }
 
