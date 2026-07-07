@@ -20,6 +20,7 @@
 #include "framework/misc/ubse_future_mgr.h"
 #include "framework/misc/ubse_logging_lock_guard.h"
 #include "message/ubse_ssu_alloc_msg.h"
+#include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "ubse_com_op_code.h"
 #include "ubse_election.h"
@@ -45,6 +46,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 // future等待最大超时时间（秒）
 constexpr uint32_t MAX_TIMEOUT_SECONDS = 1800;
+
+// 超时后最大重试次数（不含首次请求）
+constexpr uint32_t MAX_RETRY_COUNT = 3;
 
 // 获取SSU服务单例实例
 UbseSsuServiceImp &UbseSsuServiceImp::GetInstance()
@@ -388,6 +392,14 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
     UBSE_LOG_INFO << "ExecuteAlloc: name=" << req.name << ", nsSize=" << req.nsSize << ", nsNum=" << req.nsNum;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    auto existingEntry = UbseSsuDebtLedger::GetInstance().Get(req.name);
+    // 已存在CREATED状态条目，拒绝重复alloc
+    if (existingEntry != nullptr && existingEntry->state == UbseSsuNsState::CREATED) {
+        UBSE_LOG_WARN << "ExecuteAlloc: ledger entry already exists in CREATED state, name=" << req.name;
+        // 幂等性，返回成功
+        return UBSE_OK;
+    }
+
     // 标记预留操作开始，防止CollectDeviceList 在AddReserveSpace ~ CreateDevNameSpaces之间清理预留
     // 导致另一个线程的 GetDevListWithReservations 看到错误（偏大）的可用容量而超分。
     collector_.OnReserveBegin();
@@ -418,11 +430,232 @@ uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const 
     // 创建成功，下次collector刷新（pendingOps_ == 0 时）会一并清除 reservationMgr_。
     // 刷新后预留容量由hardware usedBytes 自动反映，
     collector_.OnReserveEnd();
-    // 账本条目由调用方HandleAllocReqReceiver在调用前以CREATING状态 Put创建，
-    // 此处仅返回结果，由调用方通过Modify 更新为CREATED状态，避免重复Put覆盖。
     result.name = req.name;
     result.strategy = req.strategy;
+    // existingEntry为nullptr代表master端本地发起的分配请求，由ExecuteAlloc在成功时直接Put(CREATED)
+    if (existingEntry == nullptr) {
+        UbseSsuLedgerEntry entry;
+        entry.name = req.name;
+        entry.allocReq = req;
+        entry.state = UbseSsuNsState::CREATED;
+        entry.allocResult = result;
+        if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
+            UBSE_LOG_ERROR << "ExecuteAlloc: ledger Put failed after alloc success: name=" << req.name;
+        }
+    }
     UBSE_LOG_INFO << "ExecuteAlloc success: name=" << req.name << ", nsCount=" << result.nameSpaceList.size();
     return UBSE_OK;
 }
+
+// agent端发送SSU释放RPC请求到master节点
+static uint32_t SendFreeRpcRequest(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
+                                   const std::string &requestNodeId, const std::string &masterNodeId,
+                                   const std::string &requestId)
+{
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendFreeRpcRequest: get ssu free req endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuFreeReqMsg reqMsg(requestId, requestNodeId, name, identity);
+
+    UbseSsuSyncRespMsg syncResp; // 占位，后续通过异步线程返回真正结果
+    auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendFreeRpcRequest: RpcSend failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
+        return ret;
+    }
+    auto freeResp = syncResp.GetErrorCode();
+    if (freeResp != UBSE_OK) {
+        UBSE_LOG_WARN << "SendFreeRpcRequest: master returned error, code=" << freeResp << ", requestId=" << requestId;
+        return freeResp;
+    }
+
+    return UBSE_OK;
+}
+
+// agent端释放ns：发送RPC请求到master节点
+static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+{
+    UbseRoleInfo roleInfo{};
+    auto ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FreeSpaceViaRpc: get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FreeSpaceViaRpc: get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = name + "_" + roleInfo.nodeId;
+
+    // 超时后有限次同步重试：每次循环重新创建future并重新发送RPC请求，保证重试后仍会等待响应。
+    // UbseFutureMgr同一requestId的promise只能set一次，须先释放旧respMgr再重建。
+    for (uint32_t attempt = 0; attempt <= MAX_RETRY_COUNT; ++attempt) {
+        auto respMgr = UbseFutureMgr::CreateInstance(requestId);
+        if (respMgr == nullptr) {
+            UBSE_LOG_ERROR << "FreeSpaceViaRpc: requestId=" << requestId << " create future instance failed";
+            return UBSE_ERROR_NULLPTR;
+        }
+        auto respFuture = respMgr->GetFuture<UbseSsuFreeResp>();
+
+        ret = SendFreeRpcRequest(name, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "FreeSpaceViaRpc: send rpc failed, requestId=" << requestId << ", ret=" << ret;
+            return ret;
+        }
+
+        if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) == std::future_status::ready) {
+            auto resp = respFuture.get();
+            if (resp.errorCode != UBSE_OK) {
+                UBSE_LOG_ERROR << "FreeSpaceViaRpc: free failed, requestId=" << requestId
+                               << ", errorCode=" << resp.errorCode;
+                return resp.errorCode;
+            }
+            // 更新agent侧账本
+            UbseSsuDebtLedger::GetInstance().Remove(name);
+            UBSE_LOG_INFO << "FreeSpaceViaRpc success: name=" << name;
+            return UBSE_OK;
+        }
+
+        UBSE_LOG_WARN << "FreeSpaceViaRpc: attempt=" << attempt << " timed out, requestId=" << requestId
+                      << ", will retry up to " << MAX_RETRY_COUNT << " times";
+        // respMgr 在本次循环结束时自动释放，避免下一次 CreateInstance 因同一requestId阻塞
+    }
+
+    UBSE_LOG_ERROR << "FreeSpaceViaRpc: reached max retry count, requestId=" << requestId;
+    return UBSE_ERR_TIMED_OUT;
+}
+
+// 释放主入口：根据节点角色选择不同释放方式
+uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+{
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "FreeSpace: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+    // 释放操作具有幂等性，释放不存在的空间应返回成功
+    if (entryPtr == nullptr) {
+        UBSE_LOG_WARN << "FreeSpace: record not found, name=" << name;
+        return UBSE_OK;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        return ExecuteFree(name, identity);
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return FreeSpaceViaRpc(name, identity);
+    }
+
+    UBSE_LOG_ERROR << "FreeSpace: unsupported node role=" << role;
+    return UBSE_ERROR;
+}
+
+// 查找设备中指定命名空间ID的命名空间
+static const UbseSsuDevNameSpace *FindNsInDevice(const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                                 const std::string &eid, uint32_t namespaceId)
+{
+    auto devIt = devMap.find(eid);
+    if (devIt == devMap.end()) {
+        return nullptr;
+    }
+    for (const auto &ns : devIt->second->nameSpaces) {
+        if (ns.namespaceId == namespaceId) {
+            return &ns;
+        }
+    }
+    return nullptr;
+}
+
+// 校验命名空间是否与请求身份匹配
+static bool IsNsIdentityMatch(const UbseSsuDevNameSpace &targetNs, const UbseSsuAllocIdentityInfo &identity)
+{
+    if (targetNs.customData.uid != identity.uid) {
+        return false;
+    }
+    auto nsNameLen = strnlen(targetNs.customData.userName, sizeof(targetNs.customData.userName));
+    if (nsNameLen != identity.userName.size()) {
+        return false;
+    }
+    return strncmp(targetNs.customData.userName, identity.userName.c_str(), nsNameLen) == 0;
+}
+
+// 执行释放操作：校验命名空间身份并删除命名空间
+uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "ExecuteFree: name=" << name;
+    auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
+
+    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+    if (entryPtr == nullptr) {
+        UBSE_LOG_WARN << "ExecuteFree: record not found, name=" << name;
+        // 释放操作具有幂等性，释放不存在的空间应返回成功
+        return UBSE_OK;
+    }
+
+    if (entryPtr->state != UbseSsuNsState::CREATED) {
+        UBSE_LOG_WARN << "ExecuteFree: invalid state, name=" << name << ", state=" << static_cast<int>(entryPtr->state);
+        return UBSE_ERROR;
+    }
+
+    auto devMap = collector_.GetCachedDevMap();
+    uint32_t firstErr = UBSE_OK;
+    std::vector<UbseSsuNameSpaceInfo> remainingNs; // 未删成功的namespace，保留在账本中便于上层重试
+    std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
+    for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            // namespace已不在硬件中（可能已被删除或缓存未刷新），视为已释放，跳过
+            UBSE_LOG_WARN << "ExecuteFree: namespace not found in device cache, treat as already freed, eid="
+                          << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
+            continue;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << "ExecuteFree: namespace identity not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            return UBSE_ERR_AUTH_FAILED;
+        }
+
+        auto ret = UbseSsuAdapterInterface::GetInstance().DeleteDevNameSpace(*targetNs);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "ExecuteFree: DeleteDevNameSpace failed, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId << ", ret=" << ret;
+            remainingNs.push_back(nsInfo);
+            if (firstErr == UBSE_OK) {
+                firstErr = ret;
+            }
+            continue;
+        }
+        releasedCapacity.emplace_back(nsInfo.tgtEid, nsInfo.nsSize);
+    }
+
+    // 预增加已删成功namespace的释放容量，等下一次collector刷新时再清除
+    if (!releasedCapacity.empty()) {
+        collector_.AddReleasedSpace(releasedCapacity);
+    }
+
+    // 没有失败的namespace，删除账本条目
+    if (remainingNs.empty()) {
+        UbseSsuDebtLedger::GetInstance().Remove(name);
+        UBSE_LOG_INFO << "FreeSpace success: name=" << name;
+        return UBSE_OK;
+    }
+
+    // 部分失败：账本只保留未删成功的条目，便于上层重试
+    UbseSsuDebtLedger::GetInstance().Modify(
+        name, [&remainingNs](UbseSsuLedgerEntry &e) { e.allocResult.nameSpaceList = std::move(remainingNs); });
+    return firstErr;
+}
+
 } // namespace ubse::ssu::service
