@@ -31,11 +31,11 @@ using namespace ubse::cert;
 
 namespace {
 // VIP HTTP 服务使用的证书路径，由外部工具部署写入
-constexpr const char *VIP_SERVER_CERT_FILE = "/var/lib/ubse/ssu_cert/server.pem";
-constexpr const char *VIP_TRUST_CERT_FILE = "/var/lib/ubse/ssu_cert/trust.pem";
-constexpr const char *VIP_CRL_FILE = "/var/lib/ubse/ssu_cert/ca.crl";
-constexpr const char *VIP_SERVER_KEY_FILE = "/var/lib/ubse/ssu_cert/server_key.pem";
-constexpr const char *VIP_PASSWORD_FILE = "/var/lib/ubse/ssu_cert/key_pwd.txt";
+constexpr const char *VIP_SERVER_CERT_FILE = "/var/lib/ubse/vip_server_cert/server.pem";
+constexpr const char *VIP_TRUST_CERT_FILE = "/var/lib/ubse/vip_server_cert/trust.pem";
+constexpr const char *VIP_CRL_FILE = "/var/lib/ubse/vip_server_cert/ca.crl";
+constexpr const char *VIP_SERVER_KEY_FILE = "/var/lib/ubse/vip_server_cert/server_key.pem";
+constexpr const char *VIP_PASSWORD_FILE = "/var/lib/ubse/vip_server_cert/key_pwd.txt";
 
 UbseCertPaths MakeVipCertPaths()
 {
