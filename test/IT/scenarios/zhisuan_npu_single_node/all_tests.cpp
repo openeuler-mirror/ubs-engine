@@ -15,20 +15,37 @@
 
 using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
 
-// NPU设备查询：验证设备列表查询返回预期的NPU和NIC_PFE设备
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
 {
     ubse::it::tests::npu::RunDeviceListQueryTest(Cluster());
 }
 
-// NPU设备生命周期：验证分配→使用→释放的完整生命周期
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
 {
     ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
 }
 
-// UBA/TID/Size查询：验证设备分配后UBA地址、TID和Size查询正确
 TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
 {
     ubse::it::tests::npu::RunUbaTidSizeQueryTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, RepeatAllocAndFree)
+{
+    ubse::it::tests::npu::RunRepeatAllocAndFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, PreemptDevice)
+{
+    ubse::it::tests::npu::RunPreemptDeviceTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
+{
+    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, ConcurrentSuccess)
+{
+    ubse::it::tests::npu::RunConcurrentSuccessTest(Cluster());
 }

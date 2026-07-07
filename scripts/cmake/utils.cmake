@@ -230,24 +230,17 @@ macro(add_it module)
     target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
     add_dependencies(${IT_BINARY} ubse_it_runtime)
 
-    set(IT_CTEST_ARGS
-            --test-dir ${CMAKE_BINARY_DIR}/test
-            -L "^${IT_LABEL}$"
-            --output-on-failure
-            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
-            --no-tests=error
-    )
+    set(IT_GTEST_ARGS --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml)
     set(TRANS_PARAMS "$ENV{TRANS_PARAMS}")
     if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
         separate_arguments(IT_TRANS_PARAMS UNIX_COMMAND "${TRANS_PARAMS}")
         foreach (IT_TRANS_PARAM IN LISTS IT_TRANS_PARAMS)
             if (IT_TRANS_PARAM MATCHES "^--gtest_filter=(.*)$")
-                ubse_gtest_filter_to_ctest_regex(IT_CTEST_FILTER_REGEX "${CMAKE_MATCH_1}")
-                list(APPEND IT_CTEST_ARGS -R "${IT_CTEST_FILTER_REGEX}")
+                list(APPEND IT_GTEST_ARGS --gtest_filter=${CMAKE_MATCH_1})
             elseif (IT_TRANS_PARAM MATCHES "^--gtest_")
-                message(WARNING "Ignoring unsupported GTest argument for CTest-based IT target: ${IT_TRANS_PARAM}")
+                message(WARNING "Ignoring unsupported GTest argument for IT target: ${IT_TRANS_PARAM}")
             else ()
-                message(WARNING "Ignoring unsupported IT target argument for CTest-based IT target: ${IT_TRANS_PARAM}")
+                message(WARNING "Ignoring unsupported argument for IT target: ${IT_TRANS_PARAM}")
             endif ()
         endforeach ()
     endif ()
@@ -255,8 +248,16 @@ macro(add_it module)
     if (SKIP_RUN_TESTS)
         set(IT_RUN_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}")
     else ()
-        set(IT_RUN_COMMAND ${CMAKE_CTEST_COMMAND} ${IT_CTEST_ARGS})
+        set(IT_RUN_COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS})
     endif ()
+
+    set(IT_CTEST_ARGS
+            --test-dir ${CMAKE_BINARY_DIR}/test
+            -L "^${IT_LABEL}$"
+            --output-on-failure
+            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+            --no-tests=error
+    )
     add_custom_target(${module}_it
             COMMAND ${IT_RUN_COMMAND}
             COMMENT "Run IT testing via ctest label ${IT_LABEL}"
@@ -270,7 +271,8 @@ macro(add_it module)
     # SetUpTestSuite to start/stop the cluster for every single case.
     add_test(
             NAME ${IT_BINARY}
-            COMMAND ${IT_BINARY} --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh
+                    ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
     )
     set_tests_properties(${IT_BINARY}
@@ -313,22 +315,14 @@ macro(add_it_scene scene)
     target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
     add_dependencies(${IT_BINARY} ubse_it_runtime)
 
-    # Generate ctest entry
-    set(IT_CTEST_ARGS
-            --test-dir ${CMAKE_BINARY_DIR}/test
-            -L "^${IT_LABEL}$"
-            --output-on-failure
-            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
-            --no-tests=error
-    )
+    set(IT_GTEST_ARGS --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml)
 
     set(TRANS_PARAMS "$ENV{TRANS_PARAMS}")
     if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
         separate_arguments(IT_TRANS_PARAMS UNIX_COMMAND "${TRANS_PARAMS}")
         foreach (IT_TRANS_PARAM IN LISTS IT_TRANS_PARAMS)
             if (IT_TRANS_PARAM MATCHES "^--gtest_filter=(.*)$")
-                ubse_gtest_filter_to_ctest_regex(IT_CTEST_FILTER_REGEX "${CMAKE_MATCH_1}")
-                list(APPEND IT_CTEST_ARGS -R "${IT_CTEST_FILTER_REGEX}")
+                list(APPEND IT_GTEST_ARGS --gtest_filter=${CMAKE_MATCH_1})
             elseif (IT_TRANS_PARAM MATCHES "^--gtest_")
                 message(WARNING "Ignoring unsupported GTest argument: ${IT_TRANS_PARAM}")
             else ()
@@ -341,8 +335,16 @@ macro(add_it_scene scene)
         set(IT_RUN_COMMAND ${CMAKE_COMMAND} -E echo
             "Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}")
     else ()
-        set(IT_RUN_COMMAND ${CMAKE_CTEST_COMMAND} ${IT_CTEST_ARGS})
+        set(IT_RUN_COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS})
     endif ()
+
+    set(IT_CTEST_ARGS
+            --test-dir ${CMAKE_BINARY_DIR}/test
+            -L "^${IT_LABEL}$"
+            --output-on-failure
+            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+            --no-tests=error
+    )
 
     add_custom_target(${scene}_it
             COMMAND ${IT_RUN_COMMAND}
@@ -359,7 +361,8 @@ macro(add_it_scene scene)
     # Running the whole binary in one process lets all cases share the cluster.
     add_test(
             NAME ${IT_BINARY}
-            COMMAND ${IT_BINARY} --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh
+                    ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
     )
     set_tests_properties(${IT_BINARY}

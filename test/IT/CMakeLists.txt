@@ -184,19 +184,20 @@ endforeach()
 
 get_property(IT_SCENE_BINARIES GLOBAL PROPERTY UBSE_IT_SCENE_BINARIES)
 
-# Aggregate target `it`: builds all scene binaries then runs all IT tests.
-# Usage: bash build.sh it
-# Single scene: bash build.sh single_node_it
+set(IT_SCENE_BINARY_PATHS "")
+foreach(b ${IT_SCENE_BINARIES})
+    list(APPEND IT_SCENE_BINARY_PATHS ${CMAKE_BINARY_DIR}/bin/${b})
+endforeach()
+
 if(SKIP_RUN_TESTS)
     set(IT_RUN_ALL_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT tests, only build scene binaries")
+elseif(NOT IT_SCENE_BINARY_PATHS)
+    set(IT_RUN_ALL_COMMAND ${CMAKE_COMMAND} -E echo "No IT scene binaries registered" && ${CMAKE_COMMAND} -E false)
 else()
     set(IT_RUN_ALL_COMMAND
-        ${CMAKE_CTEST_COMMAND}
-        --test-dir ${CMAKE_BINARY_DIR}/test
-        -L "^it_scene_.*"
-        --output-on-failure
-        --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
-        --no-tests=error
+        ${CMAKE_SOURCE_DIR}/scripts/run_all_it_tests.sh
+        ${CMAKE_BINARY_DIR}/coverage/it
+        ${IT_SCENE_BINARY_PATHS}
     )
 endif()
 add_custom_target(it
