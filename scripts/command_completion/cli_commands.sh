@@ -4,6 +4,22 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 #
 
+_ubse_mem_current_type() {
+    local i last_t_idx=-1
+    for ((i = COMP_CWORD - 1; i >= 2; i--)); do
+        if [[ "${COMP_WORDS[i]}" == "-t" || "${COMP_WORDS[i]}" == "--type" ]]; then
+            last_t_idx=$i
+            break
+        fi
+    done
+    if [[ ${last_t_idx} -ge 0 ]]; then
+        local next_idx=$((last_t_idx + 1))
+        if [[ ${next_idx} -lt ${COMP_CWORD} ]]; then
+            echo "${COMP_WORDS[next_idx]}"
+        fi
+    fi
+}
+
 function _ubse_commond_completion() {
     COMPREPLY=()
 
@@ -68,13 +84,10 @@ commands='create display import delete check change remove detach attach'
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
-                        local mem_word
-                        for mem_word in "${COMP_WORDS[@]}"; do
-                            if [[ "${mem_word}" == "numa_status" ]]; then
-                                COMPREPLY=( $(compgen -W '--all' -- ${cur}) )
-                                return 0
-                            fi
-                        done
+                        if [[ "$(_ubse_mem_current_type)" == "numa_status" ]]; then
+                            COMPREPLY=( $(compgen -W '--all' -- ${cur}) )
+                            return 0
+                        fi
                         COMPREPLY=( $(compgen -W '--type --borrow-type --name' -- ${cur}) )
                         return 0
                     ;;
@@ -210,13 +223,10 @@ commands='create display import delete check change remove detach attach'
             'display')
                 case ${COMP_WORDS[2]} in
                     'memory')
-                        local mem_word
-                        for mem_word in "${COMP_WORDS[@]}"; do
-                            if [[ "${mem_word}" == "numa_status" ]]; then
-                                COMPREPLY=( $(compgen -W '-a' -- ${cur}) )
-                                return 0
-                            fi
-                        done
+                        if [[ "$(_ubse_mem_current_type)" == "numa_status" ]]; then
+                            COMPREPLY=( $(compgen -W '-a' -- ${cur}) )
+                            return 0
+                        fi
                         COMPREPLY=( $(compgen -W '-t -n -bt' -- ${cur}) )
                         return 0
                     ;;
