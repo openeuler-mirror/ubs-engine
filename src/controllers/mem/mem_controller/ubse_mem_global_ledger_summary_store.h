@@ -43,7 +43,6 @@ private:
 
     mutable std::shared_mutex mutex_{};
     UbseGlobalNodeLedgerSummaryTable summaries_{};
-    std::map<std::string, uint64_t> lastUpdateTimes_{};
 };
 } // namespace ubse::mem::controller
 

@@ -42,7 +42,6 @@ struct UbseGlobalLedgerSummary {
 struct UbseGlobalNodeLedgerSummary {
     std::string nodeId{};                 // 当前上报的目标节点ID
     std::string sourceMasterNodeId{};     // 上报该摘要的机柜主节点ID
-    uint64_t reportTimestampMs{0};        // 全局主落库时间戳
     UbseGlobalLedgerSummary shmSummary{}; // 共享内存账本摘要
 };
 

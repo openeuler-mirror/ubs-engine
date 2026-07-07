@@ -377,9 +377,9 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
             MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
-        auto summaryRet = SubmitNodeLedgerSummary(nodeId);
+        auto summaryRet = ReportNodeLedgerSummary(nodeId);
         if (summaryRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "submit global ledger summary failed, nodeId=" << node.nodeId << ", "
+            UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << node.nodeId << ", "
                            << FormatRetCode(summaryRet);
             ret |= summaryRet;
         }

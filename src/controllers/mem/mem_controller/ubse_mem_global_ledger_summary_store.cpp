@@ -16,18 +16,9 @@
 #include <mutex>
 
 #include "ubse_logger_module.h"
-#include "ubse_mem_global_ledger_report.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
-
-namespace {
-uint64_t GetNowMs()
-{
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count());
-}
-} // namespace
 
 UbseGlobalLedgerSummaryStore &UbseGlobalLedgerSummaryStore::GetInstance()
 {
@@ -37,13 +28,18 @@ UbseGlobalLedgerSummaryStore &UbseGlobalLedgerSummaryStore::GetInstance()
 
 UbseResult UbseGlobalLedgerSummaryStore::PutNodeSummary(const UbseGlobalNodeLedgerSummary &summary)
 {
+    if (summary.nodeId.empty()) {
+        UBSE_LOG_ERROR << "nodeId is empty";
+        return UBSE_ERROR_INVAL;
+    }
+
     std::unique_lock<std::shared_mutex> lock(mutex_);
     const auto nodeId = summary.nodeId;
     auto storedSummary = summary;
-    const auto nowMs = GetNowMs();
-    storedSummary.reportTimestampMs = nowMs;
     summaries_[nodeId] = std::move(storedSummary);
-    lastUpdateTimes_[nodeId] = nowMs;
+    UBSE_LOG_INFO << "Stored global node ledger summary, nodeId=" << summary.nodeId
+                  << ", shmImportItems=" << summary.shmSummary.importItems.size()
+                  << ", shmExportItems=" << summary.shmSummary.exportItems.size();
     return UBSE_OK;
 }
 
@@ -89,46 +85,5 @@ void UbseGlobalLedgerSummaryStore::Clear()
 {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     summaries_.clear();
-    lastUpdateTimes_.clear();
-}
-
-UbseResult StoreGlobalNodeLedgerSummary(const UbseGlobalLedgerSummaryReportReq &report)
-{
-    if (report.nodeId.empty()) {
-        UBSE_LOG_ERROR << "nodeId is empty";
-        return UBSE_ERROR_INVAL;
-    }
-
-    const auto ret = UbseGlobalLedgerSummaryStore::GetInstance().PutNodeSummary(report);
-    if (ret != UBSE_OK) {
-        return ret;
-    }
-    UBSE_LOG_INFO << "Stored global node ledger summary, nodeId=" << report.nodeId
-                  << ", shmImportItems=" << report.shmSummary.importItems.size()
-                  << ", shmExportItems=" << report.shmSummary.exportItems.size();
-    return UBSE_OK;
-}
-
-UbseResult QueryStoredGlobalNodeLedgerSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary)
-{
-    return UbseGlobalLedgerSummaryStore::GetInstance().GetNodeSummary(targetNodeId, summary);
-}
-
-UbseResult QueryStoredGlobalNodeLedgerSummaries(UbseGlobalNodeLedgerSummaryTable &summaries)
-{
-    return UbseGlobalLedgerSummaryStore::GetInstance().GetAllNodeSummaries(summaries);
-}
-
-bool HasStoredGlobalNodeLedgerSummary(const std::string &targetNodeId)
-{
-    if (targetNodeId.empty()) {
-        return false;
-    }
-    return UbseGlobalLedgerSummaryStore::GetInstance().ContainsNodeSummary(targetNodeId);
-}
-
-void ClearStoredGlobalNodeLedgerSummaries()
-{
-    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
 }
 } // namespace ubse::mem::controller

@@ -10,6 +10,7 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_global_ledger_report.h"
+#include "ubse_mem_global_ledger_summary_store.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
@@ -18,7 +19,7 @@ namespace ubse::mem::controller {
 using namespace ubse::nodeController;
 using namespace ubse::mem::util;
 using namespace ubse::event;
-const uint32_t HA_SEQUENCE_ID = 101;
+const uint32_t HA_SEQUENCE_ID = 101; // 需要确保在节点建链后触发，节点建链优先级100
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 uint32_t UbseMemControllerMasterOnlineHandler::MasterOnlineHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
@@ -36,8 +37,14 @@ uint32_t UbseMemControllerMasterOnlineHandler::GlobalMasterOnlineEventHandler(st
 
 uint32_t UbseMemControllerMasterOnlineHandler::HandleGlobalMasterOnline(const std::string &nodeId)
 {
-    ClearStoredGlobalNodeLedgerSummaries();
+    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
     UBSE_LOG_INFO << "[CLOS_STATE] cleared global ledger summaries on global master online";
+
+    auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    if (curNode.nodeId.empty()) {
+        UBSE_LOG_WARN << "current node is empty, skip existing summary reporting on global master online";
+        return UBSE_OK;
+    }
 
     auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
     auto resourceExecutor = GetExecutor("ubseMemController");
@@ -50,8 +57,13 @@ uint32_t UbseMemControllerMasterOnlineHandler::HandleGlobalMasterOnline(const st
         if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
             continue;
         }
+        if (nodeInfo.groupId != curNode.groupId) {
+            UBSE_LOG_INFO << "skip reporting existing summary for node in different cabinet, nodeId=" << nodeIdStr
+                          << ", nodeGroupId=" << nodeInfo.groupId << ", currentGroupId=" << curNode.groupId;
+            continue;
+        }
         resourceExecutor->Execute([nodeIdStr, nodeId]() {
-            auto ret = ReportExistingSummaryForWorkingNode(nodeIdStr, nodeId);
+            auto ret = ReportNodeLedgerSummary(nodeIdStr, nodeId);
             if (ret != UBSE_OK) {
                 UBSE_LOG_WARN << "report existing summary for WORKING node failed on global master online, nodeId="
                               << nodeIdStr << ", " << ubse::log::FormatRetCode(ret);
@@ -63,16 +75,17 @@ uint32_t UbseMemControllerMasterOnlineHandler::HandleGlobalMasterOnline(const st
 
 void UbseMemControllerMasterOnlineHandler::Initial()
 {
+    // 监听主上线事件，如果非主则清理非本节点的数据.
     UbseElectionHandlerBuilder Builder;
     Builder.SetHandler(MasterOnlineHandler);
     Builder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    Builder.SetSequenceId(HA_SEQUENCE_ID);
+    Builder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     Builder.SetType(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION);
     Builder.SetName("UbseControllerMasterOnLine");
     UbseElectionChangeAttachHandler(Builder.Build());
 
     std::string eventId = UBSE_EVENT_GLOBAL_MASTER_ONLINE;
-    UbseSubEvent(eventId, GlobalMasterOnlineEventHandler, HIGH);
+    UbseSubEvent(eventId, GlobalMasterOnlineEventHandler);
 }
 
 void UbseMemControllerMasterOnlineHandler::Uninitial()
@@ -80,7 +93,7 @@ void UbseMemControllerMasterOnlineHandler::Uninitial()
     UbseElectionHandlerBuilder Builder;
     Builder.SetHandler(MasterOnlineHandler);
     Builder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    Builder.SetSequenceId(HA_SEQUENCE_ID);
+    Builder.SetSequenceId(HA_SEQUENCE_ID); // 需要确保在节点建链后触发，节点建链优先级100
     Builder.SetType(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION);
     Builder.SetName("UbseControllerMasterOnLine");
     UbseElectionChangeDeAttachHandler(Builder.Build());

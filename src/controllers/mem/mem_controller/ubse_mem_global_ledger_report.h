@@ -24,30 +24,17 @@
 namespace ubse::mem::controller {
 using namespace ubse::common::def;
 
-struct UbseGlobalLedgerSyncStartReq {
-    std::string targetNodeId{};
-};
-
-struct UbseGlobalLedgerSyncStartResp {
-    UbseResult ret{UBSE_OK};
-};
-
 using UbseGlobalLedgerSummaryReportReq = UbseGlobalNodeLedgerSummary;
 
 struct UbseGlobalLedgerSummaryReportResp {
     UbseResult ret{UBSE_OK};
 };
 
-UbseResult StartGlobalLedgerSync(const UbseGlobalLedgerSyncStartReq &req);
-UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary);
-UbseResult StoreGlobalNodeLedgerSummary(const UbseGlobalLedgerSummaryReportReq &report);
 UbseResult RegGlobalLedgerReportRpcHandlers();
-UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary);
-UbseResult SubmitNodeLedgerSummary(const std::string &nodeId);
-UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId);
-UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId, const std::string &globalMasterNodeId);
-bool HasStoredGlobalNodeLedgerSummary(const std::string &targetNodeId);
-void ClearStoredGlobalNodeLedgerSummaries();
+
+UbseResult ReportNodeLedgerSummary(const std::string &nodeId);
+
+UbseResult ReportNodeLedgerSummary(const std::string &nodeId, const std::string &globalMasterNodeId);
 } // namespace ubse::mem::controller
 
 #endif // UBSE_MANAGER_UBSE_MEM_GLOBAL_LEDGER_REPORT_H

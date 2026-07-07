@@ -342,8 +342,7 @@ public:
     // 执行全局主侧数据恢复状态变更回调
     uint32_t ExecGlobalStateNotifyHandler(const UbseNodeInfo &node);
 
-    // 更新全局主侧对账同步状态，仅存储 globalState，不做推进规则校验
-    // 幂等保护: 已 READY 的节点不允许被降级（降级需走 ResetAllGlobalStates）
+    // 更新全局主侧数据恢复状态
     uint32_t UpdateNodeInfoGlobalState(const std::string &nodeId, UbseNodeGlobalState state);
 
     // 重置所有节点 globalState → GLOBAL_INIT（全局主切换/脑裂合并时使用）
@@ -377,13 +376,12 @@ public:
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
 
 private:
-    mutable std::shared_mutex rwMutex;
+    std::shared_mutex rwMutex;
     std::unordered_map<std::string, UbseNodeInfo> nodeInfos; // agent侧只有当前节点，Master有全量节点
     std::vector<UbseLocalStateNotifyHandler> localNotifyHandlers;
     std::vector<UbseClusterStateNotifyHandler> clusterNotifyHandlers;
     std::vector<UbseGlobalStateNotifyHandler> globalNotifyHandlers;
     std::string currentNodeId;
-
     // 链接对
     std::shared_mutex devDirMutex;
     std::map<std::string, PhysicalLink>

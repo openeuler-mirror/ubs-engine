@@ -22,6 +22,8 @@ add_library(mem_plugin SHARED
         ubse_mem_controller_msg.cpp
         ubse_mem_controller_master_online_handler.cpp
         ubse_mem_controller_ledger_filter.cpp
+        ubse_mem_global_ledger_report.cpp
+        ubse_mem_global_ledger_summary_store.cpp
         ubse_mem_agent_update_obj_state.cpp
         ubse_mem_controller_handler.cpp
         ubse_mem_buffer_convert.cpp

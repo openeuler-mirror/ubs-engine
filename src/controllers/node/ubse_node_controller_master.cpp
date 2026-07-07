@@ -29,7 +29,6 @@
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
-#include "ubse_mem_global_ledger_report.h"
 
 const uint32_t HA_SEQUENCE_ID = 101; // todo 待链路合并后下线，需要确保在节点建链后触发，节点建链优先级100。
 
@@ -205,17 +204,17 @@ UbseResult UbseNodeControllerMaster::Initialize()
     NodeDownBuilder.SetName(UBSE_NODE_NODE_DOWN);
     UbseElectionChangeAttachHandler(NodeDownBuilder.Build());
 
-    // 全局主上线通知：机柜主收到后重置 globalState + 触发全量对账
-    UbseElectionHandlerBuilder GlobalMasterOnlineBuilder;
-    GlobalMasterOnlineBuilder.SetHandler(
+    // 全局主上线通知：机柜主收到后重置 globalState + 触发摘要上报
+    UbseElectionHandlerBuilder globalMasterOnlineBuilder;
+    globalMasterOnlineBuilder.SetHandler(
         [this](UbseElectionEventType, UBSE_ID_TYPE globalMasterId) {
             return UbseGlobalMasterOnlineHandler(globalMasterId);
         });
-    GlobalMasterOnlineBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
-    GlobalMasterOnlineBuilder.SetSequenceId(HA_SEQUENCE_ID);
-    GlobalMasterOnlineBuilder.SetType(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION);
-    GlobalMasterOnlineBuilder.SetName(UBSE_NODE_GLOBAL_MASTER_ONLINE);
-    UbseElectionChangeAttachHandler(GlobalMasterOnlineBuilder.Build());
+    globalMasterOnlineBuilder.SetPriority(UbseElectionHandlerPriority::HIGH);
+    globalMasterOnlineBuilder.SetSequenceId(HA_SEQUENCE_ID);
+    globalMasterOnlineBuilder.SetType(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION);
+    globalMasterOnlineBuilder.SetName(UBSE_NODE_GLOBAL_MASTER_ONLINE);
+    UbseElectionChangeAttachHandler(globalMasterOnlineBuilder.Build());
 
     // prebmc 故障回调；仅允许连通节点：smoothing，working状态节点进入prebmc状态
     UbseRasHandler::GetInstance().RegisterNodeHandler(
@@ -1421,19 +1420,19 @@ void UbseNodeControllerMaster::UbseMasterNotifyMountedGroupMastersAction(const s
         return;
     }
 
-    std::vector<ubse::election::UBSE_ID_TYPE> mountedGroupMasterIds{};
-    auto ret = module->GetPdMountedGroupMasters(mountedGroupMasterIds);
+    ubse::election::HaTopologyInfo topology{};
+    auto ret = module->GetHaTopologyInfo(topology);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[CLOS_EVENT] get mounted group masters failed, skip action=" << action
-                      << ", " << FormatRetCode(ret);
+        UBSE_LOG_WARN << "[CLOS_EVENT] get ha topology failed, skip action=" << action << ", " << FormatRetCode(ret);
         return;
     }
 
     auto currentNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
-    for (const auto &mountedGroupMasterId : mountedGroupMasterIds) {
-        if (mountedGroupMasterId.empty() || mountedGroupMasterId == currentNodeId) {
+    for (const auto &group : topology.groups) {
+        if (group.isManagingGroup) {
             continue;
         }
+        const auto &mountedGroupMasterId = group.groupMasterId;
         NotifyNodeChangeAction(mountedGroupMasterId, nodeId, action);
     }
 }

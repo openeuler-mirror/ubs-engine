@@ -851,20 +851,16 @@ uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string &nodeId
         return UBSE_ERROR_NULLPTR;
     }
 
-    auto &current = iter->second.globalState;
-
-    // 幂等保护: 已 READY 的节点不允许被 SMOOTHING/INIT 覆盖（降级需走 ResetAllGlobalStates）
-    if (current == UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY
-        && state != UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY) {
-        UBSE_LOG_WARN << "nodeId=" << nodeId << " globalState already READY, reject downgrade to="
-                      << static_cast<uint32_t>(state);
-        return UBSE_ERROR_AGAIN;
+    if (iter->second.globalState == UbseNodeGlobalState::UBSE_NODE_GLOBAL_READY) {
+        UBSE_LOG_INFO << "nodeId=" << nodeId
+                      << " global state already ready, skip update state=" << static_cast<uint32_t>(state);
+        return UBSE_OK;
     }
 
     UBSE_LOG_INFO << "nodeId=" << nodeId
-                  << " update global state, current state=" << static_cast<uint32_t>(current)
+                  << " update global state, current state=" << static_cast<uint32_t>(iter->second.globalState)
                   << ", update state=" << static_cast<uint32_t>(state);
-    current = state;
+    iter->second.globalState = state;
     return UBSE_OK;
 }
 

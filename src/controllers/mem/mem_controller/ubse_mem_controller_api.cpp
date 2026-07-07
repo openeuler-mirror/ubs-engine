@@ -25,7 +25,7 @@
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_def.h"
-#include "ubse_mem_global_ledger_report.h"
+#include "ubse_mem_global_ledger_summary_store.h"
 #include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_scheduler.h"
 #include "ubse_mem_util.h"
@@ -70,7 +70,7 @@ uint32_t CheckGlobalLedgerSummaryReported(const ubse::nodeController::UbseNodeIn
         UBSE_LOG_ERROR << "node id is empty when checking global ledger summary";
         return UBSE_ERROR_INVAL;
     }
-    if (!HasStoredGlobalNodeLedgerSummary(node.nodeId)) {
+    if (!UbseGlobalLedgerSummaryStore::GetInstance().ContainsNodeSummary(node.nodeId)) {
         UBSE_LOG_WARN << "global ledger summary has not been reported, nodeId=" << node.nodeId;
         return UBSE_ERR_NODE_NOT_EXIST;
     }

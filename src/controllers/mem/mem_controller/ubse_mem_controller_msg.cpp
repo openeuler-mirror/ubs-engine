@@ -1126,6 +1126,7 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     }
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
+
 UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
                                              const std::string &debtName, UbseMemBorrowType type)
 {
