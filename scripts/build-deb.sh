@@ -41,6 +41,7 @@ bash build.sh -S -c
 # Install main binaries
 install -Dm755 cmake-build-release/bin/ubse "$STAGING/usr/bin/ubse"
 install -Dm755 cmake-build-release/bin/ubsectl "$STAGING/usr/bin/ubsectl"
+install -Dm755 cmake-build-release/bin/ubsectl-ssu "$STAGING/usr/bin/ubsectl-ssu"
 
 # Systemd
 # === 安装并修改 systemd service 文件 ===
@@ -131,6 +132,7 @@ build_deb() {
             # Binaries
             install -Dm755 "$STAGING/usr/bin/ubse" "$pkg_dir/usr/bin/ubse"
             install -Dm755 "$STAGING/usr/bin/ubsectl" "$pkg_dir/usr/bin/ubsectl"
+            install -Dm755 "$STAGING/usr/bin/ubsectl-ssu" "$pkg_dir/usr/bin/ubsectl-ssu"
             # Systemd
             install -Dm644 "$STAGING/usr/lib/systemd/system/ubse.service" "$pkg_dir/usr/lib/systemd/system/ubse.service"
             # Configs

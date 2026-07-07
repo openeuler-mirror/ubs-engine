@@ -200,6 +200,7 @@ bash build.sh -T RelWithDebInfo
 mkdir -p %{buildroot}/usr/bin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubse %{buildroot}/usr/bin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl %{buildroot}/usr/bin
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
 
 mkdir -p %{buildroot}/usr/lib/systemd/system/
 cp %{_builddir}/%{project_dir}/scripts/rpm/%{service_name} %{buildroot}/usr/lib/systemd/system/
@@ -397,6 +398,7 @@ fi
 %defattr(755,root,root,-)
 /usr/bin/ubse
 /usr/bin/ubsectl
+/usr/bin/ubsectl-ssu
 %defattr(644,root,root,-)
 /usr/lib/systemd/system/ubse.service
 %defattr(644,root,root,755)

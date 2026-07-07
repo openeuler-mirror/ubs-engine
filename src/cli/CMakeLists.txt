@@ -1,6 +1,7 @@
 add_subdirectory(ubse_cert)
 add_subdirectory(ubse_cli_framework)
 add_subdirectory(ubse_cli_consumer)
+add_subdirectory(ssu)
 
 add_executable(ubsectl ubse_cli_main.cpp
         ubse_cli_node_cmd_reg.cpp
