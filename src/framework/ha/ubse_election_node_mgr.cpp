@@ -130,8 +130,29 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     std::unique_lock<std::shared_mutex> lock(mtx_);
+    if (rootEnable_) {
+        // 指定根节点选主(单层选主tcp)，所有节点信息需要通过注册节点发现的事件来更新
+        currentAllNodes_.clear();
+        nodeIpMap_.clear();
+        std::vector<std::string> ipList{};
+        auto ubseNodeInfos = GetAllNodes();
+        if (ubseNodeInfos.empty()) {
+            UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+            return;
+        }
+        for (const auto &nodeInfo : ubseNodeInfos) {
+            Node tempNode;
+            tempNode.id = nodeInfo.nodeId;
+            tempNode.ip = nodeInfo.addr;
+            tempNode.port = TCP_LISTEN_PORT;
+            currentAllNodes_.push_back(tempNode);
+            nodeIpMap_.emplace(tempNode.ip, tempNode.id);
+        }
+        return;
+    }
     if (!isHierarchicalElection_) {
         if (ubEnable_) {
+            // 单层urma
             currentAllNodes_.clear();
             nodeIpMap_.clear();
             auto ubseNodeInfos = GetAllNodes();
@@ -151,6 +172,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
                 }
             }
         } else if (!ubEnable_ && currentAllNodes_.empty()) {
+            // 单层tcp
             std::vector<std::string> ipList{};
             auto ubseNodeInfos = GetAllNodes();
             if (ubseNodeInfos.empty()) {
@@ -170,6 +192,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
             }
         }
     } else {
+        // 双层urma或者tcp
         if (!rootEnable_) {
             GetGroupNodes(currentAllNodes_);
         }
@@ -186,11 +209,7 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
 
     currentNode_.id = nodeStaticInfo.nodeId;
     currentNode_.port = TCP_LISTEN_PORT;
-    if (isHierarchicalElection_ && rootEnable_) {
-        currentNode_.ip = nodeStaticInfo.addr;
-    } else {
-        currentNode_.ip = ubEnable_ ? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
-    }
+    currentNode_.ip = ubEnable_ ? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
 
     ParseAllNodesVector();
 
@@ -418,5 +437,46 @@ uint32_t UbseElectionNodeMgr::GetCapability()
         return DEFAULT_POD_CAPABILITY;
     }
     return podCapability;
+}
+
+UbseResult UbseElectionNodeMgr::HandleNodeDiscoveryEvent(const std::string &eventId, const std::string &eventMessage)
+{
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    currentAllNodes_.clear();
+    nodeIpMap_.clear();
+    auto ubseNodeInfos = GetAllNodes();
+    if (ubseNodeInfos.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] HandleNodeDiscoveryEvent get allNodes failed.";
+        return UBSE_ERROR;
+    }
+    for (const auto &nodeInfo : ubseNodeInfos) {
+        Node tempNode;
+        tempNode.id = nodeInfo.nodeId;
+        tempNode.ip = nodeInfo.addr;
+        tempNode.port = TCP_LISTEN_PORT;
+        currentAllNodes_.push_back(tempNode);
+        nodeIpMap_.emplace(tempNode.ip, tempNode.id);
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseElectionNodeMgr::ElectionSubNodeDiscoveryEvent()
+{
+    auto eventModule = UbseContext::GetInstance().GetModule<UbseEventModule>();
+    if (eventModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to get UbseEventModule";
+        return UBSE_ERROR;
+    }
+    auto ret = eventModule->UbseSubEvent(
+        UBSE_EVENT_NODE_DISCOVERY,
+        [this](std::string &eventId, std::string &eventMessage) -> u_int32_t {
+            return HandleNodeDiscoveryEvent(eventId, eventMessage);
+        },
+        HIGH);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Failed to SubEvent" << UBSE_EVENT_NODE_DISCOVERY << "," << FormatRetCode(ret);
+        return ret;
+    }
+    return UBSE_OK;
 }
 } // namespace ubse::election

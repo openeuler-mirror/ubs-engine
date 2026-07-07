@@ -86,6 +86,9 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
     if (currentRole_) {
         currentRole_->CleanupRoutes();
     }
+    if (globalCurrentRole_) {
+        globalCurrentRole_->CleanupRoutes();
+    }
     RoleType role;
     bool flag = false;
     switch (roleType) {

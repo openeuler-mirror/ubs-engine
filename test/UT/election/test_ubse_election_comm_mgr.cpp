@@ -63,6 +63,7 @@ void TestUbseElectionCommMgr::MockEventModuleWithSubEventResults(UbseResult firs
 void TestUbseElectionCommMgr::MockAllSubEventsSuccess()
 {
     MockEventModuleWithSubEventResults(UBSE_OK, UBSE_OK, UBSE_OK);
+    MOCKER(&UbseElectionNodeMgr::ElectionSubNodeDiscoveryEvent).stubs().will(returnValue(UBSE_OK));
 }
 
 void TestUbseElectionCommMgr::MockGetMyselfNode(UbseResult result)

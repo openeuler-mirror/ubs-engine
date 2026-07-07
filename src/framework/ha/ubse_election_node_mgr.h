@@ -107,7 +107,8 @@ public:
     UbseResult GetUBEnable(bool &ubEnable);
     bool IsHierarchicalElection() const;
     uint32_t GetCapability();
-
+    UbseResult HandleNodeDiscoveryEvent(const std::string &eventId, const std::string &eventMessage);
+    UbseResult ElectionSubNodeDiscoveryEvent();
 private:
     // 本地节点信息
     Node currentNode_;
