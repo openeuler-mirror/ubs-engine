@@ -60,9 +60,10 @@ private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
 
-    uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, UbseSsuAllocResult &result);
+    uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
+                          UbseSsuAllocResult &result);
 
-    uint32_t ExecuteFree(const std::string &name);
+    uint32_t ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
 
     uint32_t ExecuteScheduler(const UbseSsuAllocSpaceReq &req, std::vector<std::pair<std::string, uint64_t>> &eidNsSizeList);
 

@@ -23,23 +23,15 @@ using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-void UbseSsuFreeReqMsg::SetSsuFreeRequest(const std::string &requestId, const std::string &requestNodeId,
-                                           const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+UbseSsuFreeReqMsg::UbseSsuFreeReqMsg(const std::string &requestId, const std::string &requestNodeId,
+    const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+    : req_{requestId, requestNodeId, name, identity}
 {
-    req_.requestId = requestId;
-    req_.requestNodeId = requestNodeId;
-    req_.name = name;
-    req_.identityInfo = identity;
 }
 
 const UbseSsuFreeReq &UbseSsuFreeReqMsg::GetSsuFreeRequest() const
 {
     return req_;
-}
-
-void UbseSsuFreeRespMsg::SetSsuFreeResponse(const UbseSsuFreeResp &resp)
-{
-    resp_ = resp;
 }
 
 const UbseSsuFreeResp &UbseSsuFreeRespMsg::GetSsuFreeResponse() const
@@ -70,6 +62,10 @@ uint32_t UbseSsuFreeReqMsg::Deserialize(const uint8_t *data, uint32_t size)
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+UbseSsuFreeRespMsg::UbseSsuFreeRespMsg(const UbseSsuFreeResp &resp) : resp_(resp)
+{
 }
 
 uint32_t UbseSsuFreeRespMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const

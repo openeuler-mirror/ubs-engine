@@ -18,12 +18,13 @@
 #include "message/ubse_ssu_alloc_msg.h"
 #include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
+#include "message/ubse_ssu_sync_resp_msg.h"
 #include "ubse_com.h"
-#include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
+#include "trace_context.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_ssu_utils.h"
 
@@ -44,16 +45,16 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 // 向agent端发送SSU分配响应
 static void SendSsuAllocRespToAgent(const std::string &agentNodeId, const UbseSsuAllocResp &resp)
 {
-    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get comModule for sending response, requestId=" << resp.requestId;
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendSsuAllocRespToAgent: get ssu alloc resp endpoint failed, requestId=" << resp.requestId;
         return;
     }
-    UbseSsuAllocRespMsg respMsg;
-    respMsg.SetSsuAllocResp(resp);
-    UbseSsuAllocRespMsg ackMsg; // 占位
-    auto ret = comModule->RpcSend(agentNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                  static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP), respMsg, ackMsg);
+    UbseSsuAllocRespMsg respMsg(resp);
+    UbseSsuSyncRespMsg ackMsg;
+    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "SendSsuAllocRespToAgent failed, " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
     }
@@ -69,13 +70,20 @@ static UbseSsuAllocResp BuildErrorResp(const std::string &requestId, uint32_t er
     return resp;
 }
 
+// 为同步RPC构造回复，防止sender端框架层阻塞等待
+static void SetReplySyncResp(std::unique_ptr<UbseRpcMessage> &resp, uint32_t errorCode = UBSE_OK)
+{
+    auto respMsg = std::make_unique<ubse::ssu::message::UbseSsuSyncRespMsg>(errorCode);
+    resp = std::move(respMsg);
+}
+
 // handler: master端处理来自agent端的SSU分配请求
 static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
 {
     UbseSsuAllocReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
-        // future超时路径兜底
         UBSE_LOG_ERROR << "Failed to deserialize alloc req, reqSize=" << reqSize;
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
 
@@ -88,6 +96,7 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
         auto respData = BuildErrorResp(requestId, UBSE_ERROR);
         SendSsuAllocRespToAgent(requestNodeId, respData);
         UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
 
@@ -99,6 +108,7 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
         UBSE_LOG_ERROR << "AllocReq: ledger entry already exists, reject duplicate alloc: name=" << allocRpcReq.allocReq.name;
         UbseSsuAllocResp respData = BuildErrorResp(requestId, UBSE_ERR_EXISTED);
         SendSsuAllocRespToAgent(requestNodeId, respData);
+        SetReplySyncResp(resp, UBSE_ERR_EXISTED);
         return;
     }
 
@@ -130,7 +140,7 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
         SendSsuAllocRespToAgent(requestNodeId, respData);
         TraceContext::Clear();
     });
-    (void)resp;
+    SetReplySyncResp(resp);
 }
 
 // handler: agent端处理SSU分配响应
@@ -139,6 +149,7 @@ static void HandleAllocRespReceiver(const uint8_t *reqData, uint32_t reqSize, st
     UbseSsuAllocRespMsg response;
     if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize alloc resp";
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
     auto respData = response.GetSsuAllocResp();
@@ -147,7 +158,8 @@ static void HandleAllocRespReceiver(const uint8_t *reqData, uint32_t reqSize, st
     if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
         UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for ssu alloc response";
     }
-    (void)resp;
+
+    SetReplySyncResp(resp);
 }
 
 // 校验master端账本状态转换是否合法：
@@ -177,35 +189,37 @@ static bool IsStatusTransitionValid(UbseSsuNsState from, UbseSsuNsState to)
 static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
 {
     UbseSsuStatusReqMsg request;
-    UbseSsuStatusUpdateRsp statusResp;
-    statusResp.errorCode = UBSE_OK;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize status update, reqSize=" << reqSize;
-        // 反序列化失败时拿不到 requestName，无法更新账本，
-        // 通过框架同步resp通道回复错误响应，由agent端RpcSend调用方直接处理
-        statusResp.errorCode = UBSE_ERROR;
-        auto respMsg = std::make_unique<UbseSsuStatusRspMsg>();
-        respMsg->SetStatusUpdateRsp(statusResp);
-        resp = std::move(respMsg);
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
     auto statusReq = request.GetStatusUpdateReq();
+    bool modified = false;
+    UbseSsuNsState fromState;
     UBSE_LOG_INFO << "Received ssu status update, requestId=" << statusReq.requestName
                   << ", state=" << static_cast<int>(statusReq.state);
-    if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq](UbseSsuLedgerEntry &e) {
+    if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq, &modified, &fromState](UbseSsuLedgerEntry &e) {
+            fromState = e.state;
             if (!IsStatusTransitionValid(e.state, statusReq.state)) {
                 UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
                               << ", from=" << static_cast<int>(e.state) << ", to=" << static_cast<int>(statusReq.state);
                 return;
             }
             e.state = statusReq.state;
+            modified = true;
         })) {
         UBSE_LOG_WARN << "StatusUpdate: ledger entry not found: name=" << statusReq.requestName;
-        statusResp.errorCode = UBSE_ERROR;
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
     }
-    auto respMsg = std::make_unique<UbseSsuStatusRspMsg>();
-    respMsg->SetStatusUpdateRsp(statusResp);
-    resp = std::move(respMsg);
+    if (!modified) {
+        UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
+                      << ", from=" << static_cast<int>(fromState) << " to=" << static_cast<int>(statusReq.state);
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+    SetReplySyncResp(resp);
 }
 
 // 构建SSU释放成功响应
@@ -220,16 +234,16 @@ static UbseSsuFreeResp BuildFreeResp(const std::string &requestId, uint32_t erro
 // 发送SSU释放响应
 static void SendSsuFreeRespToAgent(const std::string &agentNodeId, const UbseSsuFreeResp &resp)
 {
-    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
-    if (comModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get comModule for sending response, requestId=" << resp.requestId;
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendSsuFreeRespToAgent: get ssu free resp endpoint failed, requestId=" << resp.requestId;
         return;
     }
-    UbseSsuFreeRespMsg respMsg;
-    respMsg.SetSsuFreeResponse(resp);
-    UbseSsuFreeRespMsg ackMsg; // 占位
-    auto ret = comModule->RpcSend(agentNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                  static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP), respMsg, ackMsg);
+    UbseSsuFreeRespMsg respMsg(resp);
+    UbseSsuSyncRespMsg ackMsg;
+    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "SendSsuFreeRespToAgent failed, " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
     }
@@ -240,8 +254,8 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
 {
     UbseSsuFreeReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
-        // future超时路径兜底
         UBSE_LOG_ERROR << "Failed to deserialize free req, reqSize=" << reqSize;
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
 
@@ -251,6 +265,7 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
     if (executor == nullptr) {
         SendSsuFreeRespToAgent(freeRpcReq.requestNodeId, BuildFreeResp(freeRpcReq.requestId, UBSE_ERROR));
         UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
 
@@ -271,7 +286,7 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
         SendSsuFreeRespToAgent(freeRpcReq.requestNodeId, BuildFreeResp(freeRpcReq.requestId, ret));
         TraceContext::Clear();
     });
-    (void)resp;
+    SetReplySyncResp(resp);
 }
 
 // handler: agent端处理SSU释放响应
@@ -280,6 +295,7 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     UbseSsuFreeRespMsg response;
     if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize free resp";
+        SetReplySyncResp(resp, UBSE_ERROR);
         return;
     }
     auto respData = response.GetSsuFreeResponse();
@@ -289,11 +305,12 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
         UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for ssu free response";
     }
-    (void)resp;
+
+    SetReplySyncResp(resp);
 }
 
 // 注册SSU分配请求处理器
-uint32_t UbseSsuRpcProcessor::RegisterAllocReqHandlers()
+uint32_t UbseSsuRpcProcessor::RegisterAllocReqHandler()
 {
     auto allocEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ),
@@ -306,7 +323,7 @@ uint32_t UbseSsuRpcProcessor::RegisterAllocReqHandlers()
 }
 
 // 注册SSU分配响应处理器
-uint32_t UbseSsuRpcProcessor::RegisterAllocRespHandlers()
+uint32_t UbseSsuRpcProcessor::RegisterAllocRespHandler()
 {
     auto respEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                       static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP),
@@ -319,7 +336,7 @@ uint32_t UbseSsuRpcProcessor::RegisterAllocRespHandlers()
 }
 
 // 注册SSU状态更新请求处理器
-uint32_t UbseSsuRpcProcessor::RegisterStatusHandlers()
+uint32_t UbseSsuRpcProcessor::RegisterStatusHandler()
 {
     auto statusEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_STATUS_UPDATE),
@@ -332,7 +349,7 @@ uint32_t UbseSsuRpcProcessor::RegisterStatusHandlers()
 }
 
 // 注册SSU释放请求处理器
-uint32_t UbseSsuRpcProcessor::RegisterFreeReqHandlers()
+uint32_t UbseSsuRpcProcessor::RegisterFreeReqHandler()
 {
     auto freeEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                       static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_REQ),
@@ -345,7 +362,7 @@ uint32_t UbseSsuRpcProcessor::RegisterFreeReqHandlers()
 }
 
 // 注册SSU释放响应处理器
-uint32_t UbseSsuRpcProcessor::RegisterFreeRespHandlers()
+uint32_t UbseSsuRpcProcessor::RegisterFreeRespHandler()
 {
     auto freeRespEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP),
@@ -360,33 +377,33 @@ uint32_t UbseSsuRpcProcessor::RegisterFreeRespHandlers()
 // 注册所有SSU相关的RPC处理器
 uint32_t UbseSsuRpcProcessor::RegHandler()
 {
-    auto ret = RegisterAllocReqHandlers();
+    auto ret = RegisterAllocReqHandler();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterAllocReqHandlers failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterAllocReqHandler failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
-    ret = RegisterAllocRespHandlers();
+    ret = RegisterAllocRespHandler();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterAllocRespHandlers failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterAllocRespHandler failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
-    ret = RegisterStatusHandlers();
+    ret = RegisterStatusHandler();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterStatusHandlers failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterStatusHandler failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
-    ret = RegisterFreeReqHandlers();
+    ret = RegisterFreeReqHandler();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterFreeReqHandlers failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterFreeReqHandler failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
-    ret = RegisterFreeRespHandlers();
+    ret = RegisterFreeRespHandler();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterFreeRespHandlers failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterFreeRespHandler failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
