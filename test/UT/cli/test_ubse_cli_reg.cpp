@@ -28,6 +28,16 @@ std::shared_ptr<UbseCliResultEcho> UbseCliTestFun([[maybe_unused]] const std::ma
     return std::make_shared<UbseCliStringEcho>("Hello Ub!");
 }
 
+// 渲染并捕获所有已注册命令的 help 输出。
+// 利用 gtest 的 CaptureStdout/GetCapturedStdout 捕获 stdout,传入 {"--help"} 触发 help 信息解析,
+// 断言解析成功后返回捕获到的输出文本,供用例对 usage/help 内容做字符串匹配校验。
+std::string RenderAllHelp()
+{
+    testing::internal::CaptureStdout();
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({"--help"}));
+    return testing::internal::GetCapturedStdout();
+}
+
 TEST_F(TestUbseCliReg, RegNormal)
 {
     std::vector<UbseCliOptionsInfo> params_infos;
@@ -215,6 +225,72 @@ TEST_F(TestUbseCliReg, AllCommandsHelpInfo)
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse(args));
     args = { "command1", "type1", "another", "--help" };
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse(args));
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+TEST_F(TestUbseCliReg, HelpInfoParsePrintsProgramNameForInvalidHelpShape)
+{
+    UbseCliModuleRegistry::GetInstance().UbseCliSetProgramContext("ubsectl-test", true);
+
+    testing::internal::CaptureStdout();
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({ "display", "--help" }));
+    auto output = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(output.find("ERROR: Please enter ubsectl-test -h or --help for more info."), std::string::npos);
+
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+TEST_F(TestUbseCliReg, HelpInfoParseIgnoresUnsupportedHelpLikeArgument)
+{
+    EXPECT_FALSE(UbseCliModuleRegistry::GetInstance().UbseCliHelpInfoParse({ "-help" }));
+
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+// 默认程序上下文(programName_="ubsectl", showTypeInUsage_=true)下,help 输出的 usage 行应同时
+// 包含 command 与 type 两段。本用例注册 "create ssu" 命令后,校验 help 文本中存在
+// "Usage: ubsectl create ssu[OPTIONS]" 字样,以验证默认渲染会展示 type。
+TEST_F(TestUbseCliReg, DefaultProgramHelpShowsCommandType)
+{
+    // 构造带一个选项(-n/--name)的 "create ssu" 命令并注册到全局 registry。
+    std::vector<UbseCliOptionsInfo> params_infos;
+    params_infos.push_back({ "n", "name", "this is option name" });
+    std::vector<UbseCliCommandInfo> cmd_reg_info;
+    cmd_reg_info.push_back({ "create", "ssu", params_infos, UbseCliTestFun });
+    UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
+
+    // 默认上下文,usage 应包含 command 与 type,故期望匹配到带 "ssu" 的 usage 行。
+    const std::string output = RenderAllHelp();
+    EXPECT_NE(output.find("Usage: ubsectl create ssu[OPTIONS]"), std::string::npos);
+
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+// 专用程序上下文场景:通过 UbseCliSetProgramContext 将程序名设为 "ubsectl-ssu" 并关闭
+// usage 中的 type 显示(show_type_in_usage=false),模拟以专用二进制(如软链接)形态运行、
+// type 已内嵌到程序名中的情况。此时 usage 行应省略 type,仅保留 "ubsectl-ssu create[OPTIONS]"。
+TEST_F(TestUbseCliReg, DedicatedProgramHelpOmitsInjectedType)
+{
+    // 同样注册 "create ssu" 命令,程序名与 type 显示策略由后续 SetProgramContext 决定。
+    std::vector<UbseCliOptionsInfo> params_infos;
+    params_infos.push_back({ "n", "name", "this is option name" });
+    std::vector<UbseCliCommandInfo> cmd_reg_info;
+    cmd_reg_info.push_back({ "create", "ssu", params_infos, UbseCliTestFun });
+    UbseCliModuleRegistry::GetInstance().UbseCliRegister(cmd_reg_info);
+    // 切换为专用程序上下文:程序名改为 "ubsectl-ssu",且不在 usage 中显示 type。
+    UbseCliModuleRegistry::GetInstance().UbseCliSetProgramContext("ubsectl-ssu", false);
+
+    const std::string output = RenderAllHelp();
+    // 期望出现省略 type 的专用 usage 行。
+    EXPECT_NE(output.find("Usage: ubsectl-ssu create[OPTIONS]"), std::string::npos);
+    // 同时确认默认形态(带 type)的 usage 行不再出现。
+    EXPECT_EQ(output.find("Usage: ubsectl create ssu[OPTIONS]"), std::string::npos);
+
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
 }
