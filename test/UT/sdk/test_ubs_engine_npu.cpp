@@ -11,18 +11,13 @@
  */
 
 #include "test_ubs_engine_npu.h"
-
 #include <securec.h>
-#include <cstdint>
 #include <cstring>
 #include <mockcpp/mockcpp.hpp>
-
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
-#include "ubse_ipc_common.h"
+#include "src/sdk/c/libubse_npu_helper.h"
 #include "ubs_engine_npu.h"
-#include "ubs_error.h"
-
 namespace ubse::sdk::ut {
 constexpr size_t EMPTY_DEV_LIST_RESP_LEN = sizeof(uint8_t) * 6; // count + 5 counts
 constexpr size_t EMPTY_ALLOC_RESP_LEN = MACRO_UBSE_UB_DEVICE_GUID_SIZE + EMPTY_DEV_LIST_RESP_LEN;
@@ -129,6 +124,70 @@ static ubs_ub_alloc_devices_info_t BuildValidAllocInfo(ubs_ub_devices_type_t* de
     devList[0].vf_id = 0;
     allocInfo.ub_dev_list = devList;
     return allocInfo;
+}
+
+static npu_attr_t* InitNpuAttr(uint8_t slotId, uint8_t chipId)
+{
+    auto attr = static_cast<npu_attr_t*>(malloc(sizeof(npu_attr_t)));
+    if (attr != nullptr) {
+        attr->slot_id = slotId;
+        attr->chip_id = chipId;
+        memset_s(attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        memset_s(attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        attr->affinity_devices_count = 0;
+    }
+    return attr;
+}
+
+static busi_attr_t* InitBusiAttr()
+{
+    auto attr = static_cast<busi_attr_t*>(malloc(sizeof(busi_attr_t)));
+    if (attr != nullptr) {
+        memset_s(attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        attr->sub_devices_count = 0;
+    }
+    return attr;
+}
+
+static nic_pfe_attr_t* InitNicPfeAttr(uint8_t slotId, uint8_t chipId, uint16_t pfId)
+{
+    auto attr = static_cast<nic_pfe_attr_t*>(malloc(sizeof(nic_pfe_attr_t)));
+    if (attr != nullptr) {
+        attr->slot_id = slotId;
+        attr->chip_id = chipId;
+        attr->pf_id = pfId;
+        memset_s(attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        memset_s(attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        attr->affinity_devices_count = 0;
+    }
+    return attr;
+}
+
+static nic_vfe_attr_t* InitNicVfeAttr(uint8_t slotId, uint8_t chipId, uint16_t pfId, uint16_t vfId)
+{
+    auto attr = static_cast<nic_vfe_attr_t*>(malloc(sizeof(nic_vfe_attr_t)));
+    if (attr != nullptr) {
+        attr->slot_id = slotId;
+        attr->chip_id = chipId;
+        attr->pf_id = pfId;
+        attr->vf_id = vfId;
+        memset_s(attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        memset_s(attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+        attr->affinity_devices_count = 0;
+    }
+    return attr;
+}
+
+static ubctrl_attr_t* InitUbctrlAttr(uint8_t slotId, uint8_t chipId, uint8_t dieId)
+{
+    auto attr = static_cast<ubctrl_attr_t*>(malloc(sizeof(ubctrl_attr_t)));
+    if (attr != nullptr) {
+        attr->slot_id = slotId;
+        attr->chip_id = chipId;
+        attr->die_id = dieId;
+        memset_s(attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE, 0, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+    }
+    return attr;
 }
 
 // ==================== ubs_npu_device_list_query ====================
@@ -411,5 +470,271 @@ TEST_F(TestUbsEngineNpu, UbsUbaTidSizeQueryWhenSuccess)
     EXPECT_EQ(tid, expectTid);
     EXPECT_EQ(uba, expectUba);
     EXPECT_EQ(size, expectSize);
+}
+
+// ==================== libubse_npu_helper Functions ====================
+
+// ==================== UbseUbDevListUnpack ====================
+
+TEST_F(TestUbsEngineNpu, UbseUbDevListUnpackWhenNullBuffer)
+{
+    ubs_ub_devices_list_t deviceList{};
+    ubs_error_t ret = UbseUbDevListUnpack(nullptr, 0, &deviceList);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseUbDevListUnpackWhenBufferTooSmall)
+{
+    ubs_ub_devices_list_t deviceList{};
+    uint8_t buffer[2] = {};
+    ubs_error_t ret = UbseUbDevListUnpack(buffer, 2, &deviceList);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseUbDevListUnpackWhenSuccess)
+{
+    ubs_ub_devices_list_t deviceList{};
+    ubse_api_buffer_t respBuffer = BuildEmptyDevListResp();
+
+    ubs_error_t ret = UbseUbDevListUnpack(respBuffer.buffer, respBuffer.length, &deviceList);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(deviceList.npu_cnt, 0);
+    EXPECT_EQ(deviceList.busi_cnt, 0);
+
+    FreeNpu(deviceList);
+    FreeBusi(deviceList);
+    FreeUbctrl(deviceList);
+    FreeNicPfe(deviceList);
+    FreeNicVfe(deviceList);
+    free(respBuffer.buffer);
+}
+
+// ==================== UbseNpuAllocInfoIsValid ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocInfoIsValidWhenNull)
+{
+    ubs_error_t ret = UbseNpuAllocInfoIsValid(nullptr);
+    EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocInfoIsValidWhenEmptyDevList)
+{
+    ubs_ub_alloc_devices_info_t allocInfo{};
+    allocInfo.ub_dev_list_count = 0;
+    ubs_error_t ret = UbseNpuAllocInfoIsValid(&allocInfo);
+    EXPECT_EQ(ret, UBS_ERR_INVALID_ARG);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocInfoIsValidWhenSuccess)
+{
+    ubs_ub_devices_type_t devList[1] = {};
+    ubs_ub_alloc_devices_info_t allocInfo = BuildValidAllocInfo(devList);
+    ubs_error_t ret = UbseNpuAllocInfoIsValid(&allocInfo);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+}
+
+// ==================== UbseNpuAllocReqBuild ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocReqBuildWhenSuccess)
+{
+    ubse_api_buffer_t buffer{};
+    ubs_ub_devices_type_t devList[1] = {};
+    ubs_ub_alloc_devices_info_t allocInfo = BuildValidAllocInfo(devList);
+    ubs_error_t ret = UbseNpuAllocReqBuild(buffer, allocInfo);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_NE(buffer.buffer, nullptr);
+    EXPECT_GT(buffer.length, 0U);
+    free(buffer.buffer);
+}
+
+// ==================== UbseNpuAllocReqPack ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocReqPackWhenNullBuffer)
+{
+    ubs_ub_devices_type_t devList[1] = {};
+    ubs_ub_alloc_devices_info_t allocInfo = BuildValidAllocInfo(devList);
+    ubs_error_t ret = UbseNpuAllocReqPack(allocInfo, nullptr);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocReqPackWhenSuccess)
+{
+    ubs_ub_devices_type_t devList[1] = {};
+    ubs_ub_alloc_devices_info_t allocInfo = BuildValidAllocInfo(devList);
+    ubse_api_buffer_t buffer{};
+    UbseNpuAllocReqBuild(buffer, allocInfo);
+
+    ubs_error_t ret = UbseNpuAllocReqPack(allocInfo, buffer.buffer);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    free(buffer.buffer);
+}
+
+// ==================== UbseNpuAllocUnpack ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocUnpackWhenNullBuffer)
+{
+    uint8_t newBusInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t deviceList{};
+    ubs_error_t ret = UbseNpuAllocUnpack(nullptr, 0, newBusInstanceGuid, &deviceList);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocUnpackWhenNullGuid)
+{
+    uint8_t buffer[10] = {};
+    ubs_ub_devices_list_t deviceList{};
+    ubs_error_t ret = UbseNpuAllocUnpack(buffer, 10, nullptr, &deviceList);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocUnpackWhenNullDeviceList)
+{
+    uint8_t buffer[10] = {};
+    uint8_t newBusInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_error_t ret = UbseNpuAllocUnpack(buffer, 10, newBusInstanceGuid, nullptr);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocUnpackWhenBufferTooSmall)
+{
+    uint8_t buffer[2] = {};
+    uint8_t newBusInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t deviceList{};
+    ubs_error_t ret = UbseNpuAllocUnpack(buffer, 2, newBusInstanceGuid, &deviceList);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuAllocUnpackWhenSuccess)
+{
+    uint8_t newBusInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t deviceList{};
+    ubse_api_buffer_t respBuffer = BuildEmptyAllocResp();
+
+    ubs_error_t ret = UbseNpuAllocUnpack(respBuffer.buffer, respBuffer.length, newBusInstanceGuid, &deviceList);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(deviceList.npu_cnt, 0);
+
+    FreeNpu(deviceList);
+    FreeBusi(deviceList);
+    FreeUbctrl(deviceList);
+    FreeNicPfe(deviceList);
+    FreeNicVfe(deviceList);
+    free(respBuffer.buffer);
+}
+
+// ==================== UbseNpuFreeReqBuild ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuFreeReqBuildWhenNullGuid)
+{
+    ubse_api_buffer_t buffer{};
+    ubs_error_t ret = UbseNpuFreeReqBuild(buffer, nullptr);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuFreeReqBuildWhenSuccess)
+{
+    ubse_api_buffer_t buffer{};
+    uint8_t busInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_error_t ret = UbseNpuFreeReqBuild(buffer, busInstanceGuid);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_NE(buffer.buffer, nullptr);
+    EXPECT_EQ(buffer.length, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+    free(buffer.buffer);
+}
+
+// ==================== UbseNpuQueryTidUbaSizeReqBuild ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuQueryTidUbaSizeReqBuildWhenNullGuid)
+{
+    ubse_api_buffer_t buffer{};
+    ubs_error_t ret = UbseNpuQueryTidUbaSizeReqBuild(buffer, nullptr);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuQueryTidUbaSizeReqBuildWhenSuccess)
+{
+    ubse_api_buffer_t buffer{};
+    uint8_t busInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_error_t ret = UbseNpuQueryTidUbaSizeReqBuild(buffer, busInstanceGuid);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_NE(buffer.buffer, nullptr);
+    EXPECT_EQ(buffer.length, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
+    free(buffer.buffer);
+}
+
+// ==================== UbseNpuQueryTidUbaSizeUnpack ====================
+
+TEST_F(TestUbsEngineNpu, UbseNpuQueryTidUbaSizeUnpackWhenNullBuffer)
+{
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+    ubs_error_t ret = UbseNpuQueryTidUbaSizeUnpack(nullptr, 0, tid, uba, size);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuQueryTidUbaSizeUnpackWhenBufferTooSmall)
+{
+    uint8_t buffer[2] = {};
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+    ubs_error_t ret = UbseNpuQueryTidUbaSizeUnpack(buffer, 2, tid, uba, size);
+    EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
+}
+
+TEST_F(TestUbsEngineNpu, UbseNpuQueryTidUbaSizeUnpackWhenSuccess)
+{
+    const uint32_t expectTid = 100;
+    const uint64_t expectUba = 0x1000;
+    const uint64_t expectSize = 0x2000;
+    ubse_api_buffer_t respBuffer = BuildTidUbaSizeResp(expectTid, expectUba, expectSize);
+
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+    ubs_error_t ret = UbseNpuQueryTidUbaSizeUnpack(respBuffer.buffer, respBuffer.length, tid, uba, size);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_EQ(tid, expectTid);
+    EXPECT_EQ(uba, expectUba);
+    EXPECT_EQ(size, expectSize);
+    free(respBuffer.buffer);
+}
+
+// ==================== Free Functions ====================
+
+TEST_F(TestUbsEngineNpu, FreeNpuWhenEmpty)
+{
+    ubs_ub_devices_list_t deviceList{};
+    FreeNpu(deviceList);
+    EXPECT_EQ(deviceList.npu_ptr, nullptr);
+}
+
+TEST_F(TestUbsEngineNpu, FreeBusiWhenEmpty)
+{
+    ubs_ub_devices_list_t deviceList{};
+    FreeBusi(deviceList);
+    EXPECT_EQ(deviceList.busi_ptr, nullptr);
+}
+
+TEST_F(TestUbsEngineNpu, FreeUbctrlWhenEmpty)
+{
+    ubs_ub_devices_list_t deviceList{};
+    FreeUbctrl(deviceList);
+    EXPECT_EQ(deviceList.ubctrl_ptr, nullptr);
+}
+
+TEST_F(TestUbsEngineNpu, FreeNicPfeWhenEmpty)
+{
+    ubs_ub_devices_list_t deviceList{};
+    FreeNicPfe(deviceList);
+    EXPECT_EQ(deviceList.nic_pfe_ptr, nullptr);
+}
+
+TEST_F(TestUbsEngineNpu, FreeNicVfeWhenEmpty)
+{
+    ubs_ub_devices_list_t deviceList{};
+    FreeNicVfe(deviceList);
+    EXPECT_EQ(deviceList.nic_vfe_ptr, nullptr);
 }
 } // namespace ubse::sdk::ut
