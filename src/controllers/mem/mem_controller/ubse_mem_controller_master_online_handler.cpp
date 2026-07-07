@@ -50,8 +50,8 @@ uint32_t UbseMemControllerMasterOnlineHandler::HandleGlobalMasterOnline(const st
         if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING) {
             continue;
         }
-        resourceExecutor->Execute([nodeIdStr]() {
-            auto ret = ReportExistingSummaryForWorkingNode(nodeIdStr);
+        resourceExecutor->Execute([nodeIdStr, nodeId]() {
+            auto ret = ReportExistingSummaryForWorkingNode(nodeIdStr, nodeId);
             if (ret != UBSE_OK) {
                 UBSE_LOG_WARN << "report existing summary for WORKING node failed on global master online, nodeId="
                               << nodeIdStr << ", " << ubse::log::FormatRetCode(ret);

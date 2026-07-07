@@ -45,6 +45,7 @@ UbseResult RegGlobalLedgerReportRpcHandlers();
 UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary);
 UbseResult SubmitNodeLedgerSummary(const std::string &nodeId);
 UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId);
+UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId, const std::string &globalMasterNodeId);
 bool HasStoredGlobalNodeLedgerSummary(const std::string &targetNodeId);
 void ClearStoredGlobalNodeLedgerSummaries();
 } // namespace ubse::mem::controller

@@ -32,7 +32,7 @@ namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::com;
 using namespace ubse::serial;
-using ubse::election::MasterInfo;
+using ubse::election::Node;
 using ubse::election::UbseElectionModule;
 using ubse::log::FormatRetCode;
 using namespace ubse::nodeController;
@@ -50,14 +50,14 @@ UbseResult GetGlobalMasterNodeId(std::string &globalMasterNodeId)
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
 
-    MasterInfo masterInfo{};
-    auto ret = electionModule->GetCurrentMaster(masterInfo);
+    Node masterNode{};
+    auto ret = electionModule->UbseGetMasterNode(masterNode);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "get current master failed, " << FormatRetCode(ret);
         return ret;
     }
 
-    globalMasterNodeId = masterInfo.globalMasterId.empty() ? masterInfo.groupMasterId : masterInfo.globalMasterId;
+    globalMasterNodeId = masterNode.id;
     if (globalMasterNodeId.empty()) {
         UBSE_LOG_ERROR << "global master node id is empty";
         return UBSE_ERR_NODE_NOT_EXIST;
@@ -303,12 +303,12 @@ public:
 };
 
 template <typename TReq>
-UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &reportRet)
+UbseResult SendGlobalLedgerReportToNode(const std::string &globalMasterNodeId, uint16_t opCode, TReq &request,
+                                        UbseResult &reportRet)
 {
-    std::string globalMasterNodeId;
-    auto ret = GetGlobalMasterNodeId(globalMasterNodeId);
-    if (ret != UBSE_OK) {
-        return ret;
+    if (globalMasterNodeId.empty()) {
+        UBSE_LOG_ERROR << "global master node id is empty";
+        return UBSE_ERR_NODE_NOT_EXIST;
     }
 
     auto comModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
@@ -325,7 +325,7 @@ UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &re
     }
 
     SendParam sendParam{globalMasterNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP), opCode};
-    ret = comModule->RpcSend(sendParam, request, response, false);
+    auto ret = comModule->RpcSend(sendParam, request, response, false);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send global ledger report rpc failed, globalMasterNodeId=" << globalMasterNodeId
                        << ", opCode=" << opCode << ", " << FormatRetCode(ret);
@@ -333,6 +333,18 @@ UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &re
     }
     reportRet = response->GetRet();
     return UBSE_OK;
+}
+
+template <typename TReq>
+UbseResult SendGlobalLedgerReport(uint16_t opCode, TReq &request, UbseResult &reportRet)
+{
+    std::string globalMasterNodeId;
+    auto ret = GetGlobalMasterNodeId(globalMasterNodeId);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    return SendGlobalLedgerReportToNode(globalMasterNodeId, opCode, request, reportRet);
 }
 } // namespace
 
@@ -418,7 +430,8 @@ UbseResult StartGlobalLedgerSync(const UbseGlobalLedgerSyncStartReq &req)
     return UBSE_OK;
 }
 
-UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
+static UbseResult ReportGlobalLedgerSummaryToTarget(const UbseGlobalNodeLedgerSummary &summary,
+                                                    const std::string *globalMasterNodeId)
 {
     if (summary.nodeId.empty()) {
         UBSE_LOG_ERROR << "global ledger summary report nodeId is empty";
@@ -434,8 +447,10 @@ UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
     request->SetReport(summary);
 
     UbseResult reportRet = UBSE_OK;
-    auto ret = SendGlobalLedgerReport(
-        static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT), request, reportRet);
+    const auto opCode = static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_GLOBAL_LEDGER_SUMMARY_REPORT);
+    auto ret = globalMasterNodeId == nullptr ?
+                   SendGlobalLedgerReport(opCode, request, reportRet) :
+                   SendGlobalLedgerReportToNode(*globalMasterNodeId, opCode, request, reportRet);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "send global ledger summary report failed, nodeId=" << summary.nodeId << ", "
                        << FormatRetCode(ret);
@@ -450,6 +465,11 @@ UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
                   << ", shmImportItems=" << summary.shmSummary.importItems.size()
                   << ", shmExportItems=" << summary.shmSummary.exportItems.size();
     return UBSE_OK;
+}
+
+UbseResult ReportGlobalLedgerSummary(const UbseGlobalNodeLedgerSummary &summary)
+{
+    return ReportGlobalLedgerSummaryToTarget(summary, nullptr);
 }
 
 UbseResult RegGlobalLedgerReportRpcHandlers()
@@ -496,7 +516,7 @@ UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeId, Ubse
     return UBSE_OK;
 }
 
-UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
+static UbseResult SubmitNodeLedgerSummaryToTarget(const std::string &nodeId, const std::string *globalMasterNodeId)
 {
     UbseGlobalNodeLedgerSummary summary{};
     auto ret = QueryGlobalShmNodeLedgerSummary(nodeId, summary);
@@ -505,13 +525,18 @@ UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
         return ret;
     }
 
-    ret = ReportGlobalLedgerSummary(summary);
+    ret = ReportGlobalLedgerSummaryToTarget(summary, globalMasterNodeId);
     if (ret == UBSE_OK) {
         UBSE_LOG_INFO << "submit global ledger summary success, nodeId=" << nodeId;
     } else {
         UBSE_LOG_ERROR << "report global ledger summary failed, nodeId=" << nodeId << ", " << FormatRetCode(ret);
     }
     return ret;
+}
+
+UbseResult SubmitNodeLedgerSummary(const std::string &nodeId)
+{
+    return SubmitNodeLedgerSummaryToTarget(nodeId, nullptr);
 }
 
 UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId)
@@ -521,5 +546,18 @@ UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId)
         return UBSE_ERROR_INVAL;
     }
     return SubmitNodeLedgerSummary(nodeId);
+}
+
+UbseResult ReportExistingSummaryForWorkingNode(const std::string &nodeId, const std::string &globalMasterNodeId)
+{
+    if (nodeId.empty()) {
+        UBSE_LOG_ERROR << "nodeId is empty";
+        return UBSE_ERROR_INVAL;
+    }
+    if (globalMasterNodeId.empty()) {
+        UBSE_LOG_ERROR << "globalMasterNodeId is empty";
+        return UBSE_ERR_NODE_NOT_EXIST;
+    }
+    return SubmitNodeLedgerSummaryToTarget(nodeId, &globalMasterNodeId);
 }
 } // namespace ubse::mem::controller
