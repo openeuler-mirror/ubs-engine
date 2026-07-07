@@ -20,6 +20,11 @@
 using namespace ubse::mti::ctrl_q;
 using namespace ubse::common::def;
 
+// Forward declarations for internal functions/structs defined in ubse_ctrl_q_msg_proxy.cpp
+namespace ubse::mti::ctrl_q {
+bool CheckSeq(uint16_t sendSeq, uint16_t recvSeq);
+} // namespace ubse::mti::ctrl_q
+
 namespace ubse::mti::ctrl_q::ut {
 
 void TestUbseCtrlQMsgProxy::SetUp()
@@ -68,6 +73,67 @@ TEST_F(TestUbseCtrlQMsgProxy, SendRequest_EncodeReqMsgFailed)
     // Mock EncodeReqMsg to fail (virtual function requires MOCKER_CPP_VIRTUAL)
     MOCKER_CPP_VIRTUAL(&reqMsg, &MockCtrlQReqMsg::EncodeReqMsg).stubs().will(returnValue(UBSE_ERROR));
 
+    auto result = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+// ===== Tests for CheckSeq internal function =====
+
+TEST_F(TestUbseCtrlQMsgProxy, CheckSeq_ValidSeq_ReturnsTrue)
+{
+    // SEQ_MASK is 0x8000, so valid recvSeq has high bit set
+    uint16_t sendSeq = 100;
+    uint16_t recvSeq = 100 | 0x8000; // set high bit
+    EXPECT_TRUE(CheckSeq(sendSeq, recvSeq));
+}
+
+TEST_F(TestUbseCtrlQMsgProxy, CheckSeq_InvalidSeqHighBitNotSet_ReturnsFalse)
+{
+    uint16_t sendSeq = 100;
+    uint16_t recvSeq = 100; // high bit not set
+    EXPECT_FALSE(CheckSeq(sendSeq, recvSeq));
+}
+
+TEST_F(TestUbseCtrlQMsgProxy, CheckSeq_SeqMismatch_ReturnsFalse)
+{
+    uint16_t sendSeq = 100;
+    uint16_t recvSeq = 200 | 0x8000; // high bit set but seq mismatch
+    EXPECT_FALSE(CheckSeq(sendSeq, recvSeq));
+}
+
+TEST_F(TestUbseCtrlQMsgProxy, CheckSeq_ZeroRecvSeq_ReturnsFalse)
+{
+    uint16_t sendSeq = 0;
+    uint16_t recvSeq = 0; // high bit not set
+    EXPECT_FALSE(CheckSeq(sendSeq, recvSeq));
+}
+
+TEST_F(TestUbseCtrlQMsgProxy, CheckSeq_BothZeroWithHighBit_ReturnsTrue)
+{
+    uint16_t sendSeq = 0;
+    uint16_t recvSeq = 0x8000; // high bit set, low bits 0
+    EXPECT_TRUE(CheckSeq(sendSeq, recvSeq));
+}
+
+// ===== Tests for SendRequest additional paths =====
+
+TEST_F(TestUbseCtrlQMsgProxy, SendRequest_TooManyBlocks_Failed)
+{
+    // Create reqMsg with more than MAX_BASIC_BLOCK_NUM blocks
+    MockCtrlQReqMsg reqMsg(1, MAX_BASIC_BLOCK_NUM + 1);
+    MockCtrlQRespMsg respMsg;
+
+    auto result = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
+    EXPECT_EQ(result, UBSE_ERROR);
+}
+
+TEST_F(TestUbseCtrlQMsgProxy, SendRequest_OpenDevFailed_ReturnsError)
+{
+    MockCtrlQReqMsg reqMsg(1);
+    MockCtrlQRespMsg respMsg;
+
+    // No mock - real open("/dev/bandbridge") will fail since device doesn't exist
+    // This covers SendRequest success path up to SendCtrlQMsg open() failure
     auto result = CtrlQMsgProxy::GetInstance().SendRequest(reqMsg, respMsg);
     EXPECT_EQ(result, UBSE_ERROR);
 }
