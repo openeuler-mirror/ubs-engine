@@ -120,6 +120,7 @@ fi
 %define data_dir /var/lib/ubse
 %define cert_dir /var/lib/ubse/cert
 %define lcne_cert_dir /var/lib/ubse/lcne_cert
+%define ssu_cert_dir /var/lib/ubse/ssu_cert
 %define socket_dir /var/run/ubse
 
 %define system_user ubse
@@ -347,11 +348,13 @@ ensure_directory_owner "%{data_dir}" true
 ensure_directory_owner "%{data_dir}/data" true
 ensure_directory_owner "%{cert_dir}" true
 ensure_directory_owner "%{lcne_cert_dir}" true
+ensure_directory_owner "%{ssu_cert_dir}" true
 ensure_directory_owner "%{socket_dir}" true
 chmod 750 "%{log_dir}" "%{data_dir}" "%{data_dir}/data"
 chmod 755 "%{socket_dir}"
 chmod 700 "%{cert_dir}"
 chmod 700 "%{lcne_cert_dir}"
+chmod 700 "%{ssu_cert_dir}"
 systemctl enable %{service_name}
 if [ "$MXE_SCENE" == "vm" ]; then
     update_config /etc/ubse/ubse_plugin_admission.conf
@@ -384,6 +387,7 @@ remove_directory %{log_dir}
 remove_directory %{cert_dir}
 remove_directory %{socket_dir}
 remove_directory %{lcne_cert_dir}
+remove_directory %{ssu_cert_dir}
 
 deleted_semaphore
 if id "%{system_user}" &>/dev/null; then

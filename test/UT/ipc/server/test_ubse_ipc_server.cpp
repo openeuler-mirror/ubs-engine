@@ -40,7 +40,7 @@ static std::string GetSocketPath()
     return "/tmp/ubse_ipc_" + std::to_string(getpid()) + ".sock";
 }
 
-const uint32_t TIMEOUT = 5; // 超时时间，单位秒
+const uint32_t TIMEOUT = 5000; // 超时时间，单位毫秒
 TestUbseIpcServer::TestUbseIpcServer() = default;
 void TestUbseIpcServer::SetUp()
 {
