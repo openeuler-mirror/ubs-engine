@@ -337,7 +337,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
     }
     std::string largeTotalCol = pageSizeType + "_total";
     std::string largeFreeCol = pageSizeType + "_free";
-    UbseCliResBuilder variable_cell_builder(UBSE_CLI_NUM_10, NODE_LENGTH);
+    // 64k环境(pageSizeType=="512M")下不展示2M大页，仅展示512M大页；其他环境(如4k, 1G)展示全部4列大页
+    bool show2MColumns = (pageSizeType != "512M");
+    size_t colCount = show2MColumns ? UBSE_CLI_NUM_10 : UBSE_CLI_NUM_8;
+    UbseCliResBuilder variable_cell_builder(colCount, NODE_LENGTH);
     size_t row = variable_cell_builder.UbseCliAddRow();
     variable_cell_builder.UbseCliAddlineSeparate(row);
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, "node");
@@ -346,10 +349,15 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, "used");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, "free");
     variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, "used_percent");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, "2M_total");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, "2M_free");
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, largeTotalCol);
-    variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, largeFreeCol);
+    if (show2MColumns) {
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, "2M_total");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, "2M_free");
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, largeTotalCol);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, largeFreeCol);
+    } else {
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, largeTotalCol);
+        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, largeFreeCol);
+    }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     for (size_t i = 0; i < numaInfoSize; i++) {
         row = variable_cell_builder.UbseCliAddRow();
@@ -369,10 +377,15 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliProcessNumaStatus
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, numaInfo.used);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, numaInfo.freeSize);
         variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, numaInfo.used_percent);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, nr2M);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, free2M);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, nrLarge);
-        variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, freeLarge);
+        if (show2MColumns) {
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, nr2M);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, free2M);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_9, nrLarge);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_10, freeLarge);
+        } else {
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, nrLarge);
+            variable_cell_builder.UbseCliSetCellData(row, UBSE_CLI_NUM_8, freeLarge);
+        }
     }
     variable_cell_builder.UbseCliAddBottomlineSeparate();
     return UbseCliVariableCelReply(variable_cell_builder.UbseCliVariableCellBuild());
@@ -465,6 +478,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegMemModule::UbseCliMemQueryFunc(
     }
     std::string kind = it_kind->second;
     if (kind == "borrow_detail") {
+        auto it_all = params.find(DISPLAY_MEM_ALL_OPTION);
+        if (it_all != params.end()) {
+            return UbseCliStringPromptReply(DISPLAY_MEM_ALL_OPTION_UNSUPPORT);
+        }
         UbseCliMemDisplayBorrowDetail::Filter fliter;
         std::string borrow_type{};
         if (it_borrow_type != params.end()) {
