@@ -159,6 +159,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSuccess)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
 
     UbseMemAddrBorrowImportObj importObj{.req = req};
 
@@ -186,6 +187,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowChangeHandlerFailed)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_ERROR));
@@ -202,6 +204,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowImportObj importObj{.req = req};
     std::vector<UbseMemDebtNumaInfo> AddrInfos;
     UbseMemDebtNumaInfo AddrInfo{.nodeId = NODE_ONE, .socketId = 0, .numaId = 0, .size = 0};
@@ -1049,6 +1052,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessNotExist)
 {
     UbseMemReturnReq req;
     UbseMemOperationResp resp;
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
@@ -1059,6 +1063,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
     req.name = "test";
     req.importNodeId = NODE_ONE;
     UbseMemOperationResp resp;
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowExportObj exportObj;
     exportObj.req.name = req.name;
     exportObj.req.importNodeId = req.importNodeId;

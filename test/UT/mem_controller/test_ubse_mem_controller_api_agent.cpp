@@ -22,6 +22,7 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_mem_controller_api_agent.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mem_controller_numa_api.h"
 #include "ubse_mem_sign_verifier.h"
@@ -57,6 +58,7 @@ bool IsHighSafety();
 
 namespace ubse::mem_controller::ut {
 using namespace context;
+using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::agent;
 using namespace ubse::serial;
 using namespace ubse::election;
@@ -143,6 +145,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow)
         .then(returnValue(UBSE_OK));
     UbseMemNumaBorrowReq req{};
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     EXPECT_NE(mem::controller::UbseMemNumaBorrow(req, resp), UBSE_ERROR);
 
     std::shared_ptr<UbseComModule> nullModule = nullptr;

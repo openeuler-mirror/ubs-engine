@@ -452,6 +452,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachSuccess)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareAttach(req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -822,6 +823,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachTest)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&IsSameSocketMultiPortTopo).stubs().will(returnValue(true));
     ubse::nodeController::UbseNodeMemCnaInfoOutput cnaOutput;
     cnaOutput.borrowSocketId = NODE_ONE;
@@ -857,6 +859,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachExistTest)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareAttach(req, resp);
     EXPECT_EQ(ret, UBSE_ERR_EXISTED);
     UbseUdsInfo udsInfo{.uid = 1000, .gid = 1000, .pid = 1000};
