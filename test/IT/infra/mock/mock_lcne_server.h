@@ -44,18 +44,6 @@ public:
 
 private:
     void RegisterHandlers();
-    std::string GenerateBusInstanceXml() const;
-    std::string GenerateHostInfoXml() const;
-    std::string GenerateIoDieInfoXml() const;
-    std::string GenerateTopologyNodesXml() const;
-    std::string GenerateTopologyCnaXml() const;
-    std::string GenerateUrmaEidXml() const;
-    std::string GenerateFeEidXml() const;
-    std::string GenerateFeBindingXml() const;
-    std::string GenerateAddDecoderResponseJson() const;
-    std::string GenerateDeleteDecoderResponseJson() const;
-    std::string GenerateInvalidateDecoderResponseJson() const;
-    std::string GenerateDecoderHandleResponseJson() const;
 
     httplib::Server server_;
     std::string udsPath_;

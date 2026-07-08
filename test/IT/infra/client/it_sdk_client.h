@@ -16,15 +16,11 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include "ubse_common_def.h"
-#include "ubse_election.h"
 #include "ubse_error.h"
-#include "it_cli_invoker.h"
 #include "ubs_engine.h"
 #include "ubs_engine_mem.h"
 #include "ubs_engine_npu.h"
@@ -41,24 +37,20 @@ using ubse::common::def::UbseResult;
  *
  * Wraps the real SDK C API (ubs_engine_client_initialize/finalize, etc.)
  * with per-node UDS path management. Calls real daemon, NOT mocks.
+ *
+ * CLI-related queries (GetRole, GetMasterNodeId, etc.) have been moved
+ * to ItCliInvoker, which is now owned by ItNode (not by this class).
+ * Use ItNode::GetCliInvoker() or ItCluster::GetCliInvoker(nodeId).
  */
 class ItSdkClient {
 public:
-    explicit ItSdkClient(const std::string& udsPath, const std::string& logDir = "",
-                         const std::string& cliBinaryPath = "", const std::string& nodeId = "",
-                         const std::vector<std::string>& clusterNodeIds = {});
+    explicit ItSdkClient(const std::string& udsPath, const std::string& logDir = "");
 
     ~ItSdkClient();
 
     UbseResult Initialize();
     void Finalize();
     bool IsInitialized() const;
-
-    // --- Election APIs ---
-    int32_t GetRole(std::string& role);
-    int32_t GetMasterNodeId(std::string& masterNodeId);
-    int32_t GetCurrentNodeId(std::string& currentNodeId);
-    int32_t GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>& roleInfos);
 
     // --- Topo APIs ---
     int32_t TopoNodeList(ubs_topo_node_t** nodeList, uint32_t* nodeCnt);
@@ -99,22 +91,15 @@ public:
     int32_t UrmaQosDelete();
     int32_t UrmaQosGet(ubs_urma_qos_config_t** configs, uint32_t* count);
 
-    std::string ExecCli(const std::string& args) const;
-
     const std::string& GetUdsPath() const;
     const std::string& GetLogDir() const;
 
 private:
     int32_t InvokeSdk(const std::function<int32_t()>& operation);
-    static std::string ExtractNodeIdFromNodeColumn(const std::string& nodeName);
     static std::mutex sdkMutex_;
 
     std::string udsPath_;
     std::string logDir_;
-    std::string cliBinaryPath_;
-    std::string nodeId_;
-    std::vector<std::string> clusterNodeIds_;
-    std::unique_ptr<ItCliInvoker> cliInvoker_;
     std::atomic_bool initialized_{false};
 };
 

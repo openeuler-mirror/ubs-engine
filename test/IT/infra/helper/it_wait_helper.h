@@ -23,7 +23,7 @@
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
-#include "it_sdk_client.h"
+#include "it_cli_invoker.h"
 
 namespace ubse::it::infra {
 
@@ -54,17 +54,17 @@ public:
     /**
      * @brief Wait for election convergence across cluster nodes.
      *
-     * Polls each node's SDK to check that master and standby roles are assigned.
+     * Polls each node's CLI invoker to check that master and standby roles are assigned.
      * Convergence is achieved when at least one node reports master role and
      * (if cluster has >= 2 nodes) at least one node reports standby role.
      *
-     * @param sdkClients Map of nodeId -> SDK client
+     * @param cliInvokers Map of nodeId -> CLI invoker
      * @param nodeIds All node IDs in the cluster
      * @param timeoutMs Maximum wait time (default 30s)
      * @param pollIntervalMs Time between polls (default 500ms)
      * @return UBSE_OK if election converged
      */
-    static UbseResult WaitForElectionConvergence(const std::map<std::string, std::unique_ptr<ItSdkClient>>& sdkClients,
+    static UbseResult WaitForElectionConvergence(const std::map<std::string, ItCliInvoker*>& cliInvokers,
                                                  const std::vector<std::string>& nodeIds, uint32_t timeoutMs = 30000,
                                                  uint32_t pollIntervalMs = 500);
 
@@ -78,14 +78,14 @@ public:
     static UbseResult WaitForNodeReadiness(const std::string& udsSocketPath, uint32_t timeoutMs = 10000);
 
     /**
-     * @brief Wait for the SDK client's connected node to have a specific election role.
+     * @brief Wait for a node to have a specific election role.
      *
-     * @param sdkClient SDK client connected to the node to check
+     * @param cliInvoker CLI invoker connected to the node to check
      * @param expectedRole Expected role string (master/standby/agent)
      * @param timeoutMs Maximum wait time (default 30s)
      * @return UBSE_OK if node has the expected role
      */
-    static UbseResult WaitForNodeRole(ItSdkClient& sdkClient, const std::string& expectedRole,
+    static UbseResult WaitForNodeRole(ItCliInvoker& cliInvoker, const std::string& expectedRole,
                                       uint32_t timeoutMs = 30000);
 
     static constexpr uint32_t DEFAULT_ELECTION_TIMEOUT_MS = 30000;

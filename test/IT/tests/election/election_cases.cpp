@@ -24,10 +24,10 @@ ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster)
 {
     ElectionRoles roles;
     for (const auto& nodeId : cluster.GetNodeIds()) {
-        auto& sdkClient = cluster.GetSdkClient(nodeId);
+        auto& cliInvoker = cluster.GetCliInvoker(nodeId);
         std::string role;
-        int32_t sdkRet = sdkClient.GetRole(role);
-        EXPECT_EQ(sdkRet, UBS_SUCCESS);
+        int32_t cliRet = cliInvoker.GetRole(role);
+        EXPECT_EQ(cliRet, UBS_SUCCESS);
         if (role == ubse::election::ELECTION_ROLE_MASTER) {
             ++roles.masterCount;
             roles.masterNodeId = nodeId;
@@ -54,10 +54,10 @@ void RunSingleNodeElectionTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(masterNodeId, "1");
 
     // 验证节点"1"的角色为MASTER
-    auto& sdkClient = cluster.GetSdkClient("1");
+    auto& cliInvoker = cluster.GetCliInvoker("1");
     std::string role;
-    int32_t sdkRet = sdkClient.GetRole(role);
-    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    int32_t cliRet = cliInvoker.GetRole(role);
+    EXPECT_EQ(cliRet, UBS_SUCCESS);
     EXPECT_EQ(role, ubse::election::ELECTION_ROLE_MASTER);
 }
 

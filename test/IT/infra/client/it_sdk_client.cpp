@@ -14,7 +14,6 @@
 
 #include <stdexcept>
 
-#include "ubse_election.h"
 #include "ubse_error.h"
 #include "it_console_log.h"
 
@@ -22,18 +21,7 @@ namespace ubse::it::infra {
 
 std::mutex ItSdkClient::sdkMutex_;
 
-ItSdkClient::ItSdkClient(const std::string& udsPath, const std::string& logDir, const std::string& cliBinaryPath,
-                         const std::string& nodeId, const std::vector<std::string>& clusterNodeIds)
-    : udsPath_(udsPath),
-      logDir_(logDir),
-      cliBinaryPath_(cliBinaryPath),
-      nodeId_(nodeId),
-      clusterNodeIds_(clusterNodeIds)
-{
-    if (!cliBinaryPath_.empty()) {
-        cliInvoker_ = std::make_unique<ItCliInvoker>(cliBinaryPath_, udsPath_);
-    }
-}
+ItSdkClient::ItSdkClient(const std::string& udsPath, const std::string& logDir) : udsPath_(udsPath), logDir_(logDir) {}
 
 ItSdkClient::~ItSdkClient()
 {
@@ -88,84 +76,6 @@ int32_t ItSdkClient::InvokeSdk(const std::function<int32_t()>& operation)
 bool ItSdkClient::IsInitialized() const
 {
     return initialized_;
-}
-
-int32_t ItSdkClient::GetRole(std::string& role)
-{
-    if (!cliInvoker_) {
-        IT_LOG_WARN << "CLI invoker is unavailable for GetRole";
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-
-    ItNodeInfo nodeInfo;
-    int32_t ret = cliInvoker_->QueryNodeInfo(nodeInfo);
-    if (ret != UBS_SUCCESS) {
-        IT_LOG_WARN << "CLI-based GetRole failed: " << ret;
-        return ret;
-    }
-    role = nodeInfo.role;
-    return UBS_SUCCESS;
-}
-
-int32_t ItSdkClient::GetMasterNodeId(std::string& masterNodeId)
-{
-    if (!cliInvoker_) {
-        IT_LOG_WARN << "CLI invoker is unavailable for GetMasterNodeId";
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-
-    std::vector<ItNodeInfo> nodeInfos;
-    int32_t ret = cliInvoker_->QueryClusterInfo(nodeInfos);
-    if (ret != UBS_SUCCESS) {
-        IT_LOG_WARN << "CLI-based GetMasterNodeId failed: " << ret;
-        return ret;
-    }
-
-    for (const auto& info : nodeInfos) {
-        if (info.role == ubse::election::ELECTION_ROLE_MASTER) {
-            masterNodeId = ExtractNodeIdFromNodeColumn(info.node);
-            return UBS_SUCCESS;
-        }
-    }
-    IT_LOG_WARN << "CLI-based GetMasterNodeId did not find master role";
-    return UBS_ENGINE_ERR_CONNECTION_FAILED;
-}
-
-int32_t ItSdkClient::GetCurrentNodeId(std::string& currentNodeId)
-{
-    if (!cliInvoker_) {
-        IT_LOG_WARN << "CLI invoker is unavailable for GetCurrentNodeId";
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-
-    ItNodeInfo nodeInfo;
-    int32_t ret = cliInvoker_->QueryNodeInfo(nodeInfo);
-    if (ret != UBS_SUCCESS) {
-        IT_LOG_WARN << "CLI-based GetCurrentNodeId failed: " << ret;
-        return ret;
-    }
-    currentNodeId = ExtractNodeIdFromNodeColumn(nodeInfo.node);
-    return UBS_SUCCESS;
-}
-
-int32_t ItSdkClient::GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>& roleInfos)
-{
-    if (!cliInvoker_) {
-        return UBS_ENGINE_ERR_CONNECTION_FAILED;
-    }
-    std::vector<ItNodeInfo> nodeInfos;
-    int32_t ret = cliInvoker_->QueryClusterInfo(nodeInfos);
-    if (ret != UBS_SUCCESS) {
-        return ret;
-    }
-    for (const auto& info : nodeInfos) {
-        ubse::election::UbseRoleInfo roleInfo;
-        roleInfo.nodeId = ExtractNodeIdFromNodeColumn(info.node);
-        roleInfo.nodeRole = info.role;
-        roleInfo.status = ubse::election::ELECTION_NODE_ONLINE;
-        roleInfos.push_back(roleInfo);
-    }
-    return UBS_SUCCESS;
 }
 
 int32_t ItSdkClient::TopoNodeList(ubs_topo_node_t** nodeList, uint32_t* nodeCnt)
@@ -300,15 +210,6 @@ int32_t ItSdkClient::UrmaQosGet(ubs_urma_qos_config_t** configs, uint32_t* count
     return InvokeSdk([&]() { return ubs_urma_qos_get(configs, count); });
 }
 
-std::string ItSdkClient::ExecCli(const std::string& args) const
-{
-    if (!cliInvoker_) {
-        IT_LOG_WARN << "CLI invoker is unavailable";
-        return "";
-    }
-    return cliInvoker_->ExecCli(args);
-}
-
 const std::string& ItSdkClient::GetUdsPath() const
 {
     return udsPath_;
@@ -317,16 +218,6 @@ const std::string& ItSdkClient::GetUdsPath() const
 const std::string& ItSdkClient::GetLogDir() const
 {
     return logDir_;
-}
-
-std::string ItSdkClient::ExtractNodeIdFromNodeColumn(const std::string& nodeName)
-{
-    std::string::size_type openParen = nodeName.find('(');
-    std::string::size_type closeParen = nodeName.find(')');
-    if (openParen != std::string::npos && closeParen != std::string::npos && closeParen > openParen + 1) {
-        return nodeName.substr(openParen + 1, closeParen - openParen - 1);
-    }
-    return nodeName;
 }
 
 } // namespace ubse::it::infra

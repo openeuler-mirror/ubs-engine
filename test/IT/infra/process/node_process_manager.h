@@ -15,32 +15,29 @@
 
 #include <sys/types.h>
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "mock_lcne_server.h"
+#include "node_process_config.h"
 
 namespace ubse::it::infra {
 
 using ubse::common::def::UbseResult;
 
-struct NodeProcessConfig {
-    std::string binaryPath;
-    std::string nodeId;
-    std::string nodeIp;
-    std::string workDir;
-    uint32_t slotId = 1;
-    std::string stubLibDir;
-    std::string clusterNodeIds;
-    std::string clusterIps;
-    std::vector<uint32_t> clusterSlotIds;
-    std::string sceneType;
-    uint32_t meshType = 1;
-};
-
+/**
+ * @brief Manages the lifecycle of a single daemon process.
+ *
+ * Responsible only for process-level operations:
+ *   - Fork via posix_spawn (with mount namespace setup)
+ *   - Signal delivery (SIGTERM, SIGKILL)
+ *   - Wait for startup/readiness
+ *   - Environment variable construction
+ *
+ * MockLcneServer ownership has been moved to ItNode, which
+ * orchestrates the correct startup ordering (LCNE before process).
+ */
 class NodeProcessManager {
 public:
     explicit NodeProcessManager(NodeProcessConfig config);
@@ -68,8 +65,8 @@ public:
 private:
     UbseResult StopProcess(int signal);
     void StopAuxiliaryServices();
-    void CleanupSymlinks();
     std::vector<std::string> BuildChildEnvironment() const;
+
     std::string binaryPath_;
     std::string launcherPath_;
     std::string nodeId_;
@@ -82,11 +79,10 @@ private:
     std::string stubLibDir_;
     std::string sceneType_;
     uint32_t meshType_ = 1;
+    std::string lcneUdsPath_;
     mutable pid_t childPid_;
     std::string udsSocketPath_;
     std::string xalarmFifoPath_;
-    std::unique_ptr<MockLcneServer> mockLcneServer_;
-    std::string lcneUdsWorkPath_;
     bool isPrivileged_{false};
 };
 

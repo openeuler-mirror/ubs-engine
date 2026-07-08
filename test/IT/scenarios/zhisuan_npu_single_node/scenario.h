@@ -13,5 +13,4 @@
 #include "it_scenario_fixture.h"
 
 // 智算NPU单节点场景：启动单节点AI集群（禁用选举和Mock插件），验证NPU设备分配/释放/查询
-IT_DEFINE_SCENARIO(ZhisuanNpuSingleNodeScenario,
-                   MakeBuilder().SingleNode().SceneType("ai").NoMockPlugin().StartNoElection(cluster_))
+IT_DEFINE_SCENARIO(ZhisuanNpuSingleNodeScenario, MakeBuilder().Zhisuan().SingleNode().Start(cluster_))

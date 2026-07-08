@@ -48,6 +48,7 @@ NodeProcessManager::NodeProcessManager(NodeProcessConfig config)
       stubLibDir_(std::move(config.stubLibDir)),
       sceneType_(std::move(config.sceneType)),
       meshType_(config.meshType),
+      lcneUdsPath_(std::move(config.lcneUdsPath)),
       childPid_(-1),
       udsSocketPath_(workDir_ + "/run/ubse.sock"),
       xalarmFifoPath_(workDir_ + "/run/xalarm_fifo")
@@ -81,7 +82,7 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     environment.emplace_back("UBSE_IT_CLUSTER_IPS=" + clusterIps_);
     environment.emplace_back("UBSE_IT_UDS_SOCKET_PATH=" + udsSocketPath_);
     environment.emplace_back("UBSE_UDS_ADDRESS=" + udsSocketPath_);
-    environment.emplace_back("UBSE_IT_LCNE_UDS_PATH=" + lcneUdsWorkPath_);
+    environment.emplace_back("UBSE_IT_LCNE_UDS_PATH=" + lcneUdsPath_);
     environment.emplace_back("UBSE_IT_LOG_PATH=" + workDir_ + "/log");
     environment.emplace_back(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX + "=" + workDir_ + "/hcom");
     environment.emplace_back("UBSE_IT_MESH_TYPE=" + std::to_string(meshType_));
@@ -114,22 +115,8 @@ UbseResult NodeProcessManager::Start()
 
     isPrivileged_ = (geteuid() == 0);
 
-    std::filesystem::create_directories(workDir_ + "/run/ubm/socket/ubm_nuds");
-    lcneUdsWorkPath_ = workDir_ + "/run/ubm/socket/ubm_nuds/restconf.sock";
-    mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsWorkPath_, slotId_, clusterSlotIds_);
-
-    mockLcneServer_->Start();
-    auto lcneReadyRet = mockLcneServer_->WaitForReady(5000);
-    if (lcneReadyRet != UBSE_OK) {
-        IT_LOG_ERROR << "MockLcneServer failed to become ready within 5s for node " << nodeId_;
-        mockLcneServer_->Stop();
-        mockLcneServer_.reset();
-        return UBSE_ERROR_DEF(8);
-    }
-
     if (!std::filesystem::exists(launcherPath_)) {
         IT_LOG_ERROR << "IT node launcher not found: " << launcherPath_;
-        StopAuxiliaryServices();
         return UBSE_ERROR_DEF(9);
     }
 
@@ -148,7 +135,6 @@ UbseResult NodeProcessManager::Start()
     int spawnRet = posix_spawn(&pid, launcherPath_.c_str(), nullptr, nullptr, argv.data(), envp.data());
     if (spawnRet != 0) {
         IT_LOG_ERROR << "Failed to spawn node " << nodeId_ << ": " << strerror(spawnRet);
-        StopAuxiliaryServices();
         return UBSE_ERROR_DEF(1);
     }
 
@@ -159,19 +145,14 @@ UbseResult NodeProcessManager::Start()
 
 void NodeProcessManager::StopAuxiliaryServices()
 {
-    if (mockLcneServer_) {
-        mockLcneServer_->Stop();
-        mockLcneServer_.reset();
-    }
     if (!xalarmFifoPath_.empty()) {
         unlink(xalarmFifoPath_.c_str());
     }
-    CleanupSymlinks();
 }
 
 UbseResult NodeProcessManager::Stop()
 {
-    if (childPid_ <= 0 && !mockLcneServer_) {
+    if (childPid_ <= 0) {
         return UBSE_OK;
     }
     if (!IsRunning()) {
@@ -247,13 +228,6 @@ UbseResult NodeProcessManager::StopProcess(int signal)
 
     IT_LOG_ERROR << "Failed to kill node " << nodeId_;
     return UBSE_ERROR_DEF(5);
-}
-
-void NodeProcessManager::CleanupSymlinks()
-{
-    if (!lcneUdsWorkPath_.empty()) {
-        unlink(lcneUdsWorkPath_.c_str());
-    }
 }
 
 bool NodeProcessManager::IsRunning() const

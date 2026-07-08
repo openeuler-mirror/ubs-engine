@@ -13,4 +13,4 @@
 #include "it_scenario_fixture.h"
 
 // 通算1D双节点全互联场景：启动双节点集群，验证主备选举和内存借用
-IT_DEFINE_SCENARIO(Tongsuan1dFullMeshTwoNodesScenario, MakeBuilder().TwoNode().Start(cluster_))
+IT_DEFINE_SCENARIO(Tongsuan1dFullMeshTwoNodesScenario, MakeBuilder().Tongsuan().TwoNode().Start(cluster_))
