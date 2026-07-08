@@ -99,6 +99,39 @@ UbseResult UbseHttpModule::Initialize()
             return UBSE_ERROR;
         }
     }
+    // 提前创建 httpServer_ 对象（不启动监听），供其他模块在 Initialize 阶段注册路由。
+    // 端口/UDS 资源在 Start() 中才真正占用。
+    UbseHttpServer::Config config;
+    config.name = "UbsEngineMain";
+    config.useUds = !isTcpServer;
+    config.useSsl = isTcpServer;
+    config.certPaths = MakeCertPaths();
+    if (isTcpServer) {
+        config.port = port;
+        std::string listenAddr = "127.0.0.1";
+        auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
+        if (confModule != nullptr) {
+            std::string confAddr;
+            auto addrRet = confModule->GetConf(UBSE_UBFM_SECTION, "ubse.server.listenAddr", confAddr);
+            if (addrRet == UBSE_OK && !confAddr.empty()) {
+                listenAddr = confAddr;
+            }
+        }
+        config.listenAddr = listenAddr;
+        config.udsPath = "";
+    } else {
+        config.port = 0;
+        config.listenAddr = "";
+        config.udsPath = UBSE_UBM_UDS_ADDRESS;
+    }
+
+    try {
+        httpServer_ = std::make_unique<UbseHttpServer>(config);
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Failed to create http server, error=" << e.what();
+        return UBSE_ERROR;
+    }
+
     UBSE_LOG_INFO << "http is using " << (isTcpServer ? "tcp" : "uds") << " server.";
     return UBSE_OK;
 }
@@ -108,40 +141,12 @@ void UbseHttpModule::UnInitialize() {}
 UbseResult UbseHttpModule::Start()
 {
     UBSE_LOG_INFO << "Start HTTP server. HTTP type is " << (isTcpServer ? "TCP" : "UDS");
-    try {
-        UbseHttpServer::Config config;
-        config.name = "UbsEngineMain";
-        config.useUds = !isTcpServer;
-        config.useSsl = isTcpServer;
-        config.certPaths = MakeCertPaths();
-
-        if (isTcpServer) {
-            config.port = port;
-            std::string listenAddr = "127.0.0.1";
-            auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
-            if (confModule != nullptr) {
-                std::string confAddr;
-                auto ret = confModule->GetConf(UBSE_UBFM_SECTION, "ubse.server.listenAddr", confAddr);
-                if (ret == UBSE_OK && !confAddr.empty()) {
-                    listenAddr = confAddr;
-                }
-            }
-            config.listenAddr = listenAddr;
-            config.udsPath = "";
-        } else {
-            config.port = 0;
-            config.listenAddr = "";
-            config.udsPath = UBSE_UBM_UDS_ADDRESS;
-        }
-
-        httpServer_ = std::make_unique<UbseHttpServer>(config);
-        if (httpServer_->Start()) {
-            return UBSE_OK;
-        }
-        httpServer_.reset();
-    } catch (const std::exception &e) {
-        httpServer_.reset();
-        UBSE_LOG_ERROR << "Failed to start server, error=" << e.what();
+    if (httpServer_ == nullptr) {
+        UBSE_LOG_ERROR << "httpServer_ is null, Initialize() may have failed.";
+        return UBSE_ERROR;
+    }
+    if (httpServer_->Start()) {
+        return UBSE_OK;
     }
     UBSE_LOG_ERROR << "Failed to start server";
     return UBSE_ERROR;
