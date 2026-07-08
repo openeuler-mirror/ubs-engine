@@ -96,6 +96,15 @@ Requires: %{name} = %{version}-%{release}
 Development package for ucache plugin
 
 # ========================================================
+#                   SUBPACKAGE: ubs-engine-ssu
+# ========================================================
+%package ssu
+Summary: ssu
+Requires: %{name} = %{version}-%{release}
+%description ssu
+Package for ssu
+
+# ========================================================
 #                   SUBPACKAGE: ubs-engine-rmrs
 # ========================================================
 %package rmrs
@@ -201,7 +210,6 @@ bash build.sh -T RelWithDebInfo
 mkdir -p %{buildroot}/usr/bin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubse %{buildroot}/usr/bin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl %{buildroot}/usr/bin
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
 
 mkdir -p %{buildroot}/usr/lib/systemd/system/
 cp %{_builddir}/%{project_dir}/scripts/rpm/%{service_name} %{buildroot}/usr/lib/systemd/system/
@@ -241,6 +249,9 @@ cp -r %{_builddir}/%{project_dir}/src/include/* %{buildroot}/usr/include/ubse
 #install ucache
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
+
+#install ssu
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
 
 #install mem
 mkdir -p %{buildroot}/usr/lib64/ubse_plugin
@@ -402,7 +413,6 @@ fi
 %defattr(755,root,root,-)
 /usr/bin/ubse
 /usr/bin/ubsectl
-/usr/bin/ubsectl-ssu
 %defattr(644,root,root,-)
 /usr/lib/systemd/system/ubse.service
 %defattr(644,root,root,755)
@@ -452,6 +462,9 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libucache_plugin.so
 
+%files ssu
+%defattr(755,root,root,-)
+/usr/bin/ubsectl-ssu
 
 %files rmrs
 %defattr(644,root,root,-)
