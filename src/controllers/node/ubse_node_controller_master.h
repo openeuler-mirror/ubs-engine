@@ -68,6 +68,8 @@ public:
 private:
     UbseResult UbseMasterOnlineHandler(const std::string &nodeId);
 
+    UbseResult UbseGlobalMasterOnlineHandler(const std::string &globalMasterId);
+
     UbseResult UbseNodeDownHandler(const std::string &nodeId);
 
     UbseResult UbseNodeUpHandler(const std::string &nodeId);
@@ -97,6 +99,8 @@ private:
     void UbseNodeCleanAfterSwitchStandby();
 
     void UbseMasterNotifyAllAgentsAction(const std::string &nodeId, std::string action);
+
+    void UbseMasterNotifyMountedGroupMastersAction(const std::string &nodeId, const std::string &action);
 
     /**
      * 节点上报汇聚，每隔1min，打印一次节点上报记录

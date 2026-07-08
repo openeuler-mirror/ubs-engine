@@ -103,6 +103,7 @@ const std::string UBSE_EVENT_NODE_STATE = "ubse.node.state";
 const std::string UBSE_EVENT_NODE_RECONNECT = "ubse.node.reconnect";
 const std::string UBSE_EVENT_NODE_JOIN = "UbseNodeJoinEvent";
 const std::string UBSE_EVENT_NODE_TOPO_LINK_CHANGE = "UbseNodeTopoLinkChangeEvent";
+const std::string UBSE_EVENT_GLOBAL_MASTER_ONLINE = "UbseGlobalMasterOnlineEvent";
 const std::string UBSE_EVENT_MEM_FAULT = "mem.fault.collection";
 const std::string UBSE_EVENT_MEM_PREDICT_FAULT = "mem.fault.prediction";
 const std::string UBSE_EVENT_XALARM_REBOOT = "ALARM_REBOOT_EVENT";

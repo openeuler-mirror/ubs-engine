@@ -720,13 +720,16 @@ UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
         UBSE_LOG_ERROR << "Failed to deserialize node join response";
         return CreateErrorResponse(UBSE_ERROR, resp);
     }
-    auto ret = SetUrmaUvs();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "SetUrmaUvs failed: " << FormatRetCode(ret);
-    }
-
+    UbseResult ret = UBSE_OK;
     if (action == UBSE_EVENT_NODE_TOPO_LINK_CHANGE || action == UBSE_EVENT_NODE_JOIN) {
+        ret = SetUrmaUvs();
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "SetUrmaUvs failed: " << FormatRetCode(ret);
+        }
         ret = PubNodeUrmaChange(node, action);
+    } else if (action == UBSE_EVENT_GLOBAL_MASTER_ONLINE) {
+        UBSE_LOG_INFO << "[CLOS_EVENT] receive global master online notification from prev, globalMasterId=" << node;
+        ret = UbsePubEvent(action, node);
     }
 
     return CreateErrorResponse(ret, resp);

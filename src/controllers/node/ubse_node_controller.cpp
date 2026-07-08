@@ -864,6 +864,15 @@ uint32_t UbseNodeController::UpdateNodeInfoGlobalState(const std::string &nodeId
     return UBSE_OK;
 }
 
+void UbseNodeController::ResetAllGlobalStates()
+{
+    std::unique_lock<std::shared_mutex> lock(rwMutex);
+    for (auto &[nodeId, info] : nodeInfos) {
+        info.globalState = UbseNodeGlobalState::UBSE_NODE_GLOBAL_INIT;
+    }
+    UBSE_LOG_INFO << "all nodes globalState reset to GLOBAL_INIT";
+}
+
 uint32_t UbseNodeController::UpdateNodeInfoClusterState(const std::string &nodeId, UbseNodeClusterState state)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " start to update cluster state=" << static_cast<uint32_t>(state);
