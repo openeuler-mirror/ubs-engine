@@ -78,6 +78,11 @@ void UbseElectionModule::TimerTaskCom()
 UbseResult UbseElectionModule::Start()
 {
     UBSE_LOG_INFO << "[ELECTION] UbseElectionModule::Start().";
+    auto ret = UbseElectionNodeMgr::GetInstance().LoadConfig();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Load election config failed";
+        return ret;
+    }
     // 加载单例，并判断是否加载成功
     auto commMgr = RoleMgr::GetInstance().GetCommMgr();
     if (!commMgr) {
@@ -91,7 +96,7 @@ UbseResult UbseElectionModule::Start()
         return UBSE_ERROR;
     }
     // 注册接受处理函数
-    auto ret = UbseElectionPktHandler::RegElectionPktHandler();
+    ret = UbseElectionPktHandler::RegElectionPktHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] UbseElectionModule handler error";
         return UBSE_ERROR;

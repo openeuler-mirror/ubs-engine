@@ -130,6 +130,8 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     std::unique_lock<std::shared_mutex> lock(mtx_);
+    currentAllNodes_.clear();
+    nodeIpMap_.clear();
     if (rootEnable_) {
         // 指定根节点选主(单层选主tcp)，所有节点信息需要通过注册节点发现的事件来更新
         currentAllNodes_.clear();
