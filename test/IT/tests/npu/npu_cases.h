@@ -17,14 +17,13 @@
 
 namespace ubse::it::tests::npu {
 
-// NPU设备列表查询测试：验证查询返回预期的NPU和NIC_PFE设备
 void RunDeviceListQueryTest(ubse::it::infra::ItCluster& cluster);
-
-// NPU设备分配+释放生命周期测试：验证完整的分配→使用→释放流程
 void RunDeviceAllocFreeLifecycleTest(ubse::it::infra::ItCluster& cluster);
-
-// UBA/TID/Size查询测试：验证设备分配后UBA地址、TID和Size查询结果正确
 void RunUbaTidSizeQueryTest(ubse::it::infra::ItCluster& cluster);
+void RunRepeatAllocAndFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunPreemptDeviceTest(ubse::it::infra::ItCluster& cluster);
+void RunRepeatDeallocTest(ubse::it::infra::ItCluster& cluster);
+void RunConcurrentSuccessTest(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::npu
 

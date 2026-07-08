@@ -36,38 +36,48 @@ static UbseMtiGuid MakeGuid(uint8_t tag)
     return g;
 }
 
+static const uint8_t NPU_COUNT = 8;
+static const uint8_t NIC_COUNT = 8;
+static const uint8_t NIC_CHIPS[] = {11, 11, 12, 12, 13, 13, 14, 14};
+static const uint8_t NIC_PF_IDS[] = {3, 1, 3, 1, 3, 1, 3, 1};
+
 class UbseMtiUrmaStub : public UbseMtiUrma {
 public:
     UbseResult GetIdevFeList(std::vector<UbseMtiIdevPfe>& feList) override
     {
-        UbseMtiIdevVfe vfe;
-        vfe.ubController = UbseMtiUbController(1, 0);
-        vfe.pfeId = 0;
-        vfe.vfeId = 0;
-        vfe.guid = MakeGuid(0x02);
+        feList.clear();
+        for (uint8_t i = 0; i < NPU_COUNT; ++i) {
+            UbseMtiIdevVfe vfe;
+            vfe.ubController = UbseMtiUbController(1, i);
+            vfe.pfeId = 0;
+            vfe.vfeId = 0;
+            vfe.guid = MakeGuid(0x20 + i);
 
-        UbseMtiIdevPfe pfe;
-        pfe.ubController = UbseMtiUbController(1, 0);
-        pfe.pfeId = 0;
-        pfe.guid = MakeGuid(0x01);
-        pfe.vfeList = {vfe};
+            UbseMtiIdevPfe pfe;
+            pfe.ubController = UbseMtiUbController(1, i);
+            pfe.pfeId = 0;
+            pfe.guid = MakeGuid(0x10 + i);
+            pfe.vfeList = {vfe};
 
-        feList = {pfe};
+            feList.push_back(pfe);
+        }
         return UBSE_OK;
     }
 
     UbseResult GetIdevFeDavidMapping(UbseMtiIdevFeDavidMapping& mapping) override
     {
-        UbseMtiDavid david;
-        david.slotId = 1;
-        david.chipId = 1;
+        for (uint8_t i = 0; i < NPU_COUNT; ++i) {
+            UbseMtiDavid david;
+            david.slotId = 1;
+            david.chipId = 1 + i;
 
-        UbseMtiIdevPfe pfe;
-        pfe.ubController = UbseMtiUbController(1, 0);
-        pfe.pfeId = 0;
-        pfe.guid = MakeGuid(0x01);
+            UbseMtiIdevPfe pfe;
+            pfe.ubController = UbseMtiUbController(1, i);
+            pfe.pfeId = 0;
+            pfe.guid = MakeGuid(0x10 + i);
 
-        mapping[david] = pfe;
+            mapping[david] = pfe;
+        }
         return UBSE_OK;
     }
 
@@ -105,16 +115,19 @@ class UbseMti1825Stub : public UbseMti1825 {
 public:
     UbseResult Get1825FeList(std::vector<UbseMti1825Pf>& pfList) override
     {
-        UbseMti1825Pf pf;
-        pf.slotId = 1;
-        pf.chipId = 11;
-        pf.dieId = 0;
-        pf.pfId = 3;
-        pf.affinityUbController = UbseMtiUbController();
-        pf.guid = MakeGuid(0x03);
-        pf.vfList = {};
+        pfList.clear();
+        for (uint8_t i = 0; i < NIC_COUNT; ++i) {
+            UbseMti1825Pf pf;
+            pf.slotId = 1;
+            pf.chipId = NIC_CHIPS[i];
+            pf.dieId = 0;
+            pf.pfId = NIC_PF_IDS[i];
+            pf.affinityUbController = UbseMtiUbController(1, i);
+            pf.guid = MakeGuid(0x30 + i);
+            pf.vfList = {};
 
-        pfList = {pf};
+            pfList.push_back(pf);
+        }
         return UBSE_OK;
     }
 
@@ -166,10 +179,11 @@ public:
 
     UbseResult CreateVmBusInstance(uint16_t upi, UbseMtiBusInst& busInstance) override
     {
+        static uint8_t guidCounter = 0xAA;
         busInstance.type = UbseMtiBusInstanceType::VM;
         busInstance.upi = upi;
         busInstance.vendor = 0;
-        busInstance.guid = MakeGuid(0xAA);
+        busInstance.guid = MakeGuid(guidCounter++);
         busInstance.eid = UbseMtiEid{};
         busInstance.subDeviceGuids = {};
         return UBSE_OK;
