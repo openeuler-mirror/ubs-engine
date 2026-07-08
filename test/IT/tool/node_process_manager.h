@@ -38,6 +38,7 @@ struct NodeProcessConfig {
     std::string clusterIps;
     std::vector<uint32_t> clusterSlotIds;
     std::string sceneType;
+    uint32_t meshType = 1;
 };
 
 class NodeProcessManager {
@@ -80,6 +81,7 @@ private:
     std::vector<uint32_t> clusterSlotIds_;
     std::string stubLibDir_;
     std::string sceneType_;
+    uint32_t meshType_ = 1;
     mutable pid_t childPid_;
     std::string udsSocketPath_;
     std::string xalarmFifoPath_;

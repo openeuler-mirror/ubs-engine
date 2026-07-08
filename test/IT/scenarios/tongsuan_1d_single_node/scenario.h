@@ -12,5 +12,5 @@
 
 #include "it_scenario_fixture.h"
 
-// 通算1D单节点全互联场景：启动单节点集群，验证选举收敛和基础功能
-IT_DEFINE_SCENARIO(Tongsuan1dFullMeshSingleNodeScenario, MakeBuilder().SingleNode().Start(cluster_))
+// 通算1D单节点全互联场景(CLOS组网)：启动单节点集群，验证选举收敛、基础功能和URMA QoS
+IT_DEFINE_SCENARIO(Tongsuan1dFullMeshSingleNodeScenario, MakeBuilder().SingleNode().MeshType(8).Start(cluster_))

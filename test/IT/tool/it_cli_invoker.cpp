@@ -126,6 +126,17 @@ int32_t ItCliInvoker::QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nod
     return UBS_SUCCESS;
 }
 
+std::string ItCliInvoker::ExecCli(const std::string& args) const
+{
+    std::string cmd = ShellQuote(cliBinaryPath_) + " " + args;
+    IT_LOG_INFO << "Executing command: " << cmd;
+    std::string output = ExecuteCommand(cmd);
+    if (!output.empty()) {
+        LogCliOutput(output);
+    }
+    return output;
+}
+
 std::string ItCliInvoker::ExecuteCommand(const std::string& command) const
 {
     std::string fullCmd = "timeout --kill-after=" + std::to_string(CLI_COMMAND_KILL_AFTER_SECONDS) + "s " +

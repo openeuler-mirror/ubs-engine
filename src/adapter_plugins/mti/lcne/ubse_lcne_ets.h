@@ -53,6 +53,13 @@ public:
     UbseResult QueryInterfaceEtsProfile(const std::string& interfaceName, std::string& profileName);
     UbseResult SaveEtsProfile();
 
+    // XML parsing methods exposed for IT mock integration
+    static UbseResult ParseEtsProfileResponse(const std::string& body, UbseMtiEtsProfile& etsProfile);
+    static UbseResult ParseAllEtsProfilesResponse(const std::string& body, std::vector<UbseMtiEtsProfile>& etsProfiles);
+    static UbseResult ParseInterfaceEtsProfileResponse(const std::string& body, std::string& profileName);
+    static UbseResult ParseAllInterfaceEtsProfileResponse(const std::string& body,
+                                                          std::vector<UbseMtiInterfaceEtsApplication>& applications);
+
 private:
     UbseLcneEts(std::string host, int port) : host(std::move(host)), port(port) {}
     UbseLcneEts(const UbseLcneEts&) = delete;
@@ -61,11 +68,6 @@ private:
     UbseResult BuildEtsProfileXml(const UbseMtiEtsProfile& etsProfile, std::string& xmlStr);
     UbseResult BuildInterfaceEtsApplicationXml(const std::string& profileName, std::string& xmlStr);
     UbseResult BuildSaveEtsProfileXml(std::string& xmlStr);
-    UbseResult ParseEtsProfileResponse(const std::string& body, UbseMtiEtsProfile& etsProfile);
-    UbseResult ParseAllEtsProfilesResponse(const std::string& body, std::vector<UbseMtiEtsProfile>& etsProfiles);
-    UbseResult ParseInterfaceEtsProfileResponse(const std::string& body, std::string& profileName);
-    UbseResult ParseAllInterfaceEtsProfileResponse(const std::string& body,
-                                                   std::vector<UbseMtiInterfaceEtsApplication>& applications);
 
     std::string host;
     int port;

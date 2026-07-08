@@ -29,6 +29,7 @@
 #include "ubs_engine_mem.h"
 #include "ubs_engine_npu.h"
 #include "ubs_engine_topo.h"
+#include "ubs_engine_urma.h"
 #include "ubs_error.h"
 
 namespace ubse::it::infra {
@@ -92,6 +93,13 @@ public:
     int32_t NpuDeviceFree(ubs_ub_alloc_devices_info_t* allocInfo);
     void NpuDeviceListFree(ubs_ub_devices_list_t* deviceList);
     int32_t UbaTidSizeQuery(uint8_t* busInstanceGuid, uint32_t* tid, uint64_t* uba, uint64_t* size);
+
+    // --- URMA QoS APIs ---
+    int32_t UrmaQosCreate(const ubs_urma_qos_config_t* configs, uint32_t count);
+    int32_t UrmaQosDelete();
+    int32_t UrmaQosGet(ubs_urma_qos_config_t** configs, uint32_t* count);
+
+    std::string ExecCli(const std::string& args) const;
 
     const std::string& GetUdsPath() const;
     const std::string& GetLogDir() const;

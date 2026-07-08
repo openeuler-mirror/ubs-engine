@@ -34,6 +34,7 @@ public:
 
     int32_t QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos);
     int32_t QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nodeId = "");
+    std::string ExecCli(const std::string& args) const;
 
 private:
     std::string ExecuteCommand(const std::string& command) const;

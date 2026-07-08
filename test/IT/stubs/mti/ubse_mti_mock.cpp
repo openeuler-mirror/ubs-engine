@@ -10,9 +10,62 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <mutex>
+#include <sstream>
+
 #include "ubse_error.h"
 #include "ubse_mti_interface_default.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "lcne/ubse_lcne_ets.h"
+
+namespace {
+
+std::string BuildEtsProfileResponseXml(const ubse::adapter_plugins::mti::UbseMtiEtsProfile& profile)
+{
+    std::ostringstream xml;
+    xml << "<ub-qos><ets-profiles><ets-profile>";
+    xml << "<name>" << profile.profileName << "</name>";
+    if (!profile.vls.empty()) {
+        xml << "<vls>";
+        for (const auto& vl : profile.vls) {
+            xml << "<vl><vl-index>" << vl.vlIndex << "</vl-index><priority-group-id>" << vl.priorityGroupId
+                << "</priority-group-id></vl>";
+        }
+        xml << "</vls>";
+    }
+    if (!profile.priorityGroups.empty()) {
+        xml << "<priority-groups>";
+        for (const auto& pg : profile.priorityGroups) {
+            xml << "<priority-group><priority-group-id>" << pg.priorityGroupId << "</priority-group-id><cir>" << pg.cir
+                << "</cir><cbs>" << pg.cbs << "</cbs></priority-group>";
+        }
+        xml << "</priority-groups>";
+    }
+    xml << "</ets-profile></ets-profiles></ub-qos>";
+    return xml.str();
+}
+
+std::string BuildAllInterfaceEtsApplicationXml(const std::map<std::string, std::string>& applications)
+{
+    std::ostringstream xml;
+    xml << "<interfaces>";
+    for (const auto& [ifName, profileName] : applications) {
+        xml << "<interface><name>" << ifName << "</name>"
+            << "<ets-application><ets-profile-name>" << profileName
+            << "</ets-profile-name></ets-application></interface>";
+    }
+    xml << "</interfaces>";
+    return xml.str();
+}
+
+std::string BuildInterfaceEtsApplicationXml(const std::string& interfaceName, const std::string& profileName)
+{
+    std::ostringstream xml;
+    xml << "<ets-application><ets-profile-name>" << profileName << "</ets-profile-name></ets-application>";
+    return xml.str();
+}
+
+} // namespace
 
 namespace ubse::adapter_plugins::mti {
 
@@ -107,69 +160,150 @@ public:
         return defaultImpl_.UbseGetFeEid(iouInfo, allFeInfos);
     }
 
-    // ETS methods: no-op stubs (ETS is bypassed in IT)
+    // ETS methods: stateful mock backed by in-memory profile + applied interfaces
 
-    common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile&) override
+    common::def::UbseResult UbseCreateEtsProfile(const UbseMtiEtsProfile& etsProfile) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        storedProfile_ = etsProfile;
         return UBSE_OK;
     }
-    common::def::UbseResult UbseAddEtsVlsToProfile(const std::string&, const std::vector<UbseEtsVl>&) override
+
+    common::def::UbseResult UbseAddEtsVlsToProfile(const std::string& profileName,
+                                                   const std::vector<UbseEtsVl>& vls) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_.vls.insert(storedProfile_.vls.end(), vls.begin(), vls.end());
         return UBSE_OK;
     }
-    common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(const std::string&,
-                                                              const std::vector<UbseEtsPriorityGroup>&) override
+
+    common::def::UbseResult UbseAddEtsPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsPriorityGroup>& priorityGroups) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_.priorityGroups.insert(storedProfile_.priorityGroups.end(), priorityGroups.begin(),
+                                             priorityGroups.end());
         return UBSE_OK;
     }
-    common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(const std::string&, const std::vector<UbseEtsVl>&,
-                                                                    const std::vector<UbseEtsPriorityGroup>&) override
+
+    common::def::UbseResult UbseAddEtsVlsAndPriorityGroupsToProfile(
+        const std::string& profileName, const std::vector<UbseEtsVl>& vls,
+        const std::vector<UbseEtsPriorityGroup>& priorityGroups) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_.vls.insert(storedProfile_.vls.end(), vls.begin(), vls.end());
+        storedProfile_.priorityGroups.insert(storedProfile_.priorityGroups.end(), priorityGroups.begin(),
+                                             priorityGroups.end());
         return UBSE_OK;
     }
-    common::def::UbseResult UbseDeleteEtsProfile(const std::string&) override
+
+    common::def::UbseResult UbseDeleteEtsProfile(const std::string& profileName) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_ = UbseMtiEtsProfile{};
+        appliedInterfaces_.clear();
         return UBSE_OK;
     }
-    common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string&) override
+
+    common::def::UbseResult UbseRemoveEtsVlsFromProfile(const std::string& profileName) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_.vls.clear();
         return UBSE_OK;
     }
-    common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string&) override
+
+    common::def::UbseResult UbseRemoveEtsPriorityGroupsFromProfile(const std::string& profileName) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        storedProfile_.priorityGroups.clear();
         return UBSE_OK;
     }
-    common::def::UbseResult UbseQueryEtsProfile(const std::string&, UbseMtiEtsProfile&) override
+
+    common::def::UbseResult UbseQueryEtsProfile(const std::string& profileName, UbseMtiEtsProfile& etsProfile) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName != profileName) {
+            return UBSE_MTI_ERROR_NOT_EXIST;
+        }
+        std::string xml = BuildEtsProfileResponseXml(storedProfile_);
+        return lcne::UbseLcneEts::ParseEtsProfileResponse(xml, etsProfile);
+    }
+
+    common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>& etsProfiles) override
+    {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        if (storedProfile_.profileName.empty()) {
+            etsProfiles.clear();
+            return UBSE_OK;
+        }
+        std::string xml = BuildEtsProfileResponseXml(storedProfile_);
+        return lcne::UbseLcneEts::ParseAllEtsProfilesResponse(xml, etsProfiles);
+    }
+
+    common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string& interfaceName,
+                                                           const std::string& profileName) override
+    {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        appliedInterfaces_[interfaceName] = profileName;
         return UBSE_OK;
     }
-    common::def::UbseResult UbseQueryAllEtsProfiles(std::vector<UbseMtiEtsProfile>&) override
+
+    common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string& interfaceName) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        appliedInterfaces_.erase(interfaceName);
         return UBSE_OK;
     }
-    common::def::UbseResult UbseApplyEtsProfileToInterface(const std::string&, const std::string&) override
+
+    common::def::UbseResult UbseQueryAllInterfaceEtsProfile(
+        std::vector<UbseMtiInterfaceEtsApplication>& applications) override
     {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        std::string xml = BuildAllInterfaceEtsApplicationXml(appliedInterfaces_);
+        return lcne::UbseLcneEts::ParseAllInterfaceEtsProfileResponse(xml, applications);
+    }
+
+    common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string& interfaceName,
+                                                         std::string& profileName) override
+    {
+        std::lock_guard<std::mutex> lock(etsMutex_);
+        auto it = appliedInterfaces_.find(interfaceName);
+        if (it == appliedInterfaces_.end()) {
+            profileName.clear();
+            return UBSE_OK;
+        }
+        profileName = it->second;
         return UBSE_OK;
     }
-    common::def::UbseResult UbseRemoveEtsProfileFromInterface(const std::string&) override
-    {
-        return UBSE_OK;
-    }
-    common::def::UbseResult UbseQueryAllInterfaceEtsProfile(std::vector<UbseMtiInterfaceEtsApplication>&) override
-    {
-        return UBSE_OK;
-    }
-    common::def::UbseResult UbseQueryInterfaceEtsProfile(const std::string&, std::string&) override
-    {
-        return UBSE_OK;
-    }
-    common::def::UbseResult UbseSaveEtsProfile()
+
+    common::def::UbseResult UbseSaveEtsProfile() override
     {
         return UBSE_OK;
     }
 
 private:
     UbseMtiInterfaceDefault defaultImpl_;
+    UbseMtiEtsProfile storedProfile_;
+    std::map<std::string, std::string> appliedInterfaces_;
+    std::mutex etsMutex_;
 };
 
 UbseMtiInterface& UbseMtiInterface::GetInstance()
