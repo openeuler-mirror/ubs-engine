@@ -191,6 +191,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrowSendFdExportFail)
     req.size = BORROW_SIZE;
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseMemFdImportObjStateChangeHandler)
         .stubs()
         .will(returnValue(UBSE_ERROR))
@@ -211,6 +212,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemFdBorrow)
     req.size = BORROW_SIZE;
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemFdBorrowImportObj importObj{.req = req};
     std::vector<UbseMemDebtNumaInfo> numaInfos;
     UbseMemDebtNumaInfo numaInfo{.nodeId = "0", .socketId = 0, .numaId = 0, .size = 0};
@@ -236,6 +238,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowImportObjFail)
     req.udsInfo = udsInfo;
 
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseMemNumaImportObjStateChangeHandler)
         .stubs()
         .will(returnValue(UBSE_ERROR))
@@ -256,6 +259,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrowSendNumaExportObjFail)
     req.size = BORROW_SIZE;
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemNumaBorrowImportObj importObj{.req = req};
     std::vector<UbseMemDebtNumaInfo> numaInfos;
     UbseMemDebtNumaInfo numaInfo{.nodeId = "0", .socketId = 0, .numaId = 0, .size = 0};
@@ -275,6 +279,7 @@ TEST_F(TestUbseMemControllerApi, UbseMemNumaBorrow)
     req.size = BORROW_SIZE;
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemNumaBorrowImportObj importObj{.req = req};
     std::vector<UbseMemDebtNumaInfo> numaInfos;
     UbseMemDebtNumaInfo numaInfo{.nodeId = "0", .socketId = 0, .numaId = 0, .size = 0};

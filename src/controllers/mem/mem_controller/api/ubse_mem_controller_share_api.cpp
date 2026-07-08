@@ -721,6 +721,12 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationRe
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
                                           UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_ATTACH);
     }
+    if (WaitInitLedgerSuccess(req.importNodeId) != UBSE_OK) {
+        BorrowFailedAdvice(ProcessType::BORROW_FAILED, req.name, "SHARE_BORROW", req.size, "", req.importNodeId,
+                           UBSE_ENGINE_ERR_IMPORT_LEDGERING, MemAdvice::INTERNAL_FAILED);
+        return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "importNode is not working.",
+                                          UBSE_ENGINE_ERR_IMPORT_LEDGERING, MemOperationType::SHARED_ATTACH);
+    }
     UbseNodeControllerLockMgr::WriteLock(ClusterHandlerKey);
     UbseMemShareBorrowImportObj importObj{};
     auto ret = PrepareShareAttachImportObj(req, resp, importObj);
@@ -1361,7 +1367,7 @@ uint32_t DealSendShareUnExportObjFailed(UbseMemShareBorrowExportObj& exportObj, 
     resp.requestNodeId = req.requestNodeId;
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
     return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to send exportObj.",
-                                      UBSE_ERR_UNIMPORT_SUCCESS);
+                                      UBSE_ERR_UNIMPORT_SUCCESS, MemOperationType::SHARED_RETURN);
 }
 
 static uint32_t ShareReturnFail(const UbseMemReturnReq& req, UbseMemOperationResp& resp, const std::string& msg,

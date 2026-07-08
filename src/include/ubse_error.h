@@ -97,6 +97,7 @@
 #define UBSE_ERR_NODE_NOT_EXIST UBSE_ERROR_DEF(1027)               /* 节点不存在 */
 #define UBSE_ERR_NODE_FAULT UBSE_ERROR_DEF(1028)                   /* 节点故障 */
 #define UBSE_ENGINE_ERR_EXPORT_LEDGERING UBSE_ERROR_DEF(1029)      /* 导出节点对账中 */
+#define UBSE_ENGINE_ERR_IMPORT_LEDGERING UBSE_ERROR_DEF(1041)      /* 导入节点对账中 */
 
 /* ****************************************************** */
 /* Node Controller模块错误码定义，全局唯一，范围1100~1199，记录系统的标准错误返回 */

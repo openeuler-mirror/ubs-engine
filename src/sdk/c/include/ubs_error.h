@@ -103,6 +103,8 @@ typedef enum
     UBS_ENGINE_ERR_URMA_DEV_NOT_INACTIVE = 1038,          // URMA设备状态异常，无法分配
     UBS_ENGINE_ERR_URMA_DEV_NOT_EXIST = 1039,             // URMA设备在内存中不存在
     UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID = 1040,          // URMA设备名称无效
+
+    UBS_ENGINE_ERR_IMPORT_LEDGERING = 1041, // 导入节点对账中
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */
