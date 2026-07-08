@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,17 +10,11 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "mock_lcne_server.h"
+#include "mock_lcne_xml.h"
 
-#include <sys/stat.h>
-#include <unistd.h>
-#include <chrono>
-#include <filesystem>
 #include <map>
 
-#include "it_console_log.h"
-
-namespace ubse::it::infra {
+namespace ubse::it::infra::lcne_xml {
 
 namespace {
 
@@ -96,15 +90,9 @@ std::string GenerateUrmaEidInfosXml(int slot, int ubpu, int entity)
 
 } // namespace
 
-static const std::string SUBSCRIPTION_RESPONSE_XML = "<restconf>\n"
-                                                     "  <rpc_reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-                                                     "    <result>ok</result>\n"
-                                                     "  </rpc_reply>\n"
-                                                     "</restconf>";
-
-std::string MockLcneServer::GenerateBusInstanceXml() const
+std::string BusInstanceXml(uint32_t slotId)
 {
-    uint32_t eid = 0x10000 + (slotId_ - 1) * 0x40 + 0x0A;
+    uint32_t eid = 0x10000 + (slotId - 1) * 0x40 + 0x0A;
     char eidStr[16];
     snprintf(eidStr, sizeof(eidStr), "0x%05X", eid);
     return "<vbussw-inventory xmlns=\"urn:huawei:yang:huawei-vbussw-inventory\">\n"
@@ -116,14 +104,14 @@ std::string MockLcneServer::GenerateBusInstanceXml() const
            "      <physical-entity-mappings>\n"
            "        <physical-entity-mapping>\n"
            "          <slot-id>" +
-           std::to_string(slotId_) +
+           std::to_string(slotId) +
            "</slot-id>\n"
            "          <chip-id>1</chip-id>\n"
            "          <die-id>1</die-id>\n"
            "        </physical-entity-mapping>\n"
            "        <physical-entity-mapping>\n"
            "          <slot-id>" +
-           std::to_string(slotId_) +
+           std::to_string(slotId) +
            "</slot-id>\n"
            "          <chip-id>2</chip-id>\n"
            "          <die-id>1</die-id>\n"
@@ -134,13 +122,13 @@ std::string MockLcneServer::GenerateBusInstanceXml() const
            "</vbussw-inventory>";
 }
 
-std::string MockLcneServer::GenerateIoDieInfoXml() const
+std::string IoDieInfoXml(uint32_t slotId)
 {
     std::string xml = "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n  <iou-infos>\n";
     for (int ubpu = 1; ubpu <= 2; ++ubpu) {
-        uint32_t ctrlEid = (ubpu == 1 ? 0x40000 : 0x40400) + (slotId_ - 1) * 0x40 + 0x0A;
-        uint32_t upi = 0x7C00 + (slotId_ - 1) * 0x20 + 0x1F;
-        uint32_t primaryCna = (ubpu == 1 ? 0x0000 : 0x0400) + (slotId_ - 1) * 0x40 + 0x0A;
+        uint32_t ctrlEid = (ubpu == 1 ? 0x40000 : 0x40400) + (slotId - 1) * 0x40 + 0x0A;
+        uint32_t upi = 0x7C00 + (slotId - 1) * 0x20 + 0x1F;
+        uint32_t primaryCna = (ubpu == 1 ? 0x0000 : 0x0400) + (slotId - 1) * 0x40 + 0x0A;
         const char* guid = (ubpu == 1) ? "cc08-a000-0-2-000000-0000000000000000" :
                                          "cc08-a000-0-2-000000-0000000000000100";
         char ctrlEidStr[16];
@@ -150,7 +138,7 @@ std::string MockLcneServer::GenerateIoDieInfoXml() const
         snprintf(upiStr, sizeof(upiStr), "0x%04X", upi);
         snprintf(cnaStr, sizeof(cnaStr), "0x%04X", primaryCna);
         xml += "    <iou-info>\n";
-        xml += "      <slot-id>" + std::to_string(slotId_) + "</slot-id>\n";
+        xml += "      <slot-id>" + std::to_string(slotId) + "</slot-id>\n";
         xml += "      <ubpu-id>" + std::to_string(ubpu) + "</ubpu-id>\n";
         xml += "      <iou-id>1</iou-id>\n";
         xml += "      <bus-controller-eid>" + std::string(ctrlEidStr) + "</bus-controller-eid>\n";
@@ -165,10 +153,10 @@ std::string MockLcneServer::GenerateIoDieInfoXml() const
     return xml;
 }
 
-std::string MockLcneServer::GenerateHostInfoXml() const
+std::string HostInfoXml(uint32_t slotId)
 {
-    uint32_t eid = 0x10000 + (slotId_ - 1) * 0x40 + 0x0A;
-    uint32_t upi = 0x7C00 + (slotId_ - 1) * 0x20 + 0x1F;
+    uint32_t eid = 0x10000 + (slotId - 1) * 0x40 + 0x0A;
+    uint32_t upi = 0x7C00 + (slotId - 1) * 0x20 + 0x1F;
     char eidStr[16];
     char upiStr[16];
     snprintf(eidStr, sizeof(eidStr), "0x%05X", eid);
@@ -191,7 +179,7 @@ std::string MockLcneServer::GenerateHostInfoXml() const
            "</vbussw-inventory>";
 }
 
-std::string MockLcneServer::GenerateTopologyNodesXml() const
+std::string TopologyNodesXml(uint32_t slotId, const std::vector<uint32_t>& /*clusterSlotIds*/)
 {
     // 真实环境数据规律: 每节点2个ubpu, 各9个physical-port
     // 端口状态: port 0/2/3/6/7/8=down, port 1/4/5=up
@@ -209,7 +197,7 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
     std::string xml = "<lingqu-topology xmlns=\"urn:huawei:yang:huawei-lingqu-topology\">\n  <nodes>\n";
     for (int ubpu = 1; ubpu <= 2; ++ubpu) {
         xml += "    <node>\n";
-        xml += "      <slot>" + std::to_string(slotId_) + "</slot>\n";
+        xml += "      <slot>" + std::to_string(slotId) + "</slot>\n";
         xml += "      <ubpu>" + std::to_string(ubpu) + "</ubpu>\n";
         xml += "      <iou>1</iou>\n";
         xml += "      <ubpu-type>CPU-LINK</ubpu-type>\n";
@@ -217,11 +205,11 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
         for (int portId = 0; portId < 9; ++portId) {
             xml += "        <physical-port>\n";
             xml += "          <physical-port-id>" + std::to_string(portId) + "</physical-port-id>\n";
-            xml += "          <interface-name>400GUB" + std::to_string(slotId_) + "/" + std::to_string(ubpu) + "/" +
+            xml += "          <interface-name>400GUB" + std::to_string(slotId) + "/" + std::to_string(ubpu) + "/" +
                    std::to_string(portId + 1) + "</interface-name>\n";
             xml += "          <physical-port-role>internal-port</physical-port-role>\n";
 
-            auto slotIt = upPortMap.find(slotId_);
+            auto slotIt = upPortMap.find(slotId);
             auto portIt = (slotIt != upPortMap.end()) ? slotIt->second.find(portId) : slotIt->second.end();
             if (portIt != slotIt->second.end()) {
                 xml += "          <physical-port-status>up</physical-port-status>\n";
@@ -245,19 +233,19 @@ std::string MockLcneServer::GenerateTopologyNodesXml() const
     return xml;
 }
 
-std::string MockLcneServer::GenerateTopologyCnaXml() const
+std::string TopologyCnaXml(uint32_t slotId)
 {
     std::string xml = "<lingqu-topology xmlns=\"urn:huawei:yang:huawei-lingqu-topology\">\n  <addresses>\n";
     for (int ubpu = 1; ubpu <= 2; ++ubpu) {
-        uint32_t baseCna = (ubpu == 1 ? 0x0000 : 0x0400) + (slotId_ - 1) * 0x40;
+        uint32_t baseCna = (ubpu == 1 ? 0x0000 : 0x0400) + (slotId - 1) * 0x40;
         uint32_t primaryCna = baseCna + 0x0A;
-        uint32_t nodeCna = (ubpu == 1 ? 0xDF0000 : 0xDF0400) + (slotId_ - 1) * 0x40 + 0x0A;
+        uint32_t nodeCna = (ubpu == 1 ? 0xDF0000 : 0xDF0400) + (slotId - 1) * 0x40 + 0x0A;
         char primaryCnaStr[16];
         char nodeCnaStr[16];
         snprintf(primaryCnaStr, sizeof(primaryCnaStr), "0x%04x", primaryCna);
         snprintf(nodeCnaStr, sizeof(nodeCnaStr), "0x%06x", nodeCna);
         xml += "    <address>\n";
-        xml += "      <slot>" + std::to_string(slotId_) + "</slot>\n";
+        xml += "      <slot>" + std::to_string(slotId) + "</slot>\n";
         xml += "      <ubpu>" + std::to_string(ubpu) + "</ubpu>\n";
         xml += "      <iou>1</iou>\n";
         xml += "      <bus-primary-cna>" + std::string(primaryCnaStr) + "</bus-primary-cna>\n";
@@ -266,14 +254,14 @@ std::string MockLcneServer::GenerateTopologyCnaXml() const
         xml += "      <physical-ports>\n";
         for (int port = 0; port < 9; ++port) {
             uint32_t busPortCna = baseCna + port + 1;
-            uint32_t portCna = (ubpu == 1 ? 0xDF0000 : 0xDF0400) + (slotId_ - 1) * 0x40 + port + 1;
+            uint32_t portCna = (ubpu == 1 ? 0xDF0000 : 0xDF0400) + (slotId - 1) * 0x40 + port + 1;
             char busPortCnaStr[16];
             char portCnaStr[16];
             snprintf(busPortCnaStr, sizeof(busPortCnaStr), "0x%04x", busPortCna);
             snprintf(portCnaStr, sizeof(portCnaStr), "0x%06x", portCna);
             xml += "        <physical-port>\n";
             xml += "          <physical-port-id>" + std::to_string(port) + "</physical-port-id>\n";
-            xml += "          <interface-name>400GUB" + std::to_string(slotId_) + "/" + std::to_string(ubpu) + "/" +
+            xml += "          <interface-name>400GUB" + std::to_string(slotId) + "/" + std::to_string(ubpu) + "/" +
                    std::to_string(port + 1) + "</interface-name>\n";
             xml += "          <bus-port-cna>" + std::string(busPortCnaStr) + "</bus-port-cna>\n";
             xml += "          <port-cna>" + std::string(portCnaStr) + "</port-cna>\n";
@@ -287,7 +275,7 @@ std::string MockLcneServer::GenerateTopologyCnaXml() const
     return xml;
 }
 
-std::string MockLcneServer::GenerateUrmaEidXml() const
+std::string UrmaEidXml()
 {
     std::string xml = "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n    <static-urma-eids>\n";
     for (int slot = 1; slot <= 4; ++slot) {
@@ -302,13 +290,13 @@ std::string MockLcneServer::GenerateUrmaEidXml() const
     return xml;
 }
 
-std::string MockLcneServer::GenerateFeEidXml() const
+std::string FeEidXml(uint32_t slotId)
 {
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <entity-urma-communication-infos>\n"
            "    <entity-urma-communication-info>\n"
            "      <slot-id>" +
-           std::to_string(slotId_) +
+           std::to_string(slotId) +
            "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
@@ -332,13 +320,13 @@ std::string MockLcneServer::GenerateFeEidXml() const
            "</vbussw-service>";
 }
 
-std::string MockLcneServer::GenerateFeBindingXml() const
+std::string FeBindingXml(uint32_t slotId)
 {
     return "<vbussw-service xmlns=\"urn:huawei:yang:huawei-vbussw-service\">\n"
            "  <mue-ue-binding-infos>\n"
            "    <mue-ue-binding-info>\n"
            "      <slot-id>" +
-           std::to_string(slotId_) +
+           std::to_string(slotId) +
            "</slot-id>\n"
            "      <ubpu-id>1</ubpu-id>\n"
            "      <iou-id>1</iou-id>\n"
@@ -352,7 +340,16 @@ std::string MockLcneServer::GenerateFeBindingXml() const
            "</vbussw-service>";
 }
 
-std::string MockLcneServer::GenerateAddDecoderResponseJson() const
+std::string SubscriptionResponseXml()
+{
+    return "<restconf>\n"
+           "  <rpc_reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+           "    <result>ok</result>\n"
+           "  </rpc_reply>\n"
+           "</restconf>";
+}
+
+std::string AddDecoderResponseJson()
 {
     return "{\n"
            "  \"huawei-vbussw-service:ub-memory-decoder\": {\n"
@@ -365,7 +362,7 @@ std::string MockLcneServer::GenerateAddDecoderResponseJson() const
            "}";
 }
 
-std::string MockLcneServer::GenerateDeleteDecoderResponseJson() const
+std::string DeleteDecoderResponseJson()
 {
     return "{\n"
            "  \"huawei-vbussw-service:ub-memory-decoder-delete\": {\n"
@@ -376,7 +373,7 @@ std::string MockLcneServer::GenerateDeleteDecoderResponseJson() const
            "}";
 }
 
-std::string MockLcneServer::GenerateInvalidateDecoderResponseJson() const
+std::string InvalidateDecoderResponseJson()
 {
     return "{\n"
            "  \"huawei-vbussw-service:ub-memory-decoder-invalid\": {\n"
@@ -387,7 +384,7 @@ std::string MockLcneServer::GenerateInvalidateDecoderResponseJson() const
            "}";
 }
 
-std::string MockLcneServer::GenerateDecoderHandleResponseJson() const
+std::string DecoderHandleResponseJson()
 {
     return "{\n"
            "  \"huawei-vbussw-service:ub-memory-handle\": {\n"
@@ -398,196 +395,4 @@ std::string MockLcneServer::GenerateDecoderHandleResponseJson() const
            "}";
 }
 
-void MockLcneServer::RegisterHandlers()
-{
-    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entity-mappings",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateBusInstanceXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateIoDieInfoXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateHostInfoXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/nodes",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateTopologyNodesXml(), "application/yang-data+xml");
-                });
-
-    server_.Post("/restconf/operations/notifications:create-subscription",
-                 [](const httplib::Request&, httplib::Response& res) {
-                     res.status = httplib::OK_200;
-                     res.set_header("Content-Type", "application/yang-data+xml");
-                     res.set_content(SUBSCRIPTION_RESPONSE_XML, "application/yang-data+xml");
-                 });
-
-    // Decoder entry operations (RPC-style POST endpoints)
-    server_.Post("/restconf/operations/huawei-vbussw-service:ub-memory-decoder",
-                 [this](const httplib::Request&, httplib::Response& res) {
-                     res.status = httplib::OK_200;
-                     res.set_header("Content-Type", "application/json");
-                     res.set_content(GenerateAddDecoderResponseJson(), "application/json");
-                 });
-
-    server_.Post("/restconf/operations/huawei-vbussw-service:ub-memory-decoder-delete",
-                 [this](const httplib::Request&, httplib::Response& res) {
-                     res.status = httplib::OK_200;
-                     res.set_header("Content-Type", "application/json");
-                     res.set_content(GenerateDeleteDecoderResponseJson(), "application/json");
-                 });
-
-    server_.Post("/restconf/operations/huawei-vbussw-service:ub-memory-decoder-invalid",
-                 [this](const httplib::Request&, httplib::Response& res) {
-                     res.status = httplib::OK_200;
-                     res.set_header("Content-Type", "application/json");
-                     res.set_content(GenerateInvalidateDecoderResponseJson(), "application/json");
-                 });
-
-    server_.Post("/restconf/operations/huawei-vbussw-service:ub-memory-handle",
-                 [this](const httplib::Request&, httplib::Response& res) {
-                     res.status = httplib::OK_200;
-                     res.set_header("Content-Type", "application/json");
-                     res.set_content(GenerateDecoderHandleResponseJson(), "application/json");
-                 });
-
-    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/addresses",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateTopologyCnaXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/static-urma-eids",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateUrmaEidXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/entity-urma-communication-infos",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateFeEidXml(), "application/yang-data+xml");
-                });
-
-    server_.Get(R"(/restconf/data/huawei-vbussw-service:vbussw-service/entity-urma-communication-infos/.+)",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateFeEidXml(), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateFeBindingXml(), "application/yang-data+xml");
-                });
-
-    server_.Get(R"(/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos/.+)",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(GenerateFeBindingXml(), "application/yang-data+xml");
-                });
-}
-
-MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds)
-    : udsPath_(udsPath),
-      slotId_(slotId),
-      clusterSlotIds_(clusterSlotIds),
-      running_(false)
-{
-    RegisterHandlers();
-}
-
-MockLcneServer::~MockLcneServer()
-{
-    Stop();
-}
-
-UbseResult MockLcneServer::Start()
-{
-    if (running_) {
-        IT_LOG_INFO << "MockLcneServer already running on " << udsPath_;
-        return UBSE_OK;
-    }
-    if (serverThread_.joinable()) {
-        serverThread_.join();
-    }
-
-    std::filesystem::create_directories(std::filesystem::path(udsPath_).parent_path());
-    unlink(udsPath_.c_str());
-    server_.set_address_family(AF_UNIX);
-
-    running_ = true;
-    serverThread_ = std::thread([this]() {
-        bool ret = server_.listen(udsPath_, 80);
-        if (!ret) {
-            IT_LOG_ERROR << "MockLcneServer failed to listen on " << udsPath_;
-            running_ = false;
-        }
-        IT_LOG_INFO << "MockLcneServer stopped";
-    });
-
-    IT_LOG_INFO << "MockLcneServer started on " << udsPath_;
-    return UBSE_OK;
-}
-
-UbseResult MockLcneServer::Stop()
-{
-    if (!running_ && !serverThread_.joinable()) {
-        return UBSE_OK;
-    }
-
-    running_ = false;
-    server_.stop();
-    if (serverThread_.joinable()) {
-        serverThread_.join();
-    }
-
-    unlink(udsPath_.c_str());
-
-    IT_LOG_INFO << "MockLcneServer stopped and socket unlinked";
-    return UBSE_OK;
-}
-
-bool MockLcneServer::IsReady()
-{
-    struct stat st {
-    };
-    return stat(udsPath_.c_str(), &st) == 0;
-}
-
-UbseResult MockLcneServer::WaitForReady(uint32_t timeoutMs)
-{
-    constexpr uint32_t pollIntervalMs = 100;
-    uint32_t elapsed = 0;
-    while (elapsed < timeoutMs) {
-        if (IsReady()) {
-            IT_LOG_INFO << "MockLcneServer ready at " << udsPath_;
-            return UBSE_OK;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));
-        elapsed += pollIntervalMs;
-    }
-    IT_LOG_ERROR << "MockLcneServer not ready after " << timeoutMs << "ms";
-    return UBSE_ERROR_DEF(1);
-}
-
-} // namespace ubse::it::infra
+} // namespace ubse::it::infra::lcne_xml

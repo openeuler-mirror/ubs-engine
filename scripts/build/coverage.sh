@@ -14,7 +14,7 @@
 # Generate code coverage report using fastcov and lcov
 # Usage: ./coverage.sh [build_dir]
 # Environment variables:
-#   COVERAGE_MODULE - module name for filter selection (base|rmrs|ucache|virt-agent)
+#   COVERAGE_MODULE - module name for filter selection (ut|it|base|rmrs|ucache|virt-agent)
 
 set -o errexit    # Exit immediately on any command failure
 set -o nounset    # Treat unset variables as errors
@@ -33,6 +33,7 @@ declare -r FASTCOV_PATH="${HOME}/.local/bin/fastcov"
 # --------------------------
 declare -A MODULE_INCLUDE=(
     ["ut"]="src/"
+    ["it"]="src/"
     ["ubs-engine_ut_independent_ut"]="src/"
     ["ubs-engine_virtagent_ut_independent_ut"]="src/addons/virt_agent"
     ["ubs-engine_rmrs_plugin_ut_independent_ut"]="src/addons/rmrs"
@@ -45,6 +46,7 @@ ADDON_EXCLUDE="src/addons/rmrs src/addons/ucache src/addons/virt_agent"
 
 declare -A MODULE_EXCLUDE=(
     ["ut"]="${COMMON_EXCLUDE}"
+    ["it"]="${COMMON_EXCLUDE} test/UT/"  # Exclude UT code from IT coverage report
     ["ubs-engine_ut_independent_ut"]="${COMMON_EXCLUDE} ${ADDON_EXCLUDE}"
     ["ubs-engine_virtagent_ut_independent_ut"]="${COMMON_EXCLUDE}"
     ["ubs-engine_rmrs_plugin_ut_independent_ut"]="${COMMON_EXCLUDE}"

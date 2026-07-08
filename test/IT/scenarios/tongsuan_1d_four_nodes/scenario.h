@@ -13,4 +13,4 @@
 #include "it_scenario_fixture.h"
 
 // 通算1D四节点全互联场景：启动四节点集群，验证1主+1备+2代理的选举拓扑及故障注入
-IT_DEFINE_SCENARIO(Tongsuan1dFullMeshFourNodesScenario, MakeBuilder().FourNode().Start(cluster_))
+IT_DEFINE_SCENARIO(Tongsuan1dFullMeshFourNodesScenario, MakeBuilder().Tongsuan().FourNode().Start(cluster_))

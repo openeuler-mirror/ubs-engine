@@ -22,6 +22,7 @@
 
 #include "ubse_error.h"
 #include "it_console_log.h"
+#include "it_string_util.h"
 #include "ubs_error.h"
 
 namespace ubse::it::infra {
@@ -205,12 +206,67 @@ int32_t ItCliInvoker::ParseTableOutput(const std::string& output, std::vector<It
 
 std::string ItCliInvoker::ExtractNodeId(const std::string& nodeName)
 {
-    std::string::size_type openParen = nodeName.find('(');
-    std::string::size_type closeParen = nodeName.find(')');
-    if (openParen != std::string::npos && closeParen != std::string::npos && closeParen > openParen + 1) {
-        return nodeName.substr(openParen + 1, closeParen - openParen - 1);
+    return util::ExtractNodeId(nodeName);
+}
+
+int32_t ItCliInvoker::GetRole(std::string& role)
+{
+    ItNodeInfo nodeInfo;
+    int32_t ret = QueryNodeInfo(nodeInfo);
+    if (ret != UBS_SUCCESS) {
+        IT_LOG_WARN << "CLI-based GetRole failed: " << ret;
+        return ret;
     }
-    return nodeName;
+    role = nodeInfo.role;
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::GetMasterNodeId(std::string& masterNodeId)
+{
+    std::vector<ItNodeInfo> nodeInfos;
+    int32_t ret = QueryClusterInfo(nodeInfos);
+    if (ret != UBS_SUCCESS) {
+        IT_LOG_WARN << "CLI-based GetMasterNodeId failed: " << ret;
+        return ret;
+    }
+
+    for (const auto& info : nodeInfos) {
+        if (info.role == ubse::election::ELECTION_ROLE_MASTER) {
+            masterNodeId = ExtractNodeId(info.node);
+            return UBS_SUCCESS;
+        }
+    }
+    IT_LOG_WARN << "CLI-based GetMasterNodeId did not find master role";
+    return UBS_ENGINE_ERR_CONNECTION_FAILED;
+}
+
+int32_t ItCliInvoker::GetCurrentNodeId(std::string& currentNodeId)
+{
+    ItNodeInfo nodeInfo;
+    int32_t ret = QueryNodeInfo(nodeInfo);
+    if (ret != UBS_SUCCESS) {
+        IT_LOG_WARN << "CLI-based GetCurrentNodeId failed: " << ret;
+        return ret;
+    }
+    currentNodeId = ExtractNodeId(nodeInfo.node);
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>& roleInfos)
+{
+    std::vector<ItNodeInfo> nodeInfos;
+    int32_t ret = QueryClusterInfo(nodeInfos);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+    for (const auto& info : nodeInfos) {
+        ubse::election::UbseRoleInfo roleInfo;
+        roleInfo.nodeId = ExtractNodeId(info.node);
+        roleInfo.nodeRole = info.role;
+        roleInfo.status = ubse::election::ELECTION_NODE_ONLINE;
+        roleInfos.push_back(roleInfo);
+    }
+    return UBS_SUCCESS;
 }
 
 } // namespace ubse::it::infra

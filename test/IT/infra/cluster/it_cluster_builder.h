@@ -28,11 +28,28 @@ namespace ubse::it::infra {
 
 using ubse::common::def::UbseResult;
 
+/**
+ * @brief Builder for ItCluster with fluent API.
+ *
+ * Usage:
+ *   // 通算场景 (with election)
+ *   MakeBuilder().Tongsuan().SingleNode().Start(cluster_)
+ *
+ *   // 智算场景 (no election)
+ *   MakeBuilder().Zhisuan().SingleNode().Start(cluster_)
+ */
 class ItClusterBuilder {
 public:
     static ItClusterBuilder FromRuntimePaths(const std::filesystem::path& binaryPath, const std::string& baseWorkDir,
                                              const std::filesystem::path& stubLibDir);
 
+    // --- Scenario presets ---
+    /** @brief 通算场景: mockPlugin=true, waitForElection=true. */
+    ItClusterBuilder& Tongsuan();
+    /** @brief 智算场景: mockPlugin=false, waitForElection=false, sceneType="ai". */
+    ItClusterBuilder& Zhisuan();
+
+    // --- Node topology ---
     ItClusterBuilder& SingleNode();
     ItClusterBuilder& TwoNode();
     ItClusterBuilder& FourNode();
@@ -42,9 +59,16 @@ public:
     ItClusterBuilder& SceneType(const std::string& sceneType);
     ItClusterBuilder& MeshType(uint32_t meshType);
     ItClusterBuilder& NoMockPlugin();
+    ItClusterBuilder& NoElection();
 
+    /**
+     * @brief Build and start the cluster.
+     *
+     * Election behavior is controlled by NoElection():
+     *   - Default: waitForElection = true (通算场景)
+     *   - After NoElection(): waitForElection = false (智算场景)
+     */
     UbseResult Start(std::unique_ptr<ItCluster>& cluster) const;
-    UbseResult StartNoElection(std::unique_ptr<ItCluster>& cluster) const;
 
 private:
     ItClusterBuilder(std::filesystem::path binaryPath, std::string baseWorkDir, std::filesystem::path stubLibDir);
@@ -60,6 +84,7 @@ private:
     std::string sceneType_;
     uint32_t meshType_ = 1;
     bool mockPluginEnabled_ = true;
+    bool waitForElection_ = true;
 };
 
 } // namespace ubse::it::infra

@@ -18,37 +18,47 @@ endforeach()
 
 # =====================================================
 # Directory layout:
-#   tool/       - Framework infrastructure (cluster mgmt, SDK client, etc.)
+#   infra/      - Framework infrastructure (spec, cluster, node, client, process, config, mock, helper, test_infra, launcher)
 #   scenarios/  - Scenario definitions (cluster lifecycle per TestSuite)
 #   tests/      - Test cases organized by business domain
 #   stubs/      - Mock/Stub libraries for hardware dependency replacement
 # =====================================================
 
-set(IT_TOOL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tool)
+set(IT_INFRA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/infra)
 set(IT_SCENARIOS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scenarios)
 set(IT_TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
 # IT test infrastructure library
 add_library(ubse_it_infra STATIC
-    ${IT_TOOL_DIR}/node_process_manager.cpp
-    ${IT_TOOL_DIR}/it_cluster.cpp
-    ${IT_TOOL_DIR}/it_cluster_spec.cpp
-    ${IT_TOOL_DIR}/it_cluster_builder.cpp
-    ${IT_TOOL_DIR}/it_sdk_client.cpp
-    ${IT_TOOL_DIR}/it_cli_invoker.cpp
-    ${IT_TOOL_DIR}/it_config_builder.cpp
-    ${IT_TOOL_DIR}/it_wait_helper.cpp
-    ${IT_TOOL_DIR}/mock_lcne_server.cpp
-    ${IT_TOOL_DIR}/it_xalarm_helper.cpp
+    ${IT_INFRA_DIR}/spec/it_cluster_spec.cpp
+    ${IT_INFRA_DIR}/node/it_node.cpp
+    ${IT_INFRA_DIR}/cluster/it_cluster.cpp
+    ${IT_INFRA_DIR}/cluster/it_cluster_builder.cpp
+    ${IT_INFRA_DIR}/client/it_sdk_client.cpp
+    ${IT_INFRA_DIR}/client/it_cli_invoker.cpp
+    ${IT_INFRA_DIR}/config/it_config_builder.cpp
+    ${IT_INFRA_DIR}/process/node_process_manager.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_server.cpp
+    ${IT_INFRA_DIR}/mock/mock_lcne_xml.cpp
+    ${IT_INFRA_DIR}/helper/it_wait_helper.cpp
+    ${IT_INFRA_DIR}/helper/it_xalarm_helper.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
-    ${IT_TOOL_DIR}/node_launcher.cpp
+    ${IT_INFRA_DIR}/launcher/node_launcher.cpp
 )
 target_compile_options(ubse_it_node_launcher PRIVATE ${DEBUG_FLAGS})
 
 target_include_directories(ubse_it_infra PUBLIC
-    ${IT_TOOL_DIR}
+    ${IT_INFRA_DIR}/spec
+    ${IT_INFRA_DIR}/node
+    ${IT_INFRA_DIR}/cluster
+    ${IT_INFRA_DIR}/client
+    ${IT_INFRA_DIR}/process
+    ${IT_INFRA_DIR}/config
+    ${IT_INFRA_DIR}/mock
+    ${IT_INFRA_DIR}/helper
+    ${IT_INFRA_DIR}/test_infra
     ${CMAKE_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/src/include
     ${PROJECT_SOURCE_DIR}/src/framework/ha
@@ -152,7 +162,7 @@ add_subdirectory(${IT_TESTS_DIR} ${CMAKE_BINARY_DIR}/test/IT/cases)
 # Scene-driven IT tests — one binary per scene
 # =====================================================
 set(UBSE_IT_NON_MODULE_DIRS
-    tool
+    infra
     scenarios
     stubs
     tests

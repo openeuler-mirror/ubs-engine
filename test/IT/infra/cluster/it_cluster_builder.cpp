@@ -58,6 +58,21 @@ ItClusterBuilder& ItClusterBuilder::Nodes(std::vector<NodeSpec> nodes)
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::Tongsuan()
+{
+    mockPluginEnabled_ = true;
+    waitForElection_ = true;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::Zhisuan()
+{
+    mockPluginEnabled_ = false;
+    waitForElection_ = false;
+    sceneType_ = "ai";
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::StartupTimeoutMs(uint32_t timeoutMs)
 {
     startupTimeoutMs_ = timeoutMs;
@@ -88,6 +103,12 @@ ItClusterBuilder& ItClusterBuilder::NoMockPlugin()
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::NoElection()
+{
+    waitForElection_ = false;
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -97,19 +118,7 @@ UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 
     auto spec = BuildSpec();
     cluster = std::make_unique<ItCluster>(std::move(spec));
-    return cluster->StartClusterParallel(electionTimeoutMs_);
-}
-
-UbseResult ItClusterBuilder::StartNoElection(std::unique_ptr<ItCluster>& cluster) const
-{
-    if (nodes_.empty()) {
-        IT_LOG_ERROR << "IT cluster has no nodes. Call SingleNode(), TwoNode(), or Nodes() before StartNoElection().";
-        return UBSE_ERROR_DEF(1);
-    }
-
-    auto spec = BuildSpec();
-    cluster = std::make_unique<ItCluster>(std::move(spec));
-    return cluster->StartClusterNoElection();
+    return cluster->StartCluster(waitForElection_, electionTimeoutMs_);
 }
 
 ClusterSpec ItClusterBuilder::BuildSpec() const

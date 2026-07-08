@@ -21,24 +21,28 @@
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "it_cli_invoker.h"
 #include "it_cluster_spec.h"
 #include "it_config_builder.h"
-#include "it_sdk_client.h"
+#include "it_node.h"
 #include "it_wait_helper.h"
-#include "node_process_manager.h"
 
 namespace ubse::it::infra {
 
 using ubse::common::def::UbseResult;
 
 /**
- * @brief Enhanced cluster manager for IT testing.
+ * @brief Multi-node cluster orchestrator for IT testing.
  *
- * Provides:
- * - Parallel node startup (required for election convergence)
- * - Election convergence waiting
- * - Per-node SDK client management
- * - Kill/restart for fault injection
+ * Owns a collection of ItNode instances and orchestrates:
+ *   - Parallel startup with election convergence
+ *   - Graceful/forced shutdown
+ *   - Kill/restart for fault injection
+ *   - Election status queries
+ *
+ * Before ItNode extraction, this class managed two separate maps
+ * (nodes_ and sdkClients_). Now it delegates per-node concerns
+ * to ItNode and focuses on cross-node orchestration.
  */
 class ItCluster {
 public:
@@ -47,26 +51,15 @@ public:
     ~ItCluster();
 
     /**
-     * @brief Start all nodes in parallel and wait for election convergence.
+     * @brief Start all nodes and wait for readiness.
      *
-     * Starts all nodes simultaneously so they can discover each other
-     * and converge on master/standby/agent roles.
-     *
-     * @param electionTimeoutMs Timeout for election convergence (default 30s)
+     * @param waitForElection Whether to wait for election convergence after startup.
+     *                        true  -> 通算场景 (has ElectionModule)
+     *                        false -> 智算场景 (no ElectionModule)
+     * @param electionTimeoutMs Timeout for election convergence if waitForElection is true
      * @return UBSE_OK on success
      */
-    UbseResult StartClusterParallel(uint32_t electionTimeoutMs = 30000);
-
-    /**
-     * @brief Start all nodes in parallel without waiting for election convergence.
-     *
-     * For scene types that do not include ElectionModule (e.g. AI/NPU scene).
-     * Only waits for UDS socket readiness, then initializes SDK clients directly.
-     *
-     * Startup timeout is taken from clusterSpec_.startupTimeoutMs (set by builder).
-     * @return UBSE_OK on success
-     */
-    UbseResult StartClusterNoElection();
+    UbseResult StartCluster(bool waitForElection = true, uint32_t electionTimeoutMs = 30000);
 
     /**
      * @brief Stop all nodes (reverse order).
@@ -75,26 +68,26 @@ public:
     UbseResult StopCluster();
 
     /**
-     * @brief Get a node's process manager by nodeId.
+     * @brief Get an ItNode by nodeId.
      */
-    NodeProcessManager& GetNodeProcess(const std::string& nodeId);
+    ItNode& GetNode(const std::string& nodeId);
 
     /**
      * @brief Get an SDK client connected to a specific node.
      *
-     * Each node has its own UDS socket path. The SDK client is initialized
-     * with that path. If not yet created, it will be initialized on first access.
-     *
-     * @param nodeId The node to connect to
-     * @return Reference to the SDK client for that node
+     * Delegates to ItNode::GetSdkClient().
      */
     ItSdkClient& GetSdkClient(const std::string& nodeId);
 
     /**
+     * @brief Get a CLI invoker for a specific node.
+     *
+     * Delegates to ItNode::GetCliInvoker().
+     */
+    ItCliInvoker& GetCliInvoker(const std::string& nodeId);
+
+    /**
      * @brief Kill a specific node (SIGKILL) for fault injection.
-     *
-     * The SDK client for that node will be finalized before killing.
-     *
      * @param nodeId The node to kill
      * @return UBSE_OK on success
      */
@@ -102,9 +95,6 @@ public:
 
     /**
      * @brief Restart a previously killed node.
-     *
-     * Reconfigures and restarts the node process, waits for startup,
-     * then optionally waits for election convergence.
      *
      * @param nodeId The node to restart
      * @param waitForElection Whether to wait for election convergence after restart
@@ -125,9 +115,6 @@ public:
 
     /**
      * @brief Wait for election convergence across all running nodes.
-     *
-     * Polls each node via SDK to check that master/standby roles are assigned.
-     *
      * @param timeoutMs Maximum time to wait
      * @return UBSE_OK if election converged, error code on timeout
      */
@@ -135,9 +122,6 @@ public:
 
     /**
      * @brief Get the node ID that is currently master.
-     *
-     * Queries all running nodes to find which one reports master role.
-     *
      * @param masterNodeId [out] The master node ID
      * @return UBSE_OK on success
      */
@@ -150,17 +134,11 @@ public:
 
     /**
      * @brief Get the base work directory used by this cluster.
-     *
-     * The base work directory is the root under which per-node work directories
-     * are created. Useful for cleanup after cluster teardown.
      */
     const std::string& GetBaseWorkDir() const;
 
     /**
      * @brief Inject an alarm event to a specific node's xalarm FIFO.
-     *
-     * The event flows through the real syssentry SentryEventListen → RAS handler chain.
-     *
      * @param nodeId  Target node to receive the event
      * @param alarmId Alarm event ID (e.g. 1003 for BMC reboot)
      * @param paras   Event parameters string
@@ -169,15 +147,11 @@ public:
     UbseResult InjectAlarmEvent(const std::string& nodeId, unsigned short alarmId, const std::string& paras);
 
 private:
-    std::string binaryPath_;
-    std::string cliBinaryPath_;
-    std::string baseWorkDir_;
-    std::string stubLibDir_;
-    std::vector<NodeSpec> nodeSpecs_;
+    ItNode::ClusterContext BuildClusterContext() const;
+
     ClusterSpec clusterSpec_;
     std::vector<std::string> nodeIds_;
-    std::map<std::string, std::unique_ptr<NodeProcessManager>> nodes_;
-    std::map<std::string, std::unique_ptr<ItSdkClient>> sdkClients_;
+    std::map<std::string, std::unique_ptr<ItNode>> nodes_;
     bool clusterStarted_{false};
 };
 

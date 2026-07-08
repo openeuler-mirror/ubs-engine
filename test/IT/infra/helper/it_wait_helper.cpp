@@ -17,6 +17,7 @@
 
 #include "ubse_error.h"
 #include "it_console_log.h"
+#include "ubs_error.h"
 
 namespace ubse::it::infra {
 
@@ -38,9 +39,9 @@ UbseResult ItWaitHelper::WaitForCondition(std::function<bool()> condition, uint3
     return UBSE_ERR_TIMED_OUT;
 }
 
-UbseResult ItWaitHelper::WaitForElectionConvergence(
-    const std::map<std::string, std::unique_ptr<ItSdkClient>>& sdkClients, const std::vector<std::string>& nodeIds,
-    uint32_t timeoutMs, uint32_t pollIntervalMs)
+UbseResult ItWaitHelper::WaitForElectionConvergence(const std::map<std::string, ItCliInvoker*>& cliInvokers,
+                                                    const std::vector<std::string>& nodeIds, uint32_t timeoutMs,
+                                                    uint32_t pollIntervalMs)
 {
     constexpr uint32_t REQUIRED_STABLE_CONVERGENCE_POLLS = 2;
     uint32_t stableConvergenceCount = 0;
@@ -51,8 +52,8 @@ UbseResult ItWaitHelper::WaitForElectionConvergence(
         uint32_t queriedNodeCount = 0;
 
         for (const auto& nodeId : nodeIds) {
-            auto it = sdkClients.find(nodeId);
-            if (it == sdkClients.end() || !it->second) {
+            auto it = cliInvokers.find(nodeId);
+            if (it == cliInvokers.end() || !it->second) {
                 stableConvergenceCount = 0;
                 return false;
             }
@@ -106,11 +107,11 @@ UbseResult ItWaitHelper::WaitForNodeReadiness(const std::string& udsSocketPath, 
     return WaitForCondition(readinessCheck, timeoutMs, DEFAULT_POLL_INTERVAL_MS);
 }
 
-UbseResult ItWaitHelper::WaitForNodeRole(ItSdkClient& sdkClient, const std::string& expectedRole, uint32_t timeoutMs)
+UbseResult ItWaitHelper::WaitForNodeRole(ItCliInvoker& cliInvoker, const std::string& expectedRole, uint32_t timeoutMs)
 {
     auto roleCheck = [&]() -> bool {
         std::string role;
-        int32_t ret = sdkClient.GetRole(role);
+        int32_t ret = cliInvoker.GetRole(role);
         if (ret != UBS_SUCCESS) {
             return false;
         }

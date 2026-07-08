@@ -26,7 +26,7 @@ void RunOomEventTest(ubse::it::infra::ItCluster& cluster, const std::string& nod
                      int timeout)
 {
     // 获取目标节点的xalarm FIFO路径
-    auto fifoPath = cluster.GetNodeProcess(nodeId).GetXalarmFifoPath();
+    auto fifoPath = cluster.GetNode(nodeId).GetXalarmFifoPath();
     int sync = 1;   // 同步标志
     int reason = 2; // 故障原因码
 

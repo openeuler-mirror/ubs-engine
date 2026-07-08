@@ -10,8 +10,26 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "it_scenario_fixture.h"
+#ifndef IT_NODE_INFO_H
+#define IT_NODE_INFO_H
 
-// 通算1D单节点全互联场景(CLOS组网)：启动单节点集群，验证选举收敛、基础功能和URMA QoS
-IT_DEFINE_SCENARIO(Tongsuan1dFullMeshSingleNodeScenario,
-                   MakeBuilder().Tongsuan().SingleNode().MeshType(8).Start(cluster_))
+#include <string>
+
+namespace ubse::it::infra {
+
+/**
+ * @brief Node information parsed from CLI display output.
+ *
+ * This is a plain data structure used by ItCliInvoker for query results
+ * and by ItSdkClient for election convenience methods.
+ */
+struct ItNodeInfo {
+    std::string node;
+    std::string role;
+    std::string bondingEid;
+    std::string guid;
+};
+
+} // namespace ubse::it::infra
+
+#endif // IT_NODE_INFO_H

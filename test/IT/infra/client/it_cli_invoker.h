@@ -18,23 +18,24 @@
 #include <vector>
 
 #include "ubse_election.h"
+#include "it_node_info.h"
 
 namespace ubse::it::infra {
-
-struct ItNodeInfo {
-    std::string node;
-    std::string role;
-    std::string bondingEid;
-    std::string guid;
-};
 
 class ItCliInvoker {
 public:
     ItCliInvoker(const std::string& cliBinaryPath, const std::string& udsSocketPath);
 
+    // --- Raw CLI queries ---
     int32_t QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos);
     int32_t QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nodeId = "");
     std::string ExecCli(const std::string& args) const;
+
+    // --- Election convenience methods (moved from ItSdkClient) ---
+    int32_t GetRole(std::string& role);
+    int32_t GetMasterNodeId(std::string& masterNodeId);
+    int32_t GetCurrentNodeId(std::string& currentNodeId);
+    int32_t GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>& roleInfos);
 
 private:
     std::string ExecuteCommand(const std::string& command) const;
