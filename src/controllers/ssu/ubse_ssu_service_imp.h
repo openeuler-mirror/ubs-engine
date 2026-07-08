@@ -17,7 +17,7 @@
 #include <vector>
 #include "ubse_ssu_collector.h"
 #include "ubse_ssu_scheduler.h"
-#include "ubse_ssu_service.h"
+#include "plugin_services/ssu/ubse_ssu_service.h"
 
 namespace ubse::ssu::service {
 
@@ -43,19 +43,13 @@ public:
 
     uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) override;
 
-    uint32_t AttachSpace(const std::string &name, const std::string &nqn, const UbseSsuAllocIdentityInfo &identity,
-                         std::string &devPath) override;
+    uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::string &devPath) override;
 
-    uint32_t DetachSpace(const std::string &name, const std::string &nqn,
-                         const UbseSsuAllocIdentityInfo &identity) override;
+    uint32_t DetachSpace(const UbseSsuSpaceReq &req) override;
 
-    uint32_t AttachLinearSpace(const std::string &name, const std::string &nqn,
-                               const UbseSsuAllocIdentityInfo &identity, const std::string &devName,
-                               std::string &devPath) override;
+    uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::string &devPath) override;
 
-    uint32_t DetachLinearSpace(const std::string &name, const std::string &nqn,
-                               const UbseSsuAllocIdentityInfo &identity, const std::string &devName) override;
-
+    uint32_t DetachLinearSpace(const UbseSsuLinearSpaceReq &req) override;
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
