@@ -84,6 +84,7 @@ include_directories(
         ${SRC_DIR}/framework/security
         ${SRC_DIR}/api_server
         ${SRC_DIR}/controllers/include
+        ${SRC_DIR}/controllers/npu/vm_state_monitor
         ${SRC_DIR}/ras
         ${SRC_DIR}/adapter_plugins/urma_uvs
 )
