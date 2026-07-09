@@ -163,7 +163,11 @@ mem_id obmm_import(const struct obmm_mem_desc* desc, unsigned long flags, int ba
     mem_id id = g_next_mem_id.fetch_add(1);
 
     if (numa != nullptr) {
-        *numa = 0;
+        // 真实OBMM内核模块会写入实际的远端NUMA ID，stub保留原始值
+        // 避免ObmmImport中 *numa==0 检查拦截后续迭代的import调用
+        if (*numa <= 0) {
+            *numa = 1; // 无有效NUMA映射时使用默认值，绕过 *numa==0 拦截
+        }
     }
 
     std::lock_guard<std::mutex> lock(g_records_mutex);

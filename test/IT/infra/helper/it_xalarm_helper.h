@@ -106,6 +106,26 @@ public:
      * @param info     Fault info string
      */
     static UbseResult InjectMemFaultEvent(const std::string& fifoPath, const std::string& info);
+
+    /**
+     * @brief 等待RAS处理完成的ack结果
+     *
+     * xalarm_stub在xalarm_report_event中将ack内容写入文件，
+     * 格式为 "msgId_retCode\n"。此方法轮询等待该文件出现并解析结果。
+     *
+     * @param workDir  目标节点的work dir（daemon CWD）
+     * @param ackAlarmId ack的alarm ID（原始事件ID+1，如OOM=1005→ack=1006）
+     * @param timeoutMs 超时毫秒数
+     * @param[out] retCode RAS handler的返回码，0=成功
+     * @return UBSE_OK 等到结果, UBSE_ERROR_DEF 超时
+     */
+    static UbseResult WaitForAckResult(const std::string& workDir, unsigned short ackAlarmId, uint32_t timeoutMs,
+                                       uint32_t& retCode);
+
+    /**
+     * @brief 删除ack结果文件（测试前清理用）
+     */
+    static void ClearAckResult(const std::string& workDir, unsigned short ackAlarmId);
 };
 
 } // namespace ubse::it::infra

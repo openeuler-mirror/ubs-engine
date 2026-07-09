@@ -29,6 +29,8 @@ public:
     // --- Raw CLI queries ---
     int32_t QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos);
     int32_t QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nodeId = "");
+    int32_t QueryTopoCpu(std::vector<ItTopoCpuLink>& topoLinks);
+    int32_t QueryMemBorrowDetail(std::vector<ItMemBorrowDetail>& borrowDetails);
     std::string ExecCli(const std::string& args) const;
 
     // --- Election convenience methods (moved from ItSdkClient) ---

@@ -11,6 +11,7 @@
  */
 
 #include "it_cli_invoker.h"
+#include "it_cli_table_parser.h"
 
 #include <sys/wait.h>
 #include <array>
@@ -124,6 +125,106 @@ int32_t ItCliInvoker::QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nod
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
     nodeInfo = nodeInfos[0];
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::QueryTopoCpu(std::vector<ItTopoCpuLink>& topoLinks)
+{
+    std::string output = ExecCli("display topo -t cpu");
+    if (output.empty()) {
+        IT_LOG_WARN << "display topo -t cpu returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display topo -t cpu returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    topoLinks.clear();
+    for (const auto& rec : records) {
+        ItTopoCpuLink link;
+        auto it = rec.find("link-id");
+        if (it != rec.end())
+            link.linkId = it->second;
+        it = rec.find("node");
+        if (it != rec.end())
+            link.node = it->second;
+        it = rec.find("socket");
+        if (it != rec.end())
+            link.socket = it->second;
+        it = rec.find("port");
+        if (it != rec.end())
+            link.port = it->second;
+        it = rec.find("peer-node");
+        if (it != rec.end())
+            link.peerNode = it->second;
+        it = rec.find("peer-socket");
+        if (it != rec.end())
+            link.peerSocket = it->second;
+        it = rec.find("peer-port");
+        if (it != rec.end())
+            link.peerPort = it->second;
+        it = rec.find("status");
+        if (it != rec.end())
+            link.status = it->second;
+        topoLinks.push_back(std::move(link));
+    }
+
+    if (topoLinks.empty()) {
+        IT_LOG_WARN << "No topo links parsed from CLI output";
+    }
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::QueryMemBorrowDetail(std::vector<ItMemBorrowDetail>& borrowDetails)
+{
+    std::string output = ExecCli("display memory -t borrow_detail");
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t borrow_detail returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t borrow_detail returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    borrowDetails.clear();
+    for (const auto& rec : records) {
+        ItMemBorrowDetail detail;
+        auto it = rec.find("name");
+        if (it != rec.end())
+            detail.name = it->second;
+        it = rec.find("type");
+        if (it != rec.end())
+            detail.type = it->second;
+        it = rec.find("borrow_node");
+        if (it != rec.end())
+            detail.borrowNode = it->second;
+        it = rec.find("lend_node");
+        if (it != rec.end())
+            detail.lendNode = it->second;
+        it = rec.find("lend_numa");
+        if (it != rec.end())
+            detail.lendNuma = it->second;
+        it = rec.find("lend_size");
+        if (it != rec.end())
+            detail.lendSize = it->second;
+        it = rec.find("status");
+        if (it != rec.end())
+            detail.status = it->second;
+        it = rec.find("handle");
+        if (it != rec.end())
+            detail.handle = it->second;
+        borrowDetails.push_back(std::move(detail));
+    }
+
+    if (borrowDetails.empty()) {
+        IT_LOG_WARN << "No borrow records parsed from CLI output";
+    }
     return UBS_SUCCESS;
 }
 

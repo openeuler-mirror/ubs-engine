@@ -22,8 +22,8 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)
     ubse::it::tests::election::RunFourNodeElectionTest(Cluster());
 }
 
-// 故障注入测试：向节点2注入OOM事件，验证RAS故障处理链路
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, InjectOomEventToNode2)
+// 节点OOM故障：触发虚机借用内存进行逃逸
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
 {
-    ubse::it::tests::fault::RunOomEventTest(Cluster(), "2", {0, 1}, 2);
+    ubse::it::tests::fault::RunVmOomEscapeBorrowTest(Cluster(), "2", {0, 1}, 30);
 }

@@ -14,9 +14,12 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <chrono>
 #include <cstring>
+#include <fstream>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include "ubse_error.h"
 #include "it_console_log.h"
@@ -97,6 +100,41 @@ UbseResult ItXalarmHelper::InjectKernelRebootEvent(const std::string& fifoPath, 
 UbseResult ItXalarmHelper::InjectMemFaultEvent(const std::string& fifoPath, const std::string& info)
 {
     return InjectEvent(fifoPath, 1013, info);
+}
+
+UbseResult ItXalarmHelper::WaitForAckResult(const std::string& workDir, unsigned short ackAlarmId, uint32_t timeoutMs,
+                                            uint32_t& retCode)
+{
+    std::string ackPath = workDir + "/xalarm_ack_" + std::to_string(ackAlarmId);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+    while (std::chrono::steady_clock::now() < deadline) {
+        std::ifstream ifs(ackPath);
+        if (ifs.is_open()) {
+            std::string line;
+            if (std::getline(ifs, line)) {
+                // 格式: "msgId_retCode"，取最后一个下划线后的数字
+                auto pos = line.rfind('_');
+                if (pos != std::string::npos) {
+                    try {
+                        retCode = static_cast<uint32_t>(std::stoul(line.substr(pos + 1)));
+                        IT_LOG_INFO << "RAS ack received: alarmId=" << ackAlarmId << ", retCode=" << retCode;
+                        return UBSE_OK;
+                    } catch (const std::exception& e) {
+                        IT_LOG_WARN << "Failed to parse ack retCode from: " << line;
+                    }
+                }
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    IT_LOG_ERROR << "Timeout waiting for RAS ack: " << ackPath;
+    return UBSE_ERROR_DEF(1);
+}
+
+void ItXalarmHelper::ClearAckResult(const std::string& workDir, unsigned short ackAlarmId)
+{
+    std::string ackPath = workDir + "/xalarm_ack_" + std::to_string(ackAlarmId);
+    unlink(ackPath.c_str());
 }
 
 } // namespace ubse::it::infra
