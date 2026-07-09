@@ -30,6 +30,34 @@ struct ItNodeInfo {
     std::string guid;
 };
 
+/**
+ * @brief CPU topology link information parsed from "display topo -t cpu".
+ */
+struct ItTopoCpuLink {
+    std::string linkId;
+    std::string node;
+    std::string socket;
+    std::string port;
+    std::string peerNode;
+    std::string peerSocket;
+    std::string peerPort;
+    std::string status;
+};
+
+/**
+ * @brief Memory borrow detail information parsed from "display memory -t borrow_detail".
+ */
+struct ItMemBorrowDetail {
+    std::string name;
+    std::string type;
+    std::string borrowNode;
+    std::string lendNode;
+    std::string lendNuma;
+    std::string lendSize;
+    std::string status;
+    std::string handle;
+};
+
 } // namespace ubse::it::infra
 
 #endif // IT_NODE_INFO_H

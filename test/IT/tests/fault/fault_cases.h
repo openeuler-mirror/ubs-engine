@@ -21,14 +21,15 @@
 
 namespace ubse::it::tests::fault {
 
-// 向指定节点的xalarm FIFO注入OOM事件
-// 事件流经路径：syssentry → RAS处理器链 → mock_plugin OomHandle
+// 节点OOM故障：注入大页OOM事件，验证RAS回调触发虚机借用内存进行逃逸
+// 事件流经路径：xalarm FIFO → syssentry → RAS handler链 → mock_plugin OomHandle → UbseMemNumaCreate
+// 通过xalarm_stub ack文件获取RAS处理结果，再通过SDK验证借用达到UBSE_EXIST状态
 // @param cluster  集群实例
 // @param nodeId   接收OOM事件的目标节点
 // @param nids     受影响的NUMA节点ID列表
-// @param timeout  OOM超时参数
-void RunOomEventTest(ubse::it::infra::ItCluster& cluster, const std::string& nodeId, const std::vector<int>& nids,
-                     int timeout);
+// @param timeout  OOM处理超时（秒），复用为xalarm事件注入参数
+void RunVmOomEscapeBorrowTest(ubse::it::infra::ItCluster& cluster, const std::string& nodeId,
+                              const std::vector<int>& nids, int timeout);
 
 } // namespace ubse::it::tests::fault
 

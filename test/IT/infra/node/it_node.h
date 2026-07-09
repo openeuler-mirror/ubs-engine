@@ -116,6 +116,7 @@ public:
     const NodeSpec& GetSpec() const;
     const std::string& GetUdsSocketPath() const;
     const std::string& GetXalarmFifoPath() const;
+    const std::string& GetWorkDir() const;
 
 private:
     void CreateWorkDirectories();

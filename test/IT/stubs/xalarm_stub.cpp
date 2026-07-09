@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <cerrno>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -95,6 +96,19 @@ extern "C" {
 
 int xalarm_report_event(unsigned short usAlarmId, char* pucParas, size_t len)
 {
+    /* RAS handler完成后的ack回调，pucParas格式为 "msgId_retCode"
+     * 写入文件供IT测试进程读取RAS处理结果
+     * 文件路径: CWD/xalarm_ack_<alarmId> (daemon CWD = node work dir) */
+    if (pucParas != nullptr && len > 0) {
+        char ackPath[256];
+        snprintf(ackPath, sizeof(ackPath), "./xalarm_ack_%u", usAlarmId);
+        FILE* fp = fopen(ackPath, "w");
+        if (fp != nullptr) {
+            fwrite(pucParas, 1, len, fp);
+            fputc('\n', fp);
+            fclose(fp);
+        }
+    }
     return 0;
 }
 

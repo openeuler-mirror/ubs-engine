@@ -233,4 +233,13 @@ const std::string& ItNode::GetXalarmFifoPath() const
     return empty;
 }
 
+const std::string& ItNode::GetWorkDir() const
+{
+    if (process_) {
+        return process_->GetWorkDir();
+    }
+    static const std::string empty;
+    return empty;
+}
+
 } // namespace ubse::it::infra
