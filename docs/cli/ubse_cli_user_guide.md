@@ -1850,3 +1850,342 @@ uuid-aa    e2         nqn.2024-01:target  1               /dev/nvme0n1    10G   
 uuid-bb    e3         nqn.2024-01:target  2               /dev/nvme1n1    10G        4K
 ----------------------------------------------------------------------------------------------------------------
 ```
+
+### 挂载已分配的存储空间
+
+**描述**
+
+将指定的存储空间挂载到系统，仅执行命名空间挂载，返回命名空间设备路径列表。
+
+**用法**
+
+```shell
+ubsectl-ssu attach -n <name> [-q <host_nqn>] [-e <src_eid>]
+```
+
+**输入参数**
+
+| 参数             | 说明               | 取值                                         |
+| -------------- | ---------------- | ------------------------------------------ |
+| -n/--name      | **必选**，分配空间标识名称 | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；不指定时，使用创建namespace时默认分配的NQN |
+| -e/--src\_eid  | 可选参数，源端EID    | 字符串，1-16字符；不指定时，使用host侧特定FE的EID          |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配的SSU存储空间
+3. 该命令仅执行命名空间挂载，不支持type、dev_name、level和chunk_size参数
+
+**输出信息说明**
+
+| 字段名        | 字段描述       | 字段取值                 |
+| ----------- | ---------- | ---------------------- |
+| ns_dev_paths | 命名空间设备路径列表 | 字符串列表，字符串之间使用`,`分隔 |
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid src_eid. The value must be 1-16 characters. | src_eid格式不合法 |
+| ERROR: The option --dev_name, --level or --chunk_size requires --type. | 未指定type时携带了聚合参数 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu attach -n alloc-space-1 -q nqn.2024-01:host -e e1
+ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1
+```
+
+### 卸载已分配的存储空间
+
+**描述**
+
+将指定的存储空间从系统卸载，释放设备占用。
+
+**用法**
+
+```shell
+ubsectl-ssu detach -n <name> [-q <host_nqn>]
+```
+
+**输入参数**
+
+| 参数             | 说明               | 取值                                         |
+| -------------- | ---------------- | ------------------------------------------ |
+| -n/--name      | **必选**，分配空间标识名称 | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配且已挂载的SSU存储空间
+3. 卸载前需确保没有进程正在使用该存储空间
+4. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
+5. 该命令仅执行命名空间卸载，不支持type、dev_name、level和chunk_size参数
+
+**输出信息说明**
+
+执行成功无额外输出；执行失败返回错误信息。
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: The option --dev_name requires --type. | 未指定type时携带了聚合设备名称参数 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu detach -n alloc-space-1 -q nqn.2024-01:host
+```
+
+### 挂载线性编址的存储空间
+
+**描述**
+
+将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载，返回聚合设备路径和命名空间设备路径列表。
+
+**用法**
+
+```shell
+ubsectl-ssu attach -t Linear -n <name> -d <dev_name> [-q <host_nqn>] [-e <src_eid>]
+```
+
+**输入参数**
+
+| 参数             | 说明               | 取值                                         |
+| -------------- | ---------------- | ------------------------------------------ |
+| -t/--type      | **必选**，挂载类型      | 固定取值：`Linear`                             |
+| -n/--name      | **必选**，分配空间标识名称 | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -d/--dev\_name | **必选**，聚合设备名称    | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.` |
+| -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；不指定时，使用创建namespace时默认分配的NQN |
+| -e/--src\_eid  | 可选参数，源端EID    | 字符串，1-16字符；不指定时，使用host侧特定FE的EID          |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配的SSU存储空间
+3. type必须使用`Linear`，不接受全小写格式
+4. 必须指定dev_name
+5. 线性编址挂载不支持level和chunk_size参数
+
+**输出信息说明**
+
+| 字段名        | 字段描述       | 字段取值                 |
+| ----------- | ---------- | ---------------------- |
+| ns_dev_paths | 命名空间设备路径列表 | 字符串列表，字符串之间使用`,`分隔 |
+| dev_path    | 聚合设备路径     | 字符串                  |
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid src_eid. The value must be 1-16 characters. | src_eid格式不合法 |
+| ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
+| ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
+| ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The option --level or --chunk_size is only valid when --type is Striped. | Linear模式携带了条带参数 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu attach -t Linear -n alloc-space-1 -d ssu_linear0 -q nqn.2024-01:host -e e1
+ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1
+dev_path: /dev/ssu_linear0
+```
+
+### 卸载线性编址的存储空间
+
+**描述**
+
+将线性聚合的块设备卸载并释放。
+
+**用法**
+
+```shell
+ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
+```
+
+**输入参数**
+
+| 参数             | 说明               | 取值                                         |
+| -------------- | ---------------- | ------------------------------------------ |
+| -t/--type      | **必选**，卸载类型      | 固定取值：`Linear`                             |
+| -n/--name      | **必选**，分配空间标识名称 | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -d/--dev\_name | **必选**，聚合设备名称    | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.` |
+| -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配且已挂载的SSU存储空间
+3. type必须使用`Linear`，不接受全小写格式
+4. 必须指定dev_name，且与挂载时指定的聚合设备名称一致
+5. 卸载前需确保没有进程正在使用该聚合设备
+6. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
+7. 线性编址卸载不支持level和chunk_size参数
+
+**输出信息说明**
+
+执行成功无额外输出；执行失败返回错误信息。
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
+| ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
+| ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu detach -t Linear -n alloc-space-1 -d ssu_linear0 -q nqn.2024-01:host
+```
+
+### 挂载条带化编址的存储空间
+
+**描述**
+
+将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，返回聚合设备路径和命名空间设备路径列表。
+
+**用法**
+
+```shell
+ubsectl-ssu attach -t Striped -n <name> -d <dev_name> -l <level> -c <chunk_size> [-q <host_nqn>] [-e <src_eid>]
+```
+
+**输入参数**
+
+| 参数                | 说明                | 取值                                                                 |
+| ----------------- | ----------------- | ------------------------------------------------------------------ |
+| -t/--type         | **必选**，挂载类型       | 固定取值：`Striped`                                                    |
+| -n/--name         | **必选**，分配空间标识名称  | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_`                         |
+| -d/--dev\_name    | **必选**，聚合设备名称     | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.`                                 |
+| -l/--level        | **必选**，RAID级别     | 可选值：`raid0`、`raid5`                                                |
+| -c/--chunk\_size  | **必选**，条带Chunk大小 | 可选值：`4K`、`16K`、`32K`、`64K`、`128K`、`256K`、`512K`                   |
+| -q/--host\_nqn    | 可选参数，Host NQN  | 字符串，1-68字符；不指定时，使用创建namespace时默认分配的NQN                         |
+| -e/--src\_eid     | 可选参数，源端EID     | 字符串，1-16字符；不指定时，使用host侧特定FE的EID                                |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配的SSU存储空间
+3. type必须使用`Striped`，不接受全小写格式
+4. 必须指定dev_name、level和chunk_size
+5. level必须使用`raid0`或`raid5`
+6. chunk_size必须使用支持列表中的大写`K`格式，不接受小写`k`或裸数字
+
+**输出信息说明**
+
+| 字段名        | 字段描述       | 字段取值                 |
+| ----------- | ---------- | ---------------------- |
+| ns_dev_paths | 命名空间设备路径列表 | 字符串列表，字符串之间使用`,`分隔 |
+| dev_path    | 聚合设备路径     | 字符串                  |
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid src_eid. The value must be 1-16 characters. | src_eid格式不合法 |
+| ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
+| ERROR: The option -d or --dev_name is required when --type is Striped. | Striped模式缺少dev_name |
+| ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The option -l or --level is required when --type is Striped. | Striped模式缺少level |
+| ERROR: The option -c or --chunk_size is required when --type is Striped. | Striped模式缺少chunk_size |
+| ERROR: Invalid level. The value must be raid0 or raid5. | level取值不合法 |
+| ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K. | chunk_size取值不合法 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu attach -t Striped -n alloc-space-2 -d ssu_striped0 -l raid0 -c 64K -q nqn.2024-01:host -e e1
+ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1
+dev_path: /dev/ssu_striped0
+```
+
+### 卸载条带化编址的存储空间
+
+**描述**
+
+将条带化聚合的块设备卸载并释放。
+
+**用法**
+
+```shell
+ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
+```
+
+**输入参数**
+
+| 参数             | 说明               | 取值                                         |
+| -------------- | ---------------- | ------------------------------------------ |
+| -t/--type      | **必选**，卸载类型      | 固定取值：`Striped`                            |
+| -n/--name      | **必选**，分配空间标识名称 | 字符串，1-48字符，仅支持大小写字母、数字、`.`、`:`、`-`和`_` |
+| -d/--dev\_name | **必选**，聚合设备名称    | 字符串，1-32字符，仅支持大小写字母、数字、`_`、`-`和`.` |
+| -q/--host\_nqn | 可选参数，Host NQN | 字符串，1-68字符；attach时指定了host_nqn，则detach时必须指定相同host_nqn；attach时未指定，则detach时可以不指定 |
+
+**约束限制**
+
+1. ubsectl-ssu只能在root、ubse用户中运行
+2. name必须对应已分配且已挂载的SSU存储空间
+3. type必须使用`Striped`，不接受全小写格式
+4. 必须指定dev_name，且与挂载时指定的聚合设备名称一致
+5. 卸载前需确保没有进程正在使用该聚合设备
+6. host_nqn必须与attach时传入的host_nqn一致；attach时未传入host_nqn，则detach时可以不传入host_nqn
+7. 条带化编址卸载不需要level和chunk_size参数
+
+**输出信息说明**
+
+执行成功无额外输出；执行失败返回错误信息。
+
+**错误信息说明**
+
+| 错误信息                                           | 说明                 |
+| ---------------------------------------------- | ------------------ |
+| ERROR: The option -n or --name is required.    | 缺少必选参数name          |
+| ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
+| ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
+| ERROR: The option -d or --dev_name is required when --type is Striped. | Striped模式缺少dev_name |
+| ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
+| ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
+| ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
+
+**示例**
+
+```shell
+$ ubsectl-ssu detach -t Striped -n alloc-space-2 -d ssu_striped0 -q nqn.2024-01:host
+```
