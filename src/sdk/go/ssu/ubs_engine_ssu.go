@@ -25,6 +25,7 @@ const (
 	UbsSsuMaxDevPathLength  = 63 // 设备路径最大长度, 含结尾字符'\0'
 	UbsSsuMaxDevNameLength  = 33 // 聚合块设备名称最大长度, 含结尾字符'\0'
 	UbsSsuRaid5MinMemberNum = 3  // RAID5最少成员设备数
+	UbsSsuMaxGuidLength     = 32 // GUID最大长度32个字符, 不含结尾字符'\0'
 )
 
 // ==================== 类型定义 ====================
@@ -57,7 +58,6 @@ const (
 	Size256K UbsSsuChunkSize = 256
 	Size512K UbsSsuChunkSize = 512
 )
-const UBS_SSU_BUS_INSTANCE_GUID_LENGTH = 32
 
 // UbsSsuAllocStrategy 分配策略
 type UbsSsuAllocStrategy uint8
@@ -97,8 +97,26 @@ type UbsSsuAllocSpaceReq struct {
 	Tenant    string              // 请求方tenant(租户隔离标识)
 }
 
-// UbsSsuStripedAttachReq 条带化挂载请求参数, 对应UbsSsuStripedAttachReq
-type UbsSsuStripedAttachReq struct {
+// UbsSsuSpaceReq 挂载|卸载存储空间请求参数, 对应ubs_ssu_space_req_t
+type UbsSsuSpaceReq struct {
+	Name   string // 需挂载|卸载的存储空间标识, 最大48个字符
+	Nqn    string // Host 的 NVMe Qualified Name
+	SrcEid string // 源EID
+}
+
+// UbsSsuLinearSpaceReq 挂载|卸载线性编址存储空间请求参数, 对应ubs_ssu_linear_space_req_t
+type UbsSsuLinearSpaceReq struct {
+	Name    string // 需挂载|卸载的存储空间标识, 最大48个字符
+	Nqn     string // Host 的 NVMe Qualified Name
+	SrcEid  string // 源EID
+	DevName string // 聚合后的块设备名称, 由外部指定
+}
+
+// UbsSsuStripedSpaceReq 挂载|卸载条带化编址存储空间请求参数, 对应ubs_ssu_striped_space_req_t
+type UbsSsuStripedSpaceReq struct {
+	Name      string                     // 需挂载|卸载的存储空间标识, 最大48个字符
+	Nqn       string                     // Host 的 NVMe Qualified Name
+	SrcEid    string                     // 源EID
 	DevName   string                     // 聚合后的块设备名称, 由外部指定
 	Level     UbsSsuAggregationRaidLevel // RAID级别(RAID0或RAID5)
 	ChunkSize UbsSsuChunkSize            // 条带化的chunk大小, 单位KB
@@ -106,11 +124,13 @@ type UbsSsuStripedAttachReq struct {
 
 // UbsUbVfe 虚拟功能单元(VFE)信息
 type UbsUbVfe struct {
-	SlotId uint8  // 槽位ID
-	ChipId uint8  // 芯片ID
-	DieId  uint8  // Die ID
-	PfeId  uint16 // 物理功能单元ID
-	VfeId  uint16 // 虚拟功能单元ID
+	SlotId              uint8  // 槽位ID
+	ChipId              uint8  // 芯片ID
+	DieId               uint8  // Die ID
+	PfeId               uint16 // 物理功能单元ID
+	VfeId               uint16 // 虚拟功能单元ID
+	VfeGuid             string // vfe GUID
+	BindBusInstanceGuid string // 绑定的总线实例GUID
 }
 
 // UbsSsuFe 功能单元(FE)信息，包含所属PFE及其下的VFE列表
@@ -119,6 +139,7 @@ type UbsSsuFe struct {
 	ChipId  uint8      // 芯片ID
 	DieId   uint8      // Die ID
 	PfeId   uint16     // 物理功能单元ID
+	PfeGuid string     // pfe GUID
 	VfeList []UbsUbVfe // VFE列表
 }
 
@@ -229,13 +250,12 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error {
 // 将指定的存储空间挂载到系统，使其可被主机访问。
 //
 // 参数：
-//   - name: 要挂载的存储空间标识
-//   - nqn:  Host 的 NVMe Qualified Name
+//   - req: 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源EID
 //
 // 返回值：
 //   - string: 挂载后的设备路径
 //   - error:  错误信息；成功返回 nil
-func UbsSsuAttachSpace(name string, nqn string) (string, error) {
+func UbsSsuAttachSpace(req UbsSsuSpaceReq) (string, error) {
 	// TODO: 实现具体逻辑
 	return "", nil
 }
@@ -246,12 +266,11 @@ func UbsSsuAttachSpace(name string, nqn string) (string, error) {
 // 卸载前需确保没有进程正在使用该存储空间。
 //
 // 参数：
-//   - name: 要卸载的存储空间标识
-//   - nqn:  Host 的 NVMe Qualified Name
+//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源EID
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuDetachSpace(name string, nqn string) error {
+func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
 	// TODO: 实现具体逻辑
 	return nil
 }
@@ -262,14 +281,12 @@ func UbsSsuDetachSpace(name string, nqn string) error {
 // 线性编址模式下，数据按顺序填充各成员设备。
 //
 // 参数：
-//   - name:    要挂载的存储空间标识
-//   - nqn:     Host 的 NVMe Qualified Name
-//   - devName: 聚合后的块设备名称（由外部指定）
+//   - req: 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
 //   - string: 挂载后的聚合设备路径
 //   - error:  错误信息；成功返回 nil
-func UbsSsuAttachLinearSpace(name string, nqn string, devName string) (string, error) {
+func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) (string, error) {
 	// TODO: 实现具体逻辑
 	return "", nil
 }
@@ -279,13 +296,11 @@ func UbsSsuAttachLinearSpace(name string, nqn string, devName string) (string, e
 // 将线性聚合的块设备卸载并释放。
 //
 // 参数：
-//   - name:    要卸载的存储空间标识
-//   - nqn:     Host 的 NVMe Qualified Name
-//   - devName: 聚合后的块设备名称
+//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuDetachLinearSpace(name string, nqn string, devName string) error {
+func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
 	// TODO: 实现具体逻辑
 	return nil
 }
@@ -297,16 +312,15 @@ func UbsSsuDetachLinearSpace(name string, nqn string, devName string) error {
 // RAID5 至少需要 3 个成员设备。
 //
 // 参数：
-//   - name: 要挂载的存储空间标识
-//   - nqn:  Host 的 NVMe Qualified Name
-//   - req:  条带化挂载请求参数，包含块设备名称、RAID级别和chunk大小
+//   - req: 条带化挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID、
+//     聚合后的块设备名称、RAID级别和chunk大小
 //
 // 返回值：
 //   - string: 挂载后的聚合设备路径
 //   - error:  错误信息；成功返回 nil
 //
-// 参考：UbsSsuStripedAttachReq, UbsSsuAggregationRaidLevel, UbsSsuChunkSize
-func UbsSsuAttachStripedSpace(name string, nqn string, req UbsSsuStripedAttachReq) (string, error) {
+// 参考：UbsSsuStripedSpaceReq, UbsSsuAggregationRaidLevel, UbsSsuChunkSize
+func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) (string, error) {
 	// TODO: 实现具体逻辑
 	return "", nil
 }
@@ -316,13 +330,11 @@ func UbsSsuAttachStripedSpace(name string, nqn string, req UbsSsuStripedAttachRe
 // 将条带化聚合的块设备卸载并释放。
 //
 // 参数：
-//   - name:    要卸载的存储空间标识
-//   - nqn:     Host 的 NVMe Qualified Name
-//   - devName: 聚合后的块设备名称
+//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuDetachStripedSpace(name string, nqn string, devName string) error {
+func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
 	// TODO: 实现具体逻辑
 	return nil
 }
@@ -348,12 +360,12 @@ func UbsSsuGetNsStats(name string) ([]UbsSsuNsStats, error) {
 //
 // 参数：
 //   - name: 存储空间标识（与 AllocSpace 时的 name 参数一致）
-//   - vfe: VFE信息，指定查询的虚拟功能单元
+//   - vfe: VFE信息指针，指定查询的虚拟功能单元，传nil时使用host侧分配给ssu的fe的eid
 //
 // 返回值：
 //   - []UbsSsuConnectInfo: 连接信息列表
 //   - error: 错误信息；成功返回 nil
-func UbsSsuGetConnectInfo(name string, vfe UbsUbVfe) ([]UbsSsuConnectInfo, error) {
+func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, error) {
 	// TODO: 实现具体逻辑
 	return []UbsSsuConnectInfo{}, nil
 }
@@ -377,13 +389,13 @@ func UbsSsuGetFeDeviceList() ([]UbsSsuFe, error) {
 // 参数：
 //   - upi: 租户隔离标识
 //   - vfe: 要绑定的VFE信息（结构体指针）
-//   - busInstanceGuid: 输入输出参数，指向长度为 UBS_SSU_BUS_INSTANCE_GUID_LENGTH 的字节数组。
+//   - busInstanceGuid: 输入输出参数，指向长度为 UbsSsuMaxGuidLength 的字节数组。
 //     传入时表示目标虚拟机实例的GUID（可为空/全零），
 //     返回时填充实际分配的总线实例GUID。
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]byte) error {
+func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UbsSsuMaxGuidLength]byte) error {
 	// TODO: 调用 C 库实现
 	return nil
 }
@@ -395,11 +407,11 @@ func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UBS_SSU_BU
 // 参数：
 //   - upi: 租户隔离标识
 //   - vfe: 要释放的VFE信息（结构体指针）
-//   - busInstanceGuid: 总线实例GUID，指向长度为 UBS_SSU_BUS_INSTANCE_GUID_LENGTH 的字节数组。
+//   - busInstanceGuid: 总线实例GUID，指向长度为 UbsSsuMaxGuidLength 的字节数组。
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]byte) error {
+func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UbsSsuMaxGuidLength]byte) error {
 	// TODO: 调用 C 库实现
 	return nil
 }

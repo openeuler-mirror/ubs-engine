@@ -13,10 +13,6 @@
 // Package urmav1 implements UBS URMA operations with go.
 package urmav1
 
-import (
-	"time"
-)
-
 // Error codes
 const (
 	UbsSuccess             = 0
@@ -49,9 +45,3 @@ const (
 	UbseUrmaQosReset = 0x0003
 )
 
-// IPC related constants
-const (
-	UbseIpcSocketPath = "/var/run/ubse/ubse.sock"
-	MaxMessageSize    = 10 * 1024 * 1024 // 10M
-	DefaultTimeout    = 30 * time.Second
-)
