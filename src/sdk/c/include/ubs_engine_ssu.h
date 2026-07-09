@@ -31,7 +31,7 @@ extern "C" {
 #define UBS_SSU_MAX_DEV_PATH_LENGTH 63      // 设备路径最大长度, 含结尾字符'\0'
 #define UBS_SSU_MAX_DEV_NAME_LENGTH 33      // 聚合块设备名称最大长度, 含结尾字符'\0'
 #define UBS_SSU_RAID5_MIN_MEMBER_NUM 3      // RAID5最少成员设备数
-#define UBS_SSU_BUS_INSTANCE_GUID_LENGTH 32 // 总线实例GUID长度32个字符
+#define UBS_SSU_GUID_LENGTH 32          // GUID最大长度32个字符, 不含结尾字符'\0'
 
 // LBA格式, 值为对应字节数
 typedef enum {
@@ -91,20 +91,40 @@ typedef struct {
     ubs_ssu_namespace_info_t *namespaces; // 命名空间信息列表, 由SDK内部动态分配, 需通过释放接口回收
 } ubs_ssu_alloc_result_t;
 
-// 条带化挂载请求参数
+// 挂载|卸载存储空间请求参数
 typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];   // 需挂载|卸载的存储空间标识, 最大48个字符
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];     // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH]; // 源EID
+} ubs_ssu_space_req_t;
+
+// 挂载|卸载线性编址存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];         // 需挂载|卸载的存储空间标识, 最大48个字符
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];           // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];       // 源EID
+    char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称, 由外部指定
+} ubs_ssu_linear_space_req_t;
+
+// 挂载|卸载条带化编址存储空间请求参数
+typedef struct {
+    char name[UBS_SSU_MAX_NAME_LENGTH];         // 需挂载|卸载的存储空间标识, 最大48个字符
+    char nqn[UBS_SSU_MAX_NQN_LENGTH];           // Host 的 NVMe Qualified Name
+    char src_eid[UBS_SSU_MAX_EID_LENGTH];       // 源EID
     char dev_name[UBS_SSU_MAX_DEV_NAME_LENGTH]; // 聚合后的块设备名称, 由外部指定
     ubs_ssu_raid_level_t level;                 // RAID级别(UBS_SSU_RAID0或UBS_SSU_RAID5)
     ubs_ssu_chunk_size_t chunk_size; // 条带化的chunk大小, 仅支持4KB/16KB/32KB/64KB/128KB/256KB/512KB
-} ubs_ssu_striped_attach_req_t;
+} ubs_ssu_striped_space_req_t;
 
 // 虚拟功能单元(VFE)信息
 typedef struct {
-    uint8_t slot_id; // 槽位ID
-    uint8_t chip_id; // 芯片ID
-    uint8_t die_id;  // Die ID
-    uint16_t pfe_id; // 物理功能单元ID
-    uint16_t vfe_id; // 虚拟功能单元ID
+    uint8_t slot_id;  // 槽位ID
+    uint8_t chip_id;  // 芯片ID
+    uint8_t die_id;   // Die ID
+    uint16_t pfe_id;  // 物理功能单元ID
+    uint16_t vfe_id;  // 虚拟功能单元ID
+    char vfe_guid[UBS_SSU_GUID_LENGTH];               // vfe GUID
+    char bind_bus_instance_guid[UBS_SSU_GUID_LENGTH]; // 绑定的总线实例GUID
 } ubs_ub_vfe_t;
 
 // 功能单元(FE)信息, 包含所属PFE及其下的VFE列表
@@ -113,6 +133,7 @@ typedef struct {
     uint8_t chip_id;        // 芯片ID
     uint8_t die_id;         // Die ID
     uint16_t pfe_id;        // 物理功能单元ID
+    char pfe_guid[UBS_SSU_GUID_LENGTH]; // pfe GUID
     uint8_t vfe_cnt;        // VFE数量
     ubs_ub_vfe_t *vfe_list; // VFE列表, 由SDK内部动态分配, 需通过释放接口回收
 } ubs_ub_fe_t;
@@ -311,8 +332,7 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  *
  * 将指定的存储空间挂载到系统, 使其可被主机访问。
  *
- * @param name [IN] 要挂载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
  * @param dev_path [OUT] 挂载后的设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -323,15 +343,14 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_space_attach(const char *name, const char *host_nqn, char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
 
 /**
  * @brief 卸载已分配的存储空间
  *
  * 将指定的存储空间从系统卸载, 释放设备占用。
  *
- * @param name [IN] 要卸载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
+ * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -343,16 +362,14 @@ int32_t ubs_ssu_space_attach(const char *name, const char *host_nqn, char dev_pa
  *
  * @note 卸载前需确保没有进程正在使用该存储空间
  */
-int32_t ubs_ssu_space_detach(const char *name, const char *host_nqn);
+int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
 
 /**
  * @brief 挂载线性编址的存储空间
  *
  * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
  *
- * @param name [IN] 要挂载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
- * @param dev_name [IN] 聚合后的块设备名称, 由外部指定
+ * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -365,7 +382,7 @@ int32_t ubs_ssu_space_detach(const char *name, const char *host_nqn);
  *
  * @note 线性编址模式下, 数据按顺序填充各成员设备
  */
-int32_t ubs_ssu_linear_space_attach(const char *name, const char *host_nqn, const char *dev_name,
+int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
                                     char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
 
 /**
@@ -373,9 +390,7 @@ int32_t ubs_ssu_linear_space_attach(const char *name, const char *host_nqn, cons
  *
  * 将线性聚合的块设备卸载并释放。
  *
- * @param name [IN] 要卸载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
- * @param dev_name [IN] 聚合后的块设备名称
+ * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ERR_OUT_OF_RANGE:name或dev_name参数超出范围;
@@ -385,16 +400,15 @@ int32_t ubs_ssu_linear_space_attach(const char *name, const char *host_nqn, cons
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_linear_space_detach(const char *name, const char *host_nqn, const char *dev_name);
+int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
 
 /**
  * @brief 挂载条带化编址的存储空间
  *
  * 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
  *
- * @param name [IN] 要挂载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
- * @param req [IN] 条带化挂载请求参数, 包含块设备名称、RAID级别和chunk大小
+ * @param req [IN] 条带化挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID、
+ *                 聚合后的块设备名称、RAID级别和chunk大小
  * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -408,7 +422,7 @@ int32_t ubs_ssu_linear_space_detach(const char *name, const char *host_nqn, cons
  *
  * @note RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
  */
-int32_t ubs_ssu_striped_space_attach(const char *name, const char *host_nqn, const ubs_ssu_striped_attach_req_t *req,
+int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
                                      char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
 
 /**
@@ -416,9 +430,7 @@ int32_t ubs_ssu_striped_space_attach(const char *name, const char *host_nqn, con
  *
  * 将条带化聚合的块设备卸载并释放。
  *
- * @param name [IN] 要卸载的存储空间标识
- * @param host_nqn [IN]Host的NVMe Qualified Name, 标识被撤销权限的主机
- * @param dev_name [IN] 聚合后的块设备名称
+ * @param req [IN] 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ERR_OUT_OF_RANGE:name或dev_name参数超出范围;
@@ -428,7 +440,7 @@ int32_t ubs_ssu_striped_space_attach(const char *name, const char *host_nqn, con
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_striped_space_detach(const char *name, const char *host_nqn, const char *dev_name);
+int32_t ubs_ssu_striped_space_detach(const ubs_ssu_striped_space_req_t *req);
 
 /**
  * @brief 获取功能单元设备列表
@@ -462,7 +474,7 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要绑定的VFE信息
- * @param bus_instance_guid [IN,OUT] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_MAX_UUID_LENGTH
+ * @param bus_instance_guid [IN,OUT] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_GUID_LENGTH
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
@@ -472,7 +484,7 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
-                                uint8_t bus_instance_guid[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]);
+                                uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH]);
 
 /**
  * @brief 释放VFE设备
@@ -481,7 +493,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要释放的VFE信息
- * @param bus_instance_guid [IN] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_BUS_INSTANCE_GUID_LENGTH
+ * @param bus_instance_guid [IN] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_GUID_LENGTH
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
@@ -491,7 +503,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 int32_t ubs_ssu_fe_device_free(uint32_t upi, ubs_ub_vfe_t *vfe,
-                               uint8_t bus_instance_guid[UBS_SSU_BUS_INSTANCE_GUID_LENGTH]);
+                               uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH]);
 
 #ifdef __cplusplus
 }

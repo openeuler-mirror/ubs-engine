@@ -9,11 +9,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from typing import List
+from typing import List, Optional
 
 from ubse.ffi.ubs_engine_binding_ssu import UbsEngineBindingSsu
 from ubse.models.ubs_engine_model_ssu import (
-    UbsSsuAllocResult, UbsSsuAllocSpaceReq, UbsSsuStripedAttachReq,
+    UbsSsuAllocResult, UbsSsuAllocSpaceReq,
+    UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
     UbsSsuNsStats, UbsSsuConnectInfo, UbsUbFe, UbsUbVfe
 )
 from enum import IntEnum
@@ -156,14 +157,13 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str):
     _ssu_interface.ubs_ssu_access_permission_remove(name, nqn)
 
 
-def ubs_ssu_space_attach(name: str, host_nqn: str) -> str:
+def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
     """挂载已分配的存储空间
 
     将指定的存储空间挂载到系统, 使其可被主机访问。
 
     Args:
-        name: 要挂载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
+        req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
     Returns:
         挂载后的设备路径
@@ -177,17 +177,16 @@ def ubs_ssu_space_attach(name: str, host_nqn: str) -> str:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_space_attach(name, host_nqn)
+    return _ssu_interface.ubs_ssu_space_attach(req)
 
 
-def ubs_ssu_space_detach(name: str, host_nqn: str):
+def ubs_ssu_space_detach(req: UbsSsuSpaceReq):
     """卸载已分配的存储空间
 
     将指定的存储空间从系统卸载, 释放设备占用。
 
     Args:
-        name: 要卸载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
+        req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
     Raises:
         UbsErrNullPointer: 空指针
@@ -201,18 +200,16 @@ def ubs_ssu_space_detach(name: str, host_nqn: str):
     Note:
         卸载前需确保没有进程正在使用该存储空间
     """
-    _ssu_interface.ubs_ssu_space_detach(name, host_nqn)
+    _ssu_interface.ubs_ssu_space_detach(req)
 
 
-def ubs_ssu_linear_space_attach(name: str, host_nqn: str, dev_name: str) -> str:
+def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
     """挂载线性编址的存储空间
 
     将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
 
     Args:
-        name: 要挂载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
-        dev_name: 聚合后的块设备名称
+        req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Returns:
         挂载后的聚合设备路径
@@ -226,18 +223,16 @@ def ubs_ssu_linear_space_attach(name: str, host_nqn: str, dev_name: str) -> str:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_linear_space_attach(name, host_nqn, dev_name)
+    return _ssu_interface.ubs_ssu_linear_space_attach(req)
 
 
-def ubs_ssu_linear_space_detach(name: str, host_nqn: str, dev_name: str):
+def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq):
     """卸载线性编址的存储空间
 
     将线性聚合的块设备卸载并释放。
 
     Args:
-        name: 要卸载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
-        dev_name: 聚合后的块设备名称
+        req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Raises:
         UbsErrNullPointer: 空指针
@@ -248,18 +243,17 @@ def ubs_ssu_linear_space_detach(name: str, host_nqn: str, dev_name: str):
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    _ssu_interface.ubs_ssu_linear_space_detach(name, host_nqn, dev_name)
+    _ssu_interface.ubs_ssu_linear_space_detach(req)
 
 
-def ubs_ssu_striped_space_attach(name: str, host_nqn: str, req: UbsSsuStripedAttachReq) -> str:
+def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
     """挂载条带化编址的存储空间
 
     将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
 
     Args:
-        name: 要挂载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
-        req: 条带化挂载请求参数, 包含块设备名称、RAID级别和chunk大小
+        req: 条带化挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID、
+             聚合后的块设备名称、RAID级别和chunk大小
 
     Returns:
         挂载后的聚合设备路径
@@ -277,18 +271,16 @@ def ubs_ssu_striped_space_attach(name: str, host_nqn: str, req: UbsSsuStripedAtt
     Note:
         RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
     """
-    return _ssu_interface.ubs_ssu_striped_space_attach(name, host_nqn, req)
+    return _ssu_interface.ubs_ssu_striped_space_attach(req)
 
 
-def ubs_ssu_striped_space_detach(name: str, host_nqn: str, dev_name: str):
+def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq):
     """卸载条带化编址的存储空间
 
     将条带化聚合的块设备卸载并释放。
 
     Args:
-        name: 要卸载的存储空间标识
-        host_nqn: Host的NVMe Qualified Name
-        dev_name: 聚合后的块设备名称
+        req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Raises:
         UbsErrNullPointer: 空指针
@@ -299,7 +291,7 @@ def ubs_ssu_striped_space_detach(name: str, host_nqn: str, dev_name: str):
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    _ssu_interface.ubs_ssu_striped_space_detach(name, host_nqn, dev_name)
+    _ssu_interface.ubs_ssu_striped_space_detach(req)
 
 
 def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
@@ -321,12 +313,12 @@ def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
     return _ssu_interface.ubs_ssu_ns_stats_get(name)
 
 
-def ubs_ssu_connect_info_get(name: str, vfe: UbsUbVfe) -> List[UbsSsuConnectInfo]:
+def ubs_ssu_connect_info_get(name: str, vfe: Optional[UbsUbVfe] = None) -> List[UbsSsuConnectInfo]:
     """获取存储空间的连接信息。
     查询指定存储空间在指定VFE上的NVMe连接信息, 包括子系统NQN、Host NQN、命名空间ID等。
     Args:
         name: 存储空间标识
-        vfe: VFE信息, 可选参数，如果指定vfe，连接信息里的src_eid为指定vfe的eid，否则src_eid为host侧分配给ssu的fe的eid
+        vfe: VFE信息指针，指定查询的虚拟功能单元，传None时使用host侧分配给ssu的fe的eid
     Returns:
         连接信息列表
     Raises:
@@ -370,7 +362,7 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
         upi: 租户隔离标识
         vfe: 要绑定的VFE信息（UbsUbVfe 对象）
         guid: 输入输出参数，总线实例GUID，标识目标虚拟机。
-              调用前应分配长度为 UBS_SSU_BUS_INSTANCE_GUID_LENGTH 的 bytearray，
+              调用前应分配长度为 UBS_SSU_GUID_LENGTH 的 bytearray，
               函数将修改其内容。
 
     Raises:
