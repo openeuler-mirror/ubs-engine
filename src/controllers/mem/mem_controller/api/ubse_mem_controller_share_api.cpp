@@ -871,9 +871,8 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp& resp, UbseMemShar
                                          const std::string& exportNodeId)
 {
     UBSE_LOG_INFO << "Share export running agent callback. name=" << name << ", requestId=" << exportObj.req.requestId;
-    auto curNode = GetCurNodeId();
     auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto existingObj = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(curNode, exportObj.req.name);
+    auto existingObj = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(exportNodeId, exportObj.req.name);
     if (existingObj && existingObj->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
         return UBSE_OK;
     }
@@ -979,6 +978,7 @@ static uint32_t ShareExportReturnCallback(const std::string& exportNodeId, UbseM
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isDestroyedReportReceived = true;
     auto req = exportObj.returnReq;
     std::string requestNodeId = req.requestNodeId;
     resp.requestNodeId = requestNodeId;
@@ -1031,6 +1031,7 @@ uint32_t ShareExportMasterCallback(const std::string& exportNodeId, UbseMemShare
                           << ", requestId=" << exportObj.req.requestId;
             return UBSE_OK;
         }
+        exportObj.isCreateReportReceived = true;
         auto copy = exportObj;
         if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             EraseShareExport(exportObj);
@@ -1272,6 +1273,7 @@ static uint32_t ShareImportMasterCreateCallback(UbseMemShareBorrowImportObj& imp
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isCreateReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) {
         ShareImportUpdateState(importObj, importObj.status.state);
         ShareImportFillResp(resp, importObj);
@@ -1301,6 +1303,7 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj& im
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isDestroyedReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseShareImport(importObj);
         UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name

@@ -65,6 +65,7 @@ const int BORROW_SIZE = 128;
 void TestUbseMemControllerApi::SetUp()
 {
     Test::SetUp();
+    GlobalMockObject::reset();
     MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
 }
 void TestUbseMemControllerApi::TearDown()
@@ -666,13 +667,13 @@ TEST_F(TestUbseMemControllerApi, NumaExportExpectSuccessMasterCallbackSuccess)
     numaInfos.emplace_back(numaInfo);
     UbseMemNumaBorrowExportObj exportObj;
     exportObj.algoResult.exportNumaInfos = numaInfos;
-    exportObj.req.name = "test";
+    exportObj.req.name = "test_NumaExportExpectSuccess";
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     std::vector<UbseMemObmmInfo> exportObmmInfos;
     UbseMemNumaBorrowImportObj importObj;
     importObj.algoResult.exportNumaInfos = numaInfos;
-    importObj.req.name = "test";
+    importObj.req.name = "test_NumaExportExpectSuccess";
     AddNumaImport(importObj);
     MOCKER(&GetCnaInfoWhenImport).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
@@ -1093,7 +1094,7 @@ TEST_F(TestUbseMemControllerApi, FdImportExpectSuccessMasterCallbackSendFail)
     std::vector<UbseMemDebtNumaInfo> numaInfos;
     numaInfos.emplace_back(numaInfo);
     UbseMemFdBorrowImportObj importObj;
-    importObj.req.name = "test";
+    importObj.req.name = "test_FdImportSendFail";
     importObj.req.importNodeId = "1";
     numaInfos.emplace_back(numaInfo);
     importObj.algoResult.importNumaInfos = numaInfos;
