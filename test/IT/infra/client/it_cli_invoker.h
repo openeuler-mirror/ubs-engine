@@ -41,6 +41,9 @@ public:
                            bool useLongOptions = false);
     int32_t CreateMemoryShare(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
                               const std::string& region, bool useLongOptions = false);
+    // Attach/Detach shared memory
+    int32_t AttachMemory(ItMemCreateInfo& attachInfo, const std::string& name, bool useLongOptions = false);
+    int32_t DetachMemory(const std::string& name, bool useLongOptions = false);
     // Delete memory with short options (-n, -t)
     int32_t DeleteMemory(const std::string& name, const std::string& type = "numa", bool useLongOptions = false);
     // Display memory with short options (-t, -bt, -n, -a), returns parsed table records

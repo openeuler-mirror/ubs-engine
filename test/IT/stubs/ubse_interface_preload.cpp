@@ -26,6 +26,10 @@
  *   /var/run/ubse access -> redirect to this IT node runtime directory
  *   /etc/ubse access -> redirect to this IT node config directory
  *     (opendir, lstat, stat, fopen, realpath, access)
+ *   /sys/devices/system/node/* -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
+ *   /sys/devices/system/cpu/*  -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
+ *   /sys/kernel/obmm_mempool/* -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
+ *   /proc/net/fib_trie         -> redirect to UBSE_IT_SYSFS_DIR sysfs tree
  */
 
 #include <arpa/inet.h>
@@ -272,6 +276,41 @@ std::string RedirectUbseConfPath(const char* path)
     }
     return original;
 }
+
+// Sysfs paths read by UbseNodeControllerCollector via std::ifstream.
+// When UBSE_IT_SYSFS_DIR is set, redirect these paths so the collector
+// reads from the IT-generated virtual sysfs tree instead of the real
+// kernel filesystem (which doesn't exist in CI / x86 containers).
+constexpr const char* SYSFS_NODE_PREFIX = "/sys/devices/system/node/";
+constexpr const char* SYSFS_CPU_PREFIX = "/sys/devices/system/cpu/";
+constexpr const char* SYSFS_OBMM_PREFIX = "/sys/kernel/obmm_mempool/";
+constexpr const char* PROC_FIB_TRIE = "/proc/net/fib_trie";
+constexpr const char* UBSE_IT_SYSFS_DIR_ENV = "UBSE_IT_SYSFS_DIR";
+
+std::string RedirectSysfsPath(const char* path)
+{
+    if (path == nullptr) {
+        return "";
+    }
+    const char* sysfsDir = getenv(UBSE_IT_SYSFS_DIR_ENV);
+    if (sysfsDir == nullptr || sysfsDir[0] == '\0') {
+        return path;
+    }
+    std::string original(path);
+    if (original.rfind(SYSFS_NODE_PREFIX, 0) == 0) {
+        return std::string(sysfsDir) + original;
+    }
+    if (original.rfind(SYSFS_CPU_PREFIX, 0) == 0) {
+        return std::string(sysfsDir) + original;
+    }
+    if (original.rfind(SYSFS_OBMM_PREFIX, 0) == 0) {
+        return std::string(sysfsDir) + original;
+    }
+    if (original == PROC_FIB_TRIE) {
+        return std::string(sysfsDir) + original;
+    }
+    return original;
+}
 } // namespace
 
 // ============================================================
@@ -312,7 +351,8 @@ extern "C" DIR* opendir(const char* name)
         errno = ENOSYS;
         return nullptr;
     }
-    std::string redirected = RedirectUbseConfPath(name);
+    std::string redirected = RedirectSysfsPath(name);
+    redirected = RedirectUbseConfPath(redirected.c_str());
     return real_opendir(redirected.c_str());
 }
 
@@ -334,7 +374,8 @@ extern "C" int lstat(const char* path, struct stat* buf)
         errno = ENOSYS;
         return -1;
     }
-    std::string redirected = RedirectUbseConfPath(path);
+    std::string redirected = RedirectSysfsPath(path);
+    redirected = RedirectUbseConfPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_lstat(redirected.c_str(), buf);
 }
@@ -346,7 +387,8 @@ extern "C" FILE* fopen64(const char* path, const char* mode)
         errno = ENOSYS;
         return nullptr;
     }
-    std::string redirected = RedirectUbseConfPath(path);
+    std::string redirected = RedirectSysfsPath(path);
+    redirected = RedirectUbseConfPath(redirected.c_str());
     return real_fopen64(redirected.c_str(), mode);
 }
 
@@ -371,7 +413,8 @@ extern "C" int stat(const char* path, struct stat* buf)
         errno = ENOSYS;
         return -1;
     }
-    std::string redirected = RedirectUbseConfPath(path);
+    std::string redirected = RedirectSysfsPath(path);
+    redirected = RedirectUbseConfPath(redirected.c_str());
     redirected = RedirectUbseRuntimePath(redirected.c_str());
     return real_stat(redirected.c_str(), buf);
 }
@@ -438,7 +481,8 @@ extern "C" char* realpath(const char* path, char* resolvedPath)
         return nullptr;
     }
 
-    std::string confRedirected = RedirectUbseConfPath(path);
+    std::string sysfsRedirected = RedirectSysfsPath(path);
+    std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
     std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
     return real_realpath(finalRedirected.c_str(), resolvedPath);
 }
@@ -515,7 +559,8 @@ extern "C" int access(const char* pathname, int mode)
         return -1;
     }
 
-    std::string confRedirected = RedirectUbseConfPath(pathname);
+    std::string sysfsRedirected = RedirectSysfsPath(pathname);
+    std::string confRedirected = RedirectUbseConfPath(sysfsRedirected.c_str());
     std::string finalRedirected = RedirectUbseRuntimePath(confRedirected.c_str());
     return real_access(finalRedirected.c_str(), mode);
 }

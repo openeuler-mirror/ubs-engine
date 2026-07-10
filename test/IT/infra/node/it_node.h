@@ -125,6 +125,7 @@ public:
 
 private:
     void CreateWorkDirectories();
+    void CreateSysfsTree();
     NodeProcessConfig BuildProcessConfig() const;
 
     NodeSpec spec_;

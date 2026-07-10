@@ -371,6 +371,27 @@ int32_t ItCliInvoker::GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>&
 }
 
 // --- Memory CLI operations ---
+
+namespace {
+std::string ParseCliField(const std::string& output, const std::string& fieldName)
+{
+    std::string key = fieldName + ":";
+    auto pos = output.find(key);
+    if (pos != std::string::npos) {
+        auto start = pos + key.length();
+        auto end = output.find('\n', start);
+        if (end == std::string::npos)
+            end = output.length();
+        std::string value = output.substr(start, end - start);
+        auto trimStart = value.find_first_not_of(" \t");
+        auto trimEnd = value.find_last_not_of(" \t\r");
+        if (trimStart != std::string::npos && trimEnd != std::string::npos)
+            return value.substr(trimStart, trimEnd - trimStart + 1);
+    }
+    return std::string();
+}
+} // namespace
+
 int32_t ItCliInvoker::CreateMemoryNuma(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
                                        const std::string& link, bool useLongOptions)
 {
@@ -395,42 +416,14 @@ int32_t ItCliInvoker::CreateMemoryNuma(ItMemCreateInfo& createInfo, const std::s
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
 
-    // Parse creation info from output
-    // Expected format:
-    // - Creating memory [elapsed: 0s]
-    //   name:it_test_short_opt
-    //   size:128MB
-    //   numa-id:2
-    //   import-node:1
-    //   export-node:2
-    createInfo.name = name; // Use input name as fallback
-    createInfo.size = size; // Use input size as fallback
+    // NUMA output: name, size, numa-id, import-node, export-node
+    createInfo.name = ParseCliField(output, "name");
+    createInfo.size = ParseCliField(output, "size");
+    createInfo.numaId = ParseCliField(output, "numa-id");
+    createInfo.importNode = ParseCliField(output, "import-node");
+    createInfo.exportNode = ParseCliField(output, "export-node");
 
-    auto parseField = [&output](const std::string& fieldName) {
-        std::string key = fieldName + ":";
-        auto pos = output.find(key);
-        if (pos != std::string::npos) {
-            auto start = pos + key.length();
-            auto end = output.find('\n', start);
-            if (end == std::string::npos)
-                end = output.length();
-            std::string value = output.substr(start, end - start);
-            // Trim whitespace
-            auto trimStart = value.find_first_not_of(" \t");
-            auto trimEnd = value.find_last_not_of(" \t\r");
-            if (trimStart != std::string::npos && trimEnd != std::string::npos)
-                return value.substr(trimStart, trimEnd - trimStart + 1);
-        }
-        return std::string();
-    };
-
-    createInfo.name = parseField("name");
-    createInfo.size = parseField("size");
-    createInfo.numaId = parseField("numa-id");
-    createInfo.importNode = parseField("import-node");
-    createInfo.exportNode = parseField("export-node");
-
-    IT_LOG_INFO << "Parsed create memory info: name=" << createInfo.name << ", size=" << createInfo.size
+    IT_LOG_INFO << "Parsed create memory numa info: name=" << createInfo.name << ", size=" << createInfo.size
                 << ", numa-id=" << createInfo.numaId << ", import-node=" << createInfo.importNode
                 << ", export-node=" << createInfo.exportNode;
 
@@ -457,31 +450,16 @@ int32_t ItCliInvoker::CreateMemoryFd(ItMemCreateInfo& createInfo, const std::str
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
 
-    // Parse creation info from output
-    createInfo.name = name;
-    createInfo.size = size;
+    // FD output: name, size, mem-ids, import-node, export-node
+    createInfo.name = ParseCliField(output, "name");
+    createInfo.size = ParseCliField(output, "size");
+    createInfo.memIds = ParseCliField(output, "mem-ids");
+    createInfo.importNode = ParseCliField(output, "import-node");
+    createInfo.exportNode = ParseCliField(output, "export-node");
 
-    auto parseField = [&output](const std::string& fieldName) {
-        std::string key = fieldName + ":";
-        auto pos = output.find(key);
-        if (pos != std::string::npos) {
-            auto start = pos + key.length();
-            auto end = output.find('\n', start);
-            if (end == std::string::npos)
-                end = output.length();
-            std::string value = output.substr(start, end - start);
-            auto trimStart = value.find_first_not_of(" \t");
-            auto trimEnd = value.find_last_not_of(" \t\r");
-            if (trimStart != std::string::npos && trimEnd != std::string::npos)
-                return value.substr(trimStart, trimEnd - trimStart + 1);
-        }
-        return std::string();
-    };
-
-    createInfo.name = parseField("name");
-    createInfo.size = parseField("size");
-
-    IT_LOG_INFO << "Parsed create memory fd info: name=" << createInfo.name << ", size=" << createInfo.size;
+    IT_LOG_INFO << "Parsed create memory fd info: name=" << createInfo.name << ", size=" << createInfo.size
+                << ", mem-ids=" << createInfo.memIds << ", import-node=" << createInfo.importNode
+                << ", export-node=" << createInfo.exportNode;
 
     return UBS_SUCCESS;
 }
@@ -507,32 +485,66 @@ int32_t ItCliInvoker::CreateMemoryShare(ItMemCreateInfo& createInfo, const std::
         return UBS_ENGINE_ERR_CONNECTION_FAILED;
     }
 
-    // Parse creation info from output
-    createInfo.name = name;
-    createInfo.size = size;
+    // SHM create output: name, size, export-node, region
+    createInfo.name = ParseCliField(output, "name");
+    createInfo.size = ParseCliField(output, "size");
+    createInfo.exportNode = ParseCliField(output, "export-node");
+    createInfo.region = ParseCliField(output, "region");
 
-    auto parseField = [&output](const std::string& fieldName) {
-        std::string key = fieldName + ":";
-        auto pos = output.find(key);
-        if (pos != std::string::npos) {
-            auto start = pos + key.length();
-            auto end = output.find('\n', start);
-            if (end == std::string::npos)
-                end = output.length();
-            std::string value = output.substr(start, end - start);
-            auto trimStart = value.find_first_not_of(" \t");
-            auto trimEnd = value.find_last_not_of(" \t\r");
-            if (trimStart != std::string::npos && trimEnd != std::string::npos)
-                return value.substr(trimStart, trimEnd - trimStart + 1);
-        }
-        return std::string();
-    };
+    IT_LOG_INFO << "Parsed create memory share info: name=" << createInfo.name << ", size=" << createInfo.size
+                << ", export-node=" << createInfo.exportNode << ", region=" << createInfo.region;
 
-    createInfo.name = parseField("name");
-    createInfo.size = parseField("size");
+    return UBS_SUCCESS;
+}
 
-    IT_LOG_INFO << "Parsed create memory share info: name=" << createInfo.name << ", size=" << createInfo.size;
+int32_t ItCliInvoker::AttachMemory(ItMemCreateInfo& attachInfo, const std::string& name, bool useLongOptions)
+{
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
 
+    std::string cmd = "attach memory " + nameOpt + " " + ShellQuote(name);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "attach memory returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "attach memory returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    // SHM attach output: name, size, mem-ids, import-node, export-node, region
+    attachInfo.name = ParseCliField(output, "name");
+    attachInfo.size = ParseCliField(output, "size");
+    attachInfo.memIds = ParseCliField(output, "mem-ids");
+    attachInfo.importNode = ParseCliField(output, "import-node");
+    attachInfo.exportNode = ParseCliField(output, "export-node");
+    attachInfo.region = ParseCliField(output, "region");
+
+    IT_LOG_INFO << "Parsed attach memory info: name=" << attachInfo.name << ", size=" << attachInfo.size
+                << ", mem-ids=" << attachInfo.memIds << ", import-node=" << attachInfo.importNode
+                << ", export-node=" << attachInfo.exportNode << ", region=" << attachInfo.region;
+
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::DetachMemory(const std::string& name, bool useLongOptions)
+{
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+
+    std::string cmd = "detach memory " + nameOpt + " " + ShellQuote(name);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "detach memory returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "detach memory returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    IT_LOG_INFO << "detach memory succeeded: " << name;
     return UBS_SUCCESS;
 }
 

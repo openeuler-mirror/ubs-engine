@@ -13,12 +13,86 @@
 #include "it_node.h"
 
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <utility>
 
 #include "ubse_error.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
+
+namespace {
+constexpr uint32_t DEFAULT_NUMA_COUNT = 2;
+constexpr uint32_t DEFAULT_CPUS_PER_NUMA = 8;
+// socket ID for each NUMA node (real hardware: 36 for socket0, 236 for socket1)
+constexpr uint32_t SOCKET_IDS[] = {36, 236};
+
+void WriteFile(const std::string& path, const std::string& content)
+{
+    auto parentDir = std::filesystem::path(path).parent_path();
+    std::filesystem::create_directories(parentDir);
+    std::ofstream out(path);
+    if (!out.is_open()) {
+        IT_LOG_WARN << "Failed to create sysfs file: " << path;
+        return;
+    }
+    out << content;
+}
+
+std::string BuildMeminfo(uint32_t numa)
+{
+    // Real data from tongsuan 1D environment
+    const uint64_t memTotalKb[] = {65795532, 65502204};
+    const uint64_t memFreeKb[] = {61381892, 61743596};
+    const uint64_t memUsedKb[] = {4413640, 3758608};
+    const uint64_t fileHugePagesKb[] = {6144, 18432};
+    const uint64_t filePmdMappedKb[] = {6144, 4096};
+    const uint64_t slabKb[] = {218384, 307076};
+    const uint64_t sReclaimableKb[] = {56460, 136956};
+    const uint64_t sUnreclaimKb[] = {161924, 170120};
+
+    std::ostringstream oss;
+    oss << "Node " << numa << " MemTotal:\t\t" << memTotalKb[numa] << " kB\n"
+        << "Node " << numa << " MemFree:\t\t" << memFreeKb[numa] << " kB\n"
+        << "Node " << numa << " MemUsed:\t\t" << memUsedKb[numa] << " kB\n"
+        << "Node " << numa << " SwapCached:\t\t\t0 kB\n"
+        << "Node " << numa << " Active:\t\t\t443144 kB\n"
+        << "Node " << numa << " Inactive:\t\t\t2118908 kB\n"
+        << "Node " << numa << " Active(anon):\t\t123556 kB\n"
+        << "Node " << numa << " Inactive(anon):\t\t319136 kB\n"
+        << "Node " << numa << " Active(file):\t\t319588 kB\n"
+        << "Node " << numa << " Inactive(file):\t\t1799772 kB\n"
+        << "Node " << numa << " Unevictable:\t\t0 kB\n"
+        << "Node " << numa << " Mlocked:\t\t\t0 kB\n"
+        << "Node " << numa << " Dirty:\t\t\t\t0 kB\n"
+        << "Node " << numa << " Writeback:\t\t\t0 kB\n"
+        << "Node " << numa << " FilePages:\t\t\t2381944 kB\n"
+        << "Node " << numa << " Mapped:\t\t\t209604 kB\n"
+        << "Node " << numa << " AnonPages:\t\t183512 kB\n"
+        << "Node " << numa << " Shmem:\t\t\t259180 kB\n"
+        << "Node " << numa << " KernelStack:\t\t7704 kB\n"
+        << "Node " << numa << " PageTables:\t\t5396 kB\n"
+        << "Node " << numa << " SecPageTables:\t\t0 kB\n"
+        << "Node " << numa << " NFS_Unstable:\t\t0 kB\n"
+        << "Node " << numa << " Bounce:\t\t\t0 kB\n"
+        << "Node " << numa << " WritebackTmp:\t\t0 kB\n"
+        << "Node " << numa << " KReclaimable:\t\t" << sReclaimableKb[numa] << " kB\n"
+        << "Node " << numa << " Slab:\t\t\t" << slabKb[numa] << " kB\n"
+        << "Node " << numa << " SReclaimable:\t\t" << sReclaimableKb[numa] << " kB\n"
+        << "Node " << numa << " SUnreclaim:\t\t" << sUnreclaimKb[numa] << " kB\n"
+        << "Node " << numa << " AnonHugePages:\t\t0 kB\n"
+        << "Node " << numa << " ShmemHugePages:\t\t0 kB\n"
+        << "Node " << numa << " ShmemPmdMapped:\t\t0 kB\n"
+        << "Node " << numa << " FileHugePages:\t\t" << fileHugePagesKb[numa] << " kB\n"
+        << "Node " << numa << " FilePmdMapped:\t\t" << filePmdMappedKb[numa] << " kB\n"
+        << "Node " << numa << " HugePages_Total:\t\t0\n"
+        << "Node " << numa << " HugePages_Free:\t\t0\n"
+        << "Node " << numa << " HugePages_Surp:\t\t0\n"
+        << "Node " << numa << " RemoteMemPreonline:\t0 kB\n";
+    return oss.str();
+}
+} // namespace
 
 ItNode::ItNode(NodeSpec spec, ClusterContext ctx)
     : spec_(std::move(spec)),
@@ -40,6 +114,66 @@ void ItNode::CreateWorkDirectories()
     std::filesystem::create_directories(spec_.RunDir());
     std::filesystem::create_directories(spec_.LogDir());
     std::filesystem::create_directories(spec_.workDir + "/run/ubm/socket/ubm_nuds");
+    CreateSysfsTree();
+}
+
+void ItNode::CreateSysfsTree()
+{
+    const std::string base = spec_.workDir + "/sysfs";
+
+    // /sys/devices/system/node/has_cpu -> "0-1"
+    WriteFile(base + "/sys/devices/system/node/has_cpu", "0-1");
+
+    for (uint32_t numa = 0; numa < DEFAULT_NUMA_COUNT; numa++) {
+        const std::string nodeDir = base + "/sys/devices/system/node/node" + std::to_string(numa);
+
+        // cpulist
+        uint32_t cpuStart = numa * DEFAULT_CPUS_PER_NUMA;
+        uint32_t cpuEnd = cpuStart + DEFAULT_CPUS_PER_NUMA - 1;
+        WriteFile(nodeDir + "/cpulist", std::to_string(cpuStart) + "-" + std::to_string(cpuEnd));
+
+        // meminfo (full format from real hardware)
+        WriteFile(nodeDir + "/meminfo", BuildMeminfo(numa));
+
+        // hugepages - 64kB
+        const std::string hp64k = nodeDir + "/hugepages/hugepages-64kB";
+        WriteFile(hp64k + "/nr_hugepages", "0");
+        WriteFile(hp64k + "/free_hugepages", "0");
+
+        // hugepages - 2M
+        const std::string hp2m = nodeDir + "/hugepages/hugepages-2048kB";
+        WriteFile(hp2m + "/nr_hugepages", "0");
+        WriteFile(hp2m + "/free_hugepages", "0");
+
+        // hugepages - 32M
+        const std::string hp32m = nodeDir + "/hugepages/hugepages-32768kB";
+        WriteFile(hp32m + "/nr_hugepages", "0");
+        WriteFile(hp32m + "/free_hugepages", "0");
+
+        // hugepages - 1G
+        const std::string hp1g = nodeDir + "/hugepages/hugepages-1048576kB";
+        WriteFile(hp1g + "/nr_hugepages", "0");
+        WriteFile(hp1g + "/free_hugepages", "0");
+
+        // OBMM mempool (real hex values)
+        const std::string obmm = base + "/sys/kernel/obmm_mempool/obmm-" + std::to_string(numa);
+        WriteFile(obmm + "/total", "0x20000000");
+        WriteFile(obmm + "/used", "0x0");
+        WriteFile(obmm + "/available_cleared", "0x20000000");
+        WriteFile(obmm + "/available_uncleared", "0x0");
+    }
+
+    // CPU topology: physical_package_id (real hardware socket IDs: 36 for node0, 236 for node1)
+    for (uint32_t numa = 0; numa < DEFAULT_NUMA_COUNT; numa++) {
+        for (uint32_t c = 0; c < DEFAULT_CPUS_PER_NUMA; c++) {
+            uint32_t cpuId = numa * DEFAULT_CPUS_PER_NUMA + c;
+            const std::string topDir = base + "/sys/devices/system/cpu/cpu" + std::to_string(cpuId) + "/topology";
+            WriteFile(topDir + "/physical_package_id", std::to_string(SOCKET_IDS[numa]));
+        }
+    }
+
+    // /proc/net/fib_trie (empty - IP collection will fail gracefully)
+    WriteFile(base + "/proc/net/fib_trie", "");
 }
 
 NodeProcessConfig ItNode::BuildProcessConfig() const
@@ -187,7 +321,7 @@ ItCliInvoker& ItNode::GetCliInvoker()
 ItLcneClient& ItNode::GetLcneClient()
 {
     if (!lcneClient_) {
-        lcneClient_ = std::make_unique<ItLcneClient>(lcneUdsPath_);
+        lcneClient_ = std::make_unique<ItLcneClient>(lcneUdsPath_, spec_.workDir + "/sysfs");
     }
     return *lcneClient_;
 }

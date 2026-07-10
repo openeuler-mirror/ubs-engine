@@ -29,12 +29,16 @@ namespace ubse::it::infra {
 
 namespace {
 
-// System file paths (same as UbseNodeController)
-const std::string NUMA_PATH = "/sys/devices/system/node/has_cpu";
-const std::string CPU_LIST_PREFIX_PATH = "/sys/devices/system/node/node";
-const std::string CPU_LIST_SUFFIX_PATH = "/cpulist";
-const std::string SOCKET_ID_PREFIX_PATH = "/sys/devices/system/cpu/cpu";
-const std::string SOCKET_ID_SUFFIX_PATH = "/topology/physical_package_id";
+/**
+ * @brief Get effective sysfs base path (with mock prefix if set).
+ */
+std::string SysfsPath(const std::string& sysfsBase, const std::string& realPath)
+{
+    if (!sysfsBase.empty()) {
+        return sysfsBase + realPath;
+    }
+    return realPath;
+}
 
 /**
  * @brief Parse CPU list line (e.g., "0-3,5,7-9") into a vector of IDs.
@@ -82,11 +86,12 @@ UbseResult ParseListLine(const std::string& line, T& idList)
  * @brief Get local numa list from system file.
  * Same logic as UbseNodeController::GetLocalNumas.
  */
-UbseResult GetLocalNumas(std::vector<uint32_t>& numaIds)
+UbseResult GetLocalNumas(const std::string& sysfsBase, std::vector<uint32_t>& numaIds)
 {
-    std::ifstream inputFile(NUMA_PATH);
+    std::string path = SysfsPath(sysfsBase, "/sys/devices/system/node/has_cpu");
+    std::ifstream inputFile(path);
     if (!inputFile.is_open()) {
-        IT_LOG_ERROR << "Failed to open " << NUMA_PATH;
+        IT_LOG_ERROR << "Failed to open " << path;
         return UBSE_ERROR_DEF(1);
     }
 
@@ -101,12 +106,12 @@ UbseResult GetLocalNumas(std::vector<uint32_t>& numaIds)
  * @brief Get CPU list for a specific numa from system file.
  * Same logic as UbseNodeController::CollectCpuList.
  */
-UbseResult GetCpuListForNuma(uint32_t numaId, std::vector<uint16_t>& cpuList)
+UbseResult GetCpuListForNuma(const std::string& sysfsBase, uint32_t numaId, std::vector<uint16_t>& cpuList)
 {
-    const std::string cpuListPath = CPU_LIST_PREFIX_PATH + std::to_string(numaId) + CPU_LIST_SUFFIX_PATH;
-    std::ifstream inputFile(cpuListPath);
+    std::string path = SysfsPath(sysfsBase, "/sys/devices/system/node/node" + std::to_string(numaId) + "/cpulist");
+    std::ifstream inputFile(path);
     if (!inputFile.is_open()) {
-        IT_LOG_ERROR << "Failed to open " << cpuListPath;
+        IT_LOG_ERROR << "Failed to open " << path;
         return UBSE_ERROR_DEF(1);
     }
 
@@ -121,12 +126,13 @@ UbseResult GetCpuListForNuma(uint32_t numaId, std::vector<uint16_t>& cpuList)
  * @brief Get socketId for a specific CPU from system file.
  * Same logic as UbseNodeController::GetSocketId.
  */
-UbseResult GetSocketIdForCpu(uint16_t cpuId, uint32_t& socketId)
+UbseResult GetSocketIdForCpu(const std::string& sysfsBase, uint16_t cpuId, uint32_t& socketId)
 {
-    const std::string socketIdPath = SOCKET_ID_PREFIX_PATH + std::to_string(cpuId) + SOCKET_ID_SUFFIX_PATH;
-    std::ifstream inputFile(socketIdPath);
+    std::string path =
+        SysfsPath(sysfsBase, "/sys/devices/system/cpu/cpu" + std::to_string(cpuId) + "/topology/physical_package_id");
+    std::ifstream inputFile(path);
     if (!inputFile.is_open()) {
-        IT_LOG_ERROR << "Failed to open " << socketIdPath;
+        IT_LOG_ERROR << "Failed to open " << path;
         return UBSE_ERROR_DEF(1);
     }
 
@@ -139,10 +145,10 @@ UbseResult GetSocketIdForCpu(uint16_t cpuId, uint32_t& socketId)
  * @brief Collect all socketIds from system files.
  * Similar to UbseNodeController::CollectNumaInfo logic.
  */
-UbseResult CollectSocketIds(std::set<uint32_t>& socketIdSet)
+UbseResult CollectSocketIds(const std::string& sysfsBase, std::set<uint32_t>& socketIdSet)
 {
     std::vector<uint32_t> numaIds;
-    UbseResult ret = GetLocalNumas(numaIds);
+    UbseResult ret = GetLocalNumas(sysfsBase, numaIds);
     if (ret != UBSE_OK || numaIds.empty()) {
         IT_LOG_ERROR << "Failed to get local numa list";
         return ret;
@@ -150,14 +156,14 @@ UbseResult CollectSocketIds(std::set<uint32_t>& socketIdSet)
 
     for (const auto& numaId : numaIds) {
         std::vector<uint16_t> cpuList;
-        ret = GetCpuListForNuma(numaId, cpuList);
+        ret = GetCpuListForNuma(sysfsBase, numaId, cpuList);
         if (ret != UBSE_OK || cpuList.empty()) {
             IT_LOG_ERROR << "Failed to get CPU list for numa " << numaId;
             continue;
         }
 
         uint32_t socketId;
-        ret = GetSocketIdForCpu(cpuList[0], socketId);
+        ret = GetSocketIdForCpu(sysfsBase, cpuList[0], socketId);
         if (ret != UBSE_OK) {
             IT_LOG_ERROR << "Failed to get socketId for CPU " << cpuList[0];
             continue;
@@ -171,7 +177,11 @@ UbseResult CollectSocketIds(std::set<uint32_t>& socketIdSet)
 
 } // namespace
 
-ItLcneClient::ItLcneClient(const std::string& udsPath) : udsPath_(udsPath) {}
+ItLcneClient::ItLcneClient(const std::string& udsPath, const std::string& sysfsBase)
+    : udsPath_(udsPath),
+      sysfsBase_(sysfsBase)
+{
+}
 
 ItLcneClient::~ItLcneClient() {}
 
@@ -423,7 +433,7 @@ UbseResult ItLcneClient::BuildUbpuToSocketIdMapping(std::vector<LcneLinkInfo>& l
     // Similar to UbseNodeController::UbseSocketIdChange logic:
     // OS socketId comes from numaInfos (collected from system files)
     std::set<uint32_t> socketIdSet;
-    UbseResult ret = CollectSocketIds(socketIdSet);
+    UbseResult ret = CollectSocketIds(sysfsBase_, socketIdSet);
     if (ret != UBSE_OK || socketIdSet.empty()) {
         IT_LOG_ERROR << "Failed to collect socketIds from system files";
         return ret;

@@ -59,22 +59,44 @@ struct ItMemBorrowDetail {
 };
 
 /**
- * @brief Memory creation result parsed from "create memory" output.
+ * @brief Memory creation result parsed from "create memory" CLI output.
  *
- * Example output:
- * - Creating memory [elapsed: 0s]
- *   name:it_test_short_opt
- *   size:128MB
- *   numa-id:2
- *   import-node:1
- *   export-node:2
+ * NUMA output format:
+ *   name:<name>
+ *   size:<size>MB
+ *   numa-id:<numaId>
+ *   import-node:<importNode>
+ *   export-node:<exportNode>
+ *
+ * FD output format:
+ *   name:<name>
+ *   size:<size>MB
+ *   mem-ids:<id1,id2,...>
+ *   import-node:<importNode>
+ *   export-node:<exportNode>
+ *
+ * SHM create output format:
+ *   name:<name>
+ *   size:<size>MB
+ *   export-node:<exportNode>
+ *   region:<r1,r2,...>
+ *
+ * SHM attach output format:
+ *   name:<name>
+ *   size:<size>MB
+ *   mem-ids:<id1,id2,...>
+ *   import-node:<importNode>
+ *   export-node:<exportNode>
+ *   region:<r1,r2,...>
  */
 struct ItMemCreateInfo {
     std::string name;
     std::string size;
-    std::string numaId;
-    std::string importNode;
-    std::string exportNode;
+    std::string numaId;     // NUMA only
+    std::string importNode; // NUMA, FD, SHM attach
+    std::string exportNode; // NUMA, FD, SHM create/attach
+    std::string memIds;     // FD, SHM attach (comma-separated)
+    std::string region;     // SHM create/attach (comma-separated)
 };
 
 /**
