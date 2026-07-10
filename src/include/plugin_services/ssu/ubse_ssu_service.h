@@ -299,12 +299,12 @@ public:
      * 将指定的存储空间挂载到系统，使其可被主机访问。
      *
      * @param req 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID、使用方进程的身份信息
-     * @param devPath  [输出] 挂载后的设备路径
+     * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::string &devPath);
+    virtual uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths);
 
     /**
      * @brief 卸载已分配的存储空间
@@ -326,6 +326,7 @@ public:
      * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
      *
      * @param req 挂载请求参数，包含name、nqn、srcEid、identity以及devName
+     * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
      * @param devPath  [输出] 挂载后的聚合设备路径
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -333,7 +334,8 @@ public:
      *
      * @note 线性编址模式下，数据按顺序填充各成员设备
      */
-    virtual uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::string &devPath);
+    virtual uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
+                                       std::string &devPath);
 
     /**
      * @brief 卸载线性编址的存储空间
@@ -353,6 +355,7 @@ public:
      * 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，
      * 支持 RAID0 和 RAID5 两种级别。
      * @param req       条带化挂载请求参数，包含存储空间标识、主机的 NVMe合格名称、聚合后的块设备名称以及使用进程的身份信息。
+     * @param nsDevPaths  [输出] 挂载后的命名空间设备路径列表
      * @param devPath    [输出] 挂载后的聚合设备路径
      * @return uint32_t 错误码
      * @retval 0 成功
@@ -361,7 +364,8 @@ public:
      * @note RAID5 至少需要 3 个成员设备
      * @see UbseSsuStripedSpaceReq, UbseSsuAggregationRaidLevel, UbseSsuChunkSize
      */
-    virtual uint32_t AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::string &devPath);
+    virtual uint32_t AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::vector<std::string> &nsDevPaths,
+                                        std::string &devPath);
 
     /**
      * @brief 卸载条带化编址的存储空间

@@ -43,13 +43,20 @@ public:
 
     uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) override;
 
-    uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::string &devPath) override;
+    uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths) override;
 
     uint32_t DetachSpace(const UbseSsuSpaceReq &req) override;
 
-    uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::string &devPath) override;
+    uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
+                               std::string &devPath) override;
 
     uint32_t DetachLinearSpace(const UbseSsuLinearSpaceReq &req) override;
+
+    uint32_t AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::vector<std::string> &nsDevPaths,
+                                std::string &devPath) override;
+
+    uint32_t DetachStripedSpace(const UbseSsuStripedSpaceReq &req) override;
+
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
