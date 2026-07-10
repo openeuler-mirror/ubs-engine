@@ -33,6 +33,24 @@ public:
     int32_t QueryMemBorrowDetail(std::vector<ItMemBorrowDetail>& borrowDetails);
     std::string ExecCli(const std::string& args) const;
 
+    // --- Memory CLI operations ---
+    // Create memory with short options (-t, -n, -s, -l, -r), returns parsed creation info
+    int32_t CreateMemoryNuma(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                             const std::string& link = "", bool useLongOptions = false);
+    int32_t CreateMemoryFd(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                           bool useLongOptions = false);
+    int32_t CreateMemoryShare(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                              const std::string& region, bool useLongOptions = false);
+    // Delete memory with short options (-n, -t)
+    int32_t DeleteMemory(const std::string& name, const std::string& type = "numa", bool useLongOptions = false);
+    // Display memory with short options (-t, -bt, -n, -a), returns parsed table records
+    int32_t DisplayMemoryBorrowDetail(std::vector<ItMemBorrowDetail>& borrowDetails, const std::string& borrowType = "",
+                                      const std::string& name = "", bool useLongOptions = false);
+    int32_t DisplayMemoryNodeBorrow(std::vector<ItNodeBorrowInfo>& nodeBorrows, bool useLongOptions = false);
+    int32_t DisplayMemoryNodeLend(std::vector<ItNodeLendInfo>& nodeLends, bool useLongOptions = false);
+    std::string DisplayMemoryNumaStatus(bool showAll = false, bool useLongOptions = false);
+    std::string DisplayMemoryConfig(bool useLongOptions = false);
+
     // --- Election convenience methods (moved from ItSdkClient) ---
     int32_t GetRole(std::string& role);
     int32_t GetMasterNodeId(std::string& masterNodeId);
