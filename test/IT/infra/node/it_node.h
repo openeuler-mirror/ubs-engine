@@ -118,6 +118,12 @@ public:
     const std::string& GetXalarmFifoPath() const;
     const std::string& GetWorkDir() const;
 
+    /** @brief Path to the generated per-node ubse.conf file. */
+    std::string GetConfigFilePath() const;
+
+    /** @brief Path to the daemon's "ubse" module log file (workDir/log/ubse.log). */
+    std::string GetLogFilePath() const;
+
 private:
     void CreateWorkDirectories();
     NodeProcessConfig BuildProcessConfig() const;

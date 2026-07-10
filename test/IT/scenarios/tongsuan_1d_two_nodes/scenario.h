@@ -13,4 +13,10 @@
 #include "it_scenario_fixture.h"
 
 // 通算1D双节点全互联场景：启动双节点集群，验证主备选举和内存借用
-IT_DEFINE_SCENARIO(Tongsuan1dFullMeshTwoNodesScenario, MakeBuilder().Tongsuan().TwoNode().Start(cluster_))
+// 开启 DEBUG 日志级别以便校验主节点周期性心跳。
+IT_DEFINE_SCENARIO(Tongsuan1dFullMeshTwoNodesScenario, MakeBuilder()
+                                                           .Tongsuan()
+                                                           .TwoNode()
+                                                           .WithNodeConfig("1", "ubse.log", "log.level", "DEBUG")
+                                                           .WithNodeConfig("2", "ubse.log", "log.level", "DEBUG")
+                                                           .Start(cluster_))

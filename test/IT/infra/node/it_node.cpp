@@ -242,4 +242,16 @@ const std::string& ItNode::GetWorkDir() const
     return empty;
 }
 
+std::string ItNode::GetConfigFilePath() const
+{
+    // Use spec_.workDir (always available, even before/after the process runs)
+    // rather than GetWorkDir(), which depends on the process being started.
+    return spec_.workDir + "/ubse.conf";
+}
+
+std::string ItNode::GetLogFilePath() const
+{
+    return spec_.workDir + "/log/ubse.log";
+}
+
 } // namespace ubse::it::infra

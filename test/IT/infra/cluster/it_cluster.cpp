@@ -54,6 +54,15 @@ UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeou
 {
     // Phase 0: Generate per-node config files
     ItConfigBuilder configBuilder(clusterSpec_.nodes, clusterSpec_.baseWorkDir);
+    // Apply per-node config overrides (e.g. election.candidate per node)
+    for (const auto& [nodeId, sections] : clusterSpec_.nodeConfigOverrides) {
+        for (const auto& [section, keys] : sections) {
+            for (const auto& [key, value] : keys) {
+                configBuilder.WithNodeOverride(nodeId, section, key, value);
+            }
+        }
+    }
+
     UbseResult ret = configBuilder.WithClusterIps(clusterSpec_.ClusterIps())
                          .WithCertUse(false)
                          .WithMockPlugin(clusterSpec_.mockPluginEnabled)
