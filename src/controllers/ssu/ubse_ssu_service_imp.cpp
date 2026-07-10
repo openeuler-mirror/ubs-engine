@@ -22,6 +22,7 @@
 #include "message/ubse_ssu_alloc_msg.h"
 #include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
+#include "message/ubse_ssu_perm_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "ubse_com_op_code.h"
 #include "ubse_election.h"
@@ -1033,15 +1034,12 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 static uint32_t ValidateStripedNsConfig(const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
                                         const UbseSsuChunkSize &chunkSize, const std::string &name)
 {
-    if (chunkSize != UbseSsuChunkSize::CHUNK_SIZE_4K &&
-        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_16K &&
-        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_32K &&
-        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_64K &&
-        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_128K &&
-        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_256K &&
+    if (chunkSize != UbseSsuChunkSize::CHUNK_SIZE_4K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_16K &&
+        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_32K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_64K &&
+        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_128K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_256K &&
         chunkSize != UbseSsuChunkSize::CHUNK_SIZE_512K) {
         UBSE_LOG_ERROR << "AttachStripedSpace: invalid chunkSize, name=" << name
-                    << ", chunkSize=" << static_cast<uint32_t>(chunkSize);
+                       << ", chunkSize=" << static_cast<uint32_t>(chunkSize);
         return UBSE_ERROR;
     }
     const uint64_t chunkSizeBytes = static_cast<uint64_t>(chunkSize) * 1024; // chunkSize单位KB，转字节
@@ -1058,7 +1056,8 @@ static uint32_t ValidateStripedNsConfig(const std::vector<UbseSsuNameSpaceInfo> 
         }
         if (nsInfo.nsSize % chunkSizeBytes != 0) {
             UBSE_LOG_ERROR << "ValidateStripedNsConfig: namespace size not multiple of chunkSize, name=" << name
-                           << ", nsSize=" << nsInfo.nsSize << ", chunkSize=" << static_cast<uint32_t>(chunkSize) << "KB";
+                           << ", nsSize=" << nsInfo.nsSize << ", chunkSize=" << static_cast<uint32_t>(chunkSize)
+                           << "KB";
             return UBSE_ERROR;
         }
     }
@@ -1081,7 +1080,7 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         return UBSE_ERROR;
     }
 
-     // 幂等性：已经attached，再次attach返回成功
+    // 幂等性：已经attached，再次attach返回成功
     if (entryPtr->state == UbseSsuNsState::ATTACHED) {
         UBSE_LOG_INFO << "AttachSpace: already attached, name=" << req.name;
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
@@ -1244,5 +1243,246 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     UBSE_LOG_INFO << "DetachStripedSpace success: name=" << req.name << ", devName=" << req.devName;
     return UBSE_OK;
+}
+
+// agent端发送SSU访问权限RPC请求到master节点（添加/移除共用，通过opCode区分）
+static uint32_t SendPermRpcRequest(const UbseSsuPermReq &permReq, const std::string &masterNodeId, uint16_t opCode)
+{
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU), opCode);
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendPermRpcRequest: get ssu perm req endpoint failed, requestId=" << permReq.requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuPermReqMsg reqMsg(permReq.requestId, permReq.requestNodeId, permReq.name, permReq.nqn, permReq.identityInfo);
+
+    UbseSsuSyncRespMsg respMsg; // 占位，后续通过异步线程返回真正结果
+    auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, respMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendPermRpcRequest: RpcSend failed, " << FormatRetCode(ret)
+                       << ", requestId=" << permReq.requestId;
+        return ret;
+    }
+
+    auto errorCode = respMsg.GetErrorCode();
+    if (errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendPermRpcRequest: failed, requestId=" << permReq.requestId << ", errorCode=" << errorCode;
+        return errorCode;
+    }
+
+    return UBSE_OK;
+}
+
+// agent端通过RPC向master添加/移除SSU访问权限
+static uint32_t AccessPermissionViaRpc(const std::string &name, const std::string &nqn,
+                                       const UbseSsuAllocIdentityInfo &identity, bool isAdd)
+{
+    std::string funcName = isAdd ? "AddAccessPermissionViaRpc" : "RemoveAccessPermissionViaRpc";
+    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
+    UbseRoleInfo masterInfo{};
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << funcName << ": get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    UbseRoleInfo roleInfo{};
+    ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << funcName << ": get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = (isAdd ? "addperm_" : "removeperm_") + name + "_" + roleInfo.nodeId;
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
+    if (respMgr == nullptr) {
+        UBSE_LOG_ERROR << funcName << ": requestId=" << requestId << " create future instance failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto respFuture = respMgr->GetFuture<UbseSsuPermResp>();
+
+    UbseSsuPermReq permReq = {
+        .requestId = requestId,
+        .requestNodeId = roleInfo.nodeId,
+        .name = name,
+        .nqn = nqn,
+        .identityInfo = identity,
+    };
+
+    auto opCode = isAdd ? UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_REQ :
+                          UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_REQ;
+    ret = SendPermRpcRequest(permReq, masterInfo.nodeId, static_cast<uint16_t>(opCode));
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << funcName << ": SendPermRpcRequest failed, " << FormatRetCode(ret)
+                       << ", requestId=" << requestId;
+        return ret;
+    }
+
+    if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) != std::future_status::ready) {
+        UBSE_LOG_ERROR << funcName << ": timeout waiting for response, requestId=" << requestId;
+        return UBSE_ERR_TIMED_OUT;
+    }
+
+    auto resp = respFuture.get();
+    if (resp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << funcName << ": failed, requestId=" << requestId << ", errorCode=" << resp.errorCode;
+        return resp.errorCode;
+    }
+
+    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << nqn;
+    return UBSE_OK;
+}
+
+struct SucceededPermNs {
+    std::string eid;
+    uint32_t nsId;
+    std::string nqn;
+};
+
+// 回滚已成功的权限操作。isAdd表示原始操作类型，回滚时执行反向操作。
+// 移除权限失败时不回滚（权限只减不增，重试可幂等收敛），仅添加权限失败时需要回滚。
+// 底层接口已保证幂等性，回滚失败仅记录日志，不影响原始错误返回。
+static void RollbackPermOperations(const std::vector<SucceededPermNs> &succeededList, bool isAdd,
+                                   const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    if (!isAdd) {
+        // 移除权限不执行回滚：已移除的NS重试时幂等跳过，失败的NS重试时继续执行，
+        // 调用方重试整个RemoveAccessPermission即可收敛到一致状态（无需手动补偿）
+        UBSE_LOG_WARN << "RollbackPermOperations: skip rollback for remove operation, "
+                      << "succeededList.size=" << succeededList.size() << ", caller can retry to converge";
+        return;
+    }
+    for (const auto &item : succeededList) {
+        auto targetNs = FindNsInDevice(devMap, item.eid, item.nsId);
+        if (targetNs == nullptr) {
+            UBSE_LOG_WARN << "RollbackPermOperations: namespace not found, eid=" << item.eid << ", nsId=" << item.nsId
+                          << ", skip";
+            continue;
+        }
+        auto ret = UbseSsuAdapterInterface::GetInstance().RemoveNameSpaceAllowHost(*targetNs, item.nqn);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "RollbackPermOperations: rollback RemoveNameSpaceAllowHost failed, eid=" << item.eid
+                          << ", nsId=" << item.nsId << ", nqn=" << item.nqn << ", ret=" << ret;
+        }
+    }
+}
+
+uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, const std::string &nqn,
+                                                    const UbseSsuAllocIdentityInfo &identity, bool isAdd)
+{
+    const std::string funcName = isAdd ? "ExecuteAddAccessPermission" : "ExecuteRemoveAccessPermission";
+    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
+
+    auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
+
+    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+    if (entryPtr == nullptr) {
+        UBSE_LOG_ERROR << funcName << ": record not found, name=" << name;
+        return UBSE_ERROR;
+    }
+
+    // 命名空间必须已创建完成，CREATING状态下NS可能尚未落盘，IDLE表示初始/失败回退
+    if (entryPtr->state == UbseSsuNsState::IDLE || entryPtr->state == UbseSsuNsState::CREATING) {
+        UBSE_LOG_ERROR << funcName << ": invalid state, name=" << name
+                       << ", state=" << static_cast<int>(entryPtr->state);
+        return UBSE_ERROR;
+    }
+
+    auto devMap = collector_.GetCachedDevMap();
+    // 记录已成功操作的NS信息，用于失败时回滚
+    std::vector<SucceededPermNs> succeededNsList;
+    for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            if (isAdd) {
+                UBSE_LOG_ERROR << funcName << ": namespace not found in cache, eid=" << nsInfo.tgtEid
+                               << ", nsId=" << nsInfo.namespaceId;
+                RollbackPermOperations(succeededNsList, isAdd, devMap);
+                return UBSE_ERROR;
+            }
+            // NS不在缓存中，说明已被删除，权限随之失效，视为幂等成功跳过
+            UBSE_LOG_INFO << funcName << ": namespace not found in cache, skip, eid=" << nsInfo.tgtEid
+                          << ", nsId=" << nsInfo.namespaceId;
+            continue;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << funcName << ": identity not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId << ", uid=" << identity.uid
+                           << ", userName=" << identity.userName;
+            RollbackPermOperations(succeededNsList, isAdd, devMap);
+            return UBSE_ERROR;
+        }
+        auto nqnFinal = ResolveNqn(nqn, targetNs->customData.defaultNqn);
+        // 为默认NQN时，无需添加/移除权限
+        if (nqnFinal == targetNs->customData.defaultNqn) {
+            continue;
+        }
+        uint32_t ret = UBSE_OK;
+        if (isAdd) {
+            ret = UbseSsuAdapterInterface::GetInstance().AddNameSpaceAllowHost(*targetNs, nqnFinal);
+        } else {
+            ret = UbseSsuAdapterInterface::GetInstance().RemoveNameSpaceAllowHost(*targetNs, nqnFinal);
+        }
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << funcName << ": " << (isAdd ? "AddNameSpaceAllowHost" : "RemoveNameSpaceAllowHost")
+                           << " failed, eid=" << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId
+                           << ", nqn=" << nqnFinal << ", ret=" << ret;
+            RollbackPermOperations(succeededNsList, isAdd, devMap);
+            return ret;
+        }
+        // 记录成功操作，用于后续回滚
+        succeededNsList.push_back({nsInfo.tgtEid, nsInfo.namespaceId, nqnFinal});
+    }
+
+    UBSE_LOG_INFO << funcName << " success: name=" << name << ", nqn=" << nqn;
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuServiceImp::AddAccessPermission(const std::string &name, const std::string &nqn,
+                                                const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "AddAccessPermission: name=" << name << ", nqn=" << nqn;
+
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "AddAccessPermission: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        return ExecuteAccessPermission(name, nqn, identity, true);
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return AccessPermissionViaRpc(name, nqn, identity, true);
+    }
+
+    UBSE_LOG_ERROR << "AddAccessPermission: unsupported node role=" << role;
+    return UBSE_ERROR;
+}
+
+uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, const std::string &nqn,
+                                                   const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "RemoveAccessPermission: name=" << name << ", nqn=" << nqn;
+
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RemoveAccessPermission: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        return ExecuteAccessPermission(name, nqn, identity, false);
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return AccessPermissionViaRpc(name, nqn, identity, false);
+    }
+
+    UBSE_LOG_ERROR << "RemoveAccessPermission: unsupported node role=" << role;
+    return UBSE_ERROR;
 }
 } // namespace ubse::ssu::service

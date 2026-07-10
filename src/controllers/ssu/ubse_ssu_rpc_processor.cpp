@@ -17,14 +17,14 @@
 #include "framework/misc/ubse_future_mgr.h"
 #include "message/ubse_ssu_alloc_msg.h"
 #include "message/ubse_ssu_free_msg.h"
+#include "message/ubse_ssu_perm_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
+#include "trace_context.h"
 #include "ubse_com.h"
 #include "ubse_com_op_code.h"
-#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "trace_context.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_ssu_utils.h"
 
@@ -32,7 +32,6 @@ namespace ubse::ssu::controller {
 
 using namespace ubse::log;
 using namespace ubse::com;
-using namespace ubse::context;
 using namespace ubse::misc::future;
 using namespace ubse::ssu::message;
 using namespace ubse::plugin::service::ssu;
@@ -45,9 +44,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 // 向agent端发送SSU分配响应
 static void SendSsuAllocRespToAgent(const std::string &agentNodeId, const UbseSsuAllocResp &resp)
 {
-    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
-        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP));
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP));
     if (endpoint == nullptr) {
         UBSE_LOG_ERROR << "SendSsuAllocRespToAgent: get ssu alloc resp endpoint failed, requestId=" << resp.requestId;
         return;
@@ -105,7 +103,8 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
     entry.allocReq = allocRpcReq.allocReq;
     entry.state = UbseSsuNsState::CREATING;
     if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
-        UBSE_LOG_ERROR << "AllocReq: ledger entry already exists, reject duplicate alloc: name=" << allocRpcReq.allocReq.name;
+        UBSE_LOG_ERROR << "AllocReq: ledger entry already exists, reject duplicate alloc: name="
+                       << allocRpcReq.allocReq.name;
         UbseSsuAllocResp respData = BuildErrorResp(requestId, UBSE_ERR_EXISTED);
         SendSsuAllocRespToAgent(requestNodeId, respData);
         SetReplySyncResp(resp, UBSE_ERR_EXISTED);
@@ -124,7 +123,8 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
                     e.state = UbseSsuNsState::CREATED;
                     e.allocResult = result;
                 })) {
-                UBSE_LOG_ERROR << "AllocReq: ledger entry not found after alloc success: name=" << allocRpcReq.allocReq.name;
+                UBSE_LOG_ERROR << "AllocReq: ledger entry not found after alloc success: name="
+                               << allocRpcReq.allocReq.name;
             }
             respData.requestId = requestId;
             respData.errorCode = ret;
@@ -133,7 +133,8 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
         } else {
             UBSE_LOG_ERROR << "AllocSpace failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
             if (!UbseSsuDebtLedger::GetInstance().Remove(allocRpcReq.allocReq.name)) {
-                UBSE_LOG_ERROR << "AllocReq: ledger entry not found after alloc failed: name=" << allocRpcReq.allocReq.name;
+                UBSE_LOG_ERROR << "AllocReq: ledger entry not found after alloc failed: name="
+                               << allocRpcReq.allocReq.name;
             }
             respData = BuildErrorResp(requestId, ret);
         }
@@ -174,12 +175,10 @@ static bool IsStatusTransitionValid(UbseSsuNsState from, UbseSsuNsState to)
     if (from == UbseSsuNsState::CREATING && to == UbseSsuNsState::CREATED) {
         return true;
     }
-    if (from == UbseSsuNsState::CREATED &&
-        (to == UbseSsuNsState::ATTACHING || to == UbseSsuNsState::ATTACHED)) {
+    if (from == UbseSsuNsState::CREATED && (to == UbseSsuNsState::ATTACHING || to == UbseSsuNsState::ATTACHED)) {
         return true;
     }
-    if (from == UbseSsuNsState::ATTACHING &&
-        (to == UbseSsuNsState::ATTACHED || to == UbseSsuNsState::CREATED)) {
+    if (from == UbseSsuNsState::ATTACHING && (to == UbseSsuNsState::ATTACHED || to == UbseSsuNsState::CREATED)) {
         return true;
     }
     return from == UbseSsuNsState::ATTACHED && to == UbseSsuNsState::CREATED;
@@ -199,7 +198,8 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
     UbseSsuNsState fromState;
     UBSE_LOG_INFO << "Received ssu status update, requestId=" << statusReq.requestName
                   << ", state=" << static_cast<int>(statusReq.state);
-    if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq, &modified, &fromState](UbseSsuLedgerEntry &e) {
+    if (!UbseSsuDebtLedger::GetInstance().Modify(statusReq.requestName, [&statusReq, &modified,
+                                                                         &fromState](UbseSsuLedgerEntry &e) {
             fromState = e.state;
             if (!IsStatusTransitionValid(e.state, statusReq.state)) {
                 UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
@@ -234,9 +234,8 @@ static UbseSsuFreeResp BuildFreeResp(const std::string &requestId, uint32_t erro
 // 发送SSU释放响应
 static void SendSsuFreeRespToAgent(const std::string &agentNodeId, const UbseSsuFreeResp &resp)
 {
-    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
-        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP));
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP));
     if (endpoint == nullptr) {
         UBSE_LOG_ERROR << "SendSsuFreeRespToAgent: get ssu free resp endpoint failed, requestId=" << resp.requestId;
         return;
@@ -309,8 +308,105 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     SetReplySyncResp(resp);
 }
 
-// 注册SSU分配请求处理器
-uint32_t UbseSsuRpcProcessor::RegisterAllocReqHandler()
+// 构建SSU访问权限响应
+static UbseSsuPermResp BuildPermResp(const std::string &requestId, uint32_t errorCode)
+{
+    UbseSsuPermResp resp;
+    resp.requestId = requestId;
+    resp.errorCode = errorCode;
+    return resp;
+}
+
+// 发送SSU访问权限响应（添加/移除共用，通过respOpCode区分）
+static void SendSsuPermRespToAgent(const std::string &agentNodeId, const UbseSsuPermResp &resp, uint16_t respOpCode)
+{
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU), respOpCode);
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendSsuPermRespToAgent: get ssu perm resp endpoint failed, requestId=" << resp.requestId;
+        return;
+    }
+    UbseSsuPermRespMsg respMsg(resp);
+    UbseSsuSyncRespMsg ackMsg;
+    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendSsuPermRespToAgent failed, " << FormatRetCode(ret) << ", requestId=" << resp.requestId;
+    }
+}
+
+// master端处理来自agent端的SSU访问权限请求（添加/移除共用，通过isAdd区分）
+static void HandlePermReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp,
+                                  uint16_t respOpCode, bool isAdd)
+{
+    UbseSsuPermReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize perm req, reqSize=" << reqSize;
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    std::string traceId = TraceContext::GetTraceId();
+    auto permRpcReq = request.GetSsuPermRequest();
+    auto executor = utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        SendSsuPermRespToAgent(permRpcReq.requestNodeId, BuildPermResp(permRpcReq.requestId, UBSE_ERROR), respOpCode);
+        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    executor->Execute([permRpcReq = std::move(permRpcReq), traceId = std::move(traceId), respOpCode, isAdd]() {
+        TraceContext::SetTraceId(traceId);
+        auto &controller = UbseSsuServiceImp::GetInstance();
+        uint32_t ret;
+        if (isAdd) {
+            ret = controller.AddAccessPermission(permRpcReq.name, permRpcReq.nqn, permRpcReq.identityInfo);
+        } else {
+            ret = controller.RemoveAccessPermission(permRpcReq.name, permRpcReq.nqn, permRpcReq.identityInfo);
+        }
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "PermReq failed, " << FormatRetCode(ret) << ", requestId=" << permRpcReq.requestId;
+        }
+        SendSsuPermRespToAgent(permRpcReq.requestNodeId, BuildPermResp(permRpcReq.requestId, ret), respOpCode);
+        TraceContext::Clear();
+    });
+    SetReplySyncResp(resp);
+}
+
+// handler: master端处理来自agent端的SSU访问权限添加请求
+static void HandleAddPermReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
+{
+    HandlePermReqReceiver(reqData, reqSize, resp,
+                          static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_RESP), true);
+}
+
+// handler: master端处理来自agent端的SSU访问权限移除请求
+static void HandleRemovePermReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
+{
+    HandlePermReqReceiver(reqData, reqSize, resp,
+                          static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP), false);
+}
+
+// handler: agent端处理SSU访问权限响应（添加/移除共用）
+static void HandlePermRespReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuPermRespMsg response;
+    if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize perm resp";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+    auto respData = response.GetSsuPermResponse();
+    UBSE_LOG_INFO << "Received ssu perm response, requestId=" << respData.requestId
+                  << ", errorCode=" << respData.errorCode;
+    // 释放agent端的future wait
+    if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
+        UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for ssu perm response";
+    }
+    SetReplySyncResp(resp);
+}
+
+// 注册SSU分配请求和响应处理器
+uint32_t UbseSsuRpcProcessor::RegisterAllocHandlers()
 {
     auto allocEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ),
@@ -319,12 +415,6 @@ uint32_t UbseSsuRpcProcessor::RegisterAllocReqHandler()
         UBSE_LOG_ERROR << "Unable to register alloc req receiver";
         return UBSE_ERROR;
     }
-    return UBSE_OK;
-}
-
-// 注册SSU分配响应处理器
-uint32_t UbseSsuRpcProcessor::RegisterAllocRespHandler()
-{
     auto respEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                       static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP),
                                                       HandleAllocRespReceiver);
@@ -348,8 +438,8 @@ uint32_t UbseSsuRpcProcessor::RegisterStatusHandler()
     return UBSE_OK;
 }
 
-// 注册SSU释放请求处理器
-uint32_t UbseSsuRpcProcessor::RegisterFreeReqHandler()
+// 注册SSU释放请求和响应处理器
+uint32_t UbseSsuRpcProcessor::RegisterFreeHandlers()
 {
     auto freeEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                       static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_REQ),
@@ -358,12 +448,6 @@ uint32_t UbseSsuRpcProcessor::RegisterFreeReqHandler()
         UBSE_LOG_ERROR << "Unable to register free req receiver";
         return UBSE_ERROR;
     }
-    return UBSE_OK;
-}
-
-// 注册SSU释放响应处理器
-uint32_t UbseSsuRpcProcessor::RegisterFreeRespHandler()
-{
     auto freeRespEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP),
                                                           HandleFreeRespReceiver);
@@ -374,18 +458,52 @@ uint32_t UbseSsuRpcProcessor::RegisterFreeRespHandler()
     return UBSE_OK;
 }
 
+// 注册SSU访问权限添加请求和响应处理器
+uint32_t UbseSsuRpcProcessor::RegisterAddPermHandlers()
+{
+    auto addPermEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_REQ), HandleAddPermReqReceiver);
+    if (addPermEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register add perm req receiver";
+        return UBSE_ERROR;
+    }
+    auto addPermRespEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_RESP), HandlePermRespReceiver);
+    if (addPermRespEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register add perm resp receiver";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+// 注册SSU访问权限移除请求和响应处理器
+uint32_t UbseSsuRpcProcessor::RegisterRemovePermHandlers()
+{
+    auto removePermEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_REQ), HandleRemovePermReqReceiver);
+    if (removePermEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register remove perm req receiver";
+        return UBSE_ERROR;
+    }
+    auto removePermRespEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP), HandlePermRespReceiver);
+    if (removePermRespEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register remove perm resp receiver";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 // 注册所有SSU相关的RPC处理器
 uint32_t UbseSsuRpcProcessor::RegHandler()
 {
-    auto ret = RegisterAllocReqHandler();
+    auto ret = RegisterAllocHandlers();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterAllocReqHandler failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
-    }
-
-    ret = RegisterAllocRespHandler();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterAllocRespHandler failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterAllocHandlers failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
@@ -395,15 +513,21 @@ uint32_t UbseSsuRpcProcessor::RegHandler()
         return UBSE_ERROR;
     }
 
-    ret = RegisterFreeReqHandler();
+    ret = RegisterFreeHandlers();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterFreeReqHandler failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterFreeHandlers failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
-    ret = RegisterFreeRespHandler();
+    ret = RegisterAddPermHandlers();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "RegisterFreeRespHandler failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "RegisterAddPermHandlers failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    ret = RegisterRemovePermHandlers();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RegisterRemovePermHandlers failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 

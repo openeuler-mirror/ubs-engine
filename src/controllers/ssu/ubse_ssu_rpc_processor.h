@@ -22,11 +22,11 @@ public:
     static uint32_t RegHandler();
 
 private:
-    static uint32_t RegisterAllocReqHandler();
-    static uint32_t RegisterAllocRespHandler();
+    static uint32_t RegisterAllocHandlers();
     static uint32_t RegisterStatusHandler();
-    static uint32_t RegisterFreeReqHandler();
-    static uint32_t RegisterFreeRespHandler();
+    static uint32_t RegisterFreeHandlers();
+    static uint32_t RegisterAddPermHandlers();
+    static uint32_t RegisterRemovePermHandlers();
 };
 } // namespace ubse::ssu::controller
 
