@@ -49,7 +49,7 @@ public:
     int32_t DisplayMemoryNodeBorrow(std::vector<ItNodeBorrowInfo>& nodeBorrows, bool useLongOptions = false);
     int32_t DisplayMemoryNodeLend(std::vector<ItNodeLendInfo>& nodeLends, bool useLongOptions = false);
     std::string DisplayMemoryNumaStatus(bool showAll = false, bool useLongOptions = false);
-    std::string DisplayMemoryConfig(bool useLongOptions = false);
+    int32_t DisplayMemoryConfig(std::vector<ItMemConfigInfo>& configs, bool useLongOptions = false);
 
     // --- Election convenience methods (moved from ItSdkClient) ---
     int32_t GetRole(std::string& role);
