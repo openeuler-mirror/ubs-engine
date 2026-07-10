@@ -21,6 +21,15 @@ namespace ubse::it::tests::mem_borrow {
 // 流程：创建借用 → 等待UBSE_EXIST就绪 → 验证属性 → 删除借用
 void RunNumaNormalBorrowTest(ubse::it::infra::ItCluster& cluster);
 
+// CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
+void RunCliQueryNodesMemoryStatus001(ubse::it::infra::ItCluster& cluster);
+
+// CLI内存操作测试（短选项）：使用短选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
+void RunCliMemoryOperationsShortOpt001(ubse::it::infra::ItCluster& cluster);
+
+// CLI内存操作测试（长选项）：使用长选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
+void RunCliMemoryOperationsLongOpt001(ubse::it::infra::ItCluster& cluster);
+
 } // namespace ubse::it::tests::mem_borrow
 
 #endif // IT_MEM_BORROW_CASES_H
