@@ -1,6 +1,6 @@
-# 修改后代码
 set(UBSE_SSU_MESSAGE_SOURCES
     ubse_ssu_obj_message.cpp
+    ubse_ssu_handler_message.cpp
 )
 add_library(ubse_ssu_message STATIC ${UBSE_SSU_MESSAGE_SOURCES})
 
