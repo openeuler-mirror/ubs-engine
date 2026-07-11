@@ -954,10 +954,15 @@ UbseResult GetUbseNodeInfoOffset(UbseNodeInfo info, UbseSerialization& outStream
     outStream << ipAddrOffset << numaInfoOffset << cpuInfoOffset << enum_v(info.localState) << enum_v(info.clusterState)
               << info.eventMessage << info.isLender << enum_v(info.sysSentryState) << enum_v(info.obmmState);
 
-    if (ret != UBSE_OK || !outStream.Check()) {
+    if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Ubse serialize node info data failed, " << FormatRetCode(ret);
+        return ret;
     }
-    return ret;
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "Ubse serialize node info check failed";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
 }
 
 uint32_t SerializeUbseNode(UbseNodeInfo info, uint8_t*& buffer, size_t& size)
