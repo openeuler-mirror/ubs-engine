@@ -287,7 +287,8 @@ static PortCnaResult SelectPortCna(const std::string& exportNodeId, const std::s
     }
     if (specifiedPortId != UINT32_MAX) {
         for (const auto& portInfo : cpu->portInfos) {
-            if (portInfo.second.portId == std::to_string(specifiedPortId)) {
+            if (portInfo.second.portId == std::to_string(specifiedPortId) &&
+                portInfo.second.portStatus == PortStatus::UP && portInfo.second.remoteSlotId == importNodeId) {
                 UBSE_LOG_INFO << "Found specified port " << specifiedPortId << " dcna=" << portInfo.second.portCna
                               << " borrowPortId=" << portInfo.second.remotePortId;
                 return {true, portInfo.second.portCna, portInfo.second.remotePortId, portInfo.second.portId};
@@ -420,6 +421,9 @@ uint32_t GetCnaInfoWhenImport(const std::string& exportNodeId, const std::string
         result.found) {
         dcna = result.dcna;
         borrowPortId = result.borrowPortId;
+    } else if (specifiedPortId != UINT32_MAX) {
+        UBSE_LOG_ERROR << "Specified port " << specifiedPortId << " not found";
+        return UBSE_ERROR;
     }
     for (auto& newObmmDesc : importObj.exportObmmInfo) {
         // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2
