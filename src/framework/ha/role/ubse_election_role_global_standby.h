@@ -51,6 +51,7 @@ public:
 
 private:
     uint64_t lastHeartTime_;
+    uint64_t lastCascadeReportTime_;
     UBSE_ID_TYPE globalMasterId_{};
     UBSE_ID_TYPE globalStandbyId_{};
     std::vector<UBSE_ID_TYPE> globalAgentIds_{};
@@ -65,6 +66,7 @@ private:
     void AddDownstreamGroupRoute(const InterGroupInfo &cascadeInfo);
     void DeleteDownstreamGroupRoute();
     void CleanupRoutes() override;
+    void DetectCascadeGroupTimeout();
 };
 }
 

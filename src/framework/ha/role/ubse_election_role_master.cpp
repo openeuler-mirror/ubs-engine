@@ -53,8 +53,10 @@ Master::Master(RoleContext &ctx) : turnId_(0), sequenceId_(), workStatus_(IS_REA
     if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself)) {
         UBSE_LOG_ERROR << "[ELECTION] Master GetMyselfNode: no node found.";
         masterId_ = INVALID_NODE_ID;
+        masterIp_ = "";
     } else {
         masterId_ = myself.id;
+        masterIp_ = myself.ip;
     }
     standbyId_ = ctx.standbyId;
     std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
@@ -138,6 +140,7 @@ void Master::PrepareElectionPkt(ElectionPkt &pkt)
 {
     pkt.type = ELECTION_PKT_TYPE_HEART;
     pkt.masterId = masterId_;
+    pkt.masterIp = masterIp_;
     pkt.standbyId = standbyId_;
     pkt.turnId = turnId_;
     pkt.sequenceId = sequenceId_;
@@ -154,7 +157,8 @@ void Master::ReplaceStandbyNode(ElectionPkt &pkt)
 {
     if (standbyId_ != INVALID_NODE_ID && broadcast_[standbyId_].heartBeatLossCnt >= GetHbLostTimes()) {
         // 更换备节点
-        UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(GetActiveNodes(), masterId_, standbyId_);
+        auto candidateNodes = GetCandidateNodes();
+        UBSE_ID_TYPE smallestId = FindSmallestIdExcludingMasterAndAgent(candidateNodes, masterId_, standbyId_);
         standbyId_ = smallestId;
         pkt.standbyId = standbyId_;
         UBSE_LOG_INFO << "[ELECTION] Master Appoint the new standby nodeId=" << standbyId_;
@@ -190,7 +194,8 @@ void Master::ProcTimer()
         ElectionPkt pkt;
         ElectionReplyPkt reply;
         if (standbyId_ == INVALID_NODE_ID) {
-            standbyId_ = FindSmallestIdExcludingMaster(masterId_, GetActiveNodes());
+            auto candidateNodes = GetCandidateNodes();
+            standbyId_ = FindSmallestIdExcludingMaster(masterId_, candidateNodes);
             if (standbyId_ != INVALID_NODE_ID) {
                 UBSE_LOG_INFO << "[ELECTION] Master Appoint the standby node id=" << standbyId_;
                 SwitchStandbyNode(standbyId_);
@@ -418,6 +423,15 @@ uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionR
         UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId=" << srcID;
         return 0;
     }
+    if (UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+        std::vector<std::string> rootList = nodeMgr::GetRootIpList();
+        bool inRootList = std::find(rootList.begin(), rootList.end(), rcvPkt.masterIp) != rootList.end();
+        if (!inRootList) {
+            reply.replyId = masterId_;
+            reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+            return UBSE_OK;
+        }
+    }
     // 主收到心跳 两种场景，1：主假死后恢复 2：脑裂合并
     if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {
         RecvPktHeart(srcID, rcvPkt, reply);
@@ -489,7 +503,6 @@ uint8_t Master::GetStandbyStatus()
 std::vector<UBSE_ID_TYPE> Master::GetActiveNodes()
 {
     std::vector<UBSE_ID_TYPE> activeNodes{};
-    std::lock_guard<std::mutex> lock(mtx_);  // 加锁
     for (const auto &node : broadcast_) {
         if (node.second.activeStatus == HeartBeatState::ACTIVE) {
             activeNodes.push_back(node.first);
@@ -515,5 +528,39 @@ void Master::SetNodeDownStatus(UBSE_ID_TYPE nodeId)
     if (nodeId == standbyId_) {
         standbyId_ = INVALID_NODE_ID;
     }
+}
+
+std::vector<UBSE_ID_TYPE> Master::GetCandidateNodes()
+{
+    std::vector<UBSE_ID_TYPE> activeNodes = GetActiveNodes();
+    std::vector<UBSE_ID_TYPE> candidateNodes;
+
+    if (UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+        // 获取 root 节点 ID 列表
+        std::vector<UBSE_ID_TYPE> rootIdList;
+        std::vector<std::string> rootIpList = nodeMgr::GetRootIpList();
+
+        for (const auto& ip : rootIpList) {
+            UBSE_ID_TYPE id;
+            auto ret = UbseElectionNodeMgr::GetInstance().GetNodeIdByIp(ip, id);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_WARN << "[ELECTION] GetNodeIdByIp failed, ip=" << ip;
+                continue;
+            }
+            rootIdList.emplace_back(id);
+        }
+
+        // 取交集：activeNodes ∩ rootIdList
+        for (auto id : activeNodes) {
+            if (std::find(rootIdList.begin(), rootIdList.end(), id) != rootIdList.end()) {
+                candidateNodes.push_back(id);
+            }
+        }
+    } else {
+        // 非指定根节点场景，直接使用所有活跃节点
+        candidateNodes = activeNodes;
+    }
+
+    return candidateNodes;
 }
 }

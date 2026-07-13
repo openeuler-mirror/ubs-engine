@@ -153,6 +153,7 @@ enum class HeartBeatStatus : uint8_t {
 struct ElectionPkt {
     uint8_t type;
     UBSE_ID_TYPE masterId;
+    std::string masterIp;
     UBSE_ID_TYPE standbyId;
     uint64_t turnId = 0;
     uint64_t sequenceId = 0;
@@ -173,6 +174,8 @@ struct InterGroupInfo {
     UBSE_ID_TYPE groupMasterId;
     UBSE_ID_TYPE groupStandbyId;
     std::vector<UBSE_ID_TYPE> groupNodeIds;
+    UBSE_ID_TYPE globalMasterId;
+    UBSE_ID_TYPE globalStandbyId;
 };
 
 constexpr int ELECTION_PKT_RESULT_ACCEPT = 0;
@@ -191,6 +194,10 @@ struct ElectionReplyPkt {
     uint8_t standbyStatus = NOT_READY;
     uint8_t broadcast = static_cast<uint8_t>(NotifyStatus::NOT_BROADCAST);
     std::vector<UBSE_ID_TYPE> managingGroupNodeIds;
+    std::vector<UBSE_ID_TYPE> cascadeGroupNodeIds;
+    std::string cascadeGroupId;
+    UBSE_ID_TYPE cascadeMasterId;
+    UBSE_ID_TYPE cascadeStandbyId;
 };
 
 struct CallbackCtx {
@@ -205,6 +212,7 @@ struct CallbackCtx {
 struct GlobalCallbackCtx {
     std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
     std::map<UBSE_ID_TYPE, GroupTopology> *globalStandbyAgentGroupTopologies;
+    std::map<UBSE_ID_TYPE, GroupTopology> *globalCascadeGroupTopologies;
     std::string destId{};
     uint8_t *standbyStatus;
     std::mutex *mtx = nullptr;
@@ -215,10 +223,16 @@ struct GlobalCallbackCtx {
 struct CallbackQueryCtx {
     std::mutex *queryMtx = nullptr;
     std::unordered_map<UBSE_ID_TYPE, GroupSummaryInfo> *groupStates;
+    std::string destId{};
+};
+
+struct CallbackCascadeCtx {
+    std::string destId{};
+    std::mutex *mtx = nullptr;
     std::string *globalMasterId;
     std::string *globalStandbyId;
     std::string *upstreamNextHopId;
-    std::string destId{};
+    InterGroupInfo *managingGroupInfo;
 };
 } // namespace ubse::election
 #endif // UBSE_MANAGER_UBSE_ELECTION_DEF_H

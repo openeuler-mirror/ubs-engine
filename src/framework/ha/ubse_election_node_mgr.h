@@ -104,8 +104,8 @@ public:
     UbseResult GetGroupIdByNodeId(const std::string &nodeId, std::string &groupId);
     // 获取当前节点的groupId
     UbseResult GetGroupId(std::string &groupId);
-    UbseResult GetUBEnable(bool &ubEnable);
     bool IsHierarchicalElection() const;
+    bool IsRootEnable() const;
     uint32_t GetCapability();
     UbseResult HandleNodeDiscoveryEvent(const std::string &eventId, const std::string &eventMessage);
     UbseResult ElectionSubNodeDiscoveryEvent();

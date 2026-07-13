@@ -37,24 +37,6 @@ UbseElectionNodeMgr &UbseElectionNodeMgr::GetInstance()
     return instance;
 }
 
-UbseResult UbseElectionNodeMgr::GetUBEnable(bool &ubEnable)
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
-    return UBSE_OK;
-}
-
 UbseElectionNodeMgr::UbseElectionNodeMgr()
     : heartBeatTime_(DEFAULT_HEART_BEAT_TIME),
       heartBeatLost_(DEFAULT_HEART_BEAT_LOST),
@@ -389,13 +371,11 @@ UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
 {
     UbseNodeStaticInfo nodeInfo = GetCurrentNode();
     std::vector<UbseNodeStaticInfo> nodeStaticInfos = GetNodesByGroupId(nodeInfo.groupId);
-    bool ubEnable = true;
-    GetUBEnable(ubEnable);
     groupNodes.clear();
     for (const auto &nodeStaticInfo : nodeStaticInfos) {
         Node node;
         node.id = nodeStaticInfo.nodeId;
-        node.ip = ubEnable? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
+        node.ip = IsUrma()? nodeStaticInfo.bonding0Eid : nodeStaticInfo.addr;
         node.port = TCP_LISTEN_PORT;
         UBSE_LOG_INFO << "[ELECTION] group node id is " << node.id << ", ip is " << node.ip << ", port is " << node.port;
         groupNodes.push_back(node);
@@ -422,6 +402,11 @@ UbseResult UbseElectionNodeMgr::GetGroupIdByNodeId(const std::string &nodeId, st
 bool UbseElectionNodeMgr::IsHierarchicalElection() const
 {
         return isHierarchicalElection_;
+}
+
+bool UbseElectionNodeMgr::IsRootEnable() const
+{
+        return rootEnable_;
 }
 
 uint32_t UbseElectionNodeMgr::GetCapability()

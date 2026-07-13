@@ -43,6 +43,10 @@ GlobalStandby::GlobalStandby(RoleContext &ctx) : globalTurnId_(0), lastHeartTime
     if (result != UBSE_OK) {
         UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
     }
+    ret = GetBootTime(lastCascadeReportTime_);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] GetBootTime lastCascadeReportTime_ fail";
+    }
     RegisterTimers();
     UBSE_LOG_INFO << "[ELECTION] Global Standby start ProcTimer: " << globalStandbyId_ << ".";
 }
@@ -114,7 +118,31 @@ void GlobalStandby::ProcTimer()
         UbseContext::GetInstance().SetWorkReadiness(NOT_READY);
         RoleMgr::GetInstance().SwitchGlobalRole(GlobalRoleType::GLOBAL_MASTER, ctx);
     }
+    DetectCascadeGroupTimeout();
 }
+
+void GlobalStandby::DetectCascadeGroupTimeout()
+{
+    if (cascadeGroupReport_.groupMasterId.empty()) {
+        return;
+    }
+    uint64_t bootTime;
+    if (GetBootTime(bootTime) != UBSE_OK) {
+        return;
+    }
+    uint32_t timeoutThreshold = UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL * NO_10 * NO_1000; // 10s
+    if (bootTime - lastCascadeReportTime_ > timeoutThreshold) {
+        UBSE_LOG_ERROR << "[ELECTION] Cascade group report timeout, masterId="
+                       << cascadeGroupReport_.groupMasterId;
+        if (!g_globalStop.load()) {
+            RoleMgr::GetInstance().RoleChangeNotifyAsync(
+                UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, cascadeGroupReport_.groupMasterId);
+        }
+        DeleteDownstreamGroupRoute();
+        cascadeGroupReport_ = {};
+    }
+}
+
 
 uint32_t GlobalStandby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
@@ -162,6 +190,10 @@ void GlobalStandby::RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt 
                     }
                 }
             }
+            reply.cascadeGroupId = cascadeGroupReport_.groupId;
+            reply.cascadeMasterId = cascadeGroupReport_.groupMasterId;
+            reply.cascadeStandbyId = cascadeGroupReport_.groupStandbyId;
+            reply.cascadeGroupNodeIds = cascadeGroupReport_.groupNodeIds;
             HandleGlobalMasterOnlineNotification(rcvPkt, reply);
         } else {
             RoleContext ctx;
@@ -238,6 +270,7 @@ bool GlobalStandby::IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) cons
 void GlobalStandby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo)
 {
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+        GetBootTime(lastCascadeReportTime_);
         UBSE_ID_TYPE previousCascadeMasterId = cascadeGroupReport_.groupMasterId;
         cascadeGroupReport_ = rcvInfo;
         UBSE_ID_TYPE currentCascadeMasterId = cascadeGroupReport_.groupMasterId;
@@ -257,8 +290,28 @@ void GlobalStandby::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroup
         }
         // 回复全局主备
         replyInfo.nodeId = globalStandbyId_;
-        replyInfo.groupMasterId = globalMasterId_;
-        replyInfo.groupStandbyId = globalStandbyId_;
+        replyInfo.globalMasterId = globalMasterId_;
+        replyInfo.globalStandbyId = globalStandbyId_;
+        replyInfo.groupId = groupId_;
+        auto groupRole = RoleMgr::GetInstance().GetRole();
+        if (groupRole != nullptr) {
+            std::vector<UBSE_ID_TYPE> agentNodes = groupRole->GetAgentNodes();
+            replyInfo.groupStandbyId = groupRole->GetStandbyNode();
+            replyInfo.groupMasterId = groupRole->GetMasterNode();
+            if (replyInfo.groupMasterId != INVALID_NODE_ID) {
+                replyInfo.groupNodeIds.push_back(replyInfo.groupMasterId);
+            }
+            if (replyInfo.groupStandbyId != INVALID_NODE_ID) {
+                replyInfo.groupNodeIds.push_back(replyInfo.groupStandbyId);
+            }
+            for (auto &node : agentNodes) {
+                if (node != replyInfo.groupMasterId && node != replyInfo.groupStandbyId) {
+                    replyInfo.groupNodeIds.push_back(node);
+                }
+            }
+        }
+
+
     }
 }
 

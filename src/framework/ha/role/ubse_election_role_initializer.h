@@ -44,13 +44,14 @@ public:
         return turnId_;
     }
 private:
-    void ProcRoleSwitch();
+    void ProcRoleSwitch(const std::vector<Node> &allNodes);
     void CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &allNodes, RoleContext ctx);
 private:
     uint64_t startTimeMs_;
     uint64_t lastTimeMs_;
     UBSE_ID_TYPE masterId_;
     UBSE_ID_TYPE myselfID_;
+    std::string myselfIp_;
     uint64_t turnId_ = 0;
     uint8_t masterStatus_ = 0;
     uint8_t standbyStatus_ = 0;

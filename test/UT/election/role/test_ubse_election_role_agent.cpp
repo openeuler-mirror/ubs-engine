@@ -52,6 +52,7 @@ TEST_F(TestUbseElectionRoleAgent, ProcTimer_ShouldSwitchToMaster_WhenGetElection
     MOCKER(&Agent::IsAgentHeartBeatTimeout).stubs().will(returnValue(true));
     MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
     MOCKER(&ubse::election::ForceElection).stubs().will(returnValue((uint32_t)ELECTION_PKT_RESULT_ACCEPT));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
 
     // when
     auto role = RoleMgr::GetInstance().GetRole();
@@ -162,6 +163,7 @@ TEST_F(TestUbseElectionRoleAgent, RecvPkt_ShouldReturnAccept_WhenRcvHeartStandby
 {
     // given
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode2));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     RoleType roleType = RoleType::AGENT;
     RoleContext ctx;
     ctx.masterId = "NODE0";
@@ -190,6 +192,7 @@ TEST_F(TestUbseElectionRoleAgent, RecvPkt_ShouldReturnAccept_WhenRcvHeartStandby
 {
     // given
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode2));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     RoleType roleType = RoleType::AGENT;
     RoleContext ctx;
     ctx.masterId = "NODE0";

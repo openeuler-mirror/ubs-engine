@@ -180,7 +180,7 @@ UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYP
     return smallestId;
 }
 
-uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID)
+uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID, std::string myselfIp)
 {
     std::vector<std::string> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
     for (auto it : allNodes) {
@@ -188,6 +188,7 @@ uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID)
         ElectionReplyPkt reply;
         pkt.type = ELECTION_PKT_TYPE_SELECT;
         pkt.masterId = myselfID;
+        pkt.masterIp = myselfIp;
         RoleMgr::GetInstance().GetCommMgr()->SendElectionPkt(it, pkt, reply);
         if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
             continue;
@@ -200,7 +201,7 @@ uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID)
     return ELECTION_PKT_RESULT_ACCEPT;
 }
 
-uint32_t ForceElection(UBSE_ID_TYPE myselfID)
+uint32_t ForceElection(UBSE_ID_TYPE myselfID, std::string myselfIp)
 {
     std::vector<UBSE_ID_TYPE> allNodes = RoleMgr::GetInstance().GetCommMgr()->GetConnectedNodes();
     UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection: SIZE " << allNodes.size() << ".";
@@ -213,7 +214,7 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID)
     UBSE_ID_TYPE smallestId = FindSmallestId(allNodes);
     UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection:  " << smallestId << ".";
     if (smallestId >= myselfID) {
-        if (SendElectionPkt(myselfID) == ELECTION_PKT_RESULT_ACCEPT) {
+        if (SendElectionPkt(myselfID, myselfIp) == ELECTION_PKT_RESULT_ACCEPT) {
             return ELECTION_PKT_RESULT_ACCEPT;
         }
     }
@@ -263,7 +264,7 @@ uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNod
     UBSE_ID_TYPE smallestId = FindSmallestId(allNodes);
     UBSE_LOG_INFO << "[ELECTION] Initializer: ForceElection:  " << smallestId << ".";
     if (smallestId >= myselfID) {
-        if (SendElectionPkt(myselfID) == ELECTION_PKT_RESULT_ACCEPT) {
+        if (SendElectionPkt(myselfID, "") == ELECTION_PKT_RESULT_ACCEPT) {
             return ELECTION_PKT_RESULT_ACCEPT;
         }
     }
@@ -344,6 +345,11 @@ InterGroupInfo ElectionRole::GetCascadeGroupReport()
 }
 
 std::vector<GroupTopology> ElectionRole::GetManagingGroupNodeIds()
+{
+    return {};
+}
+
+std::vector<GroupTopology> ElectionRole::GetCascadeGroupNodeIds()
 {
     return {};
 }

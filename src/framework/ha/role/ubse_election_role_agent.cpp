@@ -21,6 +21,7 @@ Agent::Agent(RoleContext &ctx) : turnId_(0), lastHeartTime_()
     UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself);
 
     myselfID_ = myself.id;
+    myselfIp_ = myself.ip;
     masterId_ = ctx.masterId;
     standbyId_ = ctx.standbyId;
     AddDefaultRouteToCom(masterId_);
@@ -39,20 +40,35 @@ void Agent::ProcTimer()
 {
     // 从节点丢失主的心跳次数阈值，约定从节点丢失心跳次数阈值比备节点的多2次。
     uint32_t agentLostHbSwitchThreshold = (ElectionRole::GetHbLostTimes() + NO_2);
-    if (IsAgentHeartBeatTimeout(agentLostHbSwitchThreshold)) {
-        if (GetElectionCandidate() && ForceElection(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-            RoleContext ctx;
-            ctx.masterId = myselfID_;
-            ctx.standbyId = INVALID_NODE_ID;
-            ctx.turnId = turnId_;
-            UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Master";
-            RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+    if (!IsAgentHeartBeatTimeout(agentLostHbSwitchThreshold)) {
+        return;   // 心跳未超时，直接返回
+    }
+
+    // 判断是否有资格发起选举
+    bool canElect = GetElectionCandidate() && (ForceElection(myselfID_, myselfIp_) == ELECTION_PKT_RESULT_ACCEPT);
+    RoleType targetRole = RoleType::INITIALIZER;   // 默认角色
+
+    if (canElect) {
+        if (!UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+            targetRole = RoleType::MASTER;
         } else {
-            RoleContext ctx;
-            UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Initializer";
-            RoleMgr::GetInstance().SwitchRole(RoleType::INITIALIZER, ctx);
+            std::vector<std::string> rootList = nodeMgr::GetRootIpList();
+            bool inRootList = std::find(rootList.begin(), rootList.end(), myselfIp_) != rootList.end();
+            targetRole = inRootList ? RoleType::MASTER : RoleType::INITIALIZER;
         }
     }
+
+    // 构造上下文并切换角色
+    RoleContext ctx;
+    if (targetRole == RoleType::MASTER) {
+        ctx.masterId = myselfID_;
+        ctx.standbyId = INVALID_NODE_ID;
+        ctx.turnId = turnId_;
+        UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Master";
+    } else {
+        UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Initializer";
+    }
+    RoleMgr::GetInstance().SwitchRole(targetRole, ctx);
 }
 
 void Agent::HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply)
@@ -79,6 +95,15 @@ void Agent::HandleMasterChange(const ElectionPkt &rcvPkt, ElectionReplyPkt &repl
 
 uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
+    if (UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+        std::vector<std::string> rootList = nodeMgr::GetRootIpList();
+        bool inRootList = std::find(rootList.begin(), rootList.end(), rcvPkt.masterIp) != rootList.end();
+        if (!inRootList) {
+            reply.replyId = myselfID_;
+            reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+            return UBSE_OK;
+        }
+    }
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         RecvPktForSelect(reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {

@@ -45,6 +45,7 @@ TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnAccept_WhenNod
 {
     // given
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     Initializer initer;
     UBSE_ID_TYPE myselfID = "NODE1";
     UBSE_ID_TYPE srcID = "NODE0";
@@ -103,6 +104,7 @@ TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnReject_WhenNod
 
 TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnAccept_WhenNodeReady)
 {
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
@@ -115,7 +117,8 @@ TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnAccept_WhenNod
 
     rcvPkt.type = ELECTION_PKT_TYPE_SELECT;
     rcvPkt.masterId = srcID;
-
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(false));
     initer.RecvPkt(srcID, rcvPkt, reply);
 
     EXPECT_EQ(reply.replyResult, ELECTION_PKT_RESULT_ACCEPT);
@@ -123,6 +126,7 @@ TEST_F(TestUbseElectionRoleInitializer, RecvSelectPkt_ShouldReturnAccept_WhenNod
 
 TEST_F(TestUbseElectionRoleInitializer, RecvHeartPkt_ShouldSwitchAgent_WhenNodeReady)
 {
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
@@ -144,6 +148,7 @@ TEST_F(TestUbseElectionRoleInitializer, RecvHeartPkt_ShouldSwitchAgent_WhenNodeR
 
 TEST_F(TestUbseElectionRoleInitializer, RecvHeartPkt_ShouldSwitchStandby_WhenNodeReady)
 {
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
@@ -153,6 +158,7 @@ TEST_F(TestUbseElectionRoleInitializer, RecvHeartPkt_ShouldSwitchStandby_WhenNod
     UBSE_ID_TYPE srcID = "NODE0";
     ElectionPkt rcvPkt;
     ElectionReplyPkt reply;
+    initer.myselfID_ = myselfID;
 
     rcvPkt.type = ELECTION_PKT_TYPE_HEART;
     rcvPkt.masterId = srcID;
@@ -170,6 +176,7 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMatser_WhenSmalles
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     Initializer initer;
     initer.isStartTimeSet_ = false;
     initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime();
@@ -194,6 +201,7 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge2
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     Initializer initer;
     initer.isStartTimeSet_ = false;
     initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_4;
@@ -218,6 +226,7 @@ TEST_F(TestUbseElectionRoleInitializer, ProcTimer_ShouldReturnMaster_WhenStatge3
     MOCKER(&UbseElectionNodeMgr::GetLocalNodeState)
         .stubs()
         .will(returnValue(nodeController::UbseNodeLocalState::UBSE_NODE_READY));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     Initializer initer;
     initer.isStartTimeSet_ = true;
     initer.lastTimeMs_ = UbseElectionNodeMgr::GetInstance().GetHeartBeatTime() * NO_5;

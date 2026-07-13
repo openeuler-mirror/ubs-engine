@@ -255,7 +255,7 @@ void DeleteUpstreamRouteToCom()
 
 void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
 {
-    auto* context = static_cast<CallbackQueryCtx*>(ctx);
+    auto* context = static_cast<CallbackCascadeCtx*>(ctx);
     if (context == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Received null context in callback";
         return;
@@ -263,7 +263,8 @@ void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
     const auto& nodeId = context->destId;
     auto& globalMasterId = *context->globalMasterId;
     auto& globalStandbyId = *context->globalStandbyId;
-    auto& cascadeMtx = *context->queryMtx;
+    auto& cascadeMtx = *context->mtx;
+    auto& managingGroupInfo = *context->managingGroupInfo;
 
     if (result != UBSE_OK) {
         UBSE_LOG_INFO << "[ELECTION] Failed to query information.";
@@ -303,6 +304,11 @@ void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
         std::lock_guard<std::mutex> lck(cascadeMtx);
         globalStandbyId = reply.groupStandbyId;
         globalMasterId = reply.groupMasterId;
+        managingGroupInfo.groupId = reply.groupId;
+        managingGroupInfo.nodeId = reply.nodeId;
+        managingGroupInfo.groupMasterId = reply.groupMasterId;
+        managingGroupInfo.groupStandbyId = reply.groupStandbyId;
+        managingGroupInfo.groupNodeIds = reply.groupNodeIds;
         auto& upstreamNextHopId = *context->upstreamNextHopId;
         if (reply.nodeId == globalMasterId) {
             // 当前节点为global_master时，删除上行路由
@@ -337,7 +343,7 @@ UbseResult GlobalInitializer::SendCascadeInformation(UBSE_ID_TYPE destId, const 
     ubse::com::SendParam sendParam(destId, static_cast<uint16_t>(UbseModuleCode::ELECTION),
                                    static_cast<uint16_t>(UbseElectionOpCode::ELECTION_INTER_GROUP_INFO),
                                    UbseChannelType::NORMAL);
-    auto context = new (std::nothrow) CallbackQueryCtx;
+    auto context = new (std::nothrow) CallbackCascadeCtx;
     if (context == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] New context failed.";
         return UBSE_ERROR_NULLPTR;
@@ -348,7 +354,8 @@ UbseResult GlobalInitializer::SendCascadeInformation(UBSE_ID_TYPE destId, const 
     context->globalMasterId = &globalMasterId_;
     context->globalStandbyId = &globalStandbyId_;
     context->upstreamNextHopId = &upstreamNextHopId_;
-    context->queryMtx = &cascadeMtx_;
+    context->mtx = &cascadeMtx_;
+    context->managingGroupInfo = &managingGroupInfo_;
     ubse::com::UbseComCallback callback;
     callback.cb = AsyncDealCascadeReply;
     callback.cbCtx = reinterpret_cast<void *>(context);
@@ -417,5 +424,18 @@ GlobalInitializer::~GlobalInitializer()
 void GlobalInitializer::CleanupRoutes()
 {
     DeleteUpstreamRouteToCom();
+}
+
+std::vector<GroupTopology> GlobalInitializer::GetManagingGroupNodeIds()
+{
+    std::lock_guard<std::mutex> lock(cascadeMtx_);
+    GroupTopology managingGroup{
+        managingGroupInfo_.groupId,
+        true,
+        managingGroupInfo_.groupMasterId,
+        managingGroupInfo_.groupStandbyId,
+        managingGroupInfo_.groupNodeIds
+    };
+    return { managingGroup };
 }
 }

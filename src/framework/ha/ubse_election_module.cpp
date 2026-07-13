@@ -185,15 +185,12 @@ UbseResult UbseElectionModule::UbseGetMasterNode(Node &masterNode)
     masterNode.id = masterId;
     auto nodeInfo = ubse::nodeMgr::GetUbseNodeById(masterId);
 
-    bool ubEnable = true;
-    electionNodeMgr.GetUBEnable(ubEnable);
-
     if (nodeInfo.nodeId.empty()) {
         UBSE_LOG_WARN << "[ELECTION] Master nodeId=" << masterId << " not found in currentAllNodes";
         masterNode.ip = NODE_IP_NULL;
         masterNode.port = NODE_PORT_NULL;
     } else {
-        masterNode.ip = ubEnable ? nodeInfo.bonding0Eid : nodeInfo.addr;
+        masterNode.ip = IsUrma() ? nodeInfo.bonding0Eid : nodeInfo.addr;
         masterNode.port = TCP_LISTEN_PORT;
     }
 
@@ -228,15 +225,12 @@ UbseResult UbseElectionModule::UbseGetStandbyNode(Node &standbyNode)
     standbyNode.id = standbyId;
     auto nodeInfo = ubse::nodeMgr::GetUbseNodeById(standbyId);
 
-    bool ubEnable = true;
-    electionNodeMgr.GetUBEnable(ubEnable);
-
     if (nodeInfo.nodeId.empty()) {
         UBSE_LOG_WARN << "[ELECTION] Standby nodeId=" << standbyId << " not found in currentAllNodes";
         standbyNode.ip = NODE_IP_NULL;
         standbyNode.port = NODE_PORT_NULL;
     } else {
-        standbyNode.ip = ubEnable ? nodeInfo.bonding0Eid : nodeInfo.addr;
+        standbyNode.ip = IsUrma() ? nodeInfo.bonding0Eid : nodeInfo.addr;
         standbyNode.port = TCP_LISTEN_PORT;
     }
 
@@ -444,6 +438,10 @@ UbseResult BuildGlobalMasterRoleTopology(HaTopologyInfo &haTopology,
     for (const auto &globalAgentId : globalAgentIds) {
         haTopology.groups.push_back(globalAgentId);
     }
+    auto cascadeTopo = globalRole -> GetCascadeGroupNodeIds();
+    for (const auto &cascade : cascadeTopo) {
+        haTopology.groups.push_back(cascade);
+    }
     return UBSE_OK;
 }
 
@@ -465,6 +463,25 @@ UbseResult BuildGlobalStandbyAgentRoleTopology(HaTopologyInfo &haTopology,
     return UBSE_OK;
 }
 
+UbseResult BuildGlobalCascadeRoleTopology(HaTopologyInfo &haTopology,
+    const std::shared_ptr<ElectionRole> &role, const std::shared_ptr<ElectionRole> &globalRole,
+    const UBSE_ID_TYPE &myGroupId, bool isManaging)
+{
+    GroupSummaryInfo state;
+    state.groupId = myGroupId;
+    state.groupMasterId = role->GetMasterNode();
+    state.groupStandbyId = role->GetStandbyNode();
+    GroupTopology curTopo = BuildGroupTopology(state, role->GetAgentNodes(), isManaging);
+    haTopology.currentGroup = std::move(curTopo);
+
+    auto managingGroupIds = globalRole->GetManagingGroupNodeIds();
+    for (const auto &managingGroupId : managingGroupIds) {
+        haTopology.groups.push_back(managingGroupId);
+    }
+
+    return UBSE_OK;
+}
+
 UbseResult BuildLocalGroupTopology(HaTopologyInfo &haTopology,
     const std::shared_ptr<ElectionRole> &role, const UBSE_ID_TYPE &myGroupId, bool isManaging)
 {
@@ -477,7 +494,7 @@ UbseResult BuildLocalGroupTopology(HaTopologyInfo &haTopology,
     return UBSE_OK;
 }
 
-UbseResult UbseElectionModule::GetHaTopologyInfo(HaTopologyInfo &haTopology)
+UbseResult UbseElectionModule::GetCurNodeGlobalTopoInfo(HaTopologyInfo &haTopology)
 {
     haTopology = {};
 
@@ -513,6 +530,9 @@ UbseResult UbseElectionModule::GetHaTopologyInfo(HaTopologyInfo &haTopology)
     }
     if (globalRole == GlobalRoleType::GLOBAL_STANDBY || globalRole == GlobalRoleType::GLOBAL_AGENT) {
         return BuildGlobalStandbyAgentRoleTopology(haTopology, role, globalRolePtr, myGroupId, isManaging);
+    }
+    if (globalRole == GlobalRoleType::GLOBAL_INITIALIZER && !isManaging) {
+        return BuildGlobalCascadeRoleTopology(haTopology, role, globalRolePtr, myGroupId, isManaging);
     }
     return BuildLocalGroupTopology(haTopology, role, myGroupId, isManaging);
 }

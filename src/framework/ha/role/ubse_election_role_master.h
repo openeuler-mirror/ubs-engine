@@ -80,9 +80,11 @@ private:
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus(const std::vector<UBSE_ID_TYPE> &allNodes);
     UbseResult SendHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
+    std::vector<UBSE_ID_TYPE> GetCandidateNodes();
 
 private:
     UBSE_ID_TYPE masterId_; // Master的masterId也是selfID
+    std::string masterIp_; // Master的masterIp也是selfIp
     UBSE_ID_TYPE standbyId_ = INVALID_NODE_ID;
     uint64_t lastTimeMs_ = 0;
     uint64_t turnId_;
