@@ -15,9 +15,9 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include "plugin_services/ssu/ubse_ssu_service.h"
 #include "ubse_ssu_collector.h"
 #include "ubse_ssu_scheduler.h"
-#include "plugin_services/ssu/ubse_ssu_service.h"
 
 namespace ubse::ssu::service {
 
@@ -66,7 +66,7 @@ public:
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
-    
+
     // Execute函数只在master端调用，用于处理分配/释放/添加/移除访问权限请求
     uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                           UbseSsuAllocResult &result);
