@@ -87,6 +87,27 @@ public:
     ItCliInvoker& GetCliInvoker(const std::string& nodeId);
 
     /**
+     * @brief Get a LCNE client for a specific node.
+     *
+     * Delegates to ItNode::GetLcneClient().
+     */
+    ItLcneClient& GetLcneClient(const std::string& nodeId);
+
+    /**
+     * @brief Get topology links information from all nodes in the cluster.
+     * @param links [out] Link information list from all nodes
+     * @return UBSE_OK on success, error code on failure
+     */
+    UbseResult GetAllLcneTopologyLinks(std::vector<LcneLinkInfo>& links);
+
+    /**
+     * @brief Get logic-entities information from all nodes in the cluster.
+     * @param entities [out] Logic entity information list from all nodes
+     * @return UBSE_OK on success, error code on failure
+     */
+    UbseResult GetAllLcneLogicEntities(std::vector<LcneLogicEntityInfo>& entities);
+
+    /**
      * @brief Kill a specific node (SIGKILL) for fault injection.
      * @param nodeId The node to kill
      * @return UBSE_OK on success

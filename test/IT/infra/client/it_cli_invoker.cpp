@@ -713,11 +713,39 @@ std::string ItCliInvoker::DisplayMemoryNumaStatus(bool showAll, bool useLongOpti
     return ExecCli(cmd);
 }
 
-std::string ItCliInvoker::DisplayMemoryConfig(bool useLongOptions)
+int32_t ItCliInvoker::DisplayMemoryConfig(std::vector<ItMemConfigInfo>& configs, bool useLongOptions)
 {
     std::string typeOpt = useLongOptions ? "--type" : "-t";
     std::string cmd = "display memory " + typeOpt + " config";
-    return ExecCli(cmd);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t config returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t config returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    configs.clear();
+    for (const auto& rec : records) {
+        ItMemConfigInfo config;
+        auto it = rec.find("node");
+        if (it != rec.end())
+            config.node = it->second;
+        it = rec.find("isLender");
+        if (it != rec.end())
+            config.isLender = it->second;
+        configs.push_back(std::move(config));
+    }
+
+    if (configs.empty()) {
+        IT_LOG_WARN << "No config records parsed from CLI output";
+    }
+    return UBS_SUCCESS;
 }
 
 } // namespace ubse::it::infra

@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <future>
+#include <set>
 #include <stdexcept>
 #include <utility>
 
@@ -166,6 +167,115 @@ ItCliInvoker& ItCluster::GetCliInvoker(const std::string& nodeId)
         throw std::runtime_error("Node not found: " + nodeId);
     }
     return it->second->GetCliInvoker();
+}
+
+ItLcneClient& ItCluster::GetLcneClient(const std::string& nodeId)
+{
+    auto it = nodes_.find(nodeId);
+    if (it == nodes_.end()) {
+        throw std::runtime_error("Node not found: " + nodeId);
+    }
+    return it->second->GetLcneClient();
+}
+
+UbseResult ItCluster::GetAllLcneTopologyLinks(std::vector<LcneLinkInfo>& links)
+{
+    links.clear();
+
+    // Use a set to deduplicate links
+    // Key format: "localSlot-localUbpu-localPort-remoteSlot-remoteUbpu-remotePort"
+    std::set<std::string> linkKeys;
+
+    // Iterate all nodes and get topology links from each node
+    for (const auto& nodeId : nodeIds_) {
+        auto it = nodes_.find(nodeId);
+        if (it == nodes_.end()) {
+            IT_LOG_ERROR << "Node not found: " << nodeId;
+            return UBSE_ERROR_DEF(1);
+        }
+
+        auto& lcneClient = it->second->GetLcneClient();
+        std::vector<LcneLinkInfo> nodeLinks;
+        UbseResult ret = lcneClient.GetTopologyLinks(nodeLinks);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "Failed to get topology links from node " << nodeId;
+            return ret;
+        }
+
+        // Deduplicate and append node links to the result
+        for (const auto& link : nodeLinks) {
+            // Normalize link direction by sorting slots
+            // This ensures the same physical link generates the same key
+            // regardless of which node reports it
+            uint32_t minSlot = std::min(link.localSlot, link.remoteSlot);
+
+            // Create normalized key for the link
+            std::string key;
+            if (link.localSlot == minSlot) {
+                // Local slot is smaller, use original order
+                key = std::to_string(link.localSlot) + "-" + std::to_string(link.localUbpu) + "-" +
+                      std::to_string(link.localPort) + "-" + std::to_string(link.remoteSlot) + "-" +
+                      std::to_string(link.remoteUbpu) + "-" + std::to_string(link.remotePort);
+            } else {
+                // Remote slot is smaller, swap order
+                key = std::to_string(link.remoteSlot) + "-" + std::to_string(link.remoteUbpu) + "-" +
+                      std::to_string(link.remotePort) + "-" + std::to_string(link.localSlot) + "-" +
+                      std::to_string(link.localUbpu) + "-" + std::to_string(link.localPort);
+            }
+
+            // Only add if the key is not already in the set
+            if (linkKeys.find(key) == linkKeys.end()) {
+                linkKeys.insert(key);
+                links.push_back(link);
+            }
+        }
+    }
+
+    IT_LOG_INFO << "Got " << links.size() << " unique topology links from all nodes";
+
+    // Build Ubpu to SocketId mapping for all links
+    // Use the first node's LCNE client to build the mapping
+    if (!nodeIds_.empty()) {
+        auto& lcneClient = nodes_[nodeIds_[0]]->GetLcneClient();
+        UbseResult ret = lcneClient.BuildUbpuToSocketIdMapping(links);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "Failed to build Ubpu to SocketId mapping";
+            return ret;
+        }
+    }
+
+    return UBSE_OK;
+}
+
+UbseResult ItCluster::GetAllLcneLogicEntities(std::vector<LcneLogicEntityInfo>& entities)
+{
+    entities.clear();
+    std::set<std::string> seen; // key: busInstanceEid
+
+    for (const auto& nodeId : nodeIds_) {
+        auto it = nodes_.find(nodeId);
+        if (it == nodes_.end()) {
+            IT_LOG_ERROR << "Node not found: " << nodeId;
+            return UBSE_ERROR_DEF(1);
+        }
+
+        auto& lcneClient = it->second->GetLcneClient();
+        std::vector<LcneLogicEntityInfo> nodeEntities;
+        UbseResult ret = lcneClient.GetLogicEntities(nodeEntities);
+        if (ret != UBSE_OK) {
+            IT_LOG_ERROR << "Failed to get logic-entities from node " << nodeId;
+            return ret;
+        }
+
+        for (const auto& entity : nodeEntities) {
+            if (seen.insert(entity.busInstanceEid).second) {
+                entities.push_back(entity);
+            }
+        }
+    }
+
+    IT_LOG_INFO << "Got " << entities.size() << " unique logic-entities from all nodes";
+    return UBSE_OK;
 }
 
 UbseResult ItCluster::KillNode(const std::string& nodeId)

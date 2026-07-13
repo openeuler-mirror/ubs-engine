@@ -99,6 +99,16 @@ struct ItNodeLendInfo {
     std::string size;
 };
 
+/**
+ * @brief Memory configuration information parsed from "display memory -t config".
+ *
+ * Table columns: node, isLender
+ */
+struct ItMemConfigInfo {
+    std::string node;
+    std::string isLender;
+};
+
 } // namespace ubse::it::infra
 
 #endif // IT_NODE_INFO_H
