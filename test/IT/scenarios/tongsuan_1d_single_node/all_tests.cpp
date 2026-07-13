@@ -12,6 +12,7 @@
 
 #include "scenario.h"
 #include "tests/election/election_cases.h"
+#include "tests/fault/fault_cases.h"
 #include "tests/smoke/smoke_cases.h"
 #include "tests/urma/urma_qos_cases.h"
 
@@ -102,4 +103,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, CliUrmaQosDisplayEmpty)
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, CliUrmaQosFullLifecycle)
 {
     ubse::it::tests::urma_qos::RunCliFullLifecycleTest(Cluster());
+}
+
+// 单节点BMC故障：注入BMC下电事件，验证单节点场景下RAS直接ack成功
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, BmcFaultSingleNode)
+{
+    ubse::it::tests::fault::RunBmcFaultSingleNodeTest(Cluster(), "1");
 }
