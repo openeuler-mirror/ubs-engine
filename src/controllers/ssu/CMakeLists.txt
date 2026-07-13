@@ -26,4 +26,5 @@ target_link_libraries(ubse_ssu_controller PRIVATE
     ubse_utils
     ubse_vip
     ubse_ssu_ipc
+    ubse_mti
 )
