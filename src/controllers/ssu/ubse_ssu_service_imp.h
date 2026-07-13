@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "plugin_services/ssu/ubse_ssu_service.h"
 #include "ubse_ssu_collector.h"
 #include "ubse_ssu_scheduler.h"
@@ -31,7 +32,7 @@ public:
 
     static UbseSsuServiceImp &GetInstance();
 
-    // 启动收集器，用于定期更新设备状态
+    // 启动收集器，用于定期更新设备状态，仅master端调用
     uint32_t StartCollecting();
     // 停止收集器
     void StopCollecting();
@@ -63,10 +64,14 @@ public:
     uint32_t RemoveAccessPermission(const std::string &name, const std::string &nqn,
                                     const UbseSsuAllocIdentityInfo &identity) override;
 
+    // master端：验证identity并返回构造Attach/Detach所需的字段(defaultNqn/jettyId/guid)
+    uint32_t VerifyAttachDetachIdentity(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
+                                  std::vector<ubse::ssu::message::UbseSsuNsVerifyInfo> &nsVerifyList);
+
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
-
+    
     // Execute函数只在master端调用，用于处理分配/释放/添加/移除访问权限请求
     uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                           UbseSsuAllocResult &result);
