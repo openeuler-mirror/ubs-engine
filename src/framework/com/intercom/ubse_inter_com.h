@@ -16,6 +16,7 @@
 #include <condition_variable>
 #include "ubse_base_message.h"
 #include "ubse_com_base.h"
+#include "ubse_map_util.h"
 #include "ubse_thread_pool_module.h"
 #include "trace_context.h"
 
@@ -68,12 +69,7 @@ public:
             MqHandleRequest<TReq, TRsp>(input);
         };
         WriteLocker<ReadWriteLock> lock(&rwLock_);
-        if (hdl.moduleCode >= MODULES_SIZE || hdl.opCode >= OP_CODE_SIZE) {
-            UBSE_LOG_ERROR << "Invalid module code or op code, module code is " << hdl.moduleCode << ", op code is "
-                           << hdl.opCode;
-            return UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE;
-        }
-        handlerMap_[hdl.moduleCode][hdl.opCode] = hdl;
+        handlerMap_[{hdl.moduleCode, hdl.opCode}] = hdl;
         return UBSE_OK;
     }
 
@@ -221,7 +217,7 @@ private:
     UbseMqHandler GetHandler(uint16_t moduleCode, uint16_t opCode);
     ReadWriteLock rwLock_;
     ubse::task_executor::UbseTaskExecutorPtr mqExecutor_ = nullptr;
-    UbseMqHandler handlerMap_[MODULES_SIZE][OP_CODE_SIZE]{};
+    ubse::utils::PairMap<uint16_t, uint16_t, UbseMqHandler> handlerMap_;
 };
 #undef MODULE_LOG_NAME
 } // namespace ubse::com
