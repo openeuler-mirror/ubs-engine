@@ -13,15 +13,21 @@
 #ifndef UBSE_SSU_CONTROLLER_MODULE_H
 #define UBSE_SSU_CONTROLLER_MODULE_H
 
+#include <memory>
 #include "ubse_common_def.h"
 #include "ubse_module.h"
+#include "ubse_ssu_service.h"
 
 namespace ubse::ssu::controller {
 
 using namespace ubse::common::def;
+using ubse::plugin::service::ssu::UbseSsuService;
 
 class UbseSsuControllerModule : public ubse::module::UbseModule {
 public:
+    static constexpr const char *kModuleName = "UbseSsuControllerModule";
+    std::string Name() const override { return kModuleName; }
+
     UbseResult Initialize() override;
 
     void UnInitialize() override;
@@ -29,6 +35,9 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+
+private:
+    std::shared_ptr<UbseSsuService> ssuService_;
 };
 
 } // namespace ubse::ssu::controller

@@ -24,4 +24,5 @@ target_link_libraries(ubse_ssu_controller PRIVATE
     ubse_election
     ubse_timer
     ubse_utils
+    ubse_vip
 )
