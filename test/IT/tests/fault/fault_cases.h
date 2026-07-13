@@ -31,6 +31,12 @@ namespace ubse::it::tests::fault {
 void RunVmOomEscapeBorrowTest(ubse::it::infra::ItCluster& cluster, const std::string& nodeId,
                               const std::vector<int>& nids, int timeout);
 
+// 单节点BMC故障：注入BMC下电事件(alarmId=1003)，验证单节点场景下RAS直接ack成功
+// 单节点时HandleBMCFault检测到IsOnlyOneNodeInCluster()=true，直接返回ack(retCode=0)
+// @param cluster  集群实例
+// @param nodeId   接收BMC事件的目标节点
+void RunBmcFaultSingleNodeTest(ubse::it::infra::ItCluster& cluster, const std::string& nodeId);
+
 } // namespace ubse::it::tests::fault
 
 #endif // IT_FAULT_CASES_H
