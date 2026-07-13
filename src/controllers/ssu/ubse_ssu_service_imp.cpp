@@ -21,8 +21,8 @@
 #include "framework/misc/ubse_logging_lock_guard.h"
 #include "message/ubse_ssu_alloc_msg.h"
 #include "message/ubse_ssu_free_msg.h"
-#include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_perm_msg.h"
+#include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "ubse_com_op_code.h"
 #include "ubse_election.h"
@@ -90,9 +90,8 @@ static uint32_t SendAllocRpcRequest(const UbseSsuAllocSpaceReq &req, const UbseS
                                     const std::string &requestNodeId, const std::string &masterNodeId,
                                     const std::string &requestId)
 {
-    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
-        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ));
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ));
     if (endpoint == nullptr) {
         UBSE_LOG_ERROR << "SendAllocRpcRequest: get ssu alloc req endpoint failed";
         return UBSE_ERROR;
@@ -254,7 +253,7 @@ uint32_t UbseSsuServiceImp::ExecuteScheduler(const UbseSsuAllocSpaceReq &req,
             return UBSE_ERROR;
         }
     }
-    
+
     UbseSsuAllocationContext ctx(devList, schedReq);
     auto allocRet = scheduler_.Execute(ctx);
     if (allocRet != UbseSsuAllocRetCode::OK) {
@@ -686,8 +685,7 @@ static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState 
     }
     auto statusRsp = rspMsg.GetErrorCode();
     if (statusRsp != UBSE_OK) {
-        UBSE_LOG_WARN << "SendStatusUpdate: master returned error, code=" << statusRsp
-                      << ", requestId=" << requestName;
+        UBSE_LOG_WARN << "SendStatusUpdate: master returned error, code=" << statusRsp << ", requestId=" << requestName;
         return statusRsp;
     }
     return UBSE_OK;
@@ -709,11 +707,10 @@ static std::string ResolveNqn(const std::string &nqn, const char *defaultNqn)
 static uint32_t UpdateLedgerStateAndNotify(const std::string &name, UbseSsuNsState state, const std::string &role)
 {
     UbseSsuNsState oldState;
-    if (!UbseSsuDebtLedger::GetInstance().Modify(name,
-                                                 [&state, &oldState](UbseSsuLedgerEntry &e) {
-                                                     oldState = e.state;
-                                                     e.state = state;
-                                                 })) {
+    if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState](UbseSsuLedgerEntry &e) {
+            oldState = e.state;
+            e.state = state;
+        })) {
         UBSE_LOG_ERROR << "UpdateLedgerStateAndNotify: ledger entry not found, name=" << name
                        << ", state=" << static_cast<int>(state);
         return UBSE_ERROR;
@@ -724,9 +721,7 @@ static uint32_t UpdateLedgerStateAndNotify(const std::string &name, UbseSsuNsSta
             UBSE_LOG_WARN << "UpdateLedgerStateAndNotify: SendStatusUpdate failed, name=" << name
                           << ", state=" << static_cast<int>(state) << ", ret=" << ret;
             // RPC失败，回退本地账本到修改前状态，保证主备一致性
-            UbseSsuDebtLedger::GetInstance().Modify(name, [&oldState](UbseSsuLedgerEntry &e) {
-                e.state = oldState;
-            });
+            UbseSsuDebtLedger::GetInstance().Modify(name, [&oldState](UbseSsuLedgerEntry &e) { e.state = oldState; });
             return UBSE_ERROR;
         }
     }
@@ -924,7 +919,8 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
     }
     UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, role);
 
-    UBSE_LOG_INFO << "DetachSpace success: name=" << req.name << ", nsCount=" << entryPtr->allocResult.nameSpaceList.size();
+    UBSE_LOG_INFO << "DetachSpace success: name=" << req.name
+                  << ", nsCount=" << entryPtr->allocResult.nameSpaceList.size();
     return UBSE_OK;
 }
 
@@ -995,7 +991,7 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         return UBSE_ERROR;
     }
 
-     // 幂等性：已经attached，再次attach返回成功
+    // 幂等性：已经attached，再次attach返回成功
     if (entryPtr->state == UbseSsuNsState::ATTACHED) {
         UBSE_LOG_INFO << "AttachSpace: already attached, name=" << req.name;
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
@@ -1485,4 +1481,5 @@ uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, cons
     UBSE_LOG_ERROR << "RemoveAccessPermission: unsupported node role=" << role;
     return UBSE_ERROR;
 }
+
 } // namespace ubse::ssu::service
