@@ -22,6 +22,7 @@
 #include "ubse_error.h"
 #include "it_cli_invoker.h"
 #include "it_cluster_spec.h"
+#include "it_lcne_client.h"
 #include "it_sdk_client.h"
 #include "mock_lcne_server.h"
 #include "node_process_manager.h"
@@ -111,12 +112,16 @@ public:
     /** @brief Inject alarm event to this node's xalarm FIFO. */
     UbseResult InjectAlarmEvent(unsigned short alarmId, const std::string& paras);
 
+    /** @brief Get LCNE client for direct HTTP access to mock LCNE server. */
+    ItLcneClient& GetLcneClient();
+
     // --- Accessors ---
     const std::string& GetNodeId() const;
     const NodeSpec& GetSpec() const;
     const std::string& GetUdsSocketPath() const;
     const std::string& GetXalarmFifoPath() const;
     const std::string& GetWorkDir() const;
+    const std::string& GetLcneUdsPath() const;
 
     /** @brief Path to the generated per-node ubse.conf file. */
     std::string GetConfigFilePath() const;
@@ -136,6 +141,7 @@ private:
     std::unique_ptr<MockLcneServer> mockLcneServer_;
     std::unique_ptr<NodeProcessManager> process_;
     std::unique_ptr<ItSdkClient> sdkClient_;
+    std::unique_ptr<ItLcneClient> lcneClient_;
 };
 
 } // namespace ubse::it::infra

@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/election/election_cases.h"
 #include "tests/fault/fault_cases.h"
+#include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
 
@@ -32,4 +33,34 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
 {
     ubse::it::tests::fault::RunVmOomEscapeBorrowTest(Cluster(), "2", {0, 1}, 30);
+}
+
+// LCNE vs SDK TopoNodeList：对比每个slot的socketId集合
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoNodeList001)
+{
+    ubse::it::tests::topo::RunLcneVsSdkTopoNodeList001(Cluster());
+}
+
+// LCNE vs SDK TopoNodeLocalGet：本地节点socketId与LCNE对应slot一致
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoNodeLocalGet001)
+{
+    ubse::it::tests::topo::RunLcneVsSdkTopoNodeLocalGet001(Cluster());
+}
+
+// LCNE vs SDK TopoLinkList：对比链路连接
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoLinkList001)
+{
+    ubse::it::tests::topo::RunLcneVsSdkTopoLinkList001(Cluster());
+}
+
+// LCNE vs CLI display topo -t cpu：对比链路连接
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliTopoCpu001)
+{
+    ubse::it::tests::topo::RunLcneVsCliTopoCpu001(Cluster());
+}
+
+// LCNE logic-entities vs CLI display cluster：对比每个节点的GUID
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliClusterGuid001)
+{
+    ubse::it::tests::topo::RunLcneVsCliClusterGuid001(Cluster());
 }

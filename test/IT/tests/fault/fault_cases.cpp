@@ -48,4 +48,28 @@ void RunVmOomEscapeBorrowTest(ubse::it::infra::ItCluster& cluster, const std::st
     EXPECT_EQ(rasRetCode, 0) << "RAS OOM handler failed, retCode=" << rasRetCode;
 }
 
+// BMC ack alarm ID = ALARM_REBOOT_EVENT(1003) + 1 = 1004
+static constexpr unsigned short BMC_ACK_ALARM_ID = ubse::ras::ALARM_REBOOT_EVENT + 1;
+
+void RunBmcFaultSingleNodeTest(ubse::it::infra::ItCluster& cluster, const std::string& nodeId)
+{
+    auto& node = cluster.GetNode(nodeId);
+    auto fifoPath = node.GetXalarmFifoPath();
+    auto workDir = node.GetWorkDir();
+
+    // 清理上次可能残留的ack文件
+    ubse::it::infra::ItXalarmHelper::ClearAckResult(workDir, BMC_ACK_ALARM_ID);
+
+    // 向FIFO写入BMC下电事件，paras为msgId
+    auto ret = ubse::it::infra::ItXalarmHelper::InjectRebootEvent(fifoPath, 88888);
+    EXPECT_IT_OK(ret);
+
+    // 等待RAS处理完成的ack
+    // 单节点场景下HandleBMCFault检测到IsOnlyOneNodeInCluster()=true，直接ack成功(retCode=0)
+    uint32_t rasRetCode = 1;
+    auto ackRet = ubse::it::infra::ItXalarmHelper::WaitForAckResult(workDir, BMC_ACK_ALARM_ID, 15000, rasRetCode);
+    EXPECT_IT_OK(ackRet) << "Timeout waiting for RAS BMC ack";
+    EXPECT_EQ(rasRetCode, 0) << "RAS BMC handler should succeed in single node, retCode=" << rasRetCode;
+}
+
 } // namespace ubse::it::tests::fault

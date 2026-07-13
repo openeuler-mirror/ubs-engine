@@ -17,6 +17,7 @@
 #include "ubse_common_def.h"
 #include "it_assertion.h"
 #include "it_console_log.h"
+#include "it_string_util.h"
 #include "it_wait_helper.h"
 #include "ubs_engine_mem.h"
 
@@ -78,6 +79,317 @@ void RunNumaNormalBorrowTest(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "Deleting NUMA borrow: " << borrowName;
     sdkRet = borrowerClient.MemNumaDelete(borrowName);
     EXPECT_IT_OK(sdkRet);
+}
+
+// CLI查询节点内存状态测试
+void RunCliQueryNodesMemoryStatus001(ubse::it::infra::ItCluster& cluster)
+{
+    // 获取节点1的CLI调用器
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    IT_LOG_INFO << "Executing CLI command: check memory";
+
+    // 执行check memory命令
+    std::string output = cliInvoker.ExecCli("check memory");
+    IT_LOG_INFO << "CLI output: " << output;
+
+    // 验证输出包含表格结构（node, status, detail列）
+    EXPECT_NE(output.find("node"), std::string::npos);
+    EXPECT_NE(output.find("status"), std::string::npos);
+    EXPECT_NE(output.find("detail"), std::string::npos);
+
+    // 验证输出包含两个节点的信息（节点1和节点2）
+    // 根据集群配置，节点ID通常为"1"和"2"
+    EXPECT_NE(output.find("1"), std::string::npos);
+    EXPECT_NE(output.find("2"), std::string::npos);
+
+    // 验证输出不包含错误信息
+    EXPECT_EQ(output.find("ERROR"), std::string::npos);
+    EXPECT_EQ(output.find("Failed"), std::string::npos);
+
+    IT_LOG_INFO << "CLI check memory test passed";
+}
+
+// CLI内存操作测试（短选项）
+void RunCliMemoryOperationsShortOpt001(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 创建NUMA内存（使用短选项）
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, "it_test_short_opt", "128M"));
+    EXPECT_EQ(createInfo.name, "it_test_short_opt");
+    EXPECT_EQ(createInfo.size, "128MB");
+
+    // 查询内存借用详情（验证包含刚创建的记录）
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails));
+    EXPECT_GT(borrowDetails.size(), 0);
+    bool found = false;
+    for (const auto& detail : borrowDetails) {
+        if (detail.name == "it_test_short_opt") {
+            found = true;
+            EXPECT_EQ(detail.type, "numa");
+            EXPECT_EQ(ExtractNodeId(detail.borrowNode), createInfo.importNode);
+            EXPECT_EQ(ExtractNodeId(detail.lendNode), createInfo.exportNode);
+            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 查询节点借用内存（使用短选项）
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrows;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrows));
+    EXPECT_GT(nodeBorrows.size(), 0);
+    found = false;
+    for (const auto& info : nodeBorrows) {
+        if (ExtractNodeId(info.borrowNode) == createInfo.importNode) {
+            found = true;
+            EXPECT_EQ(ExtractNodeId(info.lendNode), createInfo.exportNode);
+            EXPECT_NE(info.size.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 查询节点借出内存（使用短选项）
+    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLends;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLends));
+    EXPECT_GT(nodeLends.size(), 0);
+    found = false;
+    for (const auto& info : nodeLends) {
+        if (ExtractNodeId(info.lendNode) == createInfo.exportNode) {
+            found = true;
+            EXPECT_EQ(ExtractNodeId(info.borrowNode), createInfo.importNode);
+            EXPECT_NE(info.size.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 删除NUMA内存（使用短选项）
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_short_opt", "numa"));
+
+    // 删除后再次查询，验证账本为空
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete));
+    EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
+}
+
+// CLI内存操作测试（长选项）
+void RunCliMemoryOperationsLongOpt001(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 创建NUMA内存（使用长选项）
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, "it_test_long_opt", "128M", "", true));
+    EXPECT_EQ(createInfo.name, "it_test_long_opt");
+    EXPECT_EQ(createInfo.size, "128MB");
+
+    // 查询内存借用详情（验证包含刚创建的记录）
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails, "", "", true));
+    EXPECT_GT(borrowDetails.size(), 0);
+    bool found = false;
+    for (const auto& detail : borrowDetails) {
+        if (detail.name == "it_test_long_opt") {
+            found = true;
+            EXPECT_EQ(detail.type, "numa");
+            EXPECT_EQ(ExtractNodeId(detail.borrowNode), createInfo.importNode);
+            EXPECT_EQ(ExtractNodeId(detail.lendNode), createInfo.exportNode);
+            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 查询节点借用内存（使用长选项）
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrows;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrows, true));
+    EXPECT_GT(nodeBorrows.size(), 0);
+    found = false;
+    for (const auto& info : nodeBorrows) {
+        if (ExtractNodeId(info.borrowNode) == createInfo.importNode) {
+            found = true;
+            EXPECT_EQ(ExtractNodeId(info.lendNode), createInfo.exportNode);
+            EXPECT_NE(info.size.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 查询节点借出内存（使用长选项）
+    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLends;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLends, true));
+    EXPECT_GT(nodeLends.size(), 0);
+    found = false;
+    for (const auto& info : nodeLends) {
+        if (ExtractNodeId(info.lendNode) == createInfo.exportNode) {
+            found = true;
+            EXPECT_EQ(ExtractNodeId(info.borrowNode), createInfo.importNode);
+            EXPECT_NE(info.size.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+
+    // 删除NUMA内存（使用长选项）
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_long_opt", "numa", true));
+
+    // 删除后再次查询，验证账本为空
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete, "", "", true));
+    EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
+}
+
+// CLI内存类型过滤查询测试
+void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 创建NUMA内存
+    ubse::it::infra::ItMemCreateInfo numaCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaCreateInfo, "it_test_numa", "128M"));
+    EXPECT_EQ(numaCreateInfo.name, "it_test_numa");
+    EXPECT_EQ(numaCreateInfo.size, "128MB");
+
+    // 创建FD内存
+    ubse::it::infra::ItMemCreateInfo fdCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdCreateInfo, "it_test_fd", "128M"));
+    EXPECT_EQ(fdCreateInfo.name, "it_test_fd");
+    EXPECT_EQ(fdCreateInfo.size, "128MB");
+
+    // 创建SHARE内存（region = "1,2"）
+    ubse::it::infra::ItMemCreateInfo shareCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareCreateInfo, "it_test_share", "128M", "1,2"));
+    EXPECT_EQ(shareCreateInfo.name, "it_test_share");
+    EXPECT_EQ(shareCreateInfo.size, "128MB");
+
+    // 查询NUMA类型的借用详情
+    std::vector<ubse::it::infra::ItMemBorrowDetail> numaBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(numaBorrowDetails, "numa"));
+    EXPECT_GT(numaBorrowDetails.size(), 0);
+    bool foundNuma = false;
+    for (const auto& detail : numaBorrowDetails) {
+        if (detail.name == "it_test_numa") {
+            foundNuma = true;
+            EXPECT_EQ(detail.type, "numa");
+            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(foundNuma);
+
+    // 查询FD类型的借用详情
+    std::vector<ubse::it::infra::ItMemBorrowDetail> fdBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(fdBorrowDetails, "fd"));
+    EXPECT_GT(fdBorrowDetails.size(), 0);
+    bool foundFd = false;
+    for (const auto& detail : fdBorrowDetails) {
+        if (detail.name == "it_test_fd") {
+            foundFd = true;
+            EXPECT_EQ(detail.type, "fd");
+            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(foundFd);
+
+    // 查询SHARE类型的借用详情
+    std::vector<ubse::it::infra::ItMemBorrowDetail> shareBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(shareBorrowDetails, "share"));
+    EXPECT_GT(shareBorrowDetails.size(), 0);
+    bool foundShare = false;
+    for (const auto& detail : shareBorrowDetails) {
+        if (detail.name == "it_test_share") {
+            foundShare = true;
+            EXPECT_EQ(detail.type, "share");
+            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
+            break;
+        }
+    }
+    EXPECT_TRUE(foundShare);
+
+    // 按名称查询借用详情（查询NUMA内存）
+    std::vector<ubse::it::infra::ItMemBorrowDetail> nameBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(nameBorrowDetails, "", "it_test_numa"));
+    EXPECT_EQ(nameBorrowDetails.size(), 1);
+    if (nameBorrowDetails.size() > 0) {
+        EXPECT_EQ(nameBorrowDetails[0].name, "it_test_numa");
+        EXPECT_EQ(nameBorrowDetails[0].type, "numa");
+    }
+
+    // 同时使用类型和名称参数查询（查询FD类型的it_test_fd）
+    std::vector<ubse::it::infra::ItMemBorrowDetail> typeAndNameBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(typeAndNameBorrowDetails, "fd", "it_test_fd"));
+    EXPECT_EQ(typeAndNameBorrowDetails.size(), 1);
+    if (typeAndNameBorrowDetails.size() > 0) {
+        EXPECT_EQ(typeAndNameBorrowDetails[0].name, "it_test_fd");
+        EXPECT_EQ(typeAndNameBorrowDetails[0].type, "fd");
+    }
+
+    // 删除NUMA内存
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_numa", "numa"));
+
+    // 删除FD内存
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_fd", "fd"));
+
+    // 删除SHARE内存
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_share", "share"));
+
+    // 删除后查询，验证账本为空
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete));
+    EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
+}
+
+// CLI NUMA状态查询测试
+void RunCliNumaStatusQuery001(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 查询NUMA状态（基本查询，不显示所有大页）
+    std::string numaStatusOutput = cliInvoker.DisplayMemoryNumaStatus(false);
+    EXPECT_NE(numaStatusOutput.find("node"), std::string::npos);
+    EXPECT_NE(numaStatusOutput.find("numa"), std::string::npos);
+    EXPECT_NE(numaStatusOutput.find("total"), std::string::npos);
+    EXPECT_NE(numaStatusOutput.find("used"), std::string::npos);
+    EXPECT_NE(numaStatusOutput.find("free"), std::string::npos);
+    EXPECT_NE(numaStatusOutput.find("used_percent"), std::string::npos);
+    EXPECT_EQ(numaStatusOutput.find("ERROR"), std::string::npos);
+
+    // 查询NUMA状态（显示所有大页）
+    std::string numaStatusAllOutput = cliInvoker.DisplayMemoryNumaStatus(true);
+    EXPECT_NE(numaStatusAllOutput.find("node"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("numa"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("total"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("used"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("free"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("used_percent"), std::string::npos);
+    // 验证包含所有大页信息（2M和1G）
+    EXPECT_NE(numaStatusAllOutput.find("2M"), std::string::npos);
+    EXPECT_NE(numaStatusAllOutput.find("1G"), std::string::npos);
+    EXPECT_EQ(numaStatusAllOutput.find("ERROR"), std::string::npos);
+}
+
+// CLI内存配置查询测试
+void RunCliMemoryConfigQuery001(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 查询内存配置信息
+    std::vector<ubse::it::infra::ItMemConfigInfo> configs;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryConfig(configs));
+    EXPECT_GT(configs.size(), 0);
+
+    // 验证所有节点的 isLender 都是 "true"
+    for (const auto& config : configs) {
+        EXPECT_EQ(config.isLender, "true");
+        EXPECT_FALSE(config.node.empty());
+    }
 }
 
 } // namespace ubse::it::tests::mem_borrow

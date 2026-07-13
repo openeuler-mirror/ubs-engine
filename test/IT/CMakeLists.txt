@@ -36,6 +36,7 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/cluster/it_cluster_builder.cpp
     ${IT_INFRA_DIR}/client/it_sdk_client.cpp
     ${IT_INFRA_DIR}/client/it_cli_invoker.cpp
+    ${IT_INFRA_DIR}/client/it_lcne_client.cpp
     ${IT_INFRA_DIR}/config/it_config_builder.cpp
     ${IT_INFRA_DIR}/process/node_process_manager.cpp
     ${IT_INFRA_DIR}/mock/mock_lcne_server.cpp

@@ -184,6 +184,14 @@ ItCliInvoker& ItNode::GetCliInvoker()
     return cliInvoker_;
 }
 
+ItLcneClient& ItNode::GetLcneClient()
+{
+    if (!lcneClient_) {
+        lcneClient_ = std::make_unique<ItLcneClient>(lcneUdsPath_);
+    }
+    return *lcneClient_;
+}
+
 UbseResult ItNode::InitializeSdkClient()
 {
     auto& client = GetSdkClient();
@@ -240,6 +248,11 @@ const std::string& ItNode::GetWorkDir() const
     }
     static const std::string empty;
     return empty;
+}
+
+const std::string& ItNode::GetLcneUdsPath() const
+{
+    return lcneUdsPath_;
 }
 
 std::string ItNode::GetConfigFilePath() const

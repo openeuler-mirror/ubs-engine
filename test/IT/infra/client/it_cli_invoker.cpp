@@ -370,4 +370,382 @@ int32_t ItCliInvoker::GetAllNodeInfos(std::vector<ubse::election::UbseRoleInfo>&
     return UBS_SUCCESS;
 }
 
+// --- Memory CLI operations ---
+int32_t ItCliInvoker::CreateMemoryNuma(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                                       const std::string& link, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+    std::string sizeOpt = useLongOptions ? "--size" : "-s";
+    std::string linkOpt = useLongOptions ? "--link-id" : "-l";
+
+    std::string cmd = "create memory " + typeOpt + " numa " + nameOpt + " " + ShellQuote(name) + " " + sizeOpt + " " +
+                      ShellQuote(size);
+    if (!link.empty()) {
+        cmd += " " + linkOpt + " " + ShellQuote(link);
+    }
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "create memory returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "create memory returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    // Parse creation info from output
+    // Expected format:
+    // - Creating memory [elapsed: 0s]
+    //   name:it_test_short_opt
+    //   size:128MB
+    //   numa-id:2
+    //   import-node:1
+    //   export-node:2
+    createInfo.name = name; // Use input name as fallback
+    createInfo.size = size; // Use input size as fallback
+
+    auto parseField = [&output](const std::string& fieldName) {
+        std::string key = fieldName + ":";
+        auto pos = output.find(key);
+        if (pos != std::string::npos) {
+            auto start = pos + key.length();
+            auto end = output.find('\n', start);
+            if (end == std::string::npos)
+                end = output.length();
+            std::string value = output.substr(start, end - start);
+            // Trim whitespace
+            auto trimStart = value.find_first_not_of(" \t");
+            auto trimEnd = value.find_last_not_of(" \t\r");
+            if (trimStart != std::string::npos && trimEnd != std::string::npos)
+                return value.substr(trimStart, trimEnd - trimStart + 1);
+        }
+        return std::string();
+    };
+
+    createInfo.name = parseField("name");
+    createInfo.size = parseField("size");
+    createInfo.numaId = parseField("numa-id");
+    createInfo.importNode = parseField("import-node");
+    createInfo.exportNode = parseField("export-node");
+
+    IT_LOG_INFO << "Parsed create memory info: name=" << createInfo.name << ", size=" << createInfo.size
+                << ", numa-id=" << createInfo.numaId << ", import-node=" << createInfo.importNode
+                << ", export-node=" << createInfo.exportNode;
+
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::CreateMemoryFd(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                                     bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+    std::string sizeOpt = useLongOptions ? "--size" : "-s";
+
+    std::string cmd =
+        "create memory " + typeOpt + " fd " + nameOpt + " " + ShellQuote(name) + " " + sizeOpt + " " + ShellQuote(size);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "create memory fd returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "create memory fd returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    // Parse creation info from output
+    createInfo.name = name;
+    createInfo.size = size;
+
+    auto parseField = [&output](const std::string& fieldName) {
+        std::string key = fieldName + ":";
+        auto pos = output.find(key);
+        if (pos != std::string::npos) {
+            auto start = pos + key.length();
+            auto end = output.find('\n', start);
+            if (end == std::string::npos)
+                end = output.length();
+            std::string value = output.substr(start, end - start);
+            auto trimStart = value.find_first_not_of(" \t");
+            auto trimEnd = value.find_last_not_of(" \t\r");
+            if (trimStart != std::string::npos && trimEnd != std::string::npos)
+                return value.substr(trimStart, trimEnd - trimStart + 1);
+        }
+        return std::string();
+    };
+
+    createInfo.name = parseField("name");
+    createInfo.size = parseField("size");
+
+    IT_LOG_INFO << "Parsed create memory fd info: name=" << createInfo.name << ", size=" << createInfo.size;
+
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::CreateMemoryShare(ItMemCreateInfo& createInfo, const std::string& name, const std::string& size,
+                                        const std::string& region, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+    std::string sizeOpt = useLongOptions ? "--size" : "-s";
+    std::string regionOpt = useLongOptions ? "--region" : "-r";
+
+    std::string cmd = "create memory " + typeOpt + " share " + nameOpt + " " + ShellQuote(name) + " " + sizeOpt + " " +
+                      ShellQuote(size) + " " + regionOpt + " " + ShellQuote(region);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "create memory share returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "create memory share returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    // Parse creation info from output
+    createInfo.name = name;
+    createInfo.size = size;
+
+    auto parseField = [&output](const std::string& fieldName) {
+        std::string key = fieldName + ":";
+        auto pos = output.find(key);
+        if (pos != std::string::npos) {
+            auto start = pos + key.length();
+            auto end = output.find('\n', start);
+            if (end == std::string::npos)
+                end = output.length();
+            std::string value = output.substr(start, end - start);
+            auto trimStart = value.find_first_not_of(" \t");
+            auto trimEnd = value.find_last_not_of(" \t\r");
+            if (trimStart != std::string::npos && trimEnd != std::string::npos)
+                return value.substr(trimStart, trimEnd - trimStart + 1);
+        }
+        return std::string();
+    };
+
+    createInfo.name = parseField("name");
+    createInfo.size = parseField("size");
+
+    IT_LOG_INFO << "Parsed create memory share info: name=" << createInfo.name << ", size=" << createInfo.size;
+
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::DeleteMemory(const std::string& name, const std::string& type, bool useLongOptions)
+{
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+
+    std::string cmd = "delete memory " + nameOpt + " " + ShellQuote(name) + " " + typeOpt + " " + ShellQuote(type);
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "delete memory returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "delete memory returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("Delete successfully") == std::string::npos) {
+        IT_LOG_ERROR << "delete memory did not return success message: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    IT_LOG_INFO << "delete memory succeeded: " << name;
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::DisplayMemoryBorrowDetail(std::vector<ItMemBorrowDetail>& borrowDetails,
+                                                const std::string& borrowType, const std::string& name,
+                                                bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string btOpt = useLongOptions ? "--borrow-type" : "-bt";
+    std::string nameOpt = useLongOptions ? "--name" : "-n";
+
+    std::string cmd = "display memory " + typeOpt + " borrow_detail";
+    if (!borrowType.empty()) {
+        cmd += " " + btOpt + " " + ShellQuote(borrowType);
+    }
+    if (!name.empty()) {
+        cmd += " " + nameOpt + " " + ShellQuote(name);
+    }
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t borrow_detail returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t borrow_detail returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    borrowDetails.clear();
+    for (const auto& rec : records) {
+        ItMemBorrowDetail detail;
+        auto it = rec.find("name");
+        if (it != rec.end())
+            detail.name = it->second;
+        it = rec.find("type");
+        if (it != rec.end())
+            detail.type = it->second;
+        it = rec.find("borrow_node");
+        if (it != rec.end())
+            detail.borrowNode = it->second;
+        it = rec.find("lend_node");
+        if (it != rec.end())
+            detail.lendNode = it->second;
+        it = rec.find("lend_numa");
+        if (it != rec.end())
+            detail.lendNuma = it->second;
+        it = rec.find("lend_size");
+        if (it != rec.end())
+            detail.lendSize = it->second;
+        it = rec.find("status");
+        if (it != rec.end())
+            detail.status = it->second;
+        it = rec.find("handle");
+        if (it != rec.end())
+            detail.handle = it->second;
+        borrowDetails.push_back(std::move(detail));
+    }
+
+    if (borrowDetails.empty()) {
+        IT_LOG_WARN << "No borrow records parsed from CLI output";
+    }
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::DisplayMemoryNodeBorrow(std::vector<ItNodeBorrowInfo>& nodeBorrows, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string cmd = "display memory " + typeOpt + " node_borrow";
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t node_borrow returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t node_borrow returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    nodeBorrows.clear();
+    for (const auto& rec : records) {
+        ItNodeBorrowInfo info;
+        auto it = rec.find("borrow_node");
+        if (it != rec.end())
+            info.borrowNode = it->second;
+        it = rec.find("lend_node");
+        if (it != rec.end())
+            info.lendNode = it->second;
+        it = rec.find("size");
+        if (it != rec.end())
+            info.size = it->second;
+        nodeBorrows.push_back(std::move(info));
+    }
+
+    if (nodeBorrows.empty()) {
+        IT_LOG_WARN << "No node borrow records parsed from CLI output";
+    }
+    return UBS_SUCCESS;
+}
+
+int32_t ItCliInvoker::DisplayMemoryNodeLend(std::vector<ItNodeLendInfo>& nodeLends, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string cmd = "display memory " + typeOpt + " node_lend";
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t node_lend returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t node_lend returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    nodeLends.clear();
+    for (const auto& rec : records) {
+        ItNodeLendInfo info;
+        auto it = rec.find("lend_node");
+        if (it != rec.end())
+            info.lendNode = it->second;
+        it = rec.find("borrow_node");
+        if (it != rec.end())
+            info.borrowNode = it->second;
+        it = rec.find("size");
+        if (it != rec.end())
+            info.size = it->second;
+        nodeLends.push_back(std::move(info));
+    }
+
+    if (nodeLends.empty()) {
+        IT_LOG_WARN << "No node lend records parsed from CLI output";
+    }
+    return UBS_SUCCESS;
+}
+
+std::string ItCliInvoker::DisplayMemoryNumaStatus(bool showAll, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string allOpt = useLongOptions ? "--all" : "-a";
+
+    std::string cmd = "display memory " + typeOpt + " numa_status";
+    if (showAll) {
+        cmd += " " + allOpt;
+    }
+    return ExecCli(cmd);
+}
+
+int32_t ItCliInvoker::DisplayMemoryConfig(std::vector<ItMemConfigInfo>& configs, bool useLongOptions)
+{
+    std::string typeOpt = useLongOptions ? "--type" : "-t";
+    std::string cmd = "display memory " + typeOpt + " config";
+
+    std::string output = ExecCli(cmd);
+    if (output.empty()) {
+        IT_LOG_WARN << "display memory -t config returned empty output";
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "display memory -t config returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    configs.clear();
+    for (const auto& rec : records) {
+        ItMemConfigInfo config;
+        auto it = rec.find("node");
+        if (it != rec.end())
+            config.node = it->second;
+        it = rec.find("isLender");
+        if (it != rec.end())
+            config.isLender = it->second;
+        configs.push_back(std::move(config));
+    }
+
+    if (configs.empty()) {
+        IT_LOG_WARN << "No config records parsed from CLI output";
+    }
+    return UBS_SUCCESS;
+}
+
 } // namespace ubse::it::infra

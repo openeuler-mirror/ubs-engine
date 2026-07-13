@@ -58,6 +58,57 @@ struct ItMemBorrowDetail {
     std::string handle;
 };
 
+/**
+ * @brief Memory creation result parsed from "create memory" output.
+ *
+ * Example output:
+ * - Creating memory [elapsed: 0s]
+ *   name:it_test_short_opt
+ *   size:128MB
+ *   numa-id:2
+ *   import-node:1
+ *   export-node:2
+ */
+struct ItMemCreateInfo {
+    std::string name;
+    std::string size;
+    std::string numaId;
+    std::string importNode;
+    std::string exportNode;
+};
+
+/**
+ * @brief Node borrow information parsed from "display memory -t node_borrow".
+ *
+ * Table columns: borrow_node, lend_node, size
+ */
+struct ItNodeBorrowInfo {
+    std::string borrowNode;
+    std::string lendNode;
+    std::string size;
+};
+
+/**
+ * @brief Node lend information parsed from "display memory -t node_lend".
+ *
+ * Table columns: lend_node, borrow_node, size
+ */
+struct ItNodeLendInfo {
+    std::string lendNode;
+    std::string borrowNode;
+    std::string size;
+};
+
+/**
+ * @brief Memory configuration information parsed from "display memory -t config".
+ *
+ * Table columns: node, isLender
+ */
+struct ItMemConfigInfo {
+    std::string node;
+    std::string isLender;
+};
+
 } // namespace ubse::it::infra
 
 #endif // IT_NODE_INFO_H

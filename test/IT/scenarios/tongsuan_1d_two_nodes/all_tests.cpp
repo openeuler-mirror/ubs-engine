@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
+#include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
 
@@ -27,3 +28,45 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, NumaNormalBorrow)
 {
     ubse::it::tests::mem_borrow::RunNumaNormalBorrowTest(Cluster());
 }
+
+// CLI拓扑查询测试：验证display topo -t cpu返回完整信息，错误参数返回失败
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, QueryNodeTopo001)
+{
+    ubse::it::tests::topo::RunQueryNodeTopo001(Cluster(), "1");
+}
+
+// CLI查询节点内存状态测试：验证check memory返回包含两个节点的状态信息
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliQueryNodesMemoryStatus001)
+{
+    ubse::it::tests::mem_borrow::RunCliQueryNodesMemoryStatus001(Cluster());
+}
+
+// CLI内存操作测试（短选项）：验证短选项创建→查询→删除NUMA内存完整生命周期
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliMemoryOperationsShortOpt001)
+{
+    ubse::it::tests::mem_borrow::RunCliMemoryOperationsShortOpt001(Cluster());
+}
+
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliMemoryOperationsLongOpt001)
+{
+    ubse::it::tests::mem_borrow::RunCliMemoryOperationsLongOpt001(Cluster());
+}
+
+// CLI内存类型过滤查询测试：验证创建NUMA/FD/SHARE三种类型内存，按类型和名称查询借用详情，删除内存完整生命周期
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliMemoryTypeFilterOperations001)
+{
+    ubse::it::tests::mem_borrow::RunCliMemoryTypeFilterOperations001(Cluster());
+}
+
+// CLI NUMA状态查询测试：验证查询NUMA状态（基本查询和显示所有大页）
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliNumaStatusQuery001)
+{
+    ubse::it::tests::mem_borrow::RunCliNumaStatusQuery001(Cluster());
+}
+
+// CLI内存配置查询测试：验证查询内存配置信息
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, CliMemoryConfigQuery001)
+{
+    ubse::it::tests::mem_borrow::RunCliMemoryConfigQuery001(Cluster());
+}
+// namespace
