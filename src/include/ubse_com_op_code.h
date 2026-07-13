@@ -254,6 +254,8 @@ enum class UbseSsuOpCode {
     UBSE_SSU_GET_FE_DEVICE_LIST_REQ = 0x0012,       // 查询FE设备列表请求
     UBSE_SSU_FE_DEVICE_ALLOC_REQ = 0x0013,          // 分配VFE设备请求
     UBSE_SSU_FE_DEVICE_FREE_REQ = 0x0014,           // 释放VFE设备请求
+    UBSE_SSU_ADD_ACCESS_PERMISSION_RESP = 0x0015,   // 添加访问权限响应
+    UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP = 0x0016, // 移除访问权限响应
 };
 } // namespace ubse::com
 #endif // UBSE_COM_OP_CODE_H

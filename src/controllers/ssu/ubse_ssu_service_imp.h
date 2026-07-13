@@ -57,16 +57,27 @@ public:
 
     uint32_t DetachStripedSpace(const UbseSsuStripedSpaceReq &req) override;
 
+    uint32_t AddAccessPermission(const std::string &name, const std::string &nqn,
+                                 const UbseSsuAllocIdentityInfo &identity) override;
+
+    uint32_t RemoveAccessPermission(const std::string &name, const std::string &nqn,
+                                    const UbseSsuAllocIdentityInfo &identity) override;
+
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
-
+    
+    // Execute函数只在master端调用，用于处理分配/释放/添加/移除访问权限请求
     uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                           UbseSsuAllocResult &result);
 
     uint32_t ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
 
-    uint32_t ExecuteScheduler(const UbseSsuAllocSpaceReq &req, std::vector<std::pair<std::string, uint64_t>> &eidNsSizeList);
+    uint32_t ExecuteScheduler(const UbseSsuAllocSpaceReq &req,
+                              std::vector<std::pair<std::string, uint64_t>> &eidNsSizeList);
+
+    uint32_t ExecuteAccessPermission(const std::string &name, const std::string &nqn,
+                                     const UbseSsuAllocIdentityInfo &identity, bool isAdd);
 
     UbseSsuCollector collector_;
     UbseSsuScheduler scheduler_;
