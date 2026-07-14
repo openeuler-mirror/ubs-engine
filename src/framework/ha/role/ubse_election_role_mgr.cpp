@@ -106,7 +106,8 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
                 RoleChangeNotifyAsync(UbseElectionEventType::CHANGE_TO_MASTER, ctx.masterId);
             }
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
-            if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()) {
+            if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()
+                && !UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
                 globalCurrentRole_ = SafeMakeShared<GlobalInitializer>();
                 if (!globalCurrentRole_) {
                     UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";

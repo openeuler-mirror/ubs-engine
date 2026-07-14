@@ -53,6 +53,9 @@ public:
     {
         return globalTurnId_;
     }
+
+    std::vector<GroupTopology> GetManagingGroupNodeIds() override;
+
 private:
     void ProcRoleSwitch(const std::vector<Node> &masterIds);
     void CheckAndSwitchMaster(const Node &myself, const std::vector<Node> &allNodes, RoleContext ctx);
@@ -72,6 +75,7 @@ private:
     UBSE_ID_TYPE globalMasterId_; // 当前节点为global_cascade时，记录global_master节点
     UBSE_ID_TYPE globalStandbyId_; // 当前节点为global_cascade时，记录global_standby节点
     UBSE_ID_TYPE upstreamNextHopId_; // 上行默认路由的nextHop节点ID
+    InterGroupInfo managingGroupInfo_;
 };
 }
 

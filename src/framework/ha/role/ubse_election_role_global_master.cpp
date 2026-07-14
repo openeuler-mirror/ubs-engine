@@ -11,6 +11,8 @@
  */
 
 #include "ubse_election_role_global_master.h"
+
+#include "ubse_election_group_info_simpo.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
 #include "ubse_election_role_mgr.h"
@@ -78,6 +80,10 @@ GlobalMaster::GlobalMaster(RoleContext &ctx) : globalTurnId_(0)
             return UBSE_OK;
         }, UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL);
     nodeId_ = ctx.masterId;
+    auto ret = UbseElectionNodeMgr::GetInstance().GetGroupId(groupId_);
+    if (ret != UBSE_OK || groupId_.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] GetGroupId fail";
+    }
     globalStandbyId_ = ctx.standbyId;
     globalTurnId_ = ctx.turnId + 1;
     InitNodesStatus();
@@ -273,6 +279,7 @@ void ProcessGlobalReply(GlobalCallbackCtx* context, int32_t result, void* recv, 
     auto& mtx = *context->mtx;
     auto& broad = *context->broadcast;
     auto& globalStandbyAgentGroupTopologies = *context->globalStandbyAgentGroupTopologies;
+    auto& globalCascadeGroupTopologies = *context->globalCascadeGroupTopologies;
     auto& status = *context->standbyStatus;
     if (result != 0) {
         UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch failed : " << nodeId
@@ -313,6 +320,14 @@ void ProcessGlobalReply(GlobalCallbackCtx* context, int32_t result, void* recv, 
             reply.masterId,
             reply.standbyId,
             reply.managingGroupNodeIds};
+    }
+    if (!reply.cascadeGroupId.empty() && !reply.cascadeGroupNodeIds.empty()) {
+        globalCascadeGroupTopologies[reply.cascadeGroupId] = GroupTopology{
+            reply.cascadeGroupId,
+            false,
+            reply.cascadeMasterId,
+            reply.cascadeStandbyId,
+            reply.cascadeGroupNodeIds};
     }
 }
 
@@ -361,6 +376,7 @@ uint32_t GlobalMaster::SendGlobalHeartBeat(UBSE_ID_TYPE destID, const ElectionPk
     std::unique_lock<std::mutex> lock(mtx_);
     context->broadcast = &globalStandbyAgentBroadcast_;
     context->globalStandbyAgentGroupTopologies = &globalStandbyAgentGroupTopologies_;
+    context->globalCascadeGroupTopologies = &globalCascadeGroupTopologies_;
     context->destId = destID;
     context->standbyStatus = &globalStandbyStatus_;
     context->mtx = &mtx_;
@@ -550,8 +566,26 @@ void GlobalMaster::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupI
         }
         // 回复全局主备
         replyInfo.nodeId = nodeId_;
-        replyInfo.groupMasterId = nodeId_;
-        replyInfo.groupStandbyId = globalStandbyId_;
+        replyInfo.globalMasterId = nodeId_;
+        replyInfo.globalStandbyId = globalStandbyId_;
+        replyInfo.groupId = groupId_;
+        auto groupRole = RoleMgr::GetInstance().GetRole();
+        if (groupRole != nullptr) {
+            std::vector<UBSE_ID_TYPE> agentNodes = groupRole->GetAgentNodes();
+            replyInfo.groupStandbyId = groupRole->GetStandbyNode();
+            replyInfo.groupMasterId = groupRole->GetMasterNode();
+            if (replyInfo.groupMasterId != INVALID_NODE_ID) {
+                replyInfo.groupNodeIds.push_back(replyInfo.groupMasterId);
+            }
+            if (replyInfo.groupStandbyId != INVALID_NODE_ID) {
+                replyInfo.groupNodeIds.push_back(replyInfo.groupStandbyId);
+            }
+            for (auto &node : agentNodes) {
+                if (node != replyInfo.groupMasterId && node != replyInfo.groupStandbyId) {
+                    replyInfo.groupNodeIds.push_back(node);
+                }
+            }
+        }
     }
 }
 
@@ -638,6 +672,38 @@ std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()
         managingGroupTopologies.push_back(node.second);
     }
     return managingGroupTopologies;
+}
+
+std::vector<GroupTopology> GlobalMaster::GetCascadeGroupNodeIds()
+{
+    std::lock_guard<std::mutex> lock(mtx_);
+    std::vector<GroupTopology> cascadeGroupTopologies{};
+    for (const auto &node : globalCascadeGroupTopologies_) {
+        cascadeGroupTopologies.push_back(node.second);
+    }
+    return cascadeGroupTopologies;
+}
+
+void GlobalMaster::DetectCascadeGroupTimeout()
+{
+    if (cascadeGroupReport_.groupMasterId.empty()) {
+        return;
+    }
+    uint64_t bootTime;
+    if (GetBootTime(bootTime) != UBSE_OK) {
+        return;
+    }
+    uint32_t timeoutThreshold = UBSE_GLOBAL_QUERY_LOCAL_MASTER_INTERVAL * NO_10 * NO_1000; // 10s
+    if (bootTime - lastCascadeReportTime_ > timeoutThreshold) {
+        UBSE_LOG_ERROR << "[ELECTION] Cascade group report timeout, masterId="
+                       << cascadeGroupReport_.groupMasterId;
+        if (!g_globalStop.load()) {
+            RoleMgr::GetInstance().RoleChangeNotifyAsync(
+                UbseElectionEventType::GLOBAL_CASCADE_NODE_DOWN, cascadeGroupReport_.groupMasterId);
+        }
+        DeleteDownstreamGroupRoute(cascadeGroupReport_.groupId);
+        cascadeGroupReport_ = {};
+    }
 }
 
 }

@@ -24,6 +24,7 @@ TEST_F(TestUbseElectionRoleStandby, RecvPkt_ShouldReturnReject_WhenRcvSelect)
     // given
     RoleContext ctx = { 1, "NODE0", "NODE1" };
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     RoleMgr::GetInstance().SwitchRole(RoleType::STANDBY, ctx);
     auto role = RoleMgr::GetInstance().GetRole();
 
@@ -46,6 +47,7 @@ TEST_F(TestUbseElectionRoleStandby, RecvPkt_ShouldReturnAccept_WhenRcvHeart)
     // given
     RoleContext ctx = { 1, "NODE0", "NODE1" };
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     RoleMgr::GetInstance().SwitchRole(RoleType::STANDBY, ctx);
     auto role = RoleMgr::GetInstance().GetRole();
 
@@ -72,6 +74,7 @@ TEST_F(TestUbseElectionRoleStandby, RecvPkt_ShouldReturnAccept_WhenRcvHeartStand
     // given
     RoleContext ctx = { 1, "NODE0", "NODE1" };
     MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode1));
+    MOCKER(&UbseElectionNodeMgr::IsRootEnable).stubs().will(returnValue(false));
     RoleMgr::GetInstance().SwitchRole(RoleType::STANDBY, ctx);
     auto role = RoleMgr::GetInstance().GetRole();
 

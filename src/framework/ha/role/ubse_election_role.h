@@ -64,6 +64,8 @@ public:
 
     virtual std::vector<GroupTopology> GetManagingGroupNodeIds();
 
+    virtual std::vector<GroupTopology> GetCascadeGroupNodeIds();
+
     static uint32_t GetHeartTimeInterval()
     {
         return UbseElectionNodeMgr::GetInstance().GetHeartBeatTime();
@@ -82,8 +84,8 @@ UBSE_ID_TYPE FindSmallestIdExcludingMasterAndAgent(const std::vector<UBSE_ID_TYP
     const UBSE_ID_TYPE &masterId, const UBSE_ID_TYPE &agentId);
 bool IsSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
 bool IsSecondSmallestNode(const Node &myself, const std::vector<Node> &allNodes);
-uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID);
-uint32_t ForceElection(UBSE_ID_TYPE myselfID);
+uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID, std::string myselfIp);
+uint32_t ForceElection(UBSE_ID_TYPE myselfID, std::string myselfIp);
 bool GetElectionCandidate();
 bool GetElectionWait();
 uint32_t ElectWhenLowest(UBSE_ID_TYPE myselfID, std::vector<UBSE_ID_TYPE> allNodes);

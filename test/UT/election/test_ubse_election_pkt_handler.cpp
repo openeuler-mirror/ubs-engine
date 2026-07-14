@@ -22,7 +22,7 @@ void TestUbseElectionPktHandler::SetUp()
 {
     Test::SetUp();
     electionPktHandler = UbseElectionPktHandler();
-    electionPkt = {1, "1", "2", 2, 1, 1, { "3", "4" }, 3, 4 };
+    electionPkt = {1, "1", "", "2", 2, 1, 1, { "3", "4" }, 3, 4 };
     UbseElectionPktSimpoPtr inputElectionPktSimpo = new UbseElectionPktSimpo(electionPkt);
     inputElectionPktSimpo->Serialize();
     request =

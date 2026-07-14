@@ -81,6 +81,15 @@ void HandleMasterOnlineNotification(const ElectionPkt &rcvPkt, ElectionReplyPkt 
 
 uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
+    if (UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+        std::vector<std::string> rootList = nodeMgr::GetRootIpList();
+        bool inRootList = std::find(rootList.begin(), rootList.end(), rcvPkt.masterIp) != rootList.end();
+        if (!inRootList) {
+            reply.replyId = standbyId_;
+            reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+            return UBSE_OK;
+        }
+    }
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         // 备节点拒绝所有选主报文，不管主如何，备优先会成为主
         reply.replyId = standbyId_;

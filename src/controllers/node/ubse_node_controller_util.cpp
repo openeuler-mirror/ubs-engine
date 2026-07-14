@@ -186,7 +186,7 @@ UbseResult GetClosHaTopology(ubse::election::HaTopologyInfo &topology)
     }
 
     topology = {};
-    auto ret = module->GetHaTopologyInfo(topology);
+    auto ret = module->GetCurNodeGlobalTopoInfo(topology);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "get ha topology info failed, " << FormatRetCode(ret);
         return ret;

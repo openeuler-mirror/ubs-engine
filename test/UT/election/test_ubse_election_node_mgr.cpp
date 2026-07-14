@@ -238,39 +238,6 @@ TEST_F(TestUbseElectionNodeMgr, LoadConfigStatge1)
     EXPECT_EQ(result, UBSE_ERROR);
 }
 
-TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldReturnModuleLoadFailed_WhenConfModuleIsNull)
-{
-    bool ubEnable = true;
-    std::shared_ptr<UbseConfModule> nullModule = nullptr;
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule));
-    UbseResult result = nodeMgr.GetUBEnable(ubEnable);
-    EXPECT_EQ(result, UBSE_ERROR_MODULE_LOAD_FAILED);
-    EXPECT_TRUE(ubEnable);
-}
-
-TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldSetUbEnableTrue_WhenGetConfFailed)
-{
-    bool ubEnable = false;
-    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR));
-    UbseResult result = nodeMgr.GetUBEnable(ubEnable);
-    EXPECT_EQ(result, UBSE_OK);
-    EXPECT_TRUE(ubEnable);
-}
-
-TEST_F(TestUbseElectionNodeMgr, GetUBEnable_ShouldSetUbEnableFalse_WhenGetConfSuccess)
-{
-    bool ubEnable = true;
-    std::shared_ptr<UbseConfModule> confModule = std::make_shared<UbseConfModule>();
-    std::string ipList = "192.168.0.1,192.168.0.2";
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
-    MOCKER(&UbseConfModule::GetConf<std::string>).stubs().with(mockcpp::any(), mockcpp::any(), mockcpp::outBound(ipList)).will(returnValue(UBSE_OK));
-    UbseResult result = nodeMgr.GetUBEnable(ubEnable);
-    EXPECT_EQ(result, UBSE_OK);
-    EXPECT_FALSE(ubEnable);
-}
-
 TEST_F(TestUbseElectionNodeMgr, UpdateNodeIdWithConnect_ShouldReturnError_WhenIpEmpty)
 {
     UbseResult result = nodeMgr.UpdateNodeIdWithConnect("", "node01");

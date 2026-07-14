@@ -53,6 +53,8 @@ public:
 
     std::vector<GroupTopology> GetManagingGroupNodeIds() override;
 
+    std::vector<GroupTopology> GetCascadeGroupNodeIds() override;
+
 
 private:
     uint32_t RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply);
@@ -66,12 +68,15 @@ private:
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus();
     UbseResult SendGlobalHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
+    void DetectCascadeGroupTimeout();
 
 private:
     UBSE_ID_TYPE nodeId_{}; // 当前节点id = globalMasterId
+    std::string groupId_{};
     UBSE_ID_TYPE globalStandbyId_{};
     std::vector<UBSE_ID_TYPE> globalStandbyAgentNodes_{};
     uint64_t lastTimeMs_ = 0;
+    uint64_t lastCascadeReportTime_ = 0;
     uint64_t globalTurnId_{};
     uint8_t globalStandbyStatus_ = 0;
     std::map<UBSE_ID_TYPE, BroadcastStatus> globalStandbyAgentBroadcast_{};
@@ -80,6 +85,7 @@ private:
     std::atomic<int> activeCount_{};   // 当前活跃回调数量
     InterGroupInfo cascadeGroupReport_{};
     std::map<UBSE_ID_TYPE, GroupTopology> globalStandbyAgentGroupTopologies_{};
+    std::map<UBSE_ID_TYPE, GroupTopology> globalCascadeGroupTopologies_{};
     void InitManagingToCascadeNodeIds();
     void AddDownstreamGroupRoute(const UBSE_ID_TYPE &groupId, const UBSE_ID_TYPE &dstNodeId,
                                   const UBSE_ID_TYPE &nextHopNodeId);

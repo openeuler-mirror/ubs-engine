@@ -1421,7 +1421,7 @@ void UbseNodeControllerMaster::UbseMasterNotifyMountedGroupMastersAction(const s
     }
 
     ubse::election::HaTopologyInfo topology{};
-    auto ret = module->GetHaTopologyInfo(topology);
+    auto ret = module->GetCurNodeGlobalTopoInfo(topology);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "[CLOS_EVENT] get ha topology failed, skip action=" << action << ", " << FormatRetCode(ret);
         return;

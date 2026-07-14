@@ -22,7 +22,7 @@ using namespace ubse::election;
 
 void TestUbseElectionPktSimpo::SetUp()
 {
-    electionPkt = {0, "Node0", "Node1", 2, 5, 3, {"Node2", "Node3", "Node4"}, 0, 0};
+    electionPkt = {0, "Node0","", "Node1", 2, 5, 3, {"Node2", "Node3", "Node4"}, 0, 0};
     ubseElectionPktSimpoPtr = new (std::nothrow) UbseElectionPktSimpo(electionPkt);
     Test::SetUp();
 }

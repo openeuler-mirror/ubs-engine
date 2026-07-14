@@ -69,6 +69,7 @@ private:
     UBSE_ID_TYPE globalStandbyId_;
     std::vector<UBSE_ID_TYPE> agentIds_{};
     UBSE_ID_TYPE myselfID_;
+    std::string myselfIp_;
     std::string groupId_{};
     uint64_t turnId_;
     uint64_t sequenceId_ = 0;

@@ -50,7 +50,7 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesAcce
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     // when
-    uint32_t result = SendElectionPkt(myselfID);
+    uint32_t result = SendElectionPkt(myselfID, "192.168.1.1");
 
     // then
     EXPECT_EQ(result, ELECTION_PKT_RESULT_ACCEPT);
@@ -80,7 +80,7 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesReje
     MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
 
     // when
-    uint32_t result = SendElectionPkt(myselfID);
+    uint32_t result = SendElectionPkt(myselfID, "192.168.1.1");
 
     // then
     EXPECT_EQ(result, ELECTION_PKT_TYPE_REJECT);
@@ -95,7 +95,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnAccept_WhenIamSmallest)
     MOCKER(SendElectionPkt).stubs().will(returnValue((uint32_t)0));
 
     // when
-    auto result = ForceElection(myselfID);
+    auto result = ForceElection(myselfID, "192.168.1.1");
 
     // then
     EXPECT_EQ(result, ELECTION_PKT_RESULT_ACCEPT);
@@ -109,7 +109,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnAccept_WhenIamNotSmallest
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(SendElectionPkt).stubs().will(returnValue((uint32_t)0));
 
-    auto result = ForceElection(myselfID);
+    auto result = ForceElection(myselfID, "192.168.1.1");
 
     EXPECT_EQ(result, ELECTION_PKT_TYPE_REJECT);
 }
@@ -121,7 +121,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnAccept_WhenNoConnectedNod
     std::vector<UBSE_ID_TYPE> allNodes = {};
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
 
-    auto result = ForceElection(myselfID);
+    auto result = ForceElection(myselfID, "192.168.1.1");
 
     EXPECT_EQ(result, ELECTION_PKT_RESULT_ACCEPT);
 }
@@ -134,7 +134,7 @@ TEST_F(TestUbseElectionRole, ForceElection_ShouldReturnReject_WhenElectionPktRej
     MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
     MOCKER(SendElectionPkt).stubs().will(returnValue(ELECTION_PKT_TYPE_REJECT));
 
-    auto result = ForceElection(myselfID);
+    auto result = ForceElection(myselfID, "192.168.1.1");
 
     EXPECT_EQ(result, ELECTION_PKT_TYPE_REJECT);
 }
@@ -151,7 +151,7 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesHasM
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
-    uint32_t result = SendElectionPkt(myselfID);
+    uint32_t result = SendElectionPkt(myselfID, "192.168.1.1");
 
     EXPECT_EQ(result, ELECTION_PKT_TYPE_REJECT_HAS_MASTER);
 }
