@@ -16,7 +16,7 @@
 #include <optional>
 #include "plugin_services/ssu/ubse_ssu_service.h"
 #include "ubse_common_def.h"
-#include "ubse_ipc_server.h"
+#include "ubse_api_server_def.h"
 
 namespace ubse::ssu::ipc::message {
 
