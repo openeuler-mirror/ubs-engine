@@ -88,6 +88,65 @@ static ubs_error_t InnerUnpackNpuDeviceId(UnpackCtx& ctx, npu_attr_t* attr)
     return UBS_SUCCESS;
 }
 
+static constexpr size_t UB_DEVICES_TYPE_PACKED_SIZE =
+    8; // ubs_ub_devices_type_t（device_type:1 + slot_id:1 + chip_id:1 + die_id:1 + pf_id:2 + vf_id:2）
+static_assert(sizeof(ubs_ub_devices_type_t) >= UB_DEVICES_TYPE_PACKED_SIZE,
+              "struct size must not be smaller than packed size");
+
+static constexpr size_t NPU_DEV_ID_PACKED = 2;     // slot_id(1) + chip_id(1)
+static constexpr size_t NIC_PFE_DEV_ID_PACKED = 4; // slot_id(1) + chip_id(1) + pf_id(2)
+static constexpr size_t NIC_VFE_DEV_ID_PACKED = 6; // slot_id(1) + chip_id(1) + pf_id(2) + vf_id(2)
+static constexpr size_t UBCTRL_DEV_ID_PACKED = 3;  // slot_id(1) + chip_id(1) + die_id(1)
+
+static void SecureFreeAttr(npu_attr_t* attr)
+{
+    if (attr == nullptr) {
+        return;
+    }
+    size_t sz = sizeof(npu_attr_t) + attr->affinity_devices_count * sizeof(ubs_ub_devices_type_t);
+    (void)memset_s(attr, sz, 0, sz);
+    free(attr);
+}
+
+static void SecureFreeAttr(busi_attr_t* attr)
+{
+    if (attr == nullptr) {
+        return;
+    }
+    size_t sz = sizeof(busi_attr_t) + attr->sub_devices_count * sizeof(ubs_ub_devices_type_t);
+    (void)memset_s(attr, sz, 0, sz);
+    free(attr);
+}
+
+static void SecureFreeAttr(nic_pfe_attr_t* attr)
+{
+    if (attr == nullptr) {
+        return;
+    }
+    size_t sz = sizeof(nic_pfe_attr_t) + attr->affinity_devices_count * sizeof(ubs_ub_devices_type_t);
+    (void)memset_s(attr, sz, 0, sz);
+    free(attr);
+}
+
+static void SecureFreeAttr(nic_vfe_attr_t* attr)
+{
+    if (attr == nullptr) {
+        return;
+    }
+    size_t sz = sizeof(nic_vfe_attr_t) + attr->affinity_devices_count * sizeof(ubs_ub_devices_type_t);
+    (void)memset_s(attr, sz, 0, sz);
+    free(attr);
+}
+
+static void SecureFreeAttr(ubctrl_attr_t* attr)
+{
+    if (attr == nullptr) {
+        return;
+    }
+    (void)memset_s(attr, sizeof(ubctrl_attr_t), 0, sizeof(ubctrl_attr_t));
+    free(attr);
+}
+
 static ubs_error_t InnerUnpackDeviceType(UnpackCtx& ctx, ubs_device_type& type)
 {
     uint8_t val = 0;
@@ -127,6 +186,9 @@ static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     if (InnerUnpackDeviceType(ctx, item.type) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
+    if (ctx.remaining < MACRO_UBSE_UB_DEVICE_GUID_SIZE + UBCTRL_DEV_ID_PACKED) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr = static_cast<ubctrl_attr_t*>(malloc(sizeof(ubctrl_attr_t)));
     if (item.attr == nullptr) {
@@ -134,13 +196,13 @@ static ubs_error_t InnerUnpackUbctrl(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     auto ret = InnerUnpackUbCtrlDeviceId(ctx, item.attr);
     if (ret != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return ret;
     }
 
@@ -159,6 +221,10 @@ static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     if (UnpackValue(ctx, subDevCnt) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
+    if (ctx.remaining <
+        NIC_PFE_DEV_ID_PACKED + 2 * MACRO_UBSE_UB_DEVICE_GUID_SIZE + subDevCnt * UB_DEVICES_TYPE_PACKED_SIZE) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr =
         static_cast<nic_pfe_attr_t*>(malloc(sizeof(nic_pfe_attr_t) + subDevCnt * sizeof(ubs_ub_devices_type_t)));
@@ -168,23 +234,23 @@ static ubs_error_t InnerUnpackNicPfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     item.attr->affinity_devices_count = subDevCnt;
 
     if (InnerUnpackNicPfeDeviceId(ctx, item.attr) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
-            free(item.attr);
+            SecureFreeAttr(item.attr);
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -204,6 +270,10 @@ static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     if (UnpackValue(ctx, subDevCnt) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
+    if (ctx.remaining <
+        NIC_VFE_DEV_ID_PACKED + 2 * MACRO_UBSE_UB_DEVICE_GUID_SIZE + subDevCnt * UB_DEVICES_TYPE_PACKED_SIZE) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr =
         static_cast<nic_vfe_attr_t*>(malloc(sizeof(nic_vfe_attr_t) + subDevCnt * sizeof(ubs_ub_devices_type_t)));
@@ -213,23 +283,23 @@ static ubs_error_t InnerUnpackNicVfe(UnpackCtx& ctx, ubs_ub_devices_list_t& devi
     item.attr->affinity_devices_count = subDevCnt;
 
     if (InnerUnpackNicVfeDeviceId(ctx, item.attr) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
-            free(item.attr);
+            SecureFreeAttr(item.attr);
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -249,6 +319,10 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
     if (UnpackValue(ctx, subDevCnt) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
+    if (ctx.remaining <
+        NPU_DEV_ID_PACKED + 2 * MACRO_UBSE_UB_DEVICE_GUID_SIZE + subDevCnt * UB_DEVICES_TYPE_PACKED_SIZE) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr = static_cast<npu_attr_t*>(malloc(sizeof(npu_attr_t) + subDevCnt * sizeof(ubs_ub_devices_type_t)));
     if (item.attr == nullptr) {
@@ -257,22 +331,25 @@ static ubs_error_t InnerUnpackNpu(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceL
     item.attr->affinity_devices_count = subDevCnt;
 
     if (InnerUnpackNpuDeviceId(ctx, item.attr) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     if (UnpackArray(ctx, item.attr->bus_instance_guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
-        InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]);
+        if (InnerUnpackUbDeviceType(ctx, item.attr->affinity_devices[i]) != UBS_SUCCESS) {
+            SecureFreeAttr(item.attr);
+            return UBS_ERR_BUFFER_TOO_SMALL;
+        }
     }
 
     npuIndex++;
@@ -290,6 +367,9 @@ static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& device
     if (UnpackValue(ctx, subDevCnt) != UBS_SUCCESS) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
+    if (ctx.remaining < MACRO_UBSE_UB_DEVICE_GUID_SIZE + subDevCnt * UB_DEVICES_TYPE_PACKED_SIZE) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
 
     item.attr = static_cast<busi_attr_t*>(malloc(sizeof(busi_attr_t) + subDevCnt * sizeof(ubs_ub_devices_type_t)));
     if (item.attr == nullptr) {
@@ -298,13 +378,13 @@ static ubs_error_t InnerUnpackBusi(UnpackCtx& ctx, ubs_ub_devices_list_t& device
     item.attr->sub_devices_count = subDevCnt;
 
     if (UnpackArray(ctx, item.attr->guid, MACRO_UBSE_UB_DEVICE_GUID_SIZE) != UBS_SUCCESS) {
-        free(item.attr);
+        SecureFreeAttr(item.attr);
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
 
     for (size_t i = 0; i < subDevCnt; i++) {
         if (InnerUnpackUbDeviceType(ctx, item.attr->sub_devices[i]) != UBS_SUCCESS) {
-            free(item.attr);
+            SecureFreeAttr(item.attr);
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -370,6 +450,15 @@ static ubs_error_t InnerUnpackDeviceByType(UnpackCtx& ctx, ubs_ub_devices_list_t
     }
 }
 
+static void InnerFreeAllDeviceBuffers(ubs_ub_devices_list_t& deviceList)
+{
+    FreeNicPfe(deviceList);
+    FreeNicVfe(deviceList);
+    FreeNpu(deviceList);
+    FreeUbctrl(deviceList);
+    FreeBusi(deviceList);
+}
+
 static ubs_error_t InnerUbDevListUnpack(UnpackCtx& ctx, ubs_ub_devices_list_t& deviceList)
 {
     uint8_t count = 0;
@@ -383,8 +472,12 @@ static ubs_error_t InnerUbDevListUnpack(UnpackCtx& ctx, ubs_ub_devices_list_t& d
     DevIndex indices;
     for (size_t i = 0; i < count; i++) {
         uint8_t type = 0;
-        UnpackValue(ctx, type);
+        if (UnpackValue(ctx, type) != UBS_SUCCESS) {
+            InnerFreeAllDeviceBuffers(deviceList);
+            return UBS_ERR_BUFFER_TOO_SMALL;
+        }
         if (InnerUnpackDeviceByType(ctx, deviceList, type, indices) != UBS_SUCCESS) {
+            InnerFreeAllDeviceBuffers(deviceList);
             return UBS_ERR_BUFFER_TOO_SMALL;
         }
     }
@@ -493,7 +586,7 @@ static void FreeDeviceList(T*& ptr, uint8_t cnt)
         return;
     }
     for (uint8_t i = 0; i < cnt; i++) {
-        free(ptr[i].attr);
+        SecureFreeAttr(ptr[i].attr);
     }
     delete[] ptr;
     ptr = nullptr;
