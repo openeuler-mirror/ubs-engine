@@ -37,11 +37,18 @@ ElectionRoles CollectElectionRoles(ubse::it::infra::ItCluster& cluster);
 // 单节点选举测试：验证节点"1"成为主节点
 void RunSingleNodeElectionTest(ubse::it::infra::ItCluster& cluster);
 
-// 双节点选举测试：验证集群收敛为1主+1备
+// 双节点选举测试：验证集群收敛为1主+1备（默认候选配置）
 void RunTwoNodeElectionTest(ubse::it::infra::ItCluster& cluster);
+
+// 双节点选举候选约束测试：最小节点 candidate=false、另一节点 candidate=true，
+// 收敛后主节点应为候选节点、备节点为最小节点，并验证主节点周期性心跳。
+void RunTwoNodeElectionCandidateFalseTest(ubse::it::infra::ItCluster& cluster);
 
 // 四节点选举测试：验证集群收敛为1主+1备+2代理
 void RunFourNodeElectionTest(ubse::it::infra::ItCluster& cluster);
+
+// 四节点主节点重启测试：收敛后重启主节点，备节点应接管成为新主，集群最终重新收敛
+void RunFourNodeMasterRestartTest(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::election
 

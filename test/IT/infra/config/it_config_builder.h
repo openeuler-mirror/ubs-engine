@@ -55,8 +55,12 @@ public:
     /** @brief Set cert.use in [ubse.rpc]. Defaults to false for IT. */
     ItConfigBuilder& WithCertUse(bool useCert = false);
 
-    /** @brief Add an arbitrary key=value override in a specific section. */
+    /** @brief Add an arbitrary key=value override in a specific section (applies to all nodes). */
     ItConfigBuilder& WithOverride(const std::string& section, const std::string& key, const std::string& value);
+
+    /** @brief Add a per-node key=value override in a specific section (applies only to nodeId). */
+    ItConfigBuilder& WithNodeOverride(const std::string& nodeId, const std::string& section, const std::string& key,
+                                      const std::string& value);
 
     /** @brief Enable or disable mock plugin config overlay. Defaults to true. */
     ItConfigBuilder& WithMockPlugin(bool enable);
@@ -69,7 +73,7 @@ private:
 
     std::string FindTemplatePath(const std::string& templatePath);
     std::string BuildClusterIpList() const;
-    std::string ApplyOverrides(const std::string& configContent);
+    std::string ApplyOverrides(const std::string& configContent, const std::string& nodeId);
     void ReplaceOrInsertConfigLine(std::string& content, const std::string& key, const std::string& newLine,
                                    const std::string& section);
     void CopyAuxiliaryConfigs(const std::filesystem::path& srcConfDir, const std::string& outputDir);
@@ -80,6 +84,7 @@ private:
     bool certUse_ = false;
     bool mockPluginEnabled_ = true;
     std::map<std::string, std::map<std::string, std::string>> overrides_;
+    std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeOverrides_;
 };
 
 } // namespace ubse::it::infra

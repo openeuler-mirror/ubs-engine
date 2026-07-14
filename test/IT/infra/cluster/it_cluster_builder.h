@@ -61,6 +61,10 @@ public:
     ItClusterBuilder& NoMockPlugin();
     ItClusterBuilder& NoElection();
 
+    /** @brief Add a per-node key=value config override in a specific section (nodeId only). */
+    ItClusterBuilder& WithNodeConfig(const std::string& nodeId, const std::string& section, const std::string& key,
+                                     const std::string& value);
+
     /**
      * @brief Build and start the cluster.
      *
@@ -85,6 +89,7 @@ private:
     uint32_t meshType_ = 1;
     bool mockPluginEnabled_ = true;
     bool waitForElection_ = true;
+    std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
 };
 
 } // namespace ubse::it::infra

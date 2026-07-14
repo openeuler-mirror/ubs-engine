@@ -14,6 +14,7 @@
 #define IT_CLUSTER_SPEC_H
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,10 @@ struct ClusterSpec {
     std::string sceneType;
     bool mockPluginEnabled = true;
     uint32_t meshType = 1;
+
+    // Per-node config overrides: nodeId -> section -> key -> value.
+    // Applied on top of global overrides during config generation.
+    std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides;
 
     static ClusterSpec FromRuntimePaths(const std::string& binaryPath, const std::string& baseWorkDir,
                                         const std::vector<NodeSpec>& nodes, const std::string& stubLibDir = "");

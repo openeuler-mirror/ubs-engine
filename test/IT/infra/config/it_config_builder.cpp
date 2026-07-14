@@ -48,6 +48,13 @@ ItConfigBuilder& ItConfigBuilder::WithOverride(const std::string& section, const
     return *this;
 }
 
+ItConfigBuilder& ItConfigBuilder::WithNodeOverride(const std::string& nodeId, const std::string& section,
+                                                   const std::string& key, const std::string& value)
+{
+    nodeOverrides_[nodeId][section][key] = value;
+    return *this;
+}
+
 ItConfigBuilder& ItConfigBuilder::WithMockPlugin(bool enable)
 {
     mockPluginEnabled_ = enable;
@@ -97,7 +104,7 @@ std::string ItConfigBuilder::BuildClusterIpList() const
     return oss.str();
 }
 
-std::string ItConfigBuilder::ApplyOverrides(const std::string& configContent)
+std::string ItConfigBuilder::ApplyOverrides(const std::string& configContent, const std::string& nodeId)
 {
     std::string content = configContent;
 
@@ -124,6 +131,17 @@ std::string ItConfigBuilder::ApplyOverrides(const std::string& configContent)
         for (const auto& [key, value] : keys) {
             std::string line = key + "=" + value + "\n";
             ReplaceOrInsertConfigLine(content, key, line, section);
+        }
+    }
+
+    // Per-node overrides via WithNodeOverride() (only applied to the matching node)
+    auto nodeIt = nodeOverrides_.find(nodeId);
+    if (nodeIt != nodeOverrides_.end()) {
+        for (const auto& [section, keys] : nodeIt->second) {
+            for (const auto& [key, value] : keys) {
+                std::string line = key + "=" + value + "\n";
+                ReplaceOrInsertConfigLine(content, key, line, section);
+            }
         }
     }
 
@@ -229,7 +247,7 @@ UbseResult ItConfigBuilder::GenerateConfig(const NodeSpec& nodeSpec, const std::
     ifs.close();
     std::string configContent = contentStream.str();
 
-    configContent = ApplyOverrides(configContent);
+    configContent = ApplyOverrides(configContent, nodeSpec.nodeId);
 
     std::filesystem::create_directories(outputDir);
     std::string outputPath = outputDir + "/ubse.conf";

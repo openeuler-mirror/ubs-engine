@@ -23,6 +23,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)
     ubse::it::tests::election::RunFourNodeElectionTest(Cluster());
 }
 
+// 主节点重启故障：收敛后重启主节点，备节点应接管成为新主，集群最终重新收敛
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
+{
+    ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
+}
+
 // 节点OOM故障：触发虚机借用内存进行逃逸
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
 {
