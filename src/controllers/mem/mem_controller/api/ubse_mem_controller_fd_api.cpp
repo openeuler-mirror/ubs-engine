@@ -492,6 +492,7 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseMem
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isDestroyedReportReceived = true;
     UbseMemFdBorrowImportObj importObj{};
     auto req = exportObj.returnReq;
     std::string requestNodeId = req.requestNodeId;
@@ -650,6 +651,7 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseMem
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isCreateReportReceived = true;
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) { // 导出成功 开始导入
         UBSE_LOG_INFO << "Export is successful, start to import. name=" << name
                       << ", requestId=" << exportObj.req.requestId;
@@ -914,6 +916,7 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseMem
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isCreateReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) { // 导入成功
         FdImportUpdateState(importObj, importObj.status.state);
         FdImportFillResp(resp, importObj);
@@ -1053,6 +1056,7 @@ uint32_t FdImportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseMem
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isDestroyedReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         return FdImportExpectDestroySuccessPath(resp, importObj, name, exportNodeId, importNodeId);
     }

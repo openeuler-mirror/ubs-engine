@@ -415,6 +415,7 @@ uint32_t AddrExportExpectSuccessCallback(UbseMemOperationResp& resp, UbseMemAddr
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isCreateReportReceived = true;
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) { // 导出成功 开始导入
         UBSE_LOG_INFO << "Addr export expect success callback. name=" << name;
         AddrExportUpdateState(exportObj, exportObj.status.state);
@@ -457,6 +458,7 @@ uint32_t AddrExportExpectDestroyMasterCallback(UbseMemAddrBorrowExportObj& expor
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isDestroyedReportReceived = true;
     UbseMemAddrBorrowImportObj importObj{};
     auto returnKey = GenerateExportObjKey(name, exportObj.req.importNodeId);
     auto req = exportObj.returnReq;
@@ -835,6 +837,7 @@ uint32_t AddrImportExpectSuccessMasterCallBack(UbseMemOperationResp& resp, const
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isCreateReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) { // 导入成功
         UBSE_LOG_INFO << "[MMC] addr import successful" << importObj.status.state;
         AddrImportUpdateState(importObj, importObj.status.state);
@@ -868,6 +871,7 @@ uint32_t AddrImportExpectDestroyedMasterCallBack(UbseMemOperationResp& resp, con
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isDestroyedReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseAddrImport(importObj);
         UbseMemAddrImportObjStateChangeHandler(importObj);

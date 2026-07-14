@@ -443,8 +443,8 @@ uint32_t NumaExportRunningCallback(UbseMemOperationResp& resp, UbseMemNumaBorrow
 {
     UBSE_LOG_INFO << "Numa export running callback. name=" << name << ", requestId=" << exportObj.req.requestId;
     auto exportKey = GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
-    auto existingObjPtr = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().GetResource(
-        exportObj.req.importNodeId, exportKey);
+    auto existingObjPtr =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().GetResource(exportNodeId, exportKey);
     if (existingObjPtr != nullptr &&
         existingObjPtr->status.state == ubse::adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
         return UBSE_OK;
@@ -643,6 +643,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseM
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isCreateReportReceived = true;
     if (exportObj.status.state == UBSE_MEM_EXPORT_SUCCESS) { // 导出成功 开始导入
         UBSE_LOG_INFO << "start to import, requestId=" << exportObj.req.requestId;
         importObj.exportObmmInfo = exportObj.status.exportObmmInfo;
@@ -691,6 +692,7 @@ uint32_t NumaExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseM
                       << ", requestId=" << exportObj.req.requestId;
         return UBSE_OK;
     }
+    exportObj.isDestroyedReportReceived = true;
     auto req = exportObj.returnReq;
     std::string requestNodeId = req.requestNodeId;
     resp.requestNodeId = requestNodeId;
@@ -939,6 +941,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp& resp, const
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
+    importObj.isCreateReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_SUCCESS) { // 导入成功
         NumaImportUpdateState(importObj, importObj.status.state);
         for (const auto importResult : importObj.status.importResults) {
@@ -1068,7 +1071,7 @@ uint32_t NumaImportExpectDestroyedMasterCallBack(UbseMemOperationResp& resp, con
                       << ", requestId=" << importObj.req.requestId;
         return UBSE_OK;
     }
-
+    importObj.isDestroyedReportReceived = true;
     if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         return HandleImportDestroyedSuccess(resp, exportNodeId, name, importNodeId, importObj);
     }
