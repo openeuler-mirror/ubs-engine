@@ -1,0 +1,297 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * for more details.
+ *
+ * Description: bandbridge cdev ops file
+ * Author:
+ * Create:
+ * Note:
+ * History:
+ */
+
+#include <linux/capability.h>
+#include <linux/cdev.h>
+#include <linux/dcache.h>
+#include <linux/device.h>
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#include <linux/mm.h>
+#include <linux/nsproxy.h>
+#include <linux/pid_namespace.h>
+#include <linux/poll.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+#include <linux/uaccess.h>
+#include <linux/wait.h>
+
+#include "bandbridge_device.h"
+
+#define UBSE_EXEC_PATH "/usr/bin/ubse"
+
+struct bandbridge_ctx {
+    dev_t bandbridge_devno;
+    struct cdev bandbridge_cdev;
+    struct class *bandbridge_cls;
+    struct device *bandbridge_dev;
+    struct mutex bandbridge_lock;
+};
+
+static struct bandbridge_ctx g_bandbridge_ctx = {0};
+
+static int bandbridge_check_permission(void)
+{
+    if (!capable(CAP_NET_ADMIN)) {
+        bandbridge_log_err("[bandbridge] CAP_NET_ADMIN check failed.\n");
+        return -EPERM;
+    }
+
+    if (strcmp(current->group_leader->comm, "ubse") != 0) {
+        bandbridge_log_err("[bandbridge] process name check failed, comm=%s.\n", current->group_leader->comm);
+        return -EPERM;
+    }
+
+    struct mm_struct *mm = current->group_leader->mm;
+    if (mm == NULL) {
+        bandbridge_log_err("[bandbridge] mm is NULL, kernel thread not allowed.\n");
+        return -EPERM;
+    }
+    if (mm->exe_file == NULL) {
+        bandbridge_log_err("[bandbridge] exe_file is NULL.\n");
+        return -EPERM;
+    }
+    char exe_path[64] = {0};
+    char *path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+    if (path_buf == NULL) {
+        bandbridge_log_err("[bandbridge] kmalloc path_buf failed.\n");
+        return -ENOMEM;
+    }
+    char *resolved = d_path(&mm->exe_file->f_path, path_buf, PATH_MAX);
+    if (IS_ERR_OR_NULL(resolved)) {
+        kfree(path_buf);
+        bandbridge_log_err("[bandbridge] d_path failed.\n");
+        return -EPERM;
+    }
+    if (strscpy(exe_path, resolved, sizeof(exe_path)) < 0) {
+        kfree(path_buf);
+        bandbridge_log_err("[bandbridge] strscpy failed.\n");
+        return -EPERM;
+    }
+    kfree(path_buf);
+    if (strcmp(exe_path, UBSE_EXEC_PATH) != 0) {
+        bandbridge_log_err("[bandbridge] exec path check failed, path=%s.\n", exe_path);
+        return -EPERM;
+    }
+
+    struct nsproxy *nsp = current->nsproxy;
+    if (nsp == NULL || nsp->pid_ns_for_children != &init_pid_ns) {
+        bandbridge_log_err("[bandbridge] namespace check failed, not in init pid namespace.\n");
+        return -EPERM;
+    }
+
+    return 0;
+}
+
+static int bandbridge_open(struct inode *inode, struct file *filp)
+{
+    int ret = bandbridge_check_permission();
+    if (ret != 0) {
+        return ret;
+    }
+    int buf_size;
+
+    struct bandbridge_mbuf *mbuf;
+    mbuf = kmalloc(sizeof(*mbuf), GFP_KERNEL);
+    if (!mbuf) {
+        bandbridge_log_err("[bandbridge_open] alloc mbuf failed.\n");
+        return -ENOMEM;
+    }
+
+    buf_size = bandbridge_ctrlq_get_sq_size();
+    if (buf_size <= 0) {
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] sq buf_size is invalid.\n");
+        return -EINVAL;
+    }
+    mbuf->sendbuf = vmalloc(buf_size);
+    if (!mbuf->sendbuf) {
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] alloc mbuf->sendbuf failed.\n");
+        return -ENOMEM;
+    }
+
+    buf_size = bandbridge_ctrlq_get_rq_size();
+    if (buf_size <= 0) {
+        vfree(mbuf->sendbuf);
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] rq buf_size is invalid.\n");
+        return -EINVAL;
+    }
+    mbuf->recvbuf = vmalloc(buf_size);
+    if (!mbuf->recvbuf) {
+        vfree(mbuf->sendbuf);
+        kfree(mbuf);
+        bandbridge_log_err("[bandbridge_open] alloc mbuf->recvbuf failed.\n");
+        return -ENOMEM;
+    }
+
+    filp->private_data = mbuf;
+    return 0;
+}
+
+static int bandbridge_close(struct inode *inode, struct file *filp)
+{
+    struct bandbridge_mbuf *mbuf = filp->private_data;
+    if (mbuf) {
+        if (mbuf->sendbuf) {
+            vfree(mbuf->sendbuf);
+        }
+        if (mbuf->recvbuf) {
+            vfree(mbuf->recvbuf);
+        }
+        kfree(mbuf);
+    }
+    filp->private_data = NULL;
+    return 0;
+}
+
+static int bandbridge_validate_user_buf(struct bandbridge_mbuf *tmpbuf)
+{
+    int sq_alloc_size = bandbridge_ctrlq_get_sq_size();
+    if (tmpbuf == NULL) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] tmpbuf is NULL.\n");
+        return -EINVAL;
+    }
+    if (sq_alloc_size <= 0) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sq alloc size %d invalid.\n", sq_alloc_size);
+        return -EINVAL;
+    }
+    if (tmpbuf->sendbuf_size <= 0 || tmpbuf->sendbuf_size > sq_alloc_size) {
+        bandbridge_log_err("[bandbridge_validate_user_buf] sendbuf_size %d invalid, alloc=%d.\n", tmpbuf->sendbuf_size,
+                           sq_alloc_size);
+        return -EINVAL;
+    }
+    return 0;
+}
+
+static int bandbridge_do_send_recv(struct bandbridge_mbuf *mbuf, struct bandbridge_mbuf *tmpbuf)
+{
+    int ret;
+    mutex_lock(&g_bandbridge_ctx.bandbridge_lock);
+    ret = bandbridge_ctrlq_check_sq_enough(tmpbuf->sendbuf_size);
+    if (ret != 0) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] sq is not enough.\n");
+        return -ENOSPC;
+    }
+    if (copy_from_user(mbuf->sendbuf, tmpbuf->sendbuf, tmpbuf->sendbuf_size)) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] copy sendbuf from user failed.\n");
+        return -EFAULT;
+    }
+    mbuf->sendbuf_size = tmpbuf->sendbuf_size;
+    mbuf->recvbuf_size = tmpbuf->recvbuf_size;
+    bandbridge_ctrlq_send_to_sq(mbuf->sendbuf, mbuf->sendbuf_size);
+
+    struct bandbridge_ctrlq_msg_header *head = (struct bandbridge_ctrlq_msg_header *)mbuf->sendbuf;
+    u16 sseq = le16_to_cpu(head->seq);
+    ret = bandbridge_ctrlq_receive_from_rq(mbuf->recvbuf, &mbuf->recvbuf_size, sseq);
+    if (ret != 0) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] recv response from rq failed.\n");
+        return ret;
+    }
+
+    if (copy_to_user(tmpbuf->recvbuf, mbuf->recvbuf, mbuf->recvbuf_size)) {
+        mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+        bandbridge_log_err("[bandbridge_do_send_recv] copy recvbuf to user failed.\n");
+        return -EFAULT;
+    }
+    tmpbuf->recvbuf_size = mbuf->recvbuf_size;
+    mutex_unlock(&g_bandbridge_ctx.bandbridge_lock);
+    return 0;
+}
+
+static long bandbridge_send_request(struct bandbridge_mbuf *mbuf, void __user *arg)
+{
+    int ret = bandbridge_check_permission();
+    if (ret != 0) {
+        return ret;
+    }
+
+    struct bandbridge_mbuf tmpbuf;
+    if (copy_from_user(&tmpbuf, arg, sizeof(tmpbuf))) {
+        bandbridge_log_err("[bandbridge_send_request] copy mbuf from user failed.\n");
+        return -EFAULT;
+    }
+
+    ret = bandbridge_validate_user_buf(&tmpbuf);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = bandbridge_do_send_recv(mbuf, &tmpbuf);
+    if (ret != 0) {
+        return ret;
+    }
+
+    if (copy_to_user(arg, &tmpbuf, sizeof(tmpbuf))) {
+        bandbridge_log_err("[bandbridge_send_request] copy mbuf to user failed.\n");
+        return -EFAULT;
+    }
+    return 0;
+}
+
+static long bandbridge_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+    struct bandbridge_mbuf *mbuf = filp->private_data;
+
+    switch (cmd) {
+        case BANDBRIDGE_SEND_REQUEST:
+            return bandbridge_send_request(mbuf, (void __user *)arg);
+        default:
+            return -EINVAL;
+    }
+}
+
+static const struct file_operations g_bandbridge_global_ops = {
+    .owner = THIS_MODULE,
+    .open = bandbridge_open,
+    .release = bandbridge_close,
+    .unlocked_ioctl = bandbridge_ioctl,
+};
+
+static struct miscdevice bandbridge_miscdev = {
+    .minor = MISC_DYNAMIC_MINOR,      // 使用动态分配的设备号
+    .name = BANDBRIDGE_NAME,          // 设备名称
+    .fops = &g_bandbridge_global_ops, // 文件操作函数
+};
+
+int bandbridge_cdev_register(void)
+{
+    int ret = 0;
+
+    mutex_init(&g_bandbridge_ctx.bandbridge_lock);
+
+    ret = misc_register(&bandbridge_miscdev);
+    if (ret != 0) {
+        bandbridge_log_err("[bandbridge_cdev_register] misc_register failed, ret:%d.\n", ret);
+        return ret;
+    }
+
+    bandbridge_log_info("[bandbridge_cdev_register] bandbridge misc device register success.\n");
+    return 0;
+}
+
+void bandbridge_cdev_unregister(void)
+{
+    misc_deregister(&bandbridge_miscdev);
+    bandbridge_log_info("[bandbridge_cdev_unregister] bandbridge misc device unregister success.\n");
+}

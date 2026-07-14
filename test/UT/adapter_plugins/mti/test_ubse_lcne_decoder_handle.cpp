@@ -73,7 +73,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesSuccess)
 })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemHandleQueryInfo queryInfo{};
@@ -98,7 +98,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesEmptySuccess)
 })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemHandleQueryInfo queryInfo{};
@@ -139,7 +139,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseFailed)
     std::string body = "";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).stubs().will(returnValue(UBSE_OK));
 
@@ -177,7 +177,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseHasParseError)
 })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemHandleQueryInfo queryInfo{};
@@ -207,7 +207,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseKeyParseFailed)
 })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemHandleQueryInfo queryInfo{};
@@ -231,7 +231,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseKeyParseFailed)
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).reset();
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -258,7 +258,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseArrayParseFailed)
 })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemHandleQueryInfo queryInfo{};
@@ -278,7 +278,7 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseArrayParseFailed)
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).reset();
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
     EXPECT_EQ(ret, UBSE_ERROR);
