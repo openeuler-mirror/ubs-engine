@@ -13,12 +13,23 @@
 #include "test_ubs_engine_npu.h"
 #include <securec.h>
 #include <cstring>
+#include <memory>
 #include <mockcpp/mockcpp.hpp>
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
+#include "ubse_npu_msg_execute.h"
+#include "ubse_npu_source_def.h"
 #include "src/sdk/c/libubse_npu_helper.h"
 #include "ubs_engine_npu.h"
+// Forward declarations for internal functions defined in ubse_npu_msg_execute.cpp
+// (not exposed in public headers, but needed for mocking)
+namespace ubse::npu::controller {
+uint32_t QueryDeviceRespPack(const std::vector<std::shared_ptr<IResource>>& devList, TransRespMsg& buffer);
+// HEAD_SIZE defined in ubse_npu_msg_execute.cpp: 6 * sizeof(uint8_t)
+constexpr size_t HEAD_SIZE = 6 * sizeof(uint8_t);
+} // namespace ubse::npu::controller
 namespace ubse::sdk::ut {
+using namespace npu::controller;
 constexpr size_t EMPTY_DEV_LIST_RESP_LEN = sizeof(uint8_t) * 6; // count + 5 counts
 constexpr size_t EMPTY_ALLOC_RESP_LEN = MACRO_UBSE_UB_DEVICE_GUID_SIZE + EMPTY_DEV_LIST_RESP_LEN;
 constexpr size_t TID_UBA_SIZE_RESP_LEN = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint64_t);
@@ -47,7 +58,48 @@ static ubse_api_buffer_t BuildEmptyDevListResp()
     }
     return resp;
 }
-
+static ubse_api_buffer_t BuildAllDevListResp()
+{
+    std::vector<std::shared_ptr<IResource>> devList;
+    std::shared_ptr<UbCtrlResource> ubCtrlRes = std::make_shared<UbCtrlResource>();
+    std::shared_ptr<NpuResource> npuRes = std::make_shared<NpuResource>();
+    std::shared_ptr<NicPfeResource> nicPfeRes = std::make_shared<NicPfeResource>();
+    std::shared_ptr<NicVfeResource> nicVfeRes = std::make_shared<NicVfeResource>();
+    std::shared_ptr<BusiResource> busiRes = std::make_shared<BusiResource>();
+    npuRes->SetGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    npuRes->SetBusInstanceGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    npuRes->AddAffinityDevice({ResourceType::NIC_VFE, 0, 0, 0});
+    nicPfeRes->SetGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    nicPfeRes->SetBusInstanceGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    nicPfeRes->AddAffinityDevice({ResourceType::NIC_VFE, 0, 0, 0});
+    nicVfeRes->SetGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    nicVfeRes->SetBusInstanceGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    nicVfeRes->AddAffinityDevice({ResourceType::NPU, 0, 0, 0});
+    busiRes->SetGuid(std::string(UBSE_UB_DEVICE_GUID_SIZE, '1'));
+    busiRes->AddSubDevice({ResourceType::NIC_VFE, 0, 0, 0});
+    devList.push_back(ubCtrlRes);
+    devList.push_back(npuRes);
+    devList.push_back(nicPfeRes);
+    devList.push_back(nicVfeRes);
+    devList.push_back(busiRes);
+    TransRespMsg msg;
+    auto ret = QueryDeviceRespPack(devList, msg);
+    if (ret != UBS_SUCCESS) {
+        return {nullptr, 0};
+    }
+    ubse_api_buffer_t resp{};
+    resp.length = msg.length;
+    resp.buffer = static_cast<uint8_t*>(malloc(resp.length));
+    if (resp.buffer != nullptr) {
+        memcpy_s(resp.buffer, resp.length, msg.buffer, resp.length);
+    } else {
+        resp.length = 0;
+    }
+    delete[] msg.buffer;
+    msg.buffer = nullptr;
+    msg.length = 0;
+    return resp;
+}
 // 构造空alloc响应: [guid(32)][count=0][5 counts=0]
 static ubse_api_buffer_t BuildEmptyAllocResp()
 {
@@ -214,7 +266,7 @@ TEST_F(TestUbsEngineNpu, UbsNpuDeviceListQueryWhenUnpackFailed)
 }
 
 // 3. 正常流程(空设备列表)
-TEST_F(TestUbsEngineNpu, UbsNpuDeviceListQueryWhenSuccess)
+TEST_F(TestUbsEngineNpu, UbsNpuDeviceListEmptyQueryWhenSuccess)
 {
     ubs_ub_devices_list_t deviceList{};
     ubse_api_buffer_t respBuffer = BuildEmptyDevListResp();
@@ -226,7 +278,21 @@ TEST_F(TestUbsEngineNpu, UbsNpuDeviceListQueryWhenSuccess)
     EXPECT_EQ(deviceList.busi_cnt, 0);
     ubs_npu_device_list_free(&deviceList);
 }
-
+// 4. 正常流程(空设备列表)
+TEST_F(TestUbsEngineNpu, UbsNpuDeviceListQueryWhenSuccess)
+{
+    ubs_ub_devices_list_t deviceList{};
+    ubse_api_buffer_t respBuffer = BuildAllDevListResp();
+    if (respBuffer.buffer == nullptr) {
+        return;
+    }
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+    int32_t ret = ubs_npu_device_list_query(&deviceList);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    EXPECT_NE(deviceList.npu_cnt, 0);
+    EXPECT_NE(deviceList.busi_cnt, 0);
+    ubs_npu_device_list_free(&deviceList);
+}
 // ==================== ubs_npu_device_alloc ====================
 
 // 1. 非法参数: alloc_info为nullptr
