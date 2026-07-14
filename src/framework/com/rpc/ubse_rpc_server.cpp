@@ -13,6 +13,8 @@
 #include "rpc/ubse_rpc_server.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
+#include "ubse_node_mgr.h"
+
 namespace ubse::com {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
@@ -21,19 +23,7 @@ const std::string WorkGroup = "server";
 
 UbseResult GetUBEnableForRpc(bool &ubEnable)
 {
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
+    ubEnable = nodeMgr::IsUrma();
     return UBSE_OK;
 }
 

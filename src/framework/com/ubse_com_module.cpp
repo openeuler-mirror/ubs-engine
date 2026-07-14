@@ -15,7 +15,6 @@
 
 #include <sys/stat.h>
 #include <csignal>
-
 #include "rpc/ubse_rpc_server.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
@@ -27,6 +26,7 @@
 #include "ubse_file_util.h"
 #include "ubse_lcne_module.h"
 #include "ubse_logger_module.h"
+#include "ubse_node_mgr.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
 
@@ -174,23 +174,22 @@ UbseResult GetBondingEidByNodeId(std::string &bondingEid, const std::string &nod
 }
 UbseResult GetUBEnable(bool &ubEnable)
 {
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        ubEnable = true;
-        return UBSE_OK;
-    }
-    ubEnable = false;
+    ubEnable = nodeMgr::IsUrma();
     return UBSE_OK;
 }
 
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
+    bool rootEnable = false;
+    nodeMgr::GetRootIpList().empty() ? rootEnable = false : rootEnable = true;
+    if (rootEnable) {
+        auto node = nodeMgr::GetUbseNodeById(nodeId);
+        if (node.nodeId.empty()) {
+            UBSE_LOG_WARN << "Node " << nodeId << " not found";
+            return false;
+        }
+        eid = node.addr;
+        return true;
+    }
     bool ubEnable;
     GetUBEnable(ubEnable);
     if (ubEnable) {

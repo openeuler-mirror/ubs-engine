@@ -40,11 +40,15 @@ uint32_t UbseNetUtil::ParseIpList(const std::string &ipListStr, std::vector<std:
     Split(ipListStr, ",", tokens);
     for (auto &token : tokens) {
         if (token.find('-') != std::string::npos) {
-            ParseIpRangeToList(token, ipList);
+            auto ret = ParseIpRangeToList(token, ipList);
+            if (ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "Parse ip range=" << token << " failed, " << log::FormatRetCode(ret);
+                return ret;
+            }
         } else if (ValidIpv4Addr(token)) {
             ipList.push_back(token);
         } else {
-            UBSE_LOG_ERROR << "Invalid ip range=" << token;
+            UBSE_LOG_ERROR << "Invalid ip=" << token;
             return UBSE_ERROR_INVAL;
         }
     }
@@ -158,25 +162,25 @@ std::string UbseNetUtil::IntToIpV4(uint32_t ipInt)
 }
 
 // 解析IP范围
-void UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips)
+uint32_t UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips)
 {
     std::vector<std::string> ipList;
-    ubse::utils::Split(range, "-", ipList);
-    if (ipList.size() != NO_2) { // 如果nodeId/ip/端口没有用冒号分隔，返回
-        return;
+    Split(range, "-", ipList);
+    if (ipList.size() != NO_2) { // 如果IP范围格式错误，返回
+        return UBSE_ERROR_INVAL;
     }
     uint32_t startIntIp;
     uint32_t endIntIp;
     auto ret = IpV4ToInt(ipList[0], startIntIp);
     if (ret != UBSE_OK) {
-        return;
+        return UBSE_ERROR_INVAL;
     }
     ret = IpV4ToInt(ipList[1], endIntIp);
     if (ret != UBSE_OK) {
-        return;
+        return UBSE_ERROR_INVAL;
     }
     if (startIntIp > endIntIp) {
-        return;
+        return UBSE_ERROR_INVAL;
     }
     for (uint32_t ip = startIntIp; ip <= endIntIp; ip++) {
         ips.emplace_back(IntToIpV4(ip));
@@ -184,6 +188,7 @@ void UbseNetUtil::ParseIpRangeToList(const std::string &range, std::vector<std::
             break;
         }
     }
+    return UBSE_OK;
 }
 
 bool UbseNetUtil::Ipv4StringToArr(const std::string &ip, uint8_t *arr)

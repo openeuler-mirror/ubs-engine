@@ -42,6 +42,15 @@ UbseResult UbseNodeStaticInfoMgr::Init()
         return ret;
     }
     isUrma_ = mode_ == NodeDiscoveryMode::URMA_CLOS_MODE || mode_ == NodeDiscoveryMode::URMA_FULL_MESH_MODE;
+    UbseNodeStaticInfo node{};
+    ret = InitCurNodeInfo(node);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "init cur node static info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    currentNode_ = node;
+    nodes_[node.groupId][node.nodeId] = node;
+    UBSE_LOG_INFO << "cur node=" << node.nodeId << ", groupId=" << node.groupId;
     return UBSE_OK;
 }
 
@@ -165,6 +174,7 @@ UbseResult UbseNodeStaticInfoMgr::InitClusterMode()
     }
 
     if (!isClos_) {
+        rootIps_ = {};
         mode_ =
             clusterIps_.empty() ? NodeDiscoveryMode::URMA_FULL_MESH_MODE : NodeDiscoveryMode::TCP_CONFIG_FULL_MESH_MODE;
         return UBSE_OK;

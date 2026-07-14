@@ -835,40 +835,6 @@ UbseResult CollectIpList(std::vector<UbseIpAddr> &ubseNodeInfo)
     return UBSE_OK;
 }
 
-std::unordered_map<std::string, std::string> GetClusterIpListFromConf()
-{
-    std::unordered_map<std::string, std::string> ipMap;
-    std::vector<std::string> ips;
-    auto ubseConfModule = context::UbseContext::GetInstance().GetModule<config::UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return ipMap;
-    }
-    std::string defaultVal;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", defaultVal);
-    if (ret != UBSE_OK || defaultVal.empty()) {
-        UBSE_LOG_WARN << "Unable to get cluster.ipList config," << FormatRetCode(ret) << " ,use default tcp";
-        return ipMap;
-    }
-    std::vector<std::string> ipRangeVec;
-    ubse::utils::Split(defaultVal, ",", ipRangeVec);
-    for (auto &range : ipRangeVec) {
-        if (range.find('-') != std::string::npos) {
-            UbseNetUtil::ParseIpRangeToList(range, ips);
-        } else if (UbseNetUtil::ValidIpv4Addr(range) || UbseNetUtil::ValidIpv6Addr(range)) {
-            ips.emplace_back(range);
-        } else {
-            UBSE_LOG_WARN << "Invalid ip range:" << range;
-        }
-    }
-    std::sort(ips.begin(), ips.end());
-    for (size_t i = 0; i < ips.size(); ++i) {
-        UBSE_LOG_INFO << "Put ip " << ips[i] << ", id " << i;
-        ipMap.emplace(ips[i], std::to_string(i + 1));
-    }
-    return ipMap;
-}
-
 UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol)
 {
     if (LocalProtocol == UbseProtocol::TCP) {

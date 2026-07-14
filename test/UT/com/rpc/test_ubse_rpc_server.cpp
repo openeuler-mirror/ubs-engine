@@ -47,13 +47,8 @@ uint64_t port = 8080;
 TEST_F(TestUbseRpcServer, Start)
 {
     UbseRpcServer server{"127.0.0.1", 8080, "name", "id"};
-
-    std::shared_ptr<UbseConfModule> nullModule = nullptr;
-    std::shared_ptr<UbseConfModule> module = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
-    MOCKER_CPP(&UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER(UbseCommunication::CreateUbseComEngine).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(UBSE_ERROR_CONF_INVALID, server.Start());
+    MOCKER(UbseCommunication::CreateUbseComEngine).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(UBSE_ERROR, server.Start());
 }
 
 void StopServer(const std::string &name) {}
