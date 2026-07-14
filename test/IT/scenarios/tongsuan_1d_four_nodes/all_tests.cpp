@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/election/election_cases.h"
 #include "tests/fault/fault_cases.h"
+#include "tests/mem_borrow/mem_borrow_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
@@ -63,4 +64,10 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliTopoCpu001)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliClusterGuid001)
 {
     ubse::it::tests::topo::RunLcneVsCliClusterGuid001(Cluster());
+}
+
+// 四节点SHM attach后import_desc_cnt验证：每个节点attach返回import_desc_cnt=1
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, ShmFourNodesAttachImportDescCnt)
+{
+    ubse::it::tests::mem_borrow::RunShmFourNodesAttachImportDescCntTest(Cluster());
 }
