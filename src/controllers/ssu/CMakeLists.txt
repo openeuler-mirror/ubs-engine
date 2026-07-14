@@ -1,4 +1,4 @@
-
+add_subdirectory(ipc)
 file(GLOB UBSE_SSU_CONTROLLER_SOURCES "*.cpp" "*.h")
 file(GLOB UBSE_SSU_CONTROLLER_MESSAGE_SOURCES "message/*.cpp" "message/*.h")
 file(GLOB UBSE_SSU_CONTROLLER_DEBT_SOURCES "debt/*.cpp" "debt/*.h")
@@ -25,4 +25,5 @@ target_link_libraries(ubse_ssu_controller PRIVATE
     ubse_timer
     ubse_utils
     ubse_vip
+    ubse_ssu_ipc
 )
