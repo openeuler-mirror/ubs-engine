@@ -283,8 +283,14 @@ UbseResult UbseVipManager::ParseListenIp()
 void UbseVipManager::RegisterRoute(const std::string &path, UbseHttpMethod method, UbseHttpHandlerFunc handler)
 {
     std::lock_guard<std::mutex> lock(mutex_);
+    // 始终存入 pendingRoutes_，保证主备切换后重建 httpServer_ 时能重新注册全部路由
     pendingRoutes_.push_back({path, method, handler});
-    UBSE_LOG_INFO << "[VIP] Route registered: " << path;
+
+    // 若 HTTP server 已在运行（VIP 已 bound），直接注册到运行实例，避免路由延迟到下次绑定才生效
+    if (httpServer_) {
+        httpServer_->RegisterRoute(path, UbseHttpMethodToString(method), handler);
+    }
+    UBSE_LOG_INFO << "[VIP] Route registered: " << path << ", httpServerRunning=" << (httpServer_ != nullptr);
 }
 
 UbseResult UbseVipManager::ResolveInterface()
