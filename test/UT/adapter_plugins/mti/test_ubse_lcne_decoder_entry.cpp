@@ -52,7 +52,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntrySuccess)
     })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
@@ -95,7 +95,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseFailed)
     rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_BAD_REQ);
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(rsp))
+        .with(mockcpp::any(), mockcpp::any(), outBound(rsp))
         .will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).stubs().will(returnValue(UBSE_OK));
 
@@ -114,7 +114,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseEmpty)
     std::string body = "";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
@@ -140,7 +140,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryHasError)
     })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
@@ -166,7 +166,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseFieldFailed)
 
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
     UbseMamiMemImportResult importResult{};
@@ -185,7 +185,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseFieldFailed)
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).reset();
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     ret = UbseLcneDecoderEntry::AddDecoderEntry(ubseMamiMemImportInfo, importResult);
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -202,7 +202,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseFieldFailed)
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).reset();
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     ret = UbseLcneDecoderEntry::AddDecoderEntry(ubseMamiMemImportInfo, importResult);
     EXPECT_EQ(ret, UBSE_OK);
@@ -226,7 +226,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseKeyFailed)
 
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
     UbseMamiMemImportResult importResult{};
@@ -245,7 +245,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseKeyFailed)
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).reset();
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
     ret = UbseLcneDecoderEntry::AddDecoderEntry(ubseMamiMemImportInfo, importResult);
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -268,7 +268,7 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryFailed)
     })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
@@ -292,7 +292,7 @@ TEST_F(TestUbseLcneDecoderEntry, DeleteDecoderEntrySuccess)
     })";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
         .stubs()
-        .with(any(), any(), outBound(body))
+        .with(mockcpp::any(), mockcpp::any(), outBound(body))
         .will(returnValue(UBSE_OK));
 
     UbseMamiMemWithdraw drawInfo{};

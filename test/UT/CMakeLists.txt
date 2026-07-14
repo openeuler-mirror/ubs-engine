@@ -17,6 +17,9 @@ file(GLOB_RECURSE TEST_SOURCES LIST_DIRECTORIES false
 
 # exclusive_executable目录下的为单独执行的ut模块，不编入大ut中
 list(FILTER TEST_SOURCES EXCLUDE REGEX ".*/exclusive_executable/.*")
+# bandbridge目录下的为内核模块UT，需要自定义include路径（-I mock），不能由glob拾取编入大ut，
+# 通过OBJECT库单独编译后链接到主UT中
+list(FILTER TEST_SOURCES EXCLUDE REGEX ".*/adapter_plugins/bandbridge/.*")
 
 add_executable(${UT_BINARY} EXCLUDE_FROM_ALL ${TEST_SOURCES})
 # 打破控制权限
@@ -98,6 +101,7 @@ add_subdirectory(sdk)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
 add_subdirectory(adapter_plugins/ssu)
+add_subdirectory(adapter_plugins/bandbridge)
 add_subdirectory(node_mgr)
 add_subdirectory(ssu-scheduler)
 

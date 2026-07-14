@@ -356,6 +356,11 @@ function build_cmake() {
         force_colored_output='ON'
     fi
 
+    if rpm -q kernel-devel >/dev/null 2>&1; then
+        KERNEL_VERSION=$(rpm -q kernel-devel | head -1 | awk -F 'kernel-devel-' '{print $2}')
+    else
+        KERNEL_VERSION=$(uname -r)
+    fi
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
@@ -376,7 +381,8 @@ function build_cmake() {
         -DBUILD_IN_CI=${build_in_ci} \
         -DB_VERSION="${deploy_version}" \
         -DENABLE_UB="${enable_ub}" \
-        -DENABLE_FUZZ="${enable_fuzz}"
+        -DENABLE_FUZZ="${enable_fuzz}" \
+        -DKERNEL_VERSION="${KERNEL_VERSION}"
 
     # 确保先构建 Debug 版本的所有代码，生成全面覆盖率报告
     if [[ "$enable_coverage" == 'ON' && "$build_type" == 'Debug' && "$build_target" != 'all' ]]; then
