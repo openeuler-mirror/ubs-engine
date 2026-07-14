@@ -19,6 +19,7 @@
 #include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_perm_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
+#include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "trace_context.h"
 #include "ubse_com.h"
@@ -308,6 +309,95 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     SetReplySyncResp(resp);
 }
 
+// 发送attach验证响应给agent
+static void SendSsuAttachDetachVerifyRespToAgent(const std::string &agentNodeId, const UbseSsuAttachDetachVerifyResp &resp)
+{
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_RESP));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendSsuAttachDetachVerifyRespToAgent: get endpoint failed, requestId=" << resp.requestId;
+        return;
+    }
+    UbseSsuAttachDetachVerifyRespMsg respMsg(resp);
+    UbseSsuSyncRespMsg ackMsg;
+    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendSsuAttachDetachVerifyRespToAgent failed, " << FormatRetCode(ret)
+                       << ", requestId=" << resp.requestId;
+    }
+}
+
+// 构建attach验证失败响应
+static UbseSsuAttachDetachVerifyResp BuildAttachDetachVerifyErrResp(const std::string &requestId, uint32_t errorCode)
+{
+    UbseSsuAttachDetachVerifyResp resp;
+    resp.requestId = requestId;
+    resp.errorCode = errorCode;
+    return resp;
+}
+
+// handler: master端处理来自agent端的attach验证请求，验证identity并返回构造AttachDevNameSpace所需字段
+static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                          std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuAttachDetachVerifyReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize attach verify req, reqSize=" << reqSize;
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    std::string traceId = TraceContext::GetTraceId();
+    auto verifyReq = request.GetAttachDetachVerifyReq();
+    auto executor = utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        SendSsuAttachDetachVerifyRespToAgent(verifyReq.requestNodeId,
+                                       BuildAttachDetachVerifyErrResp(verifyReq.requestId, UBSE_ERROR));
+        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    executor->Execute([verifyReq = std::move(verifyReq), traceId = std::move(traceId)]() {
+        TraceContext::SetTraceId(traceId);
+        auto &controller = UbseSsuServiceImp::GetInstance();
+        UbseSsuAttachDetachVerifyResp respData;
+        respData.requestId = verifyReq.requestId;
+        std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
+        auto ret = controller.VerifyAttachDetachIdentity(verifyReq.name, verifyReq.identityInfo, nsVerifyList);
+        respData.errorCode = ret;
+        if (ret == UBSE_OK) {
+            respData.nsVerifyList = std::move(nsVerifyList);
+        } else {
+            UBSE_LOG_ERROR << "VerifyAttachDetachIdentity failed, " << FormatRetCode(ret)
+                           << ", requestId=" << verifyReq.requestId << ", name=" << verifyReq.name;
+        }
+        SendSsuAttachDetachVerifyRespToAgent(verifyReq.requestNodeId, respData);
+        TraceContext::Clear();
+    });
+    SetReplySyncResp(resp);
+}
+
+// handler: agent端处理attach验证响应
+static void HandleAttachDetachVerifyRespReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                           std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuAttachDetachVerifyRespMsg response;
+    if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize attach verify resp";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+    auto respData = response.GetAttachDetachVerifyResp();
+    UBSE_LOG_INFO << "Received ssu attach verify response, requestId=" << respData.requestId
+                  << ", errorCode=" << respData.errorCode;
+    if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
+        UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for ssu attach verify response";
+    }
+    SetReplySyncResp(resp);
+}
+
 // 构建SSU访问权限响应
 static UbseSsuPermResp BuildPermResp(const std::string &requestId, uint32_t errorCode)
 {
@@ -478,6 +568,26 @@ uint32_t UbseSsuRpcProcessor::RegisterAddPermHandlers()
     return UBSE_OK;
 }
 
+// 注册attach验证请求处理器（master端处理agent的验证请求）
+uint32_t UbseSsuRpcProcessor::RegisterAttachDetachVerifyHandlers()
+{
+    auto reqEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                     static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ),
+                                                     HandleAttachDetachVerifyReqReceiver);
+    if (reqEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register attach verify req receiver";
+        return UBSE_ERROR;
+    }
+    auto respEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                                      static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_RESP),
+                                                      HandleAttachDetachVerifyRespReceiver);
+    if (respEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register attach verify resp receiver";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 // 注册SSU访问权限移除请求和响应处理器
 uint32_t UbseSsuRpcProcessor::RegisterRemovePermHandlers()
 {
@@ -516,6 +626,12 @@ uint32_t UbseSsuRpcProcessor::RegHandler()
     ret = RegisterFreeHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterFreeHandlers failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    ret = RegisterAttachDetachVerifyHandlers();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RegisterAttachDetachVerifyHandlers failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 
