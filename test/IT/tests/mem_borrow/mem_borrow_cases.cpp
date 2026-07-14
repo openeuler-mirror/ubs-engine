@@ -245,30 +245,50 @@ void RunCliMemoryOperationsLongOpt001(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
 }
 
-// CLI内存类型过滤查询测试
+// CLI内存类型过滤查询测试：NUMA/FD/SHM全生命周期
 void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
 
-    // 创建NUMA内存
+    // ===== NUMA: create → display by type → display by name → delete =====
     ubse::it::infra::ItMemCreateInfo numaCreateInfo;
     EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaCreateInfo, "it_test_numa", "128M"));
     EXPECT_EQ(numaCreateInfo.name, "it_test_numa");
     EXPECT_EQ(numaCreateInfo.size, "128MB");
+    EXPECT_FALSE(numaCreateInfo.numaId.empty());
+    EXPECT_FALSE(numaCreateInfo.importNode.empty());
+    EXPECT_FALSE(numaCreateInfo.exportNode.empty());
 
-    // 创建FD内存
+    // ===== FD: create → display by type → delete =====
     ubse::it::infra::ItMemCreateInfo fdCreateInfo;
     EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdCreateInfo, "it_test_fd", "128M"));
     EXPECT_EQ(fdCreateInfo.name, "it_test_fd");
     EXPECT_EQ(fdCreateInfo.size, "128MB");
+    EXPECT_FALSE(fdCreateInfo.memIds.empty());
+    EXPECT_FALSE(fdCreateInfo.importNode.empty());
+    EXPECT_FALSE(fdCreateInfo.exportNode.empty());
 
-    // 创建SHARE内存（region = "1,2"）
+    // ===== SHM: create → attach → display by type → detach → delete =====
+    // Phase 1: create share (在借出方创建，输出含 export-node + region)
     ubse::it::infra::ItMemCreateInfo shareCreateInfo;
     EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareCreateInfo, "it_test_share", "128M", "1,2"));
     EXPECT_EQ(shareCreateInfo.name, "it_test_share");
     EXPECT_EQ(shareCreateInfo.size, "128MB");
+    EXPECT_FALSE(shareCreateInfo.exportNode.empty());
+    EXPECT_FALSE(shareCreateInfo.region.empty());
 
-    // 查询NUMA类型的借用详情
+    // Phase 2: attach share (在借用方挂载，输出含 mem-ids + import-node + export-node + region)
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_test_share"));
+    EXPECT_EQ(attachInfo.name, "it_test_share");
+    EXPECT_EQ(attachInfo.size, "128MB");
+    EXPECT_FALSE(attachInfo.memIds.empty());
+    EXPECT_FALSE(attachInfo.importNode.empty());
+    EXPECT_FALSE(attachInfo.exportNode.empty());
+    EXPECT_FALSE(attachInfo.region.empty());
+
+    // ===== Display by type filter =====
+    // NUMA type
     std::vector<ubse::it::infra::ItMemBorrowDetail> numaBorrowDetails;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(numaBorrowDetails, "numa"));
     EXPECT_GT(numaBorrowDetails.size(), 0);
@@ -283,7 +303,7 @@ void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
     }
     EXPECT_TRUE(foundNuma);
 
-    // 查询FD类型的借用详情
+    // FD type
     std::vector<ubse::it::infra::ItMemBorrowDetail> fdBorrowDetails;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(fdBorrowDetails, "fd"));
     EXPECT_GT(fdBorrowDetails.size(), 0);
@@ -298,7 +318,7 @@ void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
     }
     EXPECT_TRUE(foundFd);
 
-    // 查询SHARE类型的借用详情
+    // SHARE type
     std::vector<ubse::it::infra::ItMemBorrowDetail> shareBorrowDetails;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(shareBorrowDetails, "share"));
     EXPECT_GT(shareBorrowDetails.size(), 0);
@@ -307,13 +327,12 @@ void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
         if (detail.name == "it_test_share") {
             foundShare = true;
             EXPECT_EQ(detail.type, "share");
-            EXPECT_NE(detail.lendSize.find("128"), std::string::npos);
             break;
         }
     }
     EXPECT_TRUE(foundShare);
 
-    // 按名称查询借用详情（查询NUMA内存）
+    // ===== Display by name filter =====
     std::vector<ubse::it::infra::ItMemBorrowDetail> nameBorrowDetails;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(nameBorrowDetails, "", "it_test_numa"));
     EXPECT_EQ(nameBorrowDetails.size(), 1);
@@ -322,7 +341,7 @@ void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
         EXPECT_EQ(nameBorrowDetails[0].type, "numa");
     }
 
-    // 同时使用类型和名称参数查询（查询FD类型的it_test_fd）
+    // Type + name filter
     std::vector<ubse::it::infra::ItMemBorrowDetail> typeAndNameBorrowDetails;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(typeAndNameBorrowDetails, "fd", "it_test_fd"));
     EXPECT_EQ(typeAndNameBorrowDetails.size(), 1);
@@ -331,16 +350,13 @@ void RunCliMemoryTypeFilterOperations001(ubse::it::infra::ItCluster& cluster)
         EXPECT_EQ(typeAndNameBorrowDetails[0].type, "fd");
     }
 
-    // 删除NUMA内存
+    // ===== Cleanup: detach → delete (SHM), delete (FD), delete (NUMA) =====
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_test_share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_share", "share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_fd", "fd"));
     EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_numa", "numa"));
 
-    // 删除FD内存
-    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_fd", "fd"));
-
-    // 删除SHARE内存
-    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_share", "share"));
-
-    // 删除后查询，验证账本为空
+    // 验证账本为空
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete));
     EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);

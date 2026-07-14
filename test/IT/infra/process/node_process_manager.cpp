@@ -93,6 +93,7 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
         environment.emplace_back("SCENE_TYPE=" + sceneType_);
     }
     environment.emplace_back("UBSE_IT_XALARM_FIFO_PATH=" + xalarmFifoPath_);
+    environment.emplace_back("UBSE_IT_SYSFS_DIR=" + workDir_ + "/sysfs");
     return environment;
 }
 

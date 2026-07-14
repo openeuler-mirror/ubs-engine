@@ -82,7 +82,7 @@ struct LcneLogicEntityInfo {
  */
 class ItLcneClient {
 public:
-    explicit ItLcneClient(const std::string& udsPath);
+    explicit ItLcneClient(const std::string& udsPath, const std::string& sysfsBase = "");
 
     ~ItLcneClient();
 
@@ -121,6 +121,7 @@ public:
 
 private:
     std::string udsPath_;
+    std::string sysfsBase_;
 };
 
 } // namespace ubse::it::infra
