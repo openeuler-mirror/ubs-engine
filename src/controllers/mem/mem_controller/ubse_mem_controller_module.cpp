@@ -15,6 +15,7 @@
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_residual_decoder.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_timer.h"
 #include "rpc/ubse_mem_controller_rpc_register.h"
@@ -70,6 +71,8 @@ void DelHandleByMapDiff(const mem::decoder::utils::DecoderLocTohandleValueMap& a
                            << delInfo.iouId << " marId is " << delInfo.marId << " decoderId is " << delInfo.decoderIdx
                            << "handle is " << delInfo.handle;
             faultInfo.push_back(delInfo);
+        } else {
+            RemoveFromResidualDecoderSet(delInfo.ubpuId, delInfo.iouId, delInfo.marId, delInfo.decoderIdx);
         }
     }
 }

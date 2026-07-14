@@ -33,6 +33,7 @@
 #include "../message/node_mem_debtInfo_query_req_simpo.h"
 #include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
+#include "../ubse_mem_residual_decoder.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 
@@ -351,7 +352,12 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
             UBSE_LOG_ERROR << "PreImportToAddDecoderEntry failed, use normal preImport";
         }
         int retry = 3;
-        uint32_t res = UBSE_OK;
+        uint32_t res = TryCleanResidualDecoderEntry(chipDiePair.first, chipDiePair.second, mamiImportInfo.marId,
+                                                    importDecoderParam.decoderIdx);
+        if (res != UBSE_OK) {
+            UBSE_LOG_ERROR << "Delete residual decoder entry failed";
+            return res;
+        }
         while (retry > 0) {
             res = UbseMtiInterface::GetInstance().AddDecoderEntry(mamiImportInfo, importResult, trustRingData);
             if (res == UBSE_OK) {
@@ -370,6 +376,13 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
     return UBSE_OK;
 }
 
+static bool IsRetryableHttpError(uint32_t errCode)
+{
+    return errCode == UBSE_HTTP_ERROR_CONNECTION || errCode == UBSE_HTTP_ERROR_CONNECTION_TIMEOUT ||
+           errCode == UBSE_HTTP_ERROR_READ || errCode == UBSE_HTTP_ERROR_WRITE ||
+           errCode == UBSE_HTTP_ERROR_SSL_CONNECTION || errCode == UBSE_HTTP_ERROR_PROXY_CONNECTION;
+}
+
 void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair, UbseMemImportStatus& status,
                                uint8_t decoderId)
 {
@@ -377,11 +390,25 @@ void UnimportToDelDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDiePair,
     for (const auto& decoderVal : status.decoderResult) {
         UbseMamiMemWithdraw mamiDelInfo{chipDiePair.first, chipDiePair.second, decoderVal.marId, decoderId,
                                         decoderVal.handle};
-        auto res = adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(mamiDelInfo);
+        int retry = 3;
+        auto res = UBSE_OK;
+        while (retry > 0) {
+            res = adapter_plugins::mti::UbseMtiInterface::GetInstance().DeleteDecoderEntry(mamiDelInfo);
+            if (res == UBSE_OK) {
+                break;
+            }
+            if (!IsRetryableHttpError(res)) {
+                break;
+            }
+            retry--;
+            sleep(1);
+        }
         if (res != UBSE_OK) {
             UBSE_LOG_ERROR << "UnimportToDelDecoderEntry failed, handle=" << decoderVal.handle
                            << ", hpa=" << decoderVal.hpa << ", marId=" << decoderVal.marId;
             failedDecoderResult.push_back(decoderVal);
+            AddToResidualDecoderSet(chipDiePair.first, chipDiePair.second, decoderVal.marId, decoderId,
+                                    decoderVal.handle);
         }
     }
 
