@@ -171,34 +171,34 @@ TEST_F(TestUbseInterCom, RegHandlerSuccess)
 
 /*
  * 用例描述：
- * 注册handler失败
+ * 大模块码注册handler成功（handlerMap_改为稀疏映射后模块码上限已移除）
  * 测试步骤：
- * modulecode过大
+ * 1.使用moduleCode=1001注册
  * 预期结果：
  * 1.返回UBSE_OK
  */
-TEST_F(TestUbseInterCom, RegHandlerFailWrongModuleCode)
+TEST_F(TestUbseInterCom, RegHandlerLargeModuleCodeSuccess)
 {
-    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(0, 1001); // 1001是非法值
+    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(0, 1001);
     MOCKER(&UbseComBaseMessageHandlerManager::AddHandler).stubs().will(invoke(mockHandlerFunc));
     auto ret = mqPtr->RegMessageHandler<TestMessage, TestMessage>(hdl);
-    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /*
  * 用例描述：
- * 注册handler失败
+ * 大操作码注册handler成功（handlerMap_改为稀疏映射后操作码上限已移除）
  * 测试步骤：
- * 1.过大opcode
+ * 1.使用opCode=1001注册
  * 预期结果：
  * 1.返回UBSE_OK
  */
-TEST_F(TestUbseInterCom, RegHandlerFailWrongOpCode)
+TEST_F(TestUbseInterCom, RegHandlerLargeOpCodeSuccess)
 {
-    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(1001, 0); // 1001是非法值
+    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(1001, 0);
     MOCKER(&UbseComBaseMessageHandlerManager::AddHandler).stubs().will(invoke(mockHandlerFunc));
     auto ret = mqPtr->RegMessageHandler<TestMessage, TestMessage>(hdl);
-    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /*
@@ -339,16 +339,19 @@ TEST_F(TestUbseInterCom, MqHandleAsynRequestSuccess)
 
 TEST_F(TestUbseInterCom, MqHandleGetHandlerSuccess)
 {
-    mqPtr->GetHandler(0, 0);
+    auto hdl = mqPtr->GetHandler(0, 0);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 
-TEST_F(TestUbseInterCom, MqHandleGetHandlerOverMax)
+TEST_F(TestUbseInterCom, MqHandleGetHandlerLargeModuleCode)
 {
-    EXPECT_NO_THROW(mqPtr->GetHandler(1001, 0));
+    auto hdl = mqPtr->GetHandler(1001, 0);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 
-TEST_F(TestUbseInterCom, MqHandleGetHandlerOpOverMax)
+TEST_F(TestUbseInterCom, MqHandleGetHandlerLargeOpCode)
 {
-    EXPECT_NO_THROW(mqPtr->GetHandler(0, 1001));
+    auto hdl = mqPtr->GetHandler(0, 1001);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 } // namespace ubse::ut::com

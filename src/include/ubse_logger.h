@@ -201,7 +201,7 @@ private:
     uint32_t line;
 
     size_t maxSize;
-    char logEntryBuffer[512] = {0}; // 缓冲区大小为512
+    char logEntryBuffer[256] = {0}; // 缓冲区大小为256
     std::unique_ptr<char[]> heapBuffer;
     size_t currentSize;
 };

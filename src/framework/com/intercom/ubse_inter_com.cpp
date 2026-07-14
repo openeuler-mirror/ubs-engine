@@ -41,19 +41,11 @@ UbseResult UbseInterCom::StopQueue()
 
 UbseMqHandler UbseInterCom::GetHandler(uint16_t moduleCode, uint16_t opCode)
 {
-    if (moduleCode >= MODULES_SIZE) {
-        UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " moduleCode exceeds limit "
-                       << MODULES_SIZE;
-        return {moduleCode, opCode, nullptr};
-    }
-    if (opCode >= OP_CODE_SIZE) {
-        UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " opCode exceeds limit " << OP_CODE_SIZE;
-        return {moduleCode, opCode, nullptr};
-    }
-    auto hdl = handlerMap_[moduleCode][opCode];
-    if (hdl.handler == nullptr) {
+    auto it = handlerMap_.find({moduleCode, opCode});
+    if (it == handlerMap_.end() || it->second.handler == nullptr) {
         UBSE_LOG_ERROR << "module " << moduleCode << " opCode " << opCode << " handler not exists";
+        return {moduleCode, opCode, nullptr};
     }
-    return hdl;
+    return it->second;
 }
 } // namespace ubse::com
