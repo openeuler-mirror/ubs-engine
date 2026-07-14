@@ -23,6 +23,7 @@ add_executable(ubse
         framework/log/ubse_logger_module.cpp
         framework/http/ubse_http_module.cpp
         framework/node_mgr/ubse_node_mgr_module.cpp
+        framework/vip/ubse_vip_module.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
         framework/ha/ubse_election_module.cpp
@@ -50,6 +51,7 @@ target_link_libraries(ubse PRIVATE
         ubse_storage
         ubse_log
         ubse_http
+        ubse_vip
         ubse_election
         ubse_mti
         ubse_ras

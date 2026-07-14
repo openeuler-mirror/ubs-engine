@@ -62,6 +62,7 @@ public:
     const UbseVipConfig &GetConfig() const { return config_; }
 
     // Register an HTTP route on the VIP HTTP server. Routes are stored and applied when the server starts.
+    // If the server is already running, the route is also registered directly.
     void RegisterRoute(const std::string &path, UbseHttpMethod method, UbseHttpHandlerFunc handler);
 
 private:
