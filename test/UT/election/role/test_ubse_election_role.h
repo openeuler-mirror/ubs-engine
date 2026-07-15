@@ -16,6 +16,7 @@
 #include "ubse_election_def.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
+#include "role/ubse_election_role.h"
 
 namespace ubse::event::election {
 

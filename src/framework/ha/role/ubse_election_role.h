@@ -69,6 +69,20 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID);
 bool GetElectionCandidate();
 bool GetElectionWait();
 bool IsHeartBeatEnabled(HeartBeatStatus status);
+
+// 将候选主节点列表配置字符串（逗号分隔）解析为去空白、非空的节点ID列表
+std::vector<std::string> ParseCandidateNodeList(const std::string& rawValue);
+// 读取候选主节点列表配置，返回true表示配置存在且解析得到合法非空列表（以该列表为准），
+// 返回false表示未配置/解析非法/为空（应回退到 election.candidate 开关）
+bool GetElectionCandidateNodesFromConf(std::vector<std::string>& candidateNodes);
+// 判断本节点ID是否在候选主节点列表中
+bool IsMyselfInCandidateNodes(const std::vector<std::string>& candidateNodes);
+// 判断给定节点是否被允许作为主节点（候选主节点列表已配置时受限，未配置则不限制）
+bool IsAllowedMasterNode(const UBSE_ID_TYPE& nodeId);
+// 读取原 election.candidate 开关配置
+bool GetElectionCandidateConfig();
+// 在HA模块初始化时加载所有选举配置到内存缓存，后续读取直接从缓存获取
+void InitElectionConfig();
 } // namespace ubse::election
 
 #endif // UBSE_ELECTION_ROLE_H

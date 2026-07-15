@@ -453,6 +453,14 @@ uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionR
         UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId=" << srcID;
         return 0;
     }
+    if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
+        !IsAllowedMasterNode(rcvPkt.masterId)) {
+        UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
+        reply.replyId = masterId_;
+        reply.masterId = masterId_;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+        return 0;
+    }
     // 主收到心跳 两种场景，1：主假死后恢复 2：脑裂合并
     if (rcvPkt.type == ELECTION_PKT_TYPE_HEART && IsHeartBeatEnabled(heartBeatStatus_)) {
         RecvPktHeart(srcID, rcvPkt, reply);

@@ -73,6 +73,14 @@ void Agent::HandleMasterChange(const ElectionPkt& rcvPkt, ElectionReplyPkt& repl
 
 uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
+        !IsAllowedMasterNode(rcvPkt.masterId)) {
+        UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
+        reply.replyId = myselfID_;
+        reply.masterId = masterId_;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+        return 0;
+    }
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         RecvPktForSelect(reply);
     } else if (rcvPkt.type == ELECTION_PKT_TYPE_HEART) {

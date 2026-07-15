@@ -369,4 +369,65 @@ TEST_F(TestUbseElectionRole, ConnectAllNodes_WhenReturnOk)
     auto result = ConnectAllNodes();
     EXPECT_EQ(result, UBSE_OK);
 }
+
+TEST_F(TestUbseElectionRole, ParseCandidateNodeList_ShouldTrimAndDropEmpty)
+{
+    auto result = ParseCandidateNodeList("node1, node2 ,node3");
+    ASSERT_EQ(result.size(), 3u);
+    EXPECT_EQ(result[0], "node1");
+    EXPECT_EQ(result[1], "node2");
+    EXPECT_EQ(result[2], "node3");
+}
+
+TEST_F(TestUbseElectionRole, ParseCandidateNodeList_ShouldReturnEmpty_WhenAllEmpty)
+{
+    EXPECT_TRUE(ParseCandidateNodeList("").empty());
+    EXPECT_TRUE(ParseCandidateNodeList("   ,  , ").empty());
+}
+
+TEST_F(TestUbseElectionRole, GetElectionCandidate_ShouldUseNodeList_WhenConfiguredAndMyselfInList)
+{
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().will(returnValue(true));
+    MOCKER(&IsMyselfInCandidateNodes).stubs().will(returnValue(true));
+    EXPECT_TRUE(GetElectionCandidate());
+}
+
+TEST_F(TestUbseElectionRole, GetElectionCandidate_ShouldNotCandidate_WhenConfiguredAndMyselfNotInList)
+{
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().will(returnValue(true));
+    MOCKER(&IsMyselfInCandidateNodes).stubs().will(returnValue(false));
+    EXPECT_FALSE(GetElectionCandidate());
+}
+
+TEST_F(TestUbseElectionRole, GetElectionCandidate_ShouldFallBackToCandidateConfig_WhenNodeListNotConfigured)
+{
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().will(returnValue(false));
+    MOCKER(&GetElectionCandidateConfig).stubs().will(returnValue(true));
+    EXPECT_TRUE(GetElectionCandidate());
+
+    MOCKER(&GetElectionCandidateConfig).reset();
+    MOCKER(&GetElectionCandidateConfig).stubs().will(returnValue(false));
+    EXPECT_FALSE(GetElectionCandidate());
+}
+
+TEST_F(TestUbseElectionRole, IsAllowedMasterNode_ShouldAlwaysAllow_WhenNodeListNotConfigured)
+{
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().will(returnValue(false));
+    EXPECT_TRUE(IsAllowedMasterNode("1"));
+    EXPECT_TRUE(IsAllowedMasterNode("unknown"));
+}
+
+TEST_F(TestUbseElectionRole, IsAllowedMasterNode_ShouldAllow_WhenNodeInConfiguredList)
+{
+    std::vector<std::string> list = {"1", "2", "3"};
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().with(outBound(list)).will(returnValue(true));
+    EXPECT_TRUE(IsAllowedMasterNode("2"));
+}
+
+TEST_F(TestUbseElectionRole, IsAllowedMasterNode_ShouldReject_WhenNodeNotInConfiguredList)
+{
+    std::vector<std::string> list = {"1", "2", "3"};
+    MOCKER(&GetElectionCandidateNodesFromConf).stubs().with(outBound(list)).will(returnValue(true));
+    EXPECT_FALSE(IsAllowedMasterNode("9"));
+}
 } // namespace ubse::event::election

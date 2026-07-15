@@ -133,6 +133,7 @@ const std::string UBSE_ELECTION_HEARTBEAT_LOST_THRESHOLD = "heartbeat.lostThresh
 const std::string UBSE_UBFM_SECTION = "ubse.ubfm";
 const std::string UBSE_HTTP_TCP_SERVER_PORT = "ubse.server.port";
 const std::string UBSE_ELECTION_CANDIDATE = "election.candidate";
+const std::string UBSE_ELECTION_CANDIDATE_NODES = "election.candidateNodes";
 const std::string UBSE_ELECTION_WAIT = "election.wait";
 const std::string COMMON_PSK_ID = "common_psk_id";
 const std::string KMC_LOG_PATH = "/var/log/ubse/kmc_process.log";

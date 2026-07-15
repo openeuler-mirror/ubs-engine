@@ -106,6 +106,13 @@ void Initializer::ProcTimer()
 
 uint32_t Initializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
+        !IsAllowedMasterNode(rcvPkt.masterId)) {
+        UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
+        reply.replyId = myselfID_;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+        return UBSE_OK;
+    }
     UbseNodeLocalState localState = UbseElectionNodeMgr::GetInstance().GetLocalNodeState();
     if (localState == UbseNodeLocalState::UBSE_NODE_RESTORE) {
         if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
