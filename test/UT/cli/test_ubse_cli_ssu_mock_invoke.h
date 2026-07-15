@@ -25,6 +25,12 @@ extern uint16_t g_ssuMockLastModuleCode;
 extern uint16_t g_ssuMockLastOpCode;
 extern ubse::cli::reg::UbseCliSsuAllocDetailReq g_ssuMockLastDetailReq;
 extern ubse::cli::reg::UbseCliSsuAllocCreateReq g_ssuMockLastCreateReq;
+extern ubse::cli::reg::UbseCliSsuAttachSpaceReq g_ssuMockLastAttachSpaceReq;
+extern ubse::cli::reg::UbseCliSsuAttachLinearReq g_ssuMockLastAttachLinearReq;
+extern ubse::cli::reg::UbseCliSsuAttachStripedReq g_ssuMockLastAttachStripedReq;
+extern ubse::cli::reg::UbseCliSsuDetachSpaceReq g_ssuMockLastDetachSpaceReq;
+extern ubse::cli::reg::UbseCliSsuDetachLinearReq g_ssuMockLastDetachLinearReq;
+extern ubse::cli::reg::UbseCliSsuDetachStripedReq g_ssuMockLastDetachStripedReq;
 extern std::vector<uint8_t> g_ssuMockLastRequestPayload;
 extern bool g_ssuMockLastRequestDeserialized;
 
@@ -70,5 +76,24 @@ uint32_t mock_ssu_alloc_detail_invoke_call_normal(uint16_t module_code, uint16_t
 uint32_t mock_ssu_alloc_create_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                   const ubse_api_buffer_t *request_data,
                                                   ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_attach_space_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                  const ubse_api_buffer_t *request_data,
+                                                  ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_attach_space_invoke_call_bad_response(uint16_t module_code, uint16_t op_code,
+                                                        const ubse_api_buffer_t *request_data,
+                                                        ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_attach_linear_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                   const ubse_api_buffer_t *request_data,
+                                                   ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_attach_striped_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                                    const ubse_api_buffer_t *request_data,
+                                                    ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_detach_invoke_call_normal(uint16_t module_code, uint16_t op_code,
+                                            const ubse_api_buffer_t *request_data, ubse_api_buffer_t *response_data);
 
 #endif // TEST_UBSE_CLI_SSU_MOCK_INVOKE_H

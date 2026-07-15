@@ -37,6 +37,12 @@ struct HasIdentityInfo<T, std::void_t<decltype(std::declval<T>().identityInfo)>>
 
 static_assert(!HasIdentityInfo<UbseCliSsuAllocDetailReq>::value);
 static_assert(!HasIdentityInfo<UbseCliSsuAllocCreateReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuAttachSpaceReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuAttachLinearReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuAttachStripedReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuDetachSpaceReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuDetachLinearReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuDetachStripedReq>::value);
 
 uint32_t StringSize(const std::string &value)
 {
@@ -113,6 +119,35 @@ std::vector<uint8_t> PackAllocationList(const std::vector<UbseCliSsuAllocResult>
     return payload;
 }
 
+std::vector<uint8_t> PackAttachSpaceResponse(const std::vector<std::string> &nsDevPaths)
+{
+    uint32_t size = sizeof(uint32_t);
+    for (const auto &path : nsDevPaths) {
+        size += StringSize(path);
+    }
+    std::vector<uint8_t> payload(size);
+    UbsePackUtil pack(payload.data(), payload.size());
+    EXPECT_TRUE(pack.UbsePackUint32(static_cast<uint32_t>(nsDevPaths.size())));
+    for (const auto &path : nsDevPaths) {
+        EXPECT_TRUE(PackString(pack, path));
+    }
+    return payload;
+}
+
+std::vector<uint8_t> PackAttachAggregatedResponse(const std::vector<std::string> &nsDevPaths,
+                                                  const std::string &devPath)
+{
+    auto payload = PackAttachSpaceResponse(nsDevPaths);
+    payload.resize(payload.size() + StringSize(devPath));
+    UbsePackUtil pack(payload.data(), payload.size());
+    EXPECT_TRUE(pack.UbsePackUint32(static_cast<uint32_t>(nsDevPaths.size())));
+    for (const auto &path : nsDevPaths) {
+        EXPECT_TRUE(PackString(pack, path));
+    }
+    EXPECT_TRUE(PackString(pack, devPath));
+    return payload;
+}
+
 UbseCliSsuAllocResult MakeAllocation(const std::string &name, UbseSsuAllocStrategy strategy, uint32_t namespaceId)
 {
     UbseCliSsuAllocResult value;
@@ -146,6 +181,19 @@ UbseUnpackUtil SerializeAndOpen(const Request &request, std::vector<uint8_t> &pa
     return UbseUnpackUtil(payload.data(), static_cast<uint32_t>(payload.size()));
 }
 
+void ExpectSpaceFields(UbseUnpackUtil &unpack, const std::string &name, const std::string &hostNqn,
+                       const std::string &srcEid)
+{
+    std::string actualName;
+    std::string actualHostNqn;
+    std::string actualSrcEid;
+    EXPECT_TRUE(unpack.UnpackString(actualName, SSU_CLI_WIRE_MAX_NAME_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(actualHostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(actualSrcEid, SSU_CLI_WIRE_MAX_EID_LENGTH));
+    EXPECT_EQ(actualName, name);
+    EXPECT_EQ(actualHostNqn, hostNqn);
+    EXPECT_EQ(actualSrcEid, srcEid);
+}
 } // namespace
 
 TEST(TestUbseCliSsuStruct, DetailRequestIsBareLengthPrefixedStringWithoutNullTerminator)
@@ -177,18 +225,104 @@ TEST(TestUbseCliSsuStruct, CreateRequestMatchesHandlerFieldOrderAndEnumWidths)
     uint32_t count = 0;
     uint32_t lbaFormat = 0;
     uint8_t strategy = UINT8_MAX;
-    EXPECT_TRUE(unpack.UnpackString(name, 48));
+    EXPECT_TRUE(unpack.UnpackString(name, SSU_CLI_WIRE_MAX_NAME_LENGTH));
     EXPECT_TRUE(unpack.UnpackUint64(size));
     EXPECT_TRUE(unpack.UnpackUint32(count));
     EXPECT_TRUE(unpack.UnpackUint32(lbaFormat));
     EXPECT_TRUE(unpack.UnpackUint8(strategy));
-    EXPECT_TRUE(unpack.UnpackString(tenant, 17));
+    EXPECT_TRUE(unpack.UnpackString(tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH));
     EXPECT_EQ(name, request.name);
     EXPECT_EQ(size, request.nsSize);
     EXPECT_EQ(count, request.nsNum);
     EXPECT_EQ(lbaFormat, 4096U);
     EXPECT_EQ(strategy, 0U);
     EXPECT_EQ(tenant, request.tenant);
+}
+
+TEST(TestUbseCliSsuStruct, AttachRequestsMatchSpaceLinearAndStripedUnpackers)
+{
+    UbseCliSsuAttachSpaceReq space{"alloc-a", "host-a", "eid-a"};
+    std::vector<uint8_t> payload;
+    auto spaceUnpack = SerializeAndOpen(space, payload);
+    ExpectSpaceFields(spaceUnpack, "alloc-a", "host-a", "eid-a");
+
+    UbseCliSsuAttachLinearReq linear{"alloc-a", "host-a", "eid-a", "linear0"};
+    auto linearUnpack = SerializeAndOpen(linear, payload);
+    ExpectSpaceFields(linearUnpack, "alloc-a", "host-a", "eid-a");
+    std::string devName;
+    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_EQ(devName, "linear0");
+
+    UbseCliSsuAttachStripedReq striped{"alloc-a",
+                                       "host-a",
+                                       "eid-a",
+                                       "striped0",
+                                       UbseSsuAggregationRaidLevel::RAID5,
+                                       UbseSsuChunkSize::CHUNK_SIZE_256K};
+    auto stripedUnpack = SerializeAndOpen(striped, payload);
+    ExpectSpaceFields(stripedUnpack, "alloc-a", "host-a", "eid-a");
+    uint8_t level = 0;
+    uint32_t chunkSize = 0;
+    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(stripedUnpack.UnpackUint8(level));
+    EXPECT_TRUE(stripedUnpack.UnpackUint32(chunkSize));
+    EXPECT_EQ(devName, "striped0");
+    EXPECT_EQ(level, 5U);
+    EXPECT_EQ(chunkSize, 256U);
+}
+
+TEST(TestUbseCliSsuStruct, DetachRequestsIncludeHandlerPlaceholders)
+{
+    std::vector<uint8_t> payload;
+    UbseCliSsuDetachSpaceReq space;
+    space.name = "alloc-a";
+    space.hostNqn = "host-a";
+    auto spaceUnpack = SerializeAndOpen(space, payload);
+    ExpectSpaceFields(spaceUnpack, "alloc-a", "host-a", "");
+
+    UbseCliSsuDetachLinearReq linear;
+    linear.name = "alloc-a";
+    linear.hostNqn = "host-a";
+    linear.devName = "linear0";
+    auto linearUnpack = SerializeAndOpen(linear, payload);
+    ExpectSpaceFields(linearUnpack, "alloc-a", "host-a", "");
+    std::string devName;
+    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_EQ(devName, "linear0");
+
+    UbseCliSsuDetachStripedReq striped;
+    striped.name = "alloc-a";
+    striped.hostNqn = "host-a";
+    striped.devName = "striped0";
+    auto stripedUnpack = SerializeAndOpen(striped, payload);
+    ExpectSpaceFields(stripedUnpack, "alloc-a", "host-a", "");
+    uint8_t level = UINT8_MAX;
+    uint32_t chunkSize = 0;
+    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(stripedUnpack.UnpackUint8(level));
+    EXPECT_TRUE(stripedUnpack.UnpackUint32(chunkSize));
+    EXPECT_EQ(level, static_cast<uint8_t>(UbseSsuAggregationRaidLevel::RAID0));
+    EXPECT_EQ(chunkSize, static_cast<uint32_t>(UbseSsuChunkSize::CHUNK_SIZE_4K));
+}
+
+TEST(TestUbseCliSsuStruct, AttachSpaceResponseDecodesNamespacePathsInServiceOutputOrder)
+{
+    const std::vector<std::string> nsDevPaths = {"/dev/nvme0n1", "/dev/nvme1n1"};
+    const auto payload = PackAttachSpaceResponse(nsDevPaths);
+    UbseCliSsuAttachSpaceRsp response;
+    ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+    EXPECT_EQ(response.nsDevPaths, nsDevPaths);
+}
+
+TEST(TestUbseCliSsuStruct, AggregatedAttachResponseDecodesNamespacePathsBeforeDevicePath)
+{
+    const std::vector<std::string> nsDevPaths = {"/dev/nvme0n1", "/dev/nvme1n1"};
+    const std::string devPath = "/dev/ubse_ssu0";
+    const auto payload = PackAttachAggregatedResponse(nsDevPaths, devPath);
+    UbseCliSsuAttachAggregatedRsp response;
+    ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+    EXPECT_EQ(response.nsDevPaths, nsDevPaths);
+    EXPECT_EQ(response.devPath, devPath);
 }
 
 TEST(TestUbseCliSsuStruct, AllocationListConsumesMultipleNamespacesAndAllowedHostNqns)
@@ -214,6 +348,19 @@ TEST(TestUbseCliSsuStruct, ResponsesRejectTruncationAndInvalidStringLength)
     UbseCliSsuAllocListRsp response;
     EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
+    std::vector<uint8_t> invalidLength(sizeof(uint32_t));
+    UbsePackUtil pack(invalidLength.data(), invalidLength.size());
+    ASSERT_TRUE(pack.UbsePackUint32(64));
+    UbseCliSsuAttachSpaceRsp attachResponse;
+    EXPECT_FALSE(attachResponse.Deserialize(invalidLength.data(), static_cast<uint32_t>(invalidLength.size())));
+    EXPECT_FALSE(attachResponse.Deserialize(nullptr, 0));
+}
+
+TEST(TestUbseCliSsuStruct, AggregatedAttachResponseRejectsMissingDevicePath)
+{
+    auto payload = PackAttachSpaceResponse({"/dev/nvme0n1", "/dev/nvme1n1"});
+    UbseCliSsuAttachAggregatedRsp response;
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 }
 
 TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedLists)
@@ -275,6 +422,13 @@ TEST(TestUbseCliSsuStruct, RequestsRejectOverlongStringsAndInvalidEnums)
     create.strategy = static_cast<UbseSsuAllocStrategy>(9);
     EXPECT_FALSE(create.Serialize(payload));
 
+    UbseCliSsuAttachStripedReq striped;
+    striped.name = "alloc-a";
+    striped.level = static_cast<UbseSsuAggregationRaidLevel>(9);
+    EXPECT_FALSE(striped.Serialize(payload));
+    striped.level = UbseSsuAggregationRaidLevel::RAID0;
+    striped.chunkSize = static_cast<UbseSsuChunkSize>(8);
+    EXPECT_FALSE(striped.Serialize(payload));
 }
 
 TEST(TestUbseCliSsuStruct, PublicConstantsReuseSsuLimits)

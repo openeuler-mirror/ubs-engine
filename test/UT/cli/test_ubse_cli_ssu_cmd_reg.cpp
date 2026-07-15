@@ -51,6 +51,27 @@ const std::string ERR_INVALID_SIZE =
     "ERROR: Invalid size. The value must be an integer number of GiB with uppercase G suffix, minimum 1G.";
 const std::string ERR_INVALID_LBA = "ERROR: Invalid lba. The value must be 512B or 4K.";
 const std::string ERR_INVALID_STRATEGY = "ERROR: Invalid strategy. The value must be Linear or Striped.";
+const std::string ERR_INVALID_HOST_NQN = "ERROR: Invalid host_nqn. The value must be 1-68 characters.";
+const std::string ERR_INVALID_SRC_EID = "ERROR: Invalid src_eid. The value must be 1-16 characters.";
+const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must be Linear or Striped.";
+const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
+    "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
+const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Linear.";
+const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Striped.";
+const std::string ERR_INVALID_DEV_NAME =
+    "ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'.";
+const std::string ERR_INVALID_DEV_NAME_PREFIX = "ERROR: Invalid dev_name.";
+const std::string ERR_STRIPED_ONLY_OPTIONS =
+    "ERROR: The option --level or --chunk_size is only valid when --type is Striped.";
+const std::string ERR_STRIPED_LEVEL_REQUIRED = "ERROR: The option -l or --level is required when --type is Striped.";
+const std::string ERR_STRIPED_CHUNK_SIZE_REQUIRED =
+    "ERROR: The option -c or --chunk_size is required when --type is Striped.";
+const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be raid0 or raid5.";
+const std::string ERR_INVALID_CHUNK_SIZE =
+    "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
@@ -88,6 +109,34 @@ std::map<std::string, std::string> CreateParams()
     return {{"name", "alloc-space-1"}, {"size", "10G"}};
 }
 
+// 构造 attach ssu 的最小合法入参，可选参数由各用例按需追加。
+std::map<std::string, std::string> AttachParams()
+{
+    return {{"name", "alloc-space-1"}};
+}
+
+std::map<std::string, std::string> DetachParams()
+{
+    return {{"name", "alloc-space-1"}};
+}
+
+void ExpectAttachOutput(const std::shared_ptr<UbseCliResultEcho> &result)
+{
+    const std::string output = Render(result);
+    EXPECT_NE(output.find("ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1"), std::string::npos);
+    EXPECT_EQ(output.find("\ndev_path:"), std::string::npos);
+}
+
+void ExpectAggregatedAttachOutput(const std::shared_ptr<UbseCliResultEcho> &result)
+{
+    const std::string output = Render(result);
+    const auto nsPathsPos = output.find("ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1");
+    const auto devPathPos = output.find("dev_path: /dev/ubse_ssu0");
+    EXPECT_NE(nsPathsPos, std::string::npos);
+    EXPECT_NE(devPathPos, std::string::npos);
+    EXPECT_LT(nsPathsPos, devPathPos);
+}
+
 // 详情表正向断言：覆盖表头合并行、列标题与典型数据行，确保 create/detail 回显布局完整。
 // 字段对齐服务层 UbseSsuNameSpaceInfo：不含 using_type，含 ns_dev_path/namespace_id，无 SrcNqnList 表尾。
 void ExpectDetailOutput(const std::shared_ptr<UbseCliResultEcho> &result)
@@ -122,7 +171,7 @@ void TestUbseCliSsuCmdReg::TearDown()
     GlobalMockObject::verify();        // 校验本用例 mock 期望并释放桩资源
 }
 
-// 注册校验：SignUp 后框架应登记 display/create ssu 两条命令。
+// 注册校验：SignUp 后框架应登记 display/create/attach/detach ssu 四条命令。
 TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersDisplayAndCreateSsuCommands)
 {
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
@@ -132,6 +181,8 @@ TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersDisplayAndCreateSsuCommands)
 
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("display_ssu"));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("create_ssu"));
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("attach_ssu"));
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("detach_ssu"));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
 }
 
@@ -549,4 +600,314 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailRequestCarriesName)
     EXPECT_EQ(g_ssuMockLastRequestPayload.size(), sizeof(uint32_t) + std::string("alloc-space-1").size());
 }
 
+// attach ssu 缺少 -n 应返回 name 必选参数错误。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsMissingName)
+{
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc({}), ERR_NAME_REQUIRED);
+}
+
+// attach ssu 的 name 复用既有 name 契约，非法字符应被拒绝。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsInvalidName)
+{
+    auto params = AttachParams();
+    params["name"] = "bad/name";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+}
+
+// 普通 attach 不传 host_nqn/src_eid 时，请求体对应字段应为空字符串。
+TEST_F(TestUbseCliSsuCmdReg, AttachSpaceSerializesEmptyOptionalHostNqnAndSrcEid)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    ExpectAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams()));
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastAttachSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastAttachSpaceReq.hostNqn, "");
+    EXPECT_EQ(g_ssuMockLastAttachSpaceReq.srcEid, "");
+}
+
+// 普通 attach 显式传入 host_nqn/src_eid 时，应原样进入请求体。
+TEST_F(TestUbseCliSsuCmdReg, AttachSpaceSerializesExplicitHostNqnAndSrcEid)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    auto params = AttachParams();
+    params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
+    params["src_eid"] = "eid-1234";
+    auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+    EXPECT_NE(result, nullptr);
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastAttachSpaceReq.hostNqn, "nqn.2026-07.com.huawei:host1");
+    EXPECT_EQ(g_ssuMockLastAttachSpaceReq.srcEid, "eid-1234");
+}
+
+// host_nqn 显式空值或超过 68 字符均应返回格式错误；未传入时才允许置空上线。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsEmptyOrTooLongHostNqnWhenExplicit)
+{
+    auto params = AttachParams();
+    params["host_nqn"] = "";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_HOST_NQN);
+    params["host_nqn"] = std::string(69, 'a');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_HOST_NQN);
+}
+
+// src_eid 显式空值或超过 16 字符均应返回格式错误；未传入时才允许置空上线。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsEmptyOrTooLongSrcEidWhenExplicit)
+{
+    auto params = AttachParams();
+    params["src_eid"] = "";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_SRC_EID);
+    params["src_eid"] = std::string(17, 'a');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_SRC_EID);
+}
+
+// --type 只能为 Linear 或 Striped。
+TEST_F(TestUbseCliSsuCmdReg, AttachRejectsInvalidType)
+{
+    auto params = AttachParams();
+    params["type"] = "Mirror";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+}
+
+// 普通 attach 未指定 --type 时不得携带聚合参数。
+TEST_F(TestUbseCliSsuCmdReg, AttachSpaceRejectsAggregationOptionsWithoutType)
+{
+    auto params = AttachParams();
+    params["dev_name"] = "ssu0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+    params = AttachParams();
+    params["level"] = "raid0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+    params = AttachParams();
+    params["chunk_size"] = "64K";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+}
+
+// Linear attach 必须携带合法 dev_name。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearRejectsMissingOrInvalidDevName)
+{
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_LINEAR_DEV_NAME_REQUIRED);
+    params["dev_name"] = "bad/dev";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+    params["dev_name"] = std::string(33, 'a');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+}
+
+// Linear attach 不允许携带条带化专用参数 level/chunk_size。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearRejectsStripedOnlyOptions)
+{
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "ssu-linear.0";
+    params["level"] = "raid0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_STRIPED_ONLY_OPTIONS);
+    params.erase("level");
+    params["chunk_size"] = "64K";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_STRIPED_ONLY_OPTIONS);
+}
+
+// Linear attach 成功时应使用 ATTACH_LINEAR 操作码，序列化所有字段并输出命名空间路径和聚合设备路径。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearSerializesRequestAndPrintsPaths)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_linear_invoke_call_normal));
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "ssu-linear.0";
+    params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
+    params["src_eid"] = "eid-1234";
+    ExpectAggregatedAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params));
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastAttachLinearReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastAttachLinearReq.hostNqn, "nqn.2026-07.com.huawei:host1");
+    EXPECT_EQ(g_ssuMockLastAttachLinearReq.srcEid, "eid-1234");
+    EXPECT_EQ(g_ssuMockLastAttachLinearReq.devName, "ssu-linear.0");
+}
+
+// Striped attach 必须携带 dev_name/level/chunk_size。
+TEST_F(TestUbseCliSsuCmdReg, AttachStripedRejectsMissingRequiredOptions)
+{
+    auto params = AttachParams();
+    params["type"] = "Striped";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_STRIPED_DEV_NAME_REQUIRED);
+    params["dev_name"] = "ssu-striped0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_STRIPED_LEVEL_REQUIRED);
+    params["level"] = "raid0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_STRIPED_CHUNK_SIZE_REQUIRED);
+}
+
+// Striped attach 的 level/chunk_size 只接受契约枚举值。
+TEST_F(TestUbseCliSsuCmdReg, AttachStripedRejectsInvalidLevelOrChunkSize)
+{
+    auto params = AttachParams();
+    params["type"] = "Striped";
+    params["dev_name"] = "ssu-striped0";
+    params["level"] = "raid1";
+    params["chunk_size"] = "64K";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_LEVEL);
+    params["level"] = "raid5";
+    params["chunk_size"] = "8K";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_CHUNK_SIZE);
+}
+
+// Striped attach 成功时应映射 RAID/chunk 枚举，使用 ATTACH_STRIPED 操作码并输出聚合设备路径。
+TEST_F(TestUbseCliSsuCmdReg, AttachStripedSerializesRequestAndPrintsPaths)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_striped_invoke_call_normal));
+    auto params = AttachParams();
+    params["type"] = "Striped";
+    params["dev_name"] = "ssu-striped0";
+    params["level"] = "raid5";
+    params["chunk_size"] = "256K";
+    params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
+    params["src_eid"] = "eid-1234";
+    ExpectAggregatedAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params));
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.hostNqn, "nqn.2026-07.com.huawei:host1");
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.srcEid, "eid-1234");
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.devName, "ssu-striped0");
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.level, UbseSsuAggregationRaidLevel::RAID5);
+    EXPECT_EQ(g_ssuMockLastAttachStripedReq.chunkSize, UbseSsuChunkSize::CHUNK_SIZE_256K);
+}
+
+// attach 返回损坏响应时，应返回客户端反序列化失败错误。
+TEST_F(TestUbseCliSsuCmdReg, AttachReturnsDeserializationError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_bad_response));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams()), ERR_DESERIALIZATION);
+}
+
+// attach 的 IPC 返回非零错误码时，应回显含错误码的 Internal error 文案。
+TEST_F(TestUbseCliSsuCmdReg, AttachReturnsInternalErrorWithCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(4321));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams()),
+                           "ERROR: Internal error with error code 4321.");
+}
+
+// detach_ssu 缺少 name 或 name 不符合字符、长度约束时，应在本地拒绝请求。
+TEST_F(TestUbseCliSsuCmdReg, DetachRejectsMissingOrInvalidName)
+{
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc({}), ERR_NAME_REQUIRED);
+    auto params = DetachParams();
+    params["name"] = "bad/name";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+    params["name"] = std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+}
+
+// 显式提供的 host_nqn 为空或超出长度限制时，应返回 host_nqn 参数错误。
+TEST_F(TestUbseCliSsuCmdReg, DetachRejectsInvalidExplicitHostNqn)
+{
+    auto params = DetachParams();
+    params["host_nqn"] = "";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_HOST_NQN);
+    params["host_nqn"] = std::string(69, 'a');
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_HOST_NQN);
+}
+
+// 普通空间解绑应发送 DETACH_SPACE 请求，序列化 name、host_nqn 和当前用户身份且不输出内容。
+TEST_F(TestUbseCliSsuCmdReg, DetachSpaceSerializesRequestAndReturnsEmptyOutput)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    auto params = DetachParams();
+    params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastDetachSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastDetachSpaceReq.hostNqn, "nqn.2026-07.com.huawei:host1");
+    EXPECT_TRUE(g_ssuMockLastDetachSpaceReq.srcEid.empty());
+}
+
+// 未传 host_nqn 时，普通空间解绑请求应将该字段序列化为空字符串。
+TEST_F(TestUbseCliSsuCmdReg, DetachSpaceDefaultsHostNqnToEmpty)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    UbseCliRegSsuModule::UbseCliDetachSsuFunc(DetachParams());
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_TRUE(g_ssuMockLastDetachSpaceReq.hostNqn.empty());
+}
+
+// 未指定聚合类型时携带 dev_name，应拒绝该仅适用于聚合解绑的参数组合。
+TEST_F(TestUbseCliSsuCmdReg, DetachSpaceRejectsDevNameWithoutType)
+{
+    auto params = DetachParams();
+    params["dev_name"] = "ssu0";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_DETACH_DEV_NAME_REQUIRES_TYPE);
+}
+
+// type 仅接受精确的 Linear 或 Striped，大小写或其他策略值均应被拒绝。
+TEST_F(TestUbseCliSsuCmdReg, DetachRejectsInvalidOrNonCanonicalType)
+{
+    for (const std::string type : {"Mirror", "linear", "striped"}) {
+        auto params = DetachParams();
+        params["type"] = type;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_ATTACH_TYPE);
+    }
+}
+
+// Linear/Striped 聚合解绑必须提供格式合法的 dev_name。
+TEST_F(TestUbseCliSsuCmdReg, DetachAggregatedRejectsMissingOrInvalidDevName)
+{
+    for (const auto &entry : std::vector<std::pair<std::string, std::string>>{
+             {"Linear", ERR_LINEAR_DEV_NAME_REQUIRED}, {"Striped", ERR_STRIPED_DEV_NAME_REQUIRED}}) {
+        auto params = DetachParams();
+        params["type"] = entry.first;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), entry.second);
+        params["dev_name"] = "bad/dev";
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+        params["dev_name"] = std::string(33, 'a');
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+    }
+}
+
+// Linear 聚合解绑应发送 DETACH_LINEAR 操作码，并携带设备名和调用用户身份。
+TEST_F(TestUbseCliSsuCmdReg, DetachLinearUsesLinearOpcodeAndReturnsEmptyOutput)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    auto params = DetachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "ssu-linear.0";
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastDetachLinearReq.devName, "ssu-linear.0");
+    EXPECT_TRUE(g_ssuMockLastDetachLinearReq.srcEid.empty());
+}
+
+// Striped 聚合解绑应发送 DETACH_STRIPED 操作码，并正确序列化各请求字段。
+TEST_F(TestUbseCliSsuCmdReg, DetachStripedUsesStripedOpcodeAndReturnsEmptyOutput)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    auto params = DetachParams();
+    params["type"] = "Striped";
+    params["dev_name"] = "ssu-striped0";
+    params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastDetachStripedReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastDetachStripedReq.hostNqn, "nqn.2026-07.com.huawei:host1");
+    EXPECT_TRUE(g_ssuMockLastDetachStripedReq.srcEid.empty());
+    EXPECT_EQ(g_ssuMockLastDetachStripedReq.devName, "ssu-striped0");
+    EXPECT_EQ(g_ssuMockLastDetachStripedReq.level, UbseSsuAggregationRaidLevel::RAID0);
+    EXPECT_EQ(g_ssuMockLastDetachStripedReq.chunkSize, UbseSsuChunkSize::CHUNK_SIZE_4K);
+}
+
+// IPC 调用失败时，detach_ssu 应在回显中保留服务返回的错误码。
+TEST_F(TestUbseCliSsuCmdReg, DetachReturnsInternalErrorWithCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(9876));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(DetachParams()),
+                           "ERROR: Internal error with error code 9876.");
+}
 } // namespace ubse::ut::cli
