@@ -38,18 +38,12 @@ UbseResult UbseNodeDiscoveryConfigMode::Init()
 
     const std::vector<std::string> ipList = UbseNodeStaticInfoMgr::GetInstance().GetClusterIpList();
 
-    UbseNodeStaticInfo node{};
-    auto ret = UbseNodeStaticInfoMgr::GetInstance().InitCurNodeInfo(node);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "init current node failed, " << FormatRetCode(ret);
-        return ret;
-    }
-    ret = UbseNetUtil::FindLocalIpInIpList(ipList, node.addr);
+    UbseNodeStaticInfo node = UbseNodeStaticInfoMgr::GetInstance().GetCurrentNode();
+    auto ret = UbseNetUtil::FindLocalIpInIpList(ipList, node.addr);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "init current node ip failed, " << FormatRetCode(ret);
         return ret;
     }
-    UBSE_LOG_INFO << "cur node=" << node.nodeId << " groupId=" << node.groupId;
     UbseNodeStaticInfoMgr::GetInstance().SetCurrentNode(node);
     GenerateClusterTopo(ipList);
     return UBSE_OK;

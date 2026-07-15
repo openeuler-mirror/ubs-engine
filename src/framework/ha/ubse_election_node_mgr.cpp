@@ -379,6 +379,7 @@ UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
         node.port = TCP_LISTEN_PORT;
         UBSE_LOG_INFO << "[ELECTION] group node id is " << node.id << ", ip is " << node.ip << ", port is " << node.port;
         groupNodes.push_back(node);
+        nodeIpMap_.emplace(node.ip, node.id);
     }
     return UBSE_OK;
 }

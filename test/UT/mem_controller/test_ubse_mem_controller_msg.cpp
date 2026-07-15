@@ -64,22 +64,14 @@ TEST_F(TestUbseMemControllerMsg, CollectLedge)
     // 场景 1: GetModule 返回 ptr
     EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR_NULLPTR);
 
-    // 场景 3: IsUrma 返回 true，RpcSend 返回错误
+    // 场景 2: RpcSend 返回错误
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto func = &UbseComModule::RpcSend<UbseComBaseBufferMessagePtr, UbseComBaseBufferMessagePtr>;
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER(IsUrma).stubs().will(returnValue(true)); // 模拟IsUrma返回true
     EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
 
-    // 场景 4: IsUrma 返回 false，RpcRndvSend 返回错误
-    MOCKER(IsUrma).reset();
-    MOCKER(IsUrma).stubs().will(returnValue(false)); // 模拟IsUrma返回false
-
-    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
-
-    // 场景 6: NodeMemDebtInfoSimpo::Deserialize 返回错误
+    // 场景 3: NodeMemDebtInfoSimpo::Deserialize 返回错误
     MOCKER(&UbseComBaseBufferMessage::GetDataLen).reset();
     std::unique_ptr<uint8_t> ptr1 = std::make_unique<uint8_t>(1);
     MOCKER(&UbseComBaseBufferMessage::GetData).stubs().will(returnValue(ptr1.get()));
@@ -662,23 +654,5 @@ TEST_F(TestUbseMemControllerMsg, QueryShareImportHandler)
     auto func = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(QueryShareImportHandler(req, resp), UBSE_OK);
-}
-
-TEST_F(TestUbseMemControllerMsg, IsUrma)
-{
-    // 场景 1: GetModule 返回 ptr
-    EXPECT_TRUE(IsUrma());
-
-    // 场景 2: GetConf 返回错误
-    MOCKER_CPP(&UbseContext::GetModule<ubse::config::UbseConfModule>)
-        .stubs()
-        .will(returnValue(std::make_shared<ubse::config::UbseConfModule>()));
-    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_ERROR)); // 模拟GetConf返回错误
-    EXPECT_TRUE(IsUrma());
-
-    // 场景 3: GetConf 返回成功
-    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).reset();
-    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK)); // 模拟GetConf返回错误
-    EXPECT_FALSE(IsUrma());
 }
 } // namespace ubse::mem_controller::ut

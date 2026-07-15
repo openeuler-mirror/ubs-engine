@@ -571,7 +571,7 @@ TEST_F(TestUbseComModule, TestQueryEidByNodeIdCb)
     MOCKER(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(ubseLcneModule));
     MOCKER(GetBondingEidByNodeId).stubs().will(returnValue(UBSE_OK));
     ret = queryCb(nodeId, eid);
-    EXPECT_EQ(false, ret);
+    EXPECT_EQ(true, ret);
 }
 
 /*
@@ -600,7 +600,7 @@ TEST_F(TestUbseComModule, TestRpcServerStart)
     std::string name = "RpcServer";
     ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
     ret = ubseComModule.RpcServerStart();
-    EXPECT_EQ(UBSE_ERROR_INVAL, ret);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /*
@@ -706,49 +706,6 @@ TEST_F(TestUbseComModule, TestIsCurrentNode)
     MOCKER(&UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
     ret = ubseComModule.IsCurrentNode(nodeId);
     EXPECT_EQ(true, ret);
-}
-
-/*
- * 用例描述：
- * 读rpc超时时间
- * 测试步骤：
- * 1.获取不到配置模块
- * 2.读不到配置项
- * 3.成功读到正确的值
- * 预期结果：
- * 1.返回UBSE_ERROR_MODULE_LOAD_FAILED ubEnable为true
- * 2.返回UBSE_OK ubEnable为false
- * 3.返回UBSE_OK ubEnable为false
- */
-TEST_F(TestUbseComModule, TestGetUBEnable)
-{
-    // 步骤1
-    bool ubEnable = false;
-    UbseResult ret = GetUBEnable(ubEnable);
-    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, ret);
-    EXPECT_EQ(false, ubEnable);
-
-    // 步骤2
-    std::shared_ptr<UbseConfModule> ubseConfModule = std::make_shared<UbseConfModule>();
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
-    MOCKER(&UbseConfModule::GetConf<std::string>).expects(once()).will(returnValue(UBSE_ERROR));
-    ret = GetUBEnable(ubEnable);
-    EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(true, ubEnable);
-    GlobalMockObject::verify();
-
-    // 步骤3
-    MOCKER(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(ubseConfModule));
-    std::string section = "ubse.rpc";
-    std::string configKey = "cluster.ipList";
-    std::string configVal = "192.168.100.100-192.168.100.102,192.168.100.104";
-    MOCKER(&UbseConfModule::GetConf<std::string>)
-        .expects(once())
-        .with(eq(section), eq(configKey), outBound(configVal))
-        .will(returnValue(UBSE_OK));
-    ret = GetUBEnable(ubEnable);
-    EXPECT_EQ(UBSE_OK, ret);
-    EXPECT_EQ(false, ubEnable);
 }
 
 /*

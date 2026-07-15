@@ -37,7 +37,7 @@ public:
 
     static std::string IntToIpV4(uint32_t ipInt);
 
-    static void ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips);
+    static uint32_t ParseIpRangeToList(const std::string &range, std::vector<std::string> &ips);
 
     static bool Ipv4StringToArr(const std::string &ip, uint8_t *arr);
 

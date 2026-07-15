@@ -39,13 +39,6 @@ UbseResult UbseNodeDiscoveryStaticMode::Init()
 {
     UbseResult ret = UBSE_OK;
     isClos_ = UbseSmbios::GetInstance().IsClosType();
-    UbseNodeStaticInfo info{};
-    ret = UbseNodeStaticInfoMgr::GetInstance().InitCurNodeInfo(info);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "init cur node static info failed, " << FormatRetCode(ret);
-        return ret;
-    }
-    UbseNodeStaticInfoMgr::GetInstance().SetCurrentNode(info);
     ret = GenerateClusterStaticInfo();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "init cluster static info failed, " << FormatRetCode(ret);

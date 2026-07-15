@@ -41,12 +41,6 @@ TEST_F(TestUbseNodeDiscoveryConfigMode, TestInit)
     MOCKER(&UbseNodeStaticInfoMgr::GetPodCapability).stubs().will(returnValue(DEFAULT_POD_CAPABILITY));
     MOCKER(&UbseNodeStaticInfoMgr::GetClusterIpList).stubs().will(returnValue(ipList));
 
-    MOCKER(&UbseNodeStaticInfoMgr::InitCurNodeInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
-    EXPECT_EQ(UBSE_ERROR, UbseNodeDiscoveryConfigMode::GetInstance().Init());
-
     MOCKER(UbseNetUtil::FindLocalIpInIpList)
         .stubs()
         .will(returnValue(UBSE_ERROR_EMPTY))

@@ -22,6 +22,7 @@
 #include "ubse_event_module.h"
 #include "ubse_logger.h"
 #include "ubse_net_util.h"
+#include "ubse_str_util.h"
 #include "ubse_node_mgr_root_mode_utils.h"
 #include "ubse_node_static_info_mgr.h"
 #include "ubse_timer.h"
@@ -51,14 +52,9 @@ UbseResult UbseNodeDiscoveryCommon::Init()
         UBSE_LOG_ERROR << "root ip list is empty";
         return UBSE_ERROR_INVAL;
     }
-    UbseNodeStaticInfo node{};
-    auto ret = UbseNodeStaticInfoMgr::GetInstance().InitCurNodeInfo(node);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "init current node failed, " << FormatRetCode(ret);
-        return ret;
-    }
+    UbseNodeStaticInfo node = UbseNodeStaticInfoMgr::GetInstance().GetCurrentNode();
     bool isRoot = false;
-    ret = GetLocalAddr(node, rootIpList, isRoot);
+    auto ret = GetLocalAddr(node, rootIpList, isRoot);
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -189,7 +185,7 @@ UbseResult UbseNodeDiscoveryCommon::GetLocalAddr(UbseNodeStaticInfo &node,
 {
     auto ret = UbseNetUtil::FindLocalIpInIpList(rootIpList, node.addr);
     if (ret == UBSE_ERROR_EMPTY) {
-        uint32_t index = node.groupId % rootIpList.size();
+        uint32_t index = (node.groupId - 1) % rootIpList.size();
         defaultRoot_ = rootIpList[index];
         UBSE_LOG_INFO << "node=" << node.nodeId << " select default root=" << defaultRoot_;
         ret = UbseNetUtil::FindLocalIpByRemote(defaultRoot_, node.addr);
@@ -227,6 +223,21 @@ UbseResult UbseNodeDiscoveryCommon::NewChannelCallback(const std::string &remote
     UBSE_LOG_INFO << "new channel callback, remoteIp=" << remoteIp << ", remoteNodeId=" << remoteNodeId;
     std::unique_lock lock(mutex_);
     clusterNodeIdToIpMap_[remoteNodeId] = remoteIp;
+    UbseNodeStaticInfo node{};
+    node.superPodId = 0;
+    uint32_t nodeIndex = 0;
+    if (ConvertStrToUint32(remoteNodeId, nodeIndex) != UBSE_OK) {
+        UBSE_LOG_ERROR << "convert nodeId=" << remoteNodeId << " to uint32_t failed";
+        return UBSE_ERROR;
+    }
+    uint32_t podCapability = UbseNodeStaticInfoMgr::GetInstance().GetPodCapability();
+    if (podCapability == 0) {
+        return UBSE_ERROR;
+    }
+    node.groupId = (nodeIndex - 1) / podCapability + 1;
+    node.nodeId = remoteNodeId;
+    node.addr = remoteIp;
+    UbseNodeStaticInfoMgr::GetInstance().SetNodes({node});
     return UBSE_OK;
 }
 
@@ -293,6 +304,7 @@ UbseResult UbseNodeDiscoveryCommon::HandleNodeStateEvent(const std::string &even
         }
         std::string nonDefaultRoot = GetConnectedNonDefaultRoot();
         if (nodeIp == defaultRoot_ || nodeIp == nonDefaultRoot) {
+            UBSE_LOG_INFO << "start to reconnect to root=" << nodeIp;
             ExecNodeDiscoveryTask(nodeIp);
             return UBSE_OK;
         }
@@ -385,7 +397,7 @@ UbseResult UbseNodeDiscoveryCommon::SendMsgToRoot(const std::string &rootIp)
     }
     auto nodes = nodeReply->GetUbseNodeList();
     UbseNodeStaticInfoMgr::GetInstance().SetNodes(nodes);
-    UBSE_LOG_INFO << "success to report node=" << ubseNodePtr->ToString() << " to root=" << remoteId;
+    UBSE_LOG_INFO << "success to report node=" << ubseNodePtr->ToString() << " to root=" << rootIp;
     return UBSE_OK;
 }
 
@@ -462,17 +474,22 @@ void UbseNodeDiscoveryCommon::DisconnectNonDefaultRoot()
     auto module = ctx.GetModule<UbseElectionModule>();
     if (module != nullptr) {
         Node master{};
-        auto retCode = module->UbseGetMasterNode(master);
-        if (retCode == UBSE_OK && master.ip == nonDefaultRoot) {
-            UBSE_LOG_INFO << "connect non-default root=" << nonDefaultRoot << " is master, skip disconnect";
+        module->UbseGetMasterNode(master);
+        Node standby{};
+        module->UbseGetStandbyNode(standby);
+        if (master.ip == nonDefaultRoot || standby.ip == nonDefaultRoot) {
+            UBSE_LOG_INFO << "connect non-default root=" << nonDefaultRoot << " is master or standby, skip disconnect";
+            std::unique_lock lock(mutex_);
+            connectedNonDefaultRoot_.clear();
             return;
         }
     }
     auto ret = DisconnectRootNode(nonDefaultRoot);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "disconnect root" << nonDefaultRoot << " failed," << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "disconnect root=" << nonDefaultRoot << " failed," << FormatRetCode(ret);
         return;
     }
+    UBSE_LOG_INFO << "success to disconnect non-default root=" << nonDefaultRoot;
     std::unique_lock lock(mutex_);
     connectedNonDefaultRoot_.clear();
 }

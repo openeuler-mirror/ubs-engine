@@ -115,22 +115,6 @@ void RegUbseMemControllerHandler()
     RegQueryHandlers();
 }
 
-bool IsUrma()
-{
-    auto ubseConfModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
-    if (ubseConfModule == nullptr) {
-        UBSE_LOG_ERROR << "Get config info failed";
-        return true;
-    }
-    std::string ipList;
-    auto ret = ubseConfModule->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_INFO << "Unable to get ub config, use default urma, " << FormatRetCode(ret);
-        return true;
-    }
-    return false;
-}
-
 UbseResult CollectLedge(const std::string &nodeId, NodeMemDebtInfo &info)
 {
     NodeMemDebtInfoSimpo simpo{};
