@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 # ubs-engine is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -9,18 +9,44 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+"""SSU Python SDK。
+
+通过IPC直接与UBSE守护进程通信，提供存储空间分配、释放、挂载、卸载等功能。
+所有函数遵循标准调用流程: 参数校验 -> 请求数据打包 -> 发送IPC请求 -> 响应数据解包 -> 返回结果。
+"""
 from typing import List, Optional
 
-from ubse.ffi.ubs_engine_binding_ssu import UbsEngineBindingSsu
+from ubse.ipc.ubs_engine_ipc import invoke_call
 from ubse.models.ubs_engine_model_ssu import (
-    UbsSsuAllocResult, UbsSsuAllocSpaceReq,
-    UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
-    UbsSsuNsStats, UbsSsuConnectInfo, UbsUbFe, UbsUbVfe
+    UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
+    UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
+    UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
+    UbsUbVfe, UbsUbFe,
 )
-from enum import IntEnum
+from ubs_engine_codes_ssu import (
+    UBSE_MODULE_CODE,
+    OP_ALLOC_REQ, OP_FREE_REQ,
+    OP_LIST_ALLOC_INFO_REQ, OP_GET_NS_STATS_REQ, OP_GET_CONNECT_INFO_REQ,
+    OP_ADD_ACCESS_PERMISSION_REQ, OP_REMOVE_ACCESS_PERMISSION_REQ,
+    OP_ATTACH_SPACE_REQ, OP_DETACH_SPACE_REQ,
+    OP_ATTACH_LINEAR_SPACE_REQ, OP_DETACH_LINEAR_SPACE_REQ,
+    OP_ATTACH_STRIPED_SPACE_REQ, OP_DETACH_STRIPED_SPACE_REQ,
+    OP_GET_FE_DEVICE_LIST_REQ, OP_FE_DEVICE_ALLOC_REQ, OP_FE_DEVICE_FREE_REQ,
+)
+from ubse.ffi.ubs_engine_binding_ssu import (
+    pack_string, pack_connect_info_req,
+    pack_alloc_space_req, pack_space_req,
+    pack_linear_space_req, pack_striped_space_req,
+    pack_fe_device_req,
+    unpack_alloc_result, unpack_alloc_result_list,
+    unpack_dev_path_response,
+    unpack_ns_stats_list, unpack_connect_info_list,
+    unpack_fe_device_list, validate_name, validate_dev_name,
+    validate_nqn, validate_fe_device_alloc_params, validate_fe_device_free_params, validate_striped_space_req
+)
 
-_ssu_interface = UbsEngineBindingSsu()
 
+# ====================== 主函数（核心业务逻辑） ======================
 
 def ubs_ssu_alloc_info_list() -> List[UbsSsuAllocResult]:
     """列出所有已分配的存储空间信息
@@ -36,28 +62,8 @@ def ubs_ssu_alloc_info_list() -> List[UbsSsuAllocResult]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_alloc_info_list()
-
-
-def ubs_ssu_alloc_info_get(name: str) -> UbsSsuAllocResult:
-    """根据名称获取已分配的存储空间信息
-
-    Args:
-        name: 存储空间标识, 与ubs_ssu_space_alloc时的name参数一致
-
-    Returns:
-        已分配空间信息
-
-    Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name参数超出范围
-        UbsEngineConnectionError: 连接UBSE服务端失败
-        UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
-        UbsEngineTimeoutError: UBSE服务端处理超时
-        UbsEngineInternalError: UBSE服务端内部错误
-    """
-    return _ssu_interface.ubs_ssu_alloc_info_get(name)
+    response = invoke_call(UBSE_MODULE_CODE, OP_LIST_ALLOC_INFO_REQ)
+    return unpack_alloc_result_list(response)
 
 
 def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
@@ -72,11 +78,9 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
         分配结果, 包含已分配的命名空间信息列表
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: 参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineExistedError: 存储空间已存在
         UbsEngineAllocateError: 算法分配失败
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
@@ -84,10 +88,13 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
     Note:
         当ns_num为1时, strategy参数不生效
     """
-    return _ssu_interface.ubs_ssu_space_alloc(req)
+    validate_alloc_space_req(req)
+    request = pack_alloc_space_req(req)
+    response = invoke_call(UBSE_MODULE_CODE, OP_ALLOC_REQ, request)
+    return unpack_alloc_result(response)
 
 
-def ubs_ssu_space_free(name: str):
+def ubs_ssu_space_free(name: str) -> None:
     """释放已分配的存储空间
 
     释放之前通过ubs_ssu_space_alloc分配的存储空间及其关联的所有命名空间。
@@ -96,8 +103,7 @@ def ubs_ssu_space_free(name: str):
         name: 要释放的存储空间标识
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineTimeoutError: UBSE服务端处理超时
@@ -106,10 +112,12 @@ def ubs_ssu_space_free(name: str):
     Note:
         释放操作具有幂等性, 释放不存在的空间应返回成功
     """
-    _ssu_interface.ubs_ssu_space_free(name)
+    validate_name(name)
+    request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
+    invoke_call(UBSE_MODULE_CODE, OP_FREE_REQ, request)
 
 
-def ubs_ssu_access_permission_add(name: str, nqn: str):
+def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
     """添加存储空间访问权限
 
     为指定的Host授予对已分配存储空间的访问权限。
@@ -119,21 +127,22 @@ def ubs_ssu_access_permission_add(name: str, nqn: str):
         nqn: Host的NVMe Qualified Name
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或nqn参数超出范围
+        UbsErrInvalidArg: 参数校验错误 
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
         重复添加同一Host的访问权限应返回成功(幂等性保证)
     """
-    _ssu_interface.ubs_ssu_access_permission_add(name, nqn)
+    validate_name(name)
+    validate_nqn(nqn)
+    buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
+    invoke_call(UBSE_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
 
 
-def ubs_ssu_access_permission_remove(name: str, nqn: str):
+def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
     """移除存储空间访问权限
 
     撤销指定Host对已分配存储空间的访问权限。
@@ -143,18 +152,19 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str):
         nqn: Host的NVMe Qualified Name
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或nqn参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
         移除不存在的访问权限应返回成功(幂等性保证)
     """
-    _ssu_interface.ubs_ssu_access_permission_remove(name, nqn)
+    validate_name(name)
+    validate_nqn(nqn)
+    buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
+    invoke_call(UBSE_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
 
 
 def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
@@ -169,18 +179,19 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
         挂载后的设备路径
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_space_attach(req)
+    validate_name(req.name)
+    request = pack_space_req(req)
+    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
+    return unpack_dev_path_response(response)
 
 
-def ubs_ssu_space_detach(req: UbsSsuSpaceReq):
+def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
     """卸载已分配的存储空间
 
     将指定的存储空间从系统卸载, 释放设备占用。
@@ -189,18 +200,18 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq):
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
         卸载前需确保没有进程正在使用该存储空间
     """
-    _ssu_interface.ubs_ssu_space_detach(req)
+    validate_name(req.name)
+    request = pack_space_req(req)
+    invoke_call(UBSE_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
 
 
 def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
@@ -215,18 +226,21 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
         挂载后的聚合设备路径
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_linear_space_attach(req)
+    validate_name(req.name)
+    validate_dev_name(req.dev_name)
+    request = pack_linear_space_req(req)
+    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
+    return unpack_dev_path_response(response)
 
 
-def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq):
+def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
     """卸载线性编址的存储空间
 
     将线性聚合的块设备卸载并释放。
@@ -235,15 +249,17 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq):
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    _ssu_interface.ubs_ssu_linear_space_detach(req)
+    validate_name(req.name)
+    validate_dev_name(req.dev_name)
+    request = pack_linear_space_req(req)
+    invoke_call(UBSE_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
 
 
 def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
@@ -259,22 +275,22 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
         挂载后的聚合设备路径
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name参数超出范围
-        UbsErrInvalidArg: level或chunk_size参数无效
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
         RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
     """
-    return _ssu_interface.ubs_ssu_striped_space_attach(req)
+    validate_striped_space_req(req)
+    request = pack_striped_space_req(req)
+    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
+    return unpack_dev_path_response(response)
 
 
-def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq):
+def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
     """卸载条带化编址的存储空间
 
     将条带化聚合的块设备卸载并释放。
@@ -283,54 +299,68 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq):
         req: 卸载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    _ssu_interface.ubs_ssu_striped_space_detach(req)
+    validate_name(req.name)
+    validate_dev_name(req.dev_name)
+    request = pack_striped_space_req(req)
+    invoke_call(UBSE_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
 
 
 def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
     """获取存储空间的命名空间统计信息。
+
     查询指定存储空间下各命名空间的容量使用情况, 包括总容量和已用容量。
+
     Args:
         name: 存储空间标识
+
     Returns:
         命名空间统计信息列表
+
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_ns_stats_get(name)
+    validate_name(name)
+    request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
+    response = invoke_call(UBSE_MODULE_CODE, OP_GET_NS_STATS_REQ, request)
+    return unpack_ns_stats_list(response)
 
 
 def ubs_ssu_connect_info_get(name: str, vfe: Optional[UbsUbVfe] = None) -> List[UbsSsuConnectInfo]:
     """获取存储空间的连接信息。
+
     查询指定存储空间在指定VFE上的NVMe连接信息, 包括子系统NQN、Host NQN、命名空间ID等。
+
     Args:
         name: 存储空间标识
         vfe: VFE信息指针，指定查询的虚拟功能单元，传None时使用host侧分配给ssu的fe的eid
+
     Returns:
         连接信息列表
+
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_connect_info_get(name, vfe)
+    validate_name(name)
+    request = pack_connect_info_req(name, vfe)
+    response = invoke_call(UBSE_MODULE_CODE, OP_GET_CONNECT_INFO_REQ, request)
+    return unpack_connect_info_list(response)
 
 
 def ubs_ssu_fe_device_list() -> List[UbsUbFe]:
@@ -340,21 +370,19 @@ def ubs_ssu_fe_device_list() -> List[UbsUbFe]:
 
     Returns:
         FE设备信息列表
+
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_fe_device_list()
+    response = invoke_call(UBSE_MODULE_CODE, OP_GET_FE_DEVICE_LIST_REQ)
+    return unpack_fe_device_list(response)
 
 
 def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
-    """
-    将VFE绑定到虚拟机
+    """将VFE绑定到虚拟机
 
     将指定的虚拟功能单元绑定到目标虚拟机，使虚拟机可通过该VFE访问存储资源。
 
@@ -366,16 +394,21 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
               函数将修改其内容。
 
     Raises:
-        UbsErrNullPointer: 空指针（无效参数）
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: VFE或虚拟机不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
+    validate_fe_device_alloc_params(vfe, bytes(guid))
+    request = pack_fe_device_req(upi, vfe, bytes(guid))
+    response = invoke_call(UBSE_MODULE_CODE, OP_FE_DEVICE_ALLOC_REQ, request)
+    if len(response) >= UBS_SSU_GUID_LENGTH:
+        guid[:UBS_SSU_GUID_LENGTH] = response[:UBS_SSU_GUID_LENGTH]
 
 
-def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes):
+def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes) -> None:
     """释放VFE设备
 
     将已分配的虚拟功能单元从目标虚拟机释放, 回收VFE设备资源。
@@ -386,12 +419,13 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes):
         guid: 总线实例GUID, 标识目标虚拟机
 
     Raises:
-        UbsErrNullPointer: 空指针
-        UbsEngineOutOfRangeError: name或dev_name参数超出范围
+        UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    return _ssu_interface.ubs_ssu_fe_device_free(upi, vfe, guid)
+    validate_fe_device_free_params(vfe, guid)
+    request = pack_fe_device_req(upi, vfe, guid)
+    invoke_call(UBSE_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)
