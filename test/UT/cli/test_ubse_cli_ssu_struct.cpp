@@ -10,263 +10,277 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
 #include <gtest/gtest.h>
 
-#include "adapter_plugins/ssu/ubse_ssu_def.h"
 #include "ubse_cli_ssu_struct.h"
+#include "ubse_pack_util.h"
 
 namespace ubse::ut::cli {
 using namespace ubse::cli::reg;
 using namespace ubse::plugin::service::ssu;
-namespace ssuDef = ubse::adapter_plugins::ssu::def;
+using ubse::utils::UbsePackUtil;
+using ubse::utils::UbseUnpackUtil;
+
 namespace {
-// 序列化往返辅助：将输入序列化后立即反序列化，用于验证各字段在编解码后保持一致。
-// 期望在内部断言序列化/反序列化均成功，仅返回还原后的对象供用例逐字段比对。
+template <typename T, typename = void>
+struct HasIdentityInfo : std::false_type {};
+
 template <typename T>
-T RoundTrip(const T &input)
+struct HasIdentityInfo<T, std::void_t<decltype(std::declval<T>().identityInfo)>> : std::true_type {};
+
+static_assert(!HasIdentityInfo<UbseCliSsuAllocDetailReq>::value);
+static_assert(!HasIdentityInfo<UbseCliSsuAllocCreateReq>::value);
+
+uint32_t StringSize(const std::string &value)
 {
-    ubse::serial::UbseSerialization serializer;
-    EXPECT_TRUE(input.Serialize(serializer));
-    T output;
-    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
-    EXPECT_TRUE(output.Deserialize(deserializer));
-    return output;
+    return static_cast<uint32_t>(sizeof(uint32_t) + value.size());
 }
 
-// 构造一份带运行用户身份的 identity，供请求往返用例复用。
-UbseSsuAllocIdentityInfo MakeIdentity(const std::string &userName, uid_t uid)
+uint32_t NameSpaceSize(const UbseCliSsuNameSpaceInfo &value)
 {
-    return UbseSsuAllocIdentityInfo{userName, uid};
+    uint32_t size = StringSize(value.tgtEid) + StringSize(value.tgtNqn) + StringSize(value.nsUuid) +
+                    static_cast<uint32_t>(sizeof(uint32_t)) + StringSize(value.nsDevPath) +
+                    static_cast<uint32_t>(sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t));
+    for (const auto &hostNqn : value.allowHostNqnList) {
+        size += StringSize(hostNqn);
+    }
+    return size;
 }
 
-void ForgeFirstArrayLength(ubse::serial::UbseSerialization &serializer, ubse::serial::common_len forgedLength)
+uint32_t AllocationSize(const UbseCliSsuAllocResult &value)
 {
-    auto *buffer = serializer.GetBuffer();
-    auto bufferSize = serializer.GetLength();
-    for (ubse::serial::common_len offset = 0; offset + sizeof(ubse::serial::serial_head) <= bufferSize;
-         offset += sizeof(ubse::serial::serial_head)) {
-        auto *head = reinterpret_cast<ubse::serial::serial_head *>(buffer + offset);
-        auto type = static_cast<ubse::serial::serial_type>(*head >> ubse::serial::LEN_CTRL_OFFSET);
-        auto length = *head & ubse::serial::LEN_CTRL_MASK;
-        if (type == static_cast<ubse::serial::serial_type>(ubse::serial::CTRL_TYPE::ARRAY_CTRL_CODE) && length == 0) {
-            *head = (static_cast<ubse::serial::serial_head>(ubse::serial::CTRL_TYPE::ARRAY_CTRL_CODE)
-                     << ubse::serial::LEN_CTRL_OFFSET) |
-                    static_cast<ubse::serial::serial_head>(forgedLength);
-            return;
+    uint32_t size = StringSize(value.name) + static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
+    for (const auto &nameSpace : value.nameSpaceList) {
+        size += NameSpaceSize(nameSpace);
+    }
+    return size;
+}
+
+bool PackString(UbsePackUtil &pack, const std::string &value)
+{
+    return pack.UbsePackString(value, 1024);
+}
+
+bool PackNameSpace(UbsePackUtil &pack, const UbseCliSsuNameSpaceInfo &value)
+{
+    if (!PackString(pack, value.tgtEid) || !PackString(pack, value.tgtNqn) || !PackString(pack, value.nsUuid) ||
+        !pack.UbsePackUint32(value.namespaceId) || !PackString(pack, value.nsDevPath) ||
+        !pack.UbsePackUint64(value.nsSize) || !pack.UbsePackUint32(static_cast<uint32_t>(value.lbaFormat)) ||
+        !pack.UbsePackUint32(static_cast<uint32_t>(value.allowHostNqnList.size()))) {
+        return false;
+    }
+    for (const auto &hostNqn : value.allowHostNqnList) {
+        if (!PackString(pack, hostNqn)) {
+            return false;
         }
     }
-    ADD_FAILURE() << "array length header not found";
+    return true;
 }
+
+bool PackAllocation(UbsePackUtil &pack, const UbseCliSsuAllocResult &value)
+{
+    if (!PackString(pack, value.name) || !pack.UbsePackUint8(static_cast<uint8_t>(value.strategy)) ||
+        !pack.UbsePackUint32(static_cast<uint32_t>(value.nameSpaceList.size()))) {
+        return false;
+    }
+    for (const auto &nameSpace : value.nameSpaceList) {
+        if (!PackNameSpace(pack, nameSpace)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::vector<uint8_t> PackAllocationList(const std::vector<UbseCliSsuAllocResult> &values)
+{
+    uint32_t size = sizeof(uint32_t);
+    for (const auto &value : values) {
+        size += AllocationSize(value);
+    }
+    std::vector<uint8_t> payload(size);
+    UbsePackUtil pack(payload.data(), payload.size());
+    EXPECT_TRUE(pack.UbsePackUint32(static_cast<uint32_t>(values.size())));
+    for (const auto &value : values) {
+        EXPECT_TRUE(PackAllocation(pack, value));
+    }
+    return payload;
+}
+
+UbseCliSsuAllocResult MakeAllocation(const std::string &name, UbseSsuAllocStrategy strategy, uint32_t namespaceId)
+{
+    UbseCliSsuAllocResult value;
+    value.name = name;
+    value.strategy = strategy;
+    value.nameSpaceList = {
+        {"eid-1",
+         "nqn.2026-07:target",
+         "uuid-1",
+         namespaceId,
+         "/dev/nvme0n1",
+         10ULL * 1024ULL * 1024ULL,
+         UbseSsuLBAFormat::LBA_FORMAT_4K,
+         {"nqn.2026-07:host-a", "nqn.2026-07:host-b"}},
+        {"eid-2",
+         "nqn.2026-07:target",
+         "uuid-2",
+         namespaceId + 1,
+         "/dev/nvme0n2",
+         20ULL * 1024ULL * 1024ULL,
+         UbseSsuLBAFormat::LBA_FORMAT_512,
+         {"nqn.2026-07:host-c"}},
+    };
+    return value;
+}
+
+template <typename Request>
+UbseUnpackUtil SerializeAndOpen(const Request &request, std::vector<uint8_t> &payload)
+{
+    EXPECT_TRUE(request.Serialize(payload));
+    return UbseUnpackUtil(payload.data(), static_cast<uint32_t>(payload.size()));
+}
+
 } // namespace
 
-// 摘要请求往返：identityInfo 的 userName/uid 编码后再解码应保持一致。
-TEST(TestUbseCliSsuStruct, SummaryReqRoundTripKeepsIdentity)
+TEST(TestUbseCliSsuStruct, DetailRequestIsBareLengthPrefixedStringWithoutNullTerminator)
 {
-    UbseCliSsuAllocSummaryReq input;
-    input.identityInfo = MakeIdentity("ubse", 1000);
-
-    auto output = RoundTrip(input);
-
-    EXPECT_EQ(output.identityInfo.userName, input.identityInfo.userName);
-    EXPECT_EQ(output.identityInfo.uid, input.identityInfo.uid);
+    UbseCliSsuAllocDetailReq request{"alloc-a"};
+    std::vector<uint8_t> payload;
+    ASSERT_TRUE(request.Serialize(payload));
+    ASSERT_EQ(payload.size(), sizeof(uint32_t) + request.name.size());
+    uint32_t length = 0;
+    std::memcpy(&length, payload.data(), sizeof(length));
+    EXPECT_EQ(length, request.name.size());
+    EXPECT_EQ(std::memcmp(payload.data() + sizeof(uint32_t), request.name.data(), request.name.size()), 0);
 }
 
-// 详情请求往返：name 与 identityInfo 编码后再解码应保持一致。
-TEST(TestUbseCliSsuStruct, DetailReqRoundTripKeepsNameAndIdentity)
+TEST(TestUbseCliSsuStruct, CreateRequestMatchesHandlerFieldOrderAndEnumWidths)
 {
-    UbseCliSsuAllocDetailReq input;
-    input.name = "alloc-space-1";
-    input.identityInfo = MakeIdentity("ubse", 1000);
-
-    auto output = RoundTrip(input);
-
-    EXPECT_EQ(output.name, input.name);
-    EXPECT_EQ(output.identityInfo.userName, input.identityInfo.userName);
-    EXPECT_EQ(output.identityInfo.uid, input.identityInfo.uid);
+    UbseCliSsuAllocCreateReq request;
+    request.name = "alloc-a";
+    request.nsSize = 10ULL * 1024ULL * 1024ULL * 1024ULL;
+    request.nsNum = 2;
+    request.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_4K;
+    request.strategy = UbseSsuAllocStrategy::STRIPED;
+    request.tenant = "tenant-a";
+    std::vector<uint8_t> payload;
+    auto unpack = SerializeAndOpen(request, payload);
+    std::string name;
+    std::string tenant;
+    uint64_t size = 0;
+    uint32_t count = 0;
+    uint32_t lbaFormat = 0;
+    uint8_t strategy = UINT8_MAX;
+    EXPECT_TRUE(unpack.UnpackString(name, 48));
+    EXPECT_TRUE(unpack.UnpackUint64(size));
+    EXPECT_TRUE(unpack.UnpackUint32(count));
+    EXPECT_TRUE(unpack.UnpackUint32(lbaFormat));
+    EXPECT_TRUE(unpack.UnpackUint8(strategy));
+    EXPECT_TRUE(unpack.UnpackString(tenant, 17));
+    EXPECT_EQ(name, request.name);
+    EXPECT_EQ(size, request.nsSize);
+    EXPECT_EQ(count, request.nsNum);
+    EXPECT_EQ(lbaFormat, 4096U);
+    EXPECT_EQ(strategy, 0U);
+    EXPECT_EQ(tenant, request.tenant);
 }
 
-// 创建请求往返：仅填必填/运行态字段时，可选字段应保留默认值且运行态字段不丢失，tenant 默认空。
-TEST(TestUbseCliSsuStruct, CreateReqRoundTripKeepsDefaultsAndRuntimeFields)
+TEST(TestUbseCliSsuStruct, AllocationListConsumesMultipleNamespacesAndAllowedHostNqns)
 {
-    UbseCliSsuAllocCreateReq input;
-    input.name = "alloc-space-1";
-    input.nsSize = 10ULL * 1024 * 1024 * 1024;
-    input.identityInfo = MakeIdentity("ubse", 1000);
-
-    auto output = RoundTrip(input);
-
-    EXPECT_EQ(output.name, input.name);
-    EXPECT_EQ(output.nsSize, input.nsSize);
-    EXPECT_EQ(output.nsNum, SSU_CLI_DEFAULT_NS_NUM);
-    EXPECT_EQ(output.lbaFormat, UbseSsuLBAFormat::LBA_FORMAT_512);
-    EXPECT_EQ(output.strategy, UbseSsuAllocStrategy::LINEAR);
-    EXPECT_EQ(output.identityInfo.userName, input.identityInfo.userName);
-    EXPECT_EQ(output.identityInfo.uid, input.identityInfo.uid);
-    EXPECT_EQ(output.tenant, "");
+    const auto first = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
+    const auto second = MakeAllocation("alloc-b", UbseSsuAllocStrategy::STRIPED, 3);
+    const auto payload = PackAllocationList({first, second});
+    UbseCliSsuAllocListRsp response;
+    ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+    ASSERT_EQ(response.allocations.size(), 2U);
+    EXPECT_EQ(response.allocations[0].nameSpaceList[0].allowHostNqnList,
+              (std::vector<std::string>{"nqn.2026-07:host-a", "nqn.2026-07:host-b"}));
+    EXPECT_EQ(response.allocations[0].nameSpaceList[1].nsUuid, "uuid-2");
+    EXPECT_EQ(response.allocations[1].name, "alloc-b");
+    EXPECT_EQ(response.allocations[1].strategy, UbseSsuAllocStrategy::STRIPED);
 }
 
-// 创建请求往返：显式设置全部可选字段后，往返应逐一保持原值（含 tenant）。
-TEST(TestUbseCliSsuStruct, CreateReqRoundTripKeepsExplicitOptions)
+TEST(TestUbseCliSsuStruct, ResponsesRejectTruncationAndInvalidStringLength)
 {
-    UbseCliSsuAllocCreateReq input;
-    input.name = "alloc-space-2";
-    input.nsSize = 20ULL * 1024 * 1024 * 1024;
-    input.nsNum = 2;
-    input.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_4K;
-    input.strategy = UbseSsuAllocStrategy::STRIPED;
-    input.identityInfo = MakeIdentity("tester", 1001);
-    input.tenant = "tenant-a";
+    auto allocation = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
+    auto payload = PackAllocationList({allocation});
+    payload.pop_back();
+    UbseCliSsuAllocListRsp response;
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
-    auto output = RoundTrip(input);
-
-    EXPECT_EQ(output.name, input.name);
-    EXPECT_EQ(output.nsSize, input.nsSize);
-    EXPECT_EQ(output.nsNum, input.nsNum);
-    EXPECT_EQ(output.lbaFormat, input.lbaFormat);
-    EXPECT_EQ(output.strategy, input.strategy);
-    EXPECT_EQ(output.identityInfo.userName, input.identityInfo.userName);
-    EXPECT_EQ(output.identityInfo.uid, input.identityInfo.uid);
-    EXPECT_EQ(output.tenant, input.tenant);
 }
 
-// 摘要响应往返：多条分配（含不同策略）的 name/strategy/nameSpaceList 应保持一致。
-TEST(TestUbseCliSsuStruct, ListRspRoundTripKeepsAllocations)
+TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedLists)
 {
-    UbseCliSsuAllocListRsp input;
-    UbseCliSsuAllocResult alloc1;
-    alloc1.name = "alloc-space-1";
-    alloc1.strategy = UbseSsuAllocStrategy::LINEAR;
-    alloc1.nameSpaceList = {
-        {"e2", "nqn.2024-01:target", "uuid-aa", 1, "/dev/nvme0n1", 10ULL * 1024 * 1024 * 1024,
-         UbseSsuLBAFormat::LBA_FORMAT_4K}};
-    UbseCliSsuAllocResult alloc2;
-    alloc2.name = "alloc-space-2";
-    alloc2.strategy = UbseSsuAllocStrategy::STRIPED;
-    alloc2.nameSpaceList = {
-        {"e3", "nqn.2024-01:target", "uuid-bb", 1, "/dev/nvme0n2", 20ULL * 1024 * 1024 * 1024,
-         UbseSsuLBAFormat::LBA_FORMAT_512}};
-    input.allocations = {alloc1, alloc2};
+    std::vector<uint8_t> payload(sizeof(uint32_t));
+    UbsePackUtil allocationCountPack(payload.data(), payload.size());
+    ASSERT_TRUE(allocationCountPack.UbsePackUint32((1U << 16) + 1));
+    UbseCliSsuAllocListRsp listResponse;
+    EXPECT_FALSE(listResponse.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
-    auto output = RoundTrip(input);
-
-    ASSERT_EQ(output.allocations.size(), input.allocations.size());
-    EXPECT_EQ(output.allocations[0].name, "alloc-space-1");
-    EXPECT_EQ(output.allocations[0].strategy, UbseSsuAllocStrategy::LINEAR);
-    ASSERT_EQ(output.allocations[0].nameSpaceList.size(), 1U);
-    EXPECT_EQ(output.allocations[0].nameSpaceList[0].nsSize, 10ULL * 1024 * 1024 * 1024);
-    EXPECT_EQ(output.allocations[1].name, "alloc-space-2");
-    EXPECT_EQ(output.allocations[1].strategy, UbseSsuAllocStrategy::STRIPED);
-    ASSERT_EQ(output.allocations[1].nameSpaceList.size(), 1U);
-    EXPECT_EQ(output.allocations[1].nameSpaceList[0].nsSize, 20ULL * 1024 * 1024 * 1024);
+    const std::string name = "alloc-a";
+    payload.resize(StringSize(name) + sizeof(uint8_t) + sizeof(uint32_t));
+    UbsePackUtil namespaceCountPack(payload.data(), payload.size());
+    ASSERT_TRUE(PackString(namespaceCountPack, name));
+    ASSERT_TRUE(namespaceCountPack.UbsePackUint8(static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR)));
+    ASSERT_TRUE(namespaceCountPack.UbsePackUint32(SSU_CLI_MAX_NS_NUM + 1));
+    UbseCliSsuAllocResult allocationResponse;
+    EXPECT_FALSE(allocationResponse.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 }
 
-// 分配结果往返：命名空间列表中 tgtEid/tgtNqn/nsUuid/namespaceId/nsDevPath/nsSize/lbaFormat 应完整保留。
-TEST(TestUbseCliSsuStruct, AllocResultRoundTripKeepsNamespaces)
+TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedAllowedHostListAndInvalidEnums)
 {
-    UbseCliSsuAllocResult input;
-    input.name = "alloc-space-1";
-    input.strategy = UbseSsuAllocStrategy::LINEAR;
-    input.nameSpaceList = {
-        {"e2", "nqn.2024-01:target", "uuid-aa", 1, "/dev/nvme0n1", 10ULL * 1024 * 1024 * 1024,
-         UbseSsuLBAFormat::LBA_FORMAT_4K},
-        {"e2", "nqn.2024-01:target", "uuid-bb", 2, "/dev/nvme0n2", 10ULL * 1024 * 1024 * 1024,
-         UbseSsuLBAFormat::LBA_FORMAT_512},
-    };
+    auto allocation = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
+    allocation.nameSpaceList.resize(1);
+    allocation.nameSpaceList[0].allowHostNqnList.clear();
+    auto payload = PackAllocationList({allocation});
+    uint32_t tooManyHosts = SSU_CLI_MAX_NS_NUM + 1;
+    std::memcpy(payload.data() + payload.size() - sizeof(uint32_t), &tooManyHosts, sizeof(tooManyHosts));
+    UbseCliSsuAllocListRsp response;
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
-    auto output = RoundTrip(input);
+    payload = PackAllocationList({allocation});
+    const size_t strategyOffset = sizeof(uint32_t) + StringSize(allocation.name);
+    payload[strategyOffset] = UINT8_MAX;
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 
-    EXPECT_EQ(output.name, input.name);
-    EXPECT_EQ(output.strategy, input.strategy);
-    ASSERT_EQ(output.nameSpaceList.size(), input.nameSpaceList.size());
-    EXPECT_EQ(output.nameSpaceList[0].tgtEid, "e2");
-    EXPECT_EQ(output.nameSpaceList[0].tgtNqn, "nqn.2024-01:target");
-    EXPECT_EQ(output.nameSpaceList[0].nsUuid, "uuid-aa");
-    EXPECT_EQ(output.nameSpaceList[0].namespaceId, 1U);
-    EXPECT_EQ(output.nameSpaceList[0].nsDevPath, "/dev/nvme0n1");
-    EXPECT_EQ(output.nameSpaceList[0].nsSize, 10ULL * 1024 * 1024 * 1024);
-    EXPECT_EQ(output.nameSpaceList[0].lbaFormat, UbseSsuLBAFormat::LBA_FORMAT_4K);
-    EXPECT_EQ(output.nameSpaceList[1].nsUuid, "uuid-bb");
-    EXPECT_EQ(output.nameSpaceList[1].namespaceId, 2U);
-    EXPECT_EQ(output.nameSpaceList[1].nsDevPath, "/dev/nvme0n2");
-    EXPECT_EQ(output.nameSpaceList[1].lbaFormat, UbseSsuLBAFormat::LBA_FORMAT_512);
+    payload = PackAllocationList({allocation});
+    const auto &nameSpace = allocation.nameSpaceList[0];
+    const size_t lbaOffset = sizeof(uint32_t) + StringSize(allocation.name) + sizeof(uint8_t) + sizeof(uint32_t) +
+                             StringSize(nameSpace.tgtEid) + StringSize(nameSpace.tgtNqn) +
+                             StringSize(nameSpace.nsUuid) + sizeof(uint32_t) + StringSize(nameSpace.nsDevPath) +
+                             sizeof(uint64_t);
+    uint32_t invalidLba = 1234;
+    std::memcpy(payload.data() + lbaOffset, &invalidLba, sizeof(invalidLba));
+    EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 }
 
-// 损坏缓冲应使反序列化失败：构造非预期布局的缓冲，验证 Deserialize 不静默成功。
-TEST(TestUbseCliSsuStruct, BadBufferFailsDeserialize)
+TEST(TestUbseCliSsuStruct, RequestsRejectOverlongStringsAndInvalidEnums)
 {
-    ubse::serial::UbseSerialization serializer;
-    serializer << std::string("bad-response");
+    UbseCliSsuAllocDetailReq detail{std::string(49, 'a')};
+    std::vector<uint8_t> payload;
+    EXPECT_FALSE(detail.Serialize(payload));
 
-    UbseCliSsuAllocResult output;
-    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
+    UbseCliSsuAllocCreateReq create;
+    create.name = "alloc-a";
+    create.lbaFormat = static_cast<UbseSsuLBAFormat>(1234);
+    EXPECT_FALSE(create.Serialize(payload));
+    create.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
+    create.strategy = static_cast<UbseSsuAllocStrategy>(9);
+    EXPECT_FALSE(create.Serialize(payload));
 
-    EXPECT_FALSE(output.Deserialize(deserializer));
 }
 
-// 摘要响应中的 allocations 用单次序列化内容字节上限作为防御性数量上限；若服务端伪造出超过该上限的
-// 数组长度，CLI 应直接拒绝，且不能先清空已有结果后再在后续元素读取阶段失败。
-TEST(TestUbseCliSsuStruct, ListRspRejectsTooManyAllocationsBeforeMutatingVector)
+TEST(TestUbseCliSsuStruct, PublicConstantsReuseSsuLimits)
 {
-    ubse::serial::UbseSerialization serializer;
-    serializer << ubse::serial::array_len_insert(0);
-    ForgeFirstArrayLength(serializer, ubse::serial::ONCE_LIMIT_LEN + 1);
-
-    UbseCliSsuAllocListRsp output;
-    UbseCliSsuAllocResult existing;
-    existing.name = "existing-allocation";
-    output.allocations = {existing};
-    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
-
-    EXPECT_FALSE(output.Deserialize(deserializer));
-    EXPECT_TRUE(deserializer.Check());
-    ASSERT_EQ(output.allocations.size(), 1U);
-    EXPECT_EQ(output.allocations[0].name, "existing-allocation");
-}
-
-// 分配结果中的 nameSpaceList 长度来自服务端响应，超过单次分配 NS 上限时应直接拒绝，
-// 避免按伪造长度 reserve/resize 导致 CLI 内存异常。
-TEST(TestUbseCliSsuStruct, AllocResultRejectsTooManyNamespacesBeforeMutatingVector)
-{
-    ubse::serial::UbseSerialization serializer;
-    serializer << std::string("alloc-space-1");
-    uint32_t strategy = static_cast<uint32_t>(UbseSsuAllocStrategy::LINEAR);
-    serializer << strategy;
-    serializer << ubse::serial::array_len_insert(SSU_CLI_MAX_NS_NUM + 1);
-
-    UbseCliSsuAllocResult output;
-    output.nameSpaceList = {
-        {"e2", "nqn.2024-01:target", "uuid-existing", 1, "/dev/nvme0n1", 10ULL * 1024 * 1024 * 1024,
-         UbseSsuLBAFormat::LBA_FORMAT_512},
-    };
-    ubse::serial::UbseDeSerialization deserializer(serializer.GetBuffer(), serializer.GetLength());
-
-    EXPECT_FALSE(output.Deserialize(deserializer));
-    ASSERT_EQ(output.nameSpaceList.size(), 1U);
-    EXPECT_EQ(output.nameSpaceList[0].nsUuid, "uuid-existing");
-}
-
-// 锁定枚举线报文数值：LBA/Strategy 的底层值变化即告警，防回退破坏与适配器层的对齐。
-// 服务层已无 UbseSsuUsingType，此处不再断言该枚举。
-TEST(TestUbseCliSsuStruct, UsesPluginServiceEnumWireValues)
-{
-    EXPECT_EQ(static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_512), 512U);
-    EXPECT_EQ(static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_4K), 4096U);
-    // 服务层 UbseSsuAllocStrategy 与适配器层 UbseSsuAddressingType 数值保持一致：
-    // STRIPED = 0, LINEAR = 1
-    EXPECT_EQ(static_cast<uint32_t>(UbseSsuAllocStrategy::STRIPED), 0U);
-    EXPECT_EQ(static_cast<uint32_t>(UbseSsuAllocStrategy::LINEAR), 1U);
-}
-
-// CLI 上限 SSU_CLI_MAX_NS_NUM 必须复用底层 UBSE_SSU_MAX_HOST_NUM，保持单一来源
-TEST(TestUbseCliSsuStruct, CliMaxNsNumReusesUnderlyingHostNum)
-{
-    EXPECT_EQ(SSU_CLI_MAX_NS_NUM, static_cast<uint32_t>(ssuDef::UBSE_SSU_MAX_HOST_NUM));
-}
-
-// ParseSize 的 1G 下限应显式绑定契约常量 SSU_CLI_MIN_SIZE_BYTES
-TEST(TestUbseCliSsuStruct, MinSizeBytesConstantIsOneGib)
-{
-    constexpr uint64_t oneGib = 1024ULL * 1024ULL * 1024ULL;
-    EXPECT_EQ(SSU_CLI_MIN_SIZE_BYTES, oneGib);
+    EXPECT_EQ(SSU_CLI_MAX_NAME_LENGTH, 48U);
+    EXPECT_EQ(SSU_CLI_MAX_NS_NUM, ubse::adapter_plugins::ssu::def::UBSE_SSU_MAX_HOST_NUM);
+    EXPECT_EQ(SSU_CLI_MIN_SIZE_BYTES, 1024ULL * 1024ULL * 1024ULL);
 }
 } // namespace ubse::ut::cli

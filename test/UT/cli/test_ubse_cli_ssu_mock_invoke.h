@@ -14,6 +14,7 @@
 #define TEST_UBSE_CLI_SSU_MOCK_INVOKE_H
 
 #include <cstdint>
+#include <vector>
 
 #include "ubse_cli_ssu_struct.h"
 #include "ubse_ipc_client.h"
@@ -22,9 +23,9 @@
 // 全局捕获区记录最近一次调用入参，供用例断言 CLI 实际发出的 module/op code 与请求体。
 extern uint16_t g_ssuMockLastModuleCode;
 extern uint16_t g_ssuMockLastOpCode;
-extern ubse::cli::reg::UbseCliSsuAllocSummaryReq g_ssuMockLastSummaryReq;
 extern ubse::cli::reg::UbseCliSsuAllocDetailReq g_ssuMockLastDetailReq;
 extern ubse::cli::reg::UbseCliSsuAllocCreateReq g_ssuMockLastCreateReq;
+extern std::vector<uint8_t> g_ssuMockLastRequestPayload;
 extern bool g_ssuMockLastRequestDeserialized;
 
 // 用例起始调用，清空上次捕获，避免用例间状态串扰。
@@ -37,6 +38,10 @@ uint32_t mock_ssu_alloc_summary_invoke_call_empty(uint16_t module_code, uint16_t
 uint32_t mock_ssu_alloc_summary_invoke_call_bad_response(uint16_t module_code, uint16_t op_code,
                                                          const ubse_api_buffer_t *request_data,
                                                          ubse_api_buffer_t *response_data);
+
+uint32_t mock_ssu_alloc_summary_invoke_call_empty_body(uint16_t module_code, uint16_t op_code,
+                                                       const ubse_api_buffer_t *request_data,
+                                                       ubse_api_buffer_t *response_data);
 
 uint32_t mock_ssu_alloc_summary_invoke_call_normal(uint16_t module_code, uint16_t op_code,
                                                    const ubse_api_buffer_t *request_data,
