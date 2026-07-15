@@ -21,7 +21,9 @@
 #include "ubse_cli_ssu_limits.h"
 
 namespace ubse::cli::reg {
+using ubse::plugin::service::ssu::UbseSsuAggregationRaidLevel;
 using ubse::plugin::service::ssu::UbseSsuAllocStrategy;
+using ubse::plugin::service::ssu::UbseSsuChunkSize;
 using ubse::plugin::service::ssu::UbseSsuLBAFormat;
 
 // 以下结构是 CLI ↔ SSU handler 的 wire 契约。字段顺序和宽度必须与
@@ -42,6 +44,75 @@ struct UbseCliSsuAllocCreateReq {
     UbseSsuLBAFormat lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
     UbseSsuAllocStrategy strategy = UbseSsuAllocStrategy::LINEAR;
     std::string tenant;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+// 普通 attach 请求：只挂载已有命名空间，不创建聚合设备。
+// hostNqn/srcEid 为空表示由服务端按当前连接与默认 EID 推导。
+struct UbseCliSsuAttachSpaceReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+// Linear attach 请求：在普通挂载字段之外携带用户指定的聚合设备名。
+// 线报文字段顺序必须与服务端 handler 使用的请求结构保持一致。
+struct UbseCliSsuAttachLinearReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid;
+    std::string devName;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+// Striped attach 请求：在线性请求字段之外，显式声明 RAID 级别与 chunk 大小。
+// level 按 uint8 编码，chunkSize 按 uint32 编码。
+struct UbseCliSsuAttachStripedReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid;
+    std::string devName;
+    UbseSsuAggregationRaidLevel level = UbseSsuAggregationRaidLevel::RAID0;
+    UbseSsuChunkSize chunkSize = UbseSsuChunkSize::CHUNK_SIZE_4K;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+// 普通 attach 返回命名空间设备路径列表。
+struct UbseCliSsuAttachSpaceRsp {
+    std::vector<std::string> nsDevPaths;
+    bool Deserialize(const uint8_t *buffer, uint32_t length);
+};
+
+// Linear/Striped attach 按服务接口输出参数顺序返回命名空间设备路径列表和聚合设备路径。
+struct UbseCliSsuAttachAggregatedRsp {
+    std::vector<std::string> nsDevPaths;
+    std::string devPath;
+    bool Deserialize(const uint8_t *buffer, uint32_t length);
+};
+
+struct UbseCliSsuDetachSpaceReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid = SSU_CLI_DETACH_SRC_EID;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+struct UbseCliSsuDetachLinearReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid = SSU_CLI_DETACH_SRC_EID;
+    std::string devName;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
+struct UbseCliSsuDetachStripedReq {
+    std::string name;
+    std::string hostNqn = SSU_CLI_DEFAULT_HOST_NQN;
+    std::string srcEid = SSU_CLI_DETACH_SRC_EID;
+    std::string devName;
+    UbseSsuAggregationRaidLevel level = SSU_CLI_DETACH_LEVEL;
+    UbseSsuChunkSize chunkSize = SSU_CLI_DETACH_CHUNK_SIZE;
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
