@@ -24,6 +24,14 @@ void RunRepeatAllocAndFreeTest(ubse::it::infra::ItCluster& cluster);
 void RunPreemptDeviceTest(ubse::it::infra::ItCluster& cluster);
 void RunRepeatDeallocTest(ubse::it::infra::ItCluster& cluster);
 void RunConcurrentSuccessTest(ubse::it::infra::ItCluster& cluster);
+void RunUpiLegalRangeAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunNonexistentGuidAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunInvalidDevListAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunNonexistentGuidFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunInvalidDevListFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunUbaTidQueryWithValidGuidTest(ubse::it::infra::ItCluster& cluster);
+void RunUbaTidQueryWithInvalidGuidTest(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::npu
 
