@@ -543,4 +543,50 @@ VmResult ResourceCollect::UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDo
     return VM_OK;
 }
 
+void ResourceCollect::FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
+                                                std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos)
+{
+    if (alarmNumaInfo.numaLoc.hostId == "") {
+        UBSE_LOG_ERROR << "alarmNumaInfo is invalid.";
+        return;
+    }
+    if (debtInfos.empty()) {
+        UBSE_LOG_DEBUG << "DebtInfos is empty.";
+    }
+
+    UBSE_LOG_INFO << "Fill global numa info for escape strategy.";
+    VMNodeLocInfo alarmNumaLoc = alarmNumaInfo.numaLoc;
+    uint64_t totalBorrow = 0;
+    for (auto debtInfo : debtInfos) {
+        if (debtInfo.numaId == alarmNumaLoc.numaId) {
+            if (UINT64_MAX - debtInfo.size < totalBorrow) {
+                totalBorrow = UINT64_MAX;
+                UBSE_LOG_WARN << "The totalBorrow exceeds the range of uint64.";
+                break;
+            }
+            totalBorrow += debtInfo.size;
+        }
+    }
+
+    globalNumaInfoMap[alarmNumaLoc].numaMemBorrow = totalBorrow;
+    globalNumaInfoMap[alarmNumaLoc].numaLoc = alarmNumaLoc;
+
+    std::vector<UbseNodeNumaInfo> numaNodeInfoList{};
+    auto ret = UbseGetNodeNumaInfoByNodeId(alarmNumaLoc.hostId, numaNodeInfoList);
+    if (ret != VM_OK || numaNodeInfoList.empty()) {
+        UBSE_LOG_ERROR << "Get nodeNumaInfo by nodeId failed, ret=" << static_cast<uint32_t>(ret);
+        return;
+    }
+    for (auto numaNodeInfo : numaNodeInfoList) {
+        if (numaNodeInfo.numaId == alarmNumaLoc.numaId) {
+            globalNumaInfoMap[alarmNumaLoc].numaMemLend = numaNodeInfo.memLent;
+        }
+    }
+
+    UBSE_LOG_DEBUG << "Numa Info from Alarm, numaId=" << alarmNumaLoc.numaId << ", hostId=" << alarmNumaLoc.hostId
+                   << ", socketId=" << alarmNumaLoc.socketId
+                   << ", numaMemBorrow=" << globalNumaInfoMap[alarmNumaLoc].numaMemBorrow
+                   << "byte, numaMemLend=" << globalNumaInfoMap[alarmNumaLoc].numaMemLend << "byte.";
+}
+
 } // namespace vm
