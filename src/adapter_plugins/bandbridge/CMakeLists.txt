@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 set(KDIR /lib/modules/${KERNEL_VERSION}/build)
 set(MODULE_NAME bandbridge)
 set(MODULE_OUTPUT_DIR ${CMAKE_BINARY_DIR}/modules)
