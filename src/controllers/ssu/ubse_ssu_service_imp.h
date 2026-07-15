@@ -68,6 +68,9 @@ public:
     uint32_t RemoveAccessPermission(const std::string &name, const std::string &nqn,
                                     const UbseSsuAllocIdentityInfo &identity) override;
 
+    uint32_t GetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                        const UbseSsuAllocIdentityInfo &identity) override;
+
     // master端：验证identity并返回构造Attach/Detach所需的字段(defaultNqn/jettyId/guid)
     uint32_t VerifyAttachDetachIdentity(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
                                         std::vector<ubse::ssu::message::UbseSsuNsVerifyInfo> &nsVerifyList);
@@ -93,6 +96,9 @@ private:
 
     uint32_t ExecuteAccessPermission(const std::string &name, const std::string &nqn,
                                      const UbseSsuAllocIdentityInfo &identity, bool isAdd);
+
+    uint32_t ExecuteGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                               const UbseSsuAllocIdentityInfo &identity);
 
     UbseSsuCollector collector_;
     UbseSsuScheduler scheduler_;

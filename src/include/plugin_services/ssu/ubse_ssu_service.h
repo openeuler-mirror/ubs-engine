@@ -201,7 +201,7 @@ public:
      * @retval 非零 失败，具体错误码由实现定义
      */
     virtual uint32_t GetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
-                                const UbseSsuAllocIdentityInfo &identity);
+                                const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 获取存储空间的连接信息
@@ -237,7 +237,7 @@ public:
      * @see UbseSsuAllocSpaceReq, UbseSsuAllocResult
      */
     virtual uint32_t AllocSpace(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
-                                UbseSsuAllocResult &result);
+                                UbseSsuAllocResult &result) = 0;
 
     /**
      * @brief 释放已分配的存储空间
@@ -252,7 +252,7 @@ public:
      *
      * @note 释放操作具有幂等性，释放不存在的空间应返回成功
      */
-    virtual uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity);
+    virtual uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 添加存储空间访问权限
@@ -271,7 +271,7 @@ public:
      * @see RemoveAccessPermission, UbseSsuAllocIdentityInfo
      */
     virtual uint32_t AddAccessPermission(const std::string &name, const std::string &nqn,
-                                         const UbseSsuAllocIdentityInfo &identity);
+                                         const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 移除存储空间访问权限
@@ -291,7 +291,7 @@ public:
      * @see AddAccessPermission, UbseSsuAllocIdentityInfo
      */
     virtual uint32_t RemoveAccessPermission(const std::string &name, const std::string &nqn,
-                                            const UbseSsuAllocIdentityInfo &identity);
+                                            const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 挂载已分配的存储空间
@@ -304,7 +304,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths);
+    virtual uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths) = 0;
 
     /**
      * @brief 卸载已分配的存储空间
@@ -318,7 +318,7 @@ public:
      *
      * @note 卸载前需确保没有进程正在使用该存储空间
      */
-    virtual uint32_t DetachSpace(const UbseSsuSpaceReq &req);
+    virtual uint32_t DetachSpace(const UbseSsuSpaceReq &req) = 0;
 
     /**
      * @brief 挂载线性编址的存储空间
@@ -335,7 +335,7 @@ public:
      * @note 线性编址模式下，数据按顺序填充各成员设备
      */
     virtual uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
-                                       std::string &devPath);
+                                       std::string &devPath) = 0;
 
     /**
      * @brief 卸载线性编址的存储空间
@@ -347,7 +347,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t DetachLinearSpace(const UbseSsuLinearSpaceReq &req);
+    virtual uint32_t DetachLinearSpace(const UbseSsuLinearSpaceReq &req) = 0;
 
     /**
      * @brief 挂载条带化编址的存储空间
@@ -365,7 +365,7 @@ public:
      * @see UbseSsuStripedSpaceReq, UbseSsuAggregationRaidLevel, UbseSsuChunkSize
      */
     virtual uint32_t AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::vector<std::string> &nsDevPaths,
-                                        std::string &devPath);
+                                        std::string &devPath) = 0;
 
     /**
      * @brief 卸载条带化编址的存储空间
@@ -377,7 +377,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t DetachStripedSpace(const UbseSsuStripedSpaceReq &req);
+    virtual uint32_t DetachStripedSpace(const UbseSsuStripedSpaceReq &req) = 0;
 
     /**
      * @brief 获取FE设备列表
@@ -389,7 +389,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList);
+    virtual uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList) = 0;
 
     /**
      * @brief 分配VFE设备
@@ -403,7 +403,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid);
+    virtual uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid) = 0;
 
     /**
      * @brief 释放VFE设备
@@ -417,7 +417,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid);
+    virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid) = 0;
 };
 
 inline std::shared_ptr<UbseSsuService> GetSsuService()

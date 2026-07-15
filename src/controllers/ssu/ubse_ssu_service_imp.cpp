@@ -23,6 +23,7 @@
 #include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_perm_msg.h"
+#include "message/ubse_ssu_query_verify_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "ubse_com_op_code.h"
@@ -1862,5 +1863,146 @@ uint32_t UbseSsuServiceImp::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, s
 uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid)
 {
     return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe, busInstanceGuid);
+}
+
+// agent端发送GetNsStats查询RPC请求到master节点
+static uint32_t SendGetNsStatsRpcRequest(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
+                                         const std::string &requestNodeId, const std::string &masterNodeId,
+                                         const std::string &requestId)
+{
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuGetNsStatsReqMsg reqMsg(requestId, requestNodeId, name, identity);
+    UbseSsuSyncRespMsg syncResp;
+    auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: RpcSend failed, " << FormatRetCode(ret)
+                       << ", requestId=" << requestId;
+        return ret;
+    }
+    auto syncErr = syncResp.GetErrorCode();
+    if (syncErr != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: master sync resp error, code=" << syncErr
+                       << ", requestId=" << requestId;
+        return syncErr;
+    }
+    return UBSE_OK;
+}
+
+// agent端通过RPC查询命名空间统计信息
+static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                                 const UbseSsuAllocIdentityInfo &identity)
+{
+    UbseRoleInfo roleInfo{};
+    auto ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = "getnsstats_" + name + "_" + roleInfo.nodeId;
+    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
+    if (respMgr == nullptr) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: create future failed, requestId=" << requestId;
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto respFuture = respMgr->GetFuture<UbseSsuGetNsStatsResp>();
+
+    ret = SendGetNsStatsRpcRequest(name, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: send rpc failed, requestId=" << requestId << ", ret=" << ret;
+        return ret;
+    }
+
+    if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) != std::future_status::ready) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: timeout, requestId=" << requestId;
+        return UBSE_ERR_TIMED_OUT;
+    }
+
+    auto resp = respFuture.get();
+    if (resp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: failed, requestId=" << requestId << ", errorCode=" << resp.errorCode;
+        return resp.errorCode;
+    }
+    statsList = std::move(resp.statsList);
+    UBSE_LOG_INFO << "GetNsStatsViaRpc success: name=" << name << ", count=" << statsList.size();
+    return UBSE_OK;
+}
+
+// master端：查询命名空间统计信息，校验identity后从设备缓存获取usedSize
+uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                                              const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "ExecuteGetNsStats: name=" << name;
+
+    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+    if (entryPtr == nullptr) {
+        UBSE_LOG_ERROR << "ExecuteGetNsStats: record not found, name=" << name;
+        return UBSE_ERROR;
+    }
+
+    auto devMap = collector_.GetCachedDevMap();
+    statsList.clear();
+    statsList.reserve(entryPtr->allocResult.nameSpaceList.size());
+    for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            UBSE_LOG_ERROR << "ExecuteGetNsStats: namespace not found in cache, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            statsList.clear();
+            return UBSE_ERROR;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << "ExecuteGetNsStats: identity not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            statsList.clear();
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+        UbseSsuNsStats stats;
+        stats.nsUuid = nsInfo.nsUuid;
+        stats.nsId = nsInfo.namespaceId;
+        stats.totalSize = nsInfo.nsSize;
+        stats.usedSize = targetNs->nuse;
+        statsList.push_back(std::move(stats));
+    }
+    UBSE_LOG_INFO << "ExecuteGetNsStats success: name=" << name << ", count=" << statsList.size();
+    return UBSE_OK;
+}
+
+// GetNsStats主入口：根据节点角色选择查询方式
+uint32_t UbseSsuServiceImp::GetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
+                                       const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "GetNsStats: name=" << name;
+
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStats: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        return ExecuteGetNsStats(name, statsList, identity);
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return GetNsStatsViaRpc(name, statsList, identity);
+    }
+
+    UBSE_LOG_ERROR << "GetNsStats: unsupported node role=" << role;
+    return UBSE_ERROR;
 }
 } // namespace ubse::ssu::service
