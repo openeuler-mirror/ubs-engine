@@ -12,203 +12,181 @@
 
 #include "ubse_cli_ssu_struct.h"
 
-#include <type_traits>
 #include <utility>
+
+#include "ubse_cli_ssu_limits.h"
+#include "ubse_pack_util.h"
 
 namespace ubse::cli::reg {
 namespace {
-// allocation 列表反序列化上限，复用 ONCE_LIMIT_LEN。
-constexpr size_t SSU_CLI_MAX_ALLOCATIONS = static_cast<size_t>(ubse::serial::ONCE_LIMIT_LEN);
-// 单次 allocation 内 namespace 列表反序列化上限，复用 SSU_CLI_MAX_NS_NUM。
-constexpr size_t SSU_CLI_MAX_NAMESPACES_PER_ALLOCATION = static_cast<size_t>(SSU_CLI_MAX_NS_NUM);
+using ubse::utils::UbsePackUtil;
+using ubse::utils::UbseUnpackUtil;
 
-// 枚举以 uint32 上线：与枚举底层类型（uint8_t）解耦，稳定线报文布局，
-// 即便 UbseSsu* 枚举底层类型调整也不影响已部署端点的兼容性。
-template <typename Enum>
-void SerializeEnumAsUint32(ubse::serial::UbseSerialization &stream, Enum value)
+uint32_t StringSize(const std::string &value)
 {
-    static_assert(std::is_enum_v<Enum>, "SerializeEnumAsUint32 requires an enumeration type");
-    static_assert(sizeof(std::underlying_type_t<Enum>) <= sizeof(uint32_t),
-                  "Enum underlying type must fit in uint32_t to keep wire format stable");
-    uint32_t raw = static_cast<uint32_t>(value);
-    stream << raw;
+    return static_cast<uint32_t>(sizeof(uint32_t) + value.size());
 }
 
-bool IsValidLbaFormatRaw(uint32_t raw)
+bool StringFits(const std::string &value, uint32_t maxLength)
+{
+    return value.size() <= maxLength;
+}
+
+bool PackString(UbsePackUtil &pack, const std::string &value, uint32_t maxLength)
+{
+    return StringFits(value, maxLength) && pack.UbsePackString(value, maxLength);
+}
+
+template <typename PackFields>
+bool BuildPayload(uint32_t size, std::vector<uint8_t> &payload, PackFields packFields)
+{
+    std::vector<uint8_t> encoded(size);
+    UbsePackUtil pack(encoded.data(), encoded.size());
+    if (!packFields(pack)) {
+        return false;
+    }
+    payload = std::move(encoded);
+    return true;
+}
+
+bool IsValidLbaFormat(uint32_t raw)
 {
     return raw == static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_512) ||
            raw == static_cast<uint32_t>(UbseSsuLBAFormat::LBA_FORMAT_4K);
 }
 
-bool IsValidAllocStrategyRaw(uint32_t raw)
+bool IsValidStrategy(uint8_t raw)
 {
-    return raw == static_cast<uint32_t>(UbseSsuAllocStrategy::STRIPED) ||
-           raw == static_cast<uint32_t>(UbseSsuAllocStrategy::LINEAR);
+    return raw == static_cast<uint8_t>(UbseSsuAllocStrategy::STRIPED) ||
+           raw == static_cast<uint8_t>(UbseSsuAllocStrategy::LINEAR);
 }
 
-// 反序列化枚举：先校验 uint32 原始值，避免底层窄类型枚举转换时截断非法值；
-// 仅在流状态正常且取值合法时回写，避免读失败后留下被部分覆盖的脏值。
-template <typename Enum, typename IsValidRaw>
-bool DeserializeEnumFromUint32(ubse::serial::UbseDeSerialization &stream, Enum &value, IsValidRaw isValidRaw)
+bool UnpackString(UbseUnpackUtil &unpack, std::string &value, uint32_t maxLength)
 {
-    static_assert(std::is_enum_v<Enum>, "DeserializeEnumFromUint32 requires an enumeration type");
-    static_assert(sizeof(std::underlying_type_t<Enum>) <= sizeof(uint32_t),
-                  "Enum underlying type must fit in uint32_t to keep wire format stable");
-    uint32_t raw = 0;
-    stream >> raw;
-    if (!stream.Check() || !isValidRaw(raw)) {
+    return unpack.UnpackString(value, maxLength);
+}
+
+bool UnpackNameSpace(UbseUnpackUtil &unpack, UbseCliSsuNameSpaceInfo &value)
+{
+    UbseCliSsuNameSpaceInfo decoded;
+    uint32_t lbaFormat = 0;
+    uint32_t hostNqnCount = 0;
+    if (!UnpackString(unpack, decoded.tgtEid, SSU_CLI_WIRE_MAX_EID_LENGTH) ||
+        !UnpackString(unpack, decoded.tgtNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH) ||
+        !UnpackString(unpack, decoded.nsUuid, SSU_CLI_WIRE_MAX_UUID_LENGTH) ||
+        !unpack.UnpackUint32(decoded.namespaceId) ||
+        !UnpackString(unpack, decoded.nsDevPath, SSU_CLI_WIRE_MAX_DEV_PATH_LENGTH) ||
+        !unpack.UnpackUint64(decoded.nsSize) || !unpack.UnpackUint32(lbaFormat) || !IsValidLbaFormat(lbaFormat) ||
+        !unpack.UnpackUint32(hostNqnCount) || hostNqnCount > SSU_CLI_MAX_ALLOWED_HOST_NQNS) {
         return false;
     }
-    value = static_cast<Enum>(raw);
+    decoded.lbaFormat = static_cast<UbseSsuLBAFormat>(lbaFormat);
+    decoded.allowHostNqnList.reserve(hostNqnCount);
+    for (uint32_t i = 0; i < hostNqnCount; ++i) {
+        std::string hostNqn;
+        if (!UnpackString(unpack, hostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH)) {
+            return false;
+        }
+        decoded.allowHostNqnList.emplace_back(std::move(hostNqn));
+    }
+    value = std::move(decoded);
     return true;
 }
 
-// 向量序列化：先写长度前缀（array_len_insert）再逐元素序列化，构成"长度+载荷"帧。
-// 任一元素失败即整体失败，由调用方决定是否提前返回。
-template <typename T>
-bool SerializeVector(ubse::serial::UbseSerialization &stream, const std::vector<T> &values)
+bool UnpackAllocResult(UbseUnpackUtil &unpack, UbseCliSsuAllocResult &value)
 {
-    stream << ubse::serial::array_len_insert(values.size());
-    for (const auto &value : values) {
-        if (!value.Serialize(stream)) {
-            return false;
-        }
-    }
-    return stream.Check();
-}
-
-// 向量反序列化：先读长度前缀并校验调用点给出的上限，再逐元素反序列化到临时容器。
-// 长度前缀损坏、超过上限或元素反序列化失败即整体失败，且不修改原容器。
-template <typename T>
-bool DeserializeVector(ubse::serial::UbseDeSerialization &stream, std::vector<T> &values, size_t maxCount)
-{
-    size_t size = 0;
-    stream >> ubse::serial::array_len_capture(size);
-    if (!stream.Check() || size > maxCount) {
+    UbseCliSsuAllocResult decoded;
+    uint8_t strategy = 0;
+    uint32_t namespaceCount = 0;
+    if (!UnpackString(unpack, decoded.name, SSU_CLI_WIRE_MAX_NAME_LENGTH) || !unpack.UnpackUint8(strategy) ||
+        !IsValidStrategy(strategy) || !unpack.UnpackUint32(namespaceCount) || namespaceCount > SSU_CLI_MAX_NAMESPACES) {
         return false;
     }
-    std::vector<T> decoded;
-    decoded.reserve(size);
-    for (size_t i = 0; i < size; ++i) {
-        T value;
-        if (!value.Deserialize(stream)) {
+    decoded.strategy = static_cast<UbseSsuAllocStrategy>(strategy);
+    decoded.nameSpaceList.reserve(namespaceCount);
+    for (uint32_t i = 0; i < namespaceCount; ++i) {
+        UbseCliSsuNameSpaceInfo nameSpace;
+        if (!UnpackNameSpace(unpack, nameSpace)) {
             return false;
         }
-        decoded.emplace_back(std::move(value));
+        decoded.nameSpaceList.emplace_back(std::move(nameSpace));
     }
-    values = std::move(decoded);
-    return stream.Check();
+    value = std::move(decoded);
+    return true;
 }
 
-// identityInfo 为服务层裸结构体（无 Serialize/Deserialize），CLI 线报文侧手动编解码其两个子字段，
-// 字段顺序 userName → uid 与 UbseSsuAllocIdentityInfo 声明顺序一致。
-void SerializeIdentityInfo(ubse::serial::UbseSerialization &stream, const UbseSsuAllocIdentityInfo &identity)
+template <typename Decode>
+bool DecodePayload(const uint8_t *buffer, uint32_t length, Decode decode)
 {
-    stream << identity.userName << identity.uid;
-}
-
-bool DeserializeIdentityInfo(ubse::serial::UbseDeSerialization &stream, UbseSsuAllocIdentityInfo &identity)
-{
-    stream >> identity.userName >> identity.uid;
-    return stream.Check();
+    if (buffer == nullptr || length == 0) {
+        return false;
+    }
+    UbseUnpackUtil unpack(buffer, length);
+    return decode(unpack);
 }
 } // namespace
 
-// 各结构的 Serialize/Deserialize 成对实现且字段顺序严格一致：增删字段需同步修改两端，
-// 否则线报文错位。返回 stream.Check() 以将底层流错误上抛为整体失败。
-
-bool UbseCliSsuAllocSummaryReq::Serialize(ubse::serial::UbseSerialization &stream) const
+bool UbseCliSsuAllocDetailReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    SerializeIdentityInfo(stream, identityInfo);
-    return stream.Check();
-}
-
-bool UbseCliSsuAllocSummaryReq::Deserialize(ubse::serial::UbseDeSerialization &stream)
-{
-    return DeserializeIdentityInfo(stream, identityInfo);
-}
-
-bool UbseCliSsuAllocDetailReq::Serialize(ubse::serial::UbseSerialization &stream) const
-{
-    stream << name;
-    SerializeIdentityInfo(stream, identityInfo);
-    return stream.Check();
-}
-
-bool UbseCliSsuAllocDetailReq::Deserialize(ubse::serial::UbseDeSerialization &stream)
-{
-    stream >> name;
-    return DeserializeIdentityInfo(stream, identityInfo) && stream.Check();
-}
-
-bool UbseCliSsuAllocCreateReq::Serialize(ubse::serial::UbseSerialization &stream) const
-{
-    stream << name << nsSize << nsNum;
-    SerializeEnumAsUint32(stream, lbaFormat);
-    SerializeEnumAsUint32(stream, strategy);
-    SerializeIdentityInfo(stream, identityInfo);
-    stream << tenant;
-    return stream.Check();
-}
-
-bool UbseCliSsuAllocCreateReq::Deserialize(ubse::serial::UbseDeSerialization &stream)
-{
-    stream >> name >> nsSize >> nsNum;
-    if (!DeserializeEnumFromUint32(stream, lbaFormat, IsValidLbaFormatRaw) ||
-        !DeserializeEnumFromUint32(stream, strategy, IsValidAllocStrategyRaw)) {
+    if (!StringFits(name, SSU_CLI_WIRE_MAX_NAME_LENGTH)) {
         return false;
     }
-    if (!DeserializeIdentityInfo(stream, identityInfo)) {
+    return BuildPayload(StringSize(name), payload,
+                        [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_WIRE_MAX_NAME_LENGTH); });
+}
+
+bool UbseCliSsuAllocCreateReq::Serialize(std::vector<uint8_t> &payload) const
+{
+    const auto rawLbaFormat = static_cast<uint32_t>(lbaFormat);
+    const auto rawStrategy = static_cast<uint8_t>(strategy);
+    if (!StringFits(name, SSU_CLI_WIRE_MAX_NAME_LENGTH) || !StringFits(tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH) ||
+        !IsValidLbaFormat(rawLbaFormat) || !IsValidStrategy(rawStrategy)) {
         return false;
     }
-    stream >> tenant;
-    return stream.Check();
+    const uint32_t size =
+        StringSize(name) +
+        static_cast<uint32_t>(sizeof(nsSize) + sizeof(nsNum) + sizeof(rawLbaFormat) + sizeof(rawStrategy)) +
+        StringSize(tenant);
+    return BuildPayload(size, payload, [this, rawLbaFormat, rawStrategy](UbsePackUtil &pack) {
+        return PackString(pack, name, SSU_CLI_WIRE_MAX_NAME_LENGTH) && pack.UbsePackUint64(nsSize) &&
+               pack.UbsePackUint32(nsNum) && pack.UbsePackUint32(rawLbaFormat) && pack.UbsePackUint8(rawStrategy) &&
+               PackString(pack, tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH);
+    });
 }
 
-// NameSpaceInfo 字段顺序对齐服务层 UbseSsuNameSpaceInfo 声明顺序：
-// tgtEid → tgtNqn → nsUuid → namespaceId → nsDevPath → nsSize → lbaFormat。
-bool UbseCliSsuNameSpaceInfo::Serialize(ubse::serial::UbseSerialization &stream) const
+bool UbseCliSsuAllocResult::Deserialize(const uint8_t *buffer, uint32_t length)
 {
-    stream << tgtEid << tgtNqn << nsUuid << namespaceId << nsDevPath << nsSize;
-    SerializeEnumAsUint32(stream, lbaFormat);
-    return stream.Check();
-}
-
-bool UbseCliSsuNameSpaceInfo::Deserialize(ubse::serial::UbseDeSerialization &stream)
-{
-    stream >> tgtEid >> tgtNqn >> nsUuid >> namespaceId >> nsDevPath >> nsSize;
-    return DeserializeEnumFromUint32(stream, lbaFormat, IsValidLbaFormatRaw) && stream.Check();
-}
-
-bool UbseCliSsuAllocResult::Serialize(ubse::serial::UbseSerialization &stream) const
-{
-    stream << name;
-    SerializeEnumAsUint32(stream, strategy);
-    if (!SerializeVector(stream, nameSpaceList)) {
+    UbseCliSsuAllocResult decoded;
+    if (!DecodePayload(buffer, length,
+                       [&decoded](UbseUnpackUtil &unpack) { return UnpackAllocResult(unpack, decoded); })) {
         return false;
     }
-    return stream.Check();
+    *this = std::move(decoded);
+    return true;
 }
 
-bool UbseCliSsuAllocResult::Deserialize(ubse::serial::UbseDeSerialization &stream)
+bool UbseCliSsuAllocListRsp::Deserialize(const uint8_t *buffer, uint32_t length)
 {
-    stream >> name;
-    if (!DeserializeEnumFromUint32(stream, strategy, IsValidAllocStrategyRaw)) {
+    std::vector<UbseCliSsuAllocResult> decoded;
+    const bool success = DecodePayload(buffer, length, [&decoded](UbseUnpackUtil &unpack) {
+        uint32_t allocationCount = 0;
+        if (!unpack.UnpackUint32(allocationCount) || allocationCount > SSU_CLI_MAX_DESERIALIZED_ALLOCATIONS) {
+            return false;
+        }
+        decoded.reserve(allocationCount);
+        for (uint32_t i = 0; i < allocationCount; ++i) {
+            UbseCliSsuAllocResult allocation;
+            if (!UnpackAllocResult(unpack, allocation)) {
+                return false;
+            }
+            decoded.emplace_back(std::move(allocation));
+        }
+        return true;
+    });
+    if (!success) {
         return false;
     }
-    if (!DeserializeVector(stream, nameSpaceList, SSU_CLI_MAX_NAMESPACES_PER_ALLOCATION)) {
-        return false;
-    }
-    return stream.Check();
-}
-
-bool UbseCliSsuAllocListRsp::Serialize(ubse::serial::UbseSerialization &stream) const
-{
-    return SerializeVector(stream, allocations);
-}
-
-bool UbseCliSsuAllocListRsp::Deserialize(ubse::serial::UbseDeSerialization &stream)
-{
-    return DeserializeVector(stream, allocations, SSU_CLI_MAX_ALLOCATIONS);
+    allocations = std::move(decoded);
+    return true;
 }
 } // namespace ubse::cli::reg
