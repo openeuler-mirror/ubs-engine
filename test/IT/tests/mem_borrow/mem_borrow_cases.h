@@ -39,6 +39,9 @@ void RunCliNumaStatusQuery001(ubse::it::infra::ItCluster& cluster);
 // CLI内存配置查询测试：查询内存配置信息，验证输出格式
 void RunCliMemoryConfigQuery001(ubse::it::infra::ItCluster& cluster);
 
+// 四节点SHM attach后import_desc_cnt验证：节点1创建 → 节点2/3/4分别attach(每个返回import_desc_cnt=1) → detach → delete
+void RunShmFourNodesAttachImportDescCntTest(ubse::it::infra::ItCluster& cluster);
+
 } // namespace ubse::it::tests::mem_borrow
 
 #endif // IT_MEM_BORROW_CASES_H
