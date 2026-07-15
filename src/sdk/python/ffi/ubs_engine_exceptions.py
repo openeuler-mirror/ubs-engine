@@ -63,6 +63,11 @@ class UbsEngineConnectionError(UbsError):
     pass
 
 
+class UbsEngineReceiveError(UbsError):
+    """接收UBSE服务端响应失败"""
+    pass
+
+
 class UbsEngineAuthError(UbsError):
     """UBSE服务端鉴权不通过"""
     pass
@@ -100,4 +105,27 @@ class UbsEngineExistedError(UbsError):
 
 class UbsEngineAllocateError(UbsError):
     """算法分配失败"""
+    pass
+
+
+class UbsBinaryCodecError(UbsError):
+    """二进制编解码异常基类。
+
+    所有编解码过程中的错误均派生自此异常，便于上层统一捕获与转换。
+    """
+    pass
+
+
+class UbsLengthExceededError(UbsBinaryCodecError):
+    """长度超过允许的最大值。"""
+    pass
+
+
+class UbsInsufficientDataError(UbsBinaryCodecError):
+    """剩余数据不足以完成读取。"""
+    pass
+
+
+class UbsDecodeError(UbsBinaryCodecError):
+    """字节序列解码失败（如非法 UTF-8 序列）。"""
     pass
