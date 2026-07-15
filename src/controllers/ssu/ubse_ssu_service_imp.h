@@ -36,6 +36,10 @@ public:
     uint32_t StartCollecting();
     // 停止收集器
     void StopCollecting();
+    // 启动空VM BusInstance清理定时器
+    uint32_t StartClearTimer();
+    // 停止清理定时器
+    void StopClearTimer();
     // 从设备列表进行账本构建，用于初始化或重启恢复账本
     void RebuildLedgerFromDevList();
 
@@ -66,12 +70,18 @@ public:
 
     // master端：验证identity并返回构造Attach/Detach所需的字段(defaultNqn/jettyId/guid)
     uint32_t VerifyAttachDetachIdentity(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                  std::vector<ubse::ssu::message::UbseSsuNsVerifyInfo> &nsVerifyList);
+                                        std::vector<ubse::ssu::message::UbseSsuNsVerifyInfo> &nsVerifyList);
+
+    uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList) override;
+
+    uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid) override;
+
+    uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid) override;
 
 private:
     UbseSsuServiceImp() = default;
     ~UbseSsuServiceImp() override = default;
-    
+
     // Execute函数只在master端调用，用于处理分配/释放/添加/移除访问权限请求
     uint32_t ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                           UbseSsuAllocResult &result);

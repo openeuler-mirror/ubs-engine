@@ -49,8 +49,7 @@ UbseResult UbseSsuControllerModule::Start()
     // 将SSU服务单例注册到服务注册表，使北向接口可通过GetSsuService()获取
     // 使用空删除器：单例由GetInstance管理，不应被shared_ptr析构释放
     // GetInstance()返回单例引用，地址永远非空，无需做空指针检查
-    ssuService_ = std::shared_ptr<UbseSsuService>(&UbseSsuServiceImp::GetInstance(),
-                                                   [](UbseSsuService *) {});
+    ssuService_ = std::shared_ptr<UbseSsuService>(&UbseSsuServiceImp::GetInstance(), [](UbseSsuService *) {});
     ubse::service::UbseServiceRegistry::GetInstance().RegisterService<UbseSsuService>(ssuService_);
 
     // 启动设备状态收集器，定期更新SSU设备信息
@@ -62,6 +61,13 @@ UbseResult UbseSsuControllerModule::Start()
 
     // 从设备列表重建账本，用于初始化或重启恢复
     UbseSsuServiceImp::GetInstance().RebuildLedgerFromDevList();
+
+    // 启动空VM BusInstance清理定时器
+    ret = UbseSsuServiceImp::GetInstance().StartClearTimer();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to start clear timer, ret=" << ret;
+        return ret;
+    }
 
     // 注册北向HTTP接口路由
     ret = ubse::ssu::http_handler::RegisterSsuHttpHandlers();
@@ -78,6 +84,7 @@ void UbseSsuControllerModule::Stop()
 {
     UBSE_LOG_INFO << "UbseSsuControllerModule Stop";
 
+    UbseSsuServiceImp::GetInstance().StopClearTimer();
     UbseSsuServiceImp::GetInstance().StopCollecting();
 
     // 从服务注册表注销

@@ -30,6 +30,7 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_ssu_adapter_interface.h"
+#include "ubse_ssu_direct_to_vm_manager.h"
 #include "ubse_ssu_scheduler.h"
 #include "ubse_ssu_utils.h"
 
@@ -89,6 +90,16 @@ void UbseSsuServiceImp::StopCollecting()
 {
     collector_.Stop();
     UBSE_LOG_INFO << "StopCollecting: collector stopped";
+}
+
+uint32_t UbseSsuServiceImp::StartClearTimer()
+{
+    return UbseSsuDirectToVmManager::GetInstance().StartClearTimer();
+}
+
+void UbseSsuServiceImp::StopClearTimer()
+{
+    UbseSsuDirectToVmManager::GetInstance().StopClearTimer();
 }
 
 // 从设备缓存列表重建SSU账本
@@ -811,7 +822,7 @@ static uint32_t SendAttachDetachVerifyRpcRequest(const std::string &name, const 
 
 // agent端：发送identity验证请求到master并等待异步响应（attach/detach通用）
 static uint32_t VerifyAttachDetachIdentityViaRpc(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                     UbseSsuAttachDetachVerifyResp &verifyResp)
+                                                 UbseSsuAttachDetachVerifyResp &verifyResp)
 {
     UbseRoleInfo roleInfo{};
     auto ret = UbseGetCurrentNodeInfo(roleInfo);
@@ -1073,14 +1084,12 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
     bool isMaster = verifyResp == nullptr ? true : false;
     uint32_t ret = UBSE_OK;
     for (size_t i = 0; i < attachedNsList.size(); ++i) {
-        auto rollbackRet = isMaster ?
-            DetachSingleNs(attachedNsList[i], req.identity, req.nqn, devMap) :
-            AgentDetachNs(attachedNsList[i], verifyResp->nsVerifyList[i], req.nqn);
+        auto rollbackRet = isMaster ? DetachSingleNs(attachedNsList[i], req.identity, req.nqn, devMap) :
+                                      AgentDetachNs(attachedNsList[i], verifyResp->nsVerifyList[i], req.nqn);
 
         if (rollbackRet != UBSE_OK) {
-            UBSE_LOG_ERROR << "RollbackAttachedNsAndLedger: DetachDevNameSpace failed, eid="
-                           << attachedNsList[i].tgtEid << ", nsId=" << attachedNsList[i].namespaceId
-                           << ", ret=" << rollbackRet;
+            UBSE_LOG_ERROR << "RollbackAttachedNsAndLedger: DetachDevNameSpace failed, eid=" << attachedNsList[i].tgtEid
+                           << ", nsId=" << attachedNsList[i].namespaceId << ", ret=" << rollbackRet;
             ret = UBSE_ERROR;
         }
     }
@@ -1840,4 +1849,18 @@ uint32_t UbseSsuServiceImp::RemoveAccessPermission(const std::string &name, cons
     return UBSE_ERROR;
 }
 
+uint32_t UbseSsuServiceImp::GetFeDeviceList(std::vector<UbseSsuFe> &feList)
+{
+    return UbseSsuDirectToVmManager::GetInstance().GetFeDeviceList(feList);
+}
+
+uint32_t UbseSsuServiceImp::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid)
+{
+    return UbseSsuDirectToVmManager::GetInstance().FeDeviceAlloc(upi, vfe, busInstanceGuid);
+}
+
+uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid)
+{
+    return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe, busInstanceGuid);
+}
 } // namespace ubse::ssu::service
