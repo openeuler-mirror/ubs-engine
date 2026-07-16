@@ -323,7 +323,9 @@ UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig& topoConfig,
 UbseResult FillClosTopo(std::unordered_map<std::string, UbcoreTopoNode>& nodeMap)
 {
     UbseUrmaTopoConfig topoConfig;
-    auto ret = LoadUrmaTopoConfig(GetUrmaTopoMode(), topoConfig);
+    auto topoMode = GetUrmaTopoMode();
+    UBSE_LOG_INFO << "URMA topo_mode=" << (topoMode == UbseUrmaTopoMode::HCCS_CROSS ? "hccs-cross" : "non-cross");
+    auto ret = LoadUrmaTopoConfig(topoMode, topoConfig);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to load URMA topo config, ret=" << FormatRetCode(ret);
         return ret;
