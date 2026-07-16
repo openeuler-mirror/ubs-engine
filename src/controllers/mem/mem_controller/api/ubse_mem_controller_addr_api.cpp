@@ -211,10 +211,6 @@ uint32_t DoUbseMemAddrBorrow(const std::string &exportKey, const UbseMemAddrBorr
 uint32_t UbseMemAddrBorrow(const UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp,
                            const std::string &realRequestNodeId)
 {
-    if (UbseSmbios::GetInstance().IsClosType()) {
-        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
-                                          UBSE_ERR_NOT_SUPPORTED);
-    }
     UBSE_LOG_INFO << "[MMC] Addr borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
     << ", exportNodeId=" << req.exportNodeId << ", realRequestNodeId=" << realRequestNodeId
     << ", importNodeId=" << req.importNodeId << ", exportAccessMode=" << req.exportAccessMode;
