@@ -52,6 +52,17 @@ UbseResult UbseMemAddrCreateReqIsValid(const std::string &name, const UbseMemBor
 void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
                                  const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
                                  UbseMemAddrBorrowReq &addrBorrowReq);
-} // namespace ubse::mem::controller
 
+UbseResult UbseGetGlobalMasterNodeId(std::string &globalMasterNodeId);
+
+UbseResult UbseGetCascadeMasterNodeIdByAgentNodeId(const std::string &agentNodeId, std::string &cascadeMasterNodeId);
+
+UbseResult UbseGetCurManagerMasterNodeId(std::string &managerMasterNodeId);
+
+bool UbseDetachNodeIdInCascadeDomain(const std::string &unImportNodeId, const std::string &cascadeMasterNodeId);
+
+bool UbseCheckDetachNodeIdInManageDomain(const std::string &unImportNodeId, const std::string &manageMasterNodeId);
+
+bool UbseCheckWithoutGlobalMasterNodeId();                                 
+} // namespace ubse::mem::controller
 #endif // UBS_ENGINE_UBSE_MEM_CONTROLLER_HELPER_H

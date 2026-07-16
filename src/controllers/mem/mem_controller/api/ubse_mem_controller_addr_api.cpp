@@ -33,6 +33,7 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mmi_def.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_smbios.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -48,6 +49,7 @@ using namespace message;
 using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::smbios;
 
 bool NodeControllerTryReadLock(const UbseMemAddrBorrowReq &req)
 {
@@ -212,6 +214,10 @@ uint32_t UbseMemAddrBorrow(const UbseMemAddrBorrowReq &req, UbseMemOperationResp
     UBSE_LOG_INFO << "[MMC] Addr borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
     << ", exportNodeId=" << req.exportNodeId << ", realRequestNodeId=" << realRequestNodeId
     << ", importNodeId=" << req.importNodeId << ", exportAccessMode=" << req.exportAccessMode;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }    
     if (req.exportNodeId != realRequestNodeId) {
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "exportNodeId != realRequestNodeId",
                                           UBSE_ERR_INVALID_ARG);
@@ -1027,6 +1033,10 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
 {
     UBSE_LOG_INFO << "Start to addr return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
     << "requestId =" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }
     auto exportKey = GenerateExportObjKey(req.name, req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemAddrBorrowImportObj importObj{};

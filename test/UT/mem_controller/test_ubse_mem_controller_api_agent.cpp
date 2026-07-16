@@ -35,6 +35,7 @@
 #include "ubse_api_server_module.h"
 #include "ubse_node_controller.h"
 #include "ubse_mem_controller_api_agent.cpp"
+#include "api/ubse_mem_controller_helper.h"
 
 namespace ubse::mem_controller::ut {
 using namespace context;
@@ -121,6 +122,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn)
 {
+    MOCKER_CPP(ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER_CPP(&election::UbseGetMasterInfo)
@@ -213,6 +215,7 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemNumaBorrow1)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemReturn1)
 {
+    MOCKER_CPP(ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     election::UbseRoleInfo masterInfo{};
     masterInfo.nodeId = "1";
     MOCKER(&election::UbseGetCurrentNodeInfo)

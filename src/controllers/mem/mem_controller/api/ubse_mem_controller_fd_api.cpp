@@ -33,6 +33,7 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_smbios.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -49,6 +50,7 @@ using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::smbios;
 
 UbseResult AgentSendFdExportObj(const std::shared_ptr<UbseComModule> &comModule, SendParam &sendParam,
                                 UbseMemFdBorrowExportobjSimpoPtr &ptr, UbseBaseMessagePtr &ubseResponsePtr,
@@ -171,6 +173,10 @@ uint32_t UbseMemFdBorrow(const UbseMemFdBorrowReq &req, UbseMemOperationResp &re
 {
     UBSE_LOG_INFO << "Fd borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }
     auto lock = LoggingLockGuard(GenerateExportObjKey(req.name, req.importNodeId));
     resp.requestId = req.requestId;
 
@@ -279,6 +285,9 @@ uint32_t UbseMemFdPermission(const UbseMemFdPermissionReq &req, const std::strin
 {
     auto name = req.name;
     UBSE_LOG_INFO << "Fd permission begins, name=" << req.name << ", requestId=" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     auto exportKey = GenerateExportObjKey(req.name, req.requestNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemFdBorrowImportObj importObj{};
@@ -1206,6 +1215,10 @@ uint32_t UbseMemFdReturn(const UbseMemReturnReq &req, UbseMemOperationResp &resp
 {
     UBSE_LOG_INFO << "Start to fd return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }
     BorrowObjResult result{};
     if (auto ret = ValidateBorrowResource(req, resp, realRequestNodeId, result); ret != UBSE_OK) {
         return result.comErrorCode;

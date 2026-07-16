@@ -20,6 +20,7 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_com_module.h"
+#include "ubse_election_module.h"
 #include "ubse_node_api_convert.h"
 
 namespace ubse::mem_controller::ut {
@@ -226,8 +227,13 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmCreateDispatcher)
         .then(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcher(buffer, context), UBSE_ERROR);
     EXPECT_EQ(dispatcher.MemShmCreateDispatcher(buffer, context), UBSE_ERROR_NULLPTR);
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameNode = &UbseComModule::RpcSend<UbseMemShareBorrowReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(funcSameNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(AsyncMemShmBorrowProcessor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcher(buffer, context), UBSE_OK);
+    MOCKER(funcSameNode).reset();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).reset();
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId).reset();
     masterNodeId = "2";
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
@@ -263,16 +269,28 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmCreateDispatcherWithAffinity)
         .stubs().with(any(), outBound(ptr), any(), any(), any())
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
+    election::UbseRoleInfo masterInfoWithAffinity{"1", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfoWithAffinity)).will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcherWithAffinity(buffer, context), UBSE_ERROR);
     EXPECT_EQ(dispatcher.MemShmCreateDispatcherWithAffinity(buffer, context), UBSE_ERROR_NULLPTR);
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameAffinity = &UbseComModule::RpcSend<UbseMemShareBorrowReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(funcSameAffinity).stubs().will(returnValue(UBSE_OK));
     MOCKER(AsyncMemShmBorrowProcessor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcherWithAffinity(buffer, context), UBSE_OK);
+    MOCKER(funcSameAffinity).reset();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).reset();
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId).reset();
+    MOCKER(ubse::election::UbseGetMasterInfo).reset();
     masterNodeId = "2";
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
         .stubs()
         .with(outBound(localNodeId), outBound(masterNodeId))
         .will(returnValue(UBSE_OK));
+    masterInfoWithAffinity = {"2", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfoWithAffinity)).will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcherWithAffinity(buffer, context), UBSE_ERROR_NULLPTR);
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     EXPECT_NE(dispatcher.MemShmCreateDispatcherWithAffinity(buffer, context), UBSE_OK);
@@ -297,16 +315,28 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmAttachDispatcher)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
+    election::UbseRoleInfo masterInfoAttach{"1", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfoAttach)).will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmAttachDispatcher(buffer, context), UBSE_ERROR);
     EXPECT_EQ(dispatcher.MemShmAttachDispatcher(buffer, context), UBSE_ERROR_NULLPTR);
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameAttach = &UbseComModule::RpcSend<UbseMemShareAttachReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(funcSameAttach).stubs().will(returnValue(UBSE_OK));
     MOCKER(AsyncMemShmAttachProcessor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmAttachDispatcher(buffer, context), UBSE_OK);
+    MOCKER(funcSameAttach).reset();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).reset();
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId).reset();
+    MOCKER(ubse::election::UbseGetMasterInfo).reset();
     masterNodeId = "2";
     MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
         .stubs()
         .with(outBound(localNodeId), outBound(masterNodeId))
         .will(returnValue(UBSE_OK));
+    masterInfoAttach = {"2", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfoAttach)).will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmAttachDispatcher(buffer, context), UBSE_ERROR_NULLPTR);
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     EXPECT_NE(dispatcher.MemShmAttachDispatcher(buffer, context), UBSE_OK);
@@ -398,28 +428,36 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmDetachDispatcher)
     UbseRequestContext context;
     UbseMemControllerDispatcher dispatcher;
     EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_ERROR);
-    std::string localNodeId = "1";
-    std::string masterNodeId = "1";
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
-        .stubs()
-        .with(outBound(localNodeId), outBound(masterNodeId))
-        .will(returnValue(UBSE_OK));
+    election::UbseRoleInfo currentRoleInfo{"1", election::ELECTION_ROLE_AGENT, 1};
+    MOCKER(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs().with(outBound(currentRoleInfo)).will(returnValue(UBSE_OK));
     MOCKER(&UbseMemControllerDispatcher::BufferToShmDetachReq)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::election::UbseElectionModule> electionModule = std::make_shared<ubse::election::UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    election::Node master{"1"};
+    MOCKER(&ubse::election::UbseElectionModule::GetLocalMasterNode)
+        .stubs().with(outBound(master)).will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_ERROR);
-    EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_ERROR);
-    MOCKER(AsyncMemShmDetachProcessor).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_OK);
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId).reset();
-    masterNodeId = "2";
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
-        .stubs()
-        .with(outBound(localNodeId), outBound(masterNodeId))
-        .will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_ERROR);
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameDetach = &UbseComModule::RpcSend<UbseMemShareDetachReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(funcSameDetach).stubs().will(returnValue(UBSE_OK));
+    MOCKER(AsyncMemShmDetachProcessor).stubs().will(returnValue(UBSE_OK));
+    EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_OK);
+    MOCKER(funcSameDetach).reset();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).reset();
+    MOCKER(&ubse::election::UbseElectionModule::GetLocalMasterNode).reset();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>).reset();
+    MOCKER(&UbseContext::GetModule<ubse::election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    master = {"2"};
+    MOCKER(&ubse::election::UbseElectionModule::GetLocalMasterNode)
+        .stubs().with(outBound(master)).will(returnValue(UBSE_OK));
+    EXPECT_NE(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_OK);
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    EXPECT_NE(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_OK);
     const auto func = &UbseComModule::RpcSend<UbseMemShareDetachReqSimpoPtr, UbseBaseMessagePtr>;
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmDetachDispatcher(buffer, context), UBSE_OK);
@@ -431,28 +469,29 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmReturnDispatcher)
     UbseRequestContext context;
     UbseMemControllerDispatcher dispatcher;
     EXPECT_NE(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_OK);
-    std::string localNodeId = "1";
-    std::string masterNodeId = "1";
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
-        .stubs()
-        .with(outBound(localNodeId), outBound(masterNodeId))
-        .will(returnValue(UBSE_OK));
+    election::UbseRoleInfo currentRoleInfo{"1", election::ELECTION_ROLE_AGENT, 1};
+    MOCKER(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs().with(outBound(currentRoleInfo)).will(returnValue(UBSE_OK));
+    election::UbseRoleInfo masterInfo{"1", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
     MOCKER(&UbseMemControllerDispatcher::BufferToShmReturnReq)
         .stubs()
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_ERROR);
     EXPECT_EQ(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_ERROR_NULLPTR);
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameReturn = &UbseComModule::RpcSend<UbseMemReturnReqSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER(funcSameReturn).stubs().will(returnValue(UBSE_OK));
     MOCKER(AsyncMemShmReturnProcessor).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_OK);
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId).reset();
-    masterNodeId = "2";
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
-        .reset();
-    MOCKER(&UbseMemControllerDispatcher::GetMasterAndLocalNodeId)
-        .stubs()
-        .with(outBound(localNodeId), outBound(masterNodeId))
-        .will(returnValue(UBSE_OK));
+    MOCKER(funcSameReturn).reset();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).reset();
+    MOCKER(ubse::election::UbseGetMasterInfo).reset();
+    masterInfo = {"2", election::ELECTION_ROLE_MASTER, 1};
+    MOCKER(ubse::election::UbseGetMasterInfo)
+        .stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
     EXPECT_NE(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_OK);
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
     EXPECT_NE(dispatcher.MemShmReturnDispatcher(buffer, context), UBSE_OK);
