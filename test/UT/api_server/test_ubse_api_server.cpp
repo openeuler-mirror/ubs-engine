@@ -34,11 +34,11 @@ void TestUbseApiServer::TearDown()
 
 TEST_F(TestUbseApiServer, RegisterIpcHandler)
 {
-    auto ret = RegisterIpcHandler(0, 0, nullptr);
+    auto ret = RegisterIpcHandler(0, 0, nullptr, "test.object");
     EXPECT_NE(ret, UBSE_OK);
     std::shared_ptr<UbseApiServerModule> module = std::make_shared<UbseApiServerModule>();
     MOCKER(&context::UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(module));
-    ret = RegisterIpcHandler(0, 0, nullptr);
+    ret = RegisterIpcHandler(0, 0, nullptr, "test.object");
     EXPECT_EQ(ret, UBSE_OK);
 }
 } // namespace ubse::ut::api::server
