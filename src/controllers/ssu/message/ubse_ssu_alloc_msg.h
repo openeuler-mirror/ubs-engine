@@ -16,10 +16,21 @@
 #include <string>
 #include "ubse_com.h"
 #include "ubse_ssu_service.h"
+#include "ubse_serial_util.h"
 
 namespace ubse::ssu::message {
 
 using namespace ubse::plugin::service::ssu;
+
+// 序列化/反序列化操作符声明，供其他消息模块复用
+ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                             const UbseSsuNameSpaceInfo &info);
+ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                               UbseSsuNameSpaceInfo &info);
+ubse::serial::UbseSerialization &operator<<(ubse::serial::UbseSerialization &serializer,
+                                             const UbseSsuAllocResult &result);
+ubse::serial::UbseDeSerialization &operator>>(ubse::serial::UbseDeSerialization &deserializer,
+                                               UbseSsuAllocResult &result);
 
 struct UbseSsuAllocReq {
     std::string requestId;

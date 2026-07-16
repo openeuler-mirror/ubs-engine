@@ -13,11 +13,14 @@
 #include "ubse_ssu_controller_module.h"
 
 #include <array>
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_service_registry.h"
 #include "ubse_ssu_http_handler.h"
+#include "ubse_ssu_rpc_processor.h"
 #include "ubse_ssu_service_imp.h"
+#include "ubse_thread_pool_module.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -25,17 +28,33 @@ namespace ubse::ssu::controller {
 using namespace ubse::log;
 using namespace ubse::module;
 using namespace ubse::common::def;
+using namespace ubse::context;
+using namespace ubse::task_executor;
 using ubse::plugin::service::ssu::UbseSsuService;
 using ubse::ssu::service::UbseSsuServiceImp;
 
-// 注册为插件模块，依赖UbseVipModule（北向HTTP走VIP HTTP Server，需确保VIP模块就绪后再注册路由）
-static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 1>{
+// 注册为插件模块，依赖UbseComModule（RPC通信）和UbseVipModule（北向HTTP走VIP HTTP Server）
+// 需确保依赖模块就绪后再注册路由
+static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 2>{
+    UbseOptionModule::UbseComModule,
     UbseOptionModule::UbseVipModule,
 };
 PLUGIN_MODULE_IMPL(UbseSsuControllerModule, G_UBSE_SSU_DEPS);
 
 UbseResult UbseSsuControllerModule::Initialize()
 {
+    auto executorModule = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    if (executorModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get task executor module";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 创建SSU控制器任务执行器，数值参考mem 18个线程，队列容量1000
+    auto ret = executorModule->Create("ubseSsuController", 18, 1000);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to create ssu controller executor, " << FormatRetCode(ret);
+        return ret;
+    }
+
     UBSE_LOG_INFO << "UbseSsuControllerModule Initialize";
     return UBSE_OK;
 }
@@ -66,6 +85,13 @@ UbseResult UbseSsuControllerModule::Start()
     ret = UbseSsuServiceImp::GetInstance().StartClearTimer();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to start clear timer, ret=" << ret;
+        return ret;
+    }
+
+    // 注册SSU RPC Handler
+    ret = UbseSsuRpcProcessor::RegHandler();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register ssu rpc handlers, ret=" << ret;
         return ret;
     }
 

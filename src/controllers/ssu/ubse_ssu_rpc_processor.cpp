@@ -16,10 +16,11 @@
 #include "debt/ubse_ssu_debt_ledger.h"
 #include "framework/misc/ubse_future_mgr.h"
 #include "message/ubse_ssu_alloc_msg.h"
+#include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "message/ubse_ssu_free_msg.h"
 #include "message/ubse_ssu_perm_msg.h"
+#include "message/ubse_ssu_query_verify_msg.h"
 #include "message/ubse_ssu_status_update_msg.h"
-#include "message/ubse_ssu_attach_detach_verify_msg.h"
 #include "message/ubse_ssu_sync_resp_msg.h"
 #include "trace_context.h"
 #include "ubse_com.h"
@@ -495,6 +496,88 @@ static void HandlePermRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     SetReplySyncResp(resp);
 }
 
+// ====== 查询类接口处理器 ======
+
+// 发送GetNsStats响应到agent
+static void SendSsuGetNsStatsRespToAgent(const std::string &agentNodeId, const UbseSsuGetNsStatsResp &resp)
+{
+    UbseSsuGetNsStatsRespMsg respMsg(resp);
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_RESP));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "SendSsuGetNsStatsRespToAgent: get endpoint failed, requestId=" << resp.requestId;
+        return;
+    }
+    UbseSsuSyncRespMsg ackMsg;
+    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "SendSsuGetNsStatsRespToAgent: RpcSend failed, " << FormatRetCode(ret)
+                       << ", requestId=" << resp.requestId;
+    }
+}
+
+// master端处理GetNsStats查询请求
+static void HandleGetNsStatsReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuGetNsStatsReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize get ns stats req, reqSize=" << reqSize;
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    std::string traceId = TraceContext::GetTraceId();
+    auto req = request.GetGetNsStatsReq();
+    UBSE_LOG_INFO << "Received get ns stats req, requestId=" << req.requestId << ", name=" << req.name
+                  << ", requestNodeId=" << req.requestNodeId;
+
+    auto executor = utils::GetSsuExecutor();
+    if (executor == nullptr) {
+        UbseSsuGetNsStatsResp respData;
+        respData.requestId = req.requestId;
+        respData.errorCode = UBSE_ERROR;
+        SendSsuGetNsStatsRespToAgent(req.requestNodeId, respData);
+        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+
+    executor->Execute([req = std::move(req), traceId = std::move(traceId)]() {
+        TraceContext::SetTraceId(traceId);
+        auto &controller = UbseSsuServiceImp::GetInstance();
+        UbseSsuGetNsStatsResp respData;
+        respData.requestId = req.requestId;
+        respData.errorCode = controller.GetNsStats(req.name, respData.statsList, req.identityInfo);
+        if (respData.errorCode != UBSE_OK) {
+            UBSE_LOG_ERROR << "GetNsStats failed, " << FormatRetCode(respData.errorCode)
+                           << ", requestId=" << req.requestId << ", name=" << req.name;
+        }
+        SendSsuGetNsStatsRespToAgent(req.requestNodeId, respData);
+        TraceContext::Clear();
+    });
+    SetReplySyncResp(resp);
+}
+
+// agent端处理GetNsStats查询响应
+static void HandleGetNsStatsRespReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                         std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuGetNsStatsRespMsg response;
+    if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize get ns stats resp";
+        SetReplySyncResp(resp, UBSE_ERROR);
+        return;
+    }
+    auto respData = response.GetGetNsStatsResp();
+    UBSE_LOG_INFO << "Received ssu get ns stats response, requestId=" << respData.requestId
+                  << ", errorCode=" << respData.errorCode << ", count=" << respData.statsList.size();
+    if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
+        UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for get ns stats response";
+    }
+    SetReplySyncResp(resp);
+}
+
 // 注册SSU分配请求和响应处理器
 uint32_t UbseSsuRpcProcessor::RegisterAllocHandlers()
 {
@@ -608,6 +691,27 @@ uint32_t UbseSsuRpcProcessor::RegisterRemovePermHandlers()
     return UBSE_OK;
 }
 
+// 注册SSU查询类接口请求和响应处理器
+uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
+{
+    // GetNsStats
+    auto getNsStatsReqEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ), HandleGetNsStatsReqReceiver);
+    if (getNsStatsReqEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register get ns stats req receiver";
+        return UBSE_ERROR;
+    }
+    auto getNsStatsRespEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_RESP), HandleGetNsStatsRespReceiver);
+    if (getNsStatsRespEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register get ns stats resp receiver";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
 // 注册所有SSU相关的RPC处理器
 uint32_t UbseSsuRpcProcessor::RegHandler()
 {
@@ -644,6 +748,12 @@ uint32_t UbseSsuRpcProcessor::RegHandler()
     ret = RegisterRemovePermHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterRemovePermHandlers failed, " << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    ret = RegisterQueryHandlers();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "RegisterQueryHandlers failed, " << FormatRetCode(ret);
         return UBSE_ERROR;
     }
 

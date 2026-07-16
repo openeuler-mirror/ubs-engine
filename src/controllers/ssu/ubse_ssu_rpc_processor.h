@@ -28,6 +28,7 @@ private:
     static uint32_t RegisterAddPermHandlers();
     static uint32_t RegisterAttachDetachVerifyHandlers();
     static uint32_t RegisterRemovePermHandlers();
+    static uint32_t RegisterQueryHandlers();
 };
 } // namespace ubse::ssu::controller
 
