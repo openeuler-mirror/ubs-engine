@@ -20,12 +20,16 @@
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
 #include "ubse_str_util.h"
+#include "ubse_lcne_module.h"
+#include "ubse_context.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace rapidjson;
+using namespace ubse::mti;
+using namespace context;
 
 const std::string KEY_ADD = "huawei-vbussw-service:ub-memory-decoder";
 const std::string KEY_DELETE = "huawei-vbussw-service:ub-memory-decoder-delete";
@@ -56,19 +60,18 @@ bool Convert2Uint64(const std::string &str, uint64_t &value)
 UbseResult BuildAddReqStr(const UbseMamiMemImportInfo &importInfo,
     const ubse::adapter_plugins::mti::UbseDecoderTrustRingData &trustRingData, std::string &body)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI_MEM] Get information of current node failed, " << FormatRetCode(ret);
-        return ret;
-    }
-
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+ 	    return UBSE_ERROR_MODULE_LOAD_FAILED;
+ 	}
+    std::string slotId = module->GetCurSlotId();
     Document doc;
     doc.SetObject();
     auto &allocator = doc.GetAllocator();
     Value innerObj(kObjectType);
 
     try {
-        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(curNodeInfo.nodeId)), allocator);
+        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(slotId)), allocator);
     } catch (...) {
         UBSE_LOG_ERROR << "Build slot id failed, " << FormatRetCode(UBSE_ERROR);
         return UBSE_ERROR;
@@ -105,11 +108,11 @@ UbseResult BuildAddReqStr(const UbseMamiMemImportInfo &importInfo,
 
 UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw &drawInfo, const std::string &key, std::string &body)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI_MEM] Get information of current node failed, " << FormatRetCode(ret);
-        return ret;
-    }
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+ 	    return UBSE_ERROR_MODULE_LOAD_FAILED;
+ 	}
+    std::string slotId = module->GetCurSlotId();
 
     Document doc;
     doc.SetObject();
@@ -117,7 +120,7 @@ UbseResult BuildBaseReqStr(const UbseMamiMemWithdraw &drawInfo, const std::strin
     Value innerObj(kObjectType);
 
     try {
-        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(curNodeInfo.nodeId)), allocator);
+        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(slotId)), allocator);
     } catch (...) {
         return UBSE_ERROR;
     }

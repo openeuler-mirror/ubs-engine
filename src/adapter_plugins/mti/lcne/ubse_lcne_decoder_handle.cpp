@@ -17,22 +17,27 @@
 #include "ubse_http_module.h"
 #include "ubse_json_util.h"
 #include "ubse_logger.h"
+#include "ubse_lcne_module.h"
+#include "ubse_context.h"
 
 namespace ubse::lcne {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
 using namespace rapidjson;
+using namespace ubse::mti;
+using namespace context;
+
 const std::string KEY_QUERY = "huawei-vbussw-service:ub-memory-handle";
 const std::string DECODER_HANDLE_URL = "/restconf/operations/huawei-vbussw-service:ub-memory-handle";
 
 UbseResult BuildReqStr(const UbseMamiMemHandleQueryInfo &queryInfo, std::string &body)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    if (const auto ret = UbseGetCurrentNodeInfo(curNodeInfo); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[MTI_MEM] Get information of current node failed, " << FormatRetCode(ret);
-        return ret;
-    }
+    auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
+    if (module == nullptr) {
+ 	    return UBSE_ERROR_MODULE_LOAD_FAILED;
+ 	}
+    std::string slotId = module->GetCurSlotId();
 
     Document doc;
     doc.SetObject();
@@ -40,7 +45,7 @@ UbseResult BuildReqStr(const UbseMamiMemHandleQueryInfo &queryInfo, std::string 
     Value innerObj(kObjectType);
 
     try {
-        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(curNodeInfo.nodeId)), allocator);
+        innerObj.AddMember("slot-id", static_cast<uint64_t>(std::stoull(slotId)), allocator);
     } catch (...) {
         return UBSE_ERROR;
     }

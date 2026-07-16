@@ -94,7 +94,7 @@ TEST_F(TestUbseMemControllerCommonHelper, ImportToAddDecoderEntryTest)
                    .flag = 0x87654321,
                    .handle = 0xABCDEF0123456789};
     auto res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
-    EXPECT_EQ(UBSE_ERROR, res);
+    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, res);
 }
 
 TEST_F(TestUbseMemControllerCommonHelper, ImportToAddDecoderEntryNotPreOnlineTest)
@@ -112,7 +112,7 @@ TEST_F(TestUbseMemControllerCommonHelper, ImportToAddDecoderEntryNotPreOnlineTes
                    .flag = 0x87654321,
                    .handle = 0xABCDEF0123456789};
     auto res = ImportToAddDecoderEntry(chipDiePair, importObj.exportObmmInfo, importParam, importObj.status);
-    EXPECT_EQ(UBSE_ERROR, res);
+    EXPECT_EQ(UBSE_ERROR_MODULE_LOAD_FAILED, res);
 }
 
 TEST_F(TestUbseMemControllerCommonHelper, UnImportToAddDecoderEntryTest)

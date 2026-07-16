@@ -18,6 +18,7 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_lcne_module.h"
 #include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::ut::lcne {
@@ -37,9 +38,10 @@ void TestUbseLcneDecoderEntry ::TearDown()
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntrySuccess)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
         "huawei-vbussw-service:ub-memory-decoder": {
@@ -64,18 +66,19 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntrySuccess)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryGetNodeInfoFailed)
 {
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(static_cast<std::shared_ptr<ubse::mti::UbseLcneModule>>(nullptr)));
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
     UbseMamiMemImportResult importResult{};
     auto ret = UbseLcneDecoderEntry::AddDecoderEntry(ubseMamiMemImportInfo, importResult);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryHttpSendFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).stubs().will(returnValue(UBSE_ERROR));
 
@@ -87,16 +90,11 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryHttpSendFailed)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
-    UbseHttpResponse rsp{};
-    rsp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_BAD_REQ);
-    MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
-        .stubs()
-        .with(mockcpp::any(), mockcpp::any(), outBound(rsp))
-        .will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).stubs().will(returnValue(UBSE_OK));
 
     UbseMamiMemImportInfo ubseMamiMemImportInfo{};
@@ -107,9 +105,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseFailed)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseEmpty)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = "";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
@@ -125,9 +124,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryResponseEmpty)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryHasError)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
         "huawei-vbussw-service:ub-memory-decoder": {
@@ -151,9 +151,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryHasError)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseFieldFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
         "huawei-vbussw-service:ub-memory-decoder": {
@@ -210,9 +211,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseFieldFailed)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseKeyFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
         "huawei-vbussw-service:1234": {
@@ -253,9 +255,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryParseKeyFailed)
 
 TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
         "huawei-vbussw-service:ub-memory-decoder": {
@@ -279,9 +282,10 @@ TEST_F(TestUbseLcneDecoderEntry, AddDecoderEntryFailed)
 
 TEST_F(TestUbseLcneDecoderEntry, DeleteDecoderEntrySuccess)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
        "huawei-vbussw-service:ub-memory-decoder-delete": {

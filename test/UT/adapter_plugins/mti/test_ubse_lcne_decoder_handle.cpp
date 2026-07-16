@@ -18,6 +18,7 @@
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_lcne_module.h"
 #include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::ut::lcne {
@@ -37,9 +38,10 @@ void TestUbseLcneDecoderHandle ::TearDown()
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesSuccess)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
   "huawei-vbussw-service:ub-memory-handle": {
@@ -84,9 +86,10 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesSuccess)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesEmptySuccess)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
   "huawei-vbussw-service:ub-memory-handle": {
@@ -109,18 +112,19 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesEmptySuccess)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesGetInfoFailed)
 {
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(static_cast<std::shared_ptr<ubse::mti::UbseLcneModule>>(nullptr)));
     UbseMamiMemHandleQueryInfo queryInfo{};
     std::vector<UbseMamiMemHandleValue> handleValues;
     auto ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
-    EXPECT_EQ(ret, UBSE_ERROR);
+    EXPECT_EQ(ret, UBSE_ERROR_MODULE_LOAD_FAILED);
 }
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesHttpSendFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest).stubs().will(returnValue(UBSE_ERROR));
 
@@ -132,9 +136,10 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesHttpSendFailed)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = "";
     MOCKER_CPP(&UbseHttpModule::UbseHttpPostJsonRequest)
@@ -151,9 +156,10 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseFailed)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseHasParseError)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
   "huawei-vbussw-service:ub-memory-handle": {{{{
@@ -188,9 +194,10 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseHasParseError)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseKeyParseFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
   "huawei-vbussw-service:ub-memory-handle123": {
@@ -239,9 +246,10 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseKeyParseFailed)
 
 TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseArrayParseFailed)
 {
-    election::UbseRoleInfo curNodeInfo{};
-    curNodeInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    std::shared_ptr<ubse::mti::UbseLcneModule> module = std::make_shared<ubse::mti::UbseLcneModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::mti::UbseLcneModule>).stubs().will(returnValue(module));
+    auto getSlotIdFunc = &ubse::mti::UbseLcneModule::GetCurSlotId;
+    MOCKER_CPP(getSlotIdFunc).stubs().will(returnValue(std::string("1")));
 
     std::string body = R"({
   "huawei-vbussw-service:ub-memory-handle": {

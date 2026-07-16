@@ -22,6 +22,11 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMemOperationRespSimpo::Serialize()
 {
     UbseSerialization out;
+    out << mErrCode;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "Failed to serialize broadcast rsp";
+        return UBSE_ERROR;
+    }
     if (!UbseMemOperationRespSerialize(out, resp_)) {
         UBSE_LOG_ERROR << "Serialize failed.";
         return UBSE_ERROR;
@@ -38,6 +43,11 @@ UbseResult UbseMemOperationRespSimpo::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
+    in >> mErrCode;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "Failed to deserialize broadcast rsp";
+        return UBSE_ERROR;
+    }
     if (!UbseMemOperationRespDeserialize(in, resp_)) {
         UBSE_LOG_ERROR << "Deserialize failed.";
         return UBSE_ERROR;
