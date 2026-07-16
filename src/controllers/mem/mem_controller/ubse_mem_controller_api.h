@@ -54,6 +54,9 @@ void Stop();
 uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string &importNodeId,
                               UbseMemBorrowImportBaseObj &importObj, const bool isFdOrAddr = false);
 
+uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::string &importNodeId,
+                              UbseMemBorrowImportBaseObj &importObj);
+
 uint32_t GetCnaInfoForNumaBorrow(const std::string &exportNodeId, const std::string &importNodeId,
                                  UbseMemNumaBorrowImportObj &importObj);
 
