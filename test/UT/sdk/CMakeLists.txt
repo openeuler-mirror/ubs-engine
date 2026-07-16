@@ -5,4 +5,5 @@ target_link_libraries(ubs-engine_ubse_sdk_ut
         ubse_node_controller
         ubse_ipc_client
         mem_controller
+        npu_controller
 )
