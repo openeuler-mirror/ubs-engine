@@ -103,7 +103,7 @@ add_subdirectory(adapter_plugins/urma_uvs)
 add_subdirectory(adapter_plugins/ssu)
 add_subdirectory(adapter_plugins/bandbridge)
 add_subdirectory(node_mgr)
-add_subdirectory(ssu-scheduler)
+add_subdirectory(controllers)
 
 add_independent_exec_ut(${UT_BINARY})
 

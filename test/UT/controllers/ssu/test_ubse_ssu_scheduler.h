@@ -24,7 +24,7 @@
 #include "ubse_ssu_scheduler.h"
 
 namespace ubse::ssu::scheduler::ut {
-    
+
 using namespace ubse::adapter_plugins::ssu::def;
 
 class TestUbseSsuScheduler : public testing::Test {
