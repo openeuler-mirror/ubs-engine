@@ -22,6 +22,7 @@ namespace ubse::node_controller::ut {
 
 void TestUbseNodeController::SetUp()
 {
+    UbseNodeController::GetInstance().devDirConnectInfo.clear();
     Test::SetUp();
     UbseNodeInfo nodeInfo{};
     nodeInfo.nodeId = "1";

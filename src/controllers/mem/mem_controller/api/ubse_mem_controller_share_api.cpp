@@ -22,9 +22,8 @@
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_decoder_utils.h"
-#include "ubse_mem_scheduler.h"
+#include "ubse_mem_scheduler_impl.h"
 #include "ubse_mem_sign_verifier.h"
-#include "ubse_mem_topology_info_manager.h"
 #include "ubse_mem_util.h"
 #include "ubse_node.h"
 #include "ubse_node_controller.h"
@@ -144,7 +143,7 @@ static UbseResult ShareAllocate(const UbseMemShareBorrowReq& req, UbseMemShareBo
     auto ret = UBSE_OK;
     while (retryTimes--) {
         NodeControllerReadLock(req);
-        ret = UbseMemShmExportObjStateChangeHandler(exportObj);
+        ret = SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
         NodeControllerReadUnLock(req);
         if (ret == UBSE_SCHEDULER_ERROR_NODE_RECONCILE) {
             std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
@@ -242,7 +241,7 @@ uint32_t HandleSendExportError(UbseMemOperationResp& resp, const UbseMemShareBor
 
     auto copy = exportObj;
     copy.status.state = UBSE_MEM_STATE_FAILED;
-    UbseMemShmExportObjStateChangeHandler(copy);
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 
     return BuildOperationRespWhenFail(
         resp, req.name, req.requestNodeId,
@@ -994,7 +993,7 @@ static uint32_t ShareExportReturnCallback(const std::string& exportNodeId, UbseM
         EraseShareExport(exportObj);
         UBSE_LOG_INFO << "shm callback exportObjStateChange, name=" << exportObj.req.name
                       << ", requestId=" << exportObj.req.requestId;
-        UbseMemShmExportObjStateChangeHandler(exportObj);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
         UBSE_LOG_INFO << "shm return, name=" << exportObj.req.name << ", requestId=" << exportObj.req.requestId;
         // requestNodeId为空则当前场景为对账删除导出账本
         if (requestNodeId.empty()) {
@@ -1042,13 +1041,13 @@ uint32_t ShareExportMasterCallback(const std::string& exportNodeId, UbseMemShare
         if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
             EraseShareExport(exportObj);
             copy.status.state = UBSE_MEM_STATE_FAILED;
-            UbseMemShmExportObjStateChangeHandler(copy);
+            SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
             return BuildOperationRespWhenFail(resp, exportObj.req.name, exportObj.req.requestNodeId, "Failed to export",
                                               exportObj.errorCode, MemOperationType::SHARED_BORROW);
         }
         ShareExportFillResp(resp, exportObj);
         ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
-        UbseMemShmExportObjStateChangeHandler(copy);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
         UBSE_LOG_INFO << "this is shm callback before shm exportObjstateChange, name=" << exportObj.req.name
                       << ", requestId=" << exportObj.req.requestId;
         return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_BORROW);
@@ -1286,7 +1285,7 @@ static uint32_t ShareImportMasterCreateCallback(UbseMemShareBorrowImportObj& imp
         ShareImportFillResp(resp, importObj);
         UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
                       << ", requestId=" << importObj.req.requestId;
-        UbseMemShmImportObjStateChangeHandler(importObj);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_ATTACH); ret != UBSE_OK) {
             BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, importObj.req.name, MemType::SHM,
                                 importObj.req.size, importObj.algoResult.exportNumaInfos[0].nodeId,
@@ -1318,7 +1317,7 @@ static uint32_t ShareImportMasterDestroyCallback(UbseMemShareBorrowImportObj& im
         EraseShareImport(importObj);
         UBSE_LOG_INFO << "this is shm callback before shm importObjstateChange, name=" << importObj.req.name
                       << ", requestId=" << importObj.req.requestId;
-        UbseMemShmImportObjStateChangeHandler(importObj);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_DETACH);
         if (ret != UBSE_OK) {
             BorrowFailedAdvice(
@@ -1494,11 +1493,11 @@ uint32_t AddShareImport(const UbseMemShareBorrowImportObj& importObj)
     auto copy = importObj;
     if (copy.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseShareImport(copy);
-        return UbseMemShmImportObjStateChangeHandler(copy);
+        return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     }
     UBSE_LOG_INFO << "Add share import, name=" << copy.req.name << ", import node=" << importObj.importNodeId;
     ShareImportUpdateState(copy, copy.status.state);
-    return UbseMemShmImportObjStateChangeHandler(copy);
+    return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 }
 
 uint32_t AddShareExport(const UbseMemShareBorrowExportObj& exportObj)
@@ -1506,11 +1505,11 @@ uint32_t AddShareExport(const UbseMemShareBorrowExportObj& exportObj)
     auto copy = exportObj;
     if (copy.status.state == UBSE_MEM_EXPORT_DESTROYED) {
         EraseShareExport(copy);
-        return UbseMemShmExportObjStateChangeHandler(copy);
+        return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     }
     UBSE_LOG_INFO << "Add share export, name=" << copy.req.name;
     ShareExportUpdateState(copy, copy.status.state);
-    return UbseMemShmExportObjStateChangeHandler(copy);
+    return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 }
 
 uint32_t DeleteShareExport(const UbseMemShareBorrowExportObj& exportObj)

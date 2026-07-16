@@ -10,8 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "test_ubse_ras.h"
+#include <climits>
+
 #include "ubse_error.h"
+#include "test_ubse_ras.h"
 
 namespace ubse::ras::ut {
 void TestUbseRas::SetUp()

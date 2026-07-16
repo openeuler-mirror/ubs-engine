@@ -72,6 +72,7 @@ constexpr uint32_t DEFAULTTIMEOUT = 60;
 constexpr uint32_t DEFAULTHBTIMEOUT = 30;
 constexpr uint32_t UBSE_CLOS_MAX_NODE_NUM = 1024;
 
+constexpr uint16_t MAX_PERCENT = 100;
 const uint16_t MIN_PORT = 1024;
 const uint16_t MAX_PORT = 65535;
 const uint32_t DEFAULT_TCP_SERVER_PORT = 8082;

@@ -52,7 +52,6 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_controller
         api_server
         syssentry
-        rm_mem_algo_static
         ubse_node_controller
         ubse_plugin
         ubse_storage
@@ -108,7 +107,6 @@ add_subdirectory(serial_tool)
 add_subdirectory(thread_pool)
 add_subdirectory(utils)
 add_subdirectory(ras)
-add_subdirectory(algorithm)
 add_subdirectory(mem_scheduler)
 add_subdirectory(node_controller)
 add_subdirectory(api_server)
@@ -116,7 +114,7 @@ add_subdirectory(plugin_mgr)
 add_subdirectory(adapter_plugins/mmi)
 add_subdirectory(adapter_plugins/mti)
 add_subdirectory(adapter_plugins/syssentry)
-add_subdirectory(adapter_plugins/bandbridge)
+
 add_subdirectory(storage)
 add_subdirectory(sdk)
 add_subdirectory(controllers/npu)

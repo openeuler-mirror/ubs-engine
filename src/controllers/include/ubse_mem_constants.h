@@ -41,7 +41,7 @@ constexpr int16_t INVALID_WATER_MARK = 0;
 constexpr auto INVALID_META_STRID = "";
 constexpr int64_t INVALID_LEFT_SHAREMEM_SIZE = -1;
 constexpr uint16_t MAX_WAIT_COUT = 5;
-constexpr uint16_t MAX_PERCENT = 100;
+
 constexpr uint32_t UBSE_NOT_MASTER_ERROR = 998;
 constexpr uint32_t UBSE_ELECTION_NOT_INIT_ERROR = 997;
 constexpr int ONE_M = 1024 * 1024;
