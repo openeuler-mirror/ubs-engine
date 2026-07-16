@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 # ubs-engine is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -9,152 +9,64 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import ctypes
 from dataclasses import dataclass, field
+from enum import IntEnum
 from typing import List, Optional
-from ubse.ffi.ubs_engine_exceptions import UbsEngineInternalError
-# ====================== SSU 类型定义 ======================
-# 常量定义, 与C头文件ubs_engine_ssu.h保持一致
-UBS_SSU_MAX_NAME_LENGTH = 48 # 请求标识最大48个字符, 含结尾字符'\0'
-UBS_SSU_MAX_RESULT_NAME_LENGTH = 32 # 结果名称最大32个字符, 含结尾字符'\0'
-UBS_SSU_MAX_USER_NAME_LENGTH = 32 # 使用方进程运行用户名称最大长度, 含结尾字符'\0'
-UBS_SSU_MAX_TENANT_LENGTH = 17 # 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
-UBS_SSU_MAX_NQN_LENGTH = 69 # NVMe NQN最大长度69个字符, 含结尾字符'\0'
-UBS_SSU_MAX_EID_LENGTH = 17 # EID最大长度, 含结尾字符'\0'
-UBS_SSU_MAX_UUID_LENGTH = 37 # UUID标准长度37个字符, 含结尾字符'\0'
-UBS_SSU_MAX_DEV_PATH_LENGTH = 63 # 设备路径最大长度, 含结尾字符'\0'
-UBS_SSU_MAX_DEV_NAME_LENGTH = 33 # 聚合块设备名称最大长度, 含结尾字符'\0'
-UBS_SSU_RAID5_MIN_MEMBER_NUM = 3 # RAID5最少成员设备数
-UBS_SSU_GUID_LENGTH = 32 # GUID最大长度32个字符, 不含结尾字符'\0'
-# LBA格式, 值为对应字节数
+
+# ====================== SSU 常量定义 ======================
+# 与C头文件ubs_engine_ssu.h保持一致
+UBS_SSU_MAX_NAME_LENGTH = 48  # 请求标识最大48个字符, 含结尾字符'\0'
+UBS_SSU_MAX_RESULT_NAME_LENGTH = 32  # 结果名称最大32个字符, 含结尾字符'\0'
+UBS_SSU_MAX_USER_NAME_LENGTH = 32  # 使用方进程运行用户名称最大长度, 含结尾字符'\0'
+UBS_SSU_MAX_TENANT_LENGTH = 17  # 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
+UBS_SSU_MAX_NQN_LENGTH = 69  # NVMe NQN最大长度69个字符, 含结尾字符'\0'
+UBS_SSU_MAX_EID_LENGTH = 17  # EID最大长度, 含结尾字符'\0'
+UBS_SSU_MAX_UUID_LENGTH = 37  # UUID标准长度37个字符, 含结尾字符'\0'
+UBS_SSU_MAX_DEV_PATH_LENGTH = 63  # 设备路径最大长度, 含结尾字符'\0'
+UBS_SSU_MAX_DEV_NAME_LENGTH = 33  # 聚合块设备名称最大长度, 含结尾字符'\0'
+UBS_SSU_RAID5_MIN_MEMBER_NUM = 3  # RAID5最少成员设备数
+UBS_SSU_GUID_LENGTH = 32  # GUID最大长度32个字符, 不含结尾字符'\0'
+
+# 基本数据类型字节大小
+UBS_SSU_BYTE_SIZE = 1  # byte/uint8类型字节大小
+UBS_SSU_UINT16_SIZE = 2  # uint16类型字节大小
+UBS_SSU_UINT32_SIZE = 4  # uint32类型字节大小
+UBS_SSU_UINT64_SIZE = 8  # uint64类型字节大小
+
+
+# ====================== SSU 枚举类型 ======================
+
 class UbsSsuLbaFormat(IntEnum):
+    """LBA格式, 值为对应字节数"""
     FORMAT_512 = 512  # 512B
     FORMAT_4K = 4096  # 4K
 
-# 聚合RAID级别
+
 class UbsSsuRaidLevel(IntEnum):
+    """聚合RAID级别"""
     RAID0 = 0  # RAID0条带化
     RAID5 = 5  # RAID5条带化带校验
 
-# 条带化chunk大小(KB), 需为LBA格式的整数倍
+
 class UbsSsuChunkSize(IntEnum):
-    CHUNK_4K = 4     # 4KB
-    CHUNK_16K = 16   # 16KB
-    CHUNK_32K = 32   # 32KB
-    CHUNK_64K = 64   # 64KB
-    CHUNK_128K = 128 # 128KB
-    CHUNK_256K = 256 # 256KB
-    CHUNK_512K = 512 # 512KB
+    """条带化chunk大小(KB), 需为LBA格式的整数倍"""
+    CHUNK_4K = 4
+    CHUNK_16K = 16
+    CHUNK_32K = 32
+    CHUNK_64K = 64
+    CHUNK_128K = 128
+    CHUNK_256K = 256
+    CHUNK_512K = 512
 
-# 分配策略
+
 class UbsSsuAllocStrategy(IntEnum):
+    """分配策略"""
     STRIPED = 0  # 分布式策略, 尽量从多个设备均等分配, 适用于条带化编址使用场景
-    LINEAR = 1   # 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
+    LINEAR = 1  # 顺序策略, 尽量从单个设备分配, 适用于线性编址使用场景
 
 
-# 分配存储空间请求参数 C结构体
-class UbsSsuAllocSpaceReqT(ctypes.Structure):
-    _fields_ = [
-        ("name", ctypes.c_char * UBS_SSU_MAX_NAME_LENGTH),
-        ("ns_size", ctypes.c_uint64),
-        ("ns_num", ctypes.c_uint32),
-        ("lba_format", ctypes.c_int32),
-        ("strategy", ctypes.c_int32),
-        ("tenant", ctypes.c_char * UBS_SSU_MAX_TENANT_LENGTH),
-    ]
+# ====================== SSU 数据结构 ======================
 
-
-# 命名空间信息 C结构体
-class UbsSsuNamespaceInfoT(ctypes.Structure):
-    _fields_ = [
-        ("tgt_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),
-        ("tgt_nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),
-        ("ns_uuid", ctypes.c_char * UBS_SSU_MAX_UUID_LENGTH),
-        ("ns_id", ctypes.c_uint32),
-        ("ns_dev_path", ctypes.c_char * UBS_SSU_MAX_DEV_PATH_LENGTH),
-        ("ns_size", ctypes.c_uint64),
-        ("lba_format", ctypes.c_int32),
-    ]
-
-
-# 分配存储空间结果 C结构体
-class UbsSsuAllocResultT(ctypes.Structure):
-    _fields_ = [
-        ("name", ctypes.c_char * UBS_SSU_MAX_NAME_LENGTH),
-        ("strategy", ctypes.c_int32),
-        ("namespace_cnt", ctypes.c_uint32),
-        ("namespaces", ctypes.POINTER(UbsSsuNamespaceInfoT)),
-    ]
-
-
-# 挂载|卸载存储空间请求参数 C结构体
-class UbsSsuSpaceReqT(ctypes.Structure):
-    _fields_ = [
-        ("name", ctypes.c_char * UBS_SSU_MAX_NAME_LENGTH),
-        ("nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),
-        ("src_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),
-    ]
-
-
-# 挂载|卸载线性编址存储空间请求参数 C结构体
-class UbsSsuLinearSpaceReqT(ctypes.Structure):
-    _fields_ = [
-        ("name", ctypes.c_char * UBS_SSU_MAX_NAME_LENGTH),
-        ("nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),
-        ("src_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),
-        ("dev_name", ctypes.c_char * UBS_SSU_MAX_DEV_NAME_LENGTH),
-    ]
-
-
-# 挂载|卸载条带化编址存储空间请求参数 C结构体
-class UbsSsuStripedSpaceReqT(ctypes.Structure):
-    _fields_ = [
-        ("name", ctypes.c_char * UBS_SSU_MAX_NAME_LENGTH),
-        ("nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),
-        ("src_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),
-        ("dev_name", ctypes.c_char * UBS_SSU_MAX_DEV_NAME_LENGTH),
-        ("level", ctypes.c_int32),
-        ("chunk_size", ctypes.c_int32),
-    ]
-
-class UbsUbVfeT(ctypes.Structure):
-    _fields_ = [
-        ("slot_id", ctypes.c_uint8),   # 槽位ID
-        ("chip_id", ctypes.c_uint8),   # 芯片ID
-        ("die_id", ctypes.c_uint8),    # Die ID
-        ("pfe_id", ctypes.c_uint16),   # 物理功能单元ID
-        ("vfe_id", ctypes.c_uint16),   # 虚拟功能单元ID
-        ("vfe_guid", ctypes.c_char * UBS_SSU_GUID_LENGTH),               # vfe GUID
-        ("bind_bus_instance_guid", ctypes.c_char * UBS_SSU_GUID_LENGTH), # 绑定的总线实例GUID
-    ]
-
-class UbsUbFeT(ctypes.Structure):
-    _fields_ = [
-        ("slot_id", ctypes.c_uint8),          # 槽位ID
-        ("chip_id", ctypes.c_uint8),          # 芯片ID
-        ("die_id", ctypes.c_uint8),           # Die ID
-        ("pfe_id", ctypes.c_uint16),          # 物理功能单元ID
-        ("pfe_guid", ctypes.c_char * UBS_SSU_GUID_LENGTH), # pfe GUID
-        ("vfe_cnt", ctypes.c_uint8),          # VFE数量
-        ("vfe_list", ctypes.POINTER(UbsUbVfeT)),  # VFE列表指针（**关键：必须用POINTER**）
-    ]
-class UbsSsuConnectInfoT(ctypes.Structure):
-    _fields_ = [
-        ("src_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),      # Source EID
-        ("tgt_eid", ctypes.c_char * UBS_SSU_MAX_EID_LENGTH),      # Target EID
-        ("tgt_nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),      # Target NQN
-        ("host_nqn", ctypes.c_char * UBS_SSU_MAX_NQN_LENGTH),     # 默认NQN
-        ("ns_uuid", ctypes.c_char * UBS_SSU_MAX_UUID_LENGTH),     # 物理设备UUID
-        ("ns_id", ctypes.c_uint32),                               # 命名空间ID
-    ]
-
-class UbsSsuNsStatsT(ctypes.Structure):
-    _fields_ = [
-        ("ns_uuid", ctypes.c_char * UBS_SSU_MAX_UUID_LENGTH),  # 物理设备UUID
-        ("ns_id", ctypes.c_uint32),                           # 命名空间ID
-        ("total_size", ctypes.c_uint64),                      # 总容量（字节）
-        ("used_size", ctypes.c_uint64),                       # 已用容量（字节）
-    ]
 @dataclass
 class UbsSsuNamespaceInfo:
     """命名空间信息"""
@@ -163,25 +75,13 @@ class UbsSsuNamespaceInfo:
     ns_uuid: str = ""  # 物理设备UUID
     namespace_id: int = 0  # 命名空间ID
     ns_dev_path: str = ""  # 命名空间设备路径
-    ns_size: int = 0  # 分配的容量，单位字节
-    lba_format: UbsSsuLbaFormat  # LBA格式
+    ns_size: int = 0  # 分配的容量, 单位字节
+    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
 
     def __str__(self):
         return (
             f"Namespace(id={self.namespace_id}, path='{self.ns_dev_path}', "
             f"size={self.ns_size}, lba={self.lba_format.name})"
-        )
-
-    @staticmethod
-    def from_c_struct(c_info: UbsSsuNamespaceInfoT) -> "UbsSsuNamespaceInfo":
-        return UbsSsuNamespaceInfo(
-            tgt_eid=c_info.tgt_eid.decode('utf-8', errors='ignore'),
-            tgt_nqn=c_info.tgt_nqn.decode('utf-8', errors='ignore'),
-            ns_uuid=c_info.ns_uuid.decode('utf-8', errors='ignore'),
-            namespace_id=c_info.namespace_id,
-            ns_dev_path=c_info.ns_dev_path.decode('utf-8', errors='ignore'),
-            ns_size=c_info.ns_size,
-            lba_format=UbsSsuLbaFormat(c_info.lba_format),
         )
 
     def to_dict(self) -> dict:
@@ -199,8 +99,8 @@ class UbsSsuNamespaceInfo:
 @dataclass
 class UbsSsuAllocResult:
     """分配存储空间结果"""
-    name: str = ""  # 请求标识，最大48个字符
-    strategy: UbsSsuAllocStrategy # 分配策略
+    name: str = ""  # 请求标识, 最大48个字符
+    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.STRIPED  # 分配策略
     namespaces: List[UbsSsuNamespaceInfo] = field(default_factory=list)  # 命名空间信息列表
 
     def __str__(self):
@@ -208,23 +108,6 @@ class UbsSsuAllocResult:
             f"AllocResult(name='{self.name}', "
             f"strategy={self.strategy.name}, "
             f"namespace_cnt={len(self.namespaces)})"
-        )
-
-    @staticmethod
-    def from_c_struct(c_result: UbsSsuAllocResultT) -> "UbsSsuAllocResult":
-        namespaces = []
-        cnt = c_result.namespace_cnt
-        if cnt > 0 and c_result.namespaces:
-            for i in range(cnt):
-                ns_ptr = ctypes.cast(
-                    ctypes.addressof(c_result.namespaces.contents) + i * ctypes.sizeof(UbsSsuNamespaceInfoT),
-                    ctypes.POINTER(UbsSsuNamespaceInfoT)
-                )
-                namespaces.append(UbsSsuNamespaceInfo.from_c_struct(ns_ptr.contents))
-        return UbsSsuAllocResult(
-            name=c_result.name.decode('utf-8', errors='ignore'),
-            strategy=UbsSsuAllocStrategy(c_result.strategy),
-            namespaces=namespaces,
         )
 
     def to_dict(self) -> dict:
@@ -238,32 +121,12 @@ class UbsSsuAllocResult:
 @dataclass
 class UbsSsuAllocSpaceReq:
     """分配存储空间请求参数"""
-    name: str = ""  # 请求标识，最大48个字符
-    ns_size: int = 0 # 申请总容量，单位字节, 条带化策略时，需整除nsNum且整除后需要为chunkSize的整数倍
-    ns_num: int = 1  # 命名空间数量，等于1时，strategy不生效
-    lba_format: UbsSsuLbaFormat # LBA 格式
-    strategy: UbsSsuAllocStrategy # 分配策略
-    tenant: bytes = b''  # 请求方tenant（租户隔离标识）
-
-    def to_c_struct(self) -> UbsSsuAllocSpaceReqT:
-        c_req = UbsSsuAllocSpaceReqT()
-        # 先将整个name数组清零,确保null终止
-        name_bytes = self.name.encode('utf-8')[:UBS_SSU_MAX_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NAME_LENGTH):
-            c_req.name[i] = b'\0'
-        for i, b in enumerate(name_bytes):
-            c_req.name[i] = b
-        c_req.ns_size = self.ns_size
-        c_req.ns_num = self.ns_num
-        c_req.lba_format = int(self.lba_format)
-        c_req.strategy = int(self.strategy)
-        # 先将整个tenant数组清零
-        for i in range(UBS_SSU_MAX_TENANT_LENGTH):
-            c_req.tenant[i] = b'\0'
-        tenant_bytes = self.tenant[:UBS_SSU_MAX_TENANT_LENGTH - 1]
-        for i, b in enumerate(tenant_bytes):
-            c_req.tenant[i] = b
-        return c_req
+    name: str = ""  # 请求标识, 最大48个字符
+    ns_size: int = 0  # 申请总容量, 单位字节
+    ns_num: int = 1  # 命名空间数量, 等于1时strategy不生效
+    lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
+    strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.STRIPED  # 分配策略
+    tenant: bytes = b''  # 请求方tenant(租户隔离标识)
 
 
 @dataclass
@@ -273,25 +136,6 @@ class UbsSsuSpaceReq:
     nqn: str = ""  # Host 的 NVMe Qualified Name
     src_eid: str = ""  # 源EID
 
-    def to_c_struct(self) -> UbsSsuSpaceReqT:
-        c_req = UbsSsuSpaceReqT()
-        name_bytes = self.name.encode('utf-8')[:UBS_SSU_MAX_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NAME_LENGTH):
-            c_req.name[i] = b'\0'
-        for i, b in enumerate(name_bytes):
-            c_req.name[i] = b
-        nqn_bytes = self.nqn.encode('utf-8')[:UBS_SSU_MAX_NQN_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NQN_LENGTH):
-            c_req.nqn[i] = b'\0'
-        for i, b in enumerate(nqn_bytes):
-            c_req.nqn[i] = b
-        src_eid_bytes = self.src_eid.encode('utf-8')[:UBS_SSU_MAX_EID_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_EID_LENGTH):
-            c_req.src_eid[i] = b'\0'
-        for i, b in enumerate(src_eid_bytes):
-            c_req.src_eid[i] = b
-        return c_req
-
 
 @dataclass
 class UbsSsuLinearSpaceReq:
@@ -300,30 +144,6 @@ class UbsSsuLinearSpaceReq:
     nqn: str = ""  # Host 的 NVMe Qualified Name
     src_eid: str = ""  # 源EID
     dev_name: str = ""  # 聚合后的块设备名称, 由外部指定
-
-    def to_c_struct(self) -> UbsSsuLinearSpaceReqT:
-        c_req = UbsSsuLinearSpaceReqT()
-        name_bytes = self.name.encode('utf-8')[:UBS_SSU_MAX_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NAME_LENGTH):
-            c_req.name[i] = b'\0'
-        for i, b in enumerate(name_bytes):
-            c_req.name[i] = b
-        nqn_bytes = self.nqn.encode('utf-8')[:UBS_SSU_MAX_NQN_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NQN_LENGTH):
-            c_req.nqn[i] = b'\0'
-        for i, b in enumerate(nqn_bytes):
-            c_req.nqn[i] = b
-        src_eid_bytes = self.src_eid.encode('utf-8')[:UBS_SSU_MAX_EID_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_EID_LENGTH):
-            c_req.src_eid[i] = b'\0'
-        for i, b in enumerate(src_eid_bytes):
-            c_req.src_eid[i] = b
-        dev_name_bytes = self.dev_name.encode('utf-8')[:UBS_SSU_MAX_DEV_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_DEV_NAME_LENGTH):
-            c_req.dev_name[i] = b'\0'
-        for i, b in enumerate(dev_name_bytes):
-            c_req.dev_name[i] = b
-        return c_req
 
 
 @dataclass
@@ -336,31 +156,7 @@ class UbsSsuStripedSpaceReq:
     level: UbsSsuRaidLevel = UbsSsuRaidLevel.RAID0  # RAID级别
     chunk_size: UbsSsuChunkSize = UbsSsuChunkSize.CHUNK_4K  # chunk大小, 单位KB
 
-    def to_c_struct(self) -> UbsSsuStripedSpaceReqT:
-        c_req = UbsSsuStripedSpaceReqT()
-        name_bytes = self.name.encode('utf-8')[:UBS_SSU_MAX_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NAME_LENGTH):
-            c_req.name[i] = b'\0'
-        for i, b in enumerate(name_bytes):
-            c_req.name[i] = b
-        nqn_bytes = self.nqn.encode('utf-8')[:UBS_SSU_MAX_NQN_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_NQN_LENGTH):
-            c_req.nqn[i] = b'\0'
-        for i, b in enumerate(nqn_bytes):
-            c_req.nqn[i] = b
-        src_eid_bytes = self.src_eid.encode('utf-8')[:UBS_SSU_MAX_EID_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_EID_LENGTH):
-            c_req.src_eid[i] = b'\0'
-        for i, b in enumerate(src_eid_bytes):
-            c_req.src_eid[i] = b
-        dev_name_bytes = self.dev_name.encode('utf-8')[:UBS_SSU_MAX_DEV_NAME_LENGTH - 1]
-        for i in range(UBS_SSU_MAX_DEV_NAME_LENGTH):
-            c_req.dev_name[i] = b'\0'
-        for i, b in enumerate(dev_name_bytes):
-            c_req.dev_name[i] = b
-        c_req.level = int(self.level)
-        c_req.chunk_size = int(self.chunk_size)
-        return c_req
+
 @dataclass
 class UbsUbVfe:
     """虚拟功能单元(VFE)信息"""
@@ -372,18 +168,6 @@ class UbsUbVfe:
     vfe_guid: str = ""  # vfe GUID
     bind_bus_instance_guid: str = ""  # 绑定的总线实例GUID
 
-    @staticmethod
-    def from_c_struct(c_vfe: "UbsUbVfeT") -> "UbsUbVfe":
-        return UbsUbVfe(
-            slot_id=c_vfe.slot_id,
-            chip_id=c_vfe.chip_id,
-            die_id=c_vfe.die_id,
-            pfe_id=c_vfe.pfe_id,
-            vfe_id=c_vfe.vfe_id,
-            vfe_guid=c_vfe.vfe_guid.decode('utf-8', errors='replace').rstrip('\x00'),
-            bind_bus_instance_guid=c_vfe.bind_bus_instance_guid.decode('utf-8', errors='replace').rstrip('\x00'),
-        )
-
     def to_dict(self) -> dict:
         return {
             "slot_id": self.slot_id,
@@ -394,6 +178,7 @@ class UbsUbVfe:
             "vfe_guid": self.vfe_guid,
             "bind_bus_instance_guid": self.bind_bus_instance_guid,
         }
+
 
 @dataclass
 class UbsUbFe:
@@ -409,24 +194,6 @@ class UbsUbFe:
         if self.vfe_list is None:
             self.vfe_list = []
 
-    @staticmethod
-    def from_c_struct(c_fe: "UbsUbFeT") -> "UbsUbFe":
-        vfe_list = []
-        if c_fe.vfe_cnt > 0:
-            if not c_fe.vfe_list:
-                raise UbsEngineInternalError("vfe_cnt > 0 but vfe_list is NULL from C SDK")
-            for i in range(c_fe.vfe_cnt):
-                vfe_list.append(UbsUbVfe.from_c_struct(c_fe.vfe_list[i]))
-
-        return UbsUbFe(
-            slot_id=c_fe.slot_id,
-            chip_id=c_fe.chip_id,
-            die_id=c_fe.die_id,
-            pfe_id=c_fe.pfe_id,
-            pfe_guid=c_fe.pfe_guid.decode('utf-8', errors='replace').rstrip('\x00'),
-            vfe_list=vfe_list,
-        )
-
     def to_dict(self) -> dict:
         return {
             "slot_id": self.slot_id,
@@ -437,6 +204,8 @@ class UbsUbFe:
             "vfe_count": len(self.vfe_list),
             "vfe_list": [vfe.to_dict() for vfe in self.vfe_list],
         }
+
+
 @dataclass
 class UbsSsuConnectInfo:
     """存储空间连接信息"""
@@ -447,17 +216,6 @@ class UbsSsuConnectInfo:
     ns_uuid: str = ""
     ns_id: int = 0
 
-    @staticmethod
-    def from_c_struct(c_info: "UbsSsuConnectInfoT") -> "UbsSsuConnectInfo":
-        return UbsSsuConnectInfo(
-            src_eid=c_info.src_eid.decode("utf-8", errors="replace").rstrip("\x00"),
-            tgt_eid=c_info.tgt_eid.decode("utf-8", errors="replace").rstrip("\x00"),
-            tgt_nqn=c_info.tgt_nqn.decode("utf-8", errors="replace").rstrip("\x00"),
-            host_nqn=c_info.host_nqn.decode("utf-8", errors="replace").rstrip("\x00"),
-            ns_uuid=c_info.ns_uuid.decode("utf-8", errors="replace").rstrip("\x00"),
-            ns_id=c_info.ns_id,
-        )
-
     def to_dict(self) -> dict:
         return {
             "src_eid": self.src_eid,
@@ -467,6 +225,8 @@ class UbsSsuConnectInfo:
             "ns_uuid": self.ns_uuid,
             "ns_id": self.ns_id,
         }
+
+
 @dataclass
 class UbsSsuNsStats:
     """存储空间状态"""
@@ -474,15 +234,6 @@ class UbsSsuNsStats:
     ns_id: int = 0
     total_size: int = 0
     used_size: int = 0
-
-    @staticmethod
-    def from_c_struct(c_stats: "UbsSsuNsStatsT") -> "UbsSsuNsStats":
-        return UbsSsuNsStats(
-            ns_uuid=c_stats.ns_uuid.decode("utf-8", errors="replace").rstrip("\x00"),
-            ns_id=c_stats.ns_id,
-            total_size=c_stats.total_size,
-            used_size=c_stats.used_size,
-        )
 
     def to_dict(self) -> dict:
         return {
