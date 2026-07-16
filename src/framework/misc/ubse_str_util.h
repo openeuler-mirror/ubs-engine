@@ -28,8 +28,7 @@ void Split(const std::string &src, const std::string &sep, std::vector<std::stri
 
 void Split(const std::string &src, const std::string &sep, std::set<std::string> &out);
 
-UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint64_t &msgId, std::string &cna,
-                             std::string &eid);
+UbseResult SplitSysSentryMsg(const std::string &faultInfo, uint64_t &msgId, std::string &cna, std::string &eid);
 
 UbseResult ConvertStrToInt(const std::string &str, int &outValue);
 
@@ -51,5 +50,11 @@ void StrSplit(const std::string &src, const std::string &sep, std::vector<std::s
 bool StrToULong(const std::string &src, uint64_t &value);
 
 bool StrToUint(const std::string &src, uint32_t &value);
+
+std::string RemoveDashes(const std::string &str);
+
+int HexCharToInt(char c);
+
+bool HexPairToByte(char high, char low, uint8_t &result);
 } // namespace ubse::utils
 #endif // UBSE_MANAGER_UBSE_STR_UTIL_H

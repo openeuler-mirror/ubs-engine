@@ -105,7 +105,7 @@ UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
         UBSE_LOG_ERROR << "open " << path << " failed, " << std::strerror(errno);
         return UBSE_ERROR;
     }
-    auto matchNumaId = [&file, &numaId, pid](const std::regex& keywordRegex) -> bool {
+    auto matchNumaId = [&file, &numaId, pid](const std::regex &keywordRegex) -> bool {
         std::string line;
         std::smatch n1Match;
         // 操作系统5.10.0-136.12.0.86.x1.eulerx_a2
@@ -137,5 +137,23 @@ UbseResult UbseOsUtil::GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId)
     }
     UBSE_LOG_ERROR << "get numaId failed, by pid=" << pid;
     return UBSE_ERROR;
+}
+
+UbseResult UbseOsUtil::ReadFileContent(const std::string &filePath, std::string &res)
+{
+    res.clear();
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        return UBSE_ERROR;
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    if (file.fail() || file.bad()) {
+        file.close();
+        return UBSE_ERROR;
+    }
+    res = buffer.str();
+    file.close();
+    return UBSE_OK;
 }
 } // namespace ubse::utils
