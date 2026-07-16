@@ -475,6 +475,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_
     const uint32_t invokeRet = ubse_invoke_call(UBS_VA_QUERY, UBS_VA_NODE_INFO_LIST, &_requestBuffer, &responseBuffer);
     if (invokeRet != UBS_SUCCESS) {
         IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
         return VA_ERROR_BASE;
     }
     MemFragmentationNodeInfoListMsg repMsg(responseBuffer.buffer, responseBuffer.length);
@@ -567,7 +568,9 @@ virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swa
             ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, &requestBuffer, &responseBuffer);
         invokeRet != UBS_SUCCESS) {
         IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
         return VA_ERROR_BASE;
     }
+    ubse_api_buffer_free(&responseBuffer);
     return VA_SUCCESS;
 }

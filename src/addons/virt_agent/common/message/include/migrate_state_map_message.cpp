@@ -74,7 +74,7 @@ VmResult MigrateStateMapMessage::Deserialize()
         in >> vmBasicInfo.hostName;
         in >> enum_v(vmBasicInfo.vmMigrateStatus);
         in >> vmBasicInfo.vmMigrateInTime;
-        size_t numaMemInfoSize;
+        size_t numaMemInfoSize = 0;
         in >> numaMemInfoSize;
         for (size_t j = 0; j < numaMemInfoSize; ++j) {
             mempooling::VmDomainNumaInfo vmDomainNumaInfo{};

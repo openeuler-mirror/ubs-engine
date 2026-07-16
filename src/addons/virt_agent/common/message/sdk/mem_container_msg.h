@@ -38,7 +38,7 @@ typedef struct {
 } pid_mem_info_for_c;
 
 typedef struct {
-    char containerId[NO_128][NO_128];
+    char containerId[MAX_CONTAINER_NUM][NO_128];
     size_t containerIdSize;
 } container_id_list_for_c;
 

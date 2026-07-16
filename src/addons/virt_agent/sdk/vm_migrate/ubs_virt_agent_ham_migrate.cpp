@@ -184,7 +184,7 @@ int ProcessResponse(HamComByteBuffer* response, ubse_api_buffer_t* response_buff
 int RackSyncSendForHam(HamComByteBuffer* request, HamComByteBuffer* response)
 {
     if (request == nullptr || request->data == nullptr || request->len > HAM_MAX_INPUT_LENGTH || request->len == 0 ||
-        request->data + request->len < request->data) {
+        request->data + request->len < request->data || response == nullptr) {
         return VA_ERROR_INVALID_PARAM;
     }
     uint16_t timeout = GetTimeout();

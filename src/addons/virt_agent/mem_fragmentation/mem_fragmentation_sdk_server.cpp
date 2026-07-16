@@ -1306,6 +1306,7 @@ uint32_t VirtMemFragSdk::StartMemReturnAsync(const std::string& taskId, const st
         return VM_ERROR;
     }
     auto ret = SendResponse(VM_OK, context.requestId, resp);
+    SafeDeleteArray(resp.buffer);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "MemReturn response send failed, " << FormatRetCode(ret);
         return ret;
@@ -1350,6 +1351,7 @@ uint32_t VirtMemFragSdk::StartMemReturnSync(const std::string& taskId, const std
         return VM_ERROR;
     }
     auto ret = SendResponse(resultCode, context.requestId, resp);
+    SafeDeleteArray(resp.buffer);
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "MemReturn response send failed, " << FormatRetCode(ret);
         return ret;

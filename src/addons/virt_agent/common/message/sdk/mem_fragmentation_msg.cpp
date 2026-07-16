@@ -181,7 +181,7 @@ VmResult MemFragmentationMsg::Deserialize()
         size_t pageInfoSize = 0;
         in >> pageInfoSize;
         for (size_t j = 0; j < pageInfoSize; j++) {
-            uint64_t pageType;
+            uint64_t pageType = 0;
             NumaPageData pageData{};
             in >> pageType;
             in >> pageData.pageSize;
@@ -303,11 +303,11 @@ VmResult MemFragmentationVmInfoMsg::Deserialize()
         in >> info.metaData.vmCreateTime;
         in >> info.metaData.maxMem;
         in >> info.metaData.pid;
-        size_t numaInfoSize;
+        size_t numaInfoSize = 0;
         in >> numaInfoSize;
         for (size_t j = 0; j < numaInfoSize; j++) {
-            int16_t numaId;
-            VmDomainNumaInfo vmDomainNumaInfo;
+            int16_t numaId = 0;
+            VmDomainNumaInfo vmDomainNumaInfo{};
             in >> numaId;
             in >> vmDomainNumaInfo.numaId;
             in >> vmDomainNumaInfo.pageSize;
@@ -642,7 +642,7 @@ VmResult MemTaskResultQueryMsg::Deserialize()
     if (ret != VM_OK) {
         return ret;
     }
-    uint32_t status_value;
+    uint32_t status_value = 0;
     in >> status_value;
     asyncTaskInfoC_.status = static_cast<async_task_status_c>(status_value);
 
@@ -848,7 +848,7 @@ VmResult MemFragmentationMemBorrowExecuteOutputMsg::Deserialize()
         return VM_ERROR;
     }
     for (size_t i = 0; i < size; i++) {
-        uint16_t tmp;
+        uint16_t tmp = 0;
         in >> tmp;
         outputMsg_.presentNumaIds.push_back(tmp);
     }

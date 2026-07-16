@@ -41,7 +41,7 @@ typedef struct {
 } watermark_t;
 
 typedef struct {
-    char containerId[SDK_NO_128][SDK_NO_128];
+    char containerId[SDK_MAX_CONTAINER_NUM][SDK_NO_128];
     size_t containerIdSize;
 } container_id_list;
 

@@ -132,6 +132,11 @@ VmResult VmMemManager::OutMemReturn()
 
 void VmMemManager::CleanEmptyBorrowRes(MemBorrowExecuteResult& result)
 {
+    if (result.borrowIds.size() != result.presentNumaIds.size()) {
+        UBSE_LOG_ERROR << "[borrow] borrowIds size and presentNumaIds size not match, borrowIds size="
+                       << result.borrowIds.size() << ", presentNumaIds size=" << result.presentNumaIds.size();
+        return;
+    }
     // Create a temporary storage vector
     std::vector<std::string> newBorrowIds;
     std::vector<uint16_t> newPresentNumaId;

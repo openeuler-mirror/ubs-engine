@@ -95,7 +95,7 @@ uint32_t VirtMigrateStrategy::GetMigrateOneCopyMemoryBound()
     // Currently, the ubse is same
     // Obtain the VM specification size for OneCopy migration.
     // If the retrieval fails or the value is not within the valid range, use the default value.
-    uint32_t migrateOneCopyMemoryBound;
+    uint32_t migrateOneCopyMemoryBound = 0;
     auto ret = UbseGetUInt("plugin_virt_agent", UB_VM_MEMORY_BOUNDARY_KEY, migrateOneCopyMemoryBound);
     if (ret != VM_OK || migrateOneCopyMemoryBound < MIN_VM_MEMORY_BOUNDARY ||
         migrateOneCopyMemoryBound > MAX_VM_MEMORY_BOUNDARY) {
