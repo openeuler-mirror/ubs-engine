@@ -27,11 +27,10 @@ using UbseIpcHandler = std::function<uint32_t(const UbseIpcMessage&, const UbseR
  * @param moduleCode 模块代码，标识具体的模块
  * @param opCode 操作代码，标识具体的操作
  * @param handler 处理函数，当接收到对应的IPC消息时会被调用
- * @param object 可选参数，标识处理的权限点，默认值"no_limit"只是临时兼容方案，表示不限制权限
+ * @param object 标识处理的权限点
  * @return uint32_t 返回状态码，表示注册是否成功
  */
-uint32_t RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler,
-                            const std::string& object = "no_limit");
+uint32_t RegisterIpcHandler(uint16_t moduleCode, uint16_t opCode, UbseIpcHandler handler, const std::string& object);
 
 /**
  * @brief 发送IPC响应

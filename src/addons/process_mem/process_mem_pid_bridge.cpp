@@ -32,6 +32,7 @@
 #include "process_mem_pid_info_manager.h"
 namespace process_mem::pid::bridge {
 UBSE_DEFINE_THIS_MODULE("process_mem");
+const std::string PROCESS_MEM_PERMISSION = "";
 
 uint32_t ProcessMemPidBridge::MemoryBorrow(def::ProcessMemPidInfo& pidInfo,
                                            const ubse::mem::controller::UbseMemBorrower& borrower,
@@ -484,9 +485,10 @@ uint32_t ProcessMemPidBridge::Init()
     std::vector<__u32> dacReadSearchCap = {CAP_DAC_READ_SEARCH};
     ubse::security::UbseSecurityModule::ModifyEffectiveCapabilities(dacReadSearchCap, true);
 
-    auto ret = api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PID_SET_THRESHOLD, SetPidInfo);
-    ret |= api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PRINT_PID_INFO, PidInfoPrint);
-    ret |= api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PID_UNSET, UnSetPidInfoPrint);
+    auto ret =
+        api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PID_SET_THRESHOLD, SetPidInfo, PROCESS_MEM_PERMISSION);
+    ret |= api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PRINT_PID_INFO, PidInfoPrint, PROCESS_MEM_PERMISSION);
+    ret |= api::server::RegisterIpcHandler(UBSE_MEM, UBSE_MEM_CLI_PID_UNSET, UnSetPidInfoPrint, PROCESS_MEM_PERMISSION);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Register IPC Handler failed, " << ubse::log::FormatRetCode(ret);
         return ret;

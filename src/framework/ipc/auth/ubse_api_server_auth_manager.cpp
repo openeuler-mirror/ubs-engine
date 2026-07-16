@@ -247,11 +247,6 @@ bool UbseApiServerAuthManager::CheckPermission(const std::string& username, uint
         UBSE_LOG_ERROR << "No object mapping exists for moduleCode=" << moduleCode << ", opCode=" << opCode;
         return false;
     }
-    // 临时兼容处理, 外部接口默认配置为no_limit不限制权限
-    if (object == "no_limit") {
-        UBSE_LOG_DEBUG << "No restrictions on permissions";
-        return true;
-    }
     return CheckPermission(username, object);
 }
 
