@@ -8,14 +8,11 @@
 #include "ubse_ras_handler.h"
 #include "message/ubse_ras_message.h"
 #include "message/ubse_ras_oom_message.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
-#include "water_process/resource_analysis.h"
 
 namespace ubse::ras {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
 using namespace ubse::election;
-using namespace ubse::mem::strategy;
 using namespace ubse::log;
 using namespace ubse::com;
 using namespace ubse::common::def;
@@ -161,17 +158,9 @@ UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseM
         return UBSE_ERROR;
     }
     auto numaInfo = nodeInfo.numaInfos[numaLocation];
-    UbseMemNumaLoc warningNumaLoc{
-        .nodeId = nodeId, .socketId = static_cast<int>(numaInfo.socketId), .numaId = static_cast<int64_t>(numaId)};
-
-    auto res = WaterWarningProcess(WatermarkWarningType::HIGH_WATERMARK, warningNumaLoc, true);
-    if (res != UBSE_OK) {
-        UBSE_LOG_WARN << "Process memory oom event failed, warning nodeId=" << warningNumaLoc.nodeId
-                      << ", socketId=" << warningNumaLoc.socketId << ", numaId=" << warningNumaLoc.numaId
-                      << ", errorCode=" << res;
-    }
-    response->SetErrCode(res);
-    return res;
+    // OOM 事件处理已经移交virt,
+    response->SetErrCode(UBSE_OK);
+    return UBSE_OK;
 }
 
 } // namespace ubse::ras

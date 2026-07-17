@@ -24,7 +24,7 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_prehandle_manager.h"
-#include "ubse_mem_scheduler.h"
+#include "ubse_mem_scheduler_impl.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
@@ -110,7 +110,7 @@ uint32_t CreateTaskExecutor()
 uint32_t Init()
 {
     UbseResult ret = UBSE_OK;
-    if (ret = ubse::mem::scheduler::Init(); ret != UBSE_OK) {
+    if (ret = ubse::mem::scheduler::SchedulerImpl::GetInstance().Init(); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to init scheduler, " << FormatRetCode(ret);
         return ret;
     }
@@ -460,17 +460,32 @@ void ProcessNodeMapWithHandler(UbseMemDebtLedger& ledger, const std::string& nod
 
 void UpdateSchedulerCache(const std::string& nodeId)
 {
-    UbseMemNodeObjChangeHandler(nodeController::UbseNodeController::GetInstance().GetCurNode());
     auto& ledger = UbseMemDebtLedger::GetInstance();
 
-    ProcessNodeMapWithHandler<UbseMemFdBorrowExportObj>(ledger, nodeId, UbseMemFdExportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemFdBorrowImportObj>(ledger, nodeId, UbseMemFdImportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemNumaBorrowExportObj>(ledger, nodeId, UbseMemNumaExportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemNumaBorrowImportObj>(ledger, nodeId, UbseMemNumaImportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemShareBorrowExportObj>(ledger, nodeId, UbseMemShmExportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemShareBorrowImportObj>(ledger, nodeId, UbseMemShmImportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemAddrBorrowExportObj>(ledger, nodeId, UbseMemAddrExportObjStateChangeHandler);
-    ProcessNodeMapWithHandler<UbseMemAddrBorrowImportObj>(ledger, nodeId, UbseMemAddrImportObjStateChangeHandler);
+    ProcessNodeMapWithHandler<UbseMemFdBorrowExportObj>(ledger, nodeId, [](UbseMemFdBorrowExportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemFdBorrowImportObj>(ledger, nodeId, [](UbseMemFdBorrowImportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemNumaBorrowExportObj>(ledger, nodeId, [](UbseMemNumaBorrowExportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemNumaBorrowImportObj>(ledger, nodeId, [](UbseMemNumaBorrowImportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemShareBorrowExportObj>(ledger, nodeId, [](UbseMemShareBorrowExportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemShareBorrowImportObj>(ledger, nodeId, [](UbseMemShareBorrowImportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemAddrBorrowExportObj>(ledger, nodeId, [](UbseMemAddrBorrowExportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
+    ProcessNodeMapWithHandler<UbseMemAddrBorrowImportObj>(ledger, nodeId, [](UbseMemAddrBorrowImportObj& obj) {
+        ubse::mem::scheduler::SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj);
+    });
 }
 
 void ClearNodeMap()
@@ -493,6 +508,6 @@ void ClearNodeMap()
     }
     auto curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtLedger::GetInstance().ClearOtherNodeMaps(curNodeId);
-    ubse::mem::scheduler::ClearCacheValue();
+    ubse::mem::scheduler::SchedulerImpl::GetInstance().ClearCache();
 }
 } // namespace ubse::mem::controller

@@ -13,12 +13,10 @@
 #include "test_ubse_ras_com_handler.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
-#include "src/controllers/mem/mem_scheduler/ubse_mem_topology_info_manager.h"
+
 #include "ubse_ras_com_handler.cpp"
-#include "water_process/resource_analysis.cpp"
 
 namespace ubse::ras::ut {
-using namespace mem::strategy;
 using namespace ubse::com;
 
 void TestUbseRasComHandler::SetUp()
@@ -260,13 +258,4 @@ TEST_F(TestUbseRasComHandler, HandleWhenNodeIdNotDigit)
     ASSERT_EQ(res, UBSE_ERROR_INVAL);
 }
 
-// ==================== resource_analysis ToString 测试 ====================
-
-TEST_F(TestUbseRasComHandler, ResourceAnalysisToString)
-{
-    using namespace ubse::mem::strategy;
-    ASSERT_EQ(ToString(WatermarkWarningType::NO_WARN), "NO_WARN");
-    ASSERT_EQ(ToString(WatermarkWarningType::LOW_WATERMARK), "LOW_WATERMARK");
-    ASSERT_EQ(ToString(WatermarkWarningType::HIGH_WATERMARK), "HIGH_WATERMARK");
-}
 } // namespace ubse::ras::ut

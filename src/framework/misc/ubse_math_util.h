@@ -15,74 +15,54 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include "ubse_logger.h"
 
 namespace ubse::utils {
+constexpr uint16_t BYTES_PER_KB = 10;
 constexpr uint16_t BYTES_PER_MB = 20;
+constexpr uint16_t BYTES_PER_GB = 30;
 
 template <typename T>
-constexpr T SafeAdd(T a, T b)
+constexpr bool SafeAdd(T a, T b, T& result)
 {
-    if constexpr (std::is_signed_v<T>) {
-        if (b > 0 && a > std::numeric_limits<T>::max() - b) {
-            throw std::overflow_error("Signed integer overflow in addition! a=" + std::to_string(a) +
-                                      ", b=" + std::to_string(b));
-        }
-        if (b < 0 && a < std::numeric_limits<T>::min() + (-b)) {
-            throw std::underflow_error("Signed integer underflow in addition! a=" + std::to_string(a) +
-                                       ", b=" + std::to_string(b));
-        }
-    } else if constexpr (std::is_unsigned_v<T>) {
-        if (a > std::numeric_limits<T>::max() - b) {
-            throw std::overflow_error("Unsigned integer overflow in addition! a=" + std::to_string(a) +
-                                      ", b=" + std::to_string(b));
-        }
-    } else if constexpr (std::is_floating_point_v<T>) {
-        T result = a + b;
-        if (std::isinf(result) || std::isnan(result)) {
-            throw std::overflow_error("Floating-point overflow or NaN result in addition! a=" + std::to_string(a) +
-                                      ", b=" + std::to_string(b));
-        }
+    if constexpr (std::is_floating_point_v<T>) {
+        result = a + b;
+        return !std::isinf(result) && !std::isnan(result);
+    } else {
+        return !__builtin_add_overflow(a, b, &result);
     }
-    return a + b;
 }
 
 template <typename T>
-constexpr T SafeSub(T a, T b)
+constexpr bool SafeSub(T a, T b, T& result)
 {
-    if constexpr (std::is_signed_v<T>) {
-        // 检查有符号整数的减法溢出和回绕
-        if (b < 0 && a > std::numeric_limits<T>::max() + b) {
-            throw std::overflow_error("Signed integer overflow in subtraction! a=" + std::to_string(a) +
-                                      ", b=" + std::to_string(b));
-        }
-        if (b > 0 && a < std::numeric_limits<T>::min() + b) {
-            throw std::underflow_error("Signed integer underflow in subtraction! a=" + std::to_string(a) +
-                                       ", b=" + std::to_string(b));
-        }
-    } else if constexpr (std::is_unsigned_v<T>) {
-        // 检查无符号整数的减法回绕
-        if (a < b) {
-            throw std::underflow_error("Unsigned integer underflow in subtraction! a=" + std::to_string(a) +
-                                       ", b=" + std::to_string(b));
-        }
-    } else if constexpr (std::is_floating_point_v<T>) {
-        // 检查浮点数的减法溢出或NaN结果
-        T result = a - b;
-        if (std::isinf(result) || std::isnan(result)) {
-            throw std::overflow_error("Floating-point overflow or NaN result in subtraction! a=" + std::to_string(a) +
-                                      ", b=" + std::to_string(b));
-        }
+    if constexpr (std::is_floating_point_v<T>) {
+        result = a - b;
+        return !std::isinf(result) && !std::isnan(result);
+    } else {
+        return !__builtin_sub_overflow(a, b, &result);
     }
-    return a - b;
 }
 
-template <typename T, typename... Args>
-T SafeAddMulti(T first, Args... rest)
+inline uint64_t SizeByte2Mb(uint64_t size)
 {
-    T result = first;
-    ((result = SafeAdd(result, rest)), ...);
-    return result;
+    return size >> BYTES_PER_MB;
+}
+
+inline bool SizeMb2Byte(uint64_t size, uint64_t& result)
+{
+    return !__builtin_mul_overflow(size, static_cast<uint64_t>(1) << BYTES_PER_MB, &result);
+}
+
+inline bool SizeKb2Byte(uint64_t size, uint64_t& result)
+{
+    return !__builtin_mul_overflow(size, static_cast<uint64_t>(1) << BYTES_PER_KB, &result);
+}
+
+inline bool SizeGb2Byte(uint64_t size, uint64_t& result)
+{
+    return !__builtin_mul_overflow(size, static_cast<uint64_t>(1) << BYTES_PER_GB, &result);
 }
 
 } // namespace ubse::utils
