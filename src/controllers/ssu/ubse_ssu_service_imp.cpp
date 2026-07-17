@@ -2234,4 +2234,141 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
     UBSE_LOG_ERROR << "GetAllocInfoByName: unsupported node role=" << role;
     return UBSE_ERROR;
 }
+
+// agent端通过RPC查询连接信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待
+static uint32_t GetConnectInfoViaRpc(const std::string &name, const UbseSsuVfe *vfe,
+                                     std::vector<UbseSsuConnectInfo> &connectInfoList,
+                                     const UbseSsuAllocIdentityInfo &identity)
+{
+    UbseRoleInfo roleInfo{};
+    auto ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfoViaRpc: get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfoViaRpc: get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = "getconnectinfo_" + name + "_" + roleInfo.nodeId;
+
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_CONNECT_INFO_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "GetConnectInfoViaRpc: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuGetConnectInfoReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity, vfe);
+    UbseSsuGetConnectInfoRespMsg syncResp;
+    ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfoViaRpc: RpcSend failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
+        return ret;
+    }
+
+    const auto &resp = syncResp.GetGetConnectInfoResp();
+    if (resp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfoViaRpc: failed, requestId=" << requestId << ", errorCode=" << resp.errorCode;
+        return resp.errorCode;
+    }
+    connectInfoList = resp.connectInfoList;
+    UBSE_LOG_INFO << "GetConnectInfoViaRpc success: name=" << name << ", count=" << connectInfoList.size();
+    return UBSE_OK;
+}
+
+// 设置连接信息中的srcEid字段，后续添加实现
+static uint32_t SetSrcEidInfo(const UbseSsuVfe *vfe, std::vector<UbseSsuConnectInfo> &connectInfoList)
+{
+    return UBSE_OK;
+}
+
+// master端：查询连接信息，校验identity后从设备缓存获取hostNqn等字段
+uint32_t UbseSsuServiceImp::ExecuteGetConnectInfo(const std::string &name, const UbseSsuVfe *vfe,
+                                                  std::vector<UbseSsuConnectInfo> &connectInfoList,
+                                                  const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "ExecuteGetConnectInfo: name=" << name;
+
+    auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+    if (entryPtr == nullptr) {
+        UBSE_LOG_ERROR << "ExecuteGetConnectInfo: record not found, name=" << name;
+        return UBSE_ERROR;
+    }
+
+    auto devMap = collector_.GetCachedDevMap();
+    std::unordered_set<std::string> refreshedEids;
+    connectInfoList.clear();
+    connectInfoList.reserve(entryPtr->allocResult.nameSpaceList.size());
+    for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            // 缓存未命中：从硬件直接查询此eid（刚分配的ns可能尚未被定时采集覆盖）
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        }
+        if (targetNs == nullptr) {
+            UBSE_LOG_ERROR << "ExecuteGetConnectInfo: namespace not found, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            connectInfoList.clear();
+            return UBSE_ERROR;
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            UBSE_LOG_ERROR << "ExecuteGetConnectInfo: identity not match, eid=" << nsInfo.tgtEid
+                           << ", nsId=" << nsInfo.namespaceId;
+            connectInfoList.clear();
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+
+        UbseSsuConnectInfo info = {
+            .tgtEid = nsInfo.tgtEid,
+            .tgtNqn = nsInfo.tgtNqn,
+            .hostNqn = std::string(targetNs->customData.defaultNqn,
+                                   strnlen(targetNs->customData.defaultNqn, sizeof(targetNs->customData.defaultNqn))),
+            .nsUuid = nsInfo.nsUuid,
+            .nsId = nsInfo.namespaceId,
+        };
+        connectInfoList.push_back(std::move(info));
+    }
+
+    auto ret = SetSrcEidInfo(vfe, connectInfoList);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ExecuteGetConnectInfo: failed to set srcEid info, name=" << name << ", ret=" << ret;
+        connectInfoList.clear();
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "ExecuteGetConnectInfo success: name=" << name << ", count=" << connectInfoList.size();
+    return UBSE_OK;
+}
+
+// GetConnectInfo主入口：根据节点角色选择查询方式
+uint32_t UbseSsuServiceImp::GetConnectInfo(const std::string &name, const UbseSsuVfe *vfe,
+                                           std::vector<UbseSsuConnectInfo> &connectInfoList,
+                                           const UbseSsuAllocIdentityInfo &identity)
+{
+    UBSE_LOG_INFO << "GetConnectInfo: name=" << name;
+
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfo: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        return ExecuteGetConnectInfo(name, vfe, connectInfoList, identity);
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return GetConnectInfoViaRpc(name, vfe, connectInfoList, identity);
+    }
+
+    UBSE_LOG_ERROR << "GetConnectInfo: unsupported node role=" << role;
+    return UBSE_ERROR;
+}
 } // namespace ubse::ssu::service

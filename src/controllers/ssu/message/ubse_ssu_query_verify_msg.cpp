@@ -294,4 +294,124 @@ uint32_t UbseSsuGetAllocInfoRespMsg::Deserialize(const uint8_t *data, uint32_t s
     }
     return UBSE_OK;
 }
+
+// UbseSsuConnectInfo 序列化/反序列化
+UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuConnectInfo &info)
+{
+    serializer << info.srcEid << info.tgtEid << info.tgtNqn << info.hostNqn << info.nsUuid << info.nsId;
+    return serializer;
+}
+
+UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuConnectInfo &info)
+{
+    deserializer >> info.srcEid >> info.tgtEid >> info.tgtNqn >> info.hostNqn >> info.nsUuid >> info.nsId;
+    return deserializer;
+}
+
+// ====== GetConnectInfo ======
+
+UbseSsuGetConnectInfoReqMsg::UbseSsuGetConnectInfoReqMsg(const std::string &requestId, const std::string &requestNodeId,
+                                                         const std::string &name,
+                                                         const UbseSsuAllocIdentityInfo &identity,
+                                                         const UbseSsuVfe *vfe)
+    : req_{requestId, requestNodeId, name, identity, vfe != nullptr, vfe != nullptr ? *vfe : UbseSsuVfe{}}
+{
+}
+
+const UbseSsuGetConnectInfoReq &UbseSsuGetConnectInfoReqMsg::GetGetConnectInfoReq() const
+{
+    return req_;
+}
+
+uint32_t UbseSsuGetConnectInfoReqMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << req_.requestId << req_.requestNodeId << req_.name;
+    out << req_.identityInfo.uid << req_.identityInfo.userName;
+    uint8_t hasVfe = req_.hasVfe ? 1 : 0;
+    out << hasVfe;
+    if (req_.hasVfe) {
+        out << req_.vfe.slotId << req_.vfe.chipId << req_.vfe.dieId << req_.vfe.pfeId << req_.vfe.vfeId
+            << req_.vfe.vfeGuid << req_.vfe.bindBusInstanceGuid;
+    }
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU get connect info req serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuGetConnectInfoReqMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> req_.requestId >> req_.requestNodeId >> req_.name;
+    in >> req_.identityInfo.uid >> req_.identityInfo.userName;
+    uint8_t hasVfe = 0;
+    in >> hasVfe;
+    req_.hasVfe = (hasVfe != 0);
+    if (req_.hasVfe) {
+        in >> req_.vfe.slotId >> req_.vfe.chipId >> req_.vfe.dieId >> req_.vfe.pfeId >> req_.vfe.vfeId >>
+            req_.vfe.vfeGuid >> req_.vfe.bindBusInstanceGuid;
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU get connect info req deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseSsuGetConnectInfoRespMsg::UbseSsuGetConnectInfoRespMsg(const UbseSsuGetConnectInfoResp &resp) : resp_(resp) {}
+
+const UbseSsuGetConnectInfoResp &UbseSsuGetConnectInfoRespMsg::GetGetConnectInfoResp() const
+{
+    return resp_;
+}
+
+uint32_t UbseSsuGetConnectInfoRespMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << resp_.requestId << resp_.errorCode;
+    uint32_t cnt = static_cast<uint32_t>(resp_.connectInfoList.size());
+    out << cnt;
+    for (const auto &info : resp_.connectInfoList) {
+        out << info;
+    }
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU get connect info resp serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuGetConnectInfoRespMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> resp_.requestId >> resp_.errorCode;
+    uint32_t cnt = 0;
+    in >> cnt;
+    constexpr uint32_t MAX_CONNECT_INFO_NUM = 1024;
+    if (cnt > MAX_CONNECT_INFO_NUM) {
+        UBSE_LOG_ERROR << "SSU get connect info resp connect info num exceeds max limit, size=" << cnt;
+        in.SetFail();
+        return UBSE_ERROR;
+    }
+    resp_.connectInfoList.clear();
+    for (uint32_t i = 0; i < cnt; ++i) {
+        UbseSsuConnectInfo info;
+        in >> info;
+        if (!in.Check()) {
+            break;
+        }
+        resp_.connectInfoList.emplace_back(std::move(info));
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU get connect info resp deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
 } // namespace ubse::ssu::message
