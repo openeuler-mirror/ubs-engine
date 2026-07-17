@@ -171,7 +171,8 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result, const UbseSsuAllocIdentityInfo &identity);
+    virtual uint32_t ListAllocInfo(std::vector<UbseSsuAllocResult> &result,
+                                   const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 根据名称获取已分配的存储空间信息
@@ -186,7 +187,7 @@ public:
      * @retval 非零 失败，具体错误码由实现定义
      */
     virtual uint32_t GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
-                                        const UbseSsuAllocIdentityInfo &identity);
+                                        const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 获取存储空间的命名空间统计信息

@@ -257,8 +257,6 @@ enum class UbseSsuOpCode {
     UBSE_SSU_ADD_ACCESS_PERMISSION_RESP = 0x0015,   // 添加访问权限响应
     UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP = 0x0016, // 移除访问权限响应
     UBSE_SSU_ATTACH_DETACH_VERIFY_REQ = 0x0017,     // attach/detach前identity验证请求
-    UBSE_SSU_ATTACH_DETACH_VERIFY_RESP = 0x0018,    // attach/detach前identity验证响应
-    UBSE_SSU_GET_NS_STATS_RESP = 0x001B,                 // 查询命名空间统计信息响应
 };
 } // namespace ubse::com
 #endif // UBSE_COM_OP_CODE_H

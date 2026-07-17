@@ -542,15 +542,7 @@ uint32_t UbseSsuAdapterImpl::AttachDevNameSpace(const std::string &hostNqn, cons
         return UBSE_ERROR;
     }
 
-    if (!VerifyNamespaceGuid(nameSpace)) {
-        UBSE_LOG_ERROR << "AttachDevNameSpace failed: GUID verification after attach failed";
-        int detachRet = detachNamespace_(hostNqn.c_str(), &nsInfo);
-        if (detachRet != 0) {
-            UBSE_LOG_ERROR << "Rollback detach also failed after attach GUID mismatch, hostNqn="
-                           << MaskNqn(hostNqn) << ", ret=" << detachRet;
-        }
-        return UBSE_ERROR;
-    }
+    // VerifyNamespaceGuid需要调用GetDevList来验证，但agent侧不支持GetDevList，所以这里先不调用
 
     UBSE_LOG_INFO << "Successfully attached namespace " << nameSpace.namespaceId
                   << ", hostNqn=" << MaskNqn(hostNqn);

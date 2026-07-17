@@ -43,6 +43,8 @@ struct UbseSsuAttachDetachVerifyResp {
     std::string requestId;
     uint32_t errorCode{0};
     std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
+    // agent无本地账本，attach/detach时需从这里获取namespace列表
+    std::vector<UbseSsuNameSpaceInfo> nameSpaceList;
 };
 
 class UbseSsuAttachDetachVerifyReqMsg : public ubse::com::UbseRpcMessage {

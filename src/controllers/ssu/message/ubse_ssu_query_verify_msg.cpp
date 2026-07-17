@@ -131,4 +131,167 @@ uint32_t UbseSsuGetNsStatsRespMsg::Deserialize(const uint8_t *data, uint32_t siz
     return UBSE_OK;
 }
 
+// ====== ListAllocInfo ======
+
+UbseSsuListAllocInfoReqMsg::UbseSsuListAllocInfoReqMsg(const std::string &requestId, const std::string &requestNodeId,
+                                                       const UbseSsuAllocIdentityInfo &identity)
+    : req_{requestId, requestNodeId, identity}
+{
+}
+
+const UbseSsuListAllocInfoReq &UbseSsuListAllocInfoReqMsg::GetListAllocInfoReq() const
+{
+    return req_;
+}
+
+uint32_t UbseSsuListAllocInfoReqMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << req_.requestId << req_.requestNodeId;
+    out << req_.identityInfo.uid << req_.identityInfo.userName;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU list alloc info req serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuListAllocInfoReqMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> req_.requestId >> req_.requestNodeId;
+    in >> req_.identityInfo.uid >> req_.identityInfo.userName;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU list alloc info req deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseSsuListAllocInfoRespMsg::UbseSsuListAllocInfoRespMsg(const UbseSsuListAllocInfoResp &resp) : resp_(resp) {}
+
+const UbseSsuListAllocInfoResp &UbseSsuListAllocInfoRespMsg::GetListAllocInfoResp() const
+{
+    return resp_;
+}
+
+uint32_t UbseSsuListAllocInfoRespMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << resp_.requestId << resp_.errorCode;
+    uint32_t cnt = resp_.results.size();
+    out << cnt;
+    for (const auto &result : resp_.results) {
+        out << result;
+    }
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU list alloc info resp serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuListAllocInfoRespMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> resp_.requestId >> resp_.errorCode;
+    uint32_t cnt = 0;
+    in >> cnt;
+    resp_.results.clear();
+    constexpr uint32_t MAX_LIST_ALLOC_RESULT_NUM = 1024;
+    if (cnt > MAX_LIST_ALLOC_RESULT_NUM) {
+        UBSE_LOG_ERROR << "SSU list alloc info resp result num exceeds max limit, size=" << cnt;
+        in.SetFail();
+        return UBSE_ERROR;
+    }
+    for (uint32_t i = 0; i < cnt; ++i) {
+        UbseSsuAllocResult result;
+        in >> result;
+        if (!in.Check()) {
+            break;
+        }
+        resp_.results.emplace_back(std::move(result));
+    }
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU list alloc info resp deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+// ====== GetAllocInfoByName ======
+
+UbseSsuGetAllocInfoReqMsg::UbseSsuGetAllocInfoReqMsg(const std::string &requestId, const std::string &requestNodeId,
+                                                     const std::string &name, const UbseSsuAllocIdentityInfo &identity)
+    : req_{requestId, requestNodeId, name, identity}
+{
+}
+
+const UbseSsuGetAllocInfoReq &UbseSsuGetAllocInfoReqMsg::GetGetAllocInfoReq() const
+{
+    return req_;
+}
+
+uint32_t UbseSsuGetAllocInfoReqMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << req_.requestId << req_.requestNodeId << req_.name;
+    out << req_.identityInfo.uid << req_.identityInfo.userName;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU get alloc info req serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuGetAllocInfoReqMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> req_.requestId >> req_.requestNodeId >> req_.name;
+    in >> req_.identityInfo.uid >> req_.identityInfo.userName;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU get alloc info req deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+UbseSsuGetAllocInfoRespMsg::UbseSsuGetAllocInfoRespMsg(const UbseSsuGetAllocInfoResp &resp) : resp_(resp) {}
+
+const UbseSsuGetAllocInfoResp &UbseSsuGetAllocInfoRespMsg::GetGetAllocInfoResp() const
+{
+    return resp_;
+}
+
+uint32_t UbseSsuGetAllocInfoRespMsg::Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const
+{
+    UbseSerialization out;
+    out << resp_.requestId << resp_.errorCode;
+    out << resp_.result;
+    if (!out.Check()) {
+        UBSE_LOG_ERROR << "SSU get alloc info resp serialize failed.";
+        return UBSE_ERROR;
+    }
+    bufferSize = out.GetLength();
+    buffer.reset(out.GetBuffer(true));
+    return UBSE_OK;
+}
+
+uint32_t UbseSsuGetAllocInfoRespMsg::Deserialize(const uint8_t *data, uint32_t size)
+{
+    UbseDeSerialization in(data, size);
+    in >> resp_.requestId >> resp_.errorCode;
+    in >> resp_.result;
+    if (!in.Check()) {
+        UBSE_LOG_ERROR << "SSU get alloc info resp deserialize failed.";
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
 } // namespace ubse::ssu::message
