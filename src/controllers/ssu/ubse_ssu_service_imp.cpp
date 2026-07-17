@@ -16,6 +16,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include "debt/ubse_ssu_debt_ledger.h"
 #include "framework/misc/ubse_future_mgr.h"
 #include "framework/misc/ubse_logging_lock_guard.h"
@@ -103,9 +104,14 @@ void UbseSsuServiceImp::StopClearTimer()
     UbseSsuDirectToVmManager::GetInstance().StopClearTimer();
 }
 
-// 从设备缓存列表重建SSU账本
+// 从设备缓存列表重建SSU账本，仅master端有效
 void UbseSsuServiceImp::RebuildLedgerFromDevList()
 {
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK || role != ELECTION_ROLE_MASTER) {
+        return;
+    }
     auto devList = collector_.GetCachedDevList();
     UbseSsuDebtLedger::GetInstance().Rebuild(devList);
 }
@@ -157,7 +163,7 @@ static uint32_t AllocSpaceViaRpc(const UbseSsuAllocSpaceReq &req, const UbseSsuA
         return ret;
     }
 
-    auto requestId = req.name + "_" + roleInfo.nodeId;
+    auto requestId = "alloc_" + req.name + "_" + roleInfo.nodeId;
     std::shared_ptr<UbseFutureMgr> respMgr;
     std::future<UbseSsuAllocResp> respFuture;
 
@@ -168,50 +174,28 @@ static uint32_t AllocSpaceViaRpc(const UbseSsuAllocSpaceReq &req, const UbseSsuA
     }
     respFuture = respMgr->GetFuture<UbseSsuAllocResp>();
 
-    // 先添加agent侧账本(状态creating)，再发送RPC请求
-    UbseSsuLedgerEntry entry = {
-        .name = req.name,
-        .allocReq = req,
-        .state = UbseSsuNsState::CREATING,
-    };
-    if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
-        UBSE_LOG_ERROR << "AllocSpaceViaRpc: ledger entry already exists, reject duplicate alloc: name=" << req.name;
-        return UBSE_ERR_EXISTED;
-    }
-
     ret = SendAllocRpcRequest(req, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AllocSpaceViaRpc: SendAllocRpcRequest failed, " << FormatRetCode(ret)
                        << ", requestId=" << requestId;
-        UbseSsuDebtLedger::GetInstance().Remove(req.name);
         return ret;
     }
 
     if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) != std::future_status::ready) {
         UBSE_LOG_ERROR << "AllocSpaceViaRpc: timeout waiting for response, requestId=" << requestId;
+        // 超时后通知master清理，本地无账本无需删除
         UbseSsuServiceImp::GetInstance().FreeSpace(req.name, identity);
-        UbseSsuDebtLedger::GetInstance().Remove(req.name);
         return UBSE_ERR_TIMED_OUT;
     }
 
     auto resp = respFuture.get();
     if (resp.errorCode != UBSE_OK) {
-        UbseSsuDebtLedger::GetInstance().Remove(req.name);
         UBSE_LOG_ERROR << "AllocSpaceViaRpc: alloc phase1 failed, requestId=" << requestId
                        << ", errorCode=" << resp.errorCode << ", state=" << static_cast<int>(resp.state);
         return resp.errorCode;
     }
 
     result = resp.allocResult;
-
-    // 更改agent侧账本状态created
-    if (!UbseSsuDebtLedger::GetInstance().Modify(entry.name, [&result](UbseSsuLedgerEntry &e) {
-            e.state = UbseSsuNsState::CREATED;
-            e.allocResult = result;
-        })) {
-        UBSE_LOG_ERROR << "AllocSpaceViaRpc: ledger entry not found after alloc success: name=" << req.name;
-    }
-
     UBSE_LOG_INFO << "AllocSpaceViaRpc success: name=" << req.name << ", nsCount=" << result.nameSpaceList.size();
     return UBSE_OK;
 }
@@ -519,7 +503,7 @@ static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdent
         return ret;
     }
 
-    auto requestId = name + "_" + roleInfo.nodeId;
+    auto requestId = "free_" + name + "_" + roleInfo.nodeId;
 
     // 超时后有限次同步重试：每次循环重新创建future并重新发送RPC请求，保证重试后仍会等待响应。
     // UbseFutureMgr同一requestId的promise只能set一次，须先释放旧respMgr再重建。
@@ -569,6 +553,12 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllo
         return ret;
     }
 
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        // agent无本地账本，直接通过RPC通知master释放
+        return FreeSpaceViaRpc(name, identity);
+    }
+
+    // master端：检查本地账本后执行释放
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     // 释放操作具有幂等性，释放不存在的空间应返回成功
     if (entryPtr == nullptr) {
@@ -578,10 +568,6 @@ uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllo
 
     if (role == ELECTION_ROLE_MASTER) {
         return ExecuteFree(name, identity);
-    }
-
-    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
-        return FreeSpaceViaRpc(name, identity);
     }
 
     UBSE_LOG_ERROR << "FreeSpace: unsupported node role=" << role;
@@ -728,27 +714,28 @@ static std::string ResolveNqn(const std::string &nqn, const char *defaultNqn)
     return std::string(defaultNqn, strnlen(defaultNqn, UBSE_SSU_MAX_NQN_LENGTH));
 }
 
-// 修改账本状态，非主节点同步通知master
-static uint32_t UpdateLedgerStateAndNotify(const std::string &name, UbseSsuNsState state, bool isMaster)
+// 更改进程状态：master端更新本地账本状态，agent端仅发送状态通知给master
+static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState state, bool isMaster)
 {
-    UbseSsuNsState oldState;
-    if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState](UbseSsuLedgerEntry &e) {
-            oldState = e.state;
-            e.state = state;
-        })) {
-        UBSE_LOG_ERROR << "UpdateLedgerStateAndNotify: ledger entry not found, name=" << name
-                       << ", state=" << static_cast<int>(state);
-        return UBSE_ERROR;
-    }
-    if (!isMaster) {
-        auto ret = SendStatusUpdate(name, state);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_WARN << "UpdateLedgerStateAndNotify: SendStatusUpdate failed, name=" << name
-                          << ", state=" << static_cast<int>(state) << ", ret=" << ret;
-            // RPC失败，回退本地账本到修改前状态，保证主备一致性
-            UbseSsuDebtLedger::GetInstance().Modify(name, [&oldState](UbseSsuLedgerEntry &e) { e.state = oldState; });
+    if (isMaster) {
+        UbseSsuNsState oldState;
+        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState](UbseSsuLedgerEntry &e) {
+                oldState = e.state;
+                e.state = state;
+            })) {
+            UBSE_LOG_ERROR << "UpdateStateOrNotify: ledger entry not found, name=" << name
+                           << ", state=" << static_cast<int>(state);
             return UBSE_ERROR;
         }
+        return UBSE_OK;
+    }
+
+    // agent侧：仅发送状态更新，不维护本地账本
+    auto ret = SendStatusUpdate(name, state);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "UpdateStateOrNotify: SendStatusUpdate failed, name=" << name
+                      << ", state=" << static_cast<int>(state) << ", ret=" << ret;
+        return UBSE_ERROR;
     }
     return UBSE_OK;
 }
@@ -792,36 +779,8 @@ static uint32_t AgentDetachNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuN
     return AgentAttachDetachNs(false, nsInfo, verifyInfo, nqn);
 }
 
-// agent端发送identity验证RPC请求到master节点
-static uint32_t SendAttachDetachVerifyRpcRequest(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                                 const std::string &requestNodeId, const std::string &masterNodeId,
-                                                 const std::string &requestId)
-{
-    auto endpoint =
-        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ));
-    if (endpoint == nullptr) {
-        UBSE_LOG_ERROR << "SendAttachDetachVerifyRpcRequest: get endpoint failed, requestId=" << requestId;
-        return UBSE_ERROR;
-    }
-    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, requestNodeId, name, identity);
-    UbseSsuSyncRespMsg syncResp;
-    auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, syncResp);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendAttachDetachVerifyRpcRequest: RpcSend failed, " << FormatRetCode(ret)
-                       << ", requestId=" << requestId;
-        return ret;
-    }
-    auto syncErr = syncResp.GetErrorCode();
-    if (syncErr != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendAttachDetachVerifyRpcRequest: master sync resp error, code=" << syncErr
-                       << ", requestId=" << requestId;
-        return syncErr;
-    }
-    return UBSE_OK;
-}
-
-// agent端：发送identity验证请求到master并等待异步响应（attach/detach通用）
+// agent端：发送identity验证请求到master并同步等待响应（attach/detach通用）。
+// 验证查询耗时较短（master端为纯内存读取），直接通过UbseRpcSend的sync resp返回结果，无需future等待
 static uint32_t VerifyAttachDetachIdentityViaRpc(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
                                                  UbseSsuAttachDetachVerifyResp &verifyResp)
 {
@@ -838,29 +797,31 @@ static uint32_t VerifyAttachDetachIdentityViaRpc(const std::string &name, const 
         return ret;
     }
 
-    auto requestId = name + "_verify_" + roleInfo.nodeId;
-    for (uint32_t attempt = 0; attempt <= MAX_RETRY_COUNT; ++attempt) {
-        auto respMgr = UbseFutureMgr::CreateInstance(requestId);
-        if (respMgr == nullptr) {
-            UBSE_LOG_ERROR << "VerifyIdViaRpc: create future failed, requestId=" << requestId;
-            return UBSE_ERROR_NULLPTR;
-        }
-        auto respFuture = respMgr->GetFuture<UbseSsuAttachDetachVerifyResp>();
+    auto requestId = "AttachDetachVerify_" + name + "_" + roleInfo.nodeId;
 
-        ret = SendAttachDetachVerifyRpcRequest(name, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "VerifyIdViaRpc: send rpc failed, requestId=" << requestId << ", ret=" << ret;
-            return ret;
-        }
-
-        if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) == std::future_status::ready) {
-            verifyResp = respFuture.get();
-            return UBSE_OK;
-        }
-        UBSE_LOG_WARN << "VerifyIdViaRpc: attempt=" << attempt << " timed out, requestId=" << requestId;
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "VerifyIdViaRpc: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
     }
-    UBSE_LOG_ERROR << "VerifyIdViaRpc: reached max retry count, requestId=" << requestId;
-    return UBSE_ERR_TIMED_OUT;
+
+    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity);
+    UbseSsuAttachDetachVerifyRespMsg syncResp;
+    ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "VerifyIdViaRpc: RpcSend failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
+        return ret;
+    }
+
+    verifyResp = syncResp.GetAttachDetachVerifyResp();
+    if (verifyResp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "VerifyIdViaRpc: identity verify failed, requestId=" << requestId
+                       << ", errorCode=" << verifyResp.errorCode << ", name=" << name;
+        return verifyResp.errorCode;
+    }
+    return UBSE_OK;
 }
 
 // agent端回滚已attach的NS的前向声明（实现在文件后部，供master/agent共用）
@@ -869,39 +830,41 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                             const UbseSsuAttachDetachVerifyResp *verifyResp = nullptr);
 
-// agent端通用attach主流程：发送identity验证请求到master，验证成功后逐个attach NS。
-// 可选创建聚合块设备（blockDeviceOptions非空时，Linear/Striped场景）。
-// 失败时回滚已attach的NS并回退ledger状态为CREATED；成功时更新ledger状态为ATTACHED。
-static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry &entry, const std::string &devName,
+// agent端通用attach主流程：发送identity验证请求到master，从响应中获取namespace列表，
+// 验证成功后逐个attach NS。可选创建聚合块设备（blockDeviceOptions非空时，Linear/Striped场景）。
+// 失败时回滚已attach的NS；成功时通过RPC通知master更新状态。
+static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devName,
                             const UbseCreateBlockDeviceOptions *blockDeviceOptions,
                             std::vector<std::string> &nsDevPaths, std::string &devPath)
 {
     UbseSsuAttachDetachVerifyResp verifyResp{};
     auto ret = VerifyAttachDetachIdentityViaRpc(req.name, req.identity, verifyResp);
     if (ret != UBSE_OK) {
-        UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, false);
+        UBSE_LOG_ERROR << "AgentAttach: VerifyAttachDetachIdentityViaRpc failed, ret=" << ret << ", name=" << req.name;
+        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return ret;
     }
     if (verifyResp.errorCode != UBSE_OK) {
         UBSE_LOG_ERROR << "AgentAttach: master verify failed, code=" << verifyResp.errorCode << ", name=" << req.name;
-        UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, false);
+        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return verifyResp.errorCode;
     }
 
-    // master返回的验证信息按ledger中NS顺序对齐
-    if (verifyResp.nsVerifyList.size() != entry.allocResult.nameSpaceList.size()) {
-        UBSE_LOG_ERROR << "AgentAttach: ns count mismatch, ledger=" << entry.allocResult.nameSpaceList.size()
-                       << ", verify=" << verifyResp.nsVerifyList.size() << ", name=" << req.name;
-        UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, false);
+    // 从verify响应中获取namespace列表（agent无本地账本）
+    const auto &nameSpaceList = verifyResp.nameSpaceList;
+    if (verifyResp.nsVerifyList.size() != nameSpaceList.size()) {
+        UBSE_LOG_ERROR << "AgentAttach: ns count mismatch, verify=" << verifyResp.nsVerifyList.size()
+                       << ", nsList=" << nameSpaceList.size() << ", name=" << req.name;
+        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return UBSE_ERROR;
     }
 
     nsDevPaths.clear();
-    nsDevPaths.reserve(entry.allocResult.nameSpaceList.size());
+    nsDevPaths.reserve(nameSpaceList.size());
     std::vector<UbseSsuNameSpaceInfo> attachedNsList;
-    attachedNsList.reserve(entry.allocResult.nameSpaceList.size());
-    for (size_t i = 0; i < entry.allocResult.nameSpaceList.size(); ++i) {
-        const auto &nsInfo = entry.allocResult.nameSpaceList[i];
+    attachedNsList.reserve(nameSpaceList.size());
+    for (size_t i = 0; i < nameSpaceList.size(); ++i) {
+        const auto &nsInfo = nameSpaceList[i];
         const auto &verifyInfo = verifyResp.nsVerifyList[i];
         auto nsRet = AgentAttachNs(nsInfo, verifyInfo, req.nqn);
         if (nsRet != UBSE_OK) {
@@ -928,16 +891,15 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry
         }
     }
 
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHED, false);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, false);
     UBSE_LOG_INFO << "AgentAttach success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
     return UBSE_OK;
 }
 
-// agent端通用detach主流程：发送identity验证请求到master，验证成功后逐个detach NS。
-// 可选先删除聚合块设备（deleteBlockDevice=true，Linear/Striped场景）。
+// agent端通用detach主流程：发送identity验证请求到master，从响应中获取namespace列表，
+// 验证成功后逐个detach NS。可选先删除聚合块设备（deleteBlockDevice=true，Linear/Striped场景）。
 // 部分detach失败时保持ATTACHED状态（DetachDevNameSpace幂等，可重试收敛）；全部成功才回退为CREATED。
-static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry &entry, const std::string &devName,
-                            bool deleteBlockDevice)
+static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devName, bool deleteBlockDevice)
 {
     UbseSsuAttachDetachVerifyResp verifyResp{};
     auto ret = VerifyAttachDetachIdentityViaRpc(req.name, req.identity, verifyResp);
@@ -948,7 +910,10 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry
         UBSE_LOG_ERROR << "AgentDetach: master verify failed, code=" << verifyResp.errorCode << ", name=" << req.name;
         return verifyResp.errorCode;
     }
-    if (verifyResp.nsVerifyList.size() != entry.allocResult.nameSpaceList.size()) {
+
+    // 从verify响应中获取namespace列表（agent无本地账本）
+    const auto &nameSpaceList = verifyResp.nameSpaceList;
+    if (verifyResp.nsVerifyList.size() != nameSpaceList.size()) {
         UBSE_LOG_ERROR << "AgentDetach: ns count mismatch, name=" << req.name;
         return UBSE_ERROR;
     }
@@ -963,8 +928,8 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry
     }
 
     uint32_t detachRet = UBSE_OK;
-    for (size_t i = 0; i < entry.allocResult.nameSpaceList.size(); ++i) {
-        const auto &nsInfo = entry.allocResult.nameSpaceList[i];
+    for (size_t i = 0; i < nameSpaceList.size(); ++i) {
+        const auto &nsInfo = nameSpaceList[i];
         const auto &verifyInfo = verifyResp.nsVerifyList[i];
         auto nsRet = AgentDetachNs(nsInfo, verifyInfo, req.nqn);
         if (nsRet != UBSE_OK) {
@@ -978,7 +943,7 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const UbseSsuLedgerEntry
         return UBSE_ERROR;
     }
 
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, false);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
     UBSE_LOG_INFO << "AgentDetach success: name=" << req.name;
     return UBSE_OK;
 }
@@ -1097,7 +1062,7 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
     // 无论全部还是部分失败，均回退到CREATED状态
     // 部分detach失败时，NS处于"部分CREATED、部分ATTACHED"的不一致状态
     // 调用方可重试AttachLinearSpace/AttachStripedSpace，利用AttachSingleNs的幂等性重新attach所有NS
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, isMaster);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, isMaster);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RollbackAttachedNsAndLedger: partial detach failed, name=" << req.name;
     }
@@ -1111,6 +1076,20 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "AttachSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach
+    if (role != ELECTION_ROLE_MASTER) {
+        std::string devPath;
+        return AgentAttach(req, "", nullptr, nsDevPaths, devPath);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachSpace: record not found, name=" << req.name;
@@ -1133,24 +1112,11 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         return UBSE_ERROR;
     }
 
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "AttachSpace: failed to get node role for status update, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
     // 标记为attaching中
-    if (UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHING, role == ELECTION_ROLE_MASTER) != UBSE_OK) {
+    if (UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHING, true) != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachSpace: failed to update ledger state and notify, name=" << req.name
                        << ", state=" << static_cast<int>(UbseSsuNsState::ATTACHING);
         return UBSE_ERROR;
-    }
-
-    // Agent节点需要通过master验证identity
-    // 成功后返回defaultNqn等字段，agent据此调用AttachDevNameSpace
-    if (role != ELECTION_ROLE_MASTER) {
-        std::string devPath; // AttachSpace不创建聚合块设备
-        return AgentAttach(req, *entryPtr, "", nullptr, nsDevPaths, devPath);
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1170,7 +1136,7 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
         nsDevPaths.push_back(nsInfo.nsDevPath);
     }
 
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHED, role == ELECTION_ROLE_MASTER);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true);
 
     UBSE_LOG_INFO << "AttachSpace success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
     return UBSE_OK;
@@ -1183,6 +1149,19 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "DetachSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后detach
+    if (role != ELECTION_ROLE_MASTER) {
+        return AgentDetach(req, "", false);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachSpace: record not found, name=" << req.name;
@@ -1200,19 +1179,6 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         UBSE_LOG_ERROR << "DetachSpace: invalid state, name=" << req.name
                        << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_ERROR;
-    }
-
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "DetachSpace: failed to get node role, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
-
-    // Master节点：本地有collector缓存，直接验证identity并detach
-    // Agent节点：collector无数据，需通过RPC发送identity到master验证，获取字段后调用DetachDevNameSpace
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentDetach(req, *entryPtr, "", false);
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1234,8 +1200,8 @@ uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
         return UBSE_ERROR;
     }
 
-    // 更新本地账本，非主节点同步通知master（role已在上方获取）
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, role == ELECTION_ROLE_MASTER);
+    // 更新本地账本
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, true);
 
     UBSE_LOG_INFO << "DetachSpace success: name=" << req.name
                   << ", nsCount=" << entryPtr->allocResult.nameSpaceList.size();
@@ -1282,7 +1248,7 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
         return UBSE_ERROR;
     }
 
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHED, true);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true);
     return UBSE_OK;
 }
 
@@ -1294,6 +1260,21 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "AttachLinearSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
+    if (role != ELECTION_ROLE_MASTER) {
+        UbseCreateBlockDeviceOptions options;
+        options.addressingType = UbseSsuAddressingType::LINEAR;
+        return AgentAttach(req, req.devName, &options, nsDevPaths, devPath);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachLinearSpace: record not found, name=" << req.name;
@@ -1316,24 +1297,13 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         return UBSE_ERROR;
     }
 
-    // Master节点：本地有collector缓存，直接验证identity并attach
-    // Agent节点：需通过RPC发送identity到master验证，获取字段后调用AttachDevNameSpace + CreateBlockDevice
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "AttachLinearSpace: failed to get node role, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
     // 标记为attaching中
-    if (UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHING, role == ELECTION_ROLE_MASTER) != UBSE_OK) {
+    if (UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHING, true) != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace: failed to update ledger state to ATTACHING, name=" << req.name;
         return UBSE_ERROR;
     }
     UbseCreateBlockDeviceOptions options;
     options.addressingType = UbseSsuAddressingType::LINEAR;
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentAttach(req, *entryPtr, req.devName, &options, nsDevPaths, devPath);
-    }
 
     auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
@@ -1438,21 +1408,22 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
                                                              UbseSsuRaidLevel::RAID5,
                                             .chunkSize = static_cast<uint32_t>(req.chunkSize)};
 
-    // Master节点：本地有collector缓存，直接验证identity并attach
-    // Agent节点：需通过RPC发送identity到master验证，获取字段后调用AttachDevNameSpace + CreateBlockDevice
     std::string role;
     auto roleRet = UbseGetRole(role);
     if (roleRet != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: failed to get node role, ret=" << roleRet;
         return UBSE_ERROR;
     }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
+    if (role != ELECTION_ROLE_MASTER) {
+        return AgentAttach(req, req.devName, &options, nsDevPaths, devPath);
+    }
+
     // 标记为attaching中
-    if (UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::ATTACHING, role == ELECTION_ROLE_MASTER) != UBSE_OK) {
+    if (UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHING, true) != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: failed to update ledger state to ATTACHING, name=" << req.name;
         return UBSE_ERROR;
-    }
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentAttach(req, *entryPtr, req.devName, &options, nsDevPaths, devPath);
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1509,7 +1480,7 @@ static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseS
         UBSE_LOG_ERROR << tag << ": failed to get node role for status update, ret=" << roleRet;
         return UBSE_ERROR;
     }
-    UpdateLedgerStateAndNotify(req.name, UbseSsuNsState::CREATED, role == ELECTION_ROLE_MASTER);
+    UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, role == ELECTION_ROLE_MASTER);
     return UBSE_OK;
 }
 
@@ -1520,6 +1491,19 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "DetachLinearSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后detach
+    if (role != ELECTION_ROLE_MASTER) {
+        return AgentDetach(req, req.devName, true);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachLinearSpace: record not found, name=" << req.name;
@@ -1539,18 +1523,6 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
         return UBSE_ERROR;
     }
 
-    // Master节点：本地有collector缓存，直接验证identity并detach
-    // Agent节点：需通过RPC发送identity到master验证，获取字段后调用DetachDevNameSpace
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "DetachLinearSpace: failed to get node role, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentDetach(req, *entryPtr, req.devName, true);
-    }
-
     auto devMap = collector_.GetCachedDevMap();
     auto ret = DetachNsAndDeleteBlockDevice("DetachLinearSpace", req, entryPtr->allocResult.nameSpaceList, devMap);
     if (ret != UBSE_OK) {
@@ -1568,6 +1540,19 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "DetachStripedSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后detach
+    if (role != ELECTION_ROLE_MASTER) {
+        return AgentDetach(req, req.devName, true);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachStripedSpace: record not found, name=" << req.name;
@@ -1585,18 +1570,6 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
         UBSE_LOG_ERROR << "DetachStripedSpace: invalid state, name=" << req.name
                        << ", state=" << static_cast<int>(entryPtr->state);
         return UBSE_ERROR;
-    }
-
-    // Master节点：本地有collector缓存，直接验证identity并detach
-    // Agent节点：需通过RPC发送identity到master验证，获取字段后调用DetachDevNameSpace
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "DetachStripedSpace: failed to get node role, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentDetach(req, *entryPtr, req.devName, true);
     }
 
     auto devMap = collector_.GetCachedDevMap();
@@ -1865,37 +1838,7 @@ uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, co
     return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe, busInstanceGuid);
 }
 
-// agent端发送GetNsStats查询RPC请求到master节点
-static uint32_t SendGetNsStatsRpcRequest(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                         const std::string &requestNodeId, const std::string &masterNodeId,
-                                         const std::string &requestId)
-{
-    auto endpoint =
-        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ));
-    if (endpoint == nullptr) {
-        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: get endpoint failed, requestId=" << requestId;
-        return UBSE_ERROR;
-    }
-
-    UbseSsuGetNsStatsReqMsg reqMsg(requestId, requestNodeId, name, identity);
-    UbseSsuSyncRespMsg syncResp;
-    auto ret = endpoint->UbseRpcSend(masterNodeId, reqMsg, syncResp);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: RpcSend failed, " << FormatRetCode(ret)
-                       << ", requestId=" << requestId;
-        return ret;
-    }
-    auto syncErr = syncResp.GetErrorCode();
-    if (syncErr != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendGetNsStatsRpcRequest: master sync resp error, code=" << syncErr
-                       << ", requestId=" << requestId;
-        return syncErr;
-    }
-    return UBSE_OK;
-}
-
-// agent端通过RPC查询命名空间统计信息
+// agent端通过RPC查询命名空间统计信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待
 static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
                                  const UbseSsuAllocIdentityInfo &identity)
 {
@@ -1913,25 +1856,24 @@ static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsS
     }
 
     auto requestId = "getnsstats_" + name + "_" + roleInfo.nodeId;
-    auto respMgr = UbseFutureMgr::CreateInstance(requestId);
-    if (respMgr == nullptr) {
-        UBSE_LOG_ERROR << "GetNsStatsViaRpc: create future failed, requestId=" << requestId;
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto respFuture = respMgr->GetFuture<UbseSsuGetNsStatsResp>();
 
-    ret = SendGetNsStatsRpcRequest(name, identity, roleInfo.nodeId, masterInfo.nodeId, requestId);
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuGetNsStatsReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity);
+    UbseSsuGetNsStatsRespMsg syncResp;
+    ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "GetNsStatsViaRpc: send rpc failed, requestId=" << requestId << ", ret=" << ret;
+        UBSE_LOG_ERROR << "GetNsStatsViaRpc: RpcSend failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
         return ret;
     }
 
-    if (respFuture.wait_for(std::chrono::seconds(MAX_TIMEOUT_SECONDS)) != std::future_status::ready) {
-        UBSE_LOG_ERROR << "GetNsStatsViaRpc: timeout, requestId=" << requestId;
-        return UBSE_ERR_TIMED_OUT;
-    }
-
-    auto resp = respFuture.get();
+    auto resp = syncResp.GetGetNsStatsResp();
     if (resp.errorCode != UBSE_OK) {
         UBSE_LOG_ERROR << "GetNsStatsViaRpc: failed, requestId=" << requestId << ", errorCode=" << resp.errorCode;
         return resp.errorCode;
@@ -1939,6 +1881,28 @@ static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsS
     statsList = std::move(resp.statsList);
     UBSE_LOG_INFO << "GetNsStatsViaRpc success: name=" << name << ", count=" << statsList.size();
     return UBSE_OK;
+}
+
+// 缓存未命中时从硬件实时刷新指定eid的设备缓存
+// 用于刚分配的namespace尚未被定时采集（30s间隔）覆盖的场景
+static void RefreshDevCache(const std::string &eid, const std::string &subNqn,
+                            std::unordered_set<std::string> &refreshedEids,
+                            std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    if (refreshedEids.find(eid) != refreshedEids.end()) {
+        return;
+    }
+    refreshedEids.insert(eid);
+    std::vector<UbseSsuDevInfo> freshDevList(1);
+    freshDevList[0].subSystem.eid = eid;
+    freshDevList[0].subSystem.subNqn = subNqn;
+    auto ret = UbseSsuAdapterInterface::GetInstance().GetDevList(freshDevList);
+    if (ret == UBSE_OK && !freshDevList.empty()) {
+        devMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(freshDevList[0]));
+    } else {
+        UBSE_LOG_WARN << "RefreshDevCache: refresh dev from hardware failed, eid=" << eid
+                      << ", ret=" << ret;
+    }
 }
 
 // master端：查询命名空间统计信息，校验identity后从设备缓存获取usedSize
@@ -1954,12 +1918,17 @@ uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vect
     }
 
     auto devMap = collector_.GetCachedDevMap();
+    std::unordered_set<std::string> refreshedEids;
     statsList.clear();
     statsList.reserve(entryPtr->allocResult.nameSpaceList.size());
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
         if (targetNs == nullptr) {
-            UBSE_LOG_ERROR << "ExecuteGetNsStats: namespace not found in cache, eid=" << nsInfo.tgtEid
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        }
+        if (targetNs == nullptr) {
+            UBSE_LOG_ERROR << "ExecuteGetNsStats: namespace not found, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
             statsList.clear();
             return UBSE_ERROR;
@@ -2003,6 +1972,266 @@ uint32_t UbseSsuServiceImp::GetNsStats(const std::string &name, std::vector<Ubse
     }
 
     UBSE_LOG_ERROR << "GetNsStats: unsupported node role=" << role;
+    return UBSE_ERROR;
+}
+
+// agent端通过RPC查询所有分配信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待
+static uint32_t ListAllocInfoViaRpc(std::vector<UbseSsuAllocResult> &result, const UbseSsuAllocIdentityInfo &identity)
+{
+    UbseRoleInfo roleInfo{};
+    auto ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfoViaRpc: get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfoViaRpc: get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = "listalloc_" + roleInfo.nodeId;
+
+    auto endpoint =
+        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "ListAllocInfoViaRpc: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuListAllocInfoReqMsg reqMsg(requestId, roleInfo.nodeId, identity);
+    UbseSsuListAllocInfoRespMsg syncResp;
+    ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfoViaRpc: RpcSend failed, " << FormatRetCode(ret) << ", requestId=" << requestId;
+        return ret;
+    }
+
+    const auto &resp = syncResp.GetListAllocInfoResp();
+    if (resp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfoViaRpc: identity verify failed, requestId=" << requestId
+                       << ", errorCode=" << resp.errorCode;
+        return resp.errorCode;
+    }
+
+    // master端直接返回完整分配结果列表，无需本地账本
+    result = resp.results;
+    UBSE_LOG_INFO << "ListAllocInfoViaRpc success: count=" << result.size();
+    return UBSE_OK;
+}
+
+// agent端通过RPC根据名称查询分配信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待
+static uint32_t GetAllocInfoByNameViaRpc(const std::string &name, UbseSsuAllocResult &result,
+                                         const UbseSsuAllocIdentityInfo &identity)
+{
+    UbseRoleInfo roleInfo{};
+    auto ret = UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByNameViaRpc: get current node info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByNameViaRpc: get master info failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    auto requestId = "getalloc_" + name + "_" + roleInfo.nodeId;
+
+    auto endpoint = UbseRpcEndpointFactory::GetRpcEndpoint(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ));
+    if (endpoint == nullptr) {
+        UBSE_LOG_ERROR << "GetAllocInfoByNameViaRpc: get endpoint failed, requestId=" << requestId;
+        return UBSE_ERROR;
+    }
+
+    UbseSsuGetAllocInfoReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity);
+    UbseSsuGetAllocInfoRespMsg syncResp;
+    ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByNameViaRpc: RpcSend failed, " << FormatRetCode(ret)
+                       << ", requestId=" << requestId;
+        return ret;
+    }
+
+    const auto &resp = syncResp.GetGetAllocInfoResp();
+    if (resp.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByNameViaRpc: identity verify failed, requestId=" << requestId
+                       << ", errorCode=" << resp.errorCode;
+        return resp.errorCode;
+    }
+
+    // master端直接返回完整的分配结果，无需本地账本
+    result = resp.result;
+    UBSE_LOG_INFO << "GetAllocInfoByNameViaRpc success: name=" << name;
+    return UBSE_OK;
+}
+
+// 校验ledger entry是否属于指定identity：所有可在设备缓存中找到的namespace的identity都必须匹配
+static bool IsLedgerEntryIdentityMatch(const UbseSsuLedgerEntry &entry, const UbseSsuAllocIdentityInfo &identity,
+                                       std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    std::unordered_set<std::string> refreshedEids;
+    bool anyChecked = false;
+    for (const auto &nsInfo : entry.allocResult.nameSpaceList) {
+        const auto *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            if (targetNs == nullptr) {
+                continue;
+            }
+        }
+        if (!IsNsIdentityMatch(*targetNs, identity)) {
+            // 任意一个已查到的namespace不匹配，即视为非本人所有
+            return false;
+        }
+        anyChecked = true;
+    }
+    // 所有能查到的namespace都匹配且至少查到过1个，才算放行
+    return anyChecked;
+}
+
+// master端：校验identity并返回该identity有权访问的name列表
+// name为空时返回所有匹配的name列表；name非空时只验证该name，验证通过则verifiedNames=[name]，不通过返回错误码
+// master端校验identity并返回该identity有权访问的name列表
+static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, const std::string &name,
+                                      std::vector<std::string> &verifiedNames,
+                                      std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    UBSE_LOG_INFO << "VerifyGetInfoIdentity: name=" << name << ", uid=" << identity.uid
+                  << ", userName=" << identity.userName;
+
+    verifiedNames.clear();
+
+    // name非空：只验证指定name的identity
+    if (!name.empty()) {
+        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+        if (entryPtr == nullptr) {
+            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record not found, name=" << name;
+            return UBSE_ERROR;
+        }
+        // CREATING/IDLE状态的条目allocResult为空，不返回
+        if (entryPtr->state == UbseSsuNsState::CREATING) {
+            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: still creating, name=" << name;
+            return UBSE_ERR_CREATING;
+        }
+        if (entryPtr->state == UbseSsuNsState::IDLE) {
+            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: record idle, name=" << name;
+            return UBSE_ERR_NOT_EXIST;
+        }
+        if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+            UBSE_LOG_ERROR << "VerifyGetInfoIdentity: identity not match, name=" << name;
+            return UBSE_ERR_ACCESS_DENIED;
+        }
+        verifiedNames.push_back(name);
+        UBSE_LOG_INFO << "VerifyGetInfoIdentity success: name=" << name;
+        return UBSE_OK;
+    }
+
+    // name为空：返回所有匹配identity的name列表
+    auto entries = UbseSsuDebtLedger::GetInstance().GetAll();
+    for (const auto &entryPtr : entries) {
+        if (entryPtr == nullptr) {
+            continue;
+        }
+        // CREATING/IDLE状态的条目allocResult为空，不返回
+        if (entryPtr->state == UbseSsuNsState::CREATING || entryPtr->state == UbseSsuNsState::IDLE) {
+            continue;
+        }
+        if (!IsLedgerEntryIdentityMatch(*entryPtr, identity, devMap)) {
+            continue;
+        }
+        verifiedNames.push_back(entryPtr->name);
+    }
+    UBSE_LOG_INFO << "VerifyGetInfoIdentity success: count=" << verifiedNames.size();
+    return UBSE_OK;
+}
+
+// ListAllocInfo主入口：根据节点角色选择查询方式
+uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &result,
+                                          const UbseSsuAllocIdentityInfo &identity)
+{
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfo: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        // master端：先校验identity获取有权访问的name列表，再从本地账本读取完整数据
+        std::vector<std::string> verifiedNames;
+        auto devMap = collector_.GetCachedDevMap();
+        ret = VerifyGetInfoIdentity(identity, "", verifiedNames, devMap);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "ListAllocInfo: identity verify failed, ret=" << ret;
+            return ret;
+        }
+        result.clear();
+        for (const auto &name : verifiedNames) {
+            auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+            if (entryPtr == nullptr) {
+                UBSE_LOG_WARN << "ListAllocInfo: local ledger entry not found, name=" << name;
+                continue;
+            }
+            result.push_back(entryPtr->allocResult);
+        }
+        return UBSE_OK;
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return ListAllocInfoViaRpc(result, identity);
+    }
+
+    UBSE_LOG_ERROR << "ListAllocInfo: unsupported node role=" << role;
+    return UBSE_ERROR;
+}
+
+// GetAllocInfoByName主入口：根据节点角色选择查询方式
+uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuAllocResult &result,
+                                               const UbseSsuAllocIdentityInfo &identity)
+{
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "GetAllocInfoByName: name is empty";
+        return UBSE_ERROR;
+    }
+    UBSE_LOG_INFO << "GetAllocInfoByName: name=" << name;
+
+    std::string role;
+    auto ret = UbseGetRole(role);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByName: failed to get node role, ret=" << ret;
+        return ret;
+    }
+
+    if (role == ELECTION_ROLE_MASTER) {
+        // master端：先校验identity，验证成功后从本地账本读取完整数据
+        std::vector<std::string> verifiedNames;
+        auto devMap = collector_.GetCachedDevMap();
+        ret = VerifyGetInfoIdentity(identity, name, verifiedNames, devMap);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "GetAllocInfoByName: identity verify failed, name=" << name << ", ret=" << ret;
+            return ret;
+        }
+        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
+        if (entryPtr == nullptr) {
+            UBSE_LOG_ERROR << "GetAllocInfoByName: local ledger entry not found, name=" << name;
+            return UBSE_ERROR;
+        }
+        result = entryPtr->allocResult;
+        return UBSE_OK;
+    }
+
+    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
+        return GetAllocInfoByNameViaRpc(name, result, identity);
+    }
+
+    UBSE_LOG_ERROR << "GetAllocInfoByName: unsupported node role=" << role;
     return UBSE_ERROR;
 }
 } // namespace ubse::ssu::service

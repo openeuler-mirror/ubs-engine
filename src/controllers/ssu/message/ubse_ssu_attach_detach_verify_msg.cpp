@@ -12,6 +12,7 @@
 
 #include "ubse_ssu_attach_detach_verify_msg.h"
 
+#include "ubse_ssu_alloc_msg.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_serial_util.h"
@@ -93,6 +94,11 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Serialize(std::unique_ptr<uint8_t[]> 
     for (const auto &ns : resp_.nsVerifyList) {
         out << ns;
     }
+    uint32_t infoCnt = resp_.nameSpaceList.size();
+    out << infoCnt;
+    for (const auto &nsInfo : resp_.nameSpaceList) {
+        out << nsInfo;
+    }
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp serialize failed.";
         return UBSE_ERROR;
@@ -122,6 +128,22 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Deserialize(const uint8_t *data, uint
             break;
         }
         resp_.nsVerifyList.emplace_back(std::move(ns));
+    }
+    uint32_t infoCnt = 0;
+    in >> infoCnt;
+    resp_.nameSpaceList.clear();
+    if (infoCnt > MAX_VERIFY_NS_NUM) {
+        UBSE_LOG_ERROR << "SSU attach verify resp ns info num exceeds max limit, size=" << infoCnt;
+        in.SetFail();
+        return UBSE_ERROR;
+    }
+    for (uint32_t i = 0; i < infoCnt; ++i) {
+        UbseSsuNameSpaceInfo nsInfo;
+        in >> nsInfo;
+        if (!in.Check()) {
+            break;
+        }
+        resp_.nameSpaceList.emplace_back(std::move(nsInfo));
     }
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify resp deserialize failed.";

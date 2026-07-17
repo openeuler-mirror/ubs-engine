@@ -310,93 +310,43 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     SetReplySyncResp(resp);
 }
 
-// 发送attach验证响应给agent
-static void SendSsuAttachDetachVerifyRespToAgent(const std::string &agentNodeId, const UbseSsuAttachDetachVerifyResp &resp)
-{
-    auto endpoint =
-        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_RESP));
-    if (endpoint == nullptr) {
-        UBSE_LOG_ERROR << "SendSsuAttachDetachVerifyRespToAgent: get endpoint failed, requestId=" << resp.requestId;
-        return;
-    }
-    UbseSsuAttachDetachVerifyRespMsg respMsg(resp);
-    UbseSsuSyncRespMsg ackMsg;
-    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendSsuAttachDetachVerifyRespToAgent failed, " << FormatRetCode(ret)
-                       << ", requestId=" << resp.requestId;
-    }
-}
-
-// 构建attach验证失败响应
-static UbseSsuAttachDetachVerifyResp BuildAttachDetachVerifyErrResp(const std::string &requestId, uint32_t errorCode)
-{
-    UbseSsuAttachDetachVerifyResp resp;
-    resp.requestId = requestId;
-    resp.errorCode = errorCode;
-    return resp;
-}
-
-// handler: master端处理来自agent端的attach验证请求，验证identity并返回构造AttachDevNameSpace所需字段
+// handler: master端处理来自agent端的attach验证请求：验证identity并返回构造AttachDevNameSpace所需字段。
+// 查询耗时较短（纯内存账本+设备缓存读取），直接在handler线程同步执行，通过sync resp直接返回nsVerifyList，
+// agent端无需future等待
 static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t reqSize,
-                                          std::unique_ptr<UbseRpcMessage> &resp)
+                                                std::unique_ptr<UbseRpcMessage> &resp)
 {
     UbseSsuAttachDetachVerifyReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize attach verify req, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        UbseSsuAttachDetachVerifyResp errResp;
+        errResp.errorCode = UBSE_ERROR;
+        resp = std::make_unique<UbseSsuAttachDetachVerifyRespMsg>(errResp);
         return;
     }
 
-    std::string traceId = TraceContext::GetTraceId();
     auto verifyReq = request.GetAttachDetachVerifyReq();
-    auto executor = utils::GetSsuExecutor();
-    if (executor == nullptr) {
-        SendSsuAttachDetachVerifyRespToAgent(verifyReq.requestNodeId,
-                                       BuildAttachDetachVerifyErrResp(verifyReq.requestId, UBSE_ERROR));
-        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
-        SetReplySyncResp(resp, UBSE_ERROR);
-        return;
-    }
+    UBSE_LOG_INFO << "Received attach verify req, requestId=" << verifyReq.requestId << ", name=" << verifyReq.name
+                  << ", requestNodeId=" << verifyReq.requestNodeId;
 
-    executor->Execute([verifyReq = std::move(verifyReq), traceId = std::move(traceId)]() {
-        TraceContext::SetTraceId(traceId);
-        auto &controller = UbseSsuServiceImp::GetInstance();
-        UbseSsuAttachDetachVerifyResp respData;
-        respData.requestId = verifyReq.requestId;
-        std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
-        auto ret = controller.VerifyAttachDetachIdentity(verifyReq.name, verifyReq.identityInfo, nsVerifyList);
-        respData.errorCode = ret;
-        if (ret == UBSE_OK) {
-            respData.nsVerifyList = std::move(nsVerifyList);
-        } else {
-            UBSE_LOG_ERROR << "VerifyAttachDetachIdentity failed, " << FormatRetCode(ret)
-                           << ", requestId=" << verifyReq.requestId << ", name=" << verifyReq.name;
+    UbseSsuAttachDetachVerifyResp respData;
+    respData.requestId = verifyReq.requestId;
+    std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
+    auto ret = UbseSsuServiceImp::GetInstance().VerifyAttachDetachIdentity(verifyReq.name, verifyReq.identityInfo,
+                                                                           nsVerifyList);
+    respData.errorCode = ret;
+    if (ret == UBSE_OK) {
+        respData.nsVerifyList = std::move(nsVerifyList);
+        // agent无本地账本，一并返回namespace列表供agent端attach/detach使用
+        auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(verifyReq.name);
+        if (entryPtr != nullptr) {
+            respData.nameSpaceList = entryPtr->allocResult.nameSpaceList;
         }
-        SendSsuAttachDetachVerifyRespToAgent(verifyReq.requestNodeId, respData);
-        TraceContext::Clear();
-    });
-    SetReplySyncResp(resp);
-}
-
-// handler: agent端处理attach验证响应
-static void HandleAttachDetachVerifyRespReceiver(const uint8_t *reqData, uint32_t reqSize,
-                                           std::unique_ptr<UbseRpcMessage> &resp)
-{
-    UbseSsuAttachDetachVerifyRespMsg response;
-    if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to deserialize attach verify resp";
-        SetReplySyncResp(resp, UBSE_ERROR);
-        return;
+    } else {
+        UBSE_LOG_ERROR << "VerifyAttachDetachIdentity failed, " << FormatRetCode(ret)
+                       << ", requestId=" << verifyReq.requestId << ", name=" << verifyReq.name;
     }
-    auto respData = response.GetAttachDetachVerifyResp();
-    UBSE_LOG_INFO << "Received ssu attach verify response, requestId=" << respData.requestId
-                  << ", errorCode=" << respData.errorCode;
-    if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
-        UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for ssu attach verify response";
-    }
-    SetReplySyncResp(resp);
+    resp = std::make_unique<UbseSsuAttachDetachVerifyRespMsg>(respData);
 }
 
 // 构建SSU访问权限响应
@@ -498,84 +448,31 @@ static void HandlePermRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
 
 // ====== 查询类接口处理器 ======
 
-// 发送GetNsStats响应到agent
-static void SendSsuGetNsStatsRespToAgent(const std::string &agentNodeId, const UbseSsuGetNsStatsResp &resp)
-{
-    UbseSsuGetNsStatsRespMsg respMsg(resp);
-    auto endpoint =
-        UbseRpcEndpointFactory::GetRpcEndpoint(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                               static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_RESP));
-    if (endpoint == nullptr) {
-        UBSE_LOG_ERROR << "SendSsuGetNsStatsRespToAgent: get endpoint failed, requestId=" << resp.requestId;
-        return;
-    }
-    UbseSsuSyncRespMsg ackMsg;
-    auto ret = endpoint->UbseRpcSend(agentNodeId, respMsg, ackMsg);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SendSsuGetNsStatsRespToAgent: RpcSend failed, " << FormatRetCode(ret)
-                       << ", requestId=" << resp.requestId;
-    }
-}
-
-// master端处理GetNsStats查询请求
+// master端处理GetNsStats查询请求：查询耗时较短，直接在handler线程同步执行，
+// 通过sync resp直接返回statsList，agent端无需future等待
 static void HandleGetNsStatsReqReceiver(const uint8_t *reqData, uint32_t reqSize, std::unique_ptr<UbseRpcMessage> &resp)
 {
     UbseSsuGetNsStatsReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize get ns stats req, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        UbseSsuGetNsStatsResp errResp;
+        errResp.errorCode = UBSE_ERROR;
+        resp = std::make_unique<UbseSsuGetNsStatsRespMsg>(errResp);
         return;
     }
 
-    std::string traceId = TraceContext::GetTraceId();
     auto req = request.GetGetNsStatsReq();
     UBSE_LOG_INFO << "Received get ns stats req, requestId=" << req.requestId << ", name=" << req.name
                   << ", requestNodeId=" << req.requestNodeId;
 
-    auto executor = utils::GetSsuExecutor();
-    if (executor == nullptr) {
-        UbseSsuGetNsStatsResp respData;
-        respData.requestId = req.requestId;
-        respData.errorCode = UBSE_ERROR;
-        SendSsuGetNsStatsRespToAgent(req.requestNodeId, respData);
-        UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
-        SetReplySyncResp(resp, UBSE_ERROR);
-        return;
+    UbseSsuGetNsStatsResp respData;
+    respData.requestId = req.requestId;
+    respData.errorCode = UbseSsuServiceImp::GetInstance().GetNsStats(req.name, respData.statsList, req.identityInfo);
+    if (respData.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetNsStats failed, " << FormatRetCode(respData.errorCode) << ", requestId=" << req.requestId
+                       << ", name=" << req.name;
     }
-
-    executor->Execute([req = std::move(req), traceId = std::move(traceId)]() {
-        TraceContext::SetTraceId(traceId);
-        auto &controller = UbseSsuServiceImp::GetInstance();
-        UbseSsuGetNsStatsResp respData;
-        respData.requestId = req.requestId;
-        respData.errorCode = controller.GetNsStats(req.name, respData.statsList, req.identityInfo);
-        if (respData.errorCode != UBSE_OK) {
-            UBSE_LOG_ERROR << "GetNsStats failed, " << FormatRetCode(respData.errorCode)
-                           << ", requestId=" << req.requestId << ", name=" << req.name;
-        }
-        SendSsuGetNsStatsRespToAgent(req.requestNodeId, respData);
-        TraceContext::Clear();
-    });
-    SetReplySyncResp(resp);
-}
-
-// agent端处理GetNsStats查询响应
-static void HandleGetNsStatsRespReceiver(const uint8_t *reqData, uint32_t reqSize,
-                                         std::unique_ptr<UbseRpcMessage> &resp)
-{
-    UbseSsuGetNsStatsRespMsg response;
-    if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to deserialize get ns stats resp";
-        SetReplySyncResp(resp, UBSE_ERROR);
-        return;
-    }
-    auto respData = response.GetGetNsStatsResp();
-    UBSE_LOG_INFO << "Received ssu get ns stats response, requestId=" << respData.requestId
-                  << ", errorCode=" << respData.errorCode << ", count=" << respData.statsList.size();
-    if (!UbseFutureMgr::SetResult(respData.requestId, respData)) {
-        UBSE_LOG_ERROR << "Can not find requestId[" << respData.requestId << "] for get ns stats response";
-    }
-    SetReplySyncResp(resp);
+    resp = std::make_unique<UbseSsuGetNsStatsRespMsg>(respData);
 }
 
 // 注册SSU分配请求和响应处理器
@@ -596,6 +493,64 @@ uint32_t UbseSsuRpcProcessor::RegisterAllocHandlers()
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+// master端处理ListAllocInfo查询请求：查询耗时较短，直接在handler线程同步执行，
+// 通过sync resp直接返回完整分配结果列表，agent无需本地账本
+static void HandleListAllocInfoReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                           std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuListAllocInfoReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize list alloc info req, reqSize=" << reqSize;
+        UbseSsuListAllocInfoResp errResp;
+        errResp.errorCode = UBSE_ERROR;
+        resp = std::make_unique<UbseSsuListAllocInfoRespMsg>(errResp);
+        return;
+    }
+
+    auto req = request.GetListAllocInfoReq();
+    UBSE_LOG_INFO << "Received list alloc info req, requestId=" << req.requestId
+                  << ", requestNodeId=" << req.requestNodeId;
+
+    UbseSsuListAllocInfoResp respData;
+    respData.requestId = req.requestId;
+    // master端直接返回完整分配结果列表，agent无本地账本
+    respData.errorCode = UbseSsuServiceImp::GetInstance().ListAllocInfo(respData.results, req.identityInfo);
+    if (respData.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "ListAllocInfo failed, " << FormatRetCode(respData.errorCode)
+                       << ", requestId=" << req.requestId;
+    }
+    resp = std::make_unique<UbseSsuListAllocInfoRespMsg>(respData);
+}
+
+// master端处理GetAllocInfoByName查询请求：查询耗时较短，直接在handler线程同步执行，
+// 通过sync resp直接返回完整的分配结果，agent无需本地账本
+static void HandleGetAllocInfoReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                          std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuGetAllocInfoReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize get alloc info req, reqSize=" << reqSize;
+        UbseSsuGetAllocInfoResp errResp;
+        errResp.errorCode = UBSE_ERROR;
+        resp = std::make_unique<UbseSsuGetAllocInfoRespMsg>(errResp);
+        return;
+    }
+
+    auto req = request.GetGetAllocInfoReq();
+    UBSE_LOG_INFO << "Received get alloc info req, requestId=" << req.requestId << ", name=" << req.name
+                  << ", requestNodeId=" << req.requestNodeId;
+
+    UbseSsuGetAllocInfoResp respData;
+    respData.requestId = req.requestId;
+    // master端直接返回完整分配结果，agent无本地账本
+    respData.errorCode = UbseSsuServiceImp::GetInstance().GetAllocInfoByName(req.name, respData.result, req.identityInfo);
+    if (respData.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetAllocInfoByName failed, " << FormatRetCode(respData.errorCode)
+                       << ", requestId=" << req.requestId << ", name=" << req.name;
+    }
+    resp = std::make_unique<UbseSsuGetAllocInfoRespMsg>(respData);
 }
 
 // 注册SSU状态更新请求处理器
@@ -652,20 +607,14 @@ uint32_t UbseSsuRpcProcessor::RegisterAddPermHandlers()
 }
 
 // 注册attach验证请求处理器（master端处理agent的验证请求）
+// 验证响应直接通过sync resp返回，无需注册RESP端点
 uint32_t UbseSsuRpcProcessor::RegisterAttachDetachVerifyHandlers()
 {
-    auto reqEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                                     static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ),
-                                                     HandleAttachDetachVerifyReqReceiver);
+    auto reqEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ), HandleAttachDetachVerifyReqReceiver);
     if (reqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register attach verify req receiver";
-        return UBSE_ERROR;
-    }
-    auto respEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-                                                      static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_RESP),
-                                                      HandleAttachDetachVerifyRespReceiver);
-    if (respEndpoint == nullptr) {
-        UBSE_LOG_ERROR << "Unable to register attach verify resp receiver";
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -694,7 +643,7 @@ uint32_t UbseSsuRpcProcessor::RegisterRemovePermHandlers()
 // 注册SSU查询类接口请求和响应处理器
 uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
 {
-    // GetNsStats
+    // GetNsStats（查询响应直接通过sync resp返回，无需注册RESP端点）
     auto getNsStatsReqEndpoint = UbseRpcEndpointFactory::Build(
         static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ), HandleGetNsStatsReqReceiver);
@@ -702,13 +651,25 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         UBSE_LOG_ERROR << "Unable to register get ns stats req receiver";
         return UBSE_ERROR;
     }
-    auto getNsStatsRespEndpoint = UbseRpcEndpointFactory::Build(
+
+    // ListAllocInfo（查询响应直接通过sync resp返回，无需注册RESP端点）
+    auto listAllocReqEndpoint = UbseRpcEndpointFactory::Build(
         static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
-        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_RESP), HandleGetNsStatsRespReceiver);
-    if (getNsStatsRespEndpoint == nullptr) {
-        UBSE_LOG_ERROR << "Unable to register get ns stats resp receiver";
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ), HandleListAllocInfoReqReceiver);
+    if (listAllocReqEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register list alloc info req receiver";
         return UBSE_ERROR;
     }
+
+    // GetAllocInfoByName（查询响应直接通过sync resp返回，无需注册RESP端点）
+    auto getAllocReqEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ), HandleGetAllocInfoReqReceiver);
+    if (getAllocReqEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register get alloc info req receiver";
+        return UBSE_ERROR;
+    }
+
     return UBSE_OK;
 }
 
