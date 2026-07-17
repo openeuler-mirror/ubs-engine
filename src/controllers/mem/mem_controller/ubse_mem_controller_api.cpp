@@ -409,6 +409,113 @@ uint32_t GetCnaInfoWhenImport(const std::string &exportNodeId, const std::string
     return UBSE_OK;
 }
 
+bool FindCpuInfoBySocketId(const ubse::nodeController::UbseNodeInfo &node, int socketId, UbseCpuInfo &cpuInfo)
+{
+    for (const auto &[_, info] : node.cpuInfos) {
+        if (info.socketId == static_cast<uint32_t>(socketId)) {
+            cpuInfo = info;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FindCommonMinUpPort(const UbseCpuInfo &importCpuInfo, const UbseCpuInfo &exportCpuInfo,
+                                uint32_t &minPortId, uint32_t &exportCna)
+{
+    minPortId = UINT32_MAX;
+    for (const auto &[portId, importPort] : importCpuInfo.portInfos) {
+        if (importPort.portStatus != PortStatus::UP) {
+            continue;
+        }
+        auto exportIt = exportCpuInfo.portInfos.find(portId);
+        if (exportIt == exportCpuInfo.portInfos.end() || exportIt->second.portStatus != PortStatus::UP) {
+            continue;
+        }
+        uint32_t portIdNum = 0;
+        if (ConvertStrToUint32(portId, portIdNum) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Invalid portId=" << portId;
+            continue;
+        }
+        if (portIdNum < minPortId) {
+            minPortId = portIdNum;
+            exportCna = exportIt->second.portCna;
+        }
+    }
+    return minPortId != UINT32_MAX;
+}
+
+uint32_t FillExportObmmDescs(const std::string &borrowNodeId, uint32_t srcSocketId,
+                                    uint32_t minPortId, uint32_t importCna, uint32_t exportCna,
+                                    std::vector<UbseMemObmmInfo> &exportObmmInfo)
+{
+    for (auto &obmmInfo : exportObmmInfo) {
+        // mar_id为port_id除4。port 0-3对应mar_id 0，port 4-7对应mar_id 1, port 8对应mar_id 2        
+        obmmInfo.desc.marId = static_cast<uint16_t>(minPortId / 4);
+        obmmInfo.desc.scna = importCna;
+        obmmInfo.desc.dcna = exportCna;
+        auto ret = UbseNodeController::GetInstance().GetEid(borrowNodeId, srcSocketId, obmmInfo.desc.seid);
+        if ((obmmInfo.desc.scna == INVALID_VALUE16) || (obmmInfo.desc.dcna == INVALID_VALUE16) ||
+            ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "failed to get cna or mar id or eid, scna=" << obmmInfo.desc.scna
+                           << ", marId=" << obmmInfo.desc.marId << ", dcna=" << obmmInfo.desc.dcna
+                           << ", seid=" << obmmInfo.desc.seid;
+            return UBSE_ERROR;
+        }
+    }
+    return UBSE_OK;
+}
+
+uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::string &importNodeId,
+                              UbseMemBorrowImportBaseObj &importObj)
+{
+    if (importObj.algoResult.exportNumaInfos.empty()) {
+        UBSE_LOG_ERROR << "exportNumaInfos is empty";
+        return UBSE_ERROR;
+    }
+
+    UbseNodeMemCnaInfoInput cnaInput;
+    cnaInput.exportNodeId = exportNodeId;
+    cnaInput.borrowNodeId = importNodeId;
+    cnaInput.exportSocketId = std::to_string(importObj.algoResult.exportNumaInfos[0].socketId);
+    
+    auto importNode = UbseNodeController::GetInstance().GetNodeById(importNodeId);
+    auto exportNode = UbseNodeController::GetInstance().GetNodeById(exportNodeId);
+
+    int socketId = importObj.algoResult.exportNumaInfos[0].socketId;
+    UbseCpuInfo exportCpuInfo{};
+    if (!FindCpuInfoBySocketId(exportNode, socketId, exportCpuInfo) || exportCpuInfo.portInfos.empty()) {
+        UBSE_LOG_ERROR << "exportCpuInfo.portInfos is not find, cpuInfo size=" << exportCpuInfo.portInfos.size();
+        return UBSE_ERROR;
+    }
+    UbseCpuInfo importCpuInfo{};
+    if (!FindCpuInfoBySocketId(importNode, socketId, importCpuInfo) || importCpuInfo.portInfos.empty()) {
+        UBSE_LOG_ERROR << "importCpuInfo.portInfos is not find, cpuInfo size=" << importCpuInfo.portInfos.size();
+        return UBSE_ERROR;
+    }
+
+
+
+    uint32_t importCna = importCpuInfo.busNodeCna;
+    uint32_t exportCna = exportCpuInfo.busNodeCna;
+    // 找到import和export两侧同时存在、且均为UP状态的最小portId，分别取对应侧的portCna
+    uint32_t minPortId = UINT32_MAX;
+
+    if (!FindCommonMinUpPort(importCpuInfo, exportCpuInfo, minPortId, exportCna)) {
+        UBSE_LOG_ERROR << "No valid portId found";
+        return UBSE_ERROR;
+    }
+
+    UBSE_LOG_INFO << "exportSocketId=" << cnaInput.exportSocketId << ", importCna=" << importCna << ", exportCna=" << exportCna;
+    if (ConvertStrToUint32(cnaInput.exportSocketId, importObj.algoResult.attachSocketId) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Invalid exportSocketId=" << cnaInput.exportSocketId;
+        return UBSE_ERROR;
+    }
+    uint32_t srcSocketId = importObj.algoResult.attachSocketId;
+    return FillExportObmmDescs(cnaInput.borrowNodeId, srcSocketId, minPortId, importCna, exportCna,
+                            importObj.exportObmmInfo);
+}
+
 template <typename T>
 void ProcessNodeMapWithHandler(UbseMemDebtLedger &ledger, const std::string &nodeId, std::function<void(T &)> handler)
 {
