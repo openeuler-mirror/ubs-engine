@@ -14,6 +14,24 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 
+#include "scheduler_filter/ubse_mem_scheduler_config_consistency_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_free_memory_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_group_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_lend_count_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_lender_role_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_max_lent_size_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_node_state_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_provider_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_radius_borrow_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_radius_lender_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_region_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_requested_providers_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_role_conflict_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_socket_affinity_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_specified_lender_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_specified_link_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_topo_reachability_filter.h"
+
 namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
@@ -21,7 +39,25 @@ SchedulerFilterManager::~SchedulerFilterManager() = default;
 
 UbseResult SchedulerFilterManager::Init()
 {
+    RegisterFilter(std::make_unique<ConfigConsistencyFilter>());
+    RegisterFilter(std::make_unique<RoleConflictFilter>());
+    RegisterFilter(std::make_unique<LenderRoleFilter>());
+    RegisterFilter(std::make_unique<SocketAffinityFilter>());
+    RegisterFilter(std::make_unique<GroupFilter>());
+    RegisterFilter(std::make_unique<ProviderFilter>());
+    RegisterFilter(std::make_unique<NodeStateFilter>());
+    RegisterFilter(std::make_unique<RequestedProvidersFilter>());
+    RegisterFilter(std::make_unique<LendCountFilter>());
+    RegisterFilter(std::make_unique<SpecifiedLenderFilter>());
+    RegisterFilter(std::make_unique<SpecifiedLinkFilter>());
+    RegisterFilter(std::make_unique<TopoReachabilityFilter>());
+    RegisterFilter(std::make_unique<MaxLentSizeFilter>());
+    RegisterFilter(std::make_unique<RadiusBorrowFilter>());
+    RegisterFilter(std::make_unique<RadiusLenderFilter>());
+    RegisterFilter(std::make_unique<RegionFilter>());
+    RegisterFilter(std::make_unique<FreeMemoryFilter>());
     UBSE_LOG_INFO << "Register filters: " << filterMap_.size();
+
     return UBSE_OK;
 }
 

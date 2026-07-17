@@ -87,7 +87,7 @@ UbseResult SpecifiedLenderFilter::CheckNumaCapacity(std::vector<NodeInfo>& nodes
         RecordWarning(std::string("GetNodeInfo failed, node=") + nodes.front().nodeId);
         return UBSE_ERROR;
     }
-    uint64_t blockSize = nodePtr->GetBlockSize() * ONE_M;
+    uint64_t blockSize = static_cast<uint64_t>(nodePtr->GetBlockSize()) * ONE_M;
     auto highWatermarkOpt = request.GetParamOpt<size_t>("highWatermark");
     uint64_t highWatermark = static_cast<uint64_t>(highWatermarkOpt.value_or(MAX_PERCENT));
 

@@ -31,7 +31,7 @@ UbseResult FreeMemoryFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Sch
             RecordWarning(std::string("GetNodeInfo failed, node=") + node.nodeId);
             continue;
         }
-        uint64_t blockSize = nodePtr->GetBlockSize() * ONE_M;
+        uint64_t blockSize = static_cast<uint64_t>(nodePtr->GetBlockSize()) * ONE_M;
 
         auto isFreeMemoryInsufficient = [&](const SocketInfo& socketInfo) {
             auto* socket = nodeInfo.GetSocketInfo(node.nodeId, socketInfo.socketId);
