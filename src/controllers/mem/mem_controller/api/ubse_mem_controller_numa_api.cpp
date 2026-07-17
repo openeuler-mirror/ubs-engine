@@ -26,7 +26,7 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_decoder_utils.h"
-#include "ubse_mem_scheduler.h"
+#include "ubse_mem_scheduler_impl.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
@@ -73,7 +73,7 @@ static UbseResult NumaAllocate(const UbseMemNumaBorrowReq& req, UbseMemNumaBorro
     auto ret = UBSE_OK;
     while (retryTimes--) {
         UbseNodeControllerLockMgr::ReadLock(req.importNodeId);
-        ret = UbseMemNumaImportObjStateChangeHandler(importObj);
+        ret = SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         UbseNodeControllerLockMgr::ReadUnLock(req.importNodeId);
         if (ret == UBSE_SCHEDULER_ERROR_NODE_RECONCILE) {
             std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));
@@ -258,7 +258,7 @@ uint32_t HandleSendNumaExportError(UbseMemOperationResp& resp, const UbseMemNuma
 
     auto copy = exportObj;
     copy.status.state = UBSE_MEM_STATE_FAILED;
-    UbseMemNumaExportObjStateChangeHandler(copy);
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 
     return BuildOperationRespWhenFail(
         resp, req.name, req.requestNodeId,
@@ -548,7 +548,7 @@ uint32_t NumaExportRollback(UbseMemNumaBorrowExportObj& exportObj, UbseMemNumaBo
     NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     EraseNumaImport(importObj);
     importObj.status.state = UBSE_MEM_STATE_FAILED;
-    UbseMemNumaImportObjStateChangeHandler(importObj); // 通知算法
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj); // 通知算法
     BuildOperationRespWhenFail(resp, name, exportObj.req.requestNodeId, "Failed to import", UBSE_ERR_INTERNAL,
                                MemOperationType::NUMA_BORROW);
     return SendNumaExportObj(exportObj, true, exportNodeId);
@@ -661,7 +661,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseM
         importObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
         importObj.req.trustRingData.lendSignedDatas = exportObj.req.trustRingData.lendSignedDatas;
         importObj.isCreateReportReceived = false;
-        UbseMemNumaExportObjStateChangeHandler(exportObj);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendNumaImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
             BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
@@ -677,7 +677,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseM
     EraseNumaImport(importObj);
     auto copy = exportObj;
     copy.status.state = UbseMemState::UBSE_MEM_STATE_FAILED; // 通知算法
-    UbseMemNumaExportObjStateChangeHandler(copy);
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     return BuildOperationRespWhenFail(resp, name, exportObj.req.requestNodeId, "Failed to export.", exportObj.errorCode,
                                       ubse::adapter_plugins::mmi::MemOperationType::NUMA_BORROW);
 }
@@ -714,7 +714,7 @@ uint32_t NumaExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseM
                   << ", requestId=" << exportObj.req.requestId;
     EraseNumaExport(exportObj);
     auto copy = exportObj;
-    UbseMemNumaExportObjStateChangeHandler(copy);
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     // requestNodeId为空则当前场景为对账删除导出账本或者借用失败回滚
     if (requestNodeId.empty()) {
         return UBSE_OK;
@@ -952,7 +952,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp& resp, const
             return UBSE_ERROR;
         }
         resp.remoteNumaId = importObj.status.importResults[0].numaId;
-        UbseMemNumaImportObjStateChangeHandler(importObj);
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_BORROW);
         if (ret != UBSE_OK) {
             BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
@@ -975,7 +975,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp& resp, const
                                                                                               exportObj);
         auto copy = importObj;
         copy.status.state = UBSE_MEM_STATE_FAILED;
-        UbseMemNumaImportObjStateChangeHandler(copy); // 通知算法
+        SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy); // 通知算法
         if (auto ret = SendNumaExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to send rollback export. name=" << name << ", requestId="
                            << ", requestId=" << importObj.req.requestId;
@@ -1028,7 +1028,7 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp& resp, const s
                                              UbseMemNumaBorrowImportObj& importObj)
 {
     EraseNumaImport(importObj);
-    UbseMemNumaImportObjStateChangeHandler(importObj);
+    SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
 
     if (auto waitResult = WaitInitLedgerSuccess(exportNodeId); waitResult != UBSE_OK) {
         BorrowFailedAdvice(
@@ -1343,11 +1343,11 @@ uint32_t AddNumaImport(const UbseMemNumaBorrowImportObj& importObj)
     auto copy = importObj;
     if (copy.status.state == UBSE_MEM_IMPORT_DESTROYED) {
         EraseNumaImport(copy);
-        return UbseMemNumaImportObjStateChangeHandler(copy);
+        return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     }
     UBSE_LOG_INFO << "Add numa import, name=" << copy.req.name << ", importNodeId=" << copy.req.importNodeId;
     NumaImportUpdateState(copy, copy.status.state);
-    return UbseMemNumaImportObjStateChangeHandler(copy);
+    return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 }
 
 uint32_t AddNumaExport(const UbseMemNumaBorrowExportObj& exportObj)
@@ -1355,10 +1355,10 @@ uint32_t AddNumaExport(const UbseMemNumaBorrowExportObj& exportObj)
     auto copy = exportObj;
     if (copy.status.state == UBSE_MEM_EXPORT_DESTROYED) {
         EraseNumaExport(copy);
-        return UbseMemNumaExportObjStateChangeHandler(copy);
+        return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
     }
     UBSE_LOG_INFO << "Add numa export, name=" << copy.req.name << ", importNodeId=" << copy.req.importNodeId;
     NumaExportUpdateState(copy, copy.status.state);
-    return UbseMemNumaExportObjStateChangeHandler(copy);
+    return SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
 }
 } // namespace ubse::mem::controller
