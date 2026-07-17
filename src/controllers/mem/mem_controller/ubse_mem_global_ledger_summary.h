@@ -28,8 +28,10 @@ struct UbseGlobalLedgerSummaryItem {
     uint32_t blockSize{128};
     UbseMemState state{UBSE_MEM_STATE_INIT};
     std::vector<UbseMemDebtNumaInfo> numaInfos{}; // 导出或导入的numaInfos
-    UbseUdsInfo userInfo{};
-    std::vector<uint16_t> memids{}; // 导入或导出的memIds
+    UbseUdsInfo userInfo{}; // 导出或者导入的udsInfo
+    std::vector<UbMemFaultType> faultTypes{}; // memId故障类型与memids一一对应
+    std::vector<uint16_t> memids{}; // 导入或导出的memIds,单socket最多导出1024次
+    std::vector<std::string> nodelist{}; // 共享域节点ID列表
 };
 
 using UbseGlobalLedgerSummaryMap = std::map<std::string, UbseGlobalLedgerSummaryItem>;

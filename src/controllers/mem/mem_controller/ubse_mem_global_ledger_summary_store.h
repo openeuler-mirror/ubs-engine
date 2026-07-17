@@ -16,7 +16,10 @@
 #include <map>
 #include <shared_mutex>
 #include <string>
+#include <vector>
+#include <string>
 
+#include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_mem_global_ledger_summary.h"
 
@@ -32,10 +35,28 @@ public:
     UbseGlobalLedgerSummaryStore &operator=(UbseGlobalLedgerSummaryStore &&) = delete;
 
     UbseResult PutNodeSummary(const UbseGlobalNodeLedgerSummary &summary);
+    void PutNodeExportItem(const std::string &targetNodeId, const UbseGlobalLedgerSummaryItem &item);
+    void PutNodeImportItem(const std::string &targetNodeId, const UbseGlobalLedgerSummaryItem &item);
+    void RemoveNodeImportItem(const std::string &targetNodeId, const std::string &name);
+    void RemoveNodeExportItem(const std::string &targetNodeId, const std::string &name);
+    bool UpdateNodeExportItem(const std::string &targetNodeId, const std::string &name, const UbseMemState &state);
+    bool UpdateNodeImportItem(const std::string &targetNodeId, const std::string &name, const UbseMemState &state);
+    bool UpdateNodeExportItemMemIds(const std::string &targetNodeId, const std::string &name,
+                                     const std::vector<uint16_t> &memIds,
+                                     const std::vector<UbMemFaultType> &faultTypes);
+    bool UpdateNodeImportItemMemIds(const std::string &targetNodeId, const std::string &name,
+                                     const std::vector<uint16_t> &memIds,
+                                     const std::vector<UbMemFaultType> &faultTypes);
     UbseResult GetNodeSummary(const std::string &targetNodeId, UbseGlobalNodeLedgerSummary &summary) const;
     UbseResult GetAllNodeSummaries(UbseGlobalNodeLedgerSummaryTable &summaries) const;
+    UbseResult GetExportItem(const std::string &name, UbseMemShareBorrowExportObj &exportObj) const;
+    UbseResult GetImportItem(const std::string &name, const std::string importNodeId, UbseMemShareBorrowImportObj &importObj) const;
+    void GetAllImportItems(std::vector<std::pair<std::string, UbseGlobalLedgerSummaryItem>> &importObjs,
+                           const std::string &name) const;
     bool RemoveNodeSummary(const std::string &targetNodeId);
     bool ContainsNodeSummary(const std::string &targetNodeId) const;
+    bool ContainsBorrowName(const std::string &name) const;
+    bool ContainsAttachName(const std::string &targetNodeId, const std::string &name) const;
     void Clear();
 
 private:

@@ -11,6 +11,7 @@ coverage.info
 test.info
 output
 *.log
+.codegraph/
 /.deps
 /deps
 /component/deps
@@ -25,3 +26,4 @@ __pycache__
 /build/
 /test/build/
 /test/UT/data_sync/test_log
+*.bak

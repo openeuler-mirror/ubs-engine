@@ -41,6 +41,7 @@ namespace {
 constexpr size_t GLOBAL_LEDGER_MAX_SUMMARY_ITEMS = 4096;
 constexpr size_t GLOBAL_LEDGER_MAX_NUMA_INFOS = 1024;
 constexpr size_t GLOBAL_LEDGER_MAX_MEMIDS = 1024;
+constexpr size_t GLOBAL_LEDGER_MAX_NODELIST = 128;
 
 UbseResult GetGlobalMasterNodeId(std::string &globalMasterNodeId)
 {
@@ -118,6 +119,63 @@ bool DeserializeMemIds(UbseDeSerialization &in, std::vector<uint16_t> &memids)
     return true;
 }
 
+void SerializeFaultTypes(UbseSerialization &out, const std::vector<UbMemFaultType> &faultTypes)
+{
+    out << right_v<size_t>(faultTypes.size());
+    for (const auto faultType : faultTypes) {
+        uint32_t val = static_cast<uint32_t>(faultType);
+        out << val;
+    }
+}
+
+bool DeserializeFaultTypes(UbseDeSerialization &in, std::vector<UbMemFaultType> &faultTypes)
+{
+    size_t size{};
+    in >> size;
+    if (!in.Check() || size > GLOBAL_LEDGER_MAX_MEMIDS) {
+        UBSE_LOG_ERROR << "invalid global ledger fault type size=" << size;
+        return false;
+    }
+    faultTypes.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        uint32_t val{};
+        in >> val;
+        if (!in.Check() || val > static_cast<uint32_t>(UB_MEM_HEALTHY)) {
+            UBSE_LOG_ERROR << "deserialize global ledger fault type failed, index=" << i;
+            return false;
+        }
+        faultTypes[i] = static_cast<UbMemFaultType>(val);
+    }
+    return true;
+}
+
+void SerializeNodeList(UbseSerialization &out, const std::vector<std::string> &nodelist)
+{
+    out << right_v<size_t>(nodelist.size());
+    for (const auto &nodeId : nodelist) {
+        out << nodeId;
+    }
+}
+
+bool DeserializeNodeList(UbseDeSerialization &in, std::vector<std::string> &nodelist)
+{
+    size_t size{};
+    in >> size;
+    if (!in.Check() || size > GLOBAL_LEDGER_MAX_NODELIST) {
+        UBSE_LOG_ERROR << "invalid global ledger nodelist size=" << size;
+        return false;
+    }
+    nodelist.resize(size);
+    for (size_t i = 0; i < size; ++i) {
+        in >> nodelist[i];
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "deserialize global ledger nodelist failed, index=" << i;
+            return false;
+        }
+    }
+    return true;
+}
+
 void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryItem &item)
 {
     uint32_t state = static_cast<uint32_t>(item.state);
@@ -126,6 +184,8 @@ void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryI
     out << item.blockSize << state;
     ubse::mem::serial::UbseUdsInfoSerialization(out, item.userInfo);
     SerializeMemIds(out, item.memids);
+    SerializeFaultTypes(out, item.faultTypes);
+    SerializeNodeList(out, item.nodelist);
 }
 
 bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem &item)
@@ -136,7 +196,8 @@ bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem
         return false;
     }
     in >> item.blockSize >> state;
-    if (!ubse::mem::serial::UbseUdsInfoDeserialization(in, item.userInfo) || !DeserializeMemIds(in, item.memids)) {
+    if (!ubse::mem::serial::UbseUdsInfoDeserialization(in, item.userInfo) || !DeserializeMemIds(in, item.memids) ||
+        !DeserializeFaultTypes(in, item.faultTypes) || !DeserializeNodeList(in, item.nodelist)) {
         return false;
     }
     if (!in.Check() || state > static_cast<uint32_t>(UBSE_MEM_IMPORT_DESTROYED)) {
@@ -372,6 +433,10 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowImportOb
     item.numaInfos = obj.algoResult.importNumaInfos;
     item.userInfo = obj.req.udsInfo;
     item.memids = BuildImportMemIds(obj.status.importResults);
+    item.nodelist.reserve(obj.req.shmRegion.nodelist.size());
+    for (const auto &node : obj.req.shmRegion.nodelist) {
+        item.nodelist.emplace_back(node.nodeId);
+    }
     return item;
 }
 
@@ -384,6 +449,14 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowExportOb
     item.numaInfos = obj.algoResult.exportNumaInfos;
     item.userInfo = obj.req.udsInfo;
     item.memids = BuildExportMemIds(obj.status.exportObmmInfo);
+    item.faultTypes.reserve(obj.status.exportObmmInfo.size());
+    for (const auto &info : obj.status.exportObmmInfo) {
+        item.faultTypes.push_back(info.memIdStatus);
+    }
+    item.nodelist.reserve(obj.req.shmRegion.nodelist.size());
+    for (const auto &node : obj.req.shmRegion.nodelist) {
+        item.nodelist.emplace_back(node.nodeId);
+    }
     return item;
 }
 

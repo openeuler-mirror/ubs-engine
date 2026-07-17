@@ -63,10 +63,12 @@ TEST_F(TestUbseMemOperationRespSimpo, Deserialize)
     uint32_t size = 4;
     auto buffer = new (std::nothrow) uint8_t[size];
     EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
+    obj->SetInputRawDataFromShared(std::shared_ptr<uint8_t[]>(buffer), size);
+    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemOperationRespDeserialize).stubs().will(returnValue(false)).then(returnValue(true));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+    MOCKER_CPP(&UbseDeSerialization::Check).reset();
 
     MOCKER_CPP(&UbseMemOperationRespDeserialize).reset();
     MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false));
