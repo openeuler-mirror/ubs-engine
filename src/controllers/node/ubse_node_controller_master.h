@@ -159,6 +159,15 @@ UbseResult UbseGetDirConnectInfoFromRemoteHandler(const UbseByteBuffer& req, Ubs
  * @return UbseResult 采集结果
  */
 UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info);
+
+class UbseLcneTopologyMessageChangeHandler : public com::UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const ubse::message::UbseBaseMessagePtr& req, const ubse::message::UbseBaseMessagePtr& rsp,
+                      ubse::com::UbseComBaseMessageHandlerCtxPtr ctx) override;
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
 } // namespace ubse::nodeController
 
 #endif // UBS_ENGINE_UBSE_NODE_CONTROLLER_MASTER_H
