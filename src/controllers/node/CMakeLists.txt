@@ -10,6 +10,7 @@ add_library(ubse_node_controller STATIC
         ubse_node_controller_agent.cpp
         ubse_node_info_api.cpp
         ubse_node_com_urma_collector.cpp
+        ubse_node_info_serialize.cpp
 )
 
 target_include_directories(ubse_node_controller PUBLIC

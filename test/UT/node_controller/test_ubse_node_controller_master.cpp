@@ -19,9 +19,18 @@ void TestUbseNodeControllerMaster::TearDown()
 
 TEST_F(TestUbseNodeControllerMaster, RegMasterMsgHandler)
 {
+    std::shared_ptr<UbseComModule> nullModule = nullptr;
+    std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(nullModule)).then(returnValue(module));
+
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, RegMasterMsgHandler());
+
+    const auto funcLcneTopo = &UbseComModule::RegRpcService<UbseNodeInfoSerialize, UbseNodeInfoSerialize>;
+    MOCKER(funcLcneTopo).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    EXPECT_EQ(UBSE_ERROR, RegMasterMsgHandler());
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(RegMasterMsgHandler(), UBSE_ERROR);
-    EXPECT_EQ(RegMasterMsgHandler(), UBSE_OK);
+    EXPECT_EQ(UBSE_ERROR, RegMasterMsgHandler());
+    EXPECT_EQ(UBSE_OK, RegMasterMsgHandler());
 }
 
 TEST_F(TestUbseNodeControllerMaster, Initialize)

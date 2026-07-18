@@ -25,6 +25,7 @@
 #include "ubse_logger.h"
 #include "ubse_node.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_node_info_serialize.h"
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
@@ -67,9 +68,6 @@ UbseResult RegMasterMsgHandler()
     const ubse::com::UbseComEndpoint allNodeEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_ALL_NODE)};
-    const ubse::com::UbseComEndpoint lcneReportTopologyEndpoint = {
-        static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
-        static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY)};
     const ubse::com::UbseComEndpoint getDevConnect = {
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_GET_DEV_CONNECT)};
@@ -77,15 +75,27 @@ UbseResult RegMasterMsgHandler()
         static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
         static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_REPORT)};
 
-    auto ret = UbseRegRpcService(allNodeEndpoint, GetAllNodeInfoFromRemoteHandler);
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "get com module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    UbseComBaseMessageHandlerPtr lcneTopologyReportHandler = new (std::nothrow) UbseLcneTopologyMessageChangeHandler();
+    if (lcneTopologyReportHandler == nullptr) {
+        UBSE_LOG_ERROR << "get lcne topology report failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = comModule->RegRpcService<UbseNodeInfoSerialize, UbseNodeInfoSerialize>(lcneTopologyReportHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register all node endpoint failed";
+        UBSE_LOG_ERROR << "Register lcne topology report failed";
         return ret;
     }
 
-    ret = UbseRegRpcService(lcneReportTopologyEndpoint, LcneChangeNodeInfoHandler);
+    ret = UbseRegRpcService(allNodeEndpoint, GetAllNodeInfoFromRemoteHandler);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Register lcne report endpoint failed";
+        UBSE_LOG_ERROR << "Register all node endpoint failed";
         return ret;
     }
 
@@ -1011,5 +1021,52 @@ void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string
             continue;
         }
     }
+}
+
+UbseResult UbseLcneTopologyMessageChangeHandler::Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                                        const ubse::message::UbseBaseMessagePtr& rsp,
+                                                        ubse::com::UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "ubse is stopped, ignore msg";
+        return UBSE_OK;
+    }
+    UBSE_LOG_INFO << "Handling lcne topology change report.";
+    auto request = UbseBaseMessage::DeConvert<UbseNodeInfoSerialize>(req);
+    if (request == nullptr || rsp == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert rpc message";
+        return UBSE_ERROR;
+    }
+    auto ret = request->Deserialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "DeSerialize ubse node failed: " << FormatRetCode(ret);
+        rsp->SetErrCode(ret);
+        return ret;
+    }
+    UbseNodeInfo nodeInfo = request->GetUbseNodeInfo();
+    if (ctx->GetDstId() != nodeInfo.nodeId) {
+        UBSE_LOG_ERROR << "receive wrong lcne topology change report, requestId=" << ctx->GetDstId()
+                       << ", nodeId=" << nodeInfo.nodeId;
+        rsp->SetErrCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    ret = UbseNodeControllerMaster::GetInstance().UbseLcneTopologyChangeHandler(nodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Handler failed: " << FormatRetCode(ret);
+        rsp->SetErrCode(ret);
+        return ret;
+    }
+    rsp->SetErrCode(UBSE_OK);
+    return UBSE_OK;
+}
+
+uint16_t UbseLcneTopologyMessageChangeHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER);
+}
+
+uint16_t UbseLcneTopologyMessageChangeHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY);
 }
 } // namespace ubse::nodeController

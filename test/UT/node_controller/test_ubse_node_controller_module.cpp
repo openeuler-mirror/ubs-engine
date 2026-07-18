@@ -11,14 +11,18 @@
  */
 
 #include "test_ubse_node_controller_module.h"
-#include <src/framework/ha/ubse_election_module.h>
+
 #include <ubse_timer.h>
+
+#include "ubse_node_info_serialize.h"
+#include "src/framework/ha/ubse_election_module.h"
 #include "ubse_node_controller_module.cpp"
 
 namespace ubse::node_controller::ut {
 using namespace ubse::timer;
 using namespace election;
 using namespace ubse::com;
+using namespace ubse::nodeController;
 
 void TestUbseNodeControllerModule::SetUp()
 {
@@ -77,6 +81,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Success)
 
     // 模拟全局函数 UbseRegRpcService
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_OK);
@@ -115,6 +120,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
 
     // 添加UbseRegRpcService的模拟
     MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -130,7 +136,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentMsgHandler)
     MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
     // UbseRegRpcService 第一次调用失败（RegAgentMsgHandler 中）
-    MOCKER(UbseRegRpcService).expects(atLeast(1)).will(returnValue(UBSE_ERROR));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -149,8 +155,9 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterMsgHandler)
 
     MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
 
-    // 让UbseRegRpcService返回失败
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    // 让RegMasterMsgHandler返回失败
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -197,7 +204,7 @@ TEST_F(TestUbseNodeControllerModule, ModuleLifecycle)
 
     MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
 
-    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     // 模拟启动成功
     MOCKER_CPP(&UbseNodeControllerAgent::Start).stubs().will(returnValue(UBSE_OK));
