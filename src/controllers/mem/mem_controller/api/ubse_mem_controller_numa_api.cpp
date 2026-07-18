@@ -34,6 +34,7 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_smbios.h"
 #include "ubse_topo_util.h"
 
 namespace ubse::mem::controller {
@@ -50,6 +51,7 @@ using namespace message;
 using namespace ubse::mmi;
 using namespace ubse::mem::strategy;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::smbios;
 
 bool CheckSpecifyLink(const UbseMemNumaBorrowReq &req)
 {
@@ -335,6 +337,10 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq &req, UbseMemOperationResp
     auto importNodeId = req.importNodeId;
     auto name = req.name;
     resp.requestId = req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }
     if (auto ret = CheckReqValid(req, resp); ret != UBSE_OK) {
         return ret;
     }
@@ -1188,6 +1194,10 @@ uint32_t UbseMemNumaReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
 {
     UBSE_LOG_INFO << "Start to numa return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
+                                          UBSE_ERR_NOT_SUPPORTED);
+    }
     auto exportKey = GenerateExportObjKey(req.name, req.requestNodeId);
     auto lock = LoggingLockGuard(exportKey);
     InitializeResponse(req, resp);

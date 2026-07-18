@@ -11,6 +11,7 @@
  */
 
 #include "ubse_mem_controller_dispatcher.h"
+#include <string>
 
 #include "message/ubse_mem_controller_def_serial.h"
 #include "message/ubse_mem_fd_borrow_req_simpo.h"
@@ -33,11 +34,16 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_controller_helper.h"
+#include "ubse_election_def.h"
+#include "ubse_election_module.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::adapter_plugins::smbios;
 using namespace message;
 using namespace ubse::election;
 using namespace api::server;
@@ -736,14 +742,8 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
         }
         reqSimpoPtr->SetUbseMemShareBorrowReq(req);
     }
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
-                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmBorrowProcessor(reqSimpoPtr);
-    }
+    ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                                    static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW));
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
@@ -788,16 +788,9 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
             return res;
             }
     }
-    reqSimpoPtr->SetUbseMemShareBorrowReq(req);
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+    reqSimpoPtr->SetUbseMemShareBorrowReq(req);    
+    ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                                       static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmBorrowProcessor(reqSimpoPtr);
-    }
-
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
@@ -847,15 +840,14 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
             }
         reqSimpoPtr->SetUbseMemShareBorrowReq(req);
     }
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
-                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmBorrowProcessor(reqSimpoPtr);
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
+        return ret;
     }
-
+    ret = SendToMasterIfNotMaster(masterInfo.nodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW));
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
@@ -887,15 +879,15 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
                        << context.requestId;
         return ret;
     }
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
-                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_ATTACH));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmAttachProcessor(reqSimpoPtr);
-    }
 
+    UbseRoleInfo masterInfo{};
+    ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "failed to get master info, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
+        return ret;
+    }
+    ret = SendToMasterIfNotMaster(masterInfo.nodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_ATTACH));
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
@@ -950,18 +942,9 @@ uint32_t UbseMemControllerDispatcher::MemShmGetDispatcher(const UbseIpcMessage &
         return UBSE_ERROR_NULLPTR;
     }
     UbseIpcMessage message{};
-    // 获取主节点以及当前节点
-    std::string masterNodeId{};
-    std::string localNodeId{};
-    auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
-                       << context.requestId;
-        return apiServer->SendResponse(ret, context.requestId, message);
-    }
     // buffer 转结构
     std::string name{};
-    ret = GetInstance().BufferToShmGetReq(buffer, name);
+    auto ret = GetInstance().BufferToShmGetReq(buffer, name);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
@@ -1089,31 +1072,32 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
     UBSE_LOG_INFO << "shm detach dispatcher, requestId=" << context.requestId << ", uid=" << context.clientInfo.uid
                   << ", gid=" << context.clientInfo.gid;
     UbseMemControllerDispatcher dispatcher = GetInstance();
-    // 获取主节点以及当前节点
-    std::string masterNodeId{};
-    std::string localNodeId{};
-    auto ret = dispatcher.GetMasterAndLocalNodeId(masterNodeId, localNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
-                       << context.requestId;
-        return UBSE_ERROR;
+    UbseRoleInfo currentRoleInfo{};
+    if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node info, " << FormatRetCode(ret);
+        return ret;
     }
-    // buffer 转结构
     UbseMemShareDetachReqSimpoPtr reqSimpoPtr{};
-    ret = dispatcher.BufferToShmDetachReq(buffer, reqSimpoPtr, localNodeId, context);
+    auto ret = dispatcher.BufferToShmDetachReq(buffer, reqSimpoPtr, currentRoleInfo.nodeId, context);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
+        UBSE_LOG_ERROR << "failed to convert buffer, ret: " << FormatRetCode(ret) + "; requestId: "
                        << context.requestId;
         return UBSE_ERROR;
     }
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
-                                      static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmDetachProcessor(reqSimpoPtr, masterNodeId);
+    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
+        return UBSE_ERROR_NULLPTR;
     }
+    Node master;
+    ret = electionModule->GetLocalMasterNode(master);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetLocalMasterNode failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    ret = SendToMasterIfNotMaster(master.id, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+                                    static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH));
 
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
@@ -1127,34 +1111,31 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
     // 获取主节点以及当前节点
     UBSE_LOG_INFO << "shm delete dispatcher, requestId=" << context.requestId << ", uid=" << context.clientInfo.uid
                   << ", gid=" << context.clientInfo.gid;
-    std::string masterNodeId{};
-    std::string localNodeId{};
-    auto ret = GetInstance().GetMasterAndLocalNodeId(masterNodeId, localNodeId);
-    if (ret != UBSE_OK) {
+    UbseRoleInfo currentRoleInfo{};
+    if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
     // buffer 转结构
     UbseMemReturnReqSimpoPtr reqSimpoPtr{};
-    ret = GetInstance().BufferToShmReturnReq(buffer, reqSimpoPtr, localNodeId, context);
+    auto ret = GetInstance().BufferToShmReturnReq(buffer, reqSimpoPtr, currentRoleInfo.nodeId, context);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to convert buffer, " << FormatRetCode(ret) + ", requestId="
                        << context.requestId;
         return ret;
     }
-
+    // 获取主节点
+    UbseRoleInfo masterRoleInfo{};
+    if (const auto ret = UbseGetMasterInfo(masterRoleInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get master info, " << FormatRetCode(ret);
+        return ret;
+    }
     UBSE_LOG_INFO << "return request name=" << reqSimpoPtr.Get()->GetUbseMemReturnReq().name;
-    // 不是master调用RPC异步发送
-    if (localNodeId != masterNodeId) {
-        ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr,
+    ret = SendToMasterIfNotMaster(masterRoleInfo.nodeId, reqSimpoPtr,
                                       static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                                       static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_SHARE_RETURN));
-    } else {
-        // 是master，切换线程，提交给新线程
-        ret = AsyncMemShmReturnProcessor(reqSimpoPtr, masterNodeId);
-    }
-
+    
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
@@ -1237,10 +1218,14 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowDispatch(const UbseIpcMessa
     UBSE_LOG_INFO << "UbseMemFdBorrowDispatch, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemFdBorrowReq req{};
-    auto ret = UbseMemCreateReqUnpack(buffer, req);
+    auto     ret = UbseMemCreateReqUnpack(buffer, req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemFdBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
+    }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "FD borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
     }
     return UbseMemFdBorrowRpc(req, context);
 }
@@ -1256,6 +1241,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithLenderDispatch(const Ub
         UBSE_LOG_ERROR << "UbseMemFdBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
     }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "FD borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseMemFdBorrowRpc(req, context);
 }
 
@@ -1270,6 +1259,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowWithCandidate(const UbseIpc
         UBSE_LOG_ERROR << "UbseMemFdBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
     }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "FD borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseMemFdBorrowRpc(req, context);
 }
 
@@ -1277,6 +1270,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
                                                               const UbseRequestContext &context)
 {
     UBSE_LOG_INFO << "UbseMemFdReturnDispatch, requestId=" << context.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "FD return not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseMemReturnReq req{};
     UbseRoleInfo masterInfo{};
     if (auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
@@ -1325,6 +1322,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
 uint32_t UbseMemControllerDispatcher::UbseMemFdPermissionDispatch(const UbseIpcMessage &buffer,
                                                                   const UbseRequestContext &context)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "FD permission not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -1613,10 +1614,14 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateHandler(const UbseIpcMe
     UBSE_LOG_INFO << "UbseMemNumaCreate, requestId=" << context.requestId;
     // buffer 转结构
     UbseMemNumaBorrowReq req{};
-    auto ret = UbseMemNumaCreateReqUnpack(buffer, req);
+    auto     ret = UbseMemNumaCreateReqUnpack(buffer, req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemNumaBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
+    }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "NUMA borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
     }
     return UbseMemNumaBorrowRpc(req, context);
 }
@@ -1632,6 +1637,10 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaCreateWithLender(const UbseIp
         UBSE_LOG_ERROR << "UbseMemNumaBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
     }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "NUMA borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseMemNumaBorrowRpc(req, context);
 }
 
@@ -1646,6 +1655,10 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowWithCandidate(const UbseI
         UBSE_LOG_ERROR << "UbseMemNumaBorrowReq unpack failed, " << FormatRetCode(ret);
         return ret;
     }
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "NUMA borrow not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     return UbseMemNumaBorrowRpc(req, context);
 }
 
@@ -1653,6 +1666,10 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage &
                                                           const UbseRequestContext &context)
 {
     UBSE_LOG_INFO << "UbseMemNumaDelete, requestId=" << context.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_ERROR << "NUMA delete not supported in clos mode, requestId=" << context.requestId;
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};

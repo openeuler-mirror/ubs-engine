@@ -21,11 +21,13 @@
 #include "ubse_str_util.h"
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::election;
+using namespace ubse::adapter_plugins::smbios;
 
 inline uint64_t BytesToMB(uint64_t bytes)
 {
@@ -503,11 +505,17 @@ uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def:
 {
     switch (static_cast<UbseMemBorrowType>(request.borrowType)) {
         case UbseMemBorrowType::FD_BORROW:
+            if (UbseSmbios::GetInstance().IsClosType()) {
+                return UBSE_ERR_NOT_SUPPORTED;
+            }
             return ProcessImportObjByPtr(
                 FindBorrowObjPair<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(
                     request.name, request.importNodeId),
                 request, memDesc);
         case UbseMemBorrowType::NUMA_BORROW:
+            if (UbseSmbios::GetInstance().IsClosType()) {
+                return UBSE_ERR_NOT_SUPPORTED;
+            }
             return ProcessImportObjByPtr(
                 FindBorrowObjPair<UbseMemNumaBorrowImportObj, UbseMemNumaBorrowExportObj>(
                     request.name, request.importNodeId),

@@ -27,6 +27,9 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubse_smbios.h"
+#include "ubse_election_module.h"
+#include "ubse_election_def.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -40,6 +43,7 @@ using namespace ubse::mem::controller::message;
 using namespace ubse::mem::controller;
 using namespace ubse::mem::util;
 using namespace ubse::mem::strategy;
+using namespace ubse::adapter_plugins::smbios;
 
 template <class TSimpo, class TPtr>
 uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std::string &masterNodeId,
@@ -121,6 +125,9 @@ UbseResult GetMasterAndLocalNodeId(std::string &masterNodeId, std::string &local
 uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const def::UbseUdsInfo *udsInfo)
 {
     // 获取主节点以及当前节点
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
@@ -160,6 +167,9 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
 uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMemFdDesc> &fdDescs)
 {
     fdDescs.clear();
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -232,6 +242,9 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
 
 uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc, const UbseUdsInfo *udsInfo)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -272,6 +285,9 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
 uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMemNumaDesc> &numaDescs)
 {
     numaDescs.clear();
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -445,6 +461,9 @@ uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::
 
 int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId, UbseMemAddrDesc &desc)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -482,6 +501,9 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
 int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string &importNodeId,
                                      UbseMemNumaDesc &numaDesc)
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};

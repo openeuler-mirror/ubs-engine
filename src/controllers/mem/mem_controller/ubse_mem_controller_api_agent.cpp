@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -42,6 +42,10 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_controller_helper.h"
+#include "ubse_election_def.h"
+#include "ubse_election_module.h"
 
 namespace ubse::mem::controller::agent {
 using namespace ubse::election;
@@ -58,6 +62,7 @@ using namespace ubse::context;
 using namespace ubse::serial;
 using namespace api::server;
 using namespace ubse::mem::strategy;
+using namespace ubse::adapter_plugins::smbios;
 static std::chrono::seconds WAIT_TIMEOUT(API_TIME_OUT); // seconds
 
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -437,10 +442,24 @@ void DealBorrowWaitTimeOut(const std::string &name, const std::string &requestNo
     });
 }
 
+static uint32_t CloseModeNotSupported(UbseMemOperationResp &resp, const std::string &name,
+                                      const std::string &requestNodeId, const std::string &opType)
+{
+    resp.name = name;
+    resp.requestNodeId = requestNodeId;
+    resp.errorCode = UBSE_ERR_NOT_SUPPORTED;
+    resp.errMsg = opType + " not supported in clos mode.";
+    UBSE_LOG_ERROR << opType << " not supported in clos mode, name=" << name;
+    return UBSE_ERR_NOT_SUPPORTED;
+}
+
 uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
 {
     UBSE_LOG_INFO << "begin fd borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
                   << ", request_id=" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "FD borrow");
+    }
     if (IsHighSafety()) {
         if (const auto res =
                 UbseMemSignVerifier::Sign("fd", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
@@ -518,6 +537,9 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
 {
     UBSE_LOG_INFO << "begin numa borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
                   << ", request_id=" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "NUMA borrow");
+    }
     if (IsHighSafety()) {
         if (const auto res =
                 UbseMemSignVerifier::Sign("numa", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
@@ -606,6 +628,9 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
     // 创建请求
     UBSE_LOG_INFO << "begin addr borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
                   << ", request_id=" << req.requestId;
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "ADDR borrow");
+    }
     if (IsHighSafety()) {
         if (const auto res =
                 UbseMemSignVerifier::Sign("addr", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
@@ -879,6 +904,7 @@ static UbseResult SendRpcRequestForReturn(const UbseMemReturnReq &req, const Mem
         UBSE_LOG_ERROR << "Get master info failed, " << FormatRetCode(res);
         return res;
     }
+    UBSE_LOG_INFO << "name=" << req.name << ", masterInfo.nodeId=" << masterInfo.nodeId << ", requestId=" << req.requestId;
     SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                         static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_NUMA_RETURN)};
     SwitchReturnType(sendParam, type);
@@ -905,6 +931,9 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
 {
     UBSE_LOG_INFO << "begin mem return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
                   << ", request_id=" << req.requestId;
+    if (type != MemOperationType::SHARED_RETURN && UbseSmbios::GetInstance().IsClosType()) {
+        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "Fd return and numa return");
+    }
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
     auto respMgr = UbseFutureMgr::CreateInstance(requestId);
