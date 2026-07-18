@@ -283,6 +283,11 @@ public:
 
     virtual UbseResult RegBrokenChannelCb(UbseComCallBackForHA func) = 0;
 
+    const std::string &GetName() const
+    {
+        return name_;
+    }
+
     ShouldDoReconnectCb GetShouldDoReconnectCb();
 
     void SetShouldDoReconnectCb(ShouldDoReconnectCb cb);

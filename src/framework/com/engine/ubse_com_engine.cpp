@@ -28,7 +28,6 @@
 #include "ubse_com_op_code.h"
 #include "ubse_conf.h"
 #include "ubse_conf_module.h"
-#include "ubse_election.h"
 #include "ubse_env_util.h"
 #include "ubse_logger.h"
 #include "ubse_pointer_process.h"
@@ -556,6 +555,7 @@ void UbseComEngine::ParseContextMsg(UBSHcomServiceContext &context, UbseComMessa
     msgCtx.SetRspCtx(context.RspCtx());
     msgCtx.SetTraceId(msg->GetMessageHead().GetTraceId());
     msgCtx.SetChannelPtr(context.Channel());
+    msgCtx.SetChannelType(UbseChannelType::NORMAL);
 }
 
 void UbseComEngine::InitEngineOptions()
@@ -742,6 +742,13 @@ void KeyPassErase(void *pass, int len)
 void UbseComEngine::RegisterQueryCb(QueryEidByNodeIdCb cb)
 {
     queryCb_ = cb;
+}
+
+void UbseComEngine::RegisterVerifyMsgCb(VerifyMsgCb cb)
+{
+    ubse::utils::WriteLocker<ubse::utils::ReadWriteLock> writeLock(&rwLock_);
+    UBSE_LOG_INFO << "Register verify msg cb";
+    verifyMsgCb_ = cb;
 }
 
 std::string UbseComEngine::GetNodeIdByIp(const std::string &ip)
@@ -1029,9 +1036,10 @@ void UbseComEngine::SubmitForward(const std::string &engineName, UbseComMessageC
     HandlerExecutor executor = (engineName == UBSE_AGENT_IPC_SERVER_ENGINE_NAME) ?
                                    UbseComBase::GetIpcHandlerExecutor() :
                                    UbseComBase::GetHandlerExecutor();
-
+    auto traceId = fwCtx.GetTraceId();
     executor(
-        [engineName, fwCtx = std::move(fwCtx)]() mutable {
+        [engineName, fwCtx = std::move(fwCtx), traceId]() mutable {
+            TraceContext::SetTraceId(traceId);
             UBSE_LOG_DEBUG << "Engine " << engineName << " forwarding to " << fwCtx.GetDstId();
 
             UbseComDataDesc retData(nullptr, 0);
@@ -1041,11 +1049,12 @@ void UbseComEngine::SubmitForward(const std::string &engineName, UbseComMessageC
                 ReplyWithResult(fwCtx, UbseReplyResult::ERR_FORWARD_FAIL);
             } else {
                 UBSE_LOG_DEBUG << "Engine " << engineName << " forward success";
-                ReplyWithResult(fwCtx, UbseReplyResult::OK);
+                UbseCommunication::UbseComMsgReply(fwCtx, retData, UbseComCallback{ReplyCallback, &fwCtx});
             }
             SafeFree(retData.data);
             auto msgPtr = fwCtx.GetMessage();
             UbseComMessage::FreeMessage(msgPtr);
+            TraceContext::Clear();
         },
         executorType::COM);
 }
@@ -1096,35 +1105,16 @@ UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
     return UBSE_OK;
 }
 
-const std::string GetCurRoleStr()
-{
-    ubse::election::UbseRoleInfo currentNode{};
-    auto ret = UbseGetCurrentNodeInfo(currentNode);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get Role failed, " << FormatRetCode(ret);
-        return "";
-    }
-    return currentNode.nodeRole;
-}
-
 bool UbseComEngine::VerifyMsg(UbseComMessageCtx &msgCtx)
 {
-    auto curRole = GetCurRoleStr();
-    if (curRole != "agent" && curRole != "standby") {
-        return true;
+    VerifyMsgCb cb;
+    {
+        ubse::utils::ReadLocker<ubse::utils::ReadWriteLock> readLock(&rwLock_);
+        cb = verifyMsgCb_;
     }
-    ubse::election::UbseRoleInfo masterInfo;
-    auto ret = ubse::election::UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        return true;
-    }
-    UbseComChannelInfo channelInfo;
-    ret = GetChannelById(msgCtx.GetChannelId(), channelInfo);
-    if (ret != UBSE_OK) {
-        return false;
-    }
-    if (channelInfo.GetConnectInfo().GetRemoteNodeId() != masterInfo.nodeId) {
-        return false;
+    // 回调中可能反向调用引擎接口（如GetChannelById），需在锁外执行，避免重入死锁
+    if (cb != nullptr) {
+        return cb(msgCtx);
     }
     return true;
 }
@@ -1159,8 +1149,7 @@ UbseResult UbseComEngine::NormalRequestHandle(UBSHcomServiceContext &context)
     msgCtx.SetModuleCode(moduleCode);
     ParseContextMsg(context, msg, msgCtx);
     if (moduleCode != static_cast<uint16_t>(UbseModuleCode::ELECTION) &&
-        moduleCode != static_cast<uint16_t>(UbseModuleCode::NODE_MGR) &&
-        !VerifyMsg(msgCtx)) {
+        moduleCode != static_cast<uint16_t>(UbseModuleCode::NODE_MGR) && !VerifyMsg(msgCtx)) {
         UBSE_LOG_ERROR << "The message for module=" << moduleCode << ", op code=" << opCode
                        << " , is not the trans between master and agent.";
         VarifyFailReply(msgCtx);

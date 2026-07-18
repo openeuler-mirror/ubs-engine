@@ -509,6 +509,8 @@ private:
     uint64_t ctxOpCode_;
     bool isRemoteCall_ = false;
 };
+// VerifyMsg 验证回调函数，用于检查消息是否已获得授权，由 HA 或节点发现模块注册，以将 COM 引擎与选举逻辑解耦
+using VerifyMsgCb = std::function<bool(UbseComMessageCtx &msgCtx)>;
 
 struct UbseComDataDesc {
     uint8_t *data = nullptr; // 消息指针

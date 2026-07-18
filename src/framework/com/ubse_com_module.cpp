@@ -259,6 +259,19 @@ void UbseComModule::Stop()
 {
     return;
 }
+
+void UbseComModule::RegisterVerifyMsgCb(VerifyMsgCb cb)
+{
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_WARN << "rpcServer is null, cannot register verify callback";
+        return;
+    }
+    auto *engine = UbseComEngineManager::GetEngine(rpcServer_->GetName());
+    if (engine != nullptr) {
+        engine->RegisterVerifyMsgCb(cb);
+    }
+}
+
 const std::string UbseComModule::GetCurRoleStr()
 {
     ubse::election::UbseRoleInfo roleInfo{};
@@ -340,8 +353,7 @@ UbseResult GetNodeInfoFromMti(IpAddress &address, std::string &nodeId)
         adapter_plugins::mti::UbseMtiInterface::GetInstance().GetLocalIp(address.first);
         address.second = TCP_LISTEN_PORT;
     };
-    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id="
-                  << nodeId;
+    UBSE_LOG_INFO << "Com_ip=" << address.first << ", com_port=" << address.second << ", com_node_id=" << nodeId;
     return UBSE_OK;
 }
 

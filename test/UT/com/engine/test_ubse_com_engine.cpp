@@ -17,17 +17,14 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
 #include "ubse_com_def.h"
-#include "ubse_election.h"
 
 namespace ubse::com {
-const std::string GetCurRoleStr();
 void VarifyFailReply(UbseComMessageCtx &message);
 } // namespace ubse::com
 
 namespace ubse::ut::com {
 using namespace ubse::com;
 using namespace ubse::mti;
-using namespace ubse::election;
 
 const uint16_t MODULES_SIZE = 1000; // 最大模块数
 const uint16_t CONNECT_FAIL_CODE = 519;
@@ -185,20 +182,10 @@ TEST_F(TestUbseComEngine, TestGetNodeIdByIp)
 }
 
 /*
- * 用例描述：
- * VerifyMsg验证消息来源
- * 测试步骤：
- * 1.角色为master，返回true
- * 2.角色为agent，GetMasterInfo失败返回true
- * 3.角色为agent，GetChannelById失败返回false
- * 4.角色为agent，remoteNodeId不等于masterNodeId返回false
- * 5.角色为agent，remoteNodeId等于masterNodeId返回true
- * 预期结果：
- * 1.返回true
- * 2.返回true
- * 3.返回false
- * 4.返回false
- * 5.返回true
+ * VerifyMsg callback-based message verification
+ * 1. No callback registered -> returns true (permissive default)
+ * 2. Callback returns true -> VerifyMsg returns true
+ * 3. Callback returns false -> VerifyMsg returns false
  */
 TEST_F(TestUbseComEngine, TestVerifyMsg)
 {
@@ -210,41 +197,21 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     UbseComMessagePtr innerMsg = req;
     UbseComMessageCtx msgCtx(innerMsg, "curNode", "destNode", UbseChannelType::NORMAL);
 
-    std::string masterRole = "master";
-    MOCKER(GetCurRoleStr).stubs().will(returnValue(masterRole));
+    // No callback registered: default allow
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
-    GlobalMockObject::verify();
 
-    std::string agentRole = "agent";
-    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
-    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
+    // Register callback that returns true
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return true; });
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
-    GlobalMockObject::verify();
 
-    ubse::election::UbseRoleInfo masterInfo{"MasterNode", "master"};
-    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
-    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
-    MOCKER(&UbseComEngine::GetChannelById).stubs().will(returnValue(UBSE_COM_ERROR_CHANNEL_NOT_FOUND));
+    // Register callback that returns false
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return false; });
     EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
-    GlobalMockObject::verify();
 
-    auto ptr = new TestChannel();
-    UBSHcomChannelPtr channelPtr = ptr;
-    UbseComChannelConnectInfo connectInfo(false, "127.0.0.1", 0, "OtherNode", "MockNode");
-    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo);
-    mockengine.linkManager_.channelIdMap_[1] = channelInfo;
-    msgCtx.SetChannelId(1);
-    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
-    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
-    EXPECT_EQ(false, mockengine.VerifyMsg(msgCtx));
-    GlobalMockObject::verify();
-
-    UbseComChannelConnectInfo connectInfo2(false, "127.0.0.1", 0, "MasterNode", "MockNode");
-    UbseComChannelInfo channelInfo2(true, UbseChannelType::NORMAL, "ManBo", channelPtr, connectInfo2);
-    mockengine.linkManager_.channelIdMap_[1] = channelInfo2;
-    MOCKER(GetCurRoleStr).stubs().will(returnValue(agentRole));
-    MOCKER_CPP(ubse::election::UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    // Register callback that returns true again
+    mockengine.RegisterVerifyMsgCb([](UbseComMessageCtx &) -> bool { return true; });
     EXPECT_EQ(true, mockengine.VerifyMsg(msgCtx));
+
     delete (req);
 }
 
