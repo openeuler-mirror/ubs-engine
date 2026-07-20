@@ -209,14 +209,14 @@ void BorrowFailedAdvice(const BorrowFailedAdviceCtx& ctx)
     std::string masterId{};
     ubse::election::UbseGetMasterNodeId(masterId); // 获取主节点ID，若失败则返回空字符串
     std::ostringstream errorCodeStream;
-    errorCodeStream << "ubse_borrow_" << std::setw(4) << std::setfill('0') << static_cast<uint8_t>(ctx.faultCode);
+    errorCodeStream << "ubse_borrow_" << std::setw(4) << std::setfill('0') << static_cast<uint32_t>(ctx.faultCode);
     std::string errorCode = errorCodeStream.str();
 
     std::ostringstream oss;
     oss << "[UBSE_MEM] " << processDesc << ". RequestName=" << ctx.name << ", BorrowType=" << borrowTypeStr
         << ", RequestSize=" << ctx.size << "byte, ExportNode=" << ctx.exportNode << ", ImportNode=" << ctx.importNode
         << ", RequestNode=" << ctx.requestNode << ", MasterNode=" << masterId << ", ErrorCode=" << errorCode
-        << ", ErrorInfo=" << fault.errorInfo << ", AdviceCode=" << static_cast<uint8_t>(fault.adviceCode)
+        << ", ErrorInfo=" << fault.errorInfo << ", AdviceCode=" << static_cast<uint32_t>(fault.adviceCode)
         << ", Advice=" << adviceStr;
     UBSE_LOG_INFO << oss.str();
 }
