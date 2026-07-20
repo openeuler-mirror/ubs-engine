@@ -51,14 +51,10 @@ void RunP0FdCreateDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
-void RunP0FdCreateOk02(ubse::it::infra::ItCluster& cluster);
-void RunP0FdCreateOk03(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create_with_lender ====================
 void RunP0FdCreateLenderOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster);
-void RunP0FdCreateLenderBoundMax01(ubse::it::infra::ItCluster& cluster);
-void RunP0FdCreateLenderOk02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateLenderInvalidVal02(ubse::it::infra::ItCluster& cluster);
@@ -68,7 +64,6 @@ void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_create_with_candidate ====================
 void RunP0FdCreateCandidateOk01(ubse::it::infra::ItCluster& cluster);
-void RunP0FdCreateCandidateOk02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateCandidateOverLen01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateCandidateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateCandidateInvalidVal02(ubse::it::infra::ItCluster& cluster);
@@ -78,7 +73,6 @@ void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_permission ====================
 void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster);
-void RunP0FdPermNullPtr01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_get ====================
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster);

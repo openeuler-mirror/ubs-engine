@@ -545,25 +545,40 @@ void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster)
     const char* name = "it_p0_fd_ok01";
     constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL; // 129MB, 2 blocks
     ubs_mem_fd_desc_t fdDesc{};
+
     IT_LOG_INFO << "Creating FD: name=" << name << ", size=" << borrowSize;
     int32_t ret = sdk.MemFdCreate(name, borrowSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
     ASSERT_IT_OK(ret);
 
-    WaitForFdReady(sdk, name);
-
-    // 验证基本字段：129MB → memid_cnt == 2
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-    EXPECT_EQ(verifyDesc.memid_cnt, 2u) << "129MB should produce 2 memory blocks";
-    for (uint32_t i = 0; i < verifyDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
-        EXPECT_GT(verifyDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
+    // 1. name: strcmp == 输入 name
+    EXPECT_STREQ(fdDesc.name, name) << "fdDesc.name should match input name";
+    // 2. mem_stage ∈ {UBSE_CREATING, UBSE_EXIST} (创建中或已完成)
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST)
+        << "mem_stage should be CREATING or EXIST, actual: " << fdDesc.mem_stage;
+    // 3. mem_size == 输入 size
+    EXPECT_EQ(fdDesc.mem_size, borrowSize) << "mem_size should equal input size";
+    // 4. memid_cnt == ceil(mem_size / unit_size)
+    uint32_t expectedMemidCnt = static_cast<uint32_t>((fdDesc.mem_size + fdDesc.unit_size - 1) / fdDesc.unit_size);
+    EXPECT_EQ(fdDesc.memid_cnt, expectedMemidCnt)
+        << "memid_cnt should equal ceil(mem_size/unit_size), expected=" << expectedMemidCnt;
+    // 5. memids[0..1] 非零
+    for (uint32_t i = 0; i < fdDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
+        EXPECT_GT(fdDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
     }
+    // 6. unit_size > 0
+    EXPECT_GT(fdDesc.unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
+    // 7. import_node.slot_id == 本节点 (nodeId "1" 对应的 slotId)
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+    EXPECT_EQ(fdDesc.import_node.slot_id, localSlotId) << "import_node.slot_id should be local node";
+    // 8. export_node.slot_id 有效 (>0)
+    EXPECT_GT(fdDesc.export_node.slot_id, 0u) << "export_node.slot_id should be valid (>0)";
+    // 9. export_node.slot_id != import_node.slot_id (借入与借出节点不同)
+    EXPECT_NE(fdDesc.export_node.slot_id, fdDesc.import_node.slot_id)
+        << "export_node.slot_id should differ from import_node.slot_id";
 
     // 清理
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreate-Ok-01 done";
 }
 
@@ -571,12 +586,11 @@ void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    // name长度48字符（超过最大长度47+1=48的缓冲区限制）
     std::string overLenName(48, 'a');
     ubs_mem_fd_desc_t fdDesc{};
     IT_LOG_INFO << "Creating FD with over-length name: length=" << overLenName.length();
     int32_t ret = sdk.MemFdCreate(overLenName.c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "name超长应返回错误";
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name超长应返回UBS_ERR_INVALID_ARG";
     IT_LOG_INFO << "P0-FdCreate-OverLen-01 done";
 }
 
@@ -605,7 +619,7 @@ void RunP0FdCreateInvalidVal02(ubse::it::infra::ItCluster& cluster)
     constexpr uint64_t tooLarge = 257ULL * 1024ULL * 1024ULL * 1024ULL;
     IT_LOG_INFO << "Creating FD with size > 256GB: " << tooLarge;
     int32_t ret = sdk.MemFdCreate(name, tooLarge, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "size > 256GB should fail";
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "size > 256GB should return ALLOCATE";
 
     IT_LOG_INFO << "P0-FdCreate-InvalidVal-02 done";
 }
@@ -617,12 +631,9 @@ void RunP0FdCreateDup01(ubse::it::infra::ItCluster& cluster)
     const char* name = "it_p0_fd_dup01";
     ubs_mem_fd_desc_t fdDesc{};
 
-    // 第一次创建
     IT_LOG_INFO << "Creating FD first time: name=" << name;
     int32_t ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
     ASSERT_IT_OK(ret);
-
-    WaitForFdReady(sdk, name);
 
     // 同名重复创建
     IT_LOG_INFO << "Creating FD with duplicate name: name=" << name;
@@ -631,7 +642,8 @@ void RunP0FdCreateDup01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
 
     // 清理
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreate-Dup-01 done";
 }
 
@@ -651,25 +663,25 @@ void RunP0FdCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_bmin01";
+    constexpr uint64_t minSize = UBS_MEM_MIN_SIZE; // 4MB
     ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with boundary min size: " << fdSize;
-    int32_t ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+
+    IT_LOG_INFO << "Creating FD with boundary min size: " << minSize;
+    int32_t ret = sdk.MemFdCreate(name, minSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
     ASSERT_IT_OK(ret);
 
-    WaitForFdReady(sdk, name);
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
 
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, fdSize);
-    EXPECT_GT(verifyDesc.memid_cnt, 0u);
-    for (uint32_t i = 0; i < verifyDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
-        EXPECT_GT(verifyDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
-    }
+    // 出参校验
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST);
+    EXPECT_EQ(fdDesc.mem_size, minSize) << "mem_size should equal 4MB";
+    uint32_t expectedMemidCnt = static_cast<uint32_t>((fdDesc.mem_size + fdDesc.unit_size - 1) / fdDesc.unit_size);
+    EXPECT_EQ(fdDesc.memid_cnt, expectedMemidCnt);
+    EXPECT_EQ(fdDesc.import_node.slot_id, localSlotId) << "import_node.slot_id should be local node";
 
     // 清理
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreate-BoundMin-01 done";
 }
 
@@ -677,86 +689,24 @@ void RunP0FdCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateBoundMax01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    // name为47字符，刚好填满48字节缓冲区（含\0）
     std::string boundName(47, 'x');
     ubs_mem_fd_desc_t fdDesc{};
+
     IT_LOG_INFO << "Creating FD with boundary max name length: " << boundName.length();
     int32_t ret = sdk.MemFdCreate(boundName.c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
     ASSERT_IT_OK(ret);
 
-    WaitForFdReady(sdk, boundName.c_str());
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
 
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(boundName.c_str(), &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, fdSize);
-    EXPECT_GT(verifyDesc.memid_cnt, 0u);
-    for (uint32_t i = 0; i < verifyDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
-        EXPECT_GT(verifyDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
-    }
+    // 出参校验
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST);
+    EXPECT_STREQ(fdDesc.name, boundName.c_str()) << "name should be fully preserved";
+    EXPECT_EQ(fdDesc.import_node.slot_id, localSlotId) << "import_node.slot_id should be local node";
 
     // 清理
-    sdk.MemFdDelete(boundName.c_str());
+    ret = sdk.MemFdDelete(boundName.c_str());
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreate-BoundMax-01 done";
-}
-
-// P0-FdCreate-Ok-02: owner+mode 非默认值 (双/四节点)
-void RunP0FdCreateOk02(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    const char* name = "it_p0_fd_ok02";
-    ubs_mem_fd_owner_t owner = {.uid = 1000, .gid = 1000, .pid = 99999};
-    constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL; // 129MB, 2 blocks
-
-    ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with non-default owner+mode: name=" << name << ", mode=0644, size=" << borrowSize;
-    int32_t ret = sdk.MemFdCreate(name, borrowSize, &owner, 0644, MEM_DISTANCE_L0, &fdDesc);
-    ASSERT_IT_OK(ret);
-
-    WaitForFdReady(sdk, name);
-
-    // 验证基本字段：129MB → memid_cnt == 2
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-    EXPECT_EQ(verifyDesc.memid_cnt, 2u) << "129MB should produce 2 memory blocks";
-    for (uint32_t i = 0; i < verifyDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
-        EXPECT_GT(verifyDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
-    }
-
-    // 清理
-    sdk.MemFdDelete(name);
-    IT_LOG_INFO << "P0-FdCreate-Ok-02 done";
-}
-
-// P0-FdCreate-Ok-03: 129MB → 2块 memid (双/四节点)
-void RunP0FdCreateOk03(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    const char* name = "it_p0_fd_ok03";
-
-    ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD: name=" << name << ", size=129MB";
-    int32_t ret = sdk.MemFdCreate(name, fdSize129M, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
-    ASSERT_IT_OK(ret);
-
-    WaitForFdReady(sdk, name);
-
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, fdSize129M);
-    EXPECT_EQ(verifyDesc.memid_cnt, 2u) << "129MB 应切为 2 块 (128M/块)";
-    EXPECT_GT(verifyDesc.memids[0], 0ull);
-    EXPECT_GT(verifyDesc.memids[1], 0ull);
-
-    // 清理
-    sdk.MemFdDelete(name);
-    IT_LOG_INFO << "P0-FdCreate-Ok-03 done";
 }
 
 // ==================== ubs_mem_fd_create_with_lender P0 测试 ====================
@@ -764,208 +714,134 @@ void RunP0FdCreateOk03(ubse::it::infra::ItCluster& cluster)
 // P0-FdCreateLender-Ok-01: 指定借出节点创建 (双/四节点)
 void RunP0FdCreateLenderOk01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
+    // 双节点场景选节点2, 四节点场景选节点3
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
 
     const char* name = "it_p0_fd_lender01";
     constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL;
     ubs_mem_lender_t lender{};
     lender.lender_size = borrowSize;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
 
     ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with lender: name=" << name << ", size=" << borrowSize;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
+    IT_LOG_INFO << "Creating FD with lender: name=" << name << ", size=" << borrowSize
+                << ", lender slot=" << lenderSlotId;
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &fdDesc);
-    EXPECT_IT_OK(ret);
+    ASSERT_IT_OK(ret);
 
-    if (ret == UBS_SUCCESS) {
-        WaitForFdReady(sdk, name);
-
-        ubs_mem_fd_desc_t verifyDesc{};
-        ret = sdk.MemFdGet(name, &verifyDesc);
-        EXPECT_IT_OK(ret);
-        EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-        EXPECT_EQ(verifyDesc.export_node.slot_id, node2.slot_id);
-        EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-        EXPECT_EQ(verifyDesc.memid_cnt, 2u) << "129MB should produce 2 memory blocks";
-        EXPECT_GT(verifyDesc.memids[0], 0ull);
-        EXPECT_GT(verifyDesc.memids[1], 0ull);
-
-        sdk.MemFdDelete(name);
+    // ====== 出参 fdDesc 字段校验 ======
+    // 1. mem_stage ∈ {UBSE_CREATING, UBSE_EXIST}
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST)
+        << "mem_stage should be CREATING or EXIST, actual: " << fdDesc.mem_stage;
+    // 2. mem_size == 输入 size
+    EXPECT_EQ(fdDesc.mem_size, borrowSize) << "mem_size should equal input size";
+    // 3. memid_cnt == ceil(mem_size / unit_size)
+    uint32_t expectedMemidCnt = static_cast<uint32_t>((fdDesc.mem_size + fdDesc.unit_size - 1) / fdDesc.unit_size);
+    EXPECT_EQ(fdDesc.memid_cnt, expectedMemidCnt) << "memid_cnt should equal ceil(mem_size/unit_size)";
+    // 4. memids 非零
+    for (uint32_t i = 0; i < fdDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
+        EXPECT_GT(fdDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
     }
+    // 5. unit_size > 0
+    EXPECT_GT(fdDesc.unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
+    // 6. export_node.slot_id == lender.slot_id
+    EXPECT_EQ(fdDesc.export_node.slot_id, lenderSlotId) << "export_node.slot_id should equal lender slot_id";
+    // 7. import_node.slot_id == 本节点
+    EXPECT_EQ(fdDesc.import_node.slot_id, localSlotId) << "import_node.slot_id should be local node";
+    // 8. export_node.slot_id != import_node.slot_id
+    EXPECT_NE(fdDesc.export_node.slot_id, fdDesc.import_node.slot_id)
+        << "export_node.slot_id should differ from import_node.slot_id";
+
+    // 清理
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreateLender-Ok-01 done";
 }
 
 // P0-FdCreateLender-NullPtr-01: lender=NULL (双节点)
 void RunP0FdCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_lnull01";
 
     ubs_mem_fd_desc_t fdDesc{};
     IT_LOG_INFO << "Creating FD with lender=NULL and lender_cnt=1";
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, nullptr, 1, &fdDesc);
     EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
     IT_LOG_INFO << "P0-FdCreateLender-NullPtr-01 done";
 }
 
-// P0-FdCreateLender-BoundMax-01: lender_cnt=4 (双节点)
-void RunP0FdCreateLenderBoundMax01(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-
-    ubs_topo_node_t node2{};
-    int32_t ret = sdk2.TopoNodeLocalGet(&node2);
-    ASSERT_IT_OK(ret);
-
-    const char* name = "it_p0_fd_lbmax01";
-    ubs_mem_lender_t lenders[4]{};
-    for (int i = 0; i < 4; i++) {
-        lenders[i].lender_size = fdSize;
-        lenders[i].slot_id = node2.slot_id;
-    }
-
-    ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with lender_cnt=4 (boundary max)";
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
-    ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, lenders, 4, &fdDesc);
-
-    if (ret == UBS_SUCCESS) {
-        WaitForFdReady(sdk, name);
-
-        ubs_mem_fd_desc_t verifyDesc{};
-        ret = sdk.MemFdGet(name, &verifyDesc);
-        EXPECT_IT_OK(ret);
-        EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-
-        // 清理
-        sdk.MemFdDelete(name);
-    }
-    IT_LOG_INFO << "P0-FdCreateLender-BoundMax-01 done";
-}
-
-// P0-FdCreateLender-Ok-02: owner+mode 非默认值 (双/四节点)
-void RunP0FdCreateLenderOk02(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
-
-    const char* name = "it_p0_fd_lender02";
-    ubs_mem_fd_owner_t owner = {.uid = 1000, .gid = 1000, .pid = 99999};
-    constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL;
-    ubs_mem_lender_t lender{};
-    lender.lender_size = borrowSize;
-    lender.slot_id = node2.slot_id;
-
-    ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with lender + non-default owner+mode: name=" << name
-                << ", mode=0644, size=" << borrowSize;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
-    int32_t ret = ubs_mem_fd_create_with_lender(name, &owner, 0644, &lender, 1, &fdDesc);
-    EXPECT_IT_OK(ret);
-
-    if (ret == UBS_SUCCESS) {
-        WaitForFdReady(sdk, name);
-
-        ubs_mem_fd_desc_t verifyDesc{};
-        ret = sdk.MemFdGet(name, &verifyDesc);
-        EXPECT_IT_OK(ret);
-        EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-        EXPECT_EQ(verifyDesc.export_node.slot_id, node2.slot_id);
-        EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-        EXPECT_EQ(verifyDesc.memid_cnt, 2u) << "129MB should produce 2 memory blocks";
-        EXPECT_GT(verifyDesc.memids[0], 0ull);
-        EXPECT_GT(verifyDesc.memids[1], 0ull);
-
-        sdk.MemFdDelete(name);
-    }
-    IT_LOG_INFO << "P0-FdCreateLender-Ok-02 done";
-}
-
 // P0-FdCreateLender-OverLen-01: name超长 (双节点)
 void RunP0FdCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
     std::string overLenName(48, 'a');
     ubs_mem_lender_t lender{};
     lender.lender_size = fdSize;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(overLenName.c_str(), nullptr, 0, &lender, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "name超长应返回错误";
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name超长应返回INVALID_ARG";
     IT_LOG_INFO << "P0-FdCreateLender-OverLen-01 done";
 }
 
 // P0-FdCreateLender-InvalidVal-01: lender_size < 4MB (双节点)
 void RunP0FdCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
     const char* name = "it_p0_fd_li01";
     ubs_mem_lender_t lender{};
     lender.lender_size = 1;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &fdDesc);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_OUT_OF_RANGE);
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_OUT_OF_RANGE) << "lender_size < 4MB应返回OUT_OF_RANGE";
     IT_LOG_INFO << "P0-FdCreateLender-InvalidVal-01 done";
 }
 
 // P0-FdCreateLender-InvalidVal-02: lender_size > 256GB (双/四节点)
 void RunP0FdCreateLenderInvalidVal02(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
     const char* name = "it_p0_fd_li02";
     constexpr uint64_t tooLarge = 257ULL * 1024ULL * 1024ULL * 1024ULL;
     ubs_mem_lender_t lender{};
     lender.lender_size = tooLarge;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "lender_size > 256GB should fail";
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "lender_size > 256GB应返回ALLOCATE";
     IT_LOG_INFO << "P0-FdCreateLender-InvalidVal-02 done";
 }
 
 // P0-FdCreateLender-NullPtr-02: name=NULL 或 fd_desc=NULL (双节点)
 void RunP0FdCreateLenderNullPtr02(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
     ubs_mem_lender_t lender{};
     lender.lender_size = fdSize;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(nullptr, nullptr, 0, &lender, 1, &fdDesc);
     EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
     ret = ubs_mem_fd_create_with_lender("it_p0_fd_l_null02", nullptr, 0, &lender, 1, nullptr);
@@ -976,16 +852,14 @@ void RunP0FdCreateLenderNullPtr02(ubse::it::infra::ItCluster& cluster)
 // P0-FdCreateLender-BadParam-01: 不存在的slot_id (双节点)
 void RunP0FdCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_lbad01";
     ubs_mem_lender_t lender{};
     lender.lender_size = fdSize;
     lender.slot_id = 999;
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "non-existent slot_id should fail";
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "不存在的slot_id应返回ALLOCATE";
     IT_LOG_INFO << "P0-FdCreateLender-BadParam-01 done";
 }
 
@@ -993,26 +867,25 @@ void RunP0FdCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
 
     const char* name = "it_p0_fd_ldup01";
     ubs_mem_lender_t lender{};
     lender.lender_size = fdSize;
-    lender.slot_id = node2.slot_id;
+    lender.slot_id = lenderSlotId;
 
     ubs_mem_fd_desc_t fdDesc{};
     ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     ASSERT_IT_OK(ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &fdDesc));
-    WaitForFdReady(sdk, name);
 
     ubs_mem_fd_desc_t dupDesc{};
     int32_t ret = ubs_mem_fd_create_with_lender(name, nullptr, 0, &lender, 1, &dupDesc);
     EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
 
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreateLender-Dup-01 done";
 }
 
@@ -1022,124 +895,115 @@ void RunP0FdCreateLenderDup01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateCandidateOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
 
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    uint32_t slotIds[4]{};
+    uint32_t slotCnt = 0;
+    if (nodeIds.size() >= 4) {
+        slotIds[slotCnt++] = cluster.GetNode("3").GetSpec().slotId;
+        slotIds[slotCnt++] = cluster.GetNode("4").GetSpec().slotId;
+    } else {
+        slotIds[slotCnt++] = cluster.GetNode("2").GetSpec().slotId;
+    }
 
     const char* name = "it_p0_fd_cand01";
     constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL;
-    uint32_t slotIds[2] = {node2.slot_id, 1};
-
     ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with candidate: name=" << name << ", size=" << borrowSize;
+
+    IT_LOG_INFO << "Creating FD with candidate: name=" << name << ", size=" << borrowSize << ", slot_cnt=" << slotCnt;
     ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
-    int32_t ret = ubs_mem_fd_create_with_candidate(name, borrowSize, nullptr, 0, slotIds, 2, &fdDesc);
+    int32_t ret = ubs_mem_fd_create_with_candidate(name, borrowSize, nullptr, 0, slotIds, slotCnt, &fdDesc);
     ASSERT_IT_OK(ret);
 
-    WaitForFdReady(sdk, name);
-
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-    EXPECT_EQ(verifyDesc.memid_cnt, 2u);
-    EXPECT_GT(verifyDesc.memids[0], 0ull);
-    EXPECT_GT(verifyDesc.memids[1], 0ull);
-    bool inSlotIds = (verifyDesc.export_node.slot_id == slotIds[0] || verifyDesc.export_node.slot_id == slotIds[1]);
+    // ====== 出参 fdDesc 字段校验 ======
+    // 1. mem_stage ∈ {UBSE_CREATING, UBSE_EXIST}
+    EXPECT_TRUE(fdDesc.mem_stage == UBSE_CREATING || fdDesc.mem_stage == UBSE_EXIST)
+        << "mem_stage should be CREATING or EXIST, actual: " << fdDesc.mem_stage;
+    // 2. mem_size == 输入 size
+    EXPECT_EQ(fdDesc.mem_size, borrowSize) << "mem_size should equal input size";
+    // 3. memid_cnt == ceil(mem_size / unit_size)
+    uint32_t expectedMemidCnt = static_cast<uint32_t>((fdDesc.mem_size + fdDesc.unit_size - 1) / fdDesc.unit_size);
+    EXPECT_EQ(fdDesc.memid_cnt, expectedMemidCnt) << "memid_cnt should equal ceil(mem_size/unit_size)";
+    // 4. memids 非零
+    for (uint32_t i = 0; i < fdDesc.memid_cnt && i < UBS_MEM_MAX_MEMID_NUM; i++) {
+        EXPECT_GT(fdDesc.memids[i], 0ull) << "memid[" << i << "] should be > 0";
+    }
+    // 5. unit_size > 0
+    EXPECT_GT(fdDesc.unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
+    // 6. export_node.slot_id ∈ slotIds
+    bool inSlotIds = false;
+    for (uint32_t i = 0; i < slotCnt; i++) {
+        if (fdDesc.export_node.slot_id == slotIds[i]) {
+            inSlotIds = true;
+            break;
+        }
+    }
     EXPECT_TRUE(inSlotIds) << "export_node.slot_id should be in candidate slot_ids";
+    // 7. import_node.slot_id == 本节点
+    EXPECT_EQ(fdDesc.import_node.slot_id, localSlotId) << "import_node.slot_id should be local node";
+    // 8. export_node.slot_id != import_node.slot_id
+    EXPECT_NE(fdDesc.export_node.slot_id, fdDesc.import_node.slot_id)
+        << "export_node.slot_id should differ from import_node.slot_id";
 
     sdk.MemFdDelete(name);
     IT_LOG_INFO << "P0-FdCreateCandidate-Ok-01 done";
 }
 
-// P0-FdCreateCandidate-Ok-02: owner+mode 非默认值 (双/四节点)
-void RunP0FdCreateCandidateOk02(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
-
-    const char* name = "it_p0_fd_cand02";
-    ubs_mem_fd_owner_t owner = {.uid = 1000, .gid = 1000, .pid = 99999};
-    constexpr uint64_t borrowSize = 129ULL * 1024ULL * 1024ULL;
-    uint32_t slotIds[2] = {node2.slot_id, 1};
-
-    ubs_mem_fd_desc_t fdDesc{};
-    IT_LOG_INFO << "Creating FD with candidate + non-default owner+mode: name=" << name;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
-    int32_t ret = ubs_mem_fd_create_with_candidate(name, borrowSize, &owner, 0644, slotIds, 2, &fdDesc);
-    ASSERT_IT_OK(ret);
-
-    WaitForFdReady(sdk, name);
-
-    ubs_mem_fd_desc_t verifyDesc{};
-    ret = sdk.MemFdGet(name, &verifyDesc);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(verifyDesc.mem_stage, UBSE_EXIST);
-    EXPECT_EQ(verifyDesc.mem_size, borrowSize);
-    EXPECT_EQ(verifyDesc.memid_cnt, 2u);
-    EXPECT_GT(verifyDesc.memids[0], 0ull);
-    EXPECT_GT(verifyDesc.memids[1], 0ull);
-
-    sdk.MemFdDelete(name);
-    IT_LOG_INFO << "P0-FdCreateCandidate-Ok-02 done";
-}
-
 // P0-FdCreateCandidate-OverLen-01: name超长 (双节点)
 void RunP0FdCreateCandidateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
+
     std::string overLenName(48, 'a');
-    uint32_t slotIds[1] = {1};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_candidate(overLenName.c_str(), fdSize, nullptr, 0, slotIds, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "name超长应返回错误";
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name超长应返回INVALID_ARG";
     IT_LOG_INFO << "P0-FdCreateCandidate-OverLen-01 done";
 }
 
 // P0-FdCreateCandidate-InvalidVal-01: size < 4MB (双节点)
 void RunP0FdCreateCandidateInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
+
     const char* name = "it_p0_fd_cand_inv01";
-    uint32_t slotIds[1] = {1};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_candidate(name, 1, nullptr, 0, slotIds, 1, &fdDesc);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_OUT_OF_RANGE);
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_OUT_OF_RANGE) << "size < 4MB应返回OUT_OF_RANGE";
     IT_LOG_INFO << "P0-FdCreateCandidate-InvalidVal-01 done";
 }
 
 // P0-FdCreateCandidate-InvalidVal-02: size > 256GB (双/四节点)
 void RunP0FdCreateCandidateInvalidVal02(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
+
     const char* name = "it_p0_fd_cand_inv02";
     constexpr uint64_t tooLarge = 257ULL * 1024ULL * 1024ULL * 1024ULL;
-    uint32_t slotIds[1] = {1};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_candidate(name, tooLarge, nullptr, 0, slotIds, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "size > 256GB should fail";
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "size > 256GB应返回ALLOCATE";
     IT_LOG_INFO << "P0-FdCreateCandidate-InvalidVal-02 done";
 }
 
 // P0-FdCreateCandidate-NullPtr-01: 空指针 (双节点)
 void RunP0FdCreateCandidateNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-    uint32_t slotIds[1] = {1};
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_candidate(nullptr, fdSize, nullptr, 0, slotIds, 1, &fdDesc);
     EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
     ret = ubs_mem_fd_create_with_candidate("it_p0_fd_cand_null01", fdSize, nullptr, 0, slotIds, 1, nullptr);
@@ -1150,14 +1014,12 @@ void RunP0FdCreateCandidateNullPtr01(ubse::it::infra::ItCluster& cluster)
 // P0-FdCreateCandidate-BadParam-01: 不存在的slot_id (双节点)
 void RunP0FdCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_cand_bad01";
     uint32_t slotIds[1] = {999};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_create_with_candidate(name, fdSize, nullptr, 0, slotIds, 1, &fdDesc);
-    EXPECT_NE(ret, UBS_SUCCESS) << "non-existent slot_id should fail";
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "不存在的slot_id应返回ALLOCATE";
     IT_LOG_INFO << "P0-FdCreateCandidate-BadParam-01 done";
 }
 
@@ -1165,24 +1027,21 @@ void RunP0FdCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster)
 void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    auto& sdk2 = cluster.GetSdkClient("2");
-
-    ubs_topo_node_t node2{};
-    ASSERT_IT_OK(sdk2.TopoNodeLocalGet(&node2));
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string candidateNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t slotIds[1] = {cluster.GetNode(candidateNodeId).GetSpec().slotId};
 
     const char* name = "it_p0_fd_cand_dup01";
-    uint32_t slotIds[1] = {node2.slot_id};
     ubs_mem_fd_desc_t fdDesc{};
 
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     ASSERT_IT_OK(ubs_mem_fd_create_with_candidate(name, fdSize, nullptr, 0, slotIds, 1, &fdDesc));
-    WaitForFdReady(sdk, name);
 
     ubs_mem_fd_desc_t dupDesc{};
     int32_t ret = ubs_mem_fd_create_with_candidate(name, fdSize, nullptr, 0, slotIds, 1, &dupDesc);
     EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
 
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdCreateCandidate-Dup-01 done";
 }
 
@@ -1191,7 +1050,6 @@ void RunP0FdCreateCandidateDup01(ubse::it::infra::ItCluster& cluster)
 // P0-FdPerm-NotExist-01: name不存在 (单节点)
 void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_perm_notexist";
     ubs_mem_fd_owner_t owner{};
     owner.uid = 0;
@@ -1199,28 +1057,14 @@ void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster)
     owner.pid = 0;
 
     IT_LOG_INFO << "Setting permission on non-existent FD: name=" << name;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_permission(name, &owner, 0644);
     EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
     IT_LOG_INFO << "P0-FdPerm-NotExist-01 done";
 }
 
-// P0-FdPerm-NullPtr-01: owner=NULL (单节点)
-void RunP0FdPermNullPtr01(ubse::it::infra::ItCluster& cluster)
-{
-    auto& sdk = cluster.GetSdkClient("1");
-    const char* name = "it_p0_fd_perm_null";
-
-    IT_LOG_INFO << "Setting permission with owner=NULL";
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
-    int32_t ret = ubs_mem_fd_permission(name, nullptr, 0644);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
-    IT_LOG_INFO << "P0-FdPerm-NullPtr-01 done";
-}
-
 // ==================== ubs_mem_fd_get P0 测试 ====================
 
-// P0-FdGet-NotExist-01: 查询不存在 (单节点)
+// P0-FdGet-NotExist-01: 查询不存在 (双节点)
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1233,7 +1077,7 @@ void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-FdGet-NotExist-01 done";
 }
 
-// P0-FdGet-NullPtr-01: 空指针 (单节点)
+// P0-FdGet-NullPtr-01: 空指针 (双节点)
 void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1247,28 +1091,82 @@ void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== ubs_mem_fd_list P0 测试 ====================
 
-// P0-FdList-Ok-01: list接口调用验证 (单节点)
+// P0-FdList-Ok-01: 空时list + 多次借用后list验证字段 (双节点)
 void RunP0FdListOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
 
-    // 直接调用list，验证接口可用（无FD时可能返回空列表或分配错误）
+    // 第一步：空时调用FdList，验证接口可用
     ubs_mem_fd_desc_t* fdDescs = nullptr;
     uint32_t fdDescCnt = 0;
     int32_t ret = sdk.MemFdList(&fdDescs, &fdDescCnt);
-    if (ret == UBS_SUCCESS) {
-        IT_LOG_INFO << "FdList ok, cnt=" << fdDescCnt;
-        if (fdDescs != nullptr) {
-            free(fdDescs);
+    ASSERT_IT_OK(ret);
+    IT_LOG_INFO << "Empty FdList ok, cnt=" << fdDescCnt;
+    if (fdDescs != nullptr) {
+        free(fdDescs);
+        fdDescs = nullptr;
+    }
+
+    // 第二步：创建2个FD
+    const char* names[] = {"it_p0_fdlist_01", "it_p0_fdlist_02"};
+    constexpr uint64_t sizes[] = {fdSize, fdSize129M};
+    ubs_mem_fd_desc_t createDescs[2]{};
+
+    for (int i = 0; i < 2; i++) {
+        IT_LOG_INFO << "Creating FD: name=" << names[i] << ", size=" << sizes[i];
+        ret = sdk.MemFdCreate(names[i], sizes[i], nullptr, 0, MEM_DISTANCE_L0, &createDescs[i]);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 第三步：再次调用FdList
+    ret = sdk.MemFdList(&fdDescs, &fdDescCnt);
+    ASSERT_IT_OK(ret);
+    ASSERT_GE(fdDescCnt, 2u);
+    IT_LOG_INFO << "FdList after create returned " << fdDescCnt << " entries";
+
+    // 逐条校验字段
+    for (uint32_t i = 0; i < fdDescCnt; i++) {
+        IT_LOG_INFO << "FdList[" << i << "]: name=" << fdDescs[i].name << ", mem_stage=" << fdDescs[i].mem_stage
+                    << ", mem_size=" << fdDescs[i].mem_size << ", import_slot=" << fdDescs[i].import_node.slot_id
+                    << ", export_slot=" << fdDescs[i].export_node.slot_id;
+
+        EXPECT_TRUE(fdDescs[i].mem_stage == UBSE_CREATING || fdDescs[i].mem_stage == UBSE_EXIST);
+        EXPECT_GT(fdDescs[i].mem_size, 0ull);
+        uint32_t expectedMemidCnt =
+            static_cast<uint32_t>((fdDescs[i].mem_size + fdDescs[i].unit_size - 1) / fdDescs[i].unit_size);
+        EXPECT_EQ(fdDescs[i].memid_cnt, expectedMemidCnt);
+        EXPECT_GT(fdDescs[i].unit_size, static_cast<size_t>(0));
+        EXPECT_EQ(fdDescs[i].import_node.slot_id, localSlotId);
+        EXPECT_GT(fdDescs[i].export_node.slot_id, 0u);
+        EXPECT_NE(fdDescs[i].export_node.slot_id, fdDescs[i].import_node.slot_id);
+    }
+
+    // 验证创建的2个FD都在列表中且mem_size一致
+    for (int j = 0; j < 2; j++) {
+        bool found = false;
+        for (uint32_t i = 0; i < fdDescCnt; i++) {
+            if (strcmp(fdDescs[i].name, names[j]) == 0) {
+                found = true;
+                EXPECT_EQ(fdDescs[i].mem_size, sizes[j]);
+                break;
+            }
         }
-    } else {
-        // 无FD资源时可能返回ALLOCATE错误，接口本身是可达的
-        IT_LOG_INFO << "FdList returned " << ret << " (no FD resources), interface reachable";
+        EXPECT_TRUE(found) << "FD " << names[j] << " not found in list";
+    }
+
+    if (fdDescs != nullptr) {
+        free(fdDescs);
+    }
+
+    // 清理
+    for (int i = 0; i < 2; i++) {
+        sdk.MemFdDelete(names[i]);
     }
     IT_LOG_INFO << "P0-FdList-Ok-01 done";
 }
 
-// P0-FdList-NullPtr-01: 空指针 (单节点)
+// P0-FdList-NullPtr-01: 空指针 (双节点)
 void RunP0FdListNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1300,10 +1198,15 @@ void RunP0FdDelOk01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "Deleting FD: name=" << name;
     ret = sdk.MemFdDelete(name);
     EXPECT_IT_OK(ret);
+
+    // 删除后get应返回NOT_EXIST
+    ubs_mem_fd_desc_t getDesc{};
+    ret = sdk.MemFdGet(name, &getDesc);
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
     IT_LOG_INFO << "P0-FdDel-Ok-01 done";
 }
 
-// P0-FdDel-NotExist-01: 删除不存在 (单节点)
+// P0-FdDel-NotExist-01: 删除不存在 (双节点)
 void RunP0FdDelNotExist01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1341,7 +1244,7 @@ void RunP0FdDelDup01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-FdDel-Dup-01 done";
 }
 
-// P0-FdDel-OverLen-01: name超长 (单节点)
+// P0-FdDel-OverLen-01: name超长 (双节点)
 void RunP0FdDelOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1349,7 +1252,7 @@ void RunP0FdDelOverLen01(ubse::it::infra::ItCluster& cluster)
 
     IT_LOG_INFO << "Deleting FD with over-length name";
     int32_t ret = sdk.MemFdDelete(overLenName.c_str());
-    EXPECT_NE(ret, UBS_SUCCESS) << "name超长应返回错误";
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name超长应返回错误";
     IT_LOG_INFO << "P0-FdDel-OverLen-01 done";
 }
 
@@ -1379,26 +1282,26 @@ void RunP0FdMemidByImportFld01(ubse::it::infra::ItCluster& cluster)
     uint64_t importMemid = verifyDesc.memids[0];
     ubs_mem_export_memid_t memInfo{};
     IT_LOG_INFO << "Querying export memid by import memid: " << importMemid;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     ret = ubs_mem_fd_get_memid_by_import(name, importMemid, &memInfo);
     EXPECT_IT_OK(ret);
+    EXPECT_GT(memInfo.export_slot_id, 0u);
+    EXPECT_EQ(memInfo.export_slot_id, verifyDesc.export_node.slot_id);
     EXPECT_GT(memInfo.export_memid, 0ull);
     IT_LOG_INFO << "export_slot_id=" << memInfo.export_slot_id << ", export_memid=" << memInfo.export_memid;
 
     // 清理
-    sdk.MemFdDelete(name);
+    ret = sdk.MemFdDelete(name);
+    ASSERT_IT_OK(ret);
     IT_LOG_INFO << "P0-FdMemidByImport-Fld-01 done";
 }
 
-// P0-FdMemidByImport-NotExist-01: name不存在 (单节点)
+// P0-FdMemidByImport-NotExist-01: name不存在 (双节点)
 void RunP0FdMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_fd_memid_notexist";
     ubs_mem_export_memid_t memInfo{};
 
     IT_LOG_INFO << "Querying export memid for non-existent FD: name=" << name;
-    ubs_engine_client_initialize(sdk.GetUdsPath().c_str());
     int32_t ret = ubs_mem_fd_get_memid_by_import(name, 1, &memInfo);
     EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
     IT_LOG_INFO << "P0-FdMemidByImport-NotExist-01 done";

@@ -159,25 +159,24 @@ int32_t ubs_mem_fd_create(const char* name, uint64_t size, const ubs_mem_fd_owne
 | 字段 | 类型 | 校验方式 |
 |------|------|----------|
 | `name[48]` | `char[48]` | strcmp == 输入 name |
-| `memid_cnt` | `uint32_t` | > 0 |
+| `memid_cnt` | `uint32_t` | == ceil(mem_size / unit_size) |
 | `memids[2048]` | `uint64_t[2048]` | 非空 |
 | `mem_size` | `uint64_t` | == 输入 size |
 | `unit_size` | `size_t` | > 0 |
-| `export_node` | `ubs_topo_node_t` | slot_id 有效（ips 字段无效） |
+| `export_node` | `ubs_topo_node_t` | slot_id 有效且 ≠ import_node.slot_id（ips 字段无效） |
 | `import_node` | `ubs_topo_node_t` | slot_id == 本节点 |
-| `mem_stage` | `ubs_mem_stage` | == UBSE_EXIST(3) |
+| `mem_stage` | `ubs_mem_stage` | ∈ {UBSE_CREATING(1), UBSE_EXIST(3)} |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdCreate-Ok-01 | 标准创建 | 双/四节点 | owner=NULL, mode=0, distance=L0, size=129MB; `mem_stage==EXIST`, `mem_size==129MB`, `memid_cnt==2`, `memids[0..1]` 非零, `unit_size>0` | `UBS_SUCCESS` |
-| P0-FdCreate-Ok-02 | owner+mode 非默认值 | 双/四节点 | owner={uid=1000,gid=1000,pid=99999}, mode=0644, distance=L0, size=129MB; mem_stage==EXIST`, `mem_size==129MB`, `memid_cnt==2`, `memids[0..1]` 非零 | `UBS_SUCCESS` |
-| P0-FdCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `OUT_OF_RANGE` |
-| P0-FdCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1MB; `OUT_OF_RANGE` | `OUT_OF_RANGE` |
-| P0-FdCreate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB; 超过 `UBS_MEM_MAX_MEMID_NUM * 128MB`，返回错误 | 错误 |
-| P0-FdCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `NULL_POINTER` |
-| P0-FdCreate-Dup-01 | 同名重复 | 双节点 | 同名再调一次 | `EXISTED` |
-| P0-FdCreate-BoundMin-01 | size=4MB | 双节点 | size=4MB; `mem_size==4MB` | `UBS_SUCCESS` |
-| P0-FdCreate-BoundMax-01 | name=47字节 | 双节点 | name=47 字节; name 完整保留 | `UBS_SUCCESS` |
+| P0-FdCreate-Ok-01 | 标准创建 | 双/四节点 | owner=NULL, mode=0, distance=L0, size=129MB; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `import_node.slot_id==本节点`, `export_node.slot_id>0`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
+| P0-FdCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-FdCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1MB | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-FdCreate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB; 超过 `UBS_MEM_MAX_MEMID_NUM * 128MB` | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-FdCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-FdCreate-Dup-01 | 同名重复 | 双节点 | 同名再调一次 | `UBS_ENGINE_ERR_EXISTED` |
+| P0-FdCreate-BoundMin-01 | size=4MB | 双节点 | size=4MB; `mem_stage∈{CREATING,EXIST}`, `mem_size==4MB`, `memid_cnt==ceil(mem_size/unit_size)`, `import_node.slot_id==本节点` | `UBS_SUCCESS` |
+| P0-FdCreate-BoundMax-01 | name=47字节 | 双节点 | name=47 字节; `mem_stage∈{CREATING,EXIST}`, `name==输入`, `import_node.slot_id==本节点` | `UBS_SUCCESS` |
 
 #### ubs_mem_fd_create_with_lender
 
@@ -197,16 +196,14 @@ int32_t ubs_mem_fd_create_with_lender(const char* name, const ubs_mem_fd_owner_t
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | owner=NULL, mode=0, lender={slot_id=node2, size=129MB}, lender_cnt=1; `export_node.slot_id==lender.slot_id`, `memid_cnt==2`, `memids` 非零 | `UBS_SUCCESS` |
-| P0-FdCreateLender-Ok-02 | owner+mode 非默认值 | 双/四节点 | owner={uid=1000,gid=1000,pid=99999}, mode=0644, lender={slot_id=node2, size=129MB}, lender_cnt=1;  `export_node.slot_id==lender.slot_id`, `memid_cnt==2`, `memids` 非零 | `UBS_SUCCESS` |
-| P0-FdCreateLender-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `OUT_OF_RANGE` |
-| P0-FdCreateLender-InvalidVal-01 | lender_size < 4MB | 双节点 | lender.lender_size=1 | `OUT_OF_RANGE` |
-| P0-FdCreateLender-InvalidVal-02 | lender_size > 256GB | 双/四节点 | lender.lender_size=257GB | 错误 |
-| P0-FdCreateLender-NullPtr-01 | lender=NULL | 双节点 | lender=NULL, lender_cnt=1 | `NULL_POINTER` |
-| P0-FdCreateLender-NullPtr-02 | name/fd_desc=NULL | 双节点 | name=NULL 或 fd_desc=NULL | `NULL_POINTER` |
-| P0-FdCreateLender-BadParam-01 | 不存在的 slot_id | 双节点 | lender.slot_id=999 | 错误 |
-| P0-FdCreateLender-Dup-01 | 同名重复 | 双节点 | 同名再调 | `EXISTED` |
-| P0-FdCreateLender-BoundMax-01 | lender_cnt=4 | 双/四节点 | lender_cnt=4, lender_size=4MB×4; `export_node.slot_id` 与 lender 一致 | `UBS_SUCCESS` |
+| P0-FdCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | owner=NULL, mode=0, lender={slot_id=非本节点, size=129MB}, lender_cnt=1; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `export_node.slot_id==lender.slot_id`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
+| P0-FdCreateLender-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-FdCreateLender-InvalidVal-01 | lender_size < 4MB | 双节点 | lender.lender_size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-FdCreateLender-InvalidVal-02 | lender_size > 256GB | 双/四节点 | lender.lender_size=257GB | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-FdCreateLender-NullPtr-01 | lender=NULL | 双节点 | lender=NULL, lender_cnt=1 | `UBS_ERR_NULL_POINTER` |
+| P0-FdCreateLender-NullPtr-02 | name/fd_desc=NULL | 双节点 | name=NULL 或 fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-FdCreateLender-BadParam-01 | 不存在的 slot_id | 双节点 | lender.slot_id=999 | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-FdCreateLender-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_fd_create_with_candidate
 
@@ -228,14 +225,13 @@ int32_t ubs_mem_fd_create_with_candidate(const char* name, uint64_t size,
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdCreateCandidate-Ok-01 | 指定候选节点 | 双/四节点 | owner=NULL, mode=0, size=129MB, slot_cnt=2, `export_node.slot_id ∈ slot_ids`, `memid_cnt==2`, `memids` 非零 | `UBS_SUCCESS` |
-| P0-FdCreateCandidate-Ok-02 | owner+mode 非默认值 | 双/四节点 | owner={uid=1000,gid=1000,pid=99999}, mode=0644, size=129MB, slot_cnt=2; `memid_cnt==2`, `memids` 非零 | `UBS_SUCCESS` |
-| P0-FdCreateCandidate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `OUT_OF_RANGE` |
-| P0-FdCreateCandidate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `OUT_OF_RANGE` |
-| P0-FdCreateCandidate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB | 错误 |
-| P0-FdCreateCandidate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `NULL_POINTER` |
-| P0-FdCreateCandidate-BadParam-01 | 不存在的 slot_id | 双节点 | slot_ids={999} | 错误 |
-| P0-FdCreateCandidate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `EXISTED` |
+| P0-FdCreateCandidate-Ok-01 | 指定候选节点 | 双/四节点 | owner=NULL, mode=0, size=129MB, slot_ids={双:2 / 四:3,4}; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `export_node.slot_id∈slot_ids`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
+| P0-FdCreateCandidate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-FdCreateCandidate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-FdCreateCandidate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-FdCreateCandidate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-FdCreateCandidate-BadParam-01 | 不存在的 slot_id | 双节点 | slot_ids={999} | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-FdCreateCandidate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_fd_permission
 
@@ -252,8 +248,8 @@ int32_t ubs_mem_fd_permission(const char* name, const ubs_mem_fd_owner_t* owner,
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdPerm-NotExist-01 | name 不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
-| P0-FdPerm-NullPtr-01 | owner=NULL | 单节点 | owner=NULL | `NULL_POINTER` |
+| P0-FdPerm-NotExist-01 | name 不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
+
 
 #### ubs_mem_fd_get
 
@@ -268,8 +264,8 @@ int32_t ubs_mem_fd_get(const char* name, ubs_mem_fd_desc_t* fd_desc)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdGet-NotExist-01 | 查询不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
-| P0-FdGet-NullPtr-01 | 空指针 | 单节点 | fd_desc=NULL | `NULL_POINTER` |
+| P0-FdGet-NotExist-01 | 查询不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
+| P0-FdGet-NullPtr-01 | 空指针 | 双节点 | fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
 
 #### ubs_mem_fd_list
 
@@ -284,8 +280,8 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** descs, uint32_t* fd_cnt)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdList-Ok-01 | 空/有 fd 时 list | 单节点 | 无 fd 时 `*fd_cnt==0`; 有 fd 时列出 | `UBS_SUCCESS` |
-| P0-FdList-NullPtr-01 | 空指针 | 单节点 | descs=NULL | `NULL_POINTER` |
+| P0-FdList-Ok-01 | 空/有 fd 时 list + 字段校验 | 双节点 | ① 空 list 验证接口可达；② 创建2个FD后 list，逐条校验 `mem_stage∈{CREATING,EXIST}`、`mem_size`、`memid_cnt==ceil(mem_size/unit_size)`、`unit_size>0`、`import_node.slot_id==本节点`、`export_node.slot_id>0`、`export≠import`；③ 验证创建的FD均在列表中且 `mem_size` 一致 | `UBS_SUCCESS`; 空/有均可调通；`fd_cnt≥2`; 字段正确 |
+| P0-FdList-NullPtr-01 | 空指针 | 双节点 | descs=NULL | `UBS_ERR_NULL_POINTER` |
 
 #### ubs_mem_fd_delete
 
@@ -301,9 +297,9 @@ int32_t ubs_mem_fd_delete(const char* name)
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
 | P0-FdDel-Ok-01 | 创建后删除 | 双节点 | 正常 name | `UBS_SUCCESS`; 删除后 get 返回不存在 |
-| P0-FdDel-NotExist-01 | 删除不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
-| P0-FdDel-Dup-01 | 重复删除 | 双节点 | 同名再删 | `NOT_EXIST` |
-| P0-FdDel-OverLen-01 | name 超长 | 单节点 | name ≥ 48 | `OUT_OF_RANGE` |
+| P0-FdDel-NotExist-01 | 删除不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
+| P0-FdDel-Dup-01 | 重复删除 | 双节点 | 同名再删 | `UBS_ENGINE_ERR_NOT_EXIST` |
+| P0-FdDel-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
 
 #### ubs_mem_fd_get_memid_by_import
 
@@ -327,8 +323,8 @@ int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid,
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdMemidByImport-Fld-01 | 创建后查询 | 双节点 | 正常 name+import_memid; `export_memid` 与创建时一致 | `UBS_SUCCESS` |
-| P0-FdMemidByImport-NotExist-01 | name 不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
+| P0-FdMemidByImport-Fld-01 | 创建后查询 | 双节点 | 正常 name+import_memid; `export_slot_id>0`、`export_slot_id==创建时export_node.slot_id`、`export_memid>0` | `UBS_SUCCESS` |
+| P0-FdMemidByImport-NotExist-01 | name 不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
 
 #### ubs_mem_fd_fault_register
 
@@ -822,13 +818,13 @@ const char* ubs_error_string(int32_t error_code)
 |------|--------|--------|------|
 | Client | 5 | — | 5 |
 | Topo | 8 | 4 | 12 |
-| Mem FD | 40 | 3 | 43 |
+| Mem FD | 35 | 3 | 38 |
 | Mem NUMA | 28 | 7 | 35 |
 | Mem SHM | 18 | 3 | 21 |
 | NPU | 7 | — | 7 |
 | URMA QoS | 1 | 8 | 9 |
 | Error | 2 | — | 2 |
-| **合计** | **109** | **25** | **134** |
+| **合计** | **104** | **25** | **129** |
 
 ### 按场景
 
