@@ -18,6 +18,136 @@
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
 
+// ==================== Topo P0 测试 (四节点) ====================
+
+// P0-NodeList-Ok-02: 多节点查询 + LCNE 比对
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NodeListOk02)
+{
+    ubse::it::tests::topo::RunP0NodeListOk02(Cluster());
+}
+
+// P0-LocalGet-Ok-01: 查询本节点 + LCNE 比对
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0LocalGetOk01)
+{
+    ubse::it::tests::topo::RunP0LocalGetOk01(Cluster());
+}
+
+// P0-LinkList-Ok-01: 链路查询 + LCNE 比对
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0LinkListOk01)
+{
+    ubse::it::tests::topo::RunP0LinkListOk01(Cluster());
+}
+
+// ==================== Mem FD P0 测试 ====================
+
+// P0-FdCreate-Ok-01: 标准创建成功
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateOk01(Cluster());
+}
+
+// P0-FdCreate-Ok-02: owner+mode 非默认值
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateOk02(Cluster());
+}
+
+// P0-FdCreate-InvalidVal-02: size > 256GB
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateInvalidVal02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateInvalidVal02(Cluster());
+}
+
+// P0-FdCreate-Ok-03: 129MB → 2块 memid
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk03)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateOk03(Cluster());
+}
+
+// ==================== Mem FD create_with_lender P0 测试 ====================
+
+// P0-FdCreateLender-Ok-01: 指定借出节点创建
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk01(Cluster());
+}
+
+// P0-FdCreateLender-Ok-02: owner+mode 非默认值
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderOk02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk02(Cluster());
+}
+
+// P0-FdCreateLender-InvalidVal-02: lender_size > 256GB
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderInvalidVal02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateLenderInvalidVal02(Cluster());
+}
+
+// P0-FdCreateLender-BoundMax-01: lender_cnt=4
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderBoundMax01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateLenderBoundMax01(Cluster());
+}
+
+// ==================== Mem FD create_with_candidate P0 测试 ====================
+
+// P0-FdCreateCandidate-Ok-01: 指定候选节点
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk01(Cluster());
+}
+
+// P0-FdCreateCandidate-Ok-02: owner+mode 非默认值
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk02(Cluster());
+}
+
+// P0-FdCreateCandidate-InvalidVal-02: size > 256GB
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateInvalidVal02)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateInvalidVal02(Cluster());
+}
+
+// ==================== CLI P0 测试 ====================
+
+// P0-CliCluster-Ok-01: LCNE vs CLI display cluster 对比GUID
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliClusterOk01)
+{
+    ubse::it::tests::topo::RunP0CliClusterOk01(Cluster());
+}
+
+// P0-CliCreateShare-Ok-01: CLI create share 成功
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateShareOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCreateShareOk01(Cluster());
+}
+
+// ==================== Mem P1 测试 ====================
+
+// P1-CliTopoCpu-CrossConsist-01: LCNE vs CLI display topo -t cpu 对比链路
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1CliTopoCpuCrossConsist01)
+{
+    ubse::it::tests::topo::RunP1CliTopoCpuCrossConsist01(Cluster());
+}
+
+// P1-ShmAttach-MultiNode-01: 四节点SHM attach后import_desc_cnt验证
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
+{
+    ubse::it::tests::mem_borrow::RunP1ShmAttachMultiNode01(Cluster());
+}
+
+// ==================== 故障测试 (P2) ====================
+
+// 节点OOM故障：触发虚机借用内存进行逃逸
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
+{
+    ubse::it::tests::fault::RunVmOomEscapeBorrowTest(Cluster(), "2", {0, 1}, 30);
+}
+
+// ==================== 选举测试 ====================
+
 // 选举测试：验证四节点集群收敛为1主+1备+2代理
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)
 {
@@ -28,46 +158,4 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 {
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
-}
-
-// 节点OOM故障：触发虚机借用内存进行逃逸
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
-{
-    ubse::it::tests::fault::RunVmOomEscapeBorrowTest(Cluster(), "2", {0, 1}, 30);
-}
-
-// LCNE vs SDK TopoNodeList：对比每个slot的socketId集合
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoNodeList001)
-{
-    ubse::it::tests::topo::RunLcneVsSdkTopoNodeList001(Cluster());
-}
-
-// LCNE vs SDK TopoNodeLocalGet：本地节点socketId与LCNE对应slot一致
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoNodeLocalGet001)
-{
-    ubse::it::tests::topo::RunLcneVsSdkTopoNodeLocalGet001(Cluster());
-}
-
-// LCNE vs SDK TopoLinkList：对比链路连接
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsSdkTopoLinkList001)
-{
-    ubse::it::tests::topo::RunLcneVsSdkTopoLinkList001(Cluster());
-}
-
-// LCNE vs CLI display topo -t cpu：对比链路连接
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliTopoCpu001)
-{
-    ubse::it::tests::topo::RunLcneVsCliTopoCpu001(Cluster());
-}
-
-// LCNE logic-entities vs CLI display cluster：对比每个节点的GUID
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, LcneVsCliClusterGuid001)
-{
-    ubse::it::tests::topo::RunLcneVsCliClusterGuid001(Cluster());
-}
-
-// 四节点SHM attach后import_desc_cnt验证：每个节点attach返回import_desc_cnt=1
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, ShmFourNodesAttachImportDescCnt)
-{
-    ubse::it::tests::mem_borrow::RunShmFourNodesAttachImportDescCntTest(Cluster());
 }

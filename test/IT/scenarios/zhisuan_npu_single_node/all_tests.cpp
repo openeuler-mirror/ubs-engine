@@ -15,19 +15,26 @@
 
 using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
 
+// ==================== NPU 测试 ====================
+
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
 {
     ubse::it::tests::npu::RunDeviceListQueryTest(Cluster());
 }
 
-TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
-{
-    ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
-}
-
 TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
 {
     ubse::it::tests::npu::RunUbaTidSizeQueryTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
+{
+    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
+{
+    ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
 }
 
 TEST_F(ZhisuanNpuSingleNodeScenario, RepeatAllocAndFree)
@@ -38,11 +45,6 @@ TEST_F(ZhisuanNpuSingleNodeScenario, RepeatAllocAndFree)
 TEST_F(ZhisuanNpuSingleNodeScenario, PreemptDevice)
 {
     ubse::it::tests::npu::RunPreemptDeviceTest(Cluster());
-}
-
-TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
-{
-    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
 }
 
 TEST_F(ZhisuanNpuSingleNodeScenario, ConcurrentSuccess)

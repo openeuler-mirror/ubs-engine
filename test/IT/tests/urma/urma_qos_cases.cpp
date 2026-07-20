@@ -23,7 +23,7 @@
 
 namespace ubse::it::tests::urma_qos {
 
-void RunQosCreateSinglePriorityTest(ubse::it::infra::ItCluster& cluster)
+void RunP0UrmaQosCreateOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& client = cluster.GetSdkClient("1");
 
@@ -36,7 +36,7 @@ void RunQosCreateSinglePriorityTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(ret);
 }
 
-void RunQosCreateAndQueryTest(ubse::it::infra::ItCluster& cluster)
+void RunP1UrmaQosCreateGetMatch01(ubse::it::infra::ItCluster& cluster)
 {
     auto& client = cluster.GetSdkClient("1");
 
@@ -61,7 +61,7 @@ void RunQosCreateAndQueryTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(ret);
 }
 
-void RunQosCreateQueryDeleteTest(ubse::it::infra::ItCluster& cluster)
+void RunP1UrmaQosLifecycle01(ubse::it::infra::ItCluster& cluster)
 {
     auto& client = cluster.GetSdkClient("1");
 
@@ -93,7 +93,7 @@ void RunQosCreateQueryDeleteTest(ubse::it::infra::ItCluster& cluster)
 
 // ==================== CLI测试 ====================
 
-void RunCliCreateSuccessTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosOk01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0 --cir 100");
     EXPECT_NE(output.find("create successfully"), std::string::npos);
@@ -103,7 +103,7 @@ void RunCliCreateSuccessTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(ret);
 }
 
-void RunCliCreateDualPriTest(ubse::it::infra::ItCluster& cluster)
+void RunP1CliCreateQosParamVariant01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0,1 --cir 100,50");
     EXPECT_NE(output.find("create successfully"), std::string::npos);
@@ -113,48 +113,48 @@ void RunCliCreateDualPriTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(ret);
 }
 
-void RunCliCreateMissingParamsTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosBadParam01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
     EXPECT_NE(output.find("--pri"), std::string::npos);
 }
 
-void RunCliCreateInvalidPriTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 2 --cir 100");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
     EXPECT_NE(output.find("Priority must be 0 or 1"), std::string::npos);
 }
 
-void RunCliCreateDuplicatePriTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosDup01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0,0 --cir 100,50");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
     EXPECT_NE(output.find("Duplicate"), std::string::npos);
 }
 
-void RunCliCreateCountExceedTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosOverCnt01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0,1,2 --cir 100,50,30");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
     EXPECT_NE(output.find("count exceeds limit"), std::string::npos);
 }
 
-void RunCliCreateMismatchTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliCreateQosBadParam02(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0,1 --cir 100");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
     EXPECT_NE(output.find("count mismatch"), std::string::npos);
 }
 
-void RunCliCreateZeroBandwidthTest(ubse::it::infra::ItCluster& cluster)
+void RunP2CliCreateQosInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("create urma-qos --pri 0 --cir 0");
     EXPECT_NE(output.find("ERROR"), std::string::npos);
 }
 
-void RunCliDeleteSuccessTest(ubse::it::infra::ItCluster& cluster)
+void RunP1CliDelQosOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& client = cluster.GetSdkClient("1");
     ubs_urma_qos_config_t configs[1] = {{.priority = 0, .bandwidth = 100}};
@@ -168,13 +168,13 @@ void RunCliDeleteSuccessTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_NE(output.find("delete successfully"), std::string::npos);
 }
 
-void RunCliDisplayEmptyTest(ubse::it::infra::ItCluster& cluster)
+void RunP0CliDisplayQosOk01(ubse::it::infra::ItCluster& cluster)
 {
     std::string output = cluster.GetCliInvoker("1").ExecCli("display urma-qos");
     EXPECT_NE(output.find("No ETS QoS priority groups"), std::string::npos);
 }
 
-void RunCliFullLifecycleTest(ubse::it::infra::ItCluster& cluster)
+void RunP1CliDisplayQosCrossConsist01(ubse::it::infra::ItCluster& cluster)
 {
     auto& client = cluster.GetSdkClient("1");
 
@@ -196,6 +196,17 @@ void RunCliFullLifecycleTest(ubse::it::infra::ItCluster& cluster)
 
     output = cluster.GetCliInvoker("1").ExecCli("display urma-qos");
     EXPECT_NE(output.find("No ETS QoS priority groups"), std::string::npos);
+}
+
+void RunP0CliDelQosNotReady01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cli = cluster.GetCliInvoker("1");
+    // CLI delete urma-qos 对未创建场景是幂等的，直接返回成功
+    std::string output = cli.ExecCli("delete urma-qos");
+    bool isSuccess = !output.empty() &&
+                     (output.find("success") != std::string::npos || output.find("Success") != std::string::npos);
+    EXPECT_TRUE(isSuccess) << "delete urma-qos should succeed (idempotent), got: '" << output << "'";
+    IT_LOG_INFO << "P0-CliDelQos-NotReady-01 passed";
 }
 
 } // namespace ubse::it::tests::urma_qos
