@@ -190,6 +190,136 @@ public:
     uint16_t GetModuleCode() override;
 };
 
+class UbseMemShareBorrowCascadeToGlobalMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareBorrowGlobalMasterMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareAttachGlobalMasterMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareReturnGlobalMasterMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareBorrowGlobalToCascadeMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareAttachGlobalToCascadeMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareAttachCascadeToGlobalMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDetachManageMessageHandler  : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDetachGlobalMessageHandler  : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDetachCascadeMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDeleteCascadeMasterMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDeleteCascadeToGlobalMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
+class UbseMemShareDetachCascadeToGlobalMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
 class UbseMemShareBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
     UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
@@ -347,6 +477,7 @@ private:
     static UbseResult RegisterShmCreateRespHandlers(const std::shared_ptr<UbseComModule> &comModule);
     static UbseResult RegisterShmAttachRespHandlers(const std::shared_ptr<UbseComModule> &comModule);
     static UbseResult RegisterShmDetachRespHandlers(const std::shared_ptr<UbseComModule> &comModule);
+    static UbseResult RegisterClosShmMemHandlers(const std::shared_ptr<UbseComModule> &comModule);
 };
 } // namespace ubse::mem::controller
 #endif // UBSE_MEM_RPC_H
