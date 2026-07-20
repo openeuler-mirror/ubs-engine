@@ -81,7 +81,7 @@ typedef enum {
     UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                // SHM链接(CLI)
     UBSE_MEM_CLI_SHM_DETACH = 0x0046,                // SHM释放(CLI)
     UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
-    UBSE_MEM_CLI_CLOSE_BORROW_DETAIL_QUERY = 0x0048,  // close组网账本查询(CLI)
+    UBSE_MEM_CLI_CLOS_BORROW_DETAIL_QUERY = 0x0048,  // clos组网账本查询(CLI)
     UBSE_MEM_CLI_IS_CLOS_TYPE = 0x0049               // 判断是否为clos组网(CLI)
 } ubse_ipc_mem_op_code_t;
 

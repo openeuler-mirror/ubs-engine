@@ -7,14 +7,10 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
-#include "ubse_mem_controller_helper.h"
-#include "ubse_smbios.h"
-
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::task_executor;
-using namespace ubse::adapter_plugins::smbios;
 UbseTaskExecutorPtr GetExecutor(const std::string &name)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
