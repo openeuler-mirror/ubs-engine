@@ -95,24 +95,38 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         UBSE_LOG_ERROR << "election module not load";
         return {};
     }
-    if (module->IsLeader()) {
-        rwMutex.lock_shared();
-        auto nodes = nodeInfos;
-        rwMutex.unlock_shared();
-        return nodes;
+
+    auto getCachedNodes = [this]() {
+        std::shared_lock<std::shared_mutex> lock(rwMutex);
+        return nodeInfos;
+    };
+
+    const bool isClosType = UbseSmbios::GetInstance().IsClosType();
+
+    // 非CLOS场景，当前主节点直接返回本地全量缓存
+    if (!isClosType && module->IsLeader()) {
+        return getCachedNodes();
     }
+
     Node masterNode{};
     auto ret = module->UbseGetMasterNode(masterNode);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "get master node failed, " << FormatRetCode(ret);
         return {};
     }
+
+    // CLOS场景下，UbseGetMasterNode返回全局主
+    if ((isClosType && IsGlobalMaster()) || masterNode.id == currentNodeId) {
+        return getCachedNodes();
+    }
+
     std::vector<UbseNodeInfo> infos{};
     ret = GetAllNodeInfoFromRemote(masterNode.id, infos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "get all node from master=" << masterNode.id << " failed, " << FormatRetCode(ret);
         return {};
     }
+
     std::unordered_map<std::string, UbseNodeInfo> maps{};
     for (const auto &info : infos) {
         maps[info.nodeId] = info;

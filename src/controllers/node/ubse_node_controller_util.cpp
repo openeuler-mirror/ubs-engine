@@ -216,14 +216,13 @@ UbseClosNodeRole DetectClosRole()
         return UbseClosNodeRole::CABINET_AGENT;
     }
 
-    const ubse::election::GroupTopology *parentGroup = nullptr;
-    auto currentGroup = FindGroupByNodeId(topology.groups, topology.currentNode.nodeId, nullptr, parentGroup);
-    if (currentGroup == nullptr) {
-        UBSE_LOG_WARN << "current node group not found, nodeId=" << topology.currentNode.nodeId;
+    if (topology.currentGroup.groupId.empty()) {
+        UBSE_LOG_WARN << "current group is empty, nodeId="
+                      << topology.currentNode.nodeId;
         return UbseClosNodeRole::UNKNOWN;
     }
 
-    if (currentGroup->isManagingGroup) {
+    if (topology.currentGroup.isManagingGroup) {
         return UbseClosNodeRole::PD_MASTER;
     }
 
@@ -286,15 +285,31 @@ static UbseResult GetParentGroupMasterNodeId(std::string &prevNodeId)
         return ret;
     }
 
-    const ubse::election::GroupTopology *parentGroup = nullptr;
-    auto currentGroup = FindGroupByNodeId(topology.groups, topology.currentNode.nodeId, nullptr, parentGroup);
-    if (currentGroup == nullptr) {
-        UBSE_LOG_WARN << "current node group not found, nodeId=" << topology.currentNode.nodeId;
+    if (topology.currentGroup.isManagingGroup) {
+        UBSE_LOG_WARN << "current group is managing group, no parent group, groupId="
+                      << topology.currentGroup.groupId;
         return UBSE_ERROR;
     }
 
-    if (parentGroup == nullptr || parentGroup->groupMasterId.empty()) {
-        UBSE_LOG_WARN << "parent group master node id is empty, nodeId=" << topology.currentNode.nodeId;
+    const ubse::election::GroupTopology *parentGroup = nullptr;
+    for (const auto &group : topology.groups) {
+        if (!group.isManagingGroup || group.groupMasterId.empty()) {
+            continue;
+        }
+
+        if (parentGroup != nullptr && parentGroup->groupId != group.groupId) {
+            UBSE_LOG_WARN << "multiple parent managing groups found, currentGroupId="
+                          << topology.currentGroup.groupId;
+            return UBSE_ERROR;
+        }
+
+        parentGroup = &group;
+    }
+
+    if (parentGroup == nullptr) {
+        UBSE_LOG_WARN << "parent managing group not found, currentGroupId="
+                      << topology.currentGroup.groupId
+                      << ", nodeId=" << topology.currentNode.nodeId;
         return UBSE_ERROR;
     }
 
