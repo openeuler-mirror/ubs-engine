@@ -134,7 +134,8 @@ std::ostream &operator<<(std::ostream &os, const UbseMemImportStatus &obj)
 
 std::ostream &operator<<(std::ostream &os, const UbseMemObmmInfo &obj)
 {
-    return os << "(memId: " << obj.memId << " desc: " << obj.desc.addr << ")";
+    return os << "(memId: " << obj.memId << " desc: " << obj.desc.addr << 
+    " scna: " << obj.desc.scna << " dcna: " << obj.desc.dcna << ")";
 }
 
 std::ostream &operator<<(std::ostream &os, const UbseMemExportStatus &obj)

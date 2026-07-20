@@ -28,6 +28,9 @@ namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::log;
 using namespace ubse::utils;
+using namespace ubse::election;
+using namespace ubse::context;
+using ubse::common::def::UbseResult;
 
 const uint8_t UBSE_MAX_LENDER_CNT = 2;
 const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 128 MB
@@ -251,11 +254,6 @@ void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower 
         addrBorrowReq.exportAccessMode = exportAccessMode;
     }
 }
-
-using namespace ubse::log;
-using namespace ubse::election;
-using namespace ubse::context;
-using ubse::common::def::UbseResult;
 
 UbseResult UbseGetGlobalMasterNodeId(std::string &globalMasterNodeId)
 {

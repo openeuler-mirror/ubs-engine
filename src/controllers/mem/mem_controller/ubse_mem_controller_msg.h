@@ -5,9 +5,7 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 
-#include <string>
 #include "ubse_com_module.h"
-#include "ubse_mem_controller.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_mem_controller_def.h"
@@ -93,9 +91,11 @@ UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
 
 UbseResult QueryAddrExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj);
+UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj, bool isClos = false);
 
 UbseResult QueryShareExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult QueryShareExportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj &obj);
 
@@ -109,9 +109,11 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
 
 UbseResult QueryAddrImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
-UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj);
+UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj, bool isClos = false);
 
 UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult QueryShareImportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 

@@ -64,11 +64,16 @@ bool ValidateAffinityParams(const UbseMemShareBorrowReq &req)
         return true;
     }
     if (req.withAffinity.createReqNodeId.empty()) {
-        UBSE_LOG_ERROR << "Invalid affinity parameters: nodeId is empty" << req.withAffinity.createReqNodeId
+        UBSE_LOG_ERROR << "Invalid affinity parameters: nodeId is empty, nodeId=" << req.withAffinity.createReqNodeId
                        << ",socketId=" << req.withAffinity.affinitySocketId;
         return false;
     }
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(req.withAffinity.createReqNodeId);
+    if (nodeInfo.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Invalid affinity parameters: node not found, nodeId=" << req.withAffinity.createReqNodeId
+                    << ", socketId=" << req.withAffinity.affinitySocketId;
+        return false;
+    }    
     bool found = false;
     for (const auto &[location, info] : nodeInfo.numaInfos) {
         if (info.socketId == req.withAffinity.affinitySocketId) {
@@ -101,7 +106,8 @@ uint32_t SetNodeIndex(UbseMemShareBorrowReq &req)
             nodeInfo.index = std::stoi(node.nodeId) - 1;
         } catch (const std::invalid_argument &e) {
             nodeInfo.index = index++;
-            UBSE_LOG_ERROR << "Invalid argument: " << e.what();
+            UBSE_LOG_ERROR << "Invalid argument: " << e.what() << ", nodeId=" << node.nodeId
+                        << ", fallback index=" << (nodeInfo.index);
         } catch (const std::out_of_range &e) {
             nodeInfo.index = index++;
             UBSE_LOG_ERROR << "Out of range: " << e.what();
@@ -161,6 +167,7 @@ bool ExistImportObj(const std::string &name, const std::string &nodeId,
 void ConstructShareImportObj(UbseMemShareBorrowImportObj &importObj, const UbseMemShareAttachReq &req)
 {
     if (req.size == 0) {
+        // attach 请求未指定 size，复用 borrow 时记录的 size，无需更新 importObj.req.size
         importObj.shareAttr.size = importObj.req.size;
     } else {
         importObj.shareAttr.size = req.size;

@@ -12,6 +12,8 @@
 
 #include "ubse_mem_share_store.h"
 
+#include <securec.h>
+
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_ledger.h"
@@ -381,6 +383,9 @@ UbseResult GlobalMasterStore::LoadAllImports(const std::string &name,
         obj.algoResult.blockSize = item.blockSize;
         obj.status.state = item.state;
         obj.req.udsInfo = item.userInfo;
+        if (memcpy_s(obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, item.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+            UBSE_LOG_WARN << "copy usrInfo failed when load all imports, name=" << item.name;
+        }
         for (const auto &memId : item.memids) {
             UbseMemImportResult importResult{};
             importResult.memId = memId;
@@ -404,6 +409,10 @@ void GlobalMasterStore::PutExport(const UbseMemShareBorrowExportObj &obj)
     exportItem.state = obj.status.state;
     exportItem.numaInfos = obj.algoResult.exportNumaInfos;
     exportItem.userInfo = obj.req.udsInfo;
+    if (memcpy_s(exportItem.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_WARN << "copy usrInfo failed when put export summary, name=" << obj.req.name;
+    }
+    exportItem.shmAnonymous = obj.req.shmAnonymous;
     for (const auto &node : obj.req.shmRegion.nodelist) {
         exportItem.nodelist.emplace_back(node.nodeId);
     }
@@ -416,6 +425,9 @@ void GlobalMasterStore::PutImport(const UbseMemShareBorrowImportObj &obj)
     importItem.name = obj.req.name;
     importItem.state = obj.status.state;
     importItem.userInfo = obj.req.udsInfo;
+    if (memcpy_s(importItem.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_WARN << "copy usrInfo failed when put import summary, name=" << obj.req.name;
+    }
     importItem.blockSize = obj.algoResult.blockSize;
     for (const auto &node : obj.req.shmRegion.nodelist) {
         importItem.nodelist.emplace_back(node.nodeId);
@@ -494,6 +506,10 @@ void GlobalMasterStore::ForEachExport(IShareStore::ExportVisitor visitor)
             }
             exportObj.status.state = item.state;
             exportObj.req.udsInfo = item.userInfo;
+            if (memcpy_s(exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, item.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+                UBSE_LOG_WARN << "copy usrInfo failed when foreach export, name=" << item.name;
+            }
+            exportObj.req.shmAnonymous = item.shmAnonymous;
             for (size_t i = 0; i < item.memids.size(); ++i) {
                 UbseMemObmmInfo obmmInfo{};
                 obmmInfo.memId = item.memids[i];
@@ -522,6 +538,9 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
             importObj.algoResult.blockSize = item.blockSize;
             importObj.status.state = item.state;
             importObj.req.udsInfo = item.userInfo;
+            if (memcpy_s(importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, item.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+                UBSE_LOG_WARN << "copy usrInfo failed when foreach import, name=" << item.name;
+            }
             for (const auto &memId : item.memids) {
                 UbseMemImportResult importResult{};
                 importResult.memId = memId;

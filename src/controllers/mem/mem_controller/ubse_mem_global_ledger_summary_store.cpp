@@ -12,6 +12,8 @@
 
 #include "ubse_mem_global_ledger_summary_store.h"
 
+#include <securec.h>
+
 #include <chrono>
 #include <mutex>
 
@@ -220,7 +222,7 @@ bool UbseGlobalLedgerSummaryStore::ContainsAttachName(const std::string &targetN
     }
     auto importIt = it->second.shmSummary.importItems.find(name);
     if (importIt != it->second.shmSummary.importItems.end()) {
-        UBSE_LOG_INFO << "Importobj exists (close attach), name=" << name << ", importNodeId=" 
+        UBSE_LOG_INFO << "Importobj exists, name=" << name << ", importNodeId=" 
         << targetNodeId << ", state=" << importIt->second.state;
         return true;
     }
@@ -239,6 +241,11 @@ UbseResult UbseGlobalLedgerSummaryStore::GetExportItem(const std::string &name,
             exportObj.algoResult.exportNumaInfos = it->second.numaInfos;
             exportObj.status.state = it->second.state;
             exportObj.req.udsInfo = it->second.userInfo;
+            if (memcpy_s(exportObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, it->second.usrInfo,
+                         UBSE_MAX_USR_INFO_LEN) != EOK) {
+                UBSE_LOG_WARN << "copy usrInfo failed when get export item, name=" << name;
+            }
+            exportObj.req.shmAnonymous = it->second.shmAnonymous;
             for (size_t i = 0; i < it->second.memids.size(); ++i) {
                 UbseMemObmmInfo obmmInfo{};
                 obmmInfo.memId = it->second.memids[i];
@@ -253,6 +260,10 @@ UbseResult UbseGlobalLedgerSummaryStore::GetExportItem(const std::string &name,
                 exportObj.req.shmRegion.nodelist.push_back(nodeInfo);
             }
             exportObj.req.shmRegion.nodeNum = it->second.nodelist.size();
+            exportObj.req.size = 0;
+            for (auto &numaInfo : it->second.numaInfos) {
+                exportObj.req.size += numaInfo.size;
+            }            
             return UBSE_OK;
         }
     }
@@ -276,6 +287,9 @@ UbseResult UbseGlobalLedgerSummaryStore::GetImportItem(const std::string &name, 
     importObj.status.state = it->second.state;
     importObj.importNodeId = importNodeId;
     importObj.req.udsInfo = it->second.userInfo;
+    if (memcpy_s(importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, it->second.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_WARN << "copy usrInfo failed when get import item, name=" << name;
+    }
     importObj.req.size = it->second.blockSize;
     for (const auto &nodeId : it->second.nodelist) {
         ubse::adapter_plugins::mmi::UbseNodeInfo nodeInfo;
