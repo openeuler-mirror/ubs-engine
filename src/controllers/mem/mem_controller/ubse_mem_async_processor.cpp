@@ -34,7 +34,8 @@ message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSim
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
         message::UbseMemOperationResp resp{};
-        UbseMemShareBorrow(request.Get()->GetUbseMemShareBorrowReq(), resp);
+        auto req = request.Get()->GetUbseMemShareBorrowReq();
+        UbseMemShareBorrow(req, resp);
     });
     return UBSE_OK;
 }

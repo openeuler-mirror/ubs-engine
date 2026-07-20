@@ -206,7 +206,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
 
 uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDesc &shmStatusDesc)
 {
-    // 获取主节点以及当前节点
+    def::UbseMemDebtQueryRequest request{.name = name};
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
@@ -214,29 +214,17 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-
-    def::UbseMemDebtQueryRequest request{.name = name};
-    // 不是master调用RPC发送到主节点处理
-    if (localNodeId != masterNodeId) {
-        UbseMemShmMemStatusDescSimpoPtr descSimpoPtr;
-        ret = SendQueryToMasterIfNotMaster<UbseMemShmMemStatusDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_STATUS_GET),
-            descSimpoPtr);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
-        shmStatusDesc = descSimpoPtr.Get()->GetUbseMemShmMemStatusDesc();
-    } else {
-        // 是master，直接查询
-        ret = debt::UbseMemShmStatusGet(request, shmStatusDesc);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
+    UbseMemShmMemStatusDescSimpoPtr descSimpoPtr;
+    ret = SendQueryToMasterIfNotMaster<UbseMemShmMemStatusDescSimpo>(
+        request,
+        masterNodeId,
+        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_STATUS_GET),
+        descSimpoPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
+        return ret;
     }
+    shmStatusDesc = descSimpoPtr.Get()->GetUbseMemShmMemStatusDesc();
     return UBSE_OK;
 }
 
@@ -325,6 +313,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
 uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, const def::UbseUdsInfo *udsInfo)
 {
     // 获取主节点以及当前节点
+    def::UbseMemDebtQueryRequest request{.name = name};
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
@@ -332,34 +321,23 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-
-    def::UbseMemDebtQueryRequest request{
-        .name = name,
-    };
+    request.importNodeId = localNodeId;
     if (udsInfo != nullptr) {
         request.udsInfo = *udsInfo;
     }
-    // 不是master调用RPC发送到主节点处理
-    if (localNodeId != masterNodeId) {
-        UbseMemShmDescSimpoPtr descSimpoPtr;
-        ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
-            descSimpoPtr);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
-        shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
-    } else {
-        // 是master，直接查询
-        ret = debt::UbseMemShmGet(request, shmDesc);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
+
+    UbseMemShmDescSimpoPtr descSimpoPtr;
+    ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
+        request,
+        masterNodeId,
+        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
+        descSimpoPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
+        return ret;
     }
+    shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
+  
     return UBSE_OK;
 }
 
@@ -373,36 +351,24 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-
     def::UbseMemDebtQueryRequest request{.name = name, .importNodeId = srcNodeId};
-    // 不是master调用RPC发送到主节点处理
-    if (localNodeId != masterNodeId) {
-        UbseMemShmDescSimpoPtr descSimpoPtr;
-        ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
-            descSimpoPtr);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
-        shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
-    } else {
-        // 是master，直接查询
-        ret = debt::UbseMemShmGet(request, shmDesc);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
+    UbseMemShmDescSimpoPtr descSimpoPtr;
+    ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
+        request,
+        masterNodeId,
+        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
+        descSimpoPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
+        return ret;
     }
+    shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
+
     return UBSE_OK;
 }
 
 uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::UbseMemShmDesc> &shmDescs)
 {
-    shmDescs.clear();
-    // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
     auto ret = GetMasterAndLocalNodeId(masterNodeId, localNodeId);
@@ -410,30 +376,21 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-
-    // 不是master调用RPC发送到主节点处理
-    if (localNodeId != masterNodeId) {
-        UbseMemShmDescListSimpoPtr descSimpoPtr;
-        ret = SendQueryToMasterIfNotMaster<UbseMemShmDescListSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_LIST),
-            descSimpoPtr);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
-        shmDescs = descSimpoPtr.Get()->GetUbseMemShmDescList();
-    } else {
-        // 是master，直接查询
-        ret = debt::UbseMemShmList(request, shmDescs);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
-            return ret;
-        }
+    shmDescs.clear();
+    UbseMemShmDescListSimpoPtr descSimpoPtr;
+    ret = SendQueryToMasterIfNotMaster<UbseMemShmDescListSimpo>(
+        request,
+        masterNodeId,
+        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_LIST),
+        descSimpoPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
+        return ret;
     }
+    shmDescs = descSimpoPtr.Get()->GetUbseMemShmDescList();
     return UBSE_OK;
 }
+
 uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::UbseNodeInfo &ubseNodeInfo)
 {
     if (nodeId.empty()) {

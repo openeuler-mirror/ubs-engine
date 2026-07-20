@@ -225,8 +225,13 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmList)
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", "name", importObj);
     
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameShmList = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(funcSameShmList).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmList(request, shmDescs), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    MOCKER_CPP(funcSameShmList).reset();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).reset();
     // 模拟获取UbseGetMasterInfo失败
     MOCKER_CPP(election::UbseGetMasterInfo).reset();
     election::UbseRoleInfo masterRoleInfo("1", election::ELECTION_ROLE_MASTER);
@@ -272,8 +277,13 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmStatusGet)
     ubseMemShareBorrowExportObj.algoResult.exportNumaInfos.push_back(UbseMemDebtNumaInfo{.nodeId = "1"});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", name, ubseMemShareBorrowExportObj);
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameStatusGet = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(funcSameStatusGet).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmStatusGet(name, shmDescs), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    MOCKER_CPP(funcSameStatusGet).reset();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).reset();
 
     // 模拟获取UbseGetMasterInfo失败
     MOCKER_CPP(election::UbseGetMasterInfo).reset();
@@ -323,8 +333,13 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmGetByNodeId)
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", name, importObj);
 
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameShmGetByNodeId = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(funcSameShmGetByNodeId).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmGetByNodeId(name, shmDescs, srcNode), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    MOCKER_CPP(funcSameShmGetByNodeId).reset();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).reset();
     // 模拟localNodeId != masterNodeId
     MOCKER_CPP(election::UbseGetMasterInfo).reset();
     election::UbseRoleInfo masterRoleInfo("1", election::ELECTION_ROLE_MASTER);
@@ -363,8 +378,13 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmGet)
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", name, importObj);
 
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(std::make_shared<UbseComModule>()));
+    const auto funcSameShmGet = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
+    MOCKER_CPP(funcSameShmGet).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmGet(name, shmDescs, &udsInfo), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    MOCKER_CPP(funcSameShmGet).reset();
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).reset();
     // 模拟获取UbseGetMasterInfo失败
     MOCKER_CPP(election::UbseGetMasterInfo).reset();
     election::UbseRoleInfo masterRoleInfo("1", election::ELECTION_ROLE_MASTER);

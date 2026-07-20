@@ -32,6 +32,7 @@
 #include "ubse_mem_opt_result_simpo.h"
 #include "ubse_mem_util.h"
 #include "ubse_os_util.h"
+#include "ubse_mem_controller_helper.h"
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mem::util;
@@ -60,6 +61,10 @@ void RegRespCtrlHandlers()
     const ubse::com::UbseComEndpoint invalidateImportDebtEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
+    const ubse::com::UbseComEndpoint getClosShareExportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+ 	         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_EXPORT)};
+    const ubse::com::UbseComEndpoint getClosShareImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+ 	         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_IMPORT)};
 
     UbseRegRpcService(collectEndpoint, CollectLedgeHandler);
     UbseRegRpcService(queryFdImportEndpoint, QueryFdImportObjHandler);
@@ -68,6 +73,8 @@ void RegRespCtrlHandlers()
     UbseRegRpcService(preOnLineEndpoint, PreOnLineHandler);
     UbseRegRpcService(preOnLineReplyEndpoint, PreOnLineReplyHandler);
     UbseRegRpcService(invalidateImportDebtEndpoint, SendInvalidateSingleImportDebtRpcHandler);
+    UbseRegRpcService(getClosShareExportEndpoint, QueryShareExportClosHandler);
+    UbseRegRpcService(getClosShareImportEndpoint, QueryShareImportClosHandler);
 }
 
 void RegQueryHandlers()
@@ -822,11 +829,21 @@ UbseResult QueryAddrExportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj)
+ UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj, bool isClos)
 {
-    const SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
-                              static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
 
+     SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+ 	                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
+    if (isClos) {
+        sendParam.SetOpCode(static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_EXPORT));
+        std::string cascadeMasterNodeId;
+        auto ret = UbseGetCascadeMasterNodeIdByAgentNodeId(request.exportNodeId, cascadeMasterNodeId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to get cascade master for export node, exportNodeId=" << request.exportNodeId << ", " << FormatRetCode(ret);
+            return ret;
+        }
+        sendParam.SetRemoteId(cascadeMasterNodeId);
+    }
     UbseMemDebtQueryRequestSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemDebtQueryRequestSimpo();
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -842,7 +859,8 @@ UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBo
     }
     auto retCode = ubseComModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
     if (retCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "rpc sync send query share export obj failed, " << FormatRetCode(retCode);
+        UBSE_LOG_ERROR << "rpc sync send query share export obj failed, " << FormatRetCode(retCode)
+        << ", exportNodeId=" << request.exportNodeId << ", isClos=" << isClos << ", remoteId=" << sendParam.GetRemoteId();
         return retCode;
     }
     auto exportPtr = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(ubseResponsePtr);
@@ -879,6 +897,33 @@ UbseResult QueryShareExportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
+UbseResult QueryShareExportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    auto ret = simpo.Deserialize();
+    size_t size = 0;
+    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem query share export deserialize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
+    UbseMemShareBorrowExportObj obj = UbseShareExportObjGet(memReq.exportNodeId, memReq.name);
+    UbseMemShareBorrowExportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemShareBorrowExportobjSimpo;
+    if (resultSimpo == nullptr) {
+        UBSE_LOG_ERROR << "new simpo failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    resultSimpo->SetUbseMemShareBorrowExportobj(obj);
+    ret = resultSimpo->Serialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem share export serialize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    return CreateRespBuffer(*resultSimpo.Get(), resp);
+}
 
 UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj &obj)
 {
@@ -1051,10 +1096,20 @@ UbseResult QueryAddrImportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj)
+UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj, bool isClos)
 {
-    const SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
-                              static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
+     SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+ 	                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
+    if (isClos) {
+        sendParam.SetOpCode(static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_CLOS_SHARE_IMPORT));
+        std::string cascadeMasterId;
+        auto ret = UbseGetCascadeMasterNodeIdByAgentNodeId(request.importNodeId, cascadeMasterId);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to get Group Master for import node, " << FormatRetCode(ret);
+            return ret;
+        }
+        sendParam.SetRemoteId(cascadeMasterId);
+    }
 
     UbseMemDebtQueryRequestSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemDebtQueryRequestSimpo();
     if (ubseRequestPtr == nullptr) {
@@ -1106,6 +1161,34 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
         resp = {nullptr, 0, [size](uint8_t *p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
+        return ret;
+    }
+    return CreateRespBuffer(*resultSimpo.Get(), resp);
+}
+
+ UbseResult QueryShareImportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+{
+    UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
+    auto ret = simpo.Deserialize();
+    size_t size = 0;
+    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem query share import deserialize failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    def::UbseMemDebtQueryRequest memReq = simpo.GetUbseMemDebtQueryRequest();
+    UbseMemShareBorrowImportObj obj = UbseShareImportObjGet(memReq.importNodeId, memReq.name);
+    UbseMemShareBorrowImportobjSimpoPtr resultSimpo = new (std::nothrow) UbseMemShareBorrowImportobjSimpo;
+    if (resultSimpo == nullptr) {
+        UBSE_LOG_ERROR << "new simpo failed.";
+        return UBSE_ERROR_NULLPTR;
+    }
+    resultSimpo->SetUbseMemShareBorrowImportobj(obj);
+    ret = resultSimpo->Serialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "mem share import deserialize failed, " << FormatRetCode(ret);
         return ret;
     }
     return CreateRespBuffer(*resultSimpo.Get(), resp);
