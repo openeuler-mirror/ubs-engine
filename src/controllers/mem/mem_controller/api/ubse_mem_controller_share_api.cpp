@@ -467,7 +467,7 @@ uint32_t ShareExportDestroyingAgentCallback(UbseMemOperationResp &resp, UbseMemS
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
         if (auto ret = ReportExportObjToLocalMaster(exportObj); ret != UBSE_OK) {
             BorrowFailedAdvice(ProcessType::UNEXPORT_FAILED, name, "SHARE_BORROW", 0, exportNodeId, "", ret,
-                               MemAdvice::COMM_FAILED);
+                                MemAdvice::COMM_FAILED);
             return ret;
         }
         return UBSE_OK;
@@ -723,8 +723,8 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp &resp, UbseMemShar
     }
     if (res = ReportImportObjToLocalMaster(importObj); res != UBSE_OK) {
         BorrowFailedAdvice(ProcessType::IMPORT_FAILED, name, "SHARE_BORROW", importObj.req.size,
-                           importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, res,
-                           MemAdvice::COMM_FAILED);
+                            importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, res,
+                            MemAdvice::COMM_FAILED);
     }
     return res;
 }
