@@ -15,9 +15,11 @@
 #include <future>
 #include <shared_mutex>
 #include "adapter_plugins/urma/ubse_urma_uvs.h"
+#include "engine/ubse_com_engine.h"
 #include "role/ubse_election_role_mgr.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_election_module.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
@@ -119,7 +121,7 @@ uint32_t UbseElectionCommMgr::ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, c
         for (auto &connectedNodeId : interMgmtGrpLinkMap_) {
             if (connectedNodeId.second == dstId) {
                 return UBSE_OK;
-                }
+            }
         }
     }
     UbseContext &ctx = UbseContext::GetInstance();
@@ -173,8 +175,9 @@ uint32_t UbseElectionCommMgr::DisConnect(const UBSE_ID_TYPE &dstId)
         {
             std::unique_lock<std::shared_mutex> writeLock(mtx_);
             UBSE_LOG_INFO << "[ELECTION] Remove successfully, nodeId = " << dstId;
-            connectedIntraGroupNodes_.erase(std::remove(connectedIntraGroupNodes_.begin(),
-                connectedIntraGroupNodes_.end(), dstId), connectedIntraGroupNodes_.end());
+            connectedIntraGroupNodes_.erase(
+                std::remove(connectedIntraGroupNodes_.begin(), connectedIntraGroupNodes_.end(), dstId),
+                connectedIntraGroupNodes_.end());
         }
     }
     return UBSE_OK;
@@ -439,6 +442,47 @@ UbseResult PushAndActiveStaticInfoToUvs()
     return ret;
 }
 
+// HA模块消息验证回调：本节点为agent/standby时，仅允许来自主节点的消息
+bool HaVerifyMsgCb(UbseComMessageCtx &msgCtx)
+{
+    ubse::election::UbseRoleInfo currentNode{};
+    auto ret = UbseGetCurrentNodeInfo(currentNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Get current node info failed, allow message by default";
+        return true;
+    }
+    if (currentNode.nodeRole != "agent" && currentNode.nodeRole != "standby") {
+        return true;
+    }
+    auto electionModule = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_WARN << "[ELECTION] Get election module failed, allow message by default";
+        return true;
+    }
+    Node masterNode{};
+    ret = electionModule->GetLocalMasterNode(masterNode);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Get local master node failed, allow message by default";
+        return true;
+    }
+    auto *engine = UbseComEngineManager::GetEngine(msgCtx.GetEngineName());
+    if (engine == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Get engine " << msgCtx.GetEngineName() << " failed, reject message";
+        return false;
+    }
+    UbseComChannelInfo channelInfo;
+    ret = engine->GetChannelById(msgCtx.GetChannelId(), channelInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] Get channel " << msgCtx.GetChannelId() << " failed, reject message";
+        return false;
+    }
+    if (channelInfo.GetConnectInfo().GetRemoteNodeId() != masterNode.id) {
+        UBSE_LOG_ERROR << "[ELECTION] Message not from master node " << masterNode.id << ", reject";
+        return false;
+    }
+    return true;
+}
+
 UbseResult UbseElectionCommMgr::Start()
 {
     if (ubse::nodeMgr::IsUrma()) {
@@ -476,6 +520,9 @@ UbseResult UbseElectionCommMgr::Start()
         UBSE_LOG_ERROR << "[ELECTION] StartComService failed";
         return UBSE_ERROR;
     }
+
+    // HA向COM模块注册消息验证回调，解耦COM引擎与选举模块
+    ubseComModule->RegisterVerifyMsgCb(HaVerifyMsgCb);
     return UBSE_OK;
 }
 } // namespace ubse::election

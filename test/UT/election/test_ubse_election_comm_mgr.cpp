@@ -78,6 +78,16 @@ void TestUbseElectionCommMgr::MockUbseComModuleWithStartService(UbseResult start
     MOCKER(&UbseComModule::StartComService).stubs().will(returnValue(startResult));
 }
 
+void TestUbseElectionCommMgr::MockLocalMasterNode(const Node &masterNode, UbseResult result)
+{
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER(&UbseElectionModule::GetLocalMasterNode)
+        .stubs()
+        .with(mockcpp::outBound(masterNode))
+        .will(returnValue(result));
+}
+
 TEST_F(TestUbseElectionCommMgr, ShouldReturnUBSE_OK_WhenNodeIsAlreadyConnected)
 {
     std::string connectedNodeId = "2";
@@ -273,6 +283,138 @@ TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenStartComServiceFail)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenGetCurrentNodeInfoFail)
+{
+    UbseComMessageCtx msgCtx;
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenRoleIsNotAgentOrStandby)
+{
+    UbseComMessageCtx msgCtx;
+    UbseRoleInfo currentNode{"Node1", "master"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenElectionModuleNull)
+{
+    UbseComMessageCtx msgCtx;
+    UbseRoleInfo currentNode{"Node1", "agent"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseElectionModule> nullModule = nullptr;
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenGetLocalMasterNodeFail)
+{
+    UbseComMessageCtx msgCtx;
+    UbseRoleInfo currentNode{"Node1", "agent"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    Node masterNode{"MasterNode", "192.168.0.1", 10004};
+    MockLocalMasterNode(masterNode, UBSE_ERROR);
+    EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenEngineNotFound)
+{
+    UbseComMessageCtx msgCtx;
+    msgCtx.SetEngineName("NotExistEngine");
+    msgCtx.SetChannelId(1);
+    UbseRoleInfo currentNode{"Node1", "agent"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    Node masterNode{"MasterNode", "192.168.0.1", 10004};
+    MockLocalMasterNode(masterNode, UBSE_OK);
+    EXPECT_EQ(false, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenGetChannelFail)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, nullptr, linkStateNotify, linkManager);
+    UbseComMessageCtx msgCtx;
+    msgCtx.SetEngineName("UbseMasterRpcServer");
+    msgCtx.SetChannelId(1);
+    UbseRoleInfo currentNode{"Node1", "agent"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    Node masterNode{"MasterNode", "192.168.0.1", 10004};
+    MockLocalMasterNode(masterNode, UBSE_OK);
+    MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&engine));
+    MOCKER(&UbseComEngine::GetChannelById).stubs().will(returnValue(UBSE_COM_ERROR_CHANNEL_NOT_FOUND));
+    EXPECT_EQ(false, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenRemoteNodeIsNotMaster)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, nullptr, linkStateNotify, linkManager);
+    UbseComMessageCtx msgCtx;
+    msgCtx.SetEngineName("UbseMasterRpcServer");
+    msgCtx.SetChannelId(1);
+    UbseRoleInfo currentNode{"Node1", "agent"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    Node masterNode{"MasterNode", "192.168.0.1", 10004};
+    MockLocalMasterNode(masterNode, UBSE_OK);
+    UbseComChannelConnectInfo connectInfo(false, "127.0.0.1", 0, "OtherNode", "MockNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "UbseMasterRpcServer", nullptr, connectInfo);
+    MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&engine));
+    MOCKER(&UbseComEngine::GetChannelById)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::outBound(channelInfo))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(false, HaVerifyMsgCb(msgCtx));
+}
+
+TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenRemoteNodeIsMaster)
+{
+    UbseComEngineInfo info;
+    UbseComLinkStateNotify linkStateNotify;
+    UbseComLinkManager linkManager;
+    UbseComEngine engine(info, nullptr, linkStateNotify, linkManager);
+    UbseComMessageCtx msgCtx;
+    msgCtx.SetEngineName("UbseMasterRpcServer");
+    msgCtx.SetChannelId(1);
+    UbseRoleInfo currentNode{"Node1", "standby"};
+    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+        .stubs()
+        .with(mockcpp::outBound(currentNode))
+        .will(returnValue(UBSE_OK));
+    Node masterNode{"MasterNode", "192.168.0.1", 10004};
+    MockLocalMasterNode(masterNode, UBSE_OK);
+    UbseComChannelConnectInfo connectInfo(false, "127.0.0.1", 0, "MasterNode", "MockNode");
+    UbseComChannelInfo channelInfo(true, UbseChannelType::NORMAL, "UbseMasterRpcServer", nullptr, connectInfo);
+    MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&engine));
+    MOCKER(&UbseComEngine::GetChannelById)
+        .stubs()
+        .with(mockcpp::any(), mockcpp::outBound(channelInfo))
+        .will(returnValue(UBSE_OK));
+    EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
+}
+
 TEST_F(TestUbseElectionCommMgr, ElectionFaultHandler_ShouldReturnError_WhenParseFaultEventMsgFailed)
 {
     std::string eventId = "testEventId";
@@ -357,10 +499,7 @@ TEST_F(TestUbseElectionCommMgr, NewChannelCB_ShouldReturnOk_WhenRemoteIpFound)
 
 TEST_F(TestUbseElectionCommMgr, PushAndActiveStaticInfoToUvs)
 {
-    MOCKER(GetCurPhysicalLinkInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+    MOCKER(GetCurPhysicalLinkInfo).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
     EXPECT_EQ(UBSE_ERROR, PushAndActiveStaticInfoToUvs());
     EXPECT_EQ(UBSE_ERROR_NULLPTR, PushAndActiveStaticInfoToUvs());
 

@@ -201,6 +201,8 @@ public:
 
     void RegisterQueryCb(QueryEidByNodeIdCb cb);
 
+    void RegisterVerifyMsgCb(VerifyMsgCb cb);
+
     std::string GetNodeIdByIp(const std::string &ip);
 
     UbseRouteTable &GetRouteTable()
@@ -306,6 +308,7 @@ protected:
     std::mutex newChannelMutex_;
     int16_t timeout_;
     int16_t heartBeatTimeout_;
+    VerifyMsgCb verifyMsgCb_ = nullptr;
     ShouldDoReconnectCb shouldReconnect_ = nullptr;
     QueryEidByNodeIdCb queryCb_ = nullptr;
     UbseRouteTable routeTable_;

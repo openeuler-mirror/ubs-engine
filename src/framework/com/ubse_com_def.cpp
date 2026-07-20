@@ -362,6 +362,12 @@ UbseReplyResult StringToUbseReplyResult(const std::string &result)
     if (result == "ERR_VERIFY_FAIL") {
         return UbseReplyResult::ERR_VERIFY_FAIL;
     }
+    if (result == "ERR_FORWARD_FAIL") {
+        return UbseReplyResult::ERR_FORWARD_FAIL;
+    }
+    if (result == "ERR_INVALID") {
+        return UbseReplyResult::ERR_INVALID;
+    }
     return UbseReplyResult::OK;
 }
 
@@ -387,6 +393,12 @@ std::string UbseReplyResultToString(UbseReplyResult result)
     }
     if (result == UbseReplyResult::ERR_VERIFY_FAIL) {
         return "ERR_VERIFY_FAIL";
+    }
+    if (result == UbseReplyResult::ERR_FORWARD_FAIL) {
+        return "ERR_FORWARD_FAIL";
+    }
+    if (result == UbseReplyResult::ERR_INVALID) {
+        return "ERR_INVALID";
     }
     return "OK";
 }
