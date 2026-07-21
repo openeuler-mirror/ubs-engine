@@ -190,13 +190,23 @@ int32_t ubs_mem_fd_create_with_lender(const char* name, const ubs_mem_fd_owner_t
 | 入参 | `name` | 借用标识 |
 | 入参 | `owner` | 属主，可为 NULL |
 | 入参 | `mode` | 权限位 |
-| 入参 | `lender` | `ubs_mem_lender_t*`，借出方描述数组 (lender_size/slot_id/socket_id/numa_id/port_id) |
+| 入参 | `lender` | `ubs_mem_lender_t*`，借出方描述数组，字段见下表 |
 | 入参 | `lender_cnt` | 借出方数量，1~4 |
-| 出参 | `fd_desc` | `ubs_mem_fd_desc_t*`，额外要求 `export_node.slot_id == lender.slot_id` |
+| 出参 | `fd_desc` | `ubs_mem_fd_desc_t*`，字段校验同 ubs_mem_fd_create，额外要求 `export_node.slot_id == lender.slot_id` |
+
+**`ubs_mem_lender_t` 字段说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `lender_size` | `uint64_t` | 借出内存大小，≥ 4MB |
+| `slot_id` | `uint32_t` | 借出节点 slot_id |
+| `socket_id` | `uint32_t` | 借出节点 socket_id，通过 TopoLinkList 获取 peer_socket_id |
+| `numa_id` | `uint32_t` | 借出节点 numa_id，通过 TopoNodeList 匹配 socket 后取 numa_ids |
+| `port_id` | `uint32_t` | 借出链路 port_id，通过 TopoLinkList 获取 peer_port_id |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-FdCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | owner=NULL, mode=0, lender={slot_id=非本节点, size=129MB}, lender_cnt=1; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `export_node.slot_id==lender.slot_id`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
+| P0-FdCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | owner=NULL, mode=0, lender={slot_id=非本节点, socket_id/numa_id/port_id由topo获取, size=129MB}, lender_cnt=1; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `export_node.slot_id==lender.slot_id`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
 | P0-FdCreateLender-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
 | P0-FdCreateLender-InvalidVal-01 | lender_size < 4MB | 双节点 | lender.lender_size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
 | P0-FdCreateLender-InvalidVal-02 | lender_size > 256GB | 双/四节点 | lender.lender_size=257GB | `UBS_ENGINE_ERR_ALLOCATE` |
@@ -231,7 +241,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char* name, uint64_t size,
 | P0-FdCreateCandidate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB | `UBS_ENGINE_ERR_ALLOCATE` |
 | P0-FdCreateCandidate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
 | P0-FdCreateCandidate-BadParam-01 | 不存在的 slot_id | 双节点 | slot_ids={999} | `UBS_ENGINE_ERR_ALLOCATE` |
-| P0-FdCreateCandidate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
+| P0-FdCreateCandidate-Dup-01 | 同名重复 | 双/四节点 | 同名再调；四节点候选为节点3和4 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_fd_permission
 
@@ -348,13 +358,14 @@ int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_cb_t handler)
 #### ubs_mem_numastat_get
 
 ```
-int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t* stat)
+int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t** numa_mems, uint32_t* numa_mem_cnt)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
 | 入参 | `slot_id` | 目标节点 slot_id |
-| 出参 | `stat` | `ubs_mem_numastat_t*` |
+| 出参 | `numa_mems` | `ubs_mem_numastat_t[]`，接口内 malloc，调用方需 free |
+| 出参 | `numa_mem_cnt` | `uint32_t*`，numa 信息数量，范围 [0, UBS_TOPO_NUMA_NUM] |
 
 **ubs_mem_numastat_t**:
 
@@ -376,9 +387,9 @@ int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t* stat)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaStatGet-Fld-01 | 字段校验 | 单节点 | slot_id=本节点; 逐字段校验上表 | `UBS_SUCCESS` |
-| P0-NumaStatGet-NotExist-01 | 不存在的 slot_id | 单节点 | slot_id=无效值 | 错误 |
-| P0-NumaStatGet-NullPtr-01 | 空指针 | 单节点 | stat=NULL | `NULL_POINTER` |
+| P0-NumaStatGet-Fld-01 | 字段校验 | 单节点 | `slot_id=本节点`; 出参 `numa_mems!=NULL`、`numa_mem_cnt>0`; 逐条校验 `slot_id==入参`、`socket_id`有效、`numa_id`有效、`numa_type∈{NUMA_LOCAL,NUMA_REMOTE}`、`mem_lend_ratio∈[0,100]`、`mem_total>0`、`mem_free≤mem_total`、`free_huge_pages_2M≤huge_pages_2M`、`free_huge_pages_1G≤huge_pages_1G`、`mem_borrow≥0`、`mem_lend≥0` | `UBS_SUCCESS` |
+| P0-NumaStatGet-NotExist-01 | 不存在的 slot_id | 单节点 | `slot_id=9999` | `UBS_ENGINE_ERR_NODE_NOT_EXISTS` |
+| P0-NumaStatGet-NullPtr-01 | 空指针 | 单节点 | `numa_mems=NULL`; `numa_mem_cnt=NULL` | `UBS_ERR_NULL_POINTER` |
 
 #### ubs_mem_numa_create
 
@@ -400,46 +411,92 @@ int32_t ubs_mem_numa_create(const char* name, uint64_t size, ubs_mem_distance_t 
 |------|------|----------|
 | `name[48]` | `char[48]` | strcmp == 输入 name |
 | `numaid` | `int64_t` | ≥ 0 |
-| `export_node` | `ubs_topo_node_t` | slot_id 有效 |
+| `export_node` | `ubs_topo_node_t` | slot_id 有效且 ≠ import_node.slot_id（ips 字段无效） |
 | `import_node` | `ubs_topo_node_t` | slot_id == 本节点 |
 | `size` | `uint64_t` | == 输入 size |
-| `mem_stage` | `ubs_mem_stage` | == UBSE_EXIST(3) |
+| `mem_stage` | `ubs_mem_stage` | ∈ {UBSE_CREATING(1), UBSE_EXIST(3)} |
 | `usrInfo[32]` | `uint8_t[32]` | — |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaCreate-Ok-01 | 标准创建 | 双节点 | 正常 name+size; 逐字段校验 `numa_desc` | `UBS_SUCCESS` |
-| P0-NumaCreate-Borrow-Ok-01 | 跨节点借用 | 双节点 | 创建→等 UBSE_EXIST→验证属性→删除 全流程 | 全程通过 |
-| P0-NumaCreate-OverLen-01 | name 超长 | 单节点 | name ≥ 48 | `OUT_OF_RANGE` |
-| P0-NumaCreate-InvalidVal-01 | size < 4MB | 单节点 | size < 4MB | `OUT_OF_RANGE` |
-| P0-NumaCreate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `EXISTED` |
-| P0-NumaCreate-NullPtr-01 | 空指针 | 单节点 | name=NULL 或 numa_desc=NULL | `NULL_POINTER` |
-| P0-NumaCreate-BoundMin-01 | size=4MB | 双节点 | size=4MB; size 字段一致 | `UBS_SUCCESS` |
+| P0-NumaCreate-Ok-01 | 标准创建 | 双/四节点 | distance=L0, size=129MB; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `import_node.slot_id==本节点`, `export_node.slot_id>0`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
+| P0-NumaCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-NumaCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-NumaCreate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
+| P0-NumaCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-NumaCreate-BoundMin-01 | size=4MB | 双节点 | size=4MB; `mem_stage∈{CREATING,EXIST}`, `size==4MB`, `import_node.slot_id==本节点` | `UBS_SUCCESS` |
+| P0-NumaCreate-BoundMax-01 | name=47字节 | 双节点 | name=47 字节; `mem_stage∈{CREATING,EXIST}`, `name==输入`, `import_node.slot_id==本节点` | `UBS_SUCCESS` |
 
 #### ubs_mem_numa_create_with_lender
 
 ```
-int32_t ubs_mem_numa_create_with_lender(const char* name, const ubs_mem_fd_owner_t* owner,
-    mode_t mode, const ubs_mem_lender_t* lender, uint32_t lender_cnt, ubs_mem_numa_desc_t* numa_desc)
+int32_t ubs_mem_numa_create_with_lender(const char* name, const ubs_mem_lender_t* lender,
+    uint32_t lender_cnt, ubs_mem_numa_desc_t* numa_desc)
 ```
 
-入参/出参同 fd_create_with_lender，出参为 `ubs_mem_numa_desc_t`。
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 入参 | `lender` | `ubs_mem_lender_t*`，借出方描述数组，字段见下表 |
+| 入参 | `lender_cnt` | 借出方数量，1~4 |
+| 出参 | `numa_desc` | `ubs_mem_numa_desc_t*`，额外要求 `export_node.slot_id == lender.slot_id`，`export_node.socket_id 包含 lender.socket_id` |
+
+**`ubs_mem_lender_t` 字段说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `lender_size` | `uint64_t` | 借出内存大小，≥ 4MB |
+| `slot_id` | `uint32_t` | 借出节点 slot_id |
+| `socket_id` | `uint32_t` | 借出节点 socket_id，通过 TopoLinkList 获取 peer_socket_id |
+| `numa_id` | `uint32_t` | 借出节点 numa_id，通过 TopoNodeList 匹配 socket 后取 numa_ids |
+| `port_id` | `uint32_t` | 借出链路 port_id，通过 TopoLinkList 获取 peer_port_id |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaCreateLender-Ok-01 | 指定借出节点 | 双节点 | lender.slot_id 合法; `export_node.slot_id == lender.slot_id` | `UBS_SUCCESS` |
-| P0-NumaCreateLender-ZeroCnt-01 | lender_cnt=0 | 单节点 | lender_cnt=0 | `OUT_OF_RANGE` |
-| P0-NumaCreateLender-NullPtr-01 | lender=NULL | 单节点 | lender=NULL | `NULL_POINTER` |
-| P0-NumaCreateLender-BoundMax-01 | lender_cnt=4 | 双节点 | lender_cnt=4 | `UBS_SUCCESS` |
+| P0-NumaCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | lender={slot_id=非本节点, socket_id/numa_id/port_id由topo获取, size=129MB}, lender_cnt=1; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `export_node.slot_id==lender.slot_id`, `export_node.socket_id包含lender.socket_id`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
+| P0-NumaCreateLender-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-NumaCreateLender-InvalidVal-01 | lender_size < 4MB | 双节点 | lender.lender_size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-NumaCreateLender-NullPtr-01 | lender=NULL | 双节点 | lender=NULL, lender_cnt=1 | `UBS_ERR_NULL_POINTER` |
+| P0-NumaCreateLender-NullPtr-02 | name/numa_desc=NULL | 双节点 | name=NULL 或 numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-NumaCreateLender-BadParam-01 | 不存在的 slot_id | 双节点 | lender.slot_id=999 | `UBS_ENGINE_ERR_LINK_NOT_EXIST` |
+| P0-NumaCreateLender-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
+| P0-NumaCreateLender-BoundMax-01 | lender_cnt=4 | 双节点 | lender_cnt=4; `export_node.slot_id==lender.slot_id`, `import_node.slot_id==本节点` | `UBS_SUCCESS` |
 
 #### ubs_mem_numa_create_with_candidate
 
-入参/出参同 fd_create_with_candidate，出参为 `ubs_mem_numa_desc_t`。
+```
+int32_t ubs_mem_numa_create_with_candidate(const char* name, uint64_t size,
+    const uint32_t* slot_ids, uint32_t slot_cnt, ubs_mem_numa_desc_t* numa_desc)
+```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 入参 | `size` | 借用大小，≥ 4MB |
+| 入参 | `slot_ids` | 候选节点 slot_id 数组 |
+| 入参 | `slot_cnt` | 候选节点数量 |
+| 出参 | `numa_desc` | `ubs_mem_numa_desc_t*`，额外要求 `export_node.slot_id ∈ slot_ids[]` |
+
+**ubs_mem_numa_desc_t**:
+
+| 字段 | 类型 | 校验方式 |
+|------|------|----------|
+| `name[48]` | `char[48]` | strcmp == 输入 name |
+| `numaid` | `int64_t` | ≥ 0 |
+| `export_node` | `ubs_topo_node_t` | slot_id 有效且 ≠ import_node.slot_id（ips 字段无效） |
+| `import_node` | `ubs_topo_node_t` | slot_id == 本节点 |
+| `size` | `uint64_t` | == 输入 size |
+| `mem_stage` | `ubs_mem_stage` | ∈ {UBSE_CREATING(1), UBSE_EXIST(3)} |
+| `usrInfo[32]` | `uint8_t[32]` | — |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaCreateCandidate-Ok-01 | 指定候选节点 | 双节点 | slot_cnt>0; `export_node.slot_id ∈ slot_ids` | `UBS_SUCCESS` |
-| P0-NumaCreateCandidate-ZeroCnt-01 | slot_cnt=0 | 单节点 | slot_cnt=0 | `OUT_OF_RANGE` |
+| P0-NumaCreateCandidate-Ok-01 | 指定候选节点 | 双节点 | size=129MB, slot_ids={双:2 / 四:3,4}; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `export_node.slot_id∈slot_ids`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
+| P0-NumaCreateCandidate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-NumaCreateCandidate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-NumaCreateCandidate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-NumaCreateCandidate-BadParam-01 | 不存在的 slot_id | 双节点 | slot_ids={999} | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-NumaCreateCandidate-Dup-01 | 同名重复 | 双/四节点 | 同名再调；四节点候选为节点3和4 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_numa_get
 
@@ -460,8 +517,8 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** descs, uint32_t* numa_cnt)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaList-Ok-01 | 空/有 numa 时 list | 单节点 | 无 numa 时 `*numa_cnt==0` | `UBS_SUCCESS` |
-| P0-NumaList-NullPtr-01 | 空指针 | 单节点 | descs=NULL | `NULL_POINTER` |
+| P0-NumaList-Ok-01 | 空时查询+创建后查询 | 双节点 | 空时调用验证接口可用；创建2个NUMA后查询，逐条校验 `mem_stage∈{CREATING,EXIST}`, `size>0`, `numaid≥0`, `import_node.slot_id==本节点`, `export_node.slot_id>0`, `export_node.slot_id≠import_node.slot_id`；创建的2个NUMA在列表中且size一致 | `UBS_SUCCESS` |
+| P0-NumaList-NullPtr-01 | 空指针 | 双节点 | descs=NULL 或 cnt=NULL | `UBS_ERR_NULL_POINTER` |
 
 #### ubs_mem_numa_delete
 

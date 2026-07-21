@@ -47,14 +47,6 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0LinkListNullPtr01)
     ubse::it::tests::topo::RunP0LinkListNullPtr01(Cluster());
 }
 
-// ==================== Mem Borrow P0 测试 ====================
-
-// P0-NumaCreate-Ok-01 (复合): 跨节点NUMA正常借用生命周期
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBorrowOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateBorrowOk01(Cluster());
-}
-
 // ==================== Mem SHM P0 测试 (双节点) ====================
 
 // P0-ShmCreate-Ok-01: 标准创建成功
@@ -327,16 +319,76 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateDup01)
     ubse::it::tests::mem_borrow::RunP0NumaCreateDup01(Cluster());
 }
 
+// P0-NumaCreate-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateOverLen01(Cluster());
+}
+
+// P0-NumaCreate-InvalidVal-01: size < 4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateInvalidVal01(Cluster());
+}
+
+// P0-NumaCreate-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateNullPtr01(Cluster());
+}
+
 // P0-NumaCreate-BoundMin-01: size=4MB
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBoundMin01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateBoundMin01(Cluster());
 }
 
+// P0-NumaCreate-BoundMax-01: name=47字节
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBoundMax01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateBoundMax01(Cluster());
+}
+
 // P0-NumaCreateLender-Ok-01: 指定借出节点
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderOk01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateLenderOk01(Cluster());
+}
+
+// P0-NumaCreateLender-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderOverLen01(Cluster());
+}
+
+// P0-NumaCreateLender-InvalidVal-01: lender_size < 4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderInvalidVal01(Cluster());
+}
+
+// P0-NumaCreateLender-NullPtr-01: lender=NULL
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderNullPtr01(Cluster());
+}
+
+// P0-NumaCreateLender-NullPtr-02: name/numa_desc=NULL
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderNullPtr02)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderNullPtr02(Cluster());
+}
+
+// P0-NumaCreateLender-BadParam-01: 不存在的slot_id
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderBadParam01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderBadParam01(Cluster());
+}
+
+// P0-NumaCreateLender-Dup-01: 同名重复
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderDup01(Cluster());
 }
 
 // P0-NumaCreateLender-BoundMax-01: lender_cnt=4
@@ -349,6 +401,48 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateLenderBoundMax01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateOk01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateOk01(Cluster());
+}
+
+// P0-NumaCreateCandidate-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateOverLen01(Cluster());
+}
+
+// P0-NumaCreateCandidate-InvalidVal-01: size < 4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateInvalidVal01(Cluster());
+}
+
+// P0-NumaCreateCandidate-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateNullPtr01(Cluster());
+}
+
+// P0-NumaCreateCandidate-BadParam-01: 不存在的slot_id
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateBadParam01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateBadParam01(Cluster());
+}
+
+// P0-NumaCreateCandidate-Dup-01: 同名重复
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateCandidateDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateDup01(Cluster());
+}
+
+// P0-NumaList-Ok-01: 空时查询 + 创建后查询验证
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaListOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaListOk01(Cluster());
+}
+
+// P0-NumaList-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaListNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaListNullPtr01(Cluster());
 }
 
 // P0-NumaDel-Ok-01: 创建后删除
