@@ -239,6 +239,8 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     UBSE_LOG_INFO << "Share attach begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
+    auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);    
     resp.requestId = req.requestId;
     if (req.importNodeId.empty()) {
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
@@ -1152,8 +1154,9 @@ uint32_t CascadeMasterHandlerGlobalBorrowExportCallback(const UbseMemShareBorrow
 
 uint32_t CascadeMasterHandlerAgentBorrowExportCallback(const UbseMemShareBorrowExportObj &exportObj)
 {
-    UBSE_LOG_INFO << "CascadeMasterHandlerAgentBorrowExportCallback, name=" << exportObj.req.name
-                  << ", state=" << exportObj.status.state;
+    auto lock = LoggingLockGuard(exportObj.req.name);
+    UBSE_LOG_INFO << "name=" << exportObj.req.name
+                  << ", state=" << exportObj.status.state << ", requestId=" << exportObj.returnReq.requestId;
     auto name = exportObj.req.name;
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1177,6 +1180,7 @@ uint32_t CascadeMasterHandlerAgentBorrowExportCallback(const UbseMemShareBorrowE
 
 uint32_t GlobalMasterHandlerBorrowExportCallback(const UbseMemShareBorrowExportObj &exportObj)
 {
+    auto lock = LoggingLockGuard(exportObj.req.name);
     UBSE_LOG_INFO << "name=" << exportObj.req.name << ", state=" << exportObj.status.state
                   << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId;
     UbseMemOperationResp resp{
@@ -1207,6 +1211,7 @@ uint32_t GlobalMasterHandlerDeleteExportCallback(const UbseMemShareBorrowExportO
 {
     UBSE_LOG_INFO << "name=" << exportObj.req.name << ", state=" << exportObj.status.state
                   << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId;
+    auto lock = LoggingLockGuard(exportObj.req.name);
     auto name = exportObj.req.name;
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     auto req = exportObj.returnReq;
@@ -1286,9 +1291,10 @@ uint32_t UbseMemShareAttachClos(const UbseMemShareAttachReq &req, UbseMemOperati
     UBSE_LOG_INFO << "UbseMemShareAttachClos, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", importNodeId=" << req.importNodeId << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
+    auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);     
     resp.requestId = req.requestId;
     resp.name = req.name;
-
     if (req.importNodeId.empty()) {
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
                                           UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_ATTACH);
@@ -1346,6 +1352,7 @@ uint32_t CascadeMasterHandleGlobalAttachImportCallback(const UbseMemShareBorrowI
 {
     UBSE_LOG_INFO << "CascadeMasterHandleGlobalAttachImportCallback, name=" << importObj.req.name
                   << ", importNodeId=" << importObj.importNodeId;
+    auto lock = LoggingLockGuard(importObj.req.name + "_" + importObj.importNodeId);
     auto name = importObj.req.name;
     auto importNodeId = importObj.importNodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1381,6 +1388,7 @@ uint32_t CascadeMasterHandlerAgentAttachImportCallback(const UbseMemShareBorrowI
 {
     UBSE_LOG_INFO << "CascadeMasterHandlerAgentAttachImportCallback, name=" << importObj.req.name
                   << ", state=" << importObj.status.state;
+    auto lock = LoggingLockGuard(importObj.req.name + "_" + importObj.importNodeId);
     auto name = importObj.req.name;
     auto importNodeId = importObj.importNodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1404,6 +1412,7 @@ uint32_t CascadeMasterHandlerAgentDetachImportCallback(const UbseMemShareBorrowI
 {
     UBSE_LOG_INFO << "CascadeMasterHandlerAgentDetachImportCallback, name=" << importObj.req.name
                   << ", state=" << importObj.status.state;
+    auto lock = LoggingLockGuard(importObj.req.name + "_" + importObj.importNodeId);                  
     auto name = importObj.req.name;
     auto importNodeId = importObj.importNodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1434,6 +1443,7 @@ uint32_t GlobalMasterHandlerAttachImportObjCallback(const UbseMemShareBorrowImpo
 {
     UBSE_LOG_INFO << "GlobalMasterHandlerAttachImportObjCallback, name=" << importObj.req.name
                   << ", state=" << importObj.status.state;
+    auto lock = LoggingLockGuard(importObj.req.name + "_" + importObj.importNodeId);                   
     auto name = importObj.req.name;
     UbseMemOperationResp resp{
         .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
@@ -1462,6 +1472,7 @@ uint32_t GlobalMasterHandlerDetachImportCallback(const UbseMemShareBorrowImportO
 {
     UBSE_LOG_INFO << "GlobalMasterHandlerDetachImportCallback, name=" << importObj.req.name
                   << ", state=" << importObj.status.state;
+    auto lock = LoggingLockGuard(importObj.req.name + "_" + importObj.importNodeId);                  
     auto name = importObj.req.name;
     UbseMemOperationResp resp{
         .name = importObj.req.name, .requestNodeId = importObj.req.requestNodeId, .requestId = importObj.req.requestId};
@@ -1485,7 +1496,7 @@ uint32_t UbseMemShareCascadeDetach(const UbseMemShareDetachReq &req, UbseMemOper
                                    const std::string &realRequestNodeId)
 {
     UBSE_LOG_INFO << "UbseMemShareCascadeDetach, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
-    auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    auto lock = LoggingLockGuard(req.name + "_" + req.unImportNodeId);
     resp.requestId = req.requestId;
     resp.name = req.name;
 
@@ -1514,7 +1525,7 @@ uint32_t UbseMemShareManageDetach(const UbseMemShareDetachReq &req, UbseMemOpera
     UBSE_LOG_INFO << "name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", cascadeMasterNodeId=" << realRequestNodeId << ", unImportNodeId=" << req.unImportNodeId
                   << ", requestId=" << req.requestId;
-    LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
     resp.requestId = req.requestId;
     resp.name = req.name;
     if (!UbseDetachNodeIdInCascadeDomain(req.unImportNodeId, realRequestNodeId)) {
@@ -1535,13 +1546,13 @@ uint32_t UbseMemShareManageDetach(const UbseMemShareDetachReq &req, UbseMemOpera
 uint32_t UbseMemShareGlobalDetach(const UbseMemShareDetachReq &req, UbseMemOperationResp &resp,
                                   const std::string &realRequestNodeId)
 {
-    UBSE_LOG_INFO << "UbseMemShareGlobalDetach, name=" << req.name << ", unImportNodeId=" << req.unImportNodeId
+    UBSE_LOG_INFO << "name=" << req.name << ", unImportNodeId=" << req.unImportNodeId
                   << ", realRequestNodeId=" << realRequestNodeId << ", requestId=" << req.requestId;
-    LoggingLockGuard(req.name + "_" + req.requestNodeId);
+    auto lock = LoggingLockGuard(req.name + "_" + req.unImportNodeId);
     resp.requestId = req.requestId;
     resp.name = req.name;
     if (!UbseCheckDetachNodeIdInManageDomain(req.unImportNodeId, realRequestNodeId)) {
-        UBSE_LOG_ERROR << "UbseMemShareGlobalDetach: detach nodeId validation failed, realRequestNodeId="
+        UBSE_LOG_ERROR << "detach nodeId validation failed, realRequestNodeId="
                        << realRequestNodeId << ", unImportNodeId=" << req.unImportNodeId;
         return ShareDetachFailed(req, resp, "Detach auth failed, nodeId not in global domain.", UBSE_ERR_AUTH_FAILED,
                                  MemAdvice::UBSE_NO_OPERATION_PERMISSION);
@@ -1587,6 +1598,7 @@ uint32_t CascadeMasterHandleGlobalDetachImportCallback(const UbseMemShareDetachR
 {
     UBSE_LOG_INFO << "name=" << req.name << ", unImportNodeId=" << req.unImportNodeId
                   << ", requestId=" << req.requestId;
+    auto lock = LoggingLockGuard(req.name + "_" + req.unImportNodeId);
     auto name = req.name;
     auto importNodeId = req.unImportNodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1717,6 +1729,7 @@ uint32_t CascadeMasterHandlerGlobalDeleteCallback(const UbseMemShareBorrowExport
 {
     UBSE_LOG_INFO << "CascadeMasterHandlerGlobalDeleteCallback, name=" << exportObj.req.name
                   << ", state=" << exportObj.status.state << ", requestId=" << exportObj.returnReq.requestId;
+    auto lock = LoggingLockGuard(exportObj.req.name);
     auto name = exportObj.req.name;
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
@@ -1754,6 +1767,7 @@ uint32_t CascadeMasterHandlerGlobalDeleteCallback(const UbseMemShareBorrowExport
 uint32_t CascadeMasterHandlerAgentDeleteExportCallback(const UbseMemShareBorrowExportObj &exportObj)
 {
     UBSE_LOG_INFO << "name=" << exportObj.req.name << ", state=" << exportObj.status.state << ", requestId=" << exportObj.returnReq.requestId;
+    auto lock = LoggingLockGuard(exportObj.req.name);
     auto name = exportObj.req.name;
     auto exportNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
     auto &ledger = UbseMemDebtLedger::GetInstance();
