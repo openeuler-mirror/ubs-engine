@@ -22,8 +22,7 @@ typedef enum {
     UBSE_ELECTION = 0x0002,
     UBSE_NODE = 0x0003,
     UBSE_LONG_LINK_REGISTER = 0x0004, // moduleCode 为向服务端注册监听长连接事件
-    UBSE_URMA = 0x0005,
-    UBSE_SSU = 0x0006,
+    UBSE_URMA = 0x0005
 } ubse_ipc_module_code_t;
 
 typedef enum {
@@ -112,11 +111,6 @@ typedef enum {
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
 
-typedef enum {
-    UBSE_SSU_CLI_ALLOC_SUMMARY = 0x0001,
-    UBSE_SSU_CLI_ALLOC_DETAIL = 0x0002,
-    UBSE_SSU_CLI_ALLOC_CREATE = 0x0003,
-} ubse_ipc_ssu_op_code_t;
 #ifdef __cplusplus
 }
 #endif

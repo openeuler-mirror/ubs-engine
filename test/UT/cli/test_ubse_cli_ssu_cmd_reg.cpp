@@ -12,26 +12,34 @@
 
 #include "test_ubse_cli_ssu_cmd_reg.h"
 
-#include <unistd.h>
-
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
 
 #include <mockcpp/mockcpp.hpp>
 
 #include "test_ubse_cli_ssu_mock_invoke.h"
 #include "ubse_cli_ssu_cmd_reg.h"
+#include "ubse_com_op_code.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
-#include "ubse_ipc_common.h"
 
 namespace ubse::ut::cli {
 using namespace ubse::cli::framework;
 using namespace ubse::cli::reg;
 using namespace ubse::plugin::service::ssu;
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseSsuOpCode;
 
 namespace {
 constexpr uint64_t GIB = 1024ULL * 1024ULL * 1024ULL;
+constexpr uint16_t SSU_MODULE_CODE = static_cast<uint16_t>(UbseModuleCode::UBSE_SSU);
+
+constexpr uint16_t SsuOpCode(UbseSsuOpCode opCode)
+{
+    return static_cast<uint16_t>(opCode);
+}
 
 // 期望文本与 ubse_cli_ssu_cmd_reg.cpp 中固定错误/提示信息逐字一致，任何文案改动都会被用例捕获。
 const std::string ERR_NAME_REQUIRED = "ERROR: The option -n or --name is required.";
@@ -44,7 +52,6 @@ const std::string ERR_INVALID_SIZE =
 const std::string ERR_INVALID_LBA = "ERROR: Invalid lba. The value must be 512B or 4K.";
 const std::string ERR_INVALID_STRATEGY = "ERROR: Invalid strategy. The value must be Linear or Striped.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
-const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
 // 捕获 UbseCliDisplayResult 写入 stdout 的文本，便于对回显内容做子串断言。
@@ -58,14 +65,15 @@ std::string Render(const std::shared_ptr<UbseCliResultEcho> &result)
 // 渲染结果并断言包含指定子串，用于错误信息/表格内容的正向校验。
 void ExpectRenderedContains(const std::shared_ptr<UbseCliResultEcho> &result, const std::string &needle)
 {
-    EXPECT_NE(Render(result).find(needle), std::string::npos);
+    const std::string output = Render(result);
+    EXPECT_NE(output.find(needle), std::string::npos) << output;
 }
 
 // 与生产代码同构：ns_num 区间随契约常量动态拼接，保证用例期望与实际错误文案一致。
 std::string InvalidNsNumError()
 {
-    return "ERROR: Invalid ns_num. The value must be an integer in range " +
-        std::to_string(SSU_CLI_DEFAULT_NS_NUM) + "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
+    return "ERROR: Invalid ns_num. The value must be an integer in range " + std::to_string(SSU_CLI_DEFAULT_NS_NUM) +
+           "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
 }
 
 // 构造 alloc_detail 子命令的入参，name 可覆盖以测试不同 name 校验场景。
@@ -114,7 +122,7 @@ void TestUbseCliSsuCmdReg::TearDown()
     GlobalMockObject::verify();        // 校验本用例 mock 期望并释放桩资源
 }
 
-// 注册校验：SignUp 后框架应登记 display_ssu / create_ssu 两条命令。
+// 注册校验：SignUp 后框架应登记 display/create ssu 两条命令。
 TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersDisplayAndCreateSsuCommands)
 {
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
@@ -146,8 +154,8 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsInfoWhenEmpty)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_empty));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}}), INFO_EMPTY);
-    EXPECT_EQ(g_ssuMockLastModuleCode, UBSE_SSU);
-    EXPECT_EQ(g_ssuMockLastOpCode, UBSE_SSU_CLI_ALLOC_SUMMARY);
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ));
 }
 
 // 摘要表正向内容校验：表头列名与各分配的 name/size/strategy 均应出现在输出中。
@@ -204,6 +212,14 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsDeserializationErrorForBadResp
                            ERR_DESERIALIZATION);
 }
 
+// IPC 返回成功但 summary 响应体为空时，不应当作空列表，而应报客户端反序列化失败。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsDeserializationErrorForEmptySuccessResponse)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_empty_body));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}}),
+                           ERR_DESERIALIZATION);
+}
+
 // alloc_detail 缺少 -n 应返回 name 必选参数错误。
 TEST_F(TestUbseCliSsuCmdReg, DisplayDetailRejectsMissingName)
 {
@@ -223,8 +239,8 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailSerializesNameAndUsesDetailOpcode)
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_normal));
     auto result = UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams());
     EXPECT_NE(result, nullptr);
-    EXPECT_EQ(g_ssuMockLastModuleCode, UBSE_SSU);
-    EXPECT_EQ(g_ssuMockLastOpCode, UBSE_SSU_CLI_ALLOC_DETAIL);
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetailReq.name, "alloc-space-1");
 }
@@ -241,13 +257,6 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsInfoWhenNoNamespaces)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_empty));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()), INFO_EMPTY);
-}
-
-// 请求序列化失败时（桩强制 Check=false），详情查询应返回序列化失败错误。
-TEST_F(TestUbseCliSsuCmdReg, DisplayDetailReturnsSerializationError)
-{
-    MOCKER_CPP(&ubse::serial::UbseSerialization::Check).stubs().will(returnValue(false));
-    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()), ERR_SERIALIZATION);
 }
 
 // 详情查询返回损坏报文时，应返回反序列化失败错误。
@@ -457,8 +466,8 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAppliesDefaults)
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
     auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams());
     EXPECT_NE(result, nullptr);
-    EXPECT_EQ(g_ssuMockLastModuleCode, UBSE_SSU);
-    EXPECT_EQ(g_ssuMockLastOpCode, UBSE_SSU_CLI_ALLOC_CREATE);
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastCreateReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastCreateReq.nsSize, 10ULL * GIB);
@@ -466,8 +475,6 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAppliesDefaults)
     EXPECT_EQ(g_ssuMockLastCreateReq.lbaFormat, UbseSsuLBAFormat::LBA_FORMAT_512);
     EXPECT_EQ(g_ssuMockLastCreateReq.strategy, UbseSsuAllocStrategy::LINEAR);
     EXPECT_EQ(g_ssuMockLastCreateReq.tenant, "");
-    // identityInfo 由 FillRuntimeUser 填充，uid 为当前进程 uid（用例以真实身份运行）。
-    EXPECT_EQ(g_ssuMockLastCreateReq.identityInfo.uid, getuid());
 }
 
 // 显式传入全部可选参数时，各值应被正确解析并序列化到请求体（覆盖默认值）。
@@ -495,13 +502,6 @@ TEST_F(TestUbseCliSsuCmdReg, CreatePrintsAllocatedDetailTable)
     ExpectDetailOutput(UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams()));
 }
 
-// 请求序列化失败时（桩强制 Check=false），create 应返回序列化失败错误。
-TEST_F(TestUbseCliSsuCmdReg, CreateReturnsSerializationError)
-{
-    MOCKER_CPP(&ubse::serial::UbseSerialization::Check).stubs().will(returnValue(false));
-    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams()), ERR_SERIALIZATION);
-}
-
 // create 返回损坏报文时，应返回反序列化失败错误。
 TEST_F(TestUbseCliSsuCmdReg, CreateReturnsDeserializationError)
 {
@@ -517,24 +517,36 @@ TEST_F(TestUbseCliSsuCmdReg, CreateReturnsInternalErrorWithCode)
                            "ERROR: Internal error with error code 1234.");
 }
 
-// 摘要查询请求体应携带当前运行用户身份（identityInfo），与服务层 ListAllocInfo 入参对齐。
-TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRequestCarriesIdentityInfo)
+// 摘要查询使用合法的 0 字节请求体，mock 应显式捕获成功。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRequestUsesEmptyBody)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_empty));
     UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}});
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
-    EXPECT_EQ(g_ssuMockLastSummaryReq.identityInfo.uid, getuid());
-    EXPECT_FALSE(g_ssuMockLastSummaryReq.identityInfo.userName.empty());
+
+    ResetSsuMockCapture();
+    uint8_t nonEmptyRequest = 0;
+    ubse_api_buffer_t reqBuffer{&nonEmptyRequest, sizeof(nonEmptyRequest)};
+    ubse_api_buffer_t resBuffer{};
+    EXPECT_EQ(mock_ssu_alloc_summary_invoke_call_empty(
+                  SSU_MODULE_CODE, SsuOpCode(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ), &reqBuffer, &resBuffer),
+              UBSE_OK);
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+    std::free(resBuffer.buffer);
 }
 
-// 详情查询请求体应携带 name 与当前运行用户身份（identityInfo）。
-TEST_F(TestUbseCliSsuCmdReg, DisplayDetailRequestCarriesIdentityInfo)
+// 详情查询请求体只携带 name。
+TEST_F(TestUbseCliSsuCmdReg, DisplayDetailRequestCarriesName)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_normal));
     UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams());
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetailReq.name, "alloc-space-1");
-    EXPECT_EQ(g_ssuMockLastDetailReq.identityInfo.uid, getuid());
-    EXPECT_FALSE(g_ssuMockLastDetailReq.identityInfo.userName.empty());
+    ASSERT_GE(g_ssuMockLastRequestPayload.size(), sizeof(uint32_t));
+    uint32_t firstField = 0;
+    std::memcpy(&firstField, g_ssuMockLastRequestPayload.data(), sizeof(firstField));
+    EXPECT_EQ(firstField, std::string("alloc-space-1").size());
+    EXPECT_EQ(g_ssuMockLastRequestPayload.size(), sizeof(uint32_t) + std::string("alloc-space-1").size());
 }
+
 } // namespace ubse::ut::cli
