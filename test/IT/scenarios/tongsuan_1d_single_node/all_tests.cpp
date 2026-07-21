@@ -235,42 +235,6 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNullPtr01)
     ubse::it::tests::mem_borrow::RunP0NumaStatGetNullPtr01(Cluster());
 }
 
-// P0-NumaCreate-OverLen-01: name超长
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateOverLen01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateOverLen01(Cluster());
-}
-
-// P0-NumaCreate-InvalidVal-01: size < 4MB
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateInvalidVal01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateInvalidVal01(Cluster());
-}
-
-// P0-NumaCreate-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateNullPtr01(Cluster());
-}
-
-// P0-NumaCreateLender-ZeroCnt-01: lender_cnt=0
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateLenderZeroCnt01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderZeroCnt01(Cluster());
-}
-
-// P0-NumaCreateLender-NullPtr-01: lender=NULL
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateLenderNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderNullPtr01(Cluster());
-}
-
-// P0-NumaCreateCandidate-ZeroCnt-01: slot_cnt=0
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaCreateCandidateZeroCnt01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateZeroCnt01(Cluster());
-}
-
 // P0-NumaGet-NotExist-01: 查询不存在
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaGetNotExist01)
 {
@@ -281,18 +245,6 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaGetNotExist01)
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaGetNullPtr01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaGetNullPtr01(Cluster());
-}
-
-// P0-NumaList-Ok-01: 空/有numa时list
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaListOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaListOk01(Cluster());
-}
-
-// P0-NumaList-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaListNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaListNullPtr01(Cluster());
 }
 
 // P0-NumaDel-NotExist-01: 删除不存在

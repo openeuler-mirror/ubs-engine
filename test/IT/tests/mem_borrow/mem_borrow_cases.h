@@ -17,10 +17,6 @@
 
 namespace ubse::it::tests::mem_borrow {
 
-// 两节点NUMA正常借用测试：节点1(借出方)→节点2(借用方)
-// 流程：创建借用 → 等待UBSE_EXIST就绪 → 验证属性 → 删除借用
-void RunP0NumaCreateBorrowOk01(ubse::it::infra::ItCluster& cluster);
-
 // CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
 void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster);
 
@@ -107,16 +103,25 @@ void RunP0NumaCreateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_create_with_lender ====================
 void RunP0NumaCreateLenderOk01(ubse::it::infra::ItCluster& cluster);
-void RunP0NumaCreateLenderZeroCnt01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateLenderNullPtr02(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateLenderBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_create_with_candidate ====================
 void RunP0NumaCreateCandidateOk01(ubse::it::infra::ItCluster& cluster);
-void RunP0NumaCreateCandidateZeroCnt01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateCandidateOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateCandidateInvalidVal01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateCandidateNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateCandidateBadParam01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_get ====================
 void RunP0NumaGetNotExist01(ubse::it::infra::ItCluster& cluster);

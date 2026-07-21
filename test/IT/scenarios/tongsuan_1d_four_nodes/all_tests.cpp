@@ -46,6 +46,18 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk01)
     ubse::it::tests::mem_borrow::RunP0FdCreateOk01(Cluster());
 }
 
+// P0-NumaCreate-Ok-01: 标准创建成功
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateOk01(Cluster());
+}
+
+// P0-NumaCreateLender-Ok-01: 指定借出节点
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateLenderOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateLenderOk01(Cluster());
+}
+
 // P0-FdCreate-InvalidVal-02: size > 256GB
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateInvalidVal02)
 {
@@ -78,6 +90,18 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk01)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateInvalidVal02)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateCandidateInvalidVal02(Cluster());
+}
+
+// P0-FdCreateCandidate-Dup-01: 同名重复，候选节点3和4
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateDup01(Cluster());
+}
+
+// P0-NumaCreateCandidate-Dup-01: 同名重复，候选节点3和4
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateCandidateDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateDup01(Cluster());
 }
 
 // ==================== CLI P0 测试 ====================
