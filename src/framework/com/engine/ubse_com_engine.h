@@ -419,7 +419,8 @@ bool CertCallback(const std::string& name, std::string& value);
 bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyPass, int& len,
                         UBSHcomTLSEraseKeypass& erase);
 bool CACallback(const std::string& name, std::string& caPath, std::string& crlPath,
-                UBSHcomPeerCertVerifyType& peerCertVerifyType, UBSHcomTLSCertVerifyCallback& cb);
+                UBSHcomPeerCertVerifyType& verifyType, UBSHcomTLSCertVerifyCallback& cb);
 void KeyPassErase(void* pass, int len);
+int CertVerifyCallback(void* x509ctx, const char* crlPath);
 } // namespace ubse::com
 #endif // UBSE_COM_ENGINE_H
