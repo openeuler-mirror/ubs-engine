@@ -32,9 +32,9 @@ UbseResult SocketAffinityFilter::FilterNodes(std::vector<NodeInfo>& nodes, const
     for (auto& node : nodes) {
         EraseSocketsIf(node.socketInfos, [&](const SocketInfo& socket) {
             if (peerSockets.find({node.nodeId, socket.socketId}) == peerSockets.end()) {
-                RecordReject(node.nodeId, std::string("socket=") + std::to_string(socket.socketId) +
-                                              " not in same NUMA plane as importNode=" + importNodeId +
-                                              ", affinitySocketId=" + std::to_string(affinitySocketId));
+                RecordReject(node.nodeId,
+                             std::string("socket=") + std::to_string(socket.socketId) +
+                                 " not in same socket plane as affinitySocketId=" + std::to_string(affinitySocketId));
                 return true;
             }
             return false;

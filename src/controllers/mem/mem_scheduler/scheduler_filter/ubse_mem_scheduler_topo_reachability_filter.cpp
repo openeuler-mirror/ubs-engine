@@ -28,16 +28,11 @@ UbseResult TopoReachabilityFilter::FilterNodes(std::vector<NodeInfo>& nodes, con
 
     auto peerSet = nodeInfo.GetReachablePeers(importNodeId);
 
-    if (peerSet.empty()) {
-        RecordWarning(std::string("no peer sockets found for importNode=") + importNodeId);
-        nodes.clear();
-        return UBSE_OK;
+    for (const auto& [socketId, _] : node->GetAllSocketInfo()) {
+        peerSet.insert({importNodeId, socketId});
     }
 
     for (auto& n : nodes) {
-        if (n.nodeId == importNodeId) {
-            continue;
-        }
         EraseSocketsIf(n.socketInfos, [&](const SocketInfo& socketInfo) {
             if (peerSet.find({n.nodeId, socketInfo.socketId}) == peerSet.end()) {
                 RecordReject(n.nodeId, std::string("socket=") + std::to_string(socketInfo.socketId) +

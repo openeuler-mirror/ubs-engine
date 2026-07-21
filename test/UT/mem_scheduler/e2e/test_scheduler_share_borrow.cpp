@@ -847,4 +847,48 @@ TEST_F(TestSchedulerEndToEnd, ShmRegionEmptyNodelist)
     ASSERT_NE(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
 }
 
+// ==================== P3: Single Node SHARE Borrow ====================
+
+/**
+ * @brief 23: ShareBorrow_SingleNode
+ *
+ * 只有一个节点创建共享内存，该节点自身作为出借者。
+ * TopoReachabilityFilter 将 importNode 自身 socket 加入 peerSet，
+ * 使 importNode 自己也能通过拓扑可达性过滤，成功调度到本地。
+ *
+ * 前置状态: 单节点已注册, isLender=true
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. 注册一个节点 (CreateNodeMap(1)), Mock GetAllNodes
+ *   2. 构造 SHARE export obj(shmRegion=["1"], state:SCHEDULING)
+ *   3. 调用 MemoryObjChangeHandler(obj)
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "1"（调度到自身）
+ *   3. exportNumaInfos 不为空
+ */
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_SingleNode)
+{
+    std::unordered_map<std::string, UbseNodeInfo> nodeMap;
+    nodeMap = CreateNodeMap(1);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    adapter_plugins::mmi::UbseMemShareBorrowExportObj obj{};
+    obj.req.name = "share-single-node";
+    obj.req.requestNodeId = "1";
+    obj.req.size = BYTE_256MB;
+    adapter_plugins::mmi::UbseNodeInfo ni{};
+    ni.nodeId = "1";
+    obj.req.shmRegion.nodelist.push_back(ni);
+    obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "1");
+}
+
 } // namespace ubse::mem::scheduler::ut
