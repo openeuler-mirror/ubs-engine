@@ -137,66 +137,6 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDisplayQosOk01)
 
 // ==================== Mem SHM P0 (单节点) ====================
 
-// P0-ShmCreate-OverLen-01: name超长
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmCreateOverLen01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmCreateOverLen01(Cluster());
-}
-
-// P0-ShmCreate-InvalidVal-01: size < 4MB
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmCreateInvalidVal01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmCreateInvalidVal01(Cluster());
-}
-
-// P0-ShmAttach-NotReady-01: 未创建时attach
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmAttachNotReady01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmAttachNotReady01(Cluster());
-}
-
-// P0-ShmGet-NotExist-01: 查询不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmGetNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmGetNotExist01(Cluster());
-}
-
-// P0-ShmList-Ok-01: 空/有shm时list
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmListOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmListOk01(Cluster());
-}
-
-// P0-ShmList-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmListNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmListNullPtr01(Cluster());
-}
-
-// P0-ShmListPrefix-Ok-01: 无匹配前缀
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmListPrefixOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmListPrefixOk01(Cluster());
-}
-
-// P0-ShmDetach-NotReady-01: 未attach时detach
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmDetachNotReady01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmDetachNotReady01(Cluster());
-}
-
-// P0-ShmDel-NotExist-01: 删除不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmDelNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmDelNotExist01(Cluster());
-}
-
-// P0-ShmFaultReg-NullPtr-01: NULL handler
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmFaultRegNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmFaultRegNullPtr01(Cluster());
-}
-
 // P0-ShmMemidByImport-NotExist-01: name不存在
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmMemidByImportNotExist01)
 {
@@ -233,36 +173,6 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNotExist01)
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNullPtr01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaStatGetNullPtr01(Cluster());
-}
-
-// P0-NumaGet-NotExist-01: 查询不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaGetNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaGetNotExist01(Cluster());
-}
-
-// P0-NumaGet-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaGetNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaGetNullPtr01(Cluster());
-}
-
-// P0-NumaDel-NotExist-01: 删除不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaDelNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaDelNotExist01(Cluster());
-}
-
-// P0-NumaDel-OverLen-01: name超长
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaDelOverLen01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaDelOverLen01(Cluster());
-}
-
-// P0-NumaMemidByImport-NotExist-01: name不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaMemidByImportNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaMemidByImportNotExist01(Cluster());
 }
 
 // P0-NumaFaultReg-NullPtr-01: NULL handler

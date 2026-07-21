@@ -280,13 +280,13 @@ int32_t ubs_mem_fd_get(const char* name, ubs_mem_fd_desc_t* fd_desc)
 #### ubs_mem_fd_list
 
 ```
-int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** descs, uint32_t* fd_cnt)
+int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** fd_descs, uint32_t* fd_desc_cnt)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
-| 出参 | `descs` | `ubs_mem_fd_desc_t[]`，接口内 malloc |
-| 出参 | `fd_cnt` | `uint32_t*`，fd 数量 |
+| 出参 | `fd_descs` | `ubs_mem_fd_desc_t[]`，接口内 malloc |
+| 出参 | `fd_desc_cnt` | `uint32_t*`，fd 数量 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
@@ -315,14 +315,14 @@ int32_t ubs_mem_fd_delete(const char* name)
 
 ```
 int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid,
-                                       ubs_mem_export_memid_t* export_memid)
+                                       ubs_mem_export_memid_t* mem_info)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
 | 入参 | `name` | 借用标识 |
 | 入参 | `import_memid` | 导入端 memid |
-| 出参 | `export_memid` | `ubs_mem_export_memid_t*` |
+| 出参 | `mem_info` | `ubs_mem_export_memid_t*` |
 
 **ubs_mem_export_memid_t**:
 
@@ -339,7 +339,7 @@ int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid,
 #### ubs_mem_fd_fault_register
 
 ```
-int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_cb_t handler)
+int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_handler handler)
 ```
 
 | 类型 | 参数 | 说明 |
@@ -491,7 +491,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char* name, uint64_t size,
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaCreateCandidate-Ok-01 | 指定候选节点 | 双节点 | size=129MB, slot_ids={双:2 / 四:3,4}; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `export_node.slot_id∈slot_ids`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
+| P0-NumaCreateCandidate-Ok-01 | 指定候选节点 | 双/四节点 | size=129MB, slot_ids={双:2 / 四:3,4}; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `export_node.slot_id∈slot_ids`, `import_node.slot_id==本节点`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
 | P0-NumaCreateCandidate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
 | P0-NumaCreateCandidate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
 | P0-NumaCreateCandidate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
@@ -506,13 +506,13 @@ int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc)
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaGet-NotExist-01 | 查询不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
-| P0-NumaGet-NullPtr-01 | 空指针 | 单节点 | numa_desc=NULL | `NULL_POINTER` |
+| P0-NumaGet-NotExist-01 | 查询不存在 | 双节点 | 不存在的 name | `NOT_EXIST` |
+| P0-NumaGet-NullPtr-01 | 空指针 | 双节点 | numa_desc=NULL | `NULL_POINTER` |
 
 #### ubs_mem_numa_list
 
 ```
-int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** descs, uint32_t* numa_cnt)
+int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** numa_descs, uint32_t* numa_desc_cnt)
 ```
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
@@ -529,22 +529,45 @@ int32_t ubs_mem_numa_delete(const char* name)
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
 | P0-NumaDel-Ok-01 | 创建后删除 | 双节点 | 正常 name | `UBS_SUCCESS`; 删除后 get 返回不存在 |
-| P0-NumaDel-NotExist-01 | 删除不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
+| P0-NumaDel-NotExist-01 | 删除不存在 | 双节点 | 不存在的 name | `NOT_EXIST` |
 | P0-NumaDel-Dup-01 | 重复删除 | 双节点 | 同名再删 | `NOT_EXIST` |
-| P0-NumaDel-OverLen-01 | name 超长 | 单节点 | name ≥ 48 | `OUT_OF_RANGE` |
+| P0-NumaDel-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
 
 #### ubs_mem_numa_get_memid_by_import
 
-签名同 fd_get_memid_by_import，出参同 `ubs_mem_export_memid_t`。
+```
+int32_t ubs_mem_numa_get_memid_by_import(const char* name, uint64_t import_memid,
+                                          ubs_mem_export_memid_t* mem_info)
+```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 入参 | `import_memid` | 导入端 memid |
+| 出参 | `mem_info` | `ubs_mem_export_memid_t*`，导出端 mem 信息 |
+
+**ubs_mem_export_memid_t**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `export_slot_id` | `uint32_t` | 导出节点 slot_id |
+| `export_memid` | `uint64_t` | 导出端内存块标识 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-NumaMemidByImport-Fld-01 | 创建后查询 | 双节点 | `export_memid` 与创建时一致 | `UBS_SUCCESS` |
-| P0-NumaMemidByImport-NotExist-01 | name 不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
+| P0-NumaMemidByImport-Fld-01 | 创建后查询 | 双节点 | `export_slot_id>0`、`export_slot_id==创建时export_node.slot_id`、`export_memid>0` | `UBS_SUCCESS` |
+| P0-NumaMemidByImport-NotExist-01 | name 不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
 
 #### ubs_mem_numa_fault_register
 
-签名同 fd_fault_register。
+```
+int32_t ubs_mem_numa_fault_register(ubs_mem_numa_fault_handler handler)
+```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `handler` | 故障回调函数指针，类型 `int32_t (*)(const char* name, uint64_t numaid, ubs_mem_fault_type_t type)`，可为 NULL |
+| 返回 | `int32_t` | 错误码 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
@@ -557,18 +580,18 @@ int32_t ubs_mem_numa_delete(const char* name)
 #### ubs_mem_shm_create
 
 ```
-int32_t ubs_mem_shm_create(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner,
-                           mode_t mode, const char* region, ubs_mem_shm_desc_t* shm_desc)
+int32_t ubs_mem_shm_create(const char* name, uint64_t size, uint8_t usr_info[32], uint64_t flag,
+                           const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
-| 入参 | `name` | 借用标识 |
-| 入参 | `size` | 借用大小 |
-| 入参 | `owner` | 属主 |
-| 入参 | `mode` | 权限 |
-| 入参 | `region` | 可见域，"nodes" 按 slot_id 限定 |
-| 出参 | `shm_desc` | `ubs_mem_shm_desc_t*` |
+| 入参 | `name` | 借用标识，最大长度48字节 |
+| 入参 | `size` | 借用大小，单位Byte，≥ 4MB |
+| 入参 | `usr_info` | 调用方私有数据，32字节 |
+| 入参 | `flag` | 额外的内存借用属性 |
+| 入参 | `region` | `ubs_mem_nodes_t*`，使用共享内存的节点范围，NULL表示全量节点 |
+| 入参 | `provider` | `ubs_mem_nodes_t*`，资源提供方节点范围，NULL表示不指定 |
 
 **ubs_mem_shm_desc_t**:
 
@@ -580,33 +603,45 @@ int32_t ubs_mem_shm_create(const char* name, uint64_t size, const ubs_mem_fd_own
 | `export_node` | `ubs_topo_node_t` | slot_id 有效 |
 | `usr_info[32]` | `uint8_t[32]` | — |
 | `import_desc_cnt` | `uint32_t` | 每个 attach 的节点 +1 |
-| `mem_stage` | `ubs_mem_stage` | == UBSE_EXIST(3) |
-| `import_desc` | `ubs_mem_shm_import_desc_t*` | 导入描述符数组 |
-
-**ubs_mem_shm_import_desc_t** (每个 attach 节点一条):
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `memid_cnt` | `uint32_t` | 内存块数量 |
-| `memids[2048]` | `uint64_t[2048]` | 内存块标识 |
-| `import_node` | `ubs_topo_node_t` | 借入节点 |
-| `mem_stage` | `ubs_mem_stage` | 内存状态 |
+| `mem_stage` | `ubs_mem_stage` | ∈ {UBSE_CREATING(1), UBSE_EXIST(3)} |
+| `import_desc` | `ubs_mem_shm_import_desc_t*` | 导入描述符数组，每条 `memid_cnt==ceil(mem_size/unit_size)` |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmCreate-Ok-01 | 标准创建 | 双节点 | 正常 name+size | `UBS_SUCCESS` |
-| P0-ShmCreate-OverLen-01 | name 超长 | 单节点 | name ≥ 48 | `OUT_OF_RANGE` |
-| P0-ShmCreate-InvalidVal-01 | size < 4MB | 单节点 | size < 4MB | `OUT_OF_RANGE` |
-| P0-ShmCreate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `EXISTED` |
-| P0-ShmCreate-BigSize-01 | size=1GB | 双节点 | size=1GB | `UBS_SUCCESS` |
+| P0-ShmCreate-Ok-01 | 标准创建 | 双/四节点 | 双节点: region={1,2}; 四节点: region={3,4}; provider=NULL; `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `export_node.slot_id>0`, `export_node.slot_id∈region` | `UBS_SUCCESS` |
+| P0-ShmCreate-Provider-Ok-01 | 指定provider创建 | 双节点 | region={1,2}, provider={2}; `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `export_node.slot_id>0`, `export_node.slot_id∈provider` | `UBS_SUCCESS` |
+| P0-ShmCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-ShmCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1MB | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-ShmCreate-Dup-01 | 同名重复 | 双节点 | region={slot_id_1,slot_id_2}, provider=NULL; 同名再调一次 | `UBS_ENGINE_ERR_EXISTED` |
+| P0-ShmCreate-InvalidVal-02 | size > 256GB | 双节点 | size=257GB; 超过 `UBS_MEM_MAX_MEMID_NUM * 128MB` | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-ShmCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-ShmCreate-BoundMin-01 | size=4MB | 双节点 | region={slot_id_1,slot_id_2}, provider=NULL, size=4MB; `mem_stage∈{CREATING,EXIST}`, `mem_size==4MB`, `unit_size>0` | `UBS_SUCCESS` |
+| P0-ShmCreate-BoundMax-01 | name=47字节 | 双节点 | name=47 字节, region={slot_id_1,slot_id_2}, provider=NULL, size=128MB; `mem_stage∈{CREATING,EXIST}`, `name==输入`, `mem_size==128MB`, `unit_size>0` | `UBS_SUCCESS` |
 
 #### ubs_mem_shm_create_with_affinity
 
 ```
-int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size,
-    const ubs_mem_fd_owner_t* owner, mode_t mode, const char* region,
-    const uint32_t* socket_ids, uint32_t socket_cnt, ubs_mem_shm_desc_t* shm_desc)
+int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size, uint32_t affinity_socket_id,
+                                         uint8_t usr_info[32], uint64_t flag, const ubs_mem_nodes_t* region,
+                                         const ubs_mem_nodes_t* provider)
 ```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，最大长度48字节 |
+| 入参 | `size` | 借用大小，单位Byte，≥ 4MB |
+| 入参 | `affinity_socket_id` | 亲和的cpu socket_id |
+| 入参 | `usr_info` | 调用方私有数据，32字节 |
+| 入参 | `flag` | 额外的内存借用属性 |
+| 入参 | `region` | `ubs_mem_nodes_t*`，使用共享内存的节点范围，NULL表示全量节点 |
+| 入参 | `provider` | `ubs_mem_nodes_t*`，资源提供方节点范围，NULL表示不指定 |
+
+**ubs_mem_nodes_t**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `node_cnt` | `uint32_t` | 实际有效的节点数量，取值范围[1-16] |
+| `slot_ids[16]` | `uint32_t[16]` | 节点ID数组，实际有效长度为 node_cnt |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
@@ -614,55 +649,99 @@ int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size,
 
 #### ubs_mem_shm_create_with_lender
 
-签名同 fd_create_with_lender，出参为 `ubs_mem_shm_desc_t`。
+```
+int32_t ubs_mem_shm_create_with_lender(const char* name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
+                                       const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender)
+```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，最大长度48字节 |
+| 入参 | `usr_info` | 调用方私有数据，32字节 |
+| 入参 | `flag` | 额外的内存借用属性 |
+| 入参 | `region` | `ubs_mem_nodes_t*`，使用共享内存的节点范围，NULL表示全量节点 |
+| 入参 | `lender` | `ubs_mem_lender_t*`，借出方描述，字段见下表 |
+
+**`ubs_mem_lender_t` 字段说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `lender_size` | `uint64_t` | 借出内存大小，≥ 4MB |
+| `slot_id` | `uint32_t` | 借出节点 slot_id |
+| `socket_id` | `uint32_t` | 借出节点 socket_id，通过 TopoLinkList 获取 peer_socket_id |
+| `numa_id` | `uint32_t` | 借出节点 numa_id，通过 TopoNodeList 匹配 socket 后取 numa_ids |
+| `port_id` | `uint32_t` | 借出链路 port_id，通过 TopoLinkList 获取 peer_port_id |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmCreateLender-NullPtr-01 | lender=NULL | 双节点 | lender=NULL | `NULL_POINTER` |
+| P0-ShmCreateLender-Ok-01 | 指定借出节点 | 双/四节点 | 入参: usr_info=0, flag=0, region={双:1,2 / 四:3,4}, lender={slot_id=非本节点, socket_id/numa_id/port_id由topo获取, lender_size=128MB}; 出参(MemShmGet): `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `name==输入`, `export_node.slot_id==lender.slot_id`, `export_node.slot_id>0` | `UBS_SUCCESS` |
+| P0-ShmCreateLender-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-ShmCreateLender-InvalidVal-01 | lender_size < 4MB | 双节点 | lender.lender_size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
+| P0-ShmCreateLender-NullPtr-01 | name=NULL | 双节点 | name=NULL | `UBS_ERR_NULL_POINTER` |
+| P0-ShmCreateLender-BadParam-01 | 不存在的 slot_id | 双节点 | lender.slot_id=999 | `UBS_ENGINE_ERR_ALLOCATE` |
+| P0-ShmCreateLender-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_shm_attach
 
 ```
-int32_t ubs_mem_shm_attach(const char* name, ubs_mem_shm_desc_t* shm_desc)
+int32_t ubs_mem_shm_attach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                           ubs_mem_shm_desc_t** shm_desc)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
-| 入参 | `name` | 借用标识 |
-| 出参 | `shm_desc` | `ubs_mem_shm_desc_t*`，填充当前 attach 节点的 import_desc |
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 入参 | `owner` | `ubs_mem_fd_owner_t*`，属主进程信息，可为 NULL |
+| 入参 | `mode` | 权限 mode |
+| 出参 | `shm_desc` | `ubs_mem_shm_desc_t**`，调用方需 free 释放 |
+
+**ubs_mem_shm_import_desc_t** (每个 attach 节点一条):
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `memid_cnt` | `uint32_t` | 内存块数量，== ceil(mem_size / unit_size) |
+| `memids[2048]` | `uint64_t[2048]` | 内存块标识 |
+| `import_node` | `ubs_topo_node_t` | 借入节点 |
+| `mem_stage` | `ubs_mem_stage` | 内存状态 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmAttach-NotReady-01 | 未创建时 attach | 单节点 | 不存在的 name | 错误 |
-| P0-ShmAttach-Dup-01 | 重复 attach | 双节点 | 已 attach 再调 | 错误 |
+| P0-ShmAttach-Ok-01 | attach 后校验内存块数 | 双节点 | 入参: owner=NULL, mode=0; 先 create(256MB, region={1,2}) + attach; 出参: `mem_stage∈{CREATING,EXIST}`, `mem_size==256MB`, `unit_size>0`, `import_desc_cnt>=1`, `import_desc[0].memid_cnt==ceil(256MB/unit_size)`, `import_desc[0].memid_cnt>0`, `import_desc[0].import_node.slot_id>0` | `UBS_SUCCESS` |
+| P0-ShmAttach-NotReady-01 | 未创建时 attach | 双节点 | name 不存在 | `UBS_ENGINE_ERR_NOT_EXIST` |
+| P0-ShmAttach-Dup-01 | 重复 attach | 双节点 | 已 attach 再调 | `UBS_ENGINE_ERR_EXISTED` |
 
 #### ubs_mem_shm_get
 
 ```
-int32_t ubs_mem_shm_get(const char* name, ubs_mem_shm_desc_t* shm_desc)
+int32_t ubs_mem_shm_get(const char* name, ubs_mem_shm_desc_t** shm_desc)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
 | 入参 | `name` | 借用标识 |
-| 出参 | `shm_desc` | `ubs_mem_shm_desc_t*`，字段同上 `shm_create` 出参 |
+| 出参 | `shm_desc` | `ubs_mem_shm_desc_t**`，字段同上 `shm_create` 出参 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmGet-NotExist-01 | 查询不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
+| P0-ShmGet-NotExist-01 | 查询不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
 
 #### ubs_mem_shm_list / ubs_mem_shm_list_with_prefix
 
 ```
-int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t** descs, uint32_t* shm_cnt)
-int32_t ubs_mem_shm_list_with_prefix(const char* prefix, ubs_mem_shm_desc_t** descs, uint32_t* shm_cnt)
+int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt)
+int32_t ubs_mem_shm_list_with_prefix(const char* name_prefix, ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt)
 ```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name_prefix` | 借用标识前缀（仅 list_with_prefix） |
+| 出参 | `shm_descs` | `ubs_mem_shm_desc_t**`，调用方需 free 释放 |
+| 出参 | `shm_desc_cnt` | `uint32_t*`，返回条数 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmList-Ok-01 | 空 list | 单节点 | 无 shm 时 `*shm_cnt==0` | `UBS_SUCCESS` |
-| P0-ShmList-NullPtr-01 | 空指针 | 单节点 | descs=NULL | `NULL_POINTER` |
-| P0-ShmListPrefix-Ok-01 | 无匹配前缀 | 单节点 | prefix 无匹配 | `*shm_cnt==0` |
+| P0-ShmList-Ok-01 | list + 前缀过滤 | 双节点 | 创建 2 个 SHM (prefix `aaa_`/`bbb_`, 128MB/256MB, region={1,2}); `ubs_mem_shm_list`: 逐条校验 `mem_stage∈{CREATING,EXIST}`, `mem_size>0`, `unit_size>0`, `export_node.slot_id>0`, `export_node.slot_id∈region`, 验证两个 name 都在列表且 `mem_size` 一致; `ubs_mem_shm_list_with_prefix("aaa_")` 返回 1 条且 name 以 `aaa_` 开头, `list_with_prefix("zzz_")` 返回 0 条 | `UBS_SUCCESS` |
+| P0-ShmList-NullPtr-01 | 空指针 | 双节点 | `ubs_mem_shm_list`: descs=NULL 或 shm_cnt=NULL; `ubs_mem_shm_list_with_prefix`: descs=NULL 或 shm_cnt=NULL | `UBS_ERR_NULL_POINTER` |
 
 #### ubs_mem_shm_detach
 
@@ -670,9 +749,15 @@ int32_t ubs_mem_shm_list_with_prefix(const char* prefix, ubs_mem_shm_desc_t** de
 int32_t ubs_mem_shm_detach(const char* name)
 ```
 
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 返回 | `int32_t` | 错误码 |
+
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmDetach-NotReady-01 | 未 attach 时 detach | 单节点 | 未 attach 的 name | `NOT_EXIST` |
+| P0-ShmDetach-Ok-01 | attach 后 detach | 双节点 | 先 create(128MB, region={1,2}) + attach + detach; detach 返回成功后再 MemShmGet 验证 import_desc_cnt 变化 | `UBS_SUCCESS` |
+| P0-ShmDetach-NotReady-01 | 未 attach 时 detach | 双节点 | 未 attach 的 name | `UBS_ENGINE_ERR_SHM_NO_ATTACH` |
 
 #### ubs_mem_shm_delete
 
@@ -680,17 +765,36 @@ int32_t ubs_mem_shm_detach(const char* name)
 int32_t ubs_mem_shm_delete(const char* name)
 ```
 
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `name` | 借用标识，长度 < 48 |
+| 返回 | `int32_t` | 错误码 |
+
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmDel-NotExist-01 | 删除不存在 | 单节点 | 不存在的 name | `NOT_EXIST` |
+| P0-ShmDel-Ok-01 | 创建后删除 | 双节点 | 先 create(128MB, region={1,2}); delete 后 MemShmGet 验证已不存在 | `UBS_SUCCESS` |
+| P0-ShmDel-NotExist-01 | 删除不存在 | 双节点 | 不存在的 name | `UBS_ENGINE_ERR_NOT_EXIST` |
 
 #### ubs_mem_shm_fault_register
 
+```
+int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler)
+```
+
+| 类型 | 参数 | 说明 |
+|------|------|------|
+| 入参 | `handler` | 故障回调函数指针，类型 `int32_t (*)(const char* name, uint64_t memid, ubs_mem_fault_type_t type)`，可为 NULL |
+| 返回 | `int32_t` | 错误码 |
+
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
-| P0-ShmFaultReg-NullPtr-01 | NULL handler | 单节点 | handler=NULL | 不崩溃 |
+| P0-ShmFaultReg-NullPtr-01 | NULL handler | 双节点 | handler=NULL | 不崩溃 |
 
 #### ubs_mem_shm_get_memid_by_import
+
+```
+int32_t ubs_mem_shm_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info)
+```
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
@@ -804,13 +908,13 @@ NPU 用例由 `zhisuan_npu_single_node` 承载，未按编号命名：
 #### ubs_error_name / ubs_error_string
 
 ```
-const char* ubs_error_name(int32_t error_code)
-const char* ubs_error_string(int32_t error_code)
+const char* ubs_error_name(int32_t error)
+const char* ubs_error_string(int32_t error)
 ```
 
 | 类型 | 参数 | 说明 |
 |------|------|------|
-| 入参 | `error_code` | 错误码 |
+| 入参 | `error` | 错误码 |
 | 返回 | `const char*` | 错误码的名称/描述字符串 |
 
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
@@ -877,17 +981,17 @@ const char* ubs_error_string(int32_t error_code)
 | Topo | 8 | 4 | 12 |
 | Mem FD | 35 | 3 | 38 |
 | Mem NUMA | 28 | 7 | 35 |
-| Mem SHM | 18 | 3 | 21 |
+| Mem SHM | 27 | 3 | 30 |
 | NPU | 7 | — | 7 |
 | URMA QoS | 1 | 8 | 9 |
 | Error | 2 | — | 2 |
-| **合计** | **104** | **25** | **129** |
+| **合计** | **113** | **25** | **138** |
 
 ### 按场景
 
 | 场景 | SDK P0 | CLI P0 | 合计 |
 |------|--------|--------|------|
-| 单节点 | 46 | 15 | 61 |
-| 双节点 | 56 | 8 | 64 |
-| 四节点 | 15 | 2 | 17 |
+| 单节点 | 38 | 15 | 53 |
+| 双节点 | 73 | 8 | 81 |
+| 四节点 | 17 | 2 | 19 |
 | NPU 单节点 | 7 | — | 7 |
