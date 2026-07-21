@@ -12,7 +12,10 @@
 
 #include "npu_cases.h"
 
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <random>
 #include <thread>
 #include <vector>
 
@@ -75,6 +78,28 @@ static void BuildFreeInfo(ubs_ub_alloc_devices_info_t& freeInfo, ubs_ub_devices_
     memcpy(freeInfo.bus_instance_guid, busInstanceGuid, MACRO_UBSE_UB_DEVICE_GUID_SIZE);
     freeInfo.ub_dev_list = freeDevs;
     freeInfo.ub_dev_list_count = devCount;
+}
+
+static uint16_t GenerateRandomUpi()
+{
+    constexpr uint16_t upiMax = 0x7fff - 1001;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    return std::uniform_int_distribution<uint16_t>(1, upiMax)(gen);
+}
+
+static void UpiToUpiStr(uint16_t upi, uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE])
+{
+    char buf[MACRO_UBSE_UB_UPI_STR_SIZE + 1] = {};
+    snprintf(buf, sizeof(buf), "%x", upi);
+    memcpy(upiStr, buf, MACRO_UBSE_UB_UPI_STR_SIZE);
+}
+
+static size_t PickRandomDevIdx(size_t count)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    return std::uniform_int_distribution<size_t>(0, count - 1)(gen);
 }
 
 static bool GuidIsNonZero(const uint8_t* guid)
@@ -651,6 +676,582 @@ void RunConcurrentSuccessTest(ubse::it::infra::ItCluster& cluster)
     for (int i = 0; i < THREAD_COUNT; ++i) {
         EXPECT_EQ(freeResults[i], UBS_SUCCESS) << "E3: Concurrent free " << i << " should succeed";
     }
+}
+
+/*
+ * 用例名称：验证upi在合法范围内调用C SDK使能NPU成功
+ * 用例编号：enable_NPU_C_SDK__002
+ * 用例预置条件：
+ *   P1: ubse已就绪
+ * 用例测试步骤：
+ *   S1.调用查询SDK，查询环境上可用npu和1825设备
+ *   S2.随机选择S1中的npu和1825设备，传入upi取值为合法范围内随机值，调用使能SDK，检查使能是否成功
+ *   S3.调用查询SDK，检查是否能查询到S2中创建的bus instance，其中挂载的设备列表是否正确
+ * 用例预期结果：
+ *   E2.使能成功
+ *   E3.可查询到S2中创建的bus instance，挂载的设备列表正确
+ * 用例后置清理：调用去使能接口，销毁S2中创建的bus instance
+ */
+void RunUpiLegalRangeAllocTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_list_t queryList = {};
+    int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    client.NpuDeviceListFree(&queryList);
+    ASSERT_GE(npuItems.size(), 1u) << "Need at least one NPU device for upi legal range test";
+
+    size_t devIdx = PickRandomDevIdx(npuItems.size());
+    uint16_t randomUpi = GenerateRandomUpi();
+    uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi, upiStr);
+
+    IT_LOG_INFO << "S2: Alloc with random UPI=" << randomUpi << ", device index=" << devIdx;
+
+    ubs_ub_alloc_devices_info_t allocInfo = {};
+    ubs_ub_devices_type_t ubDevs[2] = {};
+    ubDevs[0] = npuItems[devIdx].npuDev;
+    ubDevs[1] = npuItems[devIdx].affinityNicPfe;
+    BuildAllocInfo(allocInfo, ubDevs, 2);
+    memcpy(allocInfo.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t newBusInstanceGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t allocDevList = {};
+
+    sdkRet = client.NpuDeviceAlloc(&allocInfo, newBusInstanceGuid, &allocDevList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E2: Alloc with random UPI should succeed";
+
+    if (sdkRet == UBS_SUCCESS) {
+        ubs_ub_devices_list_t verifyList = {};
+        sdkRet = client.NpuDeviceListQuery(&verifyList);
+        EXPECT_EQ(sdkRet, UBS_SUCCESS);
+        EXPECT_TRUE(BusiExists(verifyList, newBusInstanceGuid)) << "E3: Bus instance created in S2 should be found";
+        EXPECT_TRUE(NpuBoundToBusi(verifyList, npuItems[devIdx].npuDev, newBusInstanceGuid))
+            << "E3: NPU should be bound to the bus instance";
+        EXPECT_TRUE(NicPfeBoundToBusi(verifyList, npuItems[devIdx].affinityNicPfe, newBusInstanceGuid))
+            << "E3: NIC_PFE should be bound to the bus instance";
+        client.NpuDeviceListFree(&verifyList);
+    }
+
+    ubs_ub_alloc_devices_info_t freeInfo = {};
+    ubs_ub_devices_type_t freeDevs[2] = {};
+    freeDevs[0] = npuItems[devIdx].npuDev;
+    freeDevs[1] = npuItems[devIdx].affinityNicPfe;
+    BuildFreeInfo(freeInfo, freeDevs, 2, newBusInstanceGuid);
+    memcpy(freeInfo.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    client.NpuDeviceFree(&freeInfo);
+
+    client.NpuDeviceListFree(&allocDevList);
+}
+
+/*
+ * 用例名称：验证传入upi错误，调用C SDK使能接口失败
+ * 用例编号：enable_NPU_C_SDK__003
+ * 用例预置条件：
+ *   P1: ubse已就绪
+ * 用例测试步骤：
+ *   S1.调用查询SDK，查询环境上可用npu和1825设备
+ *   S2.随机选择S1中的npu和1825设备，传入合法范围内随机的upi，调用使能SDK，检查使能是否成功
+ *   S3.调用查询SDK，保存S2中创建的bus instance结果
+ *   S4.选择其他设备，更换upi，传入与S2中创建的bus instance相同的guid，调用使能SDK，检查使能是否成功
+ *   S5.调用查询SDK，检查此次查询结果中bus instance是否与S3中查询的一致
+ *   S6.传入错误的upi，调用使能SDK，检查使能是否成功
+ *   S7.调用查询SDK，检查此次查询结果是否与S5中相同
+ * 用例预期结果：
+ *   E2.使能成功
+ *   E4.使能失败
+ *   E5.结果一致
+ *   E6.使能失败
+ *   E7.结果相同
+ * 用例后置清理：调用去使能接口，销毁S2中创建的bus instance
+ */
+void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_list_t queryList = {};
+    int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    client.NpuDeviceListFree(&queryList);
+    ASSERT_GE(npuItems.size(), 2u) << "Need at least 2 NPU devices for upi mismatch test";
+
+    size_t devIdx0 = PickRandomDevIdx(npuItems.size());
+    size_t devIdx1 = PickRandomDevIdx(npuItems.size());
+    while (devIdx1 == devIdx0) {
+        devIdx1 = PickRandomDevIdx(npuItems.size());
+    }
+
+    uint16_t randomUpi0 = GenerateRandomUpi();
+    uint16_t randomUpi1 = GenerateRandomUpi();
+    while (randomUpi1 == randomUpi0) {
+        randomUpi1 = GenerateRandomUpi();
+    }
+
+    uint8_t upiStr0[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi0, upiStr0);
+
+    uint8_t upiStr1[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi1, upiStr1);
+
+    uint8_t invalidUpiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {'0', '\0', '\0', '\0'};
+
+    IT_LOG_INFO << "S2: Alloc with UPI=" << randomUpi0 << ", device index=" << devIdx0;
+
+    ubs_ub_alloc_devices_info_t allocInfoS2 = {};
+    ubs_ub_devices_type_t ubDevsS2[2] = {};
+    ubDevsS2[0] = npuItems[devIdx0].npuDev;
+    ubDevsS2[1] = npuItems[devIdx0].affinityNicPfe;
+    BuildAllocInfo(allocInfoS2, ubDevsS2, 2);
+    memcpy(allocInfoS2.upi_str, upiStr0, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t guidS2[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS2 = {};
+
+    sdkRet = client.NpuDeviceAlloc(&allocInfoS2, guidS2, &devListS2);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E2: Alloc with legal UPI should succeed";
+
+    ubs_ub_devices_list_t queryListS3 = {};
+    sdkRet = client.NpuDeviceListQuery(&queryListS3);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    uint8_t busiCntS3 = queryListS3.busi_cnt;
+    bool busiExistsS3 = BusiExists(queryListS3, guidS2);
+    bool npuBoundS3 = NpuBoundToBusi(queryListS3, npuItems[devIdx0].npuDev, guidS2);
+    bool nicPfeBoundS3 = NicPfeBoundToBusi(queryListS3, npuItems[devIdx0].affinityNicPfe, guidS2);
+    client.NpuDeviceListFree(&queryListS3);
+
+    IT_LOG_INFO << "S4: Alloc with mismatched UPI=" << randomUpi1 << ", same guid, device index=" << devIdx1;
+
+    ubs_ub_alloc_devices_info_t allocInfoS4 = {};
+    ubs_ub_devices_type_t ubDevsS4[2] = {};
+    ubDevsS4[0] = npuItems[devIdx1].npuDev;
+    ubDevsS4[1] = npuItems[devIdx1].affinityNicPfe;
+    BuildAllocInfo(allocInfoS4, ubDevsS4, 2, guidS2);
+    memcpy(allocInfoS4.upi_str, upiStr1, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t guidS4[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS4 = {};
+
+    sdkRet = client.NpuDeviceAlloc(&allocInfoS4, guidS4, &devListS4);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E4: Alloc with mismatched UPI should fail";
+    client.NpuDeviceListFree(&devListS4);
+
+    ubs_ub_devices_list_t queryListS5 = {};
+    sdkRet = client.NpuDeviceListQuery(&queryListS5);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    EXPECT_EQ(queryListS5.busi_cnt, busiCntS3) << "E5: busi_cnt should be the same as S3";
+    EXPECT_EQ(BusiExists(queryListS5, guidS2), busiExistsS3) << "E5: Bus instance existence should be the same as S3";
+    EXPECT_EQ(NpuBoundToBusi(queryListS5, npuItems[devIdx0].npuDev, guidS2), npuBoundS3)
+        << "E5: NPU binding should be the same as S3";
+    EXPECT_EQ(NicPfeBoundToBusi(queryListS5, npuItems[devIdx0].affinityNicPfe, guidS2), nicPfeBoundS3)
+        << "E5: NIC_PFE binding should be the same as S3";
+    client.NpuDeviceListFree(&queryListS5);
+
+    IT_LOG_INFO << "S6: Alloc with invalid UPI=0";
+
+    ubs_ub_alloc_devices_info_t allocInfoS6 = {};
+    ubs_ub_devices_type_t ubDevsS6[2] = {};
+    ubDevsS6[0] = npuItems[devIdx1].npuDev;
+    ubDevsS6[1] = npuItems[devIdx1].affinityNicPfe;
+    BuildAllocInfo(allocInfoS6, ubDevsS6, 2);
+    memcpy(allocInfoS6.upi_str, invalidUpiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t guidS6[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS6 = {};
+
+    sdkRet = client.NpuDeviceAlloc(&allocInfoS6, guidS6, &devListS6);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E6: Alloc with invalid UPI should fail";
+    client.NpuDeviceListFree(&devListS6);
+
+    ubs_ub_devices_list_t queryListS7 = {};
+    sdkRet = client.NpuDeviceListQuery(&queryListS7);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    EXPECT_EQ(queryListS7.busi_cnt, busiCntS3) << "E7: busi_cnt should be the same as S5/S3";
+    EXPECT_EQ(BusiExists(queryListS7, guidS2), busiExistsS3)
+        << "E7: Bus instance existence should be the same as S5/S3";
+    EXPECT_EQ(NpuBoundToBusi(queryListS7, npuItems[devIdx0].npuDev, guidS2), npuBoundS3)
+        << "E7: NPU binding should be the same as S5/S3";
+    EXPECT_EQ(NicPfeBoundToBusi(queryListS7, npuItems[devIdx0].affinityNicPfe, guidS2), nicPfeBoundS3)
+        << "E7: NIC_PFE binding should be the same as S5/S3";
+    client.NpuDeviceListFree(&queryListS7);
+
+    ubs_ub_alloc_devices_info_t freeInfo = {};
+    ubs_ub_devices_type_t freeDevs[2] = {};
+    freeDevs[0] = npuItems[devIdx0].npuDev;
+    freeDevs[1] = npuItems[devIdx0].affinityNicPfe;
+    BuildFreeInfo(freeInfo, freeDevs, 2, guidS2);
+    memcpy(freeInfo.upi_str, upiStr0, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    client.NpuDeviceFree(&freeInfo);
+
+    client.NpuDeviceListFree(&devListS2);
+}
+
+/*
+ * 用例名称：验证传入guid不存在，调用C_SDK使能接口失败
+ * 用例编号：tc_enable_NPU_C_SDK__005
+ * 用例预置条件：
+ *   P1: ubse已就绪
+ * 用例测试步骤：
+ *   S1.调用查询SDK，查询环境上可用npu和1825设备
+ *   S2.随机选择S1中的npu和1825设备，传入不存在的guid，检查是否使能成功
+ *   S3.调用查询接口，检查是否无bus instance设备
+ * 用例预期结果：
+ *   E2.使能失败
+ *   E3.无bus instance设备
+ */
+void RunNonexistentGuidAllocTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_list_t queryList = {};
+    int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    client.NpuDeviceListFree(&queryList);
+    ASSERT_GE(npuItems.size(), 1u) << "Need at least one NPU device for nonexistent guid test";
+
+    size_t devIdx = PickRandomDevIdx(npuItems.size());
+
+    uint8_t fakeGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    fakeGuid[0] = 0xDE;
+    fakeGuid[1] = 0xAD;
+    fakeGuid[2] = 0xBE;
+    fakeGuid[3] = 0xEF;
+
+    ubs_ub_alloc_devices_info_t allocInfo = {};
+    ubs_ub_devices_type_t ubDevs[2] = {};
+    ubDevs[0] = npuItems[devIdx].npuDev;
+    ubDevs[1] = npuItems[devIdx].affinityNicPfe;
+    BuildAllocInfo(allocInfo, ubDevs, 2, fakeGuid);
+
+    uint8_t outGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t allocDevList = {};
+
+    IT_LOG_INFO << "S2: Alloc with nonexistent guid";
+    sdkRet = client.NpuDeviceAlloc(&allocInfo, outGuid, &allocDevList);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E2: Alloc with nonexistent guid should fail";
+    client.NpuDeviceListFree(&allocDevList);
+
+    ubs_ub_devices_list_t verifyList = {};
+    sdkRet = client.NpuDeviceListQuery(&verifyList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    EXPECT_EQ(verifyList.busi_cnt, 0u) << "E3: No bus instance should exist";
+    client.NpuDeviceListFree(&verifyList);
+}
+
+/*
+ * 用例名称：验证传入dev_list不合法，调用C_SDK使能接口失败
+ * 用例编号：enable_NPU_C_SDK__006
+ * 用例预置条件：
+ *   P1: ubse已就绪
+ * 用例测试步骤：
+ *   S1.传入不存在的设备，调用使能接口，检查是否成功
+ *   S2.传入dev_list为空，调用使能接口，检查是否成功
+ * 用例预期结果：
+ *   E1.使能失败
+ *   E2.使能失败
+ */
+void RunInvalidDevListAllocTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_type_t fakeDevs[2] = {};
+    fakeDevs[0].device_type = UBS_NPU;
+    fakeDevs[0].slot_id = 0xFF;
+    fakeDevs[0].chip_id = 0xFF;
+    fakeDevs[1].device_type = UBS_NIC_PFE;
+    fakeDevs[1].slot_id = 0xFF;
+    fakeDevs[1].chip_id = 0xFF;
+    fakeDevs[1].pf_id = 0xFFFF;
+
+    ubs_ub_alloc_devices_info_t allocInfoS1 = {};
+    BuildAllocInfo(allocInfoS1, fakeDevs, 2);
+
+    uint8_t outGuidS1[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS1 = {};
+
+    IT_LOG_INFO << "S1: Alloc with nonexistent devices";
+    int32_t sdkRet = client.NpuDeviceAlloc(&allocInfoS1, outGuidS1, &devListS1);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E1: Alloc with nonexistent devices should fail";
+    client.NpuDeviceListFree(&devListS1);
+
+    ubs_ub_alloc_devices_info_t allocInfoS2 = {};
+    allocInfoS2.ub_dev_list = nullptr;
+    allocInfoS2.ub_dev_list_count = 0;
+
+    uint8_t outGuidS2[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS2 = {};
+
+    IT_LOG_INFO << "S2: Alloc with empty dev_list";
+    sdkRet = client.NpuDeviceAlloc(&allocInfoS2, outGuidS2, &devListS2);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E2: Alloc with empty dev_list should fail";
+    client.NpuDeviceListFree(&devListS2);
+}
+
+/*
+ * 用例名称：验证传入guid不存在时，调用C_SDK去使能接口失败
+ * 用例编号：tc_disable_NPU_C_SDK__002
+ * 用例预置条件：
+ *   P1: ubse已就绪
+ * 用例测试步骤：
+ *   S1.传入不存在的设备，调用去使能接口，检查是否成功
+ * 用例预期结果：
+ *   E1.去使能失败
+ */
+void RunNonexistentGuidFreeTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    uint8_t fakeGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    fakeGuid[0] = 0xDE;
+    fakeGuid[1] = 0xAD;
+    fakeGuid[2] = 0xBE;
+    fakeGuid[3] = 0xEF;
+
+    ubs_ub_devices_type_t fakeDevs[2] = {};
+    fakeDevs[0].device_type = UBS_NPU;
+    fakeDevs[0].slot_id = 0xFF;
+    fakeDevs[0].chip_id = 0xFF;
+    fakeDevs[1].device_type = UBS_NIC_PFE;
+    fakeDevs[1].slot_id = 0xFF;
+    fakeDevs[1].chip_id = 0xFF;
+    fakeDevs[1].pf_id = 0xFFFF;
+
+    ubs_ub_alloc_devices_info_t freeInfo = {};
+    BuildFreeInfo(freeInfo, fakeDevs, 2, fakeGuid);
+
+    IT_LOG_INFO << "S1: Free with nonexistent guid";
+    int32_t sdkRet = client.NpuDeviceFree(&freeInfo);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E1: Free with nonexistent guid should fail";
+}
+
+/*
+ * 用例名称：验证传入设备不存在时，调用C_SDK去使能接口成功
+ * 用例编号：tc_disable_NPU_C_SDK__003
+ * 用例预置条件：
+ *   P1. ubse已就绪
+ *   P2. 已创建两个bus instance
+ * 用例测试步骤：
+ *   S1.传入设备列表不全，调用去使能接口，检查去使能是否成功
+ *   S2.传入完全错误的设备列表（仅包含不存在的设备+未绑定该bus instance的设备），调用去使能接口，检查去使能是否成功
+ *   S3.调用查询SDK，检查结果中是否不包含bus instance
+ *   S4.传入P2中bus instance绑定的设备，调用使能接口，检查使能是否成功
+ *   S5.调用查询SDK，检查是否有S4中创建的bus instance，绑定的设备列表是否正确
+ * 用例预期结果：
+ *   E1.去使能成功
+ *   E2.去使能成功
+ *   E3.不包含bus instance
+ *   E4.使能成功
+ *   E5.存在instance，设备列表正确
+ */
+void RunInvalidDevListFreeTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_list_t queryList = {};
+    int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    client.NpuDeviceListFree(&queryList);
+    ASSERT_GE(npuItems.size(), 2u) << "Need at least 2 NPU devices for invalid dev list free test";
+
+    size_t devIdx0 = PickRandomDevIdx(npuItems.size());
+    size_t devIdx1 = PickRandomDevIdx(npuItems.size());
+    while (devIdx1 == devIdx0) {
+        devIdx1 = PickRandomDevIdx(npuItems.size());
+    }
+
+    uint16_t randomUpi = GenerateRandomUpi();
+    uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi, upiStr);
+
+    uint8_t guid0[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_alloc_devices_info_t allocInfo0 = {};
+    ubs_ub_devices_type_t ubDevs0[2] = {};
+    ubDevs0[0] = npuItems[devIdx0].npuDev;
+    ubDevs0[1] = npuItems[devIdx0].affinityNicPfe;
+    BuildAllocInfo(allocInfo0, ubDevs0, 2);
+    memcpy(allocInfo0.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+    ubs_ub_devices_list_t devList0 = {};
+    IT_LOG_INFO << "P2: Alloc bus instance A (devIdx=" << devIdx0 << ")";
+    sdkRet = client.NpuDeviceAlloc(&allocInfo0, guid0, &devList0);
+    ASSERT_EQ(sdkRet, UBS_SUCCESS) << "P2: First alloc should succeed";
+
+    uint16_t randomUpi1 = GenerateRandomUpi();
+    uint8_t upiStr1[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi1, upiStr1);
+
+    uint8_t guid1[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_alloc_devices_info_t allocInfo1 = {};
+    ubs_ub_devices_type_t ubDevs1[2] = {};
+    ubDevs1[0] = npuItems[devIdx1].npuDev;
+    ubDevs1[1] = npuItems[devIdx1].affinityNicPfe;
+    BuildAllocInfo(allocInfo1, ubDevs1, 2);
+    memcpy(allocInfo1.upi_str, upiStr1, MACRO_UBSE_UB_UPI_STR_SIZE);
+    ubs_ub_devices_list_t devList1 = {};
+    IT_LOG_INFO << "P2: Alloc bus instance B (devIdx=" << devIdx1 << ")";
+    sdkRet = client.NpuDeviceAlloc(&allocInfo1, guid1, &devList1);
+    ASSERT_EQ(sdkRet, UBS_SUCCESS) << "P2: Second alloc should succeed";
+
+    ubs_ub_alloc_devices_info_t freeInfoS1 = {};
+    ubs_ub_devices_type_t freeDevsS1[1] = {};
+    freeDevsS1[0] = npuItems[devIdx0].npuDev;
+    BuildFreeInfo(freeInfoS1, freeDevsS1, 1, guid0);
+    memcpy(freeInfoS1.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    IT_LOG_INFO << "S1: Free bus instance A with incomplete device list (only NPU)";
+    sdkRet = client.NpuDeviceFree(&freeInfoS1);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E1: Free with incomplete device list should succeed";
+
+    ubs_ub_devices_type_t fakeDev = {};
+    fakeDev.device_type = UBS_NPU;
+    fakeDev.slot_id = 0xFF;
+    fakeDev.chip_id = 0xFF;
+
+    ubs_ub_alloc_devices_info_t freeInfoS2 = {};
+    ubs_ub_devices_type_t freeDevsS2[2] = {};
+    freeDevsS2[0] = fakeDev;
+    freeDevsS2[1] = npuItems[devIdx0].npuDev;
+    BuildFreeInfo(freeInfoS2, freeDevsS2, 2, guid1);
+    memcpy(freeInfoS2.upi_str, upiStr1, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    IT_LOG_INFO << "S2: Free bus instance B with wrong device list (fake + dev from bus A)";
+    sdkRet = client.NpuDeviceFree(&freeInfoS2);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E2: Free with wrong device list should succeed";
+
+    ubs_ub_devices_list_t queryListS3 = {};
+    sdkRet = client.NpuDeviceListQuery(&queryListS3);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    EXPECT_EQ(queryListS3.busi_cnt, 0u) << "E3: No bus instance should exist";
+    client.NpuDeviceListFree(&queryListS3);
+
+    ubs_ub_alloc_devices_info_t allocInfoS4 = {};
+    ubs_ub_devices_type_t ubDevsS4[2] = {};
+    ubDevsS4[0] = npuItems[devIdx0].npuDev;
+    ubDevsS4[1] = npuItems[devIdx0].affinityNicPfe;
+    BuildAllocInfo(allocInfoS4, ubDevsS4, 2);
+    memcpy(allocInfoS4.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t guidS4[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t devListS4 = {};
+
+    IT_LOG_INFO << "S4: Re-alloc devices from bus instance A";
+    sdkRet = client.NpuDeviceAlloc(&allocInfoS4, guidS4, &devListS4);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E4: Re-alloc should succeed";
+
+    if (sdkRet == UBS_SUCCESS) {
+        ubs_ub_devices_list_t queryListS5 = {};
+        sdkRet = client.NpuDeviceListQuery(&queryListS5);
+        EXPECT_EQ(sdkRet, UBS_SUCCESS);
+        EXPECT_TRUE(BusiExists(queryListS5, guidS4)) << "E5: S4 bus instance should exist";
+        EXPECT_TRUE(NpuBoundToBusi(queryListS5, npuItems[devIdx0].npuDev, guidS4))
+            << "E5: NPU should be bound to S4 bus instance";
+        EXPECT_TRUE(NicPfeBoundToBusi(queryListS5, npuItems[devIdx0].affinityNicPfe, guidS4))
+            << "E5: NIC_PFE should be bound to S4 bus instance";
+        client.NpuDeviceListFree(&queryListS5);
+    }
+
+    ubs_ub_alloc_devices_info_t cleanupFreeInfo = {};
+    ubs_ub_devices_type_t cleanupFreeDevs[2] = {};
+    cleanupFreeDevs[0] = npuItems[devIdx0].npuDev;
+    cleanupFreeDevs[1] = npuItems[devIdx0].affinityNicPfe;
+    BuildFreeInfo(cleanupFreeInfo, cleanupFreeDevs, 2, guidS4);
+    memcpy(cleanupFreeInfo.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+    client.NpuDeviceFree(&cleanupFreeInfo);
+
+    client.NpuDeviceListFree(&devList0);
+    client.NpuDeviceListFree(&devList1);
+    client.NpuDeviceListFree(&devListS4);
+}
+
+/*
+ * 用例名称：验证传入guid合法时，调用C_SDK查询uba、tid成功
+ * 用例编号：query_NPU_C_SDK_001
+ * 用例预置条件：
+ *   P1. ubse已就绪
+ *   P2. 已创建bus instance
+ * 用例测试步骤：
+ *   S1.传入P2中bus instance对应的guid，调用查询uba、tid的SDK接口，检查是否查询成功
+ * 用例预期结果：
+ *   E1.查询成功
+ * 用例后置清理：调用去使能接口，销毁P2中创建的bus instance
+ */
+void RunUbaTidQueryWithValidGuidTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    ubs_ub_devices_list_t queryList = {};
+    int32_t sdkRet = client.NpuDeviceListQuery(&queryList);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS);
+    auto npuItems = ExtractNpuWithAffinityNicPfe(queryList);
+    client.NpuDeviceListFree(&queryList);
+    ASSERT_GE(npuItems.size(), 1u) << "Need at least one NPU device for uba/tid query test";
+
+    size_t devIdx = PickRandomDevIdx(npuItems.size());
+    uint16_t randomUpi = GenerateRandomUpi();
+    uint8_t upiStr[MACRO_UBSE_UB_UPI_STR_SIZE] = {};
+    UpiToUpiStr(randomUpi, upiStr);
+
+    ubs_ub_alloc_devices_info_t allocInfo = {};
+    ubs_ub_devices_type_t ubDevs[2] = {};
+    ubDevs[0] = npuItems[devIdx].npuDev;
+    ubDevs[1] = npuItems[devIdx].affinityNicPfe;
+    BuildAllocInfo(allocInfo, ubDevs, 2);
+    memcpy(allocInfo.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+
+    uint8_t guid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    ubs_ub_devices_list_t allocDevList = {};
+    sdkRet = client.NpuDeviceAlloc(&allocInfo, guid, &allocDevList);
+    ASSERT_EQ(sdkRet, UBS_SUCCESS) << "P2: Alloc should succeed";
+
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+    IT_LOG_INFO << "S1: Query UBA/TID with valid guid";
+    sdkRet = client.UbaTidSizeQuery(guid, &tid, &uba, &size);
+    EXPECT_EQ(sdkRet, UBS_SUCCESS) << "E1: UbaTidSizeQuery with valid guid should succeed";
+
+    ubs_ub_alloc_devices_info_t freeInfo = {};
+    ubs_ub_devices_type_t freeDevs[2] = {};
+    freeDevs[0] = npuItems[devIdx].npuDev;
+    freeDevs[1] = npuItems[devIdx].affinityNicPfe;
+    BuildFreeInfo(freeInfo, freeDevs, 2, guid);
+    memcpy(freeInfo.upi_str, upiStr, MACRO_UBSE_UB_UPI_STR_SIZE);
+    client.NpuDeviceFree(&freeInfo);
+
+    client.NpuDeviceListFree(&allocDevList);
+}
+
+/*
+ * 用例名称：验证传入guid不存在时，调用C_SDK查询uba、tid失败
+ * 用例编号：query_NPU_C_SDK_002
+ * 用例预置条件：
+ *   P1. ubse已就绪
+ * 用例测试步骤：
+ *   S1.传入不存在的guid，调用查询uba、tid的SDK接口，检查是否查询成功
+ * 用例预期结果：
+ *   E1.查询失败
+ */
+void RunUbaTidQueryWithInvalidGuidTest(ubse::it::infra::ItCluster& cluster)
+{
+    auto& client = cluster.GetSdkClient("1");
+
+    uint8_t fakeGuid[MACRO_UBSE_UB_DEVICE_GUID_SIZE] = {};
+    fakeGuid[0] = 0xDE;
+    fakeGuid[1] = 0xAD;
+    fakeGuid[2] = 0xBE;
+    fakeGuid[3] = 0xEF;
+
+    uint32_t tid = 0;
+    uint64_t uba = 0;
+    uint64_t size = 0;
+    IT_LOG_INFO << "S1: Query UBA/TID with nonexistent guid";
+    int32_t sdkRet = client.UbaTidSizeQuery(fakeGuid, &tid, &uba, &size);
+    EXPECT_NE(sdkRet, UBS_SUCCESS) << "E1: UbaTidSizeQuery with nonexistent guid should fail";
 }
 
 } // namespace ubse::it::tests::npu

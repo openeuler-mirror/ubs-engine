@@ -51,3 +51,43 @@ TEST_F(ZhisuanNpuSingleNodeScenario, ConcurrentSuccess)
 {
     ubse::it::tests::npu::RunConcurrentSuccessTest(Cluster());
 }
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UpiLegalRangeAlloc)
+{
+    ubse::it::tests::npu::RunUpiLegalRangeAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UpiMismatchAlloc)
+{
+    ubse::it::tests::npu::RunUpiMismatchAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, NonexistentGuidAlloc)
+{
+    ubse::it::tests::npu::RunNonexistentGuidAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, InvalidDevListAlloc)
+{
+    ubse::it::tests::npu::RunInvalidDevListAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, NonexistentGuidFree)
+{
+    ubse::it::tests::npu::RunNonexistentGuidFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, InvalidDevListFree)
+{
+    ubse::it::tests::npu::RunInvalidDevListFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidQueryWithValidGuid)
+{
+    ubse::it::tests::npu::RunUbaTidQueryWithValidGuidTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidQueryWithInvalidGuid)
+{
+    ubse::it::tests::npu::RunUbaTidQueryWithInvalidGuidTest(Cluster());
+}
