@@ -26,11 +26,14 @@
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
 #include "ubse_election.h"
+#include "ubse_error.h"
 #include "ubse_mem_agent_task_manager.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_buffer_convert.h"
+#include "ubse_mem_controller_helper.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_controller_share_api.h"
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_str_util.h"
@@ -178,8 +181,13 @@ UbseResult UbseMemShareBorrowMessageHandler::Handle(const UbseBaseMessagePtr &re
     std::string traceId = TraceContext::GetTraceId();
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
+        auto req = request->GetUbseMemShareBorrowReq();
         UbseMemOperationResp resp{};
-        UbseMemShareBorrow(request->GetUbseMemShareBorrowReq(), resp);
+        if (UbseCheckWithoutGlobalMasterNodeId()) {
+            UbseMemShareBorrow(req, resp);
+        } else {
+            CascadeMasterSendBorrowReqToGlobalMaster(req, resp);
+        }
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -216,7 +224,11 @@ UbseResult UbseMemShareAttachMessageHandler::Handle(const UbseBaseMessagePtr &re
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareAttach(request->GetUbseMemShareAttachReq(), resp);
+        if (UbseCheckWithoutGlobalMasterNodeId()) {
+            UbseMemShareAttach(request->GetUbseMemShareAttachReq(), resp);
+        } else {
+            CascadeMasterSendAttachReqToGlobalMaster(request->GetUbseMemShareAttachReq(), resp);
+        }
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -252,7 +264,11 @@ UbseResult UbseMemShareDetachMessageHandler::Handle(const UbseBaseMessagePtr &re
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareDetach(request->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
+        if (UbseCheckWithoutGlobalMasterNodeId()) {
+            UbseMemShareDetach(request->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
+        } else {
+            UbseMemShareCascadeDetach(request->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
+        }
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -362,7 +378,11 @@ UbseResult UbseMemShareReturnHandler::Handle(const UbseBaseMessagePtr &req, cons
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        if (UbseCheckWithoutGlobalMasterNodeId()) {
+            UbseMemShareReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        } else {
+            CascadeMasterSendReturnReqToGlobalMaster(request->GetUbseMemReturnReq(), resp);
+        }
         TraceContext::Clear();
     });
 
@@ -730,7 +750,13 @@ UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseB
     } else {
         resourceExecutor->Execute([request, traceId, exportObj]() {
             TraceContext::SetTraceId(traceId);
-            UbseMemShareBorrowExportObjCallback(exportObj);
+            if (UbseCheckWithoutGlobalMasterNodeId()) {
+                UbseMemShareBorrowExportObjCallback(exportObj);
+            } else if (exportObj.status.expectState == UBSE_MEM_EXPORT_DESTROYED) {
+                CascadeMasterHandlerAgentDeleteExportCallback(exportObj);
+            } else {
+                CascadeMasterHandlerAgentBorrowExportCallback(exportObj);
+            }
             TraceContext::Clear();
         });
     }
@@ -783,7 +809,13 @@ UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseB
     } else {
         resourceExecutor->Execute([importObj, traceId]() {
             TraceContext::SetTraceId(traceId);
-            UbseMemShareBorrowImportObjCallback(importObj);
+            if (UbseCheckWithoutGlobalMasterNodeId()) {
+                UbseMemShareBorrowImportObjCallback(importObj);
+            } else if (importObj.status.expectState == UBSE_MEM_IMPORT_DESTROYED) {
+                CascadeMasterHandlerAgentDetachImportCallback(importObj);
+            } else {
+                CascadeMasterHandlerAgentAttachImportCallback(importObj);
+            }
             TraceContext::Clear();
         });
     }

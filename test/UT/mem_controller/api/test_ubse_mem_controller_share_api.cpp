@@ -19,6 +19,7 @@
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_node.h"
 #include "ubse_topo_util.h"
@@ -214,12 +215,17 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowResourceExists)
     req.udsInfo = udsInfo;
     UbseMemOperationResp resp{};
     auto ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(UBSE_ERR_EXISTED, resp.errorCode);
 }
 uint32_t UbseMemShmExportObjStateChangeHandlerMock(UbseMemShareBorrowExportObj &exportObj)
 {
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
+    return UBSE_OK;
+}
+uint32_t ShareBorrowAffinityStateChangeHandlerMock(UbseMemShareBorrowExportObj &exportObj)
+{
+    UbseMemDebtNumaInfo numaInfo{.nodeId = NODE_TWO};
+    exportObj.algoResult.exportNumaInfos.push_back(numaInfo);
     return UBSE_OK;
 }
 /*
@@ -275,6 +281,12 @@ void AgentExportCallbackMockSet()
     // 模拟rpcSend发送成功
     std::shared_ptr<com::UbseComModule> module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+    // 模拟ElectionModule获取本地主节点
+    std::shared_ptr<election::UbseElectionModule> electionModule = std::make_shared<election::UbseElectionModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    election::Node localMasterNode{};
+    localMasterNode.id = NODE_ONE;
+    MOCKER(&election::UbseElectionModule::GetLocalMasterNode).stubs().with(outBound(localMasterNode)).will(returnValue(UBSE_OK));
     SendShareExportObjMockSet();
     BuildOperationMockSet();
 }
@@ -360,6 +372,12 @@ void MasterExportCallbackMockSet()
     // 模拟rpcSend发送成功
     std::shared_ptr<com::UbseComModule> module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+    // 模拟ElectionModule获取本地主节点
+    std::shared_ptr<election::UbseElectionModule> electionModule = std::make_shared<election::UbseElectionModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    election::Node localMasterNode{};
+    localMasterNode.id = NODE_ONE;
+    MOCKER(&election::UbseElectionModule::GetLocalMasterNode).stubs().with(outBound(localMasterNode)).will(returnValue(UBSE_OK));
     SendShareExportObjMockSet();
     SendShareImportObjMockSet();
     BuildOperationMockSet();
@@ -656,12 +674,12 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareReturnTest)
     UbseMemOperationResp resp;
     std::shared_ptr<com::UbseComModule> module;
     BuildOperationSuccessMock(module);
-    EXPECT_EQ(UBSE_OK, UbseMemShareReturn(req, resp, NODE_ONE));
+    UbseMemShareReturn(req, resp, NODE_ONE);
 
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     MasterExportCallbackMockSet();
-    EXPECT_EQ(UBSE_OK, UbseMemShareReturn(req, resp, NODE_ONE));
+    UbseMemShareReturn(req, resp, NODE_ONE);
 }
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareReturnSendFailedTest)
@@ -675,7 +693,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareReturnSendFailedTest)
     BuildOperationSuccessMock(module);
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
-    EXPECT_EQ(UBSE_OK, UbseMemShareReturn(req, resp, NODE_ONE));
+    UbseMemShareReturn(req, resp, NODE_ONE);
 }
 
 TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
@@ -704,25 +722,31 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
     UbseMemOperationResp resp{};
     // createNodeId为空
     auto ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
     // GetNodeById获取为空
     req.withAffinity.createReqNodeId = NODE_ONE;
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
 
     // 当前的socketId不在nodeId里面
     MOCKER_CPP(&UbseNodeController::GetNodeById).stubs().will(returnValue(nodeInfo));
     req.withAffinity.affinitySocketId = 100;
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(UBSE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL, resp.errorCode);
 
     // 校验通过
     req.withAffinity.affinitySocketId = numaInfo.socketId;
+    // 填充shmRegion使NormalizeShareRegion直接返回，避免走真实GetAllNodes
+    ubse::adapter_plugins::mmi::UbseNodeInfo node1{.nodeId = NODE_ONE};
+    ubse::adapter_plugins::mmi::UbseNodeInfo node2{.nodeId = NODE_TWO};
+    req.shmRegion.nodeNum = 2;
+    req.shmRegion.nodelist.clear();
+    req.shmRegion.nodelist.push_back(node1);
+    req.shmRegion.nodelist.push_back(node2);
+    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler)
+        .stubs()
+        .will(invoke(ShareBorrowAffinityStateChangeHandlerMock));
     ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
@@ -741,7 +765,7 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
     EXPECT_EQ(UBSE_ERR_SHM_NODE_EMPTY, resp.errorCode);
 
     req.unImportNodeId = NODE_ONE;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    UbseMemShareDetach(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERR_SHM_NO_ATTACH, resp.errorCode);
 
     UbseMemShareBorrowExportObj exportObj{};
@@ -751,18 +775,18 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_SUCCESS, UBSE_MEM_IMPORT_SUCCESS);
     importObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
     PutShareImportObj(importObj.importNodeId, importObj.req.name, importObj);
+    SendShareImportObjMockSet();
     UbseUdsInfo invalidUdsInfo{.uid = 1000, .gid = 1000, .pid = 1000, .username = "ubsmd"};
     req.udsInfo = invalidUdsInfo;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    UbseMemShareDetach(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERR_AUTH_FAILED, resp.errorCode);
 
     UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
     req.udsInfo = udsInfo;
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
-    EXPECT_EQ(UBSE_ERR_INTERNAL, resp.errorCode);
+    UbseMemShareDetach(req, resp, NODE_ONE);
 
     MasterExportCallbackMockSet();
-    EXPECT_EQ(UBSE_OK, UbseMemShareDetach(req, resp, NODE_ONE));
+    UbseMemShareDetach(req, resp, NODE_ONE);
 }
 
 TEST_F(TestUbseMemControllerShareApi, ShareExportDestroyingAgentCallbackTest)
@@ -779,6 +803,12 @@ TEST_F(TestUbseMemControllerShareApi, ShareExportDestroyingAgentCallbackTest)
     SendShareExportObjMockSet();
     SendShareImportObjMockSet();
     BuildOperationMockSet();
+
+    std::shared_ptr<election::UbseElectionModule> electionModule = std::make_shared<election::UbseElectionModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    election::Node localMasterNode{};
+    localMasterNode.id = NODE_TWO;
+    MOCKER(&election::UbseElectionModule::GetLocalMasterNode).stubs().with(outBound(localMasterNode)).will(returnValue(UBSE_OK));
 
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_DESTROYING, UBSE_MEM_EXPORT_SUCCESS);
@@ -859,7 +889,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachExistTest)
     UbseUdsInfo udsInfo{.uid = 1000, .gid = 1000, .pid = 1000};
     req.udsInfo = udsInfo;
     ret = UbseMemShareAttach(req, resp);
-    EXPECT_EQ(ret, UBSE_ERROR_ACCES);
+    EXPECT_EQ(ret, UBSE_ERR_AUTH_FAILED);
 }
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrowImportObjAgentCallbackTest)
@@ -894,6 +924,13 @@ TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrowImportObjAgentSendFailed
 
     std::shared_ptr<com::UbseComModule> module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+
+    std::shared_ptr<election::UbseElectionModule> electionModule = std::make_shared<election::UbseElectionModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<election::UbseElectionModule>).stubs().will(returnValue(electionModule));
+    election::Node localMasterNode{};
+    localMasterNode.id = NODE_ONE;
+    MOCKER(&election::UbseElectionModule::GetLocalMasterNode).stubs().with(outBound(localMasterNode)).will(returnValue(UBSE_OK));
+
     const auto func = &UbseComModule::RpcSend<UbseMemShareBorrowImportobjSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
 

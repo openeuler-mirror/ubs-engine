@@ -7,7 +7,6 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
-
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
