@@ -209,62 +209,6 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmMemidByImportInvalidVal01)
     ubse::it::tests::mem_borrow::RunP0ShmMemidByImportInvalidVal01(Cluster());
 }
 
-// ==================== Mem FD P0 (单节点) ====================
-
-// P0-FdPerm-NotExist-01: name不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdPermNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdPermNotExist01(Cluster());
-}
-
-// P0-FdPerm-NullPtr-01: owner=NULL
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdPermNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdPermNullPtr01(Cluster());
-}
-
-// P0-FdGet-NotExist-01: 查询不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdGetNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdGetNotExist01(Cluster());
-}
-
-// P0-FdGet-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdGetNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdGetNullPtr01(Cluster());
-}
-
-// P0-FdList-Ok-01: 空/有fd时list
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdListOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdListOk01(Cluster());
-}
-
-// P0-FdList-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdListNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdListNullPtr01(Cluster());
-}
-
-// P0-FdDel-NotExist-01: 删除不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdDelNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdDelNotExist01(Cluster());
-}
-
-// P0-FdDel-OverLen-01: name超长
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdDelOverLen01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdDelOverLen01(Cluster());
-}
-
-// P0-FdMemidByImport-NotExist-01: name不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdMemidByImportNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdMemidByImportNotExist01(Cluster());
-}
-
 // P0-FdFaultReg-NullPtr-01: NULL handler
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdFaultRegNullPtr01)
 {

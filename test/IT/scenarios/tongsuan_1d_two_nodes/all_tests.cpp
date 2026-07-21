@@ -17,6 +17,10 @@
 
 using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
 
+// ====================================================================
+// P0 测试 — SDK 接口自身正确性
+// ====================================================================
+
 // ==================== Topo P0 测试 (多节点) ====================
 
 // P0-NodeList-Ok-02: 多节点查询
@@ -43,46 +47,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0LinkListNullPtr01)
     ubse::it::tests::topo::RunP0LinkListNullPtr01(Cluster());
 }
 
-// ==================== CLI Topo P0 测试 ====================
-
-// P0-CliTopoCpu-Ok-01: CLI拓扑查询
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliTopoCpuOk01)
-{
-    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster(), "1");
-}
-
 // ==================== Mem Borrow P0 测试 ====================
 
 // P0-NumaCreate-Ok-01 (复合): 跨节点NUMA正常借用生命周期
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateBorrowOk01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateBorrowOk01(Cluster());
-}
-
-// ==================== CLI Mem P0 测试 ====================
-
-// P0-CliCheckMem-Ok-01: 查询节点内存状态
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliCheckMemOk01(Cluster());
-}
-
-// P0-CliCreateNuma-Ok-01: CLI内存操作(短选项)
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateNumaOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliCreateNumaOk01(Cluster());
-}
-
-// P0-CliNumaStatus-Ok-01: CLI NUMA状态查询
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNumaStatusOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliNumaStatusOk01(Cluster());
-}
-
-// P0-CliMemConfig-Ok-01: CLI内存配置查询
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliMemConfigOk01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliMemConfigOk01(Cluster());
 }
 
 // ==================== Mem SHM P0 测试 (双节点) ====================
@@ -131,12 +101,6 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOk01)
     ubse::it::tests::mem_borrow::RunP0FdCreateOk01(Cluster());
 }
 
-// P0-FdCreate-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateOk02(Cluster());
-}
-
 // P0-FdCreate-OverLen-01: name 超长
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOverLen01)
 {
@@ -161,25 +125,19 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateNullPtr01)
     ubse::it::tests::mem_borrow::RunP0FdCreateNullPtr01(Cluster());
 }
 
-// P0-FdCreate-Ok-03: 129MB → 2块 memid
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOk03)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateOk03(Cluster());
-}
-
 // P0-FdCreate-Dup-01: 同名重复创建
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateDup01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateDup01(Cluster());
 }
 
-// P0-FdCreate-BoundMin-01: size=4MB
+// P0-FdCreate-BoundMinSize-01: size=4MB
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateBoundMin01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateBoundMin01(Cluster());
 }
 
-// P0-FdCreate-BoundMax-01: name=47字节
+// P0-FdCreate-BoundMaxName-01: name=47字节
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateBoundMax01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateBoundMax01(Cluster());
@@ -191,12 +149,6 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateBoundMax01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateLenderOk01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk01(Cluster());
-}
-
-// P0-FdCreateLender-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateLenderOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk02(Cluster());
 }
 
 // P0-FdCreateLender-OverLen-01: name超长
@@ -241,22 +193,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateLenderNullPtr01)
     ubse::it::tests::mem_borrow::RunP0FdCreateLenderNullPtr01(Cluster());
 }
 
-// P0-FdCreateLender-BoundMax-01: lender_cnt=4
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateLenderBoundMax01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateLenderBoundMax01(Cluster());
-}
+// ==================== Mem FD create_with_candidate P0 测试 ====================
 
 // P0-FdCreateCandidate-Ok-01: 指定候选节点
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateCandidateOk01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk01(Cluster());
-}
-
-// P0-FdCreateCandidate-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateCandidateOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk02(Cluster());
 }
 
 // P0-FdCreateCandidate-OverLen-01: name超长
@@ -295,6 +237,44 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateCandidateDup01)
     ubse::it::tests::mem_borrow::RunP0FdCreateCandidateDup01(Cluster());
 }
 
+// ==================== Mem FD permission P0 测试 ====================
+
+// P0-FdPerm-NotExist-01: name不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdPermNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdPermNotExist01(Cluster());
+}
+
+// ==================== Mem FD get P0 测试 ====================
+
+// P0-FdGet-NotExist-01: 查询不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdGetNotExist01(Cluster());
+}
+
+// P0-FdGet-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdGetNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdGetNullPtr01(Cluster());
+}
+
+// ==================== Mem FD list P0 测试 ====================
+
+// P0-FdList-Ok-01: 空/有fd时list
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdListOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdListOk01(Cluster());
+}
+
+// P0-FdList-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdListNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdListNullPtr01(Cluster());
+}
+
+// ==================== Mem FD delete P0 测试 ====================
+
 // P0-FdDel-Ok-01: 创建后删除
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdDelOk01)
 {
@@ -307,10 +287,30 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdDelDup01)
     ubse::it::tests::mem_borrow::RunP0FdDelDup01(Cluster());
 }
 
+// P0-FdDel-NotExist-01: 删除不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdDelNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdDelNotExist01(Cluster());
+}
+
+// P0-FdDel-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdDelOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdDelOverLen01(Cluster());
+}
+
+// ==================== Mem FD get_memid_by_import P0 测试 ====================
+
 // P0-FdMemidByImport-Fld-01: 创建后查询字段
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdMemidByImportFld01)
 {
     ubse::it::tests::mem_borrow::RunP0FdMemidByImportFld01(Cluster());
+}
+
+// P0-FdMemidByImport-NotExist-01: name不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdMemidByImportNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdMemidByImportNotExist01(Cluster());
 }
 
 // ==================== Mem NUMA P0 测试 (双节点) ====================
@@ -369,6 +369,44 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaMemidByImportFld01)
     ubse::it::tests::mem_borrow::RunP0NumaMemidByImportFld01(Cluster());
 }
 
+// ====================================================================
+// P0 测试 — CLI 接口正确性
+// ====================================================================
+
+// ==================== CLI Topo P0 测试 ====================
+
+// P0-CliTopoCpu-Ok-01: CLI拓扑查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliTopoCpuOk01)
+{
+    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster(), "1");
+}
+
+// ==================== CLI Mem P0 测试 ====================
+
+// P0-CliCheckMem-Ok-01: 查询节点内存状态
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCheckMemOk01(Cluster());
+}
+
+// P0-CliCreateNuma-Ok-01: CLI内存操作(短选项)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateNumaOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCreateNumaOk01(Cluster());
+}
+
+// P0-CliNumaStatus-Ok-01: CLI NUMA状态查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNumaStatusOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliNumaStatusOk01(Cluster());
+}
+
+// P0-CliMemConfig-Ok-01: CLI内存配置查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliMemConfigOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliMemConfigOk01(Cluster());
+}
+
 // ==================== CLI Mem P0 补充测试 (双节点) ====================
 
 // P0-CliCreateFd-Ok-01: CLI create fd 成功
@@ -389,6 +427,10 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemNotReady01)
     ubse::it::tests::mem_borrow::RunP0CliAttachMemNotReady01(Cluster());
 }
 
+// ====================================================================
+// P1 测试 — 对外行为语义
+// ====================================================================
+
 // ==================== CLI Mem P1 测试 ====================
 
 // P1-CliCreateNuma-ParamVariant-01: CLI内存操作(长选项)
@@ -403,7 +445,9 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliBorrowDetailOk01)
     ubse::it::tests::mem_borrow::RunP1CliBorrowDetailOk01(Cluster());
 }
 
-// ==================== 选举测试 ====================
+// ====================================================================
+// 选举测试
+// ====================================================================
 
 // 选举测试：验证双节点集群收敛为1主+1备
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)

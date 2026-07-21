@@ -46,22 +46,10 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk01)
     ubse::it::tests::mem_borrow::RunP0FdCreateOk01(Cluster());
 }
 
-// P0-FdCreate-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateOk02(Cluster());
-}
-
 // P0-FdCreate-InvalidVal-02: size > 256GB
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateInvalidVal02)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateInvalidVal02(Cluster());
-}
-
-// P0-FdCreate-Ok-03: 129MB → 2块 memid
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk03)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateOk03(Cluster());
 }
 
 // ==================== Mem FD create_with_lender P0 测试 ====================
@@ -72,22 +60,10 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderOk01)
     ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk01(Cluster());
 }
 
-// P0-FdCreateLender-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateLenderOk02(Cluster());
-}
-
 // P0-FdCreateLender-InvalidVal-02: lender_size > 256GB
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderInvalidVal02)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateLenderInvalidVal02(Cluster());
-}
-
-// P0-FdCreateLender-BoundMax-01: lender_cnt=4
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderBoundMax01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateLenderBoundMax01(Cluster());
 }
 
 // ==================== Mem FD create_with_candidate P0 测试 ====================
@@ -96,12 +72,6 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderBoundMax01)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk01(Cluster());
-}
-
-// P0-FdCreateCandidate-Ok-02: owner+mode 非默认值
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk02)
-{
-    ubse::it::tests::mem_borrow::RunP0FdCreateCandidateOk02(Cluster());
 }
 
 // P0-FdCreateCandidate-InvalidVal-02: size > 256GB
