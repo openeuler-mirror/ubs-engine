@@ -84,7 +84,7 @@ public:
 
     uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid) override;
 
-    uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid) override;
+    uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe) override;
 
 private:
     UbseSsuServiceImp() = default;

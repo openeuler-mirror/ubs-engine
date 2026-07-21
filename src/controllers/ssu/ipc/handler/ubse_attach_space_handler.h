@@ -27,7 +27,7 @@ protected:
 
 private:
     plugin::service::ssu::UbseSsuSpaceReq req;
-    std::string devPath;
+    std::vector<std::string> nsDevPaths;
 };
 
 } // namespace ubse::ssu::ipc

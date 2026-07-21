@@ -30,7 +30,7 @@ UbseResult UbseFeDeviceFreeHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    auto ret = ssuService->FeDeviceFree(upi, vfe, busInstanceGuid);
+    auto ret = ssuService->FeDeviceFree(upi, vfe);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "FeDeviceFree failed, ret:" << log::FormatRetCode(ret);
         return ret;
@@ -44,7 +44,7 @@ UbseResult UbseFeDeviceFreeHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuFeDeviceFreeUnpack(*buffer_, upi, vfe, busInstanceGuid);
+    return message::SsuFeDeviceFreeUnpack(*buffer_, upi, vfe);
 }
 
 } // namespace ubse::ssu::ipc

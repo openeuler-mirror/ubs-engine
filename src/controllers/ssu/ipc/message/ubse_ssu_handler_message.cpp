@@ -322,9 +322,14 @@ UbseResult SsuAttachSpaceUnpack(const api::server::UbseIpcMessage &buffer, UbseS
     return SpaceReqUnpack(unpackUtil, req);
 }
 
-UbseResult SsuAttachSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response)
+UbseResult SsuAttachSpacePack(const std::vector<std::string> &nsDevPaths, api::server::UbseIpcMessage &response)
 {
-    const size_t requiredLength = StringCalcSize(devPath, MAX_DEV_PATH_LEN);
+    size_t requiredLength = NsDevPathsCalcSize(nsDevPaths);
+    if (requiredLength > UINT32_MAX) {
+        UBSE_LOG_ERROR << "requiredLength overflow, requiredLength=" << requiredLength;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
     response.length = static_cast<uint32_t>(requiredLength);
     response.buffer = new (std::nothrow) uint8_t[requiredLength];
     if (response.buffer == nullptr) {
@@ -334,7 +339,7 @@ UbseResult SsuAttachSpacePack(const std::string &devPath, api::server::UbseIpcMe
     }
 
     ubse::utils::UbsePackUtil packUtil(response.buffer, response.length);
-    if (StringPack(packUtil, devPath, MAX_DEV_PATH_LEN) != UBSE_OK) {
+    if (NsDevPathsPack(packUtil, nsDevPaths) != UBSE_OK) {
         delete[] response.buffer;
         response.buffer = nullptr;
         response.length = 0;
@@ -363,9 +368,15 @@ UbseResult SsuAttachLinearSpaceUnpack(const api::server::UbseIpcMessage &buffer,
     return LinearSpaceReqUnpack(unpackUtil, req);
 }
 
-UbseResult SsuAttachLinearSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response)
+UbseResult SsuAttachLinearSpacePack(const std::vector<std::string> &nsDevPaths, const std::string &devPath,
+                                    api::server::UbseIpcMessage &response)
 {
-    const size_t requiredLength = StringCalcSize(devPath, MAX_DEV_PATH_LEN);
+    size_t requiredLength = NsDevPathsCalcSize(nsDevPaths) + StringCalcSize(devPath, MAX_DEV_PATH_LEN);
+    if (requiredLength > UINT32_MAX) {
+        UBSE_LOG_ERROR << "requiredLength overflow, requiredLength=" << requiredLength;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
     response.length = static_cast<uint32_t>(requiredLength);
     response.buffer = new (std::nothrow) uint8_t[requiredLength];
     if (response.buffer == nullptr) {
@@ -375,6 +386,13 @@ UbseResult SsuAttachLinearSpacePack(const std::string &devPath, api::server::Ubs
     }
 
     ubse::utils::UbsePackUtil packUtil(response.buffer, response.length);
+    if (NsDevPathsPack(packUtil, nsDevPaths) != UBSE_OK) {
+        delete[] response.buffer;
+        response.buffer = nullptr;
+        response.length = 0;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
     if (StringPack(packUtil, devPath, MAX_DEV_PATH_LEN) != UBSE_OK) {
         delete[] response.buffer;
         response.buffer = nullptr;
@@ -404,9 +422,15 @@ UbseResult SsuAttachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer
     return StripedSpaceReqUnpack(unpackUtil, req);
 }
 
-UbseResult SsuAttachStripedSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response)
+UbseResult SsuAttachStripedSpacePack(const std::vector<std::string> &nsDevPaths, const std::string &devPath,
+                                     api::server::UbseIpcMessage &response)
 {
-    const size_t requiredLength = StringCalcSize(devPath, MAX_DEV_PATH_LEN);
+    size_t requiredLength = NsDevPathsCalcSize(nsDevPaths) + StringCalcSize(devPath, MAX_DEV_PATH_LEN);
+    if (requiredLength > UINT32_MAX) {
+        UBSE_LOG_ERROR << "requiredLength overflow, requiredLength=" << requiredLength;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
     response.length = static_cast<uint32_t>(requiredLength);
     response.buffer = new (std::nothrow) uint8_t[requiredLength];
     if (response.buffer == nullptr) {
@@ -416,6 +440,13 @@ UbseResult SsuAttachStripedSpacePack(const std::string &devPath, api::server::Ub
     }
 
     ubse::utils::UbsePackUtil packUtil(response.buffer, response.length);
+    if (NsDevPathsPack(packUtil, nsDevPaths) != UBSE_OK) {
+        delete[] response.buffer;
+        response.buffer = nullptr;
+        response.length = 0;
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
     if (StringPack(packUtil, devPath, MAX_DEV_PATH_LEN) != UBSE_OK) {
         delete[] response.buffer;
         response.buffer = nullptr;
@@ -513,8 +544,7 @@ UbseResult SsuFeDeviceAllocPack(const std::string &busInstanceGuid, api::server:
     return UBSE_OK;
 }
 
-UbseResult SsuFeDeviceFreeUnpack(const api::server::UbseIpcMessage &buffer, uint32_t &upi, UbseSsuVfe &vfe,
-                                 std::string &busInstanceGuid)
+UbseResult SsuFeDeviceFreeUnpack(const api::server::UbseIpcMessage &buffer, uint32_t &upi, UbseSsuVfe &vfe)
 {
     if (buffer.buffer == nullptr || buffer.length == 0) {
         UBSE_LOG_ERROR << "invalid buffer";
@@ -527,6 +557,6 @@ UbseResult SsuFeDeviceFreeUnpack(const api::server::UbseIpcMessage &buffer, uint
     if (VfeUnpack(unpackUtil, vfe) != UBSE_OK) {
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return StringUnpack(unpackUtil, busInstanceGuid, MAX_UUID_LEN);
+    return UBSE_OK;
 }
 } // namespace ubse::ssu::ipc::message

@@ -111,6 +111,25 @@ typedef enum {
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
 
+typedef enum {
+    UBSE_SSU_LIST_ALLOC_INFO = 0x0004,              // 查询分配信息列表请求
+    UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ = 0x0005,   // 根据名称查询分配信息请求
+    UBSE_SSU_GET_NS_STATS_REQ = 0x0006,             // 查询命名空间统计信息请求
+    UBSE_SSU_GET_CONNECT_INFO_REQ = 0x0007,         // 查询连接信息请求
+    UBSE_SSU_ADD_ACCESS_PERMISSION_REQ = 0x0008,    // 添加访问权限请求
+    UBSE_SSU_REMOVE_ACCESS_PERMISSION_REQ = 0x0009, // 移除访问权限请求
+    UBSE_SSU_ALLOC_SPACE_REQ = 0x000A,             // 分配存储空间请求
+    UBSE_SSU_ATTACH_SPACE_REQ = 0x000B,             // 挂载存储空间请求
+    UBSE_SSU_DETACH_SPACE_REQ = 0x000C,             // 卸载存储空间请求
+    UBSE_SSU_FREE_SPACE_REQ = 0x000D,               // 释放存储空间请求
+    UBSE_SSU_ATTACH_LINEAR_SPACE_REQ = 0x000E,      // 挂载线性编址空间请求
+    UBSE_SSU_DETACH_LINEAR_SPACE_REQ = 0x000F,      // 卸载线性编址空间请求
+    UBSE_SSU_ATTACH_STRIPED_SPACE_REQ = 0x0010,     // 挂载条带化空间请求
+    UBSE_SSU_DETACH_STRIPED_SPACE_REQ = 0x0011,     // 卸载条带化空间请求
+    UBSE_SSU_GET_FE_DEVICE_LIST_REQ = 0x0012,       // 查询FE设备列表请求
+    UBSE_SSU_FE_DEVICE_ALLOC_REQ = 0x0013,          // 分配VFE设备请求
+    UBSE_SSU_FE_DEVICE_FREE_REQ = 0x0014,           // 释放VFE设备请求
+} ubse_ipc_ssu_op_code_t;
 #ifdef __cplusplus
 }
 #endif

@@ -418,7 +418,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      */
-    virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid) = 0;
+    virtual uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe) = 0;
 };
 
 inline std::shared_ptr<UbseSsuService> GetSsuService()
