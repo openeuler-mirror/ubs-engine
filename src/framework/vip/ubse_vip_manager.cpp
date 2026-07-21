@@ -114,6 +114,13 @@ UbseResult UbseVipManager::Init(const UbseVipConfig &config)
         return UBSE_ERROR;
     }
 
+    // 启动时主动清理网卡上可能残留的 VIP，覆盖上次进程异常退出（crash/SIGKILL/断电等）
+    // 导致 Deinit() 未执行而遗留的 VIP，避免重启后出现主备双节点同时持有 VIP 的脑裂问题。
+    auto cleanupRet = ForceCleanup();
+    if (cleanupRet != UBSE_OK) {
+        UBSE_LOG_WARN << "[VIP] Stale VIP cleanup failed on Init, will retry on BindVip";
+    }
+
     UBSE_LOG_INFO << "[VIP] Init success, vip=" << config_.address << "/" << config_.prefix
                   << ", listenPort=" << config_.listenPort;
     return UBSE_OK;
@@ -125,7 +132,12 @@ void UbseVipManager::Deinit()
     StopHttpServer();
 
     if (vipBound_) {
-        UnbindVipL2();
+        if (UnbindVipL2() != UBSE_OK) {
+            UBSE_LOG_WARN << "[VIP] UnbindVipL2 failed in Deinit, retrying with ForceCleanup";
+            // 常规 del 失败时再尝试一次 ForceCleanup（先 show 再 del），尽量保证优雅退出时
+            // 释放网卡上的 VIP，避免残留给下次启动带来脑裂风险。
+            ForceCleanup();
+        }
         vipBound_ = false;
     }
     UBSE_LOG_INFO << "[VIP] Deinit completed";
@@ -180,14 +192,13 @@ UbseResult UbseVipManager::UnbindVip()
         return UBSE_OK;
     }
 
-    if (!vipBound_) {
-        UBSE_LOG_WARN << "[VIP] VIP not bound, skip unbind";
-        return UBSE_OK;
-    }
-
+    // 不依赖内存标志位 vipBound_ 早退：进程重启后 vipBound_ 会重置为 false，但网卡上可能
+    // 仍残留上次进程绑定的 VIP。始终执行一次解绑，DelIpAddress 已用 "2>/dev/null" 容错，
+    // 删除不存在的 VIP 不会报错。
     StopHttpServer();
 
-    UBSE_LOG_INFO << "[VIP] Unbinding VIP " << config_.address << "/" << config_.prefix;
+    UBSE_LOG_INFO << "[VIP] Unbinding VIP " << config_.address << "/" << config_.prefix
+                  << ", vipBound_ was " << (vipBound_ ? "true" : "false");
 
     auto ret = UnbindVipL2();
     if (ret != UBSE_OK) {
