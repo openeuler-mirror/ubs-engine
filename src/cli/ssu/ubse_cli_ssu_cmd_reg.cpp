@@ -17,13 +17,18 @@
 #include <cctype>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 #include "ubse_cli_buffer_guard.h"
+#include "ubse_cli_ssu_limits.h"
 #include "ubse_cli_ssu_struct.h"
+#include "ubse_com_op_code.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 
 namespace ubse::cli::reg {
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseSsuOpCode;
 // 向 CLI 框架注册 SSU 模块：框架在加载期通过宏收集模块类，统一调度命令字分发。
 // "CLI_SSU_MODULE" 为模块唯一标识，UbseCliRegSsuModule 为负责 display/create ssu 命令的实现类。
 UBSE_CLI_REGISTER_MODULE("CLI_SSU_MODULE", UbseCliRegSsuModule);
@@ -135,6 +140,69 @@ bool ParseSize(const std::string &value, uint64_t &sizeBytes);
 bool ParseNsNum(const std::string &value, uint32_t &nsNum);
 bool ParseLba(const std::string &value, UbseSsuLBAFormat &lbaFormat);
 bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy);
+
+template <typename PostCall>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op,
+                                                const ubse_api_buffer_t &reqBuffer, PostCall postCall)
+{
+    ubse_api_buffer_t resBuffer{};
+    uint32_t ret = ubse_invoke_call(static_cast<uint16_t>(module), static_cast<uint16_t>(op), &reqBuffer, &resBuffer);
+    UbseCliBufferGuard guard(resBuffer);
+    if (ret != UBSE_OK) {
+        return UbseCliRegModule::UbseCliStringPromptReply(InternalError(ret));
+    }
+
+    return postCall(resBuffer);
+}
+
+// 请求 payload 在同步 ubse_invoke_call 返回前由本函数的 vector 持有。
+template <typename ReqT, typename RspT, typename BuildOutput>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request,
+                                                BuildOutput buildOutput)
+{
+    std::vector<uint8_t> payload;
+    if (!request.Serialize(payload)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_SERIALIZATION);
+    }
+    const ubse_api_buffer_t reqBuffer{payload.data(), static_cast<uint32_t>(payload.size())};
+    return InvokeSsuIpc(module, op, reqBuffer,
+                        [buildOutput = std::move(buildOutput)](const ubse_api_buffer_t &resBuffer) mutable {
+                            RspT response;
+                            if (!response.Deserialize(resBuffer.buffer, resBuffer.length)) {
+                                return UbseCliRegModule::UbseCliStringPromptReply(ERR_DESERIALIZATION);
+                            }
+                            return buildOutput(response);
+                        });
+}
+
+// 无请求体、有响应体：内部生成长度为 0 的请求，不创建伪序列化协议头。
+template <typename RspT, typename BuildOutput>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, BuildOutput buildOutput)
+{
+    const ubse_api_buffer_t reqBuffer{nullptr, 0};
+    return InvokeSsuIpc(module, op, reqBuffer,
+                        [buildOutput = std::move(buildOutput)](const ubse_api_buffer_t &resBuffer) mutable {
+                            RspT response;
+                            if (!response.Deserialize(resBuffer.buffer, resBuffer.length)) {
+                                return UbseCliRegModule::UbseCliStringPromptReply(ERR_DESERIALIZATION);
+                            }
+                            return buildOutput(response);
+                        });
+}
+
+// 有请求体、无响应体：默认序列化请求，IPC 成功后直接返回空输出。
+template <typename ReqT>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request)
+{
+    std::vector<uint8_t> payload;
+    if (!request.Serialize(payload)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_SERIALIZATION);
+    }
+    const ubse_api_buffer_t reqBuffer{payload.data(), static_cast<uint32_t>(payload.size())};
+    return InvokeSsuIpc(module, op, reqBuffer, []([[maybe_unused]] const ubse_api_buffer_t &resBuffer) {
+        return UbseCliRegModule::UbseCliStringPromptReply("");
+    });
+}
 } // namespace
 
 void UbseCliRegSsuModule::UbseCliSignUp()
@@ -484,5 +552,6 @@ bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy)
     }
     return false;
 }
+
 } // namespace
 } // namespace ubse::cli::reg

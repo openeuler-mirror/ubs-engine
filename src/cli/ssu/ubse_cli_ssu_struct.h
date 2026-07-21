@@ -19,17 +19,10 @@
 
 #include "adapter_plugins/ssu/ubse_ssu_def.h"
 #include "plugin_services/ssu/ubse_ssu_service.h"
+#include "ubse_cli_ssu_limits.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::cli::reg {
-// CLI 与用户交互的对外契约常量，集中定义以保证校验、错误信息、默认值三处单一来源。
-// name 最大长度与底层 UBSE_SSU_MAX_NAME_LENGTH 单一来源：底层常量含结尾 '\0' 为 49，对应用户可见 48 字符。
-constexpr uint32_t SSU_CLI_MAX_NAME_LENGTH = ubse::adapter_plugins::ssu::def::UBSE_SSU_MAX_NAME_LENGTH - 1;
-constexpr uint32_t SSU_CLI_DEFAULT_NS_NUM = 1;        // ns_num 缺省值，单命名空间时 strategy 不生效
-// 单设备 NS 上限复用底层 UBSE_SSU_MAX_HOST_NUM，保持 CLI 契约与底层定义单一来源
-constexpr uint32_t SSU_CLI_MAX_NS_NUM = ubse::adapter_plugins::ssu::def::UBSE_SSU_MAX_HOST_NUM;
-constexpr uint64_t SSU_CLI_MIN_SIZE_BYTES = 1024ULL * 1024 * 1024; // size 最小粒度 1GiB，ParseSize 下限据此判定
-
 using ubse::plugin::service::ssu::UbseSsuAllocIdentityInfo;
 using ubse::plugin::service::ssu::UbseSsuAllocStrategy;
 using ubse::plugin::service::ssu::UbseSsuLBAFormat;
