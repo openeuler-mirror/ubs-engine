@@ -221,6 +221,33 @@ uint32_t AllocResultCalcSize(const UbseSsuAllocResult &result)
     return size;
 }
 
+UbseResult NsDevPathsPack(ubse::utils::UbsePackUtil &packUtil, const std::vector<std::string> &nsDevPaths)
+{
+    if (nsDevPaths.size() > UINT32_MAX) {
+        UBSE_LOG_ERROR << "nsDevPaths size overflow, size=" << nsDevPaths.size();
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    uint32_t listSize = static_cast<uint32_t>(nsDevPaths.size());
+    if (!packUtil.UbsePackUint32(listSize)) {
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+    for (const auto &nsDevPath : nsDevPaths) {
+        if (StringPack(packUtil, nsDevPath, MAX_DEV_PATH_LEN) != UBSE_OK) {
+            return UBSE_ERROR_SERIALIZE_FAILED;
+        }
+    }
+    return UBSE_OK;
+}
+
+size_t NsDevPathsCalcSize(const std::vector<std::string> &nsDevPaths)
+{
+    size_t total = sizeof(uint32_t); // listSize
+    for (const auto &nsDevPath : nsDevPaths) {
+        total += StringCalcSize(nsDevPath, MAX_DEV_PATH_LEN);
+    }
+    return total;
+}
+
 UbseResult ConnectInfoPack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuConnectInfo &info)
 {
     if (StringPack(packUtil, info.srcEid, MAX_EID_LEN) != UBSE_OK) {

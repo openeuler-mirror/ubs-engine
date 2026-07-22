@@ -39,7 +39,7 @@ public:
     void SetState(SsuDirectToVmManagerState state);
     uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList);
     uint32_t FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, std::string &busInstanceGuid);
-    uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid);
+    uint32_t FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe);
     uint32_t StartClearTimer();
     void StopClearTimer();
 

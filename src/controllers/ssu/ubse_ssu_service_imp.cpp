@@ -1833,9 +1833,9 @@ uint32_t UbseSsuServiceImp::FeDeviceAlloc(uint32_t upi, const UbseSsuVfe &vfe, s
     return UbseSsuDirectToVmManager::GetInstance().FeDeviceAlloc(upi, vfe, busInstanceGuid);
 }
 
-uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid)
+uint32_t UbseSsuServiceImp::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe)
 {
-    return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe, busInstanceGuid);
+    return UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(upi, vfe);
 }
 
 // agent端通过RPC查询命名空间统计信息：查询耗时较短，直接通过UbseRpcSend的sync resp返回结果，无需future等待

@@ -508,7 +508,7 @@ UbseResult UbseSsuDirectToVmManager::FreePreparation(uint32_t upi, const UbseSsu
     return FindVfeInPfeList(vfe, pfes, mtiVfe);
 }
 
-uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe, const std::string &busInstanceGuid)
+uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe &vfe)
 {
     if (upi > UINT16_MAX) {
         UBSE_LOG_ERROR << "Invalid upi value: " << upi << ", exceeds uint16_t range";
@@ -522,7 +522,7 @@ uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe &
 
     UbseMtiBusInst busInst;
     UbseMtiIdevVfe mtiVfe;
-    const UbseResult prepRet = FreePreparation(upi, vfe, busInstanceGuid, busInst, mtiVfe);
+    const UbseResult prepRet = FreePreparation(upi, vfe, vfe.bindBusInstanceGuid, busInst, mtiVfe);
     if (prepRet != UBSE_OK) {
         SetState(SsuDirectToVmManagerState::AVAILABLE);
         return prepRet;
@@ -540,11 +540,11 @@ uint32_t UbseSsuDirectToVmManager::FeDeviceFree(uint32_t upi, const UbseSsuVfe &
             return UBSE_ERROR;
         }
     } else {
-        UBSE_LOG_WARN << "Bus instance " << busInstanceGuid << " still has other devices, skip destroying";
+        UBSE_LOG_WARN << "Bus instance " << vfe.bindBusInstanceGuid << " still has other devices, skip destroying";
     }
 
     SetState(SsuDirectToVmManagerState::AVAILABLE);
-    UBSE_LOG_INFO << "Success to free VFE device from bus instance " << busInstanceGuid;
+    UBSE_LOG_INFO << "Success to free VFE device from bus instance " << vfe.bindBusInstanceGuid;
     return UBSE_OK;
 }
 
