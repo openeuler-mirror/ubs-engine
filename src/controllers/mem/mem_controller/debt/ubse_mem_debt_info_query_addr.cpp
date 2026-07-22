@@ -10,7 +10,6 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubs_engine_topo.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -19,13 +18,14 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubs_engine_topo.h"
 
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::election;
 using namespace ubse::log;
-uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc &desc)
+uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest& request, UbseMemAddrDesc& desc)
 {
     // 获取当前节点
     UbseRoleInfo currentRoleInfo{};
@@ -65,22 +65,22 @@ uint32_t UbseMemAddrGet(const UbseMemDebtQueryRequest &request, UbseMemAddrDesc 
     desc.lender.pid = importObjPtr->req.exportPid;
     desc.lender.slotId = static_cast<uint32_t>(std::stoul(importObjPtr->req.exportNodeId));
     desc.lender.socketId = importObjPtr->req.dstSocket;
-    for (const auto &val : importObjPtr->req.exportAddrList) {
+    for (const auto& val : importObjPtr->req.exportAddrList) {
         desc.lender.vaLists.push_back({val.addr, val.size});
     }
-    for (const auto &val : importObjPtr->algoResult.exportNumaInfos) {
+    for (const auto& val : importObjPtr->algoResult.exportNumaInfos) {
         desc.size += val.size;
     }
     return UBSE_OK;
 }
 
-UbseMemResult GetAddrStageByObj(const std::string &name, const std::string &importNodeId)
+UbseMemResult GetAddrStageByObj(const std::string& name, const std::string& importNodeId)
 {
     return GetStageByObj<UbseMemAddrBorrowImportObj, UbseMemAddrBorrowExportObj>(name, importNodeId);
 }
 
-UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string &nodeId, const std::string &name,
-                                                const std::string &importNodeId, const bool isFromTaskManager)
+UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string& nodeId, const std::string& name,
+                                                const std::string& importNodeId, const bool isFromTaskManager)
 {
     if (isFromTaskManager) {
         UbseMemAddrBorrowExportObj obj{};
@@ -102,7 +102,7 @@ UbseMemAddrBorrowExportObj UbseAddrExportObjGet(const std::string &nodeId, const
     return *exportObjPtr;
 }
 
-UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemAddrBorrowImportObj UbseAddrImportObjGet(const std::string& nodeId, const std::string& name,
                                                 const bool isFromTaskManager)
 {
     if (isFromTaskManager) {

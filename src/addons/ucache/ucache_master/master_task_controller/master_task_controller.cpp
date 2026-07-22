@@ -24,7 +24,7 @@ using namespace ubse::com;
 using namespace ucache::serialize;
 
 namespace ucache::master {
-void OnTaskResult(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void OnTaskResult(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Context pointer is null.";
@@ -49,11 +49,11 @@ void OnTaskResult(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Failed to deserialize respData to tResp.";
         return;
     }
-    TaskResponse *result = static_cast<TaskResponse *>(ctx);
+    TaskResponse* result = static_cast<TaskResponse*>(ctx);
     *result = tResp;
 }
 
-uint32_t DispatchTask(const TaskRequest &tReq, TaskResponse &tResp, const std::string &destNode)
+uint32_t DispatchTask(const TaskRequest& tReq, TaskResponse& tResp, const std::string& destNode)
 {
     if (!IsValidTaskType(tReq.type)) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)

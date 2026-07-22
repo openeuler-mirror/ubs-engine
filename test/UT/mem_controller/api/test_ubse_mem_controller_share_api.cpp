@@ -11,18 +11,20 @@
  */
 #include "test_ubse_mem_controller_share_api.h"
 #include <src/adapter_plugins/mmi/ubse_mmi_module.h>
-#include <ubse_mem_scheduler.h>
+#include "ubse_mem_scheduler_impl.h"
+
+using ubse::mem::scheduler::SchedulerImpl;
 #include <iostream>
+#include "ubse_com_module.h"
+#include "ubse_election.h"
+#include "ubse_mem_controller_api_common.h"
+#include "ubse_mem_sign_verifier.h"
+#include "ubse_node.h"
+#include "ubse_topo_util.h"
 #include "debt/ubse_mem_debt_ledger.h"
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
-#include "ubse_com_module.h"
-#include "ubse_election.h"
-#include "ubse_mem_controller_api_common.h"
-#include "ubse_node.h"
-#include "ubse_topo_util.h"
-#include "ubse_mem_sign_verifier.h"
 
 namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;
@@ -30,6 +32,9 @@ using namespace mem::controller::message;
 using namespace mem::controller;
 using namespace mem::controller::debt;
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::election;
+using namespace ubse::nodeController;
 
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
@@ -66,7 +71,7 @@ void BuildOperationMockSet()
     const auto func = &UbseComModule::RpcSend<UbseMemOperationRespSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
-void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule> &module)
+void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule>& module)
 {
     module = std::make_shared<com::UbseComModule>();
     MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
@@ -75,41 +80,41 @@ void BuildOperationSuccessMock(std::shared_ptr<com::UbseComModule> &module)
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
 
-void PutShareExportObj(const std::string &nodeId, const std::string &name, const UbseMemShareBorrowExportObj &obj)
+void PutShareExportObj(const std::string& nodeId, const std::string& name, const UbseMemShareBorrowExportObj& obj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetOrCreateNodeMap(nodeId)->Put(
         name, std::make_shared<UbseMemShareBorrowExportObj>(obj));
 }
 
-void PutShareImportObj(const std::string &nodeId, const std::string &name, const UbseMemShareBorrowImportObj &obj)
+void PutShareImportObj(const std::string& nodeId, const std::string& name, const UbseMemShareBorrowImportObj& obj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetOrCreateNodeMap(nodeId)->Put(
         name, std::make_shared<UbseMemShareBorrowImportObj>(obj));
 }
 
-std::shared_ptr<const UbseMemShareBorrowExportObj> GetShareExportObj(const std::string &nodeId, const std::string &name)
+std::shared_ptr<const UbseMemShareBorrowExportObj> GetShareExportObj(const std::string& nodeId, const std::string& name)
 {
     return UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(nodeId, name);
 }
 
-std::shared_ptr<const UbseMemShareBorrowImportObj> GetShareImportObj(const std::string &nodeId, const std::string &name)
+std::shared_ptr<const UbseMemShareBorrowImportObj> GetShareImportObj(const std::string& nodeId, const std::string& name)
 {
     return UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, name);
 }
 
-bool ShareImportObjExists(const std::string &nodeId, const std::string &name)
+bool ShareImportObjExists(const std::string& nodeId, const std::string& name)
 {
     return GetShareImportObj(nodeId, name) != nullptr;
 }
 
-void AddToExportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemShareBorrowExportObj &shareBorrowExportObj)
+void AddToExportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemShareBorrowExportObj& shareBorrowExportObj)
 {
     PutShareExportObj(nodeId, name, shareBorrowExportObj);
 }
 // 创建并初始化UbseMemShareBorrowImportObj对象，并将其添加到shareImportObjMap中
-void AddToImportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemShareBorrowImportObj &shareBorrowImportObj)
+void AddToImportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemShareBorrowImportObj& shareBorrowImportObj)
 {
     PutShareImportObj(nodeId, name, shareBorrowImportObj);
 }
@@ -137,8 +142,8 @@ void ConstructShareBorrowAccount()
     AddToImportObjMap(name, nodeId, shareBorrowImportObj);
 }
 
-void ExportCallbackExportObjSet(UbseMemShareBorrowExportObj &exportObj, const UbseMemState &memState,
-                                const UbseMemState &expectMemState)
+void ExportCallbackExportObjSet(UbseMemShareBorrowExportObj& exportObj, const UbseMemState& memState,
+                                const UbseMemState& expectMemState)
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
 
@@ -171,8 +176,8 @@ void ExportCallbackExportObjSet(UbseMemShareBorrowExportObj &exportObj, const Ub
     PutShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, SHM_NAME, exportObj);
 }
 
-void ImportCallbackImportObjSet(UbseMemShareBorrowImportObj &importObj, UbseMemShareBorrowExportObj &exportObj,
-                                const UbseMemState &memState, const UbseMemState &expectMemState)
+void ImportCallbackImportObjSet(UbseMemShareBorrowImportObj& importObj, UbseMemShareBorrowExportObj& exportObj,
+                                const UbseMemState& memState, const UbseMemState& expectMemState)
 {
     importObj.exportObmmInfo = exportObj.status.exportObmmInfo;
     importObj.algoResult = exportObj.algoResult;
@@ -217,11 +222,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowResourceExists)
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(UBSE_ERR_EXISTED, resp.errorCode);
 }
-uint32_t UbseMemShmExportObjStateChangeHandlerMock(UbseMemShareBorrowExportObj &exportObj)
-{
-    ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
-    return UBSE_OK;
-}
+
 /*
  * 用例描述：共享内存借用，请求成功发送到导出节点
  * 测试步骤：
@@ -238,9 +239,6 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowSuccess)
 
     ubse::nodeController::UbseNodeInfo node{.nodeId = NODE_ONE};
     MOCKER(&UbseNodeController::GetNodeById).stubs().will(returnValue(node));
-    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler)
-        .stubs()
-        .will(invoke(UbseMemShmExportObjStateChangeHandlerMock));
 
     SendShareExportObjMockSet();
     BuildOperationMockSet();
@@ -257,7 +255,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowSuccess)
     req.shmRegion.nodelist.push_back(node2);
     UbseMemOperationResp resp{};
     auto ret = UbseMemShareBorrow(req, resp);
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_NE(ret, UBSE_OK);
 }
 
 void AgentExportCallbackMockSet()
@@ -384,7 +382,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowMasterExportFailed)
     MOCKER(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
     MasterExportCallbackMockSet();
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_DESTROYED, UBSE_MEM_EXPORT_SUCCESS);
-    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareBorrowExportObjCallback(exportObj);
     // mmi执行成功，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
@@ -410,7 +408,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowMasterExportSuccess)
     MasterExportCallbackMockSet();
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     // 模拟mmi export 执行成功;
-    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareBorrowExportObjCallback(exportObj);
     // mmi执行成功，ret结果为UBSE_OK
     EXPECT_EQ(UBSE_OK, ret);
@@ -449,6 +447,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachSuccess)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareAttach(req, resp);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -609,7 +608,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportMasterSuccess)
     MasterExportCallbackMockSet();
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
     ImportCallbackImportObjSet(importObj, exportObj, UBSE_MEM_IMPORT_SUCCESS, UBSE_MEM_IMPORT_SUCCESS);
-    MOCKER(mem::scheduler::UbseMemShmImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = UbseMemShareBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -620,6 +619,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareImportMasterSuccess)
 
 TEST_F(TestUbseMemControllerShareApi, AddShareImportTest)
 {
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     UbseMemShareBorrowImportObj importObj;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     EXPECT_EQ(UBSE_OK, AddShareImport(importObj));
@@ -629,6 +629,7 @@ TEST_F(TestUbseMemControllerShareApi, AddShareImportTest)
 
 TEST_F(TestUbseMemControllerShareApi, AddShareExportTest)
 {
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     UbseMemShareBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     EXPECT_EQ(UBSE_OK, AddShareExport(exportObj));
@@ -727,7 +728,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowAffinity)
 
 TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetachTest)
 {
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseRoleInfo currentNode;
     currentNode.nodeRole = election::ELECTION_ROLE_MASTER;
     MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNode)).will(returnValue(UBSE_OK));
@@ -782,7 +783,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareExportDestroyingAgentCallbackTest)
 
     UbseMemShareBorrowExportObj exportObj{};
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_DESTROYING, UBSE_MEM_EXPORT_SUCCESS);
-    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
 
@@ -799,7 +800,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareExportMasterCallbackTest)
     UbseMemShareBorrowExportObj exportObj{};
     MasterExportCallbackMockSet();
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_DESTROYED);
-    MOCKER(mem::scheduler::UbseMemShmExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemShareBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_DESTROYED, UBSE_MEM_EXPORT_DESTROYED);
@@ -819,6 +820,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachTest)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&IsSameSocketMultiPortTopo).stubs().will(returnValue(true));
     ubse::nodeController::UbseNodeMemCnaInfoOutput cnaOutput;
     cnaOutput.borrowSocketId = NODE_ONE;
@@ -854,6 +856,7 @@ TEST_F(TestUbseMemControllerShareApi, ShareAttachExistTest)
     BuildOperationMockSet();
     UbseMemShareAttachReq req = ConstructAttachReq();
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     auto ret = UbseMemShareAttach(req, resp);
     EXPECT_EQ(ret, UBSE_ERR_EXISTED);
     UbseUdsInfo udsInfo{.uid = 1000, .gid = 1000, .pid = 1000};

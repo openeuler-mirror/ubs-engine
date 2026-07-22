@@ -58,8 +58,8 @@ TEST_F(TestFragmentationVmCollection, FragGetLocalHostVmCollectData)
 
 TEST_F(TestFragmentationVmCollection, GetInstance)
 {
-    FragmentationVmCollection *instance1 = &FragmentationVmCollection::GetInstance();
-    FragmentationVmCollection *instance2 = &FragmentationVmCollection::GetInstance();
+    FragmentationVmCollection* instance1 = &FragmentationVmCollection::GetInstance();
+    FragmentationVmCollection* instance2 = &FragmentationVmCollection::GetInstance();
     EXPECT_EQ(instance1, instance2);
 }
 

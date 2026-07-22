@@ -71,7 +71,7 @@ int main(void)
     int32_t ret;
     case_conf_info_t case_conf_info;    
     ret = ubs_virt_agent_case_conf_get(&case_conf_info);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("get failed.\n");
         return -1;
     }
@@ -151,7 +151,7 @@ int main(void)
     char param[128] = "{\"caseType\": \"overCommitment\",\"overCommitment\": 1.25}";
     case_conf_set_info_t case_conf_set_info;    
     ret = ubs_virt_agent_case_conf_set(&param, &case_conf_set_info);
-    if (ret != VA_SUCESS) {
+    if (ret != VA_SUCCESS) {
         perror("set failed.\n");
         return -1;
     }

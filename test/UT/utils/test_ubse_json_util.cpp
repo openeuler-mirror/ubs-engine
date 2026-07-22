@@ -129,7 +129,7 @@ TEST_F(TestUbseJsonUtil, GetArrayFromJsonPtr)
     rapidjson::Document doc;
     doc.Parse(str.c_str());
     rapidjson::Document pJson(rapidjson::kObjectType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     rapidjson::Value value{};
     EXPECT_EQ(UbseJsonUtil::GetArrayFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
     EXPECT_TRUE(value.IsArray());
@@ -145,12 +145,12 @@ TEST_F(TestUbseJsonUtil, GetObjectFromJsonPtr)
     rapidjson::Document doc;
     doc.Parse(str.c_str());
     rapidjson::Document pJson(rapidjson::kObjectType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     rapidjson::Value value{};
     EXPECT_EQ(UbseJsonUtil::GetObjectFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
     EXPECT_TRUE(value.IsObject());
 
-    str =  R"({"test": ["test"]})";
+    str = R"({"test": ["test"]})";
     doc.Parse(str.c_str());
     EXPECT_NE(UbseJsonUtil::GetObjectFromJsonPtr(doc, "test", allocator, value), UBSE_OK);
 }

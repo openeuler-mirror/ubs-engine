@@ -12,8 +12,8 @@
 
 #include "test_mem_task_manager.h"
 #include <mockcpp/mockcpp.hpp>
-#include "mem_task_manager.h"
 #include "mem_fragmentation_msg.h"
+#include "mem_task_manager.h"
 
 using namespace vm;
 namespace ubse::ut::vm {

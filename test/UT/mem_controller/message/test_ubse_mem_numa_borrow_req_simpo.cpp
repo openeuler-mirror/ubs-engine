@@ -12,10 +12,10 @@
 
 #include "test_ubse_mem_numa_borrow_req_simpo.h"
 
-#include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
+#include "message/ubse_mem_controller_serial.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::message;

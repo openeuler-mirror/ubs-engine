@@ -15,13 +15,13 @@
 
 #include <map>
 #include <string>
-#include "turbo_def.h"
 #include "ubse_com.h"
+#include "turbo_def.h"
 
 namespace ucache::agent {
 
 uint32_t InitAgentTaskProcessor();
-void ProcessTask(const UbseByteBuffer &req, UbseByteBuffer &resp);
+void ProcessTask(const UbseByteBuffer& req, UbseByteBuffer& resp);
 } // namespace ucache::agent
 
 #endif /* UCACHE_AGENET_RPC_HANDLER_H */

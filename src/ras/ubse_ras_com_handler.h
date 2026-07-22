@@ -16,12 +16,15 @@
 #include "ubse_com_module.h"
 
 namespace ubse::ras {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseRasOpCode;
 class UbseRasComHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasComHandler() = default;
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -39,8 +42,8 @@ using UbseRasComHandlerPtr = Ref<UbseRasComHandler>;
 class UbseRasSwitchRoleHandler : public UbseComBaseMessageHandler {
 public:
     UbseRasSwitchRoleHandler() = default;
-    
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override
@@ -58,8 +61,8 @@ using UbseRasSwitchRoleHandlerPtr = Ref<UbseRasSwitchRoleHandler>;
 class UbseOomHandler : public UbseComBaseMessageHandler {
 public:
     UbseOomHandler() = default;
-    
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

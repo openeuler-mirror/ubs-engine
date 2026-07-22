@@ -14,17 +14,17 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "debt/ubse_mem_debt_ledger.h"
-#include "debt/ubse_mem_debt_info_query.h"
-#include "message/ubse_mem_controller_def_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_node_controller_query_api.h"
-#include "ubse_ipc_common.h"
+#include "debt/ubse_mem_debt_info_query.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "message/ubse_mem_controller_def_simpo.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -32,6 +32,7 @@ using namespace ubse::mem::def;
 using namespace mem::controller::message;
 using namespace ubse::com;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 
 void TestUbseMemControllerQueryApi::SetUp()
 {
@@ -72,9 +73,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemFdGet)
     EXPECT_EQ(UbseMemFdGet(name, fdDesc), UBSE_ERROR_MODULE_LOAD_FAILED);
     // 模拟SendQueryToMasterIfNotMaster中RpcSend失败
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
-    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>)
-        .stubs()
-        .will(returnValue(comModule));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
     const auto func = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UbseMemFdGet(name, fdDesc), UBSE_ERROR);
@@ -219,11 +218,11 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmList)
     UbseMemShareBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.push_back(UbseMemDebtNumaInfo{.nodeId = "1"});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", "name", exportObj);
-    
+
     UbseMemShareBorrowImportObj importObj{};
     importObj.status.importResults.emplace_back(UbseMemImportResult{});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", "name", importObj);
-    
+
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmList(request, shmDescs), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
@@ -270,7 +269,8 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmStatusGet)
     ubseMemShareBorrowExportObj.status.exportObmmInfo.push_back(obmmInfo1);
     ubseMemShareBorrowExportObj.status.exportObmmInfo.push_back(obmmInfo2);
     ubseMemShareBorrowExportObj.algoResult.exportNumaInfos.push_back(UbseMemDebtNumaInfo{.nodeId = "1"});
-    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", name, ubseMemShareBorrowExportObj);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", name,
+                                                                                           ubseMemShareBorrowExportObj);
     MOCKER_CPP(UbseQueryResult).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseMemShmStatusGet(name, shmDescs), UBSE_OK);
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
@@ -317,7 +317,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmGetByNodeId)
     obj.req.name = "name";
     obj.algoResult.exportNumaInfos.push_back(UbseMemDebtNumaInfo{.nodeId = "1"});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", name, obj);
-    
+
     UbseMemShareBorrowImportObj importObj{};
     importObj.status.importResults.emplace_back(UbseMemImportResult{});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", name, importObj);
@@ -335,9 +335,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmGetByNodeId)
     EXPECT_EQ(UbseMemShmGetByNodeId(name, shmDescs, srcNode), UBSE_ERROR_MODULE_LOAD_FAILED);
     // 模拟SendQueryToMasterIfNotMaster中RpcSend失败
     std::shared_ptr<UbseComModule> comModule = std::make_shared<UbseComModule>();
-    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>)
-        .stubs()
-        .will(returnValue(comModule));
+    MOCKER_CPP(&context::UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
     const auto func = &UbseComModule::RpcSend<UbseMemDebtQueryRequestSimpoPtr, UbseBaseMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(UbseMemShmGetByNodeId(name, shmDescs, srcNode), UBSE_ERROR);
@@ -357,7 +355,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemShmGet)
     exportObj.req.udsInfo = udsInfo;
     exportObj.algoResult.exportNumaInfos.push_back(UbseMemDebtNumaInfo{.nodeId = "1"});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", name, exportObj);
-    
+
     UbseMemShareBorrowImportObj importObj{};
     importObj.status.importResults.emplace_back(UbseMemImportResult{});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("1", name, importObj);
@@ -560,7 +558,7 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemAddrGet)
 
 TEST_F(TestUbseMemControllerQueryApi, UbseMemNumaGetWithImportNode)
 {
-    ubse::mem::controller::UbseMemNumaDesc numaDesc;
+    mem::controller::UbseMemNumaDesc numaDesc;
     std::string name = "test_name";
     std::string importNodeId = "1";
     // 模拟本地节点是主节点且查询成功

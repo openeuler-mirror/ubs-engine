@@ -18,9 +18,10 @@
 #include <filesystem>
 
 #include "ubse_lcne_module.h"
-#include "ubse_node_controller_collector.cpp"
+#include "ubse_mti_interface_default.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "ubse_node_controller_collector.cpp"
 namespace ubse::node_controller::ut {
 using namespace ubse::adapter_plugins::mti;
 void TestNodeControllerCollector::SetUp()
@@ -32,7 +33,7 @@ void TestNodeControllerCollector::SetUp()
             std::filesystem::create_directories(certDir);
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 }
@@ -156,7 +157,7 @@ int CreateFibTrieFile()
     fibTrie.close();
 }
 
-uint32_t MockUbseNodeTelemetryGetIpInfo(std::vector<std::string> &ipInfos)
+uint32_t MockUbseNodeTelemetryGetIpInfo(std::vector<std::string>& ipInfos)
 {
     ipInfos = {"7.218.101.255"};
     return UBSE_OK;
@@ -178,7 +179,7 @@ TEST_F(TestNodeControllerCollector, ProcessListLine)
     EXPECT_EQ(cpuList[1], 1);
 }
 
-int CreateCpuListFile(const std::string &content)
+int CreateCpuListFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     CPU_LIST_PREFIX_PATH = certDir + "node";
@@ -187,7 +188,7 @@ int CreateCpuListFile(const std::string &content)
             std::filesystem::create_directories(CPU_LIST_PREFIX_PATH + "0");
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
@@ -209,7 +210,7 @@ void RemoveCpuDir()
         if (std::filesystem::exists(cpuPath)) {
             std::filesystem::remove_all(cpuPath);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "remove cpu dir failed." << e.what() << std::endl;
     }
 }
@@ -239,7 +240,7 @@ TEST_F(TestNodeControllerCollector, CollectCpuList)
     RemoveCpuDir();
 }
 
-int CreateSocketIdFile(const std::string &content)
+int CreateSocketIdFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     SOCKET_ID_PREFIX_PATH = certDir + "socket";
@@ -248,7 +249,7 @@ int CreateSocketIdFile(const std::string &content)
             std::filesystem::create_directories(SOCKET_ID_PREFIX_PATH + "0" + "/topology");
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
@@ -270,7 +271,7 @@ void RemoveSocketDir()
         if (std::filesystem::exists(socketPath)) {
             std::filesystem::remove_all(socketPath);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "remove socket dir failed." << e.what() << std::endl;
     }
 }
@@ -287,7 +288,7 @@ TEST_F(TestNodeControllerCollector, GetSocketId)
     RemoveSocketDir();
 }
 
-int CreateMemFile(const std::string &content)
+int CreateMemFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     MEM_PREFIX_PATH = certDir + "mem";
@@ -296,7 +297,7 @@ int CreateMemFile(const std::string &content)
             std::filesystem::create_directories(MEM_PREFIX_PATH + "0");
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
@@ -318,7 +319,7 @@ void RemoveMemDir()
         if (std::filesystem::exists(memPath)) {
             std::filesystem::remove_all(memPath);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "remove mem dir failed." << e.what() << std::endl;
     }
 }
@@ -341,7 +342,7 @@ TEST_F(TestNodeControllerCollector, CollectMemSize)
     RemoveMemDir();
 }
 
-int CreateNrPageFile(const std::string &content)
+int CreateNrPageFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     NR_PAGE_PREFIX_PATH = certDir + "nr";
@@ -350,7 +351,7 @@ int CreateNrPageFile(const std::string &content)
             std::filesystem::create_directories(NR_PAGE_PREFIX_PATH + "0" + "/hugepages/hugepages-2048kB");
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
@@ -372,7 +373,7 @@ void RemoveNrPageDir()
         if (std::filesystem::exists(nrPagePath)) {
             std::filesystem::remove_all(nrPagePath);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "remove nr page dir failed." << e.what() << std::endl;
     }
 }
@@ -390,7 +391,7 @@ TEST_F(TestNodeControllerCollector, CollectNrHugePages2048)
     RemoveNrPageDir();
 }
 
-int CreateFreePageFile(const std::string &content)
+int CreateFreePageFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     FREE_PAGE_PREFIX_PATH = certDir + "free";
@@ -399,7 +400,7 @@ int CreateFreePageFile(const std::string &content)
             std::filesystem::create_directories(FREE_PAGE_PREFIX_PATH + "0" + "/hugepages/hugepages-2048kB");
             chmod(certDir.c_str(), 0700);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create directory: " << e.what() << std::endl;
     }
 
@@ -421,7 +422,7 @@ void RemoveFreePageDir()
         if (std::filesystem::exists(nrPagePath)) {
             std::filesystem::remove_all(nrPagePath);
         }
-    } catch (const std::filesystem::filesystem_error &e) {
+    } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "remove nr page dir failed." << e.what() << std::endl;
     }
 }
@@ -439,7 +440,7 @@ TEST_F(TestNodeControllerCollector, CollectFreeHugePages2048)
     RemoveFreePageDir();
 }
 
-int CreateNumaFile(const std::string &content)
+int CreateNumaFile(const std::string& content)
 {
     std::string certDir = std::filesystem::current_path().string();
     NUMA_PATH = certDir + "numa";
@@ -463,7 +464,7 @@ TEST_F(TestNodeControllerCollector, GetLocalNumas_FAIL)
     CreateNumaFile("a");
     EXPECT_EQ(GetLocalNumas(nodeIds), UBSE_ERROR);
 
-    const char *path = NUMA_PATH.c_str();
+    const char* path = NUMA_PATH.c_str();
     std::remove(path);
 }
 
@@ -477,17 +478,17 @@ TEST_F(TestNodeControllerCollector, GetLocalNumas)
     EXPECT_EQ(nodeIds[0], 0);
     EXPECT_EQ(nodeIds[1], 1);
 
-    const char *path = NUMA_PATH.c_str();
+    const char* path = NUMA_PATH.c_str();
     std::remove(path);
 }
 
-uint32_t MockGetLocalNumas(std::vector<uint32_t> &nodeIds)
+uint32_t MockGetLocalNumas(std::vector<uint32_t>& nodeIds)
 {
     nodeIds = {1};
     return UBSE_OK;
 }
 
-UbseResult MockCollectCpuList(uint32_t numa, std::vector<uint16_t> &cpuList)
+UbseResult MockCollectCpuList(uint32_t numa, std::vector<uint16_t>& cpuList)
 {
     cpuList = {1};
     return UBSE_OK;

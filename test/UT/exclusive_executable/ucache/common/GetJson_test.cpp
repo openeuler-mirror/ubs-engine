@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "ucache_json_util.h"
 
 using ::testing::_;

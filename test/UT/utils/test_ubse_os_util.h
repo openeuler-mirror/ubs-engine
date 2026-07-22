@@ -16,9 +16,9 @@
 #include <grp.h>
 #include <pwd.h>
 
+#include "ubse_os_util.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_os_util.h"
 
 namespace ubse::ut::utils {
 class TestUbseOsUtil : public testing::Test {

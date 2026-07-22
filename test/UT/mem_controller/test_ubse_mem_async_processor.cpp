@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_mem_async_processor.h"
-#include "ubse_thread_pool_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_thread_pool_module.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
 
 namespace ubse::mem_controller::ut {
@@ -42,7 +42,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmBorrowProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmBorrowProcessor(req));
 }
@@ -57,7 +57,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmBorrowRespProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmBorrowRespProcessor(req));
 }
@@ -71,7 +71,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmAttachProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmAttachProcessor(req));
 }
@@ -85,7 +85,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmAttachRespProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmAttachRespProcessor(req));
 }
@@ -99,7 +99,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmDetachProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmDetachProcessor(req, "1"));
 }
@@ -113,7 +113,7 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmDetachRespProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmDetachRespProcessor(req));
 }
@@ -127,8 +127,8 @@ TEST_F(TestUbseMemAsyncProcessor, AsyncMemShmReturnProcessor)
         .stubs()
         .will(returnValue(std::make_shared<ubse::task_executor::UbseTaskExecutorModule>()));
     MOCKER(&ubse::task_executor::UbseTaskExecutorModule::Get).stubs().will(returnValue(ptr));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(UBSE_OK, AsyncMemShmReturnProcessor(req, "1"));
 }
-}
+} // namespace ubse::mem_controller::ut

@@ -11,20 +11,20 @@
  */
 
 #include <fcntl.h>
+#include <securec.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <securec.h>
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
 #define DEVICE_PATH "/dev/obmm_shmdev"
 
 typedef struct {
-    int fd;  // 存储与设备文件关联的文件描述符，对应设备路径为DEVICE_PATH + mem_id(如/dev/obmm_shmdev123)，-1表示无效
+    int fd; // 存储与设备文件关联的文件描述符，对应设备路径为DEVICE_PATH + mem_id(如/dev/obmm_shmdev123)，-1表示无效
     void* mmap_obj;  // 指向内存映射区域的指针, 可以直接访问映射的内存区域, NULL表示未映射
-    size_t mem_size;  // 记录映射的内存区域大小, 与size参数对应
+    size_t mem_size; // 记录映射的内存区域大小, 与size参数对应
 } Fd_handler;
 
 /* 打印 fd 借用描述符相关信息 */
@@ -53,8 +53,7 @@ void do_fd_mmap(Fd_handler* handler, uint64_t mem_id, size_t size)
 
     // 打开新设备
     char device_path[50];
-    int ret = snprintf_s(device_path, sizeof(device_path), sizeof(device_path) - 1,
-                         "%s%lu", DEVICE_PATH, mem_id);
+    int ret = snprintf_s(device_path, sizeof(device_path), sizeof(device_path) - 1, "%s%lu", DEVICE_PATH, mem_id);
     if (ret == -1) {
         perror("Failed to format device path (truncated or error)");
         return;
@@ -189,7 +188,7 @@ int main(int argc, char* argv[])
 
     Fd_handler handler = {-1, NULL, 0};
     ubs_mem_fd_desc_t fd_desc = {0};
-    const uint64_t mem_size = 128 * 1024 * 1024;  // 128MB
+    const uint64_t mem_size = 128 * 1024 * 1024; // 128MB
 
     // 测试创建fd内存
     printf("Testing ubse_mem_fd_create...\n");

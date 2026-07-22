@@ -19,7 +19,6 @@
 
 using namespace ubse::config;
 
-
 namespace ubse::ut::config {
 class TestUbseConfModule : public testing::Test {
 public:
@@ -33,5 +32,5 @@ public:
     static void TearDownTestSuite();
     static std::shared_ptr<UbseConfModule> confModulePtr;
 };
-}
+} // namespace ubse::ut::config
 #endif // TEST_UBSE_CONFIG_MODULE_H

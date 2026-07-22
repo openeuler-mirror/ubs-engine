@@ -16,13 +16,16 @@
 #include <referable/ubse_ref.h> // for Ref
 #include <utility>              // for pair
 
-#include "ubse_thread_pool.h"
 #include "ubse_context.h"       // for context
 #include "ubse_error.h"         // for UBSE_OK, UBSE_ERROR, UBSE_TASK_...
 #include "ubse_logger.h"        // for UbseLoggerEntry, UBSE_DEFINE_TH...
 #include "ubse_logger_module.h" // for UbseLoggerModule
+#include "ubse_thread_pool.h"
 
 namespace ubse::task_executor {
+using namespace ubse::module;
+using namespace ubse::common::def;
+using namespace ubse::utils;
 using namespace ubse::log;
 
 CORE_MODULE_IMPL(UbseTaskExecutorModule, ubse::log::UbseLoggerModule);
@@ -43,13 +46,13 @@ UbseResult UbseTaskExecutorModule::Start()
 void UbseTaskExecutorModule::Stop()
 {
     WriteLocker<ReadWriteLock> lock(&rwLock_);
-    for (const auto &executor : executors_) {
+    for (const auto& executor : executors_) {
         executor.second->Stop();
     }
     executors_.clear();
 }
 
-UbseResult UbseTaskExecutorModule::Create(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
+UbseResult UbseTaskExecutorModule::Create(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
 {
     WriteLocker<ReadWriteLock> lock(&rwLock_);
     auto executor = UbseTaskExecutor::Create(name, threadNum, queueCapacity);
@@ -66,7 +69,7 @@ UbseResult UbseTaskExecutorModule::Create(const std::string &name, uint16_t thre
     return UBSE_OK;
 }
 
-UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string &name)
+UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string& name)
 {
     ReadLocker<ReadWriteLock> lock(&rwLock_);
     auto iter = executors_.find(name);
@@ -76,7 +79,7 @@ UbseTaskExecutorPtr UbseTaskExecutorModule::Get(const std::string &name)
     return iter->second;
 }
 
-void UbseTaskExecutorModule::Remove(const std::string &name)
+void UbseTaskExecutorModule::Remove(const std::string& name)
 {
     WriteLocker<ReadWriteLock> lock(&rwLock_);
     auto iter = executors_.find(name);

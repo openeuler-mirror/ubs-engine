@@ -13,9 +13,9 @@
 #ifndef MP_FILE_UTIL_H
 #define MP_FILE_UTIL_H
 
+#include <mp_error.h>
 #include <string>
 #include <vector>
-#include <mp_error.h>
 
 namespace mempooling {
 using std::string;
@@ -23,8 +23,8 @@ using std::vector;
 
 class MpFileUtil {
 public:
-    static MEM_POOLING_RES GetFileInfo(const string &path, vector<string> &info);
+    static MEM_POOLING_RES GetFileInfo(const string& path, vector<string>& info);
 };
-}
+} // namespace mempooling
 
 #endif // MP_FILE_UTIL_H

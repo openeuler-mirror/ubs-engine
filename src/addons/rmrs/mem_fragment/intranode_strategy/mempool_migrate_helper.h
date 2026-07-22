@@ -13,17 +13,17 @@
 #ifndef MEMPOOL_MIGRATE_HELPER_H
 #define MEMPOOL_MIGRATE_HELPER_H
 
+#include <unistd.h>
 #include <mutex>
 #include <string>
-#include <unistd.h>
+#include "ubse_com.h"
+#include "ubse_common_def.h"
+#include "ubse_logger.h"
 #include "mempool_borrow_module.h"
 #include "mempool_migrate_module.h"
 #include "mp_configuration.h"
-#include "ubse_logger.h"
-#include "ubse_com.h"
-#include "ubse_common_def.h"
-#include "mp_parse_util.h"
 #include "mp_module.h"
+#include "mp_parse_util.h"
 
 namespace mempooling {
 using namespace ubse::com;
@@ -34,19 +34,19 @@ using namespace mempooling::message;
 constexpr uint32_t MAX_RETRY_TIMES = 6u; // 最大重试次数：6
 constexpr uint32_t RETRY_SLEEP_TIME_SEC = 20u;
 
-MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string> &borrowIdsLis);
-MpResult FilterBorrowIds(const std::vector<std::string> &borrowIdsList,
-                         std::map<std::string, std::set<BorrowIdInfo>> &borrowIdsPidsMap,
-                         std::map<std::string, std::set<BorrowIdInfo>> &validBorrowIdsPidsMap);
-MpResult GetRollBackBorrowIdPid(const std::string &nodeId, RollBackBorrowIdPid &entry,
-                                std::vector<std::string> borrowIdsList, bool &inputBorrowIdsAllNotExist);
+MpResult RpcMemBorrowRollback(std::string nodeId, const std::vector<std::string>& borrowIdsLis);
+MpResult FilterBorrowIds(const std::vector<std::string>& borrowIdsList,
+                         std::map<std::string, std::set<BorrowIdInfo>>& borrowIdsPidsMap,
+                         std::map<std::string, std::set<BorrowIdInfo>>& validBorrowIdsPidsMap);
+MpResult GetRollBackBorrowIdPid(const std::string& nodeId, RollBackBorrowIdPid& entry,
+                                std::vector<std::string> borrowIdsList, bool& inputBorrowIdsAllNotExist);
 MpResult ValidBorrowIdPidMap(std::map<std::string, std::set<BorrowIdInfo>> borrowIdsPidsMap);
 MpResult RollBackMigratedVmsInStandbyToMasterEvent();
 MpResult MigrateExecuteInStandbyToMasterEvent(const pid_t pid, const std::string borrowInNode,
                                               const std::string remoteNumaId);
 MpResult RemoveVmInfosCompletedWithRetry(const pid_t pid);
 MpResult CheckBorrowIdsExist(std::string nodeId, std::map<std::string, std::set<BorrowIdInfo>> validBorrowIdsPidsMap,
-                             bool &allNotExist);
+                             bool& allNotExist);
 
 class MpMigrateSubModule : public MpSubModule {
 public:
@@ -68,7 +68,7 @@ public:
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {

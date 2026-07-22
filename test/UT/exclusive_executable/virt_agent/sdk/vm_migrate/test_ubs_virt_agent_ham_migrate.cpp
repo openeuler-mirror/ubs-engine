@@ -15,8 +15,8 @@
 #include <mockcpp/GlobalMockObject.h>
 #include <mockcpp/mokc.h>
 
-#include "ubs_virt_agent_ham_migrate.h"
 #include "ubse_ipc_client.h"
+#include "ubs_virt_agent_ham_migrate.h"
 #include "vm_serial_util.h"
 
 using namespace vm;

@@ -26,10 +26,11 @@ using UbseNumaNodeInfo = service::mem::UbseNumaNodeInfo;
  * @param[in/out] numaNodeInfoList
  * @return uint32_t, 成功返回0, 失败返回非0
  */
-uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList);
+uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo>& numaNodeInfoList);
 
 // 借用类型
-enum class LedgerType {
+enum class LedgerType
+{
     APP,
     WATER, // water 和 app组成numa
     FD,
@@ -69,6 +70,10 @@ public:
     uint64_t freeMemSize{0};
     uint32_t nrHugePages{0};
     uint32_t freeHugePages{0};
+    uint32_t nrHugePages512M{0};
+    uint32_t freeHugePages512M{0};
+    uint32_t nrHugePages1G{0};
+    uint32_t freeHugePages1G{0};
     uint64_t timeStamp{0};
     uint32_t ratio{0};
 };
@@ -118,7 +123,7 @@ using UbseBorrowAccountMap = std::unordered_map<std::string, UbseMemoryBorrowInf
  * @param[in/out] accountMap
  * @return uint32_t, 成功返回0, 失败返回非0
  */
-uint32_t UbseAllBorrowAccountInfo(const std::string &nodeId, UbseBorrowAccountMap &accountMap);
+uint32_t UbseAllBorrowAccountInfo(const std::string& nodeId, UbseBorrowAccountMap& accountMap);
 
 // 共享内存账户信息结构体
 struct UbseShmAccountInfo {
@@ -136,7 +141,7 @@ using UbseShmAccountMap = std::unordered_map<std::string, UbseShmAccountInfo>;
  * @param[in/out] outMap
  * @return uint32_t, 成功返回0, 失败返回非0
  */
-uint32_t UbseAllShmAccountInfo(UbseShmAccountMap &outMap);
+uint32_t UbseAllShmAccountInfo(UbseShmAccountMap& outMap);
 
 // 单个借入/借出项结构体
 struct UbseBorrowLentItem {
@@ -161,13 +166,13 @@ using UbseBorrowedLentInfoList = std::vector<UbseNodeBorrowLentInfo>;
  * @param[in/out] outList
  * @return uint32_t, 成功返回0, 失败返回非0
  */
-uint32_t UbseGetBorrowedLentInfo(const std::string &nodeId, UbseBorrowedLentInfoList &outList);
+uint32_t UbseGetBorrowedLentInfo(const std::string& nodeId, UbseBorrowedLentInfoList& outList);
 
 /**
 * @brief 调用内部模块获得numa静态信息和账本动态信息
 * @param numaInfo [out] numa静态信息
 * @param ledgerInfo [out] 账本动态信息
 */
-uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo> &numaInfo, std::vector<LedgerDymaticInfo> &ledgerInfo);
+uint32_t GetMemInfoFromInner(std::vector<NumaStaticInfo>& numaInfo, std::vector<LedgerDymaticInfo>& ledgerInfo);
 } // namespace ubse::mem::account
 #endif // MXE_MEM_ACCOUNT_H

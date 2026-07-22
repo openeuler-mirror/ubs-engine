@@ -17,10 +17,10 @@
 #include <atomic>
 #include <condition_variable>
 #include <deque>
-#include <sstream>
 #include <functional>
 #include <future>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <type_traits>
@@ -31,14 +31,14 @@ public:
     explicit ThreadPool(size_t thread_count = std::thread::hardware_concurrency());
     ~ThreadPool();
 
-    ThreadPool(const ThreadPool &) = delete;
-    ThreadPool &operator=(const ThreadPool &) = delete;
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
 
     // 提交任务，返回 future，异常将通过 future 传播
     template <class F, class... Args>
-    auto submit(F &&f, Args &&...args) -> std::future<std::invoke_result_t<F, Args...>>;
+    auto submit(F&& f, Args&&... args) -> std::future<std::invoke_result_t<F, Args...>>;
     template <class F, class... Args>
-    auto submit_named(const char *tag, F &&f, Args &&...args) -> std::future<std::invoke_result_t<F, Args...>>;
+    auto submit_named(const char* tag, F&& f, Args&&... args) -> std::future<std::invoke_result_t<F, Args...>>;
     // 立即拒绝新任务；若 wait=true，等待队列任务跑完再退出
     void stop(bool wait = true);
 
@@ -66,14 +66,14 @@ private:
 };
 
 template <class F, class... Args>
-auto ThreadPool::submit(F &&f, Args &&...args) -> std::future<std::invoke_result_t<F, Args...>>
+auto ThreadPool::submit(F&& f, Args&&... args) -> std::future<std::invoke_result_t<F, Args...>>
 {
     return submit_named(nullptr, std::forward<F>(f), std::forward<Args>(args)...);
 }
 
 // 带任务名的 submit
 template <class F, class... Args>
-auto ThreadPool::submit_named(const char *tag, F &&f, Args &&...args) -> std::future<std::invoke_result_t<F, Args...>>
+auto ThreadPool::submit_named(const char* tag, F&& f, Args&&... args) -> std::future<std::invoke_result_t<F, Args...>>
 {
     using R = std::invoke_result_t<F, Args...>;
     auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);

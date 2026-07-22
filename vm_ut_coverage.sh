@@ -11,21 +11,21 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-
+set -euo pipefail
 
 # 通过修改.lcovrc来配置只扫描vm的ut覆盖率
 lcovrc_file=".lcovrc"
-sed -i '/include =/d' ${lcovrc_file}
-sed -i '/exclude =/d' ${lcovrc_file}
-echo "include = src/addons/virt_agent/common" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/common/libvirt" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/common/message" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/common/util" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/default_strategy" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/dto" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/election" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/export/libvirt_helper" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/export/vm_event" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/over_commit/mem_manager" >> ${lcovrc_file}
-echo "include = src/addons/virt_agent/status_manager" >> ${lcovrc_file}
-echo "exclude = .h" >> ${lcovrc_file}
+sed -i '/include =/d' "${lcovrc_file}"
+sed -i '/exclude =/d' "${lcovrc_file}"
+echo "include = src/addons/virt_agent/common" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/common/libvirt" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/common/message" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/common/util" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/default_strategy" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/dto" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/election" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/export/libvirt_helper" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/export/vm_event" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/over_commit/mem_manager" >> "${lcovrc_file}"
+echo "include = src/addons/virt_agent/status_manager" >> "${lcovrc_file}"
+echo "exclude = .h" >> "${lcovrc_file}"

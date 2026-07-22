@@ -18,24 +18,24 @@
 #include "adapter_plugins/mti/ubse_mti_mami_def.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace adapter_plugins::mti::mami;
+using adapter_plugins::mti::mami::UbseMamiMemHandleQueryInfo;
+using adapter_plugins::mti::mami::UbseMamiMemHandleValue;
+using common::def::UbseResult;
 
 class UbseLcneDecoderHandle {
 public:
-    static UbseLcneDecoderHandle &GetInstance()
+    static UbseLcneDecoderHandle& GetInstance()
     {
         static UbseLcneDecoderHandle instance;
         return instance;
     }
 
     /* 查询全部handle */
-    UbseResult GetAllMemHandles(const UbseMamiMemHandleQueryInfo &queryInfo,
-        std::vector<UbseMamiMemHandleValue> &handleValues) const;
+    UbseResult GetAllMemHandles(const UbseMamiMemHandleQueryInfo& queryInfo,
+                                std::vector<UbseMamiMemHandleValue>& handleValues) const;
 
 private:
     UbseLcneDecoderHandle() = default;
 };
-}
+} // namespace ubse::lcne
 #endif // UBSE_LCNE_DECODER_HANDLE_H

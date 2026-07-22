@@ -18,7 +18,7 @@
 
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api_common.h"
-#include "ubse_mem_scheduler.h"
+#include "ubse_mem_scheduler_impl.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
 
@@ -116,7 +116,7 @@ UbseResult ShareAllocate(const UbseMemShareBorrowReq &req, UbseMemShareBorrowExp
     auto ret = UBSE_OK;
     while (retryTimes--) {
         NodeControllerReadLock(req);
-        ret = UbseMemShmExportObjStateChangeHandler(exportObj);
+        ret = SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
         NodeControllerReadUnLock(req);
         if (ret == UBSE_SCHEDULER_ERROR_NODE_RECONCILE) {
             std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_TIME));

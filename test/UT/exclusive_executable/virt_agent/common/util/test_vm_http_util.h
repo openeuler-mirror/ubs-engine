@@ -16,6 +16,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_VM_HTTP_UTIL_H

@@ -23,17 +23,17 @@ public:
     GlobalBorrowMapMessage() = default;
 
     explicit GlobalBorrowMapMessage(std::unordered_map<std::string, BorrowIdStatus> globalBorrowMap,
-                                    const uint64_t &index)
+                                    const uint64_t& index)
         : globalBorrowMap_(std::move(globalBorrowMap)),
           index_(index){};
 
-    explicit GlobalBorrowMapMessage(uint8_t *rawData, uint32_t size)
+    explicit GlobalBorrowMapMessage(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetGlobalBorrowMap(const std::unordered_map<std::string, BorrowIdStatus> &globalBorrowMap,
-                            const uint64_t &index)
+    void SetGlobalBorrowMap(const std::unordered_map<std::string, BorrowIdStatus>& globalBorrowMap,
+                            const uint64_t& index)
     {
         globalBorrowMap_ = globalBorrowMap;
         index_ = index;

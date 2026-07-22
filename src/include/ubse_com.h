@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <shared_mutex>
+#include <vector>
 #include "ubse_def.h"
 
 namespace ubse::com {
@@ -27,7 +28,7 @@ struct UbseComEndpoint {
     std::string address; // 通信地址
 };
 
-using UbseComServiceHandler = std::function<void(const UbseByteBuffer &req, UbseByteBuffer &resp)>;
+using UbseComServiceHandler = std::function<void(const UbseByteBuffer& req, UbseByteBuffer& resp)>;
 
 /**
  * @brief 注册跨节点通信消息处理函数，适用于Master与Agent间的通信
@@ -38,9 +39,9 @@ using UbseComServiceHandler = std::function<void(const UbseByteBuffer &req, Ubse
  * @return #UBSE_COM_ERROR_GET_ENGINE_FAIL 0x1001-100E 获取通信引擎失败
  * @return #UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE 0x1001-1003 非法操作码
  */
-uint32_t UbseRegRpcService(const UbseComEndpoint &endpoint, const UbseComServiceHandler &handler);
+uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComServiceHandler& handler);
 
-using UbseComRespHandler = std::function<void(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)>;
+using UbseComRespHandler = std::function<void(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)>;
 
 /**
  * @brief 同步发消息
@@ -103,7 +104,7 @@ public:
 
     uint32_t UbseRpcAsyncSend(const std::string &targetNodeId, const UbseRpcMessage &req,
                               std::shared_ptr<UbseRpcAsyncCallBack> &callback);
-    
+
     const UbseRpcMessageReceiver& GetReceiver() const;
     uint16_t GetModuleCode() const;
     uint16_t GetOpCode() const;

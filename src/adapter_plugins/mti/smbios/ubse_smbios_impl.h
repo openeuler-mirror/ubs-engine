@@ -15,9 +15,9 @@
 
 #include <memory>
 #include "ubse_error.h"
-#include "lock/ubse_lock.h"
 #include "ubse_logger.h"
 #include "ubse_smbios_def.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::adapter_plugins::smbios::impl {
 using namespace ubse::common::def;
@@ -27,9 +27,9 @@ using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 class UbseSmbiosImpl {
 public:
-    UbseSmbiosImpl(const UbseSmbiosImpl &) = delete;
-    UbseSmbiosImpl &operator=(const UbseSmbiosImpl &) = delete;
-    static UbseSmbiosImpl &GetInstance()
+    UbseSmbiosImpl(const UbseSmbiosImpl&) = delete;
+    UbseSmbiosImpl& operator=(const UbseSmbiosImpl&) = delete;
+    static UbseSmbiosImpl& GetInstance()
     {
         static UbseSmbiosImpl instance;
         return instance;

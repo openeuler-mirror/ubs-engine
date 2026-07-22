@@ -26,7 +26,7 @@ using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult UbsePluginAdmission::ProcessPluginValue(const std::string &pkgName, const std::string &pkgValue)
+UbseResult UbsePluginAdmission::ProcessPluginValue(const std::string& pkgName, const std::string& pkgValue)
 {
     try {
         const int tempValue = std::stoi(pkgValue);
@@ -38,10 +38,10 @@ UbseResult UbsePluginAdmission::ProcessPluginValue(const std::string &pkgName, c
         }
         allowedPlugins_[pkgName] = static_cast<uint16_t>(tempValue);
         return UBSE_OK;
-    } catch (const std::invalid_argument &ret) {
+    } catch (const std::invalid_argument& ret) {
         UBSE_LOG_ERROR << "Invalid argument, " << pkgName << "=" << pkgValue;
         return UBSE_ERROR_INVAL;
-    } catch (const std::out_of_range &ret) {
+    } catch (const std::out_of_range& ret) {
         UBSE_LOG_ERROR << "Out of range for int, " << pkgName << "=" << pkgValue;
         return UBSE_ERROR;
     }
@@ -69,8 +69,8 @@ UbseResult UbsePluginAdmission::LoadAdmissionConfig()
         return UBSE_OK;
     }
     std::unique_lock<std::shared_mutex> lock(allowedPluginsMutex_);
-    for (const auto &item : configVals) {
-        for (const auto &[pkgName, pkgValue] : item.second) {
+    for (const auto& item : configVals) {
+        for (const auto& [pkgName, pkgValue] : item.second) {
             if (allowedPlugins_.find(pkgName) != allowedPlugins_.end()) {
                 UBSE_LOG_WARN << "The plugin name: " << pkgName << " has been configuration in admission file.";
                 continue;
@@ -83,13 +83,13 @@ UbseResult UbsePluginAdmission::LoadAdmissionConfig()
     return UBSE_OK;
 }
 
-const std::map<std::string, uint16_t> &UbsePluginAdmission::GetAllowedPlugins() const
+const std::map<std::string, uint16_t>& UbsePluginAdmission::GetAllowedPlugins() const
 {
     std::shared_lock lock(allowedPluginsMutex_);
     return allowedPlugins_;
 }
 
-std::optional<uint16_t>  UbsePluginAdmission::GetPluginConfig(const std::string &pluginName) const
+std::optional<uint16_t> UbsePluginAdmission::GetPluginConfig(const std::string& pluginName) const
 {
     std::shared_lock lock(allowedPluginsMutex_);
     auto item = allowedPlugins_.find(pluginName);

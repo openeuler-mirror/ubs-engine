@@ -17,7 +17,7 @@
 namespace ubse::event::election {
 using namespace ubse::election;
 
-UbseResult FAKE_GetMyselfNode2(UbseElectionNodeMgr *pthis, Node &myself)
+UbseResult FAKE_GetMyselfNode2(UbseElectionNodeMgr* pthis, Node& myself)
 {
     myself.id = "NODE2";
     return 0;
@@ -26,7 +26,7 @@ UbseResult FAKE_GetMyselfNode2(UbseElectionNodeMgr *pthis, Node &myself)
 TEST_F(TestUbseElectionRoleAgent, ProcTimer_ShouldReturnMaster_WhenForceMasterFail)
 {
     // given
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
 
     MOCKER(&Agent::IsAgentHeartBeatTimeout).stubs().will(returnValue(true));
@@ -158,7 +158,6 @@ TEST_F(TestUbseElectionRoleAgent, RecvPkt_ShouldReturnAccept_WhenRcvSelectAndTim
     EXPECT_EQ(reply.replyId, srcID);
 }
 
-
 TEST_F(TestUbseElectionRoleAgent, RecvPkt_ShouldReturnAccept_WhenRcvHeartStandbyIsMe)
 {
     // given
@@ -247,10 +246,9 @@ TEST_F(TestUbseElectionRoleAgent, RecvPkt_ShouldReturnWait_WhenRcvHeartMasterSta
     EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::AGENT);
 }
 
-
 TEST_F(TestUbseElectionRoleAgent, GetStandbyStatus_ReturnsCorrectValue)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent mockAgent(ctx);
     mockAgent.standbyStatus_ = IS_READY;
     UbseResult ret = mockAgent.GetStandbyStatus();
@@ -259,15 +257,15 @@ TEST_F(TestUbseElectionRoleAgent, GetStandbyStatus_ReturnsCorrectValue)
 
 TEST_F(TestUbseElectionRoleAgent, GetAgentNodes_ReturnsCorrectValue)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent mockAgent(ctx);
-    mockAgent.agentIds_ = { "NODE0, NODE1" };
-    EXPECT_EQ(mockAgent.GetAgentNodes(), std::vector<UBSE_ID_TYPE>{ "NODE0, NODE1" });
+    mockAgent.agentIds_ = {"NODE0, NODE1"};
+    EXPECT_EQ(mockAgent.GetAgentNodes(), std::vector<UBSE_ID_TYPE>{"NODE0, NODE1"});
 }
 
 TEST_F(TestUbseElectionRoleAgent, GetMasterStatus_ReturnsCorrectValue)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent mockAgent(ctx);
     mockAgent.masterStatus_ = IS_READY;
     EXPECT_EQ(mockAgent.GetMasterStatus(), IS_READY);
@@ -275,7 +273,7 @@ TEST_F(TestUbseElectionRoleAgent, GetMasterStatus_ReturnsCorrectValue)
 
 TEST_F(TestUbseElectionRoleAgent, HandleMasterChange)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     ElectionPkt rcvPkt;
     ElectionReplyPkt reply;
@@ -286,7 +284,7 @@ TEST_F(TestUbseElectionRoleAgent, HandleMasterChange)
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     ElectionPkt rcvPkt;
@@ -303,7 +301,7 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents)
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenStandbyIdEmpty)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     ElectionPkt rcvPkt;
@@ -315,7 +313,7 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenStandbyIdEmp
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenAgentCountLessThan2)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     ElectionPkt rcvPkt;
@@ -327,7 +325,7 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenAgentCountLe
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenGetStaticNodeInfoEmpty)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     ElectionPkt rcvPkt;
@@ -341,7 +339,7 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldReturn_WhenGetStaticNod
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldDisconnectOtherAgents)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     agent.masterId_ = "NODE0";
@@ -366,7 +364,10 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldDisconnectOtherAgents)
     allNodesVec.push_back(node5);
 
     MOCKER(&ubse::nodeController::UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(allNodesVec));
-    MOCKER(&ubse::election::RoleMgr::GetCommMgr).stubs().will(returnValue(std::shared_ptr<ubse::election::UbseElectionCommMgr>(new ubse::election::UbseElectionCommMgr("NODE2", "test"))));
+    MOCKER(&ubse::election::RoleMgr::GetCommMgr)
+        .stubs()
+        .will(returnValue(std::shared_ptr<ubse::election::UbseElectionCommMgr>(
+            new ubse::election::UbseElectionCommMgr("NODE2", "test"))));
     MOCKER(&ubse::election::UbseElectionCommMgr::DisConnect).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
@@ -374,7 +375,7 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldDisconnectOtherAgents)
 
 TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldDisconnectNonAgentNodes)
 {
-    RoleContext ctx = { 1, "NODE0", "NODE1" };
+    RoleContext ctx = {1, "NODE0", "NODE1"};
     Agent agent(ctx);
     agent.myselfID_ = "NODE2";
     agent.masterId_ = "NODE0";
@@ -396,9 +397,12 @@ TEST_F(TestUbseElectionRoleAgent, DisconnectAgents_ShouldDisconnectNonAgentNodes
     allNodesVec.push_back(node3);
 
     MOCKER(&ubse::nodeController::UbseNodeController::GetStaticNodeInfo).stubs().will(returnValue(allNodesVec));
-    MOCKER(&ubse::election::RoleMgr::GetCommMgr).stubs().will(returnValue(std::shared_ptr<ubse::election::UbseElectionCommMgr>(new ubse::election::UbseElectionCommMgr("NODE2", "test"))));
+    MOCKER(&ubse::election::RoleMgr::GetCommMgr)
+        .stubs()
+        .will(returnValue(std::shared_ptr<ubse::election::UbseElectionCommMgr>(
+            new ubse::election::UbseElectionCommMgr("NODE2", "test"))));
     MOCKER(&ubse::election::UbseElectionCommMgr::DisConnect).stubs().will(returnValue(UBSE_OK));
 
     EXPECT_NO_THROW(agent.DisconnectAgents(rcvPkt));
 }
-}
+} // namespace ubse::event::election

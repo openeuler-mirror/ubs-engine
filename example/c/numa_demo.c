@@ -12,19 +12,19 @@
 
 #include <malloc.h>
 #include <numa.h>
+#include <securec.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <securec.h>
 #include "ubse/ubs_engine_mem.h"
 #include "ubse/ubs_error.h"
 
 // 定义结构体
 typedef struct {
-    void* ptr;                  // numa分配的内存指针
-    size_t size;                // 分配的内存大小
-    ubs_mem_numa_desc_t* desc;  // NUMA内存描述符
+    void* ptr;                 // numa分配的内存指针
+    size_t size;               // 分配的内存大小
+    ubs_mem_numa_desc_t* desc; // NUMA内存描述符
 } Numa_handler;
 
 /* 分配 NUMA 内存 */
@@ -74,7 +74,7 @@ int do_write_memory(void* ptr, size_t offset, const char* data, size_t length)
         printf("Memory pointer is NULL.\n");
         return -1;
     }
-    char* dest = (char*) ptr + offset;
+    char* dest = (char*)ptr + offset;
     errno_t ret = memcpy_s(dest, length, data, length);
     if (ret != EOK) {
         printf("memcpy_s failed with error code: %d\n", ret);
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 
     Numa_handler handler;
     ubs_mem_numa_desc_t numa_desc = {0};
-    const uint64_t mem_size = 128 * 1024 * 1024;  // 128MB
+    const uint64_t mem_size = 128 * 1024 * 1024; // 128MB
 
     // 测试创建numa内存
     printf("Testing ubse_mem_numa_create...\n");
@@ -154,9 +154,9 @@ int main(int argc, char* argv[])
     printf("\nTesting ubse_mem_fd_get...\n");
     do_numa_get(mem_name);
 
-    const uint64_t alloc_size = 1 * 1024 * 1024;  // 1MB
-    // 测试分配内存
-     do_numa_allocate(&handler, &numa_desc, alloc_size);
+    const uint64_t alloc_size = 1 * 1024 * 1024; // 1MB
+                                                 // 测试分配内存
+    do_numa_allocate(&handler, &numa_desc, alloc_size);
     if (handler.ptr == NULL) {
         printf("Failed to allocate memory on NUMA node.\n");
         return -1;

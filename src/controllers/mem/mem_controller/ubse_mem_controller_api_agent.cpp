@@ -3,7 +3,7 @@
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
-  *          http://license.coscl.org.cn/MulanPSL2
+ *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -12,6 +12,27 @@
 
 #include "ubse_mem_controller_api_agent.h"
 #include <regex>
+#include "ubse_api_server_module.h"
+#include "ubse_com_module.h"
+#include "ubse_conf.h"
+#include "ubse_conf_module.h"
+#include "ubse_context.h"
+#include "ubse_election.h"
+#include "ubse_error.h"
+#include "ubse_ipc_common.h"
+#include "ubse_logger.h"
+#include "ubse_logger_audit.h"
+#include "ubse_mem_advice.h"
+#include "ubse_mem_constants.h"
+#include "ubse_mem_controller_api.h"
+#include "ubse_mem_controller_api_common.h"
+#include "ubse_mem_controller_handler.h"
+#include "ubse_mem_rpc_processor.h"
+#include "ubse_mem_sign_verifier.h"
+#include "ubse_mem_util.h"
+#include "ubse_serial_util.h"
+#include "ubse_str_util.h"
+#include "ubse_thread_pool_module.h"
 #include "message/ubse_mem_addr_borrow_req_simpo.h"
 #include "message/ubse_mem_fd_borrow_req_simpo.h"
 #include "message/ubse_mem_numa_borrow_req_simpo.h"
@@ -21,27 +42,6 @@
 #include "message/ubse_mem_share_detach_req_simpo.h"
 #include "framework/misc/ubse_future_mgr.h"
 #include "request_id.h"
-#include "ubse_api_server_module.h"
-#include "ubse_com_module.h"
-#include "ubse_conf.h"
-#include "ubse_context.h"
-#include "ubse_conf_module.h"
-#include "ubse_election.h"
-#include "ubse_error.h"
-#include "ubse_ipc_common.h"
-#include "ubse_logger_audit.h"
-#include "ubse_logger.h"
-#include "ubse_mem_advice.h"
-#include "ubse_mem_controller_api.h"
-#include "ubse_mem_controller_handler.h"
-#include "ubse_mem_rpc_processor.h"
-#include "ubse_mem_constants.h"
-#include "ubse_mem_controller_api_common.h"
-#include "ubse_mem_sign_verifier.h"
-#include "ubse_mem_util.h"
-#include "ubse_serial_util.h"
-#include "ubse_str_util.h"
-#include "ubse_thread_pool_module.h"
 #include "ubse_smbios.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_election_def.h"
@@ -60,7 +60,10 @@ using namespace ubse::task_executor;
 using namespace ubse::mem::util;
 using namespace ubse::context;
 using namespace ubse::serial;
-using namespace api::server;
+using namespace ::api::server;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::nodeController;
+using namespace ubse::utils;
 using namespace ubse::mem::strategy;
 using namespace ubse::adapter_plugins::smbios;
 static std::chrono::seconds WAIT_TIMEOUT(API_TIME_OUT); // seconds
@@ -85,7 +88,7 @@ uint64_t GenRequestId()
     return requestIdUtil.GenerateRequestId(slotId);
 }
 
-UbseResult FillLinkInfo(const std::vector<std::string> &link, UbseMemNumaBorrowReq &numaBorrowReq)
+UbseResult FillLinkInfo(const std::vector<std::string>& link, UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.linkInfo.lenderNode = link[0];
     auto ret = ubse::utils::ConvertStrToInt(link[1], numaBorrowReq.linkInfo.lenderSocketId);
@@ -101,8 +104,8 @@ UbseResult FillLinkInfo(const std::vector<std::string> &link, UbseMemNumaBorrowR
     return UBSE_OK;
 }
 
-bool IsSocketExist(const uint32_t &socketId, const ubse::nodeController::UbseNodeInfo &nodeInfo,
-                   UbseCpuLocation &location)
+bool IsSocketExist(const uint32_t& socketId, const ubse::nodeController::UbseNodeInfo& nodeInfo,
+                   UbseCpuLocation& location)
 {
     for (const auto cpuInfo : nodeInfo.cpuInfos) {
         if (cpuInfo.second.socketId == socketId) {
@@ -113,7 +116,7 @@ bool IsSocketExist(const uint32_t &socketId, const ubse::nodeController::UbseNod
     return false;
 }
 
-UbseResult CheckRemoteExist(const UbsePortInfo &portInfo, const std::vector<std::string> secondLink,
+UbseResult CheckRemoteExist(const UbsePortInfo& portInfo, const std::vector<std::string> secondLink,
                             const std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> nodeInfos)
 {
     uint32_t remoteChipId{};
@@ -138,7 +141,7 @@ UbseResult CheckRemoteExist(const UbsePortInfo &portInfo, const std::vector<std:
                        << remoteLocation.chipId;
         return UBSE_ERROR;
     }
-    if (secondLink.size() != 3) {  // 长度为3
+    if (secondLink.size() != 3) { // 长度为3
         UBSE_LOG_ERROR << "second link size is false. size is " << secondLink.size();
         return UBSE_ERROR;
     }
@@ -196,16 +199,16 @@ UbseResult CheckLinkExist(std::vector<std::string> firstLink, std::vector<std::s
         UBSE_LOG_ERROR << "Invalid port. port is " << firstLink[2]; // firstLink[2]为portId
         return UBSE_ERROR;
     }
-    if (portIter->second.remotePortId != secondLink[2]                                    // secondLink[2]为对端端口号
-        || portIter->second.remoteSlotId != secondLink[0]) {                              // secondLink[0]为对端nodeId
+    if (portIter->second.remotePortId != secondLink[2]       // secondLink[2]为对端端口号
+        || portIter->second.remoteSlotId != secondLink[0]) { // secondLink[0]为对端nodeId
         UBSE_LOG_ERROR << "Invalid link. The ports are not direct link " << firstLink[2]; // firstLink[2]为端口号
         return UBSE_ERROR;
     }
     return CheckRemoteExist(portIter->second, secondLink, nodeInfos);
 }
 
-UbseResult DealLinkInfo(const std::string &linkInfo, UbseMemNumaBorrowReq &numaBorrowReq,
-                        const UbseRoleInfo &currentNodeInfo, std::string &errorMsg)
+UbseResult DealLinkInfo(const std::string& linkInfo, UbseMemNumaBorrowReq& numaBorrowReq,
+                        const UbseRoleInfo& currentNodeInfo, std::string& errorMsg)
 {
     std::vector<std::string> linkInfos{};
     std::vector<std::string> firstLink{};
@@ -255,7 +258,7 @@ UbseResult DealLinkInfo(const std::string &linkInfo, UbseMemNumaBorrowReq &numaB
     return UBSE_ERROR;
 }
 
-UbseResult FillSrcNuma(UbseMemNumaBorrowReq &numaBorrowReq, const UbseRoleInfo &currentNodeInfo)
+UbseResult FillSrcNuma(UbseMemNumaBorrowReq& numaBorrowReq, const UbseRoleInfo& currentNodeInfo)
 {
     auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(currentNodeInfo.nodeId);
     if (nodeInfo.nodeId == "") {
@@ -264,7 +267,7 @@ UbseResult FillSrcNuma(UbseMemNumaBorrowReq &numaBorrowReq, const UbseRoleInfo &
     }
     auto srcSocket = numaBorrowReq.srcSocket;
     UBSE_LOG_INFO << "Src socket is " << srcSocket << ", import node id is " << currentNodeInfo.nodeId;
-    for (const auto &numaInfo : nodeInfo.numaInfos) {
+    for (const auto& numaInfo : nodeInfo.numaInfos) {
         if (numaInfo.second.socketId == srcSocket) {
             numaBorrowReq.srcNuma = numaInfo.first.numaId;
             UBSE_LOG_INFO << "Src numa is " << numaBorrowReq.srcNuma;
@@ -275,7 +278,7 @@ UbseResult FillSrcNuma(UbseMemNumaBorrowReq &numaBorrowReq, const UbseRoleInfo &
     return UBSE_ERROR;
 }
 
-uint32_t ReplyDeleteErrorMsg(const UbseRequestContext &context, const std::string &errorMsg, const uint32_t &errorCode)
+uint32_t ReplyDeleteErrorMsg(const UbseRequestContext& context, const std::string& errorMsg, const uint32_t& errorCode)
 {
     auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (ubseApiModule == nullptr) {
@@ -298,7 +301,7 @@ uint32_t ReplyDeleteErrorMsg(const UbseRequestContext &context, const std::strin
     return ret;
 }
 
-void SwitchType(MemOperationType &operationType, const std::string &type)
+void SwitchType(MemOperationType& operationType, const std::string& type)
 {
     if (type == "fd") {
         operationType = MemOperationType::FD_RETURN;
@@ -311,7 +314,7 @@ void SwitchType(MemOperationType &operationType, const std::string &type)
     }
 }
 
-uint32_t DeleteMemoryHandler(const UbseIpcMessage &request, const UbseRequestContext &context)
+uint32_t DeleteMemoryHandler(const UbseIpcMessage& request, const UbseRequestContext& context)
 {
     std::string errorMsg{};
     UbseDeSerialization deserial{request.buffer, request.length};
@@ -324,7 +327,7 @@ uint32_t DeleteMemoryHandler(const UbseIpcMessage &request, const UbseRequestCon
     }
     if (!CheckName(req.name)) {
         errorMsg = "Invalid name. Please check the form of name.";
-        UBSE_LOG_ERROR << "Invalid name. length is " << req.name.length() <<" or includes invalid characters.";
+        UBSE_LOG_ERROR << "Invalid name. length is " << req.name.length() << " or includes invalid characters.";
         return ReplyDeleteErrorMsg(context, errorMsg, DELETE_REQUEST_CHECK_FAILED);
     }
     UBSE_AUDIT_OPERATE("DeleteMemoryHandler") << "Start to delete memory, name is " << req.name << "type is " << type;
@@ -396,7 +399,7 @@ std::chrono::seconds GetWaitTimeout()
     return WAIT_TIMEOUT;
 }
 
-static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq &req)
+static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -425,8 +428,8 @@ static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-void DealBorrowWaitTimeOut(const std::string &name, const std::string &requestNodeId, const std::string &importNodeId,
-                           const MemOperationType &type)
+void DealBorrowWaitTimeOut(const std::string& name, const std::string& requestNodeId, const std::string& importNodeId,
+                           const MemOperationType& type)
 {
     auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
     if (memBorrowWaitTimeOutExecutor == nullptr) {
@@ -455,7 +458,7 @@ static uint32_t CloseModeNotSupported(UbseMemOperationResp &resp, const std::str
 
 uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
 {
-    UBSE_LOG_INFO << "begin fd borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin fd borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
         return CloseModeNotSupported(resp, req.name, req.requestNodeId, "FD borrow");
@@ -466,7 +469,7 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
             res != UBSE_OK) {
             UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
             return res;
-            }
+        }
     }
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
@@ -481,30 +484,30 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "WATER_BORROW", req.size, "", req.requestNodeId, ret,
-                           MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice({MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::FD, req.size, "", req.requestNodeId,
+                            req.requestNodeId});
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "WATER_BORROW", req.size, "", req.requestNodeId,
-                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
+        BorrowFailedAdvice(
+            {MemFault::BORROW_TIME_OUT, req.name, MemType::FD, req.size, "", req.requestNodeId, req.requestNodeId});
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::FD_RETURN);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     resp = respFuture.get();
     return ret;
 }
 
-static UbseResult SendRpcRequestForNumaBorrow(const UbseMemNumaBorrowReq &req)
+static UbseResult SendRpcRequestForNumaBorrow(const UbseMemNumaBorrowReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -533,9 +536,9 @@ static UbseResult SendRpcRequestForNumaBorrow(const UbseMemNumaBorrowReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp)
 {
-    UBSE_LOG_INFO << "begin numa borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin numa borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
         return CloseModeNotSupported(resp, req.name, req.requestNodeId, "NUMA borrow");
@@ -562,29 +565,29 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
-                           ret, MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice({MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::NUMA, req.size, "", req.requestNodeId,
+                            req.requestNodeId});
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_NUMA_BORROW", req.size, "", req.requestNodeId,
-                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
+        BorrowFailedAdvice(
+            {MemFault::BORROW_TIME_OUT, req.name, MemType::NUMA, req.size, "", req.requestNodeId, req.requestNodeId});
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::NUMA_RETURN);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     resp = respFuture.get();
     return ret;
 }
 
-static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq &req)
+static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -609,24 +612,24 @@ static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t CheckAddrBorrowMode(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t CheckAddrBorrowMode(UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
-    if (req.wrDelayComp != 0 && req.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
+    if (req.ubseMemPrivData.wrDelayComp != 0 && req.ubseMemPrivData.wrDelayComp != 1) { // 0为接力模式，1为非接力模式
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_MEMCONTROLLER_ERROR_COMP_ERROR;
         UBSE_LOG_ERROR << "Only relay mode and non-relay mode are supported currently,"
                           " the value of wrDelayComp is "
-                       << req.wrDelayComp;
+                       << req.ubseMemPrivData.wrDelayComp;
         return UBSE_ERROR;
     }
     return UBSE_OK;
 }
 
-uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
     // 创建请求
-    UBSE_LOG_INFO << "begin addr borrow, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin addr borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
         return CloseModeNotSupported(resp, req.name, req.requestNodeId, "ADDR borrow");
@@ -637,7 +640,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
             res != UBSE_OK) {
             UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
             return res;
-            }
+        }
     }
     if (CheckAddrBorrowMode(req, resp) != UBSE_OK) {
         return UBSE_ERROR;
@@ -659,27 +662,27 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId, ret,
-                           MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice({MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::ADDR, reqSize, "", req.requestNodeId,
+                            req.requestNodeId});
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "APP_PRI_BORROW", reqSize, "", req.requestNodeId,
-                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
+        BorrowFailedAdvice(
+            {MemFault::BORROW_TIME_OUT, req.name, MemType::ADDR, reqSize, "", req.requestNodeId, req.requestNodeId});
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::ADDR_RETURN);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     resp = respFuture.get();
     return ret;
 }
 
-static UbseResult SendRpcRequestForShareBorrow(const UbseMemShareBorrowReq &req)
+static UbseResult SendRpcRequestForShareBorrow(const UbseMemShareBorrowReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -708,7 +711,7 @@ static UbseResult SendRpcRequestForShareBorrow(const UbseMemShareBorrowReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq& req, UbseMemOperationResp& resp)
 {
     // 创建请求
     if (IsHighSafety()) {
@@ -733,27 +736,26 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", "",
-                           ret, MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice(
+            {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice(ProcessType::EXPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", "", UBSE_ERR_TIMEOUT,
-                           MemAdvice::TIME_OUT);
+        BorrowFailedAdvice({MemFault::BORROW_TIME_OUT, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, "", MemOperationType::SHARED_RETURN);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     resp = respFuture.get();
     return ret;
 }
 
-static UbseResult SendRpcRequestShareAttach(const UbseMemShareAttachReq &req)
+static UbseResult SendRpcRequestShareAttach(const UbseMemShareAttachReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -782,7 +784,7 @@ static UbseResult SendRpcRequestShareAttach(const UbseMemShareAttachReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationResp &resp)
+uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationResp& resp)
 {
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
@@ -798,8 +800,8 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", req.requestNodeId, ret,
-                           MemAdvice::COMM_FAILED);
+        BorrowFailedAdvice(
+            {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
@@ -808,17 +810,16 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice(ProcessType::IMPORT_FAILED, req.name, "SHARE_BORROW", req.size, "", req.requestNodeId,
-                           UBSE_ERR_TIMEOUT, MemAdvice::TIME_OUT);
+        BorrowFailedAdvice({MemFault::BORROW_TIME_OUT, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         DealBorrowWaitTimeOut(req.name, req.requestNodeId, req.importNodeId, MemOperationType::SHARED_RETURN);
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     resp = respFuture.get();
     return ret;
 }
 
-static UbseResult SendRpcRequestForShareDetach(const UbseMemShareDetachReq &req)
+static UbseResult SendRpcRequestForShareDetach(const UbseMemShareDetachReq& req)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -843,7 +844,7 @@ static UbseResult SendRpcRequestForShareDetach(const UbseMemShareDetachReq &req)
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationResp &resp)
+uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationResp& resp)
 {
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);
@@ -858,25 +859,27 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
-        UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
+        UBSE_LOG_ERROR << "requestId=" << requestId << " RpcSend dispatch failed";
+        BorrowFailedAdvice({MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
+        BorrowFailedAdvice({MemFault::RETURN_TIME_OUT, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
         memBorrowWaitTimeOutExecutor->Execute([req, resp] { SendRpcRequestForShareDetach(req); });
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId;
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId;
     resp = respFuture.get();
     return ret;
 }
 
-void SwitchReturnType(SendParam &sendParam, const MemOperationType &type)
+void SwitchReturnType(SendParam& sendParam, const MemOperationType& type)
 {
     switch (type) {
         case MemOperationType::FD_RETURN:
@@ -896,7 +899,7 @@ void SwitchReturnType(SendParam &sendParam, const MemOperationType &type)
     }
 }
 
-static UbseResult SendRpcRequestForReturn(const UbseMemReturnReq &req, const MemOperationType &type)
+static UbseResult SendRpcRequestForReturn(const UbseMemReturnReq& req, const MemOperationType& type)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -927,9 +930,23 @@ static UbseResult SendRpcRequestForReturn(const UbseMemReturnReq &req, const Mem
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
 
-uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type, UbseMemOperationResp &resp)
+MemType GetMemType(const MemOperationType& type)
 {
-    UBSE_LOG_INFO << "begin mem return, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    switch (type) {
+        case MemOperationType::FD_RETURN:
+            return MemType::FD;
+        case MemOperationType::SHARED_RETURN:
+            return MemType::SHM;
+        case MemOperationType::ADDR_RETURN:
+            return MemType::ADDR;
+        default:
+            return MemType::NUMA;
+    }
+}
+
+uint32_t UbseMemReturn(const UbseMemReturnReq& req, const MemOperationType& type, UbseMemOperationResp& resp)
+{
+    UBSE_LOG_INFO << "begin mem return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (type != MemOperationType::SHARED_RETURN && UbseSmbios::GetInstance().IsClosType()) {
         return CloseModeNotSupported(resp, req.name, req.requestNodeId, "Fd return and numa return");
@@ -948,15 +965,18 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << req.requestId << "RpcSend dispatch failed";
+        BorrowFailedAdvice(
+            {MemFault::BORROW_REQ_SEND_FAILED, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
         return ret;
     }
-    UBSE_LOG_INFO << "begin wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (respFuture.wait_for(GetWaitTimeout()) != std::future_status::ready) {
         resp.name = req.name;
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
+        BorrowFailedAdvice({MemFault::BORROW_TIME_OUT, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
         auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
         if (memBorrowWaitTimeOutExecutor == nullptr) {
             UBSE_LOG_ERROR << "Get memBorrowWaitTimeOutExecutor is nullptr";
@@ -965,7 +985,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq &req, const MemOperationType &type
         memBorrowWaitTimeOutExecutor->Execute([req, type] { SendRpcRequestForReturn(req, type); });
         return UBSE_ERROR;
     }
-    UBSE_LOG_INFO << "End to wait resp, name is " << req.name << ", requestNodeId is " << req.requestNodeId
+    UBSE_LOG_INFO << "End to wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     resp = respFuture.get();
     return ret;

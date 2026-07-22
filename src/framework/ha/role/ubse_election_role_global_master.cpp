@@ -28,6 +28,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::timer;
 using namespace ubse::context;
 using namespace ubse::election::message;
+using namespace ubse::com;
+
 void GlobalMaster::InitNodesStatus()
 {
     std::vector<UBSE_ID_TYPE> allNeighbourNodes = RoleMgr::GetInstance().GetManagingGroupMasterIds();

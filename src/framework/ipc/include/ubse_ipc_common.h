@@ -23,11 +23,14 @@ typedef enum {
     UBSE_NODE = 0x0003,
     UBSE_LONG_LINK_REGISTER = 0x0004, // moduleCode 为向服务端注册监听长连接事件
     UBSE_URMA = 0x0005,
-    UBSE_SSU = 0x0006,
+    UBSE_NPU = 0x0006,
+    UBSE_SSU = 0x0007,
 } ubse_ipc_module_code_t;
 
 typedef enum {
-    UBSE_LONGLINK_FAULT = 0x0001,
+    UBSE_LONGLINK_FAULT_SHM = 0x0001,
+    UBSE_LONGLINK_FAULT_FD = 0x0002,
+    UBSE_LONGLINK_FAULT_NUMA = 0x0003,
 } ubse_ipc_long_link_op_code_t;
 
 typedef enum {
@@ -72,17 +75,20 @@ typedef enum {
     // todo 删除,创建和查询过程不同，各类型查询结构体和接口不同，需拆分
     UBSE_MEM_CLI_NUMA_STATE_QUERY = 0x0038,
 
-    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,               // NUMA创建(CLI)
-    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,     // NUMA借用关系查询(CLI)
-    UBSE_MEM_CLI_FD_CREATE = 0x0041,                 // FD创建(CLI)
-    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,       // FD借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                // SHM创建(CLI)
-    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,      // SHM借用关系查询(CLI)
-    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                // SHM链接(CLI)
-    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                // SHM释放(CLI)
+    UBSE_MEM_CLI_NUMA_CREATE = 0x0039,                // NUMA创建(CLI)
+    UBSE_MEM_CLI_NUMA_INFO_GET_BY_NAME = 0x0040,      // NUMA借用关系查询(CLI)
+    UBSE_MEM_CLI_FD_CREATE = 0x0041,                  // FD创建(CLI)
+    UBSE_MEM_CLI_FD_INFO_GET_BY_NAME = 0x0042,        // FD借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_CREATE = 0x0043,                 // SHM创建(CLI)
+    UBSE_MEM_CLI_SHM_INFO_GET_BY_NAME = 0x0044,       // SHM借用关系查询(CLI)
+    UBSE_MEM_CLI_SHM_ATTACH = 0x0045,                 // SHM链接(CLI)
+    UBSE_MEM_CLI_SHM_DETACH = 0x0046,                 // SHM释放(CLI)
     UBSE_MEM_CLI_MEMORY_DELETE_BY_NAME_TYPE = 0x0047, // 内存删除(聚合接口)(CLI)
-    UBSE_MEM_CLI_CLOSE_BORROW_DETAIL_QUERY = 0x0048,  // close组网账本查询(CLI)
-    UBSE_MEM_CLI_IS_CLOS_TYPE = 0x0049               // 判断是否为clos组网(CLI)
+    UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048,          // PID阈值设置(CLI)
+    UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,             // PID信息查询(CLI)
+    UBSE_MEM_CLI_PID_UNSET = 0x0050,                  // PID配置删除(CLI)
+    UBSE_MEM_CLI_CLOSE_BORROW_DETAIL_QUERY = 0x0051,  // close组网账本查询(CLI)
+    UBSE_MEM_CLI_IS_CLOS_TYPE = 0x0052                // 判断是否为clos组网(CLI)
 } ubse_ipc_mem_op_code_t;
 
 typedef enum {
@@ -100,17 +106,26 @@ typedef enum {
 } ubse_ipc_election_op_code_t;
 
 typedef enum {
-    UBSE_URMA_QOS_SET = 0x0001,
-    UBSE_URMA_QOS_GET = 0x0002,
-    UBSE_URMA_QOS_RESET = 0x0003,
-    UBSE_URMA_CLI_QOS_GET = 0x0004,
-    UBSE_URMA_DEV_GET = 0x0005,
-    UBSE_URMA_DEV_ALLOC = 0x0006,
-    UBSE_URMA_DEV_FREE = 0x0007,
-    UBSE_URMA_CLI_DEV_GET = 0x0008,
-    UBSE_URMA_CLI_DEV_ACTIVATE = 0x0009,
+    UBSE_URMA_QOS_CREATE = 0x0001,
+    UBSE_URMA_QOS_DELETE = 0x0002,
+    UBSE_URMA_CLI_QOS_GET = 0x0003,
+    UBSE_URMA_DEV_GET = 0x0004,
+    UBSE_URMA_DEV_ALLOC = 0x0005,
+    UBSE_URMA_DEV_FREE = 0x0006,
+    UBSE_URMA_CLI_DEV_GET = 0x0007,
+    UBSE_URMA_CLI_QOS_CREATE = 0x0008,
+    UBSE_URMA_CLI_QOS_DELETE = 0x0009,
+    UBSE_URMA_QOS_GET = 0x000A,
     UBSE_URMA_BUTT
 } ubse_ipc_urma_op_code_t;
+
+typedef enum {
+    UBSE_NPU_TEST = 0x0001,
+    UBSE_NPU_GET_HOST_DEVICES = 0x0002,
+    UBSE_NPU_ALLOC_UB_DEVICES = 0x0003,
+    UBSE_NPU_FREE_UB_DEVICES = 0x0004,
+    UBSE_NPU_QUERY_UBA_TID_SIZE = 0x0005,
+} ubse_ipc_npu_op_code_t;
 
 typedef enum {
     UBSE_SSU_CLI_ALLOC_SUMMARY = 0x0001,

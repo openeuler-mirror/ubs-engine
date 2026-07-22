@@ -13,16 +13,17 @@
 #ifndef UBSE_LOG_CONFIG_H
 #define UBSE_LOG_CONFIG_H
 
+#include <referable/ubse_ref.h> // for Ref, Referable
 #include <cstdint>              // for uint32_t
 #include <memory>               // for shared_ptr
 #include <string>               // for string
-#include <referable/ubse_ref.h> // for Ref, Referable
 
-#include "ubse_common_def.h"    // for UbseResult
+#include "ubse_common_def.h" // for UbseResult
 
 namespace ubse::log {
-using namespace ubse::utils;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 
 class UbseLoggerConfig : public Referable {
     using UbseLogConfigPtr = Ref<UbseLoggerConfig>;

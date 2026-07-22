@@ -26,6 +26,7 @@ using namespace ubse::context;
 using namespace ubse::timer;
 using namespace ubse::nodeController;
 using namespace ubse::nodeMgr;
+using namespace ubse::com;
 
 UbseResult FAKE_GlobalMasterGetMyselfNode(UbseElectionNodeMgr *, Node &myself)
 {

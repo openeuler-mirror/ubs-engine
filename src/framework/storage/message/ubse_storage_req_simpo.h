@@ -14,9 +14,12 @@
 #define UBSE_STORAGE_REQ_H
 #include "ubse_base_message.h"
 namespace ubse::storage::message {
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
-enum class UbseStorageReqCmdType : uint8_t {
+enum class UbseStorageReqCmdType : uint8_t
+{
     GET = 0,
     GET_WITH_PREFIX = 1,
 };
@@ -33,9 +36,9 @@ class UbseStorageReqSimpo : public UbseBaseMessage {
 public:
     UbseStorageReqSimpo() = default;
 
-    explicit UbseStorageReqSimpo(const UbseStorageReq &req);
+    explicit UbseStorageReqSimpo(const UbseStorageReq& req);
 
-    explicit UbseStorageReqSimpo(uint8_t *data, uint32_t size)
+    explicit UbseStorageReqSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
@@ -52,5 +55,5 @@ private:
     UbseStorageReq storageReq_{};
 };
 using UbseStorageReqSimpoPtr = Ref<UbseStorageReqSimpo>;
-}
+} // namespace ubse::storage::message
 #endif // UBSE_STORAGE_REQ_H

@@ -9,7 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "src/controllers/mem/mem_controller/ubse_mem_controller_query_api.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -18,6 +17,7 @@
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_node_controller_query_api.h"
+#include "src/controllers/mem/mem_controller/ubse_mem_controller_query_api.h"
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
 constexpr uint64_t MB_TO_BYTE = 1024 * 1024;
@@ -25,12 +25,12 @@ constexpr uint64_t MB_TO_BYTE = 1024 * 1024;
 using namespace ubse::election;
 using namespace ubse::log;
 // 填充 fdDesc
-uint32_t FillFdDesc(UbseMemFdDesc &fdDesc, const UbseMemDebtQueryRequest &request,
-                    const UbseMemFdBorrowImportObj &importObj)
+uint32_t FillFdDesc(UbseMemFdDesc& fdDesc, const UbseMemDebtQueryRequest& request,
+                    const UbseMemFdBorrowImportObj& importObj)
 {
     fdDesc.name = request.name;
     fdDesc.memIds.clear();
-    for (const auto &obmmInfo : importObj.status.importResults) {
+    for (const auto& obmmInfo : importObj.status.importResults) {
         fdDesc.memIds.push_back(obmmInfo.memId);
     }
     fdDesc.totalMemSize = importObj.req.size;
@@ -46,7 +46,7 @@ uint32_t FillFdDesc(UbseMemFdDesc &fdDesc, const UbseMemDebtQueryRequest &reques
     fdDesc.state = memResult.stage;
     return UBSE_OK;
 }
-uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest &request, UbseMemFdDesc &fdDesc)
+uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest& request, UbseMemFdDesc& fdDesc)
 {
     // 获取当前节点
     UbseRoleInfo currentRoleInfo{};
@@ -62,9 +62,8 @@ uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest &request, UbseMemFdDesc &fdD
     const UbseUdsInfo udsInfo = request.udsInfo;
     const std::string importNodeId = request.importNodeId;
 
-    auto importObjPtr = UbseMemDebtLedger::GetInstance()
-        .GetDebtMap<UbseMemFdBorrowImportObj>()
-        .GetResource(importNodeId, name);
+    auto importObjPtr =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().GetResource(importNodeId, name);
     if (!importObjPtr) {
         UBSE_LOG_ERROR << "Failed to find no delete debt, name: " << name << "related node id: " << importNodeId;
         return UBSE_ERR_NOT_EXIST;
@@ -81,7 +80,7 @@ uint32_t UbseMemFdGet(const UbseMemDebtQueryRequest &request, UbseMemFdDesc &fdD
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseMemFdDesc> &fdDescs)
+uint32_t UbseMemFdList(const UbseMemDebtQueryRequest& request, std::vector<UbseMemFdDesc>& fdDescs)
 {
     UbseRoleInfo currentRoleInfo{};
     if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
@@ -95,22 +94,21 @@ uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseM
     const UbseUdsInfo udsInfo = request.udsInfo;
     fdDescs.clear();
 
-    auto nodeImportMap = UbseMemDebtLedger::GetInstance()
-        .GetDebtMap<UbseMemFdBorrowImportObj>()
-        .FindNodeMap(request.importNodeId);
+    auto nodeImportMap =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().FindNodeMap(request.importNodeId);
     if (!nodeImportMap) {
         UBSE_LOG_INFO << "Failed to find import debt, import node id: " << request.importNodeId;
         return UBSE_OK;
     }
 
-    for (const auto &[name, importObjPtr] : nodeImportMap->GetAll()) {
+    for (const auto& [name, importObjPtr] : nodeImportMap->GetAll()) {
         if (!importObjPtr->req.udsInfo.CheckPermission(udsInfo)) {
             continue;
         }
         def::UbseMemFdDesc fdDesc{};
         fdDesc.name = name;
         fdDesc.memIds.clear();
-        for (const auto &obmmInfo : importObjPtr->status.importResults) {
+        for (const auto& obmmInfo : importObjPtr->status.importResults) {
             fdDesc.memIds.push_back(obmmInfo.memId);
         }
         fdDesc.totalMemSize = importObjPtr->req.size;
@@ -118,7 +116,7 @@ uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseM
         ubse::nodeController::UbseNodeGetByNodeIdInMaster(request.importNodeId, fdDesc.importNode);
         if (!importObjPtr->algoResult.exportNumaInfos.empty()) {
             ubse::nodeController::UbseNodeGetByNodeIdInMaster(importObjPtr->algoResult.exportNumaInfos[0].nodeId,
-                fdDesc.exportNode);
+                                                              fdDesc.exportNode);
         }
         UbseMemResult memResult = GetFdStageByObj(name, request.importNodeId);
         fdDesc.state = memResult.stage;
@@ -127,13 +125,13 @@ uint32_t UbseMemFdList(const UbseMemDebtQueryRequest &request, std::vector<UbseM
     return UBSE_OK;
 }
 
-UbseMemResult GetFdStageByObj(const std::string &name, const std::string &importNodeId)
+UbseMemResult GetFdStageByObj(const std::string& name, const std::string& importNodeId)
 {
     return GetStageByObj<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(name, importNodeId);
 }
 
-UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string &nodeId, const std::string &name,
-    const std::string &importNodeId, const bool isFromTaskManager)
+UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string& nodeId, const std::string& name,
+                                            const std::string& importNodeId, const bool isFromTaskManager)
 {
     // 首先从TaskManger中获取
     if (isFromTaskManager) {
@@ -147,9 +145,8 @@ UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string &nodeId, const std
     }
 
     const auto exportKey = GenerateExportObjKey(name, importNodeId);
-    auto exportObjPtr = UbseMemDebtLedger::GetInstance()
-        .GetDebtMap<UbseMemFdBorrowExportObj>()
-        .GetExportResourceByResId(exportKey);
+    auto exportObjPtr =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowExportObj>().GetExportResourceByResId(exportKey);
     if (!exportObjPtr) {
         UBSE_LOG_WARN << "name=" << name << ", importNodeId=" << importNodeId << " is not in debt.";
         return {};
@@ -157,7 +154,7 @@ UbseMemFdBorrowExportObj UbseFdExportObjGet(const std::string &nodeId, const std
     return *exportObjPtr;
 }
 
-UbseMemFdBorrowImportObj UbseFdImportObjGet(const std::string &nodeId, const std::string &name,
+UbseMemFdBorrowImportObj UbseFdImportObjGet(const std::string& nodeId, const std::string& name,
                                             const bool isFromTaskManager)
 {
     // 首先从TaskManger中获取
@@ -171,9 +168,8 @@ UbseMemFdBorrowImportObj UbseFdImportObjGet(const std::string &nodeId, const std
         }
     }
 
-    auto importObjPtr = UbseMemDebtLedger::GetInstance()
-        .GetDebtMap<UbseMemFdBorrowImportObj>()
-        .GetResource(nodeId, name);
+    auto importObjPtr =
+        UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemFdBorrowImportObj>().GetResource(nodeId, name);
     if (!importObjPtr) {
         UBSE_LOG_WARN << "name=" << name << " is not in debt.";
         return {};

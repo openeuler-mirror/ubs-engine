@@ -33,8 +33,6 @@ UBS RMRS/
 
   - UBS RMRS是一款面向虚拟化场景的节点内资源管理服务插件，作为UBS Engine框架的一部分提供集群级的内存资源调度服务，主要针对虚机内存碎片场景、虚机内存超分场景、容器内存超分场景。
 
-    ![img](https://resource.idp.huawei.com/idpresource/nasshare/editor/image/208584334606/1_zh-cn_image_0000002547490823.png)
-
     虚机碎片架构分为两层：
 
     UBS RMRS部署在UBS engine内，各计算节点Agent端仅负责数据采集和消息转发等，主节点侧作为功能入口，提供碎片内存的借用、迁出，内存归还和回滚接口，负责节点间的碎片内存管理。

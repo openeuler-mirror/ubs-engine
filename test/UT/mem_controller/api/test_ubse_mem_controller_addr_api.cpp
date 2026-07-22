@@ -13,20 +13,23 @@
 #include <src/adapter_plugins/mmi/ubse_mmi_module.h>
 #include <ubse_com_module.h>
 #include <ubse_error.h>
-#include <ubse_mem_scheduler.h>
-#include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "ubse_mem_scheduler_impl.h"
+
+using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_election.h"
 #include "ubse_mem_account.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_msg.h"
+#include "debt/ubse_mem_debt_ledger.h"
+#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
+#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
+#include "message/ubse_mem_operation_resp_simpo.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 namespace ubse::mem_controller::addr::ut {
 using namespace ubse::mem::controller;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::mmi;
 const std::string NODE_ONE = "1";
 const std::string NODE_TWO = "2";
 
@@ -79,16 +82,16 @@ void BuildOperationMockSet()
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 }
 // 创建并初始化UbseMemAddrBorrowExportObj对象，并将其添加到addrExportObjMap中
-void AddToExportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemAddrBorrowExportObj &addrBorrowExportObj)
+void AddToExportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemAddrBorrowExportObj& addrBorrowExportObj)
 {
     auto exportKey = mem::controller::GenerateExportObjKey(name, nodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(nodeId, exportKey,
                                                                                           addrBorrowExportObj);
 }
 // 创建并初始化UbseMemAddrBorrowImportObj对象，并将其添加到addrImportObjMap中
-void AddToImportObjMap(const std::string &name, const std::string &nodeId,
-                       UbseMemAddrBorrowImportObj &addrBorrowImportObj)
+void AddToImportObjMap(const std::string& name, const std::string& nodeId,
+                       UbseMemAddrBorrowImportObj& addrBorrowImportObj)
 {
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(nodeId, name,
                                                                                           addrBorrowImportObj);
@@ -158,13 +161,14 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSuccess)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
 
     UbseMemAddrBorrowImportObj importObj{.req = req};
 
     std::vector<UbseMemDebtNumaInfo> AddrInfos;
     UbseMemDebtNumaInfo AddrInfo{.nodeId = NODE_ONE, .socketId = 0, .numaId = 0, .size = 0};
     importObj.algoResult.exportNumaInfos.emplace_back(AddrInfo);
-    MOCKER_CPP(&mem::scheduler::UbseMemAddrImportObjStateChangeHandler)
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>)
         .stubs()
         .with(outBound(importObj))
         .will(returnValue(UBSE_OK));
@@ -185,9 +189,12 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowChangeHandlerFailed)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&GetNumaInfoFromAgent).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&BuildOperationRespWhenFail).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>)
+        .stubs()
+        .will(returnValue(UBSE_ERROR));
     EXPECT_EQ(mem::controller::UbseMemAddrBorrow(req, resp, NODE_ONE), UBSE_OK);
 }
 
@@ -201,11 +208,12 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
     req.exportNodeId = NODE_ONE;
     req.importNodeId = NODE_TWO;
     UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowImportObj importObj{.req = req};
     std::vector<UbseMemDebtNumaInfo> AddrInfos;
     UbseMemDebtNumaInfo AddrInfo{.nodeId = NODE_ONE, .socketId = 0, .numaId = 0, .size = 0};
     importObj.algoResult.exportNumaInfos.emplace_back(AddrInfo);
-    MOCKER_CPP(&mem::scheduler::UbseMemAddrImportObjStateChangeHandler)
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>)
         .stubs()
         .with(outBound(importObj))
         .will(returnValue(UBSE_OK));
@@ -218,8 +226,8 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrBorrowSendFailed)
 }
 
 // 辅助函数，设置公共的mock配置
-void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::UbseRoleInfo &masterInfo,
-                               std::shared_ptr<com::UbseComModule> &module)
+void ExportCallbackCommonSetup(election::UbseRoleInfo& currentInfo, election::UbseRoleInfo& masterInfo,
+                               std::shared_ptr<com::UbseComModule>& module)
 {
     // 当前节点为0号节点
     currentInfo.nodeId = NODE_TWO;
@@ -233,7 +241,7 @@ void ExportCallbackCommonSetup(election::UbseRoleInfo &currentInfo, election::Ub
 }
 
 // 成功场景
-void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
+void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
@@ -253,7 +261,7 @@ void AgentExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
 }
 
 // 错误场景
-void AgentExportCallbackMockErrorSet(UbseMemAddrBorrowExportObj &exportObj)
+void AgentExportCallbackMockErrorSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     election::UbseRoleInfo currentInfo{};
     election::UbseRoleInfo masterInfo{};
@@ -377,7 +385,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportDestroyingAgentCallbackFailed)
     EXPECT_EQ(UBSE_OK, ret);
 }
 
-void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
+void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj& exportObj)
 {
     // 当前节点为1号节点
     election::UbseRoleInfo currentInfo{};
@@ -409,7 +417,7 @@ void MasterExportCallbackMockSet(UbseMemAddrBorrowExportObj &exportObj)
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     exportObj.status.expectState = UBSE_MEM_EXPORT_SUCCESS;
 }
-void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj &exportObj)
+void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj& exportObj)
 {
     UbseMemAddrBorrowImportObj importObj{};
     importObj.status.state = UBSE_MEM_EXPORT_RUNNING;
@@ -423,7 +431,7 @@ void MasterExportCallbackImportObjSet(const UbseMemAddrBorrowExportObj &exportOb
 * Addr类型内存的Export对象导出回调,master测执行，；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseAllNumaInfo、GetCnaInfoWhenImport、UbseMemAddrExportObjStateChangeHandler、模拟rpcsend发送成功
+* 2. 一些必要mock: UbseAllNumaInfo、GetCnaInfoWhenImport、SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟rpcsend发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. 账本中放入key为1号节点的 importObj数据;
 * 5.调用 UbseMemAddrBorrowExportObjCallback
@@ -446,7 +454,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectSuccessCallbackSuccess)
     MOCKER(ubse::mem::account::UbseAllNumaInfo).stubs().with(outBound(numaInfoList)).will(returnValue(UBSE_OK));
 
     MOCKER(&mem::controller::GetCnaInfoWhenImport).stubs().will(returnValue(UBSE_OK));
-    MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -478,7 +486,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectSuccessCallbackFailed)
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
-    MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -506,7 +514,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportMasterCallbackFailed)
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
 
-    MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_ERROR, ret);
@@ -526,7 +534,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportMasterCallbackRollBack)
     numaInfoList.push_back(numaNodeInfo);
     MOCKER(ubse::mem::account::UbseAllNumaInfo).stubs().with(outBound(numaInfoList)).will(returnValue(UBSE_OK));
     MOCKER(&mem::controller::GetCnaInfoWhenImport).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
 }
@@ -536,7 +544,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportMasterCallbackRollBack)
 * Addr类型内存的Export对象归还回调,master测执行成功；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟rpcsend发送成功
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟rpcsend发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. exportObj expectState设置为UBSE_MEM_EXPORT_DESTROYED, state设置为UBSE_MEM_EXPORT_DESTROYED;
 * 5.调用 UbseMemAddrBorrowExportObjCallback
@@ -552,7 +560,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectDestroyCallbackSuccess)
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
-    MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -565,7 +573,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectDestroyCallbackSuccess)
 * Addr类型内存的Export对象归还回调,master测执行失败；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟rpcsend发送成功
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟rpcsend发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. exportObj expectState设置为UBSE_MEM_EXPORT_DESTROYED, state设置为UBSE_MEM_EXPORT_SUCCESS;
 * 5.调用 UbseMemAddrBorrowExportObjCallback
@@ -581,7 +589,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrExportExpectDestroyCallbackFailed)
     auto exportKey = mem::controller::GenerateExportObjKey(exportObj.req.name, exportObj.req.importNodeId);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
-    MOCKER(mem::scheduler::UbseMemAddrExportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
 
     auto ret = mem::controller::UbseMemAddrBorrowExportObjCallback(exportObj);
     EXPECT_EQ(UBSE_OK, ret);
@@ -641,7 +649,7 @@ void AgentImportCallbackMockSetError()
     SendAddrImportObjMockSetError();
     BuildOperationMockSet();
 }
-void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
+void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj& importObj)
 {
     UbseMemAddrBorrowReq req{};
     req.name = "test";
@@ -659,7 +667,7 @@ void AgentImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
 * Addr类型内存的import对象导出回调,agent测执行成功；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟SendAddrImportObj发送成功、UbseMemAddrImportExecutor
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟SendAddrImportObj发送成功、UbseMemAddrImportExecutor
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -692,7 +700,7 @@ TEST_F(TestUbseMemControllerAddrApi, DealAddrAgentImportSuccess)
 * Addr类型内存的import对象导出回调,agent测执行失败；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟SendAddrImportObj发送成功、UbseMemAddrImportExecutor返回UBSE_ERROR
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟SendAddrImportObj发送成功、UbseMemAddrImportExecutor返回UBSE_ERROR
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -757,7 +765,7 @@ void MasterImportCallbackMockSet()
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(exportObj.req.exportNodeId,
                                                                                           exportKey, exportObj);
 }
-void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
+void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj& importObj)
 {
     AgentImportCallbackImportObjSet(importObj);
 }
@@ -767,7 +775,7 @@ void MasterImportCallbackImportObjSet(UbseMemAddrBorrowImportObj &importObj)
 * Addr类型内存的import对象导出回调,master测执行成功；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟Rpc发送成功
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟Rpc发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点，,入参importObj状态为UBSE_MEM_IMPORT_SUCCESS
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -785,7 +793,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackSuccess)
     importObj.status.importResults.push_back(importResult);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
         importObj.req.importNodeId, importObj.req.name, importObj);
-    MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
 }
@@ -794,7 +802,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackSuccess)
 * Addr类型内存的import对象导出回调,master测执行失败；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrImportObjStateChangeHandler、模拟RpcSend发送成功、
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>、模拟RpcSend发送成功、
 * 3. 设置导出节点为2号节点，导入节点为1号节点,入参importObj状态为UBSE_MEM_IMPORT_DESTROYED
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -812,7 +820,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackFailed)
     importObj.status.importResults.push_back(importResult);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
         importObj.req.importNodeId, importObj.req.name, importObj);
-    MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
     auto exportKey = mem::controller::GenerateExportObjKey(importObj.req.name, importObj.req.importNodeId);
@@ -827,7 +835,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackFailed)
 * Addr类型内存的import对象归还回调,master测执行失败；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟rpcsend发送成功
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟rpcsend发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. exportObj expectState设置为UBSE_MEM_EXPORT_DESTROYED, state设置为UBSE_MEM_EXPORT_SUCCESS;
 * 5.调用 UbseMemAddrBorrowExportObjCallback
@@ -926,7 +934,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackNoExport)
 * Addr类型内存的import对象归还回调,agent测执行成功；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟SendAddrImportObj发送成功、UbseMemAddrUnImportExecutor返回UBSE_OK
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟SendAddrImportObj发送成功、UbseMemAddrUnImportExecutor返回UBSE_OK
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -958,7 +966,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackSuccess)
 * Addr类型内存的import对象归还回调,agent测执行失败；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟SendAddrImportObj发送成功、UbseMemAddrUnImportExecutor返回UBSE_ERROR
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟SendAddrImportObj发送成功、UbseMemAddrUnImportExecutor返回UBSE_ERROR
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. 设置账本数据，
 * 5.调用 UbseMemAddrBorrowImportObjCallback
@@ -990,7 +998,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportAgentCallbackFailed)
 * 用例描述: Addr类型内存的import对象归还回调,master测执行成功；
 * 测试步骤：
 * 1. 设置当前节点为1号，主节点为1号节点；
-* 2. 一些必要mock: UbseMemAddrExportObjStateChangeHandler、模拟rpcsend发送成功
+* 2. 一些必要mock: SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>、模拟rpcsend发送成功
 * 3. 设置导出节点为2号节点，导入节点为1号节点
 * 4. exportObj expectState设置为UBSE_MEM_EXPORT_DESTROYED, state设置为UBSE_MEM_EXPORT_SUCCESS;
 * 5.调用 UbseMemAddrBorrowExportObjCallback
@@ -1005,11 +1013,11 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedSuccess)
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     UbseMemImportResult importResult{};
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     importObj.status.importResults.push_back(importResult);
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemAddrBorrowImportObj>().PutResource(
         importObj.req.importNodeId, importObj.req.name, importObj);
-    MOCKER(mem::scheduler::UbseMemAddrImportObjStateChangeHandler).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowImportObj>).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrBorrowImportObjCallback(importObj);
     EXPECT_EQ(UBSE_OK, ret);
     auto exportKey = mem::controller::GenerateExportObjKey(importObj.req.name, importObj.req.importNodeId);
@@ -1022,7 +1030,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddrImportMasterCallbackDestroyedSuccess)
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccess)
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
-    MOCKER(WaitNodeStateWork).stubs().will(returnValue(UBSE_OK));
+    MOCKER(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const std::string nodeId = NODE_ONE;
     const std::string name = "addr_test_mem";
     UbseMemAddrBorrowExportObj addrBorrowExportObj{};
@@ -1048,6 +1056,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessNotExist)
 {
     UbseMemReturnReq req;
     UbseMemOperationResp resp;
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
     EXPECT_EQ(UBSE_ERROR, ret);
 }
@@ -1058,6 +1067,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
     req.name = "test";
     req.importNodeId = NODE_ONE;
     UbseMemOperationResp resp;
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowExportObj exportObj;
     exportObj.req.name = req.name;
     exportObj.req.importNodeId = req.importNodeId;
@@ -1078,6 +1088,7 @@ TEST_F(TestUbseMemControllerAddrApi, DeleteAddrExport)
 
 TEST_F(TestUbseMemControllerAddrApi, AddAddrExportDestroyed)
 {
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
     const auto ret = mem::controller::AddAddrExport(exportObj);
@@ -1086,6 +1097,7 @@ TEST_F(TestUbseMemControllerAddrApi, AddAddrExportDestroyed)
 
 TEST_F(TestUbseMemControllerAddrApi, AddAddrExportSuccess)
 {
+    MOCKER_CPP(&SchedulerImpl::MemoryObjChangeHandler<UbseMemAddrBorrowExportObj>).stubs().will(returnValue(UBSE_OK));
     UbseMemAddrBorrowExportObj exportObj;
     exportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     const auto ret = mem::controller::AddAddrExport(exportObj);

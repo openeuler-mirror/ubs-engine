@@ -33,7 +33,7 @@ TEST_F(TestUbseNodeControllerMaster, Initialize)
     EXPECT_EQ(master.Initialize(), UBSE_OK);
 }
 
-Ref<UbseTaskExecutor> MockCreateNullTaskPtr(const std::string &name, uint16_t threadNum, uint32_t queueCapacity)
+Ref<UbseTaskExecutor> MockCreateNullTaskPtr(const std::string& name, uint16_t threadNum, uint32_t queueCapacity)
 {
     return nullptr;
 }
@@ -62,7 +62,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseMasterOnlineHandler)
     UbseNodeControllerMaster master{};
     UbseNodeController::GetInstance().currentNodeId = "node1";
     MOCKER_CPP(&UbsePubEvent).stubs().will(returnValue(UBSE_OK));
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
 
     MOCKER(UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
@@ -89,7 +89,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeLedgerTimerHandler)
     MOCKER(UbseNodeGetLinkUpNodes).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(roles));
     UbseNodeControllerMaster master{};
     master.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_NO_THROW(master.UbseNodeLedgerTimerHandler());
 }
@@ -100,9 +100,9 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeCycleLedger)
 
     UbseNodeInfo emptyNodeInfo{};
     UbseNodeInfo
-    notWorkingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
+    notWorkingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
     UbseNodeInfo
-    workingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    workingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
 
     MOCKER(&UbseNodeController::GetNodeById)
         .stubs()
@@ -125,9 +125,9 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeLedger)
     MOCKER(&UbseNodeController::UpdateNodeInfoClusterState).stubs().will(returnValue(UBSE_OK));
 
     UbseNodeInfo
-    notSmoothingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
+    notSmoothingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
     UbseNodeInfo
-    smoothingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
+    smoothingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
 
     MOCKER(&UbseNodeController::GetNodeById)
         .stubs()
@@ -204,11 +204,11 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportHandler)
     UbseNodeControllerMaster master{};
 
     UbseNodeInfo emptyNodeInfo{};
-    UbseNodeInfo initNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
-    UbseNodeInfo faultNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
+    UbseNodeInfo initNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
+    UbseNodeInfo faultNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_FAULT};
 
     // empty node
-    EXPECT_EQ(master.UbseNodeReportHandler(emptyNodeInfo), SER_INVALID_PARAM);
+    EXPECT_EQ(master.UbseNodeReportHandler(emptyNodeInfo), UBSE_ERROR_INVAL);
 
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -231,7 +231,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportHandler)
     EXPECT_EQ(master.UbseNodeReportHandler(faultNodeInfo), UBSE_OK);
     master.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
 
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(master.UbseNodeReportHandler(faultNodeInfo), UBSE_OK);
 }
@@ -256,9 +256,9 @@ TEST_F(TestUbseNodeControllerMaster, UbseLcneTopologyChangeHandler)
     UbseNodeControllerMaster master{};
 
     UbseNodeInfo emptyNodeInfo{};
-    UbseNodeInfo initNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
+    UbseNodeInfo initNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_INIT};
 
-    EXPECT_EQ(master.UbseLcneTopologyChangeHandler(emptyNodeInfo), SER_INVALID_PARAM);
+    EXPECT_EQ(master.UbseLcneTopologyChangeHandler(emptyNodeInfo), UBSE_ERROR_INVAL);
 
     MOCKER(&UbseNodeController::UpdateNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(&UbseNodeController::UpdateDevDirConnectInfo).stubs().will(ignoreReturnValue());
@@ -275,9 +275,9 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeUpLedger)
 
     UbseNodeInfo emptyNodeInfo{};
     UbseNodeInfo
-    smoothingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
+    smoothingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_SMOOTHING};
     UbseNodeInfo
-    workingNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    workingNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
 
     MOCKER(&UbseNodeController::GetNodeById)
         .stubs()
@@ -313,9 +313,8 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeRasPreFaultHandler)
 TEST_F(TestUbseNodeControllerMaster, UbseNodeRasPreFaultFailHandler)
 {
     UbseNodeInfo
-    notPreBmcNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
-    UbseNodeInfo
-    preBmcNodeInfo{nodeId : "nodeO", clusterState : nodeController::UbseNodeClusterState::UBSE_NODE_PRE_BMC};
+    notPreBmcNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_WORKING};
+    UbseNodeInfo preBmcNodeInfo{nodeId: "nodeO", clusterState: nodeController::UbseNodeClusterState::UBSE_NODE_PRE_BMC};
 
     MOCKER(&UbseNodeController::GetNodeById)
         .stubs()
@@ -327,7 +326,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeRasPreFaultFailHandler)
     EXPECT_EQ(master.UbseNodeRasPreFaultFailHandler("node0"), UBSE_OK);
 
     master.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(master.UbseNodeRasPreFaultFailHandler("node0"), UBSE_OK);
 }
@@ -379,7 +378,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeUpHandler)
 {
     UbseNodeControllerMaster master{};
     master.taskExecutor_ = new (std::nothrow) UbseTaskExecutor("name", 1, 1);
-    bool (UbseTaskExecutor::*func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     EXPECT_EQ(master.UbseNodeUpHandler("node1"), UBSE_OK);
 }
@@ -409,11 +408,9 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_InvalidParam)
     UbseByteBuffer req{nullptr, 10, nullptr};
     UbseByteBuffer resp{};
 
-    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) {
-        return UBSE_OK;
-    });
+    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) { return UBSE_OK; });
 
-    EXPECT_EQ(ret, SER_INVALID_PARAM);
+    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_DeserializeFail)
@@ -424,9 +421,7 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_DeserializeFail)
 
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_ERROR));
 
-    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) {
-        return UBSE_OK;
-    });
+    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) { return UBSE_OK; });
 
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -439,9 +434,7 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_HandlerFail)
 
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_OK));
 
-    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) {
-        return UBSE_ERROR;
-    });
+    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) { return UBSE_ERROR; });
 
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -455,9 +448,7 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequest_Success)
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(SerializeUbseNode).stubs().will(returnValue(UBSE_OK));
 
-    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) {
-        return UBSE_OK;
-    });
+    auto ret = ProcessNodeRequest(req, resp, [](UbseNodeInfo&) { return UBSE_OK; });
 
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_NE(resp.freeFunc, nullptr);
@@ -472,9 +463,7 @@ TEST_F(TestUbseNodeControllerMaster, ProcessNodeRequestWithResponse_SerializeFai
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(SerializeUbseNode).stubs().will(returnValue(UBSE_ERROR));
 
-    auto ret = ProcessNodeRequestWithResponse(req, resp, [](UbseNodeInfo&) {
-        return UBSE_OK;
-    });
+    auto ret = ProcessNodeRequestWithResponse(req, resp, [](UbseNodeInfo&) { return UBSE_OK; });
 
     EXPECT_EQ(ret, UBSE_ERROR);
 }
@@ -487,8 +476,7 @@ TEST_F(TestUbseNodeControllerMaster, LcneChangeNodeInfoHandler)
 
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(SerializeUbseNode).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseNodeControllerMaster::UbseLcneTopologyChangeHandler)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerMaster::UbseLcneTopologyChangeHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = LcneChangeNodeInfoHandler(req, resp);
 
@@ -504,8 +492,7 @@ TEST_F(TestUbseNodeControllerMaster, UbseNodeReportNodeInfoHandler)
 
     MOCKER(DeSerializeUbseNode).stubs().will(returnValue(UBSE_OK));
     MOCKER(SerializeUbseNode).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseNodeControllerMaster::UbseNodeReportHandler)
-        .stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerMaster::UbseNodeReportHandler).stubs().will(returnValue(UBSE_OK));
 
     auto ret = UbseNodeReportNodeInfoHandler(req, resp);
 
@@ -522,12 +509,8 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_NotLeader)
     g_globalStop.store(false);
 
     auto ubseElectionModule = std::make_shared<UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs()
-        .will(returnValue(ubseElectionModule));
-    MOCKER(&UbseElectionModule::IsLeader)
-        .stubs()
-        .will(returnValue(false));
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(ubseElectionModule));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(false));
 
     auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
 
@@ -542,18 +525,10 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler)
     g_globalStop.store(false);
 
     auto ubseElectionModule = std::make_shared<UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs()
-        .will(returnValue(ubseElectionModule));
-    MOCKER(&UbseElectionModule::IsLeader)
-        .stubs()
-        .will(returnValue(true));
-    MOCKER(&UbseNodeController::GetAllNodes)
-        .stubs()
-        .will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
-    MOCKER(SerializeUbseNodeList)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(ubseElectionModule));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
+    MOCKER(SerializeUbseNodeList).stubs().will(returnValue(UBSE_OK));
 
     auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
 
@@ -569,18 +544,10 @@ TEST_F(TestUbseNodeControllerMaster, GetAllNodeInfoFromRemoteHandler_SerializeFa
     g_globalStop.store(false);
 
     auto ubseElectionModule = std::make_shared<UbseElectionModule>();
-    MOCKER(&UbseContext::GetModule<UbseElectionModule>)
-        .stubs()
-        .will(returnValue(ubseElectionModule));
-    MOCKER(&UbseElectionModule::IsLeader)
-        .stubs()
-        .will(returnValue(true));
-    MOCKER(&UbseNodeController::GetAllNodes)
-        .stubs()
-        .will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
-    MOCKER(SerializeUbseNodeList)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(ubseElectionModule));
+    MOCKER(&UbseElectionModule::IsLeader).stubs().will(returnValue(true));
+    MOCKER(&UbseNodeController::GetAllNodes).stubs().will(returnValue(std::unordered_map<std::string, UbseNodeInfo>{}));
+    MOCKER(SerializeUbseNodeList).stubs().will(returnValue(UBSE_ERROR));
 
     auto ret = GetAllNodeInfoFromRemoteHandler(req, resp);
 

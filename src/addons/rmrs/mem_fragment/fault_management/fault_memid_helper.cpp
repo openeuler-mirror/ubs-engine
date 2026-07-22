@@ -16,8 +16,8 @@
 namespace mempooling {
 using namespace ubse::com;
 
-MpResult FaultMemIdHelper::FaultMemIdManageHelper(std::string importNodeId, uint64_t importMemId,
-    bool isForce, bool byNodeFault)
+MpResult FaultMemIdHelper::FaultMemIdManageHelper(std::string importNodeId, uint64_t importMemId, bool isForce,
+                                                  bool byNodeFault)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][MemId] FaultMemIdManageHelper start.";
     MpResult ret = FaultMemIdModule::Instance().MemIdFaultManage(importNodeId, importMemId, isForce, byNodeFault);

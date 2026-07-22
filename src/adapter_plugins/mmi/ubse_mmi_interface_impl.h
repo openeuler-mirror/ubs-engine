@@ -34,7 +34,7 @@ public:
 
     UbseResult NumaUnImportExecutor(const UbseMemNumaBorrowImportObj& importObj) override;
 
-    UbseResult NumaExportExecutor(UbseMemNumaBorrowExportObj &exportObj) override;
+    UbseResult NumaExportExecutor(UbseMemNumaBorrowExportObj& exportObj) override;
 
     UbseResult NumaUnExportExecutor(const UbseMemNumaBorrowExportObj& exportObj) override;
 
@@ -58,5 +58,5 @@ public:
 
     UbseResult UnPreOnline() override;
 };
-}  // namespace ubse::adapter_plugins::mmi
-#endif  // UBSE_MMI_INTERFACE_IMPL_H
+} // namespace ubse::adapter_plugins::mmi
+#endif // UBSE_MMI_INTERFACE_IMPL_H

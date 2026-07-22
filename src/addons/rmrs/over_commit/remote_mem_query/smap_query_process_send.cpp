@@ -44,15 +44,15 @@ MpResult SmapQueryProcessSend::SendMsg()
     }
     if (sendResult_ != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SmapQuery] "
-                                                          "Handle response failed, result="
-                                                       << sendResult_ << ".";
+                                                             "Handle response failed, result="
+                                                          << sendResult_ << ".";
         return sendResult_;
     }
 
     return MEM_POOLING_OK;
 }
 
-MpResult SmapQueryProcessSend::CreateRequestData(UbseByteBuffer &reqData) const
+MpResult SmapQueryProcessSend::CreateRequestData(UbseByteBuffer& reqData) const
 {
     auto smapRemoteProcessQuryMsg = SmapRemoteProcessQueryTransMsg(SmapRemoteProcessQueryTrans({.numaIds = numaIds_}));
     RmrsOutStream builder;
@@ -68,7 +68,7 @@ MpResult SmapQueryProcessSend::CreateRequestData(UbseByteBuffer &reqData) const
     return MEM_POOLING_OK;
 }
 
-void SmapQueryProcessSend::RespHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void SmapQueryProcessSend::RespHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SmapQuery]"
@@ -76,7 +76,7 @@ void SmapQueryProcessSend::RespHandler(void *ctx, const UbseByteBuffer &respData
         return;
     }
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][SmapQuery] Process response data.";
-    const auto smapQueryProcessSend = static_cast<SmapQueryProcessSend *>(ctx);
+    const auto smapQueryProcessSend = static_cast<SmapQueryProcessSend*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         smapQueryProcessSend->sendResult_ = resCode;
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -93,12 +93,12 @@ void SmapQueryProcessSend::RespHandler(void *ctx, const UbseByteBuffer &respData
     smapQueryProcessSend->pidJson_ = message;
     if (code != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][OSTurboSmap][SmapQuery]"
-                                                          " Smap query failed, retCode="
-                                                       << code << ".";
+                                                             " Smap query failed, retCode="
+                                                          << code << ".";
     } else {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturn][OSTurboSmap][SmapQuery]"
-                                                         " Handle result="
-                                                      << response.ToString() << ".";
+                                                            " Handle result="
+                                                         << response.ToString() << ".";
     }
 }
 

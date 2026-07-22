@@ -15,6 +15,9 @@
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
+using namespace ubse::http;
+using namespace ubse::mti;
+using namespace ubse::common::def;
 constexpr int ZERO = 0;
 constexpr int ONE = 1;
 void TestUbseLcneTopologyClient::SetUp()
@@ -67,7 +70,7 @@ TEST_F(TestUbseLcneTopologyClient, ParseXmlData)
     )";
     std::vector<LcneNodeInfo> lcneNodes;
     UbseLcneTopologyClient::GetInstance().ParseData(resBody, lcneNodes);
-    EXPECT_EQ(lcneNodes.size(), 1);  // node数量为1
+    EXPECT_EQ(lcneNodes.size(), 1); // node数量为1
     EXPECT_EQ(lcneNodes[ZERO].ports.size(), 2);
     EXPECT_EQ(lcneNodes[ZERO].slotId, "1");
     EXPECT_EQ(lcneNodes[ZERO].cardId, "1");
@@ -146,7 +149,7 @@ TEST_F(TestUbseLcneTopologyClient, GetTopology_Success)
     MOCKER_CPP(func2).stubs().with(rsp.body, outBound(nodes)).will(returnValue(UBSE_OK));
 
     UbseResult ret = UbseLcneTopologyClient::GetInstance().GetTopology(lcneNodes);
-    EXPECT_EQ(lcneNodes.size(), 1);  // node数量为1
+    EXPECT_EQ(lcneNodes.size(), 1); // node数量为1
     EXPECT_EQ(lcneNodes[ZERO].ports.size(), 2);
     EXPECT_EQ(lcneNodes[ZERO].slotId, "1");
     EXPECT_EQ(lcneNodes[ZERO].cardId, "1");
@@ -222,4 +225,4 @@ TEST_F(TestUbseLcneTopologyClient, GetLcneNodesString)
     std::string ret = UbseLcneTopologyClient::GetInstance().GetLcneNodesString(lcneNodes);
     EXPECT_TRUE(ret.find("[MTI] Topology information printing") != std::string::npos);
 }
-}  // namespace ubse::ut::lcne
+} // namespace ubse::ut::lcne

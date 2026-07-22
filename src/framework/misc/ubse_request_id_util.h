@@ -29,7 +29,8 @@ constexpr uint8_t REQUEST_TYPE_SHIFT = COUNT_BITS + TIME_STAMP_BITS + SLOT_ID_BI
 constexpr uint8_t SLOT_ID_SHIFT = COUNT_BITS + TIME_STAMP_BITS;
 constexpr uint8_t TIME_STAMP_SHIFT = COUNT_BITS;
 
-enum class UbseRequestType : uint8_t {
+enum class UbseRequestType : uint8_t
+{
     SDK_REQUEST = 1,
     INNER_REQUEST = 2,
     CLI_REQUEST = 3,

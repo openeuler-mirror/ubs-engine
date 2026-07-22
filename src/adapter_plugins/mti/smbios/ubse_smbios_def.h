@@ -57,13 +57,13 @@ union SmbiosOffset {
 
 class SmbiosHeader {
 public:
-    void FillHeaderFromBuf(uint8_t *buf);
+    void FillHeaderFromBuf(uint8_t* buf);
 
 public:
     uint8_t type;    // SMBIOS结构类型
     uint8_t length;  // SMBIOS结构长度
     uint16_t handle; // SMBIOS结构句柄
-    uint8_t *data;   // SMBIOS结构数据指针
+    uint8_t* data;   // SMBIOS结构数据指针
 };
 
 class SmbiosStructure {
@@ -84,7 +84,7 @@ public:
      * @return UBSE_ERROR_INVAL 表示文件长度无效
      * @return UBSE_ERROR 表示失败
      */
-    UbseResult DecodeSmbios3(std::vector<uint8_t> &entryBuf, const char *tableFile, uint32_t flags,
+    UbseResult DecodeSmbios3(std::vector<uint8_t>& entryBuf, const char* tableFile, uint32_t flags,
                              UbseSmbiosType type);
 
 protected:
@@ -92,7 +92,7 @@ protected:
 
 protected:
     SmbiosStructure() = default;
-    UbseResult DecodeDmiTable(std::vector<uint8_t> &dmiBuf, uint32_t flags, UbseSmbiosType type);
+    UbseResult DecodeDmiTable(std::vector<uint8_t>& dmiBuf, uint32_t flags, UbseSmbiosType type);
     virtual UbseResult FillSmbiosStructFromBuf()
     {
         return UBSE_ERR_NOT_SUPPORTED;

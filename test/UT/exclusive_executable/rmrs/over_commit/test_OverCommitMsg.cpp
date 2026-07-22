@@ -46,7 +46,7 @@ public:
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerSuccess)
 {
-    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket> &))
+    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     OverCommitMsg overCommitMsg;
@@ -62,7 +62,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerSuccess)
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerFail)
 {
-    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket> &))
+    MOCKER_CPP(&OverCommitMsg::GetLocalNumaVms, MpResult(*)(uint16_t, std::vector<VmNumaInfoWithSocket>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     OverCommitMsg overCommitMsg;
@@ -76,7 +76,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRecvHandlerFail)
     ASSERT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-MpResult MockGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo> &vmDomainInfos)
+MpResult MockGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
 {
     mempooling::exportV2::VmDomainInfo vmDomainInfo;
     vmDomainInfo.metaData.pid = 0;
@@ -88,7 +88,7 @@ MpResult MockGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo
     return MEM_POOLING_OK;
 }
 
-MpResult MockGetNumaInfoImmediately(std::vector<mempooling::exportV2::NumaInfo> &numaInfos)
+MpResult MockGetNumaInfoImmediately(std::vector<mempooling::exportV2::NumaInfo>& numaInfos)
 {
     mempooling::exportV2::NumaInfo numaInfo;
     numaInfo.metaData.numaId = 0;
@@ -181,7 +181,7 @@ TEST_F(TestOverCommitMsg, TestGetVmNumaInfoMapResHandler)
     OverCommitMsg overCommitMsg;
     OverCommitFaultVmNumaInfoResult overCommitFaultVmNumaInfoResult;
 
-    void *ptr = static_cast<void *>(&overCommitFaultVmNumaInfoResult);
+    void* ptr = static_cast<void*>(&overCommitFaultVmNumaInfoResult);
     OverCommitFaultVmNumaInfoResult resp;
     RmrsOutStream builder;
     builder << resp;
@@ -195,7 +195,7 @@ TEST_F(TestOverCommitMsg, TestGetVmNumaInfoMapResHandlerFail)
     OverCommitMsg overCommitMsg;
     OverCommitFaultVmNumaInfoResult overCommitFaultVmNumaInfoResult;
 
-    void *ptr = static_cast<void *>(&overCommitFaultVmNumaInfoResult);
+    void* ptr = static_cast<void*>(&overCommitFaultVmNumaInfoResult);
     OverCommitFaultVmNumaInfoResult resp;
     RmrsOutStream builder;
     builder << resp;
@@ -204,8 +204,8 @@ TEST_F(TestOverCommitMsg, TestGetVmNumaInfoMapResHandlerFail)
     overCommitMsg.GetVmNumaInfoMapResHandler(ptr, respData, 1);
 }
 
-static uint32_t MockRmrsNumaMemInfoCollectERR(const turbo::rmrs::NumaMemInfoCollectParam &numaMemInfoCollectParam,
-                                              turbo::rmrs::ResponseInfoSimpo &responseInfoSimpo)
+static uint32_t MockRmrsNumaMemInfoCollectERR(const turbo::rmrs::NumaMemInfoCollectParam& numaMemInfoCollectParam,
+                                              turbo::rmrs::ResponseInfoSimpo& responseInfoSimpo)
 {
     return 1;
 }
@@ -220,8 +220,8 @@ TEST_F(TestOverCommitMsg, TestNumaMemInfoCollectRecvHandlerFail)
     ASSERT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-static uint32_t MockRmrsNumaMemInfoCollectSuccess(const turbo::rmrs::NumaMemInfoCollectParam &numaMemInfoCollectParam,
-                                                  turbo::rmrs::ResponseInfoSimpo &responseInfoSimpo)
+static uint32_t MockRmrsNumaMemInfoCollectSuccess(const turbo::rmrs::NumaMemInfoCollectParam& numaMemInfoCollectParam,
+                                                  turbo::rmrs::ResponseInfoSimpo& responseInfoSimpo)
 {
     return 0;
 }
@@ -236,11 +236,11 @@ TEST_F(TestOverCommitMsg, TestNumaMemInfoCollectRecvHandlerFailed)
     ASSERT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-uint32_t TestRackRpcSend1(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                          const UbseComRespHandler &handler)
+uint32_t TestRackRpcSend1(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                          const UbseComRespHandler& handler)
 {
     if (ctx != nullptr) {
-        *(uint32_t *)ctx = MEM_POOLING_ERROR; // 写到指针指向的内容里
+        *(uint32_t*)ctx = MEM_POOLING_ERROR; // 写到指针指向的内容里
     }
     return MEM_POOLING_ERROR; // RackRpcSend本身也返回错误
 }
@@ -251,7 +251,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpcFail)
     std::string importNodeId = "1";
 
     MOCKER_CPP(&UbseRpcSend,
-               uint32_t(*)(const UbseComEndpoint &, const UbseByteBuffer &, void *, const UbseComRespHandler &))
+               uint32_t(*)(const UbseComEndpoint&, const UbseByteBuffer&, void*, const UbseComRespHandler&))
         .stubs()
         .will(invoke(TestRackRpcSend1));
 

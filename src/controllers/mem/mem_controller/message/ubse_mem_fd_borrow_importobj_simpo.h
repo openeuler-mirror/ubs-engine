@@ -18,14 +18,15 @@
 #include "ubse_mmi_interface.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
-using namespace ubse::adapter_plugins::mmi;
+using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 
 class UbseMemFdBorrowImportobjSimpo : public UbseBaseMessage {
 public:
     UbseMemFdBorrowImportobjSimpo() = default;
 
-    explicit UbseMemFdBorrowImportobjSimpo(uint8_t *data, uint32_t size)
+    explicit UbseMemFdBorrowImportobjSimpo(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

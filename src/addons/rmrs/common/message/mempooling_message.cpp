@@ -12,17 +12,17 @@
 
 #include "mempooling_message.h"
 
+#include <dlfcn.h>
 #include <securec.h>
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <dlfcn.h>
 
 #include "ubse_election.h"
+#include "ubse_logger.h"
 #include "mp_configuration.h"
 #include "mp_error.h"
 #include "turbo_def.h"
-#include "ubse_logger.h"
 
 constexpr int RESULT_OK = 0;
 constexpr int RESULT_ERROR = 1;
@@ -30,7 +30,7 @@ constexpr int RESULT_ERROR = 1;
 namespace mempooling::message {
 using namespace ubse::log;
 
-void *MempoolingMessage::osturboClientHandle = nullptr;
+void* MempoolingMessage::osturboClientHandle = nullptr;
 OSTurboFunctionCaller MempoolingMessage::osturboFunctionCaller = nullptr;
 OSTurboSetIpcTimeLimit MempoolingMessage::osturboSetIpcTimeLimit = nullptr;
 UBTurboRMRSAgentMigrateStrategy MempoolingMessage::rmrsMigrateStrategy = nullptr;
@@ -86,42 +86,53 @@ uint32_t MempoolingMessage::InitOSTurboIpcClient()
     osturboFunctionCaller =
         reinterpret_cast<OSTurboFunctionCaller>(dlsym(osturboClientHandle, "UBTurboFunctionCaller"));
     if (osturboFunctionCaller == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get osturboFunctionCaller ptr failed: " << (error ? error : "Unknown error") << ".";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     osturboSetIpcTimeLimit = reinterpret_cast<OSTurboSetIpcTimeLimit>(dlsym(osturboClientHandle, "SetIpcTimeLimit"));
     if (osturboSetIpcTimeLimit == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get osturboSetIpcTimeLimit ptr failed: " << (error ? error : "Unknown error") << ".";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     auto ipcTimeLimit = MpConfiguration::GetInstance().GetIpcTimeLimit();
     auto ret = osturboSetIpcTimeLimit(ipcTimeLimit);
     if (ret != 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OSTurboClient] Osturbo set ipc time limit failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Osturbo set ipc time limit failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
     ret = MempoolingMessage::DlsymMemFragInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get MemFragInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     ret = MempoolingMessage::DlsymOverCommitInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get OverCommitInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
     ret = MempoolingMessage::DlsymUcacheInterface();
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboClient] Get UcacheInterface ptr failed.";
+        dlclose(osturboClientHandle);
+        osturboClientHandle = nullptr;
         return MEM_POOLING_ERROR;
     }
 
@@ -135,7 +146,7 @@ uint32_t MempoolingMessage::DlsymMemFragInterface()
     rmrsMigrateStrategy = reinterpret_cast<UBTurboRMRSAgentMigrateStrategy>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentMigrateStrategy"));
     if (rmrsMigrateStrategy == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsMigrateStrategy ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -144,7 +155,7 @@ uint32_t MempoolingMessage::DlsymMemFragInterface()
     rmrsMigrateExecute =
         reinterpret_cast<UBTurboRMRSAgentMigrateExecute>(dlsym(osturboClientHandle, "UBTurboRMRSAgentMigrateExecute"));
     if (rmrsMigrateExecute == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsMigrateExecute ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -153,7 +164,7 @@ uint32_t MempoolingMessage::DlsymMemFragInterface()
     rmrsMigrateBack =
         reinterpret_cast<UBTurboRMRSAgentMigrateBack>(dlsym(osturboClientHandle, "UBTurboRMRSAgentMigrateBack"));
     if (rmrsMigrateBack == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsMigrateBack ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -162,7 +173,7 @@ uint32_t MempoolingMessage::DlsymMemFragInterface()
     rmrsBorrowRollBack =
         reinterpret_cast<UBTurboRMRSAgentBorrowRollBack>(dlsym(osturboClientHandle, "UBTurboRMRSAgentBorrowRollBack"));
     if (rmrsBorrowRollBack == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsBorrowRollBack ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -176,7 +187,7 @@ uint32_t MempoolingMessage::DlsymOverCommitInterface()
     rmrsPidNumaInfoCollect = reinterpret_cast<UBTurboRMRSAgentPidNumaInfoCollect>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentPidNumaInfoCollect"));
     if (rmrsPidNumaInfoCollect == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsPidNumaInfoCollect ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -185,7 +196,7 @@ uint32_t MempoolingMessage::DlsymOverCommitInterface()
     rmrsNumaMemInfoCollect = reinterpret_cast<UBTurboRMRSAgentNumaMemInfoCollect>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentNumaMemInfoCollect"));
     if (rmrsNumaMemInfoCollect == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsNumaMemInfoCollect ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -199,7 +210,7 @@ uint32_t MempoolingMessage::DlsymUcacheInterface()
     rmrsUCacheMigrateStrategy = reinterpret_cast<UBTurboRMRSAgentUCacheMigrateStrategy>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentUCacheMigrateStrategy"));
     if (rmrsUCacheMigrateStrategy == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsUCacheMigrateStrategy ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -208,7 +219,7 @@ uint32_t MempoolingMessage::DlsymUcacheInterface()
     rmrsUCacheMigrateStop = reinterpret_cast<UBTurboRMRSAgentUCacheMigrateStop>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentUCacheMigrateStop"));
     if (rmrsUCacheMigrateStop == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsUCacheMigrateStop ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -217,7 +228,7 @@ uint32_t MempoolingMessage::DlsymUcacheInterface()
     rmrsUpdateUCacheRatio = reinterpret_cast<UBTurboRMRSAgentUpdateUCacheRatio>(
         dlsym(osturboClientHandle, "UBTurboRMRSAgentUpdateUCacheRatio"));
     if (rmrsUpdateUCacheRatio == nullptr) {
-        const char *error = dlerror();
+        const char* error = dlerror();
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OSTurboClient] Get rmrsUpdateUCacheRatio ptr failed: " << (error ? error : "Unknown error") << ".";
         return MEM_POOLING_ERROR;
@@ -226,4 +237,4 @@ uint32_t MempoolingMessage::DlsymUcacheInterface()
     return MEM_POOLING_OK;
 }
 
-}
+} // namespace mempooling::message

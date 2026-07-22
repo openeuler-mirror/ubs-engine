@@ -10,23 +10,23 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <limits>
 #include <ubse_logger.h>
 #include <algorithm>
-#include <fstream>
 #include <cmath>
+#include <fstream>
 #include <iostream>
+#include <limits>
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 
 #define private public
 
-#include "ucache_error.h"
-#include "bottleneck_strategy.h"
 #include "ubse_conf.h"
+#include "bottleneck_strategy.h"
+#include "data_collect.h"
 #include "ucache_config.h"
 #include "ucache_config_check.h"
-#include "data_collect.h"
+#include "ucache_error.h"
 using namespace std;
 using namespace ucache;
 using namespace ubse::config;
@@ -36,7 +36,7 @@ using namespace ucache::data_collect;
 
 class BottleneckStrategyTest : public testing::Test {
 protected:
-      void SetUp() override
+    void SetUp() override
     {
         cout << "[Phase SetUp Begin]" << endl;
         cout << "[Phase SetUp End]" << endl;
@@ -49,20 +49,11 @@ protected:
     }
 };
 
-void GetCgrouopInfo(map<string, map<string, CgroupInfo>> &cgroupInfo, std::string name,
-                    uint64_t pageCacheIn, uint64_t ioReadBandwidth)
+void GetCgrouopInfo(map<string, map<string, CgroupInfo>>& cgroupInfo, std::string name, uint64_t pageCacheIn,
+                    uint64_t ioReadBandwidth)
 {
     map<string, map<string, CgroupInfo>> MyCgroupInfo = {
-        {
-            "node0", {
-                {name, {
-                    .pageCacheIn=pageCacheIn,
-                    .ioReadBandwidth=ioReadBandwidth
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{name, {.pageCacheIn = pageCacheIn, .ioReadBandwidth = ioReadBandwidth}}}}};
     cgroupInfo = MyCgroupInfo;
 }
 
@@ -104,13 +95,13 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_doris_sensitive)
     for (int i = 1; i <= 18; i++) {
         uint32_t result1 = strategy.JudgeSensitive(cgroupInfo, 10);
         sensitiveMap = strategy.GetContainerState();
-        
+
         EXPECT_EQ(sensitiveMap["node0"]["doris-b1"], PageCacheSensitiveTag::UNKNOWN);
     }
     for (int i = 1; i <= 20; i++) {
         uint32_t result1 = strategy.JudgeSensitive(cgroupInfo2, 10);
         sensitiveMap = strategy.GetContainerState();
-       
+
         if (i < 13) {
             EXPECT_EQ(sensitiveMap["node0"]["doris-b1"], PageCacheSensitiveTag::UNKNOWN);
         } else {
@@ -136,27 +127,9 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_doris_sensitive_to_not_sen
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"sensitiveToNot", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=5120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"sensitiveToNot", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     const map<string, map<string, CgroupInfo>> cgroupInfo2 = {
-        {
-            "node0", {
-                {"sensitiveToNot", {
-                    .pageCacheIn=25120,
-                    .ioReadBandwidth=25120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"sensitiveToNot", {.pageCacheIn = 25120, .ioReadBandwidth = 25120}}}}};
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
     // 获取 BottleneckStrategy 实例
@@ -255,29 +228,11 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_not_sensitive_to_sensitive
     EXPECT_EQ(val, 600);
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
-   
+
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"noToSensitive", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=5120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"noToSensitive", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     const map<string, map<string, CgroupInfo>> cgroupInfo2 = {
-        {
-            "node0", {
-                {"noToSensitive", {
-                    .pageCacheIn=20480,
-                    .ioReadBandwidth=20480
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"noToSensitive", {.pageCacheIn = 20480, .ioReadBandwidth = 20480}}}}};
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
     // 获取 BottleneckStrategy 实例
@@ -312,28 +267,10 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_not_sensitive)
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"doris-b3", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=5120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"doris-b3", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     const map<string, map<string, CgroupInfo>> cgroupInfo2 = {
-        {
-            "node0", {
-                {"doris-b3", {
-                    .pageCacheIn=20480,
-                    .ioReadBandwidth=20480
-                    }
-                }
-            }
-        }
-    };
-        // 创建敏感状态映射
+        {"node0", {{"doris-b3", {.pageCacheIn = 20480, .ioReadBandwidth = 20480}}}}};
+    // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
 
     // 获取 BottleneckStrategy 实例
@@ -371,17 +308,8 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_highIO_lowPgin_NOT_SENSITI
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"highIO_lowPgin", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=20240
-                    }
-                }
-            }
-        }
-    };
-    
+        {"node0", {{"highIO_lowPgin", {.pageCacheIn = 5120, .ioReadBandwidth = 20240}}}}};
+
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
     // 获取 BottleneckStrategy 实例
@@ -423,16 +351,7 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_highPgin_lowIO_NOT_SENSITI
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"highPgin_lowIO", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=20240
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"highPgin_lowIO", {.pageCacheIn = 5120, .ioReadBandwidth = 20240}}}}};
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
     // 获取 BottleneckStrategy 实例
@@ -473,22 +392,14 @@ TEST_F(BottleneckStrategyTest, Test_uint32_boundary)
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"test-container", {
-                    .pageCacheIn = 5120,
-                    .ioReadBandwidth = 5120
-                }}
-            }
-        }
-    };
+        {"node0", {{"test-container", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
 
     auto& strategy = BottleneckStrategy::GetInstance();
     uint32_t result = strategy.JudgeSensitive(cgroupInfo, 1); // 传入1
-    EXPECT_EQ(result, UCACHE_OK); // 验证处理正确
+    EXPECT_EQ(result, UCACHE_OK);                             // 验证处理正确
 
     result = strategy.JudgeSensitive(cgroupInfo, 4294967294); // 传入4,294,967,294
-    EXPECT_EQ(result, UCACHE_OK); // 验证处理正确
+    EXPECT_EQ(result, UCACHE_OK);                             // 验证处理正确
 }
 
 TEST_F(BottleneckStrategyTest, Test_uint32_invalid)
@@ -508,18 +419,10 @@ TEST_F(BottleneckStrategyTest, Test_uint32_invalid)
     EXPECT_EQ(val, 30);
     // 测试无效值（负值和超出范围）
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"test-container", {
-                    .pageCacheIn = 5120,
-                    .ioReadBandwidth = 5120
-                }}
-            }
-        }
-    };
+        {"node0", {{"test-container", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     auto& strategy = BottleneckStrategy::GetInstance();
     uint32_t result = strategy.JudgeSensitive(cgroupInfo, 0); // 传入0（无效）
-    EXPECT_EQ(result, UCACHE_ERR); // 验证返回错误
+    EXPECT_EQ(result, UCACHE_ERR);                            // 验证返回错误
 }
 
 TEST_F(BottleneckStrategyTest, Test_threshold_edge_cases)
@@ -539,33 +442,21 @@ TEST_F(BottleneckStrategyTest, Test_threshold_edge_cases)
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
 
-    const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"edgeCase", {
-                    .pageCacheIn = 20480,  // 超过阈值
-                    .ioReadBandwidth = 20480
-                }}
-            }
-        }
-    };
-    const map<string, map<string, CgroupInfo>> cgroupInfo2 = {
-        {
-            "node0", {
-                {"edgeCase", {
-                    .pageCacheIn = 480,  // 都低于阈值
-                    .ioReadBandwidth = 480
-                }}
-            }
-        }
-    };
+    const map<string, map<string, CgroupInfo>> cgroupInfo = {{"node0",
+                                                              {{"edgeCase",
+                                                                {.pageCacheIn = 20480, // 超过阈值
+                                                                 .ioReadBandwidth = 20480}}}}};
+    const map<string, map<string, CgroupInfo>> cgroupInfo2 = {{"node0",
+                                                               {{"edgeCase",
+                                                                 {.pageCacheIn = 480, // 都低于阈值
+                                                                  .ioReadBandwidth = 480}}}}};
 
     auto& strategy = BottleneckStrategy::GetInstance();
-    for (int i = 0; i < 4; ++i) {  // 80% of 10 samples
+    for (int i = 0; i < 4; ++i) { // 80% of 10 samples
         strategy.JudgeSensitive(cgroupInfo2, 10);
     }
     // 刚好达到短窗口阈值
-    for (int i = 0; i < 16; ++i) {  // 80% of 10 samples
+    for (int i = 0; i < 16; ++i) { // 80% of 10 samples
         strategy.JudgeSensitive(cgroupInfo, 10);
     }
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap = strategy.GetContainerState();
@@ -668,16 +559,7 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_lowhPgin_lowIO_NOT_SENSITI
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"lowPgin_lowIO3", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=5120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"lowPgin_lowIO3", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
     // 获取 BottleneckStrategy 实例
@@ -717,27 +599,9 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_not_sensitive2)
     val = UcacheConfig::GetInstance().GetBottleneckLongThreshold();
     EXPECT_EQ(val, 30);
     const map<string, map<string, CgroupInfo>> cgroupInfo = {
-        {
-            "node0", {
-                {"doris-b4", {
-                    .pageCacheIn=5120,
-                    .ioReadBandwidth=5120
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"doris-b4", {.pageCacheIn = 5120, .ioReadBandwidth = 5120}}}}};
     const map<string, map<string, CgroupInfo>> cgroupInfo2 = {
-        {
-            "node0", {
-                {"doris-b4", {
-                    .pageCacheIn=20480,
-                    .ioReadBandwidth=20480
-                    }
-                }
-            }
-        }
-    };
+        {"node0", {{"doris-b4", {.pageCacheIn = 20480, .ioReadBandwidth = 20480}}}}};
     // 创建敏感状态映射
     map<string, map<string, PageCacheSensitiveTag>> sensitiveMap;
 
@@ -818,7 +682,7 @@ TEST_F(BottleneckStrategyTest, BottleneckStrategyTest_doris_remove_UNKOWN)
     }
     sensitiveMap = strategy.GetContainerState();
     EXPECT_EQ(sensitiveMap["node0"]["remove_UNKOWN"], PageCacheSensitiveTag::SENSITIVE);
-    
+
     result = strategy.JudgeSensitive(cgroupInfo3, 10);
     sensitiveMap = strategy.GetContainerState();
     EXPECT_EQ(sensitiveMap["node0"]["remove_UNKOWN"], PageCacheSensitiveTag::UNKNOWN);

@@ -23,7 +23,8 @@ B(角色/Role)-->C(目标对象/Object)
 
 **角色/Role：**表示用户/User所绑定的角色，每个角色/Role可以绑定多个目标对象/Object
 
-**目标对象/Object：**表示能够被操作的资源对象，表示可以对相应对象完成所有操作（简化系统复杂度，不定义基于对象的动作行为）；资源对象的取值范围，由UBSE开发过程确定，在包ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm中可以获取
+**目标对象/Object：**表示能够被操作的资源对象，支持对该对象执行所有相关操作（简化系统复杂度，不定义基于对象的动作行为）；开发者在源码的 src/sdk/c/include/ubs_engine_object_def.h 头文件中对资源对象进行定义与维护；
+在安装开发包 ubs-engine-client-devel-\<version>-\<release>.aarch64.rpm 后，该头文件会被部署到系统的 /usr/include/ubse/ 路径下。用户可直接查看上述安装后的头文件，以获取当前版本支持的完整资源对象列表及取值范围。
 
 ### 2.2 权限模型表达
 

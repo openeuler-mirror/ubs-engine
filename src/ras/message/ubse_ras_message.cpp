@@ -37,12 +37,12 @@ UbseResult UbseRasMessage::Deserialize()
     return UBSE_OK;
 }
 
-void UbseRasMessage::Serialization(UbseSerialization &out, RasData &serialData)
+void UbseRasMessage::Serialization(UbseSerialization& out, RasData& serialData)
 {
     out << serialData.msgId << serialData.data << serialData.result;
 }
 
-UbseResult UbseRasMessage::Deserialization(UbseDeSerialization &in, RasData &deSerialData)
+UbseResult UbseRasMessage::Deserialization(UbseDeSerialization& in, RasData& deSerialData)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemDebtNumaInfo during deserialization.";

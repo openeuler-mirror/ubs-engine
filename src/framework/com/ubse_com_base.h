@@ -25,20 +25,28 @@
 #include <utility>              // for move
 #include <vector>               // for vector
 
-#include "engine/ubse_com_engine.h" // for UbseCommunication
-#include "trace_context.h"
 #include "ubse_base_message.h" // for UbseBaseMessage, UbseBaseMessag...
 #include "ubse_com.h"
 #include "ubse_com_def.h" // for UbseComMessageCtx, UbseComMessage
 #include "ubse_com_op_code.h"
-#include "ubse_common_def.h"      // for UbseResult, UBSE_AGENT_IPC_SERV...
-#include "ubse_error.h"           // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
-#include "ubse_logger.h"          // for UbseLoggerEntry, FormatRetCode
-#include "ubse_pointer_process.h" // for SafeFree
+#include "ubse_common_def.h"        // for UbseResult, UBSE_AGENT_IPC_SERV...
+#include "ubse_error.h"             // for UBSE_OK, UBSE_ERROR, UBSE_COM_MID
+#include "ubse_logger.h"            // for UbseLoggerEntry, FormatRetCode
+#include "ubse_pointer_process.h"   // for SafeFree
+#include "engine/ubse_com_engine.h" // for UbseCommunication
+#include "trace_context.h"
 
 namespace ubse::com {
 const std::string FAKE_CUR_NODE_ID = "FakeCurNodeId";
-using namespace ubse::log;
+using ubse::common::def::UBSE_AGENT_IPC_SERVER_ENGINE_NAME;
+using ubse::common::def::UbseResult;
+using ubse::log::FormatRetCode;
+using ubse::log::UbseLoggerEntry;
+using ubse::message::UbseBaseMessage;
+using ubse::message::UbseBaseMessagePtr;
+using ubse::utils::ReadWriteLock;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
 #define MODULE_LOG_NAME "ubse"
 
 class UbseComBaseMessageHandlerCtx {
@@ -49,21 +57,21 @@ public:
 
     uintptr_t GetResponseCtx();
 
-    const std::string &GetEngineName() const;
+    const std::string& GetEngineName() const;
 
-    const UbseUdsIdInfo &GetUdsIdInfo() const;
+    const UbseUdsIdInfo& GetUdsIdInfo() const;
 
-    const std::string &GetDstId() const;
+    const std::string& GetDstId() const;
 
-    void SetUdsIdInfo(const UbseUdsIdInfo &uds);
+    void SetUdsIdInfo(const UbseUdsIdInfo& uds);
 
     uint32_t GetCrc() const;
 
     void SetCrc(uint32_t dataCrc);
 
-    const UBSHcomChannelPtr &GetChannelPtr() const;
+    const UBSHcomChannelPtr& GetChannelPtr() const;
 
-    void SetChannelPtr(const UBSHcomChannelPtr &chPtr);
+    void SetChannelPtr(const UBSHcomChannelPtr& chPtr);
     // 用于设置收到请求是否为发送大消息请求的标志位
     void SetRemoteCall(bool callOrNot);
 
@@ -80,11 +88,11 @@ private:
     std::string dstId_;
 };
 
-using UbseComBaseMessageHandlerCtxPtr = UbseComBaseMessageHandlerCtx *;
+using UbseComBaseMessageHandlerCtxPtr = UbseComBaseMessageHandlerCtx*;
 
 class UbseComBaseMessageHandler : public Referable {
 public:
-    virtual UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    virtual UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                               UbseComBaseMessageHandlerCtxPtr ctx)
     {
         (void)req; // 使参数 req 不会引发未使用警告
@@ -104,11 +112,11 @@ using UbseComBaseMessageHandlerPtr = Ref<UbseComBaseMessageHandler>;
 
 class UbseComBaseMessageHandlerManager {
 public:
-    static void AddHandler(UbseComBaseMessageHandlerPtr handler, const std::string &engineName);
+    static void AddHandler(UbseComBaseMessageHandlerPtr handler, const std::string& engineName);
 
-    static void RemoveHandler(uint16_t moduleCode, uint16_t opCode, const std::string &engineName);
+    static void RemoveHandler(uint16_t moduleCode, uint16_t opCode, const std::string& engineName);
 
-    static UbseComBaseMessageHandlerPtr GetHandler(uint16_t moduleCode, uint16_t opCode, const std::string &engineName);
+    static UbseComBaseMessageHandlerPtr GetHandler(uint16_t moduleCode, uint16_t opCode, const std::string& engineName);
 
 private:
     static std::map<std::string, UbseComBaseMessageHandlerPtr> gHandlerMap_;
@@ -128,9 +136,9 @@ public:
           moduleCode_(moduleCode),
           opCode_(opCode){};
 
-    const std::string &GetRemoteId() const;
+    const std::string& GetRemoteId() const;
 
-    void SetRemoteId(const std::string &remoteIdSet);
+    void SetRemoteId(const std::string& remoteIdSet);
 
     uint16_t GetModuleCode() const;
 
@@ -157,7 +165,7 @@ public:
 
     ~UbseComBaseBufferMessage() override;
 
-    explicit UbseComBaseBufferMessage(uint8_t *data, uint32_t len);
+    explicit UbseComBaseBufferMessage(uint8_t* data, uint32_t len);
 
     UbseResult Serialize() override;
 
@@ -165,21 +173,21 @@ public:
 
     void SetIsNeedFreeData(bool needFree);
 
-    uint8_t *GetData() const;
+    uint8_t* GetData() const;
 
     uint32_t GetDataLen() const;
 
 private:
-    uint8_t *data_ = nullptr;
+    uint8_t* data_ = nullptr;
     uint32_t len_ = 0;
     bool isNeedFreeData_ = true;
 };
 
 using UbseComBaseBufferMessagePtr = Ref<UbseComBaseBufferMessage>;
 
-void Reply(UbseComMessageCtx &message, UbseBaseMessagePtr response);
+void Reply(UbseComMessageCtx& message, UbseBaseMessagePtr response);
 
-void ReplyCallback(void *ctx, void *recv, uint32_t len, int32_t result);
+void ReplyCallback(void* ctx, void* recv, uint32_t len, int32_t result);
 
 /**
  * @brief 将finalDstNodeId写入线缆消息头
@@ -207,7 +215,7 @@ public:
     {
     }
 
-    const std::string &GetNodeId() const;
+    const std::string& GetNodeId() const;
 
     UbseLinkState GetState() const;
 
@@ -217,7 +225,7 @@ public:
 
     std::string GetChType() const;
 
-    inline bool operator==(const UbseLinkInfo &other) const
+    inline bool operator==(const UbseLinkInfo& other) const
     {
         return nodeId_ == other.nodeId_ && state_ == other.state_ && timeStamp_ == other.timeStamp_;
     }
@@ -230,18 +238,18 @@ private:
 };
 
 using LinkStateMap = std::map<std::string, std::map<std::string, uint32_t>>;
-using LinkNotifyFunction = std::function<void(const std::vector<UbseLinkInfo> &)>;
+using LinkNotifyFunction = std::function<void(const std::vector<UbseLinkInfo>&)>;
 using LinkNotifyFunctionMap = std::map<std::string, std::vector<LinkNotifyFunction>>;
 
-using HandlerExecutor = std::function<void(const std::function<void()> &task, const executorType &type)>;
-using LinkEventHandler = std::function<void(const std::vector<UbseLinkInfo> &linkInfoList)>;
-using SdkLinkDownEventHandler = std::function<void(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state)>;
+using HandlerExecutor = std::function<void(const std::function<void()>& task, const executorType& type)>;
+using LinkEventHandler = std::function<void(const std::vector<UbseLinkInfo>& linkInfoList)>;
+using SdkLinkDownEventHandler = std::function<void(UBSHcomNetUdsIdInfo& idInfo, UbseLinkState& state)>;
 
-void DefaultHandlerExecutor(const std::function<void()> &task, const executorType &type);
+void DefaultHandlerExecutor(const std::function<void()>& task, const executorType& type);
 
-void DefaultLinkEventHandler(const std::vector<UbseLinkInfo> &linkInfoList);
+void DefaultLinkEventHandler(const std::vector<UbseLinkInfo>& linkInfoList);
 
-void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo &idInfo, UbseLinkState &state);
+void DefaultSdkLinkDownEventHandler(UBSHcomNetUdsIdInfo& idInfo, UbseLinkState& state);
 
 class UbseComBase : public Referable {
 public:
@@ -274,7 +282,7 @@ public:
      * @return UbseResult, 成功返回0, 失败返回非0
      */
     virtual UbseResult ConnectWithOption([[maybe_unused]] ConnectOption option,
-                                         [[maybe_unused]] std::string &remoteNodeId)
+                                         [[maybe_unused]] std::string& remoteNodeId)
     {
         return UBSE_OK;
     };
@@ -295,12 +303,12 @@ public:
      * @brief 通过通道id移除通道
      * @param id [in] 通道id
      */
-    void RemoveChannel(const std::string &remoteNodeId, UbseChannelType type)
+    void RemoveChannel(const std::string& remoteNodeId, UbseChannelType type)
     {
         UbseCommunication::RemoveChannel(name_, remoteNodeId, type);
     }
 
-    static void SetHandlerExecutor(const HandlerExecutor &handlerExecutor);
+    static void SetHandlerExecutor(const HandlerExecutor& handlerExecutor);
 
     static const HandlerExecutor &GetHandlerExecutor();
 
@@ -354,7 +362,7 @@ public:
      * @return UbseResult, 成功返回0, 失败返回非0
      */
     template <class TReq, class TRsp>
-    UbseResult Send(const SendParam &param, TReq &request, TRsp &response, const bool withCopy = false)
+    UbseResult Send(const SendParam& param, TReq& request, TRsp& response, const bool withCopy = false)
     {
         UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(),
                                                 param.GetModuleCode(), param.GetRemoteId());
@@ -444,7 +452,7 @@ public:
      * @return UbseResult, 成功返回0, 失败返回非0
      */
     template <class TReq>
-    UbseResult AsyncSend(const SendParam &param, TReq &request, const UbseComCallback &usrCb)
+    UbseResult AsyncSend(const SendParam& param, TReq& request, const UbseComCallback& usrCb)
     {
         UbseComMessagePtr msg = TransRequestMsg(UbseBaseMessage::Convert<TReq>(request), param.GetOpCode(),
                                                 param.GetModuleCode(), param.GetRemoteId());
@@ -510,7 +518,7 @@ public:
      * @param[in] response: 消息返回体
      * @return UbseResult, 成功返回0, 失败返回非0
      */
-    static UbseResult ReplyMsg(UbseComMessageCtx &message, const UbseComDataDesc &response);
+    static UbseResult ReplyMsg(UbseComMessageCtx& message, const UbseComDataDesc& response);
 
     /* *
      * @brief 获取当前连接信息
@@ -522,9 +530,9 @@ public:
      * @brief 添加连接变更回调函数
      * @param[in] func: 回调函数定义
      */
-    void AddLinkNotifyFunc(const LinkNotifyFunction &func);
+    void AddLinkNotifyFunc(const LinkNotifyFunction& func);
 
-    std::string GetNodeIdByIp(const std::string &ip);
+    std::string GetNodeIdByIp(const std::string& ip);
 
     UbseResult AddRoute(const RouteEntry &entry)
     {
@@ -547,10 +555,10 @@ public:
     }
 
 protected:
-    static void CheckSdkEventAndNotify(const std::string &engineName, const std::string &curNodeId,
-                                       const UBSHcomChannelPtr &ch, UbseLinkState state);
+    static void CheckSdkEventAndNotify(const std::string& engineName, const std::string& curNodeId,
+                                       const UBSHcomChannelPtr& ch, UbseLinkState state);
 
-    static void LinkNotify(const UbseComEngineInfo &info, const std::string &curNodeId, const UBSHcomChannelPtr &ch,
+    static void LinkNotify(const UbseComEngineInfo& info, const std::string& curNodeId, const UBSHcomChannelPtr& ch,
                            UbseLinkState state);
 
 protected:
@@ -558,10 +566,10 @@ protected:
     std::string name_;
 
 private:
-    static std::vector<UbseLinkInfo> GetLinkInfoFromMap(const std::string &engineName);
+    static std::vector<UbseLinkInfo> GetLinkInfoFromMap(const std::string& engineName);
 
-    static std::vector<UbseLinkInfo> QueryLinkInfo(const std::string &engineName, const std::string &changeNodeId,
-                                                   const UBSHcomChannelPtr &ch);
+    static std::vector<UbseLinkInfo> QueryLinkInfo(const std::string& engineName, const std::string& changeNodeId,
+                                                   const UBSHcomChannelPtr& ch);
 
     static int16_t timeout_;
     static int16_t heartBeatTimeout_;
@@ -569,9 +577,9 @@ private:
     QueryEidByNodeIdCb queryCb_ = nullptr;
 
     template <class TReq, class TRsp>
-    static void HandleRequest(UbseComMessageCtx &message)
+    static void HandleRequest(UbseComMessageCtx& message)
     {
-        auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(message.GetMessage()));
+        auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(message.GetMessage()));
         uint16_t moduleCode = ucMsg->GetMessageHead().GetModuleCode();
         uint16_t opCode = ucMsg->GetMessageHead().GetOpCode();
         uint32_t crc = ucMsg->GetMessageHead().GetCrc();
@@ -731,7 +739,7 @@ private:
                 ctx->SetRemoteCall(message.IsRemoteCall());
                 auto handlerRet = handler->Handle(reqPtr, respPtr, ctx);
                 if (handlerRet != UBSE_OK) {
-                    UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode << " exec failed,"
+                    UBSE_LOG_ERROR << "module=" << moduleCode << ", op_code=" << opCode << ", exec failed,"
                                    << FormatRetCode(handlerRet);
                     respPtr->SetErrCode(handlerRet);
                 }
@@ -761,7 +769,7 @@ private:
 
 using UbseComBasePtr = Ref<UbseComBase>;
 
-void Log(int level, const char *str);
+void Log(int level, const char* str);
 #undef MODULE_LOG_NAME
 } // namespace ubse::com
 #endif // UBSE_COM_BASE_H

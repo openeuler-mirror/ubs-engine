@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  *
@@ -26,8 +27,8 @@
 struct bandbridge_mbuf {
     int sendbuf_size;
     int recvbuf_size;
-    void *sendbuf;
-    void *recvbuf;
+    void* sendbuf;
+    void* recvbuf;
 };
 
 #define BANDBRIDGE_DRV_NAME "/dev/bandbridge"

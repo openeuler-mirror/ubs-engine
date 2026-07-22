@@ -26,4 +26,3 @@ public:
 };
 } // namespace ubse::vm::ut
 #endif // TEST_UBS_VIRT_AGENT_HAM_MIGRATE_H
-

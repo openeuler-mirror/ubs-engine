@@ -20,6 +20,6 @@ namespace ucache::agent {
 uint32_t Init();
 void Exit();
 
-}
+} // namespace ucache::agent
 
 #endif /* UCACHE_AGENT_H */

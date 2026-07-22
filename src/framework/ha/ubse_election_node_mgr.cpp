@@ -14,6 +14,7 @@
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "role/ubse_election_role.h"
 #include "ubse_common_def.h"
+#include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_controller.h"
@@ -25,13 +26,16 @@ using namespace ubse::utils;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::nodeController;
+using namespace ubse::module;
+using namespace ubse::common::def;
 using namespace ubse::nodeMgr;
+using namespace ubse::event;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 static const std::string ELECTION_ROLE_INIT = "init";
 
-UbseElectionNodeMgr &UbseElectionNodeMgr::GetInstance()
+UbseElectionNodeMgr& UbseElectionNodeMgr::GetInstance()
 {
     static UbseElectionNodeMgr instance;
     return instance;
@@ -109,6 +113,12 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
     return topoLinkedNodes;
 }
 
+void UbseElectionNodeMgr::UpdateCurrentNode()
+{
+    currentAllNodes_.push_back(currentNode_);
+    nodeIpMap_.emplace(currentNode_.ip, currentNode_.id);
+}
+
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
     std::unique_lock<std::shared_mutex> lock(mtx_);
@@ -122,6 +132,7 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
         auto ubseNodeInfos = GetAllNodes();
         if (ubseNodeInfos.empty()) {
             UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+            UpdateCurrentNode();
             return;
         }
         for (const auto &nodeInfo : ubseNodeInfos) {
@@ -206,7 +217,7 @@ UbseResult UbseElectionNodeMgr::LoadConfig()
     return UBSE_OK;
 }
 
-UbseResult UbseElectionNodeMgr::GetMyselfNode(Node &myself)
+UbseResult UbseElectionNodeMgr::GetMyselfNode(Node& myself)
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
     if (currentNode_.id.empty() || currentNode_.ip.empty() || currentNode_.port == 0) {
@@ -218,7 +229,7 @@ UbseResult UbseElectionNodeMgr::GetMyselfNode(Node &myself)
     return UBSE_OK;
 }
 
-UbseResult UbseElectionNodeMgr::GetAllNode(std::vector<Node> &allNodes)
+UbseResult UbseElectionNodeMgr::GetAllNode(std::vector<Node>& allNodes)
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
     // 判断当前所有节点是否为空
@@ -230,7 +241,7 @@ UbseResult UbseElectionNodeMgr::GetAllNode(std::vector<Node> &allNodes)
     return UBSE_OK;
 }
 
-UbseResult UbseElectionNodeMgr::GetAllNeighbourNode(std::vector<Node> &neighbourNodes)
+UbseResult UbseElectionNodeMgr::GetAllNeighbourNode(std::vector<Node>& neighbourNodes)
 {
     auto ret = GetAllNode(neighbourNodes);
     if (ret != UBSE_OK) {
@@ -252,7 +263,7 @@ UbseResult UbseElectionNodeMgr::GetAllNeighbourNode(std::vector<Node> &neighbour
     return UBSE_OK;
 }
 
-UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::string &ip, uint16_t &port)
+UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE& id, std::string& ip, uint16_t& port)
 {
     if (id.empty()) {
         UBSE_LOG_DEBUG << "[ELECTION] GetNodeInfoByID: id is empty.";
@@ -263,7 +274,7 @@ UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::str
         UBSE_LOG_WARN << "[ELECTION] GetNodeInfoByID: currentAllNodes_ is empty.";
         return UBSE_ERROR;
     }
-    for (const auto &it : currentAllNodes_) {
+    for (const auto& it : currentAllNodes_) {
         if (it.id == id) {
             ip = it.ip;
             port = it.port;
@@ -274,7 +285,7 @@ UbseResult UbseElectionNodeMgr::GetNodeInfoByID(const UBSE_ID_TYPE &id, std::str
     return UBSE_ERROR;
 }
 
-UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string &ip, const std::string &id)
+UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string& ip, const std::string& id)
 {
     if (ip.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
@@ -290,7 +301,7 @@ UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string &ip, c
         return UBSE_ERROR;
     }
 
-    for (auto &node : currentAllNodes_) {
+    for (auto& node : currentAllNodes_) {
         if (node.ip == ip) {
             node.id = id;
             nodeIpMap_[ip] = id;
@@ -303,7 +314,7 @@ UbseResult UbseElectionNodeMgr::UpdateNodeIdWithConnect(const std::string &ip, c
     return UBSE_ERROR;
 }
 
-UbseResult UbseElectionNodeMgr::GetNodeIdByIp(const std::string &ip, std::string &id)
+UbseResult UbseElectionNodeMgr::GetNodeIdByIp(const std::string& ip, std::string& id)
 {
     if (ip.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
@@ -318,7 +329,7 @@ UbseResult UbseElectionNodeMgr::GetNodeIdByIp(const std::string &ip, std::string
     return UBSE_ERROR;
 }
 
-UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string &id, std::string &ip)
+UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string& id, std::string& ip)
 {
     if (id.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] ip is empty.";
@@ -335,7 +346,7 @@ UbseResult UbseElectionNodeMgr::GetNodeIpById(const std::string &id, std::string
     return UBSE_ERROR;
 }
 
-UbseResult UbseElectionNodeMgr::GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE> &nodeIpMap)
+UbseResult UbseElectionNodeMgr::GetNodeIpMap(std::unordered_map<std::string, UBSE_ID_TYPE>& nodeIpMap)
 {
     std::shared_lock<std::shared_mutex> lock(mtx_);
     // 判断当前所有节点是否为空

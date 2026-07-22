@@ -96,17 +96,17 @@ struct Node {
     uint16_t port;
     UbseNodeChangeState state = UbseNodeChangeState::UNCHANGED; // 节点变化Add, Delete, UnChanged
 
-    bool operator < (const Node &other) const
+    bool operator<(const Node& other) const
     {
         return id < other.id;
     }
 
-    bool operator > (const Node &other) const
+    bool operator>(const Node& other) const
     {
         return id > other.id;
     }
 
-    bool operator == (const Node &other) const
+    bool operator==(const Node& other) const
     {
         return id == other.id;
     }
@@ -118,12 +118,14 @@ constexpr int ELECTION_PKT_TYPE_GLOBAL_SELECT = 3;
 constexpr int ELECTION_PKT_TYPE_GLOBAL_HEART = 4;
 constexpr int ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT = 5;
 
-enum class NotifyStatus : uint8_t {
+enum class NotifyStatus : uint8_t
+{
     NOT_BROADCAST = 0,
     BROADCAST = 1
 };
 
-enum class HeartBeatState : uint8_t {
+enum class HeartBeatState : uint8_t
+{
     LOST = 0,
     ACTIVE = 1
 };
@@ -145,7 +147,8 @@ struct BroadcastStatus {
     }
 };
 
-enum class HeartBeatStatus : uint8_t {
+enum class HeartBeatStatus : uint8_t
+{
     DISABLED = 0,
     ENABLED = 1
 };
@@ -201,12 +204,12 @@ struct ElectionReplyPkt {
 };
 
 struct CallbackCtx {
-    std::map<UBSE_ID_TYPE, BroadcastStatus> *broadcast;
+    std::map<UBSE_ID_TYPE, BroadcastStatus>* broadcast;
     std::string destId{};
-    uint8_t *standbyStatus;
-    std::mutex *mtx = nullptr;
-    std::atomic<bool> *stopping;
-    std::atomic<int> *activeCount;
+    uint8_t* standbyStatus;
+    std::mutex* mtx = nullptr;
+    std::atomic<bool>* stopping;
+    std::atomic<int>* activeCount;
 };
 
 struct GlobalCallbackCtx {

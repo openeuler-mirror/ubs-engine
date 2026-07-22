@@ -161,7 +161,7 @@ UbseResult UbseNodeComUrmaCollector::ProcessFeDevice(uint32_t serverIdx,
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLinkInfo, bool isBeforeElection)
+UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink>& allLinkInfo, bool isBeforeElection)
 {
     UbseNodeInfo ubseNodeInfo = UbseNodeController::GetInstance().GetCurNode();
     if (ubseNodeInfo.nodeId.empty()) {
@@ -170,12 +170,15 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     }
 
     std::vector<UbseUrmaUvsNodeInfo> hostUrmaInfos;
-    auto ret = GetAllComUrma(hostUrmaInfos);
+    auto ret = GetAllHostPlanningBondings(hostUrmaInfos);
     if (ret != UBSE_OK || hostUrmaInfos.empty()) {
         UBSE_LOG_ERROR << "Get all com urma info failed.";
         return UBSE_ERROR;
     }
-
+    if (!UbseNodeController::GetInstance().IsHostBondingRegistered()) {
+        UBSE_LOG_INFO << "Com Urma bonding is not occupied, skip set com urma bonding.";
+        return UBSE_OK;
+    }
     ret = UbsePushTopoAndBondingToUvs(ubseNodeInfo.nodeId, allLinkInfo, hostUrmaInfos);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Set urma_uvs failed.";
@@ -183,8 +186,7 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     }
 
     if (isBeforeElection) {
-        const std::string aggrDevName = "bonding_dev_0";
-        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, aggrDevName);
+        ret = UbseActiveBonding(comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid, UBSE_HOST_URMA_DEV_NAME);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Activate urmaDevEid=" << comUrmaInfos[ubseNodeInfo.nodeId].urmaDevEid << " failed.";
         }
@@ -192,29 +194,21 @@ UbseResult UbseNodeComUrmaCollector::SetComUrma(std::vector<PhysicalLink> &allLi
     return ret;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetAllComUrma(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+UbseResult UbseNodeComUrmaCollector::GetAllHostPlanningBondings(std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
 {
     hostUrmaInfos.clear();
-    const auto &clusterNodes = ubse::nodeMgr::GetAllNodes();
-    for (const auto &node : clusterNodes) {
-        UbseUrmaUvsAggrDev agg{};
-        agg.urmaDevEid = node.bonding0Eid;
-        for (const auto &eid : node.feEidList) {
-            UbseUrmaUvsFe fe{};
-            fe.ubpuId = eid.first;
-            fe.entityId = eid.second.entityId;
-            fe.primaryEid = eid.second.primaryEid;
-            fe.portEid = eid.second.portEids;
-            agg.feList.push_back(fe);
-        }
-        UbseUrmaUvsNodeInfo info{node.nodeId, {agg}};
-        hostUrmaInfos.push_back(info);
+    hostUrmaInfos.reserve(comUrmaInfos.size());
+    for (const auto& kv : comUrmaInfos) {
+        std::vector<UbseUrmaUvsAggrDev> aggrs;
+        aggrs.push_back(kv.second);
+        UbseUrmaUvsNodeInfo info{kv.first, std::move(aggrs)};
+        hostUrmaInfos.push_back(std::move(info));
     }
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetComUrmaByNodeId(const std::string& nodeId,
-                                                        std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
+UbseResult UbseNodeComUrmaCollector::GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                                                    std::vector<UbseUrmaUvsNodeInfo>& hostUrmaInfos)
 {
     hostUrmaInfos.clear();
     auto it = comUrmaInfos.find(nodeId);
@@ -237,7 +231,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink>& a
         UBSE_LOG_WARN << "Get cur node ports failed, " << FormatRetCode(ret);
         return ret;
     }
-    for (auto &link : allLinks) {
+    for (auto& link : allLinks) {
         if (link.linkStatus == LinkStatus::unavailable) {
             continue;
         } else {
@@ -247,7 +241,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeTopo(std::vector<PhysicalLink>& a
     return UBSE_OK;
 }
 
-UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &allLinkInfo)
+UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink>& allLinkInfo)
 {
     UbseDevTopology devTopology{};
     auto ret = UbseMtiInterface::GetInstance().GetCurNodeTopo(devTopology);
@@ -255,14 +249,15 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &
         UBSE_LOG_WARN << "[MTI] get devTopology not successful, " << FormatRetCode(ret);
         return ret;
     }
-    for (const auto &kv : devTopology) {
+    for (const auto& kv : devTopology) {
         std::string nodeId;
         std::string ubpuId;
         kv.first.GetNodeIdAndChipId(nodeId, ubpuId);
-        for (const auto &portKv : kv.second.second) {
+        for (const auto& portKv : kv.second.second) {
             PhysicalLink link{};
-            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK || ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK
-                || ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
+            if (ConvertStrToUint32(nodeId, link.slotId) != UBSE_OK ||
+                ConvertStrToUint32(ubpuId, link.chipId) != UBSE_OK ||
+                ConvertStrToUint32(portKv.second.portId, link.portId) != UBSE_OK) {
                 UBSE_LOG_WARN << "Failed to convert nodeId=" << nodeId << ", ubpuId=" << ubpuId
                               << ", portId=" << portKv.second.portId << ", skip this link";
                 continue;
@@ -273,9 +268,9 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodePorts(std::vector<PhysicalLink> &
                 if (ConvertStrToUint32(portKv.second.remoteSlotId, link.peerSlotId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remoteChipId, link.peerChipId) != UBSE_OK ||
                     ConvertStrToUint32(portKv.second.remotePortId, link.peerPortId) != UBSE_OK) {
-                    UBSE_LOG_WARN << "Failed to convert slotId=" << portKv.second.remoteSlotId << ", ubpuId="
-                        << portKv.second.remoteChipId << ", portId=" << portKv.second.remotePortId
-                        << ", skip this link";
+                    UBSE_LOG_WARN << "Failed to convert slotId=" << portKv.second.remoteSlotId
+                                  << ", ubpuId=" << portKv.second.remoteChipId
+                                  << ", portId=" << portKv.second.remotePortId << ", skip this link";
                     continue;
                 }
             }
@@ -302,7 +297,7 @@ UbseResult UbseNodeComUrmaCollector::GetCurNodeIouList(std::vector<UbseMtiIouInf
     iouList.clear();
     iouList.reserve(devTopology.size());
 
-    for (const auto &[devName, deviceInfo] : devTopology) {
+    for (const auto& [devName, deviceInfo] : devTopology) {
         iouList.emplace_back(deviceInfo.first.slotId, deviceInfo.first.chipId, deviceInfo.first.cardId);
     }
     return UBSE_OK;

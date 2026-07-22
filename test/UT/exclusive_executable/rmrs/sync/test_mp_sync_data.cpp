@@ -43,12 +43,12 @@ TEST_F(TestSync, InitSucceed)
     EXPECT_EQ(ret, 0);
 }
 
-uint32_t TestNotify(UbseByteBuffer &buffer)
+uint32_t TestNotify(UbseByteBuffer& buffer)
 {
     return 0;
 }
 
-uint32_t TestGetData(UbseByteBuffer &buffer)
+uint32_t TestGetData(UbseByteBuffer& buffer)
 {
     return 0;
 }
@@ -65,36 +65,36 @@ TEST_F(TestSync, DeInitSucceed)
     EXPECT_EQ(ret, 0);
 }
 
-uint32_t MockGenerateIndexGet1(std::string serviceName, uint64_t &index)
+uint32_t MockGenerateIndexGet1(std::string serviceName, uint64_t& index)
 {
     index = 1;
     return 0;
 }
 
-uint32_t MockNotify(UbseByteBuffer &buffer)
+uint32_t MockNotify(UbseByteBuffer& buffer)
 {
     return 0;
 }
 
-uint32_t MockGetData(UbseByteBuffer &buffer)
+uint32_t MockGetData(UbseByteBuffer& buffer)
 {
     return 0;
 }
 
 TEST_F(TestSync, SubModuleInitFailed1)
 {
-    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper *)).stubs().will(returnValue(1));
+    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper*)).stubs().will(returnValue(1));
     MpSyncDataSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
- 
+
 TEST_F(TestSync, SubModuleInitSucceed)
 {
-    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper *)).stubs().will(returnValue(0));
+    MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper*)).stubs().will(returnValue(0));
     MpSyncDataSubModule obj;
     auto ret = obj.Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-} // namespace mempooling::router
+} // namespace mempooling::sync

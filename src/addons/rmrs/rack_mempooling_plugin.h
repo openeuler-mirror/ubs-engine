@@ -35,7 +35,6 @@ void UbsePluginDeInit(void);
 #ifdef __cplusplus
 }
 
-
 #endif
 
 #endif

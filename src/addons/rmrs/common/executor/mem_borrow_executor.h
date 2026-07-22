@@ -13,15 +13,15 @@
 #ifndef MEM_BORROW_EXECUTOR_H
 #define MEM_BORROW_EXECUTOR_H
 
-#include <ostream>
 #include <fstream>
+#include <ostream>
 #include <string>
 
+#include "ubse_mem_controller.h"
 #include "mem_json_def.h"
+#include "mem_manager.h"
 #include "mp_error.h"
 #include "mp_smap_controller.h"
-#include "mem_manager.h"
-#include "ubse_mem_controller.h"
 
 namespace mempooling {
 
@@ -30,39 +30,71 @@ using namespace ubse::mem::controller;
 
 class MemBorrowExecutor {
 public:
-    static MemBorrowExecutor &Instance()
+    static MemBorrowExecutor& Instance()
     {
         static MemBorrowExecutor instance;
         return instance;
     }
 
-    MpResult MemBorrow(const std::string &attachNode, const RackCreateResourceWaterBorrowAttr &attr,
-                       std::string &borrowId, int16_t &presentNumaId, bool isBorrowIdPersistence = true);
-    MpResult MemFree(const std::string &name);
+    MpResult MemBorrow(const std::string& attachNode, const RackCreateResourceWaterBorrowAttr& attr,
+                       std::string& borrowId, int16_t& presentNumaId, bool isBorrowIdPersistence = true);
+    MpResult MemFree(const std::string& name);
 
-    MpResult MemFreeWithOps(const std::string &name, bool isForceDelete, bool smapBack, bool isFault = false);
+    MpResult MemFreeWithOpsForProcessMem(const std::string& name, bool isForceDelete, bool smapBack,
+                                         bool isFault = false);
 
-    MpResult MemFreeWithOpsBySmap(const std::string &name, const std::string &deleteName, bool isFault = false);
+    MpResult MemFreeWithOps(const std::string& name, bool isForceDelete, bool smapBack, bool isFault = false);
 
-    MpResult MemFreeWithOpsByMemfabric(const std::string &name, const std::string &deleteName, bool isFault = false);
+    MpResult MemFreeWithOpsBySmap(const std::string& name, const std::string& deleteName, bool isFault = false);
 
-    MpResult GenerateSmapParams(const std::string &name, MigrateBackMsg &migrateBackMsg, EnableNodeMsg &enableMsg,
-                                std::string &importNodeId, bool isFault = false);
-    MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg);
+    MpResult MemFreeWithOpsBySmapForProcessMem(const std::string& name, const std::string& deleteName,
+                                               bool isFault = false);
 
-    MpResult GenerateUniqueId(const std::string &nodeId, std::string &str, const bool isFault = false);
+    MpResult MemFreeWithOpsByMemfabric(const std::string& name, const std::string& deleteName, bool isFault = false);
 
-    MpResult RemoveBorrowIdRedirectionRecursively(const std::string &name);
+    MpResult HandleTimeoutFree(const std::string& name, const std::vector<BorrowRecord>& borrowRecords);
 
-    MpResult PrepareMemNumaCreateParams(const std::string attachNode, const RackCreateResourceWaterBorrowAttr &attr,
-                                        UbseMemBorrower &borrower, std::vector<UbseMemNumaLender> &lenders,
+    MpResult GetBorrowRecordForSmapParams(const std::string& name, BorrowRecord& record, bool isFault);
+
+    MpResult GenerateSmapParamsForProcessMem(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgs,
+                                             EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
+
+    MpResult GenerateSmapParams(const std::string& name, std::vector<MigrateBackMsg>& migrateBackMsgList,
+                                EnableNodeMsg& enableMsg, std::string& importNodeId, bool isFault = false);
+
+    MpResult SmapMigreatBackRpc(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg);
+
+    MpResult GenerateUniqueId(const std::string& nodeId, std::string& str, const bool isFault = false);
+
+    MpResult RemoveBorrowIdRedirectionRecursively(const std::string& name);
+
+    MpResult PrepareMemNumaCreateParams(const std::string attachNode, const RackCreateResourceWaterBorrowAttr& attr,
+                                        UbseMemBorrower& borrower, std::vector<UbseMemNumaLender>& lenders,
                                         uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN]);
 
+    static MpResult UpdateSmapRemoteNumaInfoBeforeMigrateBack(const std::string& name, const std::string& deleteName,
+                                                              bool isFault);
+
+    static bool IsValidBorrowIdFormat(const UbseNumaMemoryDebtInfo& debtInfo);
+    static MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static std::vector<UbseNumaMemoryDebtInfo> FilterValidDebtInfos(
+        const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    static uint64_t SumDebtInfosSizeBytesForRemoteNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                       int16_t remoteNumaId);
+    static bool ShouldRetryDebtInfoFetch(UbseResult ret, const std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+
 private:
+    static MpResult FindCurrentDebtInfoAndSrcNuma(const std::vector<UbseNumaMemoryDebtInfo>& debtInfos,
+                                                  const std::string& name,
+                                                  const UbseNumaMemoryDebtInfo*& outCurrentDebtInfo, int& outSrcNuma);
+
+    static MpResult ValidateAndExecuteSmapUpdate(const UbseNumaMemoryDebtInfo* currentDebtInfo, uint64_t totalSizeBytes,
+                                                 int srcNuma, const std::string& name);
+
     MemBorrowExecutor() = default;
     ~MemBorrowExecutor() = default;
-    MemBorrowExecutor(const MemBorrowExecutor &) = delete;
-    MemBorrowExecutor &operator=(const MemBorrowExecutor &) = delete;
+    MemBorrowExecutor(const MemBorrowExecutor&) = delete;
+    MemBorrowExecutor& operator=(const MemBorrowExecutor&) = delete;
 };
 
 class MpMemBorrowExecutorModule : public MpSubModule {
@@ -80,13 +112,13 @@ public:
     }
     void DeInit() override
     {
-        return ;
+        return;
     }
     const std::string Name() override
     {
         return "BorrowExecutor";
     }
- 
+
 private:
     MpResult DeleteFailedBorrowIds();
 };

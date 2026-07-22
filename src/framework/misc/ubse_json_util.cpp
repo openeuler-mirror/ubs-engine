@@ -18,7 +18,7 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::utils {
 using namespace ubse::log;
 
-UbseResult UbseJsonUtil::GetStrFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, std::string &value)
+UbseResult UbseJsonUtil::GetStrFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, std::string& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsString()) {
         UBSE_LOG_ERROR << "[JSON] Get string from json, the key=" << key;
@@ -28,7 +28,7 @@ UbseResult UbseJsonUtil::GetStrFromJsonPtr(const rapidjson::Value &jsonPtr, cons
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetUintFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint32_t &value)
+UbseResult UbseJsonUtil::GetUintFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, uint32_t& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
         UBSE_LOG_ERROR << "[JSON] Get uint from json, the key=" << key;
@@ -39,7 +39,7 @@ UbseResult UbseJsonUtil::GetUintFromJsonPtr(const rapidjson::Value &jsonPtr, con
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetDoubleFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, double &value)
+UbseResult UbseJsonUtil::GetDoubleFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, double& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
         UBSE_LOG_ERROR << "[JSON] Get double from json, the key=" << key;
@@ -49,7 +49,7 @@ UbseResult UbseJsonUtil::GetDoubleFromJsonPtr(const rapidjson::Value &jsonPtr, c
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetFloatFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, float &value)
+UbseResult UbseJsonUtil::GetFloatFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, float& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
         UBSE_LOG_ERROR << "[JSON] Get float from json, the key=" << key;
@@ -59,8 +59,8 @@ UbseResult UbseJsonUtil::GetFloatFromJsonPtr(const rapidjson::Value &jsonPtr, co
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetArrayFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key,
-                                             Allocator &allocator, rapidjson::Value &value)
+UbseResult UbseJsonUtil::GetArrayFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key,
+                                             Allocator& allocator, rapidjson::Value& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsArray()) {
         UBSE_LOG_ERROR << "[JSON] Get array from json, the key=" << key;
@@ -70,8 +70,8 @@ UbseResult UbseJsonUtil::GetArrayFromJsonPtr(const rapidjson::Value &jsonPtr, co
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetObjectFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key,
-                                              Allocator &allocator, rapidjson::Value &value)
+UbseResult UbseJsonUtil::GetObjectFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key,
+                                              Allocator& allocator, rapidjson::Value& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsObject()) {
         UBSE_LOG_ERROR << "[JSON] Get object from json, the key=" << key;
@@ -81,7 +81,7 @@ UbseResult UbseJsonUtil::GetObjectFromJsonPtr(const rapidjson::Value &jsonPtr, c
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::PrintJsonPtr(const rapidjson::Value &jsonPtr, std::string &jsonStr)
+UbseResult UbseJsonUtil::PrintJsonPtr(const rapidjson::Value& jsonPtr, std::string& jsonStr)
 {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -92,7 +92,7 @@ UbseResult UbseJsonUtil::PrintJsonPtr(const rapidjson::Value &jsonPtr, std::stri
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetStrFromJsonPtr(const std::string &jsonPtr, const std::string &key, std::string &value)
+UbseResult UbseJsonUtil::GetStrFromJsonPtr(const std::string& jsonPtr, const std::string& key, std::string& value)
 {
     rapidjson::Document doc;
     doc.Parse(jsonPtr.c_str());
@@ -103,7 +103,7 @@ UbseResult UbseJsonUtil::GetStrFromJsonPtr(const std::string &jsonPtr, const std
     return GetStrFromJsonPtr(doc, key, value);
 }
 
-UbseResult UbseJsonUtil::GetUint64FromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint64_t &value)
+UbseResult UbseJsonUtil::GetUint64FromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, uint64_t& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint64()) {
         UBSE_LOG_ERROR << "[JSON] Get uint64 from json, the key=" << key;
@@ -113,7 +113,7 @@ UbseResult UbseJsonUtil::GetUint64FromJsonPtr(const rapidjson::Value &jsonPtr, c
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetUint16FromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint16_t &value)
+UbseResult UbseJsonUtil::GetUint16FromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, uint16_t& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint() ||
         jsonPtr[key.c_str()].GetUint() > UINT16_MAX) {
@@ -124,7 +124,7 @@ UbseResult UbseJsonUtil::GetUint16FromJsonPtr(const rapidjson::Value &jsonPtr, c
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetUint8FromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, uint8_t &value)
+UbseResult UbseJsonUtil::GetUint8FromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, uint8_t& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsUint() ||
         jsonPtr[key.c_str()].GetUint() > UINT8_MAX) {
@@ -135,7 +135,7 @@ UbseResult UbseJsonUtil::GetUint8FromJsonPtr(const rapidjson::Value &jsonPtr, co
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetIntFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, int &value)
+UbseResult UbseJsonUtil::GetIntFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, int& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsNumber()) {
         UBSE_LOG_ERROR << "[JSON] Get int from json, the key=" << key;
@@ -145,7 +145,7 @@ UbseResult UbseJsonUtil::GetIntFromJsonPtr(const rapidjson::Value &jsonPtr, cons
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetBoolFromJsonPtr(const rapidjson::Value &jsonPtr, const std::string &key, bool &value)
+UbseResult UbseJsonUtil::GetBoolFromJsonPtr(const rapidjson::Value& jsonPtr, const std::string& key, bool& value)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str()) || !jsonPtr[key.c_str()].IsBool()) {
         UBSE_LOG_ERROR << "[JSON] Get bool from json, the key=" << key;
@@ -155,19 +155,19 @@ UbseResult UbseJsonUtil::GetBoolFromJsonPtr(const rapidjson::Value &jsonPtr, con
     return UBSE_OK;
 }
 
-UbseResult UbseJsonUtil::GetStrFromJsonPtrForce(const rapidjson::Value &jsonPtr, const std::string &key,
-                                                std::string &str)
+UbseResult UbseJsonUtil::GetStrFromJsonPtrForce(const rapidjson::Value& jsonPtr, const std::string& key,
+                                                std::string& str)
 {
     if (!jsonPtr.IsObject() || !jsonPtr.HasMember(key.c_str())) {
         UBSE_LOG_ERROR << "[JSON] Json ptr contains no object.";
         return UBSE_ERROR_INVAL;
     }
-    const rapidjson::Value &value = jsonPtr[key.c_str()];
+    const rapidjson::Value& value = jsonPtr[key.c_str()];
     str = RapidValueToString(value);
     return UBSE_OK;
 }
 
-std::string UbseJsonUtil::RapidValueToString(const rapidjson::Value &value)
+std::string UbseJsonUtil::RapidValueToString(const rapidjson::Value& value)
 {
     if (value.IsString()) {
         return value.GetString();
@@ -200,12 +200,12 @@ std::string UbseJsonUtil::RapidValueToString(const rapidjson::Value &value)
     }
 }
 
-bool UbseJsonUtil::ConvertVector2JsonStr(const std::vector<std::string> &strVec, std::string &jsonStr)
+bool UbseJsonUtil::ConvertVector2JsonStr(const std::vector<std::string>& strVec, std::string& jsonStr)
 {
     rapidjson::Document pJson(rapidjson::kArrayType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     // 遍历字符串数组，加入到Json数组对象中
-    for (const auto &item : strVec) {
+    for (const auto& item : strVec) {
         rapidjson::Document pTmpJson;
         pTmpJson.Parse(item.c_str());
         if (pTmpJson.HasParseError()) {
@@ -225,7 +225,7 @@ bool UbseJsonUtil::ConvertVector2JsonStr(const std::vector<std::string> &strVec,
     return true;
 }
 
-bool UbseJsonUtil::GetJsonItemStr(const rapidjson::Value &pstJson, const std::string &key, std::string &jsonStr)
+bool UbseJsonUtil::GetJsonItemStr(const rapidjson::Value& pstJson, const std::string& key, std::string& jsonStr)
 {
     auto ret = pstJson.HasMember(key.c_str());
     if (!ret) {
@@ -235,7 +235,7 @@ bool UbseJsonUtil::GetJsonItemStr(const rapidjson::Value &pstJson, const std::st
         jsonStr = pstJson[key.c_str()].GetString();
         return true;
     }
-    const auto &valBody = pstJson[key.c_str()];
+    const auto& valBody = pstJson[key.c_str()];
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
     valBody.Accept(writer);
@@ -243,7 +243,7 @@ bool UbseJsonUtil::GetJsonItemStr(const rapidjson::Value &pstJson, const std::st
     return true;
 }
 
-bool UbseJsonUtil::ConvertJsonStr2Map(const std::string &jsonStr, std::map<std::string, std::string> &strMap)
+bool UbseJsonUtil::ConvertJsonStr2Map(const std::string& jsonStr, std::map<std::string, std::string>& strMap)
 {
     rapidjson::Document pJson;
     pJson.Parse(jsonStr.c_str());
@@ -251,8 +251,8 @@ bool UbseJsonUtil::ConvertJsonStr2Map(const std::string &jsonStr, std::map<std::
         UBSE_LOG_ERROR << "Parse json error";
         return false;
     }
-    const rapidjson::Value &value = pJson.GetObject();
-    for (auto &it : strMap) {
+    const rapidjson::Value& value = pJson.GetObject();
+    for (auto& it : strMap) {
         if (!GetJsonItemStr(value, it.first.c_str(), it.second)) {
             UBSE_LOG_ERROR << "GetJsonItemStr error " << it.first;
             return false;
@@ -261,23 +261,23 @@ bool UbseJsonUtil::ConvertJsonStr2Map(const std::string &jsonStr, std::map<std::
     return true;
 }
 
-bool UbseJsonUtil::ConvertJsonStr2Vec(const std::string &jsonStr, std::vector<std::string> &strVec)
+bool UbseJsonUtil::ConvertJsonStr2Vec(const std::string& jsonStr, std::vector<std::string>& strVec)
 {
     rapidjson::Document pJson;
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     pJson.Parse(jsonStr.c_str());
     if (pJson.HasParseError() || !pJson.IsArray()) {
         UBSE_LOG_ERROR << "Json Parse error";
         return false;
     }
-    const rapidjson::Value &array = pJson.GetArray();
+    const rapidjson::Value& array = pJson.GetArray();
     uint32_t length = array.Size();
     // 遍历Json数组将所有字符串加入Vector
     for (int i = 0; i < length; ++i) {
         if (array[i].IsString()) {
             strVec.emplace_back(array[i].GetString());
         } else {
-            const auto &valBody = array[i];
+            const auto& valBody = array[i];
             rapidjson::StringBuffer buffer;
             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
             valBody.Accept(writer);
@@ -287,12 +287,12 @@ bool UbseJsonUtil::ConvertJsonStr2Vec(const std::string &jsonStr, std::vector<st
     return true;
 }
 
-bool UbseJsonUtil::ConvertMap2JsonStr(const std::map<std::string, std::string> &strMap, std::string &jsonStr)
+bool UbseJsonUtil::ConvertMap2JsonStr(const std::map<std::string, std::string>& strMap, std::string& jsonStr)
 {
     rapidjson::Document pJson(rapidjson::kObjectType);
-    auto &allocator = pJson.GetAllocator();
+    auto& allocator = pJson.GetAllocator();
     // 遍历Map，插入键值对到Json对象
-    for (const auto &[fst, snd] : strMap) {
+    for (const auto& [fst, snd] : strMap) {
         rapidjson::Document pTmpJson;
         pTmpJson.Parse(snd.c_str());
         if (pTmpJson.HasParseError()) {

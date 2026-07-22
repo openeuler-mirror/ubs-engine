@@ -12,6 +12,9 @@
 
 #include "ubse_uds_server.h"
 
+#include <cstring>
+#include <string>
+
 #include <securec.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -27,6 +30,7 @@
 #include "ubse_ipc_socket.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_logger.h"
+#include "ubse_os_util.h"
 #include "ubse_request_id_util.h"
 #include "ubse_security_module.h"
 #include "ubse_thread_pool_module.h"
@@ -42,16 +46,33 @@ const uint32_t DEFAULT_SEND_TIMEOUT = 5000; // Default data sending timeout in m
 const uint32_t SEND_RETRY_TIMES = 5;
 const uint32_t SEND_RETRY_DURATION = 1;
 const uint32_t SESSION_CLOSE_WAITING_TIME = 30; // session等待会话自行关闭时间, 超时未关闭服务端主动关闭 单位s,
+constexpr size_t ERR_MSG_BUF_SIZE = 256;
+
+static std::string SafeStrError(int errnum)
+{
+    char errBuf[ERR_MSG_BUF_SIZE] = {0};
+    if (strerror_r(errnum, errBuf, sizeof(errBuf)) != 0) {
+        return "unknown error";
+    }
+    return std::string(errBuf);
+}
+
+static bool CheckClientPermission(const UbseClientInfo& client, const UbseClientInfo& peer)
+{
+    return client.uid == peer.uid;
+}
 
 // 添加事件到epoll
 static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
-    struct epoll_event ev{};
+    struct epoll_event ev {
+    };
     ev.events = events;
     ev.data.fd = fd;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
-        UBSE_LOG_ERROR << "Failed to add efd epoll=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to add efd epoll=" << SafeStrError(err);
         return false;
     }
     return true;
@@ -60,12 +81,14 @@ static bool AddEpollEvent(int epoll_fd, int fd, uint32_t events)
 // 修改epoll事件
 static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events)
 {
-    struct epoll_event ev{};
+    struct epoll_event ev {
+    };
     ev.events = events;
     ev.data.fd = fd;
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-        UBSE_LOG_ERROR << "Failed to mod epoll_ctl=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to mod epoll_ctl=" << SafeStrError(err);
         return false;
     }
     return true;
@@ -75,8 +98,9 @@ static bool ModifyEpollEvent(int epoll_fd, int fd, uint32_t events)
 static void RemoveEpollEvent(int epoll_fd, int fd)
 {
     if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr) == -1) {
-        if (errno != EBADF) { // 过滤已关闭文件描述符的预期错误
-            UBSE_LOG_ERROR << "Failed to remove efd epoll=" << strerror(errno);
+        int err = errno;
+        if (err != EBADF) { // 过滤已关闭文件描述符的预期错误
+            UBSE_LOG_ERROR << "Failed to remove efd epoll=" << SafeStrError(err);
         }
     }
 }
@@ -86,7 +110,7 @@ UbseUDSServer::UbseUDSServer(UbseUDSConfig config) : config_(std::move(config)) 
 uint32_t UbseUDSServer::Start()
 {
     // 创建线程池
-    auto &context = UbseContext::GetInstance();
+    auto& context = UbseContext::GetInstance();
     auto threadModule = context.GetModule<ubse::task_executor::UbseTaskExecutorModule>();
     if (threadModule == nullptr) {
         UBSE_LOG_ERROR << "UbseUDSServer create, threadModule is nullptr";
@@ -123,7 +147,7 @@ uint32_t UbseUDSServer::Start()
     running_ = true;
     try {
         eventLoopThread_ = std::thread(&UbseUDSServer::EventLoopThread, this);
-    } catch (const std::system_error &e) {
+    } catch (const std::system_error& e) {
         UBSE_LOG_ERROR << "Thread creation failed=" << e.what();
         close(serverFd_);
         serverFd_ = -1;
@@ -153,7 +177,7 @@ void UbseUDSServer::Stop()
     // 关闭所有客户端连接
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
-        for (auto &[fd, session] : sessions_) {
+        for (auto& [fd, session] : sessions_) {
             RemoveEpollEvent(epollFd_, fd);
             close(fd);
         }
@@ -194,14 +218,17 @@ uint32_t UbseUDSServer::BindSocket() const
             UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
             if (result != 0) {
                 UBSE_LOG_ERROR << "Failed to create directory=" << dirPath;
-                free(canonicalPath);
                 return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
             }
             UBSE_LOG_INFO << "Success to create directory=" << dirPath;
+        } else {
+            free(canonicalPath);
+            canonicalPath = nullptr;
         }
-        free(canonicalPath);
     }
-    struct sockaddr_un addr{};
+
+    struct sockaddr_un addr {
+    };
     auto ret = memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     if (ret != EOK) {
         UBSE_LOG_ERROR << "memset_s failed=" << ret;
@@ -209,7 +236,7 @@ uint32_t UbseUDSServer::BindSocket() const
     }
 
     addr.sun_family = AF_UNIX;
-    const std::string &socketPath = config_.socketPath;
+    const std::string& socketPath = config_.socketPath;
 
     // 确保路径长度不超过限制
     if (socketPath.size() >= sizeof(addr.sun_path)) {
@@ -227,8 +254,9 @@ uint32_t UbseUDSServer::BindSocket() const
     unlink(socketPath.c_str());
 
     // 绑定socket
-    if (bind(serverFd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1) {
-        UBSE_LOG_ERROR << "Failed to bind socket=" << strerror(errno);
+    if (bind(serverFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to bind socket=" << SafeStrError(err);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
 
@@ -241,7 +269,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
     // 创建socket
     serverFd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (serverFd_ == -1) {
-        UBSE_LOG_ERROR << "Failed to create socket=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to create socket=" << SafeStrError(err);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
 
@@ -262,7 +291,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
     }
     if (chmod(config_.socketPath.c_str(), config_.socketPermissions) == -1) {
-        UBSE_LOG_ERROR << "chmod failed=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "chmod failed=" << SafeStrError(err);
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
         close(serverFd_);
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
@@ -271,7 +301,8 @@ uint32_t UbseUDSServer::CreateServerSocket()
 
     // 开始监听
     if (listen(serverFd_, config_.maxPersistentConnections + config_.maxTransientConnections) == -1) {
-        UBSE_LOG_ERROR << "Failed to listen=" << strerror(errno);
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to listen=" << SafeStrError(err);
         close(serverFd_);
         serverFd_ = -1;
         return UBSE_IPC_ERROR_SOCKET_LISTEN_FAILED;
@@ -309,10 +340,11 @@ void UbseUDSServer::EventLoopThread()
     }
 }
 
-bool GetClientCredentials(int socketFd, UbseClientInfo &info)
+bool GetClientCredentials(int socketFd, UbseClientInfo& info)
 {
     // 适用于 Linux 系统的结构体
-    struct ucred cred{};
+    struct ucred cred {
+    };
     socklen_t len = sizeof(cred);
 
     if (getsockopt(socketFd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {
@@ -333,7 +365,7 @@ void UbseUDSServer::CheckAndCloseTimeoutSessions()
     std::lock_guard<std::mutex> lock(sessionsMutex_);
     // 遍历
     for (auto it = preClosingSessions_.begin(); it != preClosingSessions_.end();) {
-        auto &session = it->second;
+        auto& session = it->second;
         // 检查是否超时
         if (now - session.closingStartTime > timeoutThreshold) {
             UBSE_LOG_INFO << "Force closing session (fd=" << session.fd << ") due to timeout in CLOSING state.";
@@ -352,10 +384,10 @@ void UbseUDSServer::CheckAndCloseTimeoutSessions()
 void UbseUDSServer::HandleNewConnection()
 {
     while (true) { // 边缘触发需要处理所有等待的连接
-        struct sockaddr_un client_addr {};
+        struct sockaddr_un client_addr {
+        };
         socklen_t client_len = sizeof(client_addr);
-        int clientFd =
-            accept4(serverFd_, reinterpret_cast<struct sockaddr *>(&client_addr), &client_len, SOCK_NONBLOCK);
+        int clientFd = accept4(serverFd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len, SOCK_NONBLOCK);
         if (clientFd == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // 所有连接都已处理
@@ -391,7 +423,7 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
     if (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
         CloseSession(fd);
         clientMapMutex_.lock();
-        for (auto &iter : clientMap_) {
+        for (auto& iter : clientMap_) {
             if (iter.second.find(fd) != iter.second.end()) {
                 iter.second.erase(fd);
             }
@@ -401,7 +433,7 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
     }
 
     // 获取会话
-    ClientSession *session;
+    ClientSession* session;
     {
         std::lock_guard<std::mutex> lock(sessionsMutex_);
         auto it = sessions_.find(fd);
@@ -422,7 +454,7 @@ void UbseUDSServer::HandleClientEvent(int fd, uint32_t events)
     }
 }
 
-void UbseUDSServer::HandlePersistentSession(const UbseRequestHeader &header, int fd, uint64_t requestId)
+void UbseUDSServer::HandlePersistentSession(const UbseRequestHeader& header, int fd, uint64_t requestId)
 {
     UBSE_LOG_INFO << "register persistent link, fd=" << fd;
     UbseResponseMessage response{{UBSE_OK, 0}, nullptr};
@@ -443,8 +475,69 @@ void UbseUDSServer::HandlePersistentSession(const UbseRequestHeader &header, int
     return;
 }
 
-void UbseUDSServer::ProcessRequest(ClientSession *session, const UbseRequestHeader &header,
-                                   std::vector<uint8_t> &&bodyData)
+void UbseUDSServer::RecordClientRequestId(uint64_t requestId, uint64_t clientRequestId)
+{
+    std::lock_guard<std::mutex> lock(clientReqIdMutex_);
+    clientReqId_[requestId] = clientRequestId;
+}
+
+bool UbseUDSServer::CheckRequestPermission(ClientSession* session, const UbseRequestHeader& header, uint64_t requestId)
+{
+    uint32_t ret = UBSE_OK;
+    if (!UbseContext::GetInstance().IsAllModulesReady()) {
+        UBSE_LOG_ERROR << "Daemon is not ready";
+        ret = UBSE_ERR_DAEMON_UNREACHABLE;
+    }
+
+    std::string userName{};
+    if (ret == UBSE_OK && ubse::utils::UbseOsUtil::GetUserNameById(session->clientInfo.uid, userName) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get username for UID: " << session->clientInfo.uid;
+        ret = UBSE_ERR_PERMISSION_DENIED;
+    }
+
+    if (ret == UBSE_OK && !api::server::UbseApiServerAuthManager::GetInstance().CheckPermission(
+                              userName, header.moduleCode, header.opCode)) {
+        UBSE_LOG_ERROR << "User " << userName << " does not have interface permissions";
+        ret = UBSE_ERR_PERMISSION_DENIED;
+    }
+
+    if (ret == UBSE_OK) {
+        return true;
+    }
+    UBSE_LOG_ERROR << "Request permission check failed, moduleCode=" << header.moduleCode
+                   << ", opCode=" << header.opCode << ", uid=" << session->clientInfo.uid
+                   << ", ret=" << FormatRetCode(ret);
+    UbseResponseMessage response{{ret, 0}, nullptr};
+    auto sendRet = SendResponse(requestId, response);
+    if (sendRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "send rsp failed, " << FormatRetCode(sendRet);
+    }
+    return false;
+}
+
+void UbseUDSServer::SubmitRequestTask(ClientSession* session, const UbseRequestHeader& header,
+                                      std::vector<uint8_t>&& bodyData, const UbseRequestContext& context)
+{
+    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
+    if (taskExecutorModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        return;
+    }
+    auto taskExecutor = taskExecutorModule->Get("IpcExecutor");
+    if (taskExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
+        return;
+    }
+    if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
+            this->HandleRequest(fd, header, data, context);
+        })) {
+        UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
+        CloseSession(session->fd);
+    }
+}
+
+void UbseUDSServer::ProcessRequest(ClientSession* session, const UbseRequestHeader& header,
+                                   std::vector<uint8_t>&& bodyData)
 {
     UBSE_LOG_DEBUG << "process request, module=" << header.moduleCode << ", opCode=" << header.opCode;
     // 生成请求ID
@@ -455,9 +548,10 @@ void UbseUDSServer::ProcessRequest(ClientSession *session, const UbseRequestHead
         return;
     }
     // 记录请求的clientId，通过长连接回复客户端消息时，客户端映射对应的请求
-    {
-        std::lock_guard<std::mutex> lock(clientReqIdMutex_); // 构造时自动加锁
-        clientReqId_[requestId] = header.clientRequestId;
+    RecordClientRequestId(requestId, header.clientRequestId);
+    // 权限校验
+    if (!CheckRequestPermission(session, header, requestId)) {
+        return;
     }
     bool isPersistent = (header.moduleCode == UBSE_LONG_LINK_REGISTER);
     // 长连接注册请求
@@ -485,25 +579,10 @@ void UbseUDSServer::ProcessRequest(ClientSession *session, const UbseRequestHead
     session->state = SessionState::PROCESSING;
 
     // 提交任务到线程池
-    auto taskExecutorModule = UbseContext::GetInstance().GetModule<ubse::task_executor::UbseTaskExecutorModule>();
-    if (taskExecutorModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
-        return;
-    }
-    auto taskExecutor = taskExecutorModule->Get("IpcExecutor");
-    if (taskExecutor == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get taskExecutorModule";
-        return;
-    }
-    if (!taskExecutor->Execute([this, fd = session->fd, header, data = std::move(bodyData), context]() {
-            this->HandleRequest(fd, header, data, context);
-        })) {
-        UBSE_LOG_ERROR << "Failed to submit task to thread pool.";
-        CloseSession(session->fd);
-    }
+    SubmitRequestTask(session, header, std::move(bodyData), context);
 }
 
-void UbseUDSServer::HandleRequest(ClientSession *session)
+void UbseUDSServer::HandleRequest(ClientSession* session)
 {
     UBSE_LOG_DEBUG << "receive fd" << session->fd << " request.";
     // 读取消息头
@@ -545,7 +624,7 @@ void UbseUDSServer::HandleRequest(ClientSession *session)
     ProcessRequest(session, header, std::move(session->readBuffer));
 }
 
-void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage &response)
+void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessage& response)
 {
     std::lock_guard<std::mutex> lock(asyncCallbackMutex_);
     auto iter = asyncCallback_.find(reqId);
@@ -559,7 +638,7 @@ void UbseUDSServer::ProcessAsyncCallback(uint64_t reqId, const UbseResponseMessa
     }
 }
 
-void UbseUDSServer::HandleRead(ClientSession *session)
+void UbseUDSServer::HandleRead(ClientSession* session)
 {
     if (session == nullptr) {
         UBSE_LOG_ERROR << "Session is nullptr";
@@ -583,7 +662,7 @@ void UbseUDSServer::HandleRead(ClientSession *session)
 
     ReceiveResponse(session);
 }
-void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession *session)
+void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession* session)
 {
     UBSE_LOG_DEBUG << "receive fd" << session->fd << " response.";
     UbseResponseHeader header{};
@@ -605,8 +684,8 @@ void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession *session)
             UBSE_LOG_ERROR << "allocate memory failed";
             return;
         }
-        response.freeFunc = [](void *p) {
-            delete[] static_cast<uint8_t *>(p);
+        response.freeFunc = [](void* p) {
+            delete[] static_cast<uint8_t*>(p);
         };
         if (RecvMsg(session->fd, response.body, header.bodyLen, DEFAULT_SERVER_RECEIVE_TIMEOUT) != UBSE_OK) {
             delete[] response.body;
@@ -621,7 +700,7 @@ void UbseUDSServer::ReceiveResponse(const UbseUDSServer::ClientSession *session)
     ProcessAsyncCallback(header.clientRequestId, response);
 }
 
-void UbseUDSServer::HandleWrite(ClientSession *session)
+void UbseUDSServer::HandleWrite(ClientSession* session)
 {
     if (session == nullptr) {
         UBSE_LOG_ERROR << "Session is nullptr";
@@ -658,16 +737,16 @@ void UbseUDSServer::HandleWrite(ClientSession *session)
     }
 }
 
-void UbseUDSServer::HandleRequest(int fd, const UbseRequestHeader &header, const std::vector<uint8_t> &buffer,
-                                  const UbseRequestContext &context)
+void UbseUDSServer::HandleRequest(int fd, const UbseRequestHeader& header, const std::vector<uint8_t>& buffer,
+                                  const UbseRequestContext& context)
 {
     // 调用请求处理器
-    UbseRequestMessage request{header, const_cast<uint8_t *>(buffer.data())};
+    UbseRequestMessage request{header, const_cast<uint8_t*>(buffer.data())};
     UbseResponseMessage response{};
     if (requestHandler_) {
         try {
             requestHandler_(request, context);
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             // 捕获异常并记录日志
             UBSE_LOG_WARN << "Exception caught=" << e.what() << ", request_id=" << context.requestId;
             response = {{UBSE_ERR_DAEMON_UNREACHABLE, 0}, nullptr};
@@ -703,7 +782,7 @@ void UbseUDSServer::RegisterHandler(UbseRequestHandler handler)
     requestHandler_ = std::move(handler);
 }
 
-uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessage &response)
+uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessage& response)
 {
     int targetFd = -1;
 
@@ -740,7 +819,7 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
         return UBSE_ERR_IPC_CONNECTION_FAILED;
     }
 
-    auto &session = it->second;
+    auto& session = it->second;
     auto ret = SerializeResponseMessage(finalResponse, session.writeBuffer);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Serialization failed, " << FormatRetCode(ret);
@@ -755,23 +834,30 @@ uint32_t UbseUDSServer::SendResponse(uint64_t requestId, const UbseResponseMessa
     return UBSE_OK;
 }
 
+uint8_t UbseUDSServer::GetSlotId(ubse::election::UbseRoleInfo& roleInfo) const
+{
+    uint8_t slotId = 0;
+    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
+    if (ret != UBSE_OK) {
+        return slotId;
+    }
+    try {
+        uint64_t nodeId = std::stoul(roleInfo.nodeId);
+        if (nodeId <= std::numeric_limits<uint8_t>::max()) {
+            slotId = static_cast<uint8_t>(nodeId);
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
+        slotId = 0; // 设置为默认值
+    }
+    return slotId;
+}
+
 // 生成并注册请求ID
 uint64_t UbseUDSServer::GenerateAndRegisterRequestId(int fd)
 {
-    uint8_t slotId = 0;
     ubse::election::UbseRoleInfo roleInfo{};
-    auto ret = ubse::election::UbseGetCurrentNodeInfo(roleInfo);
-    if (ret == UBSE_OK) {
-        try {
-            uint64_t nodeId = std::stoul(roleInfo.nodeId);
-            if (nodeId <= std::numeric_limits<uint8_t>::max()) {
-                slotId = static_cast<uint8_t>(nodeId);
-            }
-        } catch (const std::exception &e) {
-            UBSE_LOG_ERROR << "Failed to parse nodeId, " << e.what();
-            slotId = 0; // 设置为默认值
-        }
-    }
+    uint8_t slotId = GetSlotId(roleInfo);
     const int maxRetries = 3;
     int retryCount = 0;
     uint64_t requestId{};
@@ -794,7 +880,7 @@ uint64_t UbseUDSServer::GenerateAndRegisterRequestId(int fd)
     return requestId;
 }
 
-uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void *ctx, UbseAsyncResponseHandler handler)
+uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void* ctx, UbseAsyncResponseHandler handler)
 {
     std::vector<uint8_t> buffer;
     requestMessage.header.clientRequestId = RandomId();
@@ -841,8 +927,8 @@ uint32_t UbseUDSServer::SendReq(int fd, UbseRequestMessage requestMessage, void 
     return sendRet;
 }
 
-uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, void *ctx,
-                                          UbseAsyncResponseHandler handler, std::vector<uint64_t> &reqList)
+uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, const UbseClientInfo& clientInfo,
+                                          void* ctx, UbseAsyncResponseHandler handler, std::vector<uint64_t>& reqList)
 {
     UBSE_LOG_INFO << "req moduleCode=" << requestMessage.header.moduleCode
                   << ", opCode=" << requestMessage.header.opCode;
@@ -856,6 +942,17 @@ uint32_t UbseUDSServer::AsyncSendLongLink(UbseRequestMessage requestMessage, voi
     std::unordered_set fds = clientMap_[{requestMessage.header.moduleCode, requestMessage.header.opCode}];
     clientMapMutex_.unlock();
     for (auto fd : fds) {
+        UbseClientInfo peerClientInfo{};
+        if (!GetClientInfoByFd(fd, peerClientInfo)) {
+            UBSE_LOG_WARN << "GetClientInfoByFd failed for fd=" << fd << ", skip sending.";
+            continue;
+        }
+        if (!CheckClientPermission(clientInfo, peerClientInfo)) {
+            UBSE_LOG_INFO << "Permission denied for fd=" << fd << ", skip sending. reqUid=" << clientInfo.uid
+                          << ", peerUid=" << peerClientInfo.uid << ", peerGid=" << peerClientInfo.gid
+                          << ", peerPid=" << peerClientInfo.pid;
+            continue;
+        }
         auto sendRet = SendReq(fd, requestMessage, ctx, handler);
         if (sendRet != UBSE_OK) {
             UBSE_LOG_ERROR << "req moduleCode=" << requestMessage.header.moduleCode
@@ -913,13 +1010,14 @@ bool UbseUDSServer::UpgradeSession(int fd, bool isPersistent)
         return false;
     }
 
-    auto &session = it->second;
+    auto& session = it->second;
     uid_t uid = session.clientInfo.uid;
 
     if (isPersistent) {
         if (globalPersistent_ >= config_.maxPersistentConnections ||
             userStats_[uid].persistentCount >= config_.maxPersistentConnectionsPerUser) {
-            UBSE_LOG_ERROR << "Upgrade to persistent failed: limit reached" << ", fd=" << fd << ", uid=" << uid;
+            UBSE_LOG_ERROR << "Upgrade to persistent failed: limit reached"
+                           << ", fd=" << fd << ", uid=" << uid;
             return false;
         }
         globalPersistent_++;
@@ -928,7 +1026,8 @@ bool UbseUDSServer::UpgradeSession(int fd, bool isPersistent)
     } else {
         if (globalTransient_ >= config_.maxTransientConnections ||
             userStats_[uid].transientCount >= config_.maxTransientConnectionsPerUser) {
-            UBSE_LOG_ERROR << "Upgrade to transient failed: limit reached" << ", fd=" << fd << ", uid=" << uid;
+            UBSE_LOG_ERROR << "Upgrade to transient failed: limit reached"
+                           << ", fd=" << fd << ", uid=" << uid;
             return false;
         }
         globalTransient_++;
@@ -955,7 +1054,7 @@ void UbseUDSServer::RemoveSession(int fd, bool isPreClosing)
         return;
     }
 
-    auto &session = it->second;
+    auto& session = it->second;
     session.state = SessionState::CLOSING;
     if (session.connType == SessionType::PENDING) {
         totalPending_--;
@@ -982,4 +1081,16 @@ void UbseUDSServer::RemoveSession(int fd, bool isPreClosing)
     UBSE_LOG_INFO << "Total active connections=" << sessions_.size() << ", pending connections=" << totalPending_
                   << ", persistent connections=" << globalPersistent_ << ", transient connections=" << globalTransient_;
 }
+
+bool UbseUDSServer::GetClientInfoByFd(int fd, UbseClientInfo& clientInfo)
+{
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    auto it = sessions_.find(fd);
+    if (it == sessions_.end()) {
+        return false;
+    }
+    clientInfo = it->second.clientInfo;
+    return true;
+}
+
 } // namespace ubse::ipc

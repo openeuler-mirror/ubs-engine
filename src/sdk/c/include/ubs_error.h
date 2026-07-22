@@ -20,7 +20,8 @@ extern "C" {
 #endif
 
 // 统一错误码类型
-typedef enum {
+typedef enum
+{
     /* ====================== 公共错误码 ====================== */
     UBS_SUCCESS = 0,
 
@@ -60,19 +61,19 @@ typedef enum {
     UBS_ERR_DAEMON_INTERNEL = 53,    // 守护进程内部错误
 
     /* ====================== UBSE错误码 (1000-1099) ====================== */
-    UBS_ENGINE_ERR_OUT_OF_RANGE = 1000,                 // 参数超范围
-    UBS_ENGINE_ERR_RESOURCE = 1001,                     // 资源申请错误
-    UBS_ENGINE_ERR_CONNECTION_FAILED = 1002,            // 连接UBSE服务端错误
-    UBS_ENGINE_ERR_AUTH_FAILED = 1003,                  // UBSE服务端认证鉴权不通过
-    UBS_ENGINE_ERR_TIMEOUT = 1004,                      // UBSE服务端处理超时
-    UBS_ENGINE_ERR_INTERNAL = 1005,                     // UBSE服务端内部错误
-    UBS_ENGINE_ERR_EXISTED = 1006,                      // 实例已存在
-    UBS_ENGINE_ERR_NOT_EXIST = 1007,                    // 实例不存在
-    UBS_ENGINE_ERR_UDSINFO_MISMATCH = 1008,             // UDS INFO信息不匹配
-    UBS_ENGINE_ERR_IMPORT_ABSENT = 1009,                // IMPORT不在位
-    UBS_ENGINE_ERR_CREATING = 1010,                     // 正在创建过程中
-    UBS_ENGINE_ERR_DELETING = 1011,                     // 正在删除过程中
-    UBS_ENGINE_ERR_UNIMPORT_SUCCESS = 1012,             // unimport已经成功, unexport失败, 资源没有释放完全, 后续对账能自动回收
+    UBS_ENGINE_ERR_OUT_OF_RANGE = 1000,      // 参数超范围
+    UBS_ENGINE_ERR_RESOURCE = 1001,          // 资源申请错误
+    UBS_ENGINE_ERR_CONNECTION_FAILED = 1002, // 连接UBSE服务端错误
+    UBS_ENGINE_ERR_AUTH_FAILED = 1003,       // UBSE服务端认证鉴权不通过
+    UBS_ENGINE_ERR_TIMEOUT = 1004,           // UBSE服务端处理超时
+    UBS_ENGINE_ERR_INTERNAL = 1005,          // UBSE服务端内部错误
+    UBS_ENGINE_ERR_EXISTED = 1006,           // 实例已存在
+    UBS_ENGINE_ERR_NOT_EXIST = 1007,         // 实例不存在
+    UBS_ENGINE_ERR_UDSINFO_MISMATCH = 1008,  // UDS INFO信息不匹配
+    UBS_ENGINE_ERR_IMPORT_ABSENT = 1009,     // IMPORT不在位
+    UBS_ENGINE_ERR_CREATING = 1010,          // 正在创建过程中
+    UBS_ENGINE_ERR_DELETING = 1011,          // 正在删除过程中
+    UBS_ENGINE_ERR_UNIMPORT_SUCCESS = 1012, // unimport已经成功, unexport失败, 资源没有释放完全, 后续对账能自动回收
     UBS_ENGINE_ERR_ALLOCATE = 1013,                     // 算法分配失败
     UBS_ENGINE_ERR_SHM_NO_CREATE = 1014,                // 共享内存未创建
     UBS_ENGINE_ERR_SHM_NO_ATTACH = 1015,                // 共享内存未导入
@@ -90,11 +91,25 @@ typedef enum {
     UBS_ENGINE_ERR_NODE_NOT_EXIST = 1027,               // 节点不存在
     UBS_ENGINE_ERR_NODE_FAULT = 1028,                   // 节点故障
     UBS_ENGINE_ERR_EXPORT_LEDGERING = 1029,             // 导出节点对账中
+    UBS_ENGINE_ERR_INVALID_PARAM = 1030,                // 参数错误
+    UBS_ENGINE_ERR_CONNECT_UBM_FAILED = 1031,           // 访问MTI接口失败
+
+    /* ====================== URMA Controller错误码 (1031-1040) ====================== */
+    UBS_ENGINE_ERR_URMA_QOS_EXIST = 1032,                 // 优先级组已存在
+    UBS_ENGINE_ERR_URMA_QOS_NOT_EXISTED = 1033,           // ETS模板未创建
+    UBS_ENGINE_ERR_URMA_QUERY_PORTS_STATUS_FAILED = 1035, // 查询端口状态失败
+    UBS_ENGINE_ERR_URMA_GET_NODE_INFO_FAILED = 1036,      // 查询节点信息失败
+    UBS_ENGINE_ERR_URMA_CREATE_DEV_FAILED = 1037,         // 创建URMA设备失败
+    UBS_ENGINE_ERR_URMA_DEV_NOT_INACTIVE = 1038,          // URMA设备状态异常，无法分配
+    UBS_ENGINE_ERR_URMA_DEV_NOT_EXIST = 1039,             // URMA设备在内存中不存在
+    UBS_ENGINE_ERR_URMA_DEV_NAME_INVALID = 1040,          // URMA设备名称无效
+
+    UBS_ENGINE_ERR_IMPORT_LEDGERING = 1041, // 导入节点对账中
 } ubs_error_t;
 
 /* ====================== 错误处理接口 ====================== */
-const char *ubs_error_name(int32_t error);
-const char *ubs_error_string(int32_t error);
+const char* ubs_error_name(int32_t error);
+const char* ubs_error_string(int32_t error);
 
 #ifdef __cplusplus
 }

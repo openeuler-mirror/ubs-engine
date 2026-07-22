@@ -14,12 +14,13 @@
 #define UBSE_LOGGER_MODULE_H
 
 #include "ubse_common_def.h" // for UbseResult
-#include "ubse_module.h"     // for UbseModule
 #include "ubse_logger.h"
+#include "ubse_module.h" // for UbseModule
 
 namespace ubse::log {
-using namespace ubse::module;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+
 class UbseLoggerModule : public UbseModule {
 public:
     static constexpr const char *kModuleName = "UbseLoggerModule";

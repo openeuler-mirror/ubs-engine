@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-# include <cstdint>
+#include <cstdint>
 
 namespace ubse::security {
-    // 线程级提权
+// 线程级提权
 uint32_t ChangeOverrideCapability(bool isAdd)
 {
     return 0;

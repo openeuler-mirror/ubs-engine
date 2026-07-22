@@ -14,10 +14,10 @@
 
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_node_debt_info_conversion.h"
 #include "ubse_base_message.h"
 #include "ubse_error.h"
+#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_node_debt_info_conversion.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::message;

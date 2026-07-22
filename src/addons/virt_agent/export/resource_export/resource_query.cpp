@@ -22,7 +22,7 @@ using namespace vm::mempooling;
 std::mutex ResourceQuery::vmDomainMutex{};
 HostVmDomainInfo ResourceQuery::gHostVmDomainInfo{};
 
-VmResult ResourceQuery::GetLocalHostVmCollectData(HostVmDomainInfo &hostVmDomainInfo, HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult ResourceQuery::GetLocalHostVmCollectData(HostVmDomainInfo& hostVmDomainInfo, HostNumaCpuInfo& hostNumaCpuInfo)
 {
     auto ret = GetLocalHostVmDomainInfo(hostVmDomainInfo);
     if (ret != VM_OK) {
@@ -39,13 +39,13 @@ VmResult ResourceQuery::GetLocalHostVmCollectData(HostVmDomainInfo &hostVmDomain
     return VM_OK;
 }
 
-VmResult ConvertVmDomainInfoVector2HostVmDomainInfo(std::vector<mempooling::VmDomainInfo> &vmInfoList,
-                                                    HostVmDomainInfo &hostVmDomainInfo)
+VmResult ConvertVmDomainInfoVector2HostVmDomainInfo(std::vector<mempooling::VmDomainInfo>& vmInfoList,
+                                                    HostVmDomainInfo& hostVmDomainInfo)
 {
     hostVmDomainInfo.nodeId = vmInfoList[0].metaData.nodeId;
     hostVmDomainInfo.hostName = vmInfoList[0].metaData.hostName;
 
-    for (auto &vmInfo : vmInfoList) {
+    for (auto& vmInfo : vmInfoList) {
         uint64_t remoteUsedMemTotal = 0;
         vm::VmDomainInfo vmDomainInfo{};
         vmDomainInfo.uuid = vmInfo.metaData.uuid;
@@ -53,7 +53,7 @@ VmResult ConvertVmDomainInfoVector2HostVmDomainInfo(std::vector<mempooling::VmDo
         vmDomainInfo.state = vmInfo.metaData.state;
         vmDomainInfo.vmCreateTime = vmInfo.metaData.vmCreateTime;
         vmDomainInfo.maxMem = vmInfo.metaData.maxMem;
-        for (auto &[numaId, numaMem] : vmInfo.numaInfo) {
+        for (auto& [numaId, numaMem] : vmInfo.numaInfo) {
             if (!numaMem.isLocal) {
                 remoteUsedMemTotal += numaMem.usedMem; // The memory usage does not exceed the maximum value of uint64.
             }
@@ -70,7 +70,7 @@ VmResult ConvertVmDomainInfoVector2HostVmDomainInfo(std::vector<mempooling::VmDo
 }
 
 // Invoke the interface provided by the RMRS to obtain the VM information of the local node.
-VmResult ResourceQuery::GetLocalHostVmDomainInfo(HostVmDomainInfo &hostVmDomainInfo)
+VmResult ResourceQuery::GetLocalHostVmDomainInfo(HostVmDomainInfo& hostVmDomainInfo)
 {
     UBSE_LOG_INFO << "[query] GetLocalHostVmDomainInfo start.";
     std::vector<mempooling::VmDomainInfo> vmInfoList;
@@ -83,7 +83,7 @@ VmResult ResourceQuery::GetLocalHostVmDomainInfo(HostVmDomainInfo &hostVmDomainI
     VmResult ret;
     try {
         ret = UBSRMRSGetVmInfoListOnNode(vmInfoList);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[query] An exception occurred when invoking the RMRS. " << e.what();
         return VM_ERROR;
     }
@@ -109,12 +109,12 @@ VmResult ResourceQuery::GetLocalHostVmDomainInfo(HostVmDomainInfo &hostVmDomainI
     return VM_OK;
 }
 
-VmResult ConvertNumaInfoVector2HostNumaCpuInfo(std::vector<NumaInfo> &numaInfos, HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult ConvertNumaInfoVector2HostNumaCpuInfo(std::vector<NumaInfo>& numaInfos, HostNumaCpuInfo& hostNumaCpuInfo)
 {
     hostNumaCpuInfo.nodeId = numaInfos[0].metaData.nodeId;
     hostNumaCpuInfo.hostName = numaInfos[0].metaData.hostName;
     hostNumaCpuInfo.timestamp = numaInfos[0].timestamp;
-    for (auto &numaInfo : numaInfos) {
+    for (auto& numaInfo : numaInfos) {
         NumaCpuInfo numaCpuInfo{};
         int16_t numaId = numaInfo.metaData.numaId;
         if (numaId < 0) {
@@ -141,7 +141,7 @@ VmResult ConvertNumaInfoVector2HostNumaCpuInfo(std::vector<NumaInfo> &numaInfos,
 }
 
 // Invoke the interface provided by the RMRS to obtain the NUMA information of the local node.
-VmResult ResourceQuery::GetLocalHostNumaInfo(HostNumaCpuInfo &hostNumaCpuInfo)
+VmResult ResourceQuery::GetLocalHostNumaInfo(HostNumaCpuInfo& hostNumaCpuInfo)
 {
     UBSE_LOG_INFO << "[query] GetLocalHostNumaInfo start.";
     std::vector<NumaInfo> numaInfos;
@@ -154,7 +154,7 @@ VmResult ResourceQuery::GetLocalHostNumaInfo(HostNumaCpuInfo &hostNumaCpuInfo)
     VmResult ret;
     try {
         ret = UBSRMRSGetNumaInfoListOnNode(numaInfos);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         UBSE_LOG_ERROR << "[query] An exception occurred when invoking the RMRS. " << e.what();
         return VM_ERROR;
     }
@@ -179,7 +179,7 @@ VmResult ResourceQuery::GetLocalHostNumaInfo(HostNumaCpuInfo &hostNumaCpuInfo)
     return VM_OK;
 }
 
-VmResult ResourceQuery::GetVmDomainInfosFromGlobal(HostVmDomainInfo &hostVmDomainInfo)
+VmResult ResourceQuery::GetVmDomainInfosFromGlobal(HostVmDomainInfo& hostVmDomainInfo)
 {
     std::lock_guard<std::mutex> lock(vmDomainMutex);
     hostVmDomainInfo = gHostVmDomainInfo;
@@ -187,7 +187,7 @@ VmResult ResourceQuery::GetVmDomainInfosFromGlobal(HostVmDomainInfo &hostVmDomai
     return VM_OK;
 }
 
-VmResult ResourceQuery::UpdateVmDomainInfo(HostVmDomainInfo &hostVmDomainInfo)
+VmResult ResourceQuery::UpdateVmDomainInfo(HostVmDomainInfo& hostVmDomainInfo)
 {
     std::lock_guard<std::mutex> lock(vmDomainMutex);
     gHostVmDomainInfo = hostVmDomainInfo;

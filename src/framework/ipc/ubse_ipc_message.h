@@ -46,8 +46,8 @@ struct UbseResponseHeader {
  */
 struct UbseRequestMessage {
     UbseRequestHeader header; // Request header metadata
-    uint8_t *body;            // Pointer to request payload (nullable if bodyLen=0)
-    void (*freeFunc)(void *); /* Memory deallocator for body (MUST match allocation method)
+    uint8_t* body;            // Pointer to request payload (nullable if bodyLen=0)
+    void (*freeFunc)(void*);  /* Memory deallocator for body (MUST match allocation method)
                                * - Use free() for malloc/calloc
                                * - Use delete[] for C++ new[]
                                */
@@ -59,8 +59,8 @@ struct UbseRequestMessage {
  */
 struct UbseResponseMessage {
     UbseResponseHeader header; // Response header metadata
-    uint8_t *body;             // Pointer to response payload (nullable if bodyLen=0)
-    void (*freeFunc)(void *);  /* Memory deallocator for body (MUST match allocation method)
+    uint8_t* body;             // Pointer to response payload (nullable if bodyLen=0)
+    void (*freeFunc)(void*);   /* Memory deallocator for body (MUST match allocation method)
                                 * - Use free() for malloc/calloc
                                 * - Use delete[] for C++ new[]
                                 */

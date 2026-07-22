@@ -13,12 +13,12 @@
 #ifndef TEST_UBSE_RAS_MESSAGE_H
 #define TEST_UBSE_RAS_MESSAGE_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "message/ubse_ras_message.h"
-#include "mockcpp/mockcpp.hpp"
+#include <gtest/gtest.h>
 #include "ubse_context.h"
+#include "message/ubse_ras_message.h"
 #include "message/ubse_ras_oom_message.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ras::message::ut {
 using namespace ubse::context;
@@ -37,5 +37,5 @@ private:
     UbseRasMessagePtr rasMessage;
     UbseRasOomMessagePtr rasOOmMessage;
 };
-}
-#endif  // TEST_UBSE_RAS_MESSAGE_H
+} // namespace ubse::ras::message::ut
+#endif // TEST_UBSE_RAS_MESSAGE_H

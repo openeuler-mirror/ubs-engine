@@ -7,12 +7,12 @@
 #include <ubse_storage.h>
 #include <mockcpp/mockcpp.hpp>
 
-#include "resource_collect.h"
-#include "resource_query.h"
-#include "vm_info.h"
 #include "global_borrow_map_message.h"
 #include "migrate_state_storage.h"
+#include "resource_collect.h"
+#include "resource_query.h"
 #include "vm_configuration.h"
+#include "vm_info.h"
 
 using namespace vm;
 using namespace ubse::storage;
@@ -31,7 +31,7 @@ TEST_F(TestResourceCollect, VmResourceCollectInfoHandleEmpty)
 {
     std::vector<HostVmDomainInfo> vmDomainInfoCollectList{};
     std::vector<HostNumaCpuInfo> numaInfoCollectList{};
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     EXPECT_EQ(resource.VmResourceCollectInfoHandle(vmDomainInfoCollectList, numaInfoCollectList),
               VM_MASTER_EMPTY_VECTOR_ERROR);
 }
@@ -47,7 +47,7 @@ TEST_F(TestResourceCollect, VmResourceCollectInfoHandle)
     hostNumaCpuInfo.numaCpuInfos.push_back(NumaCpuInfo{});
     vmDomainInfoCollectList.push_back(hostVmDomainInfo);
     numaInfoCollectList.push_back(hostNumaCpuInfo);
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     EXPECT_EQ(resource.VmResourceCollectInfoHandle(vmDomainInfoCollectList, numaInfoCollectList), VM_OK);
 }
 
@@ -58,7 +58,7 @@ TEST_F(TestResourceCollect, InitGlobalBorrowMap_Failed)
     MOCKER(UbseStorageQueryData).reset();
 }
 
-uint32_t MockUbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
+uint32_t MockUbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
                                   UbseStorageDealDataFunc func)
 {
     BorrowIdStatus borrowIdStatus{.borrowId = "123", .presentNumaId = 0};
@@ -87,7 +87,7 @@ TEST_F(TestResourceCollect, GetVMInfo)
     GTEST_SKIP();
     VMNodeLocInfo vmNodeLocInfo{.hostName = "adc"};
     std::unordered_map<std::string, VMBasicInfo> result;
-    auto &resource = ResourceCollect::GetInstance();
+    auto& resource = ResourceCollect::GetInstance();
     resource.ClearGlobalNumaInfo();
     result = resource.GetVMInfo(vmNodeLocInfo);
     EXPECT_TRUE(result.empty());
@@ -98,10 +98,12 @@ TEST_F(TestResourceCollect, UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap)
     HostVmDomainInfo hostVmDomainInfo{};
     HostNumaCpuInfo hostNumaCpuInfo{};
     MOCKER(ResourceQuery::GetLocalHostVmCollectData).stubs().will(returnValue(VM_ERROR)).then(returnValue(VM_OK));
-    EXPECT_EQ(ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo,
-        hostNumaCpuInfo), VM_ERROR);
-    EXPECT_EQ(ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo,
-        hostNumaCpuInfo), VM_OK);
+    EXPECT_EQ(
+        ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo, hostNumaCpuInfo),
+        VM_ERROR);
+    EXPECT_EQ(
+        ResourceCollect::GetInstance().UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(hostVmDomainInfo, hostNumaCpuInfo),
+        VM_OK);
 }
 
 TEST_F(TestResourceCollect, ResourceCollectInitFail)
@@ -153,4 +155,4 @@ TEST_F(TestResourceCollect, TestSyncGlobalBorrowMap_Success)
     auto ret = ResourceCollect::SyncGlobalBorrowMap(debtInfos);
     EXPECT_EQ(ret, VM_OK);
 }
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut

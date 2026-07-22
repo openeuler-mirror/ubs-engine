@@ -16,7 +16,8 @@ bash build.sh package      # Build and package as RPM to output/
 Tests require `BUILD_TESTS=ON`, automatically enabled when building test targets:
 
 ```shell
-bash build.sh ut           # Run all UT tests
+bash build.sh ut           # Run all UT tests (including bandbridge)
+bash build.sh ut -- --gtest_filter="Bandbridge*"  # Run bandbridge kernel module UT only
 bash build.sh ut -- --gtest_filter="TestSuite.*"  # Run specific tests
 bash build.sh ut -C        # Generate coverage report (cmake-build-debug/coverage)
 bash build.sh ut -C -H     # Coverage + start HTTP server to view report

@@ -30,16 +30,15 @@ uint32_t UcacheConfig::Initialize(const uint16_t modCode)
     return LoadConfig();
 }
 
-uint32_t UcacheConfig::RackGetUInt32AndCheck(const std::string &key, uint32_t &val)
+uint32_t UcacheConfig::RackGetUInt32AndCheck(const std::string& key, uint32_t& val)
 {
     // find range from key
     auto it = Uint32RangeCheck.find(key);
     if (it == Uint32RangeCheck.end()) {
-        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "key not found in Uint32RangeCheck, key: " << key;
+        UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "key not found in Uint32RangeCheck, key: " << key;
         return UCACHE_ERR;
     }
-    const auto &range = it->second;
+    const auto& range = it->second;
 
     // load val from .conf file
     uint32_t ret = UbseGetUInt("plugin_ucache", key, val);
@@ -55,8 +54,8 @@ uint32_t UcacheConfig::RackGetUInt32AndCheck(const std::string &key, uint32_t &v
     // execute range check
     if (val < range.minValue || val > range.maxValue) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "The value of the key is invalid, key: " << key << ", val: " << val
-            << ", should range from " << range.minValue << " to " << range.maxValue;
+            << "The value of the key is invalid, key: " << key << ", val: " << val << ", should range from "
+            << range.minValue << " to " << range.maxValue;
         if (!range.critical) {
             val = range.defaultValue;
             return UCACHE_OK;
@@ -69,12 +68,10 @@ void UcacheConfig::JudgeWindowLength(uint32_t shortSize, uint32_t longSize)
 {
     if (shortSize < longSize) {
         UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "bottleneckShortSize = " << shortSize << " and bottleneckLongSize = " << longSize
-            << "is valid";
+            << "bottleneckShortSize = " << shortSize << " and bottleneckLongSize = " << longSize << "is valid";
     } else if (shortSize >= longSize) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "bottleneckShortSize = " << shortSize
-            << ", bottleneckLongSize = " << longSize;
+            << "bottleneckShortSize = " << shortSize << ", bottleneckLongSize = " << longSize;
     }
 }
 
@@ -82,26 +79,23 @@ void UcacheConfig::JudgeThreshold(uint32_t shortThreshold, uint32_t longThreshol
 {
     if (shortThreshold >= longThreshold) {
         UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "bottleneckShortThreshold = " << shortThreshold
-            << ", bottleneckLongThreshold = " << longThreshold;
+            << "bottleneckShortThreshold = " << shortThreshold << ", bottleneckLongThreshold = " << longThreshold;
     } else if (shortThreshold < longThreshold) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "bottleneckShortThreshold = " << shortThreshold
-            << ", bottleneckLongThreshold = " << longThreshold << "is valid";
+            << "bottleneckShortThreshold = " << shortThreshold << ", bottleneckLongThreshold = " << longThreshold
+            << "is valid";
     }
 }
 
 uint32_t UcacheConfig::LoadBottleneckConfig()
 {
-    std::vector<std::pair<std::string, uint32_t&>> configs = {
-        {"bottleneck.threshold", bottleneckThreshold},
-        {"bottleneck.short.size", bottleneckShortSize},
-        {"bottleneck.short.threshold", bottleneckShortThreshold},
-        {"bottleneck.long.size", bottleneckLongSize},
-        {"bottleneck.long.threshold", bottleneckLongThreshold}
-    };
+    std::vector<std::pair<std::string, uint32_t&>> configs = {{"bottleneck.threshold", bottleneckThreshold},
+                                                              {"bottleneck.short.size", bottleneckShortSize},
+                                                              {"bottleneck.short.threshold", bottleneckShortThreshold},
+                                                              {"bottleneck.long.size", bottleneckLongSize},
+                                                              {"bottleneck.long.threshold", bottleneckLongThreshold}};
 
-    for (auto &[key, value] : configs) {
+    for (auto& [key, value] : configs) {
         uint32_t ret = RackGetUInt32AndCheck(key, value);
         if (ret != UCACHE_OK) {
             return ret;
@@ -150,7 +144,8 @@ uint32_t UcacheConfig::LoadStrategyConfig()
     }
     if (scarcityThreshold < 0) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
-            << "strategy.scarcityThreshold is invalid, should not less than " << "0"
+            << "strategy.scarcityThreshold is invalid, should not less than "
+            << "0"
             << ", current value: " << scarcityThreshold;
         return UCACHE_ERR;
     }
@@ -217,7 +212,7 @@ uint32_t UcacheConfig::LoadConfig()
     if ((ret = GetConfigValue(UbseGetUInt, "plugin_ucache", "ucache.export.interval", exportInterval)) != UCACHE_OK) {
         return ret;
     }
-    
+
     if (exportInterval <= 0) {
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "exportInterval is invalid, exportInterval: " << exportInterval;

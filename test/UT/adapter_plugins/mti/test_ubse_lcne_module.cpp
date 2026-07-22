@@ -20,6 +20,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
+#include "ubse_net_util.h"
 #include "ubse_str_util.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_eid_interface.h"
@@ -168,6 +169,25 @@ TEST_F(TestUbseLcneModule, GetLcneConf_ConfigFailed)
     EXPECT_EQ(module.GetLcneConf(), UBSE_OK);
 }
 
+TEST_F(TestUbseLcneModule, GetLcneConf_ConvertFailed2)
+{
+    UbseLcneModule module;
+    std::shared_ptr<UbseConfModule> Conf = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(Conf));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseLcneModule::ConvertPortConfStrToInt).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_EQ(module.GetLcneConf(), UBSE_OK);
+}
+
+TEST_F(TestUbseLcneModule, ConvertPortConfStrToInt_Success)
+{
+    UbseLcneModule module;
+    std::string s = "34256";
+    int port;
+    EXPECT_EQ(module.ConvertPortConfStrToInt(s, port), UBSE_OK);
+    EXPECT_EQ(port, 34256);
+}
+
 TEST_F(TestUbseLcneModule, ConvertPortConfStrToInt_Failed)
 {
     UbseLcneModule module;
@@ -216,7 +236,7 @@ TEST_F(TestUbseLcneModule, Initialize_Success)
 {
     UbseLcneModule module;
     MOCKER_CPP(&UbseLcneModule::GetLcneConf).stubs().will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseLcneModule::GetLcneData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseLcneModule::GetLcneData).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(&UbseLcneModule::FillNodeComInfo).stubs().will(returnValue(UBSE_OK));
     UbseResult ret = module.Initialize();
     EXPECT_EQ(ret, UBSE_OK);
@@ -249,7 +269,7 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
 
     MOCKER_CPP(&UbseLcneModule::IsPrimaryEidExist).stubs().will(returnValue(false));
     std::string expectedEid = "0000:0001:0000:0000:0000:0000:0000:0000";
-    MOCKER(&utils::GenerateUrmaDevEid).stubs().with(any(), any(), any(), any()).will(returnValue(expectedEid));
+    MOCKER_CPP(&utils::GenerateUrmaDevEid).stubs().with(any(), any(), any(), any()).will(returnValue(expectedEid));
 
     UbseResult ret = module.FillNodeComInfo();
     EXPECT_EQ(ret, UBSE_OK);
@@ -257,5 +277,78 @@ TEST_F(TestUbseLcneModule, FillNodeComInfo_Success)
     EXPECT_EQ(module.ubseNodeInfos_.size(), 1);
     EXPECT_EQ(module.ubseNodeInfos_.front().nodeId, localNodeId);
     EXPECT_EQ(module.ubseNodeInfos_.front().eid, expectedEid);
+}
+
+TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_ConfigEmpty)
+{
+    UbseLcneModule module;
+    auto confModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>).stubs().will(returnValue(UBSE_OK));
+    module.UpdateClusterIpListAndLocalIp();
+    EXPECT_EQ(module.clusterIpList.size(), 0);
+    EXPECT_TRUE(module.localIp.empty());
+}
+
+TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_ParseIpRange)
+{
+    UbseLcneModule module;
+    auto confModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    std::string section = "ubse.rpc";
+    std::string configKey = "cluster.ipList";
+    std::string configVal = "192.168.1.1-192.168.1.3,10.0.0.1";
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(section), eq(configKey), outBound(configVal))
+        .will(returnValue(UBSE_OK));
+
+    MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
+    std::vector<std::string> localIps;
+    localIps.push_back("192.168.1.2");
+    MOCKER_CPP(&UbseNetUtil::GetIpInfo).stubs().with(outBound(localIps)).will(returnValue(UBSE_OK));
+    module.UpdateClusterIpListAndLocalIp();
+    EXPECT_EQ(module.clusterIpList.size(), 4);
+    EXPECT_EQ(module.clusterIpList[0], "10.0.0.1");
+    EXPECT_EQ(module.localIp, "192.168.1.2");
+}
+
+TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_InvalidIp)
+{
+    UbseLcneModule module;
+    auto confModule = std::make_shared<UbseConfModule>();
+    std::string section = "ubse.rpc";
+    std::string configKey = "cluster.ipList";
+    std::string configVal = "invalid-ip";
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(section), eq(configKey), outBound(configVal))
+        .will(returnValue(UBSE_OK));
+
+    MOCKER_CPP(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseNetUtil::ValidIpv6Addr).stubs().will(returnValue(false));
+    module.UpdateClusterIpListAndLocalIp();
+    EXPECT_TRUE(module.clusterIpList.empty());
+}
+
+TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_LocalIpNotFound)
+{
+    UbseLcneModule module;
+    auto confModule = std::make_shared<UbseConfModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseConfModule>).stubs().will(returnValue(confModule));
+    std::string section = "ubse.rpc";
+    std::string configKey = "cluster.ipList";
+    std::string configVal = "192.168.1.1";
+    MOCKER_CPP(&UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(section), eq(configKey), outBound(configVal))
+        .will(returnValue(UBSE_OK));
+
+    MOCKER(&UbseNetUtil::ValidIpv4Addr).stubs().will(returnValue(true));
+    std::vector<std::string> localIps;
+    localIps.push_back("192.168.1.2");
+    MOCKER_CPP(&UbseNetUtil::GetIpInfo).stubs().with(outBound(localIps)).will(returnValue(UBSE_OK));
+    module.UpdateClusterIpListAndLocalIp();
+    EXPECT_TRUE(module.localIp.empty());
 }
 } // namespace ubse::mti

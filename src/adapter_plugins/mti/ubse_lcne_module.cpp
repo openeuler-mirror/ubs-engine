@@ -50,6 +50,8 @@ using namespace ubse::adapter_plugins::smbios;
 OPTIONAL_MODULE_IMPL(UbseLcneModule, UbseHttpModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
+using UvsSetTopoInfo = uint32_t (*)(void *topo, uint32_t topNum);
+
 UbseResult UbseLcneModule::GetLcneConf()
 {
     // 读取lcne监听端口

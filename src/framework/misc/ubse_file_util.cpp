@@ -25,6 +25,7 @@
 #include "ubse_logger_module.h"
 
 namespace ubse::utils {
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using std::ifstream;
@@ -36,7 +37,7 @@ using namespace ubse::log;
  * @param info vector<string> &: 文件内容, 按行输出
  * @return UbseResult
  */
-UbseResult UbseFileUtil::GetFileInfo(const string &path, vector<string> &info)
+UbseResult UbseFileUtil::GetFileInfo(const string& path, vector<string>& info)
 {
     auto realFileName = std::make_unique<char[]>(PATH_MAX);
     if (!realFileName) {
@@ -54,7 +55,7 @@ UbseResult UbseFileUtil::GetFileInfo(const string &path, vector<string> &info)
         while (getline(file, line)) {
             info.push_back(line);
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         file.close();
         return UBSE_ERROR;
     }
@@ -71,7 +72,7 @@ UbseResult UbseFileUtil::GetFileInfo(const string &path, vector<string> &info)
  * @return UbseResult 如果路径是绝对路径，则返回 UBSE_OK，
  *         否则返回 UBSE_ERROR。
  */
-UbseResult UbseFileUtil::IsAbsolutePath(const std::string &path)
+UbseResult UbseFileUtil::IsAbsolutePath(const std::string& path)
 {
     // Unix/Linux 的绝对路径以/开头
     if (path.empty() || path[NO_0] != '/') {
@@ -83,12 +84,12 @@ UbseResult UbseFileUtil::IsAbsolutePath(const std::string &path)
             return UBSE_OK;
         }
         return UBSE_ERROR;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return UBSE_ERROR;
     }
 }
 
-std::vector<std::string> UbseFileUtil::ListFiles(const std::string &directory, const std::regex &pattern)
+std::vector<std::string> UbseFileUtil::ListFiles(const std::string& directory, const std::regex& pattern)
 {
     std::vector<std::string> files;
     const auto dir = opendir(directory.c_str());
@@ -96,7 +97,7 @@ std::vector<std::string> UbseFileUtil::ListFiles(const std::string &directory, c
         return files; // 返回空向量
     }
 
-    dirent *entry;
+    dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         const std::string fileName = entry->d_name;
         if (fileName != "." && fileName != "..") {
@@ -110,16 +111,17 @@ std::vector<std::string> UbseFileUtil::ListFiles(const std::string &directory, c
     return files; // 返回文件名向量
 }
 
-bool UbseFileUtil::IsDirectory(const string &dir)
+bool UbseFileUtil::IsDirectory(const string& dir)
 {
-    struct stat info {};
+    struct stat info {
+    };
     if (stat(dir.data(), &info) != 0) {
         return false; // 无法访问路径
     }
     return S_ISDIR(info.st_mode); // 检查是否为目录
 }
 
-UbseResult UbseFileUtil::CreateAndChmodDirectory(const string &dir, mode_t permission)
+UbseResult UbseFileUtil::CreateAndChmodDirectory(const string& dir, mode_t permission)
 {
     if (IsAbsolutePath(dir) != UBSE_OK) {
         UBSE_LOG_ERROR << "The directory must be an absolute path, current path=" << dir;
@@ -142,9 +144,10 @@ UbseResult UbseFileUtil::CreateAndChmodDirectory(const string &dir, mode_t permi
     return UBSE_OK;
 }
 
-bool UbseFileUtil::CheckFileExists(const string &path)
+bool UbseFileUtil::CheckFileExists(const string& path)
 {
-    struct stat buffer{};
+    struct stat buffer {
+    };
     return (stat(path.c_str(), &buffer) == 0);
 }
 
@@ -155,7 +158,7 @@ bool UbseFileUtil::CheckFileExists(const string &path)
  * @param gid 组ID，如果为0则保持不变
  * @return bool 成功返回true，失败返回false
  */
-bool UbseFileUtil::SetFileOwnership(const std::string &path, uid_t uid, gid_t gid)
+bool UbseFileUtil::SetFileOwnership(const std::string& path, uid_t uid, gid_t gid)
 {
     // 检查文件是否存在
     if (access(path.c_str(), F_OK) != 0) {
@@ -168,7 +171,8 @@ bool UbseFileUtil::SetFileOwnership(const std::string &path, uid_t uid, gid_t gi
     }
 
     // 获取当前文件的所有权信息
-    struct stat fileStat{};
+    struct stat fileStat {
+    };
     if (stat(path.c_str(), &fileStat) != 0) {
         return false;
     }
@@ -192,7 +196,7 @@ bool UbseFileUtil::SetFileOwnership(const std::string &path, uid_t uid, gid_t gi
  * @param mode 权限模式，如0644、0755等
  * @return bool 成功返回true，失败返回false
  */
-bool UbseFileUtil::SetFilePermissions(const std::string &path, mode_t mode)
+bool UbseFileUtil::SetFilePermissions(const std::string& path, mode_t mode)
 {
     // 检查文件是否存在
     if (access(path.c_str(), F_OK) != 0) {
@@ -216,7 +220,7 @@ bool UbseFileUtil::SetFilePermissions(const std::string &path, mode_t mode)
  * @param mode 权限模式
  * @return bool 成功返回true，失败返回false
  */
-bool UbseFileUtil::SetFileAttributes(const std::string &path, uid_t uid, gid_t gid, mode_t mode)
+bool UbseFileUtil::SetFileAttributes(const std::string& path, uid_t uid, gid_t gid, mode_t mode)
 {
     bool success = true;
     // 设置权限（如果mode不为0）
@@ -236,14 +240,14 @@ bool UbseFileUtil::SetFileAttributes(const std::string &path, uid_t uid, gid_t g
  * @param path 文件路径
  * @return bool 成功返回true，失败返回false
  */
-bool UbseFileUtil::CanonicalPath(std::string &path)
+bool UbseFileUtil::CanonicalPath(std::string& path)
 {
     if (path.empty() || path.size() > PATH_MAX) {
         return false;
     }
 
     /* It will allocate memory to store path */
-    char *realPath = realpath(path.c_str(), nullptr);
+    char* realPath = realpath(path.c_str(), nullptr);
     if (realPath == nullptr) {
         return false;
     }

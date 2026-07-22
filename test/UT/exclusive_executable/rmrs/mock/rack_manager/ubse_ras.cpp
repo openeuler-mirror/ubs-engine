@@ -23,8 +23,8 @@ namespace ubse::ras {
  * @return
  */
 uint32_t RegisterAlarmFaultHandler(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
-    ubse::ras::AlarmHandlerPriority)
+                                   ubse::ras::AlarmHandlerPriority)
 {
     return 0;
 }
-}
+} // namespace ubse::ras

@@ -21,10 +21,10 @@
 #include <vector>
 
 #include "ubse_logger.h"
+#include "OsHelper.h"
 #include "mp_configuration.h"
 #include "mp_file_util.h"
 #include "mp_string_util.h"
-#include "OsHelper.h"
 
 namespace mempooling::exportV2 {
 using namespace ubse::log;
@@ -53,7 +53,7 @@ const std::string qemuPathPrefix = "/var/run/libvirt/qemu/";
 const std::string procPathPrefix = "/proc/";
 const unsigned int startTimeIndexInProc = 21;
 
-MpResult OsHelper::GetNumaSet(std::vector<std::uint16_t> &numaSet)
+MpResult OsHelper::GetNumaSet(std::vector<std::uint16_t>& numaSet)
 {
     numaSet.clear();
     std::set<std::uint16_t> st;
@@ -62,7 +62,7 @@ MpResult OsHelper::GetNumaSet(std::vector<std::uint16_t> &numaSet)
         LOG_ERROR << "Numa path not exist or not directory, numaPath=" << numaPathPrefix;
         return MEM_POOLING_ERROR;
     }
-    for (const auto &entry : fs::directory_iterator(numaPath)) {
+    for (const auto& entry : fs::directory_iterator(numaPath)) {
         if (entry.is_directory() && entry.path().filename().string().find("node") == 0) {
             std::string idStr = entry.path().filename().string().substr(4);
             try {
@@ -70,7 +70,7 @@ MpResult OsHelper::GetNumaSet(std::vector<std::uint16_t> &numaSet)
                 if (numaId >= 0 && numaId <= std::numeric_limits<std::uint16_t>::max()) {
                     st.insert(static_cast<std::uint16_t>(numaId));
                 }
-            } catch (const std::exception &e) {
+            } catch (const std::exception& e) {
                 LOG_ERROR << "Invalid NUMA node directory: " << entry.path();
                 return MEM_POOLING_ERROR;
             }
@@ -84,11 +84,11 @@ MpResult OsHelper::GetNumaSet(std::vector<std::uint16_t> &numaSet)
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetVmNameSet(std::vector<std::string> &vmNameSet)
+MpResult OsHelper::GetVmNameSet(std::vector<std::string>& vmNameSet)
 {
     vmNameSet.clear();
     std::set<std::string> st;
-    for (auto &entry : fs::directory_iterator(qemuPathPrefix)) {
+    for (auto& entry : fs::directory_iterator(qemuPathPrefix)) {
         if (entry.is_regular_file() && entry.path().extension() == ".xml") {
             std::string filename = entry.path().stem().string();
             st.insert(filename);
@@ -98,7 +98,7 @@ MpResult OsHelper::GetVmNameSet(std::vector<std::string> &vmNameSet)
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetHostName(std::string &hostName)
+MpResult OsHelper::GetHostName(std::string& hostName)
 {
     char hostname[HOST_NAME_MAX + 1];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
@@ -111,7 +111,7 @@ MpResult OsHelper::GetHostName(std::string &hostName)
     }
 }
 
-MpResult OsHelper::IsNumaLocal(const std::uint16_t &numaId, bool &isLocal)
+MpResult OsHelper::IsNumaLocal(const std::uint16_t& numaId, bool& isLocal)
 {
     std::string filePath = numaPathPrefix + "/node" + std::to_string(numaId) + "/remote";
     std::ifstream file(filePath);
@@ -131,7 +131,7 @@ MpResult OsHelper::IsNumaLocal(const std::uint16_t &numaId, bool &isLocal)
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetSocketIdByNumaId(const std::uint16_t &numaId, std::int16_t &socketId)
+MpResult OsHelper::GetSocketIdByNumaId(const std::uint16_t& numaId, std::int16_t& socketId)
 {
     socketId = -1;
     std::string filePath = numaPathPrefix + "/node" + std::to_string(numaId) + "/cpulist";
@@ -173,7 +173,7 @@ MpResult OsHelper::GetSocketIdByNumaId(const std::uint16_t &numaId, std::int16_t
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetMemInfoByNumaId(const std::uint16_t &numaId, NumaInfo &info)
+MpResult OsHelper::GetMemInfoByNumaId(const std::uint16_t& numaId, NumaInfo& info)
 {
     // 1. 读取普通内存信息（meminfo）
     std::string filePath = numaPathPrefix + "/node" + std::to_string(numaId) + "/meminfo";
@@ -201,7 +201,7 @@ MpResult OsHelper::GetMemInfoByNumaId(const std::uint16_t &numaId, NumaInfo &inf
     // 2. 读取 hugepage 信息（支持多 pageSize）
     std::string hugepageBase = numaPathPrefix + "/node" + std::to_string(numaId) + "/hugepages";
 
-    for (const auto &entry : std::filesystem::directory_iterator(hugepageBase)) {
+    for (const auto& entry : std::filesystem::directory_iterator(hugepageBase)) {
         // hugepages-2048kB
         std::string dirName = entry.path().filename().string();
 
@@ -231,7 +231,7 @@ MpResult OsHelper::GetMemInfoByNumaId(const std::uint16_t &numaId, NumaInfo &inf
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetVmPidByVmName(const std::string &vmName, pid_t &pid)
+MpResult OsHelper::GetVmPidByVmName(const std::string& vmName, pid_t& pid)
 {
     pid = -1;
     std::string filePath = qemuPathPrefix + vmName + ".pid";
@@ -254,7 +254,7 @@ MpResult OsHelper::GetVmPidByVmName(const std::string &vmName, pid_t &pid)
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetProcessStartTimeByPid(const pid_t &pid, std::time_t &startTime)
+MpResult OsHelper::GetProcessStartTimeByPid(const pid_t& pid, std::time_t& startTime)
 {
     startTime = -1;
     // 构建目标进程的stat文件路径
@@ -305,7 +305,7 @@ MpResult OsHelper::GetProcessStartTimeByPid(const pid_t &pid, std::time_t &start
     return MEM_POOLING_OK;
 }
 
-MpResult OsHelper::GetVmNumaInfoByPid(const pid_t &pid, VmDomainInfo &info)
+MpResult OsHelper::GetVmNumaInfoByPid(const pid_t& pid, VmDomainInfo& info)
 {
     std::string filePath = procPathPrefix + std::to_string(pid) + "/numa_maps";
     std::ifstream file(filePath);
@@ -336,7 +336,7 @@ MpResult OsHelper::GetVmNumaInfoByPid(const pid_t &pid, VmDomainInfo &info)
             uint64_t pages = MpStringUtil::SafeStoullOld((*it)[2]);
             int64_t usedMemKB = static_cast<int64_t>(pages * pageSizeKB);
 
-            auto &existing = info.numaInfo[numaId];
+            auto& existing = info.numaInfo[numaId];
 
             /* 第一次出现该 numaId */
             if (existing.usedMem == 0) {
@@ -381,7 +381,7 @@ MpResult OsHelper::GetVmNumaInfoByPid(const pid_t &pid, VmDomainInfo &info)
     return MEM_POOLING_OK;
 }
 
-vector<uint16_t> OsHelper::parseCpuList(const string &line)
+vector<uint16_t> OsHelper::parseCpuList(const string& line)
 {
     std::vector<uint16_t> cpus;
     std::stringstream ss(line);
@@ -398,7 +398,7 @@ vector<uint16_t> OsHelper::parseCpuList(const string &line)
             } else {
                 cpus.push_back(stoi(token));
             }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             continue; // 非法格式，跳过
         }
     }

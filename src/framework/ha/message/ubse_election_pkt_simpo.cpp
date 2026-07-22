@@ -18,10 +18,11 @@
 namespace ubse::election::message {
 using namespace ubse::log;
 using namespace ubse::election::data::conversion;
+using namespace ::ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseElectionPktSimpo::UbseElectionPktSimpo(const ElectionPkt &pkt)
+UbseElectionPktSimpo::UbseElectionPktSimpo(const ElectionPkt& pkt)
 {
     electionPkt_ = pkt;
 }

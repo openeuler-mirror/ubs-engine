@@ -29,7 +29,7 @@ extern "C" {
  * UBS_ENGINE_ERR_OUT_OF_RANGE:参数数据长度超108字节;
  * UBS_ENGINE_ERR_RESOURCE:资源创建失败;
  */
-int32_t ubs_engine_client_initialize(const char *ubs_engine_uds_path);
+int32_t ubs_engine_client_initialize(const char* ubs_engine_uds_path);
 
 /**
  * @brief   销毁ubse客户端

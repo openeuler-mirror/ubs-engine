@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  *
@@ -21,25 +22,25 @@
 #include <linux/delay.h>
 
 struct bandbridge_ctrlq_info g_ctrlq_info;
-void *__iomem g_ctrlq_va = NULL;
+void* __iomem g_ctrlq_va = NULL;
 static int bandbridge_ctrlq_timeout = 1000;
 
 int bandbridge_ctrlq_get_sq_size(void)
 {
-    struct bandbridge_ctrlq_ring *sq = &g_ctrlq_info.sq;
+    struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
     return sq->depth * CTRLQ_BB_SIZE;
 }
 
 int bandbridge_ctrlq_get_rq_size(void)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     return rq->depth * CTRLQ_BB_SIZE;
 }
 
 static int bandbridge_ctrlq_remain_space(void)
 {
     u16 used;
-    struct bandbridge_ctrlq_ring *sq = &g_ctrlq_info.sq;
+    struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
     sq->ci = reg_read(CTRLQ_TX_HEAD_REG) & CTRLQ_TX_HEAD_MASK;
     used = (sq->pi - sq->ci + sq->depth) % sq->depth;
     return sq->depth - used;
@@ -56,41 +57,41 @@ int bandbridge_ctrlq_check_sq_enough(int sendbuf_size)
 
 static int bandbridge_ctrlq_rq_is_empty(void)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     rq->pi = reg_read(CTRLQ_RX_TAIL_REG) & CTRLQ_RX_TAIL_MASK;
     return rq->pi == rq->ci;
 }
 
 static void bandbridge_ctrlq_update_rq_ci(u8 bb_num)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     rq->ci = (rq->ci + bb_num) % rq->depth;
     reg_write(CTRLQ_RX_HEAD_REG, rq->ci);
 }
 
 static void bandbridge_ctrlq_reset_rq_ci(void)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     rq->pi = reg_read(CTRLQ_RX_TAIL_REG) & CTRLQ_RX_TAIL_MASK;
     rq->ci = rq->pi;
     reg_write(CTRLQ_RX_HEAD_REG, rq->ci);
 }
 
-void bandbridge_ctrlq_send_to_sq(void *sendbuf, int sendbuf_size)
+void bandbridge_ctrlq_send_to_sq(void* sendbuf, int sendbuf_size)
 {
-    struct bandbridge_ctrlq_ring *sq = &g_ctrlq_info.sq;
+    struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
     u32 total_size = sendbuf_size;
     u32 size;
     u32 offset = 0;
     int num = DIV_ROUND_UP(sendbuf_size, CTRLQ_BB_SIZE);
     int cnt = 0;
-    u8 *addr;
+    u8* addr;
 
     sq->pi = reg_read(CTRLQ_TX_TAIL_REG) & CTRLQ_TX_TAIL_MASK;
     while (cnt < num) {
         addr = sq->base_addr + sq->pi * CTRLQ_BB_SIZE;
         size = min(total_size, (u32)CTRLQ_BB_SIZE);
-        memcpy_toio(addr, (u8 *)sendbuf + offset, size);
+        memcpy_toio(addr, (u8*)sendbuf + offset, size);
         total_size -= size;
         offset += size;
         sq->pi++;
@@ -103,24 +104,24 @@ void bandbridge_ctrlq_send_to_sq(void *sendbuf, int sendbuf_size)
     reg_write(CTRLQ_TX_TAIL_REG, sq->pi);
 }
 
-static void bandbridge_ctrlq_read_data_from_rq(void *recvbuf, u8 bb_num)
+static void bandbridge_ctrlq_read_data_from_rq(void* recvbuf, u8 bb_num)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     u16 pos = rq->ci;
     int i;
 
     for (i = 0; i < bb_num; i++) {
-        memcpy_fromio(recvbuf + i * CTRLQ_BB_SIZE, (u8 *)rq->base_addr + pos * CTRLQ_BB_SIZE, CTRLQ_BB_SIZE);
+        memcpy_fromio(recvbuf + i * CTRLQ_BB_SIZE, (u8*)rq->base_addr + pos * CTRLQ_BB_SIZE, CTRLQ_BB_SIZE);
         pos = (pos + 1) % rq->depth;
     }
 }
 
-int bandbridge_ctrlq_receive_from_rq(void *recvbuf, int *recvbuf_size, u16 sseq)
+int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq)
 {
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
     struct bandbridge_ctrlq_msg_header head;
     u32 timeout = 0;
-    u8 *addr;
+    u8* addr;
     u8 bb_num;
     u16 rseq;
 
@@ -191,8 +192,8 @@ static int bandbridge_ctrlq_map_queue(void)
     u64 ctrlq_addr;
     size_t size;
 
-    struct bandbridge_ctrlq_ring *sq = &g_ctrlq_info.sq;
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
 
     depth_reg_val = (u16)reg_read(CTRLQ_TX_DEPTH_REG) & CTRLQ_TX_DEPTH_MASK;
     sq->depth = depth_reg_val * CTRLQ_DEPTH_UINT;
@@ -240,8 +241,8 @@ static int bandbridge_ctrlq_map_queue(void)
 
 static void bandbridge_ctrlq_unmap_queue(void)
 {
-    struct bandbridge_ctrlq_ring *sq = &g_ctrlq_info.sq;
-    struct bandbridge_ctrlq_ring *rq = &g_ctrlq_info.rq;
+    struct bandbridge_ctrlq_ring* sq = &g_ctrlq_info.sq;
+    struct bandbridge_ctrlq_ring* rq = &g_ctrlq_info.rq;
 
     if (sq->base_addr) {
         iounmap(sq->base_addr);

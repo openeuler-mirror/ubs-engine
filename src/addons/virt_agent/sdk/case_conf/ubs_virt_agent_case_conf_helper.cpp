@@ -15,7 +15,7 @@
 
 #include <ubse_ipc_log.h>
 
-virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t *buffer, uint32_t len, case_conf_info_t *case_conf_info)
+virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t* buffer, uint32_t len, case_conf_info_t* case_conf_info)
 {
     vm::CaseConfGetMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -27,7 +27,7 @@ virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t *buffer, uint32_t len, case_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubse_case_conf_set_unpack(uint8_t *buffer, uint32_t len, case_conf_set_info_t *case_conf_info)
+virt_agent_ret_t ubse_case_conf_set_unpack(uint8_t* buffer, uint32_t len, case_conf_set_info_t* case_conf_info)
 {
     vm::CaseConfSetMsg msg{buffer, len};
     auto ret = msg.Deserialize();

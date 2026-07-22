@@ -13,7 +13,7 @@
 #include "ubse_mem_debt_info_partial_fetch_req.h"
 #include "ubse_base_message.h"
 #include "ubse_error.h"
-#include "ubse_logger.h"       // for UBSE_DEFINE_THIS_MODULE, UbseLogge...
+#include "ubse_logger.h" // for UBSE_DEFINE_THIS_MODULE, UbseLogge...
 #include "ubse_pointer_process.h"
 namespace ubse::mem::controller::message {
 using namespace ubse::message;

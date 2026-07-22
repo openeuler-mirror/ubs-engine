@@ -42,7 +42,7 @@ struct CountMember<T, std::void_t<decltype(T{{Args{}}...})>, Args...> {
 template <class T, size_t N>
 struct MemberTupleHelper {
     template <class U>
-    inline constexpr static auto GetTuple(U &u)
+    inline constexpr static auto GetTuple(U& u)
     {
         static_assert(sizeof(U) < 0);
         return std::tie();
@@ -71,9 +71,9 @@ struct MemberTupleHelper {
     template <class T>                              \
     struct MemberTupleHelper<T, n> {                \
         template <class U>                          \
-        inline constexpr static auto GetTuple(U &u) \
+        inline constexpr static auto GetTuple(U& u) \
         {                                           \
-            auto &&[UCACHE_EXPAND(n)] = u;          \
+            auto&& [UCACHE_EXPAND(n)] = u;          \
             return std::tie(UCACHE_EXPAND(n));      \
         }                                           \
     }
@@ -99,18 +99,18 @@ UCACHE_MEMBER_TUPLE_HELPER(16);
 class UCacheOutStream {
 public:
     template <typename T>
-    UCacheOutStream &operator<<(const T &data);
+    UCacheOutStream& operator<<(const T& data);
     template <typename T>
-    UCacheOutStream &operator<<(const std::vector<T> &data);
+    UCacheOutStream& operator<<(const std::vector<T>& data);
     template <typename T>
-    UCacheOutStream &operator<<(const std::set<T> &data);
+    UCacheOutStream& operator<<(const std::set<T>& data);
     template <typename T>
-    UCacheOutStream &operator<<(const std::unordered_set<T> &data);
+    UCacheOutStream& operator<<(const std::unordered_set<T>& data);
     template <typename K, typename V>
-    UCacheOutStream &operator<<(const std::map<K, V> &data);
+    UCacheOutStream& operator<<(const std::map<K, V>& data);
     template <typename K, typename V>
-    UCacheOutStream &operator<<(const std::unordered_map<K, V> &data);
-    void Write(const char *data, size_t len)
+    UCacheOutStream& operator<<(const std::unordered_map<K, V>& data);
+    void Write(const char* data, size_t len)
     {
         outStream.append(data, len);
     }
@@ -120,14 +120,14 @@ public:
         return outStream;
     }
 
-    uint8_t *GetBufferPointer()
+    uint8_t* GetBufferPointer()
     {
         size_t dataLen = outStream.length();
         if (dataLen > MAX_SAFE_SIZE || dataLen == 0) {
             mFlag = false;
             return nullptr;
         }
-        uint8_t *ptr = new (std::nothrow) uint8_t[dataLen];
+        uint8_t* ptr = new (std::nothrow) uint8_t[dataLen];
         if (!ptr) {
             mFlag = false;
             return nullptr;
@@ -152,24 +152,24 @@ public:
 
 class UCacheInStream {
 public:
-    UCacheInStream(const std::string &s) : inStream(s) {}
-    UCacheInStream(const uint8_t *s, size_t len)
+    UCacheInStream(const std::string& s) : inStream(s) {}
+    UCacheInStream(const uint8_t* s, size_t len)
     {
-        inStream = std::string(reinterpret_cast<const char *>(s), len);
+        inStream = std::string(reinterpret_cast<const char*>(s), len);
     }
     template <typename T>
-    UCacheInStream &operator>>(T &data);
+    UCacheInStream& operator>>(T& data);
     template <typename T>
-    UCacheInStream &operator>>(std::vector<T> &data);
+    UCacheInStream& operator>>(std::vector<T>& data);
     template <typename T>
-    UCacheInStream &operator>>(std::set<T> &data);
+    UCacheInStream& operator>>(std::set<T>& data);
     template <typename T>
-    UCacheInStream &operator>>(std::unordered_set<T> &data);
+    UCacheInStream& operator>>(std::unordered_set<T>& data);
     template <typename K, typename V>
-    UCacheInStream &operator>>(std::map<K, V> &data);
+    UCacheInStream& operator>>(std::map<K, V>& data);
     template <typename K, typename V>
-    UCacheInStream &operator>>(std::unordered_map<K, V> &data);
-    void Read(char *dest, size_t dest_size, size_t count)
+    UCacheInStream& operator>>(std::unordered_map<K, V>& data);
+    void Read(char* dest, size_t dest_size, size_t count)
     {
         if (count == 0) {
             return;
@@ -205,7 +205,7 @@ private:
             return 0;
         }
         size_t len = 0;
-        this->Read(reinterpret_cast<char *>(&len), sizeof(len), sizeof(len));
+        this->Read(reinterpret_cast<char*>(&len), sizeof(len), sizeof(len));
         if (!mFlag || len > MAX_SAFE_SIZE || offset > inStream.length() || len > inStream.length() - offset) {
             mFlag = false;
             return 0;
@@ -219,36 +219,38 @@ private:
 };
 
 template <typename T>
-UCacheOutStream &UCacheOutStream::operator<<(const T &data)
+UCacheOutStream& UCacheOutStream::operator<<(const T& data)
 {
     if constexpr (std::is_trivially_copyable_v<T>) {
-        this->Write(reinterpret_cast<const char *>(&data), sizeof(T));
+        this->Write(reinterpret_cast<const char*>(&data), sizeof(T));
     } else {
         constexpr auto n = CountMember<T>::value;
         auto members = MemberTupleHelper<T, n>::GetTuple(data);
-        [&]<std::size_t... index>(std::index_sequence<index...>) {
+        [&]<std::size_t... index>(std::index_sequence<index...>)
+        {
             ((*this << std::get<index>(members)), ...);
-        }(std::make_index_sequence<n>{});
+        }
+        (std::make_index_sequence<n>{});
     }
     return *this;
 }
 
 template <>
-inline UCacheOutStream &UCacheOutStream::operator<< <std::string>(const std::string &data)
+inline UCacheOutStream& UCacheOutStream::operator<<<std::string>(const std::string& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     this->Write(data.c_str(), len);
     return *this;
 }
 
 template <typename K, typename V>
-UCacheOutStream &UCacheOutStream::operator<<(const std::map<K, V> &data)
+UCacheOutStream& UCacheOutStream::operator<<(const std::map<K, V>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     // 遍历 map，逐个序列化 key 和 value
-    for (const auto &pair : data) {
+    for (const auto& pair : data) {
         *this << pair.first;  // 序列化 key
         *this << pair.second; // 序列化 value
     }
@@ -256,12 +258,12 @@ UCacheOutStream &UCacheOutStream::operator<<(const std::map<K, V> &data)
 }
 
 template <typename K, typename V>
-UCacheOutStream &UCacheOutStream::operator<<(const std::unordered_map<K, V> &data)
+UCacheOutStream& UCacheOutStream::operator<<(const std::unordered_map<K, V>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
     // 遍历 map，逐个序列化 key 和 value
-    for (const auto &pair : data) {
+    for (const auto& pair : data) {
         *this << pair.first;  // 序列化 key
         *this << pair.second; // 序列化 value
     }
@@ -269,65 +271,67 @@ UCacheOutStream &UCacheOutStream::operator<<(const std::unordered_map<K, V> &dat
 }
 
 template <typename T>
-UCacheOutStream &UCacheOutStream::operator<<(const std::vector<T> &data)
+UCacheOutStream& UCacheOutStream::operator<<(const std::vector<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-UCacheOutStream &UCacheOutStream::operator<<(const std::set<T> &data)
+UCacheOutStream& UCacheOutStream::operator<<(const std::set<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-UCacheOutStream &UCacheOutStream::operator<<(const std::unordered_set<T> &data)
+UCacheOutStream& UCacheOutStream::operator<<(const std::unordered_set<T>& data)
 {
     size_t len = data.size();
-    this->Write(reinterpret_cast<const char *>(&len), sizeof(len));
-    for (auto &i : data) {
+    this->Write(reinterpret_cast<const char*>(&len), sizeof(len));
+    for (auto& i : data) {
         *this << i;
     }
     return *this;
 }
 
 template <typename T>
-UCacheInStream &UCacheInStream::operator>>(T &data)
+UCacheInStream& UCacheInStream::operator>>(T& data)
 {
     if (!mFlag) {
         return *this;
     }
     if constexpr (std::is_trivially_copyable_v<T>) {
-        this->Read(reinterpret_cast<char *>(&data), sizeof(T), sizeof(T));
+        this->Read(reinterpret_cast<char*>(&data), sizeof(T), sizeof(T));
     } else {
         constexpr auto n = CountMember<T>::value;
         auto members = MemberTupleHelper<T, n>::GetTuple(data);
-        [&]<std::size_t... index>(std::index_sequence<index...>) {
+        [&]<std::size_t... index>(std::index_sequence<index...>)
+        {
             ((*this >> std::get<index>(members)), ...);
-        }(std::make_index_sequence<n>{});
+        }
+        (std::make_index_sequence<n>{});
     }
     return *this;
 }
 
 template <>
-inline UCacheInStream &UCacheInStream::operator>> <std::string>(std::string &data)
+inline UCacheInStream& UCacheInStream::operator>><std::string>(std::string& data)
 {
     size_t len = this->ReadAndCheckLength();
     if (!mFlag)
         return *this;
     try {
         data.resize(len);
-    } catch (const std::bad_alloc &) {
+    } catch (const std::bad_alloc&) {
         mFlag = false;
         return *this;
     }
@@ -338,7 +342,7 @@ inline UCacheInStream &UCacheInStream::operator>> <std::string>(std::string &dat
 }
 
 template <typename K, typename V>
-UCacheInStream &UCacheInStream::operator>>(std::map<K, V> &data)
+UCacheInStream& UCacheInStream::operator>>(std::map<K, V>& data)
 {
     if (!mFlag) {
         return *this;
@@ -362,7 +366,7 @@ UCacheInStream &UCacheInStream::operator>>(std::map<K, V> &data)
 }
 
 template <typename K, typename V>
-UCacheInStream &UCacheInStream::operator>>(std::unordered_map<K, V> &data)
+UCacheInStream& UCacheInStream::operator>>(std::unordered_map<K, V>& data)
 {
     if (!mFlag) {
         return *this;
@@ -386,7 +390,7 @@ UCacheInStream &UCacheInStream::operator>>(std::unordered_map<K, V> &data)
 }
 
 template <typename T>
-UCacheInStream &UCacheInStream::operator>>(std::vector<T> &data)
+UCacheInStream& UCacheInStream::operator>>(std::vector<T>& data)
 {
     if (!mFlag) {
         return *this;
@@ -409,7 +413,7 @@ UCacheInStream &UCacheInStream::operator>>(std::vector<T> &data)
 }
 
 template <typename T>
-UCacheInStream &UCacheInStream::operator>>(std::set<T> &data)
+UCacheInStream& UCacheInStream::operator>>(std::set<T>& data)
 {
     if (!mFlag) {
         return *this;
@@ -431,7 +435,7 @@ UCacheInStream &UCacheInStream::operator>>(std::set<T> &data)
 }
 
 template <typename T>
-UCacheInStream &UCacheInStream::operator>>(std::unordered_set<T> &data)
+UCacheInStream& UCacheInStream::operator>>(std::unordered_set<T>& data)
 {
     if (!mFlag) {
         return *this;

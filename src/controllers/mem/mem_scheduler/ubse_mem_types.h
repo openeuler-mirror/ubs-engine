@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -10,33 +10,42 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#ifndef MXE_MEM_TYPES_H
-#define MXE_MEM_TYPES_H
-#include <regex.h>
-#include <securec.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <unistd.h>
-#include <string>
-#include "ubse_mem_constants.h"
+#ifndef UBSE_MEM_SCHEDULER_TYPES_H
+#define UBSE_MEM_SCHEDULER_TYPES_H
 
-namespace ubse::mem::strategy {
-using BResult = uint32_t;
-using NodeId = std::string; /* 节点真实ID，agent的nodeid，不算manager */
-using SocketId = int;
-using NumaId = int64_t;
+#include "ubse_common_def.h"
+#include "ubse_mmi_def.h"
+#include "ubse_node_controller.h"
 
-using NodeIndex = int16_t;
-using NumaIndex = int16_t;       // 节点内编号
-using SocketIndex = int16_t;     // 节点内编号
-using GlobalNumaIndex = int32_t; // 全局编号
-using IpAddress = std::pair<std::string, uint16_t>;
-using UbseResult = uint32_t;
-using mem_id = uint64_t;
+namespace ubse::mem::scheduler {
+using UbseNodeInfo = ubse::nodeController::UbseNodeInfo;
+using UbseNumaInfo = ubse::nodeController::UbseNumaInfo;
+using UbseAllocator = ubse::nodeController::UbseAllocator;
+using UbseNodeClusterState = ubse::nodeController::UbseNodeClusterState;
+using UbseResult = ubse::common::def::UbseResult;
+using ubse::common::def::MAX_PERCENT;
+using PhysicalLink = ubse::nodeController::PhysicalLink;
+using NodeId = std::string;
+using SocketId = uint32_t;
+using ChipId = uint32_t;
+using PortId = uint32_t;
+using NumaId = uint32_t;
 
-#ifdef UB_ENVIRONMENT
-#define INVALID_MEM_ID 0
-#endif
-} // namespace ubse::mem::strategy
+constexpr uint64_t ONE_M = 1024 * 1024;
 
-#endif
+/**
+     * @brief numa信息结构体
+     *
+     */
+struct SocketInfo {
+    SocketId socketId{};
+    std::vector<NumaId> numaInfos;
+};
+
+struct NodeInfo {
+    NodeId nodeId;
+    std::vector<SocketInfo> socketInfos;
+};
+
+} // namespace ubse::mem::scheduler
+#endif // UBSE_MEM_SCHEDULER_TYPES_H

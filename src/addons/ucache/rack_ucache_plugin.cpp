@@ -12,18 +12,18 @@
 
 #include "rack_ucache_plugin.h"
 
-#include <ubse_logger.h>
 #include <ubse_election.h>
-#include <string>
-#include <cstdint>
+#include <ubse_logger.h>
 #include <atomic>
+#include <cstdint>
+#include <string>
 #include <thread>
 
+#include "event_listener.h"
+#include "ucache_agent.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
 #include "ucache_master.h"
-#include "ucache_agent.h"
-#include "event_listener.h"
 
 using namespace ucache;
 using namespace ubse::log;
@@ -34,22 +34,22 @@ namespace ucache {
 static std::atomic<bool> g_masterInitThreadStopFlag{false};
 static std::thread g_tryInitUCacheMasterThread;
 
-uint32_t HandleSwitchOver(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t HandleSwitchOver(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Handling switch over event for node " << nodeId;
     ucache::master::Exit();
     return UCACHE_OK;
 }
 
-uint32_t HandleStandbyToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t HandleStandbyToMaster(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Handling standby to master for node " << nodeId;
     ucache::master::Exit();
     auto ret = ucache::master::Init();
-    return ret;  // 返回 0 表示成功
+    return ret; // 返回 0 表示成功
 }
 
-uint32_t HandleChangeToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t HandleChangeToMaster(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Handling change to master for node " << nodeId;
     ucache::master::Exit();
@@ -57,21 +57,21 @@ uint32_t HandleChangeToMaster(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
     return ret;
 }
 
-uint32_t HandleChangeToStandby(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t HandleChangeToStandby(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Handling change to standby for node " << nodeId;
     ucache::master::Exit();
     return UCACHE_OK;
 }
 
-uint32_t HandleChangeToAgent(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t HandleChangeToAgent(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Handling change to agent for node " << nodeId;
     ucache::master::Exit();
     return UCACHE_OK;
 }
 
-uint32_t RegEvent(UbseElectionEventType type, const std::string &handlerName, ElectinHandler HandlerFunction)
+uint32_t RegEvent(UbseElectionEventType type, const std::string& handlerName, ElectinHandler HandlerFunction)
 {
     UbseElectionHandlerBuilder builder;
     const int seqId = 100;
@@ -85,7 +85,7 @@ uint32_t RegEvent(UbseElectionEventType type, const std::string &handlerName, El
     return result;
 }
 
-uint32_t DeregEvent(UbseElectionEventType type, const std::string &handlerName, ElectinHandler HandlerFunction)
+uint32_t DeregEvent(UbseElectionEventType type, const std::string& handlerName, ElectinHandler HandlerFunction)
 {
     UbseElectionHandlerBuilder builder;
     const int seqId = 100;
@@ -213,7 +213,7 @@ void TryInitUCacheMaster()
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Try init ucache master end";
 }
 
-}
+} // namespace ucache
 
 uint32_t UbsePluginInit(const uint16_t modCode)
 {

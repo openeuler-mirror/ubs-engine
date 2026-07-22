@@ -39,7 +39,7 @@ typedef struct {
     char srcNid[16];
     src_location_t srcLocations[16];
     size_t srcLocationsSize;
-} borrow_param_t
+} borrow_param_t;
 typedef struct {
     borrow_param_t borrowParam;
     uint64_t borrowSizes[64];
@@ -128,10 +128,11 @@ typedef struct {
 } container_param_t;
 typedef struct {
     borrow_param_t borrowParam;
-    uint64_t borrowSizes[64];
-    size_t borrowSizesSize;
-    watermark_t waterMark;
-} mem_borrow_request_t;
+    char borrowIds[SDK_NO_64][SDK_NO_128];
+    size_t borrowIdsSize;
+    container_param_t containerParam[SDK_NO_64];
+    size_t containerParamSize;
+} mem_migrate_request_t;
 ```
 
 ## 返回值 RETURN VALUE
@@ -250,7 +251,7 @@ int main(void)
         .borrowParam = tmpBorrowParam,
         .borrowIds = {"1-abc123"},
         .borrowIdsSize = 1,
-        .pids = {{12345, 23456}},
+        .pids = {12345, 23456},
         .pidsSize = 2
     };
     char **borrowIds = nullptr;
@@ -337,7 +338,7 @@ int main(void)
         .pids = {123},
         .pids_size = 1
     };
-    pid_mem_info *pidInfos = null;
+    pid_mem_info *pidInfos = NULL;
     uint32_t InfoSize;
     ret = ubs_container_info_query(&param, &pidInfos, &InfoSize);
     if (ret != 0) {
@@ -448,8 +449,8 @@ typedef struct {
 | name            | IN/OUT | description  |
 |-----------------|--------|--------------|
 | containerIdList | IN     | 容器ID信息       |
-| param           | IN     | 容器内pid信息列表   |
-| InfoSize        | IN     | 容器内pid信息列表大小 |
+| param           | OUT    | 容器内pid信息列表   |
+| InfoSize        | OUT    | 容器内pid信息列表大小 |
 
 ## 返回值 RETURN VALUE
 

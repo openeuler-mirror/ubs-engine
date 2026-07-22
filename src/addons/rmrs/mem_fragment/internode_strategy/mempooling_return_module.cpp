@@ -35,11 +35,11 @@ bool MemReturnScanner::start()
             running.store(false); // 线程结束时置 false
         }).detach();              // 自动回收线程
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturnScanner] "
-                                                       << "Start to scan timeout return records";
+                                                          << "Start to scan timeout return records";
     } catch (...) {
         running.store(false);
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemReturnScanner] "
-                                                       << "Failed to start scan timeout return records";
+                                                          << "Failed to start scan timeout return records";
         return false; // 线程创建失败
     }
     return true;
@@ -47,7 +47,7 @@ bool MemReturnScanner::start()
 
 void MemReturnScanner::run()
 {
-    auto &mgr = MemReturnManager::Instance();
+    auto& mgr = MemReturnManager::Instance();
     while (true) {
         std::unordered_map<std::string, BorrowItem> borrowCacheAll;
         mgr.QueryAll(borrowCacheAll);
@@ -56,7 +56,7 @@ void MemReturnScanner::run()
                 << "[MemReturnScanner] BorrowCache is empty, stop scanning.";
             break;
         }
-        for (auto &kv : borrowCacheAll) {
+        for (auto& kv : borrowCacheAll) {
             UbseMemResult result;
             if (UbseQueryResult(kv.first, result) != 0) {
                 std::this_thread::sleep_for(std::chrono::seconds(DELETE_TIMEOUT_SCAN_SECONDS));
@@ -96,4 +96,4 @@ void MemReturnScanner::run()
     }
     running.store(false); // 标记线程已退出
 }
-}
+} // namespace mempooling

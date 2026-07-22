@@ -44,7 +44,7 @@ struct PairHash {
     using UT1 = SafeUnderlyingTypeT<T1>;
     using UT2 = SafeUnderlyingTypeT<T2>;
 
-    size_t operator()(const std::pair<T1, T2> &p) const noexcept
+    size_t operator()(const std::pair<T1, T2>& p) const noexcept
     {
         size_t h1 = std::hash<UT1>{}(p.first);
         size_t h2 = std::hash<UT2>{}(p.second);
@@ -56,7 +56,7 @@ template <typename Key1, typename Key2, typename Value>
 using PairMap = std::unordered_map<std::pair<Key1, Key2>, Value, PairHash<Key1, Key2>>;
 
 template <typename Key, typename Val>
-bool IfMapContainKey(const Key &key, const std::unordered_map<Key, Val> &map)
+bool IfMapContainKey(const Key& key, const std::unordered_map<Key, Val>& map)
 {
     return map.find(key) != map.end();
 }

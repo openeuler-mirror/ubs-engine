@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::mem_controller::ut
 #endif // UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_MASTER_ONLINE_HANDLER_H

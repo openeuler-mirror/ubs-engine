@@ -27,3 +27,6 @@ __pycache__
 /test/build/
 /test/UT/data_sync/test_log
 *.bak
+.omo
+.opencode/user.*
+code_review_report

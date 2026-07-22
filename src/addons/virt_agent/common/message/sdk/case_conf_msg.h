@@ -57,12 +57,12 @@ public:
 
     explicit CaseConfGetMsg(CaseConfInfo caseConf) : caseConf_(std::move(caseConf)){};
 
-    explicit CaseConfGetMsg(uint8_t *rawData, uint32_t size)
+    explicit CaseConfGetMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetCaseConf(CaseConfInfo &caseConf)
+    void SetCaseConf(CaseConfInfo& caseConf)
     {
         caseConf_ = caseConf;
     }
@@ -83,12 +83,12 @@ public:
 
     explicit CaseConfSetMsg(CaseConfSetInfo caseConf) : caseConf_(std::move(caseConf)){};
 
-    explicit CaseConfSetMsg(uint8_t *rawData, uint32_t size)
+    explicit CaseConfSetMsg(uint8_t* rawData, uint32_t size)
     {
         SetInputRawData(rawData, size);
     }
 
-    void SetCaseConf(CaseConfSetInfo &caseConf)
+    void SetCaseConf(CaseConfSetInfo& caseConf)
     {
         caseConf_ = caseConf;
     }

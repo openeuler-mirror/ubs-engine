@@ -30,8 +30,8 @@ struct StrategyConfig {
     uint64_t oomEventBorrowBytes{};
 };
 
-using EscapeAlgorithmInitFunc = int (*)(const StrategyConfig &, void(int, const char *));
-using EscapeAlgorithmFunc = int (*)(const StrategyConfig &, AlarmNumaInfo &, GlobalNumaInfoMap &, EscapeAction &);
+using EscapeAlgorithmInitFunc = int (*)(const StrategyConfig&, void(int, const char*));
+using EscapeAlgorithmFunc = int (*)(const StrategyConfig&, AlarmNumaInfo&, GlobalNumaInfoMap&, EscapeAction&);
 
 class EscapeAlgorithmModule {
 public:
@@ -43,12 +43,12 @@ public:
 
     static void CloseStrategyHandle();
 
-    static void VmEscapeLog(int level, const char *str);
+    static void VmEscapeLog(int level, const char* str);
 
 private:
-    static void *algorithmHandle;
+    static void* algorithmHandle;
     static EscapeAlgorithmInitFunc escapeAlgorithmInitFunc;
     static EscapeAlgorithmFunc escapeAlgorithmFunc;
 };
-}
+} // namespace vm
 #endif // VM_ESCAPE_ALGORITHM_MODULE_H

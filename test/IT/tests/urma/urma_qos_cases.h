@@ -1,0 +1,66 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#ifndef IT_URMA_QOS_CASES_H
+#define IT_URMA_QOS_CASES_H
+
+#include "it_cluster.h"
+
+namespace ubse::it::tests::urma_qos {
+
+// URMA QoS 创建测试：创建单优先级（pri=0, bw=100Gbps）配置
+void RunQosCreateSinglePriorityTest(ubse::it::infra::ItCluster& cluster);
+
+// URMA QoS 创建+查询测试：创建双优先级配置后查询验证
+void RunQosCreateAndQueryTest(ubse::it::infra::ItCluster& cluster);
+
+// URMA QoS 全生命周期测试：创建→查询→删除→查询验证空
+void RunQosCreateQueryDeleteTest(ubse::it::infra::ItCluster& cluster);
+
+// --- CLI 交互测试 ---
+
+// CLI 创建成功：create urma-qos --pri 0 --cir 100
+void RunCliCreateSuccessTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 创建成功（双优先级）
+void RunCliCreateDualPriTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：缺少必要参数
+void RunCliCreateMissingParamsTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：无效 priority（超出 0/1 范围）
+void RunCliCreateInvalidPriTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：重复 priority
+void RunCliCreateDuplicatePriTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：count 超过上限(2)
+void RunCliCreateCountExceedTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：pri/cir 数量不匹配
+void RunCliCreateMismatchTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 参数验证：bandwidth 为 0
+void RunCliCreateZeroBandwidthTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 删除成功
+void RunCliDeleteSuccessTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 查询空（未创建）
+void RunCliDisplayEmptyTest(ubse::it::infra::ItCluster& cluster);
+
+// CLI 全生命周期：创建→display 表格→删除→display 空
+void RunCliFullLifecycleTest(ubse::it::infra::ItCluster& cluster);
+
+} // namespace ubse::it::tests::urma_qos
+
+#endif // IT_URMA_QOS_CASES_H

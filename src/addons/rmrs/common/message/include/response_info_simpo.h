@@ -34,7 +34,7 @@ public:
         return responseInfo_;
     }
 
-    inline void SetResponseInfo(const int code, const std::string &message)
+    inline void SetResponseInfo(const int code, const std::string& message)
     {
         responseInfo_.code = code;
         responseInfo_.message = message;
@@ -44,7 +44,7 @@ public:
     {
         return "code=" + std::to_string(responseInfo_.code) + ", message=" + responseInfo_.message;
     };
-    
+
     ResponseInfo responseInfo_{};
 };
 } // namespace mempooling

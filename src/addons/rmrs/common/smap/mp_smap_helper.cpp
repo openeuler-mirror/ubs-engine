@@ -11,12 +11,14 @@
  */
 
 #include "mp_smap_helper.h"
-#include "mp_error.h"
-#include "over_commit_ucache_strategy.h"
 #include "ubse_def.h"
 #include "ubse_logger.h"
-#include "ubse_storage.h"
 #include "ubse_security.h"
+#include "ubse_storage.h"
+#include "mem_manager.h"
+#include "mp_error.h"
+#include "over_commit_ucache_strategy.h"
+#include "rmrs_resource_query.h"
 
 namespace mempooling::smap {
 constexpr int SMAP_OK = 0;
@@ -46,7 +48,7 @@ const uint32_t MpSmapHelper::setSmapRemoteNumaInfoMaxRetryInterval = 1; // 单�
 const int MpSmapHelper::SMAP_QUERY_PID_NUM = 40;
 const int MpSmapHelper::SMAP_PARTIAL_SUCCESS = -3;
 
-MpSmapHelper &MpSmapHelper::GetInstance()
+MpSmapHelper& MpSmapHelper::GetInstance()
 {
     return g_instance;
 }
@@ -87,13 +89,13 @@ MpResult MpSmapHelper::Init()
     return MEM_POOLING_OK;
 }
 
-static void GetRunMode(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+static void GetRunMode(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     if (buff.len != 1 || buff.data == nullptr || ctx == nullptr) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Ctx or respData is null.";
         return;
     }
-    int &runMode = *(static_cast<int *>(ctx));
+    int& runMode = *(static_cast<int*>(ctx));
     runMode = static_cast<int>(buff.data[0]);
     return;
 }
@@ -109,7 +111,11 @@ MpResult MpSmapHelper::ReadAndSetRunMode()
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Failed to query runmode data.";
         return MEM_POOLING_ERROR;
     }
-    if (runMode == -1) {
+    if (MpConfiguration::GetInstance().GetFaultSimplified()) {
+        runMode = 0;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] faultSimplified is enabled, force runMode to water line(0).";
+    } else if (runMode == -1) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] No runMode record.";
         return MEM_POOLING_ERROR;
     }
@@ -180,7 +186,7 @@ void MpSmapHelper::VmSmapClose()
     SmapModule::CloseSmapHandle();
 }
 
-int MpSmapHelper::QueryVMFreqArray(int pidIn, uint16_t *dataIn, uint32_t lengthIn, uint32_t &lengthOut, int dataSource)
+int MpSmapHelper::QueryVMFreqArray(int pidIn, uint16_t* dataIn, uint32_t lengthIn, uint32_t& lengthOut, int dataSource)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Start QueryVMFreqArray.";
     SmapQueryVmFreqFunc smapQueryVmFreqFunc = SmapModule::GetSmapQueryVmFreq();
@@ -234,7 +240,7 @@ MpResult MpSmapHelper::SmapMode(int runMode)
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::GetHugePageCanonicalPath(const std::string &remoteNumaId, std::string &filePath)
+MpResult MpSmapHelper::GetHugePageCanonicalPath(const std::string& remoteNumaId, std::string& filePath)
 {
     filePath = HUGEPAGES_PATH_HEAD + remoteNumaId + HUGEPAGES_PATH_TAIL;
     if (!UbseFileUtil::CanonicalPath(filePath)) {
@@ -246,7 +252,7 @@ MpResult MpSmapHelper::GetHugePageCanonicalPath(const std::string &remoteNumaId,
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string &filePath, uint64_t targetHugePages)
+MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string& filePath, uint64_t targetHugePages)
 {
     auto res = ubse::security::ChangeOverrideCapability(true);
     if (res != MEM_POOLING_OK) {
@@ -265,6 +271,25 @@ MpResult MpSmapHelper::TryAllocateHugePagesOnce(const std::string &filePath, uin
 
 MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize)
 {
+    // 1. 获取或创建该 numa 对应的 mutex
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex); // 保护 map 的读写
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            auto uptr = std::make_unique<std::mutex>();
+            mtx = uptr.get();
+            numaAllocMutexMap[numaId] = std::move(uptr);
+        } else {
+            mtx = it->second.get();
+        }
+    } // mapMutex 在这里解锁
+
+    // 2. 锁定该numa的专用mutex
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Try to get lock for numaId=" << numaId << ".";
+    std::lock_guard<std::mutex> lock(*mtx);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get lock success.";
+
     const int MAX_RETRY = 100;
     int retryCnt = 0;
 
@@ -322,7 +347,7 @@ MpResult MpSmapHelper::AllocateHugePagesWithRetry(uint64_t numaId, uint64_t borr
     return MEM_POOLING_ERROR;
 }
 
-MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t> &remoteNumaIds, std::vector<uint64_t> &borrowSizes)
+MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Allocate hugePages start.";
     std::unordered_map<uint64_t, uint64_t> map;
@@ -339,7 +364,7 @@ MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t> &remoteNumaIds, s
             map[remoteNumaIds[i]] = borrowSizes[i];
         }
     }
-    for (const auto &pair : map) {
+    for (const auto& pair : map) {
         MpResult ret = AllocateHugePagesWithRetry(pair.first, pair.second);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -352,7 +377,141 @@ MpResult MpSmapHelper::AllocateHugePages(std::vector<uint64_t> &remoteNumaIds, s
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t targetHugePages)
+MpResult MpSmapHelper::ReleaseHugePages(std::vector<uint64_t>& remoteNumaIds, std::vector<uint64_t>& borrowSizes)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Release hugePages start.";
+
+    std::unordered_map<uint64_t, uint64_t> map;
+    size_t size = remoteNumaIds.size();
+    for (size_t i = 0; i < size; ++i) {
+        if (map.find(remoteNumaIds[i]) != map.end()) {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Update remoteNumaId:" << remoteNumaIds[i]
+                << ", release borrowSize: " << borrowSizes[i] << ".";
+
+            map[remoteNumaIds[i]] += borrowSizes[i];
+        } else {
+            UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Add remoteNumaId:" << remoteNumaIds[i]
+                                                              << ", release borrowSize: " << borrowSizes[i] << ".";
+
+            map[remoteNumaIds[i]] = borrowSizes[i];
+        }
+    }
+
+    for (const auto& pair : map) {
+        MpResult ret = ReleaseHugePagesWithRetry(pair.first, pair.second);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] ReleaseHugePagesWithRetry failed for numaId=" << pair.first << ", ret=" << ret
+                << ".";
+            return MEM_POOLING_ERROR;
+        }
+    }
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Release hugePages end.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::ReleaseHugePagesWithRetry(uint64_t numaId, uint64_t borrowSize)
+{
+    // 1. 获取或创建该 numa 对应的 mutex
+    std::mutex* mtx = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mapMutex); // 保护 map 的读写
+        auto it = numaAllocMutexMap.find(numaId);
+        if (it == numaAllocMutexMap.end()) {
+            auto uptr = std::make_unique<std::mutex>();
+            mtx = uptr.get();
+            numaAllocMutexMap[numaId] = std::move(uptr);
+        } else {
+            mtx = it->second.get();
+        }
+    } // mapMutex 在这里解锁
+
+    // 2. 锁定该numa的专用mutex
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Try to get lock for numaId=" << numaId << ".";
+    std::lock_guard<std::mutex> lock(*mtx);
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Get lock success.";
+
+    const int MAX_RETRY = 100;
+    int retryCnt = 0;
+    std::string filePath;
+
+    MpResult ret = GetHugePageCanonicalPath(std::to_string(numaId), filePath);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetHugePageCanonicalPath failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t originalHugePages = 0;
+    ret = GetOriginalHugePages(filePath, originalHugePages);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetOriginalHugePages failed.";
+        return MEM_POOLING_ERROR;
+    }
+
+    uint64_t releasePages = borrowSize / (2 * 1024 * 1024);
+    uint64_t targetHugePages = 0;
+
+    if (originalHugePages > releasePages) {
+        targetHugePages = originalHugePages - releasePages;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] numaId=" << numaId << ", originalHugePages=" << originalHugePages
+        << ", releasePages=" << releasePages << ", targetHugePages=" << targetHugePages << ".";
+
+    do {
+        ret = TryAllocateHugePagesOnce(filePath, targetHugePages);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] RewriteHugePages failed at retry=" << retryCnt << ", numaId=" << numaId << ".";
+            retryCnt++;
+            continue;
+        }
+
+        uint64_t realHugePages = 0;
+        ret = GetOriginalHugePages(filePath, realHugePages);
+        if (ret == MEM_POOLING_OK && realHugePages <= targetHugePages) {
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MpSmapHelper] Release hugepages success, numaId=" << numaId << ", realHugePages=" << realHugePages
+                << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+            return MEM_POOLING_OK;
+        }
+
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] HugePages not reached target, numaId=" << numaId << ", realHugePages=" << realHugePages
+            << ", targetHugePages=" << targetHugePages << ", retryCnt=" << retryCnt << ".";
+        retryCnt++;
+    } while (retryCnt < MAX_RETRY);
+
+    UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] ReleaseHugePages final failed after " << MAX_RETRY << " retries, numaId=" << numaId
+        << ", targetHugePages=" << targetHugePages << ".";
+
+    return MEM_POOLING_ERROR;
+}
+
+void MpSmapHelper::RollBackHugePagesIfNeeded(bool hugePageAllocated, std::vector<uint64_t>& remoteNumaIds,
+                                             std::vector<uint64_t>& borrowSizes)
+{
+    if (!hugePageAllocated) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Do not need to release.";
+        return;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Start to execute release.";
+    MpResult releaseRet = MpSmapHelper::GetInstance().ReleaseHugePages(remoteNumaIds, borrowSizes);
+    if (releaseRet != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] ReleaseHugePages failed after VmsMigrate failed.";
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] ReleaseHugePages success after VmsMigrate failed.";
+}
+
+MpResult MpSmapHelper::RewriteHugePages(const std::string& realPath, uint64_t targetHugePages)
 {
     // 按2M为计算单位,计算最后分配大页的大小
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -370,7 +529,7 @@ MpResult MpSmapHelper::RewriteHugePages(const std::string &realPath, uint64_t ta
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::GetOriginalHugePages(const std::string &realPath, uint64_t &originalHugePages)
+MpResult MpSmapHelper::GetOriginalHugePages(const std::string& realPath, uint64_t& originalHugePages)
 {
     std::ifstream inputFile(realPath);
     if (!inputFile.is_open()) {
@@ -408,7 +567,7 @@ MpResult MpSmapHelper::SmapMigrateRemoteNuma(MigrateNumaMsg msg)
 }
 
 MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
-                                                   std::unordered_map<pid_t, smap::ProcessPayload> &processPayloadMap)
+                                                   std::unordered_map<pid_t, smap::ProcessPayload>& processPayloadMap)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "GetVmRatioOnFaultNumaBySmap start.";
     const auto smapQueryProcessConfig = mempooling::smap::SmapModule::GetSmapGetRemoteProcessesFunc();
@@ -427,8 +586,8 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     }
 
     // 遍历 processPayload 数组，填充 map
-    for (int i = 0; i < MpSmapHelper::SMAP_QUERY_PID_NUM; ++i) {
-        const smap::ProcessPayload &payload = processPayload[i];
+    for (int i = 0; i < retLen; ++i) {
+        const smap::ProcessPayload& payload = processPayload[i];
         processPayloadMap[payload.pid] = payload; // 以 pid 为键插入到 map 中
     }
 
@@ -436,7 +595,31 @@ MpResult MpSmapHelper::GetVmRatioOnFaultNumaBySmap(const int16_t faultNumaId,
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t *pidArr, int len, int srcNid, int destNid)
+void MpSmapHelper::FilterValidPidsByLocalNode(std::vector<pid_t>& pidList)
+{
+    auto ret = ResourceQuery::FilterValidPidListByLocalNode(pidList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] FilterValidPidListByLocalNode failed.";
+        // 过滤有效pid失败则继续使用原pidList
+        return;
+    }
+
+    return;
+}
+
+void MpSmapHelper::FilterValidPidsRpc(const std::string srcNid, std::vector<pid_t>& pidList)
+{
+    auto ret = ResourceQuery::FilterValidPidListRpc(srcNid, pidList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] FilterValidPidListRpc failed, srcNid: " << srcNid << ".";
+        return;
+    }
+
+    return;
+}
+
+MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t* pidArr, int len, int srcNid, int destNid)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigratePidRemoteNumaHelper start.";
 
@@ -449,8 +632,7 @@ MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t *pidArr, int len, in
     std::unordered_map<pid_t, smap::ProcessPayload> processPayloadMap;
     auto ret = GetVmRatioOnFaultNumaBySmap(srcNid, processPayloadMap);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MpSmapHelper] GetVmRatioOnFaultNumaBySmap failed.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] GetVmRatioOnFaultNumaBySmap failed.";
         return MEM_POOLING_ERROR;
     }
 
@@ -495,7 +677,7 @@ MpResult MpSmapHelper::SmapMigratePidRemoteNumaHelper(pid_t *pidArr, int len, in
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelper(MigrateEscapeMsg &msg)
+MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelper(MigrateEscapeMsg& msg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigratePidMultiRemoteNumaHelper start.";
 
@@ -532,7 +714,7 @@ MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelper(MigrateEscapeMsg &msg
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscapeMsg &msg)
+MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscapeMsg& msg)
 {
     constexpr int kMaxRetry = 3;
     constexpr auto kRetryInterval = std::chrono::seconds(1);
@@ -547,8 +729,9 @@ MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscap
             return MEM_POOLING_OK;
         }
 
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigratePidRemoteNumaHelper failed, retry "
-                                                      << (i + 1) << "/" << kMaxRetry << ", ret=" << ret;
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] SmapMigratePidRemoteNumaHelper failed, retry " << (i + 1) << "/" << kMaxRetry
+            << ", ret=" << ret;
 
         if (i < kMaxRetry - 1) {
             std::this_thread::sleep_for(kRetryInterval);
@@ -558,7 +741,7 @@ MpResult MpSmapHelper::SmapMigratePidMultiRemoteNumaHelperWithRetry(MigrateEscap
     return ret;
 }
 
-int MpSmapHelper::SmapEnableProcessMigrateHelper(pid_t *pidArr, int len, int enable, int flags)
+int MpSmapHelper::SmapEnableProcessMigrateHelper(pid_t* pidArr, int len, int enable, int flags)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnableProcessMigrateHelper start.";
 
@@ -599,7 +782,7 @@ int MpSmapHelper::SmapEnableProcessMigrateHelper(pid_t *pidArr, int len, int ena
     return MEM_POOLING_OK;
 }
 MpResult MpSmapHelper::SetSmapRemoteNumaInfo(
-    const int16_t &srcNumaId, const std::vector<over_commit::MemBorrowInfoWithSrc> &memBorrowInfosWithSrc)
+    const int16_t& srcNumaId, const std::vector<over_commit::MemBorrowInfoWithSrc>& memBorrowInfosWithSrc)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SetSmapRemoteNumaInfo start.";
     const SetSmapRemoteNumaInfoFunc setSmapRemoteNumaInfo = SmapModule::GetSetSmapRemoteNumaInfo();
@@ -609,7 +792,7 @@ MpResult MpSmapHelper::SetSmapRemoteNumaInfo(
     MpResult ret{};
     auto borrowNuma = srcNumaId;
     std::unordered_map<uint16_t, uint64_t> memBorrowInfoMap;
-    for (const auto &[srcNid, presentNumaId, borrowSize] : memBorrowInfosWithSrc) {
+    for (const auto& [srcNid, presentNumaId, borrowSize] : memBorrowInfosWithSrc) {
         if (borrowNuma != -1 && srcNid != static_cast<uint64_t>(borrowNuma)) {
             continue;
         }
@@ -619,7 +802,7 @@ MpResult MpSmapHelper::SetSmapRemoteNumaInfo(
             memBorrowInfoMap[presentNumaId] += borrowSize;
         }
     }
-    for (const auto &[fst, snd] : memBorrowInfoMap) {
+    for (const auto& [fst, snd] : memBorrowInfoMap) {
         RemoteNumaInfo remoteNumaInfo = {.srcNid = srcNumaId, .destNid = fst, .size = snd >> over_commit::KB2MB};
         remoteNumaInfo.size *= (1 - over_commit::GetLocalUcacheUsageRatio());
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -646,8 +829,42 @@ MpResult MpSmapHelper::SetSmapRemoteNumaInfo(
     return MEM_POOLING_OK;
 }
 
+void MpSmapHelper::RollBackSmapEnablePids(std::vector<pid_t>& pids)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] RollBackSmapEnablePids start.";
+    // oldPids即上层传下来的pids，用于打印和remove
+    std::vector<pid_t> oldPids = pids;
+    std::string pidStr;
+    for (size_t i = 0; i < oldPids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(oldPids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] before filter, pids=[" << pidStr << "].";
+    // 更新过滤最新pids（过滤掉被kill的pid）
+    FilterValidPidsByLocalNode(pids);
+    pidStr.clear();
+    for (size_t i = 0; i < pids.size(); ++i) {
+        if (i != 0) {
+            pidStr += ", ";
+        }
+        pidStr += std::to_string(pids[i]);
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] after filter, pids=[" << pidStr << "].";
+
+    // 根据过滤出的pids进行enable
+    auto ret = smap::MpSmapHelper::SmapEnableProcessMigrateHelper(pids.data(), pids.size(), 1, 0);
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "RollBackSmapEnablePids failed, ret=" << ret << ".";
+        return;
+    }
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnablePids success, remove these pids.";
+    PidSmapEnableCompleted::Instance().Remove(oldPids);
+}
+
 MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
-    const std::vector<over_commit::MemMigrateResult> &memMigrateResults, const uint16_t ratio)
+    const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio)
 {
     MigrateOutMsg migrateOutMsg{};
 
@@ -668,15 +885,15 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
 
     // 2、 填充payload
     int payloadIdx = 0;
-    for (const auto &[pid, idxVec] : grouped) {
-        auto &payload = migrateOutMsg.payload[payloadIdx];
+    for (const auto& [pid, idxVec] : grouped) {
+        auto& payload = migrateOutMsg.payload[payloadIdx];
         payload.srcNid = -1;
         payload.pid = pid;
         payload.count = std::min<int>(idxVec.size(), REMOTE_NUMA_NUM);
 
         for (int innerIdx = 0; innerIdx < payload.count; ++innerIdx) {
-            const auto &r = memMigrateResults[idxVec[innerIdx]];
-            auto &inner = payload.inner[innerIdx];
+            const auto& r = memMigrateResults[idxVec[innerIdx]];
+            auto& inner = payload.inner[innerIdx];
             inner.destNid = r.remoteNumaId;
             inner.memSize = 0;
             inner.ratio = r.maxRatio;
@@ -694,7 +911,7 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommitMultiNuma(
 }
 
 MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommit(
-    const std::vector<over_commit::MemMigrateResult> &memMigrateResults, const uint16_t ratio)
+    const std::vector<over_commit::MemMigrateResult>& memMigrateResults, const uint16_t ratio)
 {
     MigrateOutMsg migrateOutMsg{};
     migrateOutMsg.count = static_cast<int>(memMigrateResults.size());
@@ -723,7 +940,7 @@ MigrateOutMsg MpSmapHelper::GetMigrateOutMsgInOverCommit(
     return migrateOutMsg;
 }
 
-MpResult MpSmapHelper::MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult> &memMigrateResults,
+MpResult MpSmapHelper::MigrateOutInOverCommit(const std::vector<over_commit::MemMigrateResult>& memMigrateResults,
                                               const uint16_t ratio)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] MigrateOutInOverCommit start.";
@@ -755,9 +972,9 @@ MpResult MpSmapHelper::MigrateOutInOverCommit(const std::vector<over_commit::Mem
     return MEM_POOLING_OK;
 }
 
-int MpSmapHelper::SmapAddProcessTrackingHelper(const std::vector<pid_t> &pidVec,
-                                               const std::vector<uint32_t> &scanTimeVec, int scanType,
-                                               const std::vector<uint32_t> &durationVec)
+int MpSmapHelper::SmapAddProcessTrackingHelper(const std::vector<pid_t>& pidVec,
+                                               const std::vector<uint32_t>& scanTimeVec, int scanType,
+                                               const std::vector<uint32_t>& durationVec)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapAddProcessTrackingHelper start.";
     const SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = SmapModule::GetSmapAddProcessTrackingFunc();
@@ -772,9 +989,9 @@ int MpSmapHelper::SmapAddProcessTrackingHelper(const std::vector<pid_t> &pidVec,
     }
 
     // 获取指针
-    pid_t *pidArr = const_cast<pid_t *>(pidVec.data());
-    uint32_t *scanTimeArr = const_cast<uint32_t *>(scanTimeVec.data());
-    uint32_t *durationArr = const_cast<uint32_t *>(durationVec.data());
+    pid_t* pidArr = const_cast<pid_t*>(pidVec.data());
+    uint32_t* scanTimeArr = const_cast<uint32_t*>(scanTimeVec.data());
+    uint32_t* durationArr = const_cast<uint32_t*>(durationVec.data());
     int len = static_cast<int>(pidVec.size());
     int ret = smapAddProcessTrackingFunc(pidArr, scanTimeArr, durationArr, len, scanType);
     if (ret != SMAP_OK) {
@@ -789,7 +1006,7 @@ int MpSmapHelper::SmapAddProcessTrackingHelper(const std::vector<pid_t> &pidVec,
     return ret;
 }
 
-int MpSmapHelper::SmapRemoveProcessTrackingHelper(const std::vector<pid_t> &pidVec, int flags)
+int MpSmapHelper::SmapRemoveProcessTrackingHelper(const std::vector<pid_t>& pidVec, int flags)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemoveProcessTrackingHelper start.";
     const SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc = SmapModule::GetSmapRemoveProcessTrackingFunc();
@@ -798,7 +1015,7 @@ int MpSmapHelper::SmapRemoveProcessTrackingHelper(const std::vector<pid_t> &pidV
         return MEM_POOLING_ERROR;
     };
 
-    pid_t *pidArr = const_cast<pid_t *>(pidVec.data());
+    pid_t* pidArr = const_cast<pid_t*>(pidVec.data());
     int len = static_cast<int>(pidVec.size());
 
     int ret = smapRemoveProcessTrackingFunc(pidArr, len, flags);
@@ -815,7 +1032,7 @@ int MpSmapHelper::SmapRemoveProcessTrackingHelper(const std::vector<pid_t> &pidV
     return ret;
 }
 
-MpResult MpSmapHelper::SmapMigrateBack(MigrateBackMsg &migrateBackMsg)
+MpResult MpSmapHelper::SmapMigrateBack(MigrateBackMsg& migrateBackMsg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBack start.";
     SmapMigrateBackFunc smapMigrateBackFunc = SmapModule::GetSmapMigrateBackFunc();
@@ -832,7 +1049,24 @@ MpResult MpSmapHelper::SmapMigrateBack(MigrateBackMsg &migrateBackMsg)
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::SmapEnableNuma(EnableNodeMsg &enableMsg)
+MpResult MpSmapHelper::SmapMigrateBackSync(MigrateBackMsg& migrateBackMsg)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackSync start.";
+    SmapMigrateBackFunc smapMigrateBackFunc = SmapModule::GetSmapMigrateBackSyncFunc();
+    if (smapMigrateBackFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] Ptr smapMigrateBackFunc == nullptr.";
+        return MEM_POOLING_ERROR;
+    }
+    int ret = smapMigrateBackFunc(&migrateBackMsg);
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackFunc failed " << ret << ".";
+        return MEM_POOLING_ERROR;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapMigrateBackSync succeed.";
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::SmapEnableNuma(EnableNodeMsg& enableMsg)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapEnableNuma start.";
     SmapEnableNodeFunc smapEnableNodeFunc = SmapModule::GetSmapEnableNodeFunc();
@@ -849,7 +1083,7 @@ MpResult MpSmapHelper::SmapEnableNuma(EnableNodeMsg &enableMsg)
     return MEM_POOLING_OK;
 }
 
-MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t &ret)
+MpResult MpSmapHelper::SmapGetBackResult(uint64_t taskId, uint16_t& ret)
 {
     ret = 0;
     std::string fileHead = "/sys/kernel/debug/smap/mb_";
@@ -927,7 +1161,7 @@ MpResult MpSmapHelper::GetLocalSmapBackResult(uint64_t taskId)
     return MEM_POOLING_ERROR;
 }
 
-MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload> &processPayloadList)
+MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<ProcessPayload>& processPayloadList)
 {
     const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
     if (smapQueryProcessConfigFunc == nullptr) {
@@ -946,6 +1180,75 @@ MpResult MpSmapHelper::SmapQueryProcessConfigHelper(int nid, std::vector<Process
     for (int i = 0; i < realLen; i++) {
         processPayloadList.push_back(payloadArr[i]);
     }
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::SmapQueryProcessAndFilter(int nid, std::vector<pid_t>& pidList)
+{
+    std::vector<ProcessPayload> processPayloadList;
+    const SmapQueryProcessConfigFunc smapQueryProcessConfigFunc = SmapModule::GetSmapQueryProcessConfigFunc();
+    if (smapQueryProcessConfigFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[RmrsSmapHelper] Failed to get function symbol.";
+        return MEM_POOLING_ERROR;
+    }
+
+    ProcessPayload payloadArr[SMAP_QUERY_PID_NUM];
+    int realLen = 0;
+    int res = smapQueryProcessConfigFunc(nid, payloadArr, SMAP_QUERY_PID_NUM, &realLen);
+    if (res != SMAP_OK || realLen < 0 || realLen > SMAP_QUERY_PID_NUM) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[RmrsSmapHelper] SmapQueryProcessConfig error." << nid << " " << realLen << " " << res;
+        return MEM_POOLING_ERROR;
+    }
+    for (int i = 0; i < realLen; i++) {
+        processPayloadList.push_back(payloadArr[i]);
+    }
+
+    return MEM_POOLING_OK;
+}
+
+MpResult MpSmapHelper::SmapRemovePidsHelper(const std::vector<pid_t>& pids, int16_t remoteNumaId)
+{
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper start.";
+
+    if (pids.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] No pids to remove.";
+        return MEM_POOLING_OK;
+    }
+
+    const SmapRemoveFunc smapRemoveFunc = SmapModule::GetSmapRemoveFunc();
+    if (smapRemoveFunc == nullptr) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] smapRemoveFunc is null.";
+        return MEM_POOLING_ERROR;
+    }
+
+    RemoveMsg removeMsg{};
+    if (pids.size() > MAX_NR_REMOVE_MP) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] Pids size exceeds limit, size=" << pids.size() << ", max=" << MAX_NR_REMOVE_MP << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    removeMsg.count = static_cast<int>(pids.size());
+    for (size_t i = 0; i < pids.size(); ++i) {
+        RemovePayload tmp{};
+        tmp.pid = pids[i];
+        tmp.count = 1;
+        tmp.nid[0] = remoteNumaId;
+        removeMsg.payload[i] = tmp;
+    }
+
+    int ret = smapRemoveFunc(&removeMsg, static_cast<int>(MpConfiguration::GetInstance().GetMpSceneType()));
+    if (ret != SMAP_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MpSmapHelper] SmapRemove failed, ret=" << ret << ", removeMsg=" << removeMsg.ToString() << ".";
+        return MEM_POOLING_ERROR;
+    }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MpSmapHelper] Successfully removed " << pids.size() << " pids from remote numa " << remoteNumaId << ".";
+
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpSmapHelper] SmapRemovePidsHelper end.";
     return MEM_POOLING_OK;
 }
 

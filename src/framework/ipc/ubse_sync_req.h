@@ -28,7 +28,7 @@ namespace ubse::ipc {
  */
 class UbseSyncReq {
 public:
-    static UbseSyncReq &GetInstance()
+    static UbseSyncReq& GetInstance()
     {
         static UbseSyncReq instance;
         return instance;
@@ -56,7 +56,7 @@ public:
      * @param msg 监听结果
      * @return
      */
-    uint32_t WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage &msg);
+    uint32_t WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage& msg);
 
     void StoreResp(uint64_t reqId, UbseResponseMessage msg);
 

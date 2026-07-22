@@ -24,8 +24,8 @@ VmResult ResponseInfoMessage::Serialize()
     out << responseInfo.code;
     out << responseInfo.message;
     if (!out.Check()) {
-        UBSE_LOG_ERROR << "Serialize failed, responseInfo.code=" << responseInfo.code << ", responseInfo.message="
-                       << responseInfo.message;
+        UBSE_LOG_ERROR << "Serialize failed, responseInfo.code=" << responseInfo.code
+                       << ", responseInfo.message=" << responseInfo.message;
         return VM_ERROR;
     };
     mOutputRawDataSize = out.GetLength();
@@ -45,8 +45,8 @@ VmResult ResponseInfoMessage::Deserialize()
     in >> responseInfo.message;
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Deserialize failed, mInputRawDataSize=" << mInputRawDataSize
-                       << ", responseInfo.code=" << responseInfo.code << ", responseInfo.message="
-                       << responseInfo.message;
+                       << ", responseInfo.code=" << responseInfo.code
+                       << ", responseInfo.message=" << responseInfo.message;
         return VM_ERROR;
     }
     return VM_OK;

@@ -17,7 +17,7 @@
 namespace mempooling::over_commit {
 using namespace ubse::election;
 uint32_t OverCommitSubscribeSwitchover();
-uint32_t OverCommitSwitchoverHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId);
+uint32_t OverCommitSwitchoverHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId);
 } // namespace mempooling::over_commit
 
 #endif

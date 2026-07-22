@@ -10,15 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "ubse_plugin.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_plugin_module.h"
 
 namespace ubse::plugin {
+using namespace ubse::context;
+using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-bool GetPluginInitRes(const std::string &pluginName)
+bool GetPluginInitRes(const std::string& pluginName)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {
@@ -27,7 +29,7 @@ bool GetPluginInitRes(const std::string &pluginName)
     }
     return module->GetPluginLoaded(pluginName);
 }
-bool GetPluginReadyStatus(const std::string &pluginName)
+bool GetPluginReadyStatus(const std::string& pluginName)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {
@@ -36,7 +38,7 @@ bool GetPluginReadyStatus(const std::string &pluginName)
     }
     return module->GetPluginReadyStatus(pluginName);
 }
-uint32_t NotifyPluginReadyStatus(const std::string &pluginName, bool status)
+uint32_t NotifyPluginReadyStatus(const std::string& pluginName, bool status)
 {
     auto module = UbseContext::GetInstance().GetModule<UbsePluginModule>();
     if (module == nullptr) {

@@ -18,12 +18,12 @@
 
 using namespace vm;
 typedef struct {
-    const uint8_t *ptr;
+    const uint8_t* ptr;
     size_t remaining;
 } unpack_ctx_t;
 
-virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t *buffer, uint32_t len, case_conf_info_t *case_conf_info);
+virt_agent_ret_t ubse_case_conf_info_unpack(uint8_t* buffer, uint32_t len, case_conf_info_t* case_conf_info);
 
-virt_agent_ret_t ubse_case_conf_set_unpack(uint8_t *buffer, uint32_t len, case_conf_set_info_t *case_conf_info);
+virt_agent_ret_t ubse_case_conf_set_unpack(uint8_t* buffer, uint32_t len, case_conf_set_info_t* case_conf_info);
 
 #endif // UBS_VIRT_AGENT_CASE_CONF_HELPER_H

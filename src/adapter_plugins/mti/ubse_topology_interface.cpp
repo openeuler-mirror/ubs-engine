@@ -30,7 +30,7 @@ uint32_t UbseGetLocalNodeInfo(UbseMtiNodeInfo& ubseNodeInfo)
     return module->UbseGetLocalNodeInfo(ubseNodeInfo);
 }
 
-uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos)
+uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo>& ubseNodeInfos)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseLcneModule>();
     if (module == nullptr) {
@@ -45,7 +45,7 @@ uint32_t UbseGetAllNodeInfos(std::vector<UbseMtiNodeInfo> &ubseNodeInfos)
     }
 
     std::vector<std::string> ipList = module->GetClusterIpList();
-    for (auto &ip : ipList) {
+    for (auto& ip : ipList) {
         UbseMtiNodeInfo nodeInfo{};
         nodeInfo.eid = ip;
         ubseNodeInfos.emplace_back(nodeInfo);

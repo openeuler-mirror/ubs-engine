@@ -16,6 +16,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // TEST_MEMPOOLING_MODULE_H

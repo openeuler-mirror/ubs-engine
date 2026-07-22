@@ -163,7 +163,7 @@ TEST_F(TestUbseApiServerAuthManager, ShouldHandlePartiallyInvalidRoleConfigurati
     // 应该成功解析有效配置，忽略无效配置
     EXPECT_EQ(result, UBSE_OK);
 
-    const auto &roleToObjects = authManager->roleToObjects_;
+    const auto& roleToObjects = authManager->roleToObjects_;
     EXPECT_EQ(roleToObjects.size(), 2); // 只有admin和manager2个有效角色
 
     EXPECT_NE(roleToObjects.find("manager"), roleToObjects.end());
@@ -198,7 +198,7 @@ TEST_F(TestUbseApiServerAuthManager, ShouldHandleMalformedObjectStrings)
     // 应该成功解析有效配置，忽略无效配置
     EXPECT_EQ(result, UBSE_OK);
 
-    const auto &roleToObjects = authManager->roleToObjects_;
+    const auto& roleToObjects = authManager->roleToObjects_;
     EXPECT_EQ(roleToObjects.size(), 5); // 5个有效角色
 
     EXPECT_NE(roleToObjects.find("role1"), roleToObjects.end());
@@ -232,7 +232,7 @@ TEST_F(TestUbseApiServerAuthManager, ParseValidUserConfig_Success)
     EXPECT_EQ(result, UBSE_OK);
 
     // 验证userToRole映射
-    const auto &userToRoles = authManager->userToRole_;
+    const auto& userToRoles = authManager->userToRole_;
     EXPECT_EQ(userToRoles.size(), 5); // 5个有效角色
 
     EXPECT_NE(userToRoles.find("user1"), userToRoles.end());
@@ -325,7 +325,7 @@ TEST_F(TestUbseApiServerAuthManager, MixedValidAndInvalidConfig_SkipsInvalidEntr
     // 验证结果 - 应该成功但跳过无效条目
     EXPECT_EQ(result, UBSE_OK);
 
-    const auto &userToRoles = authManager->userToRole_;
+    const auto& userToRoles = authManager->userToRole_;
     EXPECT_EQ(userToRoles.size(), 3); // 3个有效角色
     EXPECT_EQ(userToRoles.find("validUser1"), userToRoles.end());
     EXPECT_EQ(userToRoles.find("validUser2"), userToRoles.end());
@@ -361,7 +361,7 @@ TEST_F(TestUbseApiServerAuthManager, SpecialCharactersAndEdgeCases_HandlesCorrec
 
     // 验证结果
     EXPECT_EQ(result, UBSE_OK);
-    const auto &userToRoles = authManager->userToRole_;
+    const auto& userToRoles = authManager->userToRole_;
     EXPECT_EQ(userToRoles.size(), 8); // 8个有效用户
 }
 
@@ -395,8 +395,8 @@ TEST_F(TestUbseApiServerAuthManager, UserConfigPartiallyOverridesDefaultConfig)
     // 执行测试
     auto result = authManager->LoadAuthConfig();
     EXPECT_EQ(result, UBSE_OK);
-    const auto &roleToObjects = authManager->roleToObjects_;
-    const auto &userToRoles = authManager->userToRole_;
+    const auto& roleToObjects = authManager->roleToObjects_;
+    const auto& userToRoles = authManager->userToRole_;
     EXPECT_EQ(roleToObjects.size(), 5); // 5个有效角色
     EXPECT_EQ(userToRoles.size(), 8);   // 8个有效用户
     EXPECT_NE(roleToObjects.find("operator"), roleToObjects.end());
@@ -420,8 +420,8 @@ TEST_F(TestUbseApiServerAuthManager, AllConfigLoadsFail_StillReturnsSuccess)
     // 执行测试
     auto result = authManager->LoadAuthConfig();
     EXPECT_EQ(result, UBSE_OK);
-    const auto &roleToObjects = authManager->roleToObjects_;
-    const auto &userToRoles = authManager->userToRole_;
+    const auto& roleToObjects = authManager->roleToObjects_;
+    const auto& userToRoles = authManager->userToRole_;
     EXPECT_EQ(roleToObjects.size(), 1); // 1个有效角色
     EXPECT_EQ(userToRoles.size(), 2);   // 2个有效用户
 }
@@ -435,7 +435,7 @@ TEST_F(TestUbseApiServerAuthManager, BuiltinUsersHaveAllPermissions)
     EXPECT_EQ(result, UBSE_OK);
 
     // 对每个内置用户测试不同的目标对象
-    for (const auto &builtinUser : UbseApiServerAuthManager::BUILTIN_USERS) {
+    for (const auto& builtinUser : UbseApiServerAuthManager::BUILTIN_USERS) {
         EXPECT_TRUE(authManager->CheckPermission(builtinUser, "any_object"));
         EXPECT_TRUE(authManager->CheckPermission(builtinUser, "nonexistent_object"));
         EXPECT_TRUE(authManager->CheckPermission(builtinUser, ""));

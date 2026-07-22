@@ -24,6 +24,8 @@ const std::string UBSE_ELECTION_GLOBAL_STANDBY_QUERY_LOCAL_MASTER = "UbseGlobalS
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::timer;
 using namespace ubse::context;
+using namespace ubse::com;
+
 GlobalStandby::GlobalStandby(RoleContext &ctx) : globalTurnId_(0), lastHeartTime_()
 {
     Node myself;

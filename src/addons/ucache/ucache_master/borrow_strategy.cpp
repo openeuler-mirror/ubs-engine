@@ -58,7 +58,7 @@ std::vector<BorrowAction> BorrowStrategy::GetActionSet()
     return borrowActionSet;
 }
 
-uint32_t BorrowStrategy::AddReturnAction(BorrowNodeStat *from, BorrowNodeStat *to)
+uint32_t BorrowStrategy::AddReturnAction(BorrowNodeStat* from, BorrowNodeStat* to)
 {
     uint32_t ret = 0;
     ret = curBorrowTopo.DeleteNodeMemBorrowInfo(from->GetNodeId(), to->GetNodeId());
@@ -81,7 +81,7 @@ uint32_t BorrowStrategy::AddReturnAction(BorrowNodeStat *from, BorrowNodeStat *t
     return ret;
 }
 
-uint32_t BorrowStrategy::AddBorrowAction(BorrowNodeStat *from, BorrowNodeStat *to)
+uint32_t BorrowStrategy::AddBorrowAction(BorrowNodeStat* from, BorrowNodeStat* to)
 {
     uint32_t ret = UCACHE_OK;
     ret = curBorrowTopo.AddNodeMemBorrowInfo(from->GetNodeId(), to->GetNodeId());
@@ -106,12 +106,12 @@ uint32_t BorrowStrategy::AddBorrowAction(BorrowNodeStat *from, BorrowNodeStat *t
     return ret;
 }
 
-uint32_t BorrowStrategy::ReclaimLoanedMemory(BorrowNodeStat *nodeStat)
+uint32_t BorrowStrategy::ReclaimLoanedMemory(BorrowNodeStat* nodeStat)
 {
     uint32_t ret = UCACHE_OK;
     // 从borrow topo中获取借出的节点列表并排序
-    std::vector<BorrowNodeStat *> borrowNodes;
-    for (auto &nodeMemBorrowInfo : curBorrowTopo.lendMap[nodeStat->GetNodeId()]) {
+    std::vector<BorrowNodeStat*> borrowNodes;
+    for (auto& nodeMemBorrowInfo : curBorrowTopo.lendMap[nodeStat->GetNodeId()]) {
         auto it = BorrowNodeStat::nodeIdToNodeStatMap.find(nodeMemBorrowInfo.destNodeId);
         if (it == BorrowNodeStat::nodeIdToNodeStatMap.end()) {
             break;
@@ -123,7 +123,7 @@ uint32_t BorrowStrategy::ReclaimLoanedMemory(BorrowNodeStat *nodeStat)
     }
     BorrowNodeStat::SortNodeByScarcity(borrowNodes);
     // 从稀缺度最小的节点回收内存
-    BorrowNodeStat *destNodeStat = borrowNodes.back();
+    BorrowNodeStat* destNodeStat = borrowNodes.back();
     BorrowNodeStat::EraseBorrowNodeStat(destNodeStat, nodeStats);
 
     ret = AddReturnAction(nodeStat, destNodeStat);
@@ -134,7 +134,7 @@ uint32_t BorrowStrategy::ReclaimLoanedMemory(BorrowNodeStat *nodeStat)
     return ret;
 }
 
-uint32_t BorrowStrategy::CheckBorrowSize(BorrowNodeStat *nodeStat)
+uint32_t BorrowStrategy::CheckBorrowSize(BorrowNodeStat* nodeStat)
 {
     uint32_t ret = UCACHE_OK;
     uint64_t totalBorrowSize = 0;
@@ -150,12 +150,12 @@ uint32_t BorrowStrategy::CheckBorrowSize(BorrowNodeStat *nodeStat)
     return ret;
 }
 
-uint32_t BorrowStrategy::BorrowMemory(BorrowNodeStat *nodeStat)
+uint32_t BorrowStrategy::BorrowMemory(BorrowNodeStat* nodeStat)
 {
     uint32_t ret = UCACHE_OK;
     // 从连接topo中获取连接的节点列表并排序
-    std::vector<BorrowNodeStat *> connectNodes;
-    for (auto &nodeId : curBorrowTopo.physicalTopo[nodeStat->GetNodeId()]) {
+    std::vector<BorrowNodeStat*> connectNodes;
+    for (auto& nodeId : curBorrowTopo.physicalTopo[nodeStat->GetNodeId()]) {
         auto it = BorrowNodeStat::nodeIdToNodeStatMap.find(nodeId);
         if (it == BorrowNodeStat::nodeIdToNodeStatMap.end()) {
             break;
@@ -171,7 +171,7 @@ uint32_t BorrowStrategy::BorrowMemory(BorrowNodeStat *nodeStat)
     }
 
     while (!connectNodes.empty()) {
-        BorrowNodeStat *dstNodeStat = connectNodes.back();
+        BorrowNodeStat* dstNodeStat = connectNodes.back();
         // 有内存借入的节点不允许借出内存
         if (!curBorrowTopo.HasBorrowedMem(dstNodeStat->GetNodeId()) &&
             curBorrowTopo.HasAvailableMemToBorrow(dstNodeStat->GetNodeId())) {
@@ -228,14 +228,14 @@ void BorrowStrategy::RestoreActionSet()
             << "Source node(" << action.nodeMemBorrowInfo.srcNodeId << ") not found.";
         return;
     }
-    BorrowNodeStat *nodeStat = &it->second;
+    BorrowNodeStat* nodeStat = &it->second;
     it = BorrowNodeStat::nodeIdToNodeStatMap.find(action.nodeMemBorrowInfo.destNodeId);
     if (it == BorrowNodeStat::nodeIdToNodeStatMap.end()) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
             << "Destination node(" << action.nodeMemBorrowInfo.destNodeId << ") not found.";
         return;
     }
-    BorrowNodeStat *destNodeStat = &it->second;
+    BorrowNodeStat* destNodeStat = &it->second;
     BorrowNodeStat::EraseBorrowNodeStat(nodeStat, nodeStats);
     BorrowNodeStat::EraseBorrowNodeStat(destNodeStat, nodeStats);
     if (action.type == ActionType::BORROW) {
@@ -251,9 +251,9 @@ void BorrowStrategy::RestoreActionSet()
 }
 
 // 选出有瓶颈型应用而且稀缺度最高的机器
-BorrowNodeStat *BorrowStrategy::GetMostScarcityNode()
+BorrowNodeStat* BorrowStrategy::GetMostScarcityNode()
 {
-    BorrowNodeStat *nodeStat = nullptr;
+    BorrowNodeStat* nodeStat = nullptr;
     for (auto it = nodeStats.begin(); it != nodeStats.end(); it++) {
         if ((*it)->GetPagecacheAppNums() > 0) {
             nodeStat = *it;
@@ -270,7 +270,7 @@ uint32_t BorrowStrategy::CalBorrowStrategy() // 计算策略并更新动作集
     addTwoActions = false;
     double currentBalance = GetBalance();
 
-    BorrowNodeStat *nodeStat = GetMostScarcityNode();
+    BorrowNodeStat* nodeStat = GetMostScarcityNode();
 
     if (nodeStat == nullptr) {
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "There is no node has pagecache app.";
@@ -283,7 +283,7 @@ uint32_t BorrowStrategy::CalBorrowStrategy() // 计算策略并更新动作集
     if (curBorrowTopo.HasLentMem(nodeStat->GetNodeId())) {
         ret = ReclaimLoanedMemory(nodeStat);
         if (ret != UCACHE_OK) {
-            UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)<< "Reclaim loaned memory failed, err=" << ret;
+            UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Reclaim loaned memory failed, err=" << ret;
             return ret;
         }
     } else {
@@ -338,7 +338,7 @@ void BorrowStrategy::ReclaimAllMemory()
     UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Start ReclaimAllMemory";
     uint32_t ret = UCACHE_OK;
     for (auto it = curBorrowTopo.borrowMap.begin(); it != curBorrowTopo.borrowMap.end(); it++) {
-        for (auto &nodeMemBorrowInfo : it->second) {
+        for (auto& nodeMemBorrowInfo : it->second) {
             ret = RaclaimMemoryOneNode(nodeMemBorrowInfo);
             if (ret != UCACHE_OK) {
                 UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Raclaim memory limit.";
@@ -367,7 +367,7 @@ int32_t BorrowStrategy::Init()
         nodeStats.emplace_back(&(it->second));
     }
     BorrowNodeStat::SortNodeByScarcity(nodeStats);
-    for (const auto &nodeStat : nodeStats) {
+    for (const auto& nodeStat : nodeStats) {
         nodeStat->PrintNodeStat();
     }
     curBorrowTopo = MemBorrowTopo::globalMemBorrowTopo;

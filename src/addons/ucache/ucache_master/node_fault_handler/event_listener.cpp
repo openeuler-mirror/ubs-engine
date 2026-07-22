@@ -13,44 +13,36 @@
 #include "event_listener.h"
 
 #include "ubse_logger.h"
+#include "ubse_ras.h"
 #include "event_handler.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
-#include "ubse_ras.h"
 
 namespace ucache::fault_handler {
 using namespace ubse::log;
 
 // 节点重启事件
 struct AlarmHandler rebootAlarmHandler {
-    .alarmFaultEvent = ALARM_REBOOT_EVENT,
-    .name = "UCACHE_ALARM_REBOOT_EVENT",
-    .handler = EventHandler::AlarmRebootEventHandler,
-    .priority = AlarmHandlerPriority::MEDIUM,
+    .alarmFaultEvent = ALARM_REBOOT_EVENT, .name = "UCACHE_ALARM_REBOOT_EVENT",
+    .handler = EventHandler::AlarmRebootEventHandler, .priority = AlarmHandlerPriority::MEDIUM,
 };
 
 // 节点os panic
 struct AlarmHandler panicAlarmHandler {
-    .alarmFaultEvent = ALARM_PANIC_EVENT,
-    .name = "UCACHE_ALARM_PANIC_EVENT",
-    .handler = EventHandler::AlarmPanicEventHandler,
-    .priority = AlarmHandlerPriority::MEDIUM,
+    .alarmFaultEvent = ALARM_PANIC_EVENT, .name = "UCACHE_ALARM_PANIC_EVENT",
+    .handler = EventHandler::AlarmPanicEventHandler, .priority = AlarmHandlerPriority::MEDIUM,
 };
 
 // 节点 kernel重启事件
 struct AlarmHandler kernelRebootAlarmHandler {
-    .alarmFaultEvent = ALARM_KERNEL_REBOOT_EVENT,
-    .name = "UCACHE_ALARM_KERNEL_REBOOT_EVENT",
-    .handler = EventHandler::AlarmKernelRebootEventHandler,
-    .priority = AlarmHandlerPriority::MEDIUM,
+    .alarmFaultEvent = ALARM_KERNEL_REBOOT_EVENT, .name = "UCACHE_ALARM_KERNEL_REBOOT_EVENT",
+    .handler = EventHandler::AlarmKernelRebootEventHandler, .priority = AlarmHandlerPriority::MEDIUM,
 };
 
 // uce memId故障
 struct AlarmHandler uceHandler {
-    .alarmFaultEvent = ALARM_MEM_UCE_PREDICT_EVENT,
-    .name = "UCACHE_FAULT_PREDICT_MEMID_EVENT",
-    .handler = EventHandler::AlarmUceEventHandler,
-    .priority = AlarmHandlerPriority::MEDIUM,
+    .alarmFaultEvent = ALARM_MEM_UCE_PREDICT_EVENT, .name = "UCACHE_FAULT_PREDICT_MEMID_EVENT",
+    .handler = EventHandler::AlarmUceEventHandler, .priority = AlarmHandlerPriority::MEDIUM,
 };
 
 uint32_t EventListener::Init()

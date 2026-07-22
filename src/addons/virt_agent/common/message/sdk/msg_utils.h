@@ -19,6 +19,6 @@
 #include "vm_error.h"
 
 namespace vm {
-VmResult StringToC(char *dest, const std::string &src, size_t maxSize);
+VmResult StringToC(char* dest, const std::string& src, size_t maxSize);
 }
 #endif // MSG_UTILS_H

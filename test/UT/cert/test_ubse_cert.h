@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::cert
 #endif // UBS_ENGINE_TEST_UBSE_CERT_H

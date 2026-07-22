@@ -11,8 +11,8 @@
  */
 
 #include "test_vm_string_util.h"
-#include "vm_string_util.h"
 #include "vm_def.h"
+#include "vm_string_util.h"
 
 using namespace vm;
 namespace ubse::ut::vm {
@@ -377,4 +377,4 @@ TEST_F(TestVmStringUtil, ValToByteInvalidUnit)
     std::string unit = "Byte";
     EXPECT_EQ(VmStringUtil::ValToByte(val, unit), val);
 }
-}
+} // namespace ubse::ut::vm

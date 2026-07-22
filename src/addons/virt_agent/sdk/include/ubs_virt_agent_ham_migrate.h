@@ -19,14 +19,15 @@
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum
+{
     MULTICOPY_MIGRATE = 0, // multi-copy
     ONECOPY_MIGRATE = 1,   // one-copy
     HAM_MIGRATE = 2,       // ham-copy
 } migrate_strategy_t;
 
 typedef struct {
-    uint8_t *data;
+    uint8_t* data;
     uint32_t len;
 } VirtAgentByteBuffer;
 
@@ -49,12 +50,12 @@ typedef struct {
  * @param migrateStrategy [OUT] decision result;
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char *uuid, const char *destHostName,
-                                                      uint32_t destNumaId, uint32_t *migrateStrategy);
+virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const char* uuid, const char* destHostName,
+                                                      uint32_t destNumaId, uint32_t* migrateStrategy);
 
 /**
  * @brief  set IPC client timeout for Rack module
- * @param timeout [IN] desired timeout value in milliseconds; must be > 0 and <= ipctimeout_max
+ * @param timeout [IN] desired timeout value in seconds; must be > 0 and <= ipctimeout_max
  * @param timeout [IN] Describe the functional scenario
  */
 virt_agent_ret_t ubs_virt_agent_set_timeout(uint16_t timeout, uint16_t scene);
@@ -76,7 +77,6 @@ int ubs_sync_send_msg(VirtAgentByteBuffer *request, VirtAgentByteBuffer *respons
  * @return 0 for success, non-zero for error
  */
 int ubs_async_send_msg(VirtAgentByteBuffer *request, VirtAgentCallbackDef *callback, uint16_t scene);
-
 
 #ifdef __cplusplus
 }

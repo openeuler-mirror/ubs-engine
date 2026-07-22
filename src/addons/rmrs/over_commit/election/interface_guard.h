@@ -26,8 +26,8 @@ public:
 
     class Guard {
     public:
-        Guard(const Guard &) = delete;
-        Guard &operator=(const Guard &) = delete;
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
         ~Guard()
         {
             mCounter.fetch_sub(1, std::memory_order_release);
@@ -35,11 +35,11 @@ public:
 
     private:
         friend class InterfaceGuard;
-        explicit Guard(std::atomic<int> &counter) : mCounter(counter)
+        explicit Guard(std::atomic<int>& counter) : mCounter(counter)
         {
             mCounter.fetch_add(1, std::memory_order_release);
         }
-        std::atomic<int> &mCounter;
+        std::atomic<int>& mCounter;
     };
     static Guard InvokeOutMemBorrow()
     {

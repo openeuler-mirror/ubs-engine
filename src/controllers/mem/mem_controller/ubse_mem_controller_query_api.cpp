@@ -11,22 +11,24 @@
  */
 #include "ubse_mem_controller_query_api.h"
 
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
-#include "src/sdk/c/include/ubs_engine_topo.h"
 #include "ubse_com_module.h"
+#include "ubse_conf.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_logger.h"
 #include "ubse_mem_configuration.h"
-#include "ubse_mem_controller.h"
 #include "ubse_mem_constants.h"
+#include "ubse_mem_controller.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_query_api.h"
+#include "api/ubse_mem_controller_api_common.h"
+#include "message/node_mem_debtInfo_query_req_simpo.h"
+#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_controller_def_simpo.h"
+#include "src/sdk/c/include/ubs_engine_topo.h"
 #include "ubse_smbios.h"
 #include "ubse_election_module.h"
 #include "ubse_election_def.h"
@@ -44,10 +46,28 @@ using namespace ubse::mem::controller;
 using namespace ubse::mem::util;
 using namespace ubse::mem::strategy;
 using namespace ubse::adapter_plugins::smbios;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::mem::controller;
+
+bool IsMemIdQueryFeatureSupported(uint32_t borrowType)
+{
+    switch (static_cast<UbseMemBorrowType>(borrowType)) {
+        case UbseMemBorrowType::FD_BORROW:
+        case UbseMemBorrowType::NUMA_BORROW:
+        case UbseMemBorrowType::ADDR_BORROW:
+            return IsMemBorrowFeatureSupported();
+        case UbseMemBorrowType::SHM_BORROW:
+        case UbseMemBorrowType::SHM_ATTACH:
+            return IsMemShareFeatureSupported();
+        default:
+            UBSE_LOG_WARN << "Unknown mem borrow type, borrowType=" << borrowType;
+            return true;
+    }
+}
 
 template <class TSimpo, class TPtr>
-uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std::string &masterNodeId,
-                                      uint16_t opCode, TPtr &resp)
+uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest& request, std::string& masterNodeId, uint16_t opCode,
+                                      TPtr& resp)
 {
     auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
@@ -75,8 +95,8 @@ uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest &request, std
     return UBSE_OK;
 }
 
-uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest &request, std::string &masterNodeId,
-                                UbseMemExportMemDescSimpoPtr &resp)
+uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest& request, std::string& masterNodeId,
+                                UbseMemExportMemDescSimpoPtr& resp)
 {
     auto ubseComModule = UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
@@ -84,7 +104,7 @@ uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest &request, std::string
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     SendParam sendParam{masterNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
-        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_ID_DEBINFO_QUERY)};
+                        static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_ID_DEBINFO_QUERY)};
     UbseMemIdQueryRequestSimpoPtr ubseRequestPtr = new (std::nothrow) UbseMemIdQueryRequestSimpo();
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
@@ -105,7 +125,7 @@ uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest &request, std::string
     return UBSE_OK;
 }
 
-UbseResult GetMasterAndLocalNodeId(std::string &masterNodeId, std::string &localNodeId)
+UbseResult GetMasterAndLocalNodeId(std::string& masterNodeId, std::string& localNodeId)
 {
     // 获取主节点以及当前节点
     UbseRoleInfo masterInfo{};
@@ -122,8 +142,11 @@ UbseResult GetMasterAndLocalNodeId(std::string &masterNodeId, std::string &local
     localNodeId = std::move(currentRoleInfo.nodeId);
     return UBSE_OK;
 }
-uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const def::UbseUdsInfo *udsInfo)
+uint32_t UbseMemFdGet(const std::string& name, def::UbseMemFdDesc& fdDesc, const def::UbseUdsInfo* udsInfo)
 {
+    if (!IsMemBorrowFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     if (UbseSmbios::GetInstance().IsClosType()) {
         return UBSE_ERR_NOT_SUPPORTED;
@@ -144,9 +167,8 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
     if (localNodeId != masterNodeId) {
         UbseMemFdDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemFdDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_GET),  // 添加类型转换
+            request, masterNodeId,
+            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_GET), // 添加类型转换
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -164,10 +186,13 @@ uint32_t UbseMemFdGet(const std::string &name, def::UbseMemFdDesc &fdDesc, const
     return UBSE_OK;
 }
 
-uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMemFdDesc> &fdDescs)
+uint32_t UbseMemFdList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMemFdDesc>& fdDescs)
 {
     fdDescs.clear();
     if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    if (!IsMemBorrowFeatureSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点
@@ -184,10 +209,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
     if (localNodeId != masterNodeId) {
         UbseMemFdDescListSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemFdDescListSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_LIST),
-            descSimpoPtr);
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_FD_LIST), descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
@@ -204,8 +226,11 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMem
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDesc &shmStatusDesc)
+uint32_t UbseMemShmStatusGet(const std::string& name, def::UbseMemShmMemStatusDesc& shmStatusDesc)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -220,9 +245,7 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
     if (localNodeId != masterNodeId) {
         UbseMemShmMemStatusDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemShmMemStatusDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_STATUS_GET),
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_STATUS_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -240,9 +263,12 @@ uint32_t UbseMemShmStatusGet(const std::string &name, def::UbseMemShmMemStatusDe
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc, const UbseUdsInfo *udsInfo)
+uint32_t UbseMemNumaGet(const std::string& name, def::UbseMemNumaDesc& numaDesc, const UbseUdsInfo* udsInfo)
 {
     if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    if (!IsMemBorrowFeatureSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点
@@ -262,9 +288,7 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
     if (localNodeId != masterNodeId) {
         DefUbseMemNumaDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<DefUbseMemNumaDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET),
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -282,10 +306,13 @@ uint32_t UbseMemNumaGet(const std::string &name, def::UbseMemNumaDesc &numaDesc,
     return UBSE_OK;
 }
 
-uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseMemNumaDesc> &numaDescs)
+uint32_t UbseMemNumaList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMemNumaDesc>& numaDescs)
 {
     numaDescs.clear();
     if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    if (!IsMemBorrowFeatureSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点
@@ -302,9 +329,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
     if (localNodeId != masterNodeId) {
         DefUbseMemNumaDescListSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<DefUbseMemNumaDescListSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_LIST),
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_LIST),
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -322,8 +347,11 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo &udsInfo, std::vector<def::UbseM
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, const def::UbseUdsInfo *udsInfo)
+uint32_t UbseMemShmGet(const std::string& name, def::UbseMemShmDesc& shmDesc, const def::UbseUdsInfo* udsInfo)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -343,10 +371,7 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
     if (localNodeId != masterNodeId) {
         UbseMemShmDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
-            descSimpoPtr);
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET), descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
@@ -363,8 +388,11 @@ uint32_t UbseMemShmGet(const std::string &name, def::UbseMemShmDesc &shmDesc, co
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shmDesc, std::string &srcNodeId)
+uint32_t UbseMemShmGetByNodeId(const std::string& name, def::UbseMemShmDesc& shmDesc, std::string& srcNodeId)
 {
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -379,10 +407,7 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
     if (localNodeId != masterNodeId) {
         UbseMemShmDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemShmDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET),
-            descSimpoPtr);
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_GET), descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
@@ -399,9 +424,12 @@ uint32_t UbseMemShmGetByNodeId(const std::string &name, def::UbseMemShmDesc &shm
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::UbseMemShmDesc> &shmDescs)
+uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest& request, std::vector<def::UbseMemShmDesc>& shmDescs)
 {
     shmDescs.clear();
+    if (!IsMemShareFeatureSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -415,9 +443,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
     if (localNodeId != masterNodeId) {
         UbseMemShmDescListSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemShmDescListSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_LIST),
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_SHM_LIST),
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -434,7 +460,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest &request, std::vector<def::
     }
     return UBSE_OK;
 }
-uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::UbseNodeInfo &ubseNodeInfo)
+uint32_t UbseNodeInfoGet(const std::string& nodeId, ubse::adapter_plugins::mmi::UbseNodeInfo& ubseNodeInfo)
 {
     if (nodeId.empty()) {
         UBSE_LOG_WARN << "node id is empty;";
@@ -459,9 +485,12 @@ uint32_t UbseNodeInfoGet(const std::string &nodeId, ubse::adapter_plugins::mmi::
     return UBSE_OK;
 }
 
-int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId, UbseMemAddrDesc &desc)
+int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId, UbseMemAddrDesc& desc)
 {
     if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    if (!IsMemBorrowFeatureSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点
@@ -478,9 +507,7 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
     if (localNodeId != masterNodeId) {
         UbseMemAddrDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemAddrDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_ADDR_GET),
+            request, masterNodeId, static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_ADDR_GET),
             descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
@@ -498,10 +525,13 @@ int32_t UbseMemAddrGet(const std::string &name, const std::string &importNodeId,
     return UBSE_OK;
 }
 
-int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string &importNodeId,
-                                     UbseMemNumaDesc &numaDesc)
+int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string& importNodeId,
+                                     UbseMemNumaDesc& numaDesc)
 {
     if (UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
+    if (!IsMemBorrowFeatureSupported()) {
         return UBSE_ERR_NOT_SUPPORTED;
     }
     // 获取主节点以及当前节点
@@ -518,10 +548,8 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
     if (localNodeId != masterNodeId) {
         UbseMemNumaDescSimpoPtr descSimpoPtr;
         ret = SendQueryToMasterIfNotMaster<UbseMemNumaDescSimpo>(
-            request,
-            masterNodeId,
-            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET_WITH_IMPORT_NODE),
-            descSimpoPtr);
+            request, masterNodeId,
+            static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_NUMA_GET_WITH_IMPORT_NODE), descSimpoPtr);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
@@ -538,7 +566,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string &name, const std::string 
     return UBSE_OK;
 }
 
-uint32_t UbseGetMemDebtInfoFromMaster(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t UbseGetMemDebtInfoFromMaster(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     ubse::election::UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -560,7 +588,7 @@ uint32_t UbseGetMemDebtInfoFromMaster(const std::string &nodeId, NodeMemDebtInfo
         UBSE_LOG_ERROR << "new ubseResponsePtr failed";
         return UBSE_ERROR_NULLPTR;
     }
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
 
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
@@ -576,7 +604,7 @@ uint32_t UbseGetMemDebtInfoFromMaster(const std::string &nodeId, NodeMemDebtInfo
     memDebtInfoMap = nodeMemDebtInfoSimpoPtr->GetNodeMemDebtInfoMap();
     return UBSE_OK;
 }
-uint32_t GetDebtInfoMapByNodeId(const std::string &nodeId, NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     ubse::election::UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -612,8 +640,11 @@ uint32_t GetDebtInfoMapByNodeId(const std::string &nodeId, NodeMemDebtInfoMap &m
     return UBSE_OK;
 }
 
-uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo> &nodeBorrowInfo)
+uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBorrowInfo)
 {
+    if (!ubse::config::UbseIsMemSupported()) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     // 获取主节点以及当前节点
     std::string masterNodeId{};
     std::string localNodeId{};
@@ -659,8 +690,11 @@ uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo> &nodeBo
     return UBSE_OK;
 }
 
-uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &exportMemDesc)
+uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& exportMemDesc)
 {
+    if (!IsMemIdQueryFeatureSupported(request.borrowType)) {
+        return UBSE_ERR_NOT_SUPPORTED;
+    }
     UbseRoleInfo masterInfo{};
     if (const auto ret = UbseGetMasterInfo(masterInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get master info, " << FormatRetCode(ret);

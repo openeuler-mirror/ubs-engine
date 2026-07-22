@@ -21,19 +21,20 @@ class UbseCliMemQuery {
 public:
     UbseCliMemQuery();
     ~UbseCliMemQuery() noexcept;
-    enum class WaitType {
+    enum class WaitType
+    {
         QUERY_ONLY,
         WAIT_CREATING,
     };
     // Query the NUMA memory allocation info for the unique identifier "name" of this node.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetNumaMemByName(const std::string &name,
-        WaitType waitType = WaitType::QUERY_ONLY);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetNumaMemByName(const std::string& name,
+                                                                          WaitType waitType = WaitType::QUERY_ONLY);
     // Query the FD memory allocation info for the unique identifier "name" of this node.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetFdMemByName(const std::string &name,
-        WaitType waitType = WaitType::QUERY_ONLY);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetFdMemByName(const std::string& name,
+                                                                        WaitType waitType = WaitType::QUERY_ONLY);
 
     // Query the SHM memory allocation info for the unique identifier "name" of this node.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetShmMemByName(const std::string &name,
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliGetShmMemByName(const std::string& name,
                                                                          UbseCliShmOperation operation);
 
 private:
@@ -52,7 +53,7 @@ public:
     };
     // Provide a full ledger query function with filtering capabilities.
     // When results are numerous, please use scrolling commands like less.
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryBorrowDetail(const Filter &filter);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliQueryBorrowDetail(const Filter& filter);
 
 private:
     class UbseCliMemDisplayBorrowDetailImpl;

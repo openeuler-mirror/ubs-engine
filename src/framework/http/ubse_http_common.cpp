@@ -22,14 +22,10 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 std::string UbseHttpMethodToString(UbseHttpMethod method)
 {
     static const std::unordered_map<UbseHttpMethod, std::string> methodEnumToStringMap = {
-        {UbseHttpMethod::UBSE_HTTP_METHOD_GET, "GET"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_HEAD, "HEAD"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_POST, "POST"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_PUT, "PUT"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_DELETE, "DELETE"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT, "CONNECT"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_TRACE, "TRACE"},
-        {UbseHttpMethod::UBSE_HTTP_METHOD_PATCH, "PATCH"},
+        {UbseHttpMethod::UBSE_HTTP_METHOD_GET, "GET"},       {UbseHttpMethod::UBSE_HTTP_METHOD_HEAD, "HEAD"},
+        {UbseHttpMethod::UBSE_HTTP_METHOD_POST, "POST"},     {UbseHttpMethod::UBSE_HTTP_METHOD_PUT, "PUT"},
+        {UbseHttpMethod::UBSE_HTTP_METHOD_DELETE, "DELETE"}, {UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT, "CONNECT"},
+        {UbseHttpMethod::UBSE_HTTP_METHOD_TRACE, "TRACE"},   {UbseHttpMethod::UBSE_HTTP_METHOD_PATCH, "PATCH"},
     };
     auto it = methodEnumToStringMap.find(method);
     if (it != methodEnumToStringMap.end()) {
@@ -41,14 +37,10 @@ std::string UbseHttpMethodToString(UbseHttpMethod method)
 UbseHttpMethod StringToUbseHttpMethod(std::string method)
 {
     static const std::unordered_map<std::string, UbseHttpMethod> methodStringToEnumMap = {
-        {"GET", UbseHttpMethod::UBSE_HTTP_METHOD_GET},
-        {"HEAD", UbseHttpMethod::UBSE_HTTP_METHOD_HEAD},
-        {"POST", UbseHttpMethod::UBSE_HTTP_METHOD_POST},
-        {"PUT", UbseHttpMethod::UBSE_HTTP_METHOD_PUT},
-        {"DELETE", UbseHttpMethod::UBSE_HTTP_METHOD_DELETE},
-        {"CONNECT", UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT},
-        {"TRACE", UbseHttpMethod::UBSE_HTTP_METHOD_TRACE},
-        {"PATCH", UbseHttpMethod::UBSE_HTTP_METHOD_PATCH},
+        {"GET", UbseHttpMethod::UBSE_HTTP_METHOD_GET},       {"HEAD", UbseHttpMethod::UBSE_HTTP_METHOD_HEAD},
+        {"POST", UbseHttpMethod::UBSE_HTTP_METHOD_POST},     {"PUT", UbseHttpMethod::UBSE_HTTP_METHOD_PUT},
+        {"DELETE", UbseHttpMethod::UBSE_HTTP_METHOD_DELETE}, {"CONNECT", UbseHttpMethod::UBSE_HTTP_METHOD_CONNECT},
+        {"TRACE", UbseHttpMethod::UBSE_HTTP_METHOD_TRACE},   {"PATCH", UbseHttpMethod::UBSE_HTTP_METHOD_PATCH},
     };
     auto it = methodStringToEnumMap.find(method);
     if (it != methodStringToEnumMap.end()) {

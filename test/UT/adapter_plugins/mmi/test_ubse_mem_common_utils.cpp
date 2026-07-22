@@ -29,4 +29,4 @@ TEST_F(TestUbseMemCommonUtils, GetFileFirstLine_Fail)
     auto ret = RmCommonUtils::GetFileFirstLine(path, line);
     EXPECT_NE(ret, UBSE_OK);
 }
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi

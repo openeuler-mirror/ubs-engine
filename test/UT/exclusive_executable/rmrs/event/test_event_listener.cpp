@@ -16,10 +16,10 @@
 #include <iostream>
 #include <memory>
 
+#include "ubse_ras.h"
 #include "event_listener.h"
 #include "fault_node_module.h"
 #include "mp_error.h"
-#include "ubse_ras.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 namespace mempooling::event::listener {
@@ -57,13 +57,11 @@ TEST_F(TestEventListener, MpEventSubModuleInitSuccess)
 TEST_F(TestEventListener, MpEventSubModuleInitFailure)
 {
     auto mp = make_unique<mempooling::event::MpEventSubModule>();
-    using FuncPtrType = uint32_t (*)(
-        ubse::ras::ALARM_FAULT_TYPE, std::string,
-        ubse::ras::AlarmFaultHandler,
-        ubse::ras::AlarmHandlerPriority
-    );
+    using FuncPtrType = uint32_t (*)(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
+                                     ubse::ras::AlarmHandlerPriority);
     MOCKER_CPP(static_cast<FuncPtrType>(&ubse::ras::RegisterAlarmFaultHandler), FuncPtrType)
-        .stubs().will(returnValue(1));
+        .stubs()
+        .will(returnValue(1));
     auto ret = mp->Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }

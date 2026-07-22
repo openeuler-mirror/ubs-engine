@@ -14,5 +14,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ras::ut
 #endif // RACK_MANAGER_TEST_MXE_RAS_OOM_HANDLER_H

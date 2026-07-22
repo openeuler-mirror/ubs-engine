@@ -15,12 +15,11 @@
 
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
+#include "mem_migrate_msg.h"
 #include "src/sdk/c/include/ubs_error.h"
 #include "vm_sdk_def.h"
-#include "mem_migrate_msg.h"
 
-
-int32_t update_page_flow_and_status(const char *opt, const char *uuid)
+int32_t update_page_flow_and_status(const char* opt, const char* uuid)
 {
     if (opt == nullptr || uuid == nullptr) {
         IPC_LOG_ERROR << "param invalid";

@@ -26,4 +26,3 @@ public:
 };
 } // namespace ubse::vm::ut
 #endif // TEST_MSG_UTILS_H
-

@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <gtest/gtest.h>
 #include <ubse_com.h>
 #include <ubse_logger.h>
-#include <gtest/gtest.h>
 #include "mockcpp/mokc.h"
 #define private public
 
+#include "master_task_controller.h"
+#include "turbo_ucache_interface.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
-#include "turbo_ucache_interface.h"
-#include "master_task_controller.h"
 #include "ucache_serialize.h"
 
 using namespace ubse::log;
@@ -37,4 +37,4 @@ protected:
         GlobalMockObject::verify();
     }
 };
-}
+} // namespace ucache::master

@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::cli
 #endif // TEST_UBSE_CLI_WHITELIST_H

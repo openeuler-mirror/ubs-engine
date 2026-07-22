@@ -35,7 +35,7 @@ void TestUrmaUvsModule::TearDown()
 TEST_F(TestUrmaUvsModule, Initialize_Fail)
 {
     UbseUrmaUvsModule module;
-    void *mockHandle = nullptr;
+    void* mockHandle = nullptr;
     MOCKER_CPP(&dlopen).stubs().will(returnValue(mockHandle));
 
     EXPECT_EQ(module.Initialize(), UBSE_ERROR_FILE_NOT_EXIST);
@@ -44,9 +44,9 @@ TEST_F(TestUrmaUvsModule, Initialize_Fail)
 TEST_F(TestUrmaUvsModule, Initialize_Success)
 {
     UbseUrmaUvsModule module;
-    void *mockHandle = reinterpret_cast<void *>(0x1234);
+    void* mockHandle = reinterpret_cast<void*>(0x1234);
     MOCKER_CPP(&dlopen).stubs().will(returnValue(mockHandle));
-    MOCKER_CPP(&dlsym).stubs().will(returnValue(reinterpret_cast<void *>(0x5678)));
+    MOCKER_CPP(&dlsym).stubs().will(returnValue(reinterpret_cast<void*>(0x5678)));
 
     EXPECT_EQ(module.Initialize(), UBSE_OK);
 
@@ -54,4 +54,4 @@ TEST_F(TestUrmaUvsModule, Initialize_Success)
     module.UnInitialize();
 }
 
-}  // namespace ubse::urma::ut
+} // namespace ubse::urma::ut

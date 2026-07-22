@@ -39,20 +39,18 @@ TEST_F(TestUbseCliCertCmdReg, RegisterCertModule)
 
 TEST_F(TestUbseCliCertCmdReg, CertImportNoParams)
 {
-    std::map<std::string, std::string> map = { { "server-cert-file", "/filename" }, { "ca-cert-file", "/filename" } };
+    std::map<std::string, std::string> map = {{"server-cert-file", "/filename"}, {"ca-cert-file", "/filename"}};
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCertImportFunc(map)->UbseCliDisplayResult());
-    std::map<std::string, std::string> map1 = { { "server-cert-file", "/filename" },
-        { "server-key-file", "/filename" } };
+    std::map<std::string, std::string> map1 = {{"server-cert-file", "/filename"}, {"server-key-file", "/filename"}};
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCertImportFunc(map1)->UbseCliDisplayResult());
-    std::map<std::string, std::string> map2 = { { "server-key-file", "/filename" }, { "ca-cert-file", "/filename" } };
+    std::map<std::string, std::string> map2 = {{"server-key-file", "/filename"}, {"ca-cert-file", "/filename"}};
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCertImportFunc(map2)->UbseCliDisplayResult());
 }
 
 TEST_F(TestUbseCliCertCmdReg, CertImportFailed)
 {
-    std::map<std::string, std::string> map = { { "server-cert-file", "/filename" },
-        { "server-key-file", "/filename" },
-        { "ca-cert-file", "/filename" } };
+    std::map<std::string, std::string> map = {
+        {"server-cert-file", "/filename"}, {"server-key-file", "/filename"}, {"ca-cert-file", "/filename"}};
     MOCKER(&ImportCertSet).stubs().will(invoke(mock_import_cert_set_failed));
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCertImportFunc(map)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
@@ -60,9 +58,8 @@ TEST_F(TestUbseCliCertCmdReg, CertImportFailed)
 
 TEST_F(TestUbseCliCertCmdReg, CertImportSuccess)
 {
-    std::map<std::string, std::string> map = { { "server-cert-file", "/filename" },
-        { "server-key-file", "/filename" },
-        { "ca-cert-file", "/filename" } };
+    std::map<std::string, std::string> map = {
+        {"server-cert-file", "/filename"}, {"server-key-file", "/filename"}, {"ca-cert-file", "/filename"}};
     MOCKER(&ImportCertSet).stubs().will(invoke(mock_import_cert_set_success));
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCaCrlImportFunc(map)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
@@ -76,7 +73,7 @@ TEST_F(TestUbseCliCertCmdReg, CaCrlImportNoParams)
 
 TEST_F(TestUbseCliCertCmdReg, CaCrlImportFailed)
 {
-    std::map<std::string, std::string> map = { { "ca-crl-file", "/filename" } };
+    std::map<std::string, std::string> map = {{"ca-crl-file", "/filename"}};
     MOCKER(&ImportCaCrl).stubs().will(invoke(mock_import_ca_set_failed));
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCaCrlImportFunc(map)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();
@@ -84,7 +81,7 @@ TEST_F(TestUbseCliCertCmdReg, CaCrlImportFailed)
 
 TEST_F(TestUbseCliCertCmdReg, CaCrlImportSuccess)
 {
-    std::map<std::string, std::string> map = { { "ca-crl-file", "/filename" } };
+    std::map<std::string, std::string> map = {{"ca-crl-file", "/filename"}};
     MOCKER(&ImportCaCrl).stubs().will(invoke(mock_import_ca_set_success));
     EXPECT_NO_THROW(UbseCliRegCertModule::UbseCliCaCrlImportFunc(map)->UbseCliDisplayResult());
     MOCKER(&ubse_invoke_call).reset();

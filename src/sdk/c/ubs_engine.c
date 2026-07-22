@@ -13,11 +13,11 @@
 #include "ubs_engine.h"
 #include <string.h>
 
-#include "ubs_error.h"
 #include "ubse_ipc_client.h"
+#include "ubs_error.h"
 
 #define UBSE_SOCKET_PATH_LEN 107
-int32_t ubs_engine_client_initialize(const char *ubs_engine_uds_path)
+int32_t ubs_engine_client_initialize(const char* ubs_engine_uds_path)
 {
     // 校验路径长度是否超过限制
     if (ubs_engine_uds_path != NULL && strlen(ubs_engine_uds_path) > UBSE_SOCKET_PATH_LEN) {

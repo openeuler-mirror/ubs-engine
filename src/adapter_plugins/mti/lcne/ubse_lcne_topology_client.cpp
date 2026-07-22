@@ -63,7 +63,7 @@ uint32_t UbseLcneTopologyClient::GetTopology(std::vector<LcneNodeInfo>& lcneNode
 
 uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<LcneNodeInfo>& lcneNodes)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(resBody);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
@@ -112,7 +112,7 @@ uint32_t UbseLcneTopologyClient::ParseData(std::string& resBody, std::vector<Lcn
     return UBSE_OK;
 }
 
-LcnePortInfo UbseLcneTopologyClient::ParsePortInfo(std::shared_ptr<UbseXml> &ubseXml)
+LcnePortInfo UbseLcneTopologyClient::ParsePortInfo(std::shared_ptr<UbseXml>& ubseXml)
 {
     LcnePortInfo lcnePortInfo{};
     lcnePortInfo.portId = ubseXml->Child("physical-port-id")->Text();
@@ -133,8 +133,9 @@ std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo& no
     oss << "chip_id=" << node.chipId << ", ";
     oss << "iou_id=" << node.cardId << ", ";
     oss << "type=" << node.type << ", ";
-    oss << "ports_info=" << "\n";
-    for (const auto &port : node.ports) {
+    oss << "ports_info="
+        << "\n";
+    for (const auto& port : node.ports) {
         oss << "  port_id=" << port.portId << ", ";
         oss << "  interface_name=" << port.ifName << ", ";
         oss << "  port_role=" << port.portRole << ", ";
@@ -149,7 +150,8 @@ std::string UbseLcneTopologyClient::GetLcneNodeInfoString(const LcneNodeInfo& no
 std::string UbseLcneTopologyClient::GetLcneNodesString(const std::vector<LcneNodeInfo>& lcneNodes)
 {
     std::ostringstream oss;
-    oss << "[MTI] Topology information printing:" << "\n";
+    oss << "[MTI] Topology information printing:"
+        << "\n";
     for (size_t i = 0; i < lcneNodes.size(); ++i) {
         oss << GetLcneNodeInfoString(lcneNodes[i]);
         oss << "\n";

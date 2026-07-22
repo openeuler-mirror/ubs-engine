@@ -13,8 +13,8 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_CONTEXT_H
 #define UBSE_MANAGER_TEST_UBSE_CONTEXT_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include "ubse_context.h"
 
@@ -55,5 +55,5 @@ private:
     UbseContext &context = UbseContext::GetInstance();
     UbseModuleRegistry &registry = UbseModuleRegistry::GetInstance();
 };
-}
+} // namespace ubse::ut::context
 #endif // UBSE_MANAGER_TEST_UBSE_CONTEXT_H

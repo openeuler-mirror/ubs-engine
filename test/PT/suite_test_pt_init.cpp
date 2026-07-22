@@ -20,11 +20,11 @@ static constexpr uint32_t TIME_OUT = 3e8;
 static constexpr uint32_t UI_TIME_100 = 100;
 static constexpr uint32_t UI_TIME_200 = 200;
 
-ProcessMmap *TestPTInit::pMmap = nullptr;
+ProcessMmap* TestPTInit::pMmap = nullptr;
 
 TestPTInit::TestPTInit() {}
 
-int32_t PTestPutStorage(ProcessMmap *);
+int32_t PTestPutStorage(ProcessMmap*);
 
 void TestPTInit::SetUpTestSuite()
 {

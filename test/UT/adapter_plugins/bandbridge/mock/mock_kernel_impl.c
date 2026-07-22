@@ -3,7 +3,7 @@
 #include "mock_kernel.h"
 
 extern struct bandbridge_ctrlq_info g_ctrlq_info;
-extern void *__iomem g_ctrlq_va;
+extern void* __iomem g_ctrlq_va;
 
 #define MOCK_REG_SPACE_SIZE (CTRLQ_REG_LEN / sizeof(u32))
 
@@ -48,11 +48,11 @@ void mock_set_capable_net_admin(bool val)
 {
     mock_capable_net_admin = val;
 }
-void mock_set_process_name(const char *name)
+void mock_set_process_name(const char* name)
 {
     strncpy(mock_current_task.comm, name, sizeof(mock_current_task.comm) - 1);
 }
-void mock_set_exe_path(const char *path)
+void mock_set_exe_path(const char* path)
 {
     strncpy(mock_exe_path, path, sizeof(mock_exe_path) - 1);
 }
@@ -105,7 +105,7 @@ bool capable(int cap)
     return mock_capable_net_admin;
 }
 
-void *kmalloc(size_t size, int flags)
+void* kmalloc(size_t size, int flags)
 {
     (void)flags;
     if (mock_kmalloc_fail)
@@ -113,24 +113,24 @@ void *kmalloc(size_t size, int flags)
     return malloc(size);
 }
 
-void kfree(const void *ptr)
+void kfree(const void* ptr)
 {
-    free((void *)ptr);
+    free((void*)ptr);
 }
 
-void *vmalloc(size_t size)
+void* vmalloc(size_t size)
 {
     if (mock_vmalloc_fail)
         return NULL;
     return malloc(size);
 }
 
-void vfree(const void *ptr)
+void vfree(const void* ptr)
 {
-    free((void *)ptr);
+    free((void*)ptr);
 }
 
-void *ioremap(uint64_t phys_addr, size_t size)
+void* ioremap(uint64_t phys_addr, size_t size)
 {
     if (mock_ioremap_fail)
         return NULL;
@@ -141,43 +141,43 @@ void *ioremap(uint64_t phys_addr, size_t size)
     return malloc(size);
 }
 
-void iounmap(void *addr)
+void iounmap(void* addr)
 {
     if (addr == mock_reg_space)
         return;
     free(addr);
 }
 
-uint32_t readl(const volatile void *addr)
+uint32_t readl(const volatile void* addr)
 {
-    return *(const volatile uint32_t *)addr;
+    return *(const volatile uint32_t*)addr;
 }
-void writel(uint32_t value, volatile void *addr)
+void writel(uint32_t value, volatile void* addr)
 {
-    *(volatile uint32_t *)addr = value;
-}
-
-void memcpy_toio(volatile void *dst, const void *src, size_t count)
-{
-    memcpy((void *)dst, src, count);
-}
-void memcpy_fromio(void *dst, const volatile void *src, size_t count)
-{
-    memcpy(dst, (const void *)src, count);
+    *(volatile uint32_t*)addr = value;
 }
 
-unsigned long copy_from_user(void *to, const void *from, unsigned long n)
+void memcpy_toio(volatile void* dst, const void* src, size_t count)
+{
+    memcpy((void*)dst, src, count);
+}
+void memcpy_fromio(void* dst, const volatile void* src, size_t count)
+{
+    memcpy(dst, (const void*)src, count);
+}
+
+unsigned long copy_from_user(void* to, const void* from, unsigned long n)
 {
     memcpy(to, from, n);
     return 0;
 }
-unsigned long copy_to_user(void *to, const void *from, unsigned long n)
+unsigned long copy_to_user(void* to, const void* from, unsigned long n)
 {
     memcpy(to, from, n);
     return 0;
 }
 
-int misc_register(struct miscdevice *misc)
+int misc_register(struct miscdevice* misc)
 {
     (void)misc;
     if (mock_misc_register_fail)
@@ -185,12 +185,12 @@ int misc_register(struct miscdevice *misc)
     return 0;
 }
 
-void misc_deregister(struct miscdevice *misc)
+void misc_deregister(struct miscdevice* misc)
 {
     (void)misc;
 }
 
-char *d_path(const struct path *path, char *buf, int buflen)
+char* d_path(const struct path* path, char* buf, int buflen)
 {
     (void)path;
     (void)buflen;
@@ -199,15 +199,15 @@ char *d_path(const struct path *path, char *buf, int buflen)
     return buf;
 }
 
-void mutex_init(struct mutex *m)
+void mutex_init(struct mutex* m)
 {
     pthread_mutex_init(&m->mtx, NULL);
 }
-void mutex_lock(struct mutex *m)
+void mutex_lock(struct mutex* m)
 {
     pthread_mutex_lock(&m->mtx);
 }
-void mutex_unlock(struct mutex *m)
+void mutex_unlock(struct mutex* m)
 {
     pthread_mutex_unlock(&m->mtx);
 }
@@ -218,7 +218,7 @@ void msleep(unsigned int msecs)
         usleep(msecs * 1000);
 }
 
-int strscpy(char *dest, const char *src, size_t count)
+int strscpy(char* dest, const char* src, size_t count)
 {
     size_t len = strlen(src);
     if (len >= count) {
@@ -232,7 +232,7 @@ int strscpy(char *dest, const char *src, size_t count)
     return (int)len;
 }
 
-void init_waitqueue_head(struct wait_queue_head *q)
+void init_waitqueue_head(struct wait_queue_head* q)
 {
     (void)q;
 }

@@ -14,10 +14,10 @@
 
 #include <ubse_node.h>
 
-#include "src/controllers/mem/mem_controller/ubse_mem_service_impl.h"
-#include "src/sdk/c/include/ubs_engine_topo.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
+#include "src/controllers/mem/mem_controller/ubse_mem_service_impl.h"
+#include "src/sdk/c/include/ubs_engine_topo.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_query_api.cpp"
 
@@ -35,7 +35,7 @@ void TestUbseNodeControllerQueryApi::TearDown()
     GlobalMockObject::verify();
 }
 
-std::unordered_map<std::string, UbseNodeInfo> MockQueryGetAllNodes(UbseNodeController *)
+std::unordered_map<std::string, UbseNodeInfo> MockQueryGetAllNodes(UbseNodeController*)
 {
     UbseNodeInfo nodeInfo{};
     nodeInfo.hostName = "computer";
@@ -59,7 +59,7 @@ TEST_F(TestUbseNodeControllerQueryApi, UbseNodeList)
     EXPECT_EQ(nodeList[0].slotId, 0);
 }
 
-UbseNodeInfo MockGetCurNode(UbseNodeController *)
+UbseNodeInfo MockGetCurNode(UbseNodeController*)
 {
     UbseNodeInfo nodeInfo{};
     nodeInfo.hostName = "computer";
@@ -83,7 +83,7 @@ TEST_F(TestUbseNodeControllerQueryApi, UbseNodeGet)
     EXPECT_EQ(node.hostName, "computer");
 }
 
-uint32_t MockUbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+uint32_t MockUbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     MemNodeData data{};
     data.nodeId = "2";

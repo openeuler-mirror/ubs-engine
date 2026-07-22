@@ -1,0 +1,143 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#include "it_cluster_builder.h"
+
+#include <utility>
+
+#include "it_console_log.h"
+
+namespace ubse::it::infra {
+
+ItClusterBuilder ItClusterBuilder::FromRuntimePaths(const std::filesystem::path& binaryPath,
+                                                    const std::string& baseWorkDir,
+                                                    const std::filesystem::path& stubLibDir)
+{
+    return ItClusterBuilder(binaryPath, baseWorkDir, stubLibDir);
+}
+
+ItClusterBuilder::ItClusterBuilder(std::filesystem::path binaryPath, std::string baseWorkDir,
+                                   std::filesystem::path stubLibDir)
+    : binaryPath_(std::move(binaryPath)),
+      baseWorkDir_(std::move(baseWorkDir)),
+      stubLibDir_(std::move(stubLibDir))
+{
+}
+
+ItClusterBuilder& ItClusterBuilder::SingleNode()
+{
+    nodes_ = {NodeSpec{"1", "127.0.0.1", 8082, 1}};
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::TwoNode()
+{
+    nodes_ = {NodeSpec{"1", "127.0.0.2", 8082, 1}, NodeSpec{"2", "127.0.0.3", 8083, 2}};
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::FourNode()
+{
+    nodes_ = {NodeSpec{"1", "127.0.0.2", 8082, 1}, NodeSpec{"2", "127.0.0.3", 8083, 2},
+              NodeSpec{"3", "127.0.0.4", 8084, 3}, NodeSpec{"4", "127.0.0.5", 8085, 4}};
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::Nodes(std::vector<NodeSpec> nodes)
+{
+    nodes_ = std::move(nodes);
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::Tongsuan()
+{
+    mockPluginEnabled_ = true;
+    waitForElection_ = true;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::Zhisuan()
+{
+    mockPluginEnabled_ = false;
+    waitForElection_ = false;
+    sceneType_ = "ai";
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::StartupTimeoutMs(uint32_t timeoutMs)
+{
+    startupTimeoutMs_ = timeoutMs;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::ElectionTimeoutMs(uint32_t timeoutMs)
+{
+    electionTimeoutMs_ = timeoutMs;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::SceneType(const std::string& sceneType)
+{
+    sceneType_ = sceneType;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::MeshType(uint32_t meshType)
+{
+    meshType_ = meshType;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::NoMockPlugin()
+{
+    mockPluginEnabled_ = false;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::NoElection()
+{
+    waitForElection_ = false;
+    return *this;
+}
+
+ItClusterBuilder& ItClusterBuilder::WithNodeConfig(const std::string& nodeId, const std::string& section,
+                                                   const std::string& key, const std::string& value)
+{
+    nodeConfigOverrides_[nodeId][section][key] = value;
+    return *this;
+}
+
+UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
+{
+    if (nodes_.empty()) {
+        IT_LOG_ERROR << "IT cluster has no nodes. Call SingleNode(), TwoNode(), or Nodes() before Start().";
+        return UBSE_ERROR_DEF(1);
+    }
+
+    auto spec = BuildSpec();
+    cluster = std::make_unique<ItCluster>(std::move(spec));
+    return cluster->StartCluster(waitForElection_, electionTimeoutMs_);
+}
+
+ClusterSpec ItClusterBuilder::BuildSpec() const
+{
+    auto spec = ClusterSpec::FromRuntimePaths(binaryPath_.string(), baseWorkDir_, nodes_, stubLibDir_.string());
+    spec.startupTimeoutMs = startupTimeoutMs_;
+    spec.sceneType = sceneType_;
+    spec.mockPluginEnabled = mockPluginEnabled_;
+    spec.meshType = meshType_;
+    spec.nodeConfigOverrides = nodeConfigOverrides_;
+    spec.Normalize();
+    return spec;
+}
+
+} // namespace ubse::it::infra

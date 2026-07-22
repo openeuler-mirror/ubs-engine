@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <iostream>
 #include "ubse_logger_ringbuffer.h"
+#include <iostream>
 
 namespace ubse::log {
 RingBuffer::RingBuffer(uint32_t size) : size_(size), right_(0)
@@ -29,7 +29,7 @@ bool RingBuffer::IsEmpty() const
     return left_ == right_;
 }
 
-void RingBuffer::Push(UbseLoggerEntry &&loggerEntry)
+void RingBuffer::Push(UbseLoggerEntry&& loggerEntry)
 {
     uint32_t writeIndex = right_.fetch_add(1, std::memory_order_relaxed);
     if (writeIndex < size_) {
@@ -47,13 +47,13 @@ void RingBuffer::Push(UbseLoggerEntry &&loggerEntry)
     }
 }
 
-void RingBuffer::Pop(UbseLoggerEntry &loggerEntry)
+void RingBuffer::Pop(UbseLoggerEntry& loggerEntry)
 {
     loggerEntry = std::move(buffer_[left_]);
     left_++;
 }
 
-void LogBuffer::Push(UbseLoggerEntry &&loggerEntry)
+void LogBuffer::Push(UbseLoggerEntry&& loggerEntry)
 {
     // 需要支持多线程同时写入
     std::shared_lock<std::shared_mutex> lock(mtx_);
@@ -63,7 +63,7 @@ void LogBuffer::Push(UbseLoggerEntry &&loggerEntry)
     writeBuffer_.Push(std::move(loggerEntry));
 }
 
-bool LogBuffer::Pop(UbseLoggerEntry &loggerEntry)
+bool LogBuffer::Pop(UbseLoggerEntry& loggerEntry)
 {
     // 读为单线程操作
     if (readBuffer_.IsEmpty()) {

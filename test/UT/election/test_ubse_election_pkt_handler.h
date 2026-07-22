@@ -32,5 +32,5 @@ private:
     UbseBaseMessagePtr response;
     ElectionPkt electionPkt;
 };
-}
+} // namespace ubse::ut::election
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_PKT_HANDLER_H

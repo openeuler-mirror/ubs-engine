@@ -47,7 +47,7 @@ public:
 TEST_F(TestMpBorrowConfUtil, ParseBorrowConfFailed1)
 {
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetMemGroupNodeList,
-               uint32_t(*)(ubse::nodeController::UbseNodeController *, UbseMemGroupNodeList & groupList))
+               uint32_t(*)(ubse::nodeController::UbseNodeController*, UbseMemGroupNodeList & groupList))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseMemGroupNodeList groupList;
@@ -66,8 +66,8 @@ TEST_F(TestMpBorrowConfUtil, ParseBorrowConfFailed2)
 
 TEST_F(TestMpBorrowConfUtil, ParseBorrowConfSuccess)
 {
-    auto MakeNode = [](const std::string &id, uint32_t slot, const char *bond, const std::string &host,
-                       const std::string &ip) {
+    auto MakeNode = [](const std::string& id, uint32_t slot, const char* bond, const std::string& host,
+                       const std::string& ip) {
         UbseNodeInfo node;
         node.nodeId = id;
         node.slotId = slot;
@@ -80,7 +80,7 @@ TEST_F(TestMpBorrowConfUtil, ParseBorrowConfSuccess)
     maps["1"] = MakeNode("host1", 1, "bond1", "host1", "10.0.0.1");
     maps["2"] = MakeNode("host2", 2, "bond2", "host2", "10.0.0.2");
     MOCKER_CPP(&UbseNodeController::GetAllNodes,
-               (std::unordered_map<std::string, UbseNodeInfo>(*)(UbseNodeController *)))
+               (std::unordered_map<std::string, UbseNodeInfo>(*)(UbseNodeController*)))
         .stubs()
         .will(returnValue(maps));
     UbseMemGroupNodeList groupList;
@@ -91,8 +91,8 @@ TEST_F(TestMpBorrowConfUtil, ParseBorrowConfSuccess)
 
 TEST_F(TestMpBorrowConfUtil, ParseBorrowConfFailed3)
 {
-    auto MakeNode = [](const std::string &id, uint32_t slot, const char *bond, const std::string &host,
-                       const std::string &ip) {
+    auto MakeNode = [](const std::string& id, uint32_t slot, const char* bond, const std::string& host,
+                       const std::string& ip) {
         UbseNodeInfo node;
         node.nodeId = id;
         node.slotId = slot;
@@ -105,11 +105,11 @@ TEST_F(TestMpBorrowConfUtil, ParseBorrowConfFailed3)
     maps["1"] = MakeNode("host1", 1, "bond1", "host1", "10.0.0.1");
     maps["2"] = MakeNode("host2", 2, "bond2", "host2", "10.0.0.2");
     MOCKER_CPP(&UbseNodeController::GetAllNodes,
-               (std::unordered_map<std::string, UbseNodeInfo>(*)(UbseNodeController *)))
+               (std::unordered_map<std::string, UbseNodeInfo>(*)(UbseNodeController*)))
         .stubs()
         .will(returnValue(maps));
     MOCKER_CPP(&ubse::nodeController::UbseNodeController::GetMemProviderNodeList,
-               uint32_t(*)(ubse::nodeController::UbseNodeController *, UbseMemProviderNodeList &providerList))
+               uint32_t(*)(ubse::nodeController::UbseNodeController*, UbseMemProviderNodeList & providerList))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     UbseMemGroupNodeList groupList;
@@ -118,14 +118,14 @@ TEST_F(TestMpBorrowConfUtil, ParseBorrowConfFailed3)
     EXPECT_EQ(res, MEM_POOLING_ERROR);
 }
 
-MpResult ParseBorrowConfMock1(MpParseGroupProviderConf *This, UbseMemGroupNodeList &groupList,
-                              UbseMemProviderNodeList &providerList)
+MpResult ParseBorrowConfMock1(MpParseGroupProviderConf* This, UbseMemGroupNodeList& groupList,
+                              UbseMemProviderNodeList& providerList)
 {
     groupList.clear();
     providerList.clear();
 
-    auto MakeNode = [](const std::string &id, uint32_t slot,
-                       const char *bond, const std::string &host, const std::string &ip) {
+    auto MakeNode = [](const std::string& id, uint32_t slot, const char* bond, const std::string& host,
+                       const std::string& ip) {
         UbseNodeInfo node;
         node.nodeId = id;
         node.slotId = slot;
@@ -157,14 +157,14 @@ MpResult ParseBorrowConfMock1(MpParseGroupProviderConf *This, UbseMemGroupNodeLi
     return MEM_POOLING_OK;
 }
 
-MpResult ParseBorrowConfMock2(MpParseGroupProviderConf *This, UbseMemGroupNodeList &groupList,
-                              UbseMemProviderNodeList &providerList)
+MpResult ParseBorrowConfMock2(MpParseGroupProviderConf* This, UbseMemGroupNodeList& groupList,
+                              UbseMemProviderNodeList& providerList)
 {
     groupList.clear();
     providerList.clear();
 
-    auto MakeNode = [](const std::string &id, uint32_t slot,
-                       const char *bond, const std::string &host, const std::string &ip) {
+    auto MakeNode = [](const std::string& id, uint32_t slot, const char* bond, const std::string& host,
+                       const std::string& ip) {
         UbseNodeInfo node;
         node.nodeId = id;
         node.slotId = slot;
@@ -195,46 +195,50 @@ MpResult ParseBorrowConfMock2(MpParseGroupProviderConf *This, UbseMemGroupNodeLi
 TEST_F(TestMpBorrowConfUtil, BuildBorrowMapSuccess1)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::ParseBorrowConf,
-               MpResult(*)(MpParseGroupProviderConf *, UbseMemGroupNodeList & groupList,
+               MpResult(*)(MpParseGroupProviderConf*, UbseMemGroupNodeList & groupList,
                            UbseMemProviderNodeList & providerList))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap();
+    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap(borrowMap);
     EXPECT_EQ(res, MEM_POOLING_ERROR);
 }
 
 TEST_F(TestMpBorrowConfUtil, BuildBorrowMapSuccess2)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::ParseBorrowConf,
-               MpResult(*)(MpParseGroupProviderConf *, UbseMemGroupNodeList & groupList,
+               MpResult(*)(MpParseGroupProviderConf*, UbseMemGroupNodeList & groupList,
                            UbseMemProviderNodeList & providerList))
         .stubs()
         .will(invoke(ParseBorrowConfMock1));
-    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap();
+    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap(borrowMap);
     EXPECT_EQ(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMpBorrowConfUtil, BuildBorrowMapSuccess3)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::ParseBorrowConf,
-               MpResult(*)(MpParseGroupProviderConf *, UbseMemGroupNodeList & groupList,
+               MpResult(*)(MpParseGroupProviderConf*, UbseMemGroupNodeList & groupList,
                            UbseMemProviderNodeList & providerList))
         .stubs()
         .will(invoke(ParseBorrowConfMock2));
-    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap();
+    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    auto res = MpParseGroupProviderConf::Instance().BuildBorrowMap(borrowMap);
     EXPECT_EQ(res, MEM_POOLING_OK);
 }
 
-MpResult BuildBorrowMapMock(MpParseGroupProviderConf *obj)
+MpResult BuildBorrowMapMock(MpParseGroupProviderConf* obj,
+                            std::map<std::string, std::unordered_set<std::string>>& borrowMap)
 {
-    obj->borrowMap["1"].insert("2");
+    borrowMap["1"].insert("2");
     return MEM_POOLING_OK;
 }
 
 TEST_F(TestMpBorrowConfUtil, GetBorrowableListSuccess)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::BuildBorrowMap,
-               MpResult(*)(MpParseGroupProviderConf *))
+               MpResult(*)(MpParseGroupProviderConf*, std::map<std::string, std::unordered_set<std::string>>&))
         .stubs()
         .will(invoke(BuildBorrowMapMock));
     std::unordered_set<std::string> borrowableNidSet;
@@ -245,7 +249,7 @@ TEST_F(TestMpBorrowConfUtil, GetBorrowableListSuccess)
 TEST_F(TestMpBorrowConfUtil, GetBorrowableListFailed1)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::BuildBorrowMap,
-               MpResult(*)(MpParseGroupProviderConf *))
+               MpResult(*)(MpParseGroupProviderConf*, std::map<std::string, std::unordered_set<std::string>>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     std::unordered_set<std::string> borrowableNidSet;
@@ -256,7 +260,7 @@ TEST_F(TestMpBorrowConfUtil, GetBorrowableListFailed1)
 TEST_F(TestMpBorrowConfUtil, GetBorrowableListFailed2)
 {
     MOCKER_CPP(&mempooling::MpParseGroupProviderConf::BuildBorrowMap,
-               MpResult(*)(MpParseGroupProviderConf *))
+               MpResult(*)(MpParseGroupProviderConf*, std::map<std::string, std::unordered_set<std::string>>&))
         .stubs()
         .will(invoke(BuildBorrowMapMock));
     std::unordered_set<std::string> borrowableNidSet;

@@ -18,11 +18,11 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_error.h"
-#include "ubs_engine_topo.h"
-#include "ubs_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 #include "ubse_node_api_convert.h"
+#include "ubs_engine_topo.h"
+#include "ubs_error.h"
 
 namespace ubse::sdk::ut {
 using namespace ubse::node::api;
@@ -41,14 +41,14 @@ void TestUbsEngineTopo::TearDown()
 TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenInvalidParameters)
 {
     // node_list为nullptr
-    ubs_topo_node_t **nullList = nullptr;
+    ubs_topo_node_t** nullList = nullptr;
     uint32_t cnt = 0;
 
     int32_t ret = ubs_topo_node_list(nullList, &cnt);
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 
     // node_cnt为nullptr
-    ubs_topo_node_t *list = nullptr;
+    ubs_topo_node_t* list = nullptr;
     ret = ubs_topo_node_list(&list, nullptr);
     EXPECT_EQ(ret, UBS_ERR_NULL_POINTER);
 }
@@ -56,7 +56,7 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenInvalidParameters)
 // 2. ubse_invoke_call 失败
 TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenInvokeCallFailed)
 {
-    ubs_topo_node_t *list = nullptr;
+    ubs_topo_node_t* list = nullptr;
     uint32_t cnt = 0;
 
     MOCKER(ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
@@ -67,16 +67,13 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenInvokeCallFailed)
 // 3. 解包失败
 TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenUnpackFailed)
 {
-    ubs_topo_node_t *list = nullptr;
+    ubs_topo_node_t* list = nullptr;
     uint32_t cnt = 0;
     // 构造异常数据
     ubse_api_buffer_t respBuffer{};
     respBuffer.length = 2; // 数据长度2
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(respBuffer.length));
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
     int32_t ret = ubs_topo_node_list(&list, &cnt);
     EXPECT_EQ(ret, UBS_ERR_BUFFER_TOO_SMALL);
@@ -93,14 +90,16 @@ UbseNode BuildNode()
     node.numaIds[1][0] = 3; // numaId是3
     node.numaIds[1][1] = 4; // numaId是4
     // 初始化 IPv4 地址
-    struct in_addr ipv4_addr {};
+    struct in_addr ipv4_addr {
+    };
     if (inet_pton(AF_INET, "192.168.1.1", &ipv4_addr) == 1) {
         node.ips[0].af = AF_INET;
         node.ips[0].ipv4 = ipv4_addr;
     }
 
     // 初始化 IPv6 地址
-    struct in6_addr ipv6_addr {};
+    struct in6_addr ipv6_addr {
+    };
     if (inet_pton(AF_INET6, "::1", &ipv6_addr) == 1) {
         node.ips[1].af = AF_INET6;
         node.ips[1].ipv6 = ipv6_addr;
@@ -126,7 +125,7 @@ std::vector<UbseNode> BuildNodeList()
 // 4. 正常流程
 TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess)
 {
-    ubs_topo_node_t *list = nullptr;
+    ubs_topo_node_t* list = nullptr;
     uint32_t cnt = 0;
 
     // 构造正常数据
@@ -134,7 +133,7 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess)
     ipc::UbseIpcMessage respMessage{};
     UbseNodeListPack(nodeList, respMessage);
     ubse_api_buffer_t respBuffer{};
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(respMessage.length));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
     respBuffer.length = respMessage.length;
     if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respMessage.length) != EOK) {
         free(respBuffer.buffer);
@@ -143,10 +142,7 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess)
     }
     delete respMessage.buffer;
     respMessage.buffer = nullptr;
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     int32_t ret = ubs_topo_node_list(&list, &cnt);
     EXPECT_EQ(ret, UBS_SUCCESS);
 }
@@ -161,17 +157,14 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_NormalCase)
     auto ret = UbseNodePack(nodeInfo, respMessage);
     EXPECT_EQ(ret, UBSE_OK);
     ubse_api_buffer_t respBuffer{};
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(respMessage.length));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
     respBuffer.length = respMessage.length;
     if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respMessage.length) != EOK) {
         free(respBuffer.buffer);
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     ret = ubs_topo_node_local_get(&node);
     EXPECT_EQ(ret, UBS_SUCCESS);
 }
@@ -199,12 +192,9 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_UnpackFailureCase)
     ubs_topo_node_t node;
 
     ubse_api_buffer_t respBuffer{};
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(1));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(1));
     respBuffer.length = 1;
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
 
     int32_t ret = ubs_topo_node_local_get(&node);
     EXPECT_NE(ret, UBS_SUCCESS);
@@ -235,7 +225,7 @@ std::vector<UbseCpuLink> BuildCpuLinkList()
 // 测试正常情况：成功获取CPU拓扑链接信息
 TEST_F(TestUbsEngineTopo, UbsTopoLinkList_NormalCase)
 {
-    ubs_topo_link_t *cpu_links = nullptr;
+    ubs_topo_link_t* cpu_links = nullptr;
     uint32_t cpu_link_cnt = 0;
     // 构造正常数据
     auto cpuLinkList = BuildCpuLinkList();
@@ -243,17 +233,14 @@ TEST_F(TestUbsEngineTopo, UbsTopoLinkList_NormalCase)
     auto ret = UbseCpuLinkListPack(cpuLinkList, respMessage);
     EXPECT_EQ(ret, UBSE_OK);
     ubse_api_buffer_t respBuffer{};
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(respMessage.length));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
     respBuffer.length = respMessage.length;
     if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respMessage.length) != EOK) {
         free(respBuffer.buffer);
         respBuffer.buffer = nullptr;
         respBuffer.length = 0;
     }
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     ret = ubs_topo_link_list(&cpu_links, &cpu_link_cnt);
     EXPECT_EQ(ret, UBS_SUCCESS);
     // 检查返回的链接数量是否大于零
@@ -270,7 +257,7 @@ TEST_F(TestUbsEngineTopo, UbsTopoLinkList_NullPointerCase)
 // 测试接口调用失败的情况
 TEST_F(TestUbsEngineTopo, UbsTopoLinkList_IpcFailureCase)
 {
-    ubs_topo_link_t *cpu_links = nullptr;
+    ubs_topo_link_t* cpu_links = nullptr;
     uint32_t cpu_link_cnt = 0;
     MOCKER(ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_IPC_CONNECTION_FAILED));
     int32_t ret = ubs_topo_link_list(&cpu_links, &cpu_link_cnt);
@@ -280,16 +267,13 @@ TEST_F(TestUbsEngineTopo, UbsTopoLinkList_IpcFailureCase)
 // 测试解包失败的情况
 TEST_F(TestUbsEngineTopo, UbsTopoLinkList_UnpackFailureCase)
 {
-    ubs_topo_link_t *cpu_links = nullptr;
+    ubs_topo_link_t* cpu_links = nullptr;
     uint32_t cpu_link_cnt = 0;
 
     ubse_api_buffer_t respBuffer{};
-    respBuffer.buffer = static_cast<uint8_t *>(malloc(1));
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(1));
     respBuffer.length = 1;
-    MOCKER(ubse_invoke_call)
-        .stubs()
-        .with(_, _, _, outBoundP(&respBuffer))
-        .will(returnValue(UBSE_OK));
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     int32_t ret = ubs_topo_link_list(&cpu_links, &cpu_link_cnt);
     EXPECT_NE(ret, UBS_SUCCESS);
 }

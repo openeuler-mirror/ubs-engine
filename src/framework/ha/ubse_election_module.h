@@ -23,8 +23,8 @@
 #include "ubse_module.h"
 
 namespace ubse::election {
-using namespace ubse::module;
-using namespace ubse::message;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 
 class UbseElectionModule : public UbseModule {
 public:
@@ -46,21 +46,21 @@ public:
      * 获得所有节点的Id
      * @param allNodes [out] 所有节点Id, ip, port
      */
-    UbseResult UbseGetAllNodes(Node &master, Node &standby, std::vector<Node> &agent);
+    UbseResult UbseGetAllNodes(Node& master, Node& standby, std::vector<Node>& agent);
 
     /* *
      * 查询全局唯一主节点信息
      * @param[out] 返回集群唯一主节点信息
      * @return UBSE_OK 成功，UBSE_ERROR 失败
      */
-    UbseResult UbseGetMasterNode(Node &masterNode);
+    UbseResult UbseGetMasterNode(Node& masterNode);
 
     /* *
    * 查询全局唯一备节点信息
    * @param[out] 返回集群唯一备节点信息
    * @return UBSE_OK 成功，UBSE_ERROR 失败
    */
-    UbseResult UbseGetStandbyNode(Node &standbyNode);
+    UbseResult UbseGetStandbyNode(Node& standbyNode);
 
     /* *
      * 查询组内主节点信息
@@ -92,30 +92,30 @@ public:
      * 查询当前节点ID
      * @param currentNode 当前节点信息
      */
-    UbseResult GetCurrentNode(Node &currentNode);
+    UbseResult GetCurrentNode(Node& currentNode);
 
     /* *
      * @brief 查询主节点状态
      * @param[in/out] status 主节点状态
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult GetMasterStatus(uint8_t &status);
+    UbseResult GetMasterStatus(uint8_t& status);
 
     /* *
      * @brief 查询备节点状态
      * @param[in/out] status 备节点状态
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult GetStandbyStatus(uint8_t &status);
+    UbseResult GetStandbyStatus(uint8_t& status);
 
-    UbseResult GetNodeIpInfoById(const std::string &id, std::string &ip);
+    UbseResult GetNodeIpInfoById(const std::string& id, std::string& ip);
 
     /* *
      * @brief 查询lcne里的所有节点
      * @param[out]  所有物理节点
      * @return 成功返回0, 失败返回非0
      */
-    static UbseResult GetAllNodes(std::vector<Node> &allNodes);
+    static UbseResult GetAllNodes(std::vector<Node>& allNodes);
 
     bool IsLeader();
 

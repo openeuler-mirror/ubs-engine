@@ -13,17 +13,24 @@
 #ifndef TEST_UBSE_URMA_UVS_H
 #define TEST_UBSE_URMA_UVS_H
 
+#include <string>
+#include <unordered_map>
+
 #include <gtest/gtest.h>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
+#include "ubse_urma_topo_config.h"
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urma {
-extern UbseResult FillNodeComInfo(const std::vector<PhysicalLink> &allLinkInfo,
-                           const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo, std::vector<UbcoreTopoNode> &nodes);
-extern UbseResult ConvertEidStrToHexCharList(const std::string &input, char outBytes[IPV6_BYTE_COUNT]);
-}
+extern UbseResult FillNodeComInfo(const std::string& currentSlotId, const std::vector<PhysicalLink>& allLinkInfo,
+                                  const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo,
+                                  std::vector<UbcoreTopoNode>& nodes);
+extern UbseResult FillClosTopoByConfig(const UbseUrmaTopoConfig& topoConfig,
+                                       std::unordered_map<std::string, UbcoreTopoNode>& nodeMap);
+extern UbseResult ConvertEidStrToHexCharList(const std::string& input, char outBytes[IPV6_BYTE_COUNT]);
+} // namespace ubse::urma
 
 namespace ubse::urma::ut {
 class TestUrmaUvs : public testing::Test {
@@ -34,5 +41,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::urma::ut
 #endif //TEST_UBSE_URMA_UVS_H

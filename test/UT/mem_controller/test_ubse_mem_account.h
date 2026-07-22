@@ -13,9 +13,9 @@
 #ifndef UBS_ENGINE_TEST_MEM_ACCOUNT_H
 #define UBS_ENGINE_TEST_MEM_ACCOUNT_H
 
+#include "ubse_mem_account.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_mem_account.h"
 
 namespace ubse::obj::ut {
 class TestUbseMemAccount : public testing::Test {
@@ -26,6 +26,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::obj::ut
+} // namespace ubse::obj::ut
 
-#endif  // UBS_ENGINE_TEST_MEM_ACCOUNT_H
+#endif // UBS_ENGINE_TEST_MEM_ACCOUNT_H

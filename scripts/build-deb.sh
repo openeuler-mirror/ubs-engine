@@ -13,7 +13,7 @@ PROJECT_ROOT="$SCRIPT_DIR/.."
 DEB_ROOT="$PROJECT_ROOT/deb"
 STAGING="$DEB_ROOT/common"
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 RELEASE="1"
 FULL_VERSION="${VERSION}-${RELEASE}"
 ARCH="arm64"
@@ -54,14 +54,15 @@ sed -i "s|/usr/lib64/ubse|/usr/lib/${DEB_HOST_MULTIARCH}/ubse|g" "$SERVICE_FILE"
 install -Dm644 cmake-build-release/conf/ubse.conf "$STAGING/etc/ubse/ubse.conf"
 install -Dm644 cmake-build-release/conf/ubse_auth_default.conf "$STAGING/etc/ubse/ubse_auth_default.conf"
 install -Dm644 cmake-build-release/conf/ubse_plugin_admission.conf "$STAGING/etc/ubse/ubse_plugin_admission.conf"
+install -Dm644 cmake-build-release/conf/topo/non-cross.json \
+    "$STAGING/etc/ubse/topo/non-cross.json"
+install -Dm644 cmake-build-release/conf/topo/hccs-cross.json \
+    "$STAGING/etc/ubse/topo/hccs-cross.json"
 install -Dm644 src/addons/virt_agent/conf/plugin_virt_agent.conf "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf"
 install -Dm644 src/addons/virt_agent/conf/auth-virt_agent.conf "$STAGING/etc/ubse/plugins/auth-virt_agent.conf"
 
 # Bash completion
 install -Dm644 scripts/command_completion/cli_commands.sh "$STAGING/etc/bash_completion.d/cli_commands.sh"
-
-# Version file
-install -Dm644 cmake-build-release/VERSION "$STAGING/usr/share/ubse/VERSION"
 
 # Internal libs (in /${LIBDIR}/ubse/)
 install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so "$STAGING/${LIBDIR}/ubse/libhcom.so"
@@ -71,10 +72,10 @@ install -Dm755 cmake-build-release/_deps/ubs_comm-src/dist/hcom/lib/libhcom.so.0
 # VirtAgent libs (in /${LIBDIR}/)
 install -Dm755 cmake-build-release/lib/libvirtagent.so "$STAGING/${LIBDIR}/libvirtagent.so"
 install -Dm755 cmake-build-release/lib/libstrategy.so "$STAGING/${LIBDIR}/libstrategy.so"
-install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.0 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0"
+install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.1 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.1"
 
 # Client libs
-install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.0 "$STAGING/${LIBDIR}/libubse-client.so.1.0.0"
+install -Dm755 cmake-build-release/lib/libubse-client.so.1.0.1 "$STAGING/${LIBDIR}/libubse-client.so.1.0.1"
 install -Dm644 cmake-build-release/lib/libubse-client.a "$STAGING/${LIBDIR}/libubse-client.a"
 
 # Headers
@@ -139,10 +140,12 @@ build_deb() {
             install -Dm644 "$STAGING/etc/ubse/ubse.conf" "$pkg_dir/etc/ubse/ubse.conf"
             install -Dm644 "$STAGING/etc/ubse/ubse_plugin_admission.conf" "$pkg_dir/etc/ubse/ubse_plugin_admission.conf"
             install -Dm644 "$STAGING/etc/ubse/ubse_auth_default.conf" "$pkg_dir/etc/ubse/ubse_auth_default.conf"
+            install -Dm644 "$STAGING/etc/ubse/topo/non-cross.json" \
+                "$pkg_dir/etc/ubse/topo/non-cross.json"
+            install -Dm644 "$STAGING/etc/ubse/topo/hccs-cross.json" \
+                "$pkg_dir/etc/ubse/topo/hccs-cross.json"
             # Completion
             install -Dm644 "$STAGING/etc/bash_completion.d/cli_commands.sh" "$pkg_dir/etc/bash_completion.d/cli_commands.sh"
-            # Version
-            install -Dm644 "$STAGING/usr/share/ubse/VERSION" "$pkg_dir/usr/share/ubse/VERSION"
             # Internal libs
             install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so" "$pkg_dir/${LIBDIR}/ubse/libhcom.so"
             install -Dm755 "$STAGING/${LIBDIR}/ubse/libhcom.so.0" "$pkg_dir/${LIBDIR}/ubse/libhcom.so.0"
@@ -150,8 +153,8 @@ build_deb() {
             ;;
 
         ubs-engine-client-libs)
-            install -Dm755 "$STAGING/usr/lib64/libubse-client.so.1.0.0" "$pkg_dir/${LIBDIR}/libubse-client.so.1.0.0"
-            ln -sf libubse-client.so.1.0.0 "$pkg_dir/${LIBDIR}/libubse-client.so.1"
+            install -Dm755 "$STAGING/usr/lib64/libubse-client.so.1.0.1" "$pkg_dir/${LIBDIR}/libubse-client.so.1.0.1"
+            ln -sf libubse-client.so.1.0.1 "$pkg_dir/${LIBDIR}/libubse-client.so.1"
             ;;
 
         ubs-engine-client-dev)
@@ -188,8 +191,8 @@ build_deb() {
             # VirtAgent libs
             install -Dm755 "$STAGING/${LIBDIR}/libvirtagent.so" "$pkg_dir/${LIBDIR}/libvirtagent.so"
             install -Dm755 "$STAGING/${LIBDIR}/libstrategy.so" "$pkg_dir/${LIBDIR}/libstrategy.so"
-            install -Dm755 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.0" "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1.0.0"
-            ln -sf libubs-virt-agent.so.1.0.0 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1"
+            install -Dm755 "$STAGING/${LIBDIR}/libubs-virt-agent.so.1.0.1" "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1.0.1"
+            ln -sf libubs-virt-agent.so.1.0.1 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so.1"
             ln -sf libubs-virt-agent.so.1 "$pkg_dir/${LIBDIR}/libubs-virt-agent.so"
 
             install -Dm644 "$STAGING/etc/ubse/plugins/plugin_virt_agent.conf" "$pkg_dir/etc/ubse/plugins/plugin_virt_agent.conf"

@@ -13,8 +13,8 @@
 #include <dlfcn.h>
 #include <gtest/gtest.h>
 #include <securec.h>
-#include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/wait.h>
 #include <ucontext.h>
 #include <unistd.h>
 #include <climits>
@@ -33,7 +33,7 @@ void InitTraceBuffer()
 }
 
 template <typename... Args>
-void AppendToTraceBuffer(const char *format, Args... args)
+void AppendToTraceBuffer(const char* format, Args... args)
 {
     if (traceBufferOffset >= TRACE_BUFFER_SIZE - 1) {
         return;
@@ -67,19 +67,19 @@ void FlushTraceBuffer()
 }
 
 // 使用 addr2line 解析地址的函数
-void ResolveAndPrintAddress(unsigned long long int address, int index, char *path)
+void ResolveAndPrintAddress(unsigned long long int address, int index, char* path)
 {
     char cmd[PATH_MAX];
     char result[PATH_MAX];
-    FILE *fp;
+    FILE* fp;
     Dl_info dl_info;
 
     memset_s(&dl_info, sizeof(Dl_info), 0, sizeof(Dl_info));
-    AppendToTraceBuffer("%2d# [%p] ", index, reinterpret_cast<void *>(address));
+    AppendToTraceBuffer("%2d# [%p] ", index, reinterpret_cast<void*>(address));
 
     // 使用 addr2line 获取详细的行号信息
     snprintf_s(cmd, sizeof(cmd), sizeof(cmd), "addr2line -e %s -f -C -p %p 2>/dev/null", path,
-               reinterpret_cast<void *>(address));
+               reinterpret_cast<void*>(address));
 
     fp = popen(cmd, "r");
     if (fp) {
@@ -94,12 +94,12 @@ void ResolveAndPrintAddress(unsigned long long int address, int index, char *pat
 
 #if defined(__aarch64__)
 // ARM架构的栈回溯实现（完全保留原始代码）
-static void PrintBackTraceARMImpl(const ucontext_t *uc, char *exePath)
+static void PrintBackTraceARMImpl(const ucontext_t* uc, char* exePath)
 {
     // AArch64 使用 X29 作为帧指针，X30 作为链接寄存器
-    auto *fp = reinterpret_cast<unsigned long long int *>(uc->uc_mcontext.regs[29]); // X29/FP
-    unsigned long long int lr = uc->uc_mcontext.regs[30]; // X30/LR (作为起始返回地址)
-    unsigned long long int pc = uc->uc_mcontext.pc;       // 当前程序计数器
+    auto* fp = reinterpret_cast<unsigned long long int*>(uc->uc_mcontext.regs[29]); // X29/FP
+    unsigned long long int lr = uc->uc_mcontext.regs[30];                           // X30/LR (作为起始返回地址)
+    unsigned long long int pc = uc->uc_mcontext.pc;                                 // 当前程序计数器
 
     int i = 0;
 
@@ -110,7 +110,7 @@ static void PrintBackTraceARMImpl(const ucontext_t *uc, char *exePath)
     // 然后遍历调用栈
     while (fp && lr) {
         // 获取上一级的帧指针和返回地址
-        auto *nextFp = reinterpret_cast<unsigned long long int *>(*fp);
+        auto* nextFp = reinterpret_cast<unsigned long long int*>(*fp);
         if (nextFp == fp || nextFp == nullptr) {
             break; // 避免循环或空指针
         }
@@ -124,7 +124,7 @@ static void PrintBackTraceARMImpl(const ucontext_t *uc, char *exePath)
         // 检查是否到达 main 函数
         Dl_info dl_info;
         memset_s(&dl_info, sizeof(Dl_info), 0, sizeof(Dl_info));
-        if (dladdr(reinterpret_cast<void *>(lr), &dl_info)) {
+        if (dladdr(reinterpret_cast<void*>(lr), &dl_info)) {
             if (dl_info.dli_sname && !strcmp(dl_info.dli_sname, "main")) {
                 break;
             }
@@ -143,18 +143,18 @@ static void PrintBackTraceARMImpl(const ucontext_t *uc, char *exePath)
 
 #if defined(__x86_64__)
 // x86_64架构的栈回溯实现（参考原始ARM逻辑实现）
-static void PrintBackTraceX86_64Impl(const ucontext_t *uc, char *exePath)
+static void PrintBackTraceX86_64Impl(const ucontext_t* uc, char* exePath)
 {
     // x86_64 使用 RBP 作为帧指针，RIP 作为程序计数器
-    auto *fp = reinterpret_cast<unsigned long long int *>(uc->uc_mcontext.gregs[REG_RBP]); // RBP
-    unsigned long long int pc = uc->uc_mcontext.gregs[REG_RIP];                             // RIP
-    unsigned long long int lr = 0;                                                          // 返回地址（从栈中获取）
+    auto* fp = reinterpret_cast<unsigned long long int*>(uc->uc_mcontext.gregs[REG_RBP]); // RBP
+    unsigned long long int pc = uc->uc_mcontext.gregs[REG_RIP];                           // RIP
+    unsigned long long int lr = 0; // 返回地址（从栈中获取）
 
     int i = 0;
 
     // 首先打印触发错误的PC（x86_64没有单独的LR寄存器，返回地址在栈中）
     ResolveAndPrintAddress(pc, i++, exePath);
-    
+
     // 如果有帧指针，获取第一个返回地址
     if (fp) {
         lr = fp[1];
@@ -166,7 +166,7 @@ static void PrintBackTraceX86_64Impl(const ucontext_t *uc, char *exePath)
     // 然后遍历调用栈
     while (fp && lr) {
         // 获取上一级的帧指针和返回地址
-        auto *nextFp = reinterpret_cast<unsigned long long int *>(*fp);
+        auto* nextFp = reinterpret_cast<unsigned long long int*>(*fp);
         if (nextFp == fp || nextFp == nullptr) {
             break; // 避免循环或空指针
         }
@@ -180,7 +180,7 @@ static void PrintBackTraceX86_64Impl(const ucontext_t *uc, char *exePath)
         // 检查是否到达 main 函数
         Dl_info dl_info;
         memset_s(&dl_info, sizeof(Dl_info), 0, sizeof(Dl_info));
-        if (dladdr(reinterpret_cast<void *>(lr), &dl_info)) {
+        if (dladdr(reinterpret_cast<void*>(lr), &dl_info)) {
             if (dl_info.dli_sname && !strcmp(dl_info.dli_sname, "main")) {
                 break;
             }
@@ -197,33 +197,33 @@ static void PrintBackTraceX86_64Impl(const ucontext_t *uc, char *exePath)
 }
 #endif
 
-void PrintBackTrace(const ucontext_t *uc)
+void PrintBackTrace(const ucontext_t* uc)
 {
     InitTraceBuffer();
     AppendToTraceBuffer("========== Stack trace start ==========\n");
-    
+
     char exePath[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
     if (len >= 0) {
         exePath[len] = '\0';
     }
-    
-    #if defined(__aarch64__)
-        PrintBackTraceARMImpl(uc, exePath);
-    #elif defined(__x86_64__)
-        PrintBackTraceX86_64Impl(uc, exePath);
-    #else
-        AppendToTraceBuffer("Unsupported architecture\n");
-    #endif
-    
+
+#if defined(__aarch64__)
+    PrintBackTraceARMImpl(uc, exePath);
+#elif defined(__x86_64__)
+    PrintBackTraceX86_64Impl(uc, exePath);
+#else
+    AppendToTraceBuffer("Unsupported architecture\n");
+#endif
+
     AppendToTraceBuffer("========== Stack trace end ==========\n");
     FlushTraceBuffer();
 }
 
-void SignalHandlerWithContext(int sig, siginfo_t *info, void *context)
+void SignalHandlerWithContext(int sig, siginfo_t* info, void* context)
 {
     if (context) {
-        const auto *uc = reinterpret_cast<ucontext_t *>(context);
+        const auto* uc = reinterpret_cast<ucontext_t*>(context);
         PrintBackTrace(uc);
     }
 
@@ -232,7 +232,8 @@ void SignalHandlerWithContext(int sig, siginfo_t *info, void *context)
 
 void SetupSignalHandlers()
 {
-    struct sigaction sa {};
+    struct sigaction sa {
+    };
     sa.sa_sigaction = SignalHandlerWithContext;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO;
@@ -244,7 +245,7 @@ void SetupSignalHandlers()
     sigaction(SIGBUS, &sa, nullptr);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     SetupSignalHandlers();
     testing::InitGoogleTest(&argc, argv);

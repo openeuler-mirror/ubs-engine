@@ -13,8 +13,8 @@
 #ifndef TEST_UBSE_URMA_CONTROLLER_RPC_H
 #define TEST_UBSE_URMA_CONTROLLER_RPC_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mokc.h>
 
 namespace ubse::urmaControllerRpc::ut {
@@ -30,6 +30,6 @@ class TestUbseUrmaControllerRpc : public testing::Test {
         GlobalMockObject::verify();
     }
 };
-}
+} // namespace ubse::urmaControllerRpc::ut
 
 #endif // TEST_UBSE_URMA_CONTROLLER_RPC_H

@@ -49,7 +49,7 @@ TEST_F(TestUbseFs, WirteFileFail)
 {
     std::filesystem::remove_all(UBSE_TEST_DATA_PATH);
     std::string test = "test";
-    auto ret = UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t *>(test.data()), test.size());
+    auto ret = UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t*>(test.data()), test.size());
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
@@ -65,7 +65,7 @@ TEST_F(TestUbseFs, WirteFileFail)
 TEST_F(TestUbseFs, WirteFileNormal)
 {
     std::string test = "test";
-    auto ret = UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t *>(test.data()), test.size());
+    auto ret = UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t*>(test.data()), test.size());
     EXPECT_EQ(ret, UBSE_OK);
 }
 
@@ -98,7 +98,7 @@ TEST_F(TestUbseFs, WirteFileFailWhenOverLimit)
  */
 TEST_F(TestUbseFs, ReadNotExistFile)
 {
-    uint8_t *data = nullptr;
+    uint8_t* data = nullptr;
     uint32_t len = 0;
     auto ret = UbseFs(UBSE_TEST_DATA_PATH).ReadFile("test1", data, len);
     EXPECT_EQ(ret, UBSE_OK);
@@ -117,8 +117,8 @@ TEST_F(TestUbseFs, ReadNotExistFile)
 TEST_F(TestUbseFs, ReadFileNormal)
 {
     std::string test = "test";
-    UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t *>(test.data()), test.size());
-    uint8_t *data = nullptr;
+    UbseFs(UBSE_TEST_DATA_PATH).WriteFile("test", reinterpret_cast<uint8_t*>(test.data()), test.size());
+    uint8_t* data = nullptr;
     uint32_t len = 0;
     auto ret = UbseFs(UBSE_TEST_DATA_PATH).ReadFile("test", data, len);
     EXPECT_EQ(ret, UBSE_OK);

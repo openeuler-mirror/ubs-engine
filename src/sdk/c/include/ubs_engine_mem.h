@@ -33,12 +33,14 @@ extern "C" {
 #define UBS_MEM_FLAG_CACHEABLE 0x4     // 设置cacheableFlag为1
 #define UBS_MEM_MAX_DESC_LIST 2000
 
-typedef enum {
+typedef enum
+{
     NUMA_LOCAL, // 本地numa
     NUMA_REMOTE // 远端numa, 当前不支持
 } ubs_mem_numa_type_t;
 
-typedef enum {
+typedef enum
+{
     UBSE_NOT_EXIST = 0,         // 借用关系不存在
     UBSE_CREATING = 1,          // 正在创建中
     UBSE_DELETING = 2,          // 正在删除中
@@ -72,6 +74,7 @@ typedef struct {
  * @param numa_mem_cnt [OUT] 节点numa信息个数, 范围 [0, UBS_TOPO_NUMA_NUM]
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_NOT_SUPPORTED:内存特性不支持;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
@@ -79,7 +82,7 @@ typedef struct {
  * UBS_ENGINE_ERR_NODE_NOT_EXISTS:查询节点不存在
  * UBS_ENGINE_ERR_NODE_FAULT:查询节点故障
  */
-int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t **numa_mems, uint32_t *numa_mem_cnt);
+int32_t ubs_mem_numastat_get(uint32_t slot_id, ubs_mem_numastat_t** numa_mems, uint32_t* numa_mem_cnt);
 
 // 使用方进程信息
 typedef struct {
@@ -88,7 +91,8 @@ typedef struct {
     pid_t pid; // 属主进程的的运行用户的pid, 指定pid，pid消失时, ubs自动释放借用内存(暂不提供)
 } ubs_mem_fd_owner_t;
 
-typedef enum {
+typedef enum
+{
     MEM_DISTANCE_L0, // L0对应直连节点
     MEM_DISTANCE_L1, // L1对应通过1跳节点, 暂不支持
     MEM_DISTANCE_L2  // L2对应超过1跳节点 , 暂不支持
@@ -134,8 +138,8 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                          ubs_mem_distance_t distance, ubs_mem_fd_desc_t *fd_desc);
+int32_t ubs_mem_fd_create(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                          ubs_mem_distance_t distance, ubs_mem_fd_desc_t* fd_desc);
 
 /**
  * @brief  指定借出信息，在本节点创建fd形态的远端内存，该资源的管理权限属于调用者
@@ -157,8 +161,8 @@ int32_t ubs_mem_fd_create(const char *name, uint64_t size, const ubs_mem_fd_owne
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
 
-int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                      const ubs_mem_lender_t *lender, uint32_t lender_cnt, ubs_mem_fd_desc_t *fd_desc);
+int32_t ubs_mem_fd_create_with_lender(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                      const ubs_mem_lender_t* lender, uint32_t lender_cnt, ubs_mem_fd_desc_t* fd_desc);
 
 /**
  * @brief  指定候选借出节点范围，在本节点创建fd形态的远端内存，该资源的管理权限属于调用者
@@ -181,8 +185,8 @@ int32_t ubs_mem_fd_create_with_lender(const char *name, const ubs_mem_fd_owner_t
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                                         const uint32_t *slot_ids, uint32_t slot_cnt, ubs_mem_fd_desc_t *fd_desc);
+int32_t ubs_mem_fd_create_with_candidate(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                         const uint32_t* slot_ids, uint32_t slot_cnt, ubs_mem_fd_desc_t* fd_desc);
 
 /**
  * @brief 改变本节点fd形态远端内存的permission信息; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -200,7 +204,7 @@ int32_t ubs_mem_fd_create_with_candidate(const char *name, uint64_t size, const 
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode);
+int32_t ubs_mem_fd_permission(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode);
 
 /**
  * @brief 查询本节点fd形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -217,7 +221,7 @@ int32_t ubs_mem_fd_permission(const char *name, const ubs_mem_fd_owner_t *owner,
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
+int32_t ubs_mem_fd_get(const char* name, ubs_mem_fd_desc_t* fd_desc);
 
 /**
  * @brief 查询本节点所有fd形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -234,7 +238,7 @@ int32_t ubs_mem_fd_get(const char *name, ubs_mem_fd_desc_t *fd_desc);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt);
+int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t** fd_descs, uint32_t* fd_desc_cnt);
 
 /**
  * @brief 删除本节点指定fd远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -254,7 +258,7 @@ int32_t ubs_mem_fd_list(ubs_mem_fd_desc_t **fd_descs, uint32_t *fd_desc_cnt);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_fd_delete(const char *name);
+int32_t ubs_mem_fd_delete(const char* name);
 
 typedef struct {
     char name[UBS_MEM_MAX_NAME_LENGTH];        // 借用标识
@@ -283,8 +287,8 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t distance,
-                            ubs_mem_numa_desc_t *numa_desc);
+int32_t ubs_mem_numa_create(const char* name, uint64_t size, ubs_mem_distance_t distance,
+                            ubs_mem_numa_desc_t* numa_desc);
 
 /**
  * @brief  指定借出信息，在本节点创建numa形态的远端内存，该资源的管理权限属于调用者
@@ -303,8 +307,8 @@ int32_t ubs_mem_numa_create(const char *name, uint64_t size, ubs_mem_distance_t 
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t *lender, uint32_t lender_cnt,
-                                        ubs_mem_numa_desc_t *numa_desc);
+int32_t ubs_mem_numa_create_with_lender(const char* name, const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                        ubs_mem_numa_desc_t* numa_desc);
 
 /**
  * @brief  指定候选借出节点，在本节点创建numa形态的远端内存，该资源的管理权限属于调用者
@@ -325,8 +329,8 @@ int32_t ubs_mem_numa_create_with_lender(const char *name, const ubs_mem_lender_t
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, const uint32_t *slot_ids, uint32_t slot_cnt,
-                                           ubs_mem_numa_desc_t *numa_desc);
+int32_t ubs_mem_numa_create_with_candidate(const char* name, uint64_t size, const uint32_t* slot_ids, uint32_t slot_cnt,
+                                           ubs_mem_numa_desc_t* numa_desc);
 
 /**
  * @brief 查询本节点numa形态远端内存信息; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -343,7 +347,7 @@ int32_t ubs_mem_numa_create_with_candidate(const char *name, uint64_t size, cons
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc);
+int32_t ubs_mem_numa_get(const char* name, ubs_mem_numa_desc_t* numa_desc);
 
 /**
  * @brief 查询本节点所有numa形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -360,7 +364,7 @@ int32_t ubs_mem_numa_get(const char *name, ubs_mem_numa_desc_t *numa_desc);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_cnt);
+int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t** numa_descs, uint32_t* numa_desc_cnt);
 
 /**
  * @brief 删除本节点指定numa远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同
@@ -380,7 +384,7 @@ int32_t ubs_mem_numa_list(ubs_mem_numa_desc_t **numa_descs, uint32_t *numa_desc_
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_numa_delete(const char *name);
+int32_t ubs_mem_numa_delete(const char* name);
 
 typedef struct {
     uint32_t node_cnt; // 实际有效的节点数量, 取值范围[1-16],
@@ -411,8 +415,8 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32], uint64_t flag,
-                           const ubs_mem_nodes_t *region, const ubs_mem_nodes_t *provider);
+int32_t ubs_mem_shm_create(const char* name, uint64_t size, uint8_t usr_info[32], uint64_t flag,
+                           const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider);
 
 /**
  * @brief
@@ -437,9 +441,9 @@ int32_t ubs_mem_shm_create(const char *name, uint64_t size, uint8_t usr_info[32]
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32_t affinity_socket_id,
-                                         uint8_t usr_info[32], uint64_t flag, const ubs_mem_nodes_t *region,
-                                         const ubs_mem_nodes_t *provider);
+int32_t ubs_mem_shm_create_with_affinity(const char* name, uint64_t size, uint32_t affinity_socket_id,
+                                         uint8_t usr_info[32], uint64_t flag, const ubs_mem_nodes_t* region,
+                                         const ubs_mem_nodes_t* provider);
 
 /**
  * @brief
@@ -462,8 +466,8 @@ int32_t ubs_mem_shm_create_with_affinity(const char *name, uint64_t size, uint32
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_create_with_lender(const char *name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
-                                       const ubs_mem_nodes_t *region, const ubs_mem_lender_t *lender);
+int32_t ubs_mem_shm_create_with_lender(const char* name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
+                                       const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender);
 
 typedef struct {
     uint32_t memid_cnt;                     // 导出的内存块数量
@@ -479,7 +483,7 @@ typedef struct {
     uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN];
     uint32_t import_desc_cnt;               // 导入内存描述符信息的数量, 范围 [0, UBS_TOPO_MAX_NODE_NUM]
     ubs_mem_stage mem_stage;                // 内存状态
-    ubs_mem_shm_import_desc_t *import_desc; // 导入内存描述符信息
+    ubs_mem_shm_import_desc_t* import_desc; // 导入内存描述符信息
 } ubs_mem_shm_desc_t;
 
 /**
@@ -503,8 +507,8 @@ typedef struct {
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mode_t mode,
-                           ubs_mem_shm_desc_t **shm_desc);
+int32_t ubs_mem_shm_attach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                           ubs_mem_shm_desc_t** shm_desc);
 
 /**
  * @brief 查询指定共享形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -521,7 +525,7 @@ int32_t ubs_mem_shm_attach(const char *name, const ubs_mem_fd_owner_t *owner, mo
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
+int32_t ubs_mem_shm_get(const char* name, ubs_mem_shm_desc_t** shm_desc);
 
 /**
  * @brief 查询指定借用标识前缀的共享形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -538,7 +542,7 @@ int32_t ubs_mem_shm_get(const char *name, ubs_mem_shm_desc_t **shm_desc);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt);
+int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt);
 
 /**
  * @brief 查询指定借用标识前缀的共享形态远端内存; 最多查询到2000条借用内存;
@@ -557,7 +561,7 @@ int32_t ubs_mem_shm_list(ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt)
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t **shm_descs, uint32_t *shm_desc_cnt);
+int32_t ubs_mem_shm_list_with_prefix(const char* name_prefix, ubs_mem_shm_desc_t** shm_descs, uint32_t* shm_desc_cnt);
 
 /**
  * @brief 删除导入共享形态的远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同
@@ -575,7 +579,7 @@ int32_t ubs_mem_shm_list_with_prefix(const char *name_prefix, ubs_mem_shm_desc_t
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_detach(const char *name);
+int32_t ubs_mem_shm_detach(const char* name);
 
 /**
  * @brief 删除指定共享形态远端内存; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同
@@ -596,9 +600,10 @@ int32_t ubs_mem_shm_detach(const char *name);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_delete(const char *name);
+int32_t ubs_mem_shm_delete(const char* name);
 
-typedef enum {
+typedef enum
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,
@@ -618,6 +623,8 @@ typedef enum {
     MAR_ILLEGAL_ACCESS_ERR,
     REMOTE_READ_DATA_ERR_OR_WRITE_RESPONSE_ERR,
     MEM_EXPORT_FAULT,
+    MEM_LINK_DOWN,
+    MEM_LINK_UP,
     UB_MEM_HEALTHY = 1000, // 无故障
 } ubs_mem_fault_type_t;
 
@@ -627,7 +634,9 @@ typedef struct {
     ubs_mem_fault_type_t memid_status[UBS_MEM_MAX_MEMID_NUM]; // 内存块的健康状态，与memids一一对应
 } ubs_mem_memids_fault_t;
 
-typedef int32_t (*ubs_mem_shm_fault_handler)(const char *name, uint64_t memid, ubs_mem_fault_type_t type);
+typedef int32_t (*ubs_mem_shm_fault_handler)(const char* name, uint64_t memid, ubs_mem_fault_type_t type);
+typedef int32_t (*ubs_mem_fd_fault_handler)(const char* name, uint64_t memid, ubs_mem_fault_type_t type);
+typedef int32_t (*ubs_mem_numa_fault_handler)(const char* name, uint64_t numaid, ubs_mem_fault_type_t type);
 
 /**
  * @brief 查询指定共享远端内存的状态; 调用该接口能操控的资源：创建资源时的标识与本次调用方的标识相同；
@@ -644,18 +653,32 @@ typedef int32_t (*ubs_mem_shm_fault_handler)(const char *name, uint64_t memid, u
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_mem_shm_fault_get(const char *name, ubs_mem_memids_fault_t *fault);
+int32_t ubs_mem_shm_fault_get(const char* name, ubs_mem_memids_fault_t* fault);
 
 /**
- * @brief 客户端订阅共享内存UB Event事件
- * @param[in] registerFunc: 共享内存UB Event事件响应处理函数
+ * @brief 客户端订阅共享内存故障事件
+ * @param[in] registerFunc: 共享内存故障事件响应处理函数
  * @return 成功返回0, 失败返回非0
  */
 int32_t ubs_mem_shm_fault_register(ubs_mem_shm_fault_handler handler);
 
+/**
+  * @brief 客户端订阅fd内存故障事件
+  * @param[in] registerFunc: fd内存故障事件响应处理函数
+  * @return 成功返回0, 失败返回非0
+  */
+int32_t ubs_mem_fd_fault_register(ubs_mem_fd_fault_handler handler);
+
+/**
+  * @brief 客户端订阅numa内存故障事件
+  * @param[in] registerFunc: numa内存故障事件响应处理函数
+  * @return 成功返回0, 失败返回非0
+  */
+int32_t ubs_mem_numa_fault_register(ubs_mem_numa_fault_handler handler);
+
 typedef struct {
-    uint32_t export_slot_id;                                  // 导出节点的id
-    uint64_t export_memid;                                    // 导出内存块标识信息
+    uint32_t export_slot_id; // 导出节点的id
+    uint64_t export_memid;   // 导出内存块标识信息
 } ubs_mem_export_memid_t;
 
 /**
@@ -677,10 +700,9 @@ typedef struct {
   * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
   * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
   */
-int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
- 
- 
- /**
+int32_t ubs_mem_fd_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info);
+
+/**
   * @brief 通过指定numa形态导入端memid查询导出端memid;
   * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
   *
@@ -699,10 +721,9 @@ int32_t ubs_mem_fd_get_memid_by_import(const char *name, uint64_t import_memid, 
   * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
   * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
   */
-int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
- 
- 
- /**
+int32_t ubs_mem_numa_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info);
+
+/**
   * @brief 通过指定shm形态导入端memid查询导出端memid;
   * 调用者的标识处理原则：能够获取username，则使用username；无法获取username，则使用uid；
   *
@@ -721,7 +742,7 @@ int32_t ubs_mem_numa_get_memid_by_import(const char *name, uint64_t import_memid
   * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
   * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
   */
-int32_t ubs_mem_shm_get_memid_by_import(const char *name, uint64_t import_memid, ubs_mem_export_memid_t *mem_info);
+int32_t ubs_mem_shm_get_memid_by_import(const char* name, uint64_t import_memid, ubs_mem_export_memid_t* mem_info);
 #ifdef __cplusplus
 }
 #endif

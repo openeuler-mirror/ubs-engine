@@ -18,10 +18,10 @@
 
 const std::string UBSE_MEM_EVENT_APP_STATE_CHANGE = "ubse.mem.event.app.linkstate";
 
-using UbseByteBufferFreeFunc = std::function<void(uint8_t *data)>;
+using UbseByteBufferFreeFunc = std::function<void(uint8_t* data)>;
 
 struct UbseByteBuffer {
-    uint8_t *data = nullptr;         // 数据指针
+    uint8_t* data = nullptr;         // 数据指针
     size_t len = 0;                  // 数据长度
     UbseByteBufferFreeFunc freeFunc; // 非空代表接收方需要释放内存；空代表接收方不需要释放内存
 };

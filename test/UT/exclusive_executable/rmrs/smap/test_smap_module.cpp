@@ -40,7 +40,7 @@ protected:
         cout << "[Phase SetUp End]" << endl;
     } catch (const std::exception& e) {
         cerr << "SetUp failed: " << e.what() << endl;
-        throw;  // 重新抛出异常，确保测试失败
+        throw; // 重新抛出异常，确保测试失败
     }
     void TearDown() override
     {
@@ -76,9 +76,7 @@ TEST_F(TestSmapModule, TestRackVmLog_Error)
 
 TEST_F(TestSmapModule, GetSmapQueryVmFreq_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     SmapQueryVmFreqFunc result = SmapModule::GetSmapQueryVmFreq();
     ASSERT_EQ(result, nullptr);
@@ -86,9 +84,7 @@ TEST_F(TestSmapModule, GetSmapQueryVmFreq_nullptr)
 
 TEST_F(TestSmapModule, GetSetSmapRunModeFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     SetSmapRunModeFunc result = SmapModule::GetSetSmapRunModeFunc();
     ASSERT_EQ(result, nullptr);
@@ -96,9 +92,7 @@ TEST_F(TestSmapModule, GetSetSmapRunModeFunc_nullptr)
 
 TEST_F(TestSmapModule, GetSmapMigrateRemoteNumaFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     SmapMigrateRemoteNumaFunc result = SmapModule::GetSmapMigrateRemoteNumaFunc();
     ASSERT_EQ(result, nullptr);
@@ -106,9 +100,7 @@ TEST_F(TestSmapModule, GetSmapMigrateRemoteNumaFunc_nullptr)
 
 TEST_F(TestSmapModule, GetSmapMigratePidRemoteNumaFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     SmapMigratePidRemoteNumaFunc result = SmapModule::GetSmapMigratePidRemoteNumaFunc();
     ASSERT_EQ(result, nullptr);
@@ -117,30 +109,26 @@ TEST_F(TestSmapModule, GetSmapMigratePidRemoteNumaFunc_nullptr)
 TEST_F(TestSmapModule, GetSmapEnableProcessMigrateFunc_nullptr)
 {
     SmapModule::smapEnableProcessMigrateFunc = nullptr;
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
 
     SmapEnableProcessMigrateFunc result = SmapModule::GetSmapEnableProcessMigrateFunc();
     ASSERT_EQ(result, nullptr);
 }
 
-int TestSmapMigrateOutSyncMock(struct MigrateOutMsg *msg, int pidType, uint64_t maxWaitTime)
+int TestSmapMigrateOutSyncMock(struct MigrateOutMsg* msg, int pidType, uint64_t maxWaitTime)
 {
     return 0;
 }
 
 TEST_F(TestSmapModule, TestGetSmapMigrateOutSyncFuncFailByDlsym)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
     SmapModule::GetSmapMigrateOutSync();
 }
 
 TEST_F(TestSmapModule, TestGetSmapMigrateOutSyncFuncSuccess)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()
         .will(returnValue(reinterpret_cast<void*>(&TestSmapMigrateOutSyncMock)));
     SmapModule::GetSmapMigrateOutSync();
@@ -154,37 +142,33 @@ int TestSetSmapRunModeMock(int runMode)
 
 TEST_F(TestSmapModule, TestGetRunModeFuncFailByDlsym)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
     SmapModule::GetSetSmapRunModeFunc();
 }
 
 TEST_F(TestSmapModule, TestGetRunModeFuncSuccess)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()
         .will(returnValue(reinterpret_cast<void*>(&TestSetSmapRunModeMock)));
     SmapModule::GetSetSmapRunModeFunc();
     SmapModule::GetSetSmapRunModeFunc();
 }
 
-int TestSmapMigrateRemoteNumaMock(struct MigrateNumaMsg *msg)
+int TestSmapMigrateRemoteNumaMock(struct MigrateNumaMsg* msg)
 {
     return 0;
 }
 
 TEST_F(TestSmapModule, TestGetSmapMigrateRemoteNumaFuncFailByDlsym)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
     SmapModule::GetSmapMigrateRemoteNumaFunc();
 }
 
 TEST_F(TestSmapModule, TestGetSmapMigrateRemoteNumaFuncSuccess)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()
         .will(returnValue(reinterpret_cast<void*>(&TestSmapMigrateRemoteNumaMock)));
     SmapModule::GetSmapMigrateRemoteNumaFunc();
@@ -193,10 +177,8 @@ TEST_F(TestSmapModule, TestGetSmapMigrateRemoteNumaFuncSuccess)
 
 TEST_F(TestSmapModule, GetSmapInit_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapInitFunc result = SmapModule::GetSmapInit();
     ASSERT_EQ(result, nullptr);
 }
@@ -204,60 +186,48 @@ TEST_F(TestSmapModule, GetSmapInit_nullptr)
 TEST_F(TestSmapModule, GetSetSmapRemoteNumaInfo_nullptr)
 {
     SmapModule::setSmapRemoteNumaInfoFunc = nullptr;
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SetSmapRemoteNumaInfoFunc result = SmapModule::GetSetSmapRemoteNumaInfo();
     ASSERT_EQ(result, nullptr);
 }
 
 TEST_F(TestSmapModule, GetSmapMigrateOut_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapMigrateOutFunc result = SmapModule::GetSmapMigrateOut();
     ASSERT_EQ(result, nullptr);
 }
 
 TEST_F(TestSmapModule, GetSmapRemoveFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapRemoveFunc result = SmapModule::GetSmapRemoveFunc();
     ASSERT_EQ(result, nullptr);
 }
 
 TEST_F(TestSmapModule, GetSmapGetRemoteProcessesFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapGetRemotePidsFunc result = SmapModule::GetSmapGetRemoteProcessesFunc();
     ASSERT_EQ(result, nullptr);
 }
 
 TEST_F(TestSmapModule, GetSmapAddProcessTrackingFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapAddProcessTrackingFunc result = SmapModule::GetSmapAddProcessTrackingFunc();
     ASSERT_EQ(result, nullptr);
 }
 
 TEST_F(TestSmapModule, GetSmapRemoveProcessTrackingFunc_nullptr)
 {
-    MOCKER_CPP(dlsym, void*(*)(void*, const char*))
-        .stubs()
-        .will(returnValue(static_cast<void*>(nullptr)));
- 
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue(static_cast<void*>(nullptr)));
+
     SmapRemoveProcessTrackingFunc result = SmapModule::GetSmapRemoveProcessTrackingFunc();
     ASSERT_EQ(result, nullptr);
 }
@@ -265,16 +235,13 @@ TEST_F(TestSmapModule, GetSmapRemoveProcessTrackingFunc_nullptr)
 TEST_F(TestSmapModule, CloseSmapHandle_nullptr)
 {
     // mock dlclose 返回 0（成功）
-    MOCKER_CPP(dlclose, int (*)(void*))
-        .stubs()
-        .will(returnValue(0));
- 
+    MOCKER_CPP(dlclose, int (*)(void*)).stubs().will(returnValue(0));
+
     SmapModule::CloseSmapHandle();
 
     // 验证所有成员都被 reset
     ASSERT_EQ(SmapModule::smapInitFunc, nullptr);
     ASSERT_EQ(SmapModule::smapMigrateOutFunc, nullptr);
 }
-
 
 } // namespace mempooling::smap

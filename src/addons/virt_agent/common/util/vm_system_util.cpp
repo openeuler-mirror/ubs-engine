@@ -18,11 +18,11 @@ namespace vm {
 
 std::string VmSystemUtil::GetUsernameByUid(const uid_t uid)
 {
-    struct passwd *pw = getpwuid(uid);
+    struct passwd* pw = getpwuid(uid);
     if (pw) {
         return std::string(pw->pw_name);
     } else {
         return "";
     }
 }
-} // vm
+} // namespace vm

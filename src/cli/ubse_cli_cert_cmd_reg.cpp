@@ -10,9 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_cli_cert_cmd_reg.h"
+#include "ubse_cert_cli_import.h"
 #include "ubse_common_def.h"
 #include "ubse_error.h"
-#include "ubse_cert_cli_import.h"
 
 namespace ubse::cli::reg {
 UBSE_CLI_REGISTER_MODULE("CLI_CERT_MODULE", UbseCliRegCertModule);
@@ -29,7 +29,7 @@ static const std::string FAILED_CHANGE_CRL = "Certificate Revocation List change
 static const std::string SERVER_CERT_DES =
     "A digital document that verifies the identity of an entity and binds a public key to it.";
 static const std::string CA_CERT_DES = "A certificate issued by a trusted authority to validate authenticity and "
-    "establish trust in digital communications.";
+                                       "establish trust in digital communications.";
 static const std::string SERVER_KEY_DES =
     "A confidential cryptographic key used for decryption, signing, and proving identity.";
 static const std::string CA_CRL_DES =
@@ -46,14 +46,14 @@ const std::string NO_SERVER_CERT_PATH =
     "ERROR: Missing the specific role. \"-s/--server-cert-file\" is required. Please "
     "try 'ubsectl --help' for more info.";
 const std::string NO_TRUST_CERT_PATH = "ERROR: Missing the specific role. \"-c/--ca-cert-file\" is required. Please "
-    "try 'ubsectl --help' for more info.";
+                                       "try 'ubsectl --help' for more info.";
 const std::string NO_SERVER_KEY_PATH = "ERROR: Missing the specific role. \"-k/--server-key-file\" is required. Please "
-    "try 'ubsectl --help' for more info.";
+                                       "try 'ubsectl --help' for more info.";
 const std::string NO_CA_CRL = "ERROR: Missing the specific role. \"-k/--ca-crl-file\" is required. Please "
-    "try 'ubsectl --help' for more info.";
+                              "try 'ubsectl --help' for more info.";
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertImportFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertImportFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     auto server_cert_path = params.find(SERVER_CERT_PATH);
     auto trust_cert_path = params.find(CA_CERT_PATH);
@@ -80,8 +80,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertImportFunc([
     return UbseCliStringPromptReply(SUCCESS_IMPORT);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCaCrlImportFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCaCrlImportFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     auto ca_crl_path = params.find(CA_CRL_PATH);
     if (ca_crl_path == params.end()) {
@@ -94,8 +94,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCaCrlImportFunc(
     return UbseCliStringPromptReply(SUCCESS_CHANGE_CRL);
 }
 
-std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertDeleteFunc([
-    [maybe_unused]] const std::map<std::string, std::string> &params)
+std::shared_ptr<UbseCliResultEcho> UbseCliRegCertModule::UbseCliCertDeleteFunc(
+    [[maybe_unused]] const std::map<std::string, std::string>& params)
 {
     UbseResult ret = UBSE_OK;
     std::string errMsg{};

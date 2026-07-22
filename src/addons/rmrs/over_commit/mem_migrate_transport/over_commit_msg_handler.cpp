@@ -14,9 +14,11 @@
 
 #include <climits>
 
+#include "ubse_logger.h"
 #include "mempooling_message.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
+#include "mp_smap_controller.h"
 #include "mp_smap_helper.h"
 #include "numa_info.h"
 #include "over_commit_fault_management_handler.h"
@@ -27,7 +29,6 @@
 #include "set_smap_remote_numa_info_trans_msg.h"
 #include "smap_remote_process_query_trans_msg.h"
 #include "smap_remove_trans_msg.h"
-#include "ubse_logger.h"
 #include "vm_mem_migrate_strategy.h"
 
 namespace mempooling::over_commit {
@@ -39,15 +40,15 @@ const int SMAP_QUERY_PID_NUM = 40;
 constexpr int SMAP_OK = 0;
 constexpr int SMAP_ERROR = 1;
 
-void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs,
-                         const std::vector<MemMigrateResult> &memMigrateResults)
+void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
+                         const std::vector<MemMigrateResult>& memMigrateResults)
 {
     std::ostringstream oss;
-    for (const auto &memBorrowInfo : memBorrowInfoWithSrcs) {
+    for (const auto& memBorrowInfo : memBorrowInfoWithSrcs) {
         oss << memBorrowInfo.ToString() << R"(,)";
     }
     std::ostringstream oss2;
-    for (const auto &memMigrateResult : memMigrateResults) {
+    for (const auto& memMigrateResult : memMigrateResults) {
         oss2 << memMigrateResult.ToString() << R"(,)";
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -55,9 +56,9 @@ void LogMigrationDetails(const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoW
         << " memBorrowInfoWithSrcs=" << oss.str() << ", memMigrateResults=" << oss2.str() << ".";
 }
 
-MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemoryBorrowParam &srcMemoryBorrowParam,
+MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemoryBorrowParam& srcMemoryBorrowParam,
                                                    const std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs,
-                                                   const std::vector<MemMigrateResult> &memMigrateResults)
+                                                   const std::vector<MemMigrateResult>& memMigrateResults)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] MigrateLocalHandler start.";
     LogMigrationDetails(memBorrowInfoWithSrcs, memMigrateResults);
@@ -104,8 +105,8 @@ MpResult OverCommitMsgHandler::MigrateLocalHandler(const outinterface::SrcMemory
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult> &memMigrateResults,
-                                           const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs,
+MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult>& memMigrateResults,
+                                           const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs,
                                            int16_t srcNumaId)
 {
     auto ret = MEM_POOLING_OK;
@@ -126,6 +127,9 @@ MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult> &
         return MEM_POOLING_ERROR;
     }
 
+    // 检查removePid和smapEnable数据库
+    CheckAndExecutePersistence();
+
     // 冷数据迁移
     auto ratio = memMigrateResults.front().maxRatio;
     ret = MpSmapHelper::MigrateOutInOverCommit(memMigrateResults, ratio);
@@ -136,7 +140,109 @@ MpResult OverCommitMsgHandler::NormMigrate(const std::vector<MemMigrateResult> &
     return ret;
 }
 
-MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+void OverCommitMsgHandler::CheckAndExecutePersistence()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecutePersistence.";
+    // 检查SmapEnable持久化数据库，若存在待enable的numaId，则执行SmapEnable
+    CheckAndExecuteSmapEnable();
+
+    // 检查RemovePids持久化数据库，若存在待remove的pid，则执行RemovePids
+    CheckAndExecuteRemovePid();
+}
+
+void OverCommitMsgHandler::CheckAndExecuteSmapEnable()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecuteSmapEnable.";
+    // 检查smapEnable数据库
+    std::vector<int16_t> smapEnableCompletedList;
+    auto ret = SmapEnableCompleted::Instance().Query(smapEnableCompletedList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to Query smapEnableCompletedList.";
+        return;
+    }
+    if (smapEnableCompletedList.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] smapEnableCompletedList is empty, no need to execute SmapEnable.";
+        return;
+    }
+
+    // 执行smapEnable
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] smapEnableCompletedList.size=" << smapEnableCompletedList.size()
+        << ", Start to execute SmapEnable.";
+    int successCount = 0;
+    for (auto& numaId : smapEnableCompletedList) {
+        EnableNodeMsg enableMsg;
+        enableMsg.nid = static_cast<int>(numaId);
+        enableMsg.enable = SMAP_ENABLE_NUMA;
+        ret = SmapEnableNumaProcess(enableMsg);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess failed, numaId = " << numaId << ".";
+            continue;
+        }
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess success, numaId = " << numaId
+            << ", Start to Remove this numaId.";
+        ret = SmapEnableCompleted::Instance().Remove(numaId);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[PluginInit][SmapEnableCompleted] Remove failed, numaId = " << numaId << ".";
+            continue;
+        }
+        successCount++;
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[PluginInit][SmapEnableCompleted] SmapEnableNumaProcess finished, totalCount = "
+        << smapEnableCompletedList.size() << ", successCount = " << successCount << ".";
+}
+
+void OverCommitMsgHandler::CheckAndExecuteRemovePid()
+{
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Start to CheckAndExecuteRemovePid.";
+    // 检查removePid数据库
+    std::unordered_map<uint16_t, std::unordered_set<pid_t>> removePidCompletedList;
+    auto ret = RemovePidCompleted::Instance().Query(removePidCompletedList);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] Failed to Query removePidList.";
+        return;
+    }
+    if (removePidCompletedList.empty()) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] removePidCompletedList is empty, no need to execute RemovePids.";
+        return;
+    }
+
+    // 执行removePids
+    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] removePidCompletedList.size = " << removePidCompletedList.size() << ".";
+    int successCount = 0;
+    for (const auto& [numaId, pids] : removePidCompletedList) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] Start to RemovePids, numaId = " << numaId << ", pids.size = " << pids.size() << ".";
+        std::vector<pid_t> pidsVec(pids.begin(), pids.end());
+        ret = RemoveLocalHandler(numaId, pidsVec);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePids, numaId = " << numaId << ".";
+            continue;
+        }
+        ret = RemovePidCompleted::Instance().Remove(numaId, pidsVec);
+        if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[MsgHandler] Failed to RemovePid, numaId = " << numaId << ".";
+            continue;
+        }
+        successCount++;
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MsgHandler] RemovePid success, numaId = " << numaId << ".";
+    }
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+        << "[MsgHandler] CheckAndExecuteRemovePids finished, totalCount = " << removePidCompletedList.size()
+        << ", successCount = " << successCount << ".";
+}
+
+MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SetSmapRemoteNumaHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -155,7 +261,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &re
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &[presentNumaIds, borrowSize] : memBorrowInfos) {
+    for (const auto& [presentNumaIds, borrowSize] : memBorrowInfos) {
         RemoteNumaInfo remoteNumaInfo{
             .srcNid = srcMemoryBorrowParam.srcNumaId, .destNid = presentNumaIds, .size = borrowSize >> KB2MB};
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -171,8 +277,8 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaHandler(const UbseByteBuffer &re
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface::SrcMemoryBorrowParam &srcParam,
-                                                             const std::vector<MemBorrowInfo> &memBorrowInfos)
+MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface::SrcMemoryBorrowParam& srcParam,
+                                                             const std::vector<MemBorrowInfo>& memBorrowInfos)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SetSmapRemoteNumaLocalHandler start.";
     const auto SetSmapRemoteNumaInfo = SmapModule::GetSetSmapRemoteNumaInfo();
@@ -181,7 +287,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface:
         return MEM_POOLING_ERROR;
     }
 
-    for (const auto &[presentNumaIds, borrowSize] : memBorrowInfos) {
+    for (const auto& [presentNumaIds, borrowSize] : memBorrowInfos) {
         RemoteNumaInfo remoteNumaInfo{
             .srcNid = srcParam.srcNumaId, .destNid = presentNumaIds, .size = borrowSize >> KB2MB};
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -198,7 +304,7 @@ MpResult OverCommitMsgHandler::SetSmapRemoteNumaLocalHandler(const outinterface:
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] RemoveHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -238,7 +344,7 @@ MpResult OverCommitMsgHandler::RemoveHandler(const UbseByteBuffer &req, UbseByte
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, const std::vector<pid_t> &pids)
+MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, const std::vector<pid_t>& pids)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] RemoveLocalHandler start.";
     const auto smapRemove = SmapModule::GetSmapRemoveFunc();
@@ -256,21 +362,28 @@ MpResult OverCommitMsgHandler::RemoveLocalHandler(const uint16_t presentNumaId, 
     for (size_t i = 0; i < static_cast<size_t>(removeMsg.count); ++i) {
         RemovePayload tmp{};
         tmp.pid = pids[i];
-        tmp.count = 1;
-        tmp.nid[0] = presentNumaId;
+        if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
+            MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
+            tmp.count = 1;
+            tmp.nid[0] = presentNumaId;
+        } else {
+            tmp.count = 0;
+            tmp.nid[0] = presentNumaId;
+        }
         removeMsg.payload[i] = tmp;
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] removeMsg=" << removeMsg.ToString() << ".";
     auto ret = smapRemove(&removeMsg, static_cast<int>(MpConfiguration::GetInstance().GetMpSceneType()));
     if (ret != SMAP_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal failed.";
-    } else {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
+        return MEM_POOLING_ERROR;
     }
+
+    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapRemoveLocal success.";
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     if (req.data == nullptr || req.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] ProcessQueryHandler req.data is null.";
@@ -288,12 +401,14 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, Ub
     }
     JSON_MAP numa2pidMap;
     auto ret = MEM_POOLING_OK;
+    auto totalRet = MEM_POOLING_OK;
     for (size_t i = 0; i < numaIds.size(); i++) {
         ProcessPayload processPayload[SMAP_QUERY_PID_NUM];
         int retLen = 0;
-        ret = static_cast<uint16_t>(smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen));
+        ret = smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboSmap][MsgHandler] Query config failed.";
+            totalRet = MEM_POOLING_ERROR;
             break;
         }
         std::vector<std::string> pids;
@@ -309,8 +424,8 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, Ub
         }
         numa2pidMap[std::to_string(numaIds[i])] = str;
     }
-    if (ret != MEM_POOLING_OK) {
-        SetResponse(response, ret, "SmapRemove failed.", resp);
+    if (totalRet != MEM_POOLING_OK) {
+        SetResponse(response, totalRet, "SmapRemove failed.", resp);
     } else {
         std::string str2;
         if (!JsonUtil::RackMemConvertMap2JsonStr(numa2pidMap, str2)) {
@@ -322,8 +437,8 @@ MpResult OverCommitMsgHandler::ProcessQueryHandler(const UbseByteBuffer &req, Ub
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32_t> &numaIds,
-                                                        std::string &numa2pidMapJson, bool isReturn)
+MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32_t>& numaIds,
+                                                        std::string& numa2pidMapJson, bool isReturn)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] ProcessQueryLocalHandler start.";
     const auto smapQueryProcessConfig = SmapModule::GetSmapGetRemoteProcessesFunc();
@@ -334,12 +449,14 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
     }
     JSON_MAP numa2pidMap;
     auto ret = MEM_POOLING_OK;
+    auto totalRet = MEM_POOLING_OK;
     for (size_t i = 0; i < numaIds.size(); i++) {
         ProcessPayload processPayload[SMAP_QUERY_PID_NUM];
         int retLen = 0;
-        ret = static_cast<uint16_t>(smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen));
+        ret = smapQueryProcessConfig(numaIds[i], processPayload, SMAP_QUERY_PID_NUM, &retLen);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OSTurboSmap][MsgHandler] Query config failed.";
+            totalRet = MEM_POOLING_ERROR;
             break;
         }
         std::vector<std::string> pids;
@@ -362,8 +479,9 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
         }
         numa2pidMap[std::to_string(numaIds[i])] = str;
     }
-    if (ret != MEM_POOLING_OK) {
+    if (totalRet != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapQueryProcessByLocal failed.";
+        return MEM_POOLING_ERROR;
     } else {
         if (!JsonUtil::RackMemConvertMap2JsonStr(numa2pidMap, numa2pidMapJson)) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MsgHandler] SmapQueryLocal convert json map failed.";
@@ -374,8 +492,8 @@ MpResult OverCommitMsgHandler::ProcessQueryLocalHandler(const std::vector<uint32
     return MEM_POOLING_OK;
 }
 
-void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo &response, const MpResult &retCode, const std::string &msg,
-                                       UbseByteBuffer &resBuffer)
+void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo& response, const MpResult& retCode, const std::string& msg,
+                                       UbseByteBuffer& resBuffer)
 {
     response.SetResponseInfo(retCode, msg);
     RmrsOutStream builder;
@@ -386,12 +504,12 @@ void OverCommitMsgHandler::SetResponse(ResponseInfoSimpo &response, const MpResu
     resBuffer.freeFunc = DefaultFreeFunc;
 }
 
-uint32_t NumaBindTypeNotify(UbseByteBuffer &buffer)
+uint32_t NumaBindTypeNotify(UbseByteBuffer& buffer)
 {
     return OverCommitStorage::Instance().PutNumaBindTypeRawData(buffer);
 }
 
-uint32_t NumaBindTypeGetData(UbseByteBuffer &data)
+uint32_t NumaBindTypeGetData(UbseByteBuffer& data)
 {
     return OverCommitStorage::Instance().GetNumaBindTypeRawData(data, true);
 }
@@ -458,6 +576,15 @@ uint32_t InitOverCommitReg()
             << "DisableSmapProcessMigrateRecvHandler reg failed res: " << ret;
     }
 
+    // 超分场景memID故障处理 agent节点开启冷热流动
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_SMAP_PROCESS_MIGRATE_ENABLE};
+    ret =
+        UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::EnableSmapProcessMigrateRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "EnableSmapProcessMigrateRecvHandler reg failed res: " << ret;
+    }
+
     // 超分场景memID故障处理 agent节点内存归还
     endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE};
     ret = UbseRegRpcService(endpoint,
@@ -472,6 +599,29 @@ uint32_t InitOverCommitReg()
     ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "FaultNumaProcessRecvHandler reg failed res: " << ret;
+    }
+
+    // 单numa超分场景故障处理在节点侧进行借用
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW};
+    ret = UbseRegRpcService(endpoint, over_commit::OverCommitFaultManagementHandler::FaultHandleMemBorrowRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "FaultHandleMemBorrowRecvHandler reg failed res: " << ret;
+    }
+
+    // 简化版单numa超分场景故障处理在节点侧进行借用
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS_SIMPLIFIED};
+    ret = UbseRegRpcService(endpoint,
+                            over_commit::OverCommitFaultManagementHandler::SimplifiedFaultNumaProcessRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "SimplifiedFaultNumaProcessRecvHandler reg failed res: " << ret;
+    }
+
+    // 查询节点NumaBindType RPC handler
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_GET_NUMA_BIND_TYPE_FROM_NODE};
+    ret = UbseRegRpcService(endpoint, over_commit::OverCommitMsg::GetNumaBindTypeRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNumaBindTypeRecvHandler reg failed res: " << ret;
     }
 
     return ret;
@@ -496,7 +646,7 @@ uint32_t InitExportReg()
     return ret;
 }
 
-uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollectRecvHandler start.";
     if (req.data == nullptr || req.len == 0) {
@@ -531,7 +681,7 @@ uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer
         builder << pidNumaInfoCollectResult;
         resp.data = builder.GetBufferPointer();
         resp.len = builder.GetSize();
-        resp.freeFunc = [](uint8_t *data) {
+        resp.freeFunc = [](uint8_t* data) {
             delete[] data;
         };
         return errCode;
@@ -541,15 +691,15 @@ uint32_t PidNumaInfoCollectRecvHandler(const UbseByteBuffer &req, UbseByteBuffer
     builderOut << pidNumaInfoCollectResult;
     resp.data = builderOut.GetBufferPointer();
     resp.len = builderOut.GetSize();
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         delete[] data;
     };
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollect sucess.";
     return MEM_POOLING_OK;
 }
 
-uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                   turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                   turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[PidNumaInfoCollect] PidNumaInfoCollectHandler start.";
 
@@ -571,7 +721,7 @@ uint32_t PidNumaInfoCollectHandler(const turbo::rmrs::PidNumaInfoCollectParam &p
     return MEM_POOLING_OK;
 }
 
-void PidNumaInfoCollectRpcResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void PidNumaInfoCollectRpcResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -579,8 +729,8 @@ void PidNumaInfoCollectRpcResHandler(void *ctx, const UbseByteBuffer &respData, 
         return;
     }
     turbo::rmrs::PidNumaInfoCollectResult result;
-    turbo::rmrs::PidNumaInfoCollectResult *pidNumaInfoCollectResult =
-        static_cast<turbo::rmrs::PidNumaInfoCollectResult *>(ctx);
+    turbo::rmrs::PidNumaInfoCollectResult* pidNumaInfoCollectResult =
+        static_cast<turbo::rmrs::PidNumaInfoCollectResult*>(ctx);
     if (resCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "send error, res=" << resCode << ".";
     } else {

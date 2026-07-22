@@ -20,23 +20,31 @@
 #include "ubse_mem_controller_serial.h"
 
 namespace ubse::mem::serial {
+using namespace ubse::serial;
+using namespace ubse::adapter_plugins::mmi;
 #define MODULE_LOG_NAME "ubse"
-using namespace ubse::log;
 
-inline void UbseMemFdImportObjMapSerialize(UbseSerialization &out, const UbseMemFdImportObjMap &data)
+// 单个节点的最大的借用账本数为: 128T/4/512M = 2^16 = 65536
+constexpr int MAX_DEBT_MAP_SIZE = 65536;
+
+inline void UbseMemFdImportObjMapSerialize(UbseSerialization& out, const UbseMemFdImportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemFdBorrowImportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemFdImportObjMapDeserialize(UbseDeSerialization &in, UbseMemFdImportObjMap &data)
+inline bool UbseMemFdImportObjMapDeserialize(UbseDeSerialization& in, UbseMemFdImportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Fd Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -57,20 +65,24 @@ inline bool UbseMemFdImportObjMapDeserialize(UbseDeSerialization &in, UbseMemFdI
     return true;
 }
 
-inline void UbseMemFdExportObjMapSerialize(UbseSerialization &out, const UbseMemFdExportObjMap &data)
+inline void UbseMemFdExportObjMapSerialize(UbseSerialization& out, const UbseMemFdExportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemFdBorrowExportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemFdExportObjMapDeserialize(UbseDeSerialization &in, UbseMemFdExportObjMap &data)
+inline bool UbseMemFdExportObjMapDeserialize(UbseDeSerialization& in, UbseMemFdExportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Fd Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -91,20 +103,24 @@ inline bool UbseMemFdExportObjMapDeserialize(UbseDeSerialization &in, UbseMemFdE
     return true;
 }
 
-inline void UbseMemNumaImportObjMapSerialize(UbseSerialization &out, const UbseMemNumaImportObjMap &data)
+inline void UbseMemNumaImportObjMapSerialize(UbseSerialization& out, const UbseMemNumaImportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemNumaBorrowImportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemNumaImportObjMapDeserialize(UbseDeSerialization &in, UbseMemNumaImportObjMap &data)
+inline bool UbseMemNumaImportObjMapDeserialize(UbseDeSerialization& in, UbseMemNumaImportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Numa Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -125,20 +141,24 @@ inline bool UbseMemNumaImportObjMapDeserialize(UbseDeSerialization &in, UbseMemN
     return true;
 }
 
-inline void UbseMemNumaExportObjMapSerialize(UbseSerialization &out, const UbseMemNumaExportObjMap &data)
+inline void UbseMemNumaExportObjMapSerialize(UbseSerialization& out, const UbseMemNumaExportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemNumaBorrowExportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemNumaExportObjMapDeserialize(UbseDeSerialization &in, UbseMemNumaExportObjMap &data)
+inline bool UbseMemNumaExportObjMapDeserialize(UbseDeSerialization& in, UbseMemNumaExportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Numa Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -158,20 +178,24 @@ inline bool UbseMemNumaExportObjMapDeserialize(UbseDeSerialization &in, UbseMemN
     }
     return true;
 }
-inline void UbseMemShareImportObjMapSerialize(UbseSerialization &out, const UbseMemShareImportObjMap &data)
+inline void UbseMemShareImportObjMapSerialize(UbseSerialization& out, const UbseMemShareImportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemShareBorrowImportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemShareImportObjMapDeserialize(UbseDeSerialization &in, UbseMemShareImportObjMap &data)
+inline bool UbseMemShareImportObjMapDeserialize(UbseDeSerialization& in, UbseMemShareImportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Share Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -191,20 +215,24 @@ inline bool UbseMemShareImportObjMapDeserialize(UbseDeSerialization &in, UbseMem
     }
     return true;
 }
-inline void UbseMemShareExportObjMapSerialize(UbseSerialization &out, const UbseMemShareExportObjMap &data)
+inline void UbseMemShareExportObjMapSerialize(UbseSerialization& out, const UbseMemShareExportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemShareBorrowExportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemShareExportObjMapDeserialize(UbseDeSerialization &in, UbseMemShareExportObjMap &data)
+inline bool UbseMemShareExportObjMapDeserialize(UbseDeSerialization& in, UbseMemShareExportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Share Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -225,20 +253,24 @@ inline bool UbseMemShareExportObjMapDeserialize(UbseDeSerialization &in, UbseMem
     return true;
 }
 
-inline void UbseMemAddrImportObjMapSerialize(UbseSerialization &out, const UbseMemAddrImportObjMap &data)
+inline void UbseMemAddrImportObjMapSerialize(UbseSerialization& out, const UbseMemAddrImportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemAddrBorrowImportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemAddrImportObjMapDeserialize(UbseDeSerialization &in, UbseMemAddrImportObjMap &data)
+inline bool UbseMemAddrImportObjMapDeserialize(UbseDeSerialization& in, UbseMemAddrImportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Addr Import Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -259,20 +291,24 @@ inline bool UbseMemAddrImportObjMapDeserialize(UbseDeSerialization &in, UbseMemA
     return true;
 }
 
-inline void UbseMemAddrExportObjMapSerialize(UbseSerialization &out, const UbseMemAddrExportObjMap &data)
+inline void UbseMemAddrExportObjMapSerialize(UbseSerialization& out, const UbseMemAddrExportObjMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         UbseMemAddrBorrowExportObjSerialization(out, item.second);
     }
 }
-inline bool UbseMemAddrExportObjMapDeserialize(UbseDeSerialization &in, UbseMemAddrExportObjMap &data)
+inline bool UbseMemAddrExportObjMapDeserialize(UbseDeSerialization& in, UbseMemAddrExportObjMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Check failed;";
+        return false;
+    }
+    if (dataSize > MAX_DEBT_MAP_SIZE) {
+        UBSE_LOG_ERROR << "Invalid debtSize during Addr Export Object Map deserialization, dataSize=" << dataSize;
         return false;
     }
     for (size_t i = 0; i < dataSize; i++) {
@@ -292,10 +328,10 @@ inline bool UbseMemAddrExportObjMapDeserialize(UbseDeSerialization &in, UbseMemA
     }
     return true;
 }
-inline void NodeMemDebtInfoSerialize(UbseSerialization &out, NodeMemDebtInfoMap &data)
+inline void NodeMemDebtInfoSerialize(UbseSerialization& out, NodeMemDebtInfoMap& data)
 {
     out << array_len_insert(data.size());
-    for (const auto &item : data) {
+    for (const auto& item : data) {
         out << item.first;
         // 序列化UbseMemFdImportObjMap
         UbseMemFdImportObjMapSerialize(out, item.second.fdImportObjMap);
@@ -315,7 +351,7 @@ inline void NodeMemDebtInfoSerialize(UbseSerialization &out, NodeMemDebtInfoMap 
         UbseMemAddrExportObjMapSerialize(out, item.second.addrExportObjMap);
     }
 }
-inline bool DoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &nodeMemDebtInfo)
+inline bool DoDeserialization(UbseDeSerialization& in, NodeMemDebtInfo& nodeMemDebtInfo)
 {
     // 反序列化UbseMemFdImportObjMap
     UbseMemFdImportObjMapDeserialize(in, nodeMemDebtInfo.fdImportObjMap);
@@ -367,7 +403,7 @@ inline bool DoDeserialization(UbseDeSerialization &in, NodeMemDebtInfo &nodeMemD
     }
     return true;
 }
-inline bool NodeMemDebtInfoDeserialize(UbseDeSerialization &in, NodeMemDebtInfoMap &data)
+inline bool NodeMemDebtInfoDeserialize(UbseDeSerialization& in, NodeMemDebtInfoMap& data)
 {
     uint64_t dataSize;
     in >> array_len_capture(dataSize);

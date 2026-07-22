@@ -13,11 +13,11 @@
 #ifndef TEST_UBSE_RAS_MODULE_H
 #define TEST_UBSE_RAS_MODULE_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "mockcpp/mockcpp.hpp"
-#include "ubse_ras_module.h"
+#include <gtest/gtest.h>
 #include "ubse_ras_handler.h"
+#include "ubse_ras_module.h"
+#include "mockcpp/mockcpp.hpp"
 namespace ubse::ras::ut {
 class TestUbseRasModule : public testing::Test {
 public:
@@ -27,5 +27,5 @@ public:
 
     void TearDown() override;
 };
-}
-#endif  // TEST_UBSE_RAS_MODULE_H
+} // namespace ubse::ras::ut
+#endif // TEST_UBSE_RAS_MODULE_H

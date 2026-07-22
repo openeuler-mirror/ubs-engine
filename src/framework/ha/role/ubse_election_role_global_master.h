@@ -92,7 +92,7 @@ private:
     void DeleteDownstreamGroupRoute(const UBSE_ID_TYPE &groupId);
     void DeleteAllDownstreamGroupRoutes();
     void CleanupRoutes() override;
-    std::map<UBSE_ID_TYPE, RouteEntry> downstreamRouteEntries_;
+    std::map<UBSE_ID_TYPE, com::RouteEntry> downstreamRouteEntries_;
     std::map<UBSE_ID_TYPE, UBSE_ID_TYPE> managingToCascadeNodeId_;
 };
 #undef MODULE_LOG_NAME

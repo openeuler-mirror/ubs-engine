@@ -11,9 +11,6 @@
  */
 
 #include "sys_sentry_module.h"
-#include "adapter_plugins/mti/ubse_mti_interface.h"
-#include "sentry_observer.h"
-#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
@@ -23,15 +20,28 @@
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "sentry_observer.h"
+#include "src/adapter_plugins/mti/ubse_lcne_module.h"
 
 namespace syssentry {
 using namespace ubse::log;
 using namespace ubse::adapter_plugins::mti;
+using namespace ubse::adapter_plugins::smbios;
+using namespace ubse::context;
+using namespace ubse::common::def;
+using namespace ubse::module;
+using namespace ubse::task_executor;
 OPTIONAL_MODULE_IMPL(SysSentryModule, ubse::ras::UbseRasModule);
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult SysSentryModule::Initialize()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be initialized";
+        return UBSE_OK;
+    }
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         return UBSE_ERROR_MODULE_LOAD_FAILED;
@@ -41,6 +51,10 @@ UbseResult SysSentryModule::Initialize()
 
 void SysSentryModule::UnInitialize()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be uninitialized";
+        return;
+    }
     auto taskExecutor = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
         UBSE_LOG_WARN << "TaskExecutorModule is null";
@@ -51,6 +65,10 @@ void SysSentryModule::UnInitialize()
 
 UbseResult SysSentryModule::Start()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be started";
+        return UBSE_OK;
+    }
     // 注册定时器，每隔一段时间调用sentryctl命令查询sentry_msg_monitor 运行状态
     UbseRasObserver::GetInstance().RegQueryMsgMonitorTimer();
     UbseRasObserver::GetInstance().UbseConfigSysSentryWithRetry(); // 不校验返回值，sysSentry未就绪时不影响ubse其它功能
@@ -64,12 +82,16 @@ UbseResult SysSentryModule::Start()
 
 void SysSentryModule::Stop()
 {
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Clos type dected, sys sentry module will not be stopped";
+        return;
+    }
     UbseRasObserver::GetInstance().Stop();
 }
 
-void LinkStrings(std::string &result, const std::string linkSymbol, const std::vector<std::string> strings)
+void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings)
 {
-    for (const auto &item : strings) {
+    for (const auto& item : strings) {
         if (!result.empty()) {
             result += linkSymbol;
         }
@@ -77,7 +99,7 @@ void LinkStrings(std::string &result, const std::string linkSymbol, const std::v
     }
 }
 
-std::vector<std::string> SplitString(const std::string &str, char delimiter)
+std::vector<std::string> SplitString(const std::string& str, char delimiter)
 {
     std::vector<std::string> result;
     std::istringstream iss(str);
@@ -97,16 +119,15 @@ UbseResult ProcessEids(const std::map<UbseMtiIouInfo, UbseMtiEidGroup> &allSocke
     for (const auto& info : allSocketComEid) {
         eids[info.first.slotId].emplace_back(info.second.primaryEid);
     }
-    for (auto &e : eids[nodeId]) {
+    for (auto& e : eids[nodeId]) {
         eidGroup.emplace_back(e);
     }
-    for (const auto &eidPair : eids) {
+    for (const auto& eidPair : eids) {
         for (size_t i = 0; i < eidPair.second.size(); i++) {
             if (eidPair.second[i].empty()) {
                 continue;
             }
-            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) !=
-                eids[nodeId].end()) {
+            if (std::find(eids[nodeId].begin(), eids[nodeId].end(), eidPair.second[i]) != eids[nodeId].end()) {
                 continue;
             }
             if (i >= eidGroup.size()) {
@@ -123,7 +144,7 @@ UbseResult ProcessEids(const std::map<UbseMtiIouInfo, UbseMtiEidGroup> &allSocke
     return UBSE_OK;
 }
 
-UbseResult GetEids(std::string &clientEid, std::string &serverEids)
+UbseResult GetEids(std::string& clientEid, std::string& serverEids)
 {
     // CLOS组网下EID信息应从节点发现获得
     std::map<UbseMtiIouInfo, UbseMtiEidGroup> comUrmaInfoMap{};
@@ -157,7 +178,7 @@ UbseResult GetEids(std::string &clientEid, std::string &serverEids)
 }
 
 // 对动态参数转义, 用引号把数据“包裹”起来，shell 不会解析内部的 ;、`
-std::string ShellEscape(const std::string &str)
+std::string ShellEscape(const std::string& str)
 {
     if (str.empty()) {
         return "''";
@@ -175,7 +196,7 @@ std::string ShellEscape(const std::string &str)
     return result;
 }
 
-UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
+UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas)
 {
     UbseMtiCpuTopoInfoMap topo;
     auto ret = UbseMtiInterface::GetInstance().GetClusterCpuTopo(topo);
@@ -189,7 +210,7 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
         UBSE_LOG_ERROR << "Failed to get local node info";
         return ret;
     }
-    for (auto &devCputopo : topo) {
+    for (auto& devCputopo : topo) {
         auto devName = devCputopo.first;
         std::string devNodeId{};
         std::string devSocketId{};
@@ -212,36 +233,18 @@ UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas)
     return UBSE_OK;
 }
 
-UbseResult SetSysSentryFaultEventOn()
-{
-    std::string commandSetPanicReporter = "sentryctl set sentry_remote_reporter --panic=on 2>&1";
-    std::string commandSetKernelRebootReporter = "sentryctl set sentry_remote_reporter --kernel_reboot=on 2>&1";
-    std::string commandSetBmcReporter = "sentryctl set sentry_reporter --power_off=on 2>&1";
-    std::string commandSetMemFaultReporter = "sentryctl set sentry_reporter --ub_mem_fault=on 2>&1";
-    std::string commandSetOomFaultReporter = "sentryctl set sentry_reporter --oom=on 2>&1";
-    using CommandDescList = std::vector<std::pair<std::string, std::string>>;
-    CommandDescList tasks = {{commandSetPanicReporter, "commandSetPanicReporter"},
-                             {commandSetKernelRebootReporter, "commandSetKernelRebootReporter"},
-                             {commandSetBmcReporter, "commandSetBmcReporter"},
-                             {commandSetMemFaultReporter, "commandSetMemFaultReporter"},
-                             {commandSetOomFaultReporter, "commandSetOomFaultReporter"}};
-    std::string commandResult;
-    for (const auto &[command, desc] : tasks) {
-        commandResult = "";
-        auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
-        if (result != UBSE_OK) {
-            UBSE_LOG_DEBUG << "Failed to execute: " << desc;
-            return UBSE_RAS_ERROR_SET_FAULT_EVENT_ON;
-        }
-    }
-    return UBSE_OK;
-}
-
 UbseResult SetSysSentryFaultReporter()
 {
     std::string clientEid;
     std::string serverEids;
     std::string cna = "1";
+    std::vector<std::string> busNodeCnas;
+    if (auto ret = GetCurNodeCna(busNodeCnas); ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to get current node cna"; // 获取不到CNA不影响故障上报功能，因此不返回错误
+    }
+    if (!busNodeCnas.empty()) {
+        cna = busNodeCnas[0];
+    }
     auto ret = GetEids(clientEid, serverEids);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get eids";
@@ -265,7 +268,7 @@ UbseResult SetSysSentryFaultReporter()
         {commandMonitorSetCna, "commandMonitorSetCna"},
         {commandSetServerEid, "commandSetServerEid"},
     };
-    for (const auto &[command, desc] : tasks) {
+    for (const auto& [command, desc] : tasks) {
         commandResult = "";
         auto result = ubse::utils::UbseOsUtil::Exec(command, commandResult);
         if (result != UBSE_OK) {

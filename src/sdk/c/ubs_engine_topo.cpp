@@ -15,13 +15,13 @@
 #include <securec.h>
 #include <cstring>
 
-#include "ubs_error.h"
-#include "libubse_helper.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
 #include "ubse_ipc_log.h"
+#include "libubse_helper.h"
+#include "ubs_error.h"
 
-int32_t ubs_topo_node_local_get(ubs_topo_node_t *node)
+int32_t ubs_topo_node_local_get(ubs_topo_node_t* node)
 {
     // 参数校验
     if (node == nullptr) {
@@ -45,7 +45,7 @@ int32_t ubs_topo_node_local_get(ubs_topo_node_t *node)
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_topo_node_list(ubs_topo_node_t **node_list, uint32_t *node_cnt)
+int32_t ubs_topo_node_list(ubs_topo_node_t** node_list, uint32_t* node_cnt)
 {
     // 参数校验
     if (node_list == nullptr || node_cnt == nullptr) {
@@ -69,7 +69,7 @@ int32_t ubs_topo_node_list(ubs_topo_node_t **node_list, uint32_t *node_cnt)
     return static_cast<int32_t>(ret);
 }
 
-int32_t ubs_topo_link_list(ubs_topo_link_t **cpu_links, uint32_t *cpu_link_cnt)
+int32_t ubs_topo_link_list(ubs_topo_link_t** cpu_links, uint32_t* cpu_link_cnt)
 {
     // 参数校验
     if (cpu_links == nullptr || cpu_link_cnt == nullptr) {

@@ -18,7 +18,6 @@
 #include "ubse_logger.h"
 #include "event_handler.h"
 
-
 namespace ucache::fault_handler {
 using namespace ubse::ras;
 class EventListener {

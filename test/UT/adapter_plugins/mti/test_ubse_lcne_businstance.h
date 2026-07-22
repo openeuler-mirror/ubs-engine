@@ -26,5 +26,5 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::ut::lcne
-#endif  // UBSE_MANAGER_TEST_UBSE_BUSINSTANCE_H
+} // namespace ubse::ut::lcne
+#endif // UBSE_MANAGER_TEST_UBSE_BUSINSTANCE_H

@@ -13,10 +13,10 @@
 #ifndef SMAP_REMOTE_PROCESS_QUERY_TRANS_MSG_H
 #define SMAP_REMOTE_PROCESS_QUERY_TRANS_MSG_H
 
+#include "common_delete_func.h"
 #include "mempooling_interface.h"
 #include "over_commit_def.h"
 #include "rmrs_serialize.h"
-#include "common_delete_func.h"
 namespace mempooling {
 using rmrs::serialize::RmrsInStream;
 using rmrs::serialize::RmrsOutStream;

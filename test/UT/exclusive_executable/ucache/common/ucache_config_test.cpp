@@ -64,19 +64,19 @@ TEST_F(UcacheConfigTest, LoadConfig)
 
     GlobalMockObject::verify();
 
-    MOCKER_CPP(&ucache::UcacheConfig::LoadMasterConfig, uint32_t(*)(void *)).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER_CPP(&ucache::UcacheConfig::LoadMasterConfig, uint32_t(*)(void*)).stubs().will(returnValue(UCACHE_ERR));
     ret = obj.UcacheConfig::LoadConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
 
     GlobalMockObject::verify();
 
-    MOCKER_CPP(&ucache::UcacheConfig::LoadStrategyConfig, uint32_t(*)(void *)).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER_CPP(&ucache::UcacheConfig::LoadStrategyConfig, uint32_t(*)(void*)).stubs().will(returnValue(UCACHE_ERR));
     ret = obj.UcacheConfig::LoadConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
 
     GlobalMockObject::verify();
 
-    MOCKER_CPP(&ucache::UcacheConfig::LoadBottleneckConfig, uint32_t(*)(void *)).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER_CPP(&ucache::UcacheConfig::LoadBottleneckConfig, uint32_t(*)(void*)).stubs().will(returnValue(UCACHE_ERR));
     ret = obj.UcacheConfig::LoadConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
 
@@ -118,7 +118,7 @@ TEST_F(UcacheConfigTest, LoadStrategyConfigTest1)
     MOCKER(UbseGetULong).stubs().will(returnValue(UCACHE_ERR));
     ret = obj.UcacheConfig::LoadStrategyConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
-    
+
     GlobalMockObject::verify();
 
     MOCKER(UbseGetUInt).stubs().will(returnValue(UCACHE_ERR));
@@ -132,7 +132,7 @@ TEST_F(UcacheConfigTest, LoadStrategyConfigTest1)
     EXPECT_EQ(ret, UCACHE_ERR);
     GlobalMockObject::verify();
 
-    MOCKER_CPP(&ucache::UcacheConfig::RackGetUInt32AndCheck, uint32_t(*)(void *)).stubs().will(returnValue(UCACHE_ERR));
+    MOCKER_CPP(&ucache::UcacheConfig::RackGetUInt32AndCheck, uint32_t(*)(void*)).stubs().will(returnValue(UCACHE_ERR));
     ret = obj.UcacheConfig::LoadStrategyConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
@@ -166,7 +166,7 @@ TEST_F(UcacheConfigTest, LoadStrategyConfigTest2)
 
     MOCKER(UbseGetFloat).stubs().will(returnValue(UCACHE_OK));
     obj.balanceThreshold = MIN_BALANCE_THRESHOLD;
-    obj.scarcityThreshold  = -1;
+    obj.scarcityThreshold = -1;
     ret = obj.UcacheConfig::LoadStrategyConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
@@ -196,7 +196,7 @@ TEST_F(UcacheConfigTest, LoadMasterConfigTest)
     obj.masterInterval = invalidBorrowSize;
     ret = obj.UcacheConfig::LoadMasterConfig();
     EXPECT_EQ(ret, UCACHE_ERR);
-    
+
     GlobalMockObject::verify();
 
     MOCKER(UbseGetUInt).stubs().will(returnValue(UCACHE_OK));

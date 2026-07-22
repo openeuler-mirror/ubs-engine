@@ -14,25 +14,25 @@
 #ifndef CONTAINER_SDK_SERVER_H
 #define CONTAINER_SDK_SERVER_H
 
-#include <vm_error.h>
 #include <ubse_api_server_def.h>
-#include "vm_mem_manager.h"
+#include <vm_error.h>
 #include "ubs_virt_agent_container.h"
+#include "vm_mem_manager.h"
 
 namespace vm {
 using namespace api::server;
 
 class VirtContainerSdk {
 public:
-  static VmResult Register();
+    static VmResult Register();
 
 private:
-    static uint32_t GetMemInfoForPid(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t InjectWaterLineHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static uint32_t GetContainerPidsHandler(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemBorrow(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemMigrate(const UbseIpcMessage &req, const UbseRequestContext &context);
-    static VmResult WaterLineMemReturn(const UbseIpcMessage &req, const UbseRequestContext &context);
+    static uint32_t GetMemInfoForPid(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t InjectWaterLineHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static uint32_t GetContainerPidsHandler(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemBorrow(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemMigrate(const UbseIpcMessage& req, const UbseRequestContext& context);
+    static VmResult WaterLineMemReturn(const UbseIpcMessage& req, const UbseRequestContext& context);
 };
 } // namespace vm
 

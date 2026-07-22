@@ -20,9 +20,9 @@ using namespace mempooling::sync;
 using namespace ubse::mem::controller;
 using namespace mempooling::message;
 
-void PrintNumaSocketMap(const std::map<std::string, std::map<int, uint16_t>> &numaSocketMap);
-bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>> &numaSocketMap, const std::string &nodeId,
-                   int numaId, uint16_t &socketId);
+void PrintNumaSocketMap(const std::map<std::string, std::map<int, uint16_t>>& numaSocketMap);
+bool GetNumaSocket(const std::map<std::string, std::map<int, uint16_t>>& numaSocketMap, const std::string& nodeId,
+                   int numaId, uint16_t& socketId);
 //  内存标志符最大长度
 const std::uint64_t MEM_OBMM_MAX_HCCS_MEM_CNT = 32;
 
@@ -54,10 +54,11 @@ struct BorrowRecord {
     std::vector<LentNuma> lentNuma{};    //  借出numa
     std::string borrowNode{};            //  借入节点
     int16_t borrowLocalNuma{0};          //  借入numa, app 借用时有效，否则为-1
-    int16_t borrowRemoteNuma{0};         //  借入numa, remote 借用时有效，否则为-1
+    int16_t borrowRemoteNuma{-1};        //  借入numa, remote 借用时有效，否则为-1
     std::vector<uint64_t> borrowMemId{}; //  借入memId
-    uid_t uid{0};           // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
-    std::string username{}; // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uid_t uid{0};               // 发起借用方运行用户的uid，后续资源管理权限都由此用户管理
+    std::string username{};     // 发起借用方运行用户的名称，后续资源管理权限都由此用户管理
+    uint16_t borrowSocketId{0}; //  借入内存socketId
 
     std::string ToString() const
     {
@@ -68,19 +69,101 @@ struct BorrowRecord {
         oss << "uid=" << uid << ",";
         oss << "username=" << username << ",";
         oss << "lentNode=" << lentNode << ", lent_Mem_Id=";
-        for (const auto &memid : lentMemId) {
+        for (const auto& memid : lentMemId) {
             oss << memid << ",";
         }
         oss << "lent_Socket_Id=" << lentSocketId << ",";
+        oss << "borrow_Socket_Id=" << borrowSocketId << ",";
         oss << "lent_Numa=";
-        for (const auto &numa : lentNuma) {
+        for (const auto& numa : lentNuma) {
             oss << numa.ToString() << ",";
         }
         oss << "borrow_Node=" << borrowNode << ",";
         oss << "borrow_Local_Numa=" << borrowLocalNuma << ",";
         oss << "borrow_Remote_Numa=" << borrowRemoteNuma << ", borrow_Mem_Id=";
-        for (const auto &memid : borrowMemId) {
+        for (const auto& memid : borrowMemId) {
             oss << memid << ",";
+        }
+        oss << "}";
+        return oss.str();
+    }
+};
+
+struct NumaLevelBorrowedDecision {
+    uint16_t presentNumaId;
+    uint16_t oldNumaId;
+    std::vector<pid_t> pids;
+    uint64_t totalBorrowSize;
+    std::map<std::string, std::string> borrowResultMap; // oldName->newName
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        std::string pidStr{};
+        for (auto pid : pids) {
+            pidStr += std::to_string(pid) + ",";
+        }
+
+        std::string borrowResultMapStr{};
+        for (auto [oldName, newName] : borrowResultMap) {
+            borrowResultMapStr += "[oldName=" + oldName + ", newName=" + newName + "] ";
+        }
+
+        oss << "NumaLevelBorrowedDecision{"
+            << "oldNumaId=" << oldNumaId << ", presentNumaId=" << presentNumaId << ", pids=[" << pidStr << "]"
+            << ", totalBorrowSize=" << totalBorrowSize << "KB"
+            << ", borrowResultMap=" << borrowResultMapStr << "}";
+        return oss.str();
+    }
+};
+
+struct BorrowIdLevelBorrowedDecision {
+    uint16_t presentNumaId;
+    uint16_t oldNumaId;
+    std::vector<pid_t> pids;
+    uint64_t borrowSize;
+    std::string oldName;
+    std::string newName;
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        std::string pidStr{};
+        for (auto pid : pids) {
+            pidStr += std::to_string(pid) + ",";
+        }
+        oss << "BorrowIdLevelBorrowedDecision{"
+            << "oldName=" << oldName << ", newName=" << newName << ", oldNumaId=" << oldNumaId
+            << ", presentNumaId=" << presentNumaId << ", pids=[" << pidStr << "]"
+            << ", borrowSize=" << borrowSize << "KB"
+            << "}";
+        return oss.str();
+    }
+};
+
+// 已经执行了借用，但是迁移失败的决策
+struct BorrowedDecision {
+    std::string borrowNodeId;                         // 该故障numa对应的nodeId
+    uint16_t remoteNumaId;                            // 该故障numa对应的远端numaId
+    bool isNumaLevel{false};                          // true为NUMA级别决策, false则为borrowId级别决策
+    NumaLevelBorrowedDecision numaBorrowedDecision{}; // NUMA级别决策结果
+    std::vector<BorrowIdLevelBorrowedDecision> borrowIdBorrowedDecisions{};
+
+    std::string ToString() const
+    {
+        std::ostringstream oss;
+        oss << "BorrowedDecision{"
+            << "borrowNodeId=" << borrowNodeId << ", remoteNumaId=" << remoteNumaId << ", isNumaLevel=" << isNumaLevel;
+        if (isNumaLevel) {
+            oss << ", " << numaBorrowedDecision.ToString();
+        } else {
+            oss << ", borrowIdDecisions=[";
+            for (size_t i = 0; i < borrowIdBorrowedDecisions.size(); ++i) {
+                if (i != 0)
+                    oss << ", ";
+                oss << borrowIdBorrowedDecisions[i].ToString();
+            }
+            oss << "]";
         }
         oss << "}";
         return oss.str();
@@ -94,8 +177,8 @@ struct NumaMemInfo {
     uint64_t lentMem{0};
     uint64_t borrowableMem{0};
     uint64_t borrowedMem{0};
-    uint64_t memFree{0};     // 空闲内存大小，单位kB
-    uint64_t vmMemFree{0};   // freeHugepages，单位kB
+    uint64_t memFree{0};   // 空闲内存大小，单位kB
+    uint64_t vmMemFree{0}; // freeHugepages，单位kB
 
     std::string ToString() const
     {
@@ -123,7 +206,7 @@ struct NodeMemInfo {
             << ", Total Lent Mem: " << totalLentMem << ", Total Borrowed Mem: " << totalBorrowedMem
             << "\nLocal Numa Mem Info:\n";
 
-        for (const auto &numaInfo : localnumaMemInfo) {
+        for (const auto& numaInfo : localnumaMemInfo) {
             oss << "  " << numaInfo.ToString() << "\n";
         }
 
@@ -150,15 +233,15 @@ struct ReservedInfo {
 // 借用标识符和虚机的映射关系
 class Name2VmInfo {
 public:
-    static Name2VmInfo &Instance()
+    static Name2VmInfo& Instance()
     {
         static Name2VmInfo instance;
         return instance;
     }
-    MpResult Update(const std::string &nodeId, std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> &value);
-    MpResult Query(const std::string &nodeId, std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> &value);
-    MpResult GetRawData(UbseByteBuffer &data);
-    MpResult PutRawData(UbseByteBuffer &data);
+    MpResult Update(const std::string& nodeId, std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value);
+    MpResult Query(const std::string& nodeId, std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& value);
+    MpResult GetRawData(UbseByteBuffer& data);
+    MpResult PutRawData(UbseByteBuffer& data);
 
 private:
     std::map<std::string, std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>> vmInfoData;
@@ -167,53 +250,318 @@ private:
 
 struct BorrowIdRedirection {
 public:
-    static BorrowIdRedirection &Instance()
+    static BorrowIdRedirection& Instance()
     {
         static BorrowIdRedirection instance;
         return instance;
     }
     MpResult Update(const std::string key, const std::string value);
     MpResult Remove(const std::string key);
-    MpResult Query(const std::string key, std::string &value);
+    MpResult Query(const std::string key, std::string& value);
 
-    MpResult GetRawData(UbseByteBuffer &buffer);
-    MpResult PutRawData(UbseByteBuffer &buffer);
+    MpResult GetRawData(UbseByteBuffer& buffer);
+    MpResult PutRawData(UbseByteBuffer& buffer);
 
 private:
     std::unordered_map<std::string, std::string> borrowIdRedirectionMap;
     std::mutex mtxBorrowIdRedirect;
 };
 
+class SmapMigrateBackTaskIds {
+public:
+    static SmapMigrateBackTaskIds& Instance()
+    {
+        static SmapMigrateBackTaskIds instance;
+        return instance;
+    }
+    MpResult Update(const std::string& borrowId, const std::vector<uint64_t>& taskIds);
+    MpResult Query(const std::string& borrowId, std::vector<uint64_t>& taskIds);
+    MpResult Remove(const std::string& borrowId);
+
+private:
+    std::unordered_map<std::string, std::vector<uint64_t>> taskIdsMap;
+    std::mutex mtxTaskIds;
+};
+
 class BorrowIdsCompleted {
 public:
-    static BorrowIdsCompleted &Instance()
+    static BorrowIdsCompleted& Instance()
     {
         static BorrowIdsCompleted instance;
         return instance;
     }
     MpResult Update(const std::string borrowId);
     MpResult Remove(const std::string borrowId);
-    MpResult Query(std::vector<std::string> &borrowIdsCompletedList);
-    MpResult GetRawData(UbseByteBuffer &data, bool needLock);
-    MpResult PutRawData(UbseByteBuffer &data);
+    MpResult Query(std::vector<std::string>& borrowIdsCompletedList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
 
 private:
     std::unordered_set<std::string> borrowIdsCompleted;
     std::mutex mtxBorrowIdsCompleted;
 };
 
+class FaultNuma {
+public:
+    static FaultNuma& Instance()
+    {
+        static FaultNuma instance;
+        return instance;
+    }
+
+    bool GetFaultNumaList(const std::string& nodeId, std::vector<uint32_t>& numaIdList)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return false;
+        }
+
+        numaIdList = it->second;
+
+        return true;
+    }
+
+    void AddFaultNuma(const std::string& nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto& numaList = faultNumaMap_[nodeId];
+
+        auto it = std::find(numaList.begin(), numaList.end(), numaId);
+        if (it == numaList.end()) {
+            numaList.push_back(numaId);
+        }
+    }
+
+    void RemoveFaultNuma(const std::string& nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return;
+        }
+
+        auto& numaList = it->second;
+
+        numaList.erase(std::remove(numaList.begin(), numaList.end(), numaId), numaList.end());
+
+        if (numaList.empty()) {
+            faultNumaMap_.erase(it);
+        }
+    }
+
+    bool IsFaultNuma(const std::string& nodeId, uint32_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        auto it = faultNumaMap_.find(nodeId);
+        if (it == faultNumaMap_.end()) {
+            return false;
+        }
+
+        auto& numaList = it->second;
+
+        return std::find(numaList.begin(), numaList.end(), numaId) != numaList.end();
+    }
+
+    void PrintFaultNuma()
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultNuma] Dump begin, FaultNumaMap.size=" << faultNumaMap_.size() << ".";
+
+        for (const auto& kv : faultNumaMap_) {
+            const std::string& nodeId = kv.first;
+            const auto& numaList = kv.second;
+
+            std::ostringstream oss;
+            oss << "[FaultNuma] nodeId=" << nodeId << ", numaList=[";
+
+            for (size_t i = 0; i < numaList.size(); ++i) {
+                oss << numaList[i];
+                if (i + 1 != numaList.size()) {
+                    oss << ",";
+                }
+            }
+            oss << "].";
+
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << oss.str();
+        }
+    }
+
+private:
+    FaultNuma() = default;
+
+    ~FaultNuma() = default;
+
+    FaultNuma(const FaultNuma&) = delete;
+
+    FaultNuma& operator=(const FaultNuma&) = delete;
+
+private:
+    std::unordered_map<std::string, std::vector<uint32_t>> faultNumaMap_;
+    std::mutex mutex_;
+};
+
+class FaultNumaLock {
+public:
+    static FaultNumaLock& Instance()
+    {
+        static FaultNumaLock instance;
+        return instance;
+    }
+
+    // 独占锁（故障处理）：阻塞等待直到无任何锁，然后独占持有
+    void AcquireExclusive(uint16_t numaId)
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        while (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+            cv_.wait(lk);
+        }
+        exclusiveLocks_.insert(numaId);
+    }
+
+    void ReleaseExclusive(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        exclusiveLocks_.erase(numaId);
+        cv_.notify_all();
+    }
+
+    void AcquireShared(uint16_t numaId)
+    {
+        std::unique_lock<std::mutex> lk(mutex_);
+        while (exclusiveLocks_.count(numaId) > 0) {
+            cv_.wait(lk);
+        }
+        sharedCounts_[numaId]++;
+    }
+
+    void ReleaseShared(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (sharedCounts_[numaId] > 0) {
+            sharedCounts_[numaId]--;
+            if (sharedCounts_[numaId] == 0) {
+                cv_.notify_all();
+            }
+        }
+    }
+
+    // 共享锁：如果无独占锁则获取共享锁，否则返回 false
+    bool TryAcquireShared(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (exclusiveLocks_.count(numaId) > 0) {
+            return false;
+        }
+        sharedCounts_[numaId]++;
+        return true;
+    }
+
+    bool TryAcquireExclusive(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (sharedCounts_[numaId] > 0 || exclusiveLocks_.count(numaId) > 0) {
+            return false;
+        }
+        exclusiveLocks_.insert(numaId);
+        return true;
+    }
+
+private:
+    FaultNumaLock() = default;
+    ~FaultNumaLock() = default;
+    FaultNumaLock(const FaultNumaLock&) = delete;
+    FaultNumaLock& operator=(const FaultNumaLock&) = delete;
+
+    std::unordered_set<uint16_t> exclusiveLocks_;
+    std::unordered_map<uint16_t, uint32_t> sharedCounts_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+};
+
+struct FaultNumaLockGuard {
+    std::vector<uint16_t> sharedNumaIds;
+    std::vector<uint16_t> exclusiveNumaIds;
+    ~FaultNumaLockGuard()
+    {
+        for (auto numaId : sharedNumaIds) {
+            FaultNumaLock::Instance().ReleaseShared(numaId);
+        }
+        for (auto numaId : exclusiveNumaIds) {
+            FaultNumaLock::Instance().ReleaseExclusive(numaId);
+        }
+    }
+};
+
+class FaultNumaReservedLock {
+public:
+    static FaultNumaReservedLock& Instance()
+    {
+        static FaultNumaReservedLock instance;
+        return instance;
+    }
+
+    bool TryReserve(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (reservedNumas_.count(numaId) > 0) {
+            return false;
+        }
+        reservedNumas_.insert(numaId);
+        return true;
+    }
+
+    void Release(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        reservedNumas_.erase(numaId);
+    }
+
+    bool IsReserved(uint16_t numaId)
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        return reservedNumas_.count(numaId) > 0;
+    }
+
+private:
+    FaultNumaReservedLock() = default;
+    ~FaultNumaReservedLock() = default;
+    FaultNumaReservedLock(const FaultNumaReservedLock&) = delete;
+    FaultNumaReservedLock& operator=(const FaultNumaReservedLock&) = delete;
+
+    std::unordered_set<uint16_t> reservedNumas_;
+    std::mutex mutex_;
+};
+
+struct FaultNumaReservedGuard {
+    std::vector<uint16_t> numaIds;
+    ~FaultNumaReservedGuard()
+    {
+        for (auto numaId : numaIds) {
+            FaultNumaReservedLock::Instance().Release(numaId);
+        }
+    }
+};
+
+// numa级别冷热页流动恢复：smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaIds
 class SmapEnableCompleted {
 public:
-    static SmapEnableCompleted &Instance()
+    static SmapEnableCompleted& Instance()
     {
         static SmapEnableCompleted instance;
         return instance;
     }
     MpResult Update(const int16_t numaId);
     MpResult Remove(const int16_t numaId);
-    MpResult Query(std::vector<int16_t> &smapEnableCompletedList);
-    MpResult GetRawData(UbseByteBuffer &data, bool needLock);
-    MpResult PutRawData(UbseByteBuffer &data);
+    MpResult Query(std::vector<int16_t>& smapEnableCompletedList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
 
 private:
     // smapEnableCompleted中存放的为disable以后尚未enable的remoteNumaId
@@ -221,18 +569,59 @@ private:
     std::mutex mtxSmapEnableCompleted;
 };
 
+// pid级别冷热页流动恢复：pidSmapEnableCompleted中存放的为disable以后尚未enable的pids
+class PidSmapEnableCompleted {
+public:
+    static PidSmapEnableCompleted& Instance()
+    {
+        static PidSmapEnableCompleted instance;
+        return instance;
+    }
+    MpResult Update(const std::vector<pid_t>& pids);
+    MpResult Remove(const std::vector<pid_t>& pids);
+    MpResult Query(std::vector<pid_t>& pidSmapEnableCompletedList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
+
+private:
+    // pidSmapEnableCompleted中存放的为disable以后尚未enable的remoteNumaId
+    std::unordered_set<pid_t> pidSmapEnableCompleted;
+    std::mutex mtxPidSmapEnableCompleted;
+};
+
+class FaultHandleBorrowedDecision {
+public:
+    static FaultHandleBorrowedDecision& Instance()
+    {
+        static FaultHandleBorrowedDecision instance;
+        return instance;
+    }
+    MpResult Update(const uint16_t numaId, const BorrowedDecision& decision);
+    MpResult Remove(const uint16_t numaId);
+    MpResult Query(BorrowedDecision& decision, const uint16_t numaId);
+    MpResult QueryAll(std::vector<BorrowedDecision>& decisionList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
+    void ToString();
+
+private:
+    // borrowedDecisionMap中存放的为故障numa对应的borrowedDecision
+    std::unordered_map<uint16_t, BorrowedDecision> borrowedDecisionMap;
+    std::mutex mtxBorrowedDecision;
+};
+
 class BorrowIdInFaultProcess {
 public:
-    static BorrowIdInFaultProcess &Instance()
+    static BorrowIdInFaultProcess& Instance()
     {
         static BorrowIdInFaultProcess instance;
         return instance;
     }
     MpResult Update(const std::string borrowId);
     MpResult Remove(const std::string borrowId);
-    MpResult Query(std::vector<std::string> &BorrowIdInFaultProcessList);
-    MpResult GetRawData(UbseByteBuffer &data, bool needLock);
-    MpResult PutRawData(UbseByteBuffer &data);
+    MpResult Query(std::vector<std::string>& BorrowIdInFaultProcessList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
     MpResult Clear();
 
 private:
@@ -243,16 +632,16 @@ private:
 
 class RemovePidCompleted {
 public:
-    static RemovePidCompleted &Instance()
+    static RemovePidCompleted& Instance()
     {
         static RemovePidCompleted instance;
         return instance;
     }
     MpResult Update(const uint16_t numaId, const std::vector<pid_t> pids);
     MpResult Remove(const uint16_t numaId, const std::vector<pid_t> pids);
-    MpResult Query(std::unordered_map<uint16_t, std::unordered_set<pid_t>> &removePidCompletedList);
-    MpResult GetRawData(UbseByteBuffer &data, bool needLock);
-    MpResult PutRawData(UbseByteBuffer &data);
+    MpResult Query(std::unordered_map<uint16_t, std::unordered_set<pid_t>>& removePidCompletedList);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
+    MpResult PutRawData(UbseByteBuffer& data);
 
 private:
     // removePidCompleted中存放的为尚未移除纳管的pids
@@ -262,16 +651,16 @@ private:
 
 class VmInfosCompleted {
 public:
-    static VmInfosCompleted &Instance()
+    static VmInfosCompleted& Instance()
     {
         static VmInfosCompleted instance;
         return instance;
     }
     MpResult Update(const pid_t pid, std::string remoteNumaId, std::string borrowInNode);
     MpResult Remove(const pid_t pid);
-    MpResult Query(std::unordered_map<pid_t, std::string> &vmInfosCompletedMap);
-    MpResult PutRawData(UbseByteBuffer &data);
-    MpResult GetRawData(UbseByteBuffer &data, bool needLock);
+    MpResult Query(std::unordered_map<pid_t, std::string>& vmInfosCompletedMap);
+    MpResult PutRawData(UbseByteBuffer& data);
+    MpResult GetRawData(UbseByteBuffer& data, bool needLock);
 
 private:
     std::unordered_map<pid_t, std::string> vmMap;
@@ -280,17 +669,17 @@ private:
 
 class AntiNode {
 public:
-    static AntiNode &Instance()
+    static AntiNode& Instance()
     {
         static AntiNode instance;
         return instance;
     }
-    MpResult Update(const std::map<std::string, std::vector<std::string>> &nodeAntiMap);
-    MpResult Query(const std::string &srcNid, std::vector<std::string> &antiNodeMemVec);
-    MpResult PutRawData(UbseByteBuffer &buffer);
-    MpResult GetRawData(UbseByteBuffer &buffer, bool needLock);
-    MpResult BuildSyncAntiNode(const UbseByteBuffer &buffer, UbseByteBuffer &syncData);
-    void SetAntiNodeParam(const MpUpdateAntiNodeParam &param)
+    MpResult Update(const std::map<std::string, std::vector<std::string>>& nodeAntiMap);
+    MpResult Query(const std::string& srcNid, std::vector<std::string>& antiNodeMemVec);
+    MpResult PutRawData(UbseByteBuffer& buffer);
+    MpResult GetRawData(UbseByteBuffer& buffer, bool needLock);
+    MpResult BuildSyncAntiNode(const UbseByteBuffer& buffer, UbseByteBuffer& syncData);
+    void SetAntiNodeParam(const MpUpdateAntiNodeParam& param)
     {
         antiNodeParam = param;
     }
@@ -302,106 +691,118 @@ private:
 
 class BorrowRecordHelper {
 public:
-    static BorrowRecordHelper &Instance()
+    static BorrowRecordHelper& Instance()
     {
         static BorrowRecordHelper instance;
         return instance;
     }
     MpResult Init();
     // 获取内存账本
-    MpResult CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord> &borrowRecords);
-    MpResult CollectBorrowRecordsWithFault(const std::string nodeId, std::vector<BorrowRecord> &borrowRecords);
-    MpResult CollectBorrowRecordsOnlyBorrowIn(const std::string nodeId, const int &numaId,
-                                              std::vector<BorrowRecord> &borrowRecords);
+    MpResult CollectBorrowRecords(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
+    MpResult CollectBorrowRecordsWithFault(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords);
+    MpResult CollectBorrowRecordsOnlyBorrowIn(const std::string nodeId, const int& numaId,
+                                              std::vector<BorrowRecord>& borrowRecords);
     // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
-    MpResult CollectBorrowRecordsAll(std::vector<BorrowRecord> &borrowRecords, bool isFault = false,
+    MpResult CollectBorrowRecordsAll(std::vector<BorrowRecord>& borrowRecords, bool isFault = false,
                                      bool isFilter = false);
     // 更新内存账本 - 通过内存子系统接口查询全量信息到全局变量
     // isFilter标志位，表示是否为filter函数调用账本采集，默认值为false
     MpResult UpdateBorrowRecords(bool isFilter = false);
     MpResult UpdateBorrowRecordsAllWithFault();
-    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult CollectBorrowableInfo(const std::string &nodeId,
-                                   NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
-    MpResult CollectBorrowableInfoList(const std::vector<std::string> &nodeId,
-                                       std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList);
+    MpResult UpdateBorrowRecordsWithFault(const std::string nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult UpdateBorrowRecordsWithFragmentFault(std::string nodeId);
+    bool ConvertDebtToRecord(const UbseNumaMemoryDebtInfo& debtInfo, BorrowRecord& outRecord);
+    MpResult CollectBorrowableInfo(const std::string& nodeId,
+                                   NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem);
+    MpResult CollectBorrowableInfoList(const std::vector<std::string>& nodeId,
+                                       std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList);
     // 根据借入呈现numaId，获取全量borrowId/name
-    MpResult GetBorrowIdByNumaId(std::vector<std::string> &borrowIds, const uint16_t numaId, const std::string nodeId);
-    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
-    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo> &debtInfos);
+    MpResult GetBorrowIdByNumaId(std::vector<std::string>& borrowIds, const uint16_t numaId, const std::string nodeId);
+    MpResult GetDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult GetValidDebtInfosWithRetry(std::vector<UbseNumaMemoryDebtInfo>& debtInfos);
+    MpResult GetFragmentFaultBorrowRecords(std::string nodeId, std::vector<BorrowRecord>& fragMentFaultBorrowRecords);
+    bool BorrowIdExists(const std::string& borrowId);
 
 private:
-    MpResult GenBorrowRecords(const rapidjson::Value &doc, std::vector<BorrowRecord> &borrowRecords);
+    MpResult GenBorrowRecords(const rapidjson::Value& doc, std::vector<BorrowRecord>& borrowRecords);
     std::vector<BorrowRecord> gBorrowRecords;
+    std::map<std::string, std::vector<BorrowRecord>> gBorrowRecordsFragmentFault; // key: nodeId value: debts of nodeId
 };
 
 class MemReturnManager {
 public:
-    static MemReturnManager &Instance()
+    static MemReturnManager& Instance()
     {
         static MemReturnManager instance;
         return instance;
     }
-    MpResult Update(const std::string &borrowId, BorrowItem &value);
-    MpResult Remove(const std::string &borrowId);
-    MpResult Query(const std::string &borrowId, BorrowItem &value);
-    MpResult QueryAll(std::unordered_map<std::string, BorrowItem> &borrowCacheAll);
-    MpResult GetRawData(UbseByteBuffer &buffer);
-    MpResult PutRawData(UbseByteBuffer &buffer);
-    bool IsAllReturned(const std::string &srcNid, const uint16_t &srcRemoteNumaId);
+    MpResult Update(const std::string& borrowId, BorrowItem& value);
+    MpResult Remove(const std::string& borrowId);
+    MpResult Query(const std::string& borrowId, BorrowItem& value);
+    MpResult QueryAll(std::unordered_map<std::string, BorrowItem>& borrowCacheAll);
+    MpResult GetRawData(UbseByteBuffer& buffer);
+    MpResult PutRawData(UbseByteBuffer& buffer);
+    bool IsAllReturned(const std::string& srcNid, const uint16_t& srcRemoteNumaId);
+
+    MpResult AddPendingReturn(const std::string& borrowId);
+    MpResult RemovePendingReturn(const std::string& borrowId);
+    std::unordered_set<std::string> GetPendingReturnBorrowIds();
 
 private:
     std::unordered_map<std::string, BorrowItem> borrowCache; // key为borrowId，value为对应的借用记录
     std::shared_mutex mtxMemReturnManager;
+
+    std::unordered_set<std::string> pendingReturnBorrowIds; // 即将归还的borrowId集合
+    std::shared_mutex mtxPendingReturn;
 };
 
 class MemRequestHelper {
 public:
-    static MpResult ParseBorrowRecordFields(const rapidjson::Value &doc, BorrowRecord &record);
-    static MpResult ParseMemIdArray(const rapidjson::Value &doc, BorrowRecord &record);
-    static MpResult ParseLentNumaArray(const rapidjson::Value &doc, std::vector<LentNuma> &lentNumaVec);
+    static MpResult ParseBorrowRecordFields(const rapidjson::Value& doc, BorrowRecord& record);
+    static MpResult ParseMemIdArray(const rapidjson::Value& doc, BorrowRecord& record);
+    static MpResult ParseLentNumaArray(const rapidjson::Value& doc, std::vector<LentNuma>& lentNumaVec);
 };
 
 class MemManager {
 public:
-    static MemManager &Instance()
+    static MemManager& Instance()
     {
         static MemManager instance;
         return instance;
     }
-    MpResult GetNodeMemMap(std::unordered_map<std::string, NodeMemInfo> &outMap) const;
-    MpResult GetNodeMemInfo(const std::string &nodeId, NodeMemInfo &outInfo) const;
+    MpResult GetNodeMemMap(std::unordered_map<std::string, NodeMemInfo>& outMap) const;
+    MpResult GetNodeMemInfo(const std::string& nodeId, NodeMemInfo& outInfo) const;
     MpResult InitBorrowableInfo();
     // 根据borrowMemId，获取内存描述符号
     static MpResult ResolveUbBorrowableInfoList(NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem,
-                                                std::vector<NodeMemoryInfoWithReservedMem> &nodeMemoryInfoList);
-    static void ResolveHccsBorrowableInfoList(NodeMemoryInfoWithReservedMem &nodeMemoryInfoWithReservedMem);
-    static MpResult GetCanBorrowMemFromUb(RackNumaMemInfo numaMemInfo, uint64_t &canBorrowMem);
-    static MpResult GenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>> &numaSocketMap);
-    static MpResult GetSocketId(const std::string &nodeId, const int &numaId, uint16_t &socketId);
-    void UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemoryInfoWithReservedMem> &srcMap);
+                                                std::vector<NodeMemoryInfoWithReservedMem>& nodeMemoryInfoList);
+    static void ResolveHccsBorrowableInfoList(NodeMemoryInfoWithReservedMem& nodeMemoryInfoWithReservedMem);
+    static MpResult GetCanBorrowMemFromUb(RackNumaMemInfo numaMemInfo, uint64_t& canBorrowMem);
+    static MpResult GenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>>& numaSocketMap);
+    static MpResult GetSocketId(const std::string& nodeId, const int& numaId, uint16_t& socketId);
+    void UpdateNodeMemMap(const std::unordered_map<std::string, NodeMemoryInfoWithReservedMem>& srcMap);
 
-    bool JudgeSampPlane(const std::string &srcNid, const uint16_t &srcSocketId, const std::string &dstNid,
-                        const uint16_t &dstSocketId);
+    bool JudgeSampPlane(const std::string& srcNid, const uint16_t& srcSocketId, const std::string& dstNid,
+                        const uint16_t& dstSocketId);
 
 private:
     MemManager() = default;
     ~MemManager() = default;
-    MemManager(const MemManager &) = delete;
-    MemManager &operator=(const MemManager &) = delete;
+    MemManager(const MemManager&) = delete;
+    MemManager& operator=(const MemManager&) = delete;
 
     mutable std::mutex mtx;
     std::unordered_map<std::string, NodeMemInfo> nodeMemMap;
 };
 
-void LoadDataBase(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx);
-void GetBorrowIdCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                               void *ctx);
-void GetVmInfosCompletedValue(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                              void *ctx);
+void LoadDataBase(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx);
+void GetBorrowIdCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                               void* ctx);
+void GetVmInfosCompletedValue(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                              void* ctx);
 uint32_t AntiDataReload();
 uint32_t DataReloadInit();
-void ResetAndDeleteBuffer(UbseByteBuffer &buffer);
+void ResetAndDeleteBuffer(UbseByteBuffer& buffer);
 
 class MpManagerSubModule : public MpSubModule {
 public:

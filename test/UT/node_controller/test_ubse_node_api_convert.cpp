@@ -14,9 +14,9 @@
 
 #include <ubse_pointer_process.h>
 
+#include "ubse_ipc_common.h"
 #include "src/framework/ipc/include/ubse_ipc_common.h"
 #include "src/framework/ipc/include/ubse_ipc_server.h"
-#include "ubse_ipc_common.h"
 #include "ubse_node_api_convert.cpp"
 
 namespace ubse::node_controller::ut {

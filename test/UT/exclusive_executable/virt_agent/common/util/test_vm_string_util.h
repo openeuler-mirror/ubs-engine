@@ -23,6 +23,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_VM_STRING_UTIL_H

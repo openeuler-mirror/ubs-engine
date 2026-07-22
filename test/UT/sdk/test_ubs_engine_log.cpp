@@ -15,9 +15,9 @@
 #include <algorithm>
 #include <fstream>
 
-#include "ubs_engine_log.h"
 #include "ubse_ipc_log.h"
 #include "ubse_ut_dir.h"
+#include "ubs_engine_log.h"
 
 namespace ubse::sdk::ut {
 const std::string LOG_PATH = std::string(UT_DIRECTORY) + "sdk.log";
@@ -51,7 +51,7 @@ TEST_F(TestUbsEngineLog, LogCallbackRegisterUsesStdout)
     EXPECT_NE(out.find("Warn log"), std::string::npos);
 }
 
-void FileLogCallback(uint32_t level, const char *msg)
+void FileLogCallback(uint32_t level, const char* msg)
 {
     std::ofstream logFile(LOG_PATH, std::ios::app);
     if (logFile.is_open()) {

@@ -21,33 +21,30 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::mti;
+using common::def::UbseResult;
+using ubse::mti::UbseLcneOSInfo;
 
 class UbseLcneHostInfo {
 public:
-    static UbseLcneHostInfo &GetGetInstance()
+    static UbseLcneHostInfo& GetGetInstance()
     {
         static UbseLcneHostInfo instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8088;
         return instance;
     }
 
     // 查询节Host信息
-    UbseResult QueryLcneHostInfo(UbseLcneOSInfo &ubseLcneOSInfo);
+    UbseResult QueryLcneHostInfo(UbseLcneOSInfo& ubseLcneOSInfo);
 
 private:
     UbseLcneHostInfo(std::string host, int port) : host(std::move(host)), port(port) {}
 
-    UbseResult ParseHostQueryResponse(const std::string &responseStr, UbseLcneOSInfo &ubseLcneOSInfo);
+    UbseResult ParseHostQueryResponse(const std::string& responseStr, UbseLcneOSInfo& ubseLcneOSInfo);
 
     std::string host;
     int port;
 
-    const std::string QUERY_URI =
-        "/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities";
+    const std::string QUERY_URI = "/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities";
 };
-}
-
+} // namespace ubse::lcne
 
 #endif // UBSE_LCNE_HOST_INFO_H

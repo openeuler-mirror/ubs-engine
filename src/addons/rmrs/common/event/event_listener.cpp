@@ -11,8 +11,8 @@
  */
 
 #include "event_listener.h"
-#include "mp_error.h"
 #include "event_handler.h"
+#include "mp_error.h"
 
 namespace mempooling {
 namespace event {
@@ -21,12 +21,12 @@ using namespace ubse::ras;
 MpResult EventListener::Init()
 {
     std::string faultModuleName = "mempooling_fault";
-    return RegisterAlarmFaultHandler(ALARM_REBOOT_EVENT, faultModuleName, EventHandler::HandleAlarmRebootEvent)
-        | RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, faultModuleName, EventHandler::HandlePanicEvent)
-        | RegisterAlarmFaultHandler(ALARM_MEM_UCE_PREDICT_EVENT, faultModuleName, EventHandler::HandleAlarmUceEvent)
-        | RegisterAlarmFaultHandler(ALARM_KERNEL_REBOOT_EVENT, faultModuleName,
-        EventHandler::HandleAlarmKernelRebootEvent);
+    return RegisterAlarmFaultHandler(ALARM_REBOOT_EVENT, faultModuleName, EventHandler::HandleAlarmRebootEvent) |
+           RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, faultModuleName, EventHandler::HandlePanicEvent) |
+           RegisterAlarmFaultHandler(ALARM_MEM_UCE_PREDICT_EVENT, faultModuleName, EventHandler::HandleAlarmUceEvent) |
+           RegisterAlarmFaultHandler(ALARM_KERNEL_REBOOT_EVENT, faultModuleName,
+                                     EventHandler::HandleAlarmKernelRebootEvent);
 }
 
-}
-}
+} // namespace event
+} // namespace mempooling

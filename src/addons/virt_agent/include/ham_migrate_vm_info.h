@@ -20,7 +20,8 @@
 
 namespace vm {
 using namespace std::chrono;
-enum class VmState {
+enum class VmState
+{
     NOPE = 0,               // No state
     BORROWED_MIGRATED = 1,  // Memory was borrowed and migration succeeded
     BORROWED_NOMIGRATE = 2, // Memory was borrowed and migration failed or did not occur
@@ -28,20 +29,23 @@ enum class VmState {
     NOBORROW_NOMIGRATE = 4, // No memory borrowed and migration failed or did not occur
 };
 
-enum class VmOpState {
+enum class VmOpState
+{
     NOPE = 0,                    // No state
     DISABLE_PROCESS_MIGRATE = 1, // Disable hot/cold page migration
     PROCESS_TRACKING = 2,        // Perform hot/cold page scanning
     BORROWED_ADDRESS = 3,        // Borrow memory addresses
 };
 
-enum class OpState {
+enum class OpState
+{
     NOPE = 0,  // No state
     START = 1, // Operation started
     END = 2,   // Operation finished
 };
 
-enum class NodeState {
+enum class NodeState
+{
     NOPE = 0,  // No state
     PANIC = 1, // Panic occurred
 };
@@ -64,22 +68,22 @@ struct HamMigrateVmInfo {
     time_point<system_clock> timeout;
     int count = 1;
 
-    bool operator < (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator<(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return timeout > hamMigrateVmInfo.timeout;
     }
 
-    bool operator > (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator>(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return timeout < hamMigrateVmInfo.timeout;
     }
 
-    bool operator == (const HamMigrateVmInfo &hamMigrateVmInfo) const
+    bool operator==(const HamMigrateVmInfo& hamMigrateVmInfo) const
     {
         return nodeId == hamMigrateVmInfo.nodeId && pid == hamMigrateVmInfo.pid;
     }
 
-    static std::string VmStateToString(const VmState &vmState)
+    static std::string VmStateToString(const VmState& vmState)
     {
         std::ostringstream oss;
         if (vmState == VmState::NOPE) {
@@ -96,7 +100,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string VmOpStateToString(const VmOpState &vmOpState)
+    static std::string VmOpStateToString(const VmOpState& vmOpState)
     {
         std::ostringstream oss;
         if (vmOpState == VmOpState::NOPE) {
@@ -111,7 +115,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string OpStateToString(const OpState &opState)
+    static std::string OpStateToString(const OpState& opState)
     {
         std::ostringstream oss;
         if (opState == OpState::NOPE) {
@@ -124,7 +128,7 @@ struct HamMigrateVmInfo {
         return oss.str();
     }
 
-    static std::string NodeStateToString(const NodeState &nodeState)
+    static std::string NodeStateToString(const NodeState& nodeState)
     {
         std::ostringstream oss;
         if (nodeState == NodeState::NOPE) {

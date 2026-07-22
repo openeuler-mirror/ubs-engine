@@ -12,18 +12,13 @@
 #include "ubse_http_server.h"
 
 #include <arpa/inet.h>
-#include <cerrno>
 #include <grp.h>
-#include <securec.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+#include <securec.h>
+#include <cerrno>
 
-#include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "httplib.h"
-#include "src/framework/misc/ubse_secure_buffer.h"
-#include "src/include/cert/ubse_cert_def.h"
-#include "src/include/cert/ubse_cert_validator.h"
 #include "ubse_common_def.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -33,6 +28,11 @@
 #include "ubse_logger.h"
 #include "ubse_net_util.h"
 #include "ubse_security_module.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "httplib.h"
+#include "src/framework/misc/ubse_secure_buffer.h"
+#include "src/include/cert/ubse_cert_def.h"
+#include "src/include/cert/ubse_cert_validator.h"
 
 namespace ubse::http {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -46,6 +46,7 @@ using namespace ubse::security;
 constexpr uint32_t START_TIMEOUT = 3000;
 constexpr uint32_t SLEEP_TIME = 100;
 constexpr mode_t FOLDER_PERMISSION = 0755;
+constexpr size_t HTTP_HEADER_SEPARATOR_SIZE = 4;
 
 bool SetSocketFilePermission(const std::string &udsAddress)
 {
@@ -55,7 +56,7 @@ bool SetSocketFilePermission(const std::string &udsAddress)
         retryTime += SLEEP_TIME;
     }
 
-    struct group *grp = getgrnam(UBM_GROUP.c_str());
+    struct group* grp = getgrnam(UBM_GROUP.c_str());
     if (!grp) {
         UBSE_LOG_ERROR << "Group " << UBM_GROUP << " not found.";
         return false;
@@ -97,7 +98,7 @@ bool UbseHttpServer::Start()
         } else {
             serverThread_ = std::thread(&UbseHttpServer::TcpRun, this);
         }
-    } catch (const std::system_error &) {
+    } catch (const std::system_error&) {
         UBSE_LOG_ERROR << "Failed to create thread for " << config_.name;
         return false;
     }
@@ -128,15 +129,15 @@ void UbseHttpServer::Stop()
     }
 }
 
-static void ProcessRequestHeadersAndParams(const httplib::Request &req, UbseHttpRequest &request)
+static void ProcessRequestHeadersAndParams(const httplib::Request& req, UbseHttpRequest& request)
 {
-    for (const auto &pair : req.headers) {
+    for (const auto& pair : req.headers) {
         if (request.headers.find(pair.first) == request.headers.end()) {
             request.headers.emplace(pair.first, pair.second);
         }
     }
 
-    for (const auto &pair : req.params) {
+    for (const auto& pair : req.params) {
         if (request.params.find(pair.first) == request.params.end()) {
             request.params.emplace(pair.first, pair.second);
         }
@@ -178,7 +179,7 @@ std::string UbseHttpServer::GenerateQueryString(const std::multimap<std::string,
 {
     std::string queryString;
     bool first = true;
-    for (const auto &param : queryParams) {
+    for (const auto& param : queryParams) {
         if (!first) {
             queryString.append("&");
         }
@@ -190,8 +191,18 @@ std::string UbseHttpServer::GenerateQueryString(const std::multimap<std::string,
     return queryString;
 }
 
-UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request &req, UbseHttpRequest &request)
+UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request& req, UbseHttpRequest& request)
 {
+    if (!req.headers.empty()) {
+        size_t headerSize = 0;
+        for (const auto& pair : req.headers) {
+            headerSize += pair.first.size() + pair.second.size() + HTTP_HEADER_SEPARATOR_SIZE;
+        }
+        if (headerSize > httpMaxHeaderSize) {
+            UBSE_LOG_ERROR << "HttpMsg headers is oversize";
+            return UBSE_HTTP_ERROR_MSG_OVERSIZE;
+        }
+    }
     if (!req.params.empty()) {
         std::string queryStr = GenerateQueryString(req.params);
         if (queryStr.size() > httpMaxQuerySize) {
@@ -211,16 +222,17 @@ UbseResult UbseHttpServer::ValidateHttpRequest(const httplib::Request &req, Ubse
     return UBSE_OK;
 }
 
-void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Response &res)
+void UbseHttpServer::HandleRequest(const httplib::Request& req, httplib::Response& res)
 {
     UBSE_LOG_INFO << "[" << config_.name << "] Receive request, uri=" << req.path << ", method=" << req.method;
     UbseHttpRequest request{};
     if (ValidateHttpRequest(req, request) != UBSE_OK) {
-        res.status = BadRequest_400;
+        res.status = httplib::BadRequest_400;
         res.set_content("The request is invalid.", "text/plain");
         return;
     }
     request.path = req.path;
+    request.body = req.body;
     ProcessRequestHeadersAndParams(req, request);
     FillPeerCertInfo(req, request);
     UbseHttpResponse response{};
@@ -252,7 +264,7 @@ void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Respons
         }
         if (it == routes_.end()) {
             UBSE_LOG_ERROR << "[" << config_.name << "] url=" << req.path << " has not been registered.";
-            res.status = NotFound_404;
+            res.status = httplib::NotFound_404;
             res.set_content("Not Found", "text/plain");
             return;
         }
@@ -262,18 +274,18 @@ void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Respons
     BuildResponse(res, response);
 }
 
-void UbseHttpServer::BuildResponse(httplib::Response &res, const UbseHttpResponse &response)
+void UbseHttpServer::BuildResponse(httplib::Response& res, const UbseHttpResponse& response)
 {
     res.status = response.status;
 
-    for (const auto &header : response.headers) {
+    for (const auto& header : response.headers) {
         res.set_header(header.first, header.second);
     }
 
     res.body = response.body;
 }
 
-void UbseHttpServer::RegisterRoute(const std::string &path, const std::string &method, UbseHttpHandlerFunc handler)
+void UbseHttpServer::RegisterRoute(const std::string& path, const std::string& method, UbseHttpHandlerFunc handler)
 {
     std::string routeKey = method + path;
     std::lock_guard<std::mutex> lock(routesMutex_);
@@ -356,12 +368,12 @@ void UbseHttpServer::UdsRun()
         if (!server_) {
             throw std::runtime_error("Failed to create server.");
         }
-        server_->Get("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Post("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Put("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+        server_->Get("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        server_->Post("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        server_->Put("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
         server_->Delete("/.*",
-                        [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
-        server_->Patch("/.*", [this](const httplib::Request &req, httplib::Response &res) { HandleRequest(req, res); });
+                        [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
+        server_->Patch("/.*", [this](const httplib::Request& req, httplib::Response& res) { HandleRequest(req, res); });
 
         std::string udsAddress = config_.udsPath.empty() ? UBSE_UBM_UDS_ADDRESS : config_.udsPath;
 
@@ -393,7 +405,7 @@ void UbseHttpServer::UdsRun()
     }
 }
 
-std::string UbseHttpServer::GetParentDirectory(const std::string &path)
+std::string UbseHttpServer::GetParentDirectory(const std::string& path)
 {
     if (path.empty()) {
         return "";

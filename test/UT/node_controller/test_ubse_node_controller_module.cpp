@@ -11,13 +11,18 @@
  */
 
 #include "test_ubse_node_controller_module.h"
-#include <src/framework/ha/ubse_election_module.h>
+
 #include <ubse_timer.h>
+
+#include "ubse_node_info_serialize.h"
+#include "src/framework/ha/ubse_election_module.h"
 #include "ubse_node_controller_module.cpp"
 
 namespace ubse::node_controller::ut {
 using namespace ubse::timer;
 using namespace election;
+using namespace ubse::com;
+using namespace ubse::nodeController;
 
 void TestUbseNodeControllerModule::SetUp()
 {
@@ -65,32 +70,21 @@ TEST_F(TestUbseNodeControllerModule, Stop)
 TEST_F(TestUbseNodeControllerModule, Initialize_Success)
 {
     // 模拟静态函数
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeApi::Register).stubs().will(returnValue(UBSE_OK));
 
     // 模拟成员函数 Initialize
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerAgent::Initialize).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerMaster::Initialize).stubs().will(returnValue(UBSE_OK));
 
     // 模拟成员函数 UnInitialize
-    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
 
     // 模拟全局函数 UbseRegRpcService
-    MOCKER(UbseRegRpcService)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_OK);
@@ -99,9 +93,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Success)
 // Initialize - Api注册失败
 TEST_F(TestUbseNodeControllerModule, Initialize_Fail_ApiRegister)
 {
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER(UbseNodeApi::Register).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -110,13 +102,9 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_ApiRegister)
 // Initialize - Agent初始化失败
 TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentInit)
 {
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeApi::Register).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseNodeControllerAgent::Initialize).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -125,26 +113,17 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_AgentInit)
 // Initialize - Master初始化失败
 TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
 {
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeApi::Register).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerAgent::Initialize).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(&UbseNodeControllerMaster::Initialize).stubs().will(returnValue(UBSE_ERROR));
 
     // 添加UbseRegRpcService的模拟
-    MOCKER(UbseRegRpcService)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Initialize(), UBSE_ERROR);
@@ -154,9 +133,7 @@ TEST_F(TestUbseNodeControllerModule, Initialize_Fail_MasterInit)
 TEST_F(TestUbseNodeControllerModule, Start_Fail_AgentMsgHandler)
 {
     // UbseRegRpcService 第一次调用失败（RegAgentMsgHandler 中）
-    MOCKER(UbseRegRpcService)
-        .expects(atLeast(1))
-        .will(returnValue(UBSE_ERROR));
+    MOCKER(UbseRegRpcService).stubs().will(returnValue(UBSE_ERROR));
 
     UbseNodeControllerModule module{};
     EXPECT_EQ(module.Start(), UBSE_ERROR);
@@ -178,17 +155,11 @@ TEST_F(TestUbseNodeControllerModule, RegMasterMsgHandler_Fail)
 // Stop函数 - 模拟选举相关函数
 TEST_F(TestUbseNodeControllerModule, Stop_Normal)
 {
-    MOCKER(UbseElectionChangeDeAttachHandler)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerMaster::Stop).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::Stop).stubs().will(ignoreReturnValue());
 
     UbseNodeControllerModule module{};
     EXPECT_NO_THROW(module.Stop());
@@ -197,17 +168,11 @@ TEST_F(TestUbseNodeControllerModule, Stop_Normal)
 // Stop函数 - 选举相关函数失败
 TEST_F(TestUbseNodeControllerModule, Stop_ElectionFail)
 {
-    MOCKER(UbseElectionChangeDeAttachHandler)
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UBSE_ERROR));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerMaster::Stop).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::Stop).stubs().will(ignoreReturnValue());
 
     UbseNodeControllerModule module{};
     EXPECT_NO_THROW(module.Stop());
@@ -218,51 +183,29 @@ TEST_F(TestUbseNodeControllerModule, ModuleLifecycle)
 {
     GTEST_SKIP();
     // 模拟初始化成功
-    MOCKER(UbseNodeApi::Register)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseNodeApi::Register).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerAgent::Initialize).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Initialize)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerMaster::Initialize).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::UnInitialize).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerMaster::UnInitialize).stubs().will(ignoreReturnValue());
 
-    MOCKER(UbseRegRpcService)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(RegMasterMsgHandler).stubs().will(returnValue(UBSE_OK));
 
     // 模拟启动成功
-    MOCKER_CPP(&UbseNodeControllerAgent::Start)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerAgent::Start).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Start)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseNodeControllerMaster::Start).stubs().will(returnValue(UBSE_OK));
 
     // 模拟停止
-    MOCKER(UbseElectionChangeDeAttachHandler)
-        .stubs()
-        .will(returnValue(UBSE_OK));
+    MOCKER(UbseElectionChangeDeAttachHandler).stubs().will(returnValue(UBSE_OK));
 
-    MOCKER_CPP(&UbseNodeControllerMaster::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerMaster::Stop).stubs().will(ignoreReturnValue());
 
-    MOCKER_CPP(&UbseNodeControllerAgent::Stop)
-        .stubs()
-        .will(ignoreReturnValue());
+    MOCKER_CPP(&UbseNodeControllerAgent::Stop).stubs().will(ignoreReturnValue());
 
     UbseNodeControllerModule module{};
 

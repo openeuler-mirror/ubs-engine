@@ -20,45 +20,45 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::election;
 using namespace ubse::context;
 
-UbseResult MockAllNodes(std::vector<Node> &nodes)
+UbseResult MockAllNodes(std::vector<Node>& nodes)
 {
-    nodes = { { "Node1", "192.168.1.1", 8080 },
-        { "Node2", "192.168.1.2", 8080 },
-        { "Node3", "192.168.1.3", 8080 },
-        { "Node4", "192.168.1.4", 8080 },
-        { "Node5", "192.168.1.5", 8080 } };
+    nodes = {{"Node1", "192.168.1.1", 8080},
+             {"Node2", "192.168.1.2", 8080},
+             {"Node3", "192.168.1.3", 8080},
+             {"Node4", "192.168.1.4", 8080},
+             {"Node5", "192.168.1.5", 8080}};
     return UBSE_OK;
 }
 
-UbseResult MockGetAllNodes(UbseElectionModule *_mockClass, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockGetAllNodes(UbseElectionModule* _mockClass, Node& master, Node& standby, std::vector<Node>& agent)
 {
-    master = { "Node1", "192.168.1.1", 8080 };
-    standby = { "Node2", "192.168.1.2", 8080 };
-    agent = { { "Node3", "192.168.1.3", 8080 }, { "Node4", "192.168.1.4", 8080 } };
+    master = {"Node1", "192.168.1.1", 8080};
+    standby = {"Node2", "192.168.1.2", 8080};
+    agent = {{"Node3", "192.168.1.3", 8080}, {"Node4", "192.168.1.4", 8080}};
     return UBSE_OK;
 }
 
-UbseResult MockGetAllNodes1(UbseElectionModule *_mockClass, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockGetAllNodes1(UbseElectionModule* _mockClass, Node& master, Node& standby, std::vector<Node>& agent)
 {
-    master = { "Node1", "192.168.1.1", 8080 };
-    standby = { "", "192.168.1.2", 8080 };
+    master = {"Node1", "192.168.1.1", 8080};
+    standby = {"", "192.168.1.2", 8080};
     agent = {};
     return UBSE_OK;
 }
 
-UbseResult MockGetAllNodes2(UbseElectionModule *_mockClass, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockGetAllNodes2(UbseElectionModule* _mockClass, Node& master, Node& standby, std::vector<Node>& agent)
 {
-    master = { "", "192.168.1.1", 8080 };
-    standby = { "Node2", "192.168.1.2", 8080 };
+    master = {"", "192.168.1.1", 8080};
+    standby = {"Node2", "192.168.1.2", 8080};
     agent = {};
     return UBSE_OK;
 }
 
-UbseResult MockGetAllNodes3(UbseElectionModule *_mockClass, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockGetAllNodes3(UbseElectionModule* _mockClass, Node& master, Node& standby, std::vector<Node>& agent)
 {
-    master = { "", "192.168.1.1", 8080 };
-    standby = { "", "192.168.1.2", 8080 };
-    agent = { { "Node3", "192.168.1.3", 8080 }, { "Node4", "192.168.1.4", 8080 } };
+    master = {"", "192.168.1.1", 8080};
+    standby = {"", "192.168.1.2", 8080};
+    agent = {{"Node3", "192.168.1.3", 8080}, {"Node4", "192.168.1.4", 8080}};
     return UBSE_OK;
 }
 
@@ -238,7 +238,7 @@ TEST_F(TestUbseElection, UbseElectionChangeHandler_ShouldReturnOk)
         .SetPriority(UbseElectionHandlerPriority::HIGH)
         .SetSequenceId(1)
         .SetName("high_priority_master")
-        .SetHandler([](UbseElectionEventType &type, UBSE_ID_TYPE &nodeId) {
+        .SetHandler([](UbseElectionEventType& type, UBSE_ID_TYPE& nodeId) {
             if (type == UbseElectionEventType::CHANGE_TO_MASTER) {
                 UBSE_LOG_INFO << "[election_handler] high_priority_master change to " << nodeId;
             }
@@ -459,4 +459,4 @@ TEST_F(TestUbseElection, UbseGetNodeIds_ShouldReturnOk_WhenAllNodesSuccess)
     uint32_t result = UbseGetNodeIds(nodeIds);
     EXPECT_EQ(result, UBSE_OK);
 }
-}
+} // namespace ubse::ut::election

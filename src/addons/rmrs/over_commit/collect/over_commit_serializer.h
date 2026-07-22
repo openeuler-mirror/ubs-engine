@@ -34,7 +34,9 @@ class PidNumaInfoCollectResult {
 public:
     PidNumaInfoCollectResult() = default;
     explicit PidNumaInfoCollectResult(std::vector<mempooling::RmrsPidInfo> pidInfoList)
-        : pidInfoList(std::move(pidInfoList)) {}
+        : pidInfoList(std::move(pidInfoList))
+    {
+    }
     std::vector<mempooling::RmrsPidInfo> pidInfoList{};
 };
 

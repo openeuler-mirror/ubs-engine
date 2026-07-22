@@ -22,6 +22,7 @@ using namespace ubse::election;
 using namespace ubse::config;
 using namespace ubse::context;
 using namespace ubse::timer;
+using namespace ubse::com;
 
 UbseResult FAKE_GlobalInitGetMyselfNode1(UbseElectionNodeMgr *pthis, Node &myself)
 {

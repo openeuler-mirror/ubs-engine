@@ -14,5 +14,5 @@ public:
 
     void TearDown();
 };
-}
+} // namespace ubse::vm::ut
 #endif // TEST_ALARM_HANDLER_H

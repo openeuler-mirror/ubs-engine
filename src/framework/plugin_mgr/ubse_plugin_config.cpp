@@ -50,8 +50,8 @@ UbseResult UbsePluginConfig::LoadPluginConfigs()
         return UBSE_OK;
     }
     std::unique_lock<std::shared_mutex> lock(pluginConfigsMutex_);
-    for (const auto &item : configVals) {
-        auto &kvMap = item.second;
+    for (const auto& item : configVals) {
+        auto& kvMap = item.second;
 
         auto it_name = kvMap.find("ubse.plugin.name");
         auto it_pkg = kvMap.find("ubse.plugin.pkg");
@@ -70,13 +70,13 @@ UbseResult UbsePluginConfig::LoadPluginConfigs()
     return UBSE_OK;
 }
 
-const std::map<std::string, UbsePluginInfo> &UbsePluginConfig::GetAllPluginConfigs() const
+const std::map<std::string, UbsePluginInfo>& UbsePluginConfig::GetAllPluginConfigs() const
 {
     std::shared_lock<std::shared_mutex> lock(pluginConfigsMutex_);
     return pluginConfigs_;
 }
 
-UbseResult UbsePluginConfig::VerifyConfig(const UbsePluginInfo &pluginInfo, const std::string &fileName)
+UbseResult UbsePluginConfig::VerifyConfig(const UbsePluginInfo& pluginInfo, const std::string& fileName)
 {
     // 空文件过滤
     if (pluginInfo.name.empty()) {
@@ -87,7 +87,7 @@ UbseResult UbsePluginConfig::VerifyConfig(const UbsePluginInfo &pluginInfo, cons
     // 重复配置文件
     if (pluginConfigs_.find(pluginInfo.name) != pluginConfigs_.end()) {
         UBSE_LOG_WARN << "The plugin name: " << pluginInfo.name
-                    << " has been configuration. related file: " << fileName;
+                      << " has been configuration. related file: " << fileName;
         return UBSE_ERROR;
     }
     return UBSE_OK;

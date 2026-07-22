@@ -13,9 +13,9 @@
 #ifndef UBSE_TEST_UBSE_LOG_SINK_H
 #define UBSE_TEST_UBSE_LOG_SINK_H
 
-#include "gtest/gtest.h"
 #include "ubse_logger.h"
 #include "ubse_logger_filesink.h"
+#include "gtest/gtest.h"
 
 namespace ubse::ut::log {
 using namespace ubse::log;
@@ -32,6 +32,6 @@ public:
 private:
     std::string currentPath;
 };
-}
+} // namespace ubse::ut::log
 
 #endif // UBSE_TEST_UBSE_LOG_H

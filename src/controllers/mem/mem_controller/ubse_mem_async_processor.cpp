@@ -1,18 +1,18 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_mem_async_processor.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::task_executor;
-UbseTaskExecutorPtr GetExecutor(const std::string &name)
+UbseTaskExecutorPtr GetExecutor(const std::string& name)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
     if (taskExecutor == nullptr) {
@@ -84,7 +84,7 @@ message::UbseResult AsyncMemShmAttachRespProcessor(message::UbseMemOperationResp
 
 // todo 入参
 message::UbseResult AsyncMemShmDetachProcessor(message::UbseMemShareDetachReqSimpoPtr request,
-                                               const std::string &realRequestNodeId)
+                                               const std::string& realRequestNodeId)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -114,7 +114,7 @@ message::UbseResult AsyncMemShmDetachRespProcessor(message::UbseMemOperationResp
 }
 
 message::UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr request,
-                                               const std::string &realRequestNodeId)
+                                               const std::string& realRequestNodeId)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -143,7 +143,7 @@ message::UbseResult AsyncMemCommonReturnRespProcessor(message::UbseMemOperationR
     return UBSE_OK;
 }
 
-UbseResult DoNumaBorrowAsync(const UbseMemNumaBorrowReq &request)
+UbseResult DoNumaBorrowAsync(const UbseMemNumaBorrowReq& request)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -158,7 +158,7 @@ UbseResult DoNumaBorrowAsync(const UbseMemNumaBorrowReq &request)
     return UBSE_OK;
 }
 
-UbseResult DoNumaBorrowRespAsync(const UbseMemOperationResp &resp)
+UbseResult DoNumaBorrowRespAsync(const UbseMemOperationResp& resp)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -170,7 +170,7 @@ UbseResult DoNumaBorrowRespAsync(const UbseMemOperationResp &resp)
     return UBSE_OK;
 }
 
-UbseResult DoReturnAsync(const UbseMemReturnReq &request, const std::string &realRequestNodeId)
+UbseResult DoReturnAsync(const UbseMemReturnReq& request, const std::string& realRequestNodeId)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -185,7 +185,7 @@ UbseResult DoReturnAsync(const UbseMemReturnReq &request, const std::string &rea
     return UBSE_OK;
 }
 
-UbseResult DoReturnRespAsync(const UbseMemOperationResp &resp)
+UbseResult DoReturnRespAsync(const UbseMemOperationResp& resp)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {

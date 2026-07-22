@@ -10,13 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <stdexcept>
+#include <gtest/gtest.h>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include "mp_parse_util.h"
 
 namespace mempooling {
 
-}  // namespace mempooling
+} // namespace mempooling

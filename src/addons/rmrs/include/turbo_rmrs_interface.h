@@ -31,14 +31,14 @@ struct VMPresetParam {
 
 struct NumaData {
     std::string numaId{};
-    bool operator==(const NumaData &numaData) const
+    bool operator==(const NumaData& numaData) const
     {
         return numaId == numaData.numaId;
     }
 };
 struct CpuData {
     std::string CpuId{};
-    bool operator==(const CpuData &cpuData) const
+    bool operator==(const CpuData& cpuData) const
     {
         return CpuId == cpuData.CpuId;
     }
@@ -48,7 +48,7 @@ struct SocketData {
     std::vector<NumaData> numas{};
     std::vector<CpuData> cpus{};
 
-    bool operator==(const SocketData &socketData) const
+    bool operator==(const SocketData& socketData) const
     {
         return socketId == socketData.socketId && numas == socketData.numas && cpus == socketData.cpus;
     }
@@ -104,14 +104,14 @@ struct BorrowIdInfo {
     pid_t pid;
     uint64_t oriSize;
 
-    friend bool operator<(const BorrowIdInfo &x, const BorrowIdInfo &y)
+    friend bool operator<(const BorrowIdInfo& x, const BorrowIdInfo& y)
     {
         if (x.pid != y.pid) {
             return x.pid < y.pid;
         }
         return x.oriSize < y.oriSize;
     }
-    friend bool operator==(const BorrowIdInfo &x, const BorrowIdInfo &y)
+    friend bool operator==(const BorrowIdInfo& x, const BorrowIdInfo& y)
     {
         return x.pid == y.pid && x.oriSize == y.oriSize;
     }
@@ -121,8 +121,8 @@ struct MetaNumaInfo {
     uint16_t numaId{};      // numaId
     uint64_t numaUsedMem{}; // 该numaId上使用的内存
     bool isLocalNuma{true}; // 是否本地numa
-    int socketId{-1};         // numaId对应的socketId
- 
+    int socketId{-1};       // numaId对应的socketId
+
     std::string ToString() const
     {
         std::ostringstream oss;
@@ -137,10 +137,10 @@ struct MetaNumaInfo {
 };
 
 struct PidInfo {
-    pid_t pid{};                             // 进程id
-    std::vector<uint16_t> localNumaIds{};    // 本地numaId集合
-    uint64_t totalLocalUsedMem{};            // 本地numa上使用的总内存大小
-    uint64_t totalRemoteUsedMem{};           // 远端numa使用的总内存大小
+    pid_t pid{};                               // 进程id
+    std::vector<uint16_t> localNumaIds{};      // 本地numaId集合
+    uint64_t totalLocalUsedMem{};              // 本地numa上使用的总内存大小
+    uint64_t totalRemoteUsedMem{};             // 远端numa使用的总内存大小
     std::vector<MetaNumaInfo> metaNumaInfos{}; // pid进程元信息集合
 
     std::string ToString() const
@@ -150,7 +150,8 @@ struct PidInfo {
         oss << "pid:" << pid;
         oss << ",localNumaIds:[";
         for (size_t i = 0; i < localNumaIds.size(); ++i) {
-            if (i) oss << ", ";
+            if (i)
+                oss << ", ";
             oss << localNumaIds[i];
         }
         oss << "]";
@@ -160,7 +161,8 @@ struct PidInfo {
 
         oss << ",metaNumaInfos:[";
         for (size_t i = 0; i < metaNumaInfos.size(); ++i) {
-            if (i) oss << ", ";
+            if (i)
+                oss << ", ";
             oss << metaNumaInfos[i].ToString();
         }
         oss << "]";
@@ -205,7 +207,7 @@ public:
         return responseInfo_;
     }
 
-    inline void SetResponseInfo(const int code, const std::string &message)
+    inline void SetResponseInfo(const int code, const std::string& message)
     {
         responseInfo_.code = code;
         responseInfo_.message = message;
@@ -220,7 +222,7 @@ public:
 };
 
 struct UCacheMigrationStrategyParam {
-    int16_t localNumaId{};                 // 执行迁出的本地numa节点。若小于0，代表所有本地numa节点
+    int16_t localNumaId{}; // 执行迁出的本地numa节点。若小于0，代表所有本地numa节点
     std::vector<uint16_t> remoteNumaIds{}; // 执行迁入的远端内存呈现numa节点列表
     std::vector<pid_t> pids{};             // 需要迁移的进程列表
     float ucacheUsageRatio{};              // 给Pagecache分配使用的内存比例
@@ -297,29 +299,29 @@ extern "C" {
  * @param migrateStrategyResult [OUT] 迁出策略参数
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentMigrateStrategy(const MigrateStrategyParamRMRS &migrateStrategyParam,
-                                         MigrateStrategyResult &migrateStrategyResult);
+uint32_t UBTurboRMRSAgentMigrateStrategy(const MigrateStrategyParamRMRS& migrateStrategyParam,
+                                         MigrateStrategyResult& migrateStrategyResult);
 
 /**
  * @brief 内存迁出执行
  * @param migrateStrategyResult [IN] 迁出执行参数
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentMigrateExecute(const MigrateStrategyResult &migrateStrategyResult);
+uint32_t UBTurboRMRSAgentMigrateExecute(const MigrateStrategyResult& migrateStrategyResult);
 
 /**
  * @brief 将节点内所有远端内存迁回本地
  * @param migrateBackResult [OUT] 迁回结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentMigrateBack(MigrateBackResult &migrateBackResult);
+uint32_t UBTurboRMRSAgentMigrateBack(MigrateBackResult& migrateBackResult);
 
 /**
  * @brief 将上次作业中迁出的内存回滚
  * @param borrowIdsPidsMap [IN] 内存标识符与pid映射表
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentBorrowRollBack(std::map<std::string, std::set<BorrowIdInfo>> &borrowIdsPidsMap);
+uint32_t UBTurboRMRSAgentBorrowRollBack(std::map<std::string, std::set<BorrowIdInfo>>& borrowIdsPidsMap);
 
 /**
  * @brief 采集进程内存信息
@@ -327,8 +329,8 @@ uint32_t UBTurboRMRSAgentBorrowRollBack(std::map<std::string, std::set<BorrowIdI
  * @param pidNumaInfoCollectResult [OUT] 进程内存信息采集结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentPidNumaInfoCollect(const PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                            PidNumaInfoCollectResult &pidNumaInfoCollectResult);
+uint32_t UBTurboRMRSAgentPidNumaInfoCollect(const PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                            PidNumaInfoCollectResult& pidNumaInfoCollectResult);
 
 /**
  * @brief 采集numa或节点内存信息
@@ -336,8 +338,8 @@ uint32_t UBTurboRMRSAgentPidNumaInfoCollect(const PidNumaInfoCollectParam &pidNu
  * @param responseInfoSimpo [OUT] numa/节点内存信息采集结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentNumaMemInfoCollect(const NumaMemInfoCollectParam &numaMemInfoCollectParam,
-                                            ResponseInfoSimpo &responseInfoSimpo);
+uint32_t UBTurboRMRSAgentNumaMemInfoCollect(const NumaMemInfoCollectParam& numaMemInfoCollectParam,
+                                            ResponseInfoSimpo& responseInfoSimpo);
 
 /**
  * @brief 下发ucache迁移执行指令
@@ -345,15 +347,15 @@ uint32_t UBTurboRMRSAgentNumaMemInfoCollect(const NumaMemInfoCollectParam &numaM
  * @param resCode [OUT] ucache迁移执行结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentUCacheMigrateStrategy(const UCacheMigrationStrategyParam &uCacheMigrationStrategyParam,
-                                               ResCode &resCode);
+uint32_t UBTurboRMRSAgentUCacheMigrateStrategy(const UCacheMigrationStrategyParam& uCacheMigrationStrategyParam,
+                                               ResCode& resCode);
 
 /**
  * @brief 下发ucache迁移停止指令
  * @param resCode [OUT] ucache迁移停止结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentUCacheMigrateStop(ResCode &resCode);
+uint32_t UBTurboRMRSAgentUCacheMigrateStop(ResCode& resCode);
 
 /**
  * @brief 更新pagecache使用比例
@@ -361,8 +363,8 @@ uint32_t UBTurboRMRSAgentUCacheMigrateStop(ResCode &resCode);
  * @param uCacheRatioRes [OUT] 更新pagecache使用比例结果
  * @return  0为成功, 非0为异常
  */
-uint32_t UBTurboRMRSAgentUpdateUCacheRatio(const MigrationInfoParam &migrationInfoParam,
-                                           UCacheRatioRes &uCacheRatioRes);
+uint32_t UBTurboRMRSAgentUpdateUCacheRatio(const MigrationInfoParam& migrationInfoParam,
+                                           UCacheRatioRes& uCacheRatioRes);
 }
 } // namespace turbo::rmrs
 

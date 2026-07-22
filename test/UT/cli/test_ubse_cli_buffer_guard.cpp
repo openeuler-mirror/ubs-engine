@@ -23,7 +23,7 @@ void TestUbseCliBufferGuard::TearDown() {}
 
 static bool BUFFER_FREE_FLAG = false;
 
-void mock_ubse_api_buffer_free(ubse_api_buffer_t *apiBuffer)
+void mock_ubse_api_buffer_free(ubse_api_buffer_t* apiBuffer)
 {
     BUFFER_FREE_FLAG = true;
     if (apiBuffer->buffer != nullptr) {
@@ -41,7 +41,7 @@ TEST_F(TestUbseCliBufferGuard, AutoReleaseBuffer)
     {
         ubse_api_buffer_t res_buffer{};
         res_buffer.length = 8;
-        res_buffer.buffer = static_cast<uint8_t *>(malloc(8));
+        res_buffer.buffer = static_cast<uint8_t*>(malloc(8));
         UbseCliBufferGuard ubseCliBufferGuard(res_buffer);
     }
     MOCKER(&ubse_api_buffer_free).reset();

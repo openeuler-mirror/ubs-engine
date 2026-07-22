@@ -14,9 +14,9 @@
 #define MEMPOOLING_COMMON_DELETE_FUNC_H
 #include <cstdint>
 namespace mempooling {
-inline void DefaultFreeFunc(const uint8_t *data)
+inline void DefaultFreeFunc(const uint8_t* data)
 {
     delete[] data;
 }
-}
+} // namespace mempooling
 #endif

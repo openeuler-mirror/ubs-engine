@@ -16,5 +16,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // UBSE_MANAGER_TEST_STATUS_MANAGER_H

@@ -24,6 +24,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::timer;
 using namespace ubse::context;
 using namespace ubse::nodeController;
+using namespace ubse::com;
+
 GlobalInitializer::GlobalInitializer() : lastTimeMs_(0)
 {
     auto ret = GetBootTime(startTimeMs_);

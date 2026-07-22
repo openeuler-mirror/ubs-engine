@@ -13,16 +13,17 @@
 #ifndef UBSE_EVENT_MODULE_H
 #define UBSE_EVENT_MODULE_H
 
-#include <memory>            // for unique_ptr
-#include <string>            // for string
+#include <memory> // for unique_ptr
+#include <string> // for string
 
 #include "ubse_common_def.h" // for UbseResult
 #include "ubse_event.h"      // for UbseEventPriority, UbseEventHandler
 #include "ubse_module.h"     // for UbseModule
 
 namespace ubse::event {
-using namespace ubse::module;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+
 class UbseEventModule : public UbseModule {
 public:
     std::string Name() const override { return kModuleName; }
@@ -45,8 +46,8 @@ public:
      * @param [in] registerFunc: 事件响应处理函数
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbseSubEvent(const std::string &eventId, UbseEventHandler registerFunc,
-        UbseEventPriority priority = MEDIUM);
+    UbseResult UbseSubEvent(const std::string& eventId, UbseEventHandler registerFunc,
+                            UbseEventPriority priority = MEDIUM);
 
     /**
      * @brief 发布事件,允许发布方携带额外的信息
@@ -55,7 +56,7 @@ public:
      * 事件信息，发布方执行完pub即可释放内存；信息格式由发布方定义，响应方需要对应处理
      * @return 成功返回0, 失败返回非0
      */
-    UbseResult UbsePubEvent(const std::string &eventId, std::string &eventMessage);
+    UbseResult UbsePubEvent(const std::string& eventId, std::string& eventMessage);
 
     /**
      * @brief 取消订阅事件

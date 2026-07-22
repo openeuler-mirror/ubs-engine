@@ -15,7 +15,7 @@ uint32_t RegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string
     return RegisterAlarmFaultHandler({alarmFaultEvent, name, handler, priority});
 }
 
-uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string &name)
+uint32_t UnRegisterAlarmFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent, std::string& name)
 {
     return UbseRasHandler::GetInstance().UnRegisterAlarmFaultHandler(alarmFaultEvent, name);
 }

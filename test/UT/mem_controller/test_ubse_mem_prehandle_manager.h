@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::mem::decoder::utils
 
 #endif // TEST_UBSE_MEM_PREHANDLE_MANAGER_H

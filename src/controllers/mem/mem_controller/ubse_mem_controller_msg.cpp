@@ -6,6 +6,20 @@
 
 #include <ubse_conf_module.h>
 
+#include "ubse_com_base.h"
+#include "ubse_context.h"
+#include "ubse_election.h"
+#include "ubse_mem_agent_task_manager.h"
+#include "ubse_mem_controller.h"
+#include "ubse_mem_controller_ledger.h"
+#include "ubse_mem_controller_ledger_filter.h"
+#include "ubse_mem_debt_info.h"
+#include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_global_ledger_report.h"
+#include "ubse_mem_opt_req_simpo.h"
+#include "ubse_mem_opt_result_simpo.h"
+#include "ubse_mem_util.h"
+#include "ubse_os_util.h"
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_Ledger_resp_serial.h"
 #include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
@@ -15,23 +29,9 @@
 #include "message/ubse_mem_fd_borrow_importobj_simpo.h"
 #include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_numa_borrow_importobj_simpo.h"
+#include "message/ubse_mem_remote_numa_status.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
-#include "message/ubse_mem_remote_numa_status.h"
-#include "ubse_com_base.h"
-#include "ubse_context.h"
-#include "ubse_election.h"
-#include "ubse_mem_agent_task_manager.h"
-#include "ubse_mem_controller_ledger.h"
-#include "ubse_mem_controller.h"
-#include "ubse_mem_controller_ledger_filter.h"
-#include "ubse_mem_debt_info.h"
-#include "ubse_mem_debt_info_query.h"
-#include "ubse_mem_global_ledger_report.h"
-#include "ubse_mem_opt_req_simpo.h"
-#include "ubse_mem_opt_result_simpo.h"
-#include "ubse_mem_util.h"
-#include "ubse_os_util.h"
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::mem::util;
@@ -40,12 +40,18 @@ using namespace ubse::election;
 using namespace ubse::serial;
 using namespace ubse::context;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::com;
+using namespace ubse::common::def;
+using namespace ubse::utils;
+using namespace ubse::log;
+using namespace ubse::nodeController;
 
 void RegRespCtrlHandlers()
 {
     const ubse::com::UbseComEndpoint collectEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
-        static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_LEDGER)};
-    const ubse::com::UbseComEndpoint queryFdImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
+                                                        static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_LEDGER)};
+    const ubse::com::UbseComEndpoint queryFdImportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_FD_IMPORT)};
     const ubse::com::UbseComEndpoint queryNumaImportEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
@@ -53,9 +59,11 @@ void RegRespCtrlHandlers()
     const ubse::com::UbseComEndpoint queryAddrImportEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_ADDR_IMPORT)};
-    const ubse::com::UbseComEndpoint preOnLineEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
+    const ubse::com::UbseComEndpoint preOnLineEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_REQ)};
-    const ubse::com::UbseComEndpoint preOnLineReplyEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
+    const ubse::com::UbseComEndpoint preOnLineReplyEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
         static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_RESP)};
     const ubse::com::UbseComEndpoint invalidateImportDebtEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
@@ -75,23 +83,32 @@ void RegQueryHandlers()
     const ubse::com::UbseComEndpoint getNumaInfoByPidEndpoint = {
         static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_GET_NUMAINFO_BY_PID)};
-    const ubse::com::UbseComEndpoint getFdExportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getFdExportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_FD_EXPORT)};
-    const ubse::com::UbseComEndpoint getFdImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getFdImportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_FD_IMPORT)};
-    const ubse::com::UbseComEndpoint getNumaExportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getNumaExportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_NUMA_EXPORT)};
-    const ubse::com::UbseComEndpoint getNumaImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getNumaImportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_NUMA_IMPORT)};
-    const ubse::com::UbseComEndpoint getAddrExportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getAddrExportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_ADDR_EXPORT)};
-    const ubse::com::UbseComEndpoint getAddrImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getAddrImportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_ADDR_IMPORT)};
-    const ubse::com::UbseComEndpoint getShareExportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getShareExportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
-    const ubse::com::UbseComEndpoint getShareImportEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getShareImportEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
-    const ubse::com::UbseComEndpoint getNumaStatusEndpoint = {static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
+    const ubse::com::UbseComEndpoint getNumaStatusEndpoint = {
+        static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
         static_cast<uint32_t>(UbseMemQueryOpCode::UBSE_MEM_REMOTE_NUMA_STATUS)};
 
     UbseRegRpcService(getNumaInfoByPidEndpoint, GetNumaInfoByPidHandler);
@@ -163,7 +180,7 @@ UbseResult CollectLedge(const std::string &nodeId, NodeMemDebtInfo &info)
     return collectRet;
 }
 
-UbseResult CreateRespBuffer(const UbseBaseMessage &simpo, UbseByteBuffer &resp)
+UbseResult CreateRespBuffer(const UbseBaseMessage& simpo, UbseByteBuffer& resp)
 {
     size_t size = simpo.SerializedDataSize();
     auto ptr = new (std::nothrow) uint8_t[size];
@@ -171,7 +188,7 @@ UbseResult CreateRespBuffer(const UbseBaseMessage &simpo, UbseByteBuffer &resp)
         UBSE_LOG_ERROR << "fail to alloc resp buffer";
         return UBSE_ERROR_NULLPTR;
     }
-    resp = {ptr, size, [size](uint8_t *p) noexcept {
+    resp = {ptr, size, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     auto ret = memcpy_s(resp.data, resp.len, simpo.SerializedData(), size);
@@ -182,7 +199,7 @@ UbseResult CreateRespBuffer(const UbseBaseMessage &simpo, UbseByteBuffer &resp)
     return UBSE_OK;
 }
 
-UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult CollectLedgeHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UbseResult ret = UBSE_OK;
     std::string nodeId = GetCurNodeId();
@@ -197,7 +214,7 @@ UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
         ret = simpo.Serialize();
         if (ret != UBSE_OK) {
             UBSE_LOG_INFO << "mem debt info deserialize failed, " << FormatRetCode(ret);
-            resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+            resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                         SafeDeleteArray(p, size);
                     }};
             return ret;
@@ -211,7 +228,7 @@ UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
         ret = simpo.Serialize();
         if (ret != UBSE_OK) {
             UBSE_LOG_INFO << "mem debt info deserialize failed, " << FormatRetCode(ret);
-            resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+            resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                         SafeDeleteArray(p, size);
                     }};
             return ret;
@@ -225,7 +242,7 @@ UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
     ret = simpo.Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem debt info deserialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -233,8 +250,8 @@ UbseResult CollectLedgeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
     return CreateRespBuffer(simpo, resp);
 }
 
-UbseResult QueryFdImportObj(const std::string &nodeId, const std::string &name, UbseMemFdBorrowImportObj &fdInfo,
-                            const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult QueryFdImportObj(const std::string& nodeId, const std::string& name, UbseMemFdBorrowImportObj& fdInfo,
+                            const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     if (allDebtInfoMap.find(nodeId) != allDebtInfoMap.end()) {
         if (allDebtInfoMap.at(nodeId).fdImportObjMap.find(name) != allDebtInfoMap.at(nodeId).fdImportObjMap.end()) {
@@ -249,7 +266,7 @@ UbseResult QueryFdImportObj(const std::string &nodeId, const std::string &name, 
     return UBSE_ERROR;
 }
 
-void FindFdImportObj(const std::string &nodeId, const std::string &fdImportName, UbseMemFdBorrowImportObj &obj)
+void FindFdImportObj(const std::string& nodeId, const std::string& fdImportName, UbseMemFdBorrowImportObj& obj)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     if (nodeMemDebtInfoMap.find(nodeId) != nodeMemDebtInfoMap.end()) {
@@ -262,7 +279,7 @@ void FindFdImportObj(const std::string &nodeId, const std::string &fdImportName,
     }
 }
 
-UbseResult QueryFdImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryFdImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "query fd import start";
     std::string nodeId = GetCurNodeId();
@@ -280,7 +297,7 @@ UbseResult QueryFdImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     size_t size = 0;
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem query fd import serialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -294,7 +311,7 @@ UbseResult QueryFdImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     ret = resultSimpo.Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem fd import deserialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -302,15 +319,15 @@ UbseResult QueryFdImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     return CreateRespBuffer(resultSimpo, resp);
 }
 
-UbseResult QueryNumaImportObj(const std::string &nodeId, const std::string &name, UbseMemNumaBorrowImportObj &numaInfo,
-                              const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult QueryNumaImportObj(const std::string& nodeId, const std::string& name, UbseMemNumaBorrowImportObj& numaInfo,
+                              const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     if (allDebtInfoMap.find(nodeId) != allDebtInfoMap.end()) {
         if (allDebtInfoMap.at(nodeId).numaImportObjMap.find(name) != allDebtInfoMap.at(nodeId).numaImportObjMap.end()) {
             numaInfo = allDebtInfoMap.at(nodeId).numaImportObjMap.at(name);
             UBSE_LOG_INFO << "query fd import, import nodeId=" << nodeId << " import name=" << name
-              << " success, result=" << numaInfo.req.name
-              << ", status=" << TransState(numaInfo.status.state);
+                          << " success, result=" << numaInfo.req.name
+                          << ", status=" << TransState(numaInfo.status.state);
             return UBSE_OK;
         }
         numaInfo = UbseMemNumaBorrowImportObj{};
@@ -319,7 +336,7 @@ UbseResult QueryNumaImportObj(const std::string &nodeId, const std::string &name
     return UBSE_ERROR;
 }
 
-void FindNumaImportObj(const std::string &nodeId, const std::string &numaImportName, UbseMemNumaBorrowImportObj &obj)
+void FindNumaImportObj(const std::string& nodeId, const std::string& numaImportName, UbseMemNumaBorrowImportObj& obj)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     if (nodeMemDebtInfoMap.find(nodeId) != nodeMemDebtInfoMap.end()) {
@@ -331,7 +348,7 @@ void FindNumaImportObj(const std::string &nodeId, const std::string &numaImportN
         }
     }
 }
-UbseResult QueryNumaImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryNumaImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "query numa import start";
     std::string nodeId = GetCurNodeId();
@@ -349,7 +366,7 @@ UbseResult QueryNumaImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     size_t size = 0;
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem query numa import serialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -367,7 +384,7 @@ UbseResult QueryNumaImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem numa import deserialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -375,15 +392,15 @@ UbseResult QueryNumaImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryAddrImportObj(const std::string &nodeId, const std::string &name, UbseMemAddrBorrowImportObj &addrInfo,
-                              const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult QueryAddrImportObj(const std::string& nodeId, const std::string& name, UbseMemAddrBorrowImportObj& addrInfo,
+                              const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     if (allDebtInfoMap.find(nodeId) != allDebtInfoMap.end()) {
         if (allDebtInfoMap.at(nodeId).addrImportObjMap.find(name) != allDebtInfoMap.at(nodeId).addrImportObjMap.end()) {
             addrInfo = allDebtInfoMap.at(nodeId).addrImportObjMap.at(name);
             UBSE_LOG_INFO << "query fd import, import nodeId=" << nodeId << " import name=" << name
-              << " success, result=" << addrInfo.req.name
-              << ", status=" << TransState(addrInfo.status.state);
+                          << " success, result=" << addrInfo.req.name
+                          << ", status=" << TransState(addrInfo.status.state);
             return UBSE_OK;
         }
         addrInfo = UbseMemAddrBorrowImportObj{};
@@ -392,7 +409,7 @@ UbseResult QueryAddrImportObj(const std::string &nodeId, const std::string &name
     return UBSE_ERROR;
 }
 
-void FindAddrImportObj(const std::string &nodeId, const std::string &addrImportName, UbseMemAddrBorrowImportObj &obj)
+void FindAddrImportObj(const std::string& nodeId, const std::string& addrImportName, UbseMemAddrBorrowImportObj& obj)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     if (nodeMemDebtInfoMap.find(nodeId) != nodeMemDebtInfoMap.end()) {
@@ -406,7 +423,7 @@ void FindAddrImportObj(const std::string &nodeId, const std::string &addrImportN
     }
 }
 
-UbseResult QueryAddrImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryAddrImportObjHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UBSE_LOG_INFO << "query addr import start";
     std::string nodeId = GetCurNodeId();
@@ -424,7 +441,7 @@ UbseResult QueryAddrImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     size_t size = 0;
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem query addr import serialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -441,7 +458,7 @@ UbseResult QueryAddrImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_INFO << "mem addr import deserialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -449,46 +466,46 @@ UbseResult QueryAddrImportObjHandler(const UbseByteBuffer &req, UbseByteBuffer &
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult PreOnLineRequest(const std::string &nodeId, PreOnLineReq req)
+UbseResult PreOnLineRequest(const std::string& nodeId, PreOnLineReq req)
 {
     const ubse::com::UbseComEndpoint endpoint{
         .moduleId = static_cast<uint16_t>(ubse::com::UbseModuleCode::UBSE_MEM_RESP),
         .serviceId = static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_REQ),
         .address = nodeId,
     };
-    uint8_t *buffer;
+    uint8_t* buffer;
     size_t size;
     auto ret = SerializePreOnLine(req, buffer, size);
     if (ret != UBSE_OK) {
         return ret;
     }
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t* p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
     return UbseRpcSend(endpoint, reqBuffer, nullptr,
-                       [](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {});
+                       [](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {});
 }
 
-UbseResult PreOnLineHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult PreOnLineHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     PreOnLineReq preOnLineReq{};
     PreOnLineResp preOnLineResp{};
     preOnLineResp.ret = UBSE_OK;
-    uint8_t *buffer;
+    uint8_t* buffer;
     size_t size = 0;
     UbseResult ret = DeSerializePreOnLine(preOnLineReq, req.data, req.len);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "deSerialize pre online cna failed, " << FormatRetCode(ret);
         preOnLineResp.ret = ret;
         SerializePreOnlineResp(preOnLineResp, buffer, size);
-        resp = {buffer, size, [size](uint8_t *p) noexcept {
+        resp = {buffer, size, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return UBSE_OK;
     }
     OperatePreOnLine(preOnLineReq);
     SerializePreOnlineResp(preOnLineResp, buffer, size);
-    resp = {buffer, size, [size](uint8_t *p) noexcept {
+    resp = {buffer, size, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     return UBSE_OK;
@@ -508,45 +525,45 @@ UbseResult PreOnLineReply(PreOnLineResp resp)
         .serviceId = static_cast<uint32_t>(UbseMemRespCtrlOpCode::UBSE_MEM_PRE_ONLINE_RESP),
         .address = masterInfo.nodeId,
     };
-    uint8_t *buffer;
+    uint8_t* buffer;
     size_t size;
     ret = SerializePreOnlineResp(resp, buffer, size);
     if (ret != UBSE_OK) {
         return ret;
     }
-    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t *p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    UbseByteBuffer reqBuffer{buffer, size, [size](uint8_t* p) noexcept {
+                                 SafeDeleteArray(p, size);
+                             }};
     return UbseRpcSend(endpoint, reqBuffer, nullptr,
-                       [](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {});
+                       [](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {});
 }
 
-UbseResult PreOnLineReplyHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult PreOnLineReplyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     PreOnLineResp preOnLineReply{};
     PreOnLineResp preOnLineResp{};
     preOnLineResp.ret = UBSE_OK;
-    uint8_t *buffer;
+    uint8_t* buffer;
     size_t size = 0;
     UbseResult ret = DeSerializePreOnLineResp(preOnLineReply, req.data, req.len);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "deSerialize pre online reply failed, " << FormatRetCode(ret);
         preOnLineResp.ret = ret;
         SerializePreOnlineResp(preOnLineResp, buffer, size);
-        resp = {buffer, size, [size](uint8_t *p) noexcept {
+        resp = {buffer, size, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return UBSE_OK;
     }
     handlePreOnLineTask(preOnLineReply);
     SerializePreOnlineResp(preOnLineResp, buffer, size);
-    resp = {buffer, size, [size](uint8_t *p) noexcept {
+    resp = {buffer, size, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     return UBSE_OK;
 }
 
-UbseResult GetLocalNumaInfoByPid(const uint64_t &pid, uint32_t &numaId, uint32_t &socketId)
+UbseResult GetLocalNumaInfoByPid(const uint64_t& pid, uint32_t& numaId, uint32_t& socketId)
 {
     auto ret = UbseOsUtil::GetNumaIdByPid(pid, numaId);
     if (ret != UBSE_OK) {
@@ -565,7 +582,7 @@ UbseResult GetLocalNumaInfoByPid(const uint64_t &pid, uint32_t &numaId, uint32_t
     return UBSE_OK;
 }
 
-UbseResult GetNumaInfoByPidHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult GetNumaInfoByPidHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     uint64_t pid = -1;
     uint32_t numaId{};
@@ -587,14 +604,14 @@ UbseResult GetNumaInfoByPidHandler(const UbseByteBuffer &req, UbseByteBuffer &re
         return UBSE_ERROR;
     }
     resp = UbseByteBuffer{
-        .data = output.GetBuffer(true), .len = output.GetLength(), .freeFunc = [](uint8_t *data) -> void {
+        .data = output.GetBuffer(true), .len = output.GetLength(), .freeFunc = [](uint8_t* data) -> void {
             SafeDeleteArray(data);
         }};
     return UBSE_OK;
 }
 
-void GetNumaInfoFromRemoteRespHandler(const UbseByteBuffer &respData, const uint32_t &resCode, uint32_t &numaId,
-                                      uint32_t &socketId, UbseResult &getRet)
+void GetNumaInfoFromRemoteRespHandler(const UbseByteBuffer& respData, const uint32_t& resCode, uint32_t& numaId,
+                                      uint32_t& socketId, UbseResult& getRet)
 {
     if (resCode != UBSE_OK) {
         UBSE_LOG_ERROR << "get numa info failed, " << FormatRetCode(resCode);
@@ -614,7 +631,7 @@ void GetNumaInfoFromRemoteRespHandler(const UbseByteBuffer &respData, const uint
     }
 }
 
-UbseResult GetNumaInfoFromAgent(const std::string &nodeId, const uint64_t &pid, uint32_t &numaId, uint32_t &socketId)
+UbseResult GetNumaInfoFromAgent(const std::string& nodeId, const uint64_t& pid, uint32_t& numaId, uint32_t& socketId)
 {
     ubse::nodeController::UbseNodeInfo node = UbseNodeController::GetInstance().GetCurNode();
     if (nodeId == node.nodeId) {
@@ -633,12 +650,12 @@ UbseResult GetNumaInfoFromAgent(const std::string &nodeId, const uint64_t &pid, 
         getRet = UBSE_ERROR;
     }
 
-    UbseByteBuffer reqBuffer{output.GetBuffer(true), output.GetLength(), [](uint8_t *p) noexcept {
-        SafeDeleteArray(p);
-    }};
+    UbseByteBuffer reqBuffer{output.GetBuffer(true), output.GetLength(), [](uint8_t* p) noexcept {
+                                 SafeDeleteArray(p);
+                             }};
     auto ret =
         UbseRpcSend(endpoint, reqBuffer, nullptr,
-                    [&numaId, &socketId, &getRet](void *ctx, const UbseByteBuffer &respData, uint32_t resCode) -> void {
+                    [&numaId, &socketId, &getRet](void* ctx, const UbseByteBuffer& respData, uint32_t resCode) -> void {
                         GetNumaInfoFromRemoteRespHandler(respData, resCode, numaId, socketId, getRet);
                     });
     if (ret != UBSE_OK) {
@@ -648,7 +665,7 @@ UbseResult GetNumaInfoFromAgent(const std::string &nodeId, const uint64_t &pid, 
     return getRet;
 }
 
-UbseResult QueryFdExport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowExportObj &obj)
+UbseResult QueryFdExport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowExportObj& obj)
 {
     const SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_FD_EXPORT)};
@@ -676,12 +693,12 @@ UbseResult QueryFdExport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowEx
     return UBSE_OK;
 }
 
-UbseResult QueryFdExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryFdExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -704,7 +721,7 @@ UbseResult QueryFdExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryNumaExport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorrowExportObj &obj)
+UbseResult QueryNumaExport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorrowExportObj& obj)
 {
     const SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_NUMA_EXPORT)};
@@ -736,13 +753,13 @@ UbseResult QueryNumaExport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
     return UBSE_OK;
 }
 
-UbseResult QueryNumaExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryNumaExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -765,7 +782,7 @@ UbseResult QueryNumaExportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorrowExportObj &obj)
+UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorrowExportObj& obj)
 {
     const SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_ADDR_EXPORT)};
@@ -793,13 +810,13 @@ UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
     return UBSE_OK;
 }
 
-UbseResult QueryAddrExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryAddrExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -822,7 +839,7 @@ UbseResult QueryAddrExportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj)
+UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj& obj)
 {
     const SendParam sendParam{request.exportNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_EXPORT)};
@@ -850,13 +867,13 @@ UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBo
     return UBSE_OK;
 }
 
-UbseResult QueryShareExportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryShareExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -879,8 +896,7 @@ UbseResult QueryShareExportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-
-UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj &obj)
+UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj& obj)
 {
     const SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_FD_IMPORT)};
@@ -908,13 +924,13 @@ UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowIm
     return UBSE_OK;
 }
 
-UbseResult QueryFdImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryFdImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -937,7 +953,7 @@ UbseResult QueryFdImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorrowImportObj &obj)
+UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorrowImportObj& obj)
 {
     const SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_NUMA_IMPORT)};
@@ -965,13 +981,13 @@ UbseResult QueryNumaImport(def::UbseMemDebtQueryRequest request, UbseMemNumaBorr
     return UBSE_OK;
 }
 
-UbseResult QueryNumaImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryNumaImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -994,7 +1010,7 @@ UbseResult QueryNumaImportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorrowImportObj &obj)
+UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorrowImportObj& obj)
 {
     const SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_ADDR_IMPORT)};
@@ -1022,13 +1038,13 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
     return UBSE_OK;
 }
 
-UbseResult QueryAddrImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryAddrImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -1051,7 +1067,7 @@ UbseResult QueryAddrImportHandler(const UbseByteBuffer &req, UbseByteBuffer &res
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj)
+UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj& obj)
 {
     const SendParam sendParam{request.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_QUERY_SHARE_IMPORT)};
@@ -1079,13 +1095,13 @@ UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBo
     return UBSE_OK;
 }
 
-UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult QueryShareImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     std::string curNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
     UbseMemDebtQueryRequestSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -1103,7 +1119,7 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem share import deserialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -1111,8 +1127,8 @@ UbseResult QueryShareImportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
-                                             const std::string &debtName, UbseMemBorrowType type)
+UbseResult SendInvalidateSingleImportDebtRpc(const std::string& nodeId, const std::string& debtName,
+                                             UbseMemBorrowType type)
 {
     const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
                               static_cast<uint16_t>(UbseMemRespCtrlOpCode::UBSE_MEM_INVALIDATE_SINGLE_IMPORT_DEBT)};
@@ -1138,12 +1154,12 @@ UbseResult SendInvalidateSingleImportDebtRpc(const std::string &nodeId,
     return resultPtr->GetResult();
 }
 
-UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UbseMemOptReqSimpo simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                 SafeDeleteArray(p, size);
             }};
     if (ret != UBSE_OK) {
@@ -1163,7 +1179,7 @@ UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, U
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem invalidate single import debt serialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
                     SafeDeleteArray(p, size);
                 }};
         return ret;
@@ -1171,7 +1187,7 @@ UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, U
     return CreateRespBuffer(*resultSimpo.Get(), resp);
 }
 
-UbseResult NotifyRemoteNumaStatus(const std::string &nodeId, const std::vector<std::pair<int64_t, int>> &numaStatus)
+UbseResult NotifyRemoteNumaStatus(const std::string& nodeId, const std::vector<std::pair<int64_t, int>>& numaStatus)
 {
     const SendParam sendParam{nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
                               static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_REMOTE_NUMA_STATUS)};
@@ -1197,14 +1213,14 @@ UbseResult NotifyRemoteNumaStatus(const std::string &nodeId, const std::vector<s
     return resultPtr->GetResult();
 }
 
-UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
+UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
 {
     UbseMemRemoteNumaStatus simpo{req.data, static_cast<uint32_t>(req.len)};
     auto ret = simpo.Deserialize();
     size_t size = 0;
-    resp = {nullptr, 0, [size](uint8_t *p) noexcept {
-        SafeDeleteArray(p, size);
-    }};
+    resp = {nullptr, 0, [size](uint8_t* p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Mem query remote numa status deserialize failed, " << FormatRetCode(ret);
         return ret;
@@ -1221,9 +1237,9 @@ UbseResult NotifyRemoteNumaStatusHandler(const UbseByteBuffer &req, UbseByteBuff
     ret = resultSimpo->Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem query remote numa status serialize failed, " << FormatRetCode(ret);
-        resp = {nullptr, 0, [size](uint8_t *p) noexcept {
-            SafeDeleteArray(p, size);
-        }};
+        resp = {nullptr, 0, [size](uint8_t* p) noexcept {
+                    SafeDeleteArray(p, size);
+                }};
         return ret;
     }
     return CreateRespBuffer(*resultSimpo.Get(), resp);

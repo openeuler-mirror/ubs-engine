@@ -19,7 +19,7 @@ protected:
 
 static void setup_rq_with_response(int depth, u16 seq, u8 bb_num)
 {
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     g_ctrlq_info.rq.depth = depth;
     g_ctrlq_info.rq.base_addr = base;
@@ -48,7 +48,7 @@ static void cleanup_sq_rq()
     g_ctrlq_info.rq.base_addr = NULL;
 }
 
-static void setup_open_mbuf(struct file &filp, struct inode &inode)
+static void setup_open_mbuf(struct file& filp, struct inode& inode)
 {
     mock_set_reg(CTRLQ_TX_DEPTH_REG, 4);
     mock_set_reg(CTRLQ_RX_DEPTH_REG, 4);
@@ -119,7 +119,7 @@ TEST_F(BandbridgeDeviceTest, Open_Success_ReturnsZero)
     EXPECT_EQ(ret, 0);
     EXPECT_NE(filp.private_data, nullptr);
 
-    struct bandbridge_mbuf *mbuf = (struct bandbridge_mbuf *)filp.private_data;
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
     EXPECT_NE(mbuf->sendbuf, nullptr);
     EXPECT_NE(mbuf->recvbuf, nullptr);
 
@@ -225,7 +225,7 @@ TEST_F(BandbridgeDeviceTest, DoSendRecv_SqNotEnough_ReturnsNospc)
     struct file filp = {0};
     struct inode inode = {0};
     setup_open_mbuf(filp, inode);
-    struct bandbridge_mbuf *mbuf = (struct bandbridge_mbuf *)filp.private_data;
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
 
     g_ctrlq_info.sq.depth = 1;
     g_ctrlq_info.sq.pi = 1;
@@ -247,7 +247,7 @@ TEST_F(BandbridgeDeviceTest, DoSendRecv_Success_ReturnsZero)
     struct file filp = {0};
     struct inode inode = {0};
     setup_open_mbuf(filp, inode);
-    struct bandbridge_mbuf *mbuf = (struct bandbridge_mbuf *)filp.private_data;
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
 
     setup_sq_for_send_recv(16, 0x0042);
 
@@ -273,7 +273,7 @@ TEST_F(BandbridgeDeviceTest, SendRequest_Success_ReturnsZero)
     struct file filp = {0};
     struct inode inode = {0};
     setup_open_mbuf(filp, inode);
-    struct bandbridge_mbuf *mbuf = (struct bandbridge_mbuf *)filp.private_data;
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
 
     setup_sq_for_send_recv(16, 0x0042);
 
@@ -299,7 +299,7 @@ TEST_F(BandbridgeDeviceTest, Ioctl_SendRequestCmd_Success)
     struct file filp = {0};
     struct inode inode = {0};
     setup_open_mbuf(filp, inode);
-    struct bandbridge_mbuf *mbuf = (struct bandbridge_mbuf *)filp.private_data;
+    struct bandbridge_mbuf* mbuf = (struct bandbridge_mbuf*)filp.private_data;
 
     setup_sq_for_send_recv(16, 0x0042);
 

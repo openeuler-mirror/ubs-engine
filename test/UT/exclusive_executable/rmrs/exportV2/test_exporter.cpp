@@ -30,7 +30,7 @@
 
 using namespace mempooling::exportV2;
 namespace mempooling::exportV2 {
-VmDomainInfo genVmDomainInfo(const std::string &vmName);
+VmDomainInfo genVmDomainInfo(const std::string& vmName);
 
 class ExporterTest : public ::testing::Test {
     void SetUp() override
@@ -174,12 +174,12 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_ok)
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
 
-static MpResult ThrowGetNumaSetStd(std::vector<std::uint16_t> & /*numaSet*/)
+static MpResult ThrowGetNumaSetStd(std::vector<std::uint16_t>& /*numaSet*/)
 {
     throw std::runtime_error("GetNumaSet failed");
 }
 
-static MpResult ThrowGetNumaSetUnknown(std::vector<std::uint16_t> & /*numaSet*/)
+static MpResult ThrowGetNumaSetUnknown(std::vector<std::uint16_t>& /*numaSet*/)
 {
     throw 1; // 非 std::exception
 }
@@ -191,7 +191,7 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_throw_std_exception_in_subprocess)
             std::vector<NumaInfo> numaInfos;
             Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t> &))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t>&))
                 .stubs()
                 .will(invoke(ThrowGetNumaSetStd));
 
@@ -208,7 +208,7 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_throw_unknown_exception_in_subproces
             std::vector<NumaInfo> numaInfos;
             Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t> &))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetNumaSet, MpResult(*)(std::vector<std::uint16_t>&))
                 .stubs()
                 .will(invoke(ThrowGetNumaSetUnknown));
 
@@ -219,12 +219,12 @@ TEST_F(ExporterTest, GetNumaInfoImmediately_throw_unknown_exception_in_subproces
         ::testing::ExitedWithCode(0), "");
 }
 
-static MpResult ThrowGetVmNameSetStd(std::vector<std::string> & /*vmNameSet*/)
+static MpResult ThrowGetVmNameSetStd(std::vector<std::string>& /*vmNameSet*/)
 {
     throw std::runtime_error("GetVmNameSet failed");
 }
 
-static MpResult ThrowGetVmNameSetUnknown(std::vector<std::string> & /*vmNameSet*/)
+static MpResult ThrowGetVmNameSetUnknown(std::vector<std::string>& /*vmNameSet*/)
 {
     throw 1;
 }
@@ -236,7 +236,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_throw_std_exception_in_subprocess)
             std::vector<mempooling::exportV2::VmDomainInfo> vmInfos;
             mempooling::exportV2::Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string> &))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(ThrowGetVmNameSetStd));
 
@@ -253,7 +253,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_throw_unknown_exception_in_subprocess)
             std::vector<mempooling::exportV2::VmDomainInfo> vmInfos;
             mempooling::exportV2::Exporter::inited_.store(true, std::memory_order_release);
 
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string> &))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(ThrowGetVmNameSetUnknown));
 
@@ -263,14 +263,14 @@ TEST_F(ExporterTest, GetVmInfoImmediately_throw_unknown_exception_in_subprocess)
         ::testing::ExitedWithCode(0), "");
 }
 
-static MpResult StubGetVmNameSet_AndClampMem(std::vector<std::string> &vmNameSet)
+static MpResult StubGetVmNameSet_AndClampMem(std::vector<std::string>& vmNameSet)
 {
     vmNameSet.clear();
     vmNameSet.emplace_back("vm-test-0"); // 小集合，保证会进入 parallel_collect
 
     // 1) 先占一大块内存（尽量让后续分配更容易失败）
     //    用 static 保证在函数返回后仍然占着
-    static void *hog = nullptr;
+    static void* hog = nullptr;
     if (!hog) {
         // 例如占 96MB（可根据你环境调大/调小）
         hog = std::malloc(96 * 1024 * 1024);
@@ -307,7 +307,7 @@ TEST_F(ExporterTest, GetVmInfoImmediately_bad_alloc_in_parallel_collect_in_subpr
                 std::exit(2);
 
             // GetVmNameSet：小集合 + 在返回前“挤爆/限死”内存
-            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string> &))
+            MOCKER_CPP(&mempooling::exportV2::OsHelper::GetVmNameSet, MpResult(*)(std::vector<std::string>&))
                 .stubs()
                 .will(invoke(StubGetVmNameSet_AndClampMem));
 

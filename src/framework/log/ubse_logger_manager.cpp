@@ -13,16 +13,16 @@
 #include "ubse_logger_manager.h"
 #include <iostream>
 
-#include "sys/syslog.h"
 #include "ubse_error.h"
 #include "ubse_logger_ringbuffer.h"
+#include "sys/syslog.h"
 
 namespace ubse::log {
-UbseLoggerManager *UbseLoggerManager::gInstance = nullptr;
+UbseLoggerManager* UbseLoggerManager::gInstance = nullptr;
 bool UbseLoggerManager::gInited_ = false;
 std::atomic<bool> UbseLoggerManager::threadRunning_;
 
-UbseLoggerManager *UbseLoggerManager::Instance()
+UbseLoggerManager* UbseLoggerManager::Instance()
 {
     /* already created */
     if (gInstance != nullptr) {
@@ -48,7 +48,7 @@ void UbseLoggerManager::Destroy()
     }
 }
 
-UbseResult UbseLoggerManager::Init(const LoggerOptions &options, UbseLoggerWriter *logWriter)
+UbseResult UbseLoggerManager::Init(const LoggerOptions& options, UbseLoggerWriter* logWriter)
 {
     if (gInited_) {
         return UBSE_OK;
@@ -90,7 +90,7 @@ bool UbseLoggerManager::IsLog(UbseLogLevel level)
     return level >= minLogLevel_;
 }
 
-void UbseLoggerManager::Push(UbseLoggerEntry &&loggerEntry)
+void UbseLoggerManager::Push(UbseLoggerEntry&& loggerEntry)
 {
     logBuffer_->Push(std::move(loggerEntry));
 }
@@ -118,7 +118,7 @@ void UbseLoggerManager::Pop()
     }
 }
 
-void UbseLoggerManager::LogToSyslog(UbseLoggerEntry &loggerEntry)
+void UbseLoggerManager::LogToSyslog(UbseLoggerEntry& loggerEntry)
 {
     auto level = loggerEntry.GetLogLevel();
     auto syslogLevel = LogToSyslogLevel(level);
@@ -129,7 +129,7 @@ void UbseLoggerManager::LogToSyslog(UbseLoggerEntry &loggerEntry)
     closelog();
 }
 
-uint32_t UbseLoggerManager::LogToSyslogLevel(UbseLogLevel &level)
+uint32_t UbseLoggerManager::LogToSyslogLevel(UbseLogLevel& level)
 {
     if (level == UbseLogLevel::DEBUG) {
         return LOG_DEBUG;
@@ -154,7 +154,7 @@ void UbseLoggerManager::SetLogLevel(UbseLogLevel level)
     minLogLevel_ = level;
 }
 
-UbseLogLevel UbseLoggerManager::StringToLogLevel(const std::string &level)
+UbseLogLevel UbseLoggerManager::StringToLogLevel(const std::string& level)
 {
     if (level == "DEBUG") {
         return UbseLogLevel::DEBUG;

@@ -59,7 +59,7 @@ private:
     uint64_t globalTurnId_;
     uint8_t globalMasterStatus_ = 0;
     InterGroupInfo cascadeGroupReport_;
-    RouteEntry downstreamRouteEntry_;
+    com::RouteEntry downstreamRouteEntry_;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
     void RegisterTimers();

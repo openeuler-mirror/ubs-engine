@@ -37,5 +37,5 @@ void TestUbseElectionRoleStandby::TearDown()
     GlobalMockObject::verify();
 }
 
-}
+} // namespace ubse::event::election
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_STANDBY_H

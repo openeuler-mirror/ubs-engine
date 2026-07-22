@@ -80,7 +80,7 @@ private:
     uint8_t masterStatus_ = 0;
     uint8_t standbyStatus_ = 0;
     InterGroupInfo cascadeGroupReport_;
-    RouteEntry downstreamRouteEntry_;
+    com::RouteEntry downstreamRouteEntry_;
 };
 }
 #endif // UBS_ENGINE_UBSE_ELECTION_ROLE_GLOBAL_AGENT_H

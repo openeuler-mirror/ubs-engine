@@ -15,6 +15,7 @@
 #define VM_CASE_CONF_H
 
 #include <cmath>
+
 #include <ubse_def.h>
 
 #include "vm_error.h"
@@ -40,7 +41,7 @@ struct CaseAndOvercommitmentRatio {
 
 // Parameters related to the scenario and overcommitment ratio
 struct CaseConfParam {
-    bool FromJson(const std::string &jsonString);
+    bool FromJson(const std::string& jsonString);
 
     std::string caseType{};
     float_t overCommitmentRatio{};
@@ -54,29 +55,29 @@ struct CaseConfResultParam {
     std::string data{};
 };
 
-VmResult SetCaseConfToDB(CaseConfParam &caseParam);
+VmResult SetCaseConfToDB(CaseConfParam& caseParam);
 
 class CaseConf {
 public:
-    static CaseConf &GetInstance();
+    static CaseConf& GetInstance();
     VmResult Init();
-    static VmResult QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio &caseConf);
+    static VmResult QueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio& caseConf);
     static void CaseRegisterRun();
     static void RunQueryCaseConf();
 
 private:
     CaseConf() = default;
     ~CaseConf() = default;
-    static bool SetMemPoolingRunMode(const std::string &curCase);
+    static bool SetMemPoolingRunMode(const std::string& curCase);
     static bool SetMemPoolingWaterMark();
-    static void SetMemPoolingParams(const std::string &curCase);
-    static void UbseStorageDealData(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                                    void *ctx);
-    static VmResult CaseAndOvercommitmentRatioDeserial(const std::string &data,
-                                                       CaseAndOvercommitmentRatio &caseAndOvercommitmentRatio);
+    static void SetMemPoolingParams(const std::string& curCase);
+    static void UbseStorageDealData(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                                    void* ctx);
+    static VmResult CaseAndOvercommitmentRatioDeserial(const std::string& data,
+                                                       CaseAndOvercommitmentRatio& caseAndOvercommitmentRatio);
     static UbseByteBuffer caseConfBuffer;
     static uint64_t index;
-    static bool ConvertOverCommitmentRatioToFloat(const std::string &ratioStr, float_t &ratio);
+    static bool ConvertOverCommitmentRatioToFloat(const std::string& ratioStr, float_t& ratio);
 };
 } // namespace vm
 

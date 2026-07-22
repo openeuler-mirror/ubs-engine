@@ -10,16 +10,16 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <thread>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "mockcpp/mokc.h"
+#include <gtest/gtest.h>
+#include <thread>
 #include "ubse_def.h"
+#include "mockcpp/mokc.h"
+#include "mp_mem_json_util.h"
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_helper.h"
 #include "over_commit_fault_memid_module.h"
 #include "over_commit_fault_node_module.h"
-#include "mp_mem_json_util.h"
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 namespace mempooling::over_commit {
@@ -36,9 +36,9 @@ public:
 
 TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_Succeed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-        MpResult(*)(std::string, uint64_t))
-        .stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
     std::string importNodeId = "Node1";
     uint64_t importMemId = 0;
     MpResult ret = OverCommitFaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId);
@@ -47,9 +47,9 @@ TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_Succeed)
 
 TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_MemIdFaultManage_Failed)
 {
-    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage,
-        MpResult(*)(std::string, uint64_t))
-        .stubs().will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&OverCommitFaultMemIdModule::MemIdFaultManage, MpResult(*)(std::string, uint64_t))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
     std::string importNodeId = "Node1";
     uint64_t importMemId = 0;
     MpResult ret = OverCommitFaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId);

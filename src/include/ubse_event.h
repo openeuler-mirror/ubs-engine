@@ -18,7 +18,8 @@
 
 namespace ubse::event {
 
-enum UbseEventPriority {
+enum UbseEventPriority
+{
     HIGH,
     MEDIUM,
     LOW
@@ -27,7 +28,7 @@ enum UbseEventPriority {
  * 事件响应处理函数原型,其中eventMessage为发布方定义的额外信息，处理过程中需要与发布方数据格式一致,EventMessage由框架保证内存释放
  * 事件响应处理函数仅支持普通函数。
  */
-using UbseEventHandler = std::function<uint32_t(std::string &eventId, std::string &eventMessage)>;
+using UbseEventHandler = std::function<uint32_t(std::string& eventId, std::string& eventMessage)>;
 /**
  * @brief 订阅事件,框架处理模块会按照优先级的方式回调处理函数，保证高优先级处理得到优先调用
  * @param [in] eventId: 事件ID
@@ -35,7 +36,7 @@ using UbseEventHandler = std::function<uint32_t(std::string &eventId, std::strin
  * @param [in] registerFunc: 事件响应处理函数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, UbseEventPriority priority = MEDIUM);
+uint32_t UbseSubEvent(std::string& eventId, UbseEventHandler registerFunc, UbseEventPriority priority = MEDIUM);
 
 /**
  * @brief 取消订阅事件
@@ -43,7 +44,7 @@ uint32_t UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, UbseE
  * @param [in] registerFunc: 事件响应处理函数
  * @return NA
  */
-uint32_t UbseUnSubEvent(std::string &eventId, UbseEventHandler registerFunc);
+uint32_t UbseUnSubEvent(std::string& eventId, UbseEventHandler registerFunc);
 
 /**
  * @brief 发布事件,允许发布方携带额外的信息
@@ -51,7 +52,7 @@ uint32_t UbseUnSubEvent(std::string &eventId, UbseEventHandler registerFunc);
  * @param [in] eventMessage: 事件信息，发布方执行完pub即可释放内存；信息格式由发布方定义，响应方需要对应处理
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbsePubEvent(const std::string &eventId, std::string &eventMessage);
-}
+uint32_t UbsePubEvent(const std::string& eventId, std::string& eventMessage);
+} // namespace ubse::event
 
 #endif // UBSE_EVENT_H

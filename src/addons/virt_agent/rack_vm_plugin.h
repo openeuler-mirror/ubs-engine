@@ -73,6 +73,6 @@ uint32_t StrategyInit();
  */
 uint32_t MemFragRegister();
 
-}
+} // namespace vm
 
 #endif // UBSE_VM_PLUGIN_H

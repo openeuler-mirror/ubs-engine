@@ -172,7 +172,7 @@ TEST_F(TestMpMemoryInfo, ParseNodeMemoryInfoMap_Failed)
 
     NodeMemoryInfoList obj;
     obj.nodeMemoryInfoList.push_back({});
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(false));
     bool res = obj.ParseNodeMemoryInfoMap(nodeMemoryInfoListVec, 0, nodeMemoryInfoMap);
@@ -182,7 +182,7 @@ TEST_F(TestMpMemoryInfo, ParseNodeMemoryInfoMap_Failed)
 TEST_F(TestMpMemoryInfo, ParseNumaMemInfoMap_Success)
 {
     JSON_VEC numaMemInfoVec;
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(true));
     JSON_MAP numaMemInfoMap;
@@ -220,7 +220,7 @@ TEST_F(TestMpMemoryInfo, ParseNumaMemInfoMap_Success)
 TEST_F(TestMpMemoryInfo, ParseNumaMemInfoMap_Failed)
 {
     JSON_VEC numaMemInfoVec;
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(false));
     JSON_MAP numaMemInfoMap;
@@ -253,10 +253,10 @@ TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Success)
 
     nodeMemoryInfoListMAP["nodeMemoryInfoList"] = "1";
 
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(true));
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR &jsonStr, JSON_VEC &strVec))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR& jsonStr, JSON_VEC& strVec))
         .stubs()
         .will(returnValue(true));
     NodeMemoryInfoList obj;
@@ -273,7 +273,7 @@ TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Failed1)
 
     nodeMemoryInfoListMAP["nodeMemoryInfoList"] = "1";
 
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(false));
     NodeMemoryInfoList obj;
@@ -290,10 +290,10 @@ TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Failed2)
 
     nodeMemoryInfoListMAP["nodeMemoryInfoList"] = "1";
 
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR &jsonStr, JSON_MAP &strMap))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Map, bool (*)(const JSON_STR& jsonStr, JSON_MAP& strMap))
         .stubs()
         .will(returnValue(true));
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR &jsonStr, JSON_VEC &strVec))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR& jsonStr, JSON_VEC& strVec))
         .stubs()
         .will(returnValue(false));
     NodeMemoryInfoList obj;
@@ -308,7 +308,7 @@ TEST_F(TestMpMemoryInfo, CreateNumaMemInfoVec_Success)
     JSON_MAP nodeMemoryInfoMap;
     numaMemInfoVec.push_back("1");
     nodeMemoryInfoMap["numaMemInfo"] = "1";
-    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR &jsonStr, JSON_VEC &strVec))
+    MOCKER_CPP(&JsonUtil::RackMemConvertJsonStr2Vec, bool (*)(const JSON_STR& jsonStr, JSON_VEC& strVec))
         .stubs()
         .will(returnValue(true));
     NodeMemoryInfoList obj;
@@ -324,7 +324,7 @@ TEST_F(TestMpMemoryInfo, FromJson_Failed1)
     obj.nodeMemoryInfoList.push_back({});
     MOCKER_CPP(
         &mempooling::NodeMemoryInfoList::CreateNodeMemoryInfoListVec,
-        bool (*)(const std::string &jsonString, JSON_MAP &nodeMemoryInfoListMAP, JSON_VEC &nodeMemoryInfoListVec))
+        bool (*)(const std::string& jsonString, JSON_MAP& nodeMemoryInfoListMAP, JSON_VEC& nodeMemoryInfoListVec))
         .stubs()
         .will(returnValue(true));
     obj.FromJson(jsonString);

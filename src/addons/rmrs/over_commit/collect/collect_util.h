@@ -21,21 +21,21 @@
 #include <unordered_set>
 #include <vector>
 #include "mempooling_interface.h"
-#include "numa_info.h"
 #include "mp_error.h"
+#include "numa_info.h"
 
 namespace mempooling::over_commit {
 class CollectUtil {
 public:
-    static MpResult GetRemoteVmPids(const std::string &nodeID, const std::vector<uint32_t> &remoteNumaIds,
-                                    std::unordered_map<std::uint16_t, std::vector<pid_t>> &res);
+    static MpResult GetRemoteVmPids(const std::string& nodeID, const std::vector<uint32_t>& remoteNumaIds,
+                                    std::unordered_map<std::uint16_t, std::vector<pid_t>>& res);
 
-    static MpResult GetRemoteVmPidsByLocal(const std::vector<uint32_t> &remoteNumaIds,
-                                           std::unordered_map<std::uint16_t, std::vector<pid_t>> &res,
+    static MpResult GetRemoteVmPidsByLocal(const std::vector<uint32_t>& remoteNumaIds,
+                                           std::unordered_map<std::uint16_t, std::vector<pid_t>>& res,
                                            bool isReturn = false);
 
-    static MpResult GetNumaMemInfos(const std::string &nodeId, const std::set<int16_t> &numaIds,
-                                    std::map<int, mempooling::NumaMetaData> &numaMemInfos);
+    static MpResult GetNumaMemInfos(const std::string& nodeId, const std::set<int16_t>& numaIds,
+                                    std::map<int, mempooling::NumaMetaData>& numaMemInfos);
 };
-}
-#endif  // MEMPOOLING_COLLECT_UTIL_H
+} // namespace mempooling::over_commit
+#endif // MEMPOOLING_COLLECT_UTIL_H

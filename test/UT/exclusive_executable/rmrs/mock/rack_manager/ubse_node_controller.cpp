@@ -9,12 +9,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+
 #include "ubse_node_controller.h"
 #include <vector>
- 
+
 namespace ubse::nodeController {
- 
+
 /**
  * 获取全量节点列表，agent节点向主节点请求
  * @return
@@ -26,17 +26,17 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
     return maps;
 }
 
-uint32_t UbseNodeController::GetMemGroupNodeList(UbseMemGroupNodeList &groupList)
+uint32_t UbseNodeController::GetMemGroupNodeList(UbseMemGroupNodeList& groupList)
 {
     return 0;
 }
 
-uint32_t UbseNodeController::GetMemProviderNodeList(UbseMemProviderNodeList &providerList)
+uint32_t UbseNodeController::GetMemProviderNodeList(UbseMemProviderNodeList& providerList)
 {
     return 0;
 }
 
-UbseNodeInfo UbseNodeController::GetNodeById(const std::string &nodeId)
+UbseNodeInfo UbseNodeController::GetNodeById(const std::string& nodeId)
 {
     UbseNodeInfo ubseNodeInfo;
     ubseNodeInfo.clusterState = UbseNodeClusterState::UBSE_NODE_WORKING;

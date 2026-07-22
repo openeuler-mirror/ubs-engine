@@ -13,8 +13,8 @@
 #ifndef UBSE_MANAGER_TEST_VM_JSON_UTIL_H
 #define UBSE_MANAGER_TEST_VM_JSON_UTIL_H
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "vm_json_util.h"
 
 using namespace vm;
@@ -27,6 +27,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_VM_JSON_UTIL_H

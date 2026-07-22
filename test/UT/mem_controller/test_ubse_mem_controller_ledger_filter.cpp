@@ -146,7 +146,7 @@ TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningNumaImport)
     std::vector<UbseMemNumaBorrowImportObj> masterFilterRunningExportObjs;
     std::vector<UbseMemNumaBorrowImportObj> agentFilterRunningExportObjs;
     EXPECT_NO_THROW(FilterRunningNumaImport(masterImportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+                                            masterFilterRunningExportObjs, agentFilterRunningExportObjs));
 }
 
 // TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningAddrExport)
@@ -198,7 +198,7 @@ TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningAddrImport)
     std::vector<UbseMemAddrBorrowImportObj> masterFilterRunningExportObjs;
     std::vector<UbseMemAddrBorrowImportObj> agentFilterRunningExportObjs;
     EXPECT_NO_THROW(FilterRunningAddrImport(masterImportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+                                            masterFilterRunningExportObjs, agentFilterRunningExportObjs));
 }
 
 TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningShareExport)
@@ -224,7 +224,7 @@ TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningShareExport)
     std::vector<UbseMemShareBorrowExportObj> masterFilterRunningExportObjs;
     std::vector<UbseMemShareBorrowExportObj> agentFilterRunningExportObjs;
     EXPECT_NO_THROW(FilterRunningShareExport(masterExportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+                                             masterFilterRunningExportObjs, agentFilterRunningExportObjs));
 }
 
 TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningShareImport)
@@ -250,7 +250,7 @@ TEST_F(TestUbseMemControllerLedgerFilter, FilterRunningShareImport)
     std::vector<UbseMemShareBorrowImportObj> masterFilterRunningExportObjs;
     std::vector<UbseMemShareBorrowImportObj> agentFilterRunningExportObjs;
     EXPECT_NO_THROW(FilterRunningShareImport(masterImportObjs, agentExportObjs, masterRunningExportObjs,
-        masterFilterRunningExportObjs, agentFilterRunningExportObjs));
+                                             masterFilterRunningExportObjs, agentFilterRunningExportObjs));
 }
 
 TEST_F(TestUbseMemControllerLedgerFilter, FilterShareDifferentExportSet)
@@ -392,4 +392,4 @@ TEST_F(TestUbseMemControllerLedgerFilter, TransAddrImportList)
     importObjMap["1"] = importObj;
     EXPECT_NO_THROW(TransAddrImportList(importObjMap));
 }
-}
+} // namespace ubse::mem_controller::ut

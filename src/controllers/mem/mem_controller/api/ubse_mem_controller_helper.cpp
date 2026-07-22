@@ -15,6 +15,7 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_util.h"
 #include "ubse_request_id_util.h"
 #include "ubse_common_def.h"
@@ -30,10 +31,10 @@ using namespace ubse::log;
 using namespace ubse::utils;
 
 const uint8_t UBSE_MAX_LENDER_CNT = 2;
-const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 128 MB
+const uint32_t UBSE_MIN_MEM_SIZE = 4 * 1024 * 1024; // 4 MB
 
-UbseResult UbseMemCreateWithLenderReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                             const std::vector<UbseMemNumaLender> &lenders)
+UbseResult UbseMemCreateWithLenderReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                             const std::vector<UbseMemNumaLender>& lenders)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -75,10 +76,10 @@ static uint64_t GenRequestId()
     return requestIdUtil.GenerateRequestId(slotId);
 }
 
-UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string &name, const UbseMemBorrower &borrower,
-                                                 const std::vector<UbseMemNumaLender> &lenders,
+UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string& name, const UbseMemBorrower& borrower,
+                                                 const std::vector<UbseMemNumaLender>& lenders,
                                                  uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN],
-                                                 UbseMemNumaBorrowReq &numaBorrowReq)
+                                                 UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -98,11 +99,11 @@ UbseResult ConvertUbseMemNumaCreateWithLenderReq(const std::string &name, const 
         UBSE_LOG_ERROR << "MemCopy fail when copy usrInfo, name is " << name;
         return UBSE_ERR_INVALID_ARG;
     }
-    return UBSE_OK;
+    return SetDefaultMemBorrowPrivData(numaBorrowReq.ubseMemPrivData);
 }
 
-UbseResult UbseMemCreateReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                   const UbseMemNumaCreateOpt &opt)
+UbseResult UbseMemCreateReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                   const UbseMemNumaCreateOpt& opt)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -118,8 +119,8 @@ UbseResult UbseMemCreateReqIsValid(const std::string &name, const UbseMemBorrowe
     return UBSE_OK;
 }
 
-UbseResult ConvertUbseMemNumaCreateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                       const UbseMemNumaCreateOpt &opt, UbseMemNumaBorrowReq &numaBorrowReq)
+UbseResult ConvertUbseMemNumaCreateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                       const UbseMemNumaCreateOpt& opt, UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -137,11 +138,11 @@ UbseResult ConvertUbseMemNumaCreateReq(const std::string &name, const UbseMemBor
         UBSE_LOG_ERROR << "MemCopy fail when copy usrInfo, name is " << name;
         return UBSE_ERR_INVALID_ARG;
     }
-    return UBSE_OK;
+    return SetDefaultMemBorrowPrivData(numaBorrowReq.ubseMemPrivData);
 }
 
-UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string &name, const UbseMemBorrower &borrower,
-                                                const UbseMemNumaCandidateOpt &opt)
+UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string& name, const UbseMemBorrower& borrower,
+                                                const UbseMemNumaCandidateOpt& opt)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -161,9 +162,9 @@ UbseResult UbseMemCreateWithCandidateReqIsValid(const std::string &name, const U
     return UBSE_OK;
 }
 
-UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string &name, const UbseMemBorrower &borrower,
-                                                    const UbseMemNumaCandidateOpt &opt,
-                                                    UbseMemNumaBorrowReq &numaBorrowReq)
+UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string& name, const UbseMemBorrower& borrower,
+                                                    const UbseMemNumaCandidateOpt& opt,
+                                                    UbseMemNumaBorrowReq& numaBorrowReq)
 {
     numaBorrowReq.name = name;
     numaBorrowReq.requestNodeId = GetCurNodeId();
@@ -182,10 +183,10 @@ UbseResult ConvertUbseMemNumaCreateWithCandidateReq(const std::string &name, con
         return UBSE_ERR_INVALID_ARG;
     }
     numaBorrowReq.candidateNodeList = opt.slotIds;
-    return UBSE_OK;
+    return SetDefaultMemBorrowPrivData(numaBorrowReq.ubseMemPrivData);
 }
 
-UbseResult UbseMemDeleteReqIsValid(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemDeleteReqIsValid(const std::string& name, const UbseMemBorrower& borrower)
 {
     if (!util::CheckName(name)) {
         return UBSE_ERR_INVALID_ARG;
@@ -197,7 +198,7 @@ UbseResult UbseMemDeleteReqIsValid(const std::string &name, const UbseMemBorrowe
     return UBSE_OK;
 }
 
-void ConvertUbseMemDeleteReq(const std::string &name, const UbseMemBorrower &borrower, UbseMemReturnReq &returnReq)
+void ConvertUbseMemDeleteReq(const std::string& name, const UbseMemBorrower& borrower, UbseMemReturnReq& returnReq)
 {
     returnReq.name = name;
     returnReq.requestNodeId = GetCurNodeId();
@@ -228,7 +229,7 @@ UbseResult UbseMemAddrCreateReqIsValid(const std::string& name, const UbseMemBor
     return UBSE_OK;
 }
 
-void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
+UbseResult ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower &borrower,
                                  const UbseMemProcessLender &lender, uint32_t flag, uint8_t exportAccessMode,
                                  UbseMemAddrBorrowReq &addrBorrowReq)
 {
@@ -250,6 +251,7 @@ void ConvertUbseMemAddrCreateReq(const std::string &name, const UbseMemBorrower 
     } else {
         addrBorrowReq.exportAccessMode = exportAccessMode;
     }
+    return SetDefaultMemBorrowPrivData(addrBorrowReq.ubseMemPrivData, flag);
 }
 
 using namespace ubse::log;

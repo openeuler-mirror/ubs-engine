@@ -74,4 +74,4 @@ TEST_F(TestUbseElectionReplyPktSimpo, DeserializeSuccess)
         ubseElectionReplyPktSimpoPtr->SerializedData(), ubseElectionReplyPktSimpoPtr->SerializedDataSize());
     EXPECT_EQ(pUbseElectionReplyPktSimpo->Deserialize(), UBSE_OK);
 }
-}
+} // namespace ubse::ut::election::message

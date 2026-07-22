@@ -5,10 +5,10 @@
 
 #include <mockcpp/mokc.h>
 
+#include "resource_collect.h"
 #include "status_manager.h"
 #include "vm_configuration.h"
 #include "vm_task_counter.h"
-#include "resource_collect.h"
 
 using namespace vm;
 using namespace vm::mempooling;
@@ -30,8 +30,8 @@ void TestStatusManager::TearDown()
 
 UBSRMRSMemBorrowFunc MockUBSRMRSMemBorrow()
 {
-    return [](const SrcMemoryBorrowParam &srcParam, const std::vector<uint64_t> &borrowSizes,
-              const WaterMark &waterMark, MemBorrowExecuteResult &result) {
+    return [](const SrcMemoryBorrowParam& srcParam, const std::vector<uint64_t>& borrowSizes,
+              const WaterMark& waterMark, MemBorrowExecuteResult& result) {
         result = {{"testBorrowId"}, {1}};
         return VM_OK;
     };
@@ -39,18 +39,18 @@ UBSRMRSMemBorrowFunc MockUBSRMRSMemBorrow()
 
 UBSRMRSMemMigrateFunc MockUBSRMRSMemMigrate()
 {
-    return [](const SrcMemoryBorrowParam &, const std::vector<VMPresetParam> &, const MemBorrowExecuteResult &) {
+    return [](const SrcMemoryBorrowParam&, const std::vector<VMPresetParam>&, const MemBorrowExecuteResult&) {
         return VM_OK;
     };
 }
 
 UBSRMRSMemReturnFunc MockUBSRMRSMemReturn()
 {
-    return [](const SrcMemoryBorrowParam &srcParam, const std::vector<std::string> &borrowIds,
-              const std::vector<pid_t> &pids) {
-                  callCount++;
-                  return VM_OK;
-              };
+    return [](const SrcMemoryBorrowParam& srcParam, const std::vector<std::string>& borrowIds,
+              const std::vector<pid_t>& pids) {
+        callCount++;
+        return VM_OK;
+    };
 }
 
 TEST_F(TestStatusManager, LoadGlobalBorrowMapSuccess)
@@ -258,7 +258,7 @@ TEST_F(TestStatusManager, MigrateByBorrowIdStatusSuccess)
     };
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector{1}));
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).stubs().will(invoke(MockUBSRMRSMemMigrate));
@@ -280,7 +280,7 @@ TEST_F(TestStatusManager, MigrateByBorrowIdStatusFail1)
                                         .nodeLocInfo = nodeLocInfo};
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector<pid_t>{}));
     const auto ret = StatusManager::MigrateByBorrowIdStatus(srcMemoryBorrowParam, BorrowIdStatuses);
@@ -301,7 +301,7 @@ TEST_F(TestStatusManager, MigrateByBorrowIdStatusFail2)
                                         .nodeLocInfo = nodeLocInfo};
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector{1}));
     MOCKER(MempoolingModule::UBSRMRSMemMigrate).stubs().will(returnValue(static_cast<UBSRMRSMemMigrateFunc>(nullptr)));
@@ -323,7 +323,7 @@ TEST_F(TestStatusManager, ReturnByBorrowIdStatusSuccess)
                                         .nodeLocInfo = nodeLocInfo};
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector{1}));
     MOCKER(MempoolingModule::UBSRMRSMemReturn).stubs().will(invoke(MockUBSRMRSMemReturn));
@@ -345,7 +345,7 @@ TEST_F(TestStatusManager, ReturnByBorrowIdStatusFail1)
                                         .nodeLocInfo = nodeLocInfo};
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector<pid_t>{}));
     const auto ret = StatusManager::ReturnByBorrowIdStatus(srcMemoryBorrowParam, BorrowIdStatuses);
@@ -366,11 +366,85 @@ TEST_F(TestStatusManager, ReturnByBorrowIdStatusFail2)
                                         .nodeLocInfo = nodeLocInfo};
     std::vector BorrowIdStatuses{borrowIdStatus};
     MOCKER_CPP(&ResourceCollect::GetPidsOnNuma,
-               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo &, const std::string &))
+               std::vector<pid_t>(ResourceCollect::*)(const VMNodeLocInfo&, const std::string&))
         .stubs()
         .will(returnValue(std::vector{1}));
     MOCKER(MempoolingModule::UBSRMRSMemReturn).stubs().will(returnValue(static_cast<UBSRMRSMemReturnFunc>(nullptr)));
     const auto ret = StatusManager::ReturnByBorrowIdStatus(srcMemoryBorrowParam, BorrowIdStatuses);
     EXPECT_EQ(ret, VM_ERROR);
 }
+// ===================== BorrowCompletionState Tests =====================
+
+TEST_F(TestStatusManager, BorrowCompletionStateSetGetClear)
+{
+    // Test SetBorrowCompletionState and GetAndClearBorrowCompletionState
+    auto state = std::make_shared<BorrowCompletionState>();
+    EXPECT_NE(state, nullptr);
+
+    // Initially no state
+    auto initial = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(initial, nullptr);
+
+    // Set then get
+    StatusManager::SetBorrowCompletionState(state);
+    auto retrieved = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(retrieved, state);
+
+    // After clear, should be null again
+    auto afterClear = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(afterClear, nullptr);
+}
+
+TEST_F(TestStatusManager, BorrowCompletionStateOverwrite)
+{
+    // Overwrite existing state should work
+    auto state1 = std::make_shared<BorrowCompletionState>();
+    auto state2 = std::make_shared<BorrowCompletionState>();
+
+    StatusManager::SetBorrowCompletionState(state1);
+    // Overwrite without getting
+    StatusManager::SetBorrowCompletionState(state2);
+    // Should get state2 (the last one)
+    auto retrieved = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(retrieved, state2);
+    // state1 promise is destroyed (unique, not shared)
+}
+
+TEST_F(TestStatusManager, WhetherEnterBorrowQueueConsumesState)
+{
+    // Verify that WhetherEnterBorrowQueue consumes the thread-local state
+    auto state = std::make_shared<BorrowCompletionState>();
+    StatusManager::SetBorrowCompletionState(state);
+
+    VMNodeLocInfo nodeLoc = {"host1", "host-id-1", 0, 0};
+    EscapeAction escapeAction;
+    escapeAction.actionType = EscapeActionType::BORROW;
+    escapeAction.curNodeLoc = nodeLoc;
+    escapeAction.borrowSizes = {1024, 2048};
+
+    // This should consume the state from thread_local and push BorrowTask to queue
+    StatusManager::GetInstance().WhetherEnterBorrowQueue(escapeAction);
+
+    // State should be consumed (moved into queue)
+    auto remaining = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(remaining, nullptr);
+}
+
+TEST_F(TestStatusManager, WhetherEnterBorrowQueueNoState)
+{
+    // Verify WhetherEnterBorrowQueue works even without a pre-set state
+    VMNodeLocInfo nodeLoc = {"host1", "host-id-1", 0, 0};
+    EscapeAction escapeAction;
+    escapeAction.actionType = EscapeActionType::BORROW;
+    escapeAction.curNodeLoc = nodeLoc;
+    escapeAction.borrowSizes = {1024, 2048};
+
+    // No state set before call
+    StatusManager::GetInstance().WhetherEnterBorrowQueue(escapeAction);
+
+    // Should not crash; state remains null
+    auto remaining = StatusManager::GetAndClearBorrowCompletionState();
+    EXPECT_EQ(remaining, nullptr);
+}
+
 } // namespace ubse::ut::vm

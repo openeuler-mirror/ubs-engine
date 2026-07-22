@@ -12,10 +12,9 @@ BLUE='\033[0;34m'   # 蓝色
 NC='\033[0m'        # 无颜色
 
 # 获取当前脚本的工作目录
-current_directory=$(pwd)
+current_directory="$(pwd)"
 
-# 获取外部传入的路径
-HTML_PATH=${1:-"${current_directory}/cmake-build-debug/coverage/index.html"}
+HTML_PATH="${1:-"${current_directory}/cmake-build-debug/coverage/index.html"}"
 
 # 查找所有 python3 -m http.server 进程
 process_info=$(pgrep -af "python3 -m http.server") || process_info=""
@@ -31,14 +30,14 @@ if [[ -n "$process_info" ]]; then
         pid=$(echo "$line" | awk '{print $1}')
 
         # 获取工作目录
-        working_directory=$(readlink -f /proc/$pid/cwd)
+        working_directory=$(readlink -f /proc/"$pid"/cwd)
 
         # 判断工作目录是否相同
         if [[ "$working_directory" == "$current_directory" ]]; then
             # 提取 IP 和 PORT
             PORT=$(echo "$line" | grep -oP '\d{4,5}(?= --bind)')
             if [[ "$line" =~ --bind\ ([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+) ]]; then
-                IP=${BASH_REMATCH[1]}
+                IP="${BASH_REMATCH[1]}"
             fi
 
             echo "Server is already running on IP: $IP and Port: $PORT"
@@ -64,7 +63,7 @@ if ! $found_matching_process; then
 
     if [ -n "$PORT" ]; then
         echo "Starting HTTP server at $IP:$PORT"
-        python3 -m http.server $PORT --bind $IP >/dev/null 2>/dev/null &
+        python3 -m http.server "$PORT" --bind "$IP" >/dev/null 2>/dev/null &
         echo "Server started successfully."
     else
         echo "No available port found."
