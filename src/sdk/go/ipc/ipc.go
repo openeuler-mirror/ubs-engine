@@ -146,10 +146,10 @@ func ConnectToUnixSocket() (net.Conn, error) {
 // opCode: The operation code for the request.
 // request: The request body.
 // Returns an error if the request fails.
-func g(conn net.Conn, moduleCode, opCode uint16, request []byte) error {
+func SendRequest(conn net.Conn, moduleCode, opCode uint16, request []byte) error {
 	if len(request) > MaxMessageSize {
- 		return fmt.Errorf("request body length %d exceeds maximum size %d", len(request), MaxMessageSize)
- 	}
+		return fmt.Errorf("request body length %d exceeds maximum size %d", len(request), MaxMessageSize)
+	}
 	// Prepare request message according to SerializeRequestMessage function
 	// Message format: isResp (1 byte) + request header (16 bytes) + request body
 	messageSize := 1 + 16 + len(request)
