@@ -21,6 +21,7 @@
 #include <ubse_def.h>
 #include <ubse_mem_controller.h>
 
+#include "alarm_handler.h"
 #include "vm_def.h"
 #include "vm_error.h"
 #include "vm_info.h"
@@ -66,11 +67,14 @@ public:
         return globalNumaVMInfoMap;
     }
 
-    GlobalNumaInfoMap* GetGlobalSampleNumaInfo()
+    GlobalNumaInfoMap GetGlobalSampleNumaInfo()
     {
         std::lock_guard<std::mutex> lockGuard(mGlobalNumaLock);
-        return &globalNumaInfoMap;
+        return globalNumaInfoMap;
     }
+
+    void FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
+                                   std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos);
 
     void PrintSetInfo();
     void KeepVMBasicInfo();

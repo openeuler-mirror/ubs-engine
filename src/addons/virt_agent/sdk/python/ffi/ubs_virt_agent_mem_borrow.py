@@ -63,6 +63,8 @@ class UbsVirtAgentMemBorrow(UbsVirtAgentBase):
 
         if not isinstance(param, BorrowParamT):
             raise TypeError(f"param must be BorrowParamT, got {type(param).__name__}")
+        if not isinstance(is_async, bool):
+            raise TypeError("is_async must be a bool")
 
         borrow_param_c = self._convert_borrow_param_to_c(param)
         borrow_result_c = MemBorrowResultC()

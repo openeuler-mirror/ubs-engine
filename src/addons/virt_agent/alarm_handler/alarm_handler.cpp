@@ -521,59 +521,9 @@ GlobalNumaInfoMap AlarmHandler::GetGlobalResource(const AlarmNumaInfo& alarmNuma
 
     std::lock_guard<std::mutex> lockGuard(ResourceCollect::mAllLock);
     ResourceCollect::GetInstance().VmResourceCollectInfoHandle(hostVmDomainInfoList, hostNumaCpuInfoList);
-    auto globalNumaInfo = ResourceCollect::GetInstance().GetGlobalSampleNumaInfo();
-    // add numaMemBorrow, numaMemLend, numaLoc
-    FillGlobalWithNumaMemInfo(alarmNumaInfo, debtInfos, *globalNumaInfo);
+    ResourceCollect::GetInstance().FillGlobalWithNumaMemInfo(alarmNumaInfo, debtInfos);
 
-    return *globalNumaInfo;
-}
-
-void AlarmHandler::FillGlobalWithNumaMemInfo(const AlarmNumaInfo& alarmNumaInfo,
-                                             std::vector<UbsVirtNumaMemoryDebtInfo>& debtInfos,
-                                             GlobalNumaInfoMap& globalNumaInfoMapIn)
-{
-    if (alarmNumaInfo.numaLoc.hostId == "") {
-        UBSE_LOG_ERROR << "alarmNumaInfo is invalid.";
-        return;
-    }
-    if (debtInfos.empty()) {
-        UBSE_LOG_DEBUG << "DebtInfos is empty.";
-    }
-
-    UBSE_LOG_INFO << "Fill global numa info for escape strategy.";
-    VMNodeLocInfo alarmNumaLoc = alarmNumaInfo.numaLoc;
-    // add numaMemBorrow
-    uint64_t totalBorrow = 0;
-    for (auto debtInfo : debtInfos) {
-        if (debtInfo.numaId == alarmNumaLoc.numaId) {
-            if (UINT64_MAX - debtInfo.size < totalBorrow) {
-                totalBorrow = UINT64_MAX;
-                UBSE_LOG_WARN << "The totalBorrow exceeds the range of uint64.";
-                break;
-            }
-            totalBorrow += debtInfo.size;
-        }
-    }
-
-    globalNumaInfoMapIn[alarmNumaLoc].numaMemBorrow = totalBorrow;
-    globalNumaInfoMapIn[alarmNumaLoc].numaLoc = alarmNumaLoc;
-    // get numaMemLend
-    std::vector<UbseNodeNumaInfo> numaNodeInfoList{};
-    auto ret = UbseGetNodeNumaInfoByNodeId(alarmNumaLoc.hostId, numaNodeInfoList);
-    if (ret != UBSE_OK || numaNodeInfoList.empty()) {
-        UBSE_LOG_ERROR << "Get nodeNumaInfo by nodeId failed, ret=" << static_cast<uint32_t>(ret);
-        return;
-    }
-    for (auto numaNodeInfo : numaNodeInfoList) {
-        if (numaNodeInfo.numaId == alarmNumaLoc.numaId) {
-            globalNumaInfoMapIn[alarmNumaLoc].numaMemLend = numaNodeInfo.memLent;
-        }
-    }
-
-    UBSE_LOG_DEBUG << "Numa Info from Alarm, numaId=" << alarmNumaLoc.numaId << ", hostId=" << alarmNumaLoc.hostId
-                   << ", socketId=" << alarmNumaLoc.socketId
-                   << ", numaMemBorrow=" << globalNumaInfoMapIn[alarmNumaLoc].numaMemBorrow
-                   << "byte, numaMemLend=" << globalNumaInfoMapIn[alarmNumaLoc].numaMemLend << "byte.";
+    return ResourceCollect::GetInstance().GetGlobalSampleNumaInfo();
 }
 
 enum NodeLocLevel : uint32_t
