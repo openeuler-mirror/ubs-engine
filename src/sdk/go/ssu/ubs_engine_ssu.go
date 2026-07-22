@@ -10,9 +10,13 @@
  * See the Mulan PSL v2 for more details.
  */
 
+// Package ssu 提供SSU(存储服务单元)的Go客户端SDK。
 package ssu
 
-// ==================== 常量定义, 与C头文件ubs_engine_ssu.h保持一致 ====================
+import (
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/ipc"
+	"atomgit.com/openeuler/ubs-engine.git/src/sdk/go/pack"
+)
 
 const (
 	UbsSsuMaxNameLength     = 48 // 请求标识最大48个字符, 含结尾字符'\0'
@@ -26,6 +30,15 @@ const (
 	UbsSsuMaxDevNameLength  = 33 // 聚合块设备名称最大长度, 含结尾字符'\0'
 	UbsSsuRaid5MinMemberNum = 3  // RAID5最少成员设备数
 	UbsSsuMaxGuidLength     = 32 // GUID最大长度32个字符, 不含结尾字符'\0'
+
+	// 列表元素数量上限, 防止恶意响应导致内存耗尽
+	maxAllocResults = 1024
+	maxNamespaces   = 1024
+	maxNsStats      = 1024
+	maxConnectInfos = 1024
+	maxFeDevices    = 1024
+	maxHostNqnList  = 1024
+	maxDevPaths     = 1024
 )
 
 // ==================== 类型定义 ====================
@@ -69,25 +82,26 @@ const (
 
 // ==================== 结构体类型, 与ubs_ssu_service.h保持一致 ====================
 
-// UbsSsuNamespaceInfo 命名空间信息, 对应UbsSsuNameSpaceInfo
+// UbsSsuNamespaceInfo 命名空间信息,
 type UbsSsuNamespaceInfo struct {
-	TgtEid      string          // Target EID
-	TgtNqn      string          // 子系统NQN
-	NsUuid      string          // 物理设备UUID
-	NamespaceId uint32          // 命名空间ID
-	NsDevPath   string          // 命名空间设备路径
-	NsSize      uint64          // 分配的容量, 单位字节
-	LbaFormat   UbsSsuLbaFormat // LBA格式
+	TgtEid           string          // Target EID
+	TgtNqn           string          // 子系统NQN
+	NsUuid           string          // 物理设备UUID
+	NamespaceId      uint32          // 命名空间ID
+	NsDevPath        string          // 命名空间设备路径
+	NsSize           uint64          // 分配的容量, 单位字节
+	LbaFormat        UbsSsuLbaFormat // LBA格式
+	AllowHostNqnList []string        // 允许访问的Host NQN列表
 }
 
-// UbsSsuAllocResult 分配存储空间结果, 对应UbsSsuAllocResult
+// UbsSsuAllocResult 分配存储空间结果
 type UbsSsuAllocResult struct {
 	Name       string                // 请求标识, 最大48个字符
 	Strategy   UbsSsuAllocStrategy   // 分配策略
 	Namespaces []UbsSsuNamespaceInfo // 命名空间信息列表
 }
 
-// UbsSsuAllocSpaceReq 分配存储空间请求参数, 对应UbsSsuAllocSpaceReq
+// UbsSsuAllocSpaceReq 分配存储空间请求参数
 type UbsSsuAllocSpaceReq struct {
 	Name      string              // 请求标识, 最大48个字符
 	NsSize    uint64              // 申请总容量, 单位字节, 条带化策略时需整除nsNum且整除后需为chunkSize的整数倍
@@ -97,14 +111,14 @@ type UbsSsuAllocSpaceReq struct {
 	Tenant    string              // 请求方tenant(租户隔离标识)
 }
 
-// UbsSsuSpaceReq 挂载|卸载存储空间请求参数, 对应ubs_ssu_space_req_t
+// UbsSsuSpaceReq 挂载|卸载存储空间请求参数
 type UbsSsuSpaceReq struct {
 	Name   string // 需挂载|卸载的存储空间标识, 最大48个字符
 	Nqn    string // Host 的 NVMe Qualified Name
 	SrcEid string // 源EID
 }
 
-// UbsSsuLinearSpaceReq 挂载|卸载线性编址存储空间请求参数, 对应ubs_ssu_linear_space_req_t
+// UbsSsuLinearSpaceReq 挂载|卸载线性编址存储空间请求参数
 type UbsSsuLinearSpaceReq struct {
 	Name    string // 需挂载|卸载的存储空间标识, 最大48个字符
 	Nqn     string // Host 的 NVMe Qualified Name
@@ -112,7 +126,7 @@ type UbsSsuLinearSpaceReq struct {
 	DevName string // 聚合后的块设备名称, 由外部指定
 }
 
-// UbsSsuStripedSpaceReq 挂载|卸载条带化编址存储空间请求参数, 对应ubs_ssu_striped_space_req_t
+// UbsSsuStripedSpaceReq 挂载|卸载条带化编址存储空间请求参数
 type UbsSsuStripedSpaceReq struct {
 	Name      string                     // 需挂载|卸载的存储空间标识, 最大48个字符
 	Nqn       string                     // Host 的 NVMe Qualified Name
@@ -161,6 +175,8 @@ type UbsSsuNsStats struct {
 	UsedSize  uint64 // 已用容量, 单位字节
 }
 
+// ==================== 主函数（核心业务逻辑） ====================
+
 // UbsSsuListAllocInfo 列出所有已分配的存储空间信息
 //
 // 获取系统中所有已分配的SSU存储空间详细信息，包括命名空间列表、容量、LBA格式和使用类型等。
@@ -169,14 +185,16 @@ type UbsSsuNsStats struct {
 //   - []UbsSsuAllocResult: 已分配空间信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuListAllocInfo() ([]UbsSsuAllocResult, error) {
-	// TODO: 实现具体逻辑
-	return []UbsSsuAllocResult{}, nil
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuListAllocInfo, nil)
+	if err != nil {
+		return nil, err
+	}
+	return unpackAllocResultList(response)
 }
 
 // UbsSsuAllocSpace 分配SSU存储空间
 //
 // 根据请求参数分配指定数量和大小的命名空间，支持顺序分配和分布式分配两种策略。
-// 当 nsNum 为 1 时，strategy 参数不生效。
 //
 // 参数：
 //   - req: 分配请求参数，包含命名空间数量、容量、策略等
@@ -184,65 +202,86 @@ func UbsSsuListAllocInfo() ([]UbsSsuAllocResult, error) {
 // 返回值：
 //   - UbsSsuAllocResult: 分配结果，包含已分配的命名空间信息列表
 //   - error: 错误信息；成功返回 nil
-//
-// 参考：UbsSsuAllocSpaceReq, UbsSsuAllocResult
 func UbsSsuAllocSpace(req UbsSsuAllocSpaceReq) (UbsSsuAllocResult, error) {
-	// TODO: 实现具体逻辑
-	return UbsSsuAllocResult{}, nil
+	if err := validateAllocSpaceReq(req); err != nil {
+		return UbsSsuAllocResult{}, err
+	}
+	request := packAllocSpaceReq(req)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAllocSpaceReq, request)
+	if err != nil {
+		return UbsSsuAllocResult{}, err
+	}
+	return unpackAllocResult(response)
 }
 
 // UbsSsuFreeSpace 释放已分配的存储空间
 //
-// 释放之前通过 AllocSpace 分配的存储空间及其关联的所有命名空间。
-// 释放操作具有幂等性，释放不存在的空间应返回成功。
+// 释放之前通过UbsSsuAllocSpace分配的存储空间及其关联的所有命名空间。
 //
 // 参数：
-//   - name: 要释放的存储空间标识（与 AllocSpace 时的 name 参数一致）
+//   - name: 要释放的存储空间标识，与UbsSsuAllocSpace时的name参数一致
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuFreeSpace(name string) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(name); err != nil {
+		return err
+	}
+	request := pack.NewBinaryPacker().PackString(name, UbsSsuMaxNameLength).Bytes()
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFreeSpaceReq, request)
+	return err
 }
 
 // UbsSsuAddAccessPermission 添加存储空间访问权限
 //
-// 为指定的 Host 授予对已分配存储空间的访问权限，在 Target 侧将 Host NQN
-// 添加到子系统的允许主机列表中，使该 Host 可以通过 NVMe-oF 协议访问对应命名空间。
-// 重复添加同一 Host 的访问权限应返回成功（幂等性保证）。
+// 为指定的Host授予对已分配存储空间的访问权限，在Target侧将Host NQN添加到子系统的
+// 允许主机列表中，使该Host可以通过NVMe-oF协议访问对应命名空间。
 //
 // 参数：
-//   - name: 存储空间标识（与 AllocSpace 时的 name 参数一致）
-//   - nqn:  Host 的 NVMe Qualified Name，标识被授权的主机
+//   - name: 存储空间标识，与UbsSsuAllocSpace时的name参数一致
+//   - nqn: Host的NVMe Qualified Name，标识被授权的主机
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-//
-// 参考：RemoveAccessPermission
 func UbsSsuAddAccessPermission(name string, nqn string) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(name); err != nil {
+		return err
+	}
+	if err := validateNqn(nqn); err != nil {
+		return err
+	}
+	request := pack.NewBinaryPacker().
+		PackString(name, UbsSsuMaxNameLength).
+		PackString(nqn, UbsSsuMaxNqnLength).
+		Bytes()
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAddAccessPermissionReq, request)
+	return err
 }
 
 // UbsSsuRemoveAccessPermission 移除存储空间访问权限
 //
-// 撤销指定 Host 对已分配存储空间的访问权限，在 Target 侧将 Host NQN
-// 从子系统的允许主机列表中移除，使该 Host 无法再通过 NVMe-oF 协议访问对应命名空间。
-// 移除不存在的访问权限应返回成功（幂等性保证）。
-// 移除权限前应确保该 Host 已断开与对应命名空间的连接。
+// 撤销指定Host对已分配存储空间的访问权限，在Target侧将Host NQN从子系统的
+// 允许主机列表中移除，使该Host无法再通过NVMe-oF协议访问对应命名空间。
 //
 // 参数：
-//   - name: 存储空间标识（与 AllocSpace 时的 name 参数一致）
-//   - nqn:  Host 的 NVMe Qualified Name，标识被撤销权限的主机
+//   - name: 存储空间标识，与UbsSsuAllocSpace时的name参数一致
+//   - nqn: Host的NVMe Qualified Name，标识被撤销权限的主机
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-//
-// 参考：AddAccessPermission
 func UbsSsuRemoveAccessPermission(name string, nqn string) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(name); err != nil {
+		return err
+	}
+	if err := validateNqn(nqn); err != nil {
+		return err
+	}
+	request := pack.NewBinaryPacker().
+		PackString(name, UbsSsuMaxNameLength).
+		PackString(nqn, UbsSsuMaxNqnLength).
+		Bytes()
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuRemoveAccessPermissionReq, request)
+	return err
 }
 
 // UbsSsuAttachSpace 挂载已分配的存储空间
@@ -250,45 +289,83 @@ func UbsSsuRemoveAccessPermission(name string, nqn string) error {
 // 将指定的存储空间挂载到系统，使其可被主机访问。
 //
 // 参数：
-//   - req: 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源EID
+//   - req: 挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name和源EID
 //
 // 返回值：
-//   - string: 挂载后的设备路径
-//   - error:  错误信息；成功返回 nil
-func UbsSsuAttachSpace(req UbsSsuSpaceReq) (string, error) {
-	// TODO: 实现具体逻辑
-	return "", nil
+//   - []string: 挂载后的命名空间设备路径列表
+//   - error: 错误信息；成功返回 nil
+func UbsSsuAttachSpace(req UbsSsuSpaceReq) ([]string, error) {
+	if err := validateName(req.Name); err != nil {
+		return nil, err
+	}
+	if err := validateNqn(req.Nqn); err != nil {
+		return nil, err
+	}
+	if err := validateEid(req.SrcEid); err != nil {
+		return nil, err
+	}
+	request := packSpaceReq(req)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachSpaceReq, request)
+	if err != nil {
+		return nil, err
+	}
+	return unpackNsDevPathsResponse(response)
 }
 
 // UbsSsuDetachSpace 卸载已分配的存储空间
 //
 // 将指定的存储空间从系统卸载，释放设备占用。
-// 卸载前需确保没有进程正在使用该存储空间。
 //
 // 参数：
-//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name 和源EID
+//   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name和源EID
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachSpace(req UbsSsuSpaceReq) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(req.Name); err != nil {
+		return err
+	}
+	if err := validateNqn(req.Nqn); err != nil {
+		return err
+	}
+	if err := validateEid(req.SrcEid); err != nil {
+		return err
+	}
+	request := packSpaceReq(req)
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachSpaceReq, request)
+	return err
 }
 
 // UbsSsuAttachLinearSpace 挂载线性编址的存储空间
 //
 // 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
-// 线性编址模式下，数据按顺序填充各成员设备。
 //
 // 参数：
-//   - req: 挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
+//   - req: 挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
+//   - []string: 挂载后的命名空间设备路径列表
 //   - string: 挂载后的聚合设备路径
-//   - error:  错误信息；成功返回 nil
-func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) (string, error) {
-	// TODO: 实现具体逻辑
-	return "", nil
+//   - error: 错误信息；成功返回 nil
+func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) ([]string, string, error) {
+	if err := validateName(req.Name); err != nil {
+		return nil, "", err
+	}
+	if err := validateNqn(req.Nqn); err != nil {
+		return nil, "", err
+	}
+	if err := validateEid(req.SrcEid); err != nil {
+		return nil, "", err
+	}
+	if err := validateDevName(req.DevName); err != nil {
+		return nil, "", err
+	}
+	request := packLinearSpaceReq(req)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachLinearSpaceReq, request)
+	if err != nil {
+		return nil, "", err
+	}
+	return unpackNsDevPathsAndDevPathResponse(response)
 }
 
 // UbsSsuDetachLinearSpace 卸载线性编址的存储空间
@@ -296,33 +373,50 @@ func UbsSsuAttachLinearSpace(req UbsSsuLinearSpaceReq) (string, error) {
 // 将线性聚合的块设备卸载并释放。
 //
 // 参数：
-//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
+//   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachLinearSpace(req UbsSsuLinearSpaceReq) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(req.Name); err != nil {
+		return err
+	}
+	if err := validateNqn(req.Nqn); err != nil {
+		return err
+	}
+	if err := validateEid(req.SrcEid); err != nil {
+		return err
+	}
+	if err := validateDevName(req.DevName); err != nil {
+		return err
+	}
+	request := packLinearSpaceReq(req)
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachLinearSpaceReq, request)
+	return err
 }
 
 // UbsSsuAttachStripedSpace 挂载条带化编址的存储空间
 //
-// 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，
-// 支持 RAID0 和 RAID5 两种级别。
-// RAID5 至少需要 3 个成员设备。
+// 将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载，支持RAID0和RAID5两种级别。
 //
 // 参数：
-//   - req: 条带化挂载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID、
+//   - req: 条带化挂载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID、
 //     聚合后的块设备名称、RAID级别和chunk大小
 //
 // 返回值：
+//   - []string: 挂载后的命名空间设备路径列表
 //   - string: 挂载后的聚合设备路径
-//   - error:  错误信息；成功返回 nil
-//
-// 参考：UbsSsuStripedSpaceReq, UbsSsuAggregationRaidLevel, UbsSsuChunkSize
-func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) (string, error) {
-	// TODO: 实现具体逻辑
-	return "", nil
+//   - error: 错误信息；成功返回 nil
+func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) ([]string, string, error) {
+	if err := validateStripedSpaceReq(req); err != nil {
+		return nil, "", err
+	}
+	request := packStripedSpaceReq(req)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuAttachStripedSpaceReq, request)
+	if err != nil {
+		return nil, "", err
+	}
+	return unpackNsDevPathsAndDevPathResponse(response)
 }
 
 // UbsSsuDetachStripedSpace 卸载条带化编址的存储空间
@@ -330,13 +424,26 @@ func UbsSsuAttachStripedSpace(req UbsSsuStripedSpaceReq) (string, error) {
 // 将条带化聚合的块设备卸载并释放。
 //
 // 参数：
-//   - req: 卸载请求参数，包含存储空间标识、Host 的 NVMe Qualified Name、源EID和聚合后的块设备名称
+//   - req: 卸载请求参数，包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
 func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
-	// TODO: 实现具体逻辑
-	return nil
+	if err := validateName(req.Name); err != nil {
+		return err
+	}
+	if err := validateNqn(req.Nqn); err != nil {
+		return err
+	}
+	if err := validateEid(req.SrcEid); err != nil {
+		return err
+	}
+	if err := validateDevName(req.DevName); err != nil {
+		return err
+	}
+	request := packStripedSpaceReq(req)
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuDetachStripedSpaceReq, request)
+	return err
 }
 
 // UbsSsuGetNsStats 获取存储空间的命名空间统计信息
@@ -344,14 +451,21 @@ func UbsSsuDetachStripedSpace(req UbsSsuStripedSpaceReq) error {
 // 查询指定存储空间下各命名空间的容量使用情况，包括总容量和已用容量。
 //
 // 参数：
-//   - name: 存储空间标识（与 AllocSpace 时的 name 参数一致）
+//   - name: 存储空间标识
 //
 // 返回值：
 //   - []UbsSsuNsStats: 命名空间统计信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuGetNsStats(name string) ([]UbsSsuNsStats, error) {
-	// TODO: 实现具体逻辑
-	return []UbsSsuNsStats{}, nil
+	if err := validateName(name); err != nil {
+		return nil, err
+	}
+	request := pack.NewBinaryPacker().PackString(name, UbsSsuMaxNameLength).Bytes()
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetNsStatsReq, request)
+	if err != nil {
+		return nil, err
+	}
+	return unpackNsStatsList(response)
 }
 
 // UbsSsuGetConnectInfo 获取存储空间的连接信息
@@ -359,18 +473,26 @@ func UbsSsuGetNsStats(name string) ([]UbsSsuNsStats, error) {
 // 查询指定存储空间在指定VFE上的NVMe连接信息，包括子系统NQN、Host NQN、命名空间ID等。
 //
 // 参数：
-//   - name: 存储空间标识（与 AllocSpace 时的 name 参数一致）
-//   - vfe: VFE信息指针，指定查询的虚拟功能单元，传nil时使用host侧分配给ssu的fe的eid
+//   - name: 存储空间标识
+//   - vfe: VFE信息，可选参数，如果指定vfe，连接信息里的src_eid为指定vfe的eid，
+//     否则src_eid为host侧分配给ssu的fe的eid
 //
 // 返回值：
 //   - []UbsSsuConnectInfo: 连接信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, error) {
-	// TODO: 实现具体逻辑
-	return []UbsSsuConnectInfo{}, nil
+	if err := validateName(name); err != nil {
+		return nil, err
+	}
+	request := packConnectInfoReq(name, vfe)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetConnectInfoReq, request)
+	if err != nil {
+		return nil, err
+	}
+	return unpackConnectInfoList(response)
 }
 
-// UbsSsuGetFeDeviceList 获取FE设备列表
+// UbsSsuGetFeDeviceList 获取功能单元设备列表
 //
 // 查询系统中所有FE设备信息，包括每个PFE下的VFE列表。
 //
@@ -378,26 +500,35 @@ func UbsSsuGetConnectInfo(name string, vfe *UbsUbVfe) ([]UbsSsuConnectInfo, erro
 //   - []UbsSsuFe: FE设备信息列表
 //   - error: 错误信息；成功返回 nil
 func UbsSsuGetFeDeviceList() ([]UbsSsuFe, error) {
-	// TODO: 实现具体逻辑
-	return []UbsSsuFe{}, nil
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuGetFeDeviceListReq, nil)
+	if err != nil {
+		return nil, err
+	}
+	return unpackFeDeviceList(response)
 }
 
-// UbsSsuFeDeviceAlloc 分配VFE设备
+// UbsSsuFeDeviceAlloc 将VFE绑定到虚拟机
 //
 // 将指定的虚拟功能单元绑定到目标虚拟机，使虚拟机可通过该VFE访问存储资源。
 //
 // 参数：
 //   - upi: 租户隔离标识
-//   - vfe: 要绑定的VFE信息（结构体指针）
-//   - busInstanceGuid: 输入输出参数，指向长度为 UbsSsuMaxGuidLength 的字节数组。
-//     传入时表示目标虚拟机实例的GUID（可为空/全零），
-//     返回时填充实际分配的总线实例GUID。
+//   - vfe: 要绑定的VFE信息
+//   - busInstanceGuid: 总线实例GUID，标识目标虚拟机，长度为UbsSsuMaxGuidLength
 //
 // 返回值：
+//   - string: 分配后的总线实例GUID
 //   - error: 错误信息；成功返回 nil
-func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UbsSsuMaxGuidLength]byte) error {
-	// TODO: 调用 C 库实现
-	return nil
+func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid string) (string, error) {
+	if err := validateFeDeviceAllocParams(vfe, busInstanceGuid); err != nil {
+		return "", err
+	}
+	request := packFeDeviceAllocReq(upi, vfe, busInstanceGuid)
+	response, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFeDeviceAllocReq, request)
+	if err != nil {
+		return "", err
+	}
+	return unpackFeDeviceAllocResp(response)
 }
 
 // UbsSsuFeDeviceFree 释放VFE设备
@@ -406,12 +537,15 @@ func UbsSsuFeDeviceAlloc(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UbsSsuMaxG
 //
 // 参数：
 //   - upi: 租户隔离标识
-//   - vfe: 要释放的VFE信息（结构体指针）
-//   - busInstanceGuid: 总线实例GUID，指向长度为 UbsSsuMaxGuidLength 的字节数组。
+//   - vfe: 要释放的VFE信息
 //
 // 返回值：
 //   - error: 错误信息；成功返回 nil
-func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe, busInstanceGuid *[UbsSsuMaxGuidLength]byte) error {
-	// TODO: 调用 C 库实现
-	return nil
+func UbsSsuFeDeviceFree(upi uint32, vfe *UbsUbVfe) error {
+	if err := validateFeDeviceFreeParams(vfe); err != nil {
+		return err
+	}
+	request := packFeDeviceFreeReq(upi, vfe)
+	_, err := ipc.InvokeCall(UbseModuleCode, UbseSsuFeDeviceFreeReq, request)
+	return err
 }
