@@ -138,12 +138,12 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateShareOk01)
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOk01(Cluster());
 }
 
-// ==================== Mem P1 测试 ====================
+// ==================== CLI 测试 ====================
 
-// P1-CliTopoCpu-CrossConsist-01: LCNE vs CLI display topo -t cpu 对比链路
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1CliTopoCpuCrossConsist01)
+// P0-CliTopoCpu-Ok-01: LCNE vs CLI display topo -t cpu 一致性对比
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliTopoCpuOk01)
 {
-    ubse::it::tests::topo::RunP1CliTopoCpuCrossConsist01(Cluster());
+    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster());
 }
 
 // P1-ShmAttach-MultiNode-01: 四节点SHM attach后import_desc_cnt验证

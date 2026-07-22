@@ -189,6 +189,12 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliNodeBadParam01)
     ubse::it::tests::topo::RunP0CliNodeBadParam01(Cluster());
 }
 
+// P0-CliNode-BadParam-02: nodeId 超范围/非法
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliNodeBadParam02)
+{
+    ubse::it::tests::topo::RunP0CliNodeBadParam02(Cluster());
+}
+
 // ==================== CLI Mem P0 (单节点) ====================
 
 // P0-CliCreateNuma-InvalidChar-01: CLI create numa 非法name
