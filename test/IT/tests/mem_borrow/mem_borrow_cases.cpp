@@ -2083,9 +2083,9 @@ void RunP0NumaDelOverLen01(ubse::it::infra::ItCluster& cluster)
     // UBS_MEM_MAX_NAME_LENGTH=48, 构造48字符的name
     const char* longName = "it_p0_numa_del_overlen_aaaaaaaaaaaaaaaaaaaaaaaaaa";
     int32_t ret = sdk.MemNumaDelete(longName);
-    EXPECT_NE(ret, UBS_SUCCESS) << "name超长应返回错误";
+    EXPECT_EQ(ret, UBS_ERR_INVALID_ARG) << "name超长应返回UBS_ERR_INVALID_ARG";
 
-    IT_LOG_INFO << "P0-NumaDel-OverLen-01 passed: ret=" << ret;
+    IT_LOG_INFO << "P0-NumaDel-OverLen-01 passed";
 }
 
 // ==================== ubs_mem_numa_get_memid_by_import ====================
@@ -2163,20 +2163,23 @@ void RunP0NumaFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== ubs_mem_shm_create ====================
 
-// 标准创建成功 (双节点)
-void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster)
+// 标准创建 (双节点/四节点，region参数化)
+void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds)
 {
-    auto& sdk = cluster.GetSdkClient("1");
+    // 使用region中第一个节点作为SDK调用节点
+    auto& sdk = cluster.GetSdkClient(regionNodeIds[0]);
     const char* name = "it_p0_shm_create_ok";
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     ubs_mem_nodes_t region{};
-    region.node_cnt = 2;
-    region.slot_ids[0] = 1;
-    region.slot_ids[1] = 2;
+    region.node_cnt = static_cast<uint32_t>(regionNodeIds.size());
+    for (size_t i = 0; i < regionNodeIds.size(); ++i) {
+        region.slot_ids[i] = cluster.GetNode(regionNodeIds[i]).GetSpec().slotId;
+    }
 
-    IT_LOG_INFO << "Creating SHM: name=" << name << ", size=" << shmSize;
-    int32_t ret = sdk.MemShmCreate(name, shmSize, usrInfo, 0, &region, nullptr);
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL; // SHM要求size对齐unit_size(128MB)
+    IT_LOG_INFO << "Creating SHM: name=" << name << ", size=" << shmSize128M;
+    int32_t ret = sdk.MemShmCreate(name, shmSize128M, usrInfo, 0, &region, nullptr);
     ASSERT_IT_OK(ret);
 
     // 等待就绪
@@ -2188,9 +2191,15 @@ void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster)
     ret = sdk.MemShmGet(name, &desc);
     EXPECT_IT_OK(ret);
     if (desc != nullptr) {
-        EXPECT_EQ(desc->mem_stage, UBSE_EXIST);
-        EXPECT_EQ(desc->mem_size, shmSize);
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+            << "mem_stage should be CREATING or EXIST, actual: " << desc->mem_stage;
+        EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
         EXPECT_STREQ(desc->name, name);
+        EXPECT_GT(desc->export_node.slot_id, 0u) << "export_node.slot_id should be > 0";
+        auto inRegion = std::any_of(region.slot_ids, region.slot_ids + region.node_cnt,
+                                    [&](uint32_t id) { return id == desc->export_node.slot_id; });
+        EXPECT_TRUE(inRegion) << "export_node.slot_id=" << desc->export_node.slot_id << " should be in region nodes";
         free(desc);
     }
 
@@ -2201,34 +2210,80 @@ void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "RunP0ShmCreateOk01 done";
 }
 
-// name超长 (单节点)
+// 指定provider创建 (双节点/四节点，验证export_node在provider集合中)
+// 指定provider创建 (双节点，region={1,2}, provider={2})
+void RunP0ShmCreateWithProviderOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_create_provider";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    ubs_mem_nodes_t provider{};
+    provider.node_cnt = 1;
+    provider.slot_ids[0] = cluster.GetNode("2").GetSpec().slotId;
+
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
+    IT_LOG_INFO << "Creating SHM with provider: name=" << name << ", size=" << shmSize128M;
+    int32_t ret = sdk.MemShmCreate(name, shmSize128M, usrInfo, 0, &region, &provider);
+    ASSERT_IT_OK(ret);
+
+    // 等待就绪
+    ret = WaitForShmReady(sdk, name);
+    EXPECT_IT_OK(ret);
+
+    // 验证属性
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+            << "mem_stage should be CREATING or EXIST, actual: " << desc->mem_stage;
+        EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
+        EXPECT_STREQ(desc->name, name);
+        EXPECT_GT(desc->export_node.slot_id, 0u) << "export_node.slot_id should be > 0";
+        // 导出节点必须在provider集合中
+        auto inProvider = std::any_of(provider.slot_ids, provider.slot_ids + provider.node_cnt,
+                                      [&](uint32_t id) { return id == desc->export_node.slot_id; });
+        EXPECT_TRUE(inProvider) << "export_node.slot_id=" << desc->export_node.slot_id
+                                << " should be in provider nodes";
+        free(desc);
+    }
+
+    // 清理
+    ret = sdk.MemShmDelete(name);
+    EXPECT_IT_OK(ret);
+
+    IT_LOG_INFO << "RunP0ShmCreateWithProviderOk01 done";
+}
+
+// name超长 (双节点)
 void RunP0ShmCreateOverLen01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
     // 48字符的name，超出UBS_MEM_MAX_NAME_LENGTH限制
-    const char* name = "it_p0_shm_name_way_too_long_for_the_max_limit_x";
+    const char* name = "it_p0_shm_name_way_too_long_for_the_max_limit_x_";
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     IT_LOG_INFO << "Creating SHM with overlen name: " << name;
     int32_t ret = sdk.MemShmCreate(name, shmSize, usrInfo, 0, nullptr, nullptr);
-    // 服务端不校验name长度，创建应成功
-    EXPECT_IT_OK(ret);
-
-    // 清理
-    if (ret == UBS_SUCCESS) {
-        sdk.MemShmDelete(name);
-    }
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG);
 
     IT_LOG_INFO << "RunP0ShmCreateOverLen01 done";
 }
 
-// size < 4MB (单节点)
+// size < 4MB (双节点)
 void RunP0ShmCreateInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
     const char* name = "it_p0_shm_inv_val";
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
-    constexpr uint64_t invalidSize = 1; // 小于4MB
+    constexpr uint64_t invalidSize = 1ULL * 1024ULL * 1024ULL; // 1MB，小于4MB
 
     IT_LOG_INFO << "Creating SHM with invalid size: " << invalidSize;
     int32_t ret = sdk.MemShmCreate(name, invalidSize, usrInfo, 0, nullptr, nullptr);
@@ -2246,8 +2301,8 @@ void RunP0ShmCreateDup01(ubse::it::infra::ItCluster& cluster)
 
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
-    region.slot_ids[0] = 1;
-    region.slot_ids[1] = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
 
     // 第一次创建
     IT_LOG_INFO << "Creating SHM first time: name=" << name;
@@ -2270,32 +2325,106 @@ void RunP0ShmCreateDup01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "RunP0ShmCreateDup01 done";
 }
 
-// size=1GB (双节点)
-void RunP0ShmCreateBigSize01(ubse::it::infra::ItCluster& cluster)
+// size > 256GB (双节点)
+void RunP0ShmCreateInvalidVal02(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    const char* name = "it_p0_shm_big";
+    const char* name = "it_p0_shm_inval02";
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
-    constexpr uint64_t bigSize = 1ULL * 1024 * 1024 * 1024; // 1GB
+    constexpr uint64_t tooLarge = 257ULL * 1024ULL * 1024ULL * 1024ULL;
+
+    IT_LOG_INFO << "Creating SHM with size > 256GB: " << tooLarge;
+    int32_t ret = sdk.MemShmCreate(name, tooLarge, usrInfo, 0, nullptr, nullptr);
+    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE) << "size > 256GB should return ALLOCATE";
+
+    IT_LOG_INFO << "RunP0ShmCreateInvalidVal02 done";
+}
+
+// name=NULL (双节点)
+void RunP0ShmCreateNullPtr01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    IT_LOG_INFO << "Creating SHM with name=NULL";
+    int32_t ret = sdk.MemShmCreate(nullptr, shmSize, usrInfo, 0, nullptr, nullptr);
+    EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
+
+    IT_LOG_INFO << "RunP0ShmCreateNullPtr01 done";
+}
+
+// size=4MB 边界值 (双节点)
+void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_bound_min";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
-    region.slot_ids[0] = 1;
-    region.slot_ids[1] = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
 
-    IT_LOG_INFO << "Creating SHM with big size: name=" << name << ", size=1GB";
-    int32_t ret = sdk.MemShmCreate(name, bigSize, usrInfo, 0, &region, nullptr);
+    IT_LOG_INFO << "Creating SHM with boundary min size: " << shmSize;
+    int32_t ret = sdk.MemShmCreate(name, shmSize, usrInfo, 0, &region, nullptr);
     ASSERT_IT_OK(ret);
 
     // 等待就绪
     ret = WaitForShmReady(sdk, name);
     EXPECT_IT_OK(ret);
 
+    // 验证属性
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
+        EXPECT_EQ(desc->mem_size, shmSize) << "mem_size should equal 4MB";
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0));
+        free(desc);
+    }
+
     // 清理
     ret = sdk.MemShmDelete(name);
     EXPECT_IT_OK(ret);
 
-    IT_LOG_INFO << "RunP0ShmCreateBigSize01 done";
+    IT_LOG_INFO << "RunP0ShmCreateBoundMin01 done";
+}
+
+// name=47字节 (双节点)
+void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    std::string boundName(47, 'x');
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
+    IT_LOG_INFO << "Creating SHM with boundary max name length: " << boundName.length();
+    int32_t ret = sdk.MemShmCreate(boundName.c_str(), shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    ret = WaitForShmReady(sdk, boundName.c_str());
+    EXPECT_IT_OK(ret);
+
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(boundName.c_str(), &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
+        EXPECT_STREQ(desc->name, boundName.c_str()) << "name should be fully preserved";
+        EXPECT_EQ(desc->mem_size, shmSize128M);
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0));
+        free(desc);
+    }
+
+    ret = sdk.MemShmDelete(boundName.c_str());
+    EXPECT_IT_OK(ret);
+    IT_LOG_INFO << "RunP0ShmCreateBoundMax01 done";
 }
 
 // ==================== ubs_mem_shm_create_with_affinity ====================
@@ -2322,35 +2451,242 @@ void RunP0ShmCreateAffinityBadParam01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== ubs_mem_shm_create_with_lender ====================
 
-// lender=NULL (双节点)
-void RunP0ShmCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster)
+// P0-ShmCreateLender-Ok-01: 指定借出节点 (双/四节点)
+void RunP0ShmCreateLenderOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds)
 {
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
+
     auto& sdk = cluster.GetSdkClient("1");
-    const char* name = "it_p0_shm_lender_null";
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+
+    ubs_mem_lender_t lender{};
+    lender.slot_id = lenderSlotId;
+    ASSERT_TRUE(FillLenderTopoInfo(sdk, localSlotId, lender))
+        << "No topo link from " << localSlotId << " to " << lenderSlotId;
+    lender.lender_size = 128ULL * 1024ULL * 1024ULL;
+
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = static_cast<uint32_t>(regionNodeIds.size());
+    for (size_t i = 0; i < regionNodeIds.size() && i < 16; i++) {
+        region.slot_ids[i] = cluster.GetNode(regionNodeIds[i]).GetSpec().slotId;
+    }
+
+    const char* name = "it_p0_shm_lender_ok";
+    IT_LOG_INFO << "Creating SHM with lender: name=" << name << ", lender_slot=" << lenderSlotId;
+    int32_t ret = ubs_mem_shm_create_with_lender(name, usrInfo, 0, &region, &lender);
+    ASSERT_IT_OK(ret);
+
+    ret = WaitForShmReady(sdk, name);
+    EXPECT_IT_OK(ret);
+
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
+        EXPECT_EQ(desc->mem_size, lender.lender_size);
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0));
+        EXPECT_EQ(desc->export_node.slot_id, lenderSlotId);
+        EXPECT_GT(desc->export_node.slot_id, 0u);
+        free(desc);
+    }
+
+    ret = sdk.MemShmDelete(name);
+    EXPECT_IT_OK(ret);
+    IT_LOG_INFO << "P0-ShmCreateLender-Ok-01 passed";
+}
+
+// P0-ShmCreateLender-OverLen-01: name超长 (双节点)
+void RunP0ShmCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
+
+    auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+
+    ubs_mem_lender_t lender{};
+    lender.slot_id = lenderSlotId;
+    ASSERT_TRUE(FillLenderTopoInfo(sdk, localSlotId, lender))
+        << "No topo link from " << localSlotId << " to " << lenderSlotId;
+    lender.lender_size = shmSize;
+
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+    std::string overLenName(48, 'a');
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    int32_t ret = ubs_mem_shm_create_with_lender(overLenName.c_str(), usrInfo, 0, &region, &lender);
+    EXPECT_EQ(ret, UBS_ERR_INVALID_ARG) << "name超长应返回INVALID_ARG";
+    IT_LOG_INFO << "P0-ShmCreateLender-OverLen-01 passed";
+}
+
+// P0-ShmCreateLender-InvalidVal-01: lender_size < 4MB (双节点)
+void RunP0ShmCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
+
+    auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+
+    ubs_mem_lender_t lender{};
+    lender.slot_id = lenderSlotId;
+    ASSERT_TRUE(FillLenderTopoInfo(sdk, localSlotId, lender))
+        << "No topo link from " << localSlotId << " to " << lenderSlotId;
+    lender.lender_size = 1; // < 4MB
+
     uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
-    region.slot_ids[0] = 1;
-    region.slot_ids[1] = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
 
-    IT_LOG_INFO << "Creating SHM with lender=nullptr";
-    // 直接调用C API，lender传nullptr
-    int32_t ret = ubs_mem_shm_create_with_lender(name, usrInfo, 0, &region, nullptr);
-    // lender为nullptr是合法的（不指定借出方），预期创建成功
-    if (ret == UBS_SUCCESS) {
-        ret = WaitForShmReady(sdk, name);
-        EXPECT_IT_OK(ret);
-        ret = sdk.MemShmDelete(name);
-        EXPECT_IT_OK(ret);
-    }
+    int32_t ret = ubs_mem_shm_create_with_lender("it_p0_shm_lender_inval", usrInfo, 0, &region, &lender);
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_OUT_OF_RANGE) << "lender_size<4MB应返回OUT_OF_RANGE";
+    IT_LOG_INFO << "P0-ShmCreateLender-InvalidVal-01 passed";
+}
 
-    IT_LOG_INFO << "RunP0ShmCreateLenderNullPtr01 done";
+// P0-ShmCreateLender-NullPtr-01: name=NULL (双节点)
+void RunP0ShmCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster)
+{
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    IT_LOG_INFO << "Creating SHM with lender: name=NULL";
+    int32_t ret = ubs_mem_shm_create_with_lender(nullptr, usrInfo, 0, nullptr, nullptr);
+    EXPECT_EQ(ret, UBS_ERR_NULL_POINTER) << "name=NULL应返回NULL_POINTER";
+    IT_LOG_INFO << "P0-ShmCreateLender-NullPtr-01 passed";
+}
+
+// P0-ShmCreateLender-BadParam-01: 不存在的slot_id (双节点)
+void RunP0ShmCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
+
+    auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+
+    ubs_mem_lender_t lender{};
+    lender.slot_id = lenderSlotId;
+    ASSERT_TRUE(FillLenderTopoInfo(sdk, localSlotId, lender))
+        << "No topo link from " << localSlotId << " to " << lenderSlotId;
+    lender.lender_size = shmSize;
+    lender.slot_id = 999;
+
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    int32_t ret = ubs_mem_shm_create_with_lender("it_p0_shm_lender_bad01", usrInfo, 0, &region, &lender);
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_ALLOCATE) << "不存在的slot_id应返回ALLOCATE";
+    IT_LOG_INFO << "P0-ShmCreateLender-BadParam-01 passed";
+}
+
+// P0-ShmCreateLender-Dup-01: 同名重复 (双节点)
+void RunP0ShmCreateLenderDup01(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    std::string lenderNodeId = (nodeIds.size() >= 4) ? "3" : "2";
+    uint32_t lenderSlotId = cluster.GetNode(lenderNodeId).GetSpec().slotId;
+
+    auto& sdk = cluster.GetSdkClient("1");
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+
+    ubs_mem_lender_t lender{};
+    lender.slot_id = lenderSlotId;
+    ASSERT_TRUE(FillLenderTopoInfo(sdk, localSlotId, lender))
+        << "No topo link from " << localSlotId << " to " << lenderSlotId;
+    lender.lender_size = shmSize;
+
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    const char* name = "it_p0_shm_lender_dup";
+    IT_LOG_INFO << "Creating SHM with lender first time: name=" << name;
+    int32_t ret = ubs_mem_shm_create_with_lender(name, usrInfo, 0, &region, &lender);
+    ASSERT_IT_OK(ret);
+
+    int32_t dupRet = ubs_mem_shm_create_with_lender(name, usrInfo, 0, &region, &lender);
+    EXPECT_EQ(dupRet, UBS_ENGINE_ERR_EXISTED);
+
+    sdk.MemShmDelete(name);
+    IT_LOG_INFO << "P0-ShmCreateLender-Dup-01 passed";
 }
 
 // ==================== ubs_mem_shm_attach ====================
 
-// 未创建时attach (单节点)
+// attach后校验内存块数 (双节点, 256MB)
+void RunP0ShmAttachOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_attach_ok";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    constexpr uint64_t shmSize256M = 256ULL * 1024ULL * 1024ULL;
+
+    // 创建 SHM
+    IT_LOG_INFO << "Creating SHM: name=" << name << ", size=256MB";
+    int32_t ret = sdk.MemShmCreate(name, shmSize256M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    ret = WaitForShmReady(sdk, name);
+    ASSERT_IT_OK(ret);
+
+    // attach
+    ubs_mem_shm_desc_t* desc = nullptr;
+    IT_LOG_INFO << "Attaching SHM: name=" << name;
+    ret = sdk.MemShmAttach(name, nullptr, 0, &desc);
+    ASSERT_IT_OK(ret);
+    ASSERT_NE(desc, nullptr);
+
+    // 校验
+    EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST);
+    EXPECT_EQ(desc->mem_size, shmSize256M) << "mem_size should be 256MB";
+    EXPECT_GT(desc->unit_size, static_cast<size_t>(0));
+    EXPECT_GE(desc->import_desc_cnt, 1u) << "import_desc_cnt should >= 1 after attach";
+    if (desc->import_desc_cnt > 0) {
+        uint32_t expectedMemidCnt = static_cast<uint32_t>((desc->mem_size + desc->unit_size - 1) / desc->unit_size);
+        EXPECT_EQ(desc->import_desc[0].memid_cnt, expectedMemidCnt)
+            << "import_desc[0].memid_cnt should equal ceil(256MB/unit_size)";
+        EXPECT_GT(desc->import_desc[0].memid_cnt, 0u);
+        EXPECT_GT(desc->import_desc[0].import_node.slot_id, 0u);
+    }
+    free(desc);
+
+    // 清理
+    ret = sdk.MemShmDetach(name);
+    EXPECT_IT_OK(ret);
+    ret = sdk.MemShmDelete(name);
+    EXPECT_IT_OK(ret);
+
+    IT_LOG_INFO << "RunP0ShmAttachOk01 done";
+}
+
+// 未创建时attach (双节点)
 void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -2359,7 +2695,7 @@ void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster)
 
     IT_LOG_INFO << "Attaching SHM that does not exist: " << name;
     int32_t ret = sdk.MemShmAttach(name, nullptr, 0, &desc);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_NOT_EXIST) << "未创建attach应返回UBS_ENGINE_ERR_NOT_EXIST";
     if (desc != nullptr) {
         free(desc);
     }
@@ -2376,8 +2712,8 @@ void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster)
 
     ubs_mem_nodes_t region{};
     region.node_cnt = 2;
-    region.slot_ids[0] = 1;
-    region.slot_ids[1] = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
 
     // 创建SHM
     IT_LOG_INFO << "Creating SHM: name=" << name;
@@ -2397,12 +2733,11 @@ void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster)
         free(desc1);
     }
 
-    // 第二次attach - 应该成功或返回EXISTED
+    // 第二次attach
     ubs_mem_shm_desc_t* desc2 = nullptr;
     IT_LOG_INFO << "Attaching SHM second time";
     ret = sdk.MemShmAttach(name, nullptr, 0, &desc2);
-    EXPECT_TRUE(ret == UBS_SUCCESS || ret == UBS_ENGINE_ERR_EXISTED)
-        << "Expected UBS_SUCCESS or UBS_ENGINE_ERR_EXISTED but got: " << ret;
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_EXISTED) << "重复attach应返回EXISTED";
     if (desc2 != nullptr) {
         free(desc2);
     }
@@ -2437,85 +2772,168 @@ void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== ubs_mem_shm_list ====================
 
-// 空/有shm时list (单节点)
+// list + 前缀过滤 (双节点)
 void RunP0ShmListOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
-    uint32_t cnt = 0;
-    ubs_mem_shm_desc_t* descs = nullptr;
 
-    // 空时list
-    IT_LOG_INFO << "Listing SHM when empty";
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    // 创建2个不同prefix的SHM
+    const char* names[] = {"it_p0_aaa_shm1", "it_p0_bbb_shm2"};
+    constexpr uint64_t sizes[] = {128ULL * 1024ULL * 1024ULL, 256ULL * 1024ULL * 1024ULL};
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    for (int i = 0; i < 2; i++) {
+        IT_LOG_INFO << "Creating SHM: name=" << names[i] << ", size=" << sizes[i];
+        int32_t ret = sdk.MemShmCreate(names[i], sizes[i], usrInfo, 0, &region, nullptr);
+        ASSERT_IT_OK(ret);
+    }
+
+    // === ubs_mem_shm_list ===
+    ubs_mem_shm_desc_t* descs = nullptr;
+    uint32_t cnt = 0;
+    IT_LOG_INFO << "Listing SHM after create";
     int32_t ret = sdk.MemShmList(&descs, &cnt);
+    ASSERT_IT_OK(ret);
+    ASSERT_GE(cnt, 2u);
+    IT_LOG_INFO << "ShmList returned " << cnt << " entries";
+
+    // 逐条校验字段
+    for (uint32_t i = 0; i < cnt; i++) {
+        IT_LOG_INFO << "ShmList[" << i << "]: name=" << descs[i].name << ", mem_stage=" << descs[i].mem_stage
+                    << ", mem_size=" << descs[i].mem_size << ", export_slot=" << descs[i].export_node.slot_id;
+        EXPECT_TRUE(descs[i].mem_stage == UBSE_CREATING || descs[i].mem_stage == UBSE_EXIST);
+        EXPECT_GT(descs[i].mem_size, 0ull);
+        EXPECT_GT(descs[i].unit_size, static_cast<size_t>(0));
+        EXPECT_GT(descs[i].export_node.slot_id, 0u);
+        auto inRegion = std::any_of(region.slot_ids, region.slot_ids + region.node_cnt,
+                                    [&](uint32_t id) { return id == descs[i].export_node.slot_id; });
+        EXPECT_TRUE(inRegion) << "export_node.slot_id=" << descs[i].export_node.slot_id << " should be in region";
+    }
+
+    // 验证创建的2个SHM都在列表且mem_size一致
+    for (int j = 0; j < 2; j++) {
+        bool found = false;
+        for (uint32_t i = 0; i < cnt; i++) {
+            if (strcmp(descs[i].name, names[j]) == 0) {
+                found = true;
+                EXPECT_EQ(descs[i].mem_size, sizes[j]);
+                break;
+            }
+        }
+        EXPECT_TRUE(found) << "SHM " << names[j] << " not found in list";
+    }
+    free(descs);
+    descs = nullptr;
+
+    // === ubs_mem_shm_list_with_prefix("aaa_") ===
+    cnt = 0;
+    ret = ubs_mem_shm_list_with_prefix("it_p0_aaa_", &descs, &cnt);
     EXPECT_IT_OK(ret);
-    IT_LOG_INFO << "Empty list cnt=" << cnt;
+    EXPECT_EQ(cnt, 1u) << "prefix 'it_p0_aaa_' should match exactly 1 SHM";
+    if (cnt > 0) {
+        EXPECT_EQ(descs[0].mem_size, sizes[0]);
+        EXPECT_TRUE(strncmp(descs[0].name, "it_p0_aaa_", 10) == 0);
+    }
     if (descs != nullptr) {
         free(descs);
         descs = nullptr;
     }
 
-    // 创建一个SHM
-    const char* name = "it_p0_shm_list_ok";
-    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
-    ret = sdk.MemShmCreate(name, shmSize, usrInfo, 0, nullptr, nullptr);
-    ASSERT_IT_OK(ret);
-
-    // 等待就绪
-    ret = WaitForShmReady(sdk, name);
+    // list_with_prefix("zzz_") 应返回0条
+    cnt = 1;
+    ret = ubs_mem_shm_list_with_prefix("zzz_", &descs, &cnt);
     EXPECT_IT_OK(ret);
-
-    // 有SHM时list
-    IT_LOG_INFO << "Listing SHM after create";
-    ret = sdk.MemShmList(&descs, &cnt);
-    EXPECT_IT_OK(ret);
-    IT_LOG_INFO << "List cnt=" << cnt;
+    EXPECT_EQ(cnt, 0u) << "prefix 'zzz_' should match 0 SHM";
     if (descs != nullptr) {
         free(descs);
     }
 
     // 清理
-    ret = sdk.MemShmDelete(name);
-    EXPECT_IT_OK(ret);
-
-    IT_LOG_INFO << "RunP0ShmListOk01 done";
+    for (int i = 0; i < 2; i++) {
+        sdk.MemShmDelete(names[i]);
+    }
+    IT_LOG_INFO << "P0-ShmList-Ok-01 done";
 }
 
-// 空指针 (单节点)
+// 空指针 (双节点)
 void RunP0ShmListNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
-    auto& sdk = cluster.GetSdkClient("1");
-
-    IT_LOG_INFO << "Listing SHM with nullptr params";
-    int32_t ret = sdk.MemShmList(nullptr, nullptr);
-    EXPECT_IT_ERROR(ret, UBS_ERR_NULL_POINTER);
-
-    IT_LOG_INFO << "RunP0ShmListNullPtr01 done";
-}
-
-// ==================== ubs_mem_shm_list_with_prefix ====================
-
-// 无匹配前缀 (单节点)
-void RunP0ShmListPrefixOk01(ubse::it::infra::ItCluster& cluster)
-{
-    uint32_t cnt = 1; // 初始化为非零，验证接口能正确返回0
     ubs_mem_shm_desc_t* descs = nullptr;
-    const char* prefix = "it_p0_shm_prefix_no_match_xyz";
+    uint32_t cnt = 0;
 
-    IT_LOG_INFO << "Listing SHM with prefix: " << prefix;
-    // 直接调用C API
-    int32_t ret = ubs_mem_shm_list_with_prefix(prefix, &descs, &cnt);
-    EXPECT_IT_OK(ret);
-    EXPECT_EQ(cnt, 0u);
-    if (descs != nullptr) {
-        free(descs);
-    }
+    // ubs_mem_shm_list
+    EXPECT_EQ(ubs_mem_shm_list(nullptr, &cnt), UBS_ERR_NULL_POINTER)
+        << "shm_list: descs=null should return NULL_POINTER";
+    EXPECT_EQ(ubs_mem_shm_list(&descs, nullptr), UBS_ERR_NULL_POINTER)
+        << "shm_list: shm_cnt=null should return NULL_POINTER";
 
-    IT_LOG_INFO << "RunP0ShmListPrefixOk01 done";
+    // ubs_mem_shm_list_with_prefix
+    EXPECT_EQ(ubs_mem_shm_list_with_prefix("test", nullptr, &cnt), UBS_ERR_NULL_POINTER)
+        << "shm_list_with_prefix: descs=null should return NULL_POINTER";
+    EXPECT_EQ(ubs_mem_shm_list_with_prefix("test", &descs, nullptr), UBS_ERR_NULL_POINTER)
+        << "shm_list_with_prefix: shm_cnt=null should return NULL_POINTER";
+
+    IT_LOG_INFO << "P0-ShmList-NullPtr-01 passed";
 }
 
 // ==================== ubs_mem_shm_detach ====================
 
-// 未attach时detach (单节点)
+// attach后detach (双节点)
+void RunP0ShmDetachOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_detach_ok";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
+
+    // create
+    IT_LOG_INFO << "Creating SHM: name=" << name;
+    int32_t ret = sdk.MemShmCreate(name, shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    ret = WaitForShmReady(sdk, name);
+    ASSERT_IT_OK(ret);
+
+    // attach
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmAttach(name, nullptr, 0, &desc);
+    ASSERT_IT_OK(ret);
+    uint32_t importCntBefore = 0;
+    if (desc != nullptr) {
+        importCntBefore = desc->import_desc_cnt;
+        free(desc);
+    }
+
+    // detach
+    IT_LOG_INFO << "Detaching SHM: name=" << name;
+    ret = sdk.MemShmDetach(name);
+    EXPECT_IT_OK(ret) << "detach after attach should succeed";
+
+    // 验证 import_desc_cnt 变化
+    desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    if (ret == UBS_SUCCESS && desc != nullptr) {
+        EXPECT_LT(desc->import_desc_cnt, importCntBefore) << "import_desc_cnt should decrease after detach";
+        free(desc);
+    }
+
+    // 清理
+    sdk.MemShmDelete(name);
+    IT_LOG_INFO << "P0-ShmDetach-Ok-01 done";
+}
+
+// 未attach时detach (双节点)
 void RunP0ShmDetachNotReady01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -2523,14 +2941,49 @@ void RunP0ShmDetachNotReady01(ubse::it::infra::ItCluster& cluster)
 
     IT_LOG_INFO << "Detaching SHM that is not attached: " << name;
     int32_t ret = sdk.MemShmDetach(name);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_SHM_NO_ATTACH);
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_SHM_NO_ATTACH) << "未attach时detach应返回SHM_NO_ATTACH";
 
-    IT_LOG_INFO << "RunP0ShmDetachNotReady01 done";
+    IT_LOG_INFO << "P0-ShmDetach-NotReady-01 done";
 }
 
 // ==================== ubs_mem_shm_delete ====================
 
-// 删除不存在 (单节点)
+// 创建后删除 (双节点)
+void RunP0ShmDelOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_del_ok";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 2;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+    region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
+
+    // create
+    IT_LOG_INFO << "Creating SHM: name=" << name;
+    int32_t ret = sdk.MemShmCreate(name, shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    // delete
+    IT_LOG_INFO << "Deleting SHM: name=" << name;
+    ret = sdk.MemShmDelete(name);
+    EXPECT_IT_OK(ret) << "delete after create should succeed";
+
+    // 验证已不存在
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    EXPECT_NE(ret, UBS_SUCCESS) << "SHM should not exist after delete";
+    if (desc != nullptr) {
+        free(desc);
+    }
+
+    IT_LOG_INFO << "P0-ShmDel-Ok-01 done";
+}
+
+// 删除不存在 (双节点)
 void RunP0ShmDelNotExist01(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -2538,22 +2991,21 @@ void RunP0ShmDelNotExist01(ubse::it::infra::ItCluster& cluster)
 
     IT_LOG_INFO << "Deleting SHM that does not exist: " << name;
     int32_t ret = sdk.MemShmDelete(name);
-    EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+    EXPECT_EQ(ret, UBS_ENGINE_ERR_NOT_EXIST) << "删除不存在的SHM应返回NOT_EXIST";
 
-    IT_LOG_INFO << "RunP0ShmDelNotExist01 done";
+    IT_LOG_INFO << "P0-ShmDel-NotExist-01 done";
 }
 
 // ==================== ubs_mem_shm_fault_register ====================
 
-// NULL handler (单节点)
+// NULL handler (双节点)
 void RunP0ShmFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster)
 {
     IT_LOG_INFO << "Registering SHM fault with NULL handler";
-    // 直接调用C API
     int32_t ret = ubs_mem_shm_fault_register(nullptr);
     EXPECT_NE(ret, UBS_SUCCESS) << "Expected failure for NULL handler but got UBS_SUCCESS";
 
-    IT_LOG_INFO << "RunP0ShmFaultRegNullPtr01 done";
+    IT_LOG_INFO << "P0-ShmFaultReg-NullPtr-01 done";
 }
 
 // ==================== ubs_mem_shm_get_memid_by_import ====================

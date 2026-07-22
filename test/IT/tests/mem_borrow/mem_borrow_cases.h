@@ -15,6 +15,9 @@
 
 #include "it_cluster.h"
 
+#include <string>
+#include <vector>
+
 namespace ubse::it::tests::mem_borrow {
 
 // CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
@@ -145,19 +148,29 @@ void RunP0NumaMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create ====================
-void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
+void RunP0ShmCreateWithProviderOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateOverLen01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateDup01(ubse::it::infra::ItCluster& cluster);
-void RunP0ShmCreateBigSize01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateInvalidVal02(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_affinity ====================
 void RunP0ShmCreateAffinityBadParam01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_lender ====================
+void RunP0ShmCreateLenderOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
+void RunP0ShmCreateLenderOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateLenderInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateLenderNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateLenderBadParam01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateLenderDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_attach ====================
+void RunP0ShmAttachOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachNotReady01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster);
 
@@ -168,13 +181,12 @@ void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmListOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmListNullPtr01(ubse::it::infra::ItCluster& cluster);
 
-// ==================== ubs_mem_shm_list_with_prefix ====================
-void RunP0ShmListPrefixOk01(ubse::it::infra::ItCluster& cluster);
-
 // ==================== ubs_mem_shm_detach ====================
+void RunP0ShmDetachOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmDetachNotReady01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_delete ====================
+void RunP0ShmDelOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmDelNotExist01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_fault_register ====================

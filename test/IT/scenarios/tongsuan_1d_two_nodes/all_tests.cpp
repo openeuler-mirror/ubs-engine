@@ -49,10 +49,16 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0LinkListNullPtr01)
 
 // ==================== Mem SHM P0 测试 (双节点) ====================
 
-// P0-ShmCreate-Ok-01: 标准创建成功
+// P0-ShmCreate-Ok-01: 标准创建成功，region={1,2}
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateOk01)
 {
-    ubse::it::tests::mem_borrow::RunP0ShmCreateOk01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0ShmCreateOk01(Cluster(), {"1", "2"});
+}
+
+// P0-ShmCreate-Provider-Ok-01: 指定provider={2}，导出节点应在provider集合中
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateWithProviderOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateWithProviderOk01(Cluster());
 }
 
 // P0-ShmCreate-Dup-01: 同名重复
@@ -61,10 +67,40 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateDup01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateDup01(Cluster());
 }
 
-// P0-ShmCreate-BigSize-01: size=1GB
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBigSize01)
+// P0-ShmCreate-InvalidVal-02: size > 256GB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateInvalidVal02)
 {
-    ubse::it::tests::mem_borrow::RunP0ShmCreateBigSize01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0ShmCreateInvalidVal02(Cluster());
+}
+
+// P0-ShmCreate-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateOverLen01(Cluster());
+}
+
+// P0-ShmCreate-InvalidVal-01: size < 4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateInvalidVal01(Cluster());
+}
+
+// P0-ShmCreate-NullPtr-01: name=NULL
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateNullPtr01(Cluster());
+}
+
+// P0-ShmCreate-BoundMin-01: size=4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBoundMin01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateBoundMin01(Cluster());
+}
+
+// P0-ShmCreate-BoundMax-01: name=47字节
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateBoundMax01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateBoundMax01(Cluster());
 }
 
 // P0-ShmCreateAffinity-BadParam-01: 不存在的socket_id
@@ -73,16 +109,106 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateAffinityBadParam01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateAffinityBadParam01(Cluster());
 }
 
-// P0-ShmCreateLender-NullPtr-01: lender=NULL
+// P0-ShmCreateLender-Ok-01: 指定借出节点创建，region={1,2}
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"1", "2"});
+}
+
+// P0-ShmCreateLender-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOverLen01(Cluster());
+}
+
+// P0-ShmCreateLender-InvalidVal-01: lender_size < 4MB
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderInvalidVal01(Cluster());
+}
+
+// P0-ShmCreateLender-NullPtr-01: name=NULL
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderNullPtr01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmCreateLenderNullPtr01(Cluster());
+}
+
+// P0-ShmCreateLender-BadParam-01: 不存在的slot_id
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderBadParam01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderBadParam01(Cluster());
+}
+
+// P0-ShmCreateLender-Dup-01: 同名重复
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateLenderDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderDup01(Cluster());
+}
+
+// P0-ShmAttach-NotReady-01: 未创建时attach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachNotReady01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmAttachNotReady01(Cluster());
+}
+
+// P0-ShmAttach-Ok-01: attach后校验内存块数(256MB)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmAttachOk01(Cluster());
 }
 
 // P0-ShmAttach-Dup-01: 重复attach
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmAttachDup01)
 {
     ubse::it::tests::mem_borrow::RunP0ShmAttachDup01(Cluster());
+}
+
+// P0-ShmGet-NotExist-01: 查询不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmGetNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmGetNotExist01(Cluster());
+}
+
+// P0-ShmList-Ok-01: list + 前缀过滤
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmListOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmListOk01(Cluster());
+}
+
+// P0-ShmList-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmListNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmListNullPtr01(Cluster());
+}
+
+// P0-ShmDetach-Ok-01: attach后detach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDetachOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmDetachOk01(Cluster());
+}
+
+// P0-ShmDetach-NotReady-01: 未attach时detach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDetachNotReady01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmDetachNotReady01(Cluster());
+}
+
+// P0-ShmDel-Ok-01: 创建后删除
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDelOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmDelOk01(Cluster());
+}
+
+// P0-ShmDel-NotExist-01: 删除不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmDelNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmDelNotExist01(Cluster());
+}
+
+// P0-ShmFaultReg-NullPtr-01: NULL handler
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmFaultRegNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmFaultRegNullPtr01(Cluster());
 }
 
 // ==================== Mem FD P0 测试 (双节点) ====================
@@ -445,6 +571,18 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaListNullPtr01)
     ubse::it::tests::mem_borrow::RunP0NumaListNullPtr01(Cluster());
 }
 
+// P0-NumaGet-NotExist-01: 查询不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaGetNotExist01(Cluster());
+}
+
+// P0-NumaGet-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaGetNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaGetNullPtr01(Cluster());
+}
+
 // P0-NumaDel-Ok-01: 创建后删除
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaDelOk01)
 {
@@ -457,10 +595,28 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaDelDup01)
     ubse::it::tests::mem_borrow::RunP0NumaDelDup01(Cluster());
 }
 
+// P0-NumaDel-NotExist-01: 删除不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaDelNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaDelNotExist01(Cluster());
+}
+
+// P0-NumaDel-OverLen-01: name超长
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaDelOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaDelOverLen01(Cluster());
+}
+
 // P0-NumaMemidByImport-Fld-01: 创建后查询字段
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaMemidByImportFld01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaMemidByImportFld01(Cluster());
+}
+
+// P0-NumaMemidByImport-NotExist-01: name不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaMemidByImportNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaMemidByImportNotExist01(Cluster());
 }
 
 // ====================================================================

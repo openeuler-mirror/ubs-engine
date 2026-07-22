@@ -98,10 +98,30 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateDup01)
     ubse::it::tests::mem_borrow::RunP0FdCreateCandidateDup01(Cluster());
 }
 
+// P0-NumaCreateCandidate-Ok-01: 指定候选节点
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateCandidateOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateOk01(Cluster());
+}
+
 // P0-NumaCreateCandidate-Dup-01: 同名重复，候选节点3和4
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateCandidateDup01)
 {
     ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateDup01(Cluster());
+}
+
+// ==================== Mem SHM P0 测试 (四节点) ====================
+
+// P0-ShmCreate-Ok-01: 标准创建成功，region={3,4}
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateOk01(Cluster(), {"3", "4"});
+}
+
+// P0-ShmCreateLender-Ok-01: 指定借出节点创建，region={3,4}
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"3", "4"});
 }
 
 // ==================== CLI P0 测试 ====================
