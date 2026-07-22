@@ -519,12 +519,12 @@ UbseResult SsuFeDeviceAllocUnpack(const api::server::UbseIpcMessage &buffer, uin
     if (VfeUnpack(unpackUtil, vfe) != UBSE_OK) {
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return StringUnpack(unpackUtil, busInstanceGuid, MAX_UUID_LEN);
+    return StringUnpack(unpackUtil, busInstanceGuid, MAX_GUID_LEN);
 }
 
 UbseResult SsuFeDeviceAllocPack(const std::string &busInstanceGuid, api::server::UbseIpcMessage &response)
 {
-    const size_t requiredLength = StringCalcSize(busInstanceGuid, MAX_UUID_LEN);
+    const size_t requiredLength = StringCalcSize(busInstanceGuid, MAX_GUID_LEN);
 
     response.length = static_cast<uint32_t>(requiredLength);
     response.buffer = new (std::nothrow) uint8_t[requiredLength];
@@ -535,7 +535,7 @@ UbseResult SsuFeDeviceAllocPack(const std::string &busInstanceGuid, api::server:
     }
 
     ubse::utils::UbsePackUtil packUtil(response.buffer, response.length);
-    if (StringPack(packUtil, busInstanceGuid, MAX_UUID_LEN) != UBSE_OK) {
+    if (StringPack(packUtil, busInstanceGuid, MAX_GUID_LEN) != UBSE_OK) {
         delete[] response.buffer;
         response.buffer = nullptr;
         response.length = 0;
