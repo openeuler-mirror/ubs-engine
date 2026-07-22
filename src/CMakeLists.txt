@@ -62,7 +62,6 @@ target_link_libraries(ubse PRIVATE
         trace_context
         ubse_urma_uvs
         ubse_urma_controller
-        ubse_ssu_controller
         ubse_node_mgr
 )
 
@@ -74,6 +73,7 @@ target_link_libraries(ubse PRIVATE
         ubse_mmi
         ubse_node_controller_register_config
         ubse_node_controller
+        ubse_ssu
         -Wl,--no-whole-archive
 )
 if (ASAN_BUILD)
