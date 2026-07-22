@@ -221,6 +221,7 @@ void UbseHttpServer::HandleRequest(const httplib::Request &req, httplib::Respons
         return;
     }
     request.path = req.path;
+    request.body = req.body;
     ProcessRequestHeadersAndParams(req, request);
     FillPeerCertInfo(req, request);
     UbseHttpResponse response{};
