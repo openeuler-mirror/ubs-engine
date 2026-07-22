@@ -9,21 +9,42 @@ function _ubse_ssu_command_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W 'display create' -- ${cur}) )
+        COMPREPLY=( $(compgen -W 'display create attach detach' -- ${cur}) )
         return 0
     fi
 
     if [[ "${cmd}" == '--type' || "${cmd}" == '-t' ]]; then
-        COMPREPLY=( $(compgen -W 'alloc_summary alloc_detail' -- ${cur}) )
+        case ${COMP_WORDS[1]} in
+            'display')
+                COMPREPLY=( $(compgen -W 'alloc_summary alloc_detail' -- ${cur}) )
+                return 0
+            ;;
+            'attach'|'detach')
+                COMPREPLY=( $(compgen -W 'Linear Striped' -- ${cur}) )
+                return 0
+            ;;
+            '*')
+                return 0
+            ;;
+        esac
+    fi
+
+    if [[ ${COMP_WORDS[1]} == 'attach' ]] && [[ "${cmd}" == '--level' || "${cmd}" == '-l' ]]; then
+        COMPREPLY=( $(compgen -W 'raid0 raid5' -- ${cur}) )
         return 0
     fi
 
-    if [[ "${cmd}" == '--lba' || "${cmd}" == '-l' ]]; then
+    if [[ ${COMP_WORDS[1]} == 'attach' ]] && [[ "${cmd}" == '--chunk_size' || "${cmd}" == '-c' ]]; then
+        COMPREPLY=( $(compgen -W '4K 16K 32K 64K 128K 256K 512K' -- ${cur}) )
+        return 0
+    fi
+
+    if [[ ${COMP_WORDS[1]} == 'create' ]] && [[ "${cmd}" == '--lba' || "${cmd}" == '-l' ]]; then
         COMPREPLY=( $(compgen -W '512B 4K' -- ${cur}) )
         return 0
     fi
 
-    if [[ "${cmd}" == '--strategy' || "${cmd}" == '-r' ]]; then
+    if [[ ${COMP_WORDS[1]} == 'create' ]] && [[ "${cmd}" == '--strategy' || "${cmd}" == '-r' ]]; then
         COMPREPLY=( $(compgen -W 'Linear Striped' -- ${cur}) )
         return 0
     fi
@@ -44,6 +65,24 @@ function _ubse_ssu_command_completion() {
                 return 0
             elif [[ "${cur}" == -* ]]; then
                 COMPREPLY=( $(compgen -W '-n -s -l -m -r' -- ${cur}) )
+                return 0
+            fi
+        ;;
+        'attach')
+            if [[ "${cur}" == --* ]] ; then
+                COMPREPLY=( $(compgen -W '--name --host_nqn --src_eid --type --dev_name --level --chunk_size' -- ${cur}) )
+                return 0
+            elif [[ "${cur}" == -* ]]; then
+                COMPREPLY=( $(compgen -W '-n -q -e -t -d -l -c' -- ${cur}) )
+                return 0
+            fi
+        ;;
+        'detach')
+            if [[ "${cur}" == --* ]] ; then
+                COMPREPLY=( $(compgen -W '--name --host_nqn --type --dev_name' -- ${cur}) )
+                return 0
+            elif [[ "${cur}" == -* ]]; then
+                COMPREPLY=( $(compgen -W '-n -q -t -d' -- ${cur}) )
                 return 0
             fi
         ;;

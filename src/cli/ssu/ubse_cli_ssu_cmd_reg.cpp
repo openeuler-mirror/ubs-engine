@@ -38,6 +38,11 @@ const std::string SIZE_OPT = "size";
 const std::string LBA_OPT = "lba";
 const std::string NS_NUM_OPT = "ns_num";
 const std::string STRATEGY_OPT = "strategy";
+const std::string HOST_NQN_OPT = "host_nqn";
+const std::string SRC_EID_OPT = "src_eid";
+const std::string DEV_NAME_OPT = "dev_name";
+const std::string LEVEL_OPT = "level";
+const std::string CHUNK_SIZE_OPT = "chunk_size";
 
 // display ssu 的 -t 取值，区分摘要与详情两类子命令。
 const std::string ALLOC_SUMMARY_TYPE = "alloc_summary";
@@ -48,6 +53,15 @@ const std::string STRATEGY_LINEAR = "Linear";
 const std::string STRATEGY_STRIPED = "Striped";
 const std::string LBA_512B = "512B";
 const std::string LBA_4K = "4K";
+const std::string RAID0 = "raid0";
+const std::string RAID5 = "raid5";
+const std::string CHUNK_SIZE_4K = "4K";
+const std::string CHUNK_SIZE_16K = "16K";
+const std::string CHUNK_SIZE_32K = "32K";
+const std::string CHUNK_SIZE_64K = "64K";
+const std::string CHUNK_SIZE_128K = "128K";
+const std::string CHUNK_SIZE_256K = "256K";
+const std::string CHUNK_SIZE_512K = "512K";
 
 // 固定文本的客户端错误/提示信息
 const std::string ERR_NAME_REQUIRED = "ERROR: The option -n or --name is required.";
@@ -60,6 +74,29 @@ const std::string ERR_INVALID_SIZE =
     std::to_string(SSU_CLI_MIN_SIZE_BYTES / SSU_CLI_BYTES_PER_GIB) + "G.";
 const std::string ERR_INVALID_LBA = "ERROR: Invalid lba. The value must be 512B or 4K.";
 const std::string ERR_INVALID_STRATEGY = "ERROR: Invalid strategy. The value must be Linear or Striped.";
+const std::string ERR_INVALID_HOST_NQN =
+    "ERROR: Invalid host_nqn. The value must be 1-" + std::to_string(SSU_CLI_MAX_HOST_NQN_LENGTH) + " characters.";
+const std::string ERR_INVALID_SRC_EID =
+    "ERROR: Invalid src_eid. The value must be 1-" + std::to_string(SSU_CLI_MAX_SRC_EID_LENGTH) + " characters.";
+const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must be Linear or Striped.";
+const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
+    "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
+const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Linear.";
+const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Striped.";
+const std::string ERR_INVALID_DEV_NAME = "ERROR: Invalid dev_name. The value must be 1-" +
+                                         std::to_string(SSU_CLI_MAX_DEV_NAME_LENGTH) +
+                                         " characters and contain only letters, digits, '_', '-' or '.'.";
+const std::string ERR_STRIPED_ONLY_OPTIONS =
+    "ERROR: The option --level or --chunk_size is only valid when --type is Striped.";
+const std::string ERR_STRIPED_LEVEL_REQUIRED = "ERROR: The option -l or --level is required when --type is Striped.";
+const std::string ERR_STRIPED_CHUNK_SIZE_REQUIRED =
+    "ERROR: The option -c or --chunk_size is required when --type is Striped.";
+const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be raid0 or raid5.";
+const std::string ERR_INVALID_CHUNK_SIZE =
+    "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
 const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
@@ -114,6 +151,14 @@ bool ParseSize(const std::string &value, uint64_t &sizeBytes);
 bool ParseNsNum(const std::string &value, uint32_t &nsNum);
 bool ParseLba(const std::string &value, UbseSsuLBAFormat &lbaFormat);
 bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy);
+bool IsValidLengthIfPresent(const std::map<std::string, std::string> &params, const std::string &key,
+                            uint32_t maxLength);
+bool IsValidDevName(const std::string &devName);
+bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level);
+bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize);
+std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key);
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response);
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response);
 
 template <typename PostCall>
 std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op,
@@ -178,6 +223,117 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOp
     });
 }
 
+std::shared_ptr<UbseCliResultEcho> HandleAttachSpace(const std::map<std::string, std::string> &params)
+{
+    if (params.count(DEV_NAME_OPT) != 0 || params.count(LEVEL_OPT) != 0 || params.count(CHUNK_SIZE_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+    }
+
+    UbseCliSsuAttachSpaceReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    return InvokeSsuIpc<UbseCliSsuAttachSpaceReq, UbseCliSsuAttachSpaceRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ, request,
+        [](const UbseCliSsuAttachSpaceRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleAttachLinear(const std::map<std::string, std::string> &params)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_LINEAR_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+    if (params.count(LEVEL_OPT) != 0 || params.count(CHUNK_SIZE_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_ONLY_OPTIONS);
+    }
+
+    UbseCliSsuAttachLinearReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    request.devName = devName->second;
+    return InvokeSsuIpc<UbseCliSsuAttachLinearReq, UbseCliSsuAttachAggregatedRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ, request,
+        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleAttachStriped(const std::map<std::string, std::string> &params)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+
+    auto level = params.find(LEVEL_OPT);
+    if (level == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_LEVEL_REQUIRED);
+    }
+    auto chunkSize = params.find(CHUNK_SIZE_OPT);
+    if (chunkSize == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_CHUNK_SIZE_REQUIRED);
+    }
+
+    UbseCliSsuAttachStripedReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    request.devName = devName->second;
+    if (!ParseLevel(level->second, request.level)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_LEVEL);
+    }
+    if (!ParseChunkSize(chunkSize->second, request.chunkSize)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_CHUNK_SIZE);
+    }
+    return InvokeSsuIpc<UbseCliSsuAttachStripedReq, UbseCliSsuAttachAggregatedRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ, request,
+        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleDetachSpace(const std::map<std::string, std::string> &params)
+{
+    if (params.count(DEV_NAME_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_DETACH_DEV_NAME_REQUIRES_TYPE);
+    }
+
+    UbseCliSsuDetachSpaceReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ, request);
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::string, std::string> &params,
+                                                          const std::string &type)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(type == STRATEGY_LINEAR ? ERR_LINEAR_DEV_NAME_REQUIRED :
+                                                                                    ERR_STRIPED_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+
+    if (type == STRATEGY_LINEAR) {
+        UbseCliSsuDetachLinearReq request;
+        request.name = params.at(NAME_OPT);
+        request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+        request.devName = devName->second;
+        return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ, request);
+    }
+
+    UbseCliSsuDetachStripedReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.devName = devName->second;
+    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ, request);
+}
 } // namespace
 
 void UbseCliRegSsuModule::UbseCliSignUp()
@@ -185,6 +341,8 @@ void UbseCliRegSsuModule::UbseCliSignUp()
     // 注册顺序即 display/create 命令进入模块命令列表的顺序，框架据此生成补全与帮助。
     this->cmd_.emplace_back(UbseCliDisplaySsu());
     this->cmd_.emplace_back(UbseCliCreateSsu());
+    this->cmd_.emplace_back(UbseCliAttachSsu());
+    this->cmd_.emplace_back(UbseCliDetachSsu());
 }
 
 // display ssu：仅 -t 必填，按 alloc_summary / alloc_detail 分流到不同子处理。
@@ -197,6 +355,37 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDisplaySsu()
         .UbseCliAddOption("t", TYPE_OPT, "SSU display type: alloc_summary or alloc_detail.")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliSetFunc(UbseCliDisplaySsuFunc);
+    return builder.UbseCliBuild();
+}
+
+// attach ssu：-n 必填；-t 为空、Linear、Striped 时进入不同 IPC op code，聚合参数按类型约束校验。
+UbseCliCommandInfo UbseCliRegSsuModule::UbseCliAttachSsu()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("attach")
+        .UbseCliSetType("ssu")
+        .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
+        .UbseCliAddOption("e", SRC_EID_OPT, "SSU source EID.")
+        .UbseCliAddOption("t", TYPE_OPT, "SSU attach type: Linear or Striped.")
+        .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
+        .UbseCliAddOption("l", LEVEL_OPT, "SSU RAID level.")
+        .UbseCliAddOption("c", CHUNK_SIZE_OPT, "SSU chunk size.")
+        .UbseCliSetFunc(UbseCliAttachSsuFunc);
+    return builder.UbseCliBuild();
+}
+
+// detach ssu：仅注册卸载所需的四个选项；src_eid/level/chunk_size 由框架作为未注册参数拒绝。
+UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDetachSsu()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("detach")
+        .UbseCliSetType("ssu")
+        .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
+        .UbseCliAddOption("t", TYPE_OPT, "SSU detach type: Linear or Striped.")
+        .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
+        .UbseCliSetFunc(UbseCliDetachSsuFunc);
     return builder.UbseCliBuild();
 }
 
@@ -298,6 +487,63 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
     }
     return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(
         UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ALLOC_REQ, request, BuildDetailOutput);
+}
+
+// attach ssu 入口：通用参数先校验，随后按 --type 拆分普通/Linear/Striped 三类请求和响应。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliAttachSsuFunc(
+    [[maybe_unused]] const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
+    }
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+    if (!IsValidLengthIfPresent(params, HOST_NQN_OPT, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_HOST_NQN);
+    }
+    if (!IsValidLengthIfPresent(params, SRC_EID_OPT, SSU_CLI_MAX_SRC_EID_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_SRC_EID);
+    }
+
+    auto type = params.find(TYPE_OPT);
+    if (type == params.end()) {
+        return HandleAttachSpace(params);
+    }
+    if (type->second == STRATEGY_LINEAR) {
+        return HandleAttachLinear(params);
+    }
+    if (type->second == STRATEGY_STRIPED) {
+        return HandleAttachStriped(params);
+    }
+    return UbseCliStringPromptReply(ERR_INVALID_ATTACH_TYPE);
+}
+
+// detach ssu 入口：通用字段先校验，再按未指定/Linear/Striped 三种 type 选择请求布局和 op code。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDetachSsuFunc(
+    [[maybe_unused]] const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
+    }
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+    if (!IsValidLengthIfPresent(params, HOST_NQN_OPT, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_HOST_NQN);
+    }
+
+    auto type = params.find(TYPE_OPT);
+    if (type == params.end()) {
+        return HandleDetachSpace(params);
+    }
+    if (type->second != STRATEGY_LINEAR && type->second != STRATEGY_STRIPED) {
+        return UbseCliStringPromptReply(ERR_INVALID_ATTACH_TYPE);
+    }
+
+    return HandleDetachAggregated(params, type->second);
 }
 
 namespace {
@@ -463,6 +709,106 @@ bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy)
         return true;
     }
     return false;
+}
+
+bool IsValidLengthIfPresent(const std::map<std::string, std::string> &params, const std::string &key,
+                            uint32_t maxLength)
+{
+    auto item = params.find(key);
+    if (item == params.end()) {
+        return true;
+    }
+    return !item->second.empty() && item->second.size() <= static_cast<size_t>(maxLength);
+}
+
+bool IsValidDevName(const std::string &devName)
+{
+    if (devName.empty() || devName.size() > SSU_CLI_MAX_DEV_NAME_LENGTH) {
+        return false;
+    }
+    for (unsigned char ch : devName) {
+        if (std::isalnum(ch) || ch == '_' || ch == '-' || ch == '.') {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level)
+{
+    if (value == RAID0) {
+        level = UbseSsuAggregationRaidLevel::RAID0;
+        return true;
+    }
+    if (value == RAID5) {
+        level = UbseSsuAggregationRaidLevel::RAID5;
+        return true;
+    }
+    return false;
+}
+
+bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize)
+{
+    if (value == CHUNK_SIZE_4K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_4K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_16K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_16K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_32K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_32K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_64K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_64K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_128K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_128K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_256K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_256K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_512K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_512K;
+        return true;
+    }
+    return false;
+}
+
+std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key)
+{
+    // 区分“未传入”与必填参数：attach 的 host_nqn/src_eid 未传入时以空字符串上线。
+    auto item = params.find(key);
+    return item == params.end() ? std::string() : item->second;
+}
+
+std::string JoinNsDevPaths(const std::vector<std::string> &paths)
+{
+    std::string output;
+    for (const auto &path : paths) {
+        if (!output.empty()) {
+            output += ',';
+        }
+        output += path;
+    }
+    return output;
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response)
+{
+    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths));
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response)
+{
+    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths) +
+                                                      "\ndev_path: " + response.devPath);
 }
 
 } // namespace
