@@ -105,7 +105,22 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
 
     // 非CLOS场景，当前主节点直接返回本地全量缓存
     if (!isClosType && module->IsLeader()) {
-        return getCachedNodes();
+        auto cachedNodes = getCachedNodes();
+
+        std::stringstream nodeList;
+        for (const auto &[nodeId, nodeInfo] : cachedNodes) {
+            nodeList << nodeId
+                     << "(group=" << nodeInfo.groupId
+                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                     << "), ";
+        }
+
+        UBSE_LOG_INFO << "[GET_ALL_RESULT] source=local"
+                      << ", reason=non-clos leader"
+                      << ", currentNodeId=" << currentNodeId
+                      << ", nodeCount=" << cachedNodes.size()
+                      << ", nodes=[" << nodeList.str() << "]";
+        return cachedNodes;
     }
 
     Node masterNode{};
@@ -115,22 +130,62 @@ std::unordered_map<std::string, UbseNodeInfo> UbseNodeController::GetAllNodes()
         return {};
     }
 
+    if (masterNode.id.empty()) {
+        UBSE_LOG_ERROR << "master node id is empty";
+        return {};
+    }
+
+    UBSE_LOG_INFO << "[GET_ALL_ROUTE] currentNodeId=" << currentNodeId
+                  << ", isClosType=" << isClosType
+                  << ", targetMasterId=" << masterNode.id;
+
     // CLOS场景下，UbseGetMasterNode返回全局主
-    if ((isClosType && IsGlobalMaster()) || masterNode.id == currentNodeId) {
-        return getCachedNodes();
+    if (masterNode.id == currentNodeId) {
+        auto cachedNodes = getCachedNodes();
+
+        std::stringstream nodeList;
+        for (const auto &[nodeId, nodeInfo] : cachedNodes) {
+            nodeList << nodeId
+                     << "(group=" << nodeInfo.groupId
+                     << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                     << "), ";
+        }
+
+        UBSE_LOG_INFO << "[GET_ALL_RESULT] source=local"
+                      << ", reason=target is current node"
+                      << ", currentNodeId=" << currentNodeId
+                      << ", targetMasterId=" << masterNode.id
+                      << ", nodeCount=" << cachedNodes.size()
+                      << ", nodes=[" << nodeList.str() << "]";
+        return cachedNodes;
     }
 
     std::vector<UbseNodeInfo> infos{};
     ret = GetAllNodeInfoFromRemote(masterNode.id, infos);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id << " failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "get all node from master=" << masterNode.id
+                       << " failed, " << FormatRetCode(ret);
         return {};
     }
 
     std::unordered_map<std::string, UbseNodeInfo> maps{};
+    maps.reserve(infos.size());
+
+    std::stringstream nodeList;
     for (const auto &info : infos) {
         maps[info.nodeId] = info;
+        nodeList << info.nodeId
+                 << "(group=" << info.groupId
+                 << ",state=" << static_cast<uint32_t>(info.clusterState)
+                 << "), ";
     }
+
+    UBSE_LOG_INFO << "[GET_ALL_RESULT] source=remote"
+                  << ", currentNodeId=" << currentNodeId
+                  << ", targetMasterId=" << masterNode.id
+                  << ", nodeCount=" << maps.size()
+                  << ", nodes=[" << nodeList.str() << "]";
+
     return maps;
 }
 

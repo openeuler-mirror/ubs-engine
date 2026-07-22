@@ -15,8 +15,10 @@
 #include <unistd.h>
 #include <condition_variable>
 #include <mutex>
+#include <sstream>
 #include <unordered_set>
 
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_election_module.h"
@@ -265,31 +267,72 @@ UbseResult UbseNodeControllerMaster::UbseGlobalMasterOnlineHandler(const std::st
 
 UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &nodeId)
 {
-    if (nodeId != UbseNodeController::GetInstance().GetCurrentNodeId()) {
-        UBSE_LOG_INFO << "master online, current nodeId=" << UbseNodeController::GetInstance().GetCurrentNodeId()
-                      << " not master, master nodeId=" << nodeId << ", start to clean context.";
+    auto currentNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
+    const bool isClosType =
+        ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
+
+    if (isClosType) {
+        auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+        if (module == nullptr) {
+            UBSE_LOG_ERROR << "election module not load";
+            return UBSE_ERROR_MODULE_LOAD_FAILED;
+        }
+
+        Node localMasterNode{};
+        auto ret = module->GetLocalMasterNode(localMasterNode);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "get local master failed on master online, "
+                          << FormatRetCode(ret);
+            return ret;
+        }
+
+        if (localMasterNode.id.empty()) {
+            UBSE_LOG_WARN << "local master id is empty on master online";
+            return UBSE_ERROR;
+        }
+
+        // 其他组主上线不影响当前组
+        if (nodeId != localMasterNode.id) {
+            UBSE_LOG_INFO << "[CLOS_EVENT] ignore unrelated group master online"
+                          << ", currentNodeId=" << currentNodeId
+                          << ", eventMasterId=" << nodeId
+                          << ", localMasterId=" << localMasterNode.id;
+            return UBSE_OK;
+        }
+    }
+
+    if (nodeId != currentNodeId) {
+        UBSE_LOG_INFO << "master online, current nodeId=" << currentNodeId
+                      << " not master, master nodeId=" << nodeId
+                      << ", start to clean context.";
         UbseNodeCleanAfterSwitchStandby();
         return UBSE_OK;
     }
+
     UBSE_LOG_INFO << "master online, current nodeId=" << nodeId << " is master.";
     auto role = GetClosRole();
     UBSE_LOG_INFO << "[CLOS_ROLE] refresh role on master online, currentNodeId="
-                  << UbseNodeController::GetInstance().GetCurrentNodeId() << ", role=" << static_cast<uint32_t>(role);
+                  << currentNodeId << ", role=" << static_cast<uint32_t>(role);
+
     std::string selfnodeId = nodeId;
     auto ret = UbsePubEvent(UBSE_EVENT_NODE_JOIN, selfnodeId);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "UbsePubEvent " << UBSE_EVENT_NODE_JOIN << " failed on master node";
+        UBSE_LOG_ERROR << "UbsePubEvent " << UBSE_EVENT_NODE_JOIN
+                       << " failed on master node";
         return ret;
     }
+
     std::lock_guard<std::mutex> lock(taskExecMutex_);
     if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
         taskExecutor_ = UbseTaskExecutor::Create("UbseNodeMaster", NO_16, NO_1024);
         if (taskExecutor_ == nullptr || !taskExecutor_->Start()) {
-            UBSE_LOG_ERROR << "master online, current nodeId=" << nodeId << " start task thread pool failed";
+            UBSE_LOG_ERROR << "master online, current nodeId=" << nodeId
+                           << " start task thread pool failed";
             taskExecutor_ = nullptr;
             return UBSE_ERROR_NULLPTR;
         }
     }
+
     // 本节点对账
     taskExecutor_->Execute([this]() -> void {
         auto selfNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
@@ -297,16 +340,18 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
         UbseNodeLedger(selfNodeId);
 
         auto selfNodeInfo = UbseNodeController::GetInstance().GetNodeById(selfNodeId);
-        UBSE_LOG_INFO << "[CLOS_REPORT] master self state change report trigger, nodeId=" << selfNodeId
-                      << ", groupId=" << selfNodeInfo.groupId
-                      << ", clusterState=" << static_cast<uint32_t>(selfNodeInfo.clusterState);
+        UBSE_LOG_INFO << "[CLOS_REPORT] master self state change report trigger, nodeId="
+                      << selfNodeId << ", groupId=" << selfNodeInfo.groupId
+                      << ", clusterState="
+                      << static_cast<uint32_t>(selfNodeInfo.clusterState);
 
         auto reportRet = ReportSingleNodeChangeToPrev(selfNodeId, "master self ledger");
         if (reportRet != UBSE_OK) {
-            UBSE_LOG_WARN << "[CLOS_STATE_REPORT] report master self change failed, nodeId=" << selfNodeId << ", "
-                          << FormatRetCode(reportRet);
+            UBSE_LOG_WARN << "[CLOS_STATE_REPORT] report master self change failed, nodeId="
+                          << selfNodeId << ", " << FormatRetCode(reportRet);
         }
     });
+
     // 周期对账，注册对账定时器回调并启动定时器
     UbseTimerHandlerRegister(
         UBSE_NODE_MASTER_LEDGER_TIMER,
@@ -317,7 +362,9 @@ UbseResult UbseNodeControllerMaster::UbseMasterOnlineHandler(const std::string &
         UBSE_NODE_LEDGER_INTERVAL);
 
     isLogAggregationRunning_.store(true);
-    taskExecutor_->Execute([this]() -> void { ReportAggregation(); });
+    taskExecutor_->Execute([this]() -> void {
+        ReportAggregation();
+    });
     return UBSE_OK;
 }
 
@@ -1241,11 +1288,26 @@ UbseResult SingleNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
 // 处理agent查询全量节点列表
 UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBuffer &resp)
 {
-    auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
+    (void)req;
+
+    auto nodeInfos = UbseNodeController::GetInstance().GetLocalNodeInfos();
+
     std::vector<UbseNodeInfo> infos{};
-    for (auto iter : nodeInfos) {
-        infos.push_back(iter.second);
+    infos.reserve(nodeInfos.size());
+
+    std::stringstream nodeList;
+    for (const auto &[nodeId, nodeInfo] : nodeInfos) {
+        infos.push_back(nodeInfo);
+        nodeList << nodeId
+                 << "(group=" << nodeInfo.groupId
+                 << ",state=" << static_cast<uint32_t>(nodeInfo.clusterState)
+                 << "), ";
     }
+
+    UBSE_LOG_INFO << "[GET_ALL_SERVER] currentNodeId="
+                  << UbseNodeController::GetInstance().GetCurrentNodeId()
+                  << ", nodeCount=" << nodeInfos.size()
+                  << ", nodes=[" << nodeList.str() << "]";
 
     uint8_t *buffer = nullptr;
     size_t size = 0;
@@ -1259,9 +1321,9 @@ UbseResult GetAllNodeInfoFromRemoteHandler(const UbseByteBuffer &req, UbseByteBu
     }
 
     resp = {buffer, size, [size](uint8_t *p) noexcept {
-                SafeDeleteArray(p, size);
-            }};
-    return ret;
+        SafeDeleteArray(p, size);
+    }};
+    return UBSE_OK;
 }
 
 // 处理agent查询全量链路信息
