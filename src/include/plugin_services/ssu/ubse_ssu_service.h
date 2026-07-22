@@ -219,7 +219,7 @@ public:
      */
     virtual uint32_t GetConnectInfo(const std::string &name, const UbseSsuVfe *vfe,
                                     std::vector<UbseSsuConnectInfo> &connectInfoList,
-                                    const UbseSsuAllocIdentityInfo &identity);
+                                    const UbseSsuAllocIdentityInfo &identity) = 0;
 
     /**
      * @brief 分配SSU存储空间
