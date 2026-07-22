@@ -724,7 +724,6 @@ UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseB
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    response->data = SYNC_SUCCESS;
     auto exportObj = request->GetUbseMemShareBorrowExportObj();
     if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Share borrow exportObj is invalid, please check the exportObj";
@@ -760,6 +759,7 @@ UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseB
             TraceContext::Clear();
         });
     }
+    response->data = SYNC_SUCCESS;
     return UBSE_OK;
 }
 
@@ -783,7 +783,6 @@ UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseB
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    response->data = SYNC_SUCCESS;
     auto importObj = request->GetUbseMemShareBorrowImportObj();
     if (auto ret = ShareBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Share borrow importObj is invalid, please check the importObj";
@@ -819,6 +818,7 @@ UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseB
             TraceContext::Clear();
         });
     }
+    response->data = SYNC_SUCCESS;
     return UBSE_OK;
 }
 
@@ -842,7 +842,6 @@ UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    response->data = SYNC_SUCCESS;
     auto exportObj = request->GetUbseMemAddrBorrowExportObj();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow exportObj is invalid, please check the exportObj";
@@ -872,6 +871,7 @@ UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
             TraceContext::Clear();
         });
     }
+    response->data = SYNC_SUCCESS;
     return UBSE_OK;
 }
 
@@ -895,7 +895,6 @@ UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    response->data = SYNC_SUCCESS;
     auto importObj = request->GetUbseMemAddrBorrowImportobj();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow importObj is invalid, please check the importObj";
@@ -925,6 +924,7 @@ UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
             TraceContext::Clear();
         });
     }
+    response->data = SYNC_SUCCESS;
     return UBSE_OK;
 }
 
@@ -981,6 +981,11 @@ UbseResult MemScheduleHandler::RegHandler()
     if (ret != UBSE_OK) {
         return UBSE_ERROR;
     }
+    ret = RegisterClosShmMemHandlers(comModule);
+    if (ret != UBSE_OK) {
+        return UBSE_ERROR;
+    }
+
     return UBSE_OK;
 }
 
@@ -1206,6 +1211,115 @@ UbseResult MemScheduleHandler::RegisterShmDetachRespHandlers(const std::shared_p
         UBSE_LOG_WARN << "Unable to register UbseMemReturnMessageHandler";
         return ret;
     }
+    return UBSE_OK;
+}
+
+UbseResult MemScheduleHandler::RegisterClosShmMemHandlers(const std::shared_ptr<UbseComModule> &comModule)
+{
+    UbseComBaseMessageHandlerPtr borrowGlobalMaster =
+        new (std::nothrow) UbseMemShareBorrowGlobalMasterMessageHandler();
+    auto ret = comModule->RegRpcService<UbseMemShareBorrowReqSimpo, UbseMemCallbackMessage>(borrowGlobalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowForwardGlobalMasterMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr attachGlobalMaster =
+        new (std::nothrow) UbseMemShareAttachGlobalMasterMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareAttachReqSimpo, UbseMemCallbackMessage>(attachGlobalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareAttachGlobalMasterMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr returnGlobalMaster =
+        new (std::nothrow) UbseMemShareReturnGlobalMasterMessageHandler();
+    ret = comModule->RegRpcService<UbseMemReturnReqSimpo, UbseMemCallbackMessage>(returnGlobalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareReturnGlobalMasterMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr borrowGlobalToExportCascadeMaster =
+        new (std::nothrow) UbseMemShareBorrowGlobalToCascadeMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowExportobjSimpo, UbseMemCallbackMessage>(borrowGlobalToExportCascadeMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowGlobalToCascadeMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr exportCascadeMasterToGlobal =
+        new (std::nothrow) UbseMemShareBorrowCascadeToGlobalMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowExportobjSimpo, UbseMemCallbackMessage>(exportCascadeMasterToGlobal);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowCascadeToGlobalMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr deleteCascadeMaster =
+        new (std::nothrow) UbseMemShareDeleteCascadeMasterMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowExportobjSimpo, UbseMemCallbackMessage>(deleteCascadeMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDeleteCascadeMasterMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr deleteCascadeMasterToGlobal =
+        new (std::nothrow) UbseMemShareDeleteCascadeToGlobalMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowExportobjSimpo, UbseMemCallbackMessage>(deleteCascadeMasterToGlobal);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDeleteCascadeToGlobalMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr attachGlobalToImportCascadeMaster =
+        new (std::nothrow) UbseMemShareAttachGlobalToCascadeMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowImportobjSimpo, UbseMemCallbackMessage>(attachGlobalToImportCascadeMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareAttachGlobalToCascadeMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr importCascadeMasterToGlobal =
+        new (std::nothrow) UbseMemShareAttachCascadeToGlobalMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowImportobjSimpo, UbseMemCallbackMessage>(importCascadeMasterToGlobal);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareAttachCascadeToGlobalMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr detachPdMaster =
+        new (std::nothrow) UbseMemShareDetachManageMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareDetachReqSimpo, UbseMemCallbackMessage>(detachPdMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDetachManageMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr detachGlobalMaster =
+        new (std::nothrow) UbseMemShareDetachGlobalMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareDetachReqSimpo, UbseMemCallbackMessage>(detachGlobalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDetachGlobalMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr detachCascadeMaster =
+        new (std::nothrow) UbseMemShareDetachCascadeMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareDetachReqSimpo, UbseMemCallbackMessage>(detachCascadeMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDetachCascadeMessageHandler";
+        return ret;
+    }
+
+    UbseComBaseMessageHandlerPtr detachCascadeMasterToGlobal =
+        new (std::nothrow) UbseMemShareDetachCascadeToGlobalMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareBorrowImportobjSimpo, UbseMemCallbackMessage>(detachCascadeMasterToGlobal);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemShareDetachCascadeToGlobalMessageHandler";
+        return ret;
+    }
+
     return UBSE_OK;
 }
 
@@ -1584,5 +1698,531 @@ uint16_t UbseMemNumaReturnRespMessageHandler::GetOpCode()
 uint16_t UbseMemNumaReturnRespMessageHandler::GetModuleCode()
 {
     return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP);
+}
+
+UbseResult UbseMemShareBorrowGlobalMasterMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                       const UbseBaseMessagePtr &rsp,
+                                                                       UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([request, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        UbseMemOperationResp resp{};
+        auto borrowReq = request->GetUbseMemShareBorrowReq();
+        UbseMemShareBorrowClos(borrowReq, resp);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareBorrowGlobalMasterMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(
+        UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_FORWARD_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareBorrowGlobalMasterMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareAttachGlobalMasterMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                       const UbseBaseMessagePtr &rsp,
+                                                                       UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareAttachReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([request, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        UbseMemOperationResp resp{};
+        UbseMemShareAttachClos(request->GetUbseMemShareAttachReq(), resp);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareAttachGlobalMasterMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(
+        UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_ATTACH_FORWARD_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareAttachGlobalMasterMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareReturnGlobalMasterMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                       const UbseBaseMessagePtr &rsp,
+                                                                       UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemReturnReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([request, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        UbseMemOperationResp resp{};
+        UbseMemShareReturnClos(request->GetUbseMemReturnReq(), resp);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareReturnGlobalMasterMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(
+        UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_RETURN_FORWARD_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareReturnGlobalMasterMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+uint16_t UbseMemShareBorrowGlobalToCascadeMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_GLOBAL_MASTER_TO_EXPORT_CASCADE_MASTER);
+}
+
+uint16_t UbseMemShareBorrowGlobalToCascadeMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareBorrowGlobalToCascadeMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto exportObj = request->GetUbseMemShareBorrowExportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow exportObj is invalid, please check the exportObj, name: " << exportObj.req.name;
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([traceId, exportObj]() {
+        TraceContext::SetTraceId(traceId);
+        CascadeMasterHandlerGlobalBorrowExportCallback(exportObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareBorrowCascadeToGlobalMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_BORROW_EXPORT_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareBorrowCascadeToGlobalMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareBorrowCascadeToGlobalMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto exportObj = request->GetUbseMemShareBorrowExportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow exportObj is invalid, please check the exportObj, name: " << exportObj.req.name;
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([traceId, exportObj]() {
+        TraceContext::SetTraceId(traceId);
+        GlobalMasterHandlerBorrowExportCallback(exportObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDeleteCascadeMasterMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DELETE_CASCADE_MASTER_HANDLE);
+}
+
+uint16_t UbseMemShareDeleteCascadeMasterMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDeleteCascadeMasterMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto exportObj = request->GetUbseMemShareBorrowExportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow exportObj is invalid, please check the exportObj, name: " << exportObj.req.name;
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([traceId, exportObj]() {
+        TraceContext::SetTraceId(traceId);
+        CascadeMasterHandlerGlobalDeleteCallback(exportObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDeleteCascadeToGlobalMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DELETE_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareDeleteCascadeToGlobalMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDeleteCascadeToGlobalMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                               const UbseBaseMessagePtr &rsp,
+                                                                               UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowExportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr (delete callback to GlobalMaster)";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto exportObj = request->GetUbseMemShareBorrowExportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow exportObj is invalid (delete callback), name: " << exportObj.req.name;
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail (delete callback)";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([traceId, exportObj]() {
+        TraceContext::SetTraceId(traceId);
+        GlobalMasterHandlerDeleteExportCallback(exportObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDetachCascadeToGlobalMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_IMPORT_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareDetachCascadeToGlobalMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDetachCascadeToGlobalMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                                     const UbseBaseMessagePtr &rsp,
+                                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowImportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr (detach callback to GlobalMaster)";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto importObj = request->GetUbseMemShareBorrowImportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow importObj is invalid (detach callback), name: " << importObj.req.name;
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail (detach callback)";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([traceId, importObj]() {
+        TraceContext::SetTraceId(traceId);
+        GlobalMasterHandlerDetachImportCallback(importObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareAttachGlobalToCascadeMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_ATTACH_GLOBAL_MASTER_TO_IMPORT_CASCADE_MASTER);
+}
+
+uint16_t UbseMemShareAttachGlobalToCascadeMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareAttachGlobalToCascadeMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowImportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto importObj = request->GetUbseMemShareBorrowImportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow importObj is invalid, please check the importObj";
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    // 使用线程池异步执行
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([importObj, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        CascadeMasterHandleGlobalAttachImportCallback(importObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareAttachCascadeToGlobalMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_ATTACH_IMPORT_CASCADE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareAttachCascadeToGlobalMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareAttachCascadeToGlobalMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareBorrowImportobjSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto importObj = request->GetUbseMemShareBorrowImportObj();
+    if (auto ret = ShareBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Share borrow importObj is invalid, please check the importObj";
+        response->data = SYNC_FAILED;
+        return ret;
+    }
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    // 使用线程池异步执行
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([importObj, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        GlobalMasterHandlerAttachImportObjCallback(importObj);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDetachManageMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_CASCADE_MASTER_TO_MANAGE_MASTER);
+}
+
+uint16_t UbseMemShareDetachManageMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDetachManageMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareDetachReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto shareDetachReq = request->GetUbseMemShareDetachReq();
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    // 使用线程池异步执行
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([shareDetachReq, traceId, realRequestNodeId = ctx->GetDstId()]() {
+        TraceContext::SetTraceId(traceId);
+        UbseMemOperationResp resp{};
+        UbseMemShareManageDetach(shareDetachReq, resp, realRequestNodeId);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDetachGlobalMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_MANAGE_MASTER_TO_GLOBAL_MASTER);
+}
+
+uint16_t UbseMemShareDetachGlobalMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDetachGlobalMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareDetachReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto shareDetachReq = request->GetUbseMemShareDetachReq();
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    // 使用线程池异步执行
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([shareDetachReq, traceId, realRequestNodeId = ctx->GetDstId()]() {
+        TraceContext::SetTraceId(traceId);
+        UbseMemOperationResp resp{};
+        UbseMemShareGlobalDetach(shareDetachReq, resp, realRequestNodeId);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
+}
+
+uint16_t UbseMemShareDetachCascadeMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_CASCADE_MASTER_HANDLE);
+}
+
+uint16_t UbseMemShareDetachCascadeMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemShareDetachCascadeMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                     const UbseBaseMessagePtr &rsp,
+                                                                     UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareDetachReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto shareDetachReq = request->GetUbseMemShareDetachReq();
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        response->data = SYNC_FAILED;
+        return UBSE_ERROR;
+    }
+    std::string traceId = TraceContext::GetTraceId();
+    resourceExecutor->Execute([shareDetachReq, traceId]() {
+        TraceContext::SetTraceId(traceId);
+        CascadeMasterHandleGlobalDetachImportCallback(shareDetachReq);
+        TraceContext::Clear();
+    });
+    response->data = SYNC_SUCCESS;
+    return UBSE_OK;
 }
 } // namespace ubse::mem::controller
