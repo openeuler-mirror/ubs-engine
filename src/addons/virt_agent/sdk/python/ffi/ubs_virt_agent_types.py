@@ -21,7 +21,7 @@ OVERCOMMITMENT_RATIO_MAX = 128
 MIGRATE_WATER_LINE_MAX = 128
 MSG_MAX_LENGTH = 128
 VIRT_MAX_NODE_ID_LENGTH = 48
-MAX_BORROW_ID_COUNT = 2000
+MAX_BORROW_ID_COUNT = 100
 MAX_VM_NUM = 300
 MAX_BORROW_ID_LENGTH = 128
 # Memory Borrow (Big Memory VM) structures from mem_fragmentation_msg.h
@@ -156,7 +156,7 @@ class MemMigrateStrategy(ctypes.Structure):
 
 
 # Borrow Strategy
-MAX_DEST_PARAM_SIZE = 2000
+MAX_DEST_PARAM_SIZE = 100
 MAX_DEST_NUMA_NUM = 1
 
 

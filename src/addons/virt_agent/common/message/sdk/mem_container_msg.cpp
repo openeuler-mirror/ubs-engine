@@ -136,7 +136,7 @@ VmResult MemContainerPidMemInfoOutputMsg::Deserialize()
         size_t numaSize = 0;
         in >> numaSize;
         for (size_t j = 0; j < numaSize; ++j) {
-            uint16_t localNumaId;
+            uint16_t localNumaId = 0;
             in >> localNumaId;
             info.localNumaIds.push_back(localNumaId);
         }

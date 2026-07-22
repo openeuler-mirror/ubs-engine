@@ -167,25 +167,6 @@ virt_agent_ret_t ubse_mem_borrow_strategy_msg_unpack(uint8_t* buffer, uint32_t l
     return VA_SUCCESS;
 }
 
-void free_borrow_ids_ptr(char*** borrow_ids_ptr, size_t length)
-{
-    if (borrow_ids_ptr == nullptr || *borrow_ids_ptr == nullptr) {
-        return;
-    }
-
-    char** array = *borrow_ids_ptr;
-
-    for (size_t i = 0; i < length; ++i) {
-        if (array[i] != nullptr) {
-            free(array[i]);
-            array[i] = nullptr;
-        }
-    }
-
-    free(array);
-    *borrow_ids_ptr = nullptr;
-}
-
 virt_agent_ret_t ubse_mem_borrow_execute_msg_unpack(uint8_t* buffer, uint32_t len, mem_borrow_result_c* result)
 {
     IPC_LOG_INFO << "ubse_mem_borrow_execute_msg_unpack start.";
@@ -308,6 +289,9 @@ VmResult BorrowParamFromCStyle(const mem_borrow_param_s* src, BorrowParam& borro
     if (src == nullptr) {
         return VM_ERROR;
     }
+    if (src->numa_len > MAX_NUMA_NUM) {
+        return VM_INVALID_PARAM_ERROR;
+    }
     CharArrToString(src->src_nid, VIRT_MEM_MAX_NODE_ID_LENGTH, borrowParam.nodeId);
     if (borrowParam.nodeId.empty()) {
         return VM_ERROR;
@@ -356,7 +340,9 @@ VmResult PageSwapEnableFromCStyle(const page_swap_enable_s* page_swap_enable,
     if (page_swap_enable == nullptr) {
         return VM_ERROR;
     }
-
+    if (page_swap_enable->page_swap_pairs_len > MAX_NUMA_NUM) {
+        return VM_INVALID_PARAM_ERROR;
+    }
     pageSwapPairs.reserve(page_swap_enable->page_swap_pairs_len);
     for (uint8_t i = 0; i < page_swap_enable->page_swap_pairs_len; ++i) {
         const auto& [local_numas, local_numa_len, remote_numas, remote_numa_len] = page_swap_enable->page_swap_pairs[i];

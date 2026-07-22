@@ -24,6 +24,7 @@ extern "C" {
 #define SDK_NO_128 128
 #define SDK_NO_256 256
 #define SDK_NO_2048 2048
+#define SDK_MAX_CONTAINER_NUM 64
 
 typedef enum
 {

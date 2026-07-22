@@ -115,7 +115,7 @@ VmResult LibvirtHelper::DomainAbortJobFlags(const string& uuid, VirDomainAbortJo
     }
     const auto flagsToUInt = static_cast<unsigned int>(flags);
     UBSE_LOG_INFO << "[virDomainAbortJobFlags] begin, uuid = " << uuid << ", flags = " << flagsToUInt;
-    VmResult ret;
+    VmResult ret = VM_ERROR;
     for (int tryCount = 1; tryCount <= tryTimes; tryCount++) {
         ret = virDomainAbortJobFlags(domain, flags);
         if (ret != VM_OK) {

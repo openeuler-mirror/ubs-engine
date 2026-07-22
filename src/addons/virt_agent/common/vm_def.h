@@ -26,12 +26,13 @@ constexpr uint32_t BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_MASTER = 18; // big mem vm g
 constexpr uint32_t BIG_MEM_VM_GET_NODE_NUMA_INFO_TO_DEST = 19;   // big mem vm get numa info message to dest
 constexpr uint32_t MAX_NUMA_NUM = 512;                           // 512 for max numa number;
 constexpr uint32_t MAX_VM_NUM = 300;                             // 300 for max VM number;
-constexpr uint32_t MAX_BORROW_ID_COUNT = 2000;
+constexpr uint32_t MAX_BORROW_ID_COUNT = 100;
 constexpr uint32_t MAX_BORROW_ID_LENGTH = 128;
 constexpr uint32_t MAX_NODE_NUM = 32;
 constexpr uint32_t MAX_DEST_PARAM_SIZE = MAX_BORROW_ID_COUNT;
 constexpr uint32_t MAX_DEST_NUMA_NUM = 1;
 constexpr uint32_t MAX_UUID_LENGTH = 37;
+constexpr uint32_t MAX_CONTAINER_NUM = 64;
 constexpr int MB_TO_BYTES = 1048576;
 constexpr int GB_TO_BYTES = 1073741824;
 
