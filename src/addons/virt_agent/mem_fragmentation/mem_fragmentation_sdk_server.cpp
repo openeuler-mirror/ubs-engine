@@ -18,8 +18,12 @@
 #include <ubse_logger.h>
 #include <ubse_node.h>
 #include <ubse_security.h>
+#include <condition_variable>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 #include "hugepage_handler.h"
 #include "mem_fragmentation_msg.h"
@@ -623,6 +627,42 @@ VmResult VirtMemFragSdk::SetSrcNodeHugePage(const MemBorrowExecuteResult& borrow
     return ret;
 }
 
+VmResult VirtMemFragSdk::SetSrcNodeHugePageGlobal()
+{
+    UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal start (global reconciliation).";
+    // Get all borrow debts from the system, not dependent on input presentNumaIds
+    std::map<uint16_t, uint64_t> numaBorrowedSizeMap;
+    VmResult ret = MemHandler::GetAllBorrowedSizeMap(numaBorrowedSizeMap);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to get all borrowed size map, " << FormatRetCode(ret);
+        return ret;
+    }
+    if (numaBorrowedSizeMap.empty()) {
+        UBSE_LOG_INFO << "No active borrow debt, skip hugepage setting.";
+        return VM_OK;
+    }
+    ret = ChangeOverrideCapability(true);
+    if (ret != VM_OK) {
+        UBSE_LOG_ERROR << "Failed to call ChangeOverrideCapability.";
+        (void)ChangeOverrideCapability(false);
+        return VM_ERROR;
+    }
+    for (const auto& [key, value] : numaBorrowedSizeMap) {
+        if (value == 0) {
+            continue;
+        }
+        ret = HugePageHandler::SetHugePages(key, value);
+        if (ret != VM_OK) {
+            UBSE_LOG_ERROR << "Failed to set hugepages, remoteNumaId=" << key << FormatRetCode(ret);
+            (void)ChangeOverrideCapability(false);
+            return ret;
+        }
+    }
+    (void)ChangeOverrideCapability(false);
+    UBSE_LOG_INFO << "SetSrcNodeHugePageGlobal end.";
+    return ret;
+}
+
 void FillVMMemoryBorrowParam(const borrow_strategy_c& borrowMsg, const uid_t uid, VMMemoryBorrowParam& vmParam)
 {
     vmParam.srcParam.srcNid = borrowMsg.src_host_id;
@@ -1024,6 +1064,10 @@ uint32_t VirtMemFragSdk::MemTaskQuery(const UbseIpcMessage& req, const UbseReque
         if (convertRet != VM_OK) {
             UBSE_LOG_ERROR << "ConvertTaskResult failed for taskId=" << taskId << ", ret=" << FormatRetCode(convertRet);
             return VM_ERROR;
+        }
+        // RUNNING tasks should not return memBorrowResult to avoid ambiguity of "incomplete + has result" seen by clients
+        if (taskInfo.status == AsyncTaskStatus::RUNNING) {
+            taskInfoC.memBorrowResult = {};
         }
     }
 
@@ -1733,34 +1777,46 @@ VmResult VirtMemFragSdk::MemBorrowStrategyByRMRS(const mem_fragmentation::Borrow
     return VM_OK;
 }
 
-VmResult VirtMemFragSdk::RunBorrowExec(const string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
-                                       mem_borrow_result_c& memBorrowRstC)
+VmResult VirtMemFragSdk::ExecBorrowCore(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
+                                        MemBorrowExecuteResult& memBorrowExecRst)
 {
     ThreadTaskManager::GetInstance().SetTaskThreadId(taskId);
-    UBSE_LOG_INFO << "RunBorrowExec start. taskId=" << taskId;
-    std::string errMsg{};
+    UBSE_LOG_INFO << "ExecBorrowCore start. taskId=" << taskId;
     const auto UBSRMRSMemBorrowExecute = MempoolingModule::UBSRMRSMemBorrowExecute();
     if (UBSRMRSMemBorrowExecute == nullptr) {
-        errMsg = "UBSRMRSMemBorrowExecute ptr is nullptr.";
+        const std::string errMsg = "UBSRMRSMemBorrowExecute ptr is nullptr.";
         ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
-        UBSE_LOG_ERROR << "RunBorrowExec failed. taskId=" << taskId << ". errMsg=" << errMsg;
+        UBSE_LOG_ERROR << "ExecBorrowCore failed. taskId=" << taskId << ". errMsg=" << errMsg;
         return VM_ERROR;
     }
     VmResult ret{};
-    MemBorrowExecuteResult memBorrowExecRst{};
     try {
         ret = UBSRMRSMemBorrowExecute(memBorrowStrategyRst.srcParam, memBorrowStrategyRst.destParam, memBorrowExecRst);
         if (ret != VM_OK) {
-            errMsg = "UBSRMRSMemBorrowExecute failed.";
+            const std::string errMsg = "UBSRMRSMemBorrowExecute failed.";
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, ret, errMsg);
             UBSE_LOG_ERROR << errMsg;
             return VM_ERROR;
         }
     } catch (const std::exception& e) {
-        errMsg = "Call UBSRMRSMemBorrowExecute Exception. ret=" + std::string(e.what());
+        const std::string errMsg = "Call UBSRMRSMemBorrowExecute Exception. ret=" + std::string(e.what());
         ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
         UBSE_LOG_ERROR << errMsg;
         return VM_ERROR;
+    }
+    UBSE_LOG_INFO << "ExecBorrowCore end. taskId=" << taskId;
+    return VM_OK;
+}
+
+VmResult VirtMemFragSdk::SyncRunBorrowExec(const string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
+                                           mem_borrow_result_c& memBorrowRstC)
+{
+    UBSE_LOG_INFO << "SyncRunBorrowExec start. taskId=" << taskId;
+    std::string errMsg{};
+    MemBorrowExecuteResult memBorrowExecRst{};
+    VmResult ret = ExecBorrowCore(taskId, memBorrowStrategyRst, memBorrowExecRst);
+    if (ret != VM_OK) {
+        return ret;
     }
     ret = SetSrcNodeHugePage(memBorrowExecRst);
     if (ret != VM_OK) {
@@ -1782,7 +1838,7 @@ VmResult VirtMemFragSdk::RunBorrowExec(const string& taskId, const MemBorrowStra
         UBSE_LOG_ERROR << errMsg;
         return VM_ERROR;
     }
-    UBSE_LOG_INFO << "RunBorrowExec end. taskId=" << taskId;
+    UBSE_LOG_INFO << "SyncRunBorrowExec end. taskId=" << taskId;
     ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
     return VM_OK;
 }
@@ -1805,7 +1861,7 @@ VmResult VirtMemFragSdk::SyncMemBorrowExec(const std::vector<MemBorrowStrategyRe
             UBSE_LOG_ERROR << "SyncMemBorrowExec Exception, taskId=" << taskId << ", error=" << errMsg;
             return VM_ERROR;
         }
-        ret = RunBorrowExec(taskId, borrowStrategyRst, memBorrowRstC);
+        ret = SyncRunBorrowExec(taskId, borrowStrategyRst, memBorrowRstC);
         if (ret != VM_OK) {
             errMsg = "SyncMemBorrowExec failed. taskId=" + taskId + ", " + FormatRetCode(ret);
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
@@ -1817,24 +1873,120 @@ VmResult VirtMemFragSdk::SyncMemBorrowExec(const std::vector<MemBorrowStrategyRe
     return VM_OK;
 }
 
+void VirtMemFragSdk::AsyncBorrowCountDown(std::shared_ptr<AsyncBorrowCtx> ctx)
+{
+    std::lock_guard<std::mutex> lk(ctx->mux);
+    if (--ctx->pendingCount == 0) {
+        ctx->cv.notify_one();
+    }
+}
+
+void VirtMemFragSdk::AsyncBorrowWorker(std::shared_ptr<AsyncBorrowCtx> ctx, const std::string& taskId,
+                                       const MemBorrowStrategyResult& borrowStrategyRst)
+{
+    MemBorrowExecuteResult memBorrowExecRst{};
+    VmResult ret = ExecBorrowCore(taskId, borrowStrategyRst, memBorrowExecRst);
+    if (ret != VM_OK) {
+        // phase-1 failed: borrow thread marks itself as FAILED (already marked in ExecBorrowCore), not added to successTaskIds
+        UBSE_LOG_ERROR << "phase-1 failed, taskId=" << taskId << ", ret=" << ret;
+        AsyncBorrowCountDown(ctx);
+        return;
+    }
+    // phase-1 succeeded: ConvertToLegacyResult + SetMemBorrowResult remain in place
+    mem_borrow_result_c memBorrowRstC{};
+    ret = ConvertToLegacyResult(memBorrowExecRst, memBorrowRstC);
+    if (ret != VM_OK) {
+        const std::string errMsg = "ConvertToLegacyResult failed. taskId=" + taskId;
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, ret, errMsg);
+        UBSE_LOG_ERROR << errMsg;
+        AsyncBorrowCountDown(ctx);
+        return;
+    }
+    if (ret = ThreadTaskManager::GetInstance().SetMemBorrowResult(taskId, memBorrowRstC); ret != VM_OK) {
+        const std::string errMsg = "SetMemBorrowResult failed. " + FormatRetCode(ret);
+        ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
+        UBSE_LOG_ERROR << errMsg;
+        AsyncBorrowCountDown(ctx);
+        return;
+    }
+    UBSE_LOG_INFO << "phase-1 done, taskId=" << taskId << ", entering successTaskIds.";
+    // Add to successTaskIds and count_down to wake up watcher
+    std::lock_guard<std::mutex> lk(ctx->mux);
+    ctx->successTaskIds.push_back(taskId);
+    if (--ctx->pendingCount == 0) {
+        ctx->cv.notify_one();
+    }
+}
+
+void VirtMemFragSdk::AsyncBorrowWatcher(std::shared_ptr<AsyncBorrowCtx> ctx)
+{
+    try {
+        UBSE_LOG_INFO << "AsyncMemBorrowExec watcher waiting for " << ctx->pendingCount << " borrow threads.";
+        {
+            std::unique_lock<std::mutex> lk(ctx->mux);
+            ctx->cv.wait(lk, [&ctx] { return ctx->pendingCount == 0; });
+        }
+        std::vector<std::string> successIds;
+        {
+            std::lock_guard<std::mutex> lk(ctx->mux);
+            successIds = ctx->successTaskIds;
+        }
+        UBSE_LOG_INFO << "All borrow threads done, successCount=" << successIds.size()
+                      << ", starting phase-2 SetSrcNodeHugePageGlobal.";
+        VmResult hpRet = SetSrcNodeHugePageGlobal();
+        if (hpRet == VM_OK) {
+            UBSE_LOG_INFO << "phase-2 hugepage success, marking " << successIds.size() << " tasks SUCCESS.";
+            for (const auto& tid : successIds) {
+                ThreadTaskManager::GetInstance().UpdateTaskStatus(tid, AsyncTaskStatus::SUCCESS, VM_OK);
+            }
+        } else {
+            UBSE_LOG_ERROR << "phase-2 hugepage failed, ret=" << hpRet << ", marking " << successIds.size()
+                           << " tasks FAILED.";
+            for (const auto& tid : successIds) {
+                ThreadTaskManager::GetInstance().UpdateTaskStatus(tid, AsyncTaskStatus::FAILED, hpRet,
+                                                                  "SetHugePage failed");
+            }
+        }
+    } catch (const std::exception& e) {
+        UBSE_LOG_ERROR << "watcher exception: " << e.what() << ", marking remaining tasks FAILED.";
+        std::vector<std::string> successIds;
+        {
+            std::lock_guard<std::mutex> lk(ctx->mux);
+            successIds = ctx->successTaskIds;
+        }
+        for (const auto& tid : successIds) {
+            ThreadTaskManager::GetInstance().UpdateTaskStatus(tid, AsyncTaskStatus::FAILED, VM_ERROR,
+                                                              "watcher exception");
+        }
+    }
+}
+
 VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult>& borrowStrategyRsts,
                                             std::vector<mem_borrow_result_c>& memBorrowRstCs)
 {
+    if (borrowStrategyRsts.empty()) {
+        UBSE_LOG_INFO << "AsyncMemBorrowExec empty strategy, skip.";
+        return VM_OK;
+    }
+
+    // Shared context: pass successTaskIds between borrow threads and watcher thread + synchronization
+    auto ctx = std::make_shared<AsyncBorrowCtx>();
+    ctx->pendingCount = static_cast<int>(borrowStrategyRsts.size());
+
+    // Watcher thread: run phase-2 (global hugepage reconciliation + status marking) after all borrow threads complete
+    std::thread(&VirtMemFragSdk::AsyncBorrowWatcher, ctx).detach();
+
     for (const auto& borrowStrategyRst : borrowStrategyRsts) {
         const std::string taskId = ThreadTaskManager::GetInstance().AddTask("memborrow");
         if (taskId.empty()) {
             UBSE_LOG_ERROR << "Failed to create task for nodeId=" << borrowStrategyRst.srcParam.srcNid;
+            // Must count_down even if task creation fails, otherwise watcher will wait forever
+            AsyncBorrowCountDown(ctx);
             return VM_ERROR;
         }
         UBSE_LOG_INFO << "AsyncMemBorrowExec start, taskId=" << taskId;
         try {
-            std::thread(
-                [](const std::string& localTaskId, const MemBorrowStrategyResult& localBorrowStrategyRst) {
-                    mem_borrow_result_c _memBorrowRstC{};
-                    RunBorrowExec(localTaskId, localBorrowStrategyRst, _memBorrowRstC);
-                },
-                taskId, borrowStrategyRst)
-                .detach();
+            std::thread(&VirtMemFragSdk::AsyncBorrowWorker, ctx, taskId, borrowStrategyRst).detach();
             mem_borrow_result_c memBorrowRstC{};
             if (const auto ret = StringToC(memBorrowRstC.task_id, taskId, MEM_TASK_ID_MAX); ret != VM_OK) {
                 const std::string errMsg = "Task id convert to c failed.";
@@ -1848,6 +2000,8 @@ VmResult VirtMemFragSdk::AsyncMemBorrowExec(const vector<MemBorrowStrategyResult
             const std::string errMsg = std::string("Exception in create Thread: ") + e.what();
             ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::FAILED, VM_ERROR, errMsg);
             UBSE_LOG_ERROR << "AsyncMemBorrowExec Exception, taskId=" << taskId << ", error=" << e.what();
+            // Thread not started, main loop must count_down, otherwise watcher will wait forever
+            AsyncBorrowCountDown(ctx);
             return VM_ERROR;
         }
     }

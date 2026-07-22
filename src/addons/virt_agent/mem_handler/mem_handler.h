@@ -82,6 +82,7 @@ public:
     static VmResult TransNotify(const std::string& notifyMessage, Notify& notify);
     static VmResult GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
                                        std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
+    static VmResult GetAllBorrowedSizeMap(std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
     static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int>& borrowInfo);
 
     static uint64_t SizeByte2Mb(uint64_t size)
