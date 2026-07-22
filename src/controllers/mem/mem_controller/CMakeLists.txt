@@ -31,6 +31,9 @@ add_library(mem_plugin SHARED
         ubse_mem_agent_task_manager.cpp
         ubse_mem_advice.cpp
         logging_lock_guard.cpp
+        ubse_mem_residual_decoder.cpp
+        ubse_init_ledger_state.cpp
+        ubse_sign_token_bucket.cpp
 )
 set(MEM_PLUGIN_DEP_TARGETS
     ubse_controller_rpc ubse_controller_message ubse_controller_api ubse_mem_controller_debt

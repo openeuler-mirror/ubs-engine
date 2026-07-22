@@ -46,6 +46,8 @@ constexpr const char *TRUST_CERT_FILE = "/var/lib/ubse/lcne_cert/trust.pem";
 constexpr const char *SERVER_KEY_FILE = "/var/lib/ubse/lcne_cert/server_key.pem";
 constexpr const char *PASSWORD_FILE = "/var/lib/ubse/lcne_cert/key_pwd.txt";
 
+cert::UbseCertPaths UbseVsockClient::certPaths_{};
+
 UbseVsockClient::UbseVsockClient() : sockFd_(INVALID_SOCK_FD), hostPort_(HOST_PORT), hostCid_(HOST_CID)
 {
     certPaths_.serverCertFile = SERVER_CERT_FILE;

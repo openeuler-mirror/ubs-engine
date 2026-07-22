@@ -17,23 +17,48 @@
 
 namespace ubse::it::tests::topo {
 
-// 拓扑查询测试：验证display topo -t cpu返回完整拓扑信息，错误参数返回失败
-void RunQueryNodeTopo001(ubse::it::infra::ItCluster& cluster, const std::string& nodeId);
+// ==================== P0 用例 ====================
 
-// LCNE vs SDK TopoNodeList：对比每个slot的socketId集合
-void RunLcneVsSdkTopoNodeList001(ubse::it::infra::ItCluster& cluster);
+// P0-NodeList-Ok-01: 单节点查询 + LCNE 比对
+void RunP0NodeListOk01(ubse::it::infra::ItCluster& cluster);
 
-// LCNE vs SDK TopoNodeLocalGet：本地节点socketId与LCNE对应slot一致
-void RunLcneVsSdkTopoNodeLocalGet001(ubse::it::infra::ItCluster& cluster);
+// P0-NodeList-NullPtr-01: 空指针, 返回 NULL_POINTER
+void RunP0NodeListNullPtr01(ubse::it::infra::ItCluster& cluster);
 
-// LCNE vs SDK TopoLinkList：对比链路连接
-void RunLcneVsSdkTopoLinkList001(ubse::it::infra::ItCluster& cluster);
+// P0-NodeList-Ok-02: 多节点查询 + LCNE 比对
+void RunP0NodeListOk02(ubse::it::infra::ItCluster& cluster);
+
+// P0-LocalGet-Ok-01: 查询本节点 + LCNE 比对
+void RunP0LocalGetOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-LocalGet-NullPtr-01: 空指针, 返回 NULL_POINTER
+void RunP0LocalGetNullPtr01(ubse::it::infra::ItCluster& cluster);
+
+// P0-LinkList-Ok-01: 双节点链路查询 + LCNE 比对
+void RunP0LinkListOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-LinkList-Fld-01: 字段校验, socket_id/port_id 等非空
+void RunP0LinkListFld01(ubse::it::infra::ItCluster& cluster);
+
+// P0-LinkList-NullPtr-01: 空指针, 返回 NULL_POINTER
+void RunP0LinkListNullPtr01(ubse::it::infra::ItCluster& cluster);
+
+// ==================== CLI 用例 ====================
+
+// CLI拓扑查询：验证display topo -t cpu返回完整信息，错误参数返回失败
+void RunP0CliTopoCpuOk01(ubse::it::infra::ItCluster& cluster, const std::string& nodeId);
 
 // LCNE vs CLI display topo -t cpu：对比链路连接
-void RunLcneVsCliTopoCpu001(ubse::it::infra::ItCluster& cluster);
+void RunP1CliTopoCpuCrossConsist01(ubse::it::infra::ItCluster& cluster);
 
 // LCNE logic-entities vs CLI display cluster：对比每个节点的GUID
-void RunLcneVsCliClusterGuid001(ubse::it::infra::ItCluster& cluster);
+void RunP0CliClusterOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliNode-Ok-01: CLI display node 查询本节点，验证 nodeId/role/state 非空
+void RunP0CliNodeOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliNode-BadParam-01: CLI display node -n 999 不存在的 nodeId 报错
+void RunP0CliNodeBadParam01(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::topo
 

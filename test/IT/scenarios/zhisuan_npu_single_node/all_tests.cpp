@@ -15,19 +15,26 @@
 
 using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
 
+// ==================== NPU 测试 ====================
+
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
 {
     ubse::it::tests::npu::RunDeviceListQueryTest(Cluster());
 }
 
-TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
-{
-    ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
-}
-
 TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
 {
     ubse::it::tests::npu::RunUbaTidSizeQueryTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
+{
+    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
+{
+    ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
 }
 
 TEST_F(ZhisuanNpuSingleNodeScenario, RepeatAllocAndFree)
@@ -40,12 +47,47 @@ TEST_F(ZhisuanNpuSingleNodeScenario, PreemptDevice)
     ubse::it::tests::npu::RunPreemptDeviceTest(Cluster());
 }
 
-TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
-{
-    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
-}
-
 TEST_F(ZhisuanNpuSingleNodeScenario, ConcurrentSuccess)
 {
     ubse::it::tests::npu::RunConcurrentSuccessTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UpiLegalRangeAlloc)
+{
+    ubse::it::tests::npu::RunUpiLegalRangeAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UpiMismatchAlloc)
+{
+    ubse::it::tests::npu::RunUpiMismatchAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, NonexistentGuidAlloc)
+{
+    ubse::it::tests::npu::RunNonexistentGuidAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, InvalidDevListAlloc)
+{
+    ubse::it::tests::npu::RunInvalidDevListAllocTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, NonexistentGuidFree)
+{
+    ubse::it::tests::npu::RunNonexistentGuidFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, InvalidDevListFree)
+{
+    ubse::it::tests::npu::RunInvalidDevListFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidQueryWithValidGuid)
+{
+    ubse::it::tests::npu::RunUbaTidQueryWithValidGuidTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidQueryWithInvalidGuid)
+{
+    ubse::it::tests::npu::RunUbaTidQueryWithInvalidGuidTest(Cluster());
 }

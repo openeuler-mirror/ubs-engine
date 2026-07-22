@@ -18,48 +18,51 @@
 namespace ubse::it::tests::urma_qos {
 
 // URMA QoS 创建测试：创建单优先级（pri=0, bw=100Gbps）配置
-void RunQosCreateSinglePriorityTest(ubse::it::infra::ItCluster& cluster);
+void RunP0UrmaQosCreateOk01(ubse::it::infra::ItCluster& cluster);
 
 // URMA QoS 创建+查询测试：创建双优先级配置后查询验证
-void RunQosCreateAndQueryTest(ubse::it::infra::ItCluster& cluster);
+void RunP1UrmaQosCreateGetMatch01(ubse::it::infra::ItCluster& cluster);
 
 // URMA QoS 全生命周期测试：创建→查询→删除→查询验证空
-void RunQosCreateQueryDeleteTest(ubse::it::infra::ItCluster& cluster);
+void RunP1UrmaQosLifecycle01(ubse::it::infra::ItCluster& cluster);
 
 // --- CLI 交互测试 ---
 
 // CLI 创建成功：create urma-qos --pri 0 --cir 100
-void RunCliCreateSuccessTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 创建成功（双优先级）
-void RunCliCreateDualPriTest(ubse::it::infra::ItCluster& cluster);
+void RunP1CliCreateQosParamVariant01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：缺少必要参数
-void RunCliCreateMissingParamsTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosBadParam01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：无效 priority（超出 0/1 范围）
-void RunCliCreateInvalidPriTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosInvalidVal01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：重复 priority
-void RunCliCreateDuplicatePriTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosDup01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：count 超过上限(2)
-void RunCliCreateCountExceedTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosOverCnt01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：pri/cir 数量不匹配
-void RunCliCreateMismatchTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliCreateQosBadParam02(ubse::it::infra::ItCluster& cluster);
 
 // CLI 参数验证：bandwidth 为 0
-void RunCliCreateZeroBandwidthTest(ubse::it::infra::ItCluster& cluster);
+void RunP2CliCreateQosInvalidVal01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 删除成功
-void RunCliDeleteSuccessTest(ubse::it::infra::ItCluster& cluster);
+void RunP1CliDelQosOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 查询空（未创建）
-void RunCliDisplayEmptyTest(ubse::it::infra::ItCluster& cluster);
+void RunP0CliDisplayQosOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI 全生命周期：创建→display 表格→删除→display 空
-void RunCliFullLifecycleTest(ubse::it::infra::ItCluster& cluster);
+void RunP1CliDisplayQosCrossConsist01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDelQos-NotReady-01: CLI delete urma-qos without create, expect error
+void RunP0CliDelQosNotReady01(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::urma_qos
 
