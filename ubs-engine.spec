@@ -251,7 +251,9 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libucache_plugin.so %{buil
 cp %{_builddir}/%{project_dir}/src/addons/ucache/conf/plugin_ucache.conf %{buildroot}/etc/ubse/plugins/
 
 #install ssu
+mkdir -p %{buildroot}/usr/lib64/ubse_plugin
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/bin/ubsectl-ssu %{buildroot}/usr/bin
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libssu_plugin.so %{buildroot}/usr/lib64/ubse_plugin/
 
 #install mem
 mkdir -p %{buildroot}/usr/lib64/ubse_plugin
@@ -491,6 +493,7 @@ fi
 
 %files ssu
 %defattr(755,root,root,-)
+/usr/lib64/ubse_plugin/libssu_plugin.so
 /usr/bin/ubsectl-ssu
 
 %files rmrs

@@ -60,8 +60,9 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_urma_controller
         ubse_urma_uvs
         ubse_node_mgr
-        ubse_ssu_controller
+        ssu_plugin
         ubse_ssu
+        ubse_vip
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
