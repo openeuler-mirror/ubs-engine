@@ -29,7 +29,7 @@ using namespace ubse::log;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-CORE_MODULE_IMPL(UbseVipModule, ubse::election::UbseElectionModule, ubse::config::UbseConfModule);
+OPTIONAL_MODULE_IMPL(UbseVipModule, ubse::election::UbseElectionModule, ubse::config::UbseConfModule);
 
 UbseResult UbseVipModule::Initialize()
 {
@@ -45,6 +45,15 @@ UbseResult UbseVipModule::Initialize()
         return ret;
     }
 
+    // 在 Initialize 阶段注册 election handler：VIP 拓扑序晚于 UbseElectionModule（依赖 Election），
+    // 故 Election 已 Init；又早于 Election Start（启动选主线程），故 handler 注册先于首次选主，
+    // 避免 CHANGE_TO_MASTER 丢失。
+    ret = RegisterElectionHandlers();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[VIP] RegisterElectionHandlers failed";
+        return ret;
+    }
+
     UBSE_LOG_INFO << "[VIP] Module Initialize success";
     return UBSE_OK;
 }
@@ -57,12 +66,6 @@ void UbseVipModule::UnInitialize()
 
 UbseResult UbseVipModule::Start()
 {
-    auto ret = RegisterElectionHandlers();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "[VIP] RegisterElectionHandlers failed";
-        return ret;
-    }
-
     UBSE_LOG_INFO << "[VIP] Module Start success";
     return UBSE_OK;
 }
