@@ -377,7 +377,7 @@ uint32_t UbseMemNumaBorrow(const UbseMemNumaBorrowReq& req, UbseMemOperationResp
     UpdateNumaMemDebtInfoMap(importObj, exportObj, name);
     if (const auto res = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
         res != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::NUMA, req.size,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_EX_SEND_FAILED, name, MemType::NUMA, req.size,
                             importObj.algoResult.exportNumaInfos[0].nodeId, requestNodeId, requestNodeId});
         return HandleSendNumaExportError(resp, req, importObj, exportObj);
     }
@@ -664,7 +664,7 @@ uint32_t NumaExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseM
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
         NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendNumaImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_IM_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
                                 exportNodeId, importNodeId, importNodeId});
             UBSE_LOG_ERROR << "Failed to send numa import, name=" << name << ", requestId=" << exportObj.req.requestId;
             return NumaExportRollback(exportObj, importObj, resp, name, exportNodeId);
@@ -720,8 +720,8 @@ uint32_t NumaExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseM
         return UBSE_OK;
     }
     if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::NUMA, exportObj.req.size, exportNodeId,
-                            importNodeId, requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::NUMA, exportObj.req.size,
+                            exportNodeId, importNodeId, requestNodeId});
         return ret;
     }
     return UBSE_OK;
@@ -955,7 +955,7 @@ uint32_t NumaImportExpectSuccessMasterCallBack(UbseMemOperationResp& resp, const
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_BORROW);
         if (ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
                                 exportNodeId, importNodeId, importNodeId});
         }
         return ret;
@@ -1007,8 +1007,8 @@ static uint32_t HandleSingleImportDeletion(UbseMemOperationResp& resp, const std
 
     uint32_t ret;
     if (ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice(
-            {MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::NUMA, 0, "", req.importNodeId, req.importNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::NUMA, 0, "", req.importNodeId,
+                            req.importNodeId});
     }
     return ret;
 }
@@ -1050,8 +1050,8 @@ static uint32_t HandleImportDestroyedSuccess(UbseMemOperationResp& resp, const s
         UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemNumaBorrowExportObj>().PutResource(exportNodeId, exportKey,
                                                                                               exportObj);
         if (auto ret = SendNumaExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId, importNodeId,
-                                importNodeId});
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId,
+                                importNodeId, importNodeId});
             return DealSendNumaUnExportObjFailed(resp, name, exportObj);
         }
         return UBSE_OK;
@@ -1162,7 +1162,7 @@ uint32_t NumaReturnExistImport(UbseMemNumaBorrowImportObj& importObj, bool hasEx
         exportObj.req.requestId = req.requestId;
         if (auto ret = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId);
             ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId,
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId,
                                 requestNodeId, requestNodeId});
             DealSendNumaUnExportObjFailed(resp, name, exportObj);
             return UBSE_ERROR;
@@ -1175,8 +1175,8 @@ uint32_t NumaReturnExistImport(UbseMemNumaBorrowImportObj& importObj, bool hasEx
     importObj.isDestroyedReportReceived = false;
     NumaImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     if (SendNumaImportObj(importObj, true, importObj.req.importNodeId) != UBSE_OK) {
-        BorrowFailedAdvice(
-            {MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId, requestNodeId, requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_IM_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId,
+                            requestNodeId, requestNodeId});
         return DealSendNumaUnImportObjFailed(importObj, req, resp, name);
     }
     return UBSE_OK;
@@ -1202,7 +1202,7 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq& req, UbseMemOperationR
                                           MemOperationType::NUMA_RETURN);
     }
     if (auto ret = SendNumaExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::NUMA, 0,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, req.name, MemType::NUMA, 0,
                             exportObj.algoResult.exportNumaInfos[0].nodeId, req.requestNodeId, req.requestNodeId});
         return DealSendNumaUnExportObjFailed(resp, req.name, exportObj);
     }
@@ -1215,8 +1215,8 @@ static uint32_t ReturnFailed(const UbseMemReturnReq& req, UbseMemOperationResp& 
     auto ret =
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, errMsg, errCode, MemOperationType::NUMA_RETURN);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::NUMA, 0, "", req.requestNodeId,
-                            req.requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, req.name, MemType::NUMA, 0, "",
+                            req.importNodeId, req.requestNodeId});
     }
     return ret;
 }
