@@ -136,11 +136,124 @@ void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_NE(output.find("1"), std::string::npos);
     EXPECT_NE(output.find("2"), std::string::npos);
 
+    // 验证detail字段包含cluster state、obmm、sysSentry
+    EXPECT_NE(output.find("cluster state"), std::string::npos);
+    EXPECT_NE(output.find("obmm"), std::string::npos);
+    EXPECT_NE(output.find("sysSentry"), std::string::npos);
+
     // 验证输出不包含错误信息
     EXPECT_EQ(output.find("ERROR"), std::string::npos);
     EXPECT_EQ(output.find("Failed"), std::string::npos);
 
     IT_LOG_INFO << "CLI check memory test passed";
+}
+
+// CLI节点借入汇总查询测试
+void RunP0CliNodeBorrowOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 1. 创建NUMA内存（128M），查询node_borrow，记录size
+    ubse::it::infra::ItMemCreateInfo numaCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaCreateInfo, "it_node_borrow_numa", "128M"));
+
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrows;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrows));
+    EXPECT_GT(nodeBorrows.size(), 0);
+    std::string sizeAfterNuma = nodeBorrows[0].size;
+    EXPECT_NE(sizeAfterNuma.find("128"), std::string::npos)
+        << "Size should be 128M after NUMA creation, got: " << sizeAfterNuma;
+
+    // 2. 创建FD内存（128M），查询node_borrow，验证size累加为256M
+    ubse::it::infra::ItMemCreateInfo fdCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdCreateInfo, "it_node_borrow_fd", "128M"));
+
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrowsAfterFd;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrowsAfterFd));
+    EXPECT_GT(nodeBorrowsAfterFd.size(), 0);
+    std::string sizeAfterFd = nodeBorrowsAfterFd[0].size;
+    EXPECT_NE(sizeAfterFd.find("256"), std::string::npos) << "Size should be 256M after NUMA+FD, got: " << sizeAfterFd;
+
+    // 3. 创建SHARE内存（128M），查询node_borrow，验证size不变（share不记录size）
+    ubse::it::infra::ItMemCreateInfo shareCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareCreateInfo, "it_node_borrow_share", "128M", "1,2"));
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_node_borrow_share"));
+
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrowsAfterShare;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrowsAfterShare));
+    EXPECT_GT(nodeBorrowsAfterShare.size(), 0);
+    std::string sizeAfterShare = nodeBorrowsAfterShare[0].size;
+    EXPECT_EQ(sizeAfterShare, sizeAfterFd)
+        << "Size should not change after SHARE creation, before: " << sizeAfterFd << ", after: " << sizeAfterShare;
+
+    // 4. 清理所有内存
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_node_borrow_share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_borrow_share", "share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_borrow_fd", "fd"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_borrow_numa", "numa"));
+
+    // 5. 清理后查询，验证node_borrow为空
+    std::vector<ubse::it::infra::ItNodeBorrowInfo> emptyBorrows;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(emptyBorrows));
+    EXPECT_EQ(emptyBorrows.size(), 0) << "node_borrow should be empty after cleanup";
+
+    IT_LOG_INFO << "P0-CliNodeBorrow-Ok-01 passed";
+}
+
+// CLI节点借出汇总查询测试
+void RunP0CliNodeLendOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 1. 创建NUMA内存（128M），查询node_lend，记录size
+    ubse::it::infra::ItMemCreateInfo numaCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaCreateInfo, "it_node_lend_numa", "128M"));
+
+    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLends;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLends));
+    EXPECT_GT(nodeLends.size(), 0);
+    std::string sizeAfterNuma = nodeLends[0].size;
+    EXPECT_NE(sizeAfterNuma.find("128"), std::string::npos)
+        << "Size should be 128M after NUMA creation, got: " << sizeAfterNuma;
+
+    // 2. 创建FD内存（128M），查询node_lend，验证size累加为256M
+    ubse::it::infra::ItMemCreateInfo fdCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdCreateInfo, "it_node_lend_fd", "128M"));
+
+    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLendsAfterFd;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLendsAfterFd));
+    EXPECT_GT(nodeLendsAfterFd.size(), 0);
+    std::string sizeAfterFd = nodeLendsAfterFd[0].size;
+    EXPECT_NE(sizeAfterFd.find("256"), std::string::npos) << "Size should be 256M after NUMA+FD, got: " << sizeAfterFd;
+
+    // 3. 创建SHARE内存（128M），查询node_lend，验证size不变（share不记录size）
+    ubse::it::infra::ItMemCreateInfo shareCreateInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareCreateInfo, "it_node_lend_share", "128M", "1,2"));
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_node_lend_share"));
+
+    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLendsAfterShare;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLendsAfterShare));
+    EXPECT_GT(nodeLendsAfterShare.size(), 0);
+    std::string sizeAfterShare = nodeLendsAfterShare[0].size;
+    EXPECT_EQ(sizeAfterShare, sizeAfterFd)
+        << "Size should not change after SHARE creation, before: " << sizeAfterFd << ", after: " << sizeAfterShare;
+
+    // 4. 清理所有内存
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_node_lend_share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_lend_share", "share"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_lend_fd", "fd"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_node_lend_numa", "numa"));
+
+    // 5. 清理后查询，验证node_lend为空
+    std::vector<ubse::it::infra::ItNodeLendInfo> emptyLends;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(emptyLends));
+    EXPECT_EQ(emptyLends.size(), 0) << "node_lend should be empty after cleanup";
+
+    IT_LOG_INFO << "P0-CliNodeLend-Ok-01 passed";
 }
 
 // CLI内存操作测试（短选项）
@@ -154,6 +267,11 @@ void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, "it_test_short_opt", "128M"));
     EXPECT_EQ(createInfo.name, "it_test_short_opt");
     EXPECT_EQ(createInfo.size, "128MB");
+    int32_t numaId = std::stoi(createInfo.numaId);
+    EXPECT_GE(numaId, 0) << "numa-id should be >= 0";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "export-node should not be empty";
+    EXPECT_NE(createInfo.exportNode, "1") << "export-node should NOT be current node";
 
     // 查询内存借用详情（验证包含刚创建的记录）
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
@@ -172,36 +290,6 @@ void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster)
     }
     EXPECT_TRUE(found);
 
-    // 查询节点借用内存（使用短选项）
-    std::vector<ubse::it::infra::ItNodeBorrowInfo> nodeBorrows;
-    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeBorrow(nodeBorrows));
-    EXPECT_GT(nodeBorrows.size(), 0);
-    found = false;
-    for (const auto& info : nodeBorrows) {
-        if (ExtractNodeId(info.borrowNode) == createInfo.importNode) {
-            found = true;
-            EXPECT_EQ(ExtractNodeId(info.lendNode), createInfo.exportNode);
-            EXPECT_NE(info.size.find("128"), std::string::npos);
-            break;
-        }
-    }
-    EXPECT_TRUE(found);
-
-    // 查询节点借出内存（使用短选项）
-    std::vector<ubse::it::infra::ItNodeLendInfo> nodeLends;
-    EXPECT_IT_OK(cliInvoker.DisplayMemoryNodeLend(nodeLends));
-    EXPECT_GT(nodeLends.size(), 0);
-    found = false;
-    for (const auto& info : nodeLends) {
-        if (ExtractNodeId(info.lendNode) == createInfo.exportNode) {
-            found = true;
-            EXPECT_EQ(ExtractNodeId(info.borrowNode), createInfo.importNode);
-            EXPECT_NE(info.size.find("128"), std::string::npos);
-            break;
-        }
-    }
-    EXPECT_TRUE(found);
-
     // 删除NUMA内存（使用短选项）
     EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_short_opt", "numa"));
 
@@ -209,6 +297,60 @@ void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster)
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetailsAfterDelete;
     EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetailsAfterDelete));
     EXPECT_EQ(borrowDetailsAfterDelete.size(), 0);
+}
+
+// P0-CliCreateNuma-LinkId-Ok-01: 四节点场景，指定链路创建 NUMA，精确校验 export-node
+void RunP0CliCreateNumaLinkIdOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    using ubse::it::infra::util::ExtractNodeId;
+
+    // 1. 获取链路信息，找到从节点1出发的可用链路
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    EXPECT_IT_OK(cliInvoker.QueryTopoCpu(topoLinks));
+    EXPECT_GT(topoLinks.size(), 0);
+
+    std::string linkId;
+    std::string expectedExportNode;
+    for (const auto& link : topoLinks) {
+        if (ExtractNodeId(link.node) == "1" && link.linkId != "-") {
+            linkId = link.linkId;
+            expectedExportNode = ExtractNodeId(link.peerNode);
+            break;
+        }
+    }
+    ASSERT_FALSE(linkId.empty()) << "Should find an available link from node 1";
+
+    // 2. 指定链路创建 NUMA 内存
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, "it_test_link_id", "128M", linkId));
+    EXPECT_EQ(createInfo.name, "it_test_link_id");
+    EXPECT_EQ(createInfo.size, "128MB");
+    int32_t numaId = std::stoi(createInfo.numaId);
+    EXPECT_GE(numaId, 0) << "numa-id should be >= 0";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_EQ(createInfo.exportNode, expectedExportNode)
+        << "export-node should match peer node of specified link, expected: " << expectedExportNode;
+
+    // 3. 查询 borrow_detail，验证借入/借出节点
+    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails));
+    bool found = false;
+    for (const auto& detail : borrowDetails) {
+        if (detail.name == "it_test_link_id") {
+            found = true;
+            EXPECT_EQ(detail.type, "numa");
+            EXPECT_EQ(ExtractNodeId(detail.borrowNode), "1");
+            EXPECT_EQ(ExtractNodeId(detail.lendNode), expectedExportNode);
+            break;
+        }
+    }
+    EXPECT_TRUE(found) << "borrow_detail should contain it_test_link_id";
+
+    // 4. 清理
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_test_link_id", "numa"));
+
+    IT_LOG_INFO << "P0-CliCreateNuma-LinkId-Ok-01 passed";
 }
 
 // CLI内存操作测试（长选项）
@@ -222,6 +364,11 @@ void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(createInfo, "it_test_long_opt", "128M", "", true));
     EXPECT_EQ(createInfo.name, "it_test_long_opt");
     EXPECT_EQ(createInfo.size, "128MB");
+    int32_t numaId = std::stoi(createInfo.numaId);
+    EXPECT_GE(numaId, 0) << "numa-id should be >= 0";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "export-node should not be empty";
+    EXPECT_NE(createInfo.exportNode, "1") << "export-node should NOT be current node";
 
     // 查询内存借用详情（验证包含刚创建的记录）
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
@@ -280,7 +427,7 @@ void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster)
 }
 
 // CLI内存类型过滤查询测试：NUMA/FD/SHM全生命周期
-void RunP1CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster)
+void RunP0CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
 
@@ -320,6 +467,11 @@ void RunP1CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(attachInfo.importNode.empty());
     EXPECT_FALSE(attachInfo.exportNode.empty());
     EXPECT_FALSE(attachInfo.region.empty());
+
+    // ===== Display without filter: 验证不过滤时返回所有借用记录 =====
+    std::vector<ubse::it::infra::ItMemBorrowDetail> allBorrowDetails;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(allBorrowDetails));
+    EXPECT_GE(allBorrowDetails.size(), 3u) << "Should have at least 3 borrow records (NUMA/FD/SHARE)";
 
     // ===== Display by type filter =====
     // NUMA type
@@ -589,6 +741,17 @@ void RunP0FdCreateOverLen01(ubse::it::infra::ItCluster& cluster)
     int32_t ret = sdk.MemFdCreate(overLenName.c_str(), fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
     EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name超长应返回UBS_ERR_INVALID_ARG";
     IT_LOG_INFO << "P0-FdCreate-OverLen-01 done";
+}
+
+// P0-FdCreate-InvalidChar-01: name包含非法字符 (双节点)
+void RunP0FdCreateInvalidChar01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_fd_inv@lid!";
+    ubs_mem_fd_desc_t fdDesc{};
+    int32_t ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name包含非法字符应返回UBS_ERR_INVALID_ARG";
+    IT_LOG_INFO << "P0-FdCreate-InvalidChar-01 done";
 }
 
 // P0-FdCreate-InvalidVal-01: size < 4MB (双节点)
@@ -1491,6 +1654,17 @@ void RunP0NumaCreateOverLen01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-NumaCreate-OverLen-01 passed: ret=" << ret;
 }
 
+// P0-NumaCreate-InvalidChar-01: name包含非法字符 (双节点)
+void RunP0NumaCreateInvalidChar01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_numa_inv@lid!";
+    ubs_mem_numa_desc_t numaDesc{};
+    int32_t ret = sdk.MemNumaCreate(name, UBS_MEM_MIN_SIZE, MEM_DISTANCE_L0, &numaDesc);
+    EXPECT_EQ(ret, UBS_ERR_INVALID_ARG) << "name包含非法字符应返回UBS_ERR_INVALID_ARG";
+    IT_LOG_INFO << "P0-NumaCreate-InvalidChar-01 passed";
+}
+
 // P0-NumaCreate-InvalidVal-01: size < 4MB (双节点)
 void RunP0NumaCreateInvalidVal01(ubse::it::infra::ItCluster& cluster)
 {
@@ -2271,6 +2445,48 @@ void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster, const std::vector<s
     IT_LOG_INFO << "RunP0ShmCreateOk01 done";
 }
 
+// 单节点创建SHM成功
+void RunP0ShmCreateSingleNodeOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_single_node_ok";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    ubs_mem_nodes_t region{};
+    region.node_cnt = 1;
+    region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+
+    constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
+    IT_LOG_INFO << "Creating SHM (single node): name=" << name << ", size=" << shmSize128M;
+    int32_t ret = sdk.MemShmCreate(name, shmSize128M, usrInfo, 0, &region, nullptr);
+    ASSERT_IT_OK(ret);
+
+    // 等待就绪
+    ret = WaitForShmReady(sdk, name);
+    EXPECT_IT_OK(ret);
+
+    // 验证属性
+    ubs_mem_shm_desc_t* desc = nullptr;
+    ret = sdk.MemShmGet(name, &desc);
+    EXPECT_IT_OK(ret);
+    if (desc != nullptr) {
+        EXPECT_TRUE(desc->mem_stage == UBSE_CREATING || desc->mem_stage == UBSE_EXIST)
+            << "mem_stage should be CREATING or EXIST, actual: " << desc->mem_stage;
+        EXPECT_EQ(desc->mem_size, shmSize128M) << "mem_size should equal input size";
+        EXPECT_GT(desc->unit_size, static_cast<size_t>(0)) << "unit_size should be > 0";
+        EXPECT_STREQ(desc->name, name);
+        EXPECT_EQ(desc->export_node.slot_id, region.slot_ids[0])
+            << "export_node.slot_id should be the single node in region";
+        free(desc);
+    }
+
+    // 清理
+    ret = sdk.MemShmDelete(name);
+    EXPECT_IT_OK(ret);
+
+    IT_LOG_INFO << "P0-ShmCreate-SingleNode-Ok-01 passed";
+}
+
 // 指定provider创建 (双节点/四节点，验证export_node在provider集合中)
 // 指定provider创建 (双节点，region={1,2}, provider={2})
 void RunP0ShmCreateWithProviderOk01(ubse::it::infra::ItCluster& cluster)
@@ -2336,6 +2552,18 @@ void RunP0ShmCreateOverLen01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG);
 
     IT_LOG_INFO << "RunP0ShmCreateOverLen01 done";
+}
+
+// P0-ShmCreate-InvalidChar-01: name包含非法字符 (双节点)
+void RunP0ShmCreateInvalidChar01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    const char* name = "it_p0_shm_inv@lid!";
+    uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+    int32_t ret = sdk.MemShmCreate(name, shmSize, usrInfo, 0, nullptr, nullptr);
+    EXPECT_IT_ERROR(ret, UBS_ERR_INVALID_ARG) << "name包含非法字符应返回UBS_ERR_INVALID_ARG";
+    IT_LOG_INFO << "P0-ShmCreate-InvalidChar-01 done";
 }
 
 // size < 4MB (双节点)
@@ -3456,8 +3684,10 @@ void RunP0CliCreateFdOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(cliInvoker.CreateMemoryFd(createInfo, "it_cli_fd_ok", "128M"));
     EXPECT_EQ(createInfo.name, "it_cli_fd_ok");
     EXPECT_EQ(createInfo.size, "128MB");
-    EXPECT_FALSE(createInfo.importNode.empty());
-    EXPECT_FALSE(createInfo.exportNode.empty());
+    EXPECT_FALSE(createInfo.memIds.empty()) << "FD create should return mem-ids";
+    EXPECT_EQ(createInfo.importNode, "1") << "import-node should be current node (1)";
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "export-node should not be empty";
+    EXPECT_NE(createInfo.exportNode, "1") << "export-node should NOT be current node";
 
     // 验证 display borrow_detail 可查到
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
@@ -3505,6 +3735,8 @@ void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, "it_cli_share_ok", "128M", region));
     EXPECT_EQ(createInfo.name, "it_cli_share_ok");
     EXPECT_EQ(createInfo.size, "128MB");
+    EXPECT_FALSE(createInfo.exportNode.empty()) << "SHARE export-node should not be empty";
+    EXPECT_EQ(createInfo.region, region) << "region should match input";
 
     // 验证 display borrow_detail 可查到
     std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
@@ -3535,23 +3767,127 @@ void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster)
     IT_LOG_INFO << "P0-CliCreateShare-OverLen-01 passed";
 }
 
+// P0-CliCreateShare-NameLen47-Ok-01: name 长度=47，share 类型，4M，单节点
+void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    std::string name47(47, 's');
+    ubse::it::infra::ItMemCreateInfo createInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(createInfo, name47, "4M", "1"));
+    EXPECT_EQ(createInfo.name, name47);
+    EXPECT_EQ(createInfo.size, "4MB");
+    EXPECT_FALSE(createInfo.exportNode.empty());
+    EXPECT_FALSE(createInfo.region.empty());
+    // 清理
+    EXPECT_IT_OK(cliInvoker.DeleteMemory(name47, "share"));
+    IT_LOG_INFO << "P0-CliCreateShare-NameLen47-Ok-01 passed";
+}
+
+// P0-CliDelMem-Ok-01: 创建后删除 numa/fd/share
+void RunP0CliDelMemOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 1. 创建三种类型内存
+    ubse::it::infra::ItMemCreateInfo numaInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaInfo, "it_del_numa_ok", "128M"));
+
+    ubse::it::infra::ItMemCreateInfo fdInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdInfo, "it_del_fd_ok", "128M"));
+
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+    ubse::it::infra::ItMemCreateInfo shareInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareInfo, "it_del_share_ok", "128M", region));
+
+    // 2. 删除 numa
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_numa_ok", "numa"));
+    std::vector<ubse::it::infra::ItMemBorrowDetail> details;
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(details, "numa"));
+    for (const auto& d : details) {
+        EXPECT_NE(d.name, "it_del_numa_ok") << "numa should not exist after delete";
+    }
+
+    // 3. 删除 fd
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_fd_ok", "fd"));
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(details, "fd"));
+    for (const auto& d : details) {
+        EXPECT_NE(d.name, "it_del_fd_ok") << "fd should not exist after delete";
+    }
+
+    // 4. 删除 share
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_share_ok", "share"));
+    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(details, "share"));
+    for (const auto& d : details) {
+        EXPECT_NE(d.name, "it_del_share_ok") << "share should not exist after delete";
+    }
+
+    IT_LOG_INFO << "P0-CliDelMem-Ok-01 passed";
+}
+
+// P0-CliDelMem-NotExist-01: 删除不存在
 void RunP0CliDelMemNotExist01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    // 删除不存在的内存资源
-    auto ret = cliInvoker.DeleteMemory("it_nonexistent_mem", "numa");
-    EXPECT_NE(ret, UBS_SUCCESS) << "CLI delete non-existent memory should fail";
+    EXPECT_NE(cliInvoker.DeleteMemory("not_exist_numa", "numa"), UBS_SUCCESS);
+    EXPECT_NE(cliInvoker.DeleteMemory("not_exist_fd", "fd"), UBS_SUCCESS);
+    EXPECT_NE(cliInvoker.DeleteMemory("not_exist_share", "share"), UBS_SUCCESS);
     IT_LOG_INFO << "P0-CliDelMem-NotExist-01 passed";
 }
 
-void RunP0CliBorrowDetailEmpty01(ubse::it::infra::ItCluster& cluster)
+// P0-CliDelMem-Dup-01: 重复删除
+void RunP0CliDelMemDup01(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
-    // 没有任何借用时，查询 borrow_detail 应为空
-    std::vector<ubse::it::infra::ItMemBorrowDetail> borrowDetails;
-    EXPECT_IT_OK(cliInvoker.DisplayMemoryBorrowDetail(borrowDetails));
-    EXPECT_EQ(borrowDetails.size(), 0) << "borrow_detail should be empty when no borrow exists";
-    IT_LOG_INFO << "P0-CliBorrowDetail-Ok-01 passed";
+
+    // 创建三种类型
+    ubse::it::infra::ItMemCreateInfo numaInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryNuma(numaInfo, "it_del_dup_numa", "128M"));
+    ubse::it::infra::ItMemCreateInfo fdInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryFd(fdInfo, "it_del_dup_fd", "128M"));
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+    ubse::it::infra::ItMemCreateInfo shareInfo;
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareInfo, "it_del_dup_share", "128M", region));
+
+    // 第一次删除
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_dup_numa", "numa"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_dup_fd", "fd"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_del_dup_share", "share"));
+
+    // 第二次删除应报错
+    EXPECT_NE(cliInvoker.DeleteMemory("it_del_dup_numa", "numa"), UBS_SUCCESS);
+    EXPECT_NE(cliInvoker.DeleteMemory("it_del_dup_fd", "fd"), UBS_SUCCESS);
+    EXPECT_NE(cliInvoker.DeleteMemory("it_del_dup_share", "share"), UBS_SUCCESS);
+
+    IT_LOG_INFO << "P0-CliDelMem-Dup-01 passed";
+}
+
+// P0-CliDelMem-OverLen-01: name超长
+void RunP0CliDelMemOverLen01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    std::string overLenName(48, 'x');
+    EXPECT_NE(cliInvoker.DeleteMemory(overLenName, "numa"), UBS_SUCCESS);
+    IT_LOG_INFO << "P0-CliDelMem-OverLen-01 passed";
+}
+
+// P0-CliDelAddr-NotExist-01: 删除addr不存在
+void RunP0CliDelAddrNotExist01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    EXPECT_NE(cliInvoker.DeleteMemory("not_exist_addr", "addr"), UBS_SUCCESS);
+    IT_LOG_INFO << "P0-CliDelAddr-NotExist-01 passed";
 }
 
 void RunP0CliAttachMemNotReady01(ubse::it::infra::ItCluster& cluster)
@@ -3571,6 +3907,113 @@ void RunP0CliDetachMemNotReady01(ubse::it::infra::ItCluster& cluster)
     auto ret = cliInvoker.DetachMemory("it_nonexistent_shm");
     EXPECT_NE(ret, UBS_SUCCESS) << "CLI detach non-attached memory should fail";
     IT_LOG_INFO << "P0-CliDetachMem-NotReady-01 passed";
+}
+
+// P0-CliAttachMem-Ok-01: 创建后attach成功
+void RunP0CliAttachMemOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 创建 share 内存
+    ubse::it::infra::ItMemCreateInfo shareInfo;
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareInfo, "it_cli_attach_ok", "128M", region));
+
+    // attach
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_cli_attach_ok"));
+    EXPECT_EQ(attachInfo.name, "it_cli_attach_ok");
+    EXPECT_EQ(attachInfo.size, "128MB");
+    EXPECT_FALSE(attachInfo.memIds.empty()) << "attach should return mem-ids";
+    EXPECT_FALSE(attachInfo.importNode.empty()) << "attach should return import-node";
+
+    // 清理
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_cli_attach_ok"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_cli_attach_ok", "share"));
+    IT_LOG_INFO << "P0-CliAttachMem-Ok-01 passed";
+}
+
+// P0-CliAttachMem-Dup-01: 重复attach
+void RunP0CliAttachMemDup01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 创建 share 内存
+    ubse::it::infra::ItMemCreateInfo shareInfo;
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareInfo, "it_cli_attach_dup", "128M", region));
+
+    // 第一次 attach
+    ubse::it::infra::ItMemCreateInfo attachInfo1;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo1, "it_cli_attach_dup"));
+
+    // 第二次 attach 应失败
+    ubse::it::infra::ItMemCreateInfo attachInfo2;
+    EXPECT_NE(cliInvoker.AttachMemory(attachInfo2, "it_cli_attach_dup"), UBS_SUCCESS);
+
+    // 清理
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_cli_attach_dup"));
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_cli_attach_dup", "share"));
+    IT_LOG_INFO << "P0-CliAttachMem-Dup-01 passed";
+}
+
+// P0-CliAttachMem-OverLen-01: name超长
+void RunP0CliAttachMemOverLen01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    std::string overLenName(48, 'x');
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_NE(cliInvoker.AttachMemory(attachInfo, overLenName), UBS_SUCCESS);
+    IT_LOG_INFO << "P0-CliAttachMem-OverLen-01 passed";
+}
+
+// P0-CliDetachMem-Ok-01: attach后detach成功
+void RunP0CliDetachMemOk01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+
+    // 创建 share 内存
+    ubse::it::infra::ItMemCreateInfo shareInfo;
+    auto nodeIds = cluster.GetNodeIds();
+    std::string region;
+    for (size_t i = 0; i < nodeIds.size(); i++) {
+        if (i > 0)
+            region += ",";
+        region += nodeIds[i];
+    }
+    EXPECT_IT_OK(cliInvoker.CreateMemoryShare(shareInfo, "it_cli_detach_ok", "128M", region));
+
+    // attach
+    ubse::it::infra::ItMemCreateInfo attachInfo;
+    EXPECT_IT_OK(cliInvoker.AttachMemory(attachInfo, "it_cli_detach_ok"));
+
+    // detach
+    EXPECT_IT_OK(cliInvoker.DetachMemory("it_cli_detach_ok"));
+
+    // 清理
+    EXPECT_IT_OK(cliInvoker.DeleteMemory("it_cli_detach_ok", "share"));
+    IT_LOG_INFO << "P0-CliDetachMem-Ok-01 passed";
+}
+
+// P0-CliDetachMem-OverLen-01: name超长
+void RunP0CliDetachMemOverLen01(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    std::string overLenName(48, 'x');
+    EXPECT_NE(cliInvoker.DetachMemory(overLenName), UBS_SUCCESS);
+    IT_LOG_INFO << "P0-CliDetachMem-OverLen-01 passed";
 }
 
 } // namespace ubse::it::tests::mem_borrow

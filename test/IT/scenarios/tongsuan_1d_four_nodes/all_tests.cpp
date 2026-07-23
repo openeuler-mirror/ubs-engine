@@ -18,7 +18,11 @@
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
 
-// ==================== Topo P0 测试 (四节点) ====================
+// ====================================================================
+// P0 测试 — SDK 接口自身正确性
+// ====================================================================
+
+// ==================== Topo P0 ====================
 
 // P0-NodeList-Ok-02: 多节点查询 + LCNE 比对
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NodeListOk02)
@@ -38,7 +42,7 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0LinkListOk01)
     ubse::it::tests::topo::RunP0LinkListOk01(Cluster());
 }
 
-// ==================== Mem FD P0 测试 ====================
+// ==================== Mem FD P0 ====================
 
 // P0-FdCreate-Ok-01: 标准创建成功
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateOk01)
@@ -64,7 +68,7 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateInvalidVal02)
     ubse::it::tests::mem_borrow::RunP0FdCreateInvalidVal02(Cluster());
 }
 
-// ==================== Mem FD create_with_lender P0 测试 ====================
+// ==================== Mem FD create_with_lender P0 ====================
 
 // P0-FdCreateLender-Ok-01: 指定借出节点创建
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderOk01)
@@ -78,7 +82,7 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateLenderInvalidVal02)
     ubse::it::tests::mem_borrow::RunP0FdCreateLenderInvalidVal02(Cluster());
 }
 
-// ==================== Mem FD create_with_candidate P0 测试 ====================
+// ==================== Mem FD create_with_candidate P0 ====================
 
 // P0-FdCreateCandidate-Ok-01: 指定候选节点
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0FdCreateCandidateOk01)
@@ -110,7 +114,7 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0NumaCreateCandidateDup01)
     ubse::it::tests::mem_borrow::RunP0NumaCreateCandidateDup01(Cluster());
 }
 
-// ==================== Mem SHM P0 测试 (四节点) ====================
+// ==================== Mem SHM P0 ====================
 
 // P0-ShmCreate-Ok-01: 标准创建成功，region={3,4}
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateOk01)
@@ -124,7 +128,11 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderOk01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"1", "2", "3", "4"});
 }
 
-// ==================== CLI P0 测试 ====================
+// ====================================================================
+// P0 测试 — CLI 接口正确性
+// ====================================================================
+
+// ==================== CLI Topo P0 ====================
 
 // P0-CliCluster-Ok-01: LCNE vs CLI display cluster 对比GUID
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliClusterOk01)
@@ -132,19 +140,29 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliClusterOk01)
     ubse::it::tests::topo::RunP0CliClusterOk01(Cluster());
 }
 
+// P0-CliTopoCpu-Ok-01: LCNE vs CLI display topo -t cpu 一致性对比
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliTopoCpuOk01)
+{
+    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster());
+}
+
+// ==================== CLI Mem P0 ====================
+
 // P0-CliCreateShare-Ok-01: CLI create share 成功
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateShareOk01)
 {
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOk01(Cluster());
 }
 
-// ==================== CLI 测试 ====================
-
-// P0-CliTopoCpu-Ok-01: LCNE vs CLI display topo -t cpu 一致性对比
-TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliTopoCpuOk01)
+// P0-CliCreateNuma-LinkId-Ok-01: 指定链路创建 NUMA，精确校验 export-node
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0CliCreateNumaLinkIdOk01)
 {
-    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0CliCreateNumaLinkIdOk01(Cluster());
 }
+
+// ====================================================================
+// P1 测试 — SDK 对外行为语义
+// ====================================================================
 
 // P1-ShmAttach-MultiNode-01: 四节点SHM attach后import_desc_cnt验证
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
@@ -152,15 +170,15 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1ShmAttachMultiNode01)
     ubse::it::tests::mem_borrow::RunP1ShmAttachMultiNode01(Cluster());
 }
 
-// ==================== 故障测试 (P2) ====================
+// ====================================================================
+// 故障 / 选举
+// ====================================================================
 
 // 节点OOM故障：触发虚机借用内存进行逃逸
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, VmOomEscapeBorrow)
 {
     ubse::it::tests::fault::RunVmOomEscapeBorrowTest(Cluster(), "2", {0, 1}, 30);
 }
-
-// ==================== 选举测试 ====================
 
 // 选举测试：验证四节点集群收敛为1主+1备+2代理
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)

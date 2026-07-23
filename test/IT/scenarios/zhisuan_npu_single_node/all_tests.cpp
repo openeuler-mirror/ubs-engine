@@ -15,21 +15,13 @@
 
 using ubse::it::infra::ZhisuanNpuSingleNodeScenario;
 
-// ==================== NPU 测试 ====================
+// ====================================================================
+// NPU P0 测试 — 接口自身正确性
+// ====================================================================
 
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceListQuery)
 {
     ubse::it::tests::npu::RunDeviceListQueryTest(Cluster());
-}
-
-TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
-{
-    ubse::it::tests::npu::RunUbaTidSizeQueryTest(Cluster());
-}
-
-TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
-{
-    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
 }
 
 TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
@@ -37,9 +29,19 @@ TEST_F(ZhisuanNpuSingleNodeScenario, DeviceAllocFreeLifecycle)
     ubse::it::tests::npu::RunDeviceAllocFreeLifecycleTest(Cluster());
 }
 
+TEST_F(ZhisuanNpuSingleNodeScenario, UbaTidSizeQueryAfterAlloc)
+{
+    ubse::it::tests::npu::RunUbaTidSizeQueryTest(Cluster());
+}
+
 TEST_F(ZhisuanNpuSingleNodeScenario, RepeatAllocAndFree)
 {
     ubse::it::tests::npu::RunRepeatAllocAndFreeTest(Cluster());
+}
+
+TEST_F(ZhisuanNpuSingleNodeScenario, RepeatDealloc)
+{
+    ubse::it::tests::npu::RunRepeatDeallocTest(Cluster());
 }
 
 TEST_F(ZhisuanNpuSingleNodeScenario, PreemptDevice)
@@ -51,6 +53,10 @@ TEST_F(ZhisuanNpuSingleNodeScenario, ConcurrentSuccess)
 {
     ubse::it::tests::npu::RunConcurrentSuccessTest(Cluster());
 }
+
+// ====================================================================
+// NPU 非P0 测试 — 扩展覆盖
+// ====================================================================
 
 TEST_F(ZhisuanNpuSingleNodeScenario, UpiLegalRangeAlloc)
 {

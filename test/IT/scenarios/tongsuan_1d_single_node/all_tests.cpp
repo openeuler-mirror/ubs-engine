@@ -22,7 +22,7 @@
 using ubse::it::infra::Tongsuan1dFullMeshSingleNodeScenario;
 
 // ====================================================================
-// P0 测试 — 接口自身正确性
+// P0 测试 — SDK 接口自身正确性
 // ====================================================================
 
 // ==================== Client P0 ====================
@@ -57,7 +57,7 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FinOk01)
     ubse::it::tests::client::RunP0FinOk01(Cluster());
 }
 
-// ==================== Topo P0 (单节点) ====================
+// ==================== Topo P0 ====================
 
 // P0-NodeList-Ok-01: 单节点查询
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NodeListOk01)
@@ -83,6 +83,52 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0LocalGetNullPtr01)
     ubse::it::tests::topo::RunP0LocalGetNullPtr01(Cluster());
 }
 
+// ==================== Mem SHM P0 ====================
+
+// P0-ShmFaultReg-NullPtr-01: NULL handler
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmFaultRegNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmFaultRegNullPtr01(Cluster());
+}
+
+// P0-FdFaultReg-NullPtr-01: NULL handler
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdFaultRegNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdFaultRegNullPtr01(Cluster());
+}
+
+// P0-ShmCreate-SingleNode-Ok-01: 单节点创建SHM成功
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmCreateSingleNodeOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateSingleNodeOk01(Cluster());
+}
+
+// ==================== Mem NUMA P0 ====================
+
+// P0-NumaStatGet-Fld-01: 本节点字段校验
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetFld01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaStatGetFld01(Cluster());
+}
+
+// P0-NumaStatGet-NotExist-01: 不存在的slot_id
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaStatGetNotExist01(Cluster());
+}
+
+// P0-NumaStatGet-NullPtr-01: 空指针
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaStatGetNullPtr01(Cluster());
+}
+
+// P0-NumaFaultReg-NullPtr-01: NULL handler
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaFaultRegNullPtr01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaFaultRegNullPtr01(Cluster());
+}
+
 // ==================== URMA QoS SDK P0 ====================
 
 // P0-UrmaQosCreate-Ok-01: 创建单优先级配置
@@ -90,6 +136,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0UrmaQosCreateOk01)
 {
     ubse::it::tests::urma_qos::RunP0UrmaQosCreateOk01(Cluster());
 }
+
+// ====================================================================
+// P0 测试 — CLI 接口正确性
+// ====================================================================
 
 // ==================== CLI URMA QoS P0 ====================
 
@@ -135,44 +185,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDisplayQosOk01)
     ubse::it::tests::urma_qos::RunP0CliDisplayQosOk01(Cluster());
 }
 
-// ==================== Mem SHM P0 (单节点) ====================
-
-// P0-ShmFaultReg-NullPtr-01: NULL handler
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmFaultRegNullPtr01)
+// P0-CliDelQos-NotReady-01: CLI delete urma-qos 未创建
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDelQosNotReady01)
 {
-    ubse::it::tests::mem_borrow::RunP0ShmFaultRegNullPtr01(Cluster());
-}
-
-// P0-FdFaultReg-NullPtr-01: NULL handler
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0FdFaultRegNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0FdFaultRegNullPtr01(Cluster());
-}
-
-// ==================== Mem NUMA P0 (单节点) ====================
-
-// P0-NumaStatGet-Fld-01: 本节点字段校验
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetFld01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaStatGetFld01(Cluster());
-}
-
-// P0-NumaStatGet-NotExist-01: 不存在的slot_id
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNotExist01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaStatGetNotExist01(Cluster());
-}
-
-// P0-NumaStatGet-NullPtr-01: 空指针
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaStatGetNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaStatGetNullPtr01(Cluster());
-}
-
-// P0-NumaFaultReg-NullPtr-01: NULL handler
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0NumaFaultRegNullPtr01)
-{
-    ubse::it::tests::mem_borrow::RunP0NumaFaultRegNullPtr01(Cluster());
+    ubse::it::tests::urma_qos::RunP0CliDelQosNotReady01(Cluster());
 }
 
 // ==================== CLI Node P0 ====================
@@ -195,24 +211,18 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliNodeBadParam02)
     ubse::it::tests::topo::RunP0CliNodeBadParam02(Cluster());
 }
 
-// ==================== CLI Mem P0 (单节点) ====================
-
-// P0-CliCreateNuma-InvalidChar-01: CLI create numa 非法name
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateNumaInvalidChar01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliCreateNumaInvalidChar01(Cluster());
-}
-
-// P0-CliCreateFd-InvalidVal-01: CLI create fd size=0
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateFdInvalidVal01)
-{
-    ubse::it::tests::mem_borrow::RunP0CliCreateFdInvalidVal01(Cluster());
-}
+// ==================== CLI Mem P0 ====================
 
 // P0-CliCreateShare-OverLen-01: CLI create share name超长
 TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateShareOverLen01)
 {
     ubse::it::tests::mem_borrow::RunP0CliCreateShareOverLen01(Cluster());
+}
+
+// P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47, 4M
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliCreateShareNameLen47Ok01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCreateShareNameLen47Ok01(Cluster());
 }
 
 // P0-CliDelMem-NotExist-01: CLI delete 不存在的内存
@@ -221,10 +231,22 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDelMemNotExist01)
     ubse::it::tests::mem_borrow::RunP0CliDelMemNotExist01(Cluster());
 }
 
-// P0-CliBorrowDetail-Ok-01: CLI borrow_detail 无借用时为空
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliBorrowDetailEmpty01)
+// P0-CliDelMem-OverLen-01: CLI delete name超长
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDelMemOverLen01)
 {
-    ubse::it::tests::mem_borrow::RunP0CliBorrowDetailEmpty01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0CliDelMemOverLen01(Cluster());
+}
+
+// P0-CliDelAddr-NotExist-01: CLI delete addr 不存在
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDelAddrNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliDelAddrNotExist01(Cluster());
+}
+
+// P0-CliAttachMem-OverLen-01: CLI attach name超长
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliAttachMemOverLen01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliAttachMemOverLen01(Cluster());
 }
 
 // P0-CliDetachMem-NotReady-01: CLI detach 未attach
@@ -233,16 +255,14 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDetachMemNotReady01)
     ubse::it::tests::mem_borrow::RunP0CliDetachMemNotReady01(Cluster());
 }
 
-// ==================== CLI URMA QoS P0 补充 ====================
-
-// P0-CliDelQos-NotReady-01: CLI delete urma-qos 未创建
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDelQosNotReady01)
+// P0-CliDetachMem-OverLen-01: CLI detach name超长
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDetachMemOverLen01)
 {
-    ubse::it::tests::urma_qos::RunP0CliDelQosNotReady01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0CliDetachMemOverLen01(Cluster());
 }
 
 // ====================================================================
-// P1 测试 — 对外行为语义
+// P1 测试 — SDK 对外行为语义
 // ====================================================================
 
 // ==================== URMA QoS SDK P1 ====================
@@ -258,6 +278,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P1UrmaQosLifecycle01)
 {
     ubse::it::tests::urma_qos::RunP1UrmaQosLifecycle01(Cluster());
 }
+
+// ====================================================================
+// P1 测试 — CLI 对外行为语义
+// ====================================================================
 
 // ==================== CLI URMA QoS P1 ====================
 

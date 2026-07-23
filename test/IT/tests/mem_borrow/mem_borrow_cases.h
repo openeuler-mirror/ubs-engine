@@ -23,14 +23,23 @@ namespace ubse::it::tests::mem_borrow {
 // CLI查询节点内存状态测试：调用check memory命令，验证返回包含两个节点的状态信息
 void RunP0CliCheckMemOk01(ubse::it::infra::ItCluster& cluster);
 
-// CLI内存操作测试（短选项）：使用短选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
+// CLI节点借入汇总查询测试
+void RunP0CliNodeBorrowOk01(ubse::it::infra::ItCluster& cluster);
+
+// CLI节点借出汇总查询测试
+void RunP0CliNodeLendOk01(ubse::it::infra::ItCluster& cluster);
+
+// CLI内存操作测试（短选项）：使用短选项创建→查询borrow_detail→删除NUMA内存
 void RunP0CliCreateNumaOk01(ubse::it::infra::ItCluster& cluster);
+
+// CLI内存操作测试（指定链路）：四节点场景，指定链路创建NUMA，精确校验export-node
+void RunP0CliCreateNumaLinkIdOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI内存操作测试（长选项）：使用长选项创建→查询borrow_detail/node_borrow/node_lend→删除NUMA内存
 void RunP1CliCreateNumaParamVariant01(ubse::it::infra::ItCluster& cluster);
 
 // CLI内存类型过滤查询测试：创建NUMA/FD/SHARE三种类型内存，按类型和名称查询借用详情，验证完整生命周期
-void RunP1CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster);
+void RunP0CliBorrowDetailOk01(ubse::it::infra::ItCluster& cluster);
 
 // CLI NUMA状态查询测试：查询NUMA状态（基本查询和显示所有大页），验证输出格式
 void RunP0CliNumaStatusOk01(ubse::it::infra::ItCluster& cluster);
@@ -44,6 +53,7 @@ void RunP1ShmAttachMultiNode01(ubse::it::infra::ItCluster& cluster);
 // ==================== ubs_mem_fd_create ====================
 void RunP0FdCreateOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0FdCreateInvalidChar01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateInvalidVal02(ubse::it::infra::ItCluster& cluster);
 void RunP0FdCreateDup01(ubse::it::infra::ItCluster& cluster);
@@ -105,6 +115,7 @@ void RunP0NumaStatGetNullPtr01(ubse::it::infra::ItCluster& cluster);
 // ==================== ubs_mem_numa_create ====================
 void RunP0NumaCreateOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaCreateInvalidChar01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaCreateNullPtr01(ubse::it::infra::ItCluster& cluster);
@@ -154,8 +165,10 @@ void RunP0NumaFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create ====================
 void RunP0ShmCreateOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
+void RunP0ShmCreateSingleNodeOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateWithProviderOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateInvalidChar01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateInvalidVal01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateInvalidVal02(ubse::it::infra::ItCluster& cluster);
@@ -233,17 +246,44 @@ void RunP0CliCreateShareOk01(ubse::it::infra::ItCluster& cluster);
 // P0-CliCreateShare-OverLen-01: CLI create share with name too long
 void RunP0CliCreateShareOverLen01(ubse::it::infra::ItCluster& cluster);
 
-// P0-CliDelMem-NotExist-01: CLI delete non-existent memory
+// P0-CliCreateShare-NameLen47-Ok-01: CLI create share name=47 chars, 4M
+void RunP0CliCreateShareNameLen47Ok01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDelMem-Ok-01: CLI delete numa/fd/share 成功
+void RunP0CliDelMemOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDelMem-NotExist-01: CLI delete 不存在
 void RunP0CliDelMemNotExist01(ubse::it::infra::ItCluster& cluster);
 
-// P0-CliBorrowDetail-Ok-01: CLI borrow_detail with no borrows, output empty
-void RunP0CliBorrowDetailEmpty01(ubse::it::infra::ItCluster& cluster);
+// P0-CliDelMem-Dup-01: CLI delete 重复删除
+void RunP0CliDelMemDup01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDelMem-OverLen-01: CLI delete name超长
+void RunP0CliDelMemOverLen01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDelAddr-NotExist-01: CLI delete addr 不存在
+void RunP0CliDelAddrNotExist01(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliAttachMem-NotReady-01: CLI attach non-existent shared memory
 void RunP0CliAttachMemNotReady01(ubse::it::infra::ItCluster& cluster);
 
+// P0-CliAttachMem-Ok-01: CLI attach 成功
+void RunP0CliAttachMemOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliAttachMem-Dup-01: CLI attach 重复
+void RunP0CliAttachMemDup01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliAttachMem-OverLen-01: CLI attach name超长
+void RunP0CliAttachMemOverLen01(ubse::it::infra::ItCluster& cluster);
+
 // P0-CliDetachMem-NotReady-01: CLI detach non-attached memory
 void RunP0CliDetachMemNotReady01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDetachMem-Ok-01: CLI detach 成功
+void RunP0CliDetachMemOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliDetachMem-OverLen-01: CLI detach name超长
+void RunP0CliDetachMemOverLen01(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::mem_borrow
 
