@@ -163,7 +163,7 @@ UbseResult DoSendFdExportObj(const UbseMemFdBorrowReq& req, UbseMemOperationResp
         ledger.GetDebtMap<UbseMemFdBorrowImportObj>().RemoveResource(req.importNodeId, req.name);
         exportObj.status.state = UBSE_MEM_STATE_FAILED;
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(exportObj);
-        BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, req.name, MemType::FD, req.size, exportNodeId,
+        BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_EX_SEND_FAILED, req.name, MemType::FD, req.size, exportNodeId,
                             req.importNodeId, req.requestNodeId});
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId,
                                    "Failed to Send export, export node is " + exportNodeId, UBSE_ERR_INTERNAL,
@@ -511,7 +511,7 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseMem
         if (auto ret = BuildOperationRespWhenFail(resp, name, requestNodeId, "Failed to unexport", exportObj.errorCode,
                                                   MemOperationType::FD_RETURN);
             ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
                                 exportObj.req.importNodeId, requestNodeId});
             return ret;
         }
@@ -527,7 +527,7 @@ uint32_t FdExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseMem
         return UBSE_OK;
     }
     if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
                             exportObj.req.importNodeId, requestNodeId});
         return ret;
     }
@@ -673,7 +673,7 @@ uint32_t FdExportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseMem
         FdImportUpdateState(importObj, UBSE_MEM_IMPORT_RUNNING);
         if (ret = SendFdImportObj(importObj, true, importNodeId); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to send import, name=" << name << ", requestId=" << exportObj.req.requestId;
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::FD, exportObj.req.size,
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_IM_SEND_FAILED, name, MemType::FD, exportObj.req.size,
                                 exportNodeId, importNodeId, exportObj.req.requestNodeId});
             return FdExportRollback(resp, exportObj, importObj, name, exportNodeId);
         }
@@ -923,8 +923,8 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseMem
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK);
         if (ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId, importNodeId,
-                                importObj.req.requestNodeId});
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+                                importNodeId, importObj.req.requestNodeId});
         }
         return ret;
     }
@@ -1005,8 +1005,8 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp& resp, Ubs
                                                                                             exportObj);
         if (auto ret = SendFdExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to send export, name=" << name << ", requestId=" << importObj.req.requestId;
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId, importNodeId,
-                                req.requestNodeId});
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+                                importNodeId, req.requestNodeId});
             return DealSendFdUnExportObjFailed(resp, req, name, exportObj);
         }
         return UBSE_OK;
@@ -1016,8 +1016,8 @@ static uint32_t FdImportExpectDestroySuccessPath(UbseMemOperationResp& resp, Ubs
         resp.name = name;
         resp.requestNodeId = req.requestNodeId;
         if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::FD_RETURN); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId, importNodeId,
-                                req.requestNodeId});
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+                                importNodeId, req.requestNodeId});
             return ret;
         }
         return UBSE_OK;
@@ -1037,8 +1037,8 @@ static uint32_t FdImportExpectDestroyFailPath(UbseMemOperationResp& resp, UbseMe
     if (auto ret = BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to unimport.", importObj.errorCode,
                                               MemOperationType::FD_RETURN);
         ret != UBSE_OK) {
-        BorrowFailedAdvice(
-            {MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId, importNodeId, req.requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+                            importNodeId, req.requestNodeId});
         return ret;
     }
     return UBSE_OK;
@@ -1148,7 +1148,7 @@ uint32_t HandleSingleExportReturn(const UbseMemReturnReq& req, UbseMemOperationR
     exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
     exportObj.isDestroyedReportReceived = false;
     if (auto ret = SendFdExportObj(exportObj, true, exportObj.algoResult.exportNumaInfos[0].nodeId); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::FD, 0,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, req.name, MemType::FD, 0,
                             exportObj.algoResult.exportNumaInfos[0].nodeId, req.requestNodeId, req.requestNodeId});
         return DealSendFdUnExportObjFailed(resp, req, req.name, exportObj);
     }
@@ -1180,7 +1180,7 @@ uint32_t FdReturnExistImport(UbseMemFdBorrowImportObj& importObj, UbseMemFdBorro
         exportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
         if (auto ret = SendFdExportObj(exportObj, true, exportNodeId); ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+            BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_EX_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
                                 importObj.req.importNodeId, importObj.req.requestNodeId});
             DealSendFdUnExportObjFailed(resp, req, name, exportObj);
             return UBSE_ERROR;
@@ -1193,7 +1193,7 @@ uint32_t FdReturnExistImport(UbseMemFdBorrowImportObj& importObj, UbseMemFdBorro
     importObj.isDestroyedReportReceived = false;
     FdImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     if (SendFdImportObj(importObj, true, importObj.req.importNodeId) != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_IM_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
                             importObj.req.importNodeId, importObj.req.requestNodeId});
         return DealSendFdUnImportObjFailed(importObj, req, resp, name);
     }
@@ -1206,8 +1206,8 @@ static uint32_t ReturnFailed(const UbseMemReturnReq& req, UbseMemOperationResp& 
     auto ret =
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, errMsg, errCode, MemOperationType::FD_RETURN);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice(
-            {MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::FD, 0, "", req.requestNodeId, req.requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, req.name, MemType::FD, 0, "", req.importNodeId,
+                            req.requestNodeId});
     }
     return ret;
 }
@@ -1217,7 +1217,7 @@ uint32_t CheckFdReturn(const UbseMemReturnReq& req, UbseMemBorrowStatus& status,
 {
     // 等待导入节点对账完成
     if (auto ret = WaitInitLedgerSuccess(req.importNodeId); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_IMPORT_IN_MAINTENANCE, req.name, MemType::FD, 0, "", req.requestNodeId,
+        BorrowFailedAdvice({MemFault::RETURN_IMPORT_IN_MAINTENANCE, req.name, MemType::FD, 0, "", req.importNodeId,
                             req.requestNodeId});
         errMsg = "importNode is not ok.";
         return ret;
@@ -1227,7 +1227,7 @@ uint32_t CheckFdReturn(const UbseMemReturnReq& req, UbseMemBorrowStatus& status,
         FindBorrowObjPair<UbseMemFdBorrowImportObj, UbseMemFdBorrowExportObj>(req.name, req.importNodeId);
     if (!importObjPtr && !exportObjPtr) {
         BorrowFailedAdvice(
-            {MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::FD, 0, "", req.requestNodeId, req.requestNodeId});
+            {MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::FD, 0, "", req.importNodeId, req.requestNodeId});
         errMsg = "Memory does not exist";
         return UBSE_ERR_NOT_EXIST;
     }
@@ -1242,7 +1242,7 @@ uint32_t CheckFdReturn(const UbseMemReturnReq& req, UbseMemBorrowStatus& status,
         UBSE_LOG_INFO << "resource is being borrowed or returned, name=" << req.name;
         auto ret = (memStage == UbseMemStage::UBSE_CREATING ? UBSE_ERR_CREATING : UBSE_ERR_DELETING);
         BorrowFailedAdvice(
-            {MemFault::RETURN_REQ_CONFLICT, req.name, MemType::FD, 0, "", req.requestNodeId, req.requestNodeId});
+            {MemFault::RETURN_REQ_CONFLICT, req.name, MemType::FD, 0, "", req.importNodeId, req.requestNodeId});
         errMsg = "resource is being borrowed or returned.";
         return ret;
     }

@@ -724,7 +724,7 @@ uint32_t UbseMemApi::UbseCliShmAttachDispatch(const UbseIpcMessage& buffer, cons
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, name, MemType::SHM, 0, "", currentNodeInfo.nodeId,
+        BorrowFailedAdvice({MemFault::SHARED_FAULT_ATTACH_INTERNAL, name, MemType::SHM, 0, "", currentNodeInfo.nodeId,
                             currentNodeInfo.nodeId});
         return ret;
     }
@@ -766,7 +766,7 @@ uint32_t UbseMemApi::UbseCliShmCreateDispatch(const UbseIpcMessage& buffer, cons
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
         BorrowFailedAdvice(
-            {MemFault::BORROW_PARAM_INVALID, req.name, MemType::SHM, req.size, "", "", currentNodeInfo.nodeId});
+            {MemFault::BORROW_FAULT_INTERNAL, req.name, MemType::SHM, req.size, "", "", currentNodeInfo.nodeId});
         return ret;
     }
 
@@ -944,7 +944,7 @@ uint32_t UbseMemApi::UbseMemCliNumaCreate(const UbseIpcMessage& buffer, const Ub
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, req.name, MemType::NUMA, req.size, "",
+        BorrowFailedAdvice({MemFault::BORROW_FAULT_INTERNAL, req.name, MemType::NUMA, req.size, "",
                             currentNodeInfo.nodeId, currentNodeInfo.nodeId});
         return ret;
     }
@@ -984,8 +984,8 @@ uint32_t UbseMemApi::UbseMemCliFdCreate(const UbseIpcMessage& buffer, const Ubse
     if (ret != UBSE_OK) {
         ubse::election::UbseRoleInfo currentNodeInfo;
         auto res = UbseGetCurrentNodeInfo(currentNodeInfo);
-        BorrowFailedAdvice({MemFault::BORROW_PARAM_INVALID, req.name, MemType::FD, req.size, "", currentNodeInfo.nodeId,
-                            currentNodeInfo.nodeId});
+        BorrowFailedAdvice({MemFault::BORROW_FAULT_INTERNAL, req.name, MemType::FD, req.size, "",
+                            currentNodeInfo.nodeId, currentNodeInfo.nodeId});
         return ret;
     }
 

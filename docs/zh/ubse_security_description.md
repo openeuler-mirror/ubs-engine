@@ -57,7 +57,7 @@ ubs-engine-\<version>-\<release>.aarch64.rpm安装后的权限如下：
 | /var/lib/ubse/lcne_cert             | 目录       | ubse:ubse | 700 | 内部文件权限：600                   |
 | /var/run/ubse                       | 目录       | ubse:ubse | 755 | 内部动态创建socket文件，权限：660        |
 
-#### 户端运行库权限设计
+#### 客户端运行库权限设计
 
 ubs-engine-client-libs-\<version>-\<release>.aarch64.rpm安装后的权限如下：
 
