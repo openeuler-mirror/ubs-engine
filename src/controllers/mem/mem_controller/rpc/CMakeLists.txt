@@ -7,6 +7,7 @@ target_link_libraries(ubse_controller_rpc PUBLIC ubse_mem_controller_debt PRIVAT
 target_include_directories(ubse_controller_rpc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../adapter_plugins/mti
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../include/adapter_plugins/smbios
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../node
         ${CMAKE_CURRENT_SOURCE_DIR}/../
 )

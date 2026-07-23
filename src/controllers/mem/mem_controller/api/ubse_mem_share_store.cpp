@@ -546,6 +546,10 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
                 importResult.memId = memId;
                 importObj.status.importResults.push_back(importResult);
             }
+            UbseMemShareBorrowExportObj exportObj;
+            if (LoadExport(item.name, exportObj) == UBSE_OK) {
+                importObj.algoResult.exportNumaInfos = exportObj.algoResult.exportNumaInfos;
+            }
             visitor(nodeId, name, importObj);
         }
     }

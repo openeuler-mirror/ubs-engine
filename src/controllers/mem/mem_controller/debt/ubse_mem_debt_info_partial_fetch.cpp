@@ -10,11 +10,17 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ubse_mem_debt_info_partial_fetch.h"
+#include <algorithm>
+#include <memory>
 #include <set>
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_global_ledger_summary_store.h"
+#include "ubse_mem_share_store.h"
+#include "ubse_mem_controller_helper.h"
+#include "ubse_node_controller.h"
 #include "ubse_serial_util.h"
 
 namespace ubse::mem::controller::debt {
@@ -175,7 +181,7 @@ void HandleExportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &parti
     }
 }
 
-void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes,
+void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes, 
                       const UbseNodeMemDebtInfo &nodeInfo)
 {
     if (debtFetchInfo.borrowType == AccountType::NUMA || debtFetchInfo.borrowType == AccountType::INIT) {
@@ -196,9 +202,44 @@ void HandleImportType(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &parti
     }
 }
 
+static UbseNodeMemDebtInfo BuildNodeMemDebtInfoFromGlobalStore(const std::string &nodeId, bool filterDestroyed)
+{
+    UbseNodeMemDebtInfo info;
+    GlobalMasterStore store;
+
+    store.ForEachExport([&](const std::string &nid, const std::string &name,
+                             const UbseMemShareBorrowExportObj &obj) {
+        if (!nodeId.empty() && nid != nodeId) {
+            return;
+        }
+        if (filterDestroyed && obj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
+            return;
+        }
+        info.shareExportObjMap[name] = std::make_shared<UbseMemShareBorrowExportObj>(obj);
+    });
+
+    store.ForEachImport([&](const std::string &nid, const std::string &name,
+                             const UbseMemShareBorrowImportObj &obj) {
+        if (!nodeId.empty() && nid != nodeId) {
+            return;
+        }
+        if (filterDestroyed && obj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+            return;
+        }
+        info.shareImportObjMap[name] = std::make_shared<UbseMemShareBorrowImportObj>(obj);
+    });
+
+    return info;
+}
+
 UbseResult FetchDebtInfoByTypeAndPage(const DebtFetchInfo &debtFetchInfo, PartialFetchRes &partialFetchRes)
 {
-    auto nodeInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(debtFetchInfo.nodeId, false);
+    UbseNodeMemDebtInfo nodeInfo;
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        nodeInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(debtFetchInfo.nodeId, false);        
+    } else {
+        nodeInfo = BuildNodeMemDebtInfoFromGlobalStore(debtFetchInfo.nodeId, false);
+    }
     if (nodeInfo.fdImportObjMap.empty() && nodeInfo.fdExportObjMap.empty() && nodeInfo.numaImportObjMap.empty() &&
         nodeInfo.numaExportObjMap.empty() && nodeInfo.shareImportObjMap.empty() && nodeInfo.shareExportObjMap.empty() &&
         nodeInfo.addrImportObjMap.empty() && nodeInfo.addrExportObjMap.empty()) {

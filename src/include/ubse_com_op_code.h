@@ -99,8 +99,6 @@ enum class UbseMemOpCode {
     UBSE_MEM_CLI_SPECIFY_LINK_BORROW = 0x0036,     // 指定链路借用(CLI)
     UBSE_MEM_CLI_DELETE_MEMORY = 0x0037,           // 内存删除(CLI)
     UBSE_MEM_CLI_NUMA_STATE_QUERY = 0x0038,        // NUMA状态查询(CLI)
-    UBSE_MEM_CLI_CLOS_BORROW_DETAIL_QUERY = 0x0039, // 账本查询(CLI)
-    UBSE_MEM_CLI_IS_CLOS_TYPE = 0x003A,             // 判断是否为clos组网(CLI)
 };
 
 // 选举模块操作码
@@ -182,8 +180,6 @@ enum class UbseMemQueryOpCode {
     UBSE_MEM_REMOTE_NUMA_STATUS = 0x0017,     // 远端numa状态
     UBSE_MEM_QUERY_CLOS_SHARE_EXPORT = 0x0018,     // clos组网查询共享内存导出对象
     UBSE_MEM_QUERY_CLOS_SHARE_IMPORT = 0x0019,     // clos组网查询共享内存导入对象
-    UBSE_MEM_CLOS_DEBT_INFO_PARTIAL_FETCH = 0x001A, // clos组网部分获取账本信息
-    UBSE_MEM_CLOS_BORROW_DETAIL_QUERY = 0x001B,       // clos组网账本批量查询
 };
 
 // UBSE内存借用回调操作码

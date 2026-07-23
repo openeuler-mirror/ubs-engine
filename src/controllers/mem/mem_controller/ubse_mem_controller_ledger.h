@@ -10,12 +10,14 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
+#include "ubse_mem_share_store.h"
 
 
 namespace ubse::mem::controller {
 using namespace ubse::common::def;
 using namespace ubse::nodeController;
 using namespace ubse::adapter_plugins::mmi;
+using ubse::mem::controller::IShareStore;
 using UbseMemShareBorrowExportObjMap =
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>>;
 using UbseMemShareExportWithImports = std::pair<std::shared_ptr<const UbseMemShareBorrowExportObj>,
@@ -174,9 +176,14 @@ void ProcessCurrentCleanList(const NodeMemDebtInfoMap &debtMap, std::vector<Ubse
 
 bool CleanShmTimer(int sleep_seconds);
 
-void HandleClean(const std::vector<UbseMemShareBorrowExportObj> &originalToClean);
+NodeMemDebtInfoMap BuildShareNodeMemDebtInfoMap(IShareStore &store);
+
+void HandleClean(const std::vector<UbseMemShareBorrowExportObj> &originalToClean,
+                 IShareStore &store, bool isGlobalMaster);
 
 void CleanShmZeroImportHandler();
+
+void ExecuteShareMemoryCleanClos(const std::vector<UbseMemShareBorrowExportObj> &toClean);
 
 std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> GetExportObjsByBaseNode(
     const NodeMemDebtInfoMap &debtMap, const std::string &name);

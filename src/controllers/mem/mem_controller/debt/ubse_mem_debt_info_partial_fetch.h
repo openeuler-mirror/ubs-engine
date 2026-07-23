@@ -20,6 +20,8 @@ namespace ubse::mem::controller::debt {
 ubse::common::def::UbseResult FetchDebtInfoByTypeAndPage(
     const ubse::mem::controller::message::DebtFetchInfo &debtFetchInfo, message::PartialFetchRes &flatDebtInformation);
 ubse::common::def::UbseResult ValidateDebtFetchInfo(message::DebtFetchInfo debtFetchInfo);
+ubse::common::def::UbseResult FetchDebtInfoByTypeAndPageClos(
+    const ubse::mem::controller::message::DebtFetchInfo &debtFetchInfo, message::PartialFetchRes &flatDebtInformation);
 } // namespace ubse::mem::controller::debt
 
 #endif // UBS_ENGINE_UBSE_MEM_DEBT_INFO_PARTIAL_FETCH_H
