@@ -483,6 +483,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_NumaSuccess)
 // Test for UbseMemGetMemIdByImport - SHM_BORROW type success case
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ShmSuccess)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     // 构造测试数据
     std::string importNodeId = "1";
     std::string exportNodeId = "2";
@@ -505,6 +506,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ShmSuccess)
     shareExportObj.req.name = name;
     shareExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     shareExportObj.status.exportObmmInfo.emplace_back(UbseMemObmmInfo{.memId = exportMemId});
+    shareExportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
 
     // 填充 ledger
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(exportNodeId, name, shareExportObj);

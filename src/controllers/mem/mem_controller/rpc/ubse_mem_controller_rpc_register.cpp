@@ -75,7 +75,7 @@ UbseResult RegPartialDebtFetchHandler(const std::shared_ptr<com::UbseComModule> 
         UBSE_LOG_ERROR << "partialDebtFetchHandler register fail," << FormatRetCode(retCode);
         return retCode;
     }
-    return retCode;
+    return UBSE_OK;
 }
 
 UbseResult RegisterFdQueryHandler(const std::shared_ptr<com::UbseComModule> &comModule)

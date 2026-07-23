@@ -161,7 +161,7 @@ uint32_t AssignImportInfo(const UbseMemDebtQueryRequest &request,
         shmDesc.importDesc.push_back(importDesc);
         // export缺失或未填充usr_info时，从importObj兜底返回调用方私有数据（importObj.req继承自exportObj.req）
         if (IsUsrInfoEmpty(shmDesc.userInfo)) {
-            errno_t cpyRet =
+            error_t cpyRet =
                 memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
             if (cpyRet != UBSE_OK) {
                 UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
@@ -186,10 +186,6 @@ uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest &request, UbseMemShmDesc &s
         bool found = false;
         UbseMemShareBorrowExportObj exportObj;
         if (store.LoadExport(request.name, exportObj) == UBSE_OK) {
-            if (!exportObj.req.udsInfo.CheckPermission(request.udsInfo)) {
-                UBSE_LOG_ERROR << "Permission denied. related name: " << request.name;
-                return UBSE_ERR_AUTH_FAILED;
-            }
             auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(std::move(exportObj));
             ShmDecExportAssignment(request.name, shmDesc, exportObjPtr);
             found = true;
@@ -371,7 +367,7 @@ uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, def::UbseMe
     } else {
         GlobalMasterStore store;
         if (auto ret = store.LoadExport(request.name, exportObj); ret != UBSE_OK) {
-            UBSE_LOG_WARN << "No export information found. related name: " << request.name;
+            UBSE_LOG_ERROR << "No export information found. related name: " << request.name;
             return UBSE_ERR_NOT_EXIST;
         }
     }
