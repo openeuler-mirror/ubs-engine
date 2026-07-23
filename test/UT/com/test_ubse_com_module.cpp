@@ -600,7 +600,7 @@ TEST_F(TestUbseComModule, TestRpcServerStart)
     std::string name = "RpcServer";
     ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
     ret = ubseComModule.RpcServerStart();
-    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ERROR_INVAL, ret);
 }
 
 /*

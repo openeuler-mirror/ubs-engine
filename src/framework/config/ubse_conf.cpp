@@ -156,25 +156,4 @@ bool UbseIsMemSupported()
     }
     return cfgPtr->IsMemSupported();
 }
-
-uint32_t UbseGetUBEnable(bool& ubEnable)
-{
-    auto cfgPtr = GetConfModule();
-    if (cfgPtr == nullptr) {
-        return UBSE_ERROR_MODULE_LOAD_FAILED;
-    }
-    std::string ipList;
-    auto ret = cfgPtr->GetConf<std::string>("ubse.rpc", "cluster.ipList", ipList);
-    if (ret == UBSE_OK && !ubse::utils::Trim(ipList).empty()) {
-        ubEnable = false;
-        return UBSE_OK;
-    }
-    if (!cfgPtr->IsUrmaSupported()) {
-        UBSE_LOG_ERROR << "cluster.ipList is not configured and URMA is unsupported, communication cannot start, "
-                       << FormatRetCode(ret);
-        return UBSE_ERROR_CONF_INVALID;
-    }
-    ubEnable = true;
-    return UBSE_OK;
-}
 } // namespace ubse::config

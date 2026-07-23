@@ -103,9 +103,6 @@ bool UbseIsMemBorrowSupported();
 bool UbseIsMemShareSupported();
 
 bool UbseIsMemSupported();
-
-uint32_t UbseGetUBEnable(bool& ubEnable);
-
 } // namespace ubse::config
 
 #endif // UBSE_CONF_H

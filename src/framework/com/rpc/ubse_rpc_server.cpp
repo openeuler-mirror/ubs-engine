@@ -25,21 +25,22 @@ using namespace ubse::common::def;
 const std::string WorkGroup = "server";
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseResult GetUBEnableForRpc(bool &ubEnable)
-{
-    ubEnable = nodeMgr::IsUrma();
-    return UBSE_OK;
-}
-
 UbseResult UbseRpcServer::Start()
 {
-    auto ret = UbseGetUBEnable(ubEnable_);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get config ubEnable";
-        return UBSE_ERROR_CONF_INVALID;
+    ubEnable_ = nodeMgr::IsUrma();
+    if (ubEnable_) {
+        auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
+        if (confModule == nullptr) {
+            UBSE_LOG_ERROR << "confModule nullptr";
+            return UBSE_ERROR_NULLPTR;
+        }
+        if (!confModule->IsUrmaSupported()) {
+            UBSE_LOG_ERROR << "URMA is unsupported, communication cannot start, ";
+            return UBSE_ERROR_CONF_INVALID;
+        }
     }
     uint16_t hcomHbTimeout;
-    ret = GetHcomHbTimeout(hcomHbTimeout);
+    auto ret = GetHcomHbTimeout(hcomHbTimeout);
     if (ret != UBSE_OK) {
         hcomHbTimeout = DEFAULT_HCOM_HB_TIMEOUT;
     }

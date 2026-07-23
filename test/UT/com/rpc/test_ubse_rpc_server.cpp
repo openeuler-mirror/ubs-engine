@@ -48,7 +48,7 @@ TEST_F(TestUbseRpcServer, Start)
 {
     UbseRpcServer server{"127.0.0.1", 8080, "name", "id"};
     MOCKER(UbseCommunication::CreateUbseComEngine).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(UBSE_ERROR, server.Start());
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, server.Start());
 }
 
 void StopServer(const std::string& name) {}

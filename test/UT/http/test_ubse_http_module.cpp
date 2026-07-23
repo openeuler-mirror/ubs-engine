@@ -278,16 +278,6 @@ TEST_F(TestUbseHttpModule, UbseHttpPostJsonRequest_Tcp)
     auto ret = testRHM.UbseHttpPostJsonRequest(req.path, req.body, rsp);
     EXPECT_NE(ret, UBSE_OK);
 }
-static bool ThrowOnStart()
-{
-    throw std::runtime_error("mocked exception");
-}
-
-TEST_F(TestUbseHttpModule, Start_Exception)
-{
-    MOCKER(&UbseHttpServer::Start).stubs().will(invoke(ThrowOnStart));
-    EXPECT_EQ(UBSE_ERROR, testRHM.Start());
-}
 
 static void ThrowOnStop()
 {

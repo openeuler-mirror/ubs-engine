@@ -179,11 +179,6 @@ UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nod
     }
     return UBSE_ERROR;
 }
-UbseResult GetUBEnable(bool &ubEnable)
-{
-    ubEnable = nodeMgr::IsUrma();
-    return UBSE_OK;
-}
 
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
     bool rootEnable = false;
@@ -197,11 +192,7 @@ QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
         eid = node.addr;
         return true;
     }
-    bool ubEnable;
-    if (UbseGetUBEnable(ubEnable) != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to get communication mode.";
-        return false;
-    }
+    bool ubEnable = nodeMgr::IsUrma();
     if (ubEnable) {
         if (GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {
             UBSE_LOG_WARN << "Query eid failed";

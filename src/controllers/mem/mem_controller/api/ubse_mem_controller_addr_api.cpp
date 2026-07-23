@@ -1061,6 +1061,11 @@ uint32_t UbseMemAddrReturn(const UbseMemReturnReq &req, UbseMemOperationResp &re
         return BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "not supported in clos mode.",
                                           UBSE_ERR_NOT_SUPPORTED);
     }
+    if (!IsMemBorrowFeatureSupported()) {
+        BorrowFailedAdvice({MemFault::RETURN_CHIP_NOT_SUPPORTED, req.name, MemType::ADDR, 0, "", req.requestNodeId,
+                            req.requestNodeId});
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::ADDR_RETURN);
+    }
     auto exportKey = GenerateExportObjKey(req.name, req.importNodeId);
     auto lock = LoggingLockGuard(exportKey);
     UbseMemAddrBorrowImportObj importObj{};

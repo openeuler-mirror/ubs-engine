@@ -1058,7 +1058,7 @@ TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessNotExist)
     UbseMemOperationResp resp;
     MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
     const auto ret = mem::controller::UbseMemAddrReturn(req, resp, NODE_ONE);
-    EXPECT_EQ(UBSE_ERROR, ret);
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, ret);
 }
 
 TEST_F(TestUbseMemControllerAddrApi, UbseMemAddrReturnSuccessWithoutExport)
