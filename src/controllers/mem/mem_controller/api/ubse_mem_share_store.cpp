@@ -376,7 +376,8 @@ UbseResult GlobalMasterStore::LoadImport(const std::string &importNodeId, const 
     UbseMemShareBorrowExportObj exportObj;
     if (LoadExport(name, exportObj) == UBSE_OK) {
         out.algoResult.exportNumaInfos = exportObj.algoResult.exportNumaInfos;
-    }    
+        out.exportObmmInfo = exportObj.status.exportObmmInfo;
+    }
     return UBSE_OK;
 }
 
@@ -387,9 +388,11 @@ UbseResult GlobalMasterStore::LoadAllImports(const std::string &name,
     std::vector<std::pair<std::string, UbseGlobalLedgerSummaryItem>> items;
     UbseGlobalLedgerSummaryStore::GetInstance().GetAllImportItems(items, name);
     std::vector<UbseMemDebtNumaInfo> exportNumaInfos;
+    std::vector<UbseMemObmmInfo> exportObmmInfo;
     UbseMemShareBorrowExportObj exportObj;
     if (LoadExport(name, exportObj) == UBSE_OK) {
         exportNumaInfos = std::move(exportObj.algoResult.exportNumaInfos);
+        exportObmmInfo = std::move(exportObj.status.exportObmmInfo);
     }
     for (const auto &[nodeId, item] : items) {
         UbseMemShareBorrowImportObj obj{};
@@ -397,6 +400,7 @@ UbseResult GlobalMasterStore::LoadAllImports(const std::string &name,
         obj.req.name = item.name;
         obj.algoResult.blockSize = item.blockSize;
         obj.algoResult.exportNumaInfos = exportNumaInfos;
+        obj.exportObmmInfo = exportObmmInfo;
         obj.status.state = item.state;
         obj.req.udsInfo = item.userInfo;
         if (memcpy_s(obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN, item.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
@@ -547,10 +551,23 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
         return;
     }
     std::unordered_map<std::string, std::vector<UbseMemDebtNumaInfo>> exportNumaInfosMap;
+    std::unordered_map<std::string, std::vector<UbseMemObmmInfo>> exportObmmInfoMap;
     for (const auto &[nodeId, summary] : summaries) {
         for (const auto &[name, item] : summary.shmSummary.exportItems) {
             if (!item.numaInfos.empty()) {
                 exportNumaInfosMap[name] = item.numaInfos;
+            }
+            if (!item.memids.empty()) {
+                std::vector<UbseMemObmmInfo> obmmInfos;
+                for (size_t i = 0; i < item.memids.size(); ++i) {
+                    UbseMemObmmInfo obmmInfo{};
+                    obmmInfo.memId = item.memids[i];
+                    if (i < item.faultTypes.size()) {
+                        obmmInfo.memIdStatus = item.faultTypes[i];
+                    }
+                    obmmInfos.push_back(obmmInfo);
+                }
+                exportObmmInfoMap[name] = obmmInfos;
             }
         }
     }
@@ -573,6 +590,10 @@ void GlobalMasterStore::ForEachImport(IShareStore::ImportVisitor visitor)
             auto it = exportNumaInfosMap.find(item.name);
             if (it != exportNumaInfosMap.end()) {
                 importObj.algoResult.exportNumaInfos = it->second;
+            }
+            auto obmmIt = exportObmmInfoMap.find(item.name);
+            if (obmmIt != exportObmmInfoMap.end()) {
+                importObj.exportObmmInfo = obmmIt->second;
             }
             visitor(nodeId, name, importObj);
         }
