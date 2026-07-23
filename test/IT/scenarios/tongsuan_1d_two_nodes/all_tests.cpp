@@ -733,10 +733,18 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaMemidByImportNotExistMemId01)
 
 // ==================== CLI Topo P0 测试 ====================
 
-// P0-CliTopoCpu-Ok-01: CLI拓扑查询
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliTopoCpuOk01)
+// P0-CliCluster-Ok-01: 查询集群信息
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliClusterOk01)
 {
-    ubse::it::tests::topo::RunP0CliTopoCpuOk01(Cluster(), "1");
+    ubse::it::tests::topo::RunP0CliClusterOk01(Cluster());
+}
+
+// ==================== CLI Node P0 测试 ====================
+
+// P0-CliNode-Ok-02: 指定有效节点查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNodeOk02)
+{
+    ubse::it::tests::topo::RunP0CliNodeOk02(Cluster());
 }
 
 // ==================== CLI Mem P0 测试 ====================

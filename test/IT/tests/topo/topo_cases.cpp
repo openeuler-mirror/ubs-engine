@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <regex>
 #include <set>
 
 namespace ubse::it::tests::topo {
@@ -349,38 +350,7 @@ void RunP0LinkListNullPtr01(ubse::it::infra::ItCluster& cluster)
 
 // ==================== CLI 用例 ====================
 
-void RunP0CliTopoCpuOk01(ubse::it::infra::ItCluster& cluster, const std::string& nodeId)
-{
-    auto& cli = cluster.GetCliInvoker(nodeId);
-
-    // 正确参数：display topo -t cpu 应返回完整拓扑信息
-    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
-    auto ret = cli.QueryTopoCpu(topoLinks);
-    EXPECT_EQ(ret, UBS_SUCCESS) << "display topo -t cpu should succeed";
-    EXPECT_FALSE(topoLinks.empty()) << "display topo -t cpu should return topology entries";
-    IT_LOG_INFO << "display topo -t cpu returned " << topoLinks.size() << " links";
-
-    // 统计有效linkId（非空且非"-"）的数量，预期为2
-    int validLinkCount = 0;
-    for (const auto& link : topoLinks) {
-        if (!link.linkId.empty() && link.linkId != "-") {
-            validLinkCount++;
-        }
-    }
-    EXPECT_EQ(validLinkCount, 2) << "display topo -t cpu should have 2 valid links, but got " << validLinkCount;
-    IT_LOG_INFO << "display topo -t cpu valid link count: " << validLinkCount;
-
-    // 错误参数：display topo -t cpu1 应返回失败
-    std::string badOutput = cli.ExecCli("display topo -t cpu1");
-    bool isFailed = (badOutput.find("fail") != std::string::npos || badOutput.find("error") != std::string::npos ||
-                     badOutput.find("Error") != std::string::npos || badOutput.find("invalid") != std::string::npos ||
-                     badOutput.find("Invalid") != std::string::npos || badOutput.empty());
-    EXPECT_TRUE(isFailed) << "display topo -t cpu1 should fail, but got: " << badOutput;
-    IT_LOG_INFO << "display topo -t cpu1 returned: " << badOutput;
-}
-
-// LCNE vs CLI display topo -t cpu：对比链路连接和接口名
-void RunP1CliTopoCpuCrossConsist01(ubse::it::infra::ItCluster& cluster)
+void RunP0CliTopoCpuOk01(ubse::it::infra::ItCluster& cluster)
 {
     // 1. 从LCNE获取拓扑连接
     std::vector<ubse::it::infra::LcneLinkInfo> lcneLinks;
@@ -451,11 +421,17 @@ void RunP0CliClusterOk01(ubse::it::infra::ItCluster& cluster)
     EXPECT_IT_OK(ret);
     EXPECT_GT(nodeInfos.size(), 0);
 
+    std::set<std::string> slotIds;
     std::map<std::string, std::string> cliGuidMap;
     for (const auto& info : nodeInfos) {
         std::string nodeId = util::ExtractNodeId(info.node);
+        slotIds.insert(nodeId);
         cliGuidMap[nodeId] = info.guid;
     }
+
+    // 各节点 slotId 不一致
+    EXPECT_EQ(slotIds.size(), nodeInfos.size())
+        << "All nodes should have unique slotId, but got " << slotIds.size() << " unique out of " << nodeInfos.size();
 
     IT_LOG_INFO << "=== LCNE logic-entities vs CLI display cluster GUID Comparison ===";
     int mismatchCount = 0;
@@ -508,11 +484,66 @@ void RunP0CliNodeOk01(ubse::it::infra::ItCluster& cluster)
     ubse::it::infra::ItNodeInfo nodeInfo;
     auto ret = cli.QueryNodeInfo(nodeInfo);
     ASSERT_IT_OK(ret);
-    EXPECT_FALSE(nodeInfo.node.empty());
-    EXPECT_FALSE(nodeInfo.role.empty());
-    EXPECT_FALSE(nodeInfo.guid.empty());
+
+    // node 非空 (hostname(slotId) 格式)
+    EXPECT_FALSE(nodeInfo.node.empty()) << "node field should not be empty";
+    EXPECT_NE(nodeInfo.node.find('('), std::string::npos) << "node should contain '(' for slotId";
+    EXPECT_NE(nodeInfo.node.find(')'), std::string::npos) << "node should contain ')' for slotId";
+
+    // slot_id 与集群一致
+    std::string cliSlotId = util::ExtractNodeId(nodeInfo.node);
+    uint32_t localSlotId = cluster.GetNode("1").GetSpec().slotId;
+    EXPECT_EQ(cliSlotId, std::to_string(localSlotId))
+        << "CLI slotId should match cluster spec, CLI=" << cliSlotId << ", cluster=" << localSlotId;
+
+    // role 有效值
+    EXPECT_FALSE(nodeInfo.role.empty()) << "role field should not be empty";
+    EXPECT_TRUE(nodeInfo.role == "master" || nodeInfo.role == "standby" || nodeInfo.role == "agent")
+        << "role should be master/standby/agent, actual: " << nodeInfo.role;
+
+    // bondingEid 非空
+    EXPECT_FALSE(nodeInfo.bondingEid.empty()) << "bondingEid field should not be empty";
+
+    // guid 非空
+    EXPECT_FALSE(nodeInfo.guid.empty()) << "guid field should not be empty";
+
     IT_LOG_INFO << "P0-CliNode-Ok-01 passed: node=" << nodeInfo.node << ", role=" << nodeInfo.role
-                << ", guid=" << nodeInfo.guid;
+                << ", bondingEid=" << nodeInfo.bondingEid << ", guid=" << nodeInfo.guid;
+}
+
+void RunP0CliNodeOk02(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_GE(nodeIds.size(), 2u) << "P0-CliNode-Ok-02 requires at least 2 nodes";
+
+    // 查询节点2
+    std::string targetNodeId = "2";
+    auto& cli = cluster.GetCliInvoker("1");
+    ubse::it::infra::ItNodeInfo nodeInfo;
+    auto ret = cli.QueryNodeInfo(nodeInfo, targetNodeId);
+    ASSERT_IT_OK(ret);
+
+    // node 包含目标节点ID
+    EXPECT_NE(nodeInfo.node.find('(' + targetNodeId + ')'), std::string::npos)
+        << "node should contain target nodeId " << targetNodeId;
+
+    // slot_id 与集群一致
+    std::string cliSlotId = util::ExtractNodeId(nodeInfo.node);
+    uint32_t targetSlotId = cluster.GetNode(targetNodeId).GetSpec().slotId;
+    EXPECT_EQ(cliSlotId, std::to_string(targetSlotId))
+        << "CLI slotId should match cluster spec, CLI=" << cliSlotId << ", cluster=" << targetSlotId;
+
+    // role 有效值
+    EXPECT_TRUE(nodeInfo.role == "master" || nodeInfo.role == "standby" || nodeInfo.role == "agent")
+        << "role should be master/standby/agent, actual: " << nodeInfo.role;
+
+    // bondingEid 非空
+    EXPECT_FALSE(nodeInfo.bondingEid.empty()) << "bondingEid should not be empty";
+
+    // guid 非空
+    EXPECT_FALSE(nodeInfo.guid.empty()) << "guid should not be empty";
+
+    IT_LOG_INFO << "P0-CliNode-Ok-02 passed: node=" << nodeInfo.node << ", role=" << nodeInfo.role;
 }
 
 void RunP0CliNodeBadParam01(ubse::it::infra::ItCluster& cluster)
@@ -522,6 +553,26 @@ void RunP0CliNodeBadParam01(ubse::it::infra::ItCluster& cluster)
     auto ret = cli.QueryNodeInfo(nodeInfo, "999");
     EXPECT_NE(ret, UBS_SUCCESS) << "display node -n 999 should fail";
     IT_LOG_INFO << "P0-CliNode-BadParam-01 passed";
+}
+
+void RunP0CliNodeBadParam02(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cli = cluster.GetCliInvoker("1");
+    ubse::it::infra::ItNodeInfo nodeInfo;
+
+    // -n 0: 超出范围
+    auto ret = cli.QueryNodeInfo(nodeInfo, "0");
+    EXPECT_NE(ret, UBS_SUCCESS) << "display node -n 0 should fail";
+
+    // -n 256: 超出范围
+    ret = cli.QueryNodeInfo(nodeInfo, "256");
+    EXPECT_NE(ret, UBS_SUCCESS) << "display node -n 256 should fail";
+
+    // -n abc: 非法字符
+    ret = cli.QueryNodeInfo(nodeInfo, "abc");
+    EXPECT_NE(ret, UBS_SUCCESS) << "display node -n abc should fail";
+
+    IT_LOG_INFO << "P0-CliNode-BadParam-02 passed";
 }
 
 } // namespace ubse::it::tests::topo

@@ -943,48 +943,305 @@ const char* ubs_error_string(int32_t error)
 
 ## 三、CLI 命令 P0 用例
 
-### 3.1 Node / Topo
+### 3.1 Topo
 
-#### display node / display cluster / display topo -t cpu
+#### display node
 
-| 编号 | 用例名 | 场景 | CLI 命令 | 入参/校验点 | 预期 |
-|------|--------|------|----------|------------|------|
-| P0-CliNode-Ok-01 | 查询本节点 | 单节点 | `display node` | 无参数; 输出含 nodeId/role/state 非空 | 成功 |
-| P0-CliNode-BadParam-01 | 不存在的 nodeId | 单节点 | `display node -n 999` | -n 非法值 | 报错 |
-| P0-CliCluster-Ok-01 | 查询集群 GUID | 四节点 | `display cluster` | 无参数; 输出含 clusterGuid 与 LCNE 一致 | 成功 |
-| P0-CliTopoCpu-Ok-01 | CPU 拓扑 | 双节点 | `display topo -t cpu` | 指定 nodeId; 输出含 link 信息 | 成功 |
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--node` | 节点 ID，范围 1~255，默认本节点 |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 主机名(槽位号) |
+| role | `master` / `standby` / `agent` | 节点角色 |
+| bonding-eid | `HHHH:HHHH:...` | Bonding EID |
+| guid | `CC08-A000-...` | 节点全局唯一标识符 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliNode-Ok-01 | 默认查询本节点 | 单节点 | 无参数; `node`(hostname(slotId))非空; `slot_id` 与集群 GetSpec 一致; `role`∈{`master`,`standby`,`agent`}; `bonding-eid` 非空; `guid` 非空 | 成功 |
+| P0-CliNode-Ok-02 | 指定有效节点查询 | 双节点 | `-n 2`; `node` 包含 `(2)`; `slot_id` 与集群 GetSpec 一致; `role` 有效; `bonding-eid` 非空; `guid` 非空 | 成功 |
+| P0-CliNode-BadParam-01 | 不存在的 nodeId | 单节点 | `-n 9`（1~255 内但不存在的节点） | 报错 |
+| P0-CliNode-BadParam-02 | nodeId 超范围/非法 | 单节点 | `-n 0` / `-n 256` / `-n abc` | 报错 |
+
+#### display cluster
+
+无选项。
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 主机名(槽位号) |
+| role | `master` / `standby` / `agent` | 节点角色 |
+| bonding-eid | `HHHH:HHHH:...` | Bonding EID |
+| guid | `CC08-A000-...` | 节点全局唯一标识符 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliCluster-Ok-01 | 查询集群信息 | 双/四节点 | 无参数; 1 个 `master`+1 个 `standby`+其余 `agent`、每行 `bonding-eid` 非空、`guid` 与 LCNE 一致; 各节点 `slotId` 不一致 | 成功 |
+
+#### display topo -t cpu
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 拓扑类型，必选，当前仅支持 `cpu` |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| link-id | `node/socket/port-node/socket/port` | 链路 ID（不可用时显示 `-`） |
+| node | `hostname(slotId)` | 本端节点（不可用时显示 `-`） |
+| socket | 整数 | 本端 CPU socketId（不可用时显示 `-`） |
+| port | 整数 | 本端 CPU 硬件端口（不可用时显示 `-`） |
+| interface-name | `400GUB1/1/1` | 本端接口名（不可用时显示 `-`） |
+| peer-node | `hostname(slotId)` | 对端节点（不可用时显示 `-`） |
+| peer-socket | 整数 | 对端 CPU socketId（不可用时显示 `-`） |
+| peer-port | 整数 | 对端 CPU 硬件端口（不可用时显示 `-`） |
+| peer-interface-name | `400GUB1/1/1` | 对端接口名（不可用时显示 `-`） |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliTopoCpu-Ok-01 | CPU 拓扑一致性 | 四节点 | ① 从 LCNE 获取拓扑连接列表; ② 从 CLI 执行 `display topo -t cpu` 获取链路列表; ③ 生成对比 key：`localSlot-localSocketId-localPort -> remoteSlot-remoteSocketId-remotePort`; ④ 过滤 CLI 中 linkId 为空或"-"的无效链路; ⑤ 对比 LCNE 与 CLI 的 key 集合，不应存在仅在 LCNE 中或仅在 CLI 中的链路 | 成功 |
 
 ### 3.2 Mem
 
-| 编号 | 用例名 | 场景 | CLI 命令 | 入参/校验点 | 预期 |
-|------|--------|------|----------|------------|------|
-| P0-CliCheckMem-Ok-01 | 内存健康检查 | 双节点 | `check memory` | 无参数; 输出含各节点内存状态 | 成功 |
-| P0-CliMemConfig-Ok-01 | 查询内存配置 | 双节点 | `display memory -t config` | 无参数; 输出含池化配置 | 成功 |
-| P0-CliNumaStatus-Ok-01 | NUMA 状态 | 双节点 | `display memory -t numa_status` | 无参数; 输出含 numa_id/mem_total/mem_free | 成功 |
-| P0-CliBorrowDetail-Ok-01 | 无借用时查询 | 单节点 | `display memory -t borrow_detail` | 无参数; 输出为空 | 成功 |
-| P0-CliCreateNuma-Ok-01 | 创建 numa | 双节点 | `create memory -t numa -n <name> -s <size>` | 正常 name+size; display 可查 | 成功 |
-| P0-CliCreateNuma-InvalidChar-01 | 非法 name | 单节点 | `create memory -t numa -n "bad!name"` | 非法字符 | 报错 |
-| P0-CliCreateNuma-Dup-01 | 重复创建 | 双节点 | `create memory -t numa` 二次 | 同名 | 报错 EXISTED |
-| P0-CliCreateFd-Ok-01 | 创建 fd | 双节点 | `create memory -t fd -n <name> -s <size>` | 正常参数 | 成功 |
-| P0-CliCreateFd-InvalidVal-01 | size=0 | 单节点 | `create memory -t fd -s 0` | size=0 | 报错 |
-| P0-CliCreateShare-Ok-01 | 创建 share | 四节点 | `create memory -t share -n <name> -s <size>` | 正常参数 | 成功 |
-| P0-CliCreateShare-OverLen-01 | name 超长 | 单节点 | `create memory -t share -n <超长>` | name 超长 | 报错 |
-| P0-CliDelMem-NotExist-01 | 删除不存在 | 单节点 | `delete memory <name>` | 不存在的 name | 报错 |
-| P0-CliAttachMem-NotReady-01 | attach 不存在 | 双节点 | `attach memory <name>` | 不存在的 name | 报错 |
-| P0-CliDetachMem-NotReady-01 | detach 未 attach | 单节点 | `detach memory <name>` | 未 attach | 报错 |
+#### check memory
+
+无选项。
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 主机名(槽位号)，不可用时显示 `-(slotId)` |
+| status | `ok` / `nok` | 内存健康状态 |
+| detail | `cluster state: ok; obmm: ok; sysSentry: ok` | 各组件状态：cluster state / obmm / sysSentry |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliCheckMem-Ok-01 | 内存健康检查 | 双节点 | 无参数; 输出含各节点内存状态 | 成功 |
+
+#### display memory -t config
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 必选，取值: `config` |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 主机名(槽位号) |
+| isLender | `true` / `false` | 是否可作为内存借出方 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliMemConfig-Ok-01 | 查询内存配置 | 双节点 | 输出含池化配置 | 成功 |
+
+#### display memory -t numa_status
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 必选，取值: `numa_status` |
+| `-a` | `--all` | 显示全部 hugepage 类型（flag） |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 主机名(槽位号) |
+| numa | 整数 | NUMA ID |
+| total | 整数 | NUMA 内存总量，单位 MB |
+| used | 整数 | NUMA 已用内存，单位 MB |
+| free | 整数 | NUMA 空闲内存，单位 MB |
+| used_percent | 浮点数 | 内存使用比例，保留一位小数 |
+| 2M_total | 整数 | 2M 大页总数（`-a` 时显示，4k 页环境） |
+| 2M_free | 整数 | 2M 大页空闲数 |
+| 1G_total | 整数 | 1G 大页总数（`-a` 时显示，4k 页环境） |
+| 1G_free | 整数 | 1G 大页空闲数 |
+| 512M_total | 整数 | 512M 大页总数（`-a` 时显示，64k 页环境） |
+| 512M_free | 整数 | 512M 大页空闲数 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliNumaStatus-Ok-01 | NUMA 状态 | 双节点 | 输出含 numa_id/mem_total/mem_free | 成功 |
+
+#### display memory -t borrow_detail
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 必选，取值: `borrow_detail` |
+| `-bt` | `--borrow-type` | 借用类型过滤，取值: `fd` / `numa` / `share` |
+| `-n` | `--name` | 按名称过滤 |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| name | 字符串 | 借用名称 |
+| type | `fd` / `numa` / `share` | 借用类型 |
+| borrow_node | `hostname(slotId)` | 借入节点 |
+| lend_node | `hostname(slotId)` | 借出节点 |
+| lend_numa | `numaId(socketId)` | 借出 NUMA |
+| lend_size | 整数 | 借出大小，单位字节 |
+| status | `creating` / `exist` / `fault` / `single` | 状态 |
+| handle | 整数 / `-` | 句柄，无则为 `-` |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliBorrowDetail-Ok-01 | 无借用时查询 | 单节点 | 输出为空 | 成功 |
+
+#### display memory -t node_borrow
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 必选，取值: `node_borrow` |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 借入节点 |
+| borrow_type | `fd` / `numa` / `share` | 借用类型 |
+| total_borrow_size | 整数 | 总借入大小，单位字节 |
+| borrow_count | 整数 | 借用数量 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliNodeBorrow-Ok-01 | 查询节点借入汇总 | 双节点 | 输出含各节点借入信息 | 成功 |
+
+#### display memory -t node_lend
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 必选，取值: `node_lend` |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| node | `hostname(slotId)` | 借出节点 |
+| lend_type | `fd` / `numa` / `share` | 借出类型 |
+| total_lend_size | 整数 | 总借出大小，单位字节 |
+| lend_count | 整数 | 借出数量 |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliNodeLend-Ok-01 | 查询节点借出汇总 | 双节点 | 输出含各节点借出信息 | 成功 |
+
+#### create memory
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-t` | `--type` | 创建类型，必选，取值: `numa` / `fd` / `share` |
+| `-n` | `--name` | 唯一名称，≤47 字符，仅含字母/数字/`.`/`:`/`-`/`_` |
+| `-s` | `--size` | 借用大小，≥4M（如 `128M`、`1G`） |
+| `-l` | `--link-id` | 链路 ID，格式 `nodeID/socketID/portID-nodeID/socketID/portID`，仅 `numa` 时有效 |
+| `-r` | `--region` | 共享 region 节点，格式 `node1,node2`（如 `1,2`），仅 `share` 时有效 |
+
+**回显：** 成功输出 `create successfully`，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliCreateNuma-Ok-01 | 创建 numa | 双节点 | `-t numa -n <name> -s <size>`; display 可查 | create successfully |
+| P0-CliCreateNuma-InvalidChar-01 | 非法 name | 单节点 | `-t numa -n "bad!name"` 非法字符 | 报错 |
+| P0-CliCreateNuma-Dup-01 | 重复创建 | 双节点 | `-t numa` 同名再调一次 | 报错 EXISTED |
+| P0-CliCreateFd-Ok-01 | 创建 fd | 双节点 | `-t fd -n <name> -s <size>` 正常参数 | create successfully |
+| P0-CliCreateFd-InvalidVal-01 | size=0 | 单节点 | `-t fd -s 0` | 报错 |
+| P0-CliCreateShare-Ok-01 | 创建 share | 四节点 | `-t share -n <name> -s <size>` 正常参数 | create successfully |
+| P0-CliCreateShare-OverLen-01 | name 超长 | 双节点 | `-t share -n <超长>` | 报错 |
+
+#### delete memory
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--name` | 唯一名称 |
+| `-t` | `--type` | 删除类型，取值: `numa`(默认) / `fd` / `share` / `addr` |
+
+**回显：** 成功输出 `Delete successfully`，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliDelMem-NotExist-01 | 删除不存在 | 单节点 | 不存在的 name | 报错 |
+
+#### attach memory
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--name` | 唯一名称，长度 1~47 |
+
+**回显：** 成功输出 `name`/`size`/`mem-ids`/`import-node`/`export-node`/`region` 信息，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliAttachMem-NotReady-01 | attach 不存在 | 双节点 | 不存在的 name | 报错 |
+
+#### detach memory
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--name` | 唯一名称，长度 1~47 |
+
+**回显：** 成功输出 `Detach successfully`，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliDetachMem-NotReady-01 | detach 未 attach | 单节点 | 未 attach | 报错 |
 
 ### 3.3 URMA QoS
 
-| 编号 | 用例名 | 场景 | CLI 命令 | 入参/校验点 | 预期 |
-|------|--------|------|----------|------------|------|
-| P0-CliCreateQos-Ok-01 | 创建单优先级 | 单节点 | `create urma-qos --pri 0 --cir 100` | 正常参数 | 成功 |
-| P0-CliCreateQos-BadParam-01 | 缺少参数 | 单节点 | `create urma-qos`（无参数） | 缺参数 | 报错 |
-| P0-CliCreateQos-BadParam-02 | 参数数量不匹配 | 单节点 | `create urma-qos --pri 0,1 --cir 100` | pri 2个 cir 1个 | 报错 |
-| P0-CliCreateQos-InvalidVal-01 | 无效 priority | 单节点 | `create urma-qos --pri 5 --cir 100` | priority ∉ {0,1} | 报错 |
-| P0-CliCreateQos-Dup-01 | 重复 priority | 单节点 | `create urma-qos` 二次 | 已存在同名 | 报错 QOS_EXIST |
-| P0-CliCreateQos-OverCnt-01 | count 超上限 | 单节点 | count > 2 | 超限 | 报错 |
-| P0-CliDisplayQos-Ok-01 | 未创建时查询 | 单节点 | `display urma-qos` | 无配置; 输出为空 | 成功 |
-| P0-CliDelQos-NotReady-01 | 未创建时删除 | 单节点 | `delete urma-qos` | 无配置 | 报错 |
+#### create urma-qos
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-p`/`--pri` | 优先级，必选，取值: `0` / `1`，支持逗号分隔（如 `0,1`） |
+| `-c`/`--cir` | 承诺信息速率（带宽），必选，单位 Gbps，非负整数，支持逗号分隔 |
+| `-n`/`--node` | 节点 ID（CLOS 组网不支持） |
+
+**回显：** 成功输出 `create successfully`，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliCreateQos-Ok-01 | 创建单优先级 | 单节点 | `--pri 0 --cir 100` 正常参数 | create successfully |
+| P0-CliCreateQos-BadParam-01 | 缺少参数 | 单节点 | 无参数 | 报错 |
+| P0-CliCreateQos-BadParam-02 | 参数数量不匹配 | 单节点 | `--pri 0,1 --cir 100` pri 2个 cir 1个 | 报错 |
+| P0-CliCreateQos-InvalidVal-01 | 无效 priority | 单节点 | `--pri 5 --cir 100` priority ∉ {0,1} | 报错 |
+| P0-CliCreateQos-Dup-01 | 重复 priority | 单节点 | 再调一次，已存在同名 | 报错 |
+| P0-CliCreateQos-OverCnt-01 | count 超上限 | 单节点 | count > 2 | 报错 |
+
+#### display urma-qos
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--node` | 节点 ID（CLOS 组网不支持） |
+
+**回显字段：**
+
+| 字段 | 格式 | 说明 |
+|------|------|------|
+| priority | `0` / `1` | 优先级级别 |
+| bandwidth(Gbps) | 整数 | 分配的带宽值，单位 Gbps |
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliDisplayQos-Ok-01 | 未创建时查询 | 单节点 | 无配置; 输出含 "No ETS QoS priority groups" | 成功 |
+
+#### delete urma-qos
+
+| 选项 | 长选项 | 说明 |
+|------|--------|------|
+| `-n` | `--node` | 节点 ID（CLOS 组网不支持） |
+
+**回显：** 成功输出 `delete successfully`，失败输出错误信息。
+
+| 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
+|------|--------|------|------------|------|
+| P0-CliDelQos-NotReady-01 | 未创建时删除 | 单节点 | 无配置; 幂等返回成功 | 成功 |
 
 ---
 
@@ -995,20 +1252,22 @@ const char* ubs_error_string(int32_t error)
 | 模块 | SDK P0 | CLI P0 | 合计 |
 |------|--------|--------|------|
 | Client | 5 | — | 5 |
-| Topo | 8 | 4 | 12 |
-| Mem FD | 35 | 3 | 38 |
-| Mem NUMA | 28 | 7 | 35 |
-| Mem SHM | 27 | 3 | 30 |
-| NPU | 7 | — | 7 |
+| Topo | 8 | 8 | 16 |
+| Mem FD | 38 | 2 | 40 |
+| Mem NUMA | 37 | 4 | 41 |
+| Mem SHM | 41 | 10 | 51 |
 | URMA QoS | 1 | 8 | 9 |
 | Error | 2 | — | 2 |
-| **合计** | **113** | **25** | **138** |
+| **合计** | **139** | **32** | **171** |
+
+
 
 ### 按场景
 
 | 场景 | SDK P0 | CLI P0 | 合计 |
 |------|--------|--------|------|
-| 单节点 | 38 | 15 | 53 |
-| 双节点 | 73 | 8 | 81 |
-| 四节点 | 17 | 2 | 19 |
+| 单节点 | 18 | 16 | 34 |
+| 双节点 | 114 | 13 | 127 |
+| 四节点 | 16 | 3 | 19 |
 | NPU 单节点 | 7 | — | 7 |
+| **合计** | **155** | **32** | **187** |

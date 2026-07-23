@@ -45,20 +45,23 @@ void RunP0LinkListNullPtr01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== CLI 用例 ====================
 
-// CLI拓扑查询：验证display topo -t cpu返回完整信息，错误参数返回失败
-void RunP0CliTopoCpuOk01(ubse::it::infra::ItCluster& cluster, const std::string& nodeId);
-
-// LCNE vs CLI display topo -t cpu：对比链路连接
-void RunP1CliTopoCpuCrossConsist01(ubse::it::infra::ItCluster& cluster);
+// P0-CliTopoCpu-Ok-01: LCNE vs CLI display topo -t cpu 一致性对比
+void RunP0CliTopoCpuOk01(ubse::it::infra::ItCluster& cluster);
 
 // LCNE logic-entities vs CLI display cluster：对比每个节点的GUID
 void RunP0CliClusterOk01(ubse::it::infra::ItCluster& cluster);
 
-// P0-CliNode-Ok-01: CLI display node 查询本节点，验证 nodeId/role/state 非空
+// P0-CliNode-Ok-01: CLI display node 查询本节点，验证 node/role/bondingEid/guid 非空
 void RunP0CliNodeOk01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliNode-Ok-02: CLI display node -n <有效节点> 查询指定节点
+void RunP0CliNodeOk02(ubse::it::infra::ItCluster& cluster);
 
 // P0-CliNode-BadParam-01: CLI display node -n 999 不存在的 nodeId 报错
 void RunP0CliNodeBadParam01(ubse::it::infra::ItCluster& cluster);
+
+// P0-CliNode-BadParam-02: CLI display node -n 0/-n 256/-n abc 非法参数报错
+void RunP0CliNodeBadParam02(ubse::it::infra::ItCluster& cluster);
 
 } // namespace ubse::it::tests::topo
 
