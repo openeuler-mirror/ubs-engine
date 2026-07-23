@@ -16,6 +16,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_${MODULE_NAME}_ut PRIVATE
         mti_out_of_band
         ubse_log
         ubse_timer
+        ubse_thread_pool
         ssu_plugin
         ubse_ssu
         GTest::gmock_main
