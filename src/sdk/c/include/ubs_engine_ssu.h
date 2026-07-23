@@ -474,7 +474,8 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要绑定的VFE信息
- * @param bus_instance_guid [IN,OUT] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_GUID_LENGTH
+ * @param bus_instance_guid [IN,OUT] 总线实例GUID, 以'\0'结尾的字符串;
+ *                                   调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH 字节
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
@@ -483,8 +484,7 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
-                                uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH]);
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, char *bus_instance_guid);
 
 /**
  * @brief 释放VFE设备
@@ -493,7 +493,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要释放的VFE信息
- * @param bus_instance_guid [IN] 总线实例GUID, 标识目标虚拟机, 长度为UBS_SSU_GUID_LENGTH
+ * @param bus_instance_guid [IN] 总线实例GUID, 以'\0'结尾的字符串
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
@@ -502,8 +502,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi, ubs_ub_vfe_t *vfe,
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_fe_device_free(uint32_t upi, ubs_ub_vfe_t *vfe,
-                               uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH]);
+int32_t ubs_ssu_fe_device_free(uint32_t upi,const ubs_ub_vfe_t *vfe);
 
 #ifdef __cplusplus
 }

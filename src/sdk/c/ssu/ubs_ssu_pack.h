@@ -204,21 +204,21 @@ ubs_error_t ubs_ssu_fe_device_list_unpack(ubse_api_buffer_t &buffer, ubs_ub_fe_t
  * 对应服务端 SsuFeDeviceAllocUnpack: upi(uint32_t) + vfe(VfePack) + busInstanceGuid(string)
  * @param upi UPID
  * @param vfe VFE信息
- * @param bus_instance_guid [IN] 设备实例GUID
+ * @param bus_instance_guid [IN] 设备实例GUID, 以'\0'结尾的字符串
  * @param buffer 输出缓冲区
  * @return ubs_error_t 错误码
  */
-ubs_error_t ubs_ssu_fe_device_alloc_pack(uint32_t upi, const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid,
+ubs_error_t ubs_ssu_fe_device_alloc_pack(uint32_t upi, const ubs_ub_vfe_t *vfe, const char *bus_instance_guid,
                                          ubse_api_buffer_t &buffer);
 
 /**
  * @brief FE设备分配结果解包
  * 对应服务端 SsuFeDeviceAllocPack: busInstanceGuid(string)
  * @param buffer 输入缓冲区
- * @param bus_instance_guid 分配的总线实例 GUID，非空
+ * @param bus_instance_guid [OUT] 分配的总线实例 GUID, 调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH 字节
  * @return UBS_SUCCESS 成功，其他值为错误码
  */
-ubs_error_t ubs_ssu_fe_device_alloc_unpack(ubse_api_buffer_t &buffer, uint8_t *bus_instance_guid);
+ubs_error_t ubs_ssu_fe_device_alloc_unpack(ubse_api_buffer_t &buffer, char *bus_instance_guid);
 /**
  * @brief FE设备释放请求打包
  * 对应服务端 SsuFeDeviceFreeUnpack: upi(uint32_t) + vfe(VfePack)

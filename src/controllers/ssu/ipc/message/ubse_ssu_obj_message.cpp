@@ -30,7 +30,6 @@ UbseResult StringPack(ubse::utils::UbsePackUtil &packUtil, const std::string &st
     }
     return UBSE_OK;
 }
-
 UbseResult StringUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, std::string &str, uint32_t maxLen)
 {
     if (!unpackUtil.UnpackString(str, maxLen)) {
