@@ -518,7 +518,7 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceAlloc_Success)
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_InvalidUpi)
 {
     UbseSsuVfe vfe;
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(70000, vfe, "guid"), UBSE_ERROR_INVAL);
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(70000, vfe), UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_BusInstNotFound)
@@ -527,7 +527,7 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_BusInstNotFound)
     MOCKER_CPP_VIRTUAL(UbseMtiBusInstance::GetInstance(), &UbseMtiBusInstance::GetBusInstanceList)
         .stubs()
         .will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe, "nonexistent"), UBSE_ERROR_INVAL);
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe), UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_UpiMismatch)
@@ -540,7 +540,8 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_UpiMismatch)
         .will(returnValue(UBSE_OK));
     UbseSsuVfe vfe;
     auto guidStr = UbseSsuDirectToVmManager::GuidToStr(busInst.guid);
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe, guidStr), UBSE_ERROR_INVAL);
+    vfe.bindBusInstanceGuid = guidStr;
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe), UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_PreparationQueryFailed)
@@ -554,7 +555,8 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_PreparationQueryFailed)
     MOCKER_CPP_VIRTUAL(UbseMtiUrma::GetInstance(), &UbseMtiUrma::GetIdevFeList).stubs().will(returnValue(UBSE_ERROR));
     UbseSsuVfe vfe;
     auto guidStr = UbseSsuDirectToVmManager::GuidToStr(busInst.guid);
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe, guidStr), UBSE_ERROR);
+    vfe.bindBusInstanceGuid = guidStr;
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, vfe), UBSE_ERROR);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_Success_WithDestroy)
@@ -594,7 +596,8 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_Success_WithDestroy)
         .stubs()
         .will(returnValue(UBSE_OK));
     auto guidStr = UbseSsuDirectToVmManager::GuidToStr(busInst.guid);
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe, guidStr), UBSE_OK);
+    ssuVfe.bindBusInstanceGuid = guidStr;
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe), UBSE_OK);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_Success_SkipDestroy)
@@ -632,7 +635,8 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_Success_SkipDestroy)
         .with(mockcpp::any(), mockcpp::any(), outBound(resList))
         .will(returnValue(UBSE_OK));
     auto guidStr = UbseSsuDirectToVmManager::GuidToStr(busInst.guid);
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe, guidStr), UBSE_OK);
+    ssuVfe.bindBusInstanceGuid = guidStr;
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe), UBSE_OK);
 }
 
 TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_VfeNotFound)
@@ -660,7 +664,8 @@ TEST_F(TestUbseSsuDirectToVmManager, FeDeviceFree_VfeNotFound)
         .with(outBound(pfes))
         .will(returnValue(UBSE_OK));
     auto guidStr = UbseSsuDirectToVmManager::GuidToStr(busInst.guid);
-    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe, guidStr), UBSE_ERROR_INVAL);
+    ssuVfe.bindBusInstanceGuid = guidStr;
+    EXPECT_EQ(UbseSsuDirectToVmManager::GetInstance().FeDeviceFree(100, ssuVfe), UBSE_ERROR_INVAL);
 }
 
 // ---- ClearEmptyVMBusInstance ----

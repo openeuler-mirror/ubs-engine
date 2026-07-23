@@ -1,4 +1,4 @@
-set(MODULE_NAME ubse_ssu_controller)
+set(MODULE_NAME ssu_plugin)
 
 file(GLOB TEST_SOURCES "*.cpp" "*.h")
 
@@ -12,14 +12,15 @@ target_include_directories(${CMAKE_PROJECT_NAME}_${MODULE_NAME}_ut PRIVATE
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME}_${MODULE_NAME}_ut PRIVATE
-        ubse_ssu_controller
         ubse_mti
         mti_out_of_band
         ubse_log
         ubse_timer
+        ssu_plugin
+        ubse_ssu
         GTest::gmock_main
         mockcpp
-        -Wl,--whole-archive ubse_plugin -Wl,--no-whole-archive
+        -Wl,--whole-archive ubse_plugin ubse_vip syssentry -Wl,--no-whole-archive
 )
 
 target_compile_features(${CMAKE_PROJECT_NAME}_${MODULE_NAME}_ut PRIVATE cxx_std_17)

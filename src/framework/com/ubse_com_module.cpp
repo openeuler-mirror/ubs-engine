@@ -269,6 +269,19 @@ void UbseComModule::Stop()
 {
     return;
 }
+
+void UbseComModule::RegisterVerifyMsgCb(VerifyMsgCb cb)
+{
+    if (rpcServer_ == nullptr) {
+        UBSE_LOG_WARN << "rpcServer is null, cannot register verify callback";
+        return;
+    }
+    auto *engine = UbseComEngineManager::GetEngine(rpcServer_->GetName());
+    if (engine != nullptr) {
+        engine->RegisterVerifyMsgCb(cb);
+    }
+}
+
 const std::string UbseComModule::GetCurRoleStr()
 {
     ubse::election::UbseRoleInfo roleInfo{};

@@ -33,13 +33,14 @@ from ubse.ffi.ubs_binary_codec import BinaryPacker, BinaryUnpacker, unpack_list
 from ubse.ffi.ubs_error_registry import register_module_errors
 from ubse.ffi.ubs_engine_exceptions import (
     UbsEngineExistedError, UbsEngineAllocateError, UbsEngineNotExistError,
-    UbsEngineOutOfRangeError, UbsErrInvalidArg
+    UbsEngineOutOfRangeError, UbsErrInvalidArg, UbsLengthExceededError
 )
 
 _MAX_NAMESPACES = 1024
 _MAX_STATS = 1024
 _MAX_CONNECT_INFO = 1024
 _MAX_FE = 1024
+_MAX_NS_DEV_PATHS = 1024
 # ====================== 参数校验函数 ======================
 
 def validate_name(name: str) -> None:
@@ -144,22 +145,17 @@ def validate_fe_device_alloc_params(vfe: Optional[UbsUbVfe], guid: Optional[byte
     if guid is not None and len(guid) != UBS_SSU_GUID_LENGTH:
         raise UbsErrInvalidArg(f"bus_instance_guid length must be {UBS_SSU_GUID_LENGTH}")
 
-def validate_fe_device_free_params(vfe: Optional[UbsUbVfe], guid: Optional[bytes]) -> None:
+def validate_fe_device_free_params(vfe: Optional[UbsUbVfe]) -> None:
     """校验FE设备释放参数是否合法。
 
     Args:
         vfe: VFE信息
-        guid: 总线实例GUID
 
     Raises:
-        UbsErrNullPointer: vfe或guid为None
+        UbsErrNullPointer: vfe为None
     """
     if vfe is None:
         raise UbsErrInvalidArg("vfe is None")
-    if guid is None:
-        raise UbsErrInvalidArg("bus_instance_guid is None")
-    if len(guid) != UBS_SSU_GUID_LENGTH:
-        raise UbsErrInvalidArg(f"bus_instance_guid length must be {UBS_SSU_GUID_LENGTH}")
 
 # ====================== 请求打包函数 ======================
 
@@ -301,6 +297,21 @@ def pack_fe_device_req(upi: int, vfe: UbsUbVfe, bus_instance_guid: bytes) -> byt
             .pack_uint32(upi)
             .pack_raw(pack_vfe(vfe))
             .pack_string(bus_instance_guid, UBS_SSU_GUID_LENGTH)
+            .result())
+
+
+def pack_fe_device_free_req(upi: int, vfe: UbsUbVfe) -> bytes:
+    """将FE设备释放请求参数打包为字节数组。
+    Args:
+        upi: 租户隔离标识
+        vfe: VFE信息
+
+    Returns:
+        打包后的字节数组
+    """
+    return (BinaryPacker()
+            .pack_uint32(upi)
+            .pack_raw(pack_vfe(vfe))
             .result())
 
 
@@ -469,20 +480,39 @@ def unpack_alloc_result_list(response: bytes) -> List[UbsSsuAllocResult]:
     """
     return unpack_list(BinaryUnpacker(response), _MAX_NAMESPACES, unpack_alloc_result_impl)
 
+def unpack_ns_dev_paths_response(response: bytes) -> List[str]:
+    """从响应中解包命名空间设备路径列表。
 
-def unpack_dev_path_response(response: bytes) -> str:
-    """从响应中解包设备路径。
+    格式: uint32 count + [string]*count
 
     Args:
         response: 响应数据
 
     Returns:
-        解包后的设备路径
+        解包后的命名空间设备路径列表
 
     Raises:
         ValueError: 响应数据不足
     """
-    return BinaryUnpacker(response).unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
+    u = BinaryUnpacker(response)
+    return unpack_ns_dev_paths(u)
+
+
+def unpack_ns_dev_paths(u: BinaryUnpacker) -> List[str]:
+    """从解包器中读取命名空间设备路径列表（内部函数）。
+
+    读取后解包器位置指向列表之后的数据。
+
+    Args:
+        u: 解包器
+
+    Returns:
+        解包后的命名空间设备路径列表
+    """
+    count = u.unpack_uint32()
+    if count > _MAX_NS_DEV_PATHS:
+        raise UbsLengthExceededError(f"ns_dev_paths count {count} exceeds max {_MAX_NS_DEV_PATHS}")
+    return [u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH) for _ in range(count)]
 
 
 def unpack_ns_stats_list(response: bytes) -> List[UbsSsuNsStats]:

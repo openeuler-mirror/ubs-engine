@@ -16,6 +16,8 @@
 #include <sstream>
 #include <string>
 #include <unistd.h>
+#include <chrono>
+#include <thread>
 
 #include "../message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "../message/ubse_mem_share_borrow_importobj_simpo.h"
@@ -122,12 +124,12 @@ constexpr uint16_t DetachCallbackToGlobalOpCode()
 
 constexpr uint16_t DetachToPdOpCode()
 {
-    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_CASCADE_MASTER_TO_PD_MASTER);
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_CASCADE_MASTER_TO_MANAGE_MASTER);
 }
 
 constexpr uint16_t DetachPdToGlobalOpCode()
 {
-    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_PD_MASTER_TO_GLOBAL_MASTER);
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_MANAGE_MASTER_TO_GLOBAL_MASTER);
 }
 
 // -------------------- 发送底座 --------------------
@@ -162,7 +164,7 @@ UbseResult SendWithRetry(const std::string &remoteNodeId, uint16_t opCode, const
             return UBSE_OK;
         }
         UBSE_LOG_ERROR << "Failed to send " << logTag << ", " << FormatRetCode(ret);
-        sleep(SEND_RETRY_DURATION);
+        std::this_thread::sleep_for(std::chrono::seconds(SEND_RETRY_DURATION));
     }
     return ret;
 }
@@ -204,7 +206,7 @@ UbseResult SendToLocalMasterWithRetry(const TPayload &payload,
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Get local master nodeId failed, " << FormatRetCode(ret);
             retryCount++;
-            sleep(SEND_RETRY_DURATION);
+            std::this_thread::sleep_for(std::chrono::seconds(SEND_RETRY_DURATION));
             continue;
         }
         sendParam.SetRemoteId(masterNode.id);
@@ -215,7 +217,7 @@ UbseResult SendToLocalMasterWithRetry(const TPayload &payload,
         UBSE_LOG_ERROR << "Failed to report " << logTag << ", masterNodeId=" << sendParam.GetRemoteId()
                        << ", " << FormatRetCode(ret);
         retryCount++;
-        sleep(SEND_RETRY_DURATION);
+        std::this_thread::sleep_for(std::chrono::seconds(SEND_RETRY_DURATION));
     }
     return ret;
 }

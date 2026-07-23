@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAttachStripedSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAttachStripedSpacePack(devPath, response);
+    return SsuAttachStripedSpacePack(nsDevPaths, devPath, response);
 }
 
 UbseResult UbseAttachStripedSpaceHandler::Handle()
@@ -31,7 +31,7 @@ UbseResult UbseAttachStripedSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity_ = identity_;
-    auto ret = ssuService->AttachStripedSpace(req, devPath);
+    auto ret = ssuService->AttachStripedSpace(req, nsDevPaths, devPath);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;

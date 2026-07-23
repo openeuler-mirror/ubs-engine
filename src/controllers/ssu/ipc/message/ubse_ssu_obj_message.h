@@ -46,6 +46,10 @@ common::def::UbseResult AllocResultPack(ubse::utils::UbsePackUtil &packUtil,
                                         const plugin::service::ssu::UbseSsuAllocResult &result);
 uint32_t AllocResultCalcSize(const plugin::service::ssu::UbseSsuAllocResult &result);
 
+common::def::UbseResult NsDevPathsPack(ubse::utils::UbsePackUtil &packUtil,
+                                       const std::vector<std::string> &nsDevPaths);
+size_t NsDevPathsCalcSize(const std::vector<std::string> &nsDevPaths);
+
 common::def::UbseResult ConnectInfoPack(ubse::utils::UbsePackUtil &packUtil,
                                         const plugin::service::ssu::UbseSsuConnectInfo &info);
 uint32_t ConnectInfoCalcSize(const plugin::service::ssu::UbseSsuConnectInfo &info);

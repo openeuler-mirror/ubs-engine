@@ -61,6 +61,9 @@ public:
         return UBSE_OK;
     }
 
+    /* 注册消息验证回调，由HA或节点发现模块在引擎启动后调用 */
+    void RegisterVerifyMsgCb(VerifyMsgCb cb);
+
     template <class TReq, class TRsp>
     UbseResult RegRpcService(UbseComBaseMessageHandlerPtr& handlerPtr)
     {

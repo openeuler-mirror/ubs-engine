@@ -1,13 +1,12 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 #include "ubse_mem_async_processor.h"
+#include "message/ubse_mem_numa_borrow_req_simpo.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -34,7 +33,8 @@ message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSim
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
         message::UbseMemOperationResp resp{};
-        UbseMemShareBorrow(request.Get()->GetUbseMemShareBorrowReq(), resp);
+        auto req = request.Get()->GetUbseMemShareBorrowReq();
+        UbseMemShareBorrow(req, resp);
     });
     return UBSE_OK;
 }

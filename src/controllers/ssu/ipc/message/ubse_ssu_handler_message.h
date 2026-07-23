@@ -53,21 +53,26 @@ common::def::UbseResult SsuRemoveAccessPermissionUnpack(const api::server::UbseI
 
 common::def::UbseResult SsuAttachSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                              plugin::service::ssu::UbseSsuSpaceReq &req);
-common::def::UbseResult SsuAttachSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response);
+common::def::UbseResult SsuAttachSpacePack(const std::vector<std::string> &nsDevPaths,
+                                           api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuDetachSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                              plugin::service::ssu::UbseSsuSpaceReq &req);
 
 common::def::UbseResult SsuAttachLinearSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                                    plugin::service::ssu::UbseSsuLinearSpaceReq &req);
-common::def::UbseResult SsuAttachLinearSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response);
+common::def::UbseResult SsuAttachLinearSpacePack(const std::vector<std::string> &nsDevPaths,
+                                                  const std::string &devPath,
+                                                  api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuDetachLinearSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                                    plugin::service::ssu::UbseSsuLinearSpaceReq &req);
 
 common::def::UbseResult SsuAttachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                                     plugin::service::ssu::UbseSsuStripedSpaceReq &req);
-common::def::UbseResult SsuAttachStripedSpacePack(const std::string &devPath, api::server::UbseIpcMessage &response);
+common::def::UbseResult SsuAttachStripedSpacePack(const std::vector<std::string> &nsDevPaths,
+                                                   const std::string &devPath,
+                                                   api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuDetachStripedSpaceUnpack(const api::server::UbseIpcMessage &buffer,
                                                     plugin::service::ssu::UbseSsuStripedSpaceReq &req);
@@ -80,7 +85,7 @@ common::def::UbseResult SsuFeDeviceAllocUnpack(const api::server::UbseIpcMessage
 common::def::UbseResult SsuFeDeviceAllocPack(const std::string &busInstanceGuid, api::server::UbseIpcMessage &response);
 
 common::def::UbseResult SsuFeDeviceFreeUnpack(const api::server::UbseIpcMessage &buffer, uint32_t &upi,
-                                              plugin::service::ssu::UbseSsuVfe &vfe, std::string &busInstanceGuid);
+                                              plugin::service::ssu::UbseSsuVfe &vfe);
 
 } // namespace ubse::ssu::ipc::message
 

@@ -545,12 +545,43 @@ static void HandleGetAllocInfoReqReceiver(const uint8_t *reqData, uint32_t reqSi
     UbseSsuGetAllocInfoResp respData;
     respData.requestId = req.requestId;
     // master端直接返回完整分配结果，agent无本地账本
-    respData.errorCode = UbseSsuServiceImp::GetInstance().GetAllocInfoByName(req.name, respData.result, req.identityInfo);
+    respData.errorCode =
+        UbseSsuServiceImp::GetInstance().GetAllocInfoByName(req.name, respData.result, req.identityInfo);
     if (respData.errorCode != UBSE_OK) {
         UBSE_LOG_ERROR << "GetAllocInfoByName failed, " << FormatRetCode(respData.errorCode)
                        << ", requestId=" << req.requestId << ", name=" << req.name;
     }
     resp = std::make_unique<UbseSsuGetAllocInfoRespMsg>(respData);
+}
+
+// master端处理GetConnectInfo查询请求：查询耗时较短，直接在handler线程同步执行，
+// 通过sync resp直接返回connectInfoList，agent端无需future等待
+static void HandleGetConnectInfoReqReceiver(const uint8_t *reqData, uint32_t reqSize,
+                                            std::unique_ptr<UbseRpcMessage> &resp)
+{
+    UbseSsuGetConnectInfoReqMsg request;
+    if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize get connect info req, reqSize=" << reqSize;
+        UbseSsuGetConnectInfoResp errResp;
+        errResp.errorCode = UBSE_ERROR;
+        resp = std::make_unique<UbseSsuGetConnectInfoRespMsg>(errResp);
+        return;
+    }
+
+    auto req = request.GetGetConnectInfoReq();
+    UBSE_LOG_INFO << "Received get connect info req, requestId=" << req.requestId << ", name=" << req.name
+                  << ", requestNodeId=" << req.requestNodeId;
+
+    UbseSsuGetConnectInfoResp respData;
+    respData.requestId = req.requestId;
+    const UbseSsuVfe *vfePtr = req.hasVfe ? &req.vfe : nullptr;
+    respData.errorCode =
+        UbseSsuServiceImp::GetInstance().GetConnectInfo(req.name, vfePtr, respData.connectInfoList, req.identityInfo);
+    if (respData.errorCode != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetConnectInfo failed, " << FormatRetCode(respData.errorCode)
+                       << ", requestId=" << req.requestId << ", name=" << req.name;
+    }
+    resp = std::make_unique<UbseSsuGetConnectInfoRespMsg>(respData);
 }
 
 // 注册SSU状态更新请求处理器
@@ -667,6 +698,15 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ), HandleGetAllocInfoReqReceiver);
     if (getAllocReqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register get alloc info req receiver";
+        return UBSE_ERROR;
+    }
+
+    // GetConnectInfo（查询响应直接通过sync resp返回，无需注册RESP端点）
+    auto getConnectInfoReqEndpoint = UbseRpcEndpointFactory::Build(
+        static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
+        static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_CONNECT_INFO_REQ), HandleGetConnectInfoReqReceiver);
+    if (getConnectInfoReqEndpoint == nullptr) {
+        UBSE_LOG_ERROR << "Unable to register get connect info req receiver";
         return UBSE_ERROR;
     }
 

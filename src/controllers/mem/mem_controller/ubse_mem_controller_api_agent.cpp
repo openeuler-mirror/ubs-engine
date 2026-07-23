@@ -445,7 +445,7 @@ void DealBorrowWaitTimeOut(const std::string& name, const std::string& requestNo
     });
 }
 
-static uint32_t CloseModeNotSupported(UbseMemOperationResp &resp, const std::string &name,
+static uint32_t ClosModeNotSupported(UbseMemOperationResp &resp, const std::string &name,
                                       const std::string &requestNodeId, const std::string &opType)
 {
     resp.name = name;
@@ -461,7 +461,7 @@ uint32_t UbseMemFdBorrow(UbseMemFdBorrowReq &req, UbseMemOperationResp &resp)
     UBSE_LOG_INFO << "begin fd borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
-        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "FD borrow");
+        return ClosModeNotSupported(resp, req.name, req.requestNodeId, "FD borrow");
     }
     if (IsHighSafety()) {
         if (const auto res =
@@ -541,7 +541,7 @@ uint32_t UbseMemNumaBorrow(UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp
     UBSE_LOG_INFO << "begin numa borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
-        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "NUMA borrow");
+        return ClosModeNotSupported(resp, req.name, req.requestNodeId, "NUMA borrow");
     }
     if (IsHighSafety()) {
         if (const auto res =
@@ -632,7 +632,7 @@ uint32_t UbseMemAddrBorrow(UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp
     UBSE_LOG_INFO << "begin addr borrow, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (UbseSmbios::GetInstance().IsClosType()) {
-        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "ADDR borrow");
+        return ClosModeNotSupported(resp, req.name, req.requestNodeId, "ADDR borrow");
     }
     if (IsHighSafety()) {
         if (const auto res =
@@ -949,7 +949,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq& req, const MemOperationType& type
     UBSE_LOG_INFO << "begin mem return, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", request_id=" << req.requestId;
     if (type != MemOperationType::SHARED_RETURN && UbseSmbios::GetInstance().IsClosType()) {
-        return CloseModeNotSupported(resp, req.name, req.requestNodeId, "Fd return and numa return");
+        return ClosModeNotSupported(resp, req.name, req.requestNodeId, "Fd return and numa return");
     }
     // 创建请求
     auto requestId = GetRequestIdNew(req.name, req.requestNodeId);

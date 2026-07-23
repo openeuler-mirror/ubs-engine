@@ -154,6 +154,52 @@ private:
     UbseSsuGetAllocInfoResp resp_{};
 };
 
+// ====== GetConnectInfo 查询连接信息 ======
+struct UbseSsuGetConnectInfoReq {
+    std::string requestId;
+    std::string requestNodeId;
+    std::string name;
+    UbseSsuAllocIdentityInfo identityInfo;
+    bool hasVfe{false};
+    UbseSsuVfe vfe;
+};
+
+struct UbseSsuGetConnectInfoResp {
+    std::string requestId;
+    uint32_t errorCode{0};
+    std::vector<UbseSsuConnectInfo> connectInfoList;
+};
+
+class UbseSsuGetConnectInfoReqMsg : public ubse::com::UbseRpcMessage {
+public:
+    UbseSsuGetConnectInfoReqMsg() = default;
+
+    UbseSsuGetConnectInfoReqMsg(const std::string &requestId, const std::string &requestNodeId, const std::string &name,
+                                const UbseSsuAllocIdentityInfo &identity, const UbseSsuVfe *vfe);
+
+    const UbseSsuGetConnectInfoReq &GetGetConnectInfoReq() const;
+
+    uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
+    uint32_t Deserialize(const uint8_t *data, uint32_t size) override;
+
+private:
+    UbseSsuGetConnectInfoReq req_{};
+};
+
+class UbseSsuGetConnectInfoRespMsg : public ubse::com::UbseRpcMessage {
+public:
+    UbseSsuGetConnectInfoRespMsg() = default;
+
+    explicit UbseSsuGetConnectInfoRespMsg(const UbseSsuGetConnectInfoResp &resp);
+    const UbseSsuGetConnectInfoResp &GetGetConnectInfoResp() const;
+
+    uint32_t Serialize(std::unique_ptr<uint8_t[]> &buffer, uint32_t &bufferSize) const override;
+    uint32_t Deserialize(const uint8_t *data, uint32_t size) override;
+
+private:
+    UbseSsuGetConnectInfoResp resp_{};
+};
+
 } // namespace ubse::ssu::message
 
 #endif // UBSE_SSU_QUERY_VERIFY_MSG_H

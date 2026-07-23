@@ -27,6 +27,7 @@ protected:
 
 private:
     plugin::service::ssu::UbseSsuStripedSpaceReq req;
+    std::vector<std::string> nsDevPaths;
     std::string devPath;
 };
 

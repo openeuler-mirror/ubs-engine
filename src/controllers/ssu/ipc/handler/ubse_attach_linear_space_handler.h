@@ -27,6 +27,7 @@ protected:
 
 private:
     plugin::service::ssu::UbseSsuLinearSpaceReq req;
+    std::vector<std::string> nsDevPaths;
     std::string devPath;
 };
 

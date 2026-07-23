@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAttachSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAttachSpacePack(devPath, response);
+    return SsuAttachSpacePack(nsDevPaths, response);
 }
 
 UbseResult UbseAttachSpaceHandler::Handle()
@@ -31,7 +31,7 @@ UbseResult UbseAttachSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity_ = identity_;
-    auto ret = ssuService->AttachSpace(req, devPath);
+    auto ret = ssuService->AttachSpace(req, nsDevPaths);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;

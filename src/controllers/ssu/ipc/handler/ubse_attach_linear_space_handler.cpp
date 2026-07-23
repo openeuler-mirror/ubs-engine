@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAttachLinearSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAttachLinearSpacePack(devPath, response);
+    return SsuAttachLinearSpacePack(nsDevPaths, devPath, response);
 }
 
 UbseResult UbseAttachLinearSpaceHandler::Handle()
@@ -31,7 +31,7 @@ UbseResult UbseAttachLinearSpaceHandler::Handle()
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
     req.identity_ = identity_;
-    auto ret = ssuService->AttachLinearSpace(req, devPath);
+    auto ret = ssuService->AttachLinearSpace(req, nsDevPaths, devPath);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachLinearSpace failed, ret:" << log::FormatRetCode(ret);
         return ret;

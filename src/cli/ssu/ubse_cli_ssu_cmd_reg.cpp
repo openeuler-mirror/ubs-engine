@@ -12,26 +12,25 @@
 
 #include "ubse_cli_ssu_cmd_reg.h"
 
-#include <pwd.h>
-#include <unistd.h>
 #include <cctype>
 #include <limits>
-#include <sstream>
+#include <utility>
 
 #include "ubse_cli_buffer_guard.h"
+#include "ubse_cli_ssu_limits.h"
 #include "ubse_cli_ssu_struct.h"
+#include "ubse_com_op_code.h"
 #include "ubse_error.h"
-#include "ubse_ipc_common.h"
 
 namespace ubse::cli::reg {
+using ubse::com::UbseModuleCode;
+using ubse::com::UbseSsuOpCode;
+
 // 向 CLI 框架注册 SSU 模块：框架在加载期通过宏收集模块类，统一调度命令字分发。
 // "CLI_SSU_MODULE" 为模块唯一标识，UbseCliRegSsuModule 为负责 display/create ssu 命令的实现类。
 UBSE_CLI_REGISTER_MODULE("CLI_SSU_MODULE", UbseCliRegSsuModule);
 
 namespace {
-constexpr uint64_t BYTES_PER_GIB = 1024ULL * 1024ULL * 1024ULL;
-constexpr size_t MIN_SIZE_ARG_LEN = 2; // 至少为 "<数字>G"，仅含后缀时拒绝
-
 // 参数名统一以长选项形式对外，短选项由命令注册处映射；此处常量是 params 字典的键。
 const std::string TYPE_OPT = "type";
 const std::string NAME_OPT = "name";
@@ -39,6 +38,11 @@ const std::string SIZE_OPT = "size";
 const std::string LBA_OPT = "lba";
 const std::string NS_NUM_OPT = "ns_num";
 const std::string STRATEGY_OPT = "strategy";
+const std::string HOST_NQN_OPT = "host_nqn";
+const std::string SRC_EID_OPT = "src_eid";
+const std::string DEV_NAME_OPT = "dev_name";
+const std::string LEVEL_OPT = "level";
+const std::string CHUNK_SIZE_OPT = "chunk_size";
 
 // display ssu 的 -t 取值，区分摘要与详情两类子命令。
 const std::string ALLOC_SUMMARY_TYPE = "alloc_summary";
@@ -49,16 +53,50 @@ const std::string STRATEGY_LINEAR = "Linear";
 const std::string STRATEGY_STRIPED = "Striped";
 const std::string LBA_512B = "512B";
 const std::string LBA_4K = "4K";
+const std::string RAID0 = "raid0";
+const std::string RAID5 = "raid5";
+const std::string CHUNK_SIZE_4K = "4K";
+const std::string CHUNK_SIZE_16K = "16K";
+const std::string CHUNK_SIZE_32K = "32K";
+const std::string CHUNK_SIZE_64K = "64K";
+const std::string CHUNK_SIZE_128K = "128K";
+const std::string CHUNK_SIZE_256K = "256K";
+const std::string CHUNK_SIZE_512K = "512K";
 
 // 固定文本的客户端错误/提示信息
 const std::string ERR_NAME_REQUIRED = "ERROR: The option -n or --name is required.";
 const std::string ERR_SIZE_REQUIRED = "ERROR: The option -s or --size is required.";
-const std::string ERR_INVALID_NAME =
-    "ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'.";
+const std::string ERR_INVALID_NAME = "ERROR: Invalid name. The value must be 1-" +
+                                     std::to_string(SSU_CLI_MAX_NAME_LENGTH) +
+                                     " characters and contain only letters, digits, '.', ':', '-' or '_'.";
 const std::string ERR_INVALID_SIZE =
-    "ERROR: Invalid size. The value must be an integer number of GiB with uppercase G suffix, minimum 1G.";
+    "ERROR: Invalid size. The value must be an integer number of GiB with uppercase G suffix, minimum " +
+    std::to_string(SSU_CLI_MIN_SIZE_BYTES / SSU_CLI_BYTES_PER_GIB) + "G.";
 const std::string ERR_INVALID_LBA = "ERROR: Invalid lba. The value must be 512B or 4K.";
 const std::string ERR_INVALID_STRATEGY = "ERROR: Invalid strategy. The value must be Linear or Striped.";
+const std::string ERR_INVALID_HOST_NQN =
+    "ERROR: Invalid host_nqn. The value must be 1-" + std::to_string(SSU_CLI_MAX_HOST_NQN_LENGTH) + " characters.";
+const std::string ERR_INVALID_SRC_EID =
+    "ERROR: Invalid src_eid. The value must be 1-" + std::to_string(SSU_CLI_MAX_SRC_EID_LENGTH) + " characters.";
+const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must be Linear or Striped.";
+const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
+    "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
+const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Linear.";
+const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
+    "ERROR: The option -d or --dev_name is required when --type is Striped.";
+const std::string ERR_INVALID_DEV_NAME = "ERROR: Invalid dev_name. The value must be 1-" +
+                                         std::to_string(SSU_CLI_MAX_DEV_NAME_LENGTH) +
+                                         " characters and contain only letters, digits, '_', '-' or '.'.";
+const std::string ERR_STRIPED_ONLY_OPTIONS =
+    "ERROR: The option --level or --chunk_size is only valid when --type is Striped.";
+const std::string ERR_STRIPED_LEVEL_REQUIRED = "ERROR: The option -l or --level is required when --type is Striped.";
+const std::string ERR_STRIPED_CHUNK_SIZE_REQUIRED =
+    "ERROR: The option -c or --chunk_size is required when --type is Striped.";
+const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be raid0 or raid5.";
+const std::string ERR_INVALID_CHUNK_SIZE =
+    "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
 const std::string ERR_SERIALIZATION = "ERROR: Serialization failed in client.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
@@ -72,16 +110,15 @@ std::string InternalError(uint32_t code)
 // 避免改契约时错误文案与实际校验脱节（与 ParseNsNum 的判定保持单一来源）。
 std::string InvalidNsNumError()
 {
-    return "ERROR: Invalid ns_num. The value must be an integer in range " +
-        std::to_string(SSU_CLI_DEFAULT_NS_NUM) + "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
+    return "ERROR: Invalid ns_num. The value must be an integer in range " + std::to_string(SSU_CLI_DEFAULT_NS_NUM) +
+           "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
 }
-
 
 // 容量统一按 GiB 整数化展示：CLI 契约规定 size 只以 G 为单位，子 GiB 余数丢弃（显示 0G），
 // 不再回退到 M/K/纯字节，保证输入输出单位一致。
 std::string SizeToString(uint64_t sizeBytes)
 {
-    return std::to_string(sizeBytes / BYTES_PER_GIB) + "G";
+    return std::to_string(sizeBytes / SSU_CLI_BYTES_PER_GIB) + "G";
 }
 
 // 枚举 → 规范字符串：与 Parse* 函数反向对应，输入输出共用同一份字面量，保证往返一致。
@@ -93,28 +130,6 @@ std::string StrategyToString(UbseSsuAllocStrategy strategy)
 std::string LbaToString(UbseSsuLBAFormat lbaFormat)
 {
     return lbaFormat == UbseSsuLBAFormat::LBA_FORMAT_4K ? LBA_4K : LBA_512B;
-}
-
-// 取序列化结果缓冲：序列化器内部持有缓冲所有权，此处仅将其裸指针与长度导出为 IPC 输入参数。
-// 仅做 Check + 借用，不拷贝、不释放；调用方需保证 serializer 生命周期长于 ubse_invoke_call。
-bool AcquireSerializedBuffer(ubse::serial::UbseSerialization &serializer, ubse_api_buffer_t &buffer)
-{
-    if (!serializer.Check()) {
-        return false;
-    }
-    buffer.buffer = serializer.GetBuffer();
-    buffer.length = static_cast<uint32_t>(serializer.GetLength());
-    return true;
-}
-
-// 填充运行态发起人身份：服务端依据 identityInfo.uid/userName 鉴权与归属。
-// getpwuid 失败时回退为 uid 数字串，避免空用户名导致服务端归属判定异常。
-void FillRuntimeUser(UbseSsuAllocIdentityInfo &identity)
-{
-    const uid_t uid = getuid();
-    identity.uid = uid;
-    const passwd *user = getpwuid(uid);
-    identity.userName = user == nullptr ? std::to_string(uid) : std::string(user->pw_name);
 }
 
 // 摘要表 size 列由该分配下所有命名空间 nsSize 求和得出，与服务层 UbseSsuAllocResult 模型一致：
@@ -130,11 +145,195 @@ uint64_t SumNameSpaceSize(const UbseCliSsuAllocResult &allocation)
 
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response);
 std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response);
+std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult &response);
 bool IsValidName(const std::string &name);
 bool ParseSize(const std::string &value, uint64_t &sizeBytes);
 bool ParseNsNum(const std::string &value, uint32_t &nsNum);
 bool ParseLba(const std::string &value, UbseSsuLBAFormat &lbaFormat);
 bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy);
+bool IsValidLengthIfPresent(const std::map<std::string, std::string> &params, const std::string &key,
+                            uint32_t maxLength);
+bool IsValidDevName(const std::string &devName);
+bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level);
+bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize);
+std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key);
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response);
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response);
+
+template <typename PostCall>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op,
+                                                const ubse_api_buffer_t &reqBuffer, PostCall postCall)
+{
+    ubse_api_buffer_t resBuffer{};
+    uint32_t ret = ubse_invoke_call(static_cast<uint16_t>(module), static_cast<uint16_t>(op), &reqBuffer, &resBuffer);
+    UbseCliBufferGuard guard(resBuffer);
+    if (ret != UBSE_OK) {
+        return UbseCliRegModule::UbseCliStringPromptReply(InternalError(ret));
+    }
+
+    return postCall(resBuffer);
+}
+
+// 请求 payload 在同步 ubse_invoke_call 返回前由本函数的 vector 持有。
+template <typename ReqT, typename RspT, typename BuildOutput>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request,
+                                                BuildOutput buildOutput)
+{
+    std::vector<uint8_t> payload;
+    if (!request.Serialize(payload)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_SERIALIZATION);
+    }
+    const ubse_api_buffer_t reqBuffer{payload.data(), static_cast<uint32_t>(payload.size())};
+    return InvokeSsuIpc(module, op, reqBuffer,
+                        [buildOutput = std::move(buildOutput)](const ubse_api_buffer_t &resBuffer) mutable {
+                            RspT response;
+                            if (!response.Deserialize(resBuffer.buffer, resBuffer.length)) {
+                                return UbseCliRegModule::UbseCliStringPromptReply(ERR_DESERIALIZATION);
+                            }
+                            return buildOutput(response);
+                        });
+}
+
+// 无请求体、有响应体：内部生成长度为 0 的请求，不创建伪序列化协议头。
+template <typename RspT, typename BuildOutput>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, BuildOutput buildOutput)
+{
+    const ubse_api_buffer_t reqBuffer{nullptr, 0};
+    return InvokeSsuIpc(module, op, reqBuffer,
+                        [buildOutput = std::move(buildOutput)](const ubse_api_buffer_t &resBuffer) mutable {
+                            RspT response;
+                            if (!response.Deserialize(resBuffer.buffer, resBuffer.length)) {
+                                return UbseCliRegModule::UbseCliStringPromptReply(ERR_DESERIALIZATION);
+                            }
+                            return buildOutput(response);
+                        });
+}
+
+// 有请求体、无响应体：默认序列化请求，IPC 成功后直接返回空输出。
+template <typename ReqT>
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request)
+{
+    std::vector<uint8_t> payload;
+    if (!request.Serialize(payload)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_SERIALIZATION);
+    }
+    const ubse_api_buffer_t reqBuffer{payload.data(), static_cast<uint32_t>(payload.size())};
+    return InvokeSsuIpc(module, op, reqBuffer, []([[maybe_unused]] const ubse_api_buffer_t &resBuffer) {
+        return UbseCliRegModule::UbseCliStringPromptReply("");
+    });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleAttachSpace(const std::map<std::string, std::string> &params)
+{
+    if (params.count(DEV_NAME_OPT) != 0 || params.count(LEVEL_OPT) != 0 || params.count(CHUNK_SIZE_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
+    }
+
+    UbseCliSsuAttachSpaceReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    return InvokeSsuIpc<UbseCliSsuAttachSpaceReq, UbseCliSsuAttachSpaceRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ, request,
+        [](const UbseCliSsuAttachSpaceRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleAttachLinear(const std::map<std::string, std::string> &params)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_LINEAR_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+    if (params.count(LEVEL_OPT) != 0 || params.count(CHUNK_SIZE_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_ONLY_OPTIONS);
+    }
+
+    UbseCliSsuAttachLinearReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    request.devName = devName->second;
+    return InvokeSsuIpc<UbseCliSsuAttachLinearReq, UbseCliSsuAttachAggregatedRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ, request,
+        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleAttachStriped(const std::map<std::string, std::string> &params)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+
+    auto level = params.find(LEVEL_OPT);
+    if (level == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_LEVEL_REQUIRED);
+    }
+    auto chunkSize = params.find(CHUNK_SIZE_OPT);
+    if (chunkSize == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_STRIPED_CHUNK_SIZE_REQUIRED);
+    }
+
+    UbseCliSsuAttachStripedReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
+    request.devName = devName->second;
+    if (!ParseLevel(level->second, request.level)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_LEVEL);
+    }
+    if (!ParseChunkSize(chunkSize->second, request.chunkSize)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_CHUNK_SIZE);
+    }
+    return InvokeSsuIpc<UbseCliSsuAttachStripedReq, UbseCliSsuAttachAggregatedRsp>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ, request,
+        [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleDetachSpace(const std::map<std::string, std::string> &params)
+{
+    if (params.count(DEV_NAME_OPT) != 0) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_DETACH_DEV_NAME_REQUIRES_TYPE);
+    }
+
+    UbseCliSsuDetachSpaceReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ, request);
+}
+
+std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::string, std::string> &params,
+                                                          const std::string &type)
+{
+    auto devName = params.find(DEV_NAME_OPT);
+    if (devName == params.end()) {
+        return UbseCliRegModule::UbseCliStringPromptReply(type == STRATEGY_LINEAR ? ERR_LINEAR_DEV_NAME_REQUIRED :
+                                                                                    ERR_STRIPED_DEV_NAME_REQUIRED);
+    }
+    if (!IsValidDevName(devName->second)) {
+        return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_DEV_NAME);
+    }
+
+    if (type == STRATEGY_LINEAR) {
+        UbseCliSsuDetachLinearReq request;
+        request.name = params.at(NAME_OPT);
+        request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+        request.devName = devName->second;
+        return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ, request);
+    }
+
+    UbseCliSsuDetachStripedReq request;
+    request.name = params.at(NAME_OPT);
+    request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
+    request.devName = devName->second;
+    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ, request);
+}
 } // namespace
 
 void UbseCliRegSsuModule::UbseCliSignUp()
@@ -142,6 +341,8 @@ void UbseCliRegSsuModule::UbseCliSignUp()
     // 注册顺序即 display/create 命令进入模块命令列表的顺序，框架据此生成补全与帮助。
     this->cmd_.emplace_back(UbseCliDisplaySsu());
     this->cmd_.emplace_back(UbseCliCreateSsu());
+    this->cmd_.emplace_back(UbseCliAttachSsu());
+    this->cmd_.emplace_back(UbseCliDetachSsu());
 }
 
 // display ssu：仅 -t 必填，按 alloc_summary / alloc_detail 分流到不同子处理。
@@ -154,6 +355,37 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDisplaySsu()
         .UbseCliAddOption("t", TYPE_OPT, "SSU display type: alloc_summary or alloc_detail.")
         .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
         .UbseCliSetFunc(UbseCliDisplaySsuFunc);
+    return builder.UbseCliBuild();
+}
+
+// attach ssu：-n 必填；-t 为空、Linear、Striped 时进入不同 IPC op code，聚合参数按类型约束校验。
+UbseCliCommandInfo UbseCliRegSsuModule::UbseCliAttachSsu()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("attach")
+        .UbseCliSetType("ssu")
+        .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
+        .UbseCliAddOption("e", SRC_EID_OPT, "SSU source EID.")
+        .UbseCliAddOption("t", TYPE_OPT, "SSU attach type: Linear or Striped.")
+        .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
+        .UbseCliAddOption("l", LEVEL_OPT, "SSU RAID level.")
+        .UbseCliAddOption("c", CHUNK_SIZE_OPT, "SSU chunk size.")
+        .UbseCliSetFunc(UbseCliAttachSsuFunc);
+    return builder.UbseCliBuild();
+}
+
+// detach ssu：仅注册卸载所需的四个选项；src_eid/level/chunk_size 由框架作为未注册参数拒绝。
+UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDetachSsu()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("detach")
+        .UbseCliSetType("ssu")
+        .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliAddOption("q", HOST_NQN_OPT, "SSU host NQN.")
+        .UbseCliAddOption("t", TYPE_OPT, "SSU detach type: Linear or Striped.")
+        .UbseCliAddOption("d", DEV_NAME_OPT, "SSU aggregated device name.")
+        .UbseCliSetFunc(UbseCliDetachSsuFunc);
     return builder.UbseCliBuild();
 }
 
@@ -189,36 +421,16 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
     return UbseCliStringPromptReply("ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
 }
 
-// 摘要查询：请求携带当前运行用户身份；空列表返回 INFO 提示而非空表，避免用户误判为故障。
+// 摘要查询：空列表返回 INFO 提示而非空表，避免用户误判为故障。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocSummary()
 {
-    UbseCliSsuAllocSummaryReq request;
-    FillRuntimeUser(request.identityInfo);
-    ubse::serial::UbseSerialization serializer;
-    if (!request.Serialize(serializer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
-    }
-    ubse_api_buffer_t reqBuffer{};
-    if (!AcquireSerializedBuffer(serializer, reqBuffer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
-    }
-
-    ubse_api_buffer_t resBuffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_SSU, UBSE_SSU_CLI_ALLOC_SUMMARY, &reqBuffer, &resBuffer);
-    UbseCliBufferGuard guard(resBuffer); // RAII 释放服务端返回的 resBuffer，无论后续是否提前 return
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(InternalError(ret));
-    }
-
-    ubse::serial::UbseDeSerialization deserializer(resBuffer.buffer, resBuffer.length);
-    UbseCliSsuAllocListRsp response;
-    if (!response.Deserialize(deserializer)) {
-        return UbseCliStringPromptReply(ERR_DESERIALIZATION);
-    }
-    if (response.allocations.empty()) {
-        return UbseCliStringPromptReply(INFO_EMPTY);
-    }
-    return BuildSummaryTable(response);
+    return InvokeSsuIpc<UbseCliSsuAllocListRsp>(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ,
+                                                [](const UbseCliSsuAllocListRsp &response) {
+                                                    if (response.allocations.empty()) {
+                                                        return UbseCliRegModule::UbseCliStringPromptReply(INFO_EMPTY);
+                                                    }
+                                                    return BuildSummaryTable(response);
+                                                });
 }
 
 // 详情查询：name 必填且需通过格式校验后再序列化发起 IPC，避免非法 name 打到服务端。
@@ -235,35 +447,11 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocDetail(
 
     UbseCliSsuAllocDetailReq request;
     request.name = name->second;
-    FillRuntimeUser(request.identityInfo);
-    ubse::serial::UbseSerialization serializer;
-    if (!request.Serialize(serializer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
-    }
-    ubse_api_buffer_t reqBuffer{};
-    if (!AcquireSerializedBuffer(serializer, reqBuffer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
-    }
-
-    ubse_api_buffer_t resBuffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_SSU, UBSE_SSU_CLI_ALLOC_DETAIL, &reqBuffer, &resBuffer);
-    UbseCliBufferGuard guard(resBuffer);
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(InternalError(ret));
-    }
-
-    ubse::serial::UbseDeSerialization deserializer(resBuffer.buffer, resBuffer.length);
-    UbseCliSsuAllocResult response;
-    if (!response.Deserialize(deserializer)) {
-        return UbseCliStringPromptReply(ERR_DESERIALIZATION);
-    }
-    if (response.nameSpaceList.empty()) {
-        return UbseCliStringPromptReply(INFO_EMPTY);
-    }
-    return BuildDetailTable(response);
+    return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocResult>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ, request, BuildDetailOutput);
 }
 
-// create ssu 入口：按"必填校验 → 格式校验 → 填充运行用户 → 序列化 → IPC → 回显"顺序推进，
+// create ssu 入口：按"必填校验 → 格式校验 → 序列化 → IPC → 回显"顺序推进，
 // 任一校验失败即固定错误信息提前返回，不进入 IPC。可选参数缺省时沿用 request 的默认成员值。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
@@ -297,36 +485,76 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
         strategy != params.end() && !ParseStrategy(strategy->second, request.strategy)) {
         return UbseCliStringPromptReply(ERR_INVALID_STRATEGY);
     }
-    FillRuntimeUser(request.identityInfo);
+    return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(
+        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ALLOC_REQ, request, BuildDetailOutput);
+}
 
-    ubse::serial::UbseSerialization serializer;
-    if (!request.Serialize(serializer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
+// attach ssu 入口：通用参数先校验，随后按 --type 拆分普通/Linear/Striped 三类请求和响应。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliAttachSsuFunc(
+    [[maybe_unused]] const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
     }
-    ubse_api_buffer_t reqBuffer{};
-    if (!AcquireSerializedBuffer(serializer, reqBuffer)) {
-        return UbseCliStringPromptReply(ERR_SERIALIZATION);
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+    if (!IsValidLengthIfPresent(params, HOST_NQN_OPT, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_HOST_NQN);
+    }
+    if (!IsValidLengthIfPresent(params, SRC_EID_OPT, SSU_CLI_MAX_SRC_EID_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_SRC_EID);
     }
 
-    ubse_api_buffer_t resBuffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_SSU, UBSE_SSU_CLI_ALLOC_CREATE, &reqBuffer, &resBuffer);
-    UbseCliBufferGuard guard(resBuffer);
-    if (ret != UBSE_OK) {
-        return UbseCliStringPromptReply(InternalError(ret));
+    auto type = params.find(TYPE_OPT);
+    if (type == params.end()) {
+        return HandleAttachSpace(params);
+    }
+    if (type->second == STRATEGY_LINEAR) {
+        return HandleAttachLinear(params);
+    }
+    if (type->second == STRATEGY_STRIPED) {
+        return HandleAttachStriped(params);
+    }
+    return UbseCliStringPromptReply(ERR_INVALID_ATTACH_TYPE);
+}
+
+// detach ssu 入口：通用字段先校验，再按未指定/Linear/Striped 三种 type 选择请求布局和 op code。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDetachSsuFunc(
+    [[maybe_unused]] const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
+    }
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+    if (!IsValidLengthIfPresent(params, HOST_NQN_OPT, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
+        return UbseCliStringPromptReply(ERR_INVALID_HOST_NQN);
     }
 
-    ubse::serial::UbseDeSerialization deserializer(resBuffer.buffer, resBuffer.length);
-    UbseCliSsuAllocResult response;
-    if (!response.Deserialize(deserializer)) {
-        return UbseCliStringPromptReply(ERR_DESERIALIZATION);
+    auto type = params.find(TYPE_OPT);
+    if (type == params.end()) {
+        return HandleDetachSpace(params);
     }
+    if (type->second != STRATEGY_LINEAR && type->second != STRATEGY_STRIPED) {
+        return UbseCliStringPromptReply(ERR_INVALID_ATTACH_TYPE);
+    }
+
+    return HandleDetachAggregated(params, type->second);
+}
+
+namespace {
+std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult &response)
+{
     if (response.nameSpaceList.empty()) {
-        return UbseCliStringPromptReply(INFO_EMPTY);
+        return UbseCliRegModule::UbseCliStringPromptReply(INFO_EMPTY);
     }
     return BuildDetailTable(response);
 }
 
-namespace {
 // 摘要表：3 列（name/size/strategy），列宽按 UBSE_CLI_NUM_8*10 固定，与 ubse_cli_ssu.md 示例输出对齐。
 // size 由每个分配下 nameSpaceList[*].nsSize 求和得出，与服务层结果模型一致。
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response)
@@ -383,7 +611,7 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult 
     return UbseCliRegModule::UbseCliVariableCelReply(builder.UbseCliVariableCellBuild());
 }
 
-// name 格式契约：1-48 字符（与 SSU_CLI_MAX_NAME_LENGTH 一致），仅字母/数字/./:/-/_；unsigned char 转型避免 char 为负时 isalnum 未定义行为。
+// name 格式契约：[1, SSU_CLI_MAX_NAME_LENGTH] 字符，仅字母/数字/./:/-/_；unsigned char 转型避免 char 为负时 isalnum 未定义行为。
 bool IsValidName(const std::string &name)
 {
     if (name.empty() || name.size() > SSU_CLI_MAX_NAME_LENGTH) {
@@ -399,10 +627,10 @@ bool IsValidName(const std::string &name)
 }
 
 // size 解析：仅接受大写 G 后缀的正整数字符串；先逐字符判数字防 stoull 隐式截断，
-// 再绑定 SSU_CLI_MIN_SIZE_BYTES 下限与 BYTES_PER_GIB 溢出上限，二者均失败才拒绝。
+// 再绑定 SSU_CLI_MIN_SIZE_BYTES 下限与 SSU_CLI_BYTES_PER_GIB 溢出上限，二者均失败才拒绝。
 bool ParseSize(const std::string &value, uint64_t &sizeBytes)
 {
-    if (value.size() < MIN_SIZE_ARG_LEN || value.back() != 'G') {
+    if (value.size() < SSU_CLI_MIN_SIZE_ARG_LENGTH || value.back() != 'G') {
         return false;
     }
     const std::string number = value.substr(0, value.size() - 1);
@@ -417,10 +645,10 @@ bool ParseSize(const std::string &value, uint64_t &sizeBytes)
     try {
         const uint64_t gib = std::stoull(number);
         // 先判溢出上界再乘，避免无符号回绕干扰静态分析/sanitizer；gib == 0 由下限兜底拒绝
-        if (gib > std::numeric_limits<uint64_t>::max() / BYTES_PER_GIB) {
+        if (gib > std::numeric_limits<uint64_t>::max() / SSU_CLI_BYTES_PER_GIB) {
             return false;
         }
-        const uint64_t bytes = gib * BYTES_PER_GIB;
+        const uint64_t bytes = gib * SSU_CLI_BYTES_PER_GIB;
         if (bytes < SSU_CLI_MIN_SIZE_BYTES) {
             return false;
         }
@@ -455,7 +683,6 @@ bool ParseNsNum(const std::string &value, uint32_t &nsNum)
     }
 }
 
-
 // 以下 Parse* 为字符串 → 枚举的精确匹配，仅接受规范字面量（与 *ToString 共用常量），
 // 拒绝大小写变体与旧拼写，保证输入输出往返一致。
 bool ParseLba(const std::string &value, UbseSsuLBAFormat &lbaFormat)
@@ -471,7 +698,6 @@ bool ParseLba(const std::string &value, UbseSsuLBAFormat &lbaFormat)
     return false;
 }
 
-
 bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy)
 {
     if (value == STRATEGY_LINEAR) {
@@ -484,5 +710,106 @@ bool ParseStrategy(const std::string &value, UbseSsuAllocStrategy &strategy)
     }
     return false;
 }
+
+bool IsValidLengthIfPresent(const std::map<std::string, std::string> &params, const std::string &key,
+                            uint32_t maxLength)
+{
+    auto item = params.find(key);
+    if (item == params.end()) {
+        return true;
+    }
+    return !item->second.empty() && item->second.size() <= static_cast<size_t>(maxLength);
+}
+
+bool IsValidDevName(const std::string &devName)
+{
+    if (devName.empty() || devName.size() > SSU_CLI_MAX_DEV_NAME_LENGTH) {
+        return false;
+    }
+    for (unsigned char ch : devName) {
+        if (std::isalnum(ch) || ch == '_' || ch == '-' || ch == '.') {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool ParseLevel(const std::string &value, UbseSsuAggregationRaidLevel &level)
+{
+    if (value == RAID0) {
+        level = UbseSsuAggregationRaidLevel::RAID0;
+        return true;
+    }
+    if (value == RAID5) {
+        level = UbseSsuAggregationRaidLevel::RAID5;
+        return true;
+    }
+    return false;
+}
+
+bool ParseChunkSize(const std::string &value, UbseSsuChunkSize &chunkSize)
+{
+    if (value == CHUNK_SIZE_4K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_4K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_16K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_16K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_32K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_32K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_64K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_64K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_128K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_128K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_256K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_256K;
+        return true;
+    }
+    if (value == CHUNK_SIZE_512K) {
+        chunkSize = UbseSsuChunkSize::CHUNK_SIZE_512K;
+        return true;
+    }
+    return false;
+}
+
+std::string GetOptionalValue(const std::map<std::string, std::string> &params, const std::string &key)
+{
+    // 区分“未传入”与必填参数：attach 的 host_nqn/src_eid 未传入时以空字符串上线。
+    auto item = params.find(key);
+    return item == params.end() ? std::string() : item->second;
+}
+
+std::string JoinNsDevPaths(const std::vector<std::string> &paths)
+{
+    std::string output;
+    for (const auto &path : paths) {
+        if (!output.empty()) {
+            output += ',';
+        }
+        output += path;
+    }
+    return output;
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpaceRsp &response)
+{
+    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths));
+}
+
+std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response)
+{
+    return UbseCliRegModule::UbseCliStringPromptReply("ns_dev_paths: " + JoinNsDevPaths(response.nsDevPaths) +
+                                                      "\ndev_path: " + response.devPath);
+}
+
 } // namespace
 } // namespace ubse::cli::reg

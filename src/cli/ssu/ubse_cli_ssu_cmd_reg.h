@@ -19,7 +19,7 @@
 namespace ubse::cli::reg {
 using namespace ubse::cli::framework;
 
-// SSU 模块命令注册类：负责 display ssu / create ssu 两条命令的注册与处理函数实现。
+// SSU 模块命令注册类：负责 display/create/attach/detach ssu 命令的注册与处理函数实现。
 // 各处理函数为静态，由框架在命令分发时按注册的函数指针回调。
 class UbseCliRegSsuModule : public UbseCliRegModule {
 public:
@@ -29,11 +29,17 @@ private:
     // 命令元信息构建：定义命令字、操作对象、选项（含短/长选项与帮助描述）及处理函数。
     static UbseCliCommandInfo UbseCliDisplaySsu();
     static UbseCliCommandInfo UbseCliCreateSsu();
+    static UbseCliCommandInfo UbseCliAttachSsu();
+    static UbseCliCommandInfo UbseCliDetachSsu();
 
     // 命令处理函数：从框架接收已解析的 params（长选项名 → 值），完成校验/IPC/回显。
     static std::shared_ptr<UbseCliResultEcho> UbseCliDisplaySsuFunc(
         [[maybe_unused]] const std::map<std::string, std::string> &params);
     static std::shared_ptr<UbseCliResultEcho> UbseCliCreateSsuFunc(
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliAttachSsuFunc(
+        [[maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliDetachSsuFunc(
         [[maybe_unused]] const std::map<std::string, std::string> &params);
 
     // display ssu 的两个子处理，由 UbseCliDisplaySsuFunc 按 -t 分流调用。

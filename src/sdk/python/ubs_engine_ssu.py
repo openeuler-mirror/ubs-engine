@@ -14,15 +14,17 @@
 通过IPC直接与UBSE守护进程通信，提供存储空间分配、释放、挂载、卸载等功能。
 所有函数遵循标准调用流程: 参数校验 -> 请求数据打包 -> 发送IPC请求 -> 响应数据解包 -> 返回结果。
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ubse.ipc.ubs_engine_ipc import invoke_call
 from ubse.models.ubs_engine_model_ssu import (
     UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
+    UBS_SSU_MAX_DEV_PATH_LENGTH,
     UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
     UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
     UbsUbVfe, UbsUbFe,
 )
+from ubse.ffi.ubs_binary_codec import BinaryUnpacker
 from ubs_engine_codes_ssu import (
     UBSE_MODULE_CODE,
     OP_ALLOC_REQ, OP_FREE_REQ,
@@ -37,11 +39,12 @@ from ubse.ffi.ubs_engine_binding_ssu import (
     pack_string, pack_connect_info_req,
     pack_alloc_space_req, pack_space_req,
     pack_linear_space_req, pack_striped_space_req,
-    pack_fe_device_req,
+    pack_fe_device_req, pack_fe_device_free_req,
     unpack_alloc_result, unpack_alloc_result_list,
-    unpack_dev_path_response,
+    unpack_ns_dev_paths_response,
     unpack_ns_stats_list, unpack_connect_info_list,
-    unpack_fe_device_list, validate_name, validate_dev_name,
+    unpack_fe_device_list, unpack_ns_dev_paths,
+    validate_name, validate_dev_name,
     validate_nqn, validate_fe_device_alloc_params, validate_fe_device_free_params, validate_striped_space_req
 )
 
@@ -167,7 +170,7 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
     invoke_call(UBSE_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
 
 
-def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
+def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
     """挂载已分配的存储空间
 
     将指定的存储空间挂载到系统, 使其可被主机访问。
@@ -176,7 +179,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
         req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
 
     Returns:
-        挂载后的设备路径
+        挂载后的命名空间设备路径列表
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
@@ -188,7 +191,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> str:
     validate_name(req.name)
     request = pack_space_req(req)
     response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
-    return unpack_dev_path_response(response)
+    return unpack_ns_dev_paths_response(response)
 
 
 def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
@@ -214,7 +217,7 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
     invoke_call(UBSE_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
 
 
-def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
+def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], str]:
     """挂载线性编址的存储空间
 
     将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
@@ -223,7 +226,7 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
         req: 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
 
     Returns:
-        挂载后的聚合设备路径
+        元组: (命名空间设备路径列表, 聚合后的设备路径)
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
@@ -237,7 +240,10 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> str:
     validate_dev_name(req.dev_name)
     request = pack_linear_space_req(req)
     response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
-    return unpack_dev_path_response(response)
+    u = BinaryUnpacker(response)
+    ns_dev_paths = unpack_ns_dev_paths(u)
+    dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
+    return ns_dev_paths, dev_path
 
 
 def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
@@ -262,7 +268,7 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
     invoke_call(UBSE_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
 
 
-def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
+def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str], str]:
     """挂载条带化编址的存储空间
 
     将多个命名空间设备以条带化方式聚合为一个逻辑块设备并挂载, 支持RAID0和RAID5两种级别。
@@ -272,7 +278,7 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
              聚合后的块设备名称、RAID级别和chunk大小
 
     Returns:
-        挂载后的聚合设备路径
+        元组: (命名空间设备路径列表, 聚合后的设备路径)
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
@@ -287,7 +293,10 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> str:
     validate_striped_space_req(req)
     request = pack_striped_space_req(req)
     response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
-    return unpack_dev_path_response(response)
+    u = BinaryUnpacker(response)
+    ns_dev_paths = unpack_ns_dev_paths(u)
+    dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
+    return ns_dev_paths, dev_path
 
 
 def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
@@ -408,7 +417,7 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
         guid[:UBS_SSU_GUID_LENGTH] = response[:UBS_SSU_GUID_LENGTH]
 
 
-def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes) -> None:
+def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe) -> None:
     """释放VFE设备
 
     将已分配的虚拟功能单元从目标虚拟机释放, 回收VFE设备资源。
@@ -416,7 +425,6 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes) -> None:
     Args:
         upi: 租户隔离标识
         vfe: 要释放的VFE信息
-        guid: 总线实例GUID, 标识目标虚拟机
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
@@ -426,6 +434,6 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe, guid: bytes) -> None:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    validate_fe_device_free_params(vfe, guid)
-    request = pack_fe_device_req(upi, vfe, guid)
+    validate_fe_device_free_params(vfe)
+    request = pack_fe_device_free_req(upi, vfe)
     invoke_call(UBSE_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)

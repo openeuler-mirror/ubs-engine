@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <limits>
 #include <new>
+#include <securec.h>
 
 #include "debt/ubse_mem_debt_info.h"
 #include "message/ubse_mem_controller_serial.h"
@@ -176,6 +177,21 @@ bool DeserializeNodeList(UbseDeSerialization &in, std::vector<std::string> &node
     return true;
 }
 
+void SerializeUsrInfo(UbseSerialization &out, const uint8_t *usrInfo, size_t len)
+{
+    for (size_t i = 0; i < len; ++i) {
+        out << usrInfo[i];
+    }
+}
+
+bool DeserializeUsrInfo(UbseDeSerialization &in, uint8_t *usrInfo, size_t len)
+{
+    for (size_t i = 0; i < len; ++i) {
+        in >> usrInfo[i];
+    }
+    return in.Check();
+}
+
 void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryItem &item)
 {
     uint32_t state = static_cast<uint32_t>(item.state);
@@ -186,6 +202,8 @@ void SerializeSummaryItem(UbseSerialization &out, const UbseGlobalLedgerSummaryI
     SerializeMemIds(out, item.memids);
     SerializeFaultTypes(out, item.faultTypes);
     SerializeNodeList(out, item.nodelist);
+    SerializeUsrInfo(out, item.usrInfo, UBSE_MAX_USR_INFO_LEN);
+    out << item.shmAnonymous;
 }
 
 bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem &item)
@@ -197,9 +215,11 @@ bool DeserializeSummaryItem(UbseDeSerialization &in, UbseGlobalLedgerSummaryItem
     }
     in >> item.blockSize >> state;
     if (!ubse::mem::serial::UbseUdsInfoDeserialization(in, item.userInfo) || !DeserializeMemIds(in, item.memids) ||
-        !DeserializeFaultTypes(in, item.faultTypes) || !DeserializeNodeList(in, item.nodelist)) {
+        !DeserializeFaultTypes(in, item.faultTypes) || !DeserializeNodeList(in, item.nodelist) ||
+        !DeserializeUsrInfo(in, item.usrInfo, UBSE_MAX_USR_INFO_LEN)) {
         return false;
     }
+    in >> item.shmAnonymous;
     if (!in.Check() || state > static_cast<uint32_t>(UBSE_MEM_IMPORT_DESTROYED)) {
         UBSE_LOG_ERROR << "deserialize global ledger summary item failed, state=" << state;
         return false;
@@ -432,6 +452,9 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowImportOb
     item.state = obj.status.state;
     item.numaInfos = obj.algoResult.importNumaInfos;
     item.userInfo = obj.req.udsInfo;
+    if (memcpy_s(item.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_WARN << "copy usrInfo failed when build shm import summary, name=" << obj.req.name;
+    }
     item.memids = BuildImportMemIds(obj.status.importResults);
     item.nodelist.reserve(obj.req.shmRegion.nodelist.size());
     for (const auto &node : obj.req.shmRegion.nodelist) {
@@ -448,6 +471,10 @@ UbseGlobalLedgerSummaryItem BuildShmSummaryItem(const UbseMemShareBorrowExportOb
     item.state = obj.status.state;
     item.numaInfos = obj.algoResult.exportNumaInfos;
     item.userInfo = obj.req.udsInfo;
+    if (memcpy_s(item.usrInfo, UBSE_MAX_USR_INFO_LEN, obj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) != EOK) {
+        UBSE_LOG_WARN << "copy usrInfo failed when build shm export summary, name=" << obj.req.name;
+    }
+    item.shmAnonymous = obj.req.shmAnonymous;
     item.memids = BuildExportMemIds(obj.status.exportObmmInfo);
     item.faultTypes.reserve(obj.status.exportObmmInfo.size());
     for (const auto &info : obj.status.exportObmmInfo) {

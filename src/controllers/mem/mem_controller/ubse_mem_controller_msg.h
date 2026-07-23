@@ -5,23 +5,14 @@
 #ifndef UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 #define UBSE_MANAGER_UBSE_MEM_CONTROLLER_MSG_H
 
-#include <string>
 #include "ubse_com_module.h"
-#include "ubse_mem_controller.h"
-#include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mmi_interface.h"
+#include "ubse_mem_controller_def.h"
 
 namespace ubse::mem::controller {
-using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
-using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;
-using ubse::adapter_plugins::mmi::UbseMemAddrBorrowImportObj;
-using ubse::adapter_plugins::mmi::UbseMemFdBorrowExportObj;
-using ubse::adapter_plugins::mmi::UbseMemFdBorrowImportObj;
-using ubse::adapter_plugins::mmi::UbseMemNumaBorrowExportObj;
-using ubse::adapter_plugins::mmi::UbseMemNumaBorrowImportObj;
-using ubse::adapter_plugins::mmi::UbseMemShareBorrowExportObj;
-using ubse::adapter_plugins::mmi::UbseMemShareBorrowImportObj;
+using namespace ubse::com;
+using namespace ubse::adapter_plugins::mmi;
 
 void RegUbseMemControllerHandler();
 
@@ -100,11 +91,13 @@ UbseResult QueryAddrExport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
 
 UbseResult QueryAddrExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj& obj);
+UbseResult QueryShareExport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowExportObj &obj, bool isClos = false);
 
 UbseResult QueryShareExportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj& obj);
+UbseResult QueryShareExportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult QueryFdImport(def::UbseMemDebtQueryRequest request, UbseMemFdBorrowImportObj &obj);
 
 UbseResult QueryFdImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
@@ -116,11 +109,13 @@ UbseResult QueryAddrImport(def::UbseMemDebtQueryRequest request, UbseMemAddrBorr
 
 UbseResult QueryAddrImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj& obj);
+UbseResult QueryShareImport(def::UbseMemDebtQueryRequest request, UbseMemShareBorrowImportObj &obj, bool isClos = false);
 
 UbseResult QueryShareImportHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
-UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+UbseResult QueryShareImportClosHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
+UbseResult SendInvalidateSingleImportDebtRpcHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 UbseResult NotifyRemoteNumaStatus(const std::string& nodeId, const std::vector<std::pair<int64_t, int>>& numaStatus);
 

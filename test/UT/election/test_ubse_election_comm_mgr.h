@@ -38,6 +38,8 @@ public:
 
     void MockUbseComModuleWithStartService(uint32_t startResult);
 
+    void MockLocalMasterNode(const Node &masterNode, uint32_t result);
+
 private:
     std::vector<UBSE_ID_TYPE> connectedIntraGroupNodes_;
     ElectionPkt pkt;
