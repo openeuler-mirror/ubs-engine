@@ -33,9 +33,9 @@ using namespace ubse::task_executor;
 using ubse::plugin::service::ssu::UbseSsuService;
 using ubse::ssu::service::UbseSsuServiceImp;
 
-// 注册为插件模块，依赖UbseComModule（RPC通信）和UbseVipModule（北向HTTP走VIP HTTP Server）
-// 需确保依赖模块就绪后再注册路由
-static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 2>{
+// 注册插件模块
+static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 3>{
+    UbseOptionModule::UbseElectionModule,
     UbseOptionModule::UbseComModule,
     UbseOptionModule::UbseVipModule,
 };
