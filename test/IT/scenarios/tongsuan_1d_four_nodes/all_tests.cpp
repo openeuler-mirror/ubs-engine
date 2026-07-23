@@ -118,10 +118,10 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateOk01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateOk01(Cluster(), {"3", "4"});
 }
 
-// P0-ShmCreateLender-Ok-01: 指定借出节点创建，region={3,4}
+// P0-ShmCreateLender-Ok-01: 指定借出节点创建，region={1,2,3,4}
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, P0ShmCreateLenderOk01)
 {
-    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"3", "4"});
+    ubse::it::tests::mem_borrow::RunP0ShmCreateLenderOk01(Cluster(), {"1", "2", "3", "4"});
 }
 
 // ==================== CLI P0 测试 ====================

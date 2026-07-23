@@ -76,6 +76,7 @@ void RunP0FdPermNotExist01(ubse::it::infra::ItCluster& cluster);
 // ==================== ubs_mem_fd_get ====================
 void RunP0FdGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdGetNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0FdGetOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_list ====================
 void RunP0FdListOk01(ubse::it::infra::ItCluster& cluster);
@@ -88,8 +89,10 @@ void RunP0FdDelDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdDelOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_get_memid_by_import ====================
-void RunP0FdMemidByImportFld01(ubse::it::infra::ItCluster& cluster);
+void RunP0FdMemidByImportOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0FdMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster);
+void RunP0FdMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0FdMemidByImportNotExistMemId01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_fd_fault_register ====================
 void RunP0FdFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster);
@@ -129,6 +132,7 @@ void RunP0NumaCreateCandidateDup01(ubse::it::infra::ItCluster& cluster);
 // ==================== ubs_mem_numa_get ====================
 void RunP0NumaGetNotExist01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaGetNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaGetOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_list ====================
 void RunP0NumaListOk01(ubse::it::infra::ItCluster& cluster);
@@ -141,8 +145,9 @@ void RunP0NumaDelDup01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaDelOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_get_memid_by_import ====================
-void RunP0NumaMemidByImportFld01(ubse::it::infra::ItCluster& cluster);
 void RunP0NumaMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0NumaMemidByImportNotExistMemId01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_numa_fault_register ====================
 void RunP0NumaFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster);
@@ -159,7 +164,12 @@ void RunP0ShmCreateBoundMin01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateBoundMax01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_affinity ====================
+void RunP0ShmCreateAffinityOk01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateAffinityOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateAffinityInvalidVal01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateAffinityNullPtr01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmCreateAffinityBadParam01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmCreateAffinityDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_create_with_lender ====================
 void RunP0ShmCreateLenderOk01(ubse::it::infra::ItCluster& cluster, const std::vector<std::string>& regionNodeIds);
@@ -176,10 +186,13 @@ void RunP0ShmAttachDup01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_get ====================
 void RunP0ShmGetNotExist01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmGetNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmGetOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_list ====================
 void RunP0ShmListOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmListNullPtr01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmListOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_detach ====================
 void RunP0ShmDetachOk01(ubse::it::infra::ItCluster& cluster);
@@ -188,13 +201,17 @@ void RunP0ShmDetachNotReady01(ubse::it::infra::ItCluster& cluster);
 // ==================== ubs_mem_shm_delete ====================
 void RunP0ShmDelOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmDelNotExist01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmDelDup01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmDelOverLen01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_fault_register ====================
 void RunP0ShmFaultRegNullPtr01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== ubs_mem_shm_get_memid_by_import ====================
+void RunP0ShmMemidByImportOk01(ubse::it::infra::ItCluster& cluster);
 void RunP0ShmMemidByImportNotExist01(ubse::it::infra::ItCluster& cluster);
-void RunP0ShmMemidByImportInvalidVal01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmMemidByImportOverLen01(ubse::it::infra::ItCluster& cluster);
+void RunP0ShmMemidByImportNotExistMemId01(ubse::it::infra::ItCluster& cluster);
 
 // ==================== CLI P0 用例 ====================
 

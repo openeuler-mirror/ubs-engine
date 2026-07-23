@@ -137,16 +137,10 @@ TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0CliDisplayQosOk01)
 
 // ==================== Mem SHM P0 (单节点) ====================
 
-// P0-ShmMemidByImport-NotExist-01: name不存在
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmMemidByImportNotExist01)
+// P0-ShmFaultReg-NullPtr-01: NULL handler
+TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmFaultRegNullPtr01)
 {
-    ubse::it::tests::mem_borrow::RunP0ShmMemidByImportNotExist01(Cluster());
-}
-
-// P0-ShmMemidByImport-InvalidVal-01: import_memid无效
-TEST_F(Tongsuan1dFullMeshSingleNodeScenario, P0ShmMemidByImportInvalidVal01)
-{
-    ubse::it::tests::mem_borrow::RunP0ShmMemidByImportInvalidVal01(Cluster());
+    ubse::it::tests::mem_borrow::RunP0ShmFaultRegNullPtr01(Cluster());
 }
 
 // P0-FdFaultReg-NullPtr-01: NULL handler
