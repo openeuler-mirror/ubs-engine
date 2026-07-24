@@ -31,7 +31,7 @@ extern "C" {
 #define UBS_SSU_MAX_DEV_PATH_LENGTH 63      // 设备路径最大长度, 含结尾字符'\0'
 #define UBS_SSU_MAX_DEV_NAME_LENGTH 33      // 聚合块设备名称最大长度, 含结尾字符'\0'
 #define UBS_SSU_RAID5_MIN_MEMBER_NUM 3      // RAID5最少成员设备数
-#define UBS_SSU_GUID_LENGTH 32          // GUID最大长度32个字符, 不含结尾字符'\0'
+#define UBS_SSU_GUID_LENGTH 32          // GUID字节数组大小(定长, 非字符串)
 
 // LBA格式, 值为对应字节数
 typedef enum {
@@ -82,6 +82,8 @@ typedef struct {
     char ns_dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]; // 命名空间设备路径
     uint64_t ns_size;                              // 分配的容量, 单位字节
     ubs_ssu_lba_format_t lba_format;               // LBA格式
+    uint32_t nqn_count;                            // hostNqn数量
+    char** host_nqns;                              // hostNqn列表
 } ubs_ssu_namespace_info_t;
 // 分配存储空间结果
 typedef struct {
@@ -123,8 +125,8 @@ typedef struct {
     uint8_t die_id;   // Die ID
     uint16_t pfe_id;  // 物理功能单元ID
     uint16_t vfe_id;  // 虚拟功能单元ID
-    char vfe_guid[UBS_SSU_GUID_LENGTH];               // vfe GUID
-    char bind_bus_instance_guid[UBS_SSU_GUID_LENGTH]; // 绑定的总线实例GUID
+    uint8_t vfe_guid[UBS_SSU_GUID_LENGTH];               // vfe GUID
+    uint8_t bind_bus_instance_guid[UBS_SSU_GUID_LENGTH]; // 绑定的总线实例GUID
 } ubs_ub_vfe_t;
 
 // 功能单元(FE)信息, 包含所属PFE及其下的VFE列表
@@ -133,8 +135,8 @@ typedef struct {
     uint8_t chip_id;        // 芯片ID
     uint8_t die_id;         // Die ID
     uint16_t pfe_id;        // 物理功能单元ID
-    char pfe_guid[UBS_SSU_GUID_LENGTH]; // pfe GUID
-    uint8_t vfe_cnt;        // VFE数量
+    uint8_t pfe_guid[UBS_SSU_GUID_LENGTH]; // pfe GUID
+    uint32_t vfe_cnt;        // VFE数量
     ubs_ub_vfe_t *vfe_list; // VFE列表, 由SDK内部动态分配, 需通过释放接口回收
 } ubs_ub_fe_t;
 
@@ -474,7 +476,7 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要绑定的VFE信息
- * @param bus_instance_guid [IN,OUT] 总线实例GUID, 以'\0'结尾的字符串;
+ * @param bus_instance_guid [IN,OUT] 总线实例GUID, 定长字节数组;
  *                                   调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH 字节
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -484,7 +486,7 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, char *bus_instance_guid);
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid);
 
 /**
  * @brief 释放VFE设备
@@ -493,7 +495,6 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, char *bus_
  *
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要释放的VFE信息
- * @param bus_instance_guid [IN] 总线实例GUID, 以'\0'结尾的字符串
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
