@@ -936,12 +936,12 @@ uint32_t DealSendShareUnExportObjFailed(UbseMemShareBorrowExportObj &exportObj, 
 }
 
 static uint32_t ShareReturnFail(const UbseMemReturnReq &req, UbseMemOperationResp &resp, const std::string &msg,
-                                uint32_t errCode, const std::string &exportNodeId = "",
+                                uint32_t errCode, MemFault faultCode, const std::string &exportNodeId = "",
                                 const std::string &importNodeId = "")
 {
     auto ret = BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, msg, errCode, MemOperationType::SHARED_RETURN);
     if (ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_SEND_FAILED, req.name, MemType::SHM, 0, exportNodeId, importNodeId, req.requestNodeId});
+        BorrowFailedAdvice({faultCode, req.name, MemType::SHM, 0, exportNodeId, importNodeId, req.requestNodeId});
     }
     return ret;
 }
@@ -996,11 +996,12 @@ static uint32_t ValidateReqPermission(const UbseMemReturnReq &req, const std::st
                        << ", objUid=" << exportObj.req.udsInfo.uid << ", realRequestNodeId=" << realRequestNodeId
                        << ", shmRegionIds=" << shmRegionIds;
         auto enode = exportObj.algoResult.exportNumaInfos.empty() ? "" : exportObj.algoResult.exportNumaInfos[0].nodeId;
-        BorrowFailedAdvice({MemFault::RETURN_AUTH_FAILED, req.name, MemType::SHM, 0, enode, "", req.requestNodeId});
+        ShareReturnFail(req, resp, "Error auth", UBSE_ERR_AUTH_FAILED, MemFault::RETURN_AUTH_FAILED, enode);
         return UBSE_ERR_AUTH_FAILED;
     }
     return UBSE_OK;
 }
+
 static uint32_t PrepareReturnPreconditions(const UbseMemReturnReq &req, const std::string &realRequestNodeId,
                                            UbseMemShareBorrowExportObj &exportObj, UbseMemOperationResp &resp)
 {
@@ -1009,7 +1010,7 @@ static uint32_t PrepareReturnPreconditions(const UbseMemReturnReq &req, const st
     FindShareBorrowObjByName(req.name, exportObjs, importObjs);
     if (exportObjs.empty() || exportObjs[0].algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_ERROR << "resource not found, name=" << req.name << ", size of exportObjs = " << exportObjs.size();
-        BorrowFailedAdvice({MemFault::RETURN_NAME_NOT_EXIST, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        ShareReturnFail(req, resp, "resource not found.", UBSE_ERR_NOT_EXIST, MemFault::RETURN_NAME_NOT_EXIST);
         return UBSE_ERR_NOT_EXIST;
     }
     std::string enode = exportObjs[0].algoResult.exportNumaInfos.begin()->nodeId;
