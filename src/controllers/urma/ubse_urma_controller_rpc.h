@@ -17,6 +17,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "ubse_com.h"
 #include "ubse_com_base.h"
@@ -46,7 +47,8 @@ public:
 };
 
 struct UrmaDevQueryRpcReq {
-    uint32_t nodeId;
+    uint32_t nodeId{};
+    std::vector<std::string> deviceNames;
 };
 
 struct UrmaDevQueryRpcRsp {

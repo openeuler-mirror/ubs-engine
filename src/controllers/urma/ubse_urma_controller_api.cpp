@@ -18,6 +18,7 @@
 #include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_ipc_message.h"
 #include "ubse_logger.h"
 #include "ubse_pack_util.h"
 #include "ubse_serial_util.h"
@@ -71,7 +72,12 @@ UbseResult LocalDevPack(std::vector<std::string>& nameInfos, std::vector<uint32_
     size_t rspSize = sizeof(uint32_t);
     for (auto& s : nameInfos) {
         // 每个名字后面需要增加一个status占用4个字节
-        rspSize += UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t) + sizeof(uint64_t);
+        const size_t entrySize = UbseStringCalcSize(s, UBSE_URMA_NAME_MAX - 1) + sizeof(uint32_t) + sizeof(uint64_t);
+        if (rspSize > UBSE_MESSAGE_SIZE || entrySize > UBSE_MESSAGE_SIZE - rspSize) {
+            UBSE_LOG_ERROR << "Local URMA device response exceeds max message size=" << UBSE_MESSAGE_SIZE;
+            return UBSE_ERROR_INVAL;
+        }
+        rspSize += entrySize;
     }
     response.buffer = new (std::nothrow) uint8_t[rspSize];
     response.length = rspSize;
@@ -327,22 +333,11 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage& req
         return ret;
     }
     std::vector<UbseUrmaDevBrief> urmaInfo;
-    ret = UbseUrmaController::GetInstance().UbseGetUrmaDevsByNodeId(nodeId, urmaInfo);
+    // 远端只返回命中的逻辑设备，避免共享模式全量结果超过 IPC 消息上限。
+    ret = UbseUrmaController::GetInstance().UbseGetUrmaDevsByNodeId(nodeId, urmaInfo, deviceNameList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseUrmaController::UbseGetUrmaDevsByNodeId failed," << FormatRetCode(ret);
         return ret;
-    }
-    // 根据 deviceNameList 进行过滤
-    if (!deviceNameList.empty()) {
-        std::unordered_set<std::string> allowedDevices(deviceNameList.begin(), deviceNameList.end());
-        std::vector<UbseUrmaDevBrief> filtered;
-        filtered.reserve(urmaInfo.size());
-        for (const auto& info : urmaInfo) {
-            if (allowedDevices.find(info.urmaName) != allowedDevices.end()) {
-                filtered.push_back(info);
-            }
-        }
-        urmaInfo = std::move(filtered);
     }
     UbseSerialization ubse_req_serial;
     const auto urmaSize = static_cast<uint32_t>(urmaInfo.size());
@@ -351,6 +346,10 @@ uint32_t UbseUrmaControllerApi::UbseUrmaDevGetByFilter(const UbseIpcMessage& req
         const auto urmaState = static_cast<uint32_t>(i.state);
         const auto urmaType = static_cast<uint32_t>(i.bondingType);
         ubse_req_serial << i.urmaName << urmaType << i.devEid << i.feNames << i.feEids << urmaState;
+    }
+    if (!ubse_req_serial.Check() || ubse_req_serial.GetLength() > UBSE_MESSAGE_SIZE) {
+        UBSE_LOG_ERROR << "Failed to serialize URMA CLI response within max message size=" << UBSE_MESSAGE_SIZE;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {

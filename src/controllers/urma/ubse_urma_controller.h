@@ -42,13 +42,14 @@ public:
                                std::vector<uint64_t>& hwResIds);
     UbseResult UbseAllocUrmaDev(const std::string& name, UbseUrmaDevPath& devPaths);
     UbseResult UbseFreeUrmaDev(const std::string name);
-    UbseResult UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos);
+    UbseResult UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos,
+                                       const std::vector<std::string>& filter = {});
     static UbseResult UbseTopoLinkChangeHandler(std::string& eventId, const std::string& eventMessage);
     static UbseResult UbseNodeJoinHandler(std::string& eventId, const std::string& eventMessage);
 
     void FillUrmaDevsByUvsInfo(const std::string& nodeId, std::vector<UbseUrmaUvsNodeInfo>& uvsInfos);
     UbseResult ActivateSpecifyUrmaDev(const std::string& urmaName);
-    void GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfos);
+    UbseResult GetLocalUrmaDevs(const std::vector<std::string>& filter, std::vector<UbseUrmaDevBrief>& devInfos);
     bool IsUrmaDevCreated(const UbseUrmaInfo& urmaInfo);
 
 private:
@@ -56,7 +57,8 @@ private:
     UbseResult HandleNodeJoinWithRetry(const std::string& joinNodeId);
     UbseResult HandleTopoLinkChangeWithRetry();
     UbseResult DoTopoLinkChange();
-    UbseResult UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& urmaInfo);
+    UbseResult UbseGetUrmaDevsByRpc(const uint32_t& nodeId, const std::vector<std::string>& filter,
+                                    std::vector<UbseUrmaDevBrief>& urmaInfo);
 };
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo();

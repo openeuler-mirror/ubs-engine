@@ -107,6 +107,23 @@ UbseResult UbseUrmaControllerManager::AllocUrmaDev(const std::string& urmaName, 
     return UBSE_OK;
 }
 
+bool UbseUrmaControllerManager::GetHostUrmaDevPath(UbseUrmaDevPath& devPath)
+{
+    ubse::utils::ReadLocker<utils::ReadWriteLock> readLock(&rwLock);
+    if (!hostUrmaDevPath.has_value()) {
+        return false;
+    }
+    devPath = *hostUrmaDevPath;
+    return true;
+}
+
+void UbseUrmaControllerManager::SetHostUrmaDevPath(const UbseUrmaDevPath& devPath)
+{
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&rwLock);
+    hostUrmaDevPath = devPath;
+    UBSE_LOG_INFO << "Cached host URMA device path, bondingEid=" << devPath.bondingEid;
+}
+
 void UbseUrmaControllerManager::SetUrmaDevStateByDevEid(const std::string& urmaDevEid, UrmaDevState state)
 {
     UbseRoleInfo currentNodeInfo{};

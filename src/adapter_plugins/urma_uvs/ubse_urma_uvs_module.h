@@ -29,6 +29,7 @@ using UvsSetShareTopoInfo = uint32_t (*)(void* topo, uint32_t topo_size, uint32_
 using UvsGetDeviceNameByUrmaEid = uint32_t (*)(char* urmaEid, char* buf, size_t len);
 using UvsCreateAggrDev = uint32_t (*)(char* aggrDevEid, const char* aggrDevName);
 using UvsDeleteAggrDev = uint32_t (*)(char* aggrDevEid);
+using UvsGetEidSharing = int (*)(bool* enabled);
 
 constexpr uint32_t EID_LEN = 16;
 constexpr uint32_t IODIE_NUM = 2;
@@ -77,16 +78,20 @@ public:
 
     void Stop() override;
 
+    bool IsEidSharingModeEnabled() const;
+
     // 提供函数指针访问
     UvsSetTopoInfo uvsSetTopoInfo = nullptr;
     UvsSetShareTopoInfo uvsSetShareTopoInfo = nullptr;
     UvsGetDeviceNameByUrmaEid uvsGetDeviceNameByUrmaEid = nullptr;
     UvsCreateAggrDev uvsCreateAggrDev = nullptr;
     UvsDeleteAggrDev uvsDeleteAggrDev = nullptr;
+    UvsGetEidSharing uvsGetEidSharing = nullptr;
 
 private:
     void Cleanup();
     void* handle = nullptr;
+    bool eidSharingModeEnabled{false};
 };
 } // namespace ubse::urma
 #endif // UBSE_MANAGER_UBSE_URMA_MODULE_H

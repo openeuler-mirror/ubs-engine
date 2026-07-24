@@ -16,6 +16,7 @@
 #include "ubse_common_def.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_ipc_message.h"
 #include "ubse_logger.h"
 #include "ubse_serial_util.h"
 #include "ubse_smbios.h"
@@ -37,12 +38,15 @@ using namespace ubse::common::def;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
+static UbseResult DeserializeFilteredDeviceNames(UbseDeSerialization& in, std::vector<std::string>& deviceNames);
+
 UbseResult UrmaDevQueryReqSimpo::Serialize()
 {
     UbseSerialization out;
-    out << req.nodeId;
+    out << req.nodeId << req.deviceNames;
     if (!out.Check()) {
-        UBSE_LOG_ERROR << "Failed to serialize req";
+        UBSE_LOG_ERROR << "Failed to serialize URMA device query request, nodeId=" << req.nodeId
+                       << ", filterCount=" << req.deviceNames.size();
         return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
@@ -52,6 +56,7 @@ UbseResult UrmaDevQueryReqSimpo::Serialize()
 
 UbseResult UrmaDevQueryReqSimpo::Deserialize()
 {
+    req = {};
     if (mInputRawData == nullptr) {
         UBSE_LOG_ERROR << "InputRawData is null.";
         return UBSE_ERROR;
@@ -59,19 +64,59 @@ UbseResult UrmaDevQueryReqSimpo::Deserialize()
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
     in >> req.nodeId;
     if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to deserialize req";
+        UBSE_LOG_ERROR << "Failed to deserialize URMA device query node ID, inputSize=" << mInputRawDataSize;
         return UBSE_ERROR;
     }
+    // 兼容旧节点仅携带 nodeId 的请求；新节点在同一消息尾部追加可选名称过滤条件。
+    UbseSerialization legacyRequest;
+    legacyRequest << req.nodeId;
+    if (!legacyRequest.Check()) {
+        UBSE_LOG_ERROR << "Failed to calculate legacy URMA device query request length, nodeId=" << req.nodeId;
+        return UBSE_ERROR;
+    }
+    if (mInputRawDataSize == legacyRequest.GetLength()) {
+        return UBSE_OK;
+    }
+    const auto ret = DeserializeFilteredDeviceNames(in, req.deviceNames);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to deserialize URMA device query filters, nodeId=" << req.nodeId
+                       << ", inputSize=" << mInputRawDataSize << ", ret=" << ret;
+    }
+    return ret;
+}
+
+static UbseResult DeserializeFilteredDeviceNames(UbseDeSerialization& in, std::vector<std::string>& deviceNames)
+{
+    common_len deviceCount = 0;
+    // 先读取并限制数组长度，再分配 vector，避免不可信报文触发超大内存申请。
+    in >> array_len_capture(deviceCount);
+    if (!in.Check() || deviceCount > static_cast<common_len>(NO_1024)) {
+        UBSE_LOG_ERROR << "Invalid filtered URMA device count=" << deviceCount;
+        return UBSE_ERROR_DESERIALIZE_FAILED;
+    }
+
+    std::vector<std::string> candidate;
+    candidate.reserve(static_cast<size_t>(deviceCount));
+    for (common_len i = 0; i < deviceCount; ++i) {
+        std::string deviceName;
+        in >> deviceName;
+        if (!in.Check()) {
+            UBSE_LOG_ERROR << "Failed to deserialize filtered URMA device name at index=" << i;
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        candidate.push_back(std::move(deviceName));
+    }
+    deviceNames = std::move(candidate);
     return UBSE_OK;
 }
 
 UbseResult UrmaDevQueryRspSimpo::Serialize()
 {
     UbseSerialization out;
-    const uint32_t tmpSize = rsp.urmaInfos.size();
     out << rsp;
-    if (!out.Check()) {
-        UBSE_LOG_ERROR << "Failed to serialize UrmaDevQueryRspSimpo";
+    if (!out.Check() || out.GetLength() > UBSE_MESSAGE_SIZE) {
+        UBSE_LOG_ERROR << "Failed to serialize URMA device query response, rowCount=" << rsp.urmaInfos.size()
+                       << ", serializedSize=" << out.GetLength() << ", maxMessageSize=" << UBSE_MESSAGE_SIZE;
         return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
@@ -88,10 +133,36 @@ UbseResult UrmaDevQueryRspSimpo::Deserialize()
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
     in >> rsp;
     if (!in.Check()) {
-        UBSE_LOG_ERROR << "Failed to deserialize UrmaDevQueryRspSimpo";
+        UBSE_LOG_ERROR << "Failed to deserialize URMA device query response, inputSize=" << mInputRawDataSize;
         return UBSE_ERROR;
     }
     return UBSE_OK;
+}
+
+static void SetLocalUrmaDeviceQueryResponse(const UrmaDevQueryRpcReq& request, const UbseUrmaDevQueryRspPtr& response)
+{
+    UrmaDevQueryRpcRsp rpcRsp{};
+    rpcRsp.result = UbseUrmaController::GetInstance().GetLocalUrmaDevs(request.deviceNames, rpcRsp.urmaInfos);
+    if (rpcRsp.result != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to build local URMA device query response, nodeId=" << request.nodeId
+                       << ", filterCount=" << request.deviceNames.size() << ", ret=" << rpcRsp.result;
+        rpcRsp.urmaInfos.clear();
+    }
+    response->SetUbseUrmaDevQueryRsp(rpcRsp);
+}
+
+static UbseResult GetUrmaQueryRoleInfo(UbseRoleInfo& masterInfo, UbseRoleInfo& currentNodeInfo)
+{
+    auto ret = UbseGetMasterInfo(masterInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get master node while handling URMA device query, ret=" << ret;
+        return ret;
+    }
+    ret = UbseGetCurrentNodeInfo(currentNodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node while handling URMA device query, ret=" << ret;
+    }
+    return ret;
 }
 
 UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
@@ -111,34 +182,36 @@ UbseResult UbseUrmaDevQueryMessageHandler::Handle(const UbseBaseMessagePtr& req,
     auto urmaReq = request->GetUbseUrmaDevReq();
     UbseRoleInfo currentNodeInfo{};
     UbseRoleInfo masterInfo{};
-    if (UbseGetMasterInfo(masterInfo) != UBSE_OK || UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get node info";
+    if (GetUrmaQueryRoleInfo(masterInfo, currentNodeInfo) != UBSE_OK) {
         return UBSE_ERROR;
     }
-    UrmaDevQueryRpcRsp rpcRsp;
     /* 如果是本节点的消息就查询，如果是主节点就转发，其他情况丢弃 */
     if (std::to_string(urmaReq.nodeId) == currentNodeInfo.nodeId) {
-        UbseUrmaController::GetInstance().GetLocalUrmaDevs(rpcRsp.urmaInfos);
-        rpcRsp.result = UBSE_OK;
-        response->SetUbseUrmaDevQueryRsp(rpcRsp);
+        SetLocalUrmaDeviceQueryResponse(urmaReq, response);
         return UBSE_OK;
     } else if (masterInfo.nodeId == currentNodeInfo.nodeId) {
+        UrmaDevQueryRpcRsp rpcRsp{};
         SendParam sendParam{std::to_string(urmaReq.nodeId), static_cast<uint16_t>(UbseModuleCode::UBSE_URMA),
                             static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_QUERY)};
         auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
         if (comModule == nullptr) {
-            UBSE_LOG_ERROR << "Getting ComModule failed.";
+            UBSE_LOG_ERROR << "Failed to get communication module while forwarding URMA device query, targetNodeId="
+                           << urmaReq.nodeId;
             rpcRsp.result = UBSE_ERROR_NULLPTR;
             response->SetUbseUrmaDevQueryRsp(rpcRsp);
             return UBSE_ERROR_NULLPTR;
         }
         auto ret = comModule->RpcSend(sendParam, request, response);
         if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to forward URMA device query, targetNodeId=" << urmaReq.nodeId
+                           << ", filterCount=" << urmaReq.deviceNames.size() << ", ret=" << ret;
             rpcRsp.result = ret;
             response->SetUbseUrmaDevQueryRsp(rpcRsp);
             return ret;
         }
     }
+    UBSE_LOG_WARN << "URMA device query cannot be handled by current node, targetNodeId=" << urmaReq.nodeId
+                  << ", currentNodeId=" << currentNodeInfo.nodeId << ", masterNodeId=" << masterInfo.nodeId;
     return UBSE_ERROR_INVAL;
 }
 
