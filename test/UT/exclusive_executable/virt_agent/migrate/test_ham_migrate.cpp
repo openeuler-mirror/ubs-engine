@@ -844,8 +844,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
         .id("3");
 
     gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
-
-    gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
     hamMigrateVmInfo.pid = PID;
