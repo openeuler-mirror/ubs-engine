@@ -171,6 +171,7 @@ int32_t ubs_mem_fd_create(const char* name, uint64_t size, const ubs_mem_fd_owne
 |------|--------|------|--------------|------|
 | P0-FdCreate-Ok-01 | 标准创建 | 双/四节点 | owner=NULL, mode=0, distance=L0, size=129MB; `mem_stage∈{CREATING,EXIST}`, `mem_size==129MB`, `memid_cnt==ceil(mem_size/unit_size)`, `memids` 非零, `unit_size>0`, `import_node.slot_id==本节点`, `export_node.slot_id>0`, `export_node.slot_id≠import_node.slot_id` | `UBS_SUCCESS` |
 | P0-FdCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-FdCreate-InvalidChar-01 | name 非法字符 | 双节点 | name="it_p0_fd_inv@lid!" | `UBS_ERR_INVALID_ARG` |
 | P0-FdCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1MB | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
 | P0-FdCreate-InvalidVal-02 | size > 256GB | 双/四节点 | size=257GB; 超过 `UBS_MEM_MAX_MEMID_NUM * 128MB` | `UBS_ENGINE_ERR_ALLOCATE` |
 | P0-FdCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 fd_desc=NULL | `UBS_ERR_NULL_POINTER` |
@@ -424,6 +425,7 @@ int32_t ubs_mem_numa_create(const char* name, uint64_t size, ubs_mem_distance_t 
 |------|--------|------|--------------|------|
 | P0-NumaCreate-Ok-01 | 标准创建 | 双/四节点 | distance=L0, size=129MB; `mem_stage∈{CREATING,EXIST}`, `size==129MB`, `numaid≥0`, `import_node.slot_id==本节点`, `export_node.slot_id>0`, `export_node.slot_id≠import_node.slot_id`, `name==输入` | `UBS_SUCCESS` |
 | P0-NumaCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-NumaCreate-InvalidChar-01 | name 非法字符 | 双节点 | name="it_p0_numa_inv@lid!" | `UBS_ERR_INVALID_ARG` |
 | P0-NumaCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1 | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
 | P0-NumaCreate-Dup-01 | 同名重复 | 双节点 | 同名再调 | `UBS_ENGINE_ERR_EXISTED` |
 | P0-NumaCreate-NullPtr-01 | 空指针 | 双节点 | name=NULL 或 numa_desc=NULL | `UBS_ERR_NULL_POINTER` |
@@ -614,8 +616,10 @@ int32_t ubs_mem_shm_create(const char* name, uint64_t size, uint8_t usr_info[32]
 | 编号 | 用例名 | 场景 | 入参/出参校验 | 预期 |
 |------|--------|------|--------------|------|
 | P0-ShmCreate-Ok-01 | 标准创建 | 双/四节点 | 双节点: region={1,2}; 四节点: region={3,4}; provider=NULL; `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `export_node.slot_id>0`, `export_node.slot_id∈region` | `UBS_SUCCESS` |
+| P0-ShmCreate-SingleNode-Ok-01 | 单节点创建 | 单节点 | region={1}; provider=NULL; `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `export_node.slot_id==1` | `UBS_SUCCESS` |
 | P0-ShmCreate-Provider-Ok-01 | 指定provider创建 | 双节点 | region={1,2}, provider={2}; `mem_stage∈{CREATING,EXIST}`, `mem_size==128MB`, `unit_size>0`, `export_node.slot_id>0`, `export_node.slot_id∈provider` | `UBS_SUCCESS` |
 | P0-ShmCreate-OverLen-01 | name 超长 | 双节点 | name ≥ 48 | `UBS_ERR_INVALID_ARG` |
+| P0-ShmCreate-InvalidChar-01 | name 非法字符 | 双节点 | name="it_p0_shm_inv@lid!" | `UBS_ERR_INVALID_ARG` |
 | P0-ShmCreate-InvalidVal-01 | size < 4MB | 双节点 | size=1MB | `UBS_ENGINE_ERR_OUT_OF_RANGE` |
 | P0-ShmCreate-Dup-01 | 同名重复 | 双节点 | region={slot_id_1,slot_id_2}, provider=NULL; 同名再调一次 | `UBS_ENGINE_ERR_EXISTED` |
 | P0-ShmCreate-InvalidVal-02 | size > 256GB | 双节点 | size=257GB; 超过 `UBS_MEM_MAX_MEMID_NUM * 128MB` | `UBS_ENGINE_ERR_ALLOCATE` |
@@ -1024,7 +1028,7 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliCheckMem-Ok-01 | 内存健康检查 | 双节点 | 无参数; 输出含各节点内存状态 | 成功 |
+| P0-CliCheckMem-Ok-01 | 内存健康检查 | 双节点 | ① 无参数; ② 输出包含表头 `node`、`status`、`detail`; ③ 输出包含节点 1 和节点 2 的信息; ④ detail 字段包含 `cluster state`、`obmm`、`sysSentry`; ⑤ 输出不包含 `ERROR` 或 `Failed` 错误信息 | 成功 |
 
 #### display memory -t config
 
@@ -1041,7 +1045,7 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliMemConfig-Ok-01 | 查询内存配置 | 双节点 | 输出含池化配置 | 成功 |
+| P0-CliMemConfig-Ok-01 | 查询内存配置 | 双节点 | ① 无参数; ② 返回配置列表不为空; ③ 每条配置的 `node` 字段非空; ④ 每条配置的 `isLender` 字段为 "true" | 成功 |
 
 #### display memory -t numa_status
 
@@ -1069,7 +1073,7 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliNumaStatus-Ok-01 | NUMA 状态 | 双节点 | 输出含 numa_id/mem_total/mem_free | 成功 |
+| P0-CliNumaStatus-Ok-01 | NUMA 状态 | 双节点 | ① 不带 `-a` 查询，验证输出包含表头 `node`、`numa`、`total`、`used`、`free`、`used_percent`，不包含 `ERROR`; ② 带 `-a` 查询，验证输出包含上述表头以及 `2M`、`1G` 大页信息，不包含 `ERROR` | 成功 |
 
 #### display memory -t borrow_detail
 
@@ -1094,7 +1098,7 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliBorrowDetail-Ok-01 | 无借用时查询 | 单节点 | 输出为空 | 成功 |
+| P0-CliBorrowDetail-Ok-01 | 内存类型过滤查询 | 双节点 | ① 创建 NUMA/FD/SHARE 三种类型内存; ② 不过滤时查询，验证返回所有借用记录; ③ 按 type 过滤查询（numa/fd/share），验证每种类型返回正确记录且 lendSize 包含 "128"; ④ 按 name 过滤查询，验证返回指定记录; ⑤ type + name 组合过滤，验证返回匹配记录; ⑥ 清理所有内存后查询，验证账本为空 | 成功 |
 
 #### display memory -t node_borrow
 
@@ -1106,14 +1110,13 @@ const char* ubs_error_string(int32_t error)
 
 | 字段 | 格式 | 说明 |
 |------|------|------|
-| node | `hostname(slotId)` | 借入节点 |
-| borrow_type | `fd` / `numa` / `share` | 借用类型 |
-| total_borrow_size | 整数 | 总借入大小，单位字节 |
-| borrow_count | 整数 | 借用数量 |
+| borrow_node | `hostname(slotId)` | 借入节点 |
+| lend_node | `hostname(slotId)` | 借出节点 |
+| size | 字符串 | 借入大小 |
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliNodeBorrow-Ok-01 | 查询节点借入汇总 | 双节点 | 输出含各节点借入信息 | 成功 |
+| P0-CliNodeBorrow-Ok-01 | 查询节点借入汇总 | 双节点 | ① 创建 NUMA 内存（128M），查询 node_borrow，记录 size; ② 创建 FD 内存（128M），查询 node_borrow，验证新增一条记录; ③ 创建 SHARE 内存（128M），查询 node_borrow，验证记录数量不变（share 不记录）; ④ 清理所有内存; ⑤ 清理后查询 node_borrow，验证结果为空 | 成功 |
 
 #### display memory -t node_lend
 
@@ -1125,14 +1128,13 @@ const char* ubs_error_string(int32_t error)
 
 | 字段 | 格式 | 说明 |
 |------|------|------|
-| node | `hostname(slotId)` | 借出节点 |
-| lend_type | `fd` / `numa` / `share` | 借出类型 |
-| total_lend_size | 整数 | 总借出大小，单位字节 |
-| lend_count | 整数 | 借出数量 |
+| lend_node | `hostname(slotId)` | 借出节点 |
+| borrow_node | `hostname(slotId)` | 借入节点 |
+| size | 字符串 | 借出大小 |
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliNodeLend-Ok-01 | 查询节点借出汇总 | 双节点 | 输出含各节点借出信息 | 成功 |
+| P0-CliNodeLend-Ok-01 | 查询节点借出汇总 | 双节点 | ① 创建 NUMA 内存（128M），查询 node_lend，记录 size; ② 创建 FD 内存（128M），查询 node_lend，验证新增一条记录; ③ 创建 SHARE 内存（128M），查询 node_lend，验证记录数量不变（share 不记录）; ④ 清理所有内存; ⑤ 清理后查询 node_lend，验证结果为空 | 成功 |
 
 #### create memory
 
@@ -1144,17 +1146,25 @@ const char* ubs_error_string(int32_t error)
 | `-l` | `--link-id` | 链路 ID，格式 `nodeID/socketID/portID-nodeID/socketID/portID`，仅 `numa` 时有效 |
 | `-r` | `--region` | 共享 region 节点，格式 `node1,node2`（如 `1,2`），仅 `share` 时有效 |
 
-**回显：** 成功输出 `create successfully`，失败输出错误信息。
+**回显：** 失败输出错误信息。成功回显因类型而异：
+
+| 类型 | 回显字段 |
+|------|----------|
+| NUMA | `name`, `size`, `numa-id`, `import-node`, `export-node` |
+| FD | `name`, `size`, `mem-ids`, `import-node`, `export-node` |
+| SHARE | `name`, `size`, `export-node`, `region` |
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliCreateNuma-Ok-01 | 创建 numa | 双节点 | `-t numa -n <name> -s <size>`; display 可查 | create successfully |
-| P0-CliCreateNuma-InvalidChar-01 | 非法 name | 单节点 | `-t numa -n "bad!name"` 非法字符 | 报错 |
-| P0-CliCreateNuma-Dup-01 | 重复创建 | 双节点 | `-t numa` 同名再调一次 | 报错 EXISTED |
-| P0-CliCreateFd-Ok-01 | 创建 fd | 双节点 | `-t fd -n <name> -s <size>` 正常参数 | create successfully |
-| P0-CliCreateFd-InvalidVal-01 | size=0 | 单节点 | `-t fd -s 0` | 报错 |
-| P0-CliCreateShare-Ok-01 | 创建 share | 四节点 | `-t share -n <name> -s <size>` 正常参数 | create successfully |
-| P0-CliCreateShare-OverLen-01 | name 超长 | 双节点 | `-t share -n <超长>` | 报错 |
+| P0-CliCreateNuma-Ok-01 | 创建 numa | 双节点 | `-t numa -n <name> -s 128M`; ① `name` == 传入值; ② `size` == "128MB"; ③ `numa-id >= 0`; ④ `import-node` == 本节点ID; ⑤ `export-node` 非本节点ID; ⑥ `display borrow_detail` 可查 | 回显字段完整且正确 |
+| P0-CliCreateNuma-LinkId-Ok-01 | 指定链路创建numa | 四节点 | `-t numa -n <name> -s 128M -l <linkId>`; ① `name` == 传入值; ② `size` == "128MB"; ③ `numa-id >= 0`; ④ `import-node` == 本节点ID; ⑤ `export-node` == 链路peer节点ID; ⑥ `borrow_detail` 校验 `borrowNode` == 本节点, `lendNode` == 链路peer节点 | 回显字段完整且精确匹配 |
+| P0-CliCreateNuma-InvalidChar-01 | 非法 name | 双节点 | `-t numa -n "inv@lid_n@me!" -s 128M` 非法字符 | 报错 |
+| P0-CliCreateNuma-Dup-01 | 重复创建 | 双节点 | 同名 `-t numa` 再调一次 | 报错 EXISTED |
+| P0-CliCreateFd-Ok-01 | 创建 fd | 双节点 | `-t fd -n <name> -s 128M`; ① `name` == 传入值; ② `size` == "128MB"; ③ `mem-ids` 非空; ④ `import-node` 为本节点ID; ⑤ `export-node` 非本节点ID; ⑥ `display borrow_detail -bt fd` 可查 | 回显字段完整且正确 |
+| P0-CliCreateFd-InvalidVal-01 | size=0 | 双节点 | `-t fd -n <name> -s 0` | 报错 |
+| P0-CliCreateShare-Ok-01 | 创建 share | 四节点 | `-t share -n <name> -s 128M -r 1,2,3,4`; ① `name` == 传入值; ② `size` == "128MB"; ③ `export-node` 非空; ④ `region` == 传入值; ⑤ `display borrow_detail -bt share` 可查 | 回显字段完整且正确 |
+| P0-CliCreateShare-OverLen-01 | name 超长 | 单节点 | `-t share -n <48字符> -s 128M` | 报错 |
+| P0-CliCreateShare-NameLen47-Ok-01 | name边界47 | 单节点 | `-t share -n <47字符> -s 4M -r 1`; ① `name` == 传入值; ② `size` == "4MB"; ③ `export-node` 非空; ④ `region` == "1"; ⑤ 清理后删除 | 创建成功 |
 
 #### delete memory
 
@@ -1167,7 +1177,11 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
-| P0-CliDelMem-NotExist-01 | 删除不存在 | 单节点 | 不存在的 name | 报错 |
+| P0-CliDelMem-Ok-01 | 创建后删除 | 双节点 | 创建 numa/fd/share 各一个; `-t numa/fd/share -n <name>` 删除; `display borrow_detail` 验证均查不到 | `Delete successfully` |
+| P0-CliDelMem-NotExist-01 | 删除不存在 | 单节点 | `-t numa -n not_exist` / `-t fd -n not_exist` / `-t share -n not_exist` | 报错 |
+| P0-CliDelMem-Dup-01 | 重复删除 | 双节点 | 创建 numa/fd/share 各一个，删除两次，第二次验证报错 | 报错 |
+| P0-CliDelMem-OverLen-01 | name超长 | 单节点 | `-t numa -n <48字符>` | 报错 |
+| P0-CliDelAddr-NotExist-01 | 删除addr不存在 | 单节点 | `-t addr -n not_exist` | 报错 |
 
 #### attach memory
 
@@ -1179,7 +1193,10 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
+| P0-CliAttachMem-Ok-01 | attach 成功 | 双节点 | 创建 share 后 attach; `name`/`size`/`mem-ids`/`import-node` 非空 | 成功 |
 | P0-CliAttachMem-NotReady-01 | attach 不存在 | 双节点 | 不存在的 name | 报错 |
+| P0-CliAttachMem-Dup-01 | attach 重复 | 双节点 | 创建 share 后 attach 两次，第二次应失败 | 报错 |
+| P0-CliAttachMem-OverLen-01 | name超长 | 单节点 | `-n <48字符>` | 报错 |
 
 #### detach memory
 
@@ -1191,7 +1208,9 @@ const char* ubs_error_string(int32_t error)
 
 | 编号 | 用例名 | 场景 | 入参/校验点 | 预期 |
 |------|--------|------|------------|------|
+| P0-CliDetachMem-Ok-01 | detach 成功 | 双节点 | 创建 share → attach → detach | 成功 |
 | P0-CliDetachMem-NotReady-01 | detach 未 attach | 单节点 | 未 attach | 报错 |
+| P0-CliDetachMem-OverLen-01 | name超长 | 单节点 | `-n <48字符>` | 报错 |
 
 ### 3.3 URMA QoS
 
@@ -1252,13 +1271,14 @@ const char* ubs_error_string(int32_t error)
 | 模块 | SDK P0 | CLI P0 | 合计 |
 |------|--------|--------|------|
 | Client | 5 | — | 5 |
-| Topo | 8 | 8 | 16 |
-| Mem FD | 38 | 2 | 40 |
-| Mem NUMA | 37 | 4 | 41 |
-| Mem SHM | 41 | 10 | 51 |
+| Topo | 8 | 6 | 14 |
+| Mem FD | 39 | — | 39 |
+| Mem NUMA | 38 | — | 38 |
+| Mem SHM | 43 | 27 | 70 |
 | URMA QoS | 1 | 8 | 9 |
+| NPU | 7 | — | 7 |
 | Error | 2 | — | 2 |
-| **合计** | **139** | **32** | **171** |
+| **合计** | **143** | **41** | **184** |
 
 
 
@@ -1266,8 +1286,8 @@ const char* ubs_error_string(int32_t error)
 
 | 场景 | SDK P0 | CLI P0 | 合计 |
 |------|--------|--------|------|
-| 单节点 | 18 | 16 | 34 |
-| 双节点 | 114 | 13 | 127 |
-| 四节点 | 16 | 3 | 19 |
+| 单节点 | 19 | 19 | 38 |
+| 双节点 | 117 | 19 | 136 |
+| 四节点 | 16 | 4 | 20 |
 | NPU 单节点 | 7 | — | 7 |
-| **合计** | **155** | **32** | **187** |
+| **合计** | **159** | **42** | **201** |

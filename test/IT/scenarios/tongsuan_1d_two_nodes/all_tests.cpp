@@ -79,6 +79,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateOverLen01)
     ubse::it::tests::mem_borrow::RunP0ShmCreateOverLen01(Cluster());
 }
 
+// P0-ShmCreate-InvalidChar-01: name 包含非法字符
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateInvalidChar01)
+{
+    ubse::it::tests::mem_borrow::RunP0ShmCreateInvalidChar01(Cluster());
+}
+
 // P0-ShmCreate-InvalidVal-01: size < 4MB
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0ShmCreateInvalidVal01)
 {
@@ -301,6 +307,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOk01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateOverLen01)
 {
     ubse::it::tests::mem_borrow::RunP0FdCreateOverLen01(Cluster());
+}
+
+// P0-FdCreate-InvalidChar-01: name 包含非法字符
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0FdCreateInvalidChar01)
+{
+    ubse::it::tests::mem_borrow::RunP0FdCreateInvalidChar01(Cluster());
 }
 
 // P0-FdCreate-InvalidVal-01: size 超出范围
@@ -547,6 +559,12 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateOverLen01)
     ubse::it::tests::mem_borrow::RunP0NumaCreateOverLen01(Cluster());
 }
 
+// P0-NumaCreate-InvalidChar-01: name 包含非法字符
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateInvalidChar01)
+{
+    ubse::it::tests::mem_borrow::RunP0NumaCreateInvalidChar01(Cluster());
+}
+
 // P0-NumaCreate-InvalidVal-01: size < 4MB
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0NumaCreateInvalidVal01)
 {
@@ -755,6 +773,18 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCheckMemOk01)
     ubse::it::tests::mem_borrow::RunP0CliCheckMemOk01(Cluster());
 }
 
+// P0-CliNodeBorrow-Ok-01: 查询节点借入汇总
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNodeBorrowOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliNodeBorrowOk01(Cluster());
+}
+
+// P0-CliNodeLend-Ok-01: 查询节点借出汇总
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliNodeLendOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliNodeLendOk01(Cluster());
+}
+
 // P0-CliCreateNuma-Ok-01: CLI内存操作(短选项)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateNumaOk01)
 {
@@ -787,10 +817,58 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateNumaDup01)
     ubse::it::tests::mem_borrow::RunP0CliCreateNumaDup01(Cluster());
 }
 
+// P0-CliCreateNuma-InvalidChar-01: CLI create numa 非法name
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateNumaInvalidChar01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCreateNumaInvalidChar01(Cluster());
+}
+
+// P0-CliCreateFd-InvalidVal-01: CLI create fd size=0
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliCreateFdInvalidVal01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliCreateFdInvalidVal01(Cluster());
+}
+
 // P0-CliAttachMem-NotReady-01: CLI attach 未创建的共享内存
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemNotReady01)
 {
     ubse::it::tests::mem_borrow::RunP0CliAttachMemNotReady01(Cluster());
+}
+
+// P0-CliAttachMem-Ok-01: CLI attach 成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliAttachMemOk01(Cluster());
+}
+
+// P0-CliAttachMem-Dup-01: CLI attach 重复
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliAttachMemDup01(Cluster());
+}
+
+// P0-CliDelMem-Ok-01: CLI delete 创建后删除
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliDelMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliDelMemOk01(Cluster());
+}
+
+// P0-CliDelMem-Dup-01: CLI delete 重复删除
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliDelMemDup01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliDelMemDup01(Cluster());
+}
+
+// P0-CliDetachMem-Ok-01: CLI detach 成功
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliDetachMemOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliDetachMemOk01(Cluster());
+}
+
+// P0-CliBorrowDetail-Ok-01: CLI内存类型过滤查询
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliBorrowDetailOk01)
+{
+    ubse::it::tests::mem_borrow::RunP0CliBorrowDetailOk01(Cluster());
 }
 
 // ====================================================================
@@ -803,12 +881,6 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P0CliAttachMemNotReady01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
 {
     ubse::it::tests::mem_borrow::RunP1CliCreateNumaParamVariant01(Cluster());
-}
-
-// P1-CliBorrowDetail-Ok-01: CLI内存类型过滤查询
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliBorrowDetailOk01)
-{
-    ubse::it::tests::mem_borrow::RunP1CliBorrowDetailOk01(Cluster());
 }
 
 // ====================================================================
