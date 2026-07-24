@@ -29,7 +29,6 @@ add_executable(ubse
         controllers/npu/ubse_npu_controller_module.cpp
         framework/ha/ubse_election_module.cpp
         adapter_plugins/syssentry/sys_sentry_module.cpp
-        ras/ubse_ras_module.cpp
         api_server/ubse_api_server_module.cpp
         adapter_plugins/urma_uvs/ubse_urma_uvs_module.cpp
         #       外部模块入口
@@ -55,7 +54,6 @@ target_link_libraries(ubse PRIVATE
         ubse_vip
         ubse_election
         ubse_mti
-        ubse_ras
         syssentry
         cert_api_static
         api_server
@@ -76,6 +74,7 @@ target_link_libraries(ubse PRIVATE
         ubse_node_controller_register_config
         ubse_node_controller
         ubse_ssu
+        ubse_ras
         -Wl,--no-whole-archive
 )
 if (ASAN_BUILD)
