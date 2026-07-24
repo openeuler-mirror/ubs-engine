@@ -34,6 +34,7 @@ struct PackCtx {
     uint8_t *end; // 缓冲区末尾指针, 用于边界校验
 };
 
+// max_len/maxLen 为字符串内容最大长度(不含'\0'), 调用方传 MAX_LENGTH - 1
 ubs_error_t packString(PackCtx &ctx, const char *str, uint32_t max_len);
 ubs_error_t unpackString(UnpackCtx &ctx, char *str, size_t maxLen);
 template <typename T>
