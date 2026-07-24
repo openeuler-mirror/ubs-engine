@@ -182,8 +182,9 @@ uint32_t PackNumaInfoList(const std::vector<NumaInfo>& numaInfos, UbseIpcMessage
         UBSE_LOG_ERROR << "PackNumaInfoList new buffer failed.";
         return VM_ERROR;
     }
-    ret = memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
-    if (ret != EOK) {
+    errno_t memcpyRet =
+        memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
+    if (memcpyRet != EOK) {
         SafeDeleteArray(buffer.buffer);
         UBSE_LOG_ERROR << "PackNumaInfoList memcpy_s failed.";
         return VM_ERROR;
@@ -206,8 +207,9 @@ uint32_t PackVmInfoList(const std::vector<mempooling::VmDomainInfo>& vmInfoList,
         UBSE_LOG_ERROR << "PackVmInfoList new buffer failed.";
         return VM_ERROR;
     }
-    ret = memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
-    if (ret != EOK) {
+    errno_t memcpyRet =
+        memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
+    if (memcpyRet != EOK) {
         SafeDeleteArray(buffer.buffer);
         UBSE_LOG_ERROR << "PackVmInfoList memcpy_s failed.";
         return VM_ERROR;
@@ -692,15 +694,15 @@ uint32_t VirtMemFragSdk::PackBorrowExecuteRsp(const MemBorrowExecuteResult& memB
 
 VmResult VirtMemFragSdk::ConvertToLegacyResult(const MemBorrowExecuteResult& src, mem_borrow_result_c& dest)
 {
-    auto ret =
+    errno_t ret =
         memset_s(dest.present_numa_ids_ptr, sizeof(dest.present_numa_ids_ptr), 0, sizeof(dest.present_numa_ids_ptr));
-    if (ret != VM_OK) {
+    if (ret != EOK) {
         UBSE_LOG_ERROR << "Failed to initialize mem_borrow_result_c, " << ret;
         return VM_ERROR_NOMEM;
     }
 
     ret = memset_s(dest.borrow_ids_ptr, sizeof(dest.borrow_ids_ptr), 0, sizeof(dest.borrow_ids_ptr));
-    if (ret != VM_OK) {
+    if (ret != EOK) {
         UBSE_LOG_ERROR << "Failed to initialize mem_borrow_result_c, ret code=" << ret;
         return VM_ERROR_NOMEM;
     }
@@ -1477,6 +1479,10 @@ VmResult VirtMemFragSdk::GetNumaInfoFromRemote(const std::string& nodeId,
         .address = masterRole.nodeId,
     };
     const auto nodeIdPtr = static_cast<char*>(malloc(nodeId.length()));
+    if (nodeIdPtr == nullptr) {
+        UBSE_LOG_ERROR << "Failed to allocate memory for nodeIdPtr.";
+        return VM_ERROR;
+    }
     if (const auto err = memcpy_s(nodeIdPtr, nodeId.length(), nodeId.c_str(), nodeId.length()); err != EOK) {
         UBSE_LOG_ERROR << "NodeIdPtr mem cpy failed.";
         free(nodeIdPtr);

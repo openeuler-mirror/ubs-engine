@@ -21,9 +21,9 @@ namespace vm {
 using std::string;
 class MigrateInfoBase {
 public:
-    uint32_t numaId;
-    uint32_t pageSize;
-    uint32_t socketId;
+    uint32_t numaId{0};
+    uint32_t pageSize{0};
+    uint32_t socketId{0};
     std::string dstNodeId;
 };
 class MigrateInfoUtil {

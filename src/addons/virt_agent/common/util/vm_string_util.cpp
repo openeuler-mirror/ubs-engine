@@ -165,8 +165,8 @@ pid_t VmStringUtil::SafeStopid(const std::string& str)
         return 0;
     }
     try {
-        unsigned long value = std::stoul(str);
-        if (value > std::numeric_limits<pid_t>::max()) {
+        long value = std::stol(str);
+        if (value > std::numeric_limits<pid_t>::max() || value < std::numeric_limits<pid_t>::min()) {
             throw std::out_of_range("Value out of range for pid_t");
         }
         return static_cast<pid_t>(value);
@@ -233,8 +233,8 @@ pid_t VmStringUtil::SafeNotEmptyStopid(const std::string& str)
         throw std::invalid_argument("Invalid argument: " + str);
     }
     try {
-        unsigned long value = std::stoul(str);
-        if (value > std::numeric_limits<pid_t>::max()) {
+        long value = std::stol(str);
+        if (value > std::numeric_limits<pid_t>::max() || value < std::numeric_limits<pid_t>::min()) {
             throw std::out_of_range("Value out of range for pid_t");
         }
         return static_cast<pid_t>(value);

@@ -626,7 +626,7 @@ VmResult HamMigrate::CheckPid(BorrowInfo& borrowInfo)
     const ubse::com::UbseComEndpoint endpoint = {
         .moduleId = VM_MODULE_CODE, .serviceId = HAM_MIGRATE_MESSAGE_TO_MASTER, .address = GetMasterNodeId()};
     HamMigrateDstInfoMessage hamMigrateDstInfoMessage;
-    hamMigrateDstInfoMessage.SetHamMigrateDstInfo(borrowInfo.dstPid, borrowInfo.dstNodeId);
+    hamMigrateDstInfoMessage.SetHamMigrateDstInfo(static_cast<uint64_t>(borrowInfo.dstPid), borrowInfo.dstNodeId);
     auto ret = hamMigrateDstInfoMessage.Serialize();
     if (ret != VM_OK) {
         UBSE_LOG_ERROR << "hamMigrateDstInfoMessage Serialize fail, "

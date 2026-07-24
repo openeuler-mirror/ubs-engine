@@ -466,7 +466,7 @@ VmResult MemContainerWaterLineMemBorrowInputMsg::GetParams(NodeLocInfo& nodeLocI
         return VM_ERROR;
     }
     borrowSizes.clear();
-    for (auto i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         borrowSizes.emplace_back(memBorrowRequest_.borrowSizes[i]);
     }
     // Get WaterMark

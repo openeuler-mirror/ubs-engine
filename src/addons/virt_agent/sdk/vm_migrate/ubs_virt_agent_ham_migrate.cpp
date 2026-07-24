@@ -61,9 +61,9 @@ virt_agent_ret_t ubs_virt_agent_make_migrate_decision(uint32_t vmMemoryMB, const
         IPC_LOG_ERROR << "response buffer is nullptr";
         return VA_ERROR_NULL_POINTER;
     }
-    ret = memcpy_s(migrateStrategy, sizeof(uint32_t), responseBuffer.buffer, responseBuffer.length);
-    if (ret != EOK) {
-        IPC_LOG_ERROR << "memcpy_s failed with error code: " << ret;
+    errno_t memcpy_ret = memcpy_s(migrateStrategy, sizeof(uint32_t), responseBuffer.buffer, responseBuffer.length);
+    if (memcpy_ret != EOK) {
+        IPC_LOG_ERROR << "memcpy_s failed with error code: " << memcpy_ret;
         ubse_api_buffer_free(&responseBuffer);
         return VA_ERROR_MEM_COPY_FAILED;
     }

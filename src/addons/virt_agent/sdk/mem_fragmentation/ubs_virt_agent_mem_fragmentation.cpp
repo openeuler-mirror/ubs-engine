@@ -335,7 +335,7 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char** task_id, uint32_
 
 virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_len, async_task_info_c* result)
 {
-    if (task_id == nullptr || result == nullptr || task_id_len == 0) {
+    if (task_id == nullptr || result == nullptr || task_id_len == 0 || task_id_len > MEM_TASK_ID_MAX) {
         IPC_LOG_ERROR << "Invalid input parameters: task_id or result is null";
         return VA_ERROR_INVALID_PARAM;
     }

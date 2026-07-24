@@ -115,23 +115,24 @@ VmResult LibvirtHelper::DomainAbortJobFlags(const string& uuid, VirDomainAbortJo
     }
     const auto flagsToUInt = static_cast<unsigned int>(flags);
     UBSE_LOG_INFO << "[virDomainAbortJobFlags] begin, uuid = " << uuid << ", flags = " << flagsToUInt;
-    VmResult ret = VM_ERROR;
+
+    int abortRet{0};
     for (int tryCount = 1; tryCount <= tryTimes; tryCount++) {
-        ret = virDomainAbortJobFlags(domain, flags);
-        if (ret != VM_OK) {
+        abortRet = virDomainAbortJobFlags(domain, flags);
+        if (abortRet != 0) {
             UBSE_LOG_ERROR << "[virDomainAbortJobFlags] failed, uuid = " << uuid << ", flags = " << flagsToUInt
-                           << ", tryCount = " << tryCount << ", " << FormatRetCode(ret);
+                           << ", tryCount = " << tryCount << ", " << FormatRetCode(static_cast<VmResult>(abortRet));
         } else {
             UBSE_LOG_INFO << "[virDomainAbortJobFlags] succeed, uuid = " << uuid << ", flags = " << flagsToUInt
                           << ", tryCount = " << tryCount;
             break;
         }
     }
-    if (ret != VM_OK) {
+    if (abortRet != 0) {
         UBSE_LOG_ERROR << "[virDomainAbortJobFlags] end, uuid = " << uuid << ", flags = " << flagsToUInt
-                       << ", reached times = " << tryTimes << ", " << FormatRetCode(ret);
+                       << ", reached times = " << tryTimes << ", " << FormatRetCode(static_cast<VmResult>(abortRet));
     }
     FreeDomain(domain);
-    return ret;
+    return static_cast<VmResult>(abortRet);
 }
 } // namespace vm

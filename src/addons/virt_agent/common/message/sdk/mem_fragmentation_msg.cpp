@@ -731,14 +731,14 @@ VmResult MemFragmentationMemBorrowStrategyOutputMsg::Serialize()
     if (!out.Check()) {
         return VM_ERROR;
     }
-    for (auto i = 0; i < outputMsg_.dest_numa_infos_size; i++) {
+    for (uint32_t i = 0; i < outputMsg_.dest_numa_infos_size; i++) {
         out << outputMsg_.dest_numa_infos[i].host_id;
         out << outputMsg_.dest_numa_infos[i].socket_id;
         if (outputMsg_.dest_numa_infos[i].numa_nums > MAX_DEST_NUMA_NUM) {
             return VM_ERROR_INVAL;
         }
         out << outputMsg_.dest_numa_infos[i].numa_nums;
-        for (auto j = 0; j < outputMsg_.dest_numa_infos[i].numa_nums; j++) {
+        for (uint16_t j = 0; j < outputMsg_.dest_numa_infos[i].numa_nums; j++) {
             out << outputMsg_.dest_numa_infos[i].numa_ids[j];
             out << outputMsg_.dest_numa_infos[i].mem_sizes[j];
         }

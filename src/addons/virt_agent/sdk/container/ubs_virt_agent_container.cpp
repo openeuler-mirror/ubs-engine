@@ -137,13 +137,13 @@ int32_t ubs_container_info_query(pid_param* param, pid_mem_info** pidInfos, uint
         return VM_ERROR;
     }
 
-    ret = ubse_output_unpack(response_buffer.buffer, response_buffer.length, pidInfos, InfoSize);
-    if (ret != UBS_SUCCESS) {
-        IPC_LOG_ERROR << "ubse_output_unpack failed with error code = " << ret;
+    int32_t unpack_ret = ubse_output_unpack(response_buffer.buffer, response_buffer.length, pidInfos, InfoSize);
+    if (unpack_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_output_unpack failed with error code = " << unpack_ret;
     }
 
     ubse_api_buffer_free(&response_buffer);
-    return ret;
+    return unpack_ret;
 }
 
 int32_t ubs_container_inject_waterLine(watermark_t* param)
@@ -208,13 +208,14 @@ int32_t ubs_container_get_container_pids(container_id_list* containerIdList, con
         return VM_ERROR;
     }
 
-    ret = ubse_output_unpack_for_containerInfos(response_buffer.buffer, response_buffer.length, pidInfo, InfoSize);
-    if (ret != UBS_SUCCESS) {
-        IPC_LOG_ERROR << "ubse_output_unpack failed with error code = " << ret;
+    int32_t unpack_ret =
+        ubse_output_unpack_for_containerInfos(response_buffer.buffer, response_buffer.length, pidInfo, InfoSize);
+    if (unpack_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_output_unpack failed with error code = " << unpack_ret;
     }
 
     ubse_api_buffer_free(&response_buffer);
-    return ret;
+    return unpack_ret;
 }
 
 int32_t waterline_mem_borrow_output_unpack(uint8_t* buffer, uint32_t len, char*** borrowIds, uint32_t* idsSize)
@@ -252,8 +253,8 @@ int32_t waterline_mem_borrow_output_unpack(uint8_t* buffer, uint32_t len, char**
             IPC_LOG_ERROR << "Memory allocation failed for string " << i;
             return VA_ERROR_MEM_ALLOCATE_FAILED;
         }
-        ret = strcpy_s((*borrowIds)[i], strLen, borrowIdList[i].c_str());
-        if (ret != EOK) {
+        errno_t strcpyRet = strcpy_s((*borrowIds)[i], strLen, borrowIdList[i].c_str());
+        if (strcpyRet != EOK) {
             // Free previously allocated memory if strcpy_s fails
             for (uint32_t j = 0; j <= i; ++j) {
                 free((*borrowIds)[j]);
@@ -261,7 +262,7 @@ int32_t waterline_mem_borrow_output_unpack(uint8_t* buffer, uint32_t len, char**
             }
             free(*borrowIds);
             *borrowIds = nullptr;
-            IPC_LOG_ERROR << "strcpy_s failed with error code = " << ret;
+            IPC_LOG_ERROR << "strcpy_s failed with error code = " << strcpyRet;
             return VA_ERROR_MEM_COPY_FAILED;
         }
     }
@@ -302,12 +303,13 @@ int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t* memBorrowReque
         return VM_ERROR;
     }
 
-    ret = waterline_mem_borrow_output_unpack(response_buffer.buffer, response_buffer.length, borrowIds, idsSize);
-    if (ret != UBS_SUCCESS) {
-        IPC_LOG_ERROR << "Output unpack failed with error code = " << ret;
+    int32_t unpack_ret =
+        waterline_mem_borrow_output_unpack(response_buffer.buffer, response_buffer.length, borrowIds, idsSize);
+    if (unpack_ret != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "Output unpack failed with error code = " << unpack_ret;
     }
     ubse_api_buffer_free(&response_buffer);
-    return ret;
+    return unpack_ret;
 }
 
 void convert_mem_migrate_request_t_to_c(mem_migrate_request_t& memMigrateRequest_t,
