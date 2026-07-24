@@ -223,6 +223,11 @@ virt_agent_ret_t ubse_mem_migrate_strategy_msg_unpack(uint8_t* buffer, uint32_t 
 VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_info_list_s& node_info_list)
 {
     node_info_list.node_len = nodeInfoList.size();
+    if (node_info_list.node_len > MAX_NODE_NUM) {
+        node_info_list.node_len = 0;
+        node_info_list.node_infos = nullptr;
+        return VM_ERROR;
+    }
     if (node_info_list.node_len == 0) {
         node_info_list.node_infos = nullptr;
         return VM_OK;
@@ -241,6 +246,12 @@ VmResult NodeInfoListToCStyle(const std::vector<NodeInfo>& nodeInfoList, node_in
         StringToCharArr(nodeId, reinterpret_cast<char*>(&node_id), VIRT_MEM_MAX_NODE_ID_LENGTH);
         is_current = isCurrent;
         numa_len = static_cast<uint32_t>(numaInfos.size());
+        if (numa_len > MAX_NUMA_NUM) {
+            IPC_LOG_ERROR << "numa_len " << numa_len << " exceeds MAX_NUMA_NUM " << MAX_NUMA_NUM;
+            numa_len = 0;
+            numa_infos = nullptr;
+            continue;
+        }
         if (numa_len == 0) {
             numa_infos = nullptr;
             continue;

@@ -12,6 +12,10 @@
  */
 #include "escape_algorithm_module.h"
 #include <dlfcn.h>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
+#include <system_error>
 #include "vm_configuration.h"
 namespace vm {
 UBSE_DEFINE_THIS_MODULE("virt_agent_plugin");
@@ -28,7 +32,19 @@ VmResult EscapeAlgorithmModule::Init()
         UBSE_LOG_ERROR << "The path of escapeAlgorithm is not an absolute path.";
         return VM_ERROR;
     }
-    algorithmHandle = dlopen(fileName.c_str(), RTLD_LAZY);
+    char resolved[PATH_MAX] = {0};
+    if (realpath(fileName.c_str(), resolved) == nullptr) {
+        UBSE_LOG_ERROR << "realpath failed " << fileName
+                       << ", error: " << std::error_code(errno, std::system_category()).message();
+        return VM_ERROR;
+    }
+    std::string realPath(resolved);
+    const std::string allowedPrefix = "/usr/lib64/";
+    if (realPath.rfind(allowedPrefix, 0) != 0) {
+        UBSE_LOG_ERROR << "The escapeAlgorithm " << realPath << " must be under " << allowedPrefix;
+        return VM_ERROR;
+    }
+    algorithmHandle = dlopen(realPath.c_str(), RTLD_LAZY);
     if (algorithmHandle == nullptr) {
         UBSE_LOG_ERROR << "Failed to load " << fileName << ", error: " << dlerror();
         return VM_ERROR;

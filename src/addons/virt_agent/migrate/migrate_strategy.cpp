@@ -71,8 +71,8 @@ uint32_t VirtMigrateStrategy::GetMigrateStrategy(const UbseIpcMessage& req, cons
         UBSE_LOG_ERROR << "UbseIpcMessage init failed.";
         return VM_ERROR;
     }
-    ret = memcpy_s(resp.buffer, resp.length, &migrateStrategy, sizeof(migrateStrategy));
-    if (ret != EOK) {
+    errno_t memcpyRet = memcpy_s(resp.buffer, resp.length, &migrateStrategy, sizeof(migrateStrategy));
+    if (memcpyRet != EOK) {
         SafeDeleteArray(resp.buffer);
         UBSE_LOG_ERROR << "Migrate strategy memcpy_s failed.";
         return VM_ERROR;

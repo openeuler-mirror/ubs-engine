@@ -74,8 +74,9 @@ uint32_t VirtCaseConfSdk::PackGetCaseConfRsp(CaseConfInfo& caseConf, UbseIpcMess
         UBSE_LOG_ERROR << "PackGetCaseConfRsp new buffer failed.";
         return VM_ERROR;
     }
-    ret = memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
-    if (ret != EOK) {
+    errno_t memcpyRet =
+        memcpy_s(buffer.buffer, msg.SerializedDataSize(), msg.SerializedData(), msg.SerializedDataSize());
+    if (memcpyRet != EOK) {
         SafeDeleteArray(buffer.buffer);
         UBSE_LOG_ERROR << "PackGetCaseConfRsp memcpy_s failed.";
         return VM_ERROR;
@@ -177,9 +178,9 @@ uint32_t VirtCaseConfSdk::PackSetCaseConfRsp(const CaseConfSetInfo& caseConfSetI
         UBSE_LOG_ERROR << "PackSetCaseConfRsp new buffer failed.";
         return VM_ERROR;
     }
-    ret = memcpy_s(buffer.buffer, caseConfSetMsg.SerializedDataSize(), caseConfSetMsg.SerializedData(),
-                   caseConfSetMsg.SerializedDataSize());
-    if (ret != EOK) {
+    errno_t memcpyRet = memcpy_s(buffer.buffer, caseConfSetMsg.SerializedDataSize(), caseConfSetMsg.SerializedData(),
+                                 caseConfSetMsg.SerializedDataSize());
+    if (memcpyRet != EOK) {
         SafeDeleteArray(buffer.buffer);
         UBSE_LOG_ERROR << "PackSetCaseConfRsp memcpy_s failed.";
         return VM_ERROR;

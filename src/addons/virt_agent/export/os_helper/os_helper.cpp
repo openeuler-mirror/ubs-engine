@@ -70,7 +70,18 @@ VmResult OsHelper::GetPidsByContainerIds(const std::unordered_set<std::string>& 
 
 std::string OsHelper::ParseContainerFile(const std::string& cgroupPath)
 {
-    std::ifstream file(cgroupPath);
+    char resolved[PATH_MAX] = {0};
+    if (realpath(cgroupPath.c_str(), resolved) == nullptr) {
+        std::error_code ec(errno, std::system_category());
+        UBSE_LOG_ERROR << "realpath failed " << cgroupPath << ": " << ec.message();
+        return "";
+    }
+    std::string realPath(resolved);
+    if (realPath.rfind(OsHelper::procPathPrefix + "/", 0) != 0) {
+        UBSE_LOG_ERROR << "path " << cgroupPath << " is not under " << OsHelper::procPathPrefix;
+        return "";
+    }
+    std::ifstream file(realPath);
     if (!file.is_open()) {
         std::error_code ec(errno, std::system_category());
         UBSE_LOG_ERROR << "file open failed " << cgroupPath << ": " << ec.message();

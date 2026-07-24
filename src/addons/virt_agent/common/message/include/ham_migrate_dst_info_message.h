@@ -44,7 +44,7 @@ public:
         return hamMigrateDstInfo;
     }
 
-    inline void SetHamMigrateDstInfo(int dstPid, const std::string& dstNodeId)
+    inline void SetHamMigrateDstInfo(uint64_t dstPid, const std::string& dstNodeId)
     {
         hamMigrateDstInfo.dstPid = dstPid;
         hamMigrateDstInfo.dstNodeId = dstNodeId;

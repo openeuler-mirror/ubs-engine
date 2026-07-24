@@ -92,8 +92,8 @@ VmResult MigrateInfoUtil::GetNumaIdAndPageSizeByPid(const pid_t pid, MigrateInfo
         line.erase(0, it);
         if (std::regex_search(line, n1Match, n1Regex) && std::regex_search(line, n2Match, n2Regex)) {
             try {
-                numaIdAndPageSize.numaId = VmStringUtil::SafeStoi32(n1Match[1]);
-                numaIdAndPageSize.pageSize = VmStringUtil::SafeStoi32(n2Match[1]);
+                numaIdAndPageSize.numaId = VmStringUtil::SafeStoul(n1Match[1]);
+                numaIdAndPageSize.pageSize = VmStringUtil::SafeStoul(n2Match[1]);
             } catch (const std::exception& e) {
                 file.close();
                 return VM_ERROR;

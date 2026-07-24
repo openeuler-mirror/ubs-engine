@@ -134,9 +134,9 @@ VmResult HttpUtil::SetResp(UbseByteBuffer& resp, const VmResult& code, const std
         UBSE_LOG_ERROR << "new response body error.";
         return VM_ERROR;
     }
-    ret = memcpy_s(body, resp.len, responseInfoSimpo.SerializedData(), resp.len);
-    if (ret != EOK) {
-        UBSE_LOG_ERROR << "memcpy_s error, " << FormatRetCode(ret);
+    errno_t memcpyRet = memcpy_s(body, resp.len, responseInfoSimpo.SerializedData(), resp.len);
+    if (memcpyRet != EOK) {
+        UBSE_LOG_ERROR << "memcpy_s error, " << FormatRetCode(memcpyRet);
         SafeDeleteArray(body);
         return VM_ERROR;
     }

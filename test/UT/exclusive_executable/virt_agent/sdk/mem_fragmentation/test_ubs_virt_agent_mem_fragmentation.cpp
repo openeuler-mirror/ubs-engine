@@ -341,4 +341,104 @@ TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_mem_rollback_InvokeFail)
     EXPECT_EQ(ret, VA_ERROR_BASE);
     GlobalMockObject::verify();
 }
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_TaskIdIsNull)
+{
+    async_task_info_c result{};
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(nullptr, 8, &result);
+    EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_ResultIsNull)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), nullptr);
+    EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_TaskIdLenIsZero)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, 0, &result);
+    EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_TaskIdLenExceedMax)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, MEM_TASK_ID_MAX + 1, &result);
+    EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_AllParamsInvalid)
+{
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(nullptr, 0, nullptr);
+    EXPECT_EQ(ret, VA_ERROR_INVALID_PARAM);
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_AllocateMemoryFailed)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    MOCKER(operator new[]).stubs().will(returnValue(static_cast<uint8_t*>(nullptr)));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), &result);
+    EXPECT_EQ(ret, VA_ERROR_MEM_ALLOCATE_FAILED);
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_MemcpyFailed)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    MOCKER(memcpy_s).stubs().will(returnValue(1));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), &result);
+    EXPECT_EQ(ret, VA_ERROR_MEM_COPY_FAILED);
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_InvokeCallFailed)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    MOCKER(ubse_invoke_call).stubs().will(returnValue(1));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), &result);
+    EXPECT_EQ(ret, VA_ERROR_BASE);
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_UnpackFailed)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
+    MOCKER(ubse_mem_task_info_query_msg_unpack).stubs().will(returnValue(static_cast<virt_agent_ret_t>(1)));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), &result);
+    EXPECT_EQ(ret, VA_ERROR_BASE);
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_Success)
+{
+    char taskId[MEM_TASK_ID_MAX] = "test_task_id";
+    async_task_info_c result{};
+    MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
+    MOCKER(ubse_mem_task_info_query_msg_unpack).stubs().will(returnValue(VA_SUCCESS));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, strlen(taskId), &result);
+    EXPECT_EQ(ret, VA_SUCCESS);
+    GlobalMockObject::verify();
+}
+
+TEST_F(TestLibvirtAgentMemFragmentation, ubs_virt_agent_sync_task_query_SuccessWithEmptyTaskId)
+{
+    char taskId[MEM_TASK_ID_MAX] = {0};
+    async_task_info_c result{};
+    MOCKER(ubse_invoke_call).stubs().will(returnValue(0));
+    MOCKER(ubse_mem_task_info_query_msg_unpack).stubs().will(returnValue(VA_SUCCESS));
+    virt_agent_ret_t ret = ubs_virt_agent_sync_task_query(taskId, 1, &result);
+    EXPECT_EQ(ret, VA_SUCCESS);
+    GlobalMockObject::verify();
+}
+
 } // namespace ubse::vm::ut

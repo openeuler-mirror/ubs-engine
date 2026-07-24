@@ -27,9 +27,12 @@
 #include <ubse_node.h>
 #include <ubse_ras.h>
 #include <ubse_ut_dir.h>
+// 仅测试用途：临时打开 private 访问控制，以便清空 HamMigrate::clearQueue 和 HamMigrateVmInfoStorage::hamMigrateCache 残留项
+#define private public
 #include "ham_migrate.h"
-#include "ham_migrate_dst_info_message.h"
 #include "ham_migrate_vm_info_storage.h"
+#undef private
+#include "ham_migrate_dst_info_message.h"
 #include "libvirt_helper.h"
 #include "migrate_strategy.h"
 #include "resource_query.h"
@@ -93,9 +96,21 @@ std::string GetSendResponseString()
 
 static std::thread gClearThread;
 
+void ClearHamMigrateState()
+{
+    {
+        std::lock_guard<std::mutex> lock(HamMigrate::clearMutex);
+        while (!HamMigrate::clearQueue.Empty()) {
+            HamMigrate::clearQueue.Pop();
+        }
+    }
+    HamMigrateVmInfoStorage::hamMigrateCache.clear();
+}
+
 void TestHamMigrate::SetUp()
 {
     Test::SetUp();
+    ClearHamMigrateState();
     VmConfiguration::GetInstance().LoadConfig();
     MOCKER(UbseStoragePutData).stubs().will(returnValue(VM_OK));
     MOCKER(SendResponse).stubs().will(invoke(GetSendResponse));
@@ -107,6 +122,7 @@ void TestHamMigrate::TearDown()
     if (gClearThread.joinable()) {
         gClearThread.join();
     }
+    ClearHamMigrateState();
     Test::TearDown();
     GlobalMockObject::verify();
 }
