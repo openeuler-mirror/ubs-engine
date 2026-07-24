@@ -369,13 +369,15 @@ TEST_F(TestUbseMemControllerApiAgent, UbseMemShareAttach)
 
 TEST_F(TestUbseMemControllerApiAgent, UbseMemShareDetach)
 {
-    election::UbseRoleInfo masterInfo{};
-    masterInfo.nodeId = "1";
-    MOCKER_CPP(&election::UbseGetMasterInfo)
+    auto electionModule = std::make_shared<ubse::election::UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<ubse::election::UbseElectionModule>)
         .stubs()
-        .with(outBound(masterInfo))
-        .will(returnValue(UBSE_ERROR))
-        .then(returnValue(UBSE_OK));
+        .will(returnValue(electionModule));
+
+    UbseResult (ubse::election::UbseElectionModule::*getLocalMasterNodeFunc)(ubse::election::Node &) =
+        &ubse::election::UbseElectionModule::GetLocalMasterNode;
+    MOCKER(getLocalMasterNodeFunc).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
+
     UbseMemShareDetachReq req{};
     UbseMemOperationResp resp{};
     EXPECT_EQ(ubse::mem::controller::agent::UbseMemShareDetach(req, resp), UBSE_ERROR);

@@ -14,17 +14,21 @@
 
 #include <mockcpp/mockcpp.hpp>
 
+#include <cstring>
 #include <set>
 
 #include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_mem_controller_helper.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
+#include "ubse_mem_global_ledger_summary_store.h"
+#include "ubse_mem_share_store.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::mem_controller::ut {
@@ -44,6 +48,7 @@ void TestUbseMemDebtInfoQuery::SetUp()
 void TestUbseMemDebtInfoQuery::TearDown()
 {
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
+    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -245,6 +250,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemImportObjHasImportResults)
 
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetShouldFilterImportByRequestImportNodeId)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     UbseRoleInfo roleInfo{};
     roleInfo.nodeRole = ELECTION_ROLE_MASTER;
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
@@ -260,9 +266,124 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetShouldFilterImportByRequestImportN
     EXPECT_EQ(shmDesc.importDesc[0].memIds[0], 101);
 }
 
+UbseMemShareBorrowExportObj MakeShmExportObjWithUsrInfo(const std::string &name, const std::string &exportNodeId)
+{
+    UbseMemShareBorrowExportObj obj{};
+    obj.req.name = name;
+    obj.req.size = 4 * 1024 * 1024;
+    obj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    obj.algoResult.blockSize = 128;
+    for (uint32_t i = 0; i < adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN; ++i) {
+        obj.req.usrInfo[i] = static_cast<uint8_t>(0xA0U + i);
+    }
+    UbseMemDebtNumaInfo numaInfo{.nodeId = exportNodeId, .socketId = 0, .numaId = 0, .size = 128};
+    obj.algoResult.exportNumaInfos.push_back(numaInfo);
+    return obj;
+}
+
+UbseMemShareBorrowImportObj MakeShmImportObjWithUsrInfo(const std::string &name, const std::string &importNodeId)
+{
+    UbseMemShareBorrowImportObj obj{};
+    obj.req.name = name;
+    obj.importNodeId = importNodeId;
+    obj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    obj.status.importResults.emplace_back(UbseMemImportResult{.memId = 100});
+    for (uint32_t i = 0; i < adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN; ++i) {
+        obj.req.usrInfo[i] = static_cast<uint8_t>(0xB0U + i);
+    }
+    return obj;
+}
+
+/**
+ * 用例1：无全局主（Cascade全量账本）场景，push进store的usrInfo应与get出的userInfo逐字节一致
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetRoundTripUsrInfoCascade)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    auto obj = MakeShmExportObjWithUsrInfo("shmUsrCascade", "2");
+    CascadeMasterStore store;
+    store.PutExport(obj);
+
+    UbseMemDebtQueryRequest request{.name = "shmUsrCascade"};
+    UbseMemShmDesc shmDesc{};
+    ASSERT_EQ(UbseMemShmGet(request, shmDesc), UBSE_OK);
+    EXPECT_EQ(shmDesc.name, "shmUsrCascade");
+    EXPECT_EQ(std::memcmp(shmDesc.userInfo, obj.req.usrInfo, adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN), 0);
+}
+
+/**
+ * 用例2：CLOS双层（全局主摘要账本）场景，push进GlobalMasterStore的usrInfo应与get出的userInfo逐字节一致
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetRoundTripUsrInfoGlobalMaster)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(false));
+
+    auto obj = MakeShmExportObjWithUsrInfo("shmUsrGlobal", "2");
+    GlobalMasterStore store;
+    store.PutExport(obj);
+
+    UbseMemDebtQueryRequest request{.name = "shmUsrGlobal"};
+    UbseMemShmDesc shmDesc{};
+    ASSERT_EQ(UbseMemShmGet(request, shmDesc), UBSE_OK);
+    EXPECT_EQ(shmDesc.name, "shmUsrGlobal");
+    EXPECT_EQ(std::memcmp(shmDesc.userInfo, obj.req.usrInfo, adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN), 0);
+}
+
+/**
+ * 用例3：仅存在导入对象(export缺失)时，get应从importObj兜底返回usr_info
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmGetRoundTripUsrInfoImportOnly)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    auto importObj = MakeShmImportObjWithUsrInfo("shmUsrImportOnly", "1");
+    CascadeMasterStore store;
+    store.PutImport(importObj);
+
+    UbseMemDebtQueryRequest request{.name = "shmUsrImportOnly"};
+    UbseMemShmDesc shmDesc{};
+    ASSERT_EQ(UbseMemShmGet(request, shmDesc), UBSE_OK);
+    EXPECT_EQ(shmDesc.name, "shmUsrImportOnly");
+    EXPECT_EQ(std::memcmp(shmDesc.userInfo, importObj.req.usrInfo, adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN), 0);
+}
+
+/**
+ * 用例4：仅存在导入对象(export缺失)时，list应从importObj兜底返回usr_info
+ */
+TEST_F(TestUbseMemDebtInfoQuery, UbseMemShmListRoundTripUsrInfoImportOnly)
+{
+    UbseRoleInfo roleInfo{};
+    roleInfo.nodeRole = ELECTION_ROLE_MASTER;
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(roleInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    auto importObj = MakeShmImportObjWithUsrInfo("shmUsrListImportOnly", "1");
+    CascadeMasterStore store;
+    store.PutImport(importObj);
+
+    UbseMemDebtQueryRequest request{};
+    std::vector<UbseMemShmDesc> shmDescs{};
+    ASSERT_EQ(debt::UbseMemShmList(request, shmDescs), UBSE_OK);
+    ASSERT_EQ(shmDescs.size(), 1);
+    EXPECT_EQ(shmDescs[0].name, "shmUsrListImportOnly");
+    EXPECT_EQ(std::memcmp(shmDescs[0].userInfo, importObj.req.usrInfo, adapter_plugins::mmi::UBSE_MAX_USR_INFO_LEN),
+              0);
+}
+
 // Test for UbseMemGetMemIdByImport - FD_BORROW type success case
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_FdSuccess)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     // 构造测试数据
     std::string importNodeId = "1";
     std::string exportNodeId = "2";
@@ -312,6 +433,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_FdSuccess)
 // Test for UbseMemGetMemIdByImport - NUMA_BORROW type success case
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_NumaSuccess)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     // 构造测试数据
     std::string importNodeId = "1";
     std::string exportNodeId = "3";
@@ -361,6 +483,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_NumaSuccess)
 // Test for UbseMemGetMemIdByImport - SHM_BORROW type success case
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ShmSuccess)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     // 构造测试数据
     std::string importNodeId = "1";
     std::string exportNodeId = "2";
@@ -383,6 +506,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ShmSuccess)
     shareExportObj.req.name = name;
     shareExportObj.status.state = UBSE_MEM_EXPORT_SUCCESS;
     shareExportObj.status.exportObmmInfo.emplace_back(UbseMemObmmInfo{.memId = exportMemId});
+    shareExportObj.algoResult.exportNumaInfos.emplace_back(shareExportNmaInfo);
 
     // 填充 ledger
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource(exportNodeId, name, shareExportObj);
@@ -427,6 +551,7 @@ TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_UnsupportedType)
 // Test for UbseMemGetMemIdByImport - import mem id not found
 TEST_F(TestUbseMemDebtInfoQuery, UbseMemGetMemIdByImport_ImportMemIdNotFound)
 {
+    MOCKER_CPP(UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     // 构造测试数据
     std::string importNodeId = "1";
     std::string exportNodeId = "2";

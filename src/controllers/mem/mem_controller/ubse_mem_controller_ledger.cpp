@@ -13,6 +13,7 @@
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 
 #include "ubse_common_def.h"
+#include "ubse_election_def.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
@@ -20,6 +21,7 @@
 #include "ubse_mem_debt_info.h"
 
 #include "api/ubse_mem_controller_share_api.h"
+#include "api/ubse_mem_share_forward.h"
 #include "logging_lock_guard.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
@@ -34,6 +36,8 @@
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_security_module.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_global_ledger_summary_store.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::mem::util;
@@ -42,6 +46,7 @@ using namespace ubse::nodeController;
 using ubse::election::UbseElectionModule;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::security;
+using namespace ubse::adapter_plugins::smbios;
 
 using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -73,6 +78,29 @@ bool CheckNodeIsMaster()
         // 非主节点、终止对账操作
         return false;
     }
+    return true;
+}
+
+bool CheckHasZeroCleanPermission(bool &isGlobalMaster)
+{
+    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto electionModule = ubseContext.GetModule<UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "election module is not loaded";
+        return false;
+    }
+    HaTopologyInfo topoInfo;
+    if (electionModule->GetCurNodeGlobalTopoInfo(topoInfo) != UBSE_OK) {
+        UBSE_LOG_ERROR << "get global topo info failed";
+        return false;
+    }
+    if (topoInfo.currentNode.groupRole != RoleType::MASTER) {
+        return false;
+    }
+    if (topoInfo.currentNode.globalRole != GlobalRoleType::GLOBAL_MASTER && topoInfo.currentNode.globalRole != GlobalRoleType::GLOBAL_NONE) {
+        return false;
+    }
+    isGlobalMaster = topoInfo.currentNode.globalRole == GlobalRoleType::GLOBAL_MASTER;
     return true;
 }
 
@@ -2150,27 +2178,41 @@ bool CleanShmTimer(int sleep_seconds)
     return !g_globalStop.load(); // 返回是否被中断
 }
 
-void HandleClean(const std::vector<UbseMemShareBorrowExportObj> &originalToClean)
+NodeMemDebtInfoMap BuildShareNodeMemDebtInfoMap(IShareStore &store)
 {
-    UBSE_LOG_INFO << "[CleanShm] start to HandleClean.";
-    // 等待5分钟
+    NodeMemDebtInfoMap result;
+    store.ForEachExport([&](const std::string &nodeId, const std::string &name,
+                            const UbseMemShareBorrowExportObj &obj) {
+        result[nodeId].shareExportObjMap[name] = obj;
+    });
+    store.ForEachImport([&](const std::string &nodeId, const std::string &name,
+                            const UbseMemShareBorrowImportObj &obj) {
+        result[nodeId].shareImportObjMap[name] = obj;
+    });
+    return result;
+}
+
+void HandleClean(const std::vector<UbseMemShareBorrowExportObj> &originalToClean,
+                 IShareStore &store, bool isGlobalMaster)
+{
+    const std::string tag = isGlobalMaster ? " Clos mode" : "";
+    UBSE_LOG_INFO << "[CleanShm]" << tag << " HandleClean started, count=" << originalToClean.size();
     if (!CleanShmTimer(DEFAULT_SLEEP_SECONDS)) {
         return;
     }
-    // 加锁
     UbseNodeControllerLockMgr::WriteLock(ClusterHandlerKey);
-    // originalToClean：表示原始的(5分钟前)清理对象列表;currentToClean：表示当前的清理对象列表
     std::vector<UbseMemShareBorrowExportObj> currentToClean;
-    NodeMemDebtInfoMap currentDebtMap = GetNodeMemDebtInfoMap();
-    // 分别计算5分钟前和当前的清理对象列表
+    NodeMemDebtInfoMap currentDebtMap = BuildShareNodeMemDebtInfoMap(store);
     ProcessCurrentCleanList(currentDebtMap, currentToClean);
-    //  计算交集，即最终需要清理的对象列表
     auto toClean = GetIntersection(originalToClean, currentToClean);
     if (!toClean.empty() && !g_globalStop.load()) {
-        UBSE_LOG_INFO << "[CleanShm] Collected " << toClean.size() << " shared objects to clean.";
-        ExecuteShareMemoryClean(toClean);
+        UBSE_LOG_INFO << "[CleanShm]" << tag << " " << toClean.size() << " objects to clean.";
+        if (isGlobalMaster) {
+            ExecuteShareMemoryCleanClos(toClean);
+        } else {
+            ExecuteShareMemoryClean(toClean);
+        }
     }
-    // 释放锁
     UbseNodeControllerLockMgr::WriteUnLock(ClusterHandlerKey);
 }
 
@@ -2179,19 +2221,68 @@ void CleanShmZeroImportHandler()
     if (!CheckNodeIsMaster()) {
         return;
     }
-    UBSE_LOG_INFO << "[CleanShm] CleanShm started.";
     if (g_globalStop.load()) {
         return;
     }
-    std::vector<UbseMemShareBorrowExportObj> originalToClean;
-    NodeMemDebtInfoMap originalDebtMap = GetNodeMemDebtInfoMap();
-    ProcessCurrentCleanList(originalDebtMap, originalToClean);
-    if (originalToClean.empty()) {
-        UBSE_LOG_INFO << "[CleanShm] no export obj to clean, CleanShm finished.";
+    bool isGlobalMaster;
+    if (!CheckHasZeroCleanPermission(isGlobalMaster)) {
         return;
     }
-    HandleClean(originalToClean);
-    UBSE_LOG_INFO << "[CleanShm] CleanShm finished.";
+    const std::string tag = isGlobalMaster ? " clos mode" : "1d-fullmesh mode";
+    UBSE_LOG_INFO << "[CleanShm]" << tag << " CleanShm started.";    
+    std::vector<UbseMemShareBorrowExportObj> originalToClean;
+    NodeMemDebtInfoMap originalDebtMap{};    
+    if (isGlobalMaster) {
+        GlobalMasterStore store;
+        originalDebtMap = BuildShareNodeMemDebtInfoMap(store);
+    } else {
+        CascadeMasterStore store;
+        originalDebtMap = BuildShareNodeMemDebtInfoMap(store);
+    }
+    ProcessCurrentCleanList(originalDebtMap, originalToClean);    
+    if (originalToClean.empty()) {
+        UBSE_LOG_INFO << "[CleanShm]" << tag << " no export obj to clean, finished.";
+        return;
+    }
+    if (isGlobalMaster) {
+        GlobalMasterStore store;
+        HandleClean(originalToClean, store, true);
+    } else {
+        CascadeMasterStore store;
+        HandleClean(originalToClean, store, false);
+    }
+    UBSE_LOG_INFO << "[CleanShm]" << tag << " CleanShm finished.";
+}
+
+void ExecuteShareMemoryCleanClos(const std::vector<UbseMemShareBorrowExportObj> &toClean)
+{
+    for (const auto &obj : toClean) {
+        std::string name = obj.req.name;
+        if (obj.algoResult.exportNumaInfos.empty()) {
+            continue;
+        }
+        std::string exportNodeId = obj.algoResult.exportNumaInfos[0].nodeId;
+        UBSE_LOG_INFO << "[CleanShm] Clos mode: deleting " << name << ", node=" << exportNodeId;
+        UbseGlobalLedgerSummaryStore::GetInstance().UpdateNodeExportItem(
+            exportNodeId, name, UBSE_MEM_EXPORT_DESTROYING);
+        def::UbseMemDebtQueryRequest queryReq;
+        queryReq.name = name;
+        queryReq.exportNodeId = exportNodeId;
+        UbseMemShareBorrowExportObj fullExportObj;
+        if (QueryShareExport(queryReq, fullExportObj, true) != UBSE_OK) {
+            UBSE_LOG_ERROR << "[CleanShm] Clos mode: failed to query full obj for " << name;
+            UbseGlobalLedgerSummaryStore::GetInstance().UpdateNodeExportItem(
+                exportNodeId, name, UBSE_MEM_EXPORT_SUCCESS);
+            continue;
+        }
+        fullExportObj.status.state = UBSE_MEM_EXPORT_DESTROYING;
+        fullExportObj.status.expectState = UBSE_MEM_EXPORT_DESTROYED;
+        if (ForwardDeleteToCascade(fullExportObj) != UBSE_OK) {
+            UBSE_LOG_ERROR << "[CleanShm] Clos mode: failed to send delete for " << name;
+            UbseGlobalLedgerSummaryStore::GetInstance().UpdateNodeExportItem(
+                exportNodeId, name, UBSE_MEM_EXPORT_SUCCESS);
+        }
+    }
 }
 
 // 获取共享内存的导出对象映射

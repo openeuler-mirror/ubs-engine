@@ -24,6 +24,7 @@
 #include "ubse_module.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_debt_info_partial_fetch.h"
+#include "ubse_mem_controller_helper.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;
@@ -521,6 +522,7 @@ TEST_F(TestUbseMemDebInfoQueryHandler, UbseMemIdInfoGetHandler_Handle_BusinessFa
     auto rsp = Ref<UbseBaseMessage>(new UbseMemExportMemDescSimpo);
     UbseComBaseMessageHandlerCtxPtr ctx;
     UbseMemIdInfoGetHandler handler;
+    MOCKER(ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER(UbseMemGetMemIdByImport).stubs().will(returnValue(UBSE_ERROR));
     auto ret = handler.Handle(req, rsp, ctx);
     EXPECT_EQ(ret, UBSE_ERROR);
@@ -532,6 +534,7 @@ TEST_F(TestUbseMemDebInfoQueryHandler, UbseMemIdInfoGetHandler_Handle_NullRsp)
     UbseBaseMessagePtr rsp = nullptr;
     UbseComBaseMessageHandlerCtxPtr ctx;
     UbseMemIdInfoGetHandler handler;
+    MOCKER(ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER(UbseMemGetMemIdByImport).stubs().will(returnValue(UBSE_OK));
     auto ret = handler.Handle(req, rsp, ctx);
     EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
