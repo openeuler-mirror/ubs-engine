@@ -15,6 +15,7 @@
 namespace ubs::sdk {
 ubs_error_t packString(PackCtx &ctx, const char *str, uint32_t max_len)
 {
+    // max_len 为字符串内容最大长度(不含'\0'), 调用方传 MAX_LENGTH - 1
     size_t strLen = str ? strlen(str) : 0;
     if (strLen > max_len) {
         return UBS_ERR_OUT_OF_RANGE;
@@ -38,19 +39,20 @@ ubs_error_t packString(PackCtx &ctx, const char *str, uint32_t max_len)
 }
 ubs_error_t unpackString(UnpackCtx &ctx, char *str, size_t maxLen)
 {
+    // maxLen 为字符串内容最大长度(不含'\0'), 调用方传 MAX_LENGTH - 1; 实际缓冲区大小为 maxLen + 1
     uint32_t len;
     ubs_error_t ret = unpackValue(ctx, len);
     if (ret != UBS_SUCCESS) {
         return ret;
     }
-    if (len >= maxLen) { // 需保留 1 字节放 '\0'
+    if (len > maxLen) { // 需保留 1 字节放 '\0'
         return UBS_ERR_OUT_OF_RANGE;
     }
     if (len > ctx.remaining) {
         return UBS_ERR_BUFFER_TOO_SMALL;
     }
     if (len > 0) {
-        errno_t res = memcpy_s(str, maxLen, ctx.ptr, len);
+        errno_t res = memcpy_s(str, maxLen + 1, ctx.ptr, len);
         if (res != EOK) {
             return ubse_map_sys_error(res);
         }

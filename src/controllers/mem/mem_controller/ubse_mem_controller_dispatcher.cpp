@@ -81,7 +81,7 @@ UbseResult SendToMasterIfNotMaster(std::string& masterNodeId, TReq& requestPtr, 
         return ret;
     }
 
-    UBSE_LOG_INFO << "Success to Send to master";
+    UBSE_LOG_INFO << "Success to Send to master, masterNodeId=" << masterNodeId;
     return ret;
 }
 

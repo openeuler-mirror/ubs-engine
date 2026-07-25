@@ -22,6 +22,9 @@
 #include "ubse_node_controller.h"
 #include "ubse_str_util.h"
 #include "ubse_smbios.h"
+#include "ubse_mem_controller_helper.h"
+#include "ubse_mem_controller_msg.h"
+#include "ubse_mem_share_store.h"
 
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -493,7 +496,36 @@ uint32_t ProcessImportObjByPtr(
     return UBSE_OK;
 }
 
-uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest& request, def::UbseExportMemDesc& memDesc)
+static uint32_t ProcessShmImport(IShareStore &store, const def::UbseMemIdQueryRequest &request,
+                               def::UbseExportMemDesc &memDesc)
+{
+    UbseMemShareBorrowExportObj exportObj;
+    auto ret = store.LoadExport(request.name, exportObj);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "LoadExport failed, name=" << request.name << ", ret=" << FormatRetCode(ret);
+        return UBSE_ERR_NOT_EXIST;
+    }
+    if (exportObj.algoResult.exportNumaInfos.empty()) {
+        UBSE_LOG_WARN << "ExportObj with empty export numa infos, name=" << request.name;
+        return UBSE_ERR_NOT_EXIST;
+    }
+    auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(std::move(exportObj));
+    auto importObjPtr = std::shared_ptr<const UbseMemShareBorrowImportObj>{};
+    UbseMemShareBorrowImportObj importObj;
+    if (!request.importNodeId.empty()) {
+        ret = store.LoadImport(request.importNodeId, request.name, importObj);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "LoadImport failed, name=" << request.name
+                           << ", importNodeId=" << request.importNodeId << ", ret=" << FormatRetCode(ret);
+            return UBSE_ERR_NOT_EXIST;
+        }
+        importObjPtr = std::make_shared<const UbseMemShareBorrowImportObj>(std::move(importObj));
+    }
+    return ProcessImportObjByPtr<UbseMemShareBorrowImportObj, UbseMemShareBorrowExportObj>(
+        {importObjPtr, exportObjPtr}, request, memDesc);
+}
+
+uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest &request, def::UbseExportMemDesc &memDesc)
 {
     switch (static_cast<UbseMemBorrowType>(request.borrowType)) {
         case UbseMemBorrowType::FD_BORROW:
@@ -514,13 +546,12 @@ uint32_t UbseMemGetMemIdByImport(const def::UbseMemIdQueryRequest& request, def:
                 request, memDesc);
         case UbseMemBorrowType::SHM_ATTACH:
         case UbseMemBorrowType::SHM_BORROW: {
-            auto importObj = UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(
-                request.importNodeId, request.name);
-            auto exportObj =
-                UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(
-                    request.name);
-            return ProcessImportObjByPtr<UbseMemShareBorrowImportObj, UbseMemShareBorrowExportObj>(
-                {importObj, exportObj}, request, memDesc);
+            if (UbseCheckWithoutGlobalMasterNodeId()) {
+                CascadeMasterStore store;
+                return ProcessShmImport(store, request, memDesc);
+            }
+            GlobalMasterStore store;
+            return ProcessShmImport(store, request, memDesc);
         }
         default:
             UBSE_LOG_ERROR << "Unsupported borrow type=" << static_cast<uint32_t>(request.borrowType)

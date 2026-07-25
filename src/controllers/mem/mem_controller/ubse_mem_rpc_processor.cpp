@@ -1220,7 +1220,7 @@ UbseResult MemScheduleHandler::RegisterClosShmMemHandlers(const std::shared_ptr<
         new (std::nothrow) UbseMemShareBorrowGlobalMasterMessageHandler();
     auto ret = comModule->RegRpcService<UbseMemShareBorrowReqSimpo, UbseMemCallbackMessage>(borrowGlobalMaster);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowForwardGlobalMasterMessageHandler";
+        UBSE_LOG_WARN << "Unable to register UbseMemShareBorrowGlobalMasterMessageHandler";
         return ret;
     }
 

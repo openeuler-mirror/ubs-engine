@@ -169,6 +169,7 @@ uint32_t ExistImportObjHandler(const UbseMemShareAttachReq &req, UbseMemShareBor
     }
     resp.name = name;
     resp.requestNodeId = requestNodeId;
+    resp.requestId = req.requestId;
     uint64_t realSize{};
     for (const auto &numaInfo : importObj.algoResult.exportNumaInfos) {
         SafeAdd(realSize, numaInfo.size, realSize);
@@ -357,6 +358,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
         return ret;
     }
     importObj.req.requestId = req.requestId;
+    importObj.req.requestNodeId = req.requestNodeId;
     importObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     importObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     importObj.isDestroyedReportReceived = false;
@@ -930,6 +932,7 @@ uint32_t DealSendShareUnExportObjFailed(UbseMemShareBorrowExportObj &exportObj, 
 {
     resp.name = name;
     resp.requestNodeId = req.requestNodeId;
+    resp.requestId = req.requestId;
     ShareExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
     return BuildOperationRespWhenFail(resp, name, req.requestNodeId, "Failed to send exportObj.",
                                       UBSE_ERR_UNIMPORT_SUCCESS, MemOperationType::SHARED_RETURN);
@@ -1163,6 +1166,7 @@ uint32_t CascadeMasterHandlerGlobalBorrowExportCallback(const UbseMemShareBorrow
                       << ", requestNodeId=" << exportObj.req.requestNodeId << ", requestId=" << exportObj.req.requestId;
         UbseMemShareBorrowExportObj callbackObj = *existingObj;
         callbackObj.req.requestNodeId = exportObj.req.requestNodeId;
+        callbackObj.req.requestId = exportObj.req.requestId;
         return ForwardExportCallbackToGlobal(callbackObj);
     }
 
@@ -1459,6 +1463,8 @@ uint32_t CascadeMasterHandlerAgentDetachImportCallback(const UbseMemShareBorrowI
         EraseShareImport(importObj);
         UBSE_LOG_INFO << "Import destroyed, name=" << name;
         UbseMemShareBorrowImportObj successObj = importObj;
+        successObj.req.requestId = importObj.req.requestId;
+        successObj.req.requestNodeId = importObj.req.requestNodeId;
         successObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         return ForwardDetachCallbackToGlobal(successObj);
     }
@@ -1622,6 +1628,8 @@ uint32_t UbseMemShareGlobalDetach(const UbseMemShareDetachReq &req, UbseMemOpera
     }
     importObj.importNodeId = req.unImportNodeId;
     importObj.req.name = req.name;
+    importObj.req.requestId = req.requestId;
+    importObj.req.requestNodeId = req.requestNodeId;
     store.UpdateImportState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     auto ret = ForwardDetachReqToCascade(req);
     if (ret != UBSE_OK) {
@@ -1657,10 +1665,15 @@ uint32_t CascadeMasterHandleGlobalDetachImportCallback(const UbseMemShareDetachR
     if (existingObj->status.state == UBSE_MEM_IMPORT_DESTROYED) {
         UBSE_LOG_INFO << "ImportObj already DESTROYED, name=" << name << ", requestId=" << req.requestId;
         UbseMemShareBorrowImportObj successObj = *existingObj;
+        successObj.req.requestId = req.requestId;
+        successObj.req.requestNodeId = req.requestNodeId;
         successObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
+        ledger.GetDebtMap<UbseMemShareBorrowImportObj>().RemoveResource(importNodeId, name);
         return ForwardDetachCallbackToGlobal(successObj);
     }
     UbseMemShareBorrowImportObj storeObj = *existingObj;
+    storeObj.req.requestId = req.requestId;
+    storeObj.req.requestNodeId = req.requestNodeId;
     storeObj.status.state = UBSE_MEM_IMPORT_DESTROYING;
     storeObj.status.expectState = UBSE_MEM_IMPORT_DESTROYED;
     ledger.GetDebtMap<UbseMemShareBorrowImportObj>().PutResource(importNodeId, name, storeObj);
@@ -1780,6 +1793,7 @@ uint32_t CascadeMasterHandlerGlobalDeleteCallback(const UbseMemShareBorrowExport
         UBSE_LOG_INFO << "ExportObj already DESTROYED, name=" << name
                       << ", requestId=" << exportObj.returnReq.requestId;
         UbseMemShareBorrowExportObj callbackObj = *existingObj;
+        callbackObj.returnReq = exportObj.returnReq;
         ledger.GetDebtMap<UbseMemShareBorrowExportObj>().RemoveResource(exportNodeId, name);
         return ForwardDeleteCallbackToGlobal(callbackObj);
     }

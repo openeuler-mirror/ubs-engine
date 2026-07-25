@@ -821,13 +821,19 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq& req, UbseMemOperationRe
 
 static UbseResult SendRpcRequestForShareDetach(const UbseMemShareDetachReq& req)
 {
-    UbseRoleInfo masterInfo{};
-    auto res = UbseGetMasterInfo(masterInfo);
-    if (res != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get master info failed, " << FormatRetCode(res);
-        return res;
+    Node master;
+    auto &ubseContext = ubse::context::UbseContext::GetInstance();
+    auto electionModule = ubseContext.GetModule<ubse::election::UbseElectionModule>();
+    if (electionModule == nullptr) {
+        UBSE_LOG_ERROR << "[ELECTION] Getting the election module failed.";
+        return UBSE_ERROR_NULLPTR;
+    }    
+    auto ret = electionModule->GetLocalMasterNode(master);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "GetMasterNodeId failed, " << FormatRetCode(ret);
+        return ret;
     }
-    SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
+    SendParam sendParam{master.id, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                         static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH)};
     auto comModule = ubse::context::UbseContext::GetInstance().GetModule<ubse::com::UbseComModule>();
     if (comModule == nullptr) {

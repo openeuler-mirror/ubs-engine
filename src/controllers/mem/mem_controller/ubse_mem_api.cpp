@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <securec.h>
 #include <regex>
+#include <string>
 
 #include "ubse_api_server_module.h"
 #include "ubse_com_base.h"
@@ -39,6 +40,9 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "src/sdk/c/include/ubs_engine.h"
+#include "ubse_mem_util.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_controller_helper.h"
 
 namespace ubse::mem::api {
 using namespace ubse::context;
@@ -173,10 +177,9 @@ uint32_t UbseBorrowDetailsSendRpcAndFetchResponse(const ubse::election::UbseRole
                                                   UbseMemDebtInfoPartialFetchReqPtr ubseRequestPtr,
                                                   UbseMemDebtInfoPartialFetchResPtr ubseResponsePtr)
 {
-    const SendParam sendParam{masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY),
-                              static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_PARTIAL_FETCH)};
-
-    UbseContext& ubseContext = UbseContext::GetInstance();
+    uint16_t opCode =  static_cast<uint16_t>(UbseMemQueryOpCode::UBSE_MEM_DEBT_INFO_PARTIAL_FETCH);
+    const SendParam sendParam{ masterInfo.nodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_QUERY), opCode };
+    UbseContext &ubseContext = UbseContext::GetInstance();
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "Communication module not init, " << FormatRetCode(UBSE_ERROR_MODULE_LOAD_FAILED);
@@ -232,7 +235,8 @@ uint32_t UbseMemApi::UbseBorrowDetailsFetchDebtHandle(const UbseIpcMessage& req,
     }
 
     ubse::election::UbseRoleInfo masterInfo{};
-    auto res = UbseGetMasterInfo(masterInfo);
+    UbseResult res = UBSE_OK;
+    res = UbseGetMasterInfo(masterInfo);
     if (res != UBSE_OK) {
         return res;
     }

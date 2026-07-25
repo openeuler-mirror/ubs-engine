@@ -19,10 +19,15 @@
 #include "ubse_mem_agent_task_manager.h"
 #include "ubse_mem_constants.h"
 #include "ubse_mem_controller_query_api.h"
+#include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
-#include "ubse_mem_debt_ledger.h"
 #include "ubse_str_util.h"
 #include "ubs_engine_topo.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_controller_msg.h"
+#include "ubse_mem_controller_helper.h"
+#include "ubse_mem_share_store.h"
+
 namespace ubse::mem::controller::debt {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -52,40 +57,30 @@ std::vector<uint32_t> ConvertNodelistToRegion(const std::vector<UbseNodeInfo>& n
     return region;
 }
 
-UbseMemResult GetShmExportStageByObj(const std::shared_ptr<const UbseMemShareBorrowExportObj>& exportObjPtr)
+template <typename T>
+UbseMemResult GetShmStageByObj(const T &obj)
 {
     UbseMemResult result{};
-    result.name = exportObjPtr->req.name;
-    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_RUNNING) {
-        result.stage = UbseMemStage::UBSE_CREATING;
-    }
-    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYING) {
-        result.stage = UbseMemStage::UBSE_DELETING;
-    }
-    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_DESTROYED) {
-        result.stage = UbseMemStage::UBSE_NOT_EXIST;
-    }
-    if (exportObjPtr->status.state == UBSE_MEM_EXPORT_SUCCESS) {
-        result.stage = UbseMemStage::UBSE_EXIST;
-    }
-    return result;
-}
-
-UbseMemResult GetShmImportStageByObj(const std::shared_ptr<const UbseMemShareBorrowImportObj>& importObjPtr)
-{
-    UbseMemResult result{};
-    result.name = importObjPtr->req.name;
-    if (importObjPtr->status.state == UBSE_MEM_IMPORT_RUNNING) {
-        result.stage = UbseMemStage::UBSE_CREATING;
-    }
-    if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYING) {
-        result.stage = UbseMemStage::UBSE_DELETING;
-    }
-    if (importObjPtr->status.state == UBSE_MEM_IMPORT_DESTROYED) {
-        result.stage = UbseMemStage::UBSE_NOT_EXIST;
-    }
-    if (importObjPtr->status.state == UBSE_MEM_IMPORT_SUCCESS) {
-        result.stage = UbseMemStage::UBSE_EXIST;
+    result.name = obj.req.name;
+    switch (obj.status.state) {
+        case UBSE_MEM_EXPORT_RUNNING:
+        case UBSE_MEM_IMPORT_RUNNING:
+            result.stage = UbseMemStage::UBSE_CREATING;
+            break;
+        case UBSE_MEM_EXPORT_DESTROYING:
+        case UBSE_MEM_IMPORT_DESTROYING:
+            result.stage = UbseMemStage::UBSE_DELETING;
+            break;
+        case UBSE_MEM_EXPORT_DESTROYED:
+        case UBSE_MEM_IMPORT_DESTROYED:
+            result.stage = UbseMemStage::UBSE_NOT_EXIST;
+            break;
+        case UBSE_MEM_EXPORT_SUCCESS:
+        case UBSE_MEM_IMPORT_SUCCESS:
+            result.stage = UbseMemStage::UBSE_EXIST;
+            break;
+        default:
+            break;
     }
     return result;
 }
@@ -98,18 +93,18 @@ void ShmDecExportAssignment(const std::string& name, def::UbseMemShmDesc& shmDes
     auto& nodeController = nodeController::UbseNodeController::GetInstance();
     shmDesc.unitSize = static_cast<uint64_t>(exportObjPtr->algoResult.blockSize) * MB_TO_BYTE;
     shmDesc.region = ConvertNodelistToRegion(exportObjPtr->req.shmRegion.nodelist);
+    error_t cpyRet =
+        memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, exportObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+    if (cpyRet != UBSE_OK) {
+        UBSE_LOG_WARN << "userInfo create failed" << name;
+    }
     if (exportObjPtr->algoResult.exportNumaInfos.empty()) {
         UBSE_LOG_WARN << "The exportObj with empty export numa infos will be ignored, name=" << name;
         return;
     }
     const std::string exportNodeId = exportObjPtr->algoResult.exportNumaInfos[0].nodeId;
     ubse::nodeController::UbseNodeGetByNodeIdInMaster(exportNodeId, shmDesc.exportNode);
-    error_t cpyRet =
-        memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, exportObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
-    if (cpyRet != UBSE_OK) {
-        UBSE_LOG_WARN << "userInfo create failed" << name;
-    }
-    UbseMemResult result = GetShmExportStageByObj(exportObjPtr);
+    UbseMemResult result = GetShmStageByObj(*exportObjPtr);
     shmDesc.state = result.stage;
 }
 
@@ -131,9 +126,21 @@ uint32_t AssignExportInfo(const UbseMemDebtQueryRequest& request,
     ShmDecExportAssignment(name, shmDesc, exportObjPtr);
     return UBSE_OK;
 }
-uint32_t AssignImportInfo(const UbseMemDebtQueryRequest& request,
-                          std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>& importObjPtrs,
-                          UbseMemShmDesc& shmDesc)
+namespace {
+bool IsUsrInfoEmpty(const uint8_t (&usrInfo)[UBSE_MAX_USR_INFO_LEN])
+{
+    for (const auto v : usrInfo) {
+        if (v != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+} // namespace
+
+uint32_t AssignImportInfo(const UbseMemDebtQueryRequest &request,
+                          std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> &importObjPtrs,
+                          UbseMemShmDesc &shmDesc)
 {
     const std::string name = request.name;
     // 填充导入相关数据
@@ -143,7 +150,10 @@ uint32_t AssignImportInfo(const UbseMemDebtQueryRequest& request,
         UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
     }
     shmDesc.importDesc.clear();
-    for (const auto& importObjPtr : importObjPtrs) {
+    for (const auto &importObjPtr : importObjPtrs) {
+        if (!request.importNodeId.empty() && importObjPtr->importNodeId != request.importNodeId) {
+            continue;
+        }
         if (shmDesc.name.empty()) {
             shmDesc.name = name;
         }
@@ -153,9 +163,17 @@ uint32_t AssignImportInfo(const UbseMemDebtQueryRequest& request,
         }
         std::string importNodeId = importObjPtr->importNodeId;
         nodeController::UbseNodeGetByNodeIdInMaster(importNodeId, importDesc.importNode);
-        UbseMemResult memResult = GetShmImportStageByObj(importObjPtr);
+        UbseMemResult memResult = GetShmStageByObj(*importObjPtr);
         importDesc.state = memResult.stage;
         shmDesc.importDesc.push_back(importDesc);
+        // export缺失或未填充usr_info时，从importObj兜底返回调用方私有数据（importObj.req继承自exportObj.req）
+        if (IsUsrInfoEmpty(shmDesc.userInfo)) {
+            error_t cpyRet =
+                memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
+            if (cpyRet != UBSE_OK) {
+                UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
+            }
+        }
     }
     return UBSE_OK;
 }
@@ -171,106 +189,107 @@ uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest& request, UbseMemShmDesc& s
         return UBSE_ERR_INTERNAL;
     }
 
-    bool found = false;
-
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(request.name);
-    if (exportObjPtr) {
-        found = true;
-        // 填充导出数据
-        auto ret = AssignExportInfo(request, exportObjPtr, shmDesc);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "AssignExportInfo failed, ret: " << FormatRetCode(ret);
-            return ret;
+    auto doQuery = [&](IShareStore &store) -> uint32_t {
+        bool found = false;
+        UbseMemShareBorrowExportObj exportObj;
+        if (store.LoadExport(request.name, exportObj) == UBSE_OK) {
+            auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(std::move(exportObj));
+            ShmDecExportAssignment(request.name, shmDesc, exportObjPtr);
+            found = true;
         }
-    }
 
-    std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
-    auto allNodeImportMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
-    for (const auto& [nodeId, nodeMap] : allNodeImportMaps) {
+        std::vector<UbseMemShareBorrowImportObj> importObjs;
+        store.LoadAllImports(request.name, importObjs);
+        std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
+        for (auto &obj : importObjs) {
+            if (!request.importNodeId.empty() && obj.importNodeId != request.importNodeId) {
+                continue;
+            }
+            if (obj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
+                continue;
+            }
+            allImportObjs.push_back(std::make_shared<const UbseMemShareBorrowImportObj>(std::move(obj)));
+        }
+
+        UBSE_LOG_INFO << "Total import objects found for name=" << request.name << ": " << allImportObjs.size();
+        if (!allImportObjs.empty()) {
+            found = true;
+            if (auto ret = AssignImportInfo(request, allImportObjs, shmDesc); ret != UBSE_OK) {
+                UBSE_LOG_ERROR << "AssignImportInfo failed, ret: " << FormatRetCode(ret);
+                return ret;
+            }
+        }
+
+        return found ? UBSE_OK : UBSE_ERR_NOT_EXIST;
+    };
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        CascadeMasterStore store;
+        return doQuery(store);
+    } else {
+        GlobalMasterStore store;
+        return doQuery(store);
+    }
+}
+
+static void ProcessExportObjects(const def::UbseMemDebtQueryRequest &request,
+                                 std::unordered_map<std::string, def::UbseMemShmDesc> &descMap,
+                                 IShareStore &store)
+{
+    store.ForEachExport([&](const std::string &nodeId, const std::string &name,
+                             const UbseMemShareBorrowExportObj &exportObj) {
+        if (!request.name.empty() && name.rfind(request.name, 0) != 0) {
+            return;
+        }
+        if (descMap.find(name) != descMap.end()) {
+            return;
+        }
+        if (exportObj.algoResult.exportNumaInfos.empty()) {
+            UBSE_LOG_WARN << "ExportObj with empty export numa infos, name=" << name;
+            return;
+        }
+        if (!exportObj.req.udsInfo.CheckPermission(request.udsInfo)) {
+            return;
+        }
+        auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(exportObj);
+        def::UbseMemShmDesc shmDesc{};
+        ShmDecExportAssignment(name, shmDesc, exportObjPtr);
+        descMap[name] = std::move(shmDesc);
+    });
+}
+
+static void ProcessImportObjects(const def::UbseMemDebtQueryRequest &request,
+                                  std::unordered_map<std::string, def::UbseMemShmDesc> &descMap,
+                                  IShareStore &store)
+{
+    store.ForEachImport([&](const std::string &nodeId, const std::string &name,
+                             const UbseMemShareBorrowImportObj &importObj) {
+        if (!request.name.empty() && name.rfind(request.name, 0) != 0) {
+            return;
+        }
         if (!request.importNodeId.empty() && nodeId != request.importNodeId) {
-            continue;
+            return;
         }
-        auto importObjPtr = nodeMap->Get(request.name);
-        if (importObjPtr && importObjPtr->status.state != UBSE_MEM_IMPORT_DESTROYED) {
-            allImportObjs.emplace_back(importObjPtr);
+        if (!importObj.req.udsInfo.CheckPermission(request.udsInfo)) {
+            return;
         }
-    }
-    UBSE_LOG_INFO << "Total import objects found for name=" << request.name << ": " << allImportObjs.size();
-    if (!allImportObjs.empty()) {
-        found = true;
-        auto ret = AssignImportInfo(request, allImportObjs, shmDesc);
-        if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "AssignImportInfo failed, ret: " << FormatRetCode(ret);
-            return ret;
-        }
-    }
-    return found ? UBSE_OK : UBSE_ERR_NOT_EXIST;
-}
-
-void ProcessShareExportObjects(const def::UbseMemDebtQueryRequest& request,
-                               std::unordered_map<std::string, def::UbseMemShmDesc>& descMap)
-{
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps();
-
-    for (const auto& [nodeId, nodeMap] : allNodeMaps) {
-        auto allResources = nodeMap->GetAll();
-        for (const auto& [name, exportObjPtr] : allResources) {
-            if (!request.name.empty() && name.rfind(request.name, 0) != 0) {
-                continue;
-            }
-            // 检查权限
-            if (!exportObjPtr->req.udsInfo.CheckPermission(request.udsInfo)) {
-                continue;
-            }
-            def::UbseMemShmDesc shmDesc{};
-            ShmDecExportAssignment(name, shmDesc, exportObjPtr);
-            descMap[name] = std::move(shmDesc);
-        }
-    }
-}
-
-void ProcessShareImportObjects(const def::UbseMemDebtQueryRequest& request,
-                               std::unordered_map<std::string, def::UbseMemShmDesc>& descMap)
-{
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
-
-    for (const auto& [nodeId, nodeMap] : allNodeMaps) {
-        auto allResources = nodeMap->GetAll();
-        for (const auto& [name, importObjPtr] : allResources) {
-            if (!request.name.empty() && name.rfind(request.name, 0) != 0) {
-                continue;
-            }
-            // 检查权限
-            if (!importObjPtr->req.udsInfo.CheckPermission(request.udsInfo)) {
-                continue;
-            }
-
-            auto [it, inserted] = descMap.try_emplace(name);
-            auto& shmDesc = it->second;
-            // name不存在
-            if (inserted) {
-                shmDesc.name = name;
-            }
-            def::UbseMemShmImportDesc importDesc;
-            for (const auto& obmmInfo : importObjPtr->status.importResults) {
-                importDesc.memIds.push_back(obmmInfo.memId);
-            }
-
-            std::string importNodeId = importObjPtr->importNodeId;
-            nodeController::UbseNodeGetByNodeIdInMaster(importNodeId, importDesc.importNode);
-            UbseMemResult memResult = GetShmImportStageByObj(importObjPtr);
-            importDesc.state = memResult.stage;
-            shmDesc.importDesc.push_back(std::move(importDesc));
-            error_t cpyRet =
-                memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObjPtr->req.usrInfo, UBSE_MAX_USR_INFO_LEN);
-            if (cpyRet != UBSE_OK) {
+        auto [it, inserted] = descMap.try_emplace(name);
+        auto &shmDesc = it->second;
+        if (inserted) {
+            shmDesc.name = name;
+            if (memcpy_s(shmDesc.userInfo, UBSE_MAX_USR_INFO_LEN, importObj.req.usrInfo, UBSE_MAX_USR_INFO_LEN) !=
+                UBSE_OK) {
                 UBSE_LOG_WARN << "userInfo create from importObj failed, name=" << name;
             }
         }
-    }
+        def::UbseMemShmImportDesc importDesc;
+        for (const auto &result : importObj.status.importResults) {
+            importDesc.memIds.push_back(result.memId);
+        }
+        nodeController::UbseNodeGetByNodeIdInMaster(nodeId, importDesc.importNode);
+        UbseMemResult memResult = GetShmStageByObj(importObj);
+        importDesc.state = memResult.stage;
+        shmDesc.importDesc.push_back(std::move(importDesc));
+    });
 }
 
 void FillResultWithLimit(std::unordered_map<std::string, def::UbseMemShmDesc>& descMap,
@@ -290,7 +309,6 @@ void FillResultWithLimit(std::unordered_map<std::string, def::UbseMemShmDesc>& d
 
 uint32_t UbseMemShmList(const UbseMemDebtQueryRequest& request, std::vector<UbseMemShmDesc>& shmDescs)
 {
-    // 获取当前节点
     UbseRoleInfo currentRoleInfo{};
     if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get current node info, " << FormatRetCode(ret);
@@ -300,72 +318,111 @@ uint32_t UbseMemShmList(const UbseMemDebtQueryRequest& request, std::vector<Ubse
         UBSE_LOG_ERROR << "current role is not master. nodeId: " << currentRoleInfo.nodeId;
         return UBSE_ERR_INTERNAL;
     }
+
     std::unordered_map<std::string, def::UbseMemShmDesc> descMap{};
     shmDescs.clear();
-    // 遍历 export
-    ProcessShareExportObjects(request, descMap);
-    // 遍历 import
-    ProcessShareImportObjects(request, descMap);
-    // 回填结果
-    FillResultWithLimit(descMap, shmDescs);
+
+    auto doList = [&](IShareStore &store) {
+        ProcessExportObjects(request, descMap, store);
+        ProcessImportObjects(request, descMap, store);
+        FillResultWithLimit(descMap, shmDescs);
+    };
+
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        CascadeMasterStore store;
+        doList(store);
+    } else {
+        GlobalMasterStore store;
+        doList(store);
+    }
+
     return UBSE_OK;
 }
 
-uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest& request, def::UbseMemShmMemStatusDesc& shmStatusDesc)
+static void FillShmFaultInfo(const UbseMemShareBorrowExportObj &exportObj,
+                              UbseMemShmMemStatusDesc &shmStatusDesc)
 {
-    // 获取当前节点
-    UbseRoleInfo currentRoleInfo{};
-    if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get current node info, " << FormatRetCode(ret);
-        return ret;
-    }
-    if (currentRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
-        UBSE_LOG_ERROR << "current role is not master. nodeId: " << currentRoleInfo.nodeId;
-        return UBSE_ERR_INTERNAL;
-    }
-    const std::string name = request.name;
-
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(request.name);
-    if (!exportObjPtr) {
-        UBSE_LOG_ERROR << "No export information found. related name: " << name;
-        return UBSE_ERR_NOT_EXIST;
-    }
-
-    for (const auto& obmmInfo : exportObjPtr->status.exportObmmInfo) {
+    for (const auto &obmmInfo : exportObj.status.exportObmmInfo) {
         if (obmmInfo.memIdStatus == UB_MEM_HEALTHY) {
             continue;
         }
         shmStatusDesc.memIds.push_back(obmmInfo.memId);
         shmStatusDesc.faultTypes.push_back(obmmInfo.memIdStatus);
     }
+}
+
+uint32_t UbseMemShmStatusGet(const UbseMemDebtQueryRequest &request, def::UbseMemShmMemStatusDesc &shmStatusDesc)
+{
+    UbseRoleInfo currentRoleInfo{};
+    if (auto ret = UbseGetCurrentNodeInfo(currentRoleInfo); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get current node info, " << FormatRetCode(ret);
+        return ret;
+    }
+    if (currentRoleInfo.nodeRole != ELECTION_ROLE_MASTER) {
+        UBSE_LOG_ERROR << "current role is not master. nodeId: " << currentRoleInfo.nodeId;
+        return UBSE_ERR_INTERNAL;
+    }
+
+    UbseMemShareBorrowExportObj exportObj;
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        CascadeMasterStore store;
+        if (auto ret = store.LoadExport(request.name, exportObj); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "GetExportItem from summary failed, name=" << request.name
+                           << ", ret=" << FormatRetCode(ret);
+            return UBSE_ERR_NOT_EXIST;
+        }
+    } else {
+        GlobalMasterStore store;
+        if (auto ret = store.LoadExport(request.name, exportObj); ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "No export information found. related name: " << request.name;
+            return UBSE_ERR_NOT_EXIST;
+        }
+    }
+
+    FillShmFaultInfo(exportObj, shmStatusDesc);
     return UBSE_OK;
 }
 
 UbseMemResult GetShmExportStageByObj(const std::string& name)
 {
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetExportResourceByResId(name);
-    if (!exportObjPtr) {
-        UbseMemResult result{};
-        result.name = name;
-        result.stage = UbseMemStage::UBSE_NOT_EXIST;
-        return result;
+    auto doQuery = [&](IShareStore &store) -> UbseMemResult {
+        UbseMemShareBorrowExportObj exportObj;
+        if (store.LoadExport(name, exportObj) != UBSE_OK) {
+            UbseMemResult result{};
+            result.name = name;
+            result.stage = UbseMemStage::UBSE_NOT_EXIST;
+            return result;
+        }
+        return GetShmStageByObj(exportObj);
+    };
+
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        CascadeMasterStore store;
+        return doQuery(store);
     }
-    return GetShmExportStageByObj(exportObjPtr);
+    GlobalMasterStore store;
+    return doQuery(store);
 }
 
 UbseMemResult GetShmImportStageByObj(const std::string& name, const std::string& importNodeId)
 {
-    auto& ledger = UbseMemDebtLedger::GetInstance();
-    auto importObjPtr = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(importNodeId, name);
-    if (!importObjPtr) {
-        UbseMemResult result{};
-        result.name = name;
-        result.stage = UbseMemStage::UBSE_NOT_EXIST;
-        return result;
+    auto doQuery = [&](IShareStore &store) -> UbseMemResult {
+        UbseMemShareBorrowImportObj importObj;
+        if (store.LoadImport(importNodeId, name, importObj) != UBSE_OK) {
+            UbseMemResult result{};
+            result.name = name;
+            result.stage = UbseMemStage::UBSE_NOT_EXIST;
+            return result;
+        }
+        return GetShmStageByObj(importObj);
+    };
+
+    if (UbseCheckWithoutGlobalMasterNodeId()) {
+        CascadeMasterStore store;
+        return doQuery(store);
     }
-    return GetShmImportStageByObj(importObjPtr);
+    GlobalMasterStore store;
+    return doQuery(store);
 }
 
 UbseMemShareBorrowExportObj UbseShareExportObjGet(const std::string& nodeId, const std::string& name,
@@ -384,7 +441,7 @@ UbseMemShareBorrowExportObj UbseShareExportObjGet(const std::string& nodeId, con
     auto& ledger = UbseMemDebtLedger::GetInstance();
     auto exportObjPtr = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetResource(nodeId, name);
     if (!exportObjPtr) {
-        UBSE_LOG_WARN << "name=" << name << " is not in debt.";
+        UBSE_LOG_WARN << "nodeId=" << nodeId << ", name=" << name << " is not in debt.";
         return {};
     }
     return *exportObjPtr;
@@ -406,7 +463,7 @@ UbseMemShareBorrowImportObj UbseShareImportObjGet(const std::string& nodeId, con
     auto& ledger = UbseMemDebtLedger::GetInstance();
     auto importObjPtr = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetResource(nodeId, name);
     if (!importObjPtr) {
-        UBSE_LOG_WARN << "name=" << name << " is not in debt.";
+        UBSE_LOG_WARN << "name=" << name << ", nodeId=" << nodeId << " is not in debt.";
         return {};
     }
     return *importObjPtr;

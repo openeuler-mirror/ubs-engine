@@ -13,6 +13,7 @@
 #include "ubse_mem_debt_info_query_handler.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
+#include "ubse_mem_controller_helper.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_partial_fetch.h"
@@ -22,6 +23,7 @@
 #include "message/node_mem_debt_info_simpo.h"
 #include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -240,8 +242,9 @@ UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr& req, c
 
     // 取数据
     def::UbseMemShmDesc desc{};
-    if (const auto ret = debt::UbseMemShmGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
+    auto ret = debt::UbseMemShmGet(reqPtr->GetUbseMemDebtQueryRequest(), desc);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "shm get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
     // 封装响应;
@@ -292,8 +295,9 @@ UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr& 
 
     // 取数据
     def::UbseMemShmMemStatusDesc desc{};
-    if (const auto ret = debt::UbseMemShmStatusGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
+    auto ret = debt::UbseMemShmStatusGet(reqPtr->GetUbseMemDebtQueryRequest(), desc);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "shm status get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
     // 封装响应;
@@ -394,7 +398,8 @@ UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr& req, const 
     }
     def::UbseMemIdQueryRequest request = reqPtr->GetUbseMemIdQueryRequest();
     def::UbseExportMemDesc exportMemDesc{};
-    if (const auto ret = mem::controller::debt::UbseMemGetMemIdByImport(request, exportMemDesc); ret != UBSE_OK) {
+    uint32_t ret = mem::controller::debt::UbseMemGetMemIdByImport(request, exportMemDesc);
+    if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem id get failed, " << FormatRetCode(ret);
         return ret;
     }

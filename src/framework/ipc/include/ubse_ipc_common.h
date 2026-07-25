@@ -86,8 +86,6 @@ typedef enum {
     UBSE_MEM_CLI_PID_SET_THRESHOLD = 0x0048,          // PID阈值设置(CLI)
     UBSE_MEM_CLI_PRINT_PID_INFO = 0x0049,             // PID信息查询(CLI)
     UBSE_MEM_CLI_PID_UNSET = 0x0050,                  // PID配置删除(CLI)
-    UBSE_MEM_CLI_CLOS_BORROW_DETAIL_QUERY = 0x0051,  // close组网账本查询(CLI)
-    UBSE_MEM_CLI_IS_CLOS_TYPE = 0x0052                // 判断是否为clos组网(CLI)
 } ubse_ipc_mem_op_code_t;
 
 typedef enum {

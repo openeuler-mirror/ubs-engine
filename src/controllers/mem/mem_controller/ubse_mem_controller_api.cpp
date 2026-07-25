@@ -4,10 +4,12 @@
 #include "ubse_mem_controller_api.h"
 #include <unistd.h>
 #include <cstdint>
+#include <string>
 
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_election_def.h"
 #include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
@@ -39,6 +41,8 @@
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_topo_util.h"
+#include "ubse_smbios.h"
+#include "ubse_mem_util.h"
 #include "api/ubse_mem_controller_api_common.h"
 #include "message/node_mem_debtInfo_query_req_simpo.h"
 #include "message/node_mem_debt_info_simpo.h"
@@ -64,6 +68,7 @@ using namespace ubse::nodeController;
 using namespace ubse::timer;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller::debt;
+using namespace ubse::adapter_plugins::smbios;
 
 const uint32_t UBSE_MEM_SHM_CLEAN_INTERVAL = 300; // 中心侧共享内存零引用清零周期；单位秒
 const std::string UBSE_MEM_SHM_CLEAN_TIMER = "UbseMemShmClean";
@@ -544,8 +549,6 @@ uint32_t GetCnaInfoWhenImportClos(const std::string &exportNodeId, const std::st
         UBSE_LOG_ERROR << "importCpuInfo.portInfos is not find, cpuInfo size=" << importCpuInfo.portInfos.size();
         return UBSE_ERROR;
     }
-
-
 
     uint32_t importCna = importCpuInfo.busNodeCna;
     uint32_t exportCna = exportCpuInfo.busNodeCna;
