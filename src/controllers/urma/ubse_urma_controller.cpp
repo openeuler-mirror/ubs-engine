@@ -200,6 +200,10 @@ UbseResult PushNodesTopoToUvs(const std::string& nodeId)
         UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=false, ret=" << ret;
         return ret;
     }
+    if (!UbseSmbios::GetInstance().IsClosType()) {
+        return UBSE_OK;
+    }
+    // 共享拓扑仅在 CLOS 场景追加下发，普通拓扑保持原有流程不变。
     ret = PushUvsTopoBatch(true, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to push uvs topo batch, isPushShareTopoOnly=true, ret=" << ret;
