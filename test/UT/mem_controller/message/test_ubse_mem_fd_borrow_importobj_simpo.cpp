@@ -14,8 +14,8 @@
 
 #include "mockcpp/mockcpp.hpp"
 
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
 #include "ubse_error.h"
+#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::utils;
@@ -69,10 +69,7 @@ TEST_F(TestUbseMemFdBorrowImportObjSimpo, Deserialize)
     auto buffer = new (std::nothrow) uint8_t[size];
     EXPECT_NE(nullptr, buffer);
     obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemFdBorrowImportObjDeserialization)
-        .stubs()
-        .will(returnValue(false))
-        .then(returnValue(true));
+    MOCKER_CPP(&UbseMemFdBorrowImportObjDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
     EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
     EXPECT_TRUE(UBSE_OK == obj->Deserialize());
 }

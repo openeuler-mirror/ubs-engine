@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "mockcpp/mockcpp.hpp"
 #include "test_vm_json_util.h"
+#include "mockcpp/mockcpp.hpp"
 
 using namespace vm;
 
@@ -257,7 +257,7 @@ TEST_F(TestVmJsonUtil, GetJsonString_ShouldReturnCorrectValue_WhenKeyExists)
     JSON_STR jsonStr = R"({"key":"value"})";
     Document jsonObject;
     jsonObject.Parse(jsonStr.c_str());
-    
+
     JSON_STR result;
     uint32_t ret = VMJsonUtil::GetJsonString(jsonObject, "key", result);
 
@@ -310,7 +310,7 @@ TEST_F(TestVmJsonUtil, GetJsonStringNotValid_ShouldReturnTrue_WhenJsonStringIsIn
 {
     Value jsonBody(kObjectType);
     std::string value;
-    
+
     EXPECT_TRUE(VMJsonUtil::GetJsonStringNotValid(jsonBody, "key", value));
     EXPECT_EQ(value, "");
 }
@@ -345,4 +345,4 @@ TEST_F(TestVmJsonUtil, GetJsonStringNotValid_ShouldReturnFalse_WhenJsonStringIsV
     EXPECT_FALSE(VMJsonUtil::GetJsonStringNotValid(jsonBody, "key", value));
     EXPECT_EQ(value, "value");
 }
-}
+} // namespace ubse::ut::vm

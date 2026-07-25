@@ -14,16 +14,15 @@
 #ifndef MEM_HANDLER_H
 #define MEM_HANDLER_H
 
-#include <unordered_map>
-#include <mutex>
 #include <map>
+#include <mutex>
+#include <unordered_map>
 
 #include "vm_error.h"
 #include "vm_info.h"
 #include "vm_numa_info.h"
 
 namespace vm {
-
 
 const std::string UBSE_MEM_BORROW_EVENT_ID = "RegisterMemEventNotifyFunc_high";
 const std::string UBSE_MEM_RETURN_EVENT_ID = "RegisterMemEventNotifyFunc_low";
@@ -34,7 +33,8 @@ constexpr uint16_t MOVE2_BIT = 2;
 constexpr uint16_t MIN_PERCENT = 0;
 constexpr uint16_t MAX_PERCENT = 100;
 
-enum class WatermarkWarningType {
+enum class WatermarkWarningType
+{
     NO_WARN = 0,
     HIGH_WATERMARK,
     LOW_WATERMARK,
@@ -57,10 +57,16 @@ struct Notify {
     std::string ToJson() const
     {
         std::ostringstream oss;
-        oss << "{" << "\"percent\":" << percent << "," << "\"highWaterMark\":" << highWaterMark << ","
-            << "\"lowWaterMark\":" << lowWaterMark << "," << "\"nodeId\":\"" << nodeId << "\","
-            << "\"socketId\":" << socketId << "," << "\"numaId\":" << numaId << "," << "\"memTotal\":" << memTotal
-            << "," << "\"memUsed\":" << memUsed << "," << "\"memFree\":" << memFree << ","
+        oss << "{"
+            << "\"percent\":" << percent << ","
+            << "\"highWaterMark\":" << highWaterMark << ","
+            << "\"lowWaterMark\":" << lowWaterMark << ","
+            << "\"nodeId\":\"" << nodeId << "\","
+            << "\"socketId\":" << socketId << ","
+            << "\"numaId\":" << numaId << ","
+            << "\"memTotal\":" << memTotal << ","
+            << "\"memUsed\":" << memUsed << ","
+            << "\"memFree\":" << memFree << ","
             << "\"waterNotify\":" << (waterNotify ? "true" : "false") << ","
             << "\"oomEventFlag\":" << (oomEventFlag ? "true" : "false") << "}";
         return oss.str();
@@ -69,14 +75,14 @@ struct Notify {
 
 class MemHandler {
 public:
-    static MemHandler &GetInstance();
+    static MemHandler& GetInstance();
     VmResult Init();
     void Terminate();
     static VmResult CheckNumaWaterLine();
-    static VmResult TransNotify(const std::string &notifyMessage, Notify &notify);
-    static VmResult GetBorrowedSizeMap(const std::vector<uint16_t> &remoteNumaIds,
-                                       std::map<uint16_t, uint64_t> &numaBorrowedSizeMap);
-    static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int> &borrowInfo);
+    static VmResult TransNotify(const std::string& notifyMessage, Notify& notify);
+    static VmResult GetBorrowedSizeMap(const std::vector<uint16_t>& remoteNumaIds,
+                                       std::map<uint16_t, uint64_t>& numaBorrowedSizeMap);
+    static VmResult GetMemoryBorrowInfo(std::unordered_map<unsigned int, unsigned int>& borrowInfo);
 
     static uint64_t SizeByte2Mb(uint64_t size)
     {
@@ -95,12 +101,12 @@ private:
     static std::mutex timerTaskMutex;
     static std::string timerName;
     static std::string ToString(WatermarkWarningType warning);
-    static VmResult NotifyVm(WatermarkWarningType warningType, const Notify &notify);
+    static VmResult NotifyVm(WatermarkWarningType warningType, const Notify& notify);
 
-    static void NotifyReturnMem(const NumaCpuInfo &numaCpuInfo);
-    static bool IsVmExists(const NumaCpuInfo &numaCpuInfo, const HostVmDomainInfo &hostVmDomainInfo);
-    static WatermarkWarningType WaterNotifyEvent(const NumaCpuInfo &numaCpuInfo, const size_t &borrowInfoSize,
-                                                 Notify &notify);
+    static void NotifyReturnMem(const NumaCpuInfo& numaCpuInfo);
+    static bool IsVmExists(const NumaCpuInfo& numaCpuInfo, const HostVmDomainInfo& hostVmDomainInfo);
+    static WatermarkWarningType WaterNotifyEvent(const NumaCpuInfo& numaCpuInfo, const size_t& borrowInfoSize,
+                                                 Notify& notify);
 };
 } // namespace vm
 #endif // MEM_HANDLER_H

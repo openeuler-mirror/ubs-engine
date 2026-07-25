@@ -9,9 +9,7 @@ namespace ubse::ut::vm {
 void TestMigrateStateMapMessage::SetUp() {}
 void TestMigrateStateMapMessage::TearDown() {}
 
-std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> numaMemInfo = {
-    {1, {1, 1, 1, 1, 1}}
-};
+std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> numaMemInfo = {{1, {1, 1, 1, 1, 1}}};
 /**
  * 序列化成功
  */
@@ -80,4 +78,4 @@ TEST_F(TestMigrateStateMapMessage, DeserializeFailed)
     EXPECT_EQ(ret, VM_ERROR);
 }
 
-}
+} // namespace ubse::ut::vm

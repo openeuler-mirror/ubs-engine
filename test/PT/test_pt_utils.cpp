@@ -15,14 +15,14 @@
 #include <iostream>
 
 namespace ubse::pt::utils {
-char **g_argv;
+char** g_argv;
 
-void SetArgv(char **argv)
+void SetArgv(char** argv)
 {
     g_argv = argv;
 }
 
-char **GetArgv()
+char** GetArgv()
 {
     return g_argv;
 }
@@ -35,8 +35,8 @@ inline uint64_t GetCurrentTimeInMs()
 
 std::string GetIp()
 {
-    const char *shellstr = R"(ip -4 addr show | grep -v '127.0.0.1' | grep -oP '(?<=inet\s)\d+(\.\d+){3}')";
-    FILE *fp = popen(shellstr, "r");
+    const char* shellstr = R"(ip -4 addr show | grep -v '127.0.0.1' | grep -oP '(?<=inet\s)\d+(\.\d+){3}')";
+    FILE* fp = popen(shellstr, "r");
 
     if (fp == nullptr) {
         return "";
@@ -55,4 +55,4 @@ std::string GetIp()
     }
     return result;
 }
-}
+} // namespace ubse::pt::utils

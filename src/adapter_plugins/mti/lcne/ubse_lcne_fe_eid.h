@@ -27,27 +27,27 @@ using namespace ubse::utils;
 
 class UbseLcneFeEid {
 public:
-    static UbseLcneFeEid &GetInstance()
+    static UbseLcneFeEid& GetInstance()
     {
         static UbseLcneFeEid instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
     // 发送请求
-    UbseResult GetFeEid(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult GetComUrmaEidClos(UbseMtiIouInfo &iouInfo, UbseMtiEidGroup &feInfo);
+    UbseResult GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos);
+    UbseResult GetComUrmaEidClos(UbseMtiIouInfo& iouInfo, UbseMtiEidGroup& feInfo);
 
 private:
     UbseLcneFeEid(std::string host, int port) : host(std::move(host)), port(port) {}
-    UbseResult UpdateFeType(UbseMtiIouInfo &iouInfo, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult ParseFeTypeListResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult ParseGetFeEidResponse(const std::string &responseStr, std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseMtiFeInfo &feInfo);
-    std::vector<std::string> ueIdlistSplit(const std::string &str, const std::string &delimiter);
-    UbseResult ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml> &ubseXml, UbseMtiIouInfo &iouInfo);
-    UbseMtiFeInfo *FindVfeInVector(UbseMtiIouInfo &iouInfo, std::string entityId,
-                                   std::vector<UbseMtiFeInfo> &allFeInfos);
-    UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t &portId);
-    UbseResult GetComEidInfo(std::vector<UbseMtiFeInfo> &allFeInfos, UbseMtiEidGroup &feInfo);
+    UbseResult UpdateFeType(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiFeInfo>& allFeInfos);
+    UbseResult ParseFeTypeListResponse(const std::string& responseStr, std::vector<UbseMtiFeInfo>& allFeInfos);
+    UbseResult ParseGetFeEidResponse(const std::string& responseStr, std::vector<UbseMtiFeInfo>& allFeInfos);
+    UbseResult ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, UbseMtiFeInfo& feInfo);
+    std::vector<std::string> ueIdlistSplit(const std::string& str, const std::string& delimiter);
+    UbseResult ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>& ubseXml, UbseMtiIouInfo& iouInfo);
+    UbseMtiFeInfo* FindVfeInVector(UbseMtiIouInfo& iouInfo, std::string entityId,
+                                   std::vector<UbseMtiFeInfo>& allFeInfos);
+    UbseResult GetPortIdFromInterfaceName(std::string intfaceName, uint32_t& portId);
+    UbseResult GetComEidInfo(std::vector<UbseMtiFeInfo>& allFeInfos, UbseMtiEidGroup& feInfo);
     std::string GetEidGroupId(std::string eid);
 
     std::string host;

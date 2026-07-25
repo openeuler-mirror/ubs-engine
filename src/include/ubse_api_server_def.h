@@ -17,7 +17,7 @@
 
 namespace api::server {
 struct UbseIpcMessage {
-    uint8_t *buffer;
+    uint8_t* buffer;
     uint32_t length;
 };
 

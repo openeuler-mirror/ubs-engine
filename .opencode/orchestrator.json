@@ -1,0 +1,63 @@
+{
+  "$schema": "https://unpkg.com/open-orchestra@0.2.4/schema/orchestrator.schema.json",
+  "autoSpawn": true,
+  "profiles": [
+    {
+      "id": "code-review-c-cpp",
+      "name": "Code Review Expert (C/C++)",
+      "purpose": "Perform comprehensive code review for openEuler Linux system-level C/C++ software, covering architecture, security, performance, and maintainability",
+      "whenToUse": "When you need a thorough code review of C/C++ code following openEuler security and quality standards",
+      "sessionMode": "linked",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": false,
+        "bash": true,
+        "glob": true,
+        "grep": true
+      }
+    },
+    {
+      "id": "bug-fix",
+      "name": "Bug Fix Specialist",
+      "purpose": "Process code review reports and fix severe issues one-by-one with UT coverage, build verification, and independent commits",
+      "whenToUse": "When you have a code review report and need to systematically fix all identified severe issues",
+      "sessionMode": "linked",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true,
+        "glob": true,
+        "grep": true
+      }
+    }
+  ],
+  "workers": [],
+  "workflows": {
+    "enabled": true,
+    "roocodeBoomerang": {
+      "enabled": true,
+      "steps": [
+        {
+          "id": "code-review",
+          "title": "C/C++ Code Review",
+          "workerId": "code-review-c-cpp",
+          "prompt": "Perform a comprehensive code review following the code-review-c-cpp skill guidelines. Examine all code under src/ (excluding cmake-build-*, 3rdparty, test directories). Generate a detailed review report covering architecture, security (referencing SecureCoding.md and SecureCompile.md), performance, and maintainability. Save the report to the code_review_report/ directory as codereview_<repo>_<date><timestamp>.md. The report must categorize issues as: 严重问题 (must fix), 建议改进 (recommended), and 风格问题 (optional).",
+          "carry": true
+        },
+        {
+          "id": "bug-fix",
+          "title": "Bug Fix from Review Report",
+          "workerId": "bug-fix",
+          "prompt": "Using the code review report generated in the previous step, extract ALL severe (严重问题/critical) issues and fix them one-by-one following the bug-fix skill workflow. For each issue: (1) understand the problem context, (2) write minimal fix code following C++17/C11 standards and project conventions, (3) run clang-format on modified files, (4) run clang-tidy verification, (5) add UT test cases using GTest, (6) compile and verify, (7) run the new UT tests, (8) commit independently with format: 'fix: <description>'. After all fixes, run full UT suite and generate the final Bug Fix Report.",
+          "carry": true
+        }
+      ],
+      "maxSteps": 4,
+      "maxTaskChars": 12000,
+      "maxCarryChars": 24000,
+      "perStepTimeoutMs": 300000
+    }
+  }
+}

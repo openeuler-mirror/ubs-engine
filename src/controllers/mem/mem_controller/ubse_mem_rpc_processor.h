@@ -18,7 +18,7 @@ using namespace ubse::adapter_plugins::mmi;
 
 class UbseMemFdBorrowMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -28,7 +28,7 @@ public:
 
 class UbseMemNumaBorrowMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -38,7 +38,7 @@ public:
 
 class UbseMemAddrBorrowMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -48,7 +48,7 @@ public:
 
 class UbseMemShareBorrowMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -58,7 +58,7 @@ public:
 
 class UbseMemShareAttachMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -68,7 +68,7 @@ public:
 
 class UbseMemShareDetachMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -78,7 +78,7 @@ public:
 
 class UbseMemFdReturnHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -88,7 +88,7 @@ public:
 
 class UbseMemNumaReturnHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -98,7 +98,7 @@ public:
 
 class UbseMemShareReturnHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -108,7 +108,7 @@ public:
 
 class UbseMemAddrReturnHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -132,7 +132,7 @@ public:
 using UbseMemCallbackMessagePtr = Ref<UbseMemCallbackMessage>;
 class UbseMemFdBorrowExportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -142,7 +142,7 @@ public:
 
 class UbseMemFdBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -152,7 +152,7 @@ public:
 
 class UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -162,7 +162,7 @@ public:
 
 class UbseMemNumaBorrowExportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -172,7 +172,7 @@ public:
 
 class UbseMemNumaBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -182,7 +182,7 @@ public:
 
 class UbseMemShareBorrowExportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -322,7 +322,7 @@ public:
 
 class UbseMemShareBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -332,7 +332,7 @@ public:
 
 class UbseMemAddrBorrowExportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -342,7 +342,7 @@ public:
 
 class UbseMemAddrBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -351,7 +351,7 @@ public:
 };
 class UbseMemShmCreateRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -360,7 +360,7 @@ public:
 };
 class UbseMemShmAttachRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -369,7 +369,7 @@ public:
 };
 class UbseMemShmDetachRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -378,7 +378,7 @@ public:
 };
 class UbseMemReturnRespHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -414,7 +414,7 @@ public:
 
 class UbseMemFdPermissionHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -424,7 +424,7 @@ public:
 
 class UbseMemFdBorrowRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -434,7 +434,7 @@ public:
 
 class UbseMemFdReturnRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -443,7 +443,7 @@ public:
 };
 class UbseMemNumaBorrowRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;
@@ -452,7 +452,7 @@ public:
 };
 class UbseMemNumaReturnRespMessageHandler : public UbseComBaseMessageHandler {
 public:
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override;

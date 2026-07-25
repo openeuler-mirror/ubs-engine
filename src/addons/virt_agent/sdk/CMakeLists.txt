@@ -23,8 +23,8 @@ target_link_options(ubs_virt_agent_sdk PRIVATE -Wl,--no-whole-archive)
 # set library property
 set_target_properties(ubs_virt_agent_sdk PROPERTIES
         OUTPUT_NAME "ubs-virt-agent"
-        VERSION 1.0.0    # full version, exp: libxxx.so.1.0.0
-        SOVERSION 1      # main version, exp: libxxx.so.1 -> libxxx.so.1.0.0
+        VERSION 1.0.1    # full version, exp: libxxx.so.1.0.1
+        SOVERSION 1      # main version, exp: libxxx.so.1 -> libxxx.so.1.0.1
 )
 
 # test

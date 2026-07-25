@@ -16,7 +16,12 @@
 #include "ubse_com_base.h"
 
 namespace ubse::mem::controller::rpc {
-using namespace ubse::com;
+using ubse::com::UbseComBaseMessageHandler;
+using ubse::com::UbseComBaseMessageHandlerCtxPtr;
+using ubse::com::UbseMemRespCtrlOpCode;
+using ubse::com::UbseModuleCode;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
 
 class UbseMemGetOptResultHandler : public UbseComBaseMessageHandler {
 public:
@@ -24,7 +29,7 @@ public:
 
     static UbseResult RegUbseMemGetOptResultHandler();
 
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override;
 
     uint16_t GetOpCode() override

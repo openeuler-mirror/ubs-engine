@@ -16,8 +16,9 @@
 #include "src/adapter_plugins/syssentry/sentry_observer.h"
 
 namespace ubse::ras {
-using namespace ubse::module;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+
 class UbseRasModule : public UbseModule {
 public:
     static constexpr const char* kModuleName = "UbseRasModule";

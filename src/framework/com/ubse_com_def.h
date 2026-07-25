@@ -16,20 +16,42 @@
 #include <functional>
 #include <string>
 #include <utility>
+#include "ubse_base_message.h"
+#include "ubse_common_def.h"
 #include "hcom/hcom.h"
 #include "hcom/hcom_service.h"
 #include "hcom/hcom_service_context.h"
 #include "hcom/hcom_service_def.h"
 #include "securec.h"
 #include "trace_context.h"
-#include "ubse_base_message.h"
-#include "ubse_common_def.h"
 
 namespace ubse::com {
-using namespace ock::hcom;
-using namespace ubse::common::def;
-using namespace ubse::message;
-using UbseComCallBackForHA = std::function<UbseResult(const std::string &remoteIp, const std::string &remoteNodeId)>;
+using ock::hcom::AES_GCM_128;
+using ock::hcom::Callback;
+using ock::hcom::NN_NO0;
+using ock::hcom::UBSHcomChannel;
+using ock::hcom::UBSHcomChannelPtr;
+using ock::hcom::UBSHcomConnectOptions;
+using ock::hcom::UBSHcomFlowCtrlOptions;
+using ock::hcom::UBSHcomNetCipherSuite;
+using ock::hcom::UBSHcomNetUdsIdInfo;
+using ock::hcom::UBSHcomOneSideRequest;
+using ock::hcom::UBSHcomOneSideSglRequest;
+using ock::hcom::UBSHcomPeerCertVerifyType;
+using ock::hcom::UBSHcomReplyContext;
+using ock::hcom::UBSHcomRequest;
+using ock::hcom::UBSHcomResponse;
+using ock::hcom::UBSHcomServiceContext;
+using ock::hcom::UBSHcomServiceNewChannelHandler;
+using ock::hcom::UBSHcomServiceProtocol;
+using ock::hcom::UBSHcomTLSCertVerifyCallback;
+using ock::hcom::UBSHcomTLSEraseKeypass;
+using ock::hcom::UBSHcomTlsOptions;
+using ock::hcom::UBSHcomTwoSideThreshold;
+using ubse::common::def::DEFAULT_HCOM_HB_TIMEOUT;
+using ubse::common::def::UbseResult;
+using ubse::message::UbseBaseMessagePtr;
+using UbseComCallBackForHA = std::function<UbseResult(const std::string& remoteIp, const std::string& remoteNodeId)>;
 // 大数据场景下，默认单次最大发送数据量大小，单位MB
 const uint32_t DEFAULT_MAX_SENDRECEIVE_SIZE = 1;      // 注意规避
 const uint32_t DEFAULT_SEND_RECEIVE_SEG_COUNT = 4200; // 注意规避
@@ -106,7 +128,7 @@ struct ConnectOption {
 
 // 参数一：日志级别
 // 参数二：日志内容
-using UbseComLogFunc = void (*)(int, const char *);
+using UbseComLogFunc = void (*)(int, const char*);
 /**
  * 重连函数钩子，在通道断连后判断是否需要重连
  * 参数一： 远端节点ID
@@ -114,7 +136,7 @@ using UbseComLogFunc = void (*)(int, const char *);
  */
 using IsReconnectHook = std::function<bool(std::string remoteNodeId, UbseChannelType type)>;
 using ShouldDoReconnectCb = std::function<bool(std::string brokenNodeId, UbseChannelType chType)>;
-using QueryEidByNodeIdCb = std::function<bool(std::string nodeId, std::string &eid)>;
+using QueryEidByNodeIdCb = std::function<bool(std::string nodeId, std::string& eid)>;
 
 class UbseComEngineInfo {
 public:
@@ -132,31 +154,31 @@ public:
 
     void SetWorkerMode(UbseWorkerMode mode);
 
-    const std::string &GetNodeId() const;
+    const std::string& GetNodeId() const;
 
-    void SetNodeId(const std::string &id);
+    void SetNodeId(const std::string& id);
 
-    const std::string &GetWorkGroup() const;
+    const std::string& GetWorkGroup() const;
 
-    void SetWorkGroup(const std::string &group);
+    void SetWorkGroup(const std::string& group);
 
-    const std::string &GetName() const;
+    const std::string& GetName() const;
 
-    void SetName(const std::string &engineName);
+    void SetName(const std::string& engineName);
 
     void SetLogFunc(UbseComLogFunc func);
 
     UbseComLogFunc GetLogFunc() const;
 
-    const std::pair<std::string, uint16_t> &GetIpInfo() const;
+    const std::pair<std::string, uint16_t>& GetIpInfo() const;
 
-    void SetIpInfo(const std::pair<std::string, uint16_t> &ipInfo);
+    void SetIpInfo(const std::pair<std::string, uint16_t>& ipInfo);
 
-    const std::pair<std::string, uint16_t> &GetUdsInfo() const;
+    const std::pair<std::string, uint16_t>& GetUdsInfo() const;
 
-    void SetUdsInfo(const std::pair<std::string, uint16_t> &udsInfo);
+    void SetUdsInfo(const std::pair<std::string, uint16_t>& udsInfo);
 
-    const uint32_t &GetSendReceiveSegCount() const;
+    const uint32_t& GetSendReceiveSegCount() const;
 
     void SetSendReceiveSegCount(uint32_t segCount);
 
@@ -164,21 +186,21 @@ public:
 
     bool IsServerSide() const;
 
-    const IsReconnectHook &GetReConnectHook() const;
+    const IsReconnectHook& GetReConnectHook() const;
 
     void SetReconnectHook(IsReconnectHook reconnectHook);
 
-    const ShouldDoReconnectCb &GetShouldDoReconnectCb() const;
+    const ShouldDoReconnectCb& GetShouldDoReconnectCb() const;
 
     void SetShouldDoReconnectCb(ShouldDoReconnectCb shouldDoReconnectCb);
 
-    const QueryEidByNodeIdCb &GetQueryEidByNodeIdCb() const;
+    const QueryEidByNodeIdCb& GetQueryEidByNodeIdCb() const;
 
     void SetQueryEidByNodeIdCb(QueryEidByNodeIdCb queryEidByNodeIdCb);
 
-    const UBSHcomNetCipherSuite &GetCipherSuite() const;
+    const UBSHcomNetCipherSuite& GetCipherSuite() const;
 
-    void SetCipherSuite(const UBSHcomNetCipherSuite &suite);
+    void SetCipherSuite(const UBSHcomNetCipherSuite& suite);
 
     int16_t GetTimeOut() const;
 
@@ -233,9 +255,9 @@ public:
           remoteNodeId_(std::move(remoteNodeId)),
           curNodeId_(std::move(curNodeId)){};
 
-    const std::string &GetIp() const;
+    const std::string& GetIp() const;
 
-    void SetIp(const std::string &ipAddr);
+    void SetIp(const std::string& ipAddr);
 
     uint16_t GetPort() const;
 
@@ -249,13 +271,13 @@ public:
 
     void SetIsUds(bool uds);
 
-    const std::string &GetRemoteNodeId() const;
+    const std::string& GetRemoteNodeId() const;
 
-    void SetRemoteNodeId(const std::string &remoteNodeIdSet);
+    void SetRemoteNodeId(const std::string& remoteNodeIdSet);
 
-    const std::string &GetCurNodeId() const;
+    const std::string& GetCurNodeId() const;
 
-    void SetCurNodeId(const std::string &nodeId);
+    void SetCurNodeId(const std::string& nodeId);
 
 private:
     bool isUds_{false};        // 是否是Uds协议
@@ -287,21 +309,21 @@ public:
 
     void SetIsServer(bool isServerSide);
 
-    const UBSHcomChannelPtr &GetChannel() const;
+    const UBSHcomChannelPtr& GetChannel() const;
 
-    void SetChannel(const UBSHcomChannelPtr &channel);
+    void SetChannel(const UBSHcomChannelPtr& channel);
 
-    const UbseComChannelConnectInfo &GetConnectInfo() const;
+    const UbseComChannelConnectInfo& GetConnectInfo() const;
 
-    void SetConnectInfo(const UbseComChannelConnectInfo &conInfo);
+    void SetConnectInfo(const UbseComChannelConnectInfo& conInfo);
 
     UbseChannelType GetChannelType() const;
 
     void SetChannelType(UbseChannelType chType);
 
-    const std::string &GetEngineName() const;
+    const std::string& GetEngineName() const;
 
-    void SetEngineName(const std::string &name);
+    void SetEngineName(const std::string& name);
 
     std::string ConvertUbseComChannelInfoToString();
 
@@ -320,8 +342,8 @@ private:
  * 参数四：连接状态
  */
 using UbseComLinkStateNotify =
-    std::function<void(const UbseComEngineInfo &, const std::string &, const UBSHcomChannelPtr &ch, UbseLinkState)>;
-using UbseComMessagePtr = uint8_t *;
+    std::function<void(const UbseComEngineInfo&, const std::string&, const UBSHcomChannelPtr& ch, UbseLinkState)>;
+using UbseComMessagePtr = uint8_t*;
 
 class UbseComMessageHead {
 public:
@@ -343,7 +365,7 @@ public:
 
     void SetCrc(uint32_t dataCrc);
 
-    inline void SetTraceId(const std::string &id)
+    inline void SetTraceId(const std::string& id)
     {
         size_t copyLen = std::min(id.size(), TRACE_ID_SIZE - 1);
         auto ret = memcpy_s(traceId_, TRACE_ID_SIZE, id.c_str(), copyLen);
@@ -388,15 +410,15 @@ public:
 
     static UbseComMessagePtr AllocMessage(uint32_t len);
 
-    static void FreeMessage(UbseComMessagePtr &msg);
+    static void FreeMessage(UbseComMessagePtr& msg);
 
-    void SetMessageHead(UbseComMessageHead &msgHead);
+    void SetMessageHead(UbseComMessageHead& msgHead);
 
-    const UbseComMessageHead &GetMessageHead() const;
+    const UbseComMessageHead& GetMessageHead() const;
 
-    UbseResult SetMessageBody(const uint8_t *data, uint32_t len);
+    UbseResult SetMessageBody(const uint8_t* data, uint32_t len);
 
-    uint8_t *GetMessageBody();
+    uint8_t* GetMessageBody();
 
     uint32_t GetMessageBodyLen();
 
@@ -427,7 +449,7 @@ public:
 
     UbseComMessageCtx(UbseComMessagePtr message, std::string srcId, std::string dstId, UbseChannelType channelType);
 
-    UbseComMessageCtx(const std::string &engineName, uintptr_t transRspCtx, uint64_t netChannel, const std::string &id)
+    UbseComMessageCtx(const std::string& engineName, uintptr_t transRspCtx, uint64_t netChannel, const std::string& id)
         : dstId_(id),
           rspCtx_(transRspCtx),
           channelId_(netChannel),
@@ -449,27 +471,27 @@ public:
 
     void SetChannelId(uint64_t netChannel);
 
-    const std::string &GetSrcId() const;
+    const std::string& GetSrcId() const;
 
-    void SetSrcId(const std::string &msgSrcId);
+    void SetSrcId(const std::string& msgSrcId);
 
-    const std::string &GetDstId() const;
+    const std::string& GetDstId() const;
 
-    void SetDstId(const std::string &id);
+    void SetDstId(const std::string& id);
 
     void SetChannelType(UbseChannelType chType);
 
     UbseChannelType GetChannelType();
 
-    const std::string &GetEngineName() const;
+    const std::string& GetEngineName() const;
 
-    void SetEngineName(const std::string &egName);
+    void SetEngineName(const std::string& egName);
 
-    const UbseUdsIdInfo &GetUdsInfo() const;
+    const UbseUdsIdInfo& GetUdsInfo() const;
 
-    void SetUdsInfo(const UbseUdsIdInfo &uds);
+    void SetUdsInfo(const UbseUdsIdInfo& uds);
 
-    void inline SetTraceId(const std::string &id)
+    void inline SetTraceId(const std::string& id)
     {
         traceId_ = id;
     }
@@ -479,16 +501,16 @@ public:
         return traceId_;
     }
 
-    void SetModuleCode(const uint64_t &moduleCode);
+    void SetModuleCode(const uint64_t& moduleCode);
 
-    void SetOpCode(const uint64_t &opCode);
+    void SetOpCode(const uint64_t& opCode);
 
     uint64_t GetModuleCode() const;
     uint64_t GetOpCode() const;
 
-    const UBSHcomChannelPtr &GetChannelPtr() const;
+    const UBSHcomChannelPtr& GetChannelPtr() const;
 
-    void SetChannelPtr(const UBSHcomChannelPtr &chPtr);
+    void SetChannelPtr(const UBSHcomChannelPtr& chPtr);
 
     void SetRemoteCall();
 
@@ -513,11 +535,11 @@ private:
 using VerifyMsgCb = std::function<bool(UbseComMessageCtx &msgCtx)>;
 
 struct UbseComDataDesc {
-    uint8_t *data = nullptr; // 消息指针
+    uint8_t* data = nullptr; // 消息指针
     uint32_t len = 0;        // 消息长度
 
     UbseComDataDesc() : data(nullptr), len(0) {}
-    UbseComDataDesc(uint8_t *d, uint32_t l) : data(d), len(l) {}
+    UbseComDataDesc(uint8_t* d, uint32_t l) : data(d), len(l) {}
 };
 
 /**
@@ -527,20 +549,25 @@ struct UbseComDataDesc {
  * 参数三：消息长度
  * 参数四：返回结果
  */
-using UbseComAsyncMsgCbkHook = std::function<void(void *ctx, void *recv, uint32_t len, int32_t result)>;
+using UbseComAsyncMsgCbkHook = std::function<void(void* ctx, void* recv, uint32_t len, int32_t result)>;
+using ock::hcom::UBSHcomChannelPtr;
+using ock::hcom::UBSHcomNetCipherSuite;
+using ock::hcom::UBSHcomServiceNewChannelHandler;
+using ock::hcom::UBSHcomServiceProtocol;
+using ubse::common::def::DEFAULT_HCOM_HB_TIMEOUT;
 
 struct UbseComCallback {
     UbseComAsyncMsgCbkHook cb;
-    void *cbCtx;
+    void* cbCtx;
 
-    UbseComCallback(UbseComAsyncMsgCbkHook usrCb, void *usrCbCtx) : cb(std::move(usrCb)), cbCtx(usrCbCtx) {}
-    UbseComCallback() : cb([](void *, void *, uint32_t, int32_t) {}), cbCtx(nullptr) {}
+    UbseComCallback(UbseComAsyncMsgCbkHook usrCb, void* usrCbCtx) : cb(std::move(usrCb)), cbCtx(usrCbCtx) {}
+    UbseComCallback() : cb([](void*, void*, uint32_t, int32_t) {}), cbCtx(nullptr) {}
 };
 
 struct UbseComMsgHandler {
     uint16_t moduleCode;                            // 模块编码
     uint16_t opCode;                                // 操作码
-    void (*handler)(UbseComMessageCtx &messageCtx); //  消息处理函数指针
+    void (*handler)(UbseComMessageCtx& messageCtx); //  消息处理函数指针
 };
 
 struct UbseComTcpStr {
@@ -555,27 +582,27 @@ std::shared_ptr<std::vector<uint8_t>> EncodeRequestMsg(const uint16_t &opCode, c
                                                        const std::string &finalDstNodeId,
                                                        std::unique_ptr<uint8_t[]> &reqData, uint32_t reqDataSize);
 
-UbseResult TransResponse(const UbseBaseMessagePtr &respMsg, UbseComDataDesc &retData, bool withCopy = false);
+UbseResult TransResponse(const UbseBaseMessagePtr& respMsg, UbseComDataDesc& retData, bool withCopy = false);
 
-UbseComMessage *GetMessageFromNetServiceContext(UBSHcomServiceContext &context);
+UbseComMessage* GetMessageFromNetServiceContext(UBSHcomServiceContext& context);
 
-void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext &context, UbseUdsIdInfo &udsIdInfo);
+void GetUdsInfoFromNetServiceContext(UBSHcomServiceContext& context, UbseUdsIdInfo& udsIdInfo);
 
-bool CheckMessageBodyLen(UBSHcomServiceContext &context, UbseComMessage &msg);
+bool CheckMessageBodyLen(UBSHcomServiceContext& context, UbseComMessage& msg);
 
-uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext &context);
+uint64_t GetChannelIdFromNetServiceContext(UBSHcomServiceContext& context);
 
-UbseChannelType StringToChannelType(const std::string &type);
+UbseChannelType StringToChannelType(const std::string& type);
 
 std::string ChannelTypeToString(UbseChannelType type);
 
-std::string ChannelTypeToPayload(const std::string &id, UbseChannelType type);
+std::string ChannelTypeToPayload(const std::string& id, UbseChannelType type);
 
-UbseReplyResult StringToUbseReplyResult(const std::string &result);
+UbseReplyResult StringToUbseReplyResult(const std::string& result);
 
 std::string UbseReplyResultToString(UbseReplyResult result);
 
-std::pair<std::string, UbseChannelType> SplitPayload(const std::string &payload);
+std::pair<std::string, UbseChannelType> SplitPayload(const std::string& payload);
 
 UBSHcomServiceProtocol UbseProtocolToHcomProtocol(UbseProtocol LocalProtocol);
 } // namespace ubse::com

@@ -19,7 +19,7 @@
 namespace mempooling::over_commit {
 using namespace ubse::log;
 using namespace ubse::election;
-uint32_t OverCommitSwitchoverHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t OverCommitSwitchoverHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[Election] CHANGE_TO_SWITCHOVER event enter.";
     auto status = InterfaceGuard::GetStatus();

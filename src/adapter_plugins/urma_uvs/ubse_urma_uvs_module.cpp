@@ -14,15 +14,18 @@
 #include "ubse_module.h"
 
 #include <dlfcn.h>
-#include "ubse_context.h"
 #include "ubse_common_def.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
+#include "lock/ubse_lock.h"
 
 namespace ubse::urma {
 using namespace ubse::log;
 using namespace ubse::common::def;
+using namespace ubse::context;
 
+extern utils::ReadWriteLock g_invokeUrmaMutex;
 OPTIONAL_MODULE_IMPL(UbseUrmaUvsModule);
 
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -39,6 +42,11 @@ UbseResult UbseUrmaUvsModule::Initialize()
     uvsSetTopoInfo = (UvsSetTopoInfo)dlsym(handle, "uvs_set_topo_info");
     if (uvsSetTopoInfo == nullptr) {
         UBSE_LOG_WARN << "Failed to find symbol 'uvs_set_topo_info'";
+    }
+
+    uvsSetShareTopoInfo = (UvsSetShareTopoInfo)dlsym(handle, "uvs_set_share_topo_info");
+    if (uvsSetShareTopoInfo == nullptr) {
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_set_share_topo_info'";
     }
 
     uvsGetDeviceNameByUrmaEid = (UvsGetDeviceNameByUrmaEid)dlsym(handle, "uvs_get_device_name_by_eid");
@@ -77,10 +85,12 @@ void UbseUrmaUvsModule::Stop() {}
 
 void UbseUrmaUvsModule::Cleanup()
 {
+    ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
     if (handle != nullptr) {
         dlclose(handle);
         handle = nullptr;
         uvsSetTopoInfo = nullptr;
+        uvsSetShareTopoInfo = nullptr;
         uvsGetDeviceNameByUrmaEid = nullptr;
         uvsCreateAggrDev = nullptr;
         uvsDeleteAggrDev = nullptr;

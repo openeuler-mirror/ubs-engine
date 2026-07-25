@@ -12,12 +12,21 @@
 
 #include "test_ubse_urma_controller_rpc.h"
 #include <map>
-#include "test_ubse_urma_controller_def.h"
 #include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
 #include "ubse_context.h"
+#include "ubse_node_controller.h"
+#include "ubse_smbios.h"
 #include "ubse_urma_controller_manager.h"
 #include "ubse_urma_controller_rpc.h"
+#include "ubse_urma_controller_util.h"
+#include "test_ubse_urma_controller_def.h"
+
+namespace ubse::urmaController {
+void ActivateHostBonding();
+UbseResult UbseUrmaAsyncBrocastUrmaInfo();
+UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t>& urmaInfoTimestamps);
+} // namespace ubse::urmaController
 
 namespace ubse::urmaControllerRpc::ut {
 using namespace ubse::com;
@@ -26,68 +35,34 @@ using namespace ubse::urma;
 using namespace ubse::message;
 using namespace ubse::election;
 using namespace ubse::context;
+using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::smbios;
 
-TEST_F(TestUbseUrmaControllerRpc, ConvertUint32ToBondingState_Val1_ReturnsActived)
-{
-    auto ret = ConvertUint32ToBondingState(1);
-    EXPECT_EQ(ret, UrmaDevState::ACTIVED);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ConvertUint32ToBondingState_Val2_ReturnsInactived)
-{
-    auto ret = ConvertUint32ToBondingState(2);
-    EXPECT_EQ(ret, UrmaDevState::INACTIVED);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ConvertUint32ToBondingState_Other_ReturnsUnknown)
-{
-    auto ret = ConvertUint32ToBondingState(0);
-    EXPECT_EQ(ret, UrmaDevState::UNKNOWN);
-
-    ret = ConvertUint32ToBondingState(3);
-    EXPECT_EQ(ret, UrmaDevState::UNKNOWN);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo_Serialize_Fail)
+TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo)
 {
     UrmaDevQueryReqSimpo simpo;
     UrmaDevQueryRpcReq req{};
     req.nodeId = 42;
     simpo.SetUbseUrmaDevReq(req);
-    auto ret = simpo.Serialize();
-    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(simpo.Serialize(), UBSE_OK);
     EXPECT_GT(simpo.SerializedDataSize(), 0);
     EXPECT_NE(simpo.SerializedData(), nullptr);
-}
 
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo_Deserialize_InputNull)
-{
-    UrmaDevQueryReqSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
+    UrmaDevQueryReqSimpo simpo2;
+    EXPECT_EQ(simpo2.Deserialize(), UBSE_ERROR);
 
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo_Deserialize_CorruptData)
-{
     uint8_t badData[4] = {0};
-    UrmaDevQueryReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
-}
+    UrmaDevQueryReqSimpo simpo3(badData, static_cast<uint32_t>(sizeof(badData)));
+    EXPECT_EQ(simpo3.Deserialize(), UBSE_ERROR);
 
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo_RoundTrip)
-{
-    UrmaDevQueryReqSimpo simpo;
-    UrmaDevQueryRpcReq req{};
-    req.nodeId = 99;
-    simpo.SetUbseUrmaDevReq(req);
-    ASSERT_EQ(simpo.Serialize(), UBSE_OK);
-
-    auto data = simpo.SerializedData();
-    auto size = simpo.SerializedDataSize();
-
-    UrmaDevQueryReqSimpo simpo2(data, size);
-    ASSERT_EQ(simpo2.Deserialize(), UBSE_OK);
-    EXPECT_EQ(simpo2.GetUbseUrmaDevReq().nodeId, 99u);
+    UrmaDevQueryReqSimpo simpo4;
+    UrmaDevQueryRpcReq req2{};
+    req2.nodeId = 99;
+    simpo4.SetUbseUrmaDevReq(req2);
+    ASSERT_EQ(simpo4.Serialize(), UBSE_OK);
+    UrmaDevQueryReqSimpo simpo5(simpo4.SerializedData(), simpo4.SerializedDataSize());
+    ASSERT_EQ(simpo5.Deserialize(), UBSE_OK);
+    EXPECT_EQ(simpo5.GetUbseUrmaDevReq().nodeId, 99u);
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_RoundTrip)
@@ -95,7 +70,7 @@ TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_RoundTrip)
     UrmaDevQueryRspSimpo simpo;
     UrmaDevQueryRpcRsp rsp;
     rsp.result = 123;
-    UbseUrmaInfoForQuery info;
+    UbseUrmaDevBrief info;
     info.urmaName = "test_urma";
     info.feEids = {"eid1", "eid2"};
     info.feNames = {"fe1", "fe2"};
@@ -120,18 +95,17 @@ TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_RoundTrip)
     EXPECT_EQ(rsp2.urmaInfos[0].state, UrmaDevState::ACTIVED);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_Deserialize)
 {
-    UrmaDevQueryRspSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UrmaDevQueryRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UrmaDevQueryRspSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UrmaDevQueryRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastReqSimpo_RoundTrip)
@@ -154,18 +128,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastReqSimpo_RoundTrip)
     EXPECT_EQ(req2.urmaInfoTimestamps["node1"], 200);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastReqSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastReqSimpo_Deserialize)
 {
-    UbseUrmaBrocastReqSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastReqSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaBrocastReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaBrocastReqSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaBrocastReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastRspSimpo_RoundTrip)
@@ -180,18 +153,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastRspSimpo_RoundTrip)
     ASSERT_EQ(simpo2.Deserialize(), UBSE_OK);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastRspSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastRspSimpo_Deserialize)
 {
-    UbseUrmaBrocastRspSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaBrocastRspSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaBrocastRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaBrocastRspSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaBrocastRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryReqSimpo_RoundTrip)
@@ -213,18 +185,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryReqSimpo_RoundTrip)
     EXPECT_EQ(req2.updateNodeIds[1], "node1");
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryReqSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryReqSimpo_Deserialize)
 {
-    UbseUrmaQueryReqSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryReqSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaQueryReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaQueryReqSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaQueryReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryRspSimpo_RoundTrip)
@@ -247,18 +218,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryRspSimpo_RoundTrip)
     EXPECT_EQ(rsp2.queryNodeInfos[0].nodeId, "node0");
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryRspSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryRspSimpo_Deserialize)
 {
-    UbseUrmaQueryRspSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaQueryRspSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaQueryRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaQueryRspSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaQueryRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoReqSimpo_RoundTrip)
@@ -286,18 +256,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoReqSimpo_RoundTrip)
     EXPECT_EQ(rspReq.urmaNodeInfo.urmaList["urma_1"].urmaDevEid, "dev_eid_1");
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoReqSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoReqSimpo_Deserialize)
 {
-    UbseUrmaReportUrmaNodeInfoReqSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoReqSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaReportUrmaNodeInfoReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaReportUrmaNodeInfoReqSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaReportUrmaNodeInfoReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoRspSimpo_RoundTrip)
@@ -312,74 +281,17 @@ TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoRspSimpo_RoundTrip)
     ASSERT_EQ(simpo2.Deserialize(), UBSE_OK);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoRspSimpo_Deserialize_InputNull)
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoRspSimpo_Deserialize)
 {
-    UbseUrmaReportUrmaNodeInfoRspSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaReportUrmaNodeInfoRspSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaReportUrmaNodeInfoRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoReqSimpo_RoundTrip)
-{
-    UbseUrmaActivateUrmaInfoReqSimpo simpo;
-    simpo.SetNodeId("node0");
-    simpo.SetUrmaName("urma_1");
-    ASSERT_EQ(simpo.Serialize(), UBSE_OK);
-
-    auto data = simpo.SerializedData();
-    auto size = simpo.SerializedDataSize();
-
-    UbseUrmaActivateUrmaInfoReqSimpo simpo2(data, size);
-    ASSERT_EQ(simpo2.Deserialize(), UBSE_OK);
-    EXPECT_EQ(simpo2.GetNodeId(), "node0");
-    EXPECT_EQ(simpo2.GetUrmaName(), "urma_1");
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoReqSimpo_Deserialize_InputNull)
-{
-    UbseUrmaActivateUrmaInfoReqSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoReqSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaActivateUrmaInfoReqSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoRspSimpo_RoundTrip)
-{
-    UbseUrmaActivateUrmaInfoRspSimpo simpo;
-    ASSERT_EQ(simpo.Serialize(), UBSE_OK);
-
-    auto data = simpo.SerializedData();
-    auto size = simpo.SerializedDataSize();
-
-    UbseUrmaActivateUrmaInfoRspSimpo simpo2(data, size);
-    ASSERT_EQ(simpo2.Deserialize(), UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoRspSimpo_Deserialize_InputNull)
-{
-    UbseUrmaActivateUrmaInfoRspSimpo simpo;
-    auto ret = simpo.Deserialize();
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoRspSimpo_Deserialize_CorruptData)
-{
-    uint8_t badData[4] = {0};
-    UbseUrmaActivateUrmaInfoRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
-    EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    {
+        UbseUrmaReportUrmaNodeInfoRspSimpo simpo;
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
+    {
+        uint8_t badData[4] = {0};
+        UbseUrmaReportUrmaNodeInfoRspSimpo simpo(badData, static_cast<uint32_t>(sizeof(badData)));
+        EXPECT_EQ(simpo.Deserialize(), UBSE_ERROR);
+    }
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UbseUrmaDevQueryMessageHandler_GetModuleCode)
@@ -442,7 +354,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_LocalNodeQuery)
     currentInfo.nodeId = "123";
     MOCKER_CPP(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UbseUrmaControllerManager::GetUrmaInfoForQuery).stubs();
+    MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByRpc).stubs();
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
     req->SetUbseUrmaDevReq({.nodeId = 123});
@@ -690,121 +602,6 @@ TEST_F(TestUbseUrmaControllerRpc, ReportHandle_BrocastFails)
     EXPECT_EQ(rsp->GetErrCode(), UBSE_ERROR);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoMessageHandler_GetModuleCode)
-{
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    EXPECT_EQ(handler.GetModuleCode(), static_cast<uint16_t>(UbseModuleCode::UBSE_URMA));
-}
-
-TEST_F(TestUbseUrmaControllerRpc, UbseUrmaActivateUrmaInfoMessageHandler_GetOpCode)
-{
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    EXPECT_EQ(handler.GetOpCode(), static_cast<uint16_t>(UbseUrmaRpcOpCode::URMA_RPC_DEV_ACTIVATE));
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_GlobalStop)
-{
-    g_globalStop = true;
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::gNullPtr, UbseBaseMessage::gNullPtr, nullptr);
-    g_globalStop = false;
-    EXPECT_EQ(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_RequestOrResponseNull)
-{
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::gNullPtr, UbseBaseMessage::gNullPtr, nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_GetCurNodeIdAndMasterNodeIdFails_GetCurrentError)
-{
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
-
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    req->SetNodeId("node0");
-    req->SetUrmaName("urma_1");
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR_AGAIN);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_GetCurNodeIdAndMasterNodeIdFails_GetMasterError)
-{
-    UbseRoleInfo currentInfo;
-    currentInfo.nodeId = "node0";
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetMasterInfo).stubs().will(returnValue(UBSE_ERROR));
-
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    req->SetNodeId("node0");
-    req->SetUrmaName("urma_1");
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR_AGAIN);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_LocalNodeActivate)
-{
-    UbseRoleInfo currentInfo;
-    currentInfo.nodeId = "node0";
-    UbseRoleInfo masterInfo;
-    masterInfo.nodeId = "master";
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(&UrmaController::ActivateSpecifyUrmaBonding).stubs().will(returnValue(UBSE_OK));
-
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    req->SetNodeId("node0");
-    req->SetUrmaName("urma_1");
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
-    EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(rsp->GetErrCode(), UBSE_OK);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_MasterForward_ComModuleNull)
-{
-    UbseRoleInfo currentInfo;
-    currentInfo.nodeId = "master";
-    UbseRoleInfo masterInfo;
-    masterInfo.nodeId = "master";
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
-
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    req->SetNodeId("node0");
-    req->SetUrmaName("urma_1");
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR_NULLPTR);
-    EXPECT_EQ(rsp->GetErrCode(), UBSE_ERROR_NULLPTR);
-}
-
-TEST_F(TestUbseUrmaControllerRpc, ActivateHandle_OtherNode)
-{
-    UbseRoleInfo currentInfo;
-    currentInfo.nodeId = "other";
-    UbseRoleInfo masterInfo;
-    masterInfo.nodeId = "master";
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
-
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    req->SetNodeId("node0");
-    req->SetUrmaName("urma_1");
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    UbseUrmaActivateUrmaInfoMessageHandler handler;
-    auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
-    EXPECT_EQ(ret, UBSE_ERROR_INVAL);
-    EXPECT_EQ(rsp->GetErrCode(), UBSE_ERROR_INVAL);
-}
-
 TEST_F(TestUbseUrmaControllerRpc, GetCurNodeIdAndMasterNodeId_GetCurrentNodeInfoFails)
 {
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
@@ -906,16 +703,6 @@ TEST_F(TestUbseUrmaControllerRpc, ReportUrmaNodeInfoToMaster_RpcSendFails)
     EXPECT_EQ(ret, UBSE_ERROR);
 }
 
-TEST_F(TestUbseUrmaControllerRpc, ForwardActiveReqToSpecifyNode_RpcSendFails)
-{
-    auto comModule = std::make_shared<UbseComModule>();
-    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
-    Ref<UbseUrmaActivateUrmaInfoReqSimpo> req = new UbseUrmaActivateUrmaInfoReqSimpo();
-    Ref<UbseUrmaActivateUrmaInfoRspSimpo> rsp = new UbseUrmaActivateUrmaInfoRspSimpo();
-    auto ret = ForwardActiveReqToSpecifyNode("node0", UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp));
-    EXPECT_EQ(ret, UBSE_ERROR);
-}
-
 TEST_F(TestUbseUrmaControllerRpc, PostUpdateUrmaInfosTask_GlobalStop)
 {
     std::map<std::string, uint64_t> timestamps;
@@ -952,4 +739,29 @@ TEST_F(TestUbseUrmaControllerRpc, DoUpdateUrmaInfos_QueryUrmaInfoFromMasterFails
     auto ret = DoUpdateUrmaInfos({"node0"});
     EXPECT_EQ(ret, UBSE_ERROR);
 }
+
+TEST_F(TestUbseUrmaControllerRpc, ActivateHostBonding)
+{
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    ActivateHostBonding();
+    GlobalMockObject::verify();
+
+    auto& mgr = UbseUrmaControllerManager::GetInstance();
+    mgr.feTopoType = FeTopoType::PFE_VFE_HYBRID;
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    MOCKER_CPP(&UbseNodeController::IsHostBondingRegistered).stubs().will(returnValue(false));
+    MOCKER_CPP(HandleTaskWithRetry).stubs().will(returnValue(UBSE_OK));
+    ActivateHostBonding();
+}
+
+TEST_F(TestUbseUrmaControllerRpc, UbseUrmaAsyncBrocastUrmaInfo_NullTaskExecutor)
+{
+    EXPECT_EQ(UbseUrmaAsyncBrocastUrmaInfo(), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseUrmaControllerRpc, PostUpdateUrmaInfosTask_NullTaskExecutor)
+{
+    EXPECT_EQ(PostUpdateUrmaInfosTask({}), UBSE_ERROR_NULLPTR);
+}
+
 } // namespace ubse::urmaControllerRpc::ut

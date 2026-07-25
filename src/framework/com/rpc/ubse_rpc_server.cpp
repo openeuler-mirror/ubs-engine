@@ -11,31 +11,36 @@
  */
 
 #include "rpc/ubse_rpc_server.h"
+#include "ubse_conf.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_node_mgr.h"
 
 namespace ubse::com {
-UBSE_DEFINE_THIS_MODULE("ubse");
+using namespace ubse::module;
 using namespace ubse::config;
 using namespace ubse::context;
+using namespace ubse::log;
+using namespace ubse::common::def;
 const std::string WorkGroup = "server";
-
-UbseResult GetUBEnableForRpc(bool &ubEnable)
-{
-    ubEnable = nodeMgr::IsUrma();
-    return UBSE_OK;
-}
+UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseRpcServer::Start()
 {
-    auto ret = GetUBEnableForRpc(ubEnable_);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to get config ubEnable";
-        return UBSE_ERROR_CONF_INVALID;
+    ubEnable_ = nodeMgr::IsUrma();
+    if (ubEnable_) {
+        auto confModule = UbseContext::GetInstance().GetModule<UbseConfModule>();
+        if (confModule == nullptr) {
+            UBSE_LOG_ERROR << "confModule nullptr";
+            return UBSE_ERROR_NULLPTR;
+        }
+        if (!confModule->IsUrmaSupported()) {
+            UBSE_LOG_ERROR << "URMA is unsupported, communication cannot start, ";
+            return UBSE_ERROR_CONF_INVALID;
+        }
     }
     uint16_t hcomHbTimeout;
-    ret = GetHcomHbTimeout(hcomHbTimeout);
+    auto ret = GetHcomHbTimeout(hcomHbTimeout);
     if (ret != UBSE_OK) {
         hcomHbTimeout = DEFAULT_HCOM_HB_TIMEOUT;
     }
@@ -78,7 +83,7 @@ void UbseRpcServer::Stop()
     UbseCommunication::DeleteUbseComEngine(name_);
 }
 
-UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &remoteNodeId)
+UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string& remoteNodeId)
 {
     UbseResult ret = UBSE_ERROR;
     if (option.channelType == UbseChannelType::NORMAL) {
@@ -90,7 +95,7 @@ UbseResult UbseRpcServer::ConnectWithOption(ConnectOption option, std::string &r
     return ret;
 }
 
-UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t &hcomHbTimeout)
+UbseResult UbseRpcServer::GetHcomHbTimeout(uint16_t& hcomHbTimeout)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseConfModule>();
     if (module == nullptr) {
@@ -139,4 +144,4 @@ UbseResult UbseRpcServer::RegBrokenChannelCb(UbseComCallBackForHA func)
     return UBSE_OK;
 }
 
-}
+} // namespace ubse::com

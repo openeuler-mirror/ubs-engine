@@ -38,7 +38,7 @@ TEST_F(TestLibvirtModule, InitSuccess)
 {
     LibvirtModule module;
     auto MockLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&MockLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&MockLibrary)));
     VmResult ret = module.Init();
     EXPECT_EQ(ret, VM_OK);
     MOCKER(dlopen).reset();
@@ -55,7 +55,7 @@ TEST_F(TestLibvirtModule, InitSuccess)
 TEST_F(TestLibvirtModule, InitFailure)
 {
     LibvirtModule module;
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
     VmResult ret = module.Init();
     EXPECT_EQ(ret, VM_ERROR);
     MOCKER(dlopen).reset();
@@ -63,30 +63,33 @@ TEST_F(TestLibvirtModule, InitFailure)
 
 TEST_F(TestLibvirtModule, VirConnectOpenTest)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(LibvirtModule::VirConnectOpen(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(MockDlsys)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(MockDlsys)));
     EXPECT_NE(LibvirtModule::VirConnectOpen(), nullptr);
 }
 
-void LVModuleVirConnectClose(void *param1) {}
+void LVModuleVirConnectClose(void* param1) {}
 TEST_F(TestLibvirtModule, VirConnectCloseTest)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(LibvirtModule::VirConnectClose(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(LVModuleVirConnectClose)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(LVModuleVirConnectClose)));
     EXPECT_NE(LibvirtModule::VirConnectClose(), nullptr);
 }
 
-int LVModuleVirDomainFree(void *param1) {return 0;}
+int LVModuleVirDomainFree(void* param1)
+{
+    return 0;
+}
 TEST_F(TestLibvirtModule, VirDomainFreeTest)
 {
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     EXPECT_EQ(LibvirtModule::VirDomainFree(), nullptr);
     MOCKER(dlsym).reset();
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(LVModuleVirDomainFree)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(LVModuleVirDomainFree)));
     EXPECT_NE(LibvirtModule::VirDomainFree(), nullptr);
 }
-}
+} // namespace ubse::ut::vm

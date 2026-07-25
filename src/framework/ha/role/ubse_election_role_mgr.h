@@ -17,9 +17,6 @@
 #include <memory>
 #include <shared_mutex>
 #include <utility>
-#include "../ubse_election_comm_mgr.h"
-#include "../ubse_election_def.h"
-#include "../ubse_election_node_mgr.h"
 #include "ubse_com_module.h"
 #include "ubse_election_module.h"
 #include "ubse_election_role.h"
@@ -28,6 +25,9 @@
 #include "ubse_election_role_master.h"
 #include "ubse_election_role_standby.h"
 #include "ubse_node_mgr.h"
+#include "../ubse_election_comm_mgr.h"
+#include "../ubse_election_def.h"
+#include "../ubse_election_node_mgr.h"
 
 namespace ubse::election {
 #define MODULE_LOG_NAME "ubse"
@@ -35,7 +35,7 @@ class RoleMgr {
 public:
     RoleMgr()
     {
-        UbseElectionNodeMgr &nodeMgr = UbseElectionNodeMgr::GetInstance();
+        UbseElectionNodeMgr& nodeMgr = UbseElectionNodeMgr::GetInstance();
         Node myself;
         nodeMgr.GetMyselfNode(myself);
         currentRole_ = SafeMakeShared<Initializer>();
@@ -64,7 +64,7 @@ public:
         }
     };
 
-    static RoleMgr &GetInstance()
+    static RoleMgr& GetInstance()
     {
         static RoleMgr roleMgr;
         return roleMgr;
@@ -103,7 +103,7 @@ public:
     void ConnectInterManagingGroup(); // 不同管理组之间建立的连接
     void QueryManagingMaster();
     std::vector<UBSE_ID_TYPE> GetManagingGroupMasterIds();
-    
+
     /* *
      * 获取指定组信息
      * @param groupId 组ID
@@ -111,7 +111,7 @@ public:
      * @return UBSE_OK 成功，UBSE_ERROR 失败
      */
     UbseResult GetGroupState(const UBSE_ID_TYPE &groupId, GroupSummaryInfo &state);
-    
+
     /* *
      * 获取所有组信息
      * @return 组信息映射表
@@ -170,7 +170,7 @@ private:
         {
         }
 
-        bool operator<(const SafeHandler &other) const
+        bool operator<(const SafeHandler& other) const
         {
             if (priority != other.priority) {
                 return priority < other.priority;

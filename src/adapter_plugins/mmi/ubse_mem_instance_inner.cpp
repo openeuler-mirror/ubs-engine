@@ -21,6 +21,7 @@
 #include "ubse_mem_obj_restore.h"
 #include "ubse_node_controller.h"
 #include "ubse_obmm_executor.h"
+#include "ubse_obmm_meta_restore.h"
 #include "ubse_obmm_utils.h"
 #include "ubse_str_util.h"
 #include "ubse_topo_util.h"
@@ -35,7 +36,7 @@ using namespace ubse::mmi::restore;
 using namespace ubse::mem::decoder::utils;
 static int LOCAL_NUMA_MAX{0};
 
-uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImportObj &importObj)
+uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImportObj& importObj)
 {
     auto ret = MemInstanceInnerCommon::GetInstance().RemoteNumaIdInit();
     if (UBSE_RESULT_FAIL(ret)) {
@@ -64,7 +65,7 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImpo
                         customMeta,
                         ubPrivData,
                         mode};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, importObj.req.ubseMemPrivData);
     auto memids = RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, opParam, importObj.status, &numa);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
                   << RmCommonUtils::GetInstance().MemToStr(memids) << " remoteNuma=" << numa;
@@ -81,25 +82,36 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaImportExecutor(UbseMemNumaBorrowImpo
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerNumaBorrow::MemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj &importObj)
+uint32_t MemInstanceInnerNumaBorrow::MemNumaUnImportExecutor(const UbseMemNumaBorrowImportObj& importObj)
 {
     UbseResult ret = UBSE_OK;
-    // 通过pid来判断是不是大数据的numa借用
-    std::vector<mem_id> memIds{};
-    memIds.reserve(importObj.status.importResults.size());
+    auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
     for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
-        memIds.push_back(importObj.status.importResults[i].memId);
-    }
-    ret = RmObmmExecutor::GetInstance().ObmmUnImport(memIds);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Obmm unImport memid failed, memid= " << RmCommonUtils::GetInstance().MemToStr(memIds)
-                       << ", res=" << ret;
+        auto memId = importObj.status.importResults[i].memId;
+        uint8_t obmmType = 0;
+        auto typeRet = RmObmmDevRead::GetBorrowTypeByMemId(memId, obmmType);
+        if (typeRet == UBSE_OK && obmmType != static_cast<uint8_t>(UbseBorrowType::NUMA_BORROW)) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Type mismatch, skip unimport, memid=" << memId
+                          << ", expected=import, actual=" << static_cast<int>(obmmType);
+            continue;
+        }
+        std::string obmmName;
+        auto nameRet = RmObmmDevRead::GetNameByMemId(memId, obmmName);
+        if (nameRet == UBSE_OK && obmmName != importObj.req.name) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Name mismatch, skip unimport, memid=" << memId
+                          << ", expected=" << importObj.req.name << ", actual=" << obmmName;
+            continue;
+        }
+        ret = RmObmmExecutor::GetInstance().ObmmUnImport(memId, timeoutMs);
+        if (UBSE_RESULT_FAIL(ret)) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid= " << memId << ", res=" << ret;
+            return ret;
+        }
     }
     return ret;
 }
 
-uint32_t MemInstanceInnerNumaBorrow::MemNumaExportExecutor(UbseMemNumaBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerNumaBorrow::MemNumaExportExecutor(UbseMemNumaBorrowExportObj& exportObj)
 {
     std::vector<ubse_mem_obmm_mem_desc> obmmMemDesc{};
     std::vector<uint64_t> memIdList{};
@@ -123,7 +135,7 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaExportExecutor(UbseMemNumaBorrowExpo
                         customMeta,
                         ubPrivData,
                         mode};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, exportObj.req.ubseMemPrivData);
     auto blockSize = RmCommonUtils::GetInstance().SizeMb2Byte(exportObj.algoResult.blockSize);
     memIdList = RmObmmExecutor::GetInstance().ObmmExport(sizes, MAX_NUMA_NODES, opParam, obmmMemDesc, blockSize);
     if (memIdList.empty() || memIdList.size() != obmmMemDesc.size()) {
@@ -138,12 +150,14 @@ uint32_t MemInstanceInnerNumaBorrow::MemNumaExportExecutor(UbseMemNumaBorrowExpo
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerNumaBorrow::MemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerNumaBorrow::MemNumaUnExportExecutor(const UbseMemNumaBorrowExportObj& exportObj)
 {
-    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj);
+    auto expectedName = GenerateExportKey(exportObj.req.name, exportObj.algoResult.importNumaInfos[0].nodeId);
+    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj, expectedName,
+                                                                  static_cast<uint8_t>(UbseBorrowType::NUMA_BORROW));
 }
 
-uint32_t MemInstanceInnerFdBorrow::MemFdImportExecutor(UbseMemFdBorrowImportObj &importObj)
+uint32_t MemInstanceInnerFdBorrow::MemFdImportExecutor(UbseMemFdBorrowImportObj& importObj)
 {
     UbseMemLocalObmmCustomMeta customMeta{};
     auto ret = GetCustomMetaFromFdImportObj(importObj, customMeta);
@@ -153,7 +167,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportExecutor(UbseMemFdBorrowImportObj 
     }
     ObmmOpParam obmmOpParam{UbseBorrowType::FD_BORROW, importObj.req.owner.uid, importObj.req.owner.gid, customMeta};
     obmmOpParam.mode = importObj.req.owner.mode;
-    ConstructUbMemPrivData(obmmOpParam.privData, 0, 0);
+    CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
     auto memids =
         RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, nullptr);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
@@ -171,7 +185,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportExecutor(UbseMemFdBorrowImportObj 
     return 0;
 }
 
-uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrowImportObj &importObj)
+uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrowImportObj& importObj)
 {
     std::vector<std::string> OBMMDevices{};
     OBMMDevices.reserve(importObj.status.importResults.size());
@@ -183,7 +197,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrow
     // 设置权限
     std::vector<__u32> caps = {CAP_FOWNER, CAP_CHOWN};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    for (const auto &OBMMDevice : OBMMDevices) {
+    for (const auto& OBMMDevice : OBMMDevices) {
         if (UbseFileUtil::CheckFileExists(OBMMDevice)) {
             bool res = UbseFileUtil::SetFileAttributes(OBMMDevice, owner.uid, owner.gid, owner.mode);
             if (!res) {
@@ -200,22 +214,36 @@ uint32_t MemInstanceInnerFdBorrow::MemFdImportPermissionExecutor(UbseMemFdBorrow
     return success ? UBSE_OK : UBSE_ERROR;
 }
 
-uint32_t MemInstanceInnerFdBorrow::MemFdUnImportExecutor(const UbseMemFdBorrowImportObj &importObj)
+uint32_t MemInstanceInnerFdBorrow::MemFdUnImportExecutor(const UbseMemFdBorrowImportObj& importObj)
 {
     UbseResult ret = UBSE_OK;
-    std::vector<mem_id> memIds{};
+    auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
     for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
-        memIds.push_back(importObj.status.importResults[i].memId);
-    }
-    ret = RmObmmExecutor::GetInstance().ObmmUnImport(memIds);
-    if (UBSE_RESULT_FAIL(ret)) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Obmm unImport memid failed, memid= " << RmCommonUtils::GetInstance().MemToStr(memIds);
+        auto memId = importObj.status.importResults[i].memId;
+        uint8_t obmmType = 0;
+        auto typeRet = RmObmmDevRead::GetBorrowTypeByMemId(memId, obmmType);
+        if (typeRet == UBSE_OK && obmmType != static_cast<uint8_t>(UbseBorrowType::FD_BORROW)) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Type mismatch, skip unimport, memid=" << memId
+                          << ", expected=import, actual=" << static_cast<int>(obmmType);
+            continue;
+        }
+        std::string obmmName;
+        auto nameRet = RmObmmDevRead::GetNameByMemId(memId, obmmName);
+        if (nameRet == UBSE_OK && obmmName != importObj.req.name) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Name mismatch, skip unimport, memid=" << memId
+                          << ", expected=" << importObj.req.name << ", actual=" << obmmName;
+            continue;
+        }
+        ret = RmObmmExecutor::GetInstance().ObmmUnImport(memId, timeoutMs);
+        if (UBSE_RESULT_FAIL(ret)) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid= " << memId;
+            return ret;
+        }
     }
     return ret;
 }
 
-uint32_t MemInstanceInnerFdBorrow::MemFdExportExecutor(UbseMemFdBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerFdBorrow::MemFdExportExecutor(UbseMemFdBorrowExportObj& exportObj)
 {
     std::vector<ubse_mem_obmm_mem_desc> obmmMemDesc{};
     std::vector<uint64_t> memIdList{};
@@ -232,7 +260,7 @@ uint32_t MemInstanceInnerFdBorrow::MemFdExportExecutor(UbseMemFdBorrowExportObj 
         return UBSE_ERROR_INVAL;
     }
     ObmmOpParam opParam{UbseBorrowType::FD_BORROW, exportObj.req.udsInfo.uid, exportObj.req.udsInfo.gid, customMeta};
-    ConstructUbMemPrivData(opParam.privData, 0, 0);
+    CopyUbMemPrivData(opParam.privData, exportObj.req.ubseMemPrivData);
     auto blockSize = RmCommonUtils::GetInstance().SizeMb2Byte(exportObj.algoResult.blockSize);
     memIdList = RmObmmExecutor::GetInstance().ObmmExport(sizes, MAX_NUMA_NODES, opParam, obmmMemDesc, blockSize);
     if (memIdList.empty() || memIdList.size() != obmmMemDesc.size()) {
@@ -247,12 +275,14 @@ uint32_t MemInstanceInnerFdBorrow::MemFdExportExecutor(UbseMemFdBorrowExportObj 
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerFdBorrow::MemFdUnExportExecutor(const UbseMemFdBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerFdBorrow::MemFdUnExportExecutor(const UbseMemFdBorrowExportObj& exportObj)
 {
-    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj);
+    auto expectedName = GenerateExportKey(exportObj.req.name, exportObj.algoResult.importNumaInfos[0].nodeId);
+    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj, expectedName,
+                                                                  static_cast<uint8_t>(UbseBorrowType::FD_BORROW));
 }
 
-void MemInstanceInnerCommon::RollbackImport(const std::vector<mem_id> &memids)
+void MemInstanceInnerCommon::RollbackImport(const std::vector<mem_id>& memids)
 {
     for (auto item : memids) {
         auto res = RmObmmExecutor::GetInstance().ObmmUnImport(item);
@@ -262,7 +292,7 @@ void MemInstanceInnerCommon::RollbackImport(const std::vector<mem_id> &memids)
     }
 }
 
-void MemInstanceInnerCommon::RollbackExport(const std::vector<mem_id> &memids)
+void MemInstanceInnerCommon::RollbackExport(const std::vector<mem_id>& memids)
 {
     for (auto item : memids) {
         auto res = RmObmmExecutor::GetInstance().ObmmUnExport(item);
@@ -272,7 +302,7 @@ void MemInstanceInnerCommon::RollbackExport(const std::vector<mem_id> &memids)
     }
 }
 
-uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj &importObj)
+uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj& importObj)
 {
     // 自己map自己的情况
     auto exportNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
@@ -292,8 +322,9 @@ uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj &
         for (size_t i = 0; i < importObj.exportObmmInfo.size(); i++) {
             importObj.status.importResults.push_back({importObj.exportObmmInfo[i].memId, -1});
             UBSE_LOG_INFO << MMI_LOG_INFO << " name=" << importObj.req.name
-            << ", opParam=BorrowType=SHARE_BORROW, obmm importMemid=" << importObj.exportObmmInfo[i].memId
-            << ", obmm exportMemid=" << importObj.exportObmmInfo[i].memId << ", exportNodeId=" <<exportNodeId;
+                          << ", opParam=BorrowType=SHARE_BORROW, obmm importMemid=" << importObj.exportObmmInfo[i].memId
+                          << ", obmm exportMemid=" << importObj.exportObmmInfo[i].memId
+                          << ", exportNodeId=" << exportNodeId;
         }
         importObj.status.errCode = UBSE_OK;
         UBSE_LOG_INFO << MMI_LOG_INFO << "self Node has export memid,so return.";
@@ -310,7 +341,7 @@ uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj &
     ObmmOpParam obmmOpParam{UbseBorrowType::SHARE_BORROW, importObj.shareAttr.owner.uid, importObj.shareAttr.owner.gid,
                             customMeta};
     obmmOpParam.mode = importObj.shareAttr.owner.mode;
-    MemInstanceInnerCommon::GetInstance().SetPrivDataByShareReq(obmmOpParam.privData, importObj.req.ubseMemPrivData);
+    CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
     auto memids =
         RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo, obmmOpParam, importObj.status, nullptr);
     UBSE_LOG_INFO << MMI_LOG_INFO << "AgentRpcObmmImportHandler Execute ObmmImport, memIdList="
@@ -328,33 +359,48 @@ uint32_t MemInstanceInnerShm::MemShmImportExecutor(UbseMemShareBorrowImportObj &
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerShm::MemShmUnImportExecutor(const UbseMemShareBorrowImportObj &importObj)
+uint32_t MemInstanceInnerShm::MemShmUnImportExecutor(const UbseMemShareBorrowImportObj& importObj)
 {
     UbseResult ret = UBSE_OK;
     if (!importObj.realExe) {
         UBSE_LOG_INFO << MMI_LOG_INFO << "self map export memid, unmap do nothing.";
         return ret;
     }
-    std::vector<mem_id> memIds{};
+    auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
     for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
-        memIds.push_back(importObj.status.importResults[i].memId);
-    }
-    ret = RmObmmExecutor::GetInstance().ObmmUnImport(memIds);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << MMI_LOG_INFO
-                       << "Obmm unImport memid failed, memid= " << RmCommonUtils::GetInstance().MemToStr(memIds);
+        auto memId = importObj.status.importResults[i].memId;
+        uint8_t obmmType = 0;
+        auto typeRet = RmObmmDevRead::GetBorrowTypeByMemId(memId, obmmType);
+        if (typeRet == UBSE_OK && obmmType != static_cast<uint8_t>(UbseBorrowType::SHARE_BORROW)) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Type mismatch, skip unimport, memid=" << memId
+                          << ", expected=import, actual=" << static_cast<int>(obmmType);
+            continue;
+        }
+        std::string obmmName;
+        auto nameRet = RmObmmDevRead::GetNameByMemId(memId, obmmName);
+        if (nameRet == UBSE_OK && obmmName != importObj.req.name) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Name mismatch, skip unimport, memid=" << memId
+                          << ", expected=" << importObj.req.name << ", actual=" << obmmName;
+            continue;
+        }
+        ret = RmObmmExecutor::GetInstance().ObmmUnImport(memId, timeoutMs);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << MMI_LOG_INFO
+                           << "Obmm unImport memid failed, memid= " << importObj.status.importResults[i].memId;
+            return ret;
+        }
     }
     return ret;
 }
 
-bool IsValidUbMemPrivData(UbMemPrivData &ubPrivData)
+bool IsValidUbMemPrivData(UbMemPrivData& ubPrivData)
 {
     return !(ubPrivData.one_pth == 0 && ubPrivData.wr_delay_comp == 0 && ubPrivData.reduce_delay_comp == 0 &&
              ubPrivData.cmo_delay_comp == 0 && ubPrivData.so == 0 && ubPrivData.ad_tr_ochip == 0 &&
              ubPrivData.cacheable_flag == 0 && ubPrivData.mar_id == 0 && ubPrivData.rsv0 == 0);
 }
 
-uint32_t MemInstanceInnerShm::MemShmExportExecutor(UbseMemShareBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerShm::MemShmExportExecutor(UbseMemShareBorrowExportObj& exportObj)
 {
     std::vector<ubse_mem_obmm_mem_desc> obmmMemDesc{};
     std::vector<uint64_t> memIdList{};
@@ -389,12 +435,13 @@ uint32_t MemInstanceInnerShm::MemShmExportExecutor(UbseMemShareBorrowExportObj &
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerShm::MemShmUnExportExecutor(const UbseMemShareBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerShm::MemShmUnExportExecutor(const UbseMemShareBorrowExportObj& exportObj)
 {
-    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj);
+    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj, exportObj.req.name,
+                                                                  static_cast<uint8_t>(UbseBorrowType::SHARE_BORROW));
 }
 
-static uint32_t MemGetObjDataFdNuma(const LocalObmmMetaData &localObmmMetaData, NodeMemDebtInfo &memBorrowObj)
+static uint32_t MemGetObjDataFdNuma(const LocalObmmMetaData& localObmmMetaData, NodeMemDebtInfo& memBorrowObj)
 {
     auto ret = ConstructFdImportObj(localObmmMetaData.FdImportMetaData, memBorrowObj.fdImportObjMap);
     if (UBSE_RESULT_FAIL(ret)) {
@@ -418,8 +465,8 @@ static uint32_t MemGetObjDataFdNuma(const LocalObmmMetaData &localObmmMetaData, 
     return ret;
 }
 
-uint32_t MemInstanceInnerCommon::MemGetObjData(NodeMemDebtInfo &memBorrowObj,
-                                               std::vector<UbseMemLocalObmmMetaData> &allObmmDatas)
+uint32_t MemInstanceInnerCommon::MemGetObjData(NodeMemDebtInfo& memBorrowObj,
+                                               std::vector<UbseMemLocalObmmMetaData>& allObmmDatas)
 {
     LocalObmmMetaData localObmmMetaData{};
     auto ret = GetLocalObmmMeta(allObmmDatas, localObmmMetaData);
@@ -460,7 +507,7 @@ uint32_t MemInstanceInnerCommon::MemGetObjData(NodeMemDebtInfo &memBorrowObj,
     return ret;
 }
 
-uint64_t MemInstanceInnerCommon::SetObmmDescDefaultErrorValue(std::vector<ubse_mem_obmm_mem_desc> &obmmMemDescs,
+uint64_t MemInstanceInnerCommon::SetObmmDescDefaultErrorValue(std::vector<ubse_mem_obmm_mem_desc>& obmmMemDescs,
                                                               const uint64_t totalSize, const uint64_t blockSize)
 {
     if (blockSize == 0) {
@@ -480,7 +527,7 @@ uint64_t MemInstanceInnerCommon::SetObmmDescDefaultErrorValue(std::vector<ubse_m
     for (size_t i = 0; i < blockCount; ++i) {
         obmmMemDescs.push_back({});
     }
-    for (auto &obmmMemDesc : obmmMemDescs) {
+    for (auto& obmmMemDesc : obmmMemDescs) {
         obmmMemDesc.length = 0;
     }
     return blockCount;
@@ -488,12 +535,12 @@ uint64_t MemInstanceInnerCommon::SetObmmDescDefaultErrorValue(std::vector<ubse_m
 
 static void RollBackAddrRemoteNuma(std::vector<int> addrRemoteNumaIds)
 {
-    for (auto &item : addrRemoteNumaIds) {
+    for (auto& item : addrRemoteNumaIds) {
         MemInstanceInnerAddrBorrow::GetInstance().DeleteAddrRemoteNuma(item);
     }
 }
 
-uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImportObj &importObj)
+uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImportObj& importObj)
 {
     int addrRemoteNumaId = INVALID_NUMAID;
     std::vector<mem_id> memIds{};
@@ -522,8 +569,8 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
         addrRemoteNumaIds.push_back(addrRemoteNumaId);
         obmmOpParam.customMeta.memidCount = importObj.exportObmmInfo.size();
         obmmOpParam.customMeta.virAddr = importObj.req.exportAddrList[i].addr;
-        ConstructUbMemPrivData(obmmOpParam.privData, 0, importObj.req.wrDelayComp);
-        UBSE_LOG_DEBUG << "The value of wr_delay_comp is " << importObj.req.wrDelayComp;
+        CopyUbMemPrivData(obmmOpParam.privData, importObj.req.ubseMemPrivData);
+        UBSE_LOG_DEBUG << "The value of wr_delay_comp is " << importObj.req.ubseMemPrivData.wrDelayComp;
         mem_id memid =
             RmObmmExecutor::GetInstance().ObmmImport(importObj.exportObmmInfo[i].desc, obmmOpParam, &addrRemoteNumaId);
         if (memid == INVALID_MEM_ID || addrRemoteNumaId == -1) {
@@ -540,33 +587,47 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrImportExecutor(UbseMemAddrBorrowImpo
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerAddrBorrow::MemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj &importObj)
+uint32_t MemInstanceInnerAddrBorrow::MemAddrUnImportExecutor(const UbseMemAddrBorrowImportObj& importObj)
 {
     UbseResult ret = UBSE_OK;
+    auto timeoutMs = RmObmmExecutor::CalculateUnImportTimeout(importObj.algoResult.blockSize);
     for (size_t i = 0; i < importObj.status.importResults.size(); i++) {
-        ret = RmObmmExecutor::GetInstance().ObmmUnImport(importObj.status.importResults[i].memId);
+        auto memId = importObj.status.importResults[i].memId;
+        uint8_t obmmType = 0;
+        auto typeRet = RmObmmDevRead::GetBorrowTypeByMemId(memId, obmmType);
+        if (typeRet == UBSE_OK && obmmType != static_cast<uint8_t>(UbseBorrowType::ADDR_BORROW)) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Type mismatch, skip unimport, memid=" << memId
+                          << ", expected=import, actual=" << static_cast<int>(obmmType);
+            continue;
+        }
+        std::string obmmName;
+        auto nameRet = RmObmmDevRead::GetNameByMemId(memId, obmmName);
+        if (nameRet == UBSE_OK && obmmName != importObj.req.name) {
+            UBSE_LOG_WARN << MMI_LOG_INFO << "Name mismatch, skip unimport, memid=" << memId
+                          << ", expected=" << importObj.req.name << ", actual=" << obmmName;
+            continue;
+        }
+        ret = RmObmmExecutor::GetInstance().ObmmUnImport(memId, timeoutMs);
         if (UBSE_RESULT_FAIL(ret)) {
-            UBSE_LOG_ERROR << MMI_LOG_INFO
-                           << "Obmm unImport memid failed, memid= " << importObj.status.importResults[i].memId;
+            UBSE_LOG_ERROR << MMI_LOG_INFO << "Obmm unImport memid failed, memid= " << memId;
             return ret;
         }
-        UBSE_LOG_DEBUG << MMI_LOG_INFO
-                       << "Obmm unImport memid success, memid=" << importObj.status.importResults[i].memId;
+        UBSE_LOG_DEBUG << MMI_LOG_INFO << "Obmm unImport memid success, memid=" << memId;
         DeleteAddrRemoteNuma(importObj.status.importResults[i].numaId);
     }
     return ret;
 }
 
-uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExportObj& exportObj)
 {
-    const auto &addr = exportObj.req.exportAddrList;
+    const auto& addr = exportObj.req.exportAddrList;
     std::vector<mem_id> memIds{};
     std::vector<ubse_mem_obmm_mem_desc> memDescs{};
     UbseMemLocalObmmCustomMeta customMeta{};
     UbMemPrivData ubMemPrivData{};
     std::unordered_map<uint64_t, uint64_t> exportNumaInfoMap{};
 
-    ConstructUbMemPrivData(ubMemPrivData, 0, 0);
+    CopyUbMemPrivData(ubMemPrivData, exportObj.req.ubseMemPrivData);
     for (size_t i = 0; i < addr.size(); ++i) {
         auto ret = GetCustomMetaFromAddrExportObj(exportObj, customMeta);
         if (UBSE_RESULT_FAIL(ret)) {
@@ -577,8 +638,10 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExpo
         customMeta.memidCount = addr.size();
         customMeta.virAddr = addr[i].addr;
         ubse_mem_obmm_mem_desc obmmMemDesc{};
-        ObmmPidExportParam param(static_cast<int>(exportObj.req.exportPid), reinterpret_cast<void *>(addr[i].addr),
-                                 addr[i].size, 0, 0, 0);
+        ObmmPidExportParam param(
+            static_cast<int>(exportObj.req.exportPid),
+            reinterpret_cast<void*>(addr[i].addr), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+            addr[i].size, 0, 0, 0);
         ret = RmObmmExecutor::GetInstance().ObmmExportPid(param, obmmMemDesc, customMeta, ubMemPrivData);
         if (UBSE_RESULT_FAIL(ret)) {
             RmObmmExecutor::GetInstance().ObmmUnExport(param.memid);
@@ -609,14 +672,16 @@ uint32_t MemInstanceInnerAddrBorrow::MemAddrExportExecutor(UbseMemAddrBorrowExpo
     return UBSE_OK;
 }
 
-uint32_t MemInstanceInnerAddrBorrow::MemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj &exportObj)
+uint32_t MemInstanceInnerAddrBorrow::MemAddrUnExportExecutor(const UbseMemAddrBorrowExportObj& exportObj)
 {
-    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj);
+    auto expectedName = GenerateExportKey(exportObj.req.name, exportObj.req.importNodeId);
+    return MemInstanceInnerCommon::GetInstance().UnExportExecutor(exportObj, expectedName,
+                                                                  static_cast<uint8_t>(UbseBorrowType::ADDR_BORROW));
 }
 
 UbseResult MemInstanceInnerAddrBorrow::AfterMemAddrExportExecutor(
-    UbseMemAddrBorrowExportObj &exportObj, const std::unordered_map<uint64_t, uint64_t> &exportNumaInfoMap,
-    const std::vector<mem_id> &memIds)
+    UbseMemAddrBorrowExportObj& exportObj, const std::unordered_map<uint64_t, uint64_t>& exportNumaInfoMap,
+    const std::vector<mem_id>& memIds)
 {
     if (exportNumaInfoMap.size() > TOPOLOGY_MAX_NUMA_PER_SOCKET) {
         UBSE_LOG_ERROR << MMI_LOG_INFO << "The export numa count is " << exportNumaInfoMap.size();
@@ -624,7 +689,7 @@ UbseResult MemInstanceInnerAddrBorrow::AfterMemAddrExportExecutor(
         exportObj.status.errCode = UBSE_MMI_OBMM_OP_FAILED;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    for (auto &item : exportNumaInfoMap) {
+    for (auto& item : exportNumaInfoMap) {
         UbseMemDebtNumaInfo tmpImportDebtNumaInfo{};
         UbseMemDebtNumaInfo tmpExportDebtNumaInfo{};
         tmpImportDebtNumaInfo.nodeId = exportObj.req.importNodeId;
@@ -652,15 +717,15 @@ UbseResult MemInstanceInnerCommon::RemoteNumaIdInit()
     }
     LOCAL_NUMA_MAX = nodeInfo.numaInfos.size();
     std::set<std::string> socketPair;
-    for (const auto &cpuInfo : nodeInfo.cpuInfos) {
-        for (const auto &portInfo : cpuInfo.second.portInfos) {
+    for (const auto& cpuInfo : nodeInfo.cpuInfos) {
+        for (const auto& portInfo : cpuInfo.second.portInfos) {
             std::ostringstream str;
             str << cpuInfo.second.socketId << "-" << portInfo.second.portId;
             socketPair.insert(str.str());
         }
     }
     int index = 0;
-    for (const auto &pair : socketPair) {
+    for (const auto& pair : socketPair) {
         mRemoteNumaMap[pair] = index + LOCAL_NUMA_MAX;
         UBSE_LOG_INFO << MMI_LOG_INFO << pair << "=" << (index + LOCAL_NUMA_MAX);
         index++;
@@ -669,7 +734,7 @@ UbseResult MemInstanceInnerCommon::RemoteNumaIdInit()
     return UBSE_OK;
 }
 
-int MemInstanceInnerCommon::GetNuma(const std::string &nodesocketPair) const noexcept
+int MemInstanceInnerCommon::GetNuma(const std::string& nodesocketPair) const noexcept
 {
     std::shared_lock<std::shared_mutex> lock(mLock);
     const auto iterator = mRemoteNumaMap.find(nodesocketPair);
@@ -694,7 +759,7 @@ void MemInstanceInnerAddrBorrow::DeleteAddrRemoteNuma(int remoteNuma)
         addrRemoteNumaIdSet.erase(remoteNuma);
     }
 }
-UbseResult MemInstanceInnerAddrBorrow::GenerateAddrRemoteNuma(int &remoteNumaId)
+UbseResult MemInstanceInnerAddrBorrow::GenerateAddrRemoteNuma(int& remoteNumaId)
 {
     std::unique_lock<std::mutex> lock(mAddrLock);
     for (int i = MIN_ADDR_REMOTE_NUMA_ID; i < MAX_ADDR_REMOTE_NUMA_ID; i++) {
@@ -708,9 +773,9 @@ UbseResult MemInstanceInnerAddrBorrow::GenerateAddrRemoteNuma(int &remoteNumaId)
     return UBSE_MMI_OBMM_OP_FAILED;
 }
 
-void RollBackPreOnline(const std::vector<obmm_preimport_info> &obmmPreImportInfos)
+void RollBackPreOnline(const std::vector<obmm_preimport_info>& obmmPreImportInfos)
 {
-    for (auto &item : obmmPreImportInfos) {
+    for (auto& item : obmmPreImportInfos) {
         auto tempObmmPreImportInfo = item;
         auto ret = RmObmmExecutor::GetInstance().ObmmUnPreImport(&tempObmmPreImportInfo, 0u);
         if (UBSE_RESULT_FAIL(ret)) {
@@ -720,8 +785,8 @@ void RollBackPreOnline(const std::vector<obmm_preimport_info> &obmmPreImportInfo
     }
 }
 
-UbseResult SetPreImportDecoderParam(const SocketCnaInfo &cnaTopoInfo, uint64_t preImportSize, uint64_t Dcna,
-                                    mem::decoder::utils::PreImportDecoderParam &preImportDecoderParam)
+UbseResult SetPreImportDecoderParam(const SocketCnaInfo& cnaTopoInfo, uint64_t preImportSize, uint64_t Dcna,
+                                    mem::decoder::utils::PreImportDecoderParam& preImportDecoderParam)
 {
     std::pair<uint32_t, uint32_t> chipDiePair{};
     auto memService = service::mem::GetMemService();
@@ -742,7 +807,7 @@ UbseResult SetPreImportDecoderParam(const SocketCnaInfo &cnaTopoInfo, uint64_t p
 UbseResult MemPreImport(service::mem::BasicPreImportInfo &basicPreImportInfo,
                         const service::mem::PreImportDecoderParam &preImportDecoderParam,
                         const adapter_plugins::mti::mami::UbseMamiMemImportResult importValue,
-                        std::vector<obmm_preimport_info> &obmmPreImportInfos)
+                        std::vector<obmm_preimport_info>& obmmPreImportInfos)
 {
     auto ret = UBSE_OK;
     basicPreImportInfo.preOnlineSize = preImportDecoderParam.size;
@@ -782,7 +847,7 @@ UbseResult MemPreImport(service::mem::BasicPreImportInfo &basicPreImportInfo,
 }
 
 UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
-                   std::vector<obmm_preimport_info> &obmmPreImportInfos, uint64_t preImportSize, const bool isPoc)
+                   std::vector<obmm_preimport_info>& obmmPreImportInfos, uint64_t preImportSize)
 {
     uint32_t portId;
     auto ret = ConvertStrToUint32(portInfo.portId, portId);
@@ -795,10 +860,7 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
     uint32_t portCna = portInfo.portCna;
     BasicPreImportInfo basicPreImportInfo{0,      cnaTopoInfo.scna, portCna,          cnaTopoInfo.marId,
                                           numaId, preImportSize,    cnaTopoInfo.seid, cnaTopoInfo.deid};
-    if (!isPoc) {
-        basicPreImportInfo.dcna = cnaTopoInfo.dcna;
-        UBSE_LOG_INFO << MMI_LOG_INFO << "Use primary cna. Dcna is " << cnaTopoInfo.dcna;
-    }
+    UBSE_LOG_INFO << MMI_LOG_INFO << "Use port cna. Dcna is " << portCna;
 
     service::mem::PreImportDecoderParam preImportDecoderParam{};
     auto res = SetPreImportDecoderParam(cnaTopoInfo, preImportSize, basicPreImportInfo.dcna, preImportDecoderParam);
@@ -834,12 +896,11 @@ UbseResult GetDcna(const UbsePortInfo portInfo, const SocketCnaInfo cnaTopoInfo,
     return UBSE_OK;
 }
 
-UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint64_t preImportSize)
+UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint64_t preImportSize)
 {
     std::vector<obmm_preimport_info> obmmPreImportInfos{};
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    auto isPoc = IsSameSocketMultiPortTopo();
-    for (auto &cnaTopoInfo : cnaTopoInfos) {
+    for (auto& cnaTopoInfo : cnaTopoInfos) {
         UBSE_LOG_INFO << MMI_LOG_INFO
                       << "PreImport socketCnaInfo= " << RmCommonUtils::GetInstance().TranStructToStr(cnaTopoInfo);
         auto nodeInfo = nodeInfos.find(cnaTopoInfo.exportNodeId);
@@ -862,14 +923,14 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
                            << ", socket id is " << location.chipId;
             return UBSE_ERROR;
         }
-        for (const auto &portInfo : cpuInfos->second.portInfos) {
+        for (const auto& portInfo : cpuInfos->second.portInfos) {
             if (portInfo.second.portStatus == PortStatus::DOWN ||
                 portInfo.second.remoteSlotId != cnaTopoInfo.importNodeId ||
                 portInfo.second.remoteChipId != std::to_string(chipDiePair.first)) {
                 continue;
             }
 
-            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize, isPoc) != UBSE_OK) {
+            if (GetDcna(portInfo.second, cnaTopoInfo, obmmPreImportInfos, preImportSize) != UBSE_OK) {
                 return UBSE_ERROR;
             }
         }
@@ -877,7 +938,7 @@ UbseResult PreOnlineHandler(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint
     return UBSE_OK;
 }
 
-bool CheckPreImportInfoSize(const std::vector<BasicPreImportInfo> &preImportInfos)
+bool CheckPreImportInfoSize(const std::vector<BasicPreImportInfo>& preImportInfos)
 {
     if (preImportInfos.empty()) {
         return true;
@@ -885,13 +946,13 @@ bool CheckPreImportInfoSize(const std::vector<BasicPreImportInfo> &preImportInfo
 
     // Step 1: 按 dcna 聚合总大小
     std::unordered_map<uint32_t, uint64_t> groupSizes;
-    for (const auto &info : preImportInfos) {
+    for (const auto& info : preImportInfos) {
         groupSizes[info.dcna] += info.preOnlineSize;
     }
 
     // Step 2: 检查所有组的大小是否一致
     uint64_t reference = groupSizes.begin()->second;
-    for (const auto &kv : groupSizes) {
+    for (const auto& kv : groupSizes) {
         if (kv.second != reference) {
             return false;
         }
@@ -900,7 +961,7 @@ bool CheckPreImportInfoSize(const std::vector<BasicPreImportInfo> &preImportInfo
     return true;
 }
 
-UbseResult MemInstanceInnerCommon::MemPreOnline(const std::vector<SocketCnaInfo> &cnaTopoInfos, uint64_t preImportSize)
+UbseResult MemInstanceInnerCommon::MemPreOnline(const std::vector<SocketCnaInfo>& cnaTopoInfos, uint64_t preImportSize)
 {
     auto ret = RemoteNumaIdInit();
     if (UBSE_RESULT_FAIL(ret)) {
@@ -935,7 +996,7 @@ UbseResult MemInstanceInnerCommon::MemUnPreOnline()
         UBSE_LOG_WARN << MMI_LOG_INFO << "PreImportInfos is empty.";
         return ret;
     }
-    for (auto &preImportInfoItem : preImportInfos) {
+    for (auto& preImportInfoItem : preImportInfos) {
         auto preImportInfo = ConstructPreImportInfo(preImportInfoItem);
         if (!preImportInfo) {
             UBSE_LOG_ERROR << MMI_LOG_INFO << "PreImportInfo is nullptr.";
@@ -951,19 +1012,6 @@ UbseResult MemInstanceInnerCommon::MemUnPreOnline()
         RmCommonUtils::GetInstance().SafeFree(preImportInfo);
     }
     return UBSE_OK;
-}
-
-void MemInstanceInnerCommon::SetPrivDataByShareReq(UbMemPrivData &destPrivData, UbseMemPrivData &sourcePrivData)
-{
-    destPrivData.one_pth = sourcePrivData.onePth;
-    destPrivData.wr_delay_comp = sourcePrivData.wrDelayComp;
-    destPrivData.reduce_delay_comp = sourcePrivData.reduceDelayComp;
-    destPrivData.cmo_delay_comp = sourcePrivData.cmoDelayComp;
-    destPrivData.so = sourcePrivData.so;
-    destPrivData.ad_tr_ochip = sourcePrivData.adTrOchip;
-    destPrivData.cacheable_flag = sourcePrivData.cacheableFlag;
-    destPrivData.mar_id = sourcePrivData.marId;
-    destPrivData.rsv0 = sourcePrivData.rsv0;
 }
 
 } // namespace ubse::mmi

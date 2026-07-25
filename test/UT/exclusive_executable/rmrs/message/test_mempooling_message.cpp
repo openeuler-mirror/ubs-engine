@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <memory>
 #include <gmock/gmock.h>
+#include <memory>
 #include "gtest/gtest.h"
 
 #include "ubse_com.h"
@@ -22,11 +22,10 @@
 #include "mempooling_message.h"
 #include "mockcpp/mokc.h"
 #include "mp_error.h"
-#include "mp_heartbeat_monitor.h"
 #include "mp_sync_data_helper.h"
+#include "over_commit_serializer.h"
 #include "rmrs_serialize.h"
 #include "turbo_def.h"
-#include "over_commit_serializer.h"
 
 using namespace std;
 using namespace ubse::com;
@@ -40,15 +39,15 @@ namespace mempooling::message {
 
 class MockRackRegRpcService {
 public:
-    MOCK_METHOD(MpResult, UbseRegRpcService, (const UbseComEndpoint &endpoint, UbseComServiceHandler &handler), ());
+    MOCK_METHOD(MpResult, UbseRegRpcService, (const UbseComEndpoint& endpoint, UbseComServiceHandler& handler), ());
 };
 
 // 测试类
 class TestMemPoolingMessage : public ::testing::Test {
 public:
-    UbseByteBuffer *CreateMockUbseByteBuffer(uint32_t len)
+    UbseByteBuffer* CreateMockUbseByteBuffer(uint32_t len)
     {
-        UbseByteBuffer *buffer = new UbseByteBuffer();
+        UbseByteBuffer* buffer = new UbseByteBuffer();
         buffer->len = len;
         buffer->data = new uint8_t[len];
         return buffer;
@@ -77,7 +76,7 @@ TEST_F(TestMemPoolingMessage, InitSucceed)
     ASSERT_EQ(res, 0);
 }
 
-uint32_t osturboFunctionCallerMock(const std::string &function, const TurboByteBuffer &params, TurboByteBuffer &result)
+uint32_t osturboFunctionCallerMock(const std::string& function, const TurboByteBuffer& params, TurboByteBuffer& result)
 {
     return 0;
 }
@@ -89,12 +88,12 @@ uint32_t osturboSetIpcTimeLimitMock(uint32_t timeLimit)
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClientSucceed)
 {
     static int dummy_handle;
-    MOCKER_CPP(dlopen, void *(*)(const char *, int)).stubs().will(returnValue(reinterpret_cast<void *>(&dummy_handle)));
+    MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue(reinterpret_cast<void*>(&dummy_handle)));
 
-    MOCKER_CPP(dlsym, void *(*)(void *, const char *))
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()
-        .will(returnValue(reinterpret_cast<void *>(osturboFunctionCallerMock)))
-        .then(returnValue(reinterpret_cast<void *>(osturboSetIpcTimeLimitMock)));
+        .will(returnValue(reinterpret_cast<void*>(osturboFunctionCallerMock)))
+        .then(returnValue(reinterpret_cast<void*>(osturboSetIpcTimeLimitMock)));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -102,7 +101,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClientSucceed)
 
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlopen_Failed)
 {
-    MOCKER_CPP(dlopen, void *(*)(const char *, int)).stubs().will(returnValue((void*)nullptr));
+    MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -111,11 +110,10 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlopen_Failed)
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed)
 {
     static int dummy_handle;
-    MOCKER_CPP(dlopen, void *(*)(const char *, int)).stubs().will(returnValue(reinterpret_cast<void *>(&dummy_handle)));
+    MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue(reinterpret_cast<void*>(&dummy_handle)));
+    MOCKER_CPP(dlclose, int (*)(void*)).stubs().will(returnValue(0));
 
-    MOCKER_CPP(dlsym, void *(*)(void *, const char *))
-        .stubs()
-        .will(returnValue((void*)nullptr));
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -124,11 +122,12 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed)
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed2)
 {
     static int dummy_handle;
-    MOCKER_CPP(dlopen, void *(*)(const char *, int)).stubs().will(returnValue(reinterpret_cast<void *>(&dummy_handle)));
+    MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue(reinterpret_cast<void*>(&dummy_handle)));
+    MOCKER_CPP(dlclose, int (*)(void*)).stubs().will(returnValue(0));
 
-    MOCKER_CPP(dlsym, void *(*)(void *, const char *))
+    MOCKER_CPP(dlsym, void* (*)(void*, const char*))
         .stubs()
-        .will(returnValue(reinterpret_cast<void *>(osturboFunctionCallerMock)))
+        .will(returnValue(reinterpret_cast<void*>(osturboFunctionCallerMock)))
         .then(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
@@ -136,9 +135,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed2)
 }
 TEST_F(TestMemPoolingMessage, MpMessageSubModuleInitSuccess)
 {
-    MOCKER_CPP(&MempoolingMessage::InitOSTurboIpcClient, uint32_t(*)())
-        .stubs()
-        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&MempoolingMessage::InitOSTurboIpcClient, uint32_t(*)()).stubs().will(returnValue(MEM_POOLING_OK));
     std::unique_ptr<MpMessageSubModule> mp = std::make_unique<MpMessageSubModule>();
     auto ret = mp->Init();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -146,9 +143,7 @@ TEST_F(TestMemPoolingMessage, MpMessageSubModuleInitSuccess)
 
 TEST_F(TestMemPoolingMessage, MpMessageSubModuleInitFailure)
 {
-    MOCKER_CPP(&MempoolingMessage::InitOSTurboIpcClient, uint32_t(*)())
-        .stubs()
-        .will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&MempoolingMessage::InitOSTurboIpcClient, uint32_t(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     std::unique_ptr<MpMessageSubModule> mp = std::make_unique<MpMessageSubModule>();
     auto ret = mp->Init();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);

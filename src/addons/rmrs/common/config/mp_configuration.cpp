@@ -45,6 +45,15 @@ uint32_t MpConfiguration::Initialize(const uint16_t modCode)
     return MEM_POOLING_OK;
 }
 
+void MpConfiguration::SetPageTypeForSimplified()
+{
+    if (faultSimplified_) {
+        pageType = PageType::PAGE_4K;
+        sceneType = MpSceneType::CONTAINER_SCENE;
+        LOG_DEBUG << "Detected: faultSimplified_=" << faultSimplified_ << " , Set PageType to 4K.";
+    }
+}
+
 uint32_t MpConfiguration::LoadConfig()
 {
     auto ret = UbseGetUInt("plugin_mempooling", "rmrs.ipc.timeout", ipcTimeLimit);
@@ -89,6 +98,13 @@ uint32_t MpConfiguration::LoadConfig()
     }
     LOG_DEBUG << "Param: enableBorrowSplit=" << enableBorrowSplit << " .";
 
+    ret = UbseGetBool("plugin_mempooling", "rmrs.fault.simplified", faultSimplified_);
+    if (ret != MEM_POOLING_OK) {
+        LOG_WARN << "Get config failed, key=rmrs.fault.simplified.";
+    }
+    LOG_DEBUG << "Param: faultSimplified_=" << faultSimplified_ << " .";
+
+    SetPageTypeForSimplified();
     LoadUCacheConfig();
 
     LoadMultiNumaSceneConfig();
@@ -150,13 +166,12 @@ std::vector<std::string> MpConfiguration::GetNodeIds() const
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNodeIds failed, UbseGetAllNodeInfos ret: " << ret;
         return ids;
     }
-    for (auto &role : roleInfos) {
+    for (auto& role : roleInfos) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "NodeIds: " << role.nodeId;
         ids.push_back(role.nodeId);
     }
     return ids;
 }
-
 
 bool MpConfiguration::GetUcacheEnable() const
 {

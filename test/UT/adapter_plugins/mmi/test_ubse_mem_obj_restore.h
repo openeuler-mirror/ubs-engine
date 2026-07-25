@@ -12,11 +12,11 @@
 
 #ifndef TEST_UBSE_MEM_OBJ_RESTORE_H
 #define TEST_UBSE_MEM_OBJ_RESTORE_H
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
 namespace ubse::ut::mmi {
 }
 
-#endif  // TEST_UBSE_MEM_OBJ_RESTORE_H
+#endif // TEST_UBSE_MEM_OBJ_RESTORE_H

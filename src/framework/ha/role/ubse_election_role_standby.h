@@ -19,7 +19,7 @@
 namespace ubse::election {
 class Standby : public ElectionRole {
 public:
-    explicit Standby(RoleContext &ctx);
+    explicit Standby(RoleContext& ctx);
     void ProcTimer() override;
     uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
     void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
@@ -30,7 +30,7 @@ public:
     std::vector<UBSE_ID_TYPE> GetAgentNodes() override;
     uint8_t GetMasterStatus() override;
     uint8_t GetStandbyStatus() override;
-    void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override {};
+    void SetNodeDownStatus(UBSE_ID_TYPE) override{};
 
     RoleType GetRoleType() override
     {
@@ -56,7 +56,7 @@ private:
     uint8_t masterStatus_ = 0;
     uint8_t flag_ = 0;
     void SwitchMaster();
-    void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
+    void RecvPktForHeart(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply);
     bool IsStandbyHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
     void AddDefaultRouteToCom(const UBSE_ID_TYPE &nextHopNodeId);
     void DeleteDefaultRouteToCom();

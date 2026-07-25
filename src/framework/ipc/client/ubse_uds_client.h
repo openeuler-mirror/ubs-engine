@@ -25,30 +25,30 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::ipc {
-using namespace ubse::task_executor;
+using ubse::task_executor::UbseTaskExecutorPtr;
 const uint32_t DEFAULT_TOTAL_TIMEOUT = 1800000; // Default global timeout in milliseconds (ms)
-const uint32_t DEFAULT_CONNECT_TIMEOUT = 5000; // Default connection establishment timeout in ms
-const uint32_t DEFAULT_SEND_TIMEOUT = 5000;    // Default data sending timeout in ms
-const uint32_t DEFAULT_RECEIVE_TIMEOUT = 5000; // Default data receiving timeout in ms
+const uint32_t DEFAULT_CONNECT_TIMEOUT = 5000;  // Default connection establishment timeout in ms
+const uint32_t DEFAULT_SEND_TIMEOUT = 5000;     // Default data sending timeout in ms
+const uint32_t DEFAULT_RECEIVE_TIMEOUT = 5000;  // Default data receiving timeout in ms
 
-using UbseClientRequestHandler = std::function<void(const UbseRequestMessage &, UbseResponseMessage &resp)>;
+using UbseClientRequestHandler = std::function<void(const UbseRequestMessage&, UbseResponseMessage& resp)>;
 
 class UbseUDSClient {
 public:
     UbseUDSClient(){};
 
-    void SetSocketPath(const std::string &path)
+    void SetSocketPath(const std::string& path)
     {
         this->socketPath_ = path;
     }
 
-    static UbseUDSClient &GetInstance()
+    static UbseUDSClient& GetInstance()
     {
         static UbseUDSClient instance;
         return instance;
     }
 
-    explicit UbseUDSClient(const std::string &socketPath);
+    explicit UbseUDSClient(const std::string& socketPath);
 
     ~UbseUDSClient() noexcept;
 
@@ -58,7 +58,7 @@ public:
 
     bool IsConnected() const;
 
-    uint32_t Send(const UbseRequestMessage &request, UbseResponseMessage &response,
+    uint32_t Send(const UbseRequestMessage& request, UbseResponseMessage& response,
                   uint32_t totalTimeout = DEFAULT_TOTAL_TIMEOUT);
 
     uint32_t PerSistentConnect();
@@ -67,7 +67,7 @@ public:
 
     uint32_t RegisterLongLinkNotify(uint16_t moduleCode, uint16_t opCode);
 
-    uint32_t SendWithWait(UbseRequestMessage request, UbseResponseMessage &response);
+    uint32_t SendWithWait(UbseRequestMessage request, UbseResponseMessage& response);
 
     uint32_t SendWithoutWait(UbseRequestMessage request);
 
@@ -80,8 +80,8 @@ private:
     int epollFd_ = -1;
     std::thread eventLoopThread_{}; // epoll监听线程
     std::thread reconnectThread_{}; // 重连线程
-    std::atomic<bool> running_{ false };
-    std::atomic<bool> isReConnect_{ false }; // 是否需要断线重连
+    std::atomic<bool> running_{false};
+    std::atomic<bool> isReConnect_{false}; // 是否需要断线重连
     std::atomic<bool> reconnecting_;
     UbseClientRequestHandler requestHandler_{};
     UbseTaskExecutorPtr taskExecutor_{}; // 执行线程池
@@ -94,18 +94,18 @@ private:
 
     static bool CheckTimeout(std::chrono::steady_clock::time_point startTime, uint32_t timeoutMs = 0);
 
-    uint32_t WaitAndReceive(UbseResponseMessage &response, std::chrono::time_point<std::chrono::steady_clock> startTime,
+    uint32_t WaitAndReceive(UbseResponseMessage& response, std::chrono::time_point<std::chrono::steady_clock> startTime,
                             uint32_t totalTimeout);
 
     static uint32_t CalculateRemainingTime(std::chrono::time_point<std::chrono::steady_clock> startTime,
                                            uint32_t timeout);
 
-    uint32_t Receive(uint32_t remainingTime, UbseResponseMessage &response,
+    uint32_t Receive(uint32_t remainingTime, UbseResponseMessage& response,
                      std::chrono::steady_clock::time_point startTime, uint32_t totalTimeout);
 
-    uint32_t ConnectToServer(sockaddr_un &addr);
+    uint32_t ConnectToServer(sockaddr_un& addr);
 
-    void HandleServerEvent(epoll_event &ev);
+    void HandleServerEvent(epoll_event& ev);
 
     uint32_t WaitForDataReadable(uint32_t timeoutMs);
 

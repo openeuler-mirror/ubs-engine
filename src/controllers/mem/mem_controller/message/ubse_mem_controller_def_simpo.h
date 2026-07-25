@@ -16,7 +16,8 @@
 #include "ubse_mem_controller_def.h"
 
 namespace ubse::mem::controller::message {
-using namespace ubse::message;
+using ubse::message::UbseBaseMessage;
+using ubse::utils::Ref;
 class UbseMemFdDescSimpo : public UbseBaseMessage {
 public:
     UbseMemFdDescSimpo() = default;
@@ -295,7 +296,7 @@ private:
 class UbseMemNodeBorrowInfoMessage : public UbseBaseMessage {
 public:
     UbseMemNodeBorrowInfoMessage() = default;
-    explicit UbseMemNodeBorrowInfoMessage(uint8_t *data, uint32_t size)
+    explicit UbseMemNodeBorrowInfoMessage(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }

@@ -19,12 +19,12 @@
 namespace vm {
 class VmTaskCounter {
 public:
-    static void StartTask(const std::string &name);
-    static void CompleteTask(const std::string &name);
+    static void StartTask(const std::string& name);
+    static void CompleteTask(const std::string& name);
     static int GetTaskCount();
 
 private:
     static std::atomic<int> count;
 };
-}
+} // namespace vm
 #endif // UBSE_VM_TASK_COUNTER_H

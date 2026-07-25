@@ -21,6 +21,8 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::nodeController;
 using namespace ubse::context;
 using namespace ubse::timer;
+using namespace ubse::com;
+
 GlobalAgent::GlobalAgent(RoleContext &ctx) : globalTurnId_(0), lastHeartTime_()
 {
     Node myself;

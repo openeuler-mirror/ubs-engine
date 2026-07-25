@@ -86,8 +86,10 @@ struct CgroupPageCacheInfo {
 };
 
 struct CgroupInfos {
-    struct CgroupIoInfo ioInfo {};
-    struct CgroupPageCacheInfo pageCacheInfo {};
+    struct CgroupIoInfo ioInfo {
+    };
+    struct CgroupPageCacheInfo pageCacheInfo {
+    };
 
     std::string ToString() const
     {
@@ -186,13 +188,14 @@ struct MigrationStrategyParam {
     }
 };
 
-enum class TaskType : uint32_t {
+enum class TaskType : uint32_t
+{
     INVALID = 0xFFFFFFFF,
     COLLECT_RESOURCE = 0,
     MIGRATION_STRATEGY = 1,
 };
 
-inline const char *TaskTypeToString(TaskType t)
+inline const char* TaskTypeToString(TaskType t)
 {
     switch (t) {
         case TaskType::COLLECT_RESOURCE:
@@ -217,13 +220,14 @@ inline bool IsValidTaskType(const TaskType t)
     return false;
 }
 
-enum class ResourceQueryType : uint32_t {
+enum class ResourceQueryType : uint32_t
+{
     NUMA_INFO = 0,
     CGROUP_INFO = 1,
     MEM_WATERMARK = 2,
 };
 
-inline const char *ResourceQueryTypeToString(ResourceQueryType t)
+inline const char* ResourceQueryTypeToString(ResourceQueryType t)
 {
     switch (t) {
         case ResourceQueryType::NUMA_INFO:
@@ -267,7 +271,7 @@ extern "C" {
  * @param tResp [OUT] ucache执行结果
  * @return 0为IPC执行成功，非0为IPC执行异常
  */
-uint32_t UBTurboUCacheExecuteTask(const TaskRequest &tReq, TaskResponse &tResp);
+uint32_t UBTurboUCacheExecuteTask(const TaskRequest& tReq, TaskResponse& tResp);
 }
 } // namespace turbo::ucache
 #endif // TURBO_UCACHE_INTERFACE_H

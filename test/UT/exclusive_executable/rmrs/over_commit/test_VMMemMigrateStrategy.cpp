@@ -10,8 +10,8 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "mp_smap_module.h"
 #include "over_commit_msg.h"
@@ -29,9 +29,9 @@ using namespace ubse::log;
 using namespace mempooling::over_commit;
 using namespace mempooling::smap;
 
-bool containsPid(const std::vector<pid_t> &pids, pid_t targetPid);
-void CalculateVmDemandAndQuota(const std::unordered_map<pid_t, VMInfo> &vmInfos, uint8_t ratio,
-                               std::map<pid_t, uint64_t> &vmDemand, std::map<pid_t, uint64_t> &vmQuota);
+bool containsPid(const std::vector<pid_t>& pids, pid_t targetPid);
+void CalculateVmDemandAndQuota(const std::unordered_map<pid_t, VMInfo>& vmInfos, uint8_t ratio,
+                               std::map<pid_t, uint64_t>& vmDemand, std::map<pid_t, uint64_t>& vmQuota);
 
 class MockVMMemMigrateStrategy : public ::testing::Test {
 protected:
@@ -44,16 +44,16 @@ protected:
 
 class StrategyProxy {
 public:
-    static MpResult ExecuteProxy(const std::unordered_map<pid_t, VMInfo> &vmInfos, std::vector<RemoteNUMA> &remoteNUMAs,
-                                 std::vector<VMResult> &vmResults)
+    static MpResult ExecuteProxy(const std::unordered_map<pid_t, VMInfo>& vmInfos, std::vector<RemoteNUMA>& remoteNUMAs,
+                                 std::vector<VMResult>& vmResults)
     {
         VMMemMigrateStrategy strategy;
         return strategy.Execute(vmInfos, remoteNUMAs, vmResults);
     }
 };
 
-MpResult MockStrategyExecuteSuccess(std::unordered_map<pid_t, VMInfo> &vmInfos, std::vector<RemoteNUMA> &remoteNUMAs,
-                                    std::vector<VMResult> &vmResults)
+MpResult MockStrategyExecuteSuccess(std::unordered_map<pid_t, VMInfo>& vmInfos, std::vector<RemoteNUMA>& remoteNUMAs,
+                                    std::vector<VMResult>& vmResults)
 {
     RemoteNUMA remoteNuma(0, 1024);
     remoteNUMAs.push_back(remoteNuma);
@@ -80,7 +80,7 @@ std::vector<VmDomainInfo> MockGetVmDomainInfos()
 }
 
 // 测试 execute 函数
-void FillParam1(std::unordered_map<pid_t, VMInfo> &vmInfos)
+void FillParam1(std::unordered_map<pid_t, VMInfo>& vmInfos)
 {
     VMInfo vm8;
     // 和remoteNUMA 1已借用4，本次再借用8
@@ -158,7 +158,7 @@ TEST(VMMemMigrateStrategyTest, Execute)
 }
 
 // 测试 execute 函数的极端情况
-void FillParam2(std::unordered_map<pid_t, VMInfo> &vmInfos)
+void FillParam2(std::unordered_map<pid_t, VMInfo>& vmInfos)
 {
     VMInfo vm8;
     // 和remote NUMA 1已借用4，本次再借用8
@@ -231,7 +231,7 @@ TEST(VMMemMigrateStrategyTest, ExecuteRebalanceERRWhenCollectBorrowRecords)
 {
     // 调用 execute 函数
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecords,
-               MpResult(*)(BorrowRecordHelper *, const std::string, std::vector<BorrowRecord> &))
+               MpResult(*)(BorrowRecordHelper*, const std::string, std::vector<BorrowRecord>&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     VMMemMigrateStrategy strategy;
@@ -365,8 +365,8 @@ TEST(MockVMMemMigrateStrategy, CalBestRemainValueTest5)
     EXPECT_EQ(ret, 100u);
 }
 
-static uint32_t MockRmrsPidNumaInfoCollectReturn(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                                                 turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult)
+static uint32_t MockRmrsPidNumaInfoCollectReturn(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                                                 turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult)
 {
     return 0;
 }
@@ -390,10 +390,9 @@ TEST(MockVMMemMigrateStrategy, UpdateContainerInfoInnode_Failed)
     std::vector<pid_t> pids{};
     std::unordered_map<pid_t, VMInfo> vmInfos{};
 
-    MOCKER_CPP(&PidNumaInfoCollectRecvHandler,
-           MpResult (*)(UbseByteBuffer, UbseByteBuffer&))
-    .stubs()
-    .will(returnValue(MEM_POOLING_ERROR));
+    MOCKER_CPP(&PidNumaInfoCollectRecvHandler, MpResult(*)(UbseByteBuffer, UbseByteBuffer&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
 
     uint32_t ret = UpdateContainerInfoInnode(srcNid, pids, vmInfos);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -413,12 +412,12 @@ TEST(MockVMMemMigrateStrategy, containsPid_NotFound)
     EXPECT_FALSE(containsPid(pids, pidNotInPids));
 }
 
-int MockSmapQueryProcessConfigReturnOK(int numaId, struct ProcessPayload *processPayload, int pid, int *retLen)
+int MockSmapQueryProcessConfigReturnOK(int numaId, struct ProcessPayload* processPayload, int pid, int* retLen)
 {
     return MEM_POOLING_OK;
 }
 
-int MockSmapQueryProcessConfigReturnERROR(int numaId, struct ProcessPayload *processPayload, int pid, int *retLen)
+int MockSmapQueryProcessConfigReturnERROR(int numaId, struct ProcessPayload* processPayload, int pid, int* retLen)
 {
     return MEM_POOLING_ERROR;
 }

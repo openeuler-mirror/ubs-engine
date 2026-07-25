@@ -16,7 +16,7 @@
 #include "gtest/gtest.h"
 
 namespace ubse::vm::ut {
-class TestMigrateStrategy : public  testing::Test {
+class TestMigrateStrategy : public testing::Test {
 public:
     TestMigrateStrategy() = default;
 

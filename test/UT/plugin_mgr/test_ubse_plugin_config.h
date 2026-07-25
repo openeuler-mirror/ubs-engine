@@ -25,7 +25,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::plugin
 
 #endif // UBSE_MANAGER_TEST_UBSE_PLUGIN_CONFIG_H
-

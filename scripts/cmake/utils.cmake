@@ -194,6 +194,188 @@ macro(add_ut module)
     gtest_discover_tests(${UT_BINARY} PROPERTIES LABELS "${module}")
 endmacro()
 
+set(UBSE_IT_TEST_TIMEOUT_SECONDS "180" CACHE STRING "Default timeout in seconds for each IT CTest case")
+set(UBSE_IT_DISCOVERY_TIMEOUT_SECONDS "30" CACHE STRING "Timeout in seconds for IT GTest discovery")
+
+function(ubse_gtest_filter_to_ctest_regex output_var gtest_filter)
+    set(regex "${gtest_filter}")
+    string(FIND "${regex}" "-" negative_filter_pos)
+    if (NOT negative_filter_pos EQUAL -1)
+        string(SUBSTRING "${regex}" 0 ${negative_filter_pos} regex)
+    endif ()
+    if ("${regex}" STREQUAL "")
+        set(regex "*")
+    endif ()
+    string(REPLACE "." "\\." regex "${regex}")
+    string(REPLACE "*" ".*" regex "${regex}")
+    string(REPLACE "?" "." regex "${regex}")
+    string(REPLACE ":" "|" regex "${regex}")
+    set(${output_var} "^(${regex})$" PARENT_SCOPE)
+endfunction()
+
+macro(add_it module)
+    set(IT_BINARY ${CMAKE_PROJECT_NAME}_${module}_it)
+    set(IT_LABEL it_${module})
+    set(IT_XML_OUTPUT_DIR ${CMAKE_BINARY_DIR}/coverage/it)
+    file(MAKE_DIRECTORY ${IT_XML_OUTPUT_DIR})
+    file(GLOB_RECURSE TEST_SOURCES LIST_DIRECTORIES false
+            ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+    )
+    add_executable(${IT_BINARY} EXCLUDE_FROM_ALL
+            ${TEST_SOURCES}
+            ${CMAKE_SOURCE_DIR}/test/IT/main.cpp
+    )
+    target_link_libraries(${IT_BINARY} PRIVATE
+            GTest::gtest
+            ubse_it_infra
+    )
+    target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
+    add_dependencies(${IT_BINARY} ubse_it_runtime)
+
+    set(IT_GTEST_ARGS --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml)
+    set(TRANS_PARAMS "$ENV{TRANS_PARAMS}")
+    if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
+        separate_arguments(IT_TRANS_PARAMS UNIX_COMMAND "${TRANS_PARAMS}")
+        foreach (IT_TRANS_PARAM IN LISTS IT_TRANS_PARAMS)
+            if (IT_TRANS_PARAM MATCHES "^--gtest_filter=(.*)$")
+                list(APPEND IT_GTEST_ARGS --gtest_filter=${CMAKE_MATCH_1})
+            elseif (IT_TRANS_PARAM MATCHES "^--gtest_")
+                message(WARNING "Ignoring unsupported GTest argument for IT target: ${IT_TRANS_PARAM}")
+            else ()
+                message(WARNING "Ignoring unsupported argument for IT target: ${IT_TRANS_PARAM}")
+            endif ()
+        endforeach ()
+    endif ()
+
+    if (SKIP_RUN_TESTS)
+        set(IT_RUN_COMMAND ${CMAKE_COMMAND} -E echo "Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}")
+    else ()
+        set(IT_RUN_COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS})
+    endif ()
+
+    set(IT_CTEST_ARGS
+            --test-dir ${CMAKE_BINARY_DIR}/test
+            -L "^${IT_LABEL}$"
+            --output-on-failure
+            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+            --no-tests=error
+    )
+    add_custom_target(${module}_it
+            COMMAND ${IT_RUN_COMMAND}
+            COMMENT "Run IT testing via ctest label ${IT_LABEL}"
+    )
+    add_dependencies(${module}_it ${IT_BINARY})
+    set_property(GLOBAL APPEND PROPERTY UBSE_IT_TARGETS ${module}_it)
+    set_property(GLOBAL APPEND PROPERTY UBSE_IT_BINARIES ${IT_BINARY})
+
+    # Register the entire IT binary as one ctest entry (not per TEST_F).
+    # gtest_discover_tests would spawn a separate process per TEST_F, causing
+    # SetUpTestSuite to start/stop the cluster for every single case.
+    add_test(
+            NAME ${IT_BINARY}
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh
+                    ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
+    )
+    set_tests_properties(${IT_BINARY}
+            PROPERTIES
+                    LABELS ${IT_LABEL}
+                    RESOURCE_LOCK ubse_it
+                    TIMEOUT ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+    )
+endmacro()
+
+macro(add_it_scene scene)
+    cmake_parse_arguments(SCENE "" "" "LINK_LIBS" ${ARGN})
+
+    set(IT_BINARY ${CMAKE_PROJECT_NAME}_${scene}_it)
+    set(IT_LABEL it_scene_${scene})
+    set(IT_XML_OUTPUT_DIR ${CMAKE_BINARY_DIR}/coverage/it)
+    file(MAKE_DIRECTORY ${IT_XML_OUTPUT_DIR})
+
+    # Collect all .cpp/.h in the scenario directory (scenario.h macro expands to SetUp/TearDown)
+    file(GLOB_RECURSE TEST_SOURCES LIST_DIRECTORIES false
+            ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/*.h
+    )
+
+    add_executable(${IT_BINARY} EXCLUDE_FROM_ALL
+            ${TEST_SOURCES}
+            ${CMAKE_SOURCE_DIR}/test/IT/main.cpp
+    )
+
+    target_link_libraries(${IT_BINARY} PRIVATE
+            GTest::gtest
+            ubse_it_infra
+            ${SCENE_LINK_LIBS}
+    )
+
+    target_include_directories(${IT_BINARY} PRIVATE
+            ${CMAKE_SOURCE_DIR}/test/IT
+    )
+
+    target_compile_options(${IT_BINARY} PRIVATE ${DEBUG_FLAGS})
+    add_dependencies(${IT_BINARY} ubse_it_runtime)
+
+    set(IT_GTEST_ARGS --gtest_output=xml:${IT_XML_OUTPUT_DIR}/${IT_BINARY}.xml)
+
+    set(TRANS_PARAMS "$ENV{TRANS_PARAMS}")
+    if (DEFINED TRANS_PARAMS AND NOT "${TRANS_PARAMS}" STREQUAL "")
+        separate_arguments(IT_TRANS_PARAMS UNIX_COMMAND "${TRANS_PARAMS}")
+        foreach (IT_TRANS_PARAM IN LISTS IT_TRANS_PARAMS)
+            if (IT_TRANS_PARAM MATCHES "^--gtest_filter=(.*)$")
+                list(APPEND IT_GTEST_ARGS --gtest_filter=${CMAKE_MATCH_1})
+            elseif (IT_TRANS_PARAM MATCHES "^--gtest_")
+                message(WARNING "Ignoring unsupported GTest argument: ${IT_TRANS_PARAM}")
+            else ()
+                message(WARNING "Ignoring unsupported argument: ${IT_TRANS_PARAM}")
+            endif ()
+        endforeach ()
+    endif ()
+
+    if (SKIP_RUN_TESTS)
+        set(IT_RUN_COMMAND ${CMAKE_COMMAND} -E echo
+            "Skip run IT test, only build binary ${CMAKE_BINARY_DIR}/bin/${IT_BINARY}")
+    else ()
+        set(IT_RUN_COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS})
+    endif ()
+
+    set(IT_CTEST_ARGS
+            --test-dir ${CMAKE_BINARY_DIR}/test
+            -L "^${IT_LABEL}$"
+            --output-on-failure
+            --timeout ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+            --no-tests=error
+    )
+
+    add_custom_target(${scene}_it
+            COMMAND ${IT_RUN_COMMAND}
+            COMMENT "Run scene IT tests via ctest label ${IT_LABEL}"
+    )
+    add_dependencies(${scene}_it ${IT_BINARY})
+
+    set_property(GLOBAL APPEND PROPERTY UBSE_IT_SCENE_TARGETS ${scene}_it)
+    set_property(GLOBAL APPEND PROPERTY UBSE_IT_SCENE_BINARIES ${IT_BINARY})
+
+    # Register the entire scene binary as one ctest entry (not per TEST_F).
+    # gtest_discover_tests would spawn a separate process per TEST_F, causing
+    # SetUpTestSuite to start/stop the cluster for every single case.
+    # Running the whole binary in one process lets all cases share the cluster.
+    add_test(
+            NAME ${IT_BINARY}
+            COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_it_test.sh
+                    ${CMAKE_BINARY_DIR}/bin/${IT_BINARY} ${IT_GTEST_ARGS}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/test
+    )
+    set_tests_properties(${IT_BINARY}
+            PROPERTIES
+                    LABELS ${IT_LABEL}
+                    RESOURCE_LOCK ubse_it
+                    TIMEOUT ${UBSE_IT_TEST_TIMEOUT_SECONDS}
+    )
+endmacro()
+
 macro(add_independent_exec_ut executable_name)
     set(GTEST_BRIEF "--gtest_brief=0")
     set(GTEST_OUTPUT "--gtest_output=xml:${CMAKE_BINARY_DIR}/coverage/ut/${executable_name}_detail.xml")

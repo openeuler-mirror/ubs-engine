@@ -26,7 +26,7 @@ using namespace ubse::election;
 
 std::atomic<bool> VmConfiguration::exitFlag(false);
 
-VmConfiguration &VmConfiguration::GetInstance()
+VmConfiguration& VmConfiguration::GetInstance()
 {
     static VmConfiguration gInstance;
     return gInstance;
@@ -192,8 +192,8 @@ VmResult VmConfiguration::LoadWatermarkConf()
     return VerifyWaterConfig();
 }
 
-VmResult VmConfiguration::CheckWaterConfRange(const float_t &borrowWater, const float_t &migrateWater,
-                                              const float_t &returnWater)
+VmResult VmConfiguration::CheckWaterConfRange(const float_t& borrowWater, const float_t& migrateWater,
+                                              const float_t& returnWater)
 {
     // The range of the borrow water line is [70, 95]
     if (borrowWater < 70 || borrowWater > 95) {
@@ -231,7 +231,7 @@ VmResult VmConfiguration::VerifyWaterConfig()
         borrowWater = VmStringUtil::SafeStof(borrowWatermark);
         migrateWater = VmStringUtil::SafeStof(highWatermark);
         returnWater = VmStringUtil::SafeStof(lowWatermark);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         // In the default configuration, input parameters will be printed.
         return SetDefaultWaterConf();
     }

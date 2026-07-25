@@ -38,10 +38,10 @@ uint32_t GetSocketIndexBySocketId(const uint32_t socket_id[UBS_TOPO_SOCKET_NUM],
     return socketIndex;
 }
 
-void PopulateUbseNodeIps(def::UbseNode &ubNode, const UbseNodeInfo &nodeInfo)
+void PopulateUbseNodeIps(def::UbseNode& ubNode, const UbseNodeInfo& nodeInfo)
 {
     uint32_t ipIndex = 0;
-    for (auto &ip : nodeInfo.ipList) {
+    for (auto& ip : nodeInfo.ipList) {
         if (ipIndex >= UBS_TOPO_IPADDR_NUM) {
             break;
         }
@@ -60,11 +60,11 @@ void PopulateUbseNodeIps(def::UbseNode &ubNode, const UbseNodeInfo &nodeInfo)
     }
 }
 
-void UbseNodeList(std::vector<def::UbseNode> &nodeList)
+void UbseNodeList(std::vector<def::UbseNode>& nodeList)
 {
     nodeList.clear();
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &[nodeId, nodeInfo] : nodeInfos) {
+    for (const auto& [nodeId, nodeInfo] : nodeInfos) {
         def::UbseNode ubNode{nodeInfo.slotId, {}, {}, {}, nodeInfo.hostName};
         for (int i = 0; i < UBS_TOPO_SOCKET_NUM; i++) {
             for (int j = 0; j < UBS_TOPO_NUMA_NUM; j++) {
@@ -72,7 +72,7 @@ void UbseNodeList(std::vector<def::UbseNode> &nodeList)
             }
         }
         uint32_t socketIndex = 0;
-        for (const auto &pair : nodeInfo.cpuInfos) {
+        for (const auto& pair : nodeInfo.cpuInfos) {
             if (socketIndex < UBS_TOPO_SOCKET_NUM) { // socketId有2个
                 ubNode.socketId[socketIndex] = pair.second.socketId;
                 ++socketIndex;
@@ -82,7 +82,7 @@ void UbseNodeList(std::vector<def::UbseNode> &nodeList)
         }
 
         uint32_t numaIndex[UBS_TOPO_SOCKET_NUM] = {0};
-        for (const auto &pair : nodeInfo.numaInfos) {
+        for (const auto& pair : nodeInfo.numaInfos) {
             socketIndex = GetSocketIndexBySocketId(ubNode.socketId, pair.second.socketId);
             if (socketIndex == UBS_TOPO_SOCKET_NUM) {
                 continue;
@@ -99,7 +99,7 @@ void UbseNodeList(std::vector<def::UbseNode> &nodeList)
     }
 }
 
-void UbseNodeGet(def::UbseNode &node)
+void UbseNodeGet(def::UbseNode& node)
 {
     auto nodeInfo = UbseNodeController::GetInstance().GetCurNode();
     node = {nodeInfo.slotId, {}, {}, {}, nodeInfo.hostName};
@@ -109,7 +109,7 @@ void UbseNodeGet(def::UbseNode &node)
         }
     }
     uint32_t socketIndex = 0;
-    for (const auto &pair : nodeInfo.cpuInfos) {
+    for (const auto& pair : nodeInfo.cpuInfos) {
         if (socketIndex < UBS_TOPO_SOCKET_NUM) {
             node.socketId[socketIndex] = pair.second.socketId;
             ++socketIndex;
@@ -119,7 +119,7 @@ void UbseNodeGet(def::UbseNode &node)
     }
 
     uint32_t numaIndex[UBS_TOPO_SOCKET_NUM] = {0};
-    for (const auto &pair : nodeInfo.numaInfos) {
+    for (const auto& pair : nodeInfo.numaInfos) {
         socketIndex = GetSocketIndexBySocketId(node.socketId, pair.second.socketId);
         if (socketIndex == UBS_TOPO_SOCKET_NUM) {
             continue;
@@ -151,7 +151,7 @@ void UbseNodeGetByNodeIdInMaster(const std::string& nodeId, def::UbseNode& node)
     PopulateUbseNodeIps(node, nodeInfo);
 }
 
-void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node)
+void UbseNodeGetByNodeId(const std::string& nodeId, def::UbseNode& node)
 {
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     auto it = nodeInfos.find(nodeId);
@@ -162,7 +162,7 @@ void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node)
     node.slotId = nodeInfo.slotId;
     node.hostName = nodeInfo.hostName;
     int count = 0;
-    for (const auto &pair : nodeInfo.cpuInfos) {
+    for (const auto& pair : nodeInfo.cpuInfos) {
         if (count < UBS_TOPO_SOCKET_NUM) {
             node.socketId[count] = pair.second.socketId;
             ++count;
@@ -173,8 +173,8 @@ void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node)
     PopulateUbseNodeIps(node, nodeInfo);
 }
 
-void SocketIdMapping(uint32_t &slotId, uint32_t &socketId, const uint32_t &chipId,
-                     std::unordered_map<std::string, UbseNodeInfo> &allNodes)
+void SocketIdMapping(uint32_t& slotId, uint32_t& socketId, const uint32_t& chipId,
+                     std::unordered_map<std::string, UbseNodeInfo>& allNodes)
 {
     // 进行socketId，chipId的转换，若不能转换（例如只知道chip，不知道socket的情况），则不映射，将chip直接赋值给socket
     auto it = allNodes.find(std::to_string(slotId));
@@ -190,12 +190,12 @@ void SocketIdMapping(uint32_t &slotId, uint32_t &socketId, const uint32_t &chipI
     }
 }
 
-void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList)
+void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink>& linkList)
 {
     linkList.clear();
     std::map<std::string, PhysicalLink> devDirConnectInfo = UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     std::unordered_map<std::string, UbseNodeInfo> allNodes = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto &[_, physicalLink] : devDirConnectInfo) {
+    for (const auto& [_, physicalLink] : devDirConnectInfo) {
         def::UbseCpuLink ubLink{};
         ubLink.slotId = physicalLink.slotId;
         ubLink.portId = physicalLink.portId;
@@ -231,7 +231,7 @@ uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<service::mem:
     if (ret != UBSE_OK) {
         return ret;
     }
-    for (const auto &numaInfo : allNumaInfoList) {
+    for (const auto& numaInfo : allNumaInfoList) {
         if (numaInfo.nodeId == nodeId) {
             nodeNumaMemList.push_back(numaInfo);
         }

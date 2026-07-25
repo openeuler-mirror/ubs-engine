@@ -26,4 +26,3 @@ public:
 };
 } // namespace ubse::vm::ut
 #endif // TEST_LIBVIRT_AGENT_CASE_CONF_H
-

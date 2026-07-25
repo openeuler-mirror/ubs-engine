@@ -19,7 +19,7 @@ void test_ctrlq_reset_rq_ci(void)
 {
     bandbridge_ctrlq_reset_rq_ci();
 }
-void test_ctrlq_read_data_from_rq(void *recvbuf, u8 bb_num)
+void test_ctrlq_read_data_from_rq(void* recvbuf, u8 bb_num)
 {
     bandbridge_ctrlq_read_data_from_rq(recvbuf, bb_num);
 }

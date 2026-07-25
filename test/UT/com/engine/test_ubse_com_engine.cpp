@@ -13,10 +13,11 @@
 #include "test_ubse_com_engine.h"
 #include <sys/stat.h>
 #include <fstream>
+#include "ubse_com_def.h"
+#include "ubse_election.h"
 #include "../test_ubse_com_mock.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "crc/ubse_crc.h"
-#include "ubse_com_def.h"
 
 namespace ubse::com {
 void VarifyFailReply(UbseComMessageCtx &message);
@@ -48,7 +49,7 @@ void TestUbseComEngine::TearDown()
     GlobalMockObject::verify();
 }
 
-void MockNotify(const UbseComEngineInfo &, const std::string &, const UBSHcomChannelPtr &ch, UbseLinkState)
+void MockNotify(const UbseComEngineInfo&, const std::string&, const UBSHcomChannelPtr& ch, UbseLinkState)
 {
     return;
 }
@@ -86,8 +87,8 @@ TEST_F(TestUbseComEngine, TestGetRemoteNodeId)
     UBSHcomChannelPtr channelPtr = ptr;
     UbseComEngineInfo ubseComEngineInfo;
     UbseComLinkManager linkManager;
-    UbseComLinkStateNotify linkStateNotify = [](const UbseComEngineInfo &engineInfo, const std::string &str,
-                                                const UBSHcomChannelPtr &ch, UbseLinkState state) {
+    UbseComLinkStateNotify linkStateNotify = [](const UbseComEngineInfo& engineInfo, const std::string& str,
+                                                const UBSHcomChannelPtr& ch, UbseLinkState state) {
     };
     UbseComEngine engine(ubseComEngineInfo, nullptr, linkStateNotify, linkManager);
     std::string engineName = "engine";
@@ -193,7 +194,7 @@ TEST_F(TestUbseComEngine, TestVerifyMsg)
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     UbseComMessageCtx msgCtx(innerMsg, "curNode", "destNode", UbseChannelType::NORMAL);
 
@@ -259,9 +260,10 @@ TEST_F(TestUbseComEngine, TestStart)
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER_CPP_VIRTUAL(mockService, &UBSHcomService::Start).stubs().will(returnValue(static_cast<int32_t>(UBSE_OK)));
     EXPECT_EQ(UBSE_OK, mockengine.Start());
+    mockengine.Stop();
 }
 
-bool QueryEid(std::string nodeId, std::string &eid)
+bool QueryEid(std::string nodeId, std::string& eid)
 {
     return true;
 }
@@ -289,12 +291,12 @@ TEST_F(TestUbseComEngine, TestSplitIp)
     EXPECT_EQ(false, mockengine.SplitIp(wrongIpPortStr, ip));
 }
 
-void keyPassFunc(void *value1, int value2)
+void keyPassFunc(void* value1, int value2)
 {
     return;
 }
 
-int tlsVerifyCb(void *value1, const char *value2)
+int tlsVerifyCb(void* value1, const char* value2)
 {
     return 0;
 }
@@ -303,7 +305,7 @@ TEST_F(TestUbseComEngine, TestTlsFuncs)
 {
     std::string name = "ManBo";
     std::string value;
-    void *keyPass;
+    void* keyPass;
     int len;
     UBSHcomTLSEraseKeypass erase = keyPassFunc;
     EXPECT_EQ(true, CertCallback(name, value));
@@ -313,7 +315,7 @@ TEST_F(TestUbseComEngine, TestTlsFuncs)
     UBSHcomPeerCertVerifyType type = UBSHcomPeerCertVerifyType::VERIFY_BY_NONE;
     UBSHcomTLSCertVerifyCallback cb = tlsVerifyCb;
     EXPECT_EQ(true, CACallback(name, caPath, crlPath, type, cb));
-    void *pass = nullptr;
+    void* pass = nullptr;
     KeyPassErase(pass, len);
 }
 
@@ -527,7 +529,7 @@ TEST_F(TestUbseCommunication, TestUbseComRpcConnect)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     MOCKER(&UbseComEngine::CreateChannel).stubs().will(returnValue(UBSE_OK));
@@ -543,7 +545,7 @@ TEST_F(TestUbseCommunication, TestRegUbseComMsgHandler)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ(UbseCommunication::RegUbseComMsgHandler(engineName, handle), UBSE_OK);
@@ -559,7 +561,7 @@ const UBSHcomChannelPtr MockGetChannel()
 TEST_F(TestUbseCommunication, TestUbseComMsgSend)
 {
     std::string engineName;
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -569,7 +571,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgSend)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     MOCKER(&UbseComEngine::GetChannelByRemoteNodeId).stubs().will(returnValue(UBSE_OK));
@@ -581,7 +583,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgSend)
 TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
 {
     std::string engineName;
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -591,7 +593,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComCallback usrCb;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
@@ -604,7 +606,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgAsyncSend)
 TEST_F(TestUbseCommunication, TestGetChannel)
 {
     std::string engineName;
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -616,7 +618,7 @@ TEST_F(TestUbseCommunication, TestGetChannel)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ(UbseCommunication::UbseComMsgSend(engineName, message, retData), UBSE_COM_ERROR_CHANNEL_NOT_FOUND);
@@ -628,7 +630,7 @@ TEST_F(TestUbseCommunication, TestGetChannel)
 
 TEST_F(TestUbseCommunication, TestUbseComMsgReply)
 {
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -639,7 +641,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgReply)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngineInfo info;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
@@ -650,7 +652,7 @@ TEST_F(TestUbseCommunication, TestUbseComMsgReply)
 
 TEST_F(TestUbseCommunication, TestNormalRequestHandle)
 {
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -661,7 +663,7 @@ TEST_F(TestUbseCommunication, TestNormalRequestHandle)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngineInfo info;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     UBSHcomServiceContext ubsHcomServiceContext;
@@ -737,7 +739,7 @@ TEST_F(TestUbseComEngine, TestHandleRemoteCall)
     {
         UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
         mockengine.RegisterQueryCb(QueryEid);
-        UbseComMessage *nullMsg = nullptr;
+        UbseComMessage* nullMsg = nullptr;
         MOCKER(GetMessageFromNetServiceContext).stubs().will(returnValue(nullMsg));
         EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID, mockengine.HandleRemoteCall(context));
     }
@@ -856,7 +858,7 @@ TEST_F(TestUbseComEngine, TestGetRemoteNodeIdByCallFail)
  */
 TEST_F(TestUbseComEngine, TestVarifyFailReply)
 {
-    uint8_t *req = new uint8_t;
+    uint8_t* req = new uint8_t;
     UbseComMessagePtr innerMsg = req;
     std::string srcId = "curNode";
     std::string dstId = "destNode";
@@ -920,7 +922,7 @@ TEST_F(TestUbseCommunication, TestGetNodeIdByIp)
     UbseComEngineInfo info;
     UbseComLinkStateNotify linkStateNotify = MockNotify;
     UbseComLinkManager linkManager;
-    UBSHcomService *mockService;
+    UBSHcomService* mockService;
     UbseComEngine mockengine(info, mockService, linkStateNotify, linkManager);
     MOCKER(&UbseComEngineManager::GetEngine).stubs().will(returnValue(&mockengine));
     EXPECT_EQ("", UbseCommunication::GetNodeIdByIp(engineName, ip));

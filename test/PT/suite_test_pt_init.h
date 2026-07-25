@@ -31,8 +31,8 @@ public:
     static void TearDownTestSuite();
 
 private:
-    static ProcessMmap *pMmap;
+    static ProcessMmap* pMmap;
 };
-} // namespace ubse::it
+} // namespace ubse::pt
 
 #endif

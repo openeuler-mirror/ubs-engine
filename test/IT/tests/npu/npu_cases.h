@@ -1,0 +1,38 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#ifndef IT_NPU_CASES_H
+#define IT_NPU_CASES_H
+
+#include "it_cluster.h"
+
+namespace ubse::it::tests::npu {
+
+void RunDeviceListQueryTest(ubse::it::infra::ItCluster& cluster);
+void RunDeviceAllocFreeLifecycleTest(ubse::it::infra::ItCluster& cluster);
+void RunUbaTidSizeQueryTest(ubse::it::infra::ItCluster& cluster);
+void RunRepeatAllocAndFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunPreemptDeviceTest(ubse::it::infra::ItCluster& cluster);
+void RunRepeatDeallocTest(ubse::it::infra::ItCluster& cluster);
+void RunConcurrentSuccessTest(ubse::it::infra::ItCluster& cluster);
+void RunUpiLegalRangeAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunUpiMismatchAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunNonexistentGuidAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunInvalidDevListAllocTest(ubse::it::infra::ItCluster& cluster);
+void RunNonexistentGuidFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunInvalidDevListFreeTest(ubse::it::infra::ItCluster& cluster);
+void RunUbaTidQueryWithValidGuidTest(ubse::it::infra::ItCluster& cluster);
+void RunUbaTidQueryWithInvalidGuidTest(ubse::it::infra::ItCluster& cluster);
+
+} // namespace ubse::it::tests::npu
+
+#endif // IT_NPU_CASES_H

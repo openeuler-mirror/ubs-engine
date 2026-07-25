@@ -17,7 +17,9 @@
 #include <linux/vm_sockets.h>
 #include <securec.h>
 #include <unistd.h>
+#include <chrono>
 #include <memory>
+#include <thread>
 
 #include "ubse_cert_def.h"
 #include "ubse_cert_validator.h"
@@ -34,12 +36,17 @@ constexpr int INVALID_SOCK_FD = -1;
 constexpr uint32_t HOST_PORT = 6174;
 constexpr uint32_t HOST_CID = 0;
 constexpr uint32_t BUF_SIZE = 4096;
+constexpr int MAX_RETRY = 3;
+constexpr int RETRY_INTERVAL_MS = 100;
+constexpr int SSL_CERT_VERIFY_DEPTH = 3;
 
 // vsock 客户端使用的证书路径
 constexpr const char *SERVER_CERT_FILE = "/var/lib/ubse/lcne_cert/server.pem";
 constexpr const char *TRUST_CERT_FILE = "/var/lib/ubse/lcne_cert/trust.pem";
 constexpr const char *SERVER_KEY_FILE = "/var/lib/ubse/lcne_cert/server_key.pem";
 constexpr const char *PASSWORD_FILE = "/var/lib/ubse/lcne_cert/key_pwd.txt";
+
+cert::UbseCertPaths UbseVsockClient::certPaths_{};
 
 UbseVsockClient::UbseVsockClient() : sockFd_(INVALID_SOCK_FD), hostPort_(HOST_PORT), hostCid_(HOST_CID)
 {
@@ -71,65 +78,76 @@ UbseVsockClient::~UbseVsockClient()
     Disconnect();
 }
 
-bool UbseVsockClient::Connect()
+bool UbseVsockClient::DoConnect()
 {
-    if (!isInitOk_) {
-        return false;
-    }
     sockFd_ = socket(AF_VSOCK, SOCK_STREAM, 0);
     if (sockFd_ == INVALID_SOCK_FD) {
         UBSE_LOG_ERROR << "Failed to create sockFd for vsock";
         return false;
     }
-
     struct sockaddr_vm addr = {};
     addr.svm_family = AF_VSOCK;
     addr.svm_cid = hostCid_;
     addr.svm_port = hostPort_;
-
-    if (connect(sockFd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) == -1) {
+    if (connect(sockFd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
         close(sockFd_);
         sockFd_ = INVALID_SOCK_FD;
         UBSE_LOG_ERROR << "Failed to connect vsock server";
         return false;
     }
-
-    SSL_CTX *ctx = InitSslCtx(); // 直接接收返回值，无需传地址！
-    if (!ctx) {                  // 检查是否返回NULL
-        UBSE_LOG_ERROR << "InitSslCtx error";
+    SSL_CTX* ctx = GetSharedSslCtx();
+    if (!ctx) {
+        UBSE_LOG_ERROR << "Get cached SSL_CTX failed";
+        close(sockFd_);
+        sockFd_ = INVALID_SOCK_FD;
         return false;
     }
     ssl_ = SSL_new(ctx);
     if (!ssl_) {
         UBSE_LOG_ERROR << "SSL_new failed";
-        SSL_CTX_free(ctx);
+        close(sockFd_);
+        sockFd_ = INVALID_SOCK_FD;
         return false;
     }
-
-    int set_fd_ret = SSL_set_fd(ssl_, sockFd_);
-    if (set_fd_ret != 1) {
+    int setFdRet = SSL_set_fd(ssl_, sockFd_);
+    if (setFdRet != 1) {
         UBSE_LOG_ERROR << "SSL_set_fd failed";
         SSL_free(ssl_);
-        SSL_CTX_free(ctx);
-        ssl_ = nullptr; // 重置全局ssl，避免野指针
+        ssl_ = nullptr;
+        close(sockFd_);
+        sockFd_ = INVALID_SOCK_FD;
         return false;
     }
-
-    int connect_ret = SSL_connect(ssl_);
-    if (connect_ret <= 0) {
-        // 解析具体失败原因（关键！）
-        int ssl_err = SSL_get_error(ssl_, connect_ret);
-        UBSE_LOG_ERROR << "SSL_connect falied, error:" << ssl_err;
-
-        // 清理资源，避免内存泄漏
+    int connectRet = SSL_connect(ssl_);
+    if (connectRet <= 0) {
+        int sslErr = SSL_get_error(ssl_, connectRet);
+        UBSE_LOG_ERROR << "SSL_connect failed, error:" << sslErr;
         SSL_free(ssl_);
-        SSL_CTX_free(ctx);
-        ssl_ = nullptr; // 重置全局ssl
+        ssl_ = nullptr;
+        close(sockFd_);
+        sockFd_ = INVALID_SOCK_FD;
         return false;
     }
-
     UBSE_LOG_INFO << "[VSOCK_SIGN_SUCCESS] TLS authentication Success!";
     return true;
+}
+
+bool UbseVsockClient::Connect()
+{
+    if (!isInitOk_) {
+        return false;
+    }
+    for (int retry = 0; retry < MAX_RETRY; ++retry) {
+        if (DoConnect()) {
+            return true;
+        }
+        if (retry < MAX_RETRY - 1) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_INTERVAL_MS));
+        }
+    }
+
+    UBSE_LOG_ERROR << "Connect failed after " << MAX_RETRY << " retries";
+    return false;
 }
 
 void UbseVsockClient::Disconnect()
@@ -145,9 +163,9 @@ void UbseVsockClient::Disconnect()
     }
 }
 
-int PemPasswordCallback(char *buf, int size, int rwflag, void *usrdata)
+int PemPasswordCallback(char* buf, int size, int rwflag, void* usrdata)
 {
-    const char *value = static_cast<const char *>(usrdata);
+    const char* value = static_cast<const char*>(usrdata);
     if (value == nullptr) {
         return 0; // 失败
     }
@@ -155,85 +173,84 @@ int PemPasswordCallback(char *buf, int size, int rwflag, void *usrdata)
     if (len > size) {
         len = size; // 防止溢出
     }
-    memcpy_s(buf, len, value, len);
+    memcpy_s(buf, static_cast<size_t>(size), value, static_cast<size_t>(len));
     return len; // 返回实际写入的字节数
 }
 
-SSL_CTX *UbseVsockClient::InitSslCtx()
+SSL_CTX* UbseVsockClient::GetSharedSslCtx()
 {
-    // OpenSSL基础初始化
-    OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
-    OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
+    static SSL_CTX* cachedCtx = nullptr;
+    if (cachedCtx == nullptr) {
+        OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, nullptr);
+        OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
+        // 创建TLS客户端上下文（最低版本TLS1.3）
+        cachedCtx = SSL_CTX_new(TLS_client_method());
+        if (!cachedCtx) {
+            UBSE_LOG_ERROR << "SSL_CTX_new failed";
+            return nullptr;
+        }
+        if (SSL_CTX_set_min_proto_version(cachedCtx, TLS1_3_VERSION) != 1) {
+            UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
+            SSL_CTX_free(cachedCtx);
+            cachedCtx = nullptr;
+            return nullptr;
+        }
 
-    // 创建TLS客户端上下文（最低版本TLS1.3）
-    SSL_CTX *ctx = SSL_CTX_new(TLS_client_method());
-    if (!ctx) {
-        UBSE_LOG_ERROR << "SSL_CTX_new failed";
-        return nullptr;
+        cert::UbseSslValidator validator(certPaths_);
+        if (!validator.CheckAllFileExist()) {
+            SSL_CTX_free(cachedCtx);
+            return nullptr;
+        }
+
+        static utils::SecureBuffer cachedPassword = validator.LoadPassword();
+        SSL_CTX_set_default_passwd_cb(cachedCtx, PemPasswordCallback);
+        SSL_CTX_set_default_passwd_cb_userdata(cachedCtx, (void*)(cachedPassword.c_str()));
+        if (SSL_CTX_use_certificate_file(cachedCtx, certPaths_.serverCertFile.c_str(), SSL_FILETYPE_PEM) <= 0 ||
+            SSL_CTX_use_PrivateKey_file(cachedCtx, certPaths_.serverKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
+            UBSE_LOG_ERROR << "SSL_CTX_use_certificate_file or SSL_CTX_use_PrivateKey_file failed";
+            SSL_CTX_free(cachedCtx);
+            cachedCtx = nullptr;
+            return nullptr;
+        }
+        if (!SSL_CTX_check_private_key(cachedCtx)) {
+            UBSE_LOG_ERROR << "SSL_CTX_check_private_key failed";
+            SSL_CTX_free(cachedCtx);
+            cachedCtx = nullptr;
+            return nullptr;
+        }
+        if (SSL_CTX_load_verify_locations(cachedCtx, certPaths_.trustCertFile.c_str(), nullptr) != 1) {
+            UBSE_LOG_ERROR << "SSL_CTX_load_verify_locations failed";
+            SSL_CTX_free(cachedCtx);
+            cachedCtx = nullptr;
+            return nullptr;
+        }
+        SSL_CTX_set_verify(cachedCtx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+        SSL_CTX_set_verify_depth(cachedCtx, SSL_CERT_VERIFY_DEPTH);
+        UBSE_LOG_INFO << "Cached SSL_CTX created successfully";
     }
 
-    if (SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION) != 1) {
-        UBSE_LOG_ERROR << "Failed to set min protocol version: TLS1_3_VERSION";
-        SSL_CTX_free(ctx);
-        return nullptr;
-    }
-
-    cert::UbseSslValidator validator(certPaths_);
-    if (!validator.CheckAllFileExist()) {
-        SSL_CTX_free(ctx);
-        return nullptr;
-    }
-
-    password = validator.LoadPassword();
-    SSL_CTX_set_default_passwd_cb(ctx, PemPasswordCallback);
-    SSL_CTX_set_default_passwd_cb_userdata(ctx, (void *)(password.c_str()));
-
-    // 1. 加载客户端证书+私钥（供服务端验证）
-    if (SSL_CTX_use_certificate_file(ctx, certPaths_.serverCertFile.c_str(), SSL_FILETYPE_PEM) <= 0 ||
-        SSL_CTX_use_PrivateKey_file(ctx, certPaths_.serverKeyFile.c_str(), SSL_FILETYPE_PEM) <= 0) {
-        UBSE_LOG_ERROR << "SSL_CTX_use_certificate_file or SSL_CTX_use_PrivateKey_file failed";
-        SSL_CTX_free(ctx);
-        return nullptr;
-    }
-    // 验证证书与私钥匹配
-    if (!SSL_CTX_check_private_key(ctx)) {
-        UBSE_LOG_ERROR << "SSL_CTX_check_private_key failed.";
-        SSL_CTX_free(ctx);
-        return nullptr;
-    }
-
-    if (SSL_CTX_load_verify_locations(ctx, certPaths_.trustCertFile.c_str(), nullptr) != 1) {
-        UBSE_LOG_ERROR << "SSL_CTX_load_verify_locations failed.";
-        SSL_CTX_free(ctx);
-        return nullptr;
-    }
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-    SSL_CTX_set_verify_depth(ctx, 3);
-
-    UBSE_LOG_INFO << "ssl verify success.";
-    return ctx;
+    return cachedCtx;
 }
 
-bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void *data, uint32_t data_len)
+bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void* data, uint32_t data_len)
 {
+    const auto safeSize = 1LL << 20;
+    if (data_len > safeSize || data_len == 0 || data == nullptr) {
+        UBSE_LOG_ERROR << "To sign data is empty ro data_len is illegal";
+        return false;
+    }
     if (sockFd_ < 0) {
         UBSE_LOG_ERROR << "Not connect vsock server";
         return false;
     }
     uint64_t total_size = sizeof(MsgHeader) + data_len;
     std::unique_ptr<char[]> buffer(new char[total_size]);
-    const auto safeSize = 1LL << 20;
 
-    MsgHeader *hdr = reinterpret_cast<MsgHeader *>(buffer.get());
+    MsgHeader* hdr = reinterpret_cast<MsgHeader*>(buffer.get()); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
     hdr->id = id;
     hdr->version = 0xffff0400;
     hdr->type = type;
     hdr->len = data_len;
-
-    if (data_len > safeSize || data_len <= 0 || data == nullptr) {
-        UBSE_LOG_ERROR << "To sign data is empty ro data_len is illegal";
-        return false;
-    }
     errno_t ret = memcpy_s(hdr->data, data_len, data, data_len);
     if (ret != EOK) {
         UBSE_LOG_ERROR << "Data copy failed";
@@ -248,7 +265,7 @@ bool UbseVsockClient::SendMessage(uint32_t id, uint32_t type, const void *data, 
     return true;
 }
 
-bool UbseVsockClient::RecvMessage(UbseSignRsp &rsp)
+bool UbseVsockClient::RecvMessage(UbseSignRsp& rsp)
 {
     if (sockFd_ < 0) {
         return false;
@@ -273,11 +290,8 @@ bool UbseVsockClient::RecvMessage(UbseSignRsp &rsp)
     return true;
 }
 
-uint32_t UbseVsockClient::UbseVsockSend(UbseSignReq &req, UbseSignRsp &rsp)
+uint32_t UbseVsockClient::UbseVsockSend(UbseSignReq& req, UbseSignRsp& rsp)
 {
-    if (!Connect()) {
-        return UBSE_ERROR;
-    }
     auto data_len = static_cast<uint32_t>(req.payload.size());
     if (!SendMessage(req.id, req.type, req.payload.data(), data_len)) {
         UBSE_LOG_ERROR << "Send failed";

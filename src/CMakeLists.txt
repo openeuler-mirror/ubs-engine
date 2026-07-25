@@ -26,9 +26,9 @@ add_executable(ubse
         framework/vip/ubse_vip_module.cpp
         controllers/urma/ubse_urma_controller_module.cpp
         controllers/urma/ubse_urma_controller.cpp
+        controllers/npu/ubse_npu_controller_module.cpp
         framework/ha/ubse_election_module.cpp
         adapter_plugins/syssentry/sys_sentry_module.cpp
-        ras/ubse_ras_module.cpp
         api_server/ubse_api_server_module.cpp
         adapter_plugins/urma_uvs/ubse_urma_uvs_module.cpp
         #       外部模块入口
@@ -54,7 +54,6 @@ target_link_libraries(ubse PRIVATE
         ubse_vip
         ubse_election
         ubse_mti
-        ubse_ras
         syssentry
         cert_api_static
         api_server
@@ -63,6 +62,7 @@ target_link_libraries(ubse PRIVATE
         ubse_urma_uvs
         ubse_urma_controller
         ubse_node_mgr
+        npu_controller
 )
 
 # 手动导出注册模式下会被编译器优化的符号
@@ -74,6 +74,7 @@ target_link_libraries(ubse PRIVATE
         ubse_node_controller_register_config
         ubse_node_controller
         ubse_ssu
+        ubse_ras
         -Wl,--no-whole-archive
 )
 if (ASAN_BUILD)

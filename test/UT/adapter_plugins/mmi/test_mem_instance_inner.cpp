@@ -13,31 +13,34 @@
 
 #include <securec.h>
 
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
-#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 #include "ubse_file_util.h"
 #include "ubse_mem_instance_inner.h"
+#include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_obmm_executor.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 
 namespace ubse::ut::mmi {
 using namespace ubse::mmi;
 using namespace ubse::utils;
 using namespace ubse::nodeController;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::context;
 
-std::vector<mem_id> MockObmmImportReturnEmpty(RmObmmExecutor *mockClass, const std::vector<UbseMemObmmInfo> &desc,
-                                              ObmmOpParam &opParam, UbseMemImportStatus &status, int *numa)
+std::vector<mem_id> MockObmmImportReturnEmpty(RmObmmExecutor* mockClass, const std::vector<UbseMemObmmInfo>& desc,
+                                              ObmmOpParam& opParam, UbseMemImportStatus& status, int* numa)
 {
     return {};
 }
 
-std::vector<mem_id> MockObmmImportReturnMemIds(RmObmmExecutor *mockClass, const std::vector<UbseMemObmmInfo> &desc,
-                                               ObmmOpParam &opParam, UbseMemImportStatus &status, int *numa)
+std::vector<mem_id> MockObmmImportReturnMemIds(RmObmmExecutor* mockClass, const std::vector<UbseMemObmmInfo>& desc,
+                                               ObmmOpParam& opParam, UbseMemImportStatus& status, int* numa)
 {
     return {1};
 }
 
-UbseResult MockGetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicPreImportInfos)
+UbseResult MockGetPreOnlineInfo(std::vector<BasicPreImportInfo>& basicPreImportInfos)
 {
     BasicPreImportInfo info{};
     info.preOnlineSize = 1024;
@@ -45,7 +48,7 @@ UbseResult MockGetPreOnlineInfo(std::vector<BasicPreImportInfo> &basicPreImportI
     return UBSE_OK;
 }
 
-uint32_t MockGetBlockSize(uint64_t &blockSize)
+uint32_t MockGetBlockSize(uint64_t& blockSize)
 {
     blockSize = 128;
     return UBSE_OK;
@@ -61,7 +64,7 @@ TEST_F(TestMemInstanceInner, ExportRollback_Success)
 
 TEST_F(TestMemInstanceInner, ImportRollback_Success)
 {
-    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](mem_id id, unsigned long flags) {
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
         return 0;
     };
     EXPECT_NO_THROW(MemInstanceInnerCommon::GetInstance().RollbackImport({1, 2, 3, 4, 5}));
@@ -112,20 +115,20 @@ TEST_F(TestMemInstanceInner, MemShmImportExecutor_Success)
 
     std::vector<mem_id> memIds{};
     MOCKER(&RmObmmExecutor::ObmmImport,
-           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                                  UbseMemImportStatus &status, int *numa))
+           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                                  UbseMemImportStatus& status, int* numa))
         .stubs()
         .will(invoke(MockObmmImportReturnEmpty));
     ret = MemInstanceInnerShm::GetInstance().MemShmImportExecutor(importObj);
     EXPECT_NE(ret, UBSE_OK);
 
     MOCKER(&RmObmmExecutor::ObmmImport,
-           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                                  UbseMemImportStatus &status, int *numa))
+           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                                  UbseMemImportStatus& status, int* numa))
         .reset();
     MOCKER(&RmObmmExecutor::ObmmImport,
-           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo> &desc, ObmmOpParam &opParam,
-                                                  UbseMemImportStatus &status, int *numa))
+           std::vector<mem_id>(RmObmmExecutor::*)(const std::vector<UbseMemObmmInfo>& desc, ObmmOpParam& opParam,
+                                                  UbseMemImportStatus& status, int* numa))
         .stubs()
         .will(invoke(MockObmmImportReturnMemIds));
     ret = MemInstanceInnerShm::GetInstance().MemShmImportExecutor(importObj);
@@ -143,20 +146,16 @@ TEST_F(TestMemInstanceInner, MemShmUnImportExecutor_Success)
     EXPECT_EQ(ret, UBSE_OK);
 
     importObj.realExe = true;
-    ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
-    EXPECT_EQ(ret, UBSE_OK);
-
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        errno = EIO;
+        return -1;
+    };
     ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
     EXPECT_NE(ret, UBSE_OK);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id)).reset();
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
-        .stubs()
-        .will(returnValue(UBSE_OK));
-
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        return 0;
+    };
     ret = MemInstanceInnerShm::GetInstance().MemShmUnImportExecutor(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -177,8 +176,8 @@ TEST_F(TestMemInstanceInner, MemShmExportExecutor_Success)
     exportObj.req.shmRegion.nodelist.emplace_back(nodeInfo);
     std::vector<mem_id> memIds{};
     MOCKER(&RmObmmExecutor::ObmmExport,
-           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
-                                                  std::vector<ubse_mem_obmm_mem_desc> &desc, uint64_t blockSize))
+           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,
+                                                  std::vector<ubse_mem_obmm_mem_desc>& desc, uint64_t blockSize))
         .stubs()
         .will(returnValue(memIds));
     auto ret = MemInstanceInnerShm::GetInstance().MemShmExportExecutor(exportObj);
@@ -186,12 +185,12 @@ TEST_F(TestMemInstanceInner, MemShmExportExecutor_Success)
 
     memIds.emplace_back(1);
     MOCKER(&RmObmmExecutor::ObmmExport,
-           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
-                                                  std::vector<ubse_mem_obmm_mem_desc> &desc, uint64_t blockSize))
+           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,
+                                                  std::vector<ubse_mem_obmm_mem_desc>& desc, uint64_t blockSize))
         .reset();
     MOCKER(&RmObmmExecutor::ObmmExport,
-           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam &opParam,
-                                                  std::vector<ubse_mem_obmm_mem_desc> &desc, uint64_t blockSize))
+           std::vector<mem_id>(RmObmmExecutor::*)(size_t size[MAX_NUMA_NODES], int arraySize, ObmmOpParam& opParam,
+                                                  std::vector<ubse_mem_obmm_mem_desc>& desc, uint64_t blockSize))
         .stubs()
         .will(returnValue(memIds));
     ret = MemInstanceInnerShm::GetInstance().MemShmExportExecutor(exportObj);
@@ -213,7 +212,7 @@ TEST_F(TestMemInstanceInner, MemAddrImportExecutor_Success)
     importObj.req.exportAddrList.emplace_back(addrInfo);
     mem_id memId = 0;
     MOCKER(&RmObmmExecutor::ObmmImport,
-           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa))
+           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa))
         .stubs()
         .will(returnValue(memId));
     ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrImportExecutor(importObj);
@@ -221,10 +220,10 @@ TEST_F(TestMemInstanceInner, MemAddrImportExecutor_Success)
 
     memId = 1;
     MOCKER(&RmObmmExecutor::ObmmImport,
-           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa))
+           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa))
         .reset();
     MOCKER(&RmObmmExecutor::ObmmImport,
-           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc &desc, const ObmmOpParam &opParam, int *numa))
+           mem_id(RmObmmExecutor::*)(const ubse_mem_obmm_mem_desc& desc, const ObmmOpParam& opParam, int* numa))
         .stubs()
         .will(returnValue(memId));
 
@@ -238,14 +237,16 @@ TEST_F(TestMemInstanceInner, MemAddrUnImportExecutor_Success)
     UbseMemImportResult result{};
     importObj.status.importResults.emplace_back(result);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id))
-        .stubs()
-        .will(returnValue(UBSE_ERROR));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        errno = EIO;
+        return -1;
+    };
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
     EXPECT_NE(ret, UBSE_OK);
 
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id)).reset();
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(mem_id id)).stubs().will(returnValue(UBSE_OK));
+    RmObmmExecutor::GetInstance().obmmUnimportFunc = [](unsigned long id, unsigned long flags) {
+        return 0;
+    };
     ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnImportExecutor(importObj);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -277,8 +278,8 @@ TEST_F(TestMemInstanceInner, MemAddrUnExportExecutor_Success)
     UbseMemObmmInfo obmmInfo{};
     obmmInfo.memId = 1;
     exportObj.status.exportObmmInfo.emplace_back(obmmInfo);
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id)).reset();
-    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id> &id))
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id>& id)).reset();
+    MOCKER(&RmObmmExecutor::ObmmUnImport, UbseResult(RmObmmExecutor::*)(const std::vector<mem_id>& id))
         .stubs()
         .will(returnValue(UBSE_OK));
     auto ret = MemInstanceInnerAddrBorrow::GetInstance().MemAddrUnExportExecutor(exportObj);

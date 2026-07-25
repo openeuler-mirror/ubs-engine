@@ -230,14 +230,15 @@ std::string GetChipInfoBySocketId(const ubse::nodeController::UbseNodeInfo &node
     return "";
 }
 
-void GetPortCnaByPortId(const ubse::nodeController::UbseNodeInfo &remoteInfo, const std::string &importChipId,
-                        const uint32_t portId, uint32_t &portCna)
+void GetPortCnaByPortId(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importSlotId,
+                        const std::string& importChipId, const uint32_t portId, uint32_t& portCna)
 {
-    for (const auto &cpuInfo : remoteInfo.cpuInfos) {
-        for (const auto &[key, portInfo] : cpuInfo.second.portInfos) {
-            if (portInfo.remoteChipId != importChipId || portInfo.portId != std::to_string(portId)) {
+    for (const auto& cpuInfo : remoteInfo.cpuInfos) {
+        for (const auto& [key, portInfo] : cpuInfo.second.portInfos) {
+            if (portInfo.remoteSlotId != importSlotId || portInfo.remoteChipId != importChipId ||
+                portInfo.portId != std::to_string(portId)) {
                 continue;
-            }
+                }
             portCna = portInfo.portCna;
             return;
         }
@@ -245,14 +246,14 @@ void GetPortCnaByPortId(const ubse::nodeController::UbseNodeInfo &remoteInfo, co
     portCna = UINT32_MAX;
 }
 
-void GetMinPortInfoByCpuInfo(const ubse::nodeController::UbseNodeInfo &remoteInfo, const std::string &importChipId,
-                             uint32_t &minPortId, uint32_t &minPortCna)
+void GetMinPortInfoByCpuInfo(const nodeController::UbseNodeInfo& remoteInfo, const std::string& importSlotId,
+                             const std::string& importChipId, uint32_t& minPortId, uint32_t& minPortCna)
 {
     minPortId = UINT32_MAX;
     minPortCna = UINT32_MAX;
-    for (const auto &cpuInfo : remoteInfo.cpuInfos) {
-        for (const auto &[key, portInfo] : cpuInfo.second.portInfos) {
-            if (portInfo.remoteChipId != importChipId) {
+    for (const auto& cpuInfo : remoteInfo.cpuInfos) {
+        for (const auto& [key, portInfo] : cpuInfo.second.portInfos) {
+            if (portInfo.remoteSlotId != importSlotId || portInfo.remoteChipId != importChipId) {
                 continue;
             }
             uint32_t selfPortId{};
@@ -299,11 +300,11 @@ uint32_t GetPortInfo(const std::string &importNodeId, const UbseMemShareBorrowIm
         return UBSE_ERROR;
     }
     if (importObj.req.lenderInfo.portId != UINT32_MAX) {
-        GetPortCnaByPortId(remoteInfo, importChipId, portId, portCna);
+        GetPortCnaByPortId(remoteInfo, cnaInput.borrowNodeId, importChipId, portId, portCna);
     } else {
-        GetMinPortInfoByCpuInfo(remoteInfo, importChipId, portId, portCna);
+        GetMinPortInfoByCpuInfo(remoteInfo, cnaInput.borrowNodeId, importChipId, portId, portCna);
     }
-    UBSE_LOG_INFO << "minPortCna=" << portCna << ", min portId=" << portId;
+    UBSE_LOG_INFO << "portCna=" << portCna << ", portId=" << portId;
     if (portCna == UINT32_MAX) {
         UBSE_LOG_ERROR << "Failed Get minPortCna from topoInfo";
         return UBSE_ERROR;
@@ -328,23 +329,12 @@ uint32_t CascadeMasterStore::GetCnaTopo(const UbseMemShareAttachReq &req,
 
     UBSE_LOG_INFO << "req info: importNodeId=" << req.importNodeId << ", exportNodeId=" << remoteNode
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
-    auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
+    auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj, false,
+                                        importObj.req.lenderInfo.portId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get cna info when import, " << ubse::log::FormatRetCode(ret)
                        << ", requestId=" << req.requestId;
         return UBSE_ERROR;
-    }
-    // 多路径情况下，会给dcna重新赋值，当指定port时以指定port为准，否则选择直连导入socket的最小端口号，作为单路径路由表的配置
-    if (ubse::utils::IsSameSocketMultiPortTopo()) {
-        uint32_t minPortId = UINT32_MAX;
-        uint32_t minPortCna{};
-        if (GetPortInfo(req.importNodeId, importObj, remoteNode, minPortId, minPortCna) != UBSE_OK) {
-            return UBSE_ERROR;
-        }
-        for (auto &obmmInfo : importObj.exportObmmInfo) {
-            obmmInfo.desc.dcna = minPortCna;
-            obmmInfo.desc.marId = minPortId / 4; // minPortId / 4 能得到marId
-        }
     }
     return UBSE_OK;
 }

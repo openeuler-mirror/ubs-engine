@@ -14,45 +14,45 @@
 #include "ubs_virt_agent_container.h"
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
+#include "mem_container_msg.h"
 #include "src/sdk/c/include/ubs_error.h"
 #include "vm_sdk_def.h"
-#include "mem_container_msg.h"
 
 using namespace vm;
 
 // Conversion from PidParamForGoSDK to PidParamForGo
-void convertPidParamFromGoSDKToC(pid_param &pidParamForGoSdk, pid_param_fo_c &pidParamForC)
+void convertPidParamFromGoSDKToC(pid_param& pidParamForGoSdk, pid_param_fo_c& pidParamForC)
 {
     pidParamForC = *reinterpret_cast<pid_param_fo_c*>(&pidParamForGoSdk);
 }
 
 // Conversion from ContainerIdListForGoSDK to ContainerIdListForC
-void convertContainerIdListFromGoSDKToC(container_id_list &containerIdListForGoSDK,
-                                        container_id_list_for_c &containerIdListForC)
+void convertContainerIdListFromGoSDKToC(container_id_list& containerIdListForGoSDK,
+                                        container_id_list_for_c& containerIdListForC)
 {
     containerIdListForC = *reinterpret_cast<container_id_list_for_c*>(&containerIdListForGoSDK);
 }
 
 // Conversion from container_pid_info_for_c to container_pid_info_for_go_sdk
-void convertContainerIdInfoFromCToGoSDK(container_pid_info_for_c &containerIdInfoForC,
-                                        container_pid_info &containerIdInfoForGoSDK)
+void convertContainerIdInfoFromCToGoSDK(container_pid_info_for_c& containerIdInfoForC,
+                                        container_pid_info& containerIdInfoForGoSDK)
 {
     containerIdInfoForGoSDK = *reinterpret_cast<container_pid_info*>(&containerIdInfoForC);
 }
 
 // Conversion from WaterMarkForGoSDK to WaterMarkForC
-void convertWaterMarkForGoSDKToC(watermark_t &waterMarkForGoSDK, WaterMark &waterMarkForC)
+void convertWaterMarkForGoSDKToC(watermark_t& waterMarkForGoSDK, WaterMark& waterMarkForC)
 {
     waterMarkForC = *reinterpret_cast<WaterMark*>(&waterMarkForGoSDK);
 }
 
 // Conversion from PidMemInfoForGo to PidMemInfoForGoSDK
-void convertPidMemInfoFromCToGoSDK(pid_mem_info_for_c &pidMemInfoForGo, pid_mem_info &pidMemInfoForGoSDK)
+void convertPidMemInfoFromCToGoSDK(pid_mem_info_for_c& pidMemInfoForGo, pid_mem_info& pidMemInfoForGoSDK)
 {
     pidMemInfoForGoSDK = *reinterpret_cast<pid_mem_info*>(&pidMemInfoForGo);
 }
 
-int32_t ubse_output_unpack(uint8_t *buffer, uint32_t len, pid_mem_info **pidInfos, uint32_t *InfoSize)
+int32_t ubse_output_unpack(uint8_t* buffer, uint32_t len, pid_mem_info** pidInfos, uint32_t* InfoSize)
 {
     MemContainerPidMemInfoOutputMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -67,7 +67,7 @@ int32_t ubse_output_unpack(uint8_t *buffer, uint32_t len, pid_mem_info **pidInfo
         IPC_LOG_WARN << "Memory allocation *InfoSize == 0.";
         return VA_SUCCESS;
     }
-    *pidInfos = (pid_mem_info *)calloc(*InfoSize, sizeof(pid_mem_info_for_c));
+    *pidInfos = (pid_mem_info*)calloc(*InfoSize, sizeof(pid_mem_info_for_c));
     if (*pidInfos == nullptr) {
         IPC_LOG_ERROR << "Memory allocation failed for pid_mem_infos.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
@@ -80,8 +80,8 @@ int32_t ubse_output_unpack(uint8_t *buffer, uint32_t len, pid_mem_info **pidInfo
     return VA_SUCCESS;
 }
 
-int32_t ubse_output_unpack_for_containerInfos(uint8_t *buffer, uint32_t len, container_pid_info **containerInfos,
-                                              uint32_t *InfoSize)
+int32_t ubse_output_unpack_for_containerInfos(uint8_t* buffer, uint32_t len, container_pid_info** containerInfos,
+                                              uint32_t* InfoSize)
 {
     ContainerPidsForCInputMsg msg{buffer, len};
     auto ret = msg.Deserialize();
@@ -96,7 +96,7 @@ int32_t ubse_output_unpack_for_containerInfos(uint8_t *buffer, uint32_t len, con
         IPC_LOG_WARN << "Memory allocation *InfoSize == 0.";
         return VA_SUCCESS;
     }
-    *containerInfos = (container_pid_info *)calloc(*InfoSize, sizeof(container_pid_info_for_c));
+    *containerInfos = (container_pid_info*)calloc(*InfoSize, sizeof(container_pid_info_for_c));
     if (*containerInfos == nullptr) {
         IPC_LOG_ERROR << "Memory allocation failed for pid_mem_infos.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
@@ -109,7 +109,7 @@ int32_t ubse_output_unpack_for_containerInfos(uint8_t *buffer, uint32_t len, con
     return VA_SUCCESS;
 }
 
-int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint32_t *InfoSize)
+int32_t ubs_container_info_query(pid_param* param, pid_mem_info** pidInfos, uint32_t* InfoSize)
 {
     if (!param || strnlen(param->srcNid, SDK_NO_16) == 0 || strnlen(param->srcNid, SDK_NO_16) >= SDK_NO_16 ||
         param->pids_size == 0 || param->pids_size > SDK_NO_2048 || !pidInfos || !InfoSize) {
@@ -129,8 +129,7 @@ int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint
     ubse_api_buffer_t request_buffer = {.buffer = inputMsg.SerializedData(), .length = inputMsg.SerializedDataSize()};
 
     ubse_api_buffer_t response_buffer = {.buffer = nullptr, .length = 0};
-    ret = ubse_invoke_call(UBS_VA_CONTAINER, UBS_VA_CONTAINER_GET_MEM_INFO_FOR_PID, &request_buffer,
-                                &response_buffer);
+    ret = ubse_invoke_call(UBS_VA_CONTAINER, UBS_VA_CONTAINER_GET_MEM_INFO_FOR_PID, &request_buffer, &response_buffer);
     ubse_api_buffer_delete(&request_buffer);
     if (ret != VM_OK) {
         IPC_LOG_ERROR << "UBS_VA_CONTAINER ubse_invoke_call failed with error code = " << ret;
@@ -176,8 +175,8 @@ int32_t ubs_container_inject_waterLine(watermark_t* param)
     return VM_OK;
 }
 
-int32_t ubs_container_get_container_pids(container_id_list *containerIdList, container_pid_info **pidInfo,
-                                         uint32_t *InfoSize)
+int32_t ubs_container_get_container_pids(container_id_list* containerIdList, container_pid_info** pidInfo,
+                                         uint32_t* InfoSize)
 {
     if (!containerIdList || !pidInfo || !InfoSize || (*containerIdList).containerIdSize > SDK_NO_128) {
         IPC_LOG_ERROR << "Invalid parameters: param is null or InfoSize is null or containerIdSize is invalid.";
@@ -218,7 +217,7 @@ int32_t ubs_container_get_container_pids(container_id_list *containerIdList, con
     return ret;
 }
 
-int32_t waterline_mem_borrow_output_unpack(uint8_t *buffer, uint32_t len, char ***borrowIds, uint32_t *idsSize)
+int32_t waterline_mem_borrow_output_unpack(uint8_t* buffer, uint32_t len, char*** borrowIds, uint32_t* idsSize)
 {
     MemContainerWaterLineMemBorrowOutputMsg outputMsg{buffer, len};
     auto ret = outputMsg.Deserialize();
@@ -233,7 +232,7 @@ int32_t waterline_mem_borrow_output_unpack(uint8_t *buffer, uint32_t len, char *
         IPC_LOG_ERROR << "Memory allocation *idsSize == 0.";
         return VA_SUCCESS;
     }
-    *borrowIds = (char **)calloc(*idsSize, sizeof(char *));
+    *borrowIds = (char**)calloc(*idsSize, sizeof(char*));
     if (*borrowIds == nullptr) {
         IPC_LOG_ERROR << "Memory allocation failed.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
@@ -241,7 +240,7 @@ int32_t waterline_mem_borrow_output_unpack(uint8_t *buffer, uint32_t len, char *
     // Allocate memory for each string and copy the strings
     for (uint32_t i = 0; i < *idsSize; ++i) {
         size_t strLen = borrowIdList[i].size() + 1; // +1 for null terminator
-        (*borrowIds)[i] = (char *)calloc(strLen, sizeof(char));
+        (*borrowIds)[i] = (char*)calloc(strLen, sizeof(char));
         if ((*borrowIds)[i] == nullptr) {
             // Free previously allocated memory if allocation fails
             for (uint32_t j = 0; j < i; ++j) {
@@ -271,13 +270,13 @@ int32_t waterline_mem_borrow_output_unpack(uint8_t *buffer, uint32_t len, char *
     return VA_SUCCESS;
 }
 
-void convert_mem_borrow_request_t_to_c(mem_borrow_request_t &memBorrowRequest_t, MemBorrowRequestC &memBorrowRequestC)
+void convert_mem_borrow_request_t_to_c(mem_borrow_request_t& memBorrowRequest_t, MemBorrowRequestC& memBorrowRequestC)
 {
-    memBorrowRequestC = *reinterpret_cast<MemBorrowRequestC *>(&memBorrowRequest_t);
+    memBorrowRequestC = *reinterpret_cast<MemBorrowRequestC*>(&memBorrowRequest_t);
 }
 
-int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowRequest,
-                                            char ***borrowIds, uint32_t *idsSize)
+int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t* memBorrowRequest, char*** borrowIds,
+                                            uint32_t* idsSize)
 {
     if (!memBorrowRequest || strnlen(memBorrowRequest->borrowParam.srcNid, SDK_NO_16) == 0 ||
         strnlen(memBorrowRequest->borrowParam.srcNid, SDK_NO_16) >= SDK_NO_16 || !borrowIds || !idsSize) {
@@ -311,13 +310,13 @@ int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowReque
     return ret;
 }
 
-void convert_mem_migrate_request_t_to_c(mem_migrate_request_t &memMigrateRequest_t,
-                                        MemMigrateRequestC &memMigrateRequestC)
+void convert_mem_migrate_request_t_to_c(mem_migrate_request_t& memMigrateRequest_t,
+                                        MemMigrateRequestC& memMigrateRequestC)
 {
-    memMigrateRequestC = *reinterpret_cast<MemMigrateRequestC *>(&memMigrateRequest_t);
+    memMigrateRequestC = *reinterpret_cast<MemMigrateRequestC*>(&memMigrateRequest_t);
 }
 
-int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRequest)
+int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t* memMigrateRequest)
 {
     if (!memMigrateRequest || strnlen(memMigrateRequest->borrowParam.srcNid, SDK_NO_16) == 0 ||
         strnlen(memMigrateRequest->borrowParam.srcNid, SDK_NO_16) >= SDK_NO_16 ||
@@ -354,13 +353,12 @@ int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRe
     return ret;
 }
 
-void convert_mem_return_request_t_to_c(return_request_t &memReturnRequest_t,
-                                       MemReturnRequestC &memReturnRequestC)
+void convert_mem_return_request_t_to_c(return_request_t& memReturnRequest_t, MemReturnRequestC& memReturnRequestC)
 {
-    memReturnRequestC = *reinterpret_cast<MemReturnRequestC *>(&memReturnRequest_t);
+    memReturnRequestC = *reinterpret_cast<MemReturnRequestC*>(&memReturnRequest_t);
 }
 
-int32_t ubs_virt_agent_waterline_mem_return(return_request_t *memReturnRequest)
+int32_t ubs_virt_agent_waterline_mem_return(return_request_t* memReturnRequest)
 {
     if (!memReturnRequest || strnlen(memReturnRequest->borrowParam.srcNid, SDK_NO_16) == 0 ||
         strnlen(memReturnRequest->borrowParam.srcNid, SDK_NO_16) >= SDK_NO_16 ||

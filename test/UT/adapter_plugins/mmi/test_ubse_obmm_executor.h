@@ -11,8 +11,8 @@
  */
 #ifndef TEST_UBSE_OBMM_EXECUTOR_H
 #define TEST_UBSE_OBMM_EXECUTOR_H
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
 
 namespace ubse::ut::mmi {
@@ -28,6 +28,6 @@ class TestUbseObmmExecutor : public testing::Test {
         GlobalMockObject::verify();
     }
 };
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi
 
-#endif  // TEST_UBSE_OBMM_EXECUTOR_H
+#endif // TEST_UBSE_OBMM_EXECUTOR_H

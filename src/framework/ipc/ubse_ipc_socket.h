@@ -29,7 +29,7 @@ constexpr uint32_t MILLISECOND_TO_SECOND = 1000; // 1sת1000ms
  * @param[in] timeoutMs Operation timeout in milliseconds (0 = infinite blocking)
  * @return 0 = success, non-zero = error code
  */
-uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeoutMs);
+uint32_t SendMsg(int fd, const void* buffer, uint32_t length, int timeoutMs);
 
 /**
  * @brief Guaranteed reception of exact data length from a file descriptor
@@ -46,6 +46,6 @@ uint32_t SendMsg(int fd, const void *buffer, uint32_t length, int timeoutMs);
  * @note Peer closure (read return 0) is treated as EPIPE error
  * @warning Avoid use with UDP sockets (message boundaries may cause early completion)
  */
-uint32_t RecvMsg(int fd, void *buffer, uint32_t length, int timeoutMs);
+uint32_t RecvMsg(int fd, void* buffer, uint32_t length, int timeoutMs);
 } // namespace ubse::ipc
 #endif // UBSE_IPC_SOCKET_H

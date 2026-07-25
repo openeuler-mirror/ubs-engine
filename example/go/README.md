@@ -27,8 +27,8 @@ sudo dnf install -y ubs-engine-client-libs ubs-engine-client-devel
 | ------------------------------ | -------------------------------------------- |
 | `/usr/include/ubse`            | 目录下头文件（`*.h`）权限：`644`             |
 | `/usr/lib64/libubse-client.so` | 软链接，指向`/usr/lib64/libubse-client.so.1` |
-| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.1.0.0` |
-| `/usr/lib64/libubse-client.so.1.0.0`  | 二进制动态库                          |
+| `/usr/lib64/libubse-client.so.1` | 软链接，指向`libubse-client.so.xx.xx.xx` |
+| `/usr/lib64/libubse-client.so.xx.xx.xx`  | 二进制动态库                          |
 | `/usr/lib64/libubse-client.a`  | 二进制静态库                                 |
 
 ### 1.4 Go 模块依赖
@@ -209,7 +209,7 @@ sudo dnf install -y ubs-engine-client-libs
 
 启动 ubs engine 服务，各个节点均需启动。
 
-ubs engine 默认开启安全通信，需确保成功导入证书，否则集群状态可能异常，证书导入参考：[ubsectl_cert](../../docs/cli/ubsectl_cert.md)，或修改配置文件 `/etc/ubse/ubse.conf`，将 `cert.use` 设置为 `false`，关闭安全通信。
+ubs engine 默认开启安全通信，需确保成功导入证书，否则集群状态可能异常，证书导入参考：[ubse_cli_user_guide](../../docs/zh/ubse_cli_user_guide.md#证书管理)，或修改配置文件 `/etc/ubse/ubse.conf`，将 `cert.use` 设置为 `false`，关闭安全通信。
 
 ```shell
 sudo systemctl start ubse

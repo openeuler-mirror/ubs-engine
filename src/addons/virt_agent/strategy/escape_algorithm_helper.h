@@ -20,13 +20,13 @@ namespace vm {
 
 class EscapeAlgorithmHelper {
 public:
-    static EscapeAlgorithmHelper &GetInstance();
+    static EscapeAlgorithmHelper& GetInstance();
 
     static VmResult Init();
 
     static void EscapeAlgorithmHandleClose();
 
-    static void GetStrategyConf(StrategyConfig &strategyConf);
+    static void GetStrategyConf(StrategyConfig& strategyConf);
 
 private:
     EscapeAlgorithmHelper() = default;

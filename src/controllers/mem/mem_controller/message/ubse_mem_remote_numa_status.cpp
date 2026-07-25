@@ -10,13 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
-
 #include "ubse_mem_remote_numa_status.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_mem_controller_serial.h"
 namespace ubse::mem::controller::message {
-using namespace serial;
+using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 UbseResult UbseMemRemoteNumaStatus::Serialize()

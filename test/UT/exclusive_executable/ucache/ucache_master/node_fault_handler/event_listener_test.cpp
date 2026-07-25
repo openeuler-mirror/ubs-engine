@@ -12,16 +12,16 @@
 
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
- 
+
 #define private public
 
 #include "event_listener.h"
 
 #include "ubse_logger.h"
+#include "ubse_ras.h"
 #include "event_handler.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
-#include "ubse_ras.h"
 
 using namespace std;
 using namespace ucache;
@@ -48,7 +48,7 @@ protected:
 TEST_F(EventListenerTest, InitTest1)
 {
     EventListener obj;
-    using RegFn = uint32_t(*)(AlarmHandler);
+    using RegFn = uint32_t (*)(AlarmHandler);
     MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_ERR));
     uint32_t ret = obj.Init();
     EXPECT_EQ(ret, UCACHE_ERR);
@@ -57,9 +57,8 @@ TEST_F(EventListenerTest, InitTest1)
 TEST_F(EventListenerTest, InitTest2)
 {
     EventListener obj;
-    using RegFn = uint32_t(*)(AlarmHandler);
-    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_ERR));
+    using RegFn = uint32_t (*)(AlarmHandler);
+    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_OK)).then(returnValue(UCACHE_ERR));
     uint32_t ret = obj.Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
@@ -67,10 +66,12 @@ TEST_F(EventListenerTest, InitTest2)
 TEST_F(EventListenerTest, InitTest3)
 {
     EventListener obj;
-    using RegFn = uint32_t(*)(AlarmHandler);
-    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_ERR));
+    using RegFn = uint32_t (*)(AlarmHandler);
+    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn)
+        .stubs()
+        .will(returnValue(UCACHE_OK))
+        .then(returnValue(UCACHE_OK))
+        .then(returnValue(UCACHE_ERR));
     uint32_t ret = obj.Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
@@ -78,11 +79,13 @@ TEST_F(EventListenerTest, InitTest3)
 TEST_F(EventListenerTest, InitTest4)
 {
     EventListener obj;
-    using RegFn = uint32_t(*)(AlarmHandler);
-    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_OK))
-                                                              .then(returnValue(UCACHE_ERR));
+    using RegFn = uint32_t (*)(AlarmHandler);
+    MOCKER_CPP(RegisterAlarmFaultHandler, RegFn)
+        .stubs()
+        .will(returnValue(UCACHE_OK))
+        .then(returnValue(UCACHE_OK))
+        .then(returnValue(UCACHE_OK))
+        .then(returnValue(UCACHE_ERR));
     uint32_t ret = obj.Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 }
@@ -90,7 +93,7 @@ TEST_F(EventListenerTest, InitTest4)
 TEST_F(EventListenerTest, InitTest5)
 {
     EventListener obj;
-    using RegFn = uint32_t(*)(AlarmHandler);
+    using RegFn = uint32_t (*)(AlarmHandler);
     MOCKER_CPP(RegisterAlarmFaultHandler, RegFn).stubs().will(returnValue(UCACHE_OK));
     uint32_t ret = obj.Init();
     EXPECT_EQ(ret, UCACHE_OK);

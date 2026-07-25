@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "ubse_election.h"
+#include "adapter_plugins/urma/ubse_urma_uvs_def.h"
 
 namespace ubse::nodeController {
 enum class PortStatus {
@@ -85,13 +86,13 @@ struct UbseNumaLocation {
     uint32_t numaId;    // numa id
 
     struct Hash {
-        std::size_t operator()(const UbseNumaLocation &loc) const
+        std::size_t operator()(const UbseNumaLocation& loc) const
         {
             return std::hash<std::string>{}(loc.nodeId) ^ (std::hash<uint32_t>{}(loc.numaId) << 1);
         }
     };
     struct Equal {
-        bool operator()(const UbseNumaLocation &lhs, const UbseNumaLocation &rhs) const
+        bool operator()(const UbseNumaLocation& lhs, const UbseNumaLocation& rhs) const
         {
             return lhs.nodeId == rhs.nodeId && lhs.numaId == rhs.numaId;
         }
@@ -103,14 +104,14 @@ struct UbseCpuLocation {
     uint32_t chipId;    // lcne的chipid
 
     struct Hash {
-        std::size_t operator()(const UbseCpuLocation &loc) const
+        std::size_t operator()(const UbseCpuLocation& loc) const
         {
             return std::hash<std::string>{}(loc.nodeId) ^ (std::hash<uint32_t>{}(loc.chipId) << 1);
         }
     };
 
     struct Equal {
-        bool operator()(const UbseCpuLocation &lhs, const UbseCpuLocation &rhs) const
+        bool operator()(const UbseCpuLocation& lhs, const UbseCpuLocation& rhs) const
         {
             return lhs.nodeId == rhs.nodeId && lhs.chipId == rhs.chipId;
         }
@@ -222,7 +223,7 @@ struct PhysicalLink {
     std::string peerInterfaceName; // 对端端口名
     LinkStatus linkStatus;         // 这条链路的状态
 
-    bool operator==(const PhysicalLink &other) const
+    bool operator==(const PhysicalLink& other) const
     {
         return slotId == other.slotId &&
                chipId == other.chipId &&
@@ -280,18 +281,18 @@ struct CliPhysicalLink {
     }
 };
 
-uint32_t SerializeUbseNode(UbseNodeInfo info, uint8_t *&buffer, size_t &size);
+uint32_t SerializeUbseNode(UbseNodeInfo info, uint8_t*& buffer, size_t& size);
 
-uint32_t SerializeUbseNodeList(std::vector<UbseNodeInfo> infos, uint8_t *&buffer, size_t &size);
+uint32_t SerializeUbseNodeList(std::vector<UbseNodeInfo> infos, uint8_t*& buffer, size_t& size);
 
-uint32_t SerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *&buffer,
-                                    size_t &size);
+uint32_t SerializeDevDirConnectInfo(std::map<std::string, PhysicalLink>& devDirConnectInfo, uint8_t*& buffer,
+                                    size_t& size);
 
-uint32_t DeSerializeUbseNode(UbseNodeInfo &info, uint8_t *buffer, size_t size);
+uint32_t DeSerializeUbseNode(UbseNodeInfo& info, uint8_t* buffer, size_t size);
 
-uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo> &infos, uint8_t *buffer, size_t size);
+uint32_t DeSerializeUbseNodeList(std::vector<UbseNodeInfo>& infos, uint8_t* buffer, size_t size);
 
-uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink> &devDirConnectInfo, uint8_t *buffer,
+uint32_t DeSerializeDevDirConnectInfo(std::map<std::string, PhysicalLink>& devDirConnectInfo, uint8_t* buffer,
                                       size_t size);
 
 using UbseLocalStateNotifyHandler = std::function<uint32_t(const UbseNodeInfo &node)>;
@@ -304,7 +305,7 @@ class UbseNodeController {
     friend class UbseNodeControllerModule;
 
 public:
-    static UbseNodeController &GetInstance()
+    static UbseNodeController& GetInstance()
     {
         static UbseNodeController instance;
         return instance;
@@ -318,23 +319,23 @@ public:
     // 获取当前节点信息
     UbseNodeInfo GetCurNode();
     // 通过节点Id获取节点信息
-    UbseNodeInfo GetNodeById(const std::string &nodeId);
+    UbseNodeInfo GetNodeById(const std::string& nodeId);
     // 共享内存借用 共享域中的共享节点列表，从节点侧仅记录index，需要在master侧恢复时，获取对应的nodeId和hostName，slotId = index+1, slotId范围（1~16）
     UbseNodeInfo GetNodeBySlotId(uint32_t slotId);
     // 通过socket获取本地controller的eid
-    uint32_t GetLocalEidBySocket(const uint32_t &socketId, uint32_t &eid);
+    uint32_t GetLocalEidBySocket(const uint32_t& socketId, uint32_t& eid);
     // 通过nodeId和socket获取controller的eid
-    uint32_t GetEid(const std::string &nodeId, const uint32_t &socketId, uint32_t &eid);
+    uint32_t GetEid(const std::string& nodeId, const uint32_t& socketId, uint32_t& eid);
 
-    uint32_t GetMemGroupNodeList(UbseMemGroupNodeList &groupList);
+    uint32_t GetMemGroupNodeList(UbseMemGroupNodeList& groupList);
 
-    uint32_t GetMemProviderNodeList(UbseMemProviderNodeList &providerList);
+    uint32_t GetMemProviderNodeList(UbseMemProviderNodeList& providerList);
 
     // 注册本节点状态变更回调
     uint32_t RegLocalStateNotifyHandler(const UbseLocalStateNotifyHandler &handler);
 
     // 注册中心侧节点状态变更回调
-    uint32_t RegClusterStateNotifyHandler(const UbseClusterStateNotifyHandler &handler);
+    uint32_t RegClusterStateNotifyHandler(const UbseClusterStateNotifyHandler& handler);
 
     // 注册全局主侧数据恢复状态变更回调
     uint32_t RegGlobalStateNotifyHandler(const UbseGlobalStateNotifyHandler &handler);
@@ -352,13 +353,13 @@ public:
     uint32_t UpdateNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
 
     // 利用numaInfos的OS socketId，更新cpuInfos的值
-    void UbseSocketIdChange(const std::string &nodeId);
+    void UbseSocketIdChange(const std::string& nodeId);
 
     void UpdateNodeInfoLocalState(UbseNodeLocalState state);
 
-    uint32_t UpdateNodeInfoClusterState(const std::string &nodeId, UbseNodeClusterState state);
+    uint32_t UpdateNodeInfoClusterState(const std::string& nodeId, UbseNodeClusterState state);
 
-    void SetCurrentNodeId(const std::string &nodeId);
+    void SetCurrentNodeId(const std::string& nodeId);
 
     std::string GetCurrentNodeId();
 
@@ -371,9 +372,14 @@ public:
     std::set<uint32_t> UbseGetAllDeployedNode();
     // 更新链路状态信息,使用时注意锁
     void UpdateDevDirConnectInfo();
-    void UpdateConnect(PhysicalLink &physicalLink, std::string &linkId);
+    void UpdateConnect(PhysicalLink& physicalLink, std::string& linkId);
     void PrintDevDirConnectInfo();
     void CreateAndUpdateInfo(std::pair<const UbseCpuLocation, UbseCpuInfo> topoInfo);
+    // 由mem ctl初始化时调用，占用通信bonding
+    void RegisterHostBonding();
+    bool IsHostBondingRegistered() const;
+    uint32_t GetPlanningHostBondingByNodeId(const std::string& nodeId,
+                                            std::vector<urma::UbseUrmaUvsNodeInfo>& hostUrmaInfos);
 
 private:
     std::shared_mutex rwMutex;
@@ -386,6 +392,8 @@ private:
     std::shared_mutex devDirMutex;
     std::map<std::string, PhysicalLink>
         devDirConnectInfo; // agent侧只有当前节点，Master有全量节点,key为带chipId的linkid，value为带socketId的linkId
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> faultUpdateTimes; // fault状态更新时间
+    bool isHostUrmaDevOccupied{false};
 };
 } // namespace ubse::nodeController
 #endif // UBSE_NODE_CONTROLLER_H

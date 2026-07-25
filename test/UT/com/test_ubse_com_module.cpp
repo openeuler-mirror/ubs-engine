@@ -11,9 +11,9 @@
  */
 
 #include "test_ubse_com_module.h"
+#include "ubse_lcne_module.h"
 #include "intercom/ubse_inter_com.h"
 #include "ubse_com_module.cpp"
-#include "ubse_lcne_module.h"
 #include "test_ubse_com.h"
 namespace ubse::ut::com {
 const std::string IP = "127.0.0.1";
@@ -34,13 +34,13 @@ void TestUbseComModule::TearDown()
     GlobalMockObject::verify();
 }
 
-UbseResult MockSplitIpPort(const std::string &ipPortStr, std::pair<std::string, uint16_t> &address)
+UbseResult MockSplitIpPort(const std::string& ipPortStr, std::pair<std::string, uint16_t>& address)
 {
     address.first = "127.0.0.1";
     address.second = 8080; // 8080端口号
 }
 
-UbseResult MockSplitIdIpStr(const std::string &ipStr, std::map<std::string, std::pair<std::string, uint16_t>> &addrMap)
+UbseResult MockSplitIdIpStr(const std::string& ipStr, std::map<std::string, std::pair<std::string, uint16_t>>& addrMap)
 {
     addrMap.emplace("Node0", std::make_pair("127.0.0.1", 8080)); // 8080端口号
 }
@@ -51,13 +51,13 @@ std::string MockGetCurRole()
     return CUR_ROLE_STR;
 }
 
-uint32_t MockGetRole(ubse::election::UbseRoleInfo &role)
+uint32_t MockGetRole(ubse::election::UbseRoleInfo& role)
 {
     role.nodeRole = ELECTION_ROLE_MASTER;
     return UBSE_OK;
 }
 
-UbseResult MockInitUbseCom(UbseComModule *ubseComModule)
+UbseResult MockInitUbseCom(UbseComModule* ubseComModule)
 {
     ubseComModule->rpcServer_ = new (std::nothrow) UbseRpcServer(IP, PORT, MASTER_RPC_SERVER_NAME, NODE_ID_MASTER);
 
@@ -600,7 +600,7 @@ TEST_F(TestUbseComModule, TestRpcServerStart)
     std::string name = "RpcServer";
     ubseComModule.rpcServer_ = new UbseRpcServer(ip, port, name, nodeId);
     ret = ubseComModule.RpcServerStart();
-    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(UBSE_ERROR_INVAL, ret);
 }
 
 /*
@@ -821,8 +821,12 @@ TEST_F(TestUbseComModule, TestStartComService)
 {
     std::string localNodeId = "Node0";
     std::string localIp = "127.0.0.1";
-    UbseComCallBackForHA newChannelCb = [](const std::string&, const std::string&) { return UBSE_OK; };
-    UbseComCallBackForHA brokenChannelCb = [](const std::string&, const std::string&) { return UBSE_OK; };
+    UbseComCallBackForHA newChannelCb = [](const std::string&, const std::string&) {
+        return UBSE_OK;
+    };
+    UbseComCallBackForHA brokenChannelCb = [](const std::string&, const std::string&) {
+        return UBSE_OK;
+    };
 
     UbseComModule ubseComModule1;
     MOCKER(&UbseComModule::InitUbseCom).stubs().will(returnValue(UBSE_ERROR_NOMEM));

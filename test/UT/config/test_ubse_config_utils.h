@@ -18,5 +18,5 @@ namespace ubse::ut::config {
 using namespace ubse::common::def;
 std::string RandomString(size_t length = NO_4);
 uint32_t RandomNumber(uint32_t min = NO_0, uint32_t max = NO_3);
-}
+} // namespace ubse::ut::config
 #endif // UBSE_MANAGER_TEST_UBSE_CONFIG_UTILS_H

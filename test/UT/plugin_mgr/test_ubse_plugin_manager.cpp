@@ -38,13 +38,13 @@ uint32_t MockUbsePluginInitFailFunc(const uint16_t moduleCode)
     return UBSE_ERROR;
 }
 
-void MockGetLoadedPlugins(UbsePluginManager *_mockClass, std::vector<std::string> &loadedPlugins)
+void MockGetLoadedPlugins(UbsePluginManager* _mockClass, std::vector<std::string>& loadedPlugins)
 {
     loadedPlugins.emplace_back("vm");
 }
 
 void MockUbsePluginDeInitFunc() {}
-void MockGetLoaedPlugins(UbsePluginManager *fakeClass, std::vector<std::string> &loadedPlugins)
+void MockGetLoaedPlugins(UbsePluginManager* fakeClass, std::vector<std::string>& loadedPlugins)
 {
     loadedPlugins.emplace_back("ssu");
 }
@@ -57,9 +57,9 @@ void TestUbsePluginManager::SetUp()
 
     addmissionConfigs[ubsePluginInfo.name] = MOCKMODULECODE.value();
 
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&g_testPluginSo)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&g_testPluginSo)));
     MOCKER(dlclose).stubs().will(returnValue(1));
-    char *mockRealpathResult = strdup(ubsePluginInfo.pkg.c_str());
+    char* mockRealpathResult = strdup(ubsePluginInfo.pkg.c_str());
     MOCKER(realpath).stubs().will(returnValue(mockRealpathResult));
 
     Test::SetUp();
@@ -139,7 +139,7 @@ TEST_F(TestUbsePluginManager, TestStartWithAdmission)
 
     MOCKER(&UbsePluginConfig::GetAllPluginConfigs).stubs().will(returnValue(configs));
     MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(MOCKMODULECODE));
-    MOCKER(dlsym).stubs().will(returnValue((void *)&MockUbsePluginInitFunc));
+    MOCKER(dlsym).stubs().will(returnValue((void*)&MockUbsePluginInitFunc));
 
     EXPECT_EQ(ubsePluginManager.Start(), UBSE_OK);
     MOCKER(&UbsePluginConfig::LoadPluginConfigs).reset();
@@ -156,7 +156,7 @@ TEST_F(TestUbsePluginManager, TestDeInitializePlugins)
 
     MOCKER(&UbsePluginConfig::GetAllPluginConfigs).stubs().will(returnValue(configs));
     MOCKER(&UbsePluginAdmission::GetPluginConfig).stubs().will(returnValue(MOCKMODULECODE));
-    MOCKER(dlsym).stubs().will(returnValue((void *)&MockUbsePluginInitFunc));
+    MOCKER(dlsym).stubs().will(returnValue((void*)&MockUbsePluginInitFunc));
     EXPECT_EQ(ubsePluginManager.Start(), UBSE_OK);
     MOCKER(dlsym).stubs().will(returnValue(&MockUbsePluginDeInitFunc));
     EXPECT_NO_THROW(ubsePluginManager.DeInitializePlugins());

@@ -24,20 +24,24 @@
 namespace ubse::service::mem {
 
 struct UbseNumaNodeInfo {
-    std::string nodeId;
-    std::string hostName;
-    uint32_t numaId;
-    uint32_t socketId;
-    std::vector<uint16_t> mCpuList;
-    uint64_t mReservedMemRatio;
-    uint64_t mMemTotal;
-    uint64_t mMemFree;
-    unsigned int nrHugepages;
-    unsigned int freeHugepages;
-    uint64_t mTimestamp;
-    uint64_t mMemBorrowed;
-    uint64_t mMemLent;
-    uint64_t mMemShared;
+    std::string nodeId;                // 该numa的nodeId
+    std::string hostName;              // 主机名
+    uint32_t numaId;                   // numa id
+    uint32_t socketId;                 // socket id
+    std::vector<uint16_t> mCpuList;    // CPU列表（逗号分隔）
+    uint64_t mReservedMemRatio;        // 预留内存比例
+    uint64_t mMemTotal;                // 总内存量（字节）
+    uint64_t mMemFree;                 // 空闲内存量（字节）
+    unsigned int nrHugepages;          // 2M大页数量
+    unsigned int freeHugepages;        // 2M大页空闲数量
+    unsigned int nrHugepages512M{0};   // 512M大页总数
+    unsigned int freeHugepages512M{0}; // 512M大页空闲数
+    unsigned int nrHugepages1G{0};     // 1G大页总数
+    unsigned int freeHugepages1G{0};   // 1G大页空闲数
+    uint64_t mTimestamp;               // 数据采集的时间戳（秒级）
+    uint64_t mMemBorrowed;             // 借入内存量（字节）
+    uint64_t mMemLent;                 // 借出内存量（字节）
+    uint64_t mMemShared;               // 共享内存量（字节）
 };
 
 struct BasicPreImportInfo {

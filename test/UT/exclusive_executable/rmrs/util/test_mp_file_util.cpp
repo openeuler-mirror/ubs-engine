@@ -10,12 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
@@ -29,14 +29,13 @@ namespace mempooling {
 // Mocking the logging utility
 class MockLogger {
 public:
-    MOCK_METHOD(void, LogError, (const std::string &moduleName,
-                                 const std::string &moduleCode,
-                                 const std::string &message), ());
+    MOCK_METHOD(void, LogError,
+                (const std::string& moduleName, const std::string& moduleCode, const std::string& message), ());
 };
 
 // Mocking the realPath function
 extern "C" {
-    char* RealPath(const char *path, char *resolvedPath);
+char* RealPath(const char* path, char* resolvedPath);
 }
 
 // Test suite for MpFileUtil
@@ -60,22 +59,22 @@ protected:
 // 正确打开文件
 TEST_F(MpFileUtilTest, GetFileInfo_ValidFile)
 {
-     // 准备
-    std::string path = "/tmp/valid_path_to_file.txt";  // 使用临时文件路径
+    // 准备
+    std::string path = "/tmp/valid_path_to_file.txt"; // 使用临时文件路径
     std::vector<std::string> info;
     std::string expectedContent = "Line1\nLine2\nLine3";
 
     // 确保文件夹存在
     if (access("/tmp", F_OK) == -1) {
-        mkdir("/tmp", 0777);  // 如果没有 "/tmp" 目录，则创建它
+        mkdir("/tmp", 0777); // 如果没有 "/tmp" 目录，则创建它
     }
 
     // 模拟 realPath 返回有效路径
-    EXPECT_CALL(logger, LogError(testing::_, testing::_, testing::_)).Times(0);  // 确保没有错误日志
+    EXPECT_CALL(logger, LogError(testing::_, testing::_, testing::_)).Times(0); // 确保没有错误日志
 
     // 使用 std::ofstream 创建文件并写入内容
     std::ofstream file(path);
-    ASSERT_TRUE(file.is_open());  // 确保文件打开成功
+    ASSERT_TRUE(file.is_open()); // 确保文件打开成功
     file << expectedContent;
     file.close();
 
@@ -93,4 +92,4 @@ TEST_F(MpFileUtilTest, GetFileInfo_ValidFile)
     std::remove(path.c_str());
 }
 
-}
+} // namespace mempooling

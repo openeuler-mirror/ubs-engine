@@ -25,8 +25,8 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::plugin;
 
-UbseResult MockAdmissionGetAllConfigWithPrefix(UbseConfModule *_mockClass, const std::string &prefix,
-                                               std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockAdmissionGetAllConfigWithPrefix(UbseConfModule* _mockClass, const std::string& prefix,
+                                               std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> allowedConfigMap;
     allowedConfigMap["ssuExport"] = "201";
@@ -36,8 +36,8 @@ UbseResult MockAdmissionGetAllConfigWithPrefix(UbseConfModule *_mockClass, const
     return UBSE_OK;
 }
 
-UbseResult MockInvalidArgument(UbseConfModule *_mockClass, const std::string &prefix,
-                               std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockInvalidArgument(UbseConfModule* _mockClass, const std::string& prefix,
+                               std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> allowedConfigMap;
     allowedConfigMap["ssuExport"] = "234hjkh";
@@ -45,8 +45,8 @@ UbseResult MockInvalidArgument(UbseConfModule *_mockClass, const std::string &pr
     return UBSE_OK;
 }
 
-UbseResult MockLessArgument(UbseConfModule *_mockClass, const std::string &prefix,
-                            std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockLessArgument(UbseConfModule* _mockClass, const std::string& prefix,
+                            std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> allowedConfigMap;
     allowedConfigMap["ssuExport"] = "2";
@@ -54,8 +54,8 @@ UbseResult MockLessArgument(UbseConfModule *_mockClass, const std::string &prefi
     return UBSE_OK;
 }
 
-UbseResult MockOutOfRangeForUint16(UbseConfModule *_mockClass, const std::string &prefix,
-                                   std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockOutOfRangeForUint16(UbseConfModule* _mockClass, const std::string& prefix,
+                                   std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> allowedConfigMap;
     allowedConfigMap["ssuExport"] = "55555555555555555555555";
@@ -63,8 +63,8 @@ UbseResult MockOutOfRangeForUint16(UbseConfModule *_mockClass, const std::string
     return UBSE_OK;
 }
 
-UbseResult MockAdmissionGetEmptyConfigVals(UbseConfModule *_mockClass, const std::string &prefix,
-                                           std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockAdmissionGetEmptyConfigVals(UbseConfModule* _mockClass, const std::string& prefix,
+                                           std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> configMap;
     return UBSE_OK;

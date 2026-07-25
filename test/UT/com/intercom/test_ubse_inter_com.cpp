@@ -50,10 +50,10 @@ public:
 
     UbseResult Deserialize() override
     {
-        data.assign(reinterpret_cast<const char *>(mInputRawData.get()), mInputRawDataSize);
+        data.assign(reinterpret_cast<const char*>(mInputRawData.get()), mInputRawDataSize);
         return UBSE_OK;
     }
-    inline uint8_t *SerializedData() const
+    inline uint8_t* SerializedData() const
     {
         return mOutputRawData.get();
     }
@@ -65,7 +65,7 @@ using TestMessagePtr = Ref<TestMessage>;
 class TestComBaseMessageHandler : public UbseComBaseMessageHandler {
     TestComBaseMessageHandler() = default;
     TestComBaseMessageHandler(uint16_t opcode, uint16_t modulecode) : opcode(opcode), modulecode(modulecode) {}
-    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                       UbseComBaseMessageHandlerCtxPtr ctx) override
     {
         return UBSE_OK;
@@ -90,11 +90,11 @@ class TestComBaseMessageHandler : public UbseComBaseMessageHandler {
 
 void MockFunc() {}
 
-int mock_wait(sem_t *sem) {}
+int mock_wait(sem_t* sem) {}
 
 void mockHandlerFunc(UbseComBaseMessageHandlerPtr handler) {}
 
-bool mockExecute(const std::function<void()> &task) {}
+bool mockExecute(const std::function<void()>& task) {}
 
 void TestUbseInterCom::SetUp()
 {
@@ -172,34 +172,34 @@ TEST_F(TestUbseInterCom, RegHandlerSuccess)
 
 /*
  * 用例描述：
- * 注册handler失败
+ * 大模块码注册handler成功（handlerMap_改为稀疏映射后模块码上限已移除）
  * 测试步骤：
- * modulecode过大
+ * 1.使用moduleCode=1001注册
  * 预期结果：
  * 1.返回UBSE_OK
  */
-TEST_F(TestUbseInterCom, RegHandlerFailWrongModuleCode)
+TEST_F(TestUbseInterCom, RegHandlerLargeModuleCodeSuccess)
 {
-    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(0, 1001); // 1001是非法值
+    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(0, 1001);
     MOCKER(&UbseComBaseMessageHandlerManager::AddHandler).stubs().will(invoke(mockHandlerFunc));
     auto ret = mqPtr->RegMessageHandler<TestMessage, TestMessage>(hdl);
-    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /*
  * 用例描述：
- * 注册handler失败
+ * 大操作码注册handler成功（handlerMap_改为稀疏映射后操作码上限已移除）
  * 测试步骤：
- * 1.过大opcode
+ * 1.使用opCode=1001注册
  * 预期结果：
  * 1.返回UBSE_OK
  */
-TEST_F(TestUbseInterCom, RegHandlerFailWrongOpCode)
+TEST_F(TestUbseInterCom, RegHandlerLargeOpCodeSuccess)
 {
-    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(1001, 0); // 1001是非法值
+    UbseComBaseMessageHandlerPtr hdl = new TestComBaseMessageHandler(1001, 0);
     MOCKER(&UbseComBaseMessageHandlerManager::AddHandler).stubs().will(invoke(mockHandlerFunc));
     auto ret = mqPtr->RegMessageHandler<TestMessage, TestMessage>(hdl);
-    EXPECT_EQ(UBSE_COM_ERROR_MESSAGE_INVALID_OP_CODE, ret);
+    EXPECT_EQ(UBSE_OK, ret);
 }
 
 /*
@@ -220,13 +220,13 @@ TEST_F(TestUbseInterCom, SendFailNohandler)
     SendParam param{"server-id", 0, 1};
     std::string testData("Test");
     UbseComMessagePtr msg = UbseComMessage::AllocMessage(testData.length());
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
-    ucMsg->SetMessageBody(reinterpret_cast<const uint8_t *>(testData.c_str()), testData.length());
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(msg));
+    ucMsg->SetMessageBody(reinterpret_cast<const uint8_t*>(testData.c_str()), testData.length());
     MOCKER(&UbseContext::GetModule<UbseTaskExecutorModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseTaskExecutorModule>()));
     MOCKER(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
-    bool (UbseTaskExecutor:: *func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(TransRequestMsg).stubs().will(returnValue(msg));
     MOCKER(TransResponse).stubs().will(returnValue(UBSE_OK));
@@ -254,13 +254,13 @@ TEST_F(TestUbseInterCom, AsyncSendFailNohandler)
     SendParam param{"server-id", 0, 1};
     std::string testData("Test");
     UbseComMessagePtr msg = UbseComMessage::AllocMessage(testData.length());
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
-    ucMsg->SetMessageBody(reinterpret_cast<const uint8_t *>(testData.c_str()), testData.length());
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(msg));
+    ucMsg->SetMessageBody(reinterpret_cast<const uint8_t*>(testData.c_str()), testData.length());
     MOCKER(&UbseContext::GetModule<UbseTaskExecutorModule>)
         .stubs()
         .will(returnValue(std::make_shared<UbseTaskExecutorModule>()));
     MOCKER(&UbseTaskExecutorModule::Create).stubs().will(returnValue(UBSE_OK));
-    bool (UbseTaskExecutor:: *func)(const std::function<void()> &task) = &UbseTaskExecutor::Execute;
+    bool (UbseTaskExecutor::*func)(const std::function<void()>& task) = &UbseTaskExecutor::Execute;
     MOCKER(func).stubs().will(returnValue(true));
     MOCKER(TransRequestMsg).stubs().will(returnValue(msg));
     MOCKER(TransResponse).stubs().will(returnValue(UBSE_OK));
@@ -283,13 +283,13 @@ TEST_F(TestUbseInterCom, MqHandleRequestSuccess)
     UbseComBaseMessageHandlerPtr mockHandler = new TestComBaseMessageHandler();
     UbseComMessagePtr msg = UbseComMessage::AllocMessage(testData.length());
     UbseComMessageCtx transMessage{msg, "Node", "Node", UbseChannelType::NORMAL};
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(msg));
     mockinput.messageCtx = transMessage;
     MOCKER(&UbseComBaseMessageHandlerManager::GetHandler).stubs().will(returnValue(mockHandler));
     mqPtr->MqHandleRequest<TestMessage, TestMessage>(mockinput);
 }
 
-void DemoCallBack(void *ctx, void *recv, uint32_t len, int32_t result) {}
+void DemoCallBack(void* ctx, void* recv, uint32_t len, int32_t result) {}
 
 /*
  * 用例描述：
@@ -307,8 +307,8 @@ TEST_F(TestUbseInterCom, MqHandleSynRequestSuccess)
     mockinput.usrCb.cb = DemoCallBack;
     UbseComBaseMessageHandlerPtr mockHandler = new TestComBaseMessageHandler();
     UbseComMessagePtr msg = UbseComMessage::AllocMessage(testData.length());
-    UbseComMessageCtx transMessage{ msg, "Node", "Node", UbseChannelType::NORMAL };
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
+    UbseComMessageCtx transMessage{msg, "Node", "Node", UbseChannelType::NORMAL};
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(msg));
     mockinput.messageCtx = transMessage;
     MOCKER(&UbseComBaseMessageHandlerManager::GetHandler).stubs().will(returnValue(mockHandler));
     mqPtr->MqHandleRequest<TestMessage, TestMessage>(mockinput);
@@ -331,8 +331,8 @@ TEST_F(TestUbseInterCom, MqHandleAsynRequestSuccess)
     mockinput.usrCb.cb = DemoCallBack;
     UbseComBaseMessageHandlerPtr mockHandler = new TestComBaseMessageHandler();
     UbseComMessagePtr msg = UbseComMessage::AllocMessage(testData.length());
-    UbseComMessageCtx transMessage{ msg, "Node", "Node", UbseChannelType::NORMAL };
-    auto ucMsg = static_cast<UbseComMessage *>(static_cast<void *>(msg));
+    UbseComMessageCtx transMessage{msg, "Node", "Node", UbseChannelType::NORMAL};
+    auto ucMsg = static_cast<UbseComMessage*>(static_cast<void*>(msg));
     mockinput.messageCtx = transMessage;
     MOCKER(&UbseComBaseMessageHandlerManager::GetHandler).stubs().will(returnValue(mockHandler));
     mqPtr->MqHandleRequest<TestMessage, TestMessage>(mockinput);
@@ -340,17 +340,20 @@ TEST_F(TestUbseInterCom, MqHandleAsynRequestSuccess)
 
 TEST_F(TestUbseInterCom, MqHandleGetHandlerSuccess)
 {
-    mqPtr->GetHandler(0, 0);
+    auto hdl = mqPtr->GetHandler(0, 0);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 
-TEST_F(TestUbseInterCom, MqHandleGetHandlerOverMax)
+TEST_F(TestUbseInterCom, MqHandleGetHandlerLargeModuleCode)
 {
-    EXPECT_NO_THROW(mqPtr->GetHandler(1001, 0));
+    auto hdl = mqPtr->GetHandler(1001, 0);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 
-TEST_F(TestUbseInterCom, MqHandleGetHandlerOpOverMax)
+TEST_F(TestUbseInterCom, MqHandleGetHandlerLargeOpCode)
 {
-    EXPECT_NO_THROW(mqPtr->GetHandler(0, 1001));
+    auto hdl = mqPtr->GetHandler(0, 1001);
+    EXPECT_EQ(nullptr, hdl.handler);
 }
 
 /*

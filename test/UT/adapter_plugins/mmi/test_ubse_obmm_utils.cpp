@@ -33,4 +33,4 @@ TEST_F(TestUbseObmmUtils, GetBasicPreImportInfos_Success)
     EXPECT_EQ(basicPreImportInfos[0].deid, 1);
     EXPECT_EQ(basicPreImportInfos[0].seid, 2);
 }
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi

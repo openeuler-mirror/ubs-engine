@@ -18,10 +18,10 @@
 namespace ubse::election {
 class Agent : public ElectionRole {
 public:
-    explicit Agent(RoleContext &ctx);
+    explicit Agent(RoleContext& ctx);
     void ProcTimer() override;
 
-    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) override;
+    uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply) override;
 
     void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo) override;
 
@@ -39,7 +39,7 @@ public:
 
     uint8_t GetStandbyStatus() override;
 
-    void SetNodeDownStatus(UBSE_ID_TYPE nodeId) override {};
+    void SetNodeDownStatus(UBSE_ID_TYPE) override{};
 
     void CleanupRoutes() override;
 
@@ -60,7 +60,8 @@ private:
     void RecvPktForSelect(ElectionReplyPkt &reply) const;
     void RecvPktForHeart(const ElectionPkt &rcvPkt, ElectionReplyPkt &reply);
     bool IsAgentHeartBeatTimeout(uint32_t heartbeatMultiplier) const;
-    void DisconnectAgents(const ElectionPkt &rcvPkt);
+    void DisconnectAgents(const ElectionPkt& rcvPkt);
+
 private:
     uint64_t lastHeartTime_;
     UBSE_ID_TYPE masterId_;
@@ -77,5 +78,5 @@ private:
     uint8_t standbyStatus_ = 0;
     uint8_t flag_ = 0;
 };
-}
+} // namespace ubse::election
 #endif // UBSE_ELECTION_ROLE_AGENT_H

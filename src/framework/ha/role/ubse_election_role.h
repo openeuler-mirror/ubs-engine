@@ -29,7 +29,7 @@ class ElectionRole {
 public:
     virtual void ProcTimer() = 0;
 
-    virtual uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply) = 0;
+    virtual uint32_t RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply) = 0;
 
     virtual void RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &replyInfo);
 
@@ -76,7 +76,7 @@ public:
         return UbseElectionNodeMgr::GetInstance().GetHeartBeatLost();
     }
 };
-UbseResult GetBootTime(uint64_t &bootTime);
+UbseResult GetBootTime(uint64_t& bootTime);
 UbseResult ConnectAllNodes();
 UbseResult ConnectManagingMasters();
 UBSE_ID_TYPE FindSmallestIdExcludingMaster(const UBSE_ID_TYPE &masterId, const std::vector<UBSE_ID_TYPE> &allNodes);

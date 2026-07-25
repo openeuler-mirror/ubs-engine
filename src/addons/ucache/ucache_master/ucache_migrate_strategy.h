@@ -13,17 +13,17 @@
 #ifndef MIGRATION_STRATEGY_H
 #define MIGRATION_STRATEGY_H
 
-#include <cstdint>
-#include <string>
-#include <vector>
-#include <map>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <limits>
+#include <map>
+#include <string>
+#include <vector>
+#include "bottleneck_strategy.h"
 #include "mem_borrow.h"
 #include "ucache_error.h"
-#include "bottleneck_strategy.h"
 
 namespace ucache::master {
 namespace migration {
@@ -42,10 +42,9 @@ struct MigrationAction {
 std::vector<MigrationAction> MemoryMigrationStrategy(
     const std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap,
     const std::map<std::string, NodeMemoryInfo>& nodes,
-    const std::map<std::string, std::map<std::string, PageCacheSensitiveTag>>& nodeTags
-);
+    const std::map<std::string, std::map<std::string, PageCacheSensitiveTag>>& nodeTags);
 std::string PrintMigrationAction(const std::vector<MigrationAction>& actions);
-}
-}
+} // namespace migration
+} // namespace ucache::master
 
 #endif

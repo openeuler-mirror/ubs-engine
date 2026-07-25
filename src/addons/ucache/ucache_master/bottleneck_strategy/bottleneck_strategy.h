@@ -23,7 +23,8 @@ namespace ucache::master::bottleneck {
 
 using namespace ucache::data_collect;
 
-enum class PageCacheSensitiveTag {
+enum class PageCacheSensitiveTag
+{
     UNKNOWN,       //  未知状态，比如数据太少
     NOT_SENSITIVE, //  非PageCache紧缺型
     SENSITIVE      //  PageCache紧缺型
@@ -46,33 +47,28 @@ public:
     BottleneckStrategy();
     BottleneckStrategy(const BottleneckStrategy&) = delete;
     BottleneckStrategy& operator=(const BottleneckStrategy&) = delete;
-    static BottleneckStrategy &GetInstance()
-    {
-        {
-            static BottleneckStrategy instance;
-            return instance;
-        }
-    };
+    static BottleneckStrategy& GetInstance(){{static BottleneckStrategy instance;
+    return instance;
+}
+}; // namespace ucache::master::bottleneck
 
-    uint32_t JudgeSensitive(const std::map<std::string, std::map<std::string, CgroupInfo>> &cgroupInfo,
-                            uint32_t bottleneckTimespan);
-    std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> GetContainerState() const;
+uint32_t JudgeSensitive(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo,
+                        uint32_t bottleneckTimespan);
+std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> GetContainerState() const;
+
 private:
-    //  维护每个容器的历史数据和状态
-    std::map<std::string, std::map<std::string, ContainerHistory>> containerHistory;
-    std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> containerState;
-    void UpdateContainerHistory(const CgroupInfo& cginfo,
-                                ContainerHistory& history,
-                                uint32_t bottleneckTimespan);
-    void JudgeWindowLength(uint32_t bottleneckShortSize, uint32_t bottleneckLongSize);
-    void JudgeThreshold(uint32_t bottleneckShortThreshold, uint32_t bottleneckLongThreshold);
-    double ConvertToPercentage(uint32_t bottleneckShortThreshold);
-    double CalculateSensitivePercentage(const std::deque<PageCacheSensitiveTag>& history);
-    void CleanUpObsoleteContainerHistory(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo);
-    void DetermineContainerState(ContainerHistory& history,
-                                uint32_t bottleneckTimespan,
-                                std::string dockerId);
-};
+//  维护每个容器的历史数据和状态
+std::map<std::string, std::map<std::string, ContainerHistory>> containerHistory;
+std::map<std::string, std::map<std::string, PageCacheSensitiveTag>> containerState;
+void UpdateContainerHistory(const CgroupInfo& cginfo, ContainerHistory& history, uint32_t bottleneckTimespan);
+void JudgeWindowLength(uint32_t bottleneckShortSize, uint32_t bottleneckLongSize);
+void JudgeThreshold(uint32_t bottleneckShortThreshold, uint32_t bottleneckLongThreshold);
+double ConvertToPercentage(uint32_t bottleneckShortThreshold);
+double CalculateSensitivePercentage(const std::deque<PageCacheSensitiveTag>& history);
+void CleanUpObsoleteContainerHistory(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo);
+void DetermineContainerState(ContainerHistory& history, uint32_t bottleneckTimespan, std::string dockerId);
+}
+;
 } // namespace ucache::master::bottleneck
 
 #endif /* BOTTLENECK_STRATEGY_H */

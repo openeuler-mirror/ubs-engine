@@ -26,4 +26,3 @@ public:
 };
 } // namespace ubse::vm::ut
 #endif // TEST_HAM_MAKE_DECISION_MSG_H
-

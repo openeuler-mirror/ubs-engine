@@ -13,11 +13,11 @@
 #ifndef TEST_UBSE_RAS_H
 #define TEST_UBSE_RAS_H
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include "ubse_context.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_ras_handler.h"
+#include "mockcpp/mockcpp.hpp"
 
 namespace ubse::ras::ut {
 using namespace ubse::context;
@@ -30,5 +30,5 @@ public:
 
     void TearDown() override;
 };
-}
-#endif  // TEST_UBSE_RAS_H
+} // namespace ubse::ras::ut
+#endif // TEST_UBSE_RAS_H

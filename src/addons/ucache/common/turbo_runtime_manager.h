@@ -19,7 +19,7 @@
 
 namespace turbo::ucache {
 
-using UBTurboUCacheExecuteTaskPtr = uint32_t (*)(const TaskRequest &tReq, TaskResponse &tResp);
+using UBTurboUCacheExecuteTaskPtr = uint32_t (*)(const TaskRequest& tReq, TaskResponse& tResp);
 
 class TurboRuntimeManager {
 public:
@@ -28,8 +28,8 @@ public:
     static uint32_t DlsymUcacheInterface();
     static uint32_t InitOSTurboIpcClient();
 
-    static void *osturboClientHandle;
+    static void* osturboClientHandle;
     static UBTurboUCacheExecuteTaskPtr ucacheExecuteTask;
 };
-}  // namespace turbo::ucache
+} // namespace turbo::ucache
 #endif

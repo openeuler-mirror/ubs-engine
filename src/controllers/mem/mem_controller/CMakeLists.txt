@@ -31,13 +31,16 @@ add_library(mem_plugin SHARED
         ubse_mem_agent_task_manager.cpp
         ubse_mem_advice.cpp
         logging_lock_guard.cpp
+        ubse_mem_residual_decoder.cpp
+        ubse_init_ledger_state.cpp
+        ubse_sign_token_bucket.cpp
 )
 set(MEM_PLUGIN_DEP_TARGETS
     ubse_controller_rpc ubse_controller_message ubse_controller_api ubse_mem_controller_debt
     ubse_log ubse_utils ubse_com ubse_config ubse_context ubse_timer ubse_mem_scheduler ubse_mmi
     ubse_election api_server ubse_http ubse_serial ubse_node_controller ubse_mem_decoder_utils
     trace_context ubse_ipc_server ubse_vsock_client ubse_security ubse_mti
-    ubse_message rm_mem_algo_static)
+    ubse_message)
 
 # 获取其它模块的头文件路径，
 set(MEM_PLUGIN_INCLUDES
@@ -57,7 +60,7 @@ endforeach()
 target_include_directories(mem_plugin PRIVATE ${MEM_PLUGIN_INCLUDES})
 target_link_libraries(mem_plugin PUBLIC  ubse_controller_rpc ubse_controller_message ubse_controller_api
         ubse_mem_controller_debt ubse_mem_scheduler ubse_mem_decoder_utils
-         rm_mem_algo_static PRIVATE ubse_message ubse_vsock_client)
+        PRIVATE ubse_message ubse_vsock_client)
 target_link_options(mem_plugin PRIVATE -Wl,--allow-shlib-undefined)
 set_target_properties(mem_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 

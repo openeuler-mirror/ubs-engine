@@ -12,8 +12,8 @@
 
 #ifndef VM_TEST_CASE_CONF_H
 #define VM_TEST_CASE_CONF_H
-#include "gtest/gtest.h"
 #include "case_conf.h"
+#include "gtest/gtest.h"
 
 namespace ubse::ut::vm {
 class TestCaseConf : public testing::Test {
@@ -24,5 +24,5 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 #endif // VM_TEST_CASE_CONF_H

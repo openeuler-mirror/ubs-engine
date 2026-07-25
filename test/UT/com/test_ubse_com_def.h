@@ -13,11 +13,12 @@
 #ifndef TEST_UBSE_COM_DEF_H
 #define TEST_UBSE_COM_DEF_H
 
+#include "ubse_com_def.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_com_def.h"
 
 using namespace ubse::com;
+using namespace ubse::message;
 
 namespace ubse::ut::com {
 class TestUbseComDef : public testing::Test {
@@ -32,7 +33,8 @@ public:
 class TestRpcMessage : public UbseBaseMessage {
 public:
     TestRpcMessage(uint32_t SerializeRet, uint32_t DeserializeRet)
-        : SerializeRet(SerializeRet), DeserializeRet(DeserializeRet){};
+        : SerializeRet(SerializeRet),
+          DeserializeRet(DeserializeRet){};
 
     UbseResult Serialize() override;
 
@@ -42,5 +44,5 @@ private:
     uint32_t SerializeRet;
     uint32_t DeserializeRet;
 };
-}
+} // namespace ubse::ut::com
 #endif // TEST_UBSE_COM_DEF_H

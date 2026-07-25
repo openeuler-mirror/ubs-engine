@@ -26,6 +26,7 @@ using namespace ubse::ipc;
 using namespace api::server;
 using namespace ubse::config;
 using namespace ubse::node::api;
+using namespace ubse::context;
 using namespace ubse::adapter_plugins::smbios;
 
 OPTIONAL_MODULE_IMPL(UbseNodeControllerModule,
@@ -82,4 +83,4 @@ void UbseNodeControllerModule::Stop()
     UbseNodeControllerAgent::GetInstance().Stop();
     UbseNodeControllerMaster::GetInstance().Stop();
 }
-}
+} // namespace ubse::nodeController

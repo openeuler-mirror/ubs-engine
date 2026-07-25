@@ -180,7 +180,7 @@ TEST_F(TestUbseNodeTopology, UbseSocketIdChange_)
     EXPECT_NO_THROW(UbseSocketIdChange(nodeDbMap, devTopologyInfo, devNameToNodeIdMap, nodeIdToDevNameMap));
 }
 
-UbseResult MockUbseGetAllNodes(UbseElectionModule *, Node &master, Node &standby, std::vector<Node> &agent)
+UbseResult MockUbseGetAllNodes(UbseElectionModule*, Node& master, Node& standby, std::vector<Node>& agent)
 {
     master = {"1"};
     standby = {"2"};
@@ -276,10 +276,10 @@ TEST_F(TestUbseNodeTopology, UbseNodeTopoGetBasicData)
 }
 
 uint32_t MockUbseNodeTopoGetBasicData(
-    std::unordered_map<std::string, TelemetryNodeData> &nodeDbMap,
-    std::unordered_map<std::string, ElectionNodeInfo> &nodeRoleMap, UbseDevTopology &devTopologyInfo,
-    std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-    std::unordered_map<std::string, std::unordered_set<std::string>> &nodeIdToDevNameMap)
+    std::unordered_map<std::string, TelemetryNodeData>& nodeDbMap,
+    std::unordered_map<std::string, ElectionNodeInfo>& nodeRoleMap, UbseDevTopology& devTopologyInfo,
+    std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+    std::unordered_map<std::string, std::unordered_set<std::string>>& nodeIdToDevNameMap)
 {
     UbseDeviceInfo info{};
     info.devName = {"1-1"};
@@ -431,9 +431,9 @@ TEST_F(TestUbseNodeTopology, TopoBfsPerLayer)
     EXPECT_EQ(edgeData[0].second, jumpCount);
 }
 
-UbseResult MockTopoBfsPerLayer(const UbseDevTopology &devTopologyInfo,
-                               std::vector<std::pair<TopologyEdgeInfo, int>> &edgeData, std::queue<std::string> &que,
-                               int jumpCount, std::unordered_set<std::string> &traversedDevNameSet)
+UbseResult MockTopoBfsPerLayer(const UbseDevTopology& devTopologyInfo,
+                               std::vector<std::pair<TopologyEdgeInfo, int>>& edgeData, std::queue<std::string>& que,
+                               int jumpCount, std::unordered_set<std::string>& traversedDevNameSet)
 {
     if (!que.empty()) {
         que.pop();
@@ -460,14 +460,6 @@ TEST_F(TestUbseNodeTopology, UbseGetTopologyInfoByJump)
     EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::One, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
     EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::Two, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
     EXPECT_EQ(UbseGetTopologyInfoByJump(JumpCount::All, devTopologyInfo, edgeData, {"1-1"}), UBSE_OK);
-}
-
-TEST_F(TestUbseNodeTopology, DevNameRemoveNodeName)
-{
-    std::string remoteDevSocketNameStr;
-    EXPECT_EQ(DevNameRemoveNodeName("node1", remoteDevSocketNameStr), UBSE_ERROR);
-    EXPECT_EQ(DevNameRemoveNodeName("1-1", remoteDevSocketNameStr), UBSE_OK);
-    EXPECT_EQ(remoteDevSocketNameStr, "1");
 }
 
 TEST_F(TestUbseNodeTopology, UbseNodeExtractDevNameInfo)
@@ -504,9 +496,9 @@ TEST_F(TestUbseNodeTopology, UbseNodePadSocketData)
     EXPECT_EQ(data.socket.socketId, "1");
 }
 
-UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string> &devNameToNodeIdMap,
-                                          std::string &remoteNodeName, std::string &remoteDevSocketNameStr,
-                                          const std::string &remoteDevNameStr)
+UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::string>& devNameToNodeIdMap,
+                                          std::string& remoteNodeName, std::string& remoteDevSocketNameStr,
+                                          const std::string& remoteDevNameStr)
 {
     remoteNodeName = "2";
     return UBSE_OK;
@@ -514,40 +506,79 @@ UbseResult MockUbseNodeExtractDevNameInfo(std::unordered_map<std::string, std::s
 
 TEST_F(TestUbseNodeTopology, MemFillPerEdgeData)
 {
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::string localDevName = "1-1";
-    std::pair<TopologyEdgeInfo, int> edge{};
+    std::vector<MemNodeData> nodeDataVec{};
     UbseNodeData ubseNodeData{};
-    TopologyEdgeInfo edgeInfo{"2-2", "ifName"};
-    edge.first = edgeInfo;
-    edge.second = 1;
-    MOCKER(UbseNodeExtractDevNameInfo)
-        .stubs()
-        .will(returnValue(UBSE_ERROR))
-        .then(invoke(MockUbseNodeExtractDevNameInfo));
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_ERROR);
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_OK);
-    EXPECT_EQ(nodeTopology[localDevName][0].isRegisterRm, false);
-    nodeTopology.clear();
-    ubseNodeData.nodeRoleMap["2"] = {};
-    EXPECT_EQ(MemFillPerEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edge, ubseNodeData), UBSE_OK);
-    EXPECT_EQ(nodeTopology[localDevName][0].isRegisterRm, true);
+    std::string remoteNodeId = "1";
+    std::string remoteDevNameStr = "1-2";
+
+    // 测试数据库中不存在该节点场景
+    nodeDataVec.clear();
+    ubseNodeData.nodeDbMap.erase(remoteNodeId);
+    ubseNodeData.nodeRoleMap.erase(remoteNodeId);
+    EXPECT_EQ(MemFillPerEdgeData(nodeDataVec, remoteNodeId, remoteDevNameStr, ubseNodeData), UBSE_OK);
+    EXPECT_EQ(nodeDataVec[0].hostname, "");
+    EXPECT_EQ(nodeDataVec[0].isRegisterRm, false);
+    EXPECT_EQ(nodeDataVec[0].socket.socketId, "2");
+
+    // 测试正常填充数据场景
+    TelemetryNodeData telemetryNodeData{};
+    telemetryNodeData.nodeId = remoteNodeId;
+    telemetryNodeData.hostname = "computer1";
+    SocketData sockData{};
+    sockData.socketId = "2";
+    telemetryNodeData.sockets.push_back(sockData);
+    ubseNodeData.nodeDbMap[remoteNodeId] = telemetryNodeData;
+    nodeDataVec.clear();
+    EXPECT_EQ(MemFillPerEdgeData(nodeDataVec, remoteNodeId, remoteDevNameStr, ubseNodeData), UBSE_OK);
+    ASSERT_EQ(nodeDataVec.size(), 1);
+    EXPECT_EQ(nodeDataVec[0].nodeId, remoteNodeId);
+    EXPECT_EQ(nodeDataVec[0].socket.socketId, "2"); // 从"2-2"提取socketId为2
+    EXPECT_EQ(nodeDataVec[0].hostname, "computer1");
+    EXPECT_EQ(nodeDataVec[0].isRegisterRm, false); // nodeRoleMap中无"1"，isRegisterRm为false
+
+    // 测试节点角色为已注册RM场景
+    nodeDataVec.clear();
+    ubseNodeData.nodeRoleMap[remoteNodeId] =
+        ElectionNodeInfo{.isRegisterRm = true}; // 添加remoteNodeId到nodeRoleMap并显式设置isRegisterRm
+    EXPECT_EQ(MemFillPerEdgeData(nodeDataVec, remoteNodeId, remoteDevNameStr, ubseNodeData), UBSE_OK);
+    EXPECT_EQ(nodeDataVec[0].isRegisterRm, true); // nodeRoleMap中存在"1"，isRegisterRm为true
 }
 
 TEST_F(TestUbseNodeTopology, MemFillAllEdgeData)
 {
-    std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology{};
-    std::unordered_map<std::string, std::string> devNameToNodeIdMap{};
-    std::string localDevName = "1-1";
+    std::vector<MemNodeData> nodeDataVec{};
+    std::unordered_map<std::string, std::string> devNameToNodeIdMap{{"1-1", "1"}}; // 添加有效的设备到节点ID映射
     std::vector<std::pair<TopologyEdgeInfo, int>> edgeData;
     UbseNodeData ubseNodeData{};
-    TopologyEdgeInfo edgeInfo{"1-1", "ifName"};
-    edgeData.push_back({edgeInfo, 0});
-    edgeData.push_back({edgeInfo, 1});
-    MOCKER(MemFillPerEdgeData).stubs().will(returnValue(UBSE_ERROR)).then(returnValue(UBSE_OK));
-    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_OK);
-    EXPECT_EQ(MemFillAllEdgeData(nodeTopology, devNameToNodeIdMap, localDevName, edgeData, ubseNodeData), UBSE_OK);
+
+    // 构造不同跳数的边数据：0跳(过滤)、1跳(处理)、2跳(过滤)
+    TopologyEdgeInfo edge0{"0-0", "ifName0"}; // 设备不在映射表中
+    TopologyEdgeInfo edge1{"1-1", "ifName1"}; // 设备在映射表中且为1跳
+    TopologyEdgeInfo edge2{"2-2", "ifName2"}; // 跳数不为1
+
+    edgeData.emplace_back(edge0, 1); // 设备不存在的1跳数据
+    edgeData.emplace_back(edge1, 1); // 有效1跳数据
+    edgeData.emplace_back(edge2, 2); // 非1跳数据
+
+    std::vector<MemNodeData> memNodeDataVec{};
+    memNodeDataVec.push_back(MemNodeData{});
+    MOCKER(MemFillPerEdgeData).stubs().with(outBound(memNodeDataVec), any(), any(), any()).will(returnValue(UBSE_OK));
+    EXPECT_EQ(MemFillAllEdgeData(nodeDataVec, devNameToNodeIdMap, edgeData, ubseNodeData), UBSE_OK);
+    EXPECT_EQ(nodeDataVec.size(), 1); // 成功场景填充1条数据
+}
+
+TEST_F(TestUbseNodeTopology, MemFillAllEdgeData_Empty)
+{
+    std::vector<MemNodeData> nodeDataVec{};
+    std::unordered_map<std::string, std::string> devNameToNodeIdMap{{"1-1", "1"}}; // 添加有效的设备到节点ID映射
+    std::vector<std::pair<TopologyEdgeInfo, int>> edgeData;
+    UbseNodeData ubseNodeData{};
+    TopologyEdgeInfo edge1{"1-1", "ifName1"}; // 设备在映射表中且为1
+    edgeData.emplace_back(edge1, 1);          // 有效1跳数据
+    MOCKER(MemFillPerEdgeData).stubs().will(returnValue(UBSE_ERROR));
+
+    EXPECT_EQ(MemFillAllEdgeData(nodeDataVec, devNameToNodeIdMap, edgeData, ubseNodeData), UBSE_OK);
+    EXPECT_EQ(nodeDataVec.size(), 0); // 失败场景未填充数据
 }
 
 TEST_F(TestUbseNodeTopology, MemTopoGetResult)
@@ -590,7 +621,7 @@ TEST_F(TestUbseNodeTopology, MemGetTopologyInfo)
     EXPECT_EQ(MemGetTopologyInfo(nodeTopology), UBSE_OK);
 }
 
-UbseResult MockMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+UbseResult MockMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     nodeTopology["node1"] = {};
     std::vector<MemNodeData> datas = {MemNodeData{}};
@@ -739,4 +770,4 @@ TEST_F(TestUbseNodeTopology, UbseVmGetNodeTopologyInfoWhenSuccess)
     ASSERT_EQ(ret, UBSE_OK);
 }
 
-}
+} // namespace ubse::node_topology::ut

@@ -23,7 +23,7 @@ public:
     UbseCliMemDetach();
     ~UbseCliMemDetach() noexcept;
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDetachMem(const std::string &name);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliDetachMem(const std::string& name);
 
 private:
     class UbseCliMemDetachImpl;

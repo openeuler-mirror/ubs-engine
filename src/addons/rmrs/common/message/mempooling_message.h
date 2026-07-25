@@ -23,7 +23,7 @@
 
 namespace mempooling::message {
 
-const char *const libubturbo_client_PATH = "/usr/lib64/libubturbo_client.so";
+const char* const libubturbo_client_PATH = "/usr/lib64/libubturbo_client.so";
 
 const uint32_t OPCODE_COMMON = 13;
 const uint32_t OPCODE_MIGRATE_STRATEGY = 14;
@@ -62,28 +62,35 @@ const uint32_t OPCODE_OVER_COMMIT_MEM_ID_FAULT_RETURN_EXECUTE = 49;
 const uint32_t OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS = 50;
 const uint32_t OPCODE_OVER_COMMIT_MEM_ID_FAULT_DIRECTLY_RETURN_EXECUTE = 51;
 const uint32_t OPCODE_SMAP_PROCESS_MIGRATE_DISABLE = 52;
+const uint32_t OPCODE_CHECK_UBTURBO_IS_ALIVE = 53;
+const uint32_t OPCODE_OVER_COMMIT_FAULT_HANDLE_MEM_BORROW = 54;
+const uint32_t OPCODE_OVER_COMMIT_FAULT_NUMA_PROCESS_SIMPLIFIED = 55;
+const uint32_t OPCODE_NUMA_LEVEL_EXECUTE = 56;
+const uint32_t OPCODE_BORROW_ID_LEVEL_EXECUTE = 57;
+const uint32_t OPCODE_GET_BORROWED_DECISION = 58;
+const uint32_t OPCODE_SMAP_PROCESS_MIGRATE_ENABLE = 59;
+const uint32_t OPCODE_GET_NUMA_BIND_TYPE_FROM_NODE = 60;
 
-
-using OSTurboFunctionCaller = uint32_t (*)(const std::string &function, const TurboByteBuffer &params,
-                                           TurboByteBuffer &result);
+using OSTurboFunctionCaller = uint32_t (*)(const std::string& function, const TurboByteBuffer& params,
+                                           TurboByteBuffer& result);
 using OSTurboSetIpcTimeLimit = uint32_t (*)(uint32_t timeLimit);
-using UBTurboRMRSAgentMigrateStrategy = uint32_t (*)(const turbo::rmrs::MigrateStrategyParamRMRS &migrateStrategyParam,
-                                                     turbo::rmrs::MigrateStrategyResult &migrateStrategyResult);
-using UBTurboRMRSAgentMigrateExecute = uint32_t (*)(const turbo::rmrs::MigrateStrategyResult &migrateStrategyResult);
-using UBTurboRMRSAgentMigrateBack = uint32_t (*)(turbo::rmrs::MigrateBackResult &migrateBackResult);
+using UBTurboRMRSAgentMigrateStrategy = uint32_t (*)(const turbo::rmrs::MigrateStrategyParamRMRS& migrateStrategyParam,
+                                                     turbo::rmrs::MigrateStrategyResult& migrateStrategyResult);
+using UBTurboRMRSAgentMigrateExecute = uint32_t (*)(const turbo::rmrs::MigrateStrategyResult& migrateStrategyResult);
+using UBTurboRMRSAgentMigrateBack = uint32_t (*)(turbo::rmrs::MigrateBackResult& migrateBackResult);
 using UBTurboRMRSAgentBorrowRollBack =
-    uint32_t (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>> &borrowIdsPidsMap);
+    uint32_t (*)(std::map<std::string, std::set<turbo::rmrs::BorrowIdInfo>>& borrowIdsPidsMap);
 using UBTurboRMRSAgentPidNumaInfoCollect =
-    uint32_t (*)(const turbo::rmrs::PidNumaInfoCollectParam &pidNumaInfoCollectParam,
-                 turbo::rmrs::PidNumaInfoCollectResult &pidNumaInfoCollectResult);
+    uint32_t (*)(const turbo::rmrs::PidNumaInfoCollectParam& pidNumaInfoCollectParam,
+                 turbo::rmrs::PidNumaInfoCollectResult& pidNumaInfoCollectResult);
 using UBTurboRMRSAgentNumaMemInfoCollect =
-    uint32_t (*)(const turbo::rmrs::NumaMemInfoCollectParam &numaMemInfoCollectParam,
-                 turbo::rmrs::ResponseInfoSimpo &responseInfoSimpo);
+    uint32_t (*)(const turbo::rmrs::NumaMemInfoCollectParam& numaMemInfoCollectParam,
+                 turbo::rmrs::ResponseInfoSimpo& responseInfoSimpo);
 using UBTurboRMRSAgentUCacheMigrateStrategy = uint32_t (*)(
-    const turbo::rmrs::UCacheMigrationStrategyParam &uCacheMigrationStrategyParam, turbo::rmrs::ResCode &resCode);
-using UBTurboRMRSAgentUCacheMigrateStop = uint32_t (*)(turbo::rmrs::ResCode &resCode);
-using UBTurboRMRSAgentUpdateUCacheRatio = uint32_t (*)(const turbo::rmrs::MigrationInfoParam &migrationInfoParam,
-                                                       turbo::rmrs::UCacheRatioRes &uCacheRatioRes);
+    const turbo::rmrs::UCacheMigrationStrategyParam& uCacheMigrationStrategyParam, turbo::rmrs::ResCode& resCode);
+using UBTurboRMRSAgentUCacheMigrateStop = uint32_t (*)(turbo::rmrs::ResCode& resCode);
+using UBTurboRMRSAgentUpdateUCacheRatio = uint32_t (*)(const turbo::rmrs::MigrationInfoParam& migrationInfoParam,
+                                                       turbo::rmrs::UCacheRatioRes& uCacheRatioRes);
 
 class MempoolingMessage {
 public:
@@ -91,7 +98,7 @@ public:
     static uint32_t DeInit();
     static uint32_t InitOSTurboIpcClient();
 
-    static void *osturboClientHandle;
+    static void* osturboClientHandle;
     static OSTurboFunctionCaller osturboFunctionCaller;
     static OSTurboSetIpcTimeLimit osturboSetIpcTimeLimit;
     static UBTurboRMRSAgentMigrateStrategy rmrsMigrateStrategy;
@@ -139,6 +146,6 @@ public:
     }
 };
 
-}
+} // namespace mempooling::message
 
 #endif

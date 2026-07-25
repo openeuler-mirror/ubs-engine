@@ -12,23 +12,16 @@
 
 #include "test_ubse_mem_addr_borrow_req_simpo.h"
 
-#include "mockcpp/mockcpp.hpp"
-
 #include "ubse_error.h"
-#include "ubse_serial_util.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
 #include "message/ubse_mem_controller_serial.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::message;
-using namespace ubse::utils;
 using namespace ubse::mem::serial;
 
 void TestUbseMemAddrBorrowReqSimpo::SetUp()
 {
-    GTEST_SKIP();
     Test::SetUp();
-    obj = new UbseMemAddrBorrowReqSimpo();
 }
 
 void TestUbseMemAddrBorrowReqSimpo::TearDown()
@@ -37,45 +30,78 @@ void TestUbseMemAddrBorrowReqSimpo::TearDown()
     GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
 TEST_F(TestUbseMemAddrBorrowReqSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
+    UbseMemAddrBorrowReq req;
+    req.name = "test";
+    obj.SetUbseMemAddrBorrowReq(std::move(req));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
 }
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值，模拟并判断 UbseMemAddrBorrowReqDeserialize 在失败情况下Deserialize的返回值
- * 3.判断Check函数返回false和true时Deserialize的行为
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2. UbseMemAddrBorrowReqDeserialize 失败时函数返回UBSE_ERROR
- * 3.Check函数返回false时，Deserialize返回UBSE_ERROR
- * 4.一切功能正常时，返回UBSE_OK
- */
-TEST_F(TestUbseMemAddrBorrowReqSimpo, Deserialize)
+TEST_F(TestUbseMemAddrBorrowReqSimpo, Serialize_CheckFail)
 {
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    UbseMemAddrBorrowReq req;
+    req.name = "test";
+    obj.SetUbseMemAddrBorrowReq(std::move(req));
 
+    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false));
+    EXPECT_EQ(obj.Serialize(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemAddrBorrowReqSimpo, Deserialize_NullInput)
+{
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemAddrBorrowReqSimpo, Deserialize_BadData)
+{
     uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemAddrBorrowReqDeserialization).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
+    obj.SetInputRawDataFromShared(buffer, size);
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
 
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+TEST_F(TestUbseMemAddrBorrowReqSimpo, SerializeDeserialize_RoundTrip)
+{
+    UbseMemAddrBorrowReq req;
+    req.name = "roundtrip_test";
+    req.importNodeId = "importNode";
+    req.importPid = 100;
+    req.exportNodeId = "42";
+    req.exportPid = 200;
+    req.srcSocket = 1;
+    req.srcNuma = 2;
+    req.dstSocket = 3;
+    req.dstNuma = 4;
+    req.ubseMemPrivData.wrDelayComp = 1;
+    UbseMemAddrInfo addrInfo;
+    addrInfo.addr = 0x1000;
+    addrInfo.size = 0x2000;
+    req.exportAddrList.push_back(addrInfo);
+
+    obj.SetUbseMemAddrBorrowReq(std::move(req));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
+
+    auto sharedData = obj.GetSharedOutputData();
+    auto size = obj.SerializedDataSize();
+
+    UbseMemAddrBorrowReqSimpo obj2;
+    obj2.SetInputRawDataFromShared(sharedData, size);
+    EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
+
+    auto result = obj2.GetUbseMemAddrBorrowReq();
+    EXPECT_EQ(result.name, "roundtrip_test");
+    EXPECT_EQ(result.importNodeId, "importNode");
+    EXPECT_EQ(result.importPid, 100);
+    EXPECT_EQ(result.exportNodeId, "42");
+    EXPECT_EQ(result.exportPid, 200);
+    EXPECT_EQ(result.srcSocket, 1);
+    EXPECT_EQ(result.srcNuma, 2);
+    EXPECT_EQ(result.dstSocket, 3);
+    EXPECT_EQ(result.dstNuma, 4);
+    EXPECT_EQ(result.ubseMemPrivData.wrDelayComp, 1);
+    ASSERT_EQ(result.exportAddrList.size(), 1);
+    EXPECT_EQ(result.exportAddrList[0].addr, 0x1000);
+    EXPECT_EQ(result.exportAddrList[0].size, 0x2000);
 }
 } // namespace ubse::mem::controller::message::ut

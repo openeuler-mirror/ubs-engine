@@ -12,9 +12,9 @@
 
 #ifndef UBSE_MANAGER_TEST_UBSE_PLUGIN_MANAGER_H
 #define UBSE_MANAGER_TEST_UBSE_PLUGIN_MANAGER_H
+#include "ubse_plugin_manager.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_plugin_manager.h"
 namespace ubse::ut::plugin {
 class TestUbsePluginManager : public testing::Test {
 public:

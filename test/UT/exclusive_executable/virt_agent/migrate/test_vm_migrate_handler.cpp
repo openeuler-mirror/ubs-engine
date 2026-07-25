@@ -37,13 +37,13 @@ void TestVmMigrateHandler::TearDown()
     GlobalMockObject::verify();
 }
 
-uint32_t UbseGetRole(std::string &role)
+uint32_t UbseGetRole(std::string& role)
 {
     role = "master";
     return VM_OK;
 }
 
-VmResult GetMigrateStates(NumaVMInfoMap &numaVmInfoMap)
+VmResult GetMigrateStates(NumaVMInfoMap& numaVmInfoMap)
 {
     VMBasicInfo basicInfo;
     basicInfo.vmMigrateStatus = VmMigrateStatus::MIGRATING;

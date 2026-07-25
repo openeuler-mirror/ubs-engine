@@ -81,4 +81,4 @@ TEST_F(TestUbseLoggerRingbuffer, LogPop)
     log.Push(std::move(loggerEntry));
     EXPECT_EQ(true, log.Pop(logEntry));
 }
-}
+} // namespace ubse::ut::log

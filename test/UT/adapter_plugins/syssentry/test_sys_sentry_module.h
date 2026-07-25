@@ -16,6 +16,13 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <functional>
+#include "ubse_conf.h"
+#include "ubse_context.h"
+#include "ubse_lcne_module.h"
+#include "ubse_os_util.h"
+#include "ubse_pointer_process.h"
+#include "ubse_ras_handler.h"
+#include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "dlfcn.h"
@@ -24,18 +31,11 @@
 #include "sentry_observer.h"
 #include "src/adapter_plugins/mti/ubse_mti_interface_default.h"
 #include "sys_sentry_module.h"
-#include "ubse_conf.h"
-#include "ubse_context.h"
-#include "ubse_lcne_module.h"
-#include "ubse_os_util.h"
-#include "ubse_pointer_process.h"
-#include "ubse_ras_handler.h"
-#include "ubse_timer.h"
 
 namespace syssentry {
-extern std::vector<std::string> SplitString(const std::string &str, char delimiter);
-extern UbseResult GetEids(std::string &clientEid, std::string &serverEids);
-extern UbseResult GetCurNodeCna(std::vector<std::string> &busNodeCnas);
+extern std::vector<std::string> SplitString(const std::string& str, char delimiter);
+extern UbseResult GetEids(std::string& clientEid, std::string& serverEids);
+extern UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
 extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
 extern std::string ShellEscape(const std::string& str);

@@ -60,4 +60,4 @@ TEST_F(TestMpMemJsonUtil, MpFaultMemIdParam_FromJson_Fail_IsNotObject)
     ASSERT_EQ(ret, false);
 }
 
-}
+} // namespace mempooling

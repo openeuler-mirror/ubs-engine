@@ -11,7 +11,6 @@
  */
 
 #include "ubse_election_pkt_handler.h"
-#include "role/ubse_election_role_mgr.h"
 #include "ubse_base_message.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -19,18 +18,20 @@
 #include "ubse_election_node_mgr.h"
 #include "ubse_election_pkt_simpo.h"
 #include "ubse_election_reply_pkt_simpo.h"
+#include "role/ubse_election_role_mgr.h"
 
 namespace ubse::election {
 using namespace ubse::context;
 using namespace ubse::message;
 using namespace message;
 using namespace ubse::log;
+using namespace ubse::com;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseResult UbseElectionPktHandler::RegElectionPktHandler()
 {
-    UbseContext &ubseContext = UbseContext::GetInstance();
+    UbseContext& ubseContext = UbseContext::GetInstance();
     auto ubseComModule = ubseContext.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] get ubseComModule failed";
@@ -51,7 +52,7 @@ UbseResult UbseElectionPktHandler::RegElectionPktHandler()
     return UBSE_OK;
 }
 
-UbseResult UbseElectionPktHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseElectionPktHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                           UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UbseElectionPktSimpoPtr request = UbseBaseMessage::DeConvert<UbseElectionPktSimpo>(req);
@@ -123,4 +124,4 @@ UbseResult UbseElectionGroupInfoHandler::Handle(const UbseBaseMessagePtr &req, c
     response->SetResponse(ubseResponse);
     return UBSE_OK;
 }
-}
+} // namespace ubse::election

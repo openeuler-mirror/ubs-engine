@@ -61,10 +61,7 @@ public:
                                           adapter_plugins::mmi::NodeMemDebtInfoMap &memDebtInfoMap) override;
     adapter_plugins::mmi::NodeMemDebtInfoMap UbseGetLocalMemDebtInfo() override;
 
-    std::string GetAllNumaJsonInfo(const std::string &nodeId) override;
-
     uint32_t UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList) override;
-    UbseResult MemReportWhenExportNodeOnFault(int faultType, std::string &faultId) override;
 
     UbseResult GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair) override;
 

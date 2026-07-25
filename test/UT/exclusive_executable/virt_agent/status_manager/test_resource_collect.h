@@ -16,6 +16,6 @@ public:
 
     void TearDown() override;
 };
-}  // namespace ubse::vm::ut
+} // namespace ubse::vm::ut
 
-#endif  // UBS_ENGINE_TEST_RESOURCE_COLLECT_H
+#endif // UBS_ENGINE_TEST_RESOURCE_COLLECT_H

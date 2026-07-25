@@ -40,10 +40,13 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_com
         ubse_xml
         ubse_mti
+        mti_out_of_band
+        ubse_urma_uvs
         ubse_mmi
         mem_controller_adapter
         mem_plugin
         cert_api_static
+        ubse_cert
         ubse_ras
         ubse_timer
         ubse_context
@@ -52,11 +55,11 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ubse_controller
         api_server
         syssentry
-        rm_mem_algo_static
         ubse_node_controller
         ubse_plugin
         ubse_storage
         ubse_sdk
+        npu_controller
         ubse_urma_controller
         ubse_urma_uvs
         ubse_node_mgr
@@ -67,6 +70,28 @@ target_link_libraries(${UT_BINARY} PUBLIC
 
 target_link_libraries(${UT_BINARY} PUBLIC
         ubse_node_controller_register_config
+)
+
+target_link_libraries(${UT_BINARY} PUBLIC
+        syssentry
+)
+
+include_directories(
+        ${SRC_DIR}/framework/ipc
+        ${SRC_DIR}/framework/ipc/include
+        ${SRC_DIR}/framework/ipc/server
+        ${SRC_DIR}/framework/misc
+        ${SRC_DIR}/framework/misc/lock
+        ${SRC_DIR}/framework/config
+        ${SRC_DIR}/framework/context
+        ${SRC_DIR}/framework/com
+        ${SRC_DIR}/framework/serde
+        ${SRC_DIR}/framework/security
+        ${SRC_DIR}/api_server
+        ${SRC_DIR}/controllers/include
+        ${SRC_DIR}/controllers/npu/vm_state_monitor
+        ${SRC_DIR}/ras
+        ${SRC_DIR}/adapter_plugins/urma_uvs
 )
 
 set_target_properties(${UT_BINARY} PROPERTIES LINK_FLAGS "-Wl,--as-needed")
@@ -88,7 +113,6 @@ add_subdirectory(serial_tool)
 add_subdirectory(thread_pool)
 add_subdirectory(utils)
 add_subdirectory(ras)
-add_subdirectory(algorithm)
 add_subdirectory(mem_scheduler)
 #add_subdirectory(node_controller)
 add_subdirectory(api_server)
@@ -99,6 +123,7 @@ add_subdirectory(adapter_plugins/syssentry)
 add_subdirectory(adapter_plugins/smbios)
 add_subdirectory(storage)
 add_subdirectory(sdk)
+add_subdirectory(controllers/npu)
 add_subdirectory(urma_controller)
 add_subdirectory(adapter_plugins/urma_uvs)
 add_subdirectory(adapter_plugins/ssu)

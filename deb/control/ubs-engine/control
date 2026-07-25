@@ -1,5 +1,5 @@
 Package: ubs-engine
-Version: 1.0.0-1
+Version: 1.0.1-1
 Architecture: arm64
 Maintainer: UB System Software
 Depends: libc6 (>= 2.31), libstdc++6, systemd, adduser, libxml2, libssl3, libboundscheck

@@ -31,7 +31,8 @@
 #include "mempooling_def.h"
 
 namespace vm {
-enum class AsyncTaskStatus {
+enum class AsyncTaskStatus
+{
     NOT_EXIST,
     RUNNING,
     SUCCESS,
@@ -47,32 +48,32 @@ struct AsyncTaskInfo {
     std::chrono::system_clock::time_point endTime;   // End time of the task
     std::thread::id threadId;                        // Thread ID where the task is running
 
-    uint8_t *msgRawData = nullptr;                   // Thread ID where the task is running
-    uint32_t msgRawDataSize = 0;                     // Size of the raw data buffer in bytes
+    uint8_t* msgRawData = nullptr; // Thread ID where the task is running
+    uint32_t msgRawDataSize = 0;   // Size of the raw data buffer in bytes
 };
 
 class ThreadTaskManager {
 public:
     // Singleton pattern access
-    static ThreadTaskManager &GetInstance();
+    static ThreadTaskManager& GetInstance();
 
     // Disable copy and assignment
-    ThreadTaskManager(const ThreadTaskManager &) = delete;
-    ThreadTaskManager &operator=(const ThreadTaskManager &) = delete;
+    ThreadTaskManager(const ThreadTaskManager&) = delete;
+    ThreadTaskManager& operator=(const ThreadTaskManager&) = delete;
 
     // Add new task
-    std::string AddTask(const std::string &taskType = "memreturn");
-    void SetTaskThreadId(const std::string &taskId);
+    std::string AddTask(const std::string& taskType = "memreturn");
+    void SetTaskThreadId(const std::string& taskId);
 
     // Update task status
-    void UpdateTaskStatus(const std::string &taskId, AsyncTaskStatus status, uint32_t resultCode = 0,
-                          const std::string &errorMsg = "");
+    void UpdateTaskStatus(const std::string& taskId, AsyncTaskStatus status, uint32_t resultCode = 0,
+                          const std::string& errorMsg = "");
 
     // Get task status
-    AsyncTaskStatus GetTaskStatus(const std::string &taskId);
+    AsyncTaskStatus GetTaskStatus(const std::string& taskId);
 
     // Get task details
-    uint32_t GetTaskInfo(const std::string &taskId, AsyncTaskInfo &asyncTaskInfo);
+    uint32_t GetTaskInfo(const std::string& taskId, AsyncTaskInfo& asyncTaskInfo);
 
     // Get all running tasks
     std::vector<AsyncTaskInfo> GetRunningTasks();
@@ -86,15 +87,15 @@ public:
     // Force clean up all tasks
     void ClearAllTasks();
 
-    uint32_t SetMemBorrowResult(const std::string &taskId, const mem_borrow_result_c &result);
-    uint32_t PackMemBorrowResult(const mem_borrow_result_c &memBorrowExecuteResult, AsyncTaskInfo &asyncTaskInfo);
+    uint32_t SetMemBorrowResult(const std::string& taskId, const mem_borrow_result_c& result);
+    uint32_t PackMemBorrowResult(const mem_borrow_result_c& memBorrowExecuteResult, AsyncTaskInfo& asyncTaskInfo);
 
 private:
     ThreadTaskManager() = default;
     ~ThreadTaskManager() = default;
 
     // Generate a unique task ID
-    std::string GenerateTaskId(const std::string &taskType);
+    std::string GenerateTaskId(const std::string& taskType);
 
     // Check if there are any running tasks for nodeId.
     bool HasRunningTask();

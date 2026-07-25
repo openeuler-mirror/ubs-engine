@@ -19,13 +19,12 @@
 #include "ubse_thread_pool.h"
 
 namespace ubse::nodeController {
-using namespace ubse::common::def;
-using namespace ubse::task_executor;
-using namespace ubse::com;
+using ubse::common::def::UbseResult;
+using ubse::task_executor::UbseTaskExecutorPtr;
 
 class UbseNodeControllerAgent {
 public:
-    static UbseNodeControllerAgent &GetInstance()
+    static UbseNodeControllerAgent& GetInstance()
     {
         static UbseNodeControllerAgent instance;
         return instance;
@@ -50,12 +49,12 @@ private:
     UbseResult UbseGlobalInfoReportTimerHandler();
 
     /**
-    * 监听LCNE拓扑变更，采集上报节点内存&拓扑
-    * @param eventId
-    * @param eventMessage
-    * @return
-    */
-    static UbseResult UbseNodeInfoLcneNotifyHandler(std::string &eventId, std::string &eventMessage);
+     * 监听LCNE拓扑变更，采集上报节点内存&拓扑
+     * @param eventId
+     * @param eventMessage
+     * @return
+     */
+    static UbseResult UbseNodeInfoLcneNotifyHandler(std::string& eventId, std::string& eventMessage);
 
     void StartExec();
 
@@ -71,21 +70,21 @@ private:
 };
 
 /**
-* Agent向Master查询全量节点列表
-* @param nodeId 目标Master节点ID
-* @param infos 输出参数，全量节点信息列表
-* @return UbseResult 操作结果
-*/
-UbseResult GetAllNodeInfoFromRemote(const std::string &nodeId, std::vector<UbseNodeInfo> &infos);
+ * Agent向Master查询全量节点列表
+ * @param nodeId 目标Master节点ID
+ * @param infos 输出参数，全量节点信息列表
+ * @return UbseResult 操作结果
+ */
+UbseResult GetAllNodeInfoFromRemote(const std::string& nodeId, std::vector<UbseNodeInfo>& infos);
 
 /**
-* Agent向Master查询全量链路信息
-* @param nodeId 目标Master节点ID
-* @param devDirConnectInfoRemote 输出参数，全量链路信息映射表
-* @return UbseResult 操作结果
-*/
-UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
-                                           std::map<std::string, PhysicalLink> &devDirConnectInfoRemote);
+ * Agent向Master查询全量链路信息
+ * @param nodeId 目标Master节点ID
+ * @param devDirConnectInfoRemote 输出参数，全量链路信息映射表
+ * @return UbseResult 操作结果
+ */
+UbseResult UbseGetDirConnectInfoFromRemote(const std::string& nodeId,
+                                           std::map<std::string, PhysicalLink>& devDirConnectInfoRemote);
 
 /**
 * 注册Agent端消息处理器
@@ -93,28 +92,28 @@ UbseResult UbseGetDirConnectInfoFromRemote(const std::string &nodeId,
 UbseResult RegAgentMsgHandler();
 
 /**
-* Agent处理Master的采集请求
-* @param req 请求数据，包含序列化的采集参数
-* @param resp 响应数据，返回当前节点的序列化信息
-* @return UbseResult 处理结果
-*/
-UbseResult CollectNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+ * Agent处理Master的采集请求
+ * @param req 请求数据，包含序列化的采集参数
+ * @param resp 响应数据，返回当前节点的序列化信息
+ * @return UbseResult 处理结果
+ */
+UbseResult CollectNodeInfoHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 /**
-* Agent向前驱节点周期上报本节点信息
-* @param nodeId 目标前驱节点ID
-* @param info 要上报的本节点信息
-* @return UbseResult 发送结果
-*/
-UbseResult UbseNodeReportNodeInfo(const std::string &nodeId, const UbseNodeInfo &info);
+ * Agent向Master周期上报节点信息
+ * @param nodeId 目标Master节点ID
+ * @param info 要上报的节点信息
+ * @return UbseResult 发送结果
+ */
+UbseResult UbseNodeReportNodeInfo(const std::string& nodeId, const UbseNodeInfo& info);
 
 /**
-* Agent向Master上报LCNE拓扑变化
-* @param nodeId 目标Master节点ID
-* @param info 包含拓扑变化的节点信息
-* @return UbseResult 发送结果
-*/
-UbseResult LcneChangeReportNodeInfo(const std::string &nodeId, const UbseNodeInfo &info);
+ * Agent向Master上报LCNE拓扑变化
+ * @param nodeId 目标Master节点ID
+ * @param info 包含拓扑变化的节点信息
+ * @return UbseResult 发送结果
+ */
+UbseResult LcneChangeReportNodeInfo(const std::string& nodeId, const UbseNodeInfo& info);
 
 /**
 * 向上级节点上报单节点变化信息
@@ -137,12 +136,12 @@ UbseResult UbseGlobalReportSingleNode(const std::string &nodeId, const UbseNodeI
 UbseResult UbseGlobalReportFullInfo(const std::string &nodeId, const std::vector<UbseNodeInfo> &infos);
 
 /**
-* Master从Agent采集节点信息
-* @param nodeId 目标Agent节点ID
-* @param info 输出参数，采集到的节点信息
-* @return UbseResult 采集结果
-*/
-UbseResult CollectRemoteNodeInfo(const std::string &nodeId, UbseNodeInfo &info);
+ * Master从Agent采集节点信息
+ * @param nodeId 目标Agent节点ID
+ * @param info 输出参数，采集到的节点信息
+ * @return UbseResult 采集结果
+ */
+UbseResult CollectRemoteNodeInfo(const std::string& nodeId, UbseNodeInfo& info);
 
 /**
 * Agent下发本节点urma topo
@@ -157,7 +156,7 @@ UbseResult SetUrmaUvs();
  * @param action 变化的动作
  * @return UbseResult 发布结果
  */
-UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action);
+UbseResult PubNodeUrmaChange(std::string& nodeId, std::string action);
 
 /**
  * Agent处理主节点发送的节点变更通知
@@ -165,7 +164,7 @@ UbseResult PubNodeUrmaChange(std::string &nodeId, std::string action);
  * @param resp 响应数据，返回处理结果
  * @return UbseResult 处理结果
  */
-UbseResult nodeChangeHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+UbseResult nodeChangeHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
 } // namespace ubse::nodeController
 

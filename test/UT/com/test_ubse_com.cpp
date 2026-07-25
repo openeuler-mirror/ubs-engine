@@ -27,7 +27,7 @@ const UbseComEndpoint TEST_ENDPOINT = {0, 0, "127.0.0.1:9001"};
 UbseByteBufferFreeFunc testFreeFunc;
 const auto TEST_IP_INFO = std::make_pair("127.0.0.1", 9001);
 const auto TEST_CHANNEL_ID = 1;
-void *g_ctx = nullptr;
+void* g_ctx = nullptr;
 
 void TestUbseCom::SetUp()
 {
@@ -44,8 +44,8 @@ void TestUbseCom::TearDown()
     testTransData = nullptr;
 }
 
-void TestUBSHcomHandler(const UbseByteBuffer &req, UbseByteBuffer &resp) {}
-void TestRespHandler(void *ct, const UbseByteBuffer &respData, uint32_t resCode) {}
+void TestUBSHcomHandler(const UbseByteBuffer& req, UbseByteBuffer& resp) {}
+void TestRespHandler(void* ct, const UbseByteBuffer& respData, uint32_t resCode) {}
 
 /*
  * 用例描述：
@@ -57,7 +57,7 @@ void TestRespHandler(void *ct, const UbseByteBuffer &respData, uint32_t resCode)
  */
 TEST_F(TestUbseCom, UbseRegRpcServicSuccess)
 {
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &handlerPtr) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr & handlerPtr) =
         &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
@@ -76,7 +76,7 @@ TEST_F(TestUbseCom, UbseRegRpcServicSuccess)
  */
 TEST_F(TestUbseCom, UbseRegRpcServicFailWhenModelFail)
 {
-    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr &handlerPtr) =
+    UbseResult (UbseComModule::*func)(UbseComBaseMessageHandlerPtr & handlerPtr) =
         &UbseComModule::RegRpcService<UbseComBaseBufferMessage, UbseComBaseBufferMessage>;
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
@@ -337,8 +337,8 @@ TEST_F(TestUbseCom, UbseRpcAsySendFailWhenNoRole)
  */
 TEST_F(TestUbseCom, UbseComHandle)
 {
-    MockUbseBaseMessage *mockReq = new MockUbseBaseMessage;
-    MockUbseBaseMessage *mockResp = new MockUbseBaseMessage;
+    MockUbseBaseMessage* mockReq = new MockUbseBaseMessage;
+    MockUbseBaseMessage* mockResp = new MockUbseBaseMessage;
     uint16_t testOpCode = 0;
     uint16_t testModuleCode = 1;
     UbseBaseMessagePtr req = mockReq;
@@ -401,7 +401,7 @@ TEST_F(TestUbseCom, TestGetRole)
 {
     UbseRoleInfo roleInfo;
     roleInfo.nodeRole = "master";
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     MOCKER(&UbseGetCurrentNodeInfo)
         .stubs()
         .with(outBound(roleInfo))

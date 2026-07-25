@@ -13,17 +13,17 @@
 #ifndef MP_SYNC_DATA_HELPER_H
 #define MP_SYNC_DATA_HELPER_H
 
-#include <string>
 #include <map>
+#include <string>
 
-#include "mp_error.h"
 #include "ubse_def.h"
-#include "mp_module.h"
 #include "ubse_com.h"
+#include "ubse_storage.h"
 #include "mempooling_message.h"
 #include "mp_anti_param_json_util.h"
+#include "mp_error.h"
+#include "mp_module.h"
 #include "rmrs_serialize.h"
-#include "ubse_storage.h"
 
 namespace mempooling::sync {
 using namespace ubse::com;
@@ -31,8 +31,8 @@ using namespace mempooling::message;
 using namespace rmrs::serialize;
 using namespace ubse::storage;
 
-using NotifyFunc = std::function<uint32_t(UbseByteBuffer &)>;
-using GetDataFunc = std::function<uint32_t(UbseByteBuffer &)>;
+using NotifyFunc = std::function<uint32_t(UbseByteBuffer&)>;
+using GetDataFunc = std::function<uint32_t(UbseByteBuffer&)>;
 
 struct MpSyncDataParam {
     uint64_t index{};
@@ -42,11 +42,12 @@ struct MpSyncDataParam {
 
 class MpSyncDataHelper {
 public:
-    static MpSyncDataHelper &Instance();
+    static MpSyncDataHelper& Instance();
     MpResult Init();
     MpResult DeInit();
-    MpResult SyncDataToNode(const std::vector<std::string> &nodeIdList, const uint32_t &opCode,
-                            const UbseByteBuffer &data);
+    MpResult SyncDataToNode(const std::vector<std::string>& nodeIdList, const uint32_t& opCode,
+                            const UbseByteBuffer& data);
+
 private:
     std::map<std::string, MpSyncDataParam> serviceTable;
 };
@@ -64,7 +65,7 @@ public:
     void DeInit() override
     {
         MpSyncDataHelper::Instance().DeInit();
-        return ;
+        return;
     }
     const std::string Name() override
     {
@@ -72,6 +73,6 @@ public:
     }
 };
 
-}
+} // namespace mempooling::sync
 
 #endif

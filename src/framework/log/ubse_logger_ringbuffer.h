@@ -29,11 +29,11 @@ public:
 
     bool IsEmpty() const;
 
-    void Push(UbseLoggerEntry &&loggerEntry);
-    void Pop(UbseLoggerEntry &loggerEntry);
+    void Push(UbseLoggerEntry&& loggerEntry);
+    void Pop(UbseLoggerEntry& loggerEntry);
 
-    RingBuffer(RingBuffer const &) = delete;
-    RingBuffer &operator=(RingBuffer const &) = delete;
+    RingBuffer(RingBuffer const&) = delete;
+    RingBuffer& operator=(RingBuffer const&) = delete;
 
 public:
     uint32_t size_;
@@ -47,8 +47,8 @@ class LogBuffer {
 public:
     explicit LogBuffer(uint32_t size) : readBuffer_(size), writeBuffer_(size) {}
 
-    void Push(UbseLoggerEntry &&loggerEntry);
-    bool Pop(UbseLoggerEntry &loggerEntry);
+    void Push(UbseLoggerEntry&& loggerEntry);
+    bool Pop(UbseLoggerEntry& loggerEntry);
     void Swap();
 
 public:

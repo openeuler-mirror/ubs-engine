@@ -16,8 +16,8 @@
 namespace ubse::mem::controller {
 class UbseMemAgentUpdateObjState : public com::UbseComBaseMessageHandler {
 public:
-    common::def::UbseResult Handle(const ubse::message::UbseBaseMessagePtr &req,
-                                   const ubse::message::UbseBaseMessagePtr &rsp,
+    common::def::UbseResult Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                   const ubse::message::UbseBaseMessagePtr& rsp,
                                    ubse::com::UbseComBaseMessageHandlerCtxPtr ctx) override;
     uint16_t GetOpCode() override;
 

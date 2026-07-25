@@ -23,7 +23,7 @@ public:
     UbseCliMemAttach();
     ~UbseCliMemAttach() noexcept;
 
-    std::shared_ptr<framework::UbseCliResultEcho> UbseCliAttachMem(const std::string &name);
+    std::shared_ptr<framework::UbseCliResultEcho> UbseCliAttachMem(const std::string& name);
 
 private:
     class UbseCliMemAttachImpl;

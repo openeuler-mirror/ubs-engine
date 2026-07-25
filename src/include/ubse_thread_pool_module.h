@@ -12,19 +12,21 @@
 
 #ifndef UBSE_TASK_EXECUTOR_MODULE_H
 #define UBSE_TASK_EXECUTOR_MODULE_H
-#include <lock/ubse_lock.h>       // for ReadWriteLock
-#include <cstdint>                // for uint16_t, uint32_t
-#include <map>                    // for map
-#include <string>                 // for string
+#include <lock/ubse_lock.h> // for ReadWriteLock
+#include <cstdint>          // for uint16_t, uint32_t
+#include <map>              // for map
+#include <string>           // for string
 
-#include "ubse_common_def.h"      // for UbseResult
-#include "ubse_module.h"          // for UbseModule
+#include "ubse_common_def.h" // for UbseResult
+#include "ubse_module.h"     // for UbseModule
 #include "ubse_thread_pool.h"
 
 namespace ubse::task_executor {
 
-using namespace ubse::module;
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
+using ubse::utils::ReadWriteLock;
+
 class UbseTaskExecutorModule final : public UbseModule {
 public:
     static constexpr const char* kModuleName = "UbseTaskExecutorModule";
@@ -37,9 +39,9 @@ public:
 
     void Stop() override;
 
-    UbseResult Create(const std::string &name, uint16_t threadNum, uint32_t queueCapacity);
+    UbseResult Create(const std::string& name, uint16_t threadNum, uint32_t queueCapacity);
 
-    UbseTaskExecutorPtr Get(const std::string &name);
+    UbseTaskExecutorPtr Get(const std::string& name);
 
     void Remove(const std::string &name);
     std::string Name() const override { return kModuleName; }

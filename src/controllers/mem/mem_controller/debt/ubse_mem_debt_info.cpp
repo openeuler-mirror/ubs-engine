@@ -21,11 +21,11 @@ using namespace ubse::mem::controller::debt;
 
 namespace {
 
-NodeMemDebtInfo ConvertToNodeMemDebtInfo(const UbseNodeMemDebtInfo &debtInfo)
+NodeMemDebtInfo ConvertToNodeMemDebtInfo(const UbseNodeMemDebtInfo& debtInfo)
 {
     NodeMemDebtInfo info;
-    auto convertMap = [](const auto &sourceMap, auto &targetMap) {
-        for (const auto &[key, objPtr] : sourceMap) {
+    auto convertMap = [](const auto& sourceMap, auto& targetMap) {
+        for (const auto& [key, objPtr] : sourceMap) {
             if (objPtr) {
                 targetMap[key] = *objPtr;
             }
@@ -48,19 +48,19 @@ NodeMemDebtInfoMap GetNodeMemDebtInfoMap()
 {
     auto debtInfoMap = UbseMemDebtLedger::GetInstance().GetAllDebtInfo();
     NodeMemDebtInfoMap result;
-    for (const auto &[nodeId, debtInfo] : debtInfoMap) {
+    for (const auto& [nodeId, debtInfo] : debtInfoMap) {
         result[nodeId] = ConvertToNodeMemDebtInfo(debtInfo);
     }
     return result;
 }
 
-NodeMemDebtInfo GetNodeMemDebtInfoById(const std::string &nodeId)
+NodeMemDebtInfo GetNodeMemDebtInfoById(const std::string& nodeId)
 {
     auto ubseInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(nodeId);
     return ConvertToNodeMemDebtInfo(ubseInfo);
 }
 
-NodeMemDebtInfo GetNoDeletedNodeMemDebtInfoById(const std::string &nodeId)
+NodeMemDebtInfo GetNoDeletedNodeMemDebtInfoById(const std::string& nodeId)
 {
     auto ubseInfo = UbseMemDebtLedger::GetInstance().GetNodeMemDebtInfo(nodeId, true);
     return ConvertToNodeMemDebtInfo(ubseInfo);

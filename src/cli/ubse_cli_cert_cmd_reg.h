@@ -16,7 +16,8 @@
 #include "ubse_cli_reg_builder.h"
 
 namespace ubse::cli::reg {
-using namespace ubse::cli::framework;
+using ubse::cli::framework::UbseCliCommandInfo;
+using ubse::cli::framework::UbseCliResultEcho;
 class UbseCliRegCertModule : public UbseCliRegModule {
 public:
     void UbseCliSignUp() override;
@@ -25,12 +26,12 @@ private:
     UbseCliCommandInfo UbseCliChangeCaCrl();
     UbseCliCommandInfo UbseCliCreateCert();
     UbseCliCommandInfo UbseCliRemoveCert();
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCertImportFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCaCrlImportFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
-    static std::shared_ptr<UbseCliResultEcho> UbseCliCertDeleteFunc([
-        [maybe_unused]] const std::map<std::string, std::string> &params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCertImportFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCaCrlImportFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
+    static std::shared_ptr<UbseCliResultEcho> UbseCliCertDeleteFunc(
+        [[maybe_unused]] const std::map<std::string, std::string>& params);
 };
 } // namespace ubse::cli::reg
 #endif

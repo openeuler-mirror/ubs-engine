@@ -11,10 +11,10 @@
  */
 #include "ubse_mmi_interface_impl.h"
 
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mmi_module.h"
-#include "ubse_context.h"
 
 namespace ubse::adapter_plugins::mmi {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -99,7 +99,7 @@ UbseResult UbseMmiInterfaceDefaultImpl::NumaUnImportExecutor(const UbseMemNumaBo
     return mmiModule->UbseMemNumaUnImportExecutor(importObj);
 }
 
-UbseResult UbseMmiInterfaceDefaultImpl::NumaExportExecutor(UbseMemNumaBorrowExportObj &exportObj)
+UbseResult UbseMmiInterfaceDefaultImpl::NumaExportExecutor(UbseMemNumaBorrowExportObj& exportObj)
 {
     const auto mmiModule = context::UbseContext::GetInstance().GetModule<ubse::mmi::UbseMmiModule>();
     if (mmiModule == nullptr) {
@@ -219,4 +219,4 @@ UbseResult UbseMmiInterfaceDefaultImpl::UnPreOnline()
     }
     return mmiModule->UbseMmiUnPreOnline();
 }
-}  // namespace ubse::adapter_plugins::mmi
+} // namespace ubse::adapter_plugins::mmi

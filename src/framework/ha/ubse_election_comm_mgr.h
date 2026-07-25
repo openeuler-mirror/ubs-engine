@@ -21,8 +21,9 @@
 #include "ubse_event_module.h"
 
 namespace ubse::election {
-using namespace ubse::com;
-using namespace ubse::event;
+using ubse::com::UbseComBase;
+using ubse::com::UbseComCallBackForHA;
+using ubse::com::UbseResult;
 
 struct NodeLinkInfo {
     std::string nodeId;
@@ -47,9 +48,9 @@ public:
     // 和管理组保持长连接，目的查询该管理组的groupMaster
     uint32_t ConnectForGroupMaster(const UBSE_ID_TYPE &dstId, const UBSE_ID_TYPE &dstIp);
 
-    UbseResult DisConnect(const UBSE_ID_TYPE &dstId);
+    UbseResult DisConnect(const UBSE_ID_TYPE& dstId);
 
-    UbseResult SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt &pkt, ElectionReplyPkt &reply);
+    UbseResult SendElectionPkt(UBSE_ID_TYPE destID, const ElectionPkt& pkt, ElectionReplyPkt& reply);
 
     std::vector<UBSE_ID_TYPE> GetConnectedNodes() const;
     // 获取建链上的管理组的MasterId
@@ -57,11 +58,11 @@ public:
     // 获取其他组的长连接nodeId
     std::unordered_map<std::string, UBSE_ID_TYPE> GetInterManagementGroupLinkMap() const;
 
-    UbseResult ElectionResponseHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionResponseHandler(std::string& eventId, std::string& eventMessage);
 
-    UbseResult ElectionFaultHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionFaultHandler(std::string& eventId, std::string& eventMessage);
 
-    UbseResult ElectionTopoChangeHandler(std::string &eventId, std::string &eventMessage);
+    UbseResult ElectionTopoChangeHandler(std::string& eventId, std::string& eventMessage);
 
     UbseResult RegNewChannelCb([[maybe_unused]] UbseComCallBackForHA func) override
     {
@@ -73,7 +74,7 @@ public:
         return UBSE_OK;
     };
 
-    UbseResult NewChannelCB(const std::string &remoteIp, const std::string &remoteNodeId);
+    UbseResult NewChannelCB(const std::string& remoteIp, const std::string& remoteNodeId);
 
     UbseResult ElectionSubEvent();
 

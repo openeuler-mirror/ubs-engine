@@ -12,14 +12,14 @@
 
 #include <vector>
 
+#include "borrow_action.h"
+#include "borrow_strategy.h"
+#include "data_collect.h"
 #include "gtest/gtest.h"
+#include "mem_borrow.h"
 #include "mockcpp/mokc.h"
 #include "ucache_config.h"
 #include "ucache_error.h"
-#include "data_collect.h"
-#include "mem_borrow.h"
-#include "borrow_action.h"
-#include "borrow_strategy.h"
 
 using namespace std;
 using namespace ucache;
@@ -47,56 +47,58 @@ static std::map<std::string, std::map<int, uint64_t>> loanableMemRawData = {
 };
 
 // 各节点内存初始使用信息
-static std::vector<BorrowStrategyRawData> rawData = {
-    {
-        .nodeId = "Node0",
-        .pagecacheAppNums = 0,
-        .freeMemMin = 4 * one_GB,
-        .localMemInfo = {
-            .total = 32 * one_GB,
-            .available = 14 * one_GB,
-            .used = 18 * one_GB,
-            .pagecache = 12 * one_GB,
-        },
-        .remoteNumaMemInfo = {},
-    },
-    {
-        .nodeId = "Node1",
-        .pagecacheAppNums = 0,
-        .freeMemMin = 4 * one_GB,
-        .localMemInfo = {
-            .total = 32 * one_GB,
-            .available = 10 * one_GB,
-            .used = 22 * one_GB,
-            .pagecache = 18 * one_GB,
-        },
-        .remoteNumaMemInfo = {},
-    },
-    {
-        .nodeId = "Node2",
-        .pagecacheAppNums = 3,
-        .freeMemMin = 4 * one_GB,
-        .localMemInfo = {
-            .total = 32 * one_GB,
-            .available = 10 * one_GB,
-            .used = 22 * one_GB,
-            .pagecache = 18 * one_GB,
-        },
-        .remoteNumaMemInfo = {},
-    },
-    {
-        .nodeId = "Node3",
-        .pagecacheAppNums = 3,
-        .freeMemMin = 4 * one_GB,
-        .localMemInfo = {
-            .total = 32 * one_GB,
-            .available = 10 * one_GB,
-            .used = 22 * one_GB,
-            .pagecache = 18 * one_GB,
-        },
-        .remoteNumaMemInfo = {},
-    }
-};
+static std::vector<BorrowStrategyRawData> rawData = {{
+                                                         .nodeId = "Node0",
+                                                         .pagecacheAppNums = 0,
+                                                         .freeMemMin = 4 * one_GB,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 32 * one_GB,
+                                                                 .available = 14 * one_GB,
+                                                                 .used = 18 * one_GB,
+                                                                 .pagecache = 12 * one_GB,
+                                                             },
+                                                         .remoteNumaMemInfo = {},
+                                                     },
+                                                     {
+                                                         .nodeId = "Node1",
+                                                         .pagecacheAppNums = 0,
+                                                         .freeMemMin = 4 * one_GB,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 32 * one_GB,
+                                                                 .available = 10 * one_GB,
+                                                                 .used = 22 * one_GB,
+                                                                 .pagecache = 18 * one_GB,
+                                                             },
+                                                         .remoteNumaMemInfo = {},
+                                                     },
+                                                     {
+                                                         .nodeId = "Node2",
+                                                         .pagecacheAppNums = 3,
+                                                         .freeMemMin = 4 * one_GB,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 32 * one_GB,
+                                                                 .available = 10 * one_GB,
+                                                                 .used = 22 * one_GB,
+                                                                 .pagecache = 18 * one_GB,
+                                                             },
+                                                         .remoteNumaMemInfo = {},
+                                                     },
+                                                     {
+                                                         .nodeId = "Node3",
+                                                         .pagecacheAppNums = 3,
+                                                         .freeMemMin = 4 * one_GB,
+                                                         .localMemInfo =
+                                                             {
+                                                                 .total = 32 * one_GB,
+                                                                 .available = 10 * one_GB,
+                                                                 .used = 22 * one_GB,
+                                                                 .pagecache = 18 * one_GB,
+                                                             },
+                                                         .remoteNumaMemInfo = {},
+                                                     }};
 
 class BorrowStrategyTest : public ::testing::Test {
 protected:
@@ -146,28 +148,31 @@ TEST_F(BorrowStrategyTest, GetBalanceTest)
     EXPECT_NEAR(balance, 1.83013, 0.00001);
 }
 
-void TestSetRawData(std::vector<BorrowStrategyRawData> &RawDatas,
-                    std::string nodeId, int *localInfo, bool isRemote, int *remoteInfo, size_t remoteInfoLen)
+void TestSetRawData(std::vector<BorrowStrategyRawData>& RawDatas, std::string nodeId, int* localInfo, bool isRemote,
+                    int* remoteInfo, size_t remoteInfoLen)
 {
     if (isRemote && remoteInfoLen >= 4) {
         BorrowStrategyRawData rawData = {
             .nodeId = nodeId,
             .pagecacheAppNums = localInfo[0],
             .freeMemMin = localInfo[1] * one_GB,
-            .localMemInfo = {
-                .total = localInfo[2] * one_GB,
-                .available = localInfo[3] * one_GB,
-                .used = localInfo[4] * one_GB,
-                .pagecache = localInfo[5] * one_GB,
-            },
-            .remoteNumaMemInfo = {
-                {5, {
-                    .total = remoteInfo[0] * one_GB,
-                    .available = remoteInfo[1] * one_GB,
-                    .used = remoteInfo[2] * one_GB,
-                    .pagecache = remoteInfo[3] * one_GB,
-                }},
-            },
+            .localMemInfo =
+                {
+                    .total = localInfo[2] * one_GB,
+                    .available = localInfo[3] * one_GB,
+                    .used = localInfo[4] * one_GB,
+                    .pagecache = localInfo[5] * one_GB,
+                },
+            .remoteNumaMemInfo =
+                {
+                    {5,
+                     {
+                         .total = remoteInfo[0] * one_GB,
+                         .available = remoteInfo[1] * one_GB,
+                         .used = remoteInfo[2] * one_GB,
+                         .pagecache = remoteInfo[3] * one_GB,
+                     }},
+                },
         };
         RawDatas.emplace_back(rawData);
     } else {
@@ -175,19 +180,20 @@ void TestSetRawData(std::vector<BorrowStrategyRawData> &RawDatas,
             .nodeId = nodeId,
             .pagecacheAppNums = localInfo[0],
             .freeMemMin = localInfo[1] * one_GB,
-            .localMemInfo = {
-                .total = localInfo[2] * one_GB,
-                .available = localInfo[3] * one_GB,
-                .used = localInfo[4] * one_GB,
-                .pagecache = localInfo[5] * one_GB,
-            },
+            .localMemInfo =
+                {
+                    .total = localInfo[2] * one_GB,
+                    .available = localInfo[3] * one_GB,
+                    .used = localInfo[4] * one_GB,
+                    .pagecache = localInfo[5] * one_GB,
+                },
             .remoteNumaMemInfo = {},
         };
         RawDatas.emplace_back(rawData);
     }
 }
 
-void GetRawDataBorrowStrategyStartTest(std::vector<BorrowStrategyRawData> &rawDatas)
+void GetRawDataBorrowStrategyStartTest(std::vector<BorrowStrategyRawData>& rawDatas)
 {
     int localInfo0[6] = {3, 4, 29, 6, 24, 8};
     int localInfo1[6] = {0, 4, 29, 18, 11, 6};

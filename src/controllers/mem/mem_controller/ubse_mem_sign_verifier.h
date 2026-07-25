@@ -18,8 +18,8 @@
 #include "ubse_mem_debt_info.h"
 
 namespace ubse::mem::controller {
-using namespace common::def;
-using namespace ubse::http;
+using common::def::UbseResult;
+using ubse::adapter_plugins::mmi::UbseMemObmmInfo;
 
 struct UbseExportSignReq {
     std::string reqSignedData; // 请求签名信息, 用于验签
@@ -30,11 +30,11 @@ struct UbseExportSignReq {
 
 class UbseMemSignVerifier {
 public:
-    static UbseResult Sign(const std::string &type, std::string &signedData, std::string &trustRingId);
+    static UbseResult Sign(const std::string& type, std::string& signedData, std::string& trustRingId);
 
-    static UbseResult SignAndVerify(const UbseExportSignReq &signReq, std::vector<std::string> &lendSignedDatas);
+    static UbseResult SignAndVerify(const UbseExportSignReq& signReq, std::vector<std::string>& lendSignedDatas);
 };
 
 bool IsHighSafety();
-}
+} // namespace ubse::mem::controller
 #endif // UBSE_MEM_SIGN_VERIFIER_H

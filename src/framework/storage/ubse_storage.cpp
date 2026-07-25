@@ -11,8 +11,8 @@
  */
 
 #include "ubse_storage.h"
-#include "ubse_error.h"
 #include "ubse_context.h"
+#include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_storage_module.h"
 
@@ -21,7 +21,7 @@ using namespace ubse::context;
 using namespace ubse::log;
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data)
+uint32_t UbseStoragePutData(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseStorageModule>();
     if (module == nullptr) {
@@ -39,8 +39,8 @@ uint32_t UbseStoragePutData(const std::string &keyPrefix, const std::string &key
     return ret;
 }
 
-uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &key, void *ctx,
-    UbseStorageDealDataFunc func)
+uint32_t UbseStorageQueryData(const std::string& keyPrefix, const std::string& key, void* ctx,
+                              UbseStorageDealDataFunc func)
 {
     if (func == nullptr) {
         UBSE_LOG_ERROR << "Callback func is null";
@@ -58,12 +58,12 @@ uint32_t UbseStorageQueryData(const std::string &keyPrefix, const std::string &k
         module->ResultFree(kv);
         return ret;
     }
-    func(keyPrefix, key, { kv.value, kv.valueLen, nullptr }, ctx);
+    func(keyPrefix, key, {kv.value, kv.valueLen, nullptr}, ctx);
     module->ResultFree(kv);
     return UBSE_OK;
 }
 
-uint32_t UbseStorageDeleteData(const std::string &keyPrefix, const std::string &key)
+uint32_t UbseStorageDeleteData(const std::string& keyPrefix, const std::string& key)
 {
     auto module = UbseContext::GetInstance().GetModule<UbseStorageModule>();
     if (module == nullptr) {
@@ -76,4 +76,4 @@ uint32_t UbseStorageDeleteData(const std::string &keyPrefix, const std::string &
     }
     return ret;
 }
-}
+} // namespace ubse::storage

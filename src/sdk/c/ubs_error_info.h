@@ -21,12 +21,12 @@ extern "C" {
 
 // 错误信息结构体
 typedef struct {
-    const char *name;
-    const char *message;
+    const char* name;
+    const char* message;
 } ubs_error_info_t;
 
 // 公共错误码描述
-static const ubs_error_info_t *const common_error_infos[] = {
+static const ubs_error_info_t* const common_error_infos[] = {
     [UBS_SUCCESS] = &(ubs_error_info_t){"UBS_SUCCESS", "Operation completed successfully"},
     // 参数错误 (1-9)
     [UBS_ERR_INVALID_ARG] = &(ubs_error_info_t){"UBS_ERR_INVALID_ARG", "Invalid parameter provided"},
@@ -51,7 +51,7 @@ static const ubs_error_info_t *const common_error_infos[] = {
         &(ubs_error_info_t){.name = "UBS_ERR_IPC_SERVICE_UNAVAILABLE", .message = "Requested service is unavailable"},
     [UBS_ERR_IPC_CONNECTION_FAILED_PATH_LENGTH] =
         &(ubs_error_info_t){.name = "UBS_ERR_IPC_CONNECTION_FAILED",
-            .message = "Failed to establish IPC connection, socket path is too long"},
+                            .message = "Failed to establish IPC connection, socket path is too long"},
     // 权限错误 (30-39)
     [UBS_ERR_PERMISSION_DENIED] =
         &(ubs_error_info_t){.name = "UBS_ERR_PERMISSION_DENIED", .message = "Insufficient permissions"},

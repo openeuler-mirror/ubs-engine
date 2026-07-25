@@ -15,23 +15,23 @@
 #include "ubse_election_def.h"
 #include "ubse_serial_util.h"
 namespace ubse::election::data::conversion {
-using namespace ubse::serial;
-inline void ElectionPktSerialize(ubse::serial::UbseSerialization &out, ubse::election::ElectionPkt &electionPkt)
+
+inline void ElectionPktSerialize(ubse::serial::UbseSerialization& out, ubse::election::ElectionPkt& electionPkt)
 {
     out << electionPkt.type << electionPkt.masterId << electionPkt.masterIp << electionPkt.standbyId << electionPkt.turnId
         << electionPkt.sequenceId << electionPkt.agentCount << electionPkt.agentIds << electionPkt.masterStatus
         << electionPkt.standbyStatus << electionPkt.broadcast << electionPkt.queryGroupNodeIds
         << electionPkt.globalMasterId << electionPkt.globalStandbyId;
 }
-inline void ElectionPktDeserialize(ubse::serial::UbseDeSerialization &in, ubse::election::ElectionPkt &electionPkt)
+inline void ElectionPktDeserialize(ubse::serial::UbseDeSerialization& in, ubse::election::ElectionPkt& electionPkt)
 {
     in >> electionPkt.type >> electionPkt.masterId >> electionPkt.masterIp >> electionPkt.standbyId >> electionPkt.turnId >>
         electionPkt.sequenceId >> electionPkt.agentCount >> electionPkt.agentIds >> electionPkt.masterStatus >>
         electionPkt.standbyStatus >> electionPkt.broadcast >> electionPkt.queryGroupNodeIds
         >> electionPkt.globalMasterId >> electionPkt.globalStandbyId;
 }
-inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization &out,
-                                      ubse::election::ElectionReplyPkt &electionReplyPkt)
+inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization& out,
+                                      ubse::election::ElectionReplyPkt& electionReplyPkt)
 {
     out << electionReplyPkt.type << electionReplyPkt.replyId << electionReplyPkt.groupId << electionReplyPkt.replyResult
         << electionReplyPkt.masterId << electionReplyPkt.standbyId
@@ -39,8 +39,8 @@ inline void ElectionReplyPktSerialize(ubse::serial::UbseSerialization &out,
         << electionReplyPkt.broadcast << electionReplyPkt.managingGroupNodeIds << electionReplyPkt.cascadeGroupNodeIds
         << electionReplyPkt.cascadeGroupId << electionReplyPkt.cascadeMasterId << electionReplyPkt.cascadeStandbyId;
 }
-inline void ElectionReplyPktDeserialize(ubse::serial::UbseDeSerialization &in,
-                                        ubse::election::ElectionReplyPkt &electionReplyPkt)
+inline void ElectionReplyPktDeserialize(ubse::serial::UbseDeSerialization& in,
+                                        ubse::election::ElectionReplyPkt& electionReplyPkt)
 {
     in >> electionReplyPkt.type >> electionReplyPkt.replyId >> electionReplyPkt.groupId >>
         electionReplyPkt.replyResult >> electionReplyPkt.masterId >> electionReplyPkt.standbyId >>

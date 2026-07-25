@@ -12,16 +12,16 @@
 
 #include "test_case_conf.h"
 #include <thread>
-#include "mempooling_module.h"
-#include "mockcpp/mockcpp.hpp"
 #include "ubse_com.h"
 #include "ubse_storage.h"
-#include "securec.h"
-#include "router.h"
-#include "rack_vm_plugin.h"
-#include "vm_json_util.h"
 #include "case_conf.h"
+#include "mempooling_module.h"
+#include "mockcpp/mockcpp.hpp"
+#include "rack_vm_plugin.h"
+#include "router.h"
+#include "securec.h"
 #include "vm_configuration.h"
+#include "vm_json_util.h"
 #include "vm_string_util.h"
 
 using namespace vm;
@@ -43,7 +43,7 @@ void TestCaseConf::TearDown()
     Test::TearDown();
 }
 
-VmResult MockQueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio &caseConf)
+VmResult MockQueryCaseAndOverCommitmentRatio(CaseAndOvercommitmentRatio& caseConf)
 {
     caseConf.curCase = OVER_COMMITMENT_CASE;
     caseConf.overCommitmentRatio = MAX_OVER_COMMITMENT_RATIO;
@@ -80,7 +80,7 @@ TEST_F(TestCaseConf, QueryCaseAndOverCommitmentRatioTest)
 TEST_F(TestCaseConf, UbseStorageDealDataTest)
 {
     std::string str = "caseType:overCommitment;overCommitment:1.25";
-    auto data = reinterpret_cast<uint8_t *>(str.data());
+    auto data = reinterpret_cast<uint8_t*>(str.data());
     const UbseByteBuffer buff = {.data = data, .len = str.length()};
     CaseAndOvercommitmentRatio caseAndOvercommitmentRatio{};
     // ctx为null
@@ -94,19 +94,19 @@ void MockUbsePluginDeInit()
     return;
 }
 
-VmResult MockQueryCaseAndOverCommitmentRatio2(CaseAndOvercommitmentRatio &caseConf)
+VmResult MockQueryCaseAndOverCommitmentRatio2(CaseAndOvercommitmentRatio& caseConf)
 {
     caseConf.curCase = MEM_FRAGMENTATION_CASE;
     caseConf.overCommitmentRatio = MEM_FRAGMENTATION_RATIO;
     return VM_OK;
 }
 
-uint32_t UBSRMRSSetRunModeSuccess(const int &runMode)
+uint32_t UBSRMRSSetRunModeSuccess(const int& runMode)
 {
     return VM_OK;
 }
 
-uint32_t UBSRMRSSetRunModeFail(const int &runMode)
+uint32_t UBSRMRSSetRunModeFail(const int& runMode)
 {
     return VM_ERROR;
 }
@@ -139,9 +139,7 @@ TEST_F(TestCaseConf, RunQueryCaseConfTestRunSetRunMode)
     EXPECT_EQ(ret, true);
     MOCKER(MempoolingModule::UBSRMRSSetRunMode).reset();
 
-    MOCKER(MempoolingModule::UBSRMRSSetRunMode)
-        .stubs()
-        .will(invoke(MockUBSRMRSSetRunModeFail));
+    MOCKER(MempoolingModule::UBSRMRSSetRunMode).stubs().will(invoke(MockUBSRMRSSetRunModeFail));
     ret = CaseConf::SetMemPoolingRunMode(OVER_COMMITMENT_CASE);
     EXPECT_EQ(ret, false);
     MOCKER(MempoolingModule::UBSRMRSSetRunMode).reset();
@@ -150,7 +148,7 @@ TEST_F(TestCaseConf, RunQueryCaseConfTestRunSetRunMode)
 
 TEST_F(TestCaseConf, CaseConfResultParamToJsonTest)
 {
-    CaseConfResultParam caseResult = {.ret=1, .msg="success", .data="success"};
+    CaseConfResultParam caseResult = {.ret = 1, .msg = "success", .data = "success"};
     MOCKER(VMJsonUtil::VMConvertMap2JsonStr).stubs().will(returnValue(false));
     EXPECT_EQ(caseResult.ToJson(), "");
     MOCKER(VMJsonUtil::VMConvertMap2JsonStr).reset();
@@ -202,33 +200,35 @@ TEST_F(TestCaseConf, CaseConfInit)
 
 UBSRMRSSetRunModeFunc MockerRunMode()
 {
-    return [](const int &) {
+    return [](const int&) {
         return VM_OK;
     };
 }
 
 UBSRMRSSetWaterMarkFunc MockerSetWaterMarkFunc()
 {
-    return [](const WaterMark &) {
+    return [](const WaterMark&) {
         return VM_OK;
     };
 }
 
 UBSRMRSSetWaterMarkFunc MockerSetWaterMarkFail()
 {
-    return [](const WaterMark &) {
+    return [](const WaterMark&) {
         return VM_ERROR;
     };
 }
 
-TEST(CaseConfTest, SetMemPoolingWaterMarkWithNullptr) {
+TEST(CaseConfTest, SetMemPoolingWaterMarkWithNullptr)
+{
     MOCKER(MempoolingModule::UBSRMRSSetWaterMark).stubs().will(returnValue(UBSRMRSSetWaterMarkFunc(nullptr)));
     auto ret = CaseConf::SetMemPoolingWaterMark();
     EXPECT_EQ(ret, false);
     GlobalMockObject::verify();
 }
 
-TEST(CaseConfTest, SetMemPoolingWaterMark) {
+TEST(CaseConfTest, SetMemPoolingWaterMark)
+{
     MOCKER(MempoolingModule::UBSRMRSSetWaterMark).stubs().will(invoke(MockerSetWaterMarkFunc));
     MOCKER(&VmConfiguration::GetBorrowWatermark).stubs().will(returnValue(std::string("80")));
     MOCKER(&VmConfiguration::GetLowWatermark).stubs().will(returnValue(std::string("20")));
@@ -246,11 +246,12 @@ TEST(CaseConfTest, SetMemPoolingWaterMark) {
     GlobalMockObject::verify();
 }
 
-TEST(CaseConfTest, SetCaseConfToDB) {
-    CaseConfParam param{.caseType="overCommitment", .overCommitmentRatio=1.25};
+TEST(CaseConfTest, SetCaseConfToDB)
+{
+    CaseConfParam param{.caseType = "overCommitment", .overCommitmentRatio = 1.25};
     MOCKER(UbseStoragePutData).stubs().will(returnValue(0));
     auto ret = SetCaseConfToDB(param);
     EXPECT_EQ(ret, VM_OK);
     GlobalMockObject::verify();
 }
-}
+} // namespace ubse::ut::vm

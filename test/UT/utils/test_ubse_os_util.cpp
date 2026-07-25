@@ -42,7 +42,7 @@ TEST_F(TestUbseOsUtil, GetUserNameById_MultiUidConcurrency)
 {
     std::vector<std::thread> threads;
 
-    auto worker = [](uid_t uid, const std::string &expectUsername) {
+    auto worker = [](uid_t uid, const std::string& expectUsername) {
         for (int i = 0; i < 100000; ++i) {
             std::string userName;
             EXPECT_EQ(UbseOsUtil::GetUserNameById(uid, userName), UBSE_OK);
@@ -50,10 +50,10 @@ TEST_F(TestUbseOsUtil, GetUserNameById_MultiUidConcurrency)
         }
     };
 
-    for (const auto &[uid, username] : users) {
+    for (const auto& [uid, username] : users) {
         threads.emplace_back(worker, uid, username);
     }
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 }
@@ -62,7 +62,7 @@ TEST_F(TestUbseOsUtil, GetUidByName_MultiUserConcurrency)
 {
     std::vector<std::thread> threads;
 
-    auto worker = [](uid_t expectUid, const std::string &username) {
+    auto worker = [](uid_t expectUid, const std::string& username) {
         for (int i = 0; i < 100000; ++i) {
             uid_t uid;
             EXPECT_EQ(UbseOsUtil::GetUidByName(username, uid), UBSE_OK);
@@ -70,11 +70,11 @@ TEST_F(TestUbseOsUtil, GetUidByName_MultiUserConcurrency)
         }
     };
 
-    for (const auto &[uid, username] : users) {
+    for (const auto& [uid, username] : users) {
         threads.emplace_back(worker, uid, username);
     }
 
-    for (auto &t : threads) {
+    for (auto& t : threads) {
         t.join();
     }
 }

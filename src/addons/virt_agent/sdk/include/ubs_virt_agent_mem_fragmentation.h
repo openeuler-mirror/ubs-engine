@@ -14,28 +14,30 @@
 #ifndef UBS_VIRT_AGENT_MEM_FRAGMENTATION_H
 #define UBS_VIRT_AGENT_MEM_FRAGMENTATION_H
 
-#include "ubs_virt_agent_base.h"
 #include "mem_fragmentation_msg.h"
+#include "ubs_virt_agent_base.h"
+
+using namespace vm;
+using namespace vm::mem_fragmentation;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-using namespace vm;
 
 typedef struct {
-    int16_t numaId;                       // CPU NUMA ID
-    int16_t socketId;                     // CPU socket ID
+    int16_t numaId;   // CPU NUMA ID
+    int16_t socketId; // CPU socket ID
     bool isLocal;
-    uint64_t pageSize;                    // VM page size, default is 2 MB huge pages (2048 KBytes)
+    uint64_t pageSize; // VM page size, default is 2 MB huge pages (2048 KBytes)
     int64_t usedMem;
 } vm_numa_info_t;
 
 typedef struct {
     char nodeId[VIRT_MEM_MAX_NODE_ID_LENGTH]; // Physical node ID (from control-plane configuration file)
-    char hostName[UBS_VA_HOST_NAME_MAX];  // Physical node host name (from VM XML definition)
-    char uuid[VIRT_MAX_UUID_LENGTH];       // VM UUID (from VM XML definition)
-    char name[VIRT_MAX_NAME_LENGTH];       // VM name (from VM XML definition)
-    char state[VIRT_MAX_STATE_LENGTH];     // VM state
+    char hostName[UBS_VA_HOST_NAME_MAX];      // Physical node host name (from VM XML definition)
+    char uuid[VIRT_MAX_UUID_LENGTH];          // VM UUID (from VM XML definition)
+    char name[VIRT_MAX_NAME_LENGTH];          // VM name (from VM XML definition)
+    char state[VIRT_MAX_STATE_LENGTH];        // VM state
     int64_t vmCreateTime;
     uint64_t maxMem;
     pid_t pid;
@@ -54,7 +56,7 @@ typedef struct {
  * @param node_cnt  [OUT] number of numa nodes returned
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t** node_list, uint32_t* node_cnt);
 
 /**
  * @brief  query vm memory fragmentation information
@@ -62,7 +64,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
  * @param vm_info_cnt  [OUT] number of vm domain information entries returned
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt);
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t** vm_info_list, uint32_t* vm_info_cnt);
 
 /**
  * @brief  set numa node anti-affinity configuration for memory fragmentation optimization
@@ -95,7 +97,7 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
  *
  * @return 0 if successful, a non-zero error code otherwise.
  */
-virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result);
+virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borrow_setting, mem_borrow_result_c* result);
 
 /**
  * @brief  calculate memory migrate strategy based on memory fragmentation information
@@ -111,7 +113,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrc
  * @param srcParam [IN] source parameters for memory migrate execution
  * @return 0 for success, non-zero for error
  */
-virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam);
+virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam* srcParam);
 
 /**
  * @brief Returns borrowed memory for a specified node.
@@ -125,7 +127,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
  *
  * @return VA_SUCCESS on success, error code otherwise.
  */
-virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len);
+virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char** task_id, uint32_t* task_id_len);
 
 /**
  * @brief Synchronously query async task status and result.
@@ -134,14 +136,21 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
  * @param result      Output: task status, result code, error msg, serialized data
  * @return VM_OK on success, error code on failure
  */
-virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result);
+virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_len, async_task_info_c* result);
 
 /**
  * @brief  rollback borrowed memory for the specified node and borrow id list
  * @param srcParam  [IN] source parameters for memory rollback execution
  */
-virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam);
+virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam);
 
+/** ==============big memory virtual machine============== */
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s* node_info_list);
+
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
+                                           mem_borrow_result_s* result);
+
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s* page_swap_enable);
 #ifdef __cplusplus
 }
 #endif

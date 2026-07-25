@@ -18,8 +18,10 @@
 #include "ubse_http_common.h"
 #include "ubse_secure_buffer.h"
 namespace ubse::http {
-using namespace httplib;
-using namespace ubse::common::def;
+using httplib::Request;
+using httplib::Response;
+using httplib::Server;
+using ubse::common::def::UbseResult;
 
 class UbseHttpServer {
 public:
@@ -40,9 +42,9 @@ public:
 
     void Stop();
 
-    void HandleRequest(const httplib::Request &req, httplib::Response &res);
+    void HandleRequest(const httplib::Request& req, httplib::Response& res);
 
-    void RegisterRoute(const std::string &path, const std::string &method, UbseHttpHandlerFunc handler);
+    void RegisterRoute(const std::string& path, const std::string& method, UbseHttpHandlerFunc handler);
 
     const Config &GetConfig() const { return config_; }
 
@@ -63,11 +65,11 @@ private:
 
     std::unique_ptr<httplib::SSLServer> CreateSslServer();
 
-    UbseResult ValidateHttpRequest(const httplib::Request &req, UbseHttpRequest &request);
+    UbseResult ValidateHttpRequest(const httplib::Request& req, UbseHttpRequest& request);
 
-    void BuildResponse(httplib::Response &res, const UbseHttpResponse &response);
+    void BuildResponse(httplib::Response& res, const UbseHttpResponse& response);
 
-    std::string GenerateQueryString(const std::multimap<std::string, std::string> &queryParams);
+    std::string GenerateQueryString(const std::multimap<std::string, std::string>& queryParams);
 
     static std::string GetParentDirectory(const std::string &path);
 };

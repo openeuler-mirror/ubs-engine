@@ -71,11 +71,7 @@ public:
                                                   adapter_plugins::mmi::NodeMemDebtInfoMap &memDebtInfoMap) = 0;
     virtual adapter_plugins::mmi::NodeMemDebtInfoMap UbseGetLocalMemDebtInfo() = 0;
 
-    virtual std::string GetAllNumaJsonInfo(const std::string &nodeId) = 0;
-
     virtual uint32_t UbseAllNumaInfo(std::vector<ubse::service::mem::UbseNumaNodeInfo> &numaNodeInfoList) = 0;
-
-    virtual UbseResult MemReportWhenExportNodeOnFault(int faultType, std::string &faultId) = 0;
 
     virtual UbseResult GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair) = 0;
 

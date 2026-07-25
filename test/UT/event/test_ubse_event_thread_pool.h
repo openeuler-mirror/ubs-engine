@@ -22,6 +22,6 @@ public:
     void SetUp() override;
     void TearDown() override;
 };
-}
+} // namespace ubse::event::ut
 
 #endif // UBSE_MANAGER_TEST_UBSE_EVENT_THREAD_POOL_H

@@ -13,13 +13,14 @@
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 
+#include "ubse_node.h"
+#include "ubse_storage.h"
 #include "iostream"
 #include "mem_borrow_executor.cpp"
 #include "mem_json_def.h"
 #include "mem_manager.h"
-#include "mp_error.h"
-#include "ubse_node.h"
 #include "mempool_migrate_module.h"
+#include "mp_error.h"
 
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
@@ -57,7 +58,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsFailed)
 
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionError)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string &value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -67,7 +68,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionErr
     ASSERT_EQ(1, res);
 }
 
-uint32_t TestGetBorrowIdRedirectionMock(BorrowIdRedirection *memManager, const std::string key, std::string &value)
+uint32_t TestGetBorrowIdRedirectionMock(BorrowIdRedirection* memManager, const std::string key, std::string& value)
 {
     if (value == "test") {
         value = "t";
@@ -77,7 +78,7 @@ uint32_t TestGetBorrowIdRedirectionMock(BorrowIdRedirection *memManager, const s
     return 0;
 }
 
-uint32_t TestGetNullBorrowIdRedirectionMock(BorrowIdRedirection *memManager, const std::string key, std::string &value)
+uint32_t TestGetNullBorrowIdRedirectionMock(BorrowIdRedirection* memManager, const std::string key, std::string& value)
 {
     value.clear();
     return 0;
@@ -86,7 +87,7 @@ uint32_t TestGetNullBorrowIdRedirectionMock(BorrowIdRedirection *memManager, con
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionNotEquals)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string &value))
+               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
         .stubs()
         .will(invoke(TestGetBorrowIdRedirectionMock));
     std::string name = "test";
@@ -99,10 +100,10 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionNot
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RemoveBorrowIdRedirectionError)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string &value))
+               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
-    MOCKER_CPP(&MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively, uint32_t(*)(const std::string &name))
+    MOCKER_CPP(&MemBorrowExecutor::RemoveBorrowIdRedirectionRecursively, uint32_t(*)(const std::string& name))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -115,7 +116,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RemoveBorrowIdRedirection
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_Failed)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string &value))
+               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "mock";
@@ -128,7 +129,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_F
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_Running)
 {
     MOCKER_CPP(&BorrowIdRedirection::Query,
-               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string &value))
+               uint32_t(*)(BorrowIdRedirection * memManager, const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "run";
@@ -140,7 +141,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_R
 
 TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelyFailed1)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string &value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(1));
     std::string name = "test";
@@ -148,13 +149,13 @@ TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelyFailed1)
     ASSERT_EQ(1, ret);
 }
 
-MpResult QueryMockEmpty(BorrowIdRedirection *, const std::string key, std::string &value)
+MpResult QueryMockEmpty(BorrowIdRedirection*, const std::string key, std::string& value)
 {
     value = "";
     return 0;
 }
 
-MpResult QueryMockNoEmpty(BorrowIdRedirection *, const std::string key, std::string &value)
+MpResult QueryMockNoEmpty(BorrowIdRedirection*, const std::string key, std::string& value)
 {
     value = " ";
     return 0;
@@ -162,10 +163,10 @@ MpResult QueryMockNoEmpty(BorrowIdRedirection *, const std::string key, std::str
 
 TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelySuccess)
 {
-    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string &value))
+    MOCKER_CPP(&BorrowIdRedirection::Query, uint32_t(*)(const std::string key, std::string& value))
         .stubs()
         .will(invoke(QueryMockEmpty));
-    MOCKER_CPP(&BorrowIdRedirection::Remove, uint32_t(*)(const std::string key, std::string &value))
+    MOCKER_CPP(&BorrowIdRedirection::Remove, uint32_t(*)(const std::string key, std::string& value))
         .stubs()
         .will(returnValue(0));
     std::string name = "test";
@@ -176,7 +177,7 @@ TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelySuccess)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed1)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg))
+               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(1));
 
@@ -190,7 +191,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed1)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg))
+               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
@@ -207,7 +208,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg))
+               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
@@ -224,7 +225,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed4)
 {
     MOCKER_CPP(&MemBorrowExecutor::SmapMigreatBackRpc,
-               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg &migrateBackMsg))
+               uint32_t(*)(const std::string importNodeId, const MigrateBackMsg& migrateBackMsg))
         .stubs()
         .will(returnValue(0));
     MOCKER_CPP(&BorrowRecordHelper::CollectBorrowRecordsAll,
@@ -264,31 +265,21 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsByMemfabricFailed)
     ASSERT_EQ(0, ret); // state: running
 }
 
-MpResult CollectBorrowRecordsAllMock1(BorrowRecordHelper *This, std::vector<BorrowRecord> &borrowRecords)
+MpResult CollectBorrowRecordsAllMock1(BorrowRecordHelper* This, std::vector<BorrowRecord>& borrowRecords)
 {
-    std::string name{"test"};                       //  借用标识符
-    uint64_t size{1024};                         //  借用内存大小，单位kB
-    std::string lentNode{"1"};                   //  借出节点
-    std::vector<uint64_t> lentMemId{1};        //  借出内存id, 无法自采
+    std::string name{"test"};                 //  借用标识符
+    uint64_t size{1024};                      //  借用内存大小，单位kB
+    std::string lentNode{"1"};                //  借出节点
+    std::vector<uint64_t> lentMemId{1};       //  借出内存id, 无法自采
     uint16_t lentSocketId{0};                 //  借出内存socketId
-    std::vector<LentNuma> lentNuma{{0, 100}};         //  借出numa
-    std::string borrowNode{"2"};                 //  借入节点
+    std::vector<LentNuma> lentNuma{{0, 100}}; //  借出numa
+    std::string borrowNode{"2"};              //  借入节点
     int16_t borrowLocalNuma{0};               //  借入numa, app 借用时有效，否则为-1
     int16_t borrowRemoteNuma{3};              //  借入numa, remote 借用时有效，否则为-1
-    std::vector<uint64_t> borrowMemId{1};        //  借入memId
+    std::vector<uint64_t> borrowMemId{1};     //  借入memId
 
-    BorrowRecord record = {
-        name,
-        size,
-        lentNode,
-        lentMemId,
-        lentSocketId,
-        lentNuma,
-        borrowNode,
-        borrowLocalNuma,
-        borrowRemoteNuma,
-        borrowMemId
-    };
+    BorrowRecord record = {name,     size,       lentNode,        lentMemId,        lentSocketId,
+                           lentNuma, borrowNode, borrowLocalNuma, borrowRemoteNuma, borrowMemId};
 
     borrowRecords.emplace_back(record);
 
@@ -302,7 +293,7 @@ TEST_F(TestMemBorrowExecutor, GenerateSmapParamsSuccess)
         .stubs()
         .will(invoke(CollectBorrowRecordsAllMock1));
     std::string name = "test";
-    MigrateBackMsg migrateBackMsg;
+    std::vector<MigrateBackMsg> migrateBackMsg;
     EnableNodeMsg enableMsg;
     std::string importNodeId;
     auto ret = MemBorrowExecutor::Instance().GenerateSmapParams(name, migrateBackMsg, enableMsg, importNodeId);
@@ -316,23 +307,20 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
     attr.perfLevel = PerfLevel::L1;
     attr.highWatermark = 90;
     attr.lowWatermark = 10;
-    attr.waterMallocAttr = MemMallocAttr{
-        .srcNid = "1",                   // 源节点ID
-        .srcSocket = 0,                       // 源节点Socket ID（-1表示无效）
-        .srcNuma = 0,                         // 源节点NUMA ID（-1表示无效）
-        .uid = getuid(),                      // 当前用户UID
-        .username = "admin",                  // 用户名
-        .dstNodeNum = 1,                      // 从多个节点借用（0=单节点，1=多节点）
-        .lenderNumaSize = 2,                  // 最多从2个NUMA借出
-        .lenderLocs = {
-            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
-            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}
-        },
-        .lenderSizes = {                     // 对应位置的内存大小（字节）
-            512 * 1024 * 1024,                // 512MB
-            256 * 1024 * 1024                 // 256MB
-        }
-    }; // 需填充具体属性
+    attr.waterMallocAttr = MemMallocAttr{.srcNid = "1",       // 源节点ID
+                                         .srcSocket = 0,      // 源节点Socket ID（-1表示无效）
+                                         .srcNuma = 0,        // 源节点NUMA ID（-1表示无效）
+                                         .uid = getuid(),     // 当前用户UID
+                                         .username = "admin", // 用户名
+                                         .dstNodeNum = 1,     // 从多个节点借用（0=单节点，1=多节点）
+                                         .lenderNumaSize = 2, // 最多从2个NUMA借出
+                                         .lenderLocs = {RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
+                                                        RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}},
+                                         .lenderSizes = {
+                                             // 对应位置的内存大小（字节）
+                                             512 * 1024 * 1024, // 512MB
+                                             256 * 1024 * 1024  // 256MB
+                                         }};                    // 需填充具体属性
 
     UbseMemBorrower borrower;
     borrower.nodeId = "4";
@@ -340,25 +328,23 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_1)
     borrower.uid = getuid();
     borrower.username = "admin";
 
-    std::vector<UbseMemNumaLender> lenders = {
-        {
-            .slotId = 1,
-            .socketId = 0,
-            .numaId = 0,
-            .size = 512 * 1024 * 1024 // 512MB
-        },
-        {
-            .slotId = 2,
-            .socketId = 1,
-            .numaId = 1,
-            .size = 512 * 1024 * 1024 // 512MB
-        }
-    };
+    std::vector<UbseMemNumaLender> lenders = {{
+                                                  .slotId = 1,
+                                                  .socketId = 0,
+                                                  .numaId = 0,
+                                                  .size = 512 * 1024 * 1024 // 512MB
+                                              },
+                                              {
+                                                  .slotId = 2,
+                                                  .socketId = 1,
+                                                  .numaId = 1,
+                                                  .size = 512 * 1024 * 1024 // 512MB
+                                              }};
 
     uint8_t usrInfo[ubse::mem::controller::UBSE_MAX_USR_INFO_LEN] = {0};
 
-    MpResult ret = mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams(
-        "1", attr, borrower, lenders, usrInfo);
+    MpResult ret =
+        mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams("1", attr, borrower, lenders, usrInfo);
 
     EXPECT_EQ(ret, MEM_POOLING_OK); // state: running
 }
@@ -370,23 +356,20 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
     attr.perfLevel = PerfLevel::L1;
     attr.highWatermark = 90;
     attr.lowWatermark = 10;
-    attr.waterMallocAttr = MemMallocAttr{
-        .srcNid = "node01",                   // 源节点ID
-        .srcSocket = 0,                       // 源节点Socket ID（-1表示无效）
-        .srcNuma = 0,                         // 源节点NUMA ID（-1表示无效）
-        .uid = getuid(),                      // 当前用户UID
-        .username = "admin",                  // 用户名
-        .dstNodeNum = 1,                      // 从多个节点借用（0=单节点，1=多节点）
-        .lenderNumaSize = 2,                  // 最多从2个NUMA借出
-        .lenderLocs = {
-            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
-            RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}
-        },
-        .lenderSizes = {                     // 对应位置的内存大小（字节）
-            512 * 1024 * 1024,                // 512MB
-            256 * 1024 * 1024                 // 256MB
-        }
-    }; // 需填充具体属性
+    attr.waterMallocAttr = MemMallocAttr{.srcNid = "node01",  // 源节点ID
+                                         .srcSocket = 0,      // 源节点Socket ID（-1表示无效）
+                                         .srcNuma = 0,        // 源节点NUMA ID（-1表示无效）
+                                         .uid = getuid(),     // 当前用户UID
+                                         .username = "admin", // 用户名
+                                         .dstNodeNum = 1,     // 从多个节点借用（0=单节点，1=多节点）
+                                         .lenderNumaSize = 2, // 最多从2个NUMA借出
+                                         .lenderLocs = {RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 0},
+                                                        RackMemNumaLoc{.nodeId = "1", .socketId = 0, .numaId = 1}},
+                                         .lenderSizes = {
+                                             // 对应位置的内存大小（字节）
+                                             512 * 1024 * 1024, // 512MB
+                                             256 * 1024 * 1024  // 256MB
+                                         }};                    // 需填充具体属性
 
     UbseMemBorrower borrower;
     borrower.nodeId = "node01";
@@ -394,25 +377,236 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
     borrower.uid = getuid();
     borrower.username = "admin";
 
-    std::vector<UbseMemNumaLender> lenders = {
-        {
-            .slotId = 1,
-            .socketId = 0,
-            .numaId = 0,
-            .size = 512 * 1024 * 1024 // 512MB
-        },
-        {
-            .slotId = 2,
-            .socketId = 1,
-            .numaId = 1,
-            .size = 512 * 1024 * 1024 // 512MB
-        }
-    };
+    std::vector<UbseMemNumaLender> lenders = {{
+                                                  .slotId = 1,
+                                                  .socketId = 0,
+                                                  .numaId = 0,
+                                                  .size = 512 * 1024 * 1024 // 512MB
+                                              },
+                                              {
+                                                  .slotId = 2,
+                                                  .socketId = 1,
+                                                  .numaId = 1,
+                                                  .size = 512 * 1024 * 1024 // 512MB
+                                              }};
 
-    MpResult ret = mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams(
-        "node01", attr, borrower, lenders, NULL);
+    MpResult ret =
+        mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams("node01", attr, borrower, lenders, NULL);
 
     EXPECT_EQ(ret, MEM_POOLING_ERROR); // state: running
+}
+
+MpResult BorrowIdsCompletedQueryMockOne(BorrowIdsCompleted*, std::vector<std::string>& list)
+{
+    list.push_back("borrow_001");
+    return MEM_POOLING_OK;
+}
+
+MpResult BorrowIdsCompletedQueryMockTwo(BorrowIdsCompleted*, std::vector<std::string>& list)
+{
+    list.push_back("borrow_001");
+    list.push_back("borrow_002");
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_GenerateUniqueIdFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024, 2048 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
+{
+    MOCKER_CPP(&MemBorrowExecutor::GenerateUniqueId,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, std::string&, const bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Update, MpResult(*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&UbseMemNumaCreateWithLender,
+               UbseResult(*)(const std::string&, const UbseMemBorrower&, const std::vector<UbseMemNumaLender>&,
+                             const uint8_t*, UbseMemNumaDesc&))
+        .stubs()
+        .will(returnValue(UBSE_ERR_INTERNAL));
+    std::string attachNode = "1";
+    RackCreateResourceWaterBorrowAttr attr;
+    attr.waterMallocAttr.lenderLocs = {RackMemNumaLoc{.nodeId = "2", .socketId = 0, .numaId = 0}};
+    attr.waterMallocAttr.lenderSizes = {1024 * 1024};
+    attr.waterMallocAttr.srcSocket = 0;
+    attr.waterMallocAttr.srcNuma = 0;
+    attr.waterMallocAttr.uid = getuid();
+    attr.waterMallocAttr.username = "admin";
+    std::string name;
+    int16_t presentNumaId = 0;
+    auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_QueryFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_EmptyList)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_MemFreeFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockOne));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_RemoveFailed)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockOne));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_Success)
+{
+    MOCKER_CPP(&BorrowIdsCompleted::Query, MpResult(*)(std::vector<std::string>&))
+        .stubs()
+        .will(invoke(BorrowIdsCompletedQueryMockTwo));
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOps,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, bool, bool, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowIdsCompleted::Remove, MpResult(*)(const std::string)).stubs().will(returnValue(MEM_POOLING_OK));
+    MpMemBorrowExecutorModule module;
+    auto ret = module.DeleteFailedBorrowIds();
+    EXPECT_EQ(ret, MEM_POOLING_OK);
+}
+
+static int g_smapEnableNumaProcessCallCount = 0;
+
+MpResult MockGenerateSmapParamsForProcessMem(MemBorrowExecutor* This, const std::string& name,
+                                             std::vector<MigrateBackMsg>& migrateBackMsgs, EnableNodeMsg& enableMsg,
+                                             std::string& importNodeId, bool isFault)
+{
+    MigrateBackMsg msg;
+    msg.count = 1;
+    msg.payload[0].srcNid = 1;
+    msg.payload[0].destNid = 2;
+    msg.payload[0].memid = 100;
+    msg.taskID = 1;
+    migrateBackMsgs.push_back(msg);
+
+    enableMsg.nid = 1;
+    enableMsg.enable = 1;
+
+    importNodeId = "1";
+    return MEM_POOLING_OK;
+}
+
+uint32_t MockSmapEnableNumaProcess(EnableNodeMsg msg)
+{
+    g_smapEnableNumaProcessCallCount++;
+    return MEM_POOLING_OK;
+}
+
+TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_EnableNumaProcess)
+{
+    g_smapEnableNumaProcessCallCount = 0;
+
+    MOCKER_CPP(&MemBorrowExecutor::GenerateSmapParamsForProcessMem,
+               MpResult(*)(MemBorrowExecutor*, const std::string&, std::vector<MigrateBackMsg>&, EnableNodeMsg&,
+                           std::string&, bool))
+        .stubs()
+        .will(invoke(MockGenerateSmapParamsForProcessMem));
+
+    MOCKER_CPP(&MemBorrowExecutor::UpdateSmapRemoteNumaInfoBeforeMigrateBack,
+               MpResult(*)(const std::string&, const std::string&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(SmapMigrateBackProcess, uint32_t(*)(MigrateBackMsg)).stubs().will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&MpSmapHelper::GetLocalSmapBackResult, MpResult(*)(uint64_t)).stubs().will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(&MemBorrowExecutor::MemFreeWithOpsByMemfabric, MpResult(*)(const std::string&, const std::string&, bool))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+
+    MOCKER_CPP(SmapEnableNumaProcess, uint32_t(*)(EnableNodeMsg)).stubs().will(invoke(MockSmapEnableNumaProcess));
+
+    MOCKER_CPP(UbseStoragePutData, uint32_t(*)(const std::string&, const std::string&, UbseByteBuffer*))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    MOCKER_CPP(UbseStorageQueryData,
+               uint32_t(*)(const std::string&, const std::string&, void*, UbseStorageDealDataFunc))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+
+    std::string name = "test";
+    std::string deleteName = "test";
+    auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmapForProcessMem(name, deleteName, true);
+    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_EQ(g_smapEnableNumaProcessCallCount, 1);
 }
 
 } // namespace mempooling

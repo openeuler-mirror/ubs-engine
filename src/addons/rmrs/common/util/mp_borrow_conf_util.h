@@ -15,13 +15,13 @@
 
 #include <map>
 #include <string>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
-#include "mp_error.h"
-#include "mp_configuration.h"
 #include "ubse_logger.h"
 #include "ubse_node_controller.h"
+#include "mp_configuration.h"
+#include "mp_error.h"
 
 namespace mempooling {
 using namespace ubse::log;
@@ -29,23 +29,22 @@ using namespace ubse::nodeController;
 
 class MpParseGroupProviderConf {
 public:
-    static MpParseGroupProviderConf &Instance()
+    static MpParseGroupProviderConf& Instance()
     {
         static MpParseGroupProviderConf instance;
         return instance;
     }
     // 获取输入节点Id的可借入节点Id集合
-    MpResult GetBorrowableList(const std::string &curNid, std::unordered_set<std::string> &borrowableNidSet);
+    MpResult GetBorrowableList(const std::string& curNid, std::unordered_set<std::string>& borrowableNidSet);
 
 private:
     MpParseGroupProviderConf() = default;
     ~MpParseGroupProviderConf() = default;
-    MpParseGroupProviderConf(const MpParseGroupProviderConf &) = delete;
-    MpParseGroupProviderConf &operator=(const MpParseGroupProviderConf &) = delete;
+    MpParseGroupProviderConf(const MpParseGroupProviderConf&) = delete;
+    MpParseGroupProviderConf& operator=(const MpParseGroupProviderConf&) = delete;
 
-    MpResult BuildBorrowMap();
-    MpResult ParseBorrowConf(UbseMemGroupNodeList &groupList, UbseMemProviderNodeList &providerList);
-    std::map<std::string, std::unordered_set<std::string>> borrowMap;
+    MpResult BuildBorrowMap(std::map<std::string, std::unordered_set<std::string>>& borrowMap);
+    MpResult ParseBorrowConf(UbseMemGroupNodeList& groupList, UbseMemProviderNodeList& providerList);
 };
 
 } // namespace mempooling

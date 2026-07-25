@@ -12,6 +12,9 @@
 
 #ifndef UBSE_MEM_DEF_H
 #define UBSE_MEM_DEF_H
+
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,7 +41,7 @@ extern "C" {
 #define UBSE_MEM_ATTACH_TYPE "ATTACH"
 #define UBSE_MEM_DETACH_TYPE "DETACH"
 
-#define MEM_MAX_ID_LENGTH 48            // 节点id，共享内存name，最大限制1024
+#define MEM_MAX_ID_LENGTH 48 // 节点id，共享内存name，最大限制1024
 #define MEM_INVALID_NODE_ID ("")
 #define MEM_TOPOLOGY_MAX_HOSTS 16
 #define MEM_MAX_NUMA_NUM_PER_ITEM 2     // 单次请求最多导出numa位置
@@ -47,12 +50,14 @@ extern "C" {
 #define MAX_REGIONS_NUM 6
 #endif
 
-typedef enum UbseMemShmRegionType {
+typedef enum UbseMemShmRegionType
+{
     ALL2ALL_SHARE = 0, /* *SHM域类型为域内任何节点提供内存都可以被域内所有节点共享访问 */
     ONE2ALL_SHARE,     /* *SHM域类型为域内单一节点作为提供方都可以被域内所有节点共享访问 */
     INCLUDE_ALL_TYPE,  /* *请求所有类型 */
 } ShmRegionType;
-typedef enum UbseMemPerfLevel {
+typedef enum UbseMemPerfLevel
+{
     L0, /* *L0对应直连节点 */
     L1, /* *L1对应通过1跳节点，暂不支持 */
     L2  /* *L2对应过超过1跳节点 ，暂不支持 */
@@ -83,7 +88,8 @@ struct NodeBorrowMemInfo {
     uint64_t lentMemSize;        // 已经借出的内存大小，单位字节
 };
 
-typedef enum UbseMemQueryType {
+typedef enum UbseMemQueryType
+{
     QUERY_OBMM_CLEAR_CONF = 0,
     QUERY_MEM_NUMA_STATUS,   /* 查询numa状态信息，对应结构体：QueryNumaStatus */
     QUERY_WATER_MARK_STATUS, /* 查询水线信息，对应结构体：QueryMemWaterInfo */
@@ -101,7 +107,7 @@ void EnableUbseMemHtrace(void);
 /*
  * 非mem错误码，会调用strerror(code)
  */
-const char *ErrCodeToStr(int errNum);
+const char* ErrCodeToStr(int errNum);
 #ifdef __cplusplus
 }
 #endif

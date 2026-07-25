@@ -18,7 +18,8 @@
 #include "ubse_base_message.h"
 #include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
-enum class AccountType {
+enum class AccountType
+{
     INIT,
     NUMA,
     FD,
@@ -27,10 +28,8 @@ enum class AccountType {
 };
 
 namespace AccountTypeUtil {
-const std::unordered_map<AccountType, std::string> enumToStringMap = { { AccountType::NUMA, "numa" },
-                                                                       { AccountType::FD, "fd" },
-                                                                       { AccountType::SHM, "share" },
-                                                                       { AccountType::ADDR, "addr" } };
+const std::unordered_map<AccountType, std::string> enumToStringMap = {
+    {AccountType::NUMA, "numa"}, {AccountType::FD, "fd"}, {AccountType::SHM, "share"}, {AccountType::ADDR, "addr"}};
 inline std::string AccountTypeToString(AccountType type)
 {
     auto it = enumToStringMap.find(type);
@@ -39,11 +38,9 @@ inline std::string AccountTypeToString(AccountType type)
     }
     return "";
 }
-const std::unordered_map<std::string, AccountType> stringToEnumMap = { { "numa", AccountType::NUMA },
-                                                                       { "fd", AccountType::FD },
-                                                                       { "share", AccountType::SHM },
-                                                                       { "addr", AccountType::ADDR } };
-inline AccountType StringToAccountType(const std::string &str)
+const std::unordered_map<std::string, AccountType> stringToEnumMap = {
+    {"numa", AccountType::NUMA}, {"fd", AccountType::FD}, {"share", AccountType::SHM}, {"addr", AccountType::ADDR}};
+inline AccountType StringToAccountType(const std::string& str)
 {
     auto it = stringToEnumMap.find(str);
     if (it != stringToEnumMap.end()) {
@@ -54,31 +51,31 @@ inline AccountType StringToAccountType(const std::string &str)
 } // namespace AccountTypeUtil
 
 struct numaLendInfo {
-    int socketId{ -1 };
-    int64_t numaId{ -1 };
-    uint64_t size{ 0 };
+    int socketId{-1};
+    int64_t numaId{-1};
+    uint64_t size{0};
 };
 
 struct FlatDebtInformation {
     std::string name{};
-    AccountType type{ AccountType::INIT };
+    AccountType type{AccountType::INIT};
     std::uint32_t status{};
     std::string importId{};
     std::string lendId{};
     std::vector<numaLendInfo> numaLendInfos;
     std::string handle;
 
-    static bool Serialize(ubse::serial::UbseSerialization &out, const std::vector<FlatDebtInformation> &data)
+    static bool Serialize(ubse::serial::UbseSerialization& out, const std::vector<FlatDebtInformation>& data)
     {
         out << (ubse::serial::right_v<size_t>(data.size()));
 
-        for (const auto &item : data) {
-            out << item.name << ubse::serial::enum_v(item.type) << item.status << item.importId << item.lendId <<
-                item.handle;
+        for (const auto& item : data) {
+            out << item.name << ubse::serial::enum_v(item.type) << item.status << item.importId << item.lendId
+                << item.handle;
 
             out << (ubse::serial::right_v<size_t>(item.numaLendInfos.size()));
 
-            for (const auto &info : item.numaLendInfos) {
+            for (const auto& info : item.numaLendInfos) {
                 out << info.socketId << info.numaId << info.size;
             }
         }
@@ -86,7 +83,7 @@ struct FlatDebtInformation {
         return out.Check();
     }
 
-    static bool Deserialize(ubse::serial::UbseDeSerialization &in, std::vector<FlatDebtInformation> &data)
+    static bool Deserialize(ubse::serial::UbseDeSerialization& in, std::vector<FlatDebtInformation>& data)
     {
         size_t totalItems = 0;
         in >> totalItems;
@@ -124,7 +121,7 @@ struct FlatDebtInformation {
         return in.Check();
     }
 
-    static std::string toString(const FlatDebtInformation &info)
+    static std::string toString(const FlatDebtInformation& info)
     {
         std::ostringstream oss;
         oss << "FlatDebtInformation{"
@@ -137,7 +134,7 @@ struct FlatDebtInformation {
             << "numaLendInfos=[ ";
 
         for (size_t i = 0; i < info.numaLendInfos.size(); ++i) {
-            const auto &lendInfo = info.numaLendInfos[i];
+            const auto& lendInfo = info.numaLendInfos[i];
             oss << "(" << lendInfo.socketId << ", " << lendInfo.numaId << ", " << lendInfo.size << ")";
 
             if (i != info.numaLendInfos.size() - 1) {
@@ -152,15 +149,15 @@ struct FlatDebtInformation {
 };
 
 struct PartialFetchRes {
-    bool NeedToContinue{ false };
+    bool NeedToContinue{false};
     std::vector<FlatDebtInformation> flatDebt;
-    static bool Serialize(ubse::serial::UbseSerialization &out, const PartialFetchRes &data)
+    static bool Serialize(ubse::serial::UbseSerialization& out, const PartialFetchRes& data)
     {
         out << data.NeedToContinue;
         return FlatDebtInformation::Serialize(out, data.flatDebt);
     }
 
-    static bool Deserialize(ubse::serial::UbseDeSerialization &in, PartialFetchRes &data)
+    static bool Deserialize(ubse::serial::UbseDeSerialization& in, PartialFetchRes& data)
     {
         in >> data.NeedToContinue;
         if (!in.Check()) {
@@ -169,7 +166,7 @@ struct PartialFetchRes {
         return FlatDebtInformation::Deserialize(in, data.flatDebt);
     }
 
-    static std::string toString(const PartialFetchRes &res)
+    static std::string toString(const PartialFetchRes& res)
     {
         std::ostringstream oss;
         oss << "PartialFetchRes{"
@@ -190,16 +187,16 @@ struct PartialFetchRes {
 class UbseMemDebtInfoPartialFetchRes : public ubse::message::UbseBaseMessage {
 public:
     UbseMemDebtInfoPartialFetchRes() = default;
-    explicit UbseMemDebtInfoPartialFetchRes(uint8_t *data, uint32_t size)
+    explicit UbseMemDebtInfoPartialFetchRes(uint8_t* data, uint32_t size)
     {
         SetInputRawData(data, size);
     }
 
-    inline void SetFlatDebtInformationVec(PartialFetchRes &info)
+    inline void SetFlatDebtInformationVec(PartialFetchRes& info)
     {
         this->partialFetchRes = std::move(info);
     }
-    inline PartialFetchRes &GetFlatDebtInformationVec()
+    inline PartialFetchRes& GetFlatDebtInformationVec()
     {
         return this->partialFetchRes;
     }

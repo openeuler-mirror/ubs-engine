@@ -36,7 +36,7 @@ void DisplayHelpArgsUsageError(const std::string &programName)
 }
 } // namespace
 
-bool UbseCliParse::UbseCliArgsParse(const std::vector<std::string> &args)
+bool UbseCliParse::UbseCliArgsParse(const std::vector<std::string>& args)
 {
     if (args.size() <
         2) { // The number of parameters must be greater than or equal to 2 in order to proceed with the parsing.
@@ -58,16 +58,17 @@ bool UbseCliParse::UbseCliArgsParse(const std::vector<std::string> &args)
     auto match_command = UbseCliModuleRegistry::GetInstance().UbseCliGetMatchCommand();
     if (match_command.options.empty()) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: The command '" + args[0] + " " + args[1] +
-            "' does not support any long or short options.\n");
+                                                                     "' does not support any long or short options.\n");
+        return false;
     }
     return UbseCliArgsMapParse(args);
 }
 
-bool UbseCliParse::UbseCliArgsMapParse(const std::vector<std::string> &args)
+bool UbseCliParse::UbseCliArgsMapParse(const std::vector<std::string>& args)
 {
     size_t arg_index = 2; // The index for parameter options starts from 2.
     while (arg_index < args.size()) {
-        const std::string &arg = args[arg_index];
+        const std::string& arg = args[arg_index];
 
         if (arg.empty()) {
             UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Unexpected argument '" + arg + "'.\n");
@@ -91,7 +92,7 @@ bool UbseCliParse::UbseCliArgsMapParse(const std::vector<std::string> &args)
     return true;
 }
 
-bool UbseCliParse::UbseIsLongOption(const std::string &arg, bool &is_long_option)
+bool UbseCliParse::UbseIsLongOption(const std::string& arg, bool& is_long_option)
 {
     size_t long_dash_num = 2;  // The beginning of long options is marked by two(2) dashes (--).
     size_t short_dash_num = 1; // The beginning of short options is marked by one(1) dash (-).
@@ -100,54 +101,60 @@ bool UbseCliParse::UbseIsLongOption(const std::string &arg, bool &is_long_option
         is_long_option = true;
         return true;
     } else if (arg.length() >= short_dash_num && arg.substr(0, short_dash_num) == "-" &&
-        arg.substr(1, short_dash_num) != "-") {
+               arg.substr(1, short_dash_num) != "-") {
         is_long_option = false;
         return true;
     } else {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: The format of '" + arg +
-            "' is invalid.\n");
+                                                                     "' is invalid.\n");
         return false;
     }
 }
 
-std::string UbseCliParse::UbseCliGetInputOptionName(const std::string &arg, bool is_long_option)
+std::string UbseCliParse::UbseCliGetInputOptionName(const std::string& arg, bool is_long_option)
 {
     size_t dash_count = is_long_option ? 2 : 1; // The beginning of opitons dash count is 2 or 1.
     return arg.substr(dash_count);
 }
 
-bool UbseCliParse::UbseCliValidateOption(const std::string &option_name, bool is_long_option)
+bool UbseCliParse::UbseCliValidateOption(const std::string& option_name, bool is_long_option)
 {
     auto match_command = UbseCliModuleRegistry::GetInstance().UbseCliGetMatchCommand();
-    for (const auto &option : match_command.options) {
+    for (const auto& option : match_command.options) {
         if ((is_long_option && option.longOpt == option_name) || (!is_long_option && option.shortOpt == option_name)) {
             return true;
         }
     }
 
-    UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Unexpected option '" +
-        std::string(is_long_option ? "--" : "-") + option_name + "'.\n");
+    UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
+        "ERROR: Unexpected option '" + std::string(is_long_option ? "--" : "-") + option_name + "'.\n");
     return false;
 }
 
-bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std::string> &args,
-    const std::string &option_name, bool is_long_option)
+bool UbseCliParse::UbseCliProcessOption(size_t& arg_index, const std::vector<std::string>& args,
+                                        const std::string& option_name, bool is_long_option)
 {
     auto match_command = UbseCliModuleRegistry::GetInstance().UbseCliGetMatchCommand();
-    for (const auto &option : match_command.options) {
+    for (const auto& option : match_command.options) {
         if ((is_long_option && option.longOpt == option_name) || (!is_long_option && option.shortOpt == option_name)) {
             std::string key = option.longOpt.empty() ? option.shortOpt : option.longOpt;
             if (inputOptionMap_.find(key) != inputOptionMap_.end()) {
-                UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Duplicate option '" +
-                    std::string(is_long_option ? "--" : "-") + option_name + "'.\n");
+                UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
+                    "ERROR: Duplicate option '" + std::string(is_long_option ? "--" : "-") + option_name + "'.\n");
                 return false;
+            }
+            if (option.isFlag) {
+                inputOptionMap_[key] = "";
+                arg_index += 1;
+                return true;
             }
             if (arg_index + 1 >= args.size()) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation("ERROR: Option '" +
-                    std::string(is_long_option ? "--" : "-") + option_name + "' requires a value.\n");
+                                                                             std::string(is_long_option ? "--" : "-") +
+                                                                             option_name + "' requires a value.\n");
                 return false;
             }
-            const std::string &value = args[arg_index + 1];
+            const std::string& value = args[arg_index + 1];
             if (value.size() > UBSE_MAX_VALUE_LENGTH) {
                 UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
                     "ERROR: The length of the option value has been exceeded " + std::to_string(UBSE_MAX_VALUE_LENGTH) +
@@ -155,14 +162,14 @@ bool UbseCliParse::UbseCliProcessOption(size_t &arg_index, const std::vector<std
                 return false;
             }
             inputOptionMap_[key] = value;
-            arg_index += 2; // It has been ensured that +2 will not go out of bounds.
+            arg_index += UBSE_CLI_NUM_2;
             return true;
         }
     }
     return false;
 }
 
-void UbseCliModuleRegistry::UbseCliLoadedModule(const std::string &module_name, UbseCliModuleCreator module_creator)
+void UbseCliModuleRegistry::UbseCliLoadedModule(const std::string& module_name, UbseCliModuleCreator module_creator)
 {
     if (module_creator == nullptr) {
         return;
@@ -175,7 +182,7 @@ void UbseCliModuleRegistry::UbseCliLoadedModule(const std::string &module_name, 
 
 void UbseCliModuleRegistry::UbseCliCallAllModuleSignUp()
 {
-    for (const auto &module_creator : this->creators_) {
+    for (const auto& module_creator : this->creators_) {
         if (module_creator.second == nullptr) {
             continue;
         }
@@ -190,7 +197,7 @@ void UbseCliModuleRegistry::UbseCliCallAllModuleSignUp()
     this->creators_.clear();
 }
 
-void UbseCliModuleRegistry::UbseCliRegister(std::vector<UbseCliCommandInfo> &commands_info)
+void UbseCliModuleRegistry::UbseCliRegister(std::vector<UbseCliCommandInfo>& commands_info)
 {
     if (commands_info.empty()) {
         return;
@@ -199,7 +206,7 @@ void UbseCliModuleRegistry::UbseCliRegister(std::vector<UbseCliCommandInfo> &com
         return;
     }
     UbseCliWhitelist whitelist;
-    for (const auto &command_info : commands_info) {
+    for (const auto& command_info : commands_info) {
         if (command_info.command.empty() || command_info.type.empty()) {
             continue;
         }
@@ -220,8 +227,9 @@ void UbseCliModuleRegistry::UbseCliRegister(std::vector<UbseCliCommandInfo> &com
         if (!command_info.options.empty()) {
             UbseCliRegisterOptions(command_key, command_info);
         } else {
-            this->fullCommandInfo_.insert(std::make_pair(command_key,
-                UbseCliCommandInfo{ command_info.command, command_info.type, {}, command_info.commandFunc }));
+            this->fullCommandInfo_.insert(std::make_pair(
+                command_key,
+                UbseCliCommandInfo{command_info.command, command_info.type, {}, command_info.commandFunc}));
         }
     }
 }
@@ -239,7 +247,7 @@ void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string &command_ke
 {
     std::unordered_set<std::string> options_set{};
     std::vector<UbseCliOptionsInfo> filtered_options{};
-    for (const auto &command_option : command_info.options) {
+    for (const auto& command_option : command_info.options) {
         if (command_option.shortOpt.empty() || command_option.longOpt.empty()) {
             continue;
         }
@@ -256,17 +264,18 @@ void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string &command_ke
         }
         options_set.insert(command_option.shortOpt);
         options_set.insert(command_option.longOpt);
-        filtered_options.emplace_back(
-            UbseCliOptionsInfo{ command_option.shortOpt, command_option.longOpt, command_option.desc });
+        filtered_options.emplace_back(UbseCliOptionsInfo{command_option.shortOpt, command_option.longOpt,
+                                                         command_option.desc, command_option.isFlag});
     }
     if (filtered_options.size() > UBSE_MAX_OPTIONS_NUM || filtered_options.size() == 0) {
         return;
     }
-    this->fullCommandInfo_.insert(std::make_pair(command_key,
-        UbseCliCommandInfo{ command_info.command, command_info.type, filtered_options, command_info.commandFunc }));
+    this->fullCommandInfo_.insert(std::make_pair(
+        command_key,
+        UbseCliCommandInfo{command_info.command, command_info.type, filtered_options, command_info.commandFunc}));
 }
 
-bool UbseCliModuleRegistry::UbseCliCommandExist(const std::string &command_key)
+bool UbseCliModuleRegistry::UbseCliCommandExist(const std::string& command_key)
 {
     if (auto iter = this->fullCommandInfo_.find(command_key); iter != this->fullCommandInfo_.end()) {
         this->matchCommand_ = iter->second;
@@ -275,7 +284,7 @@ bool UbseCliModuleRegistry::UbseCliCommandExist(const std::string &command_key)
     return false;
 }
 
-bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string> &args)
+bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string>& args)
 {
     const size_t size = args.size();
     if (size == 0) {
@@ -305,7 +314,8 @@ bool UbseCliModuleRegistry::UbseCliHelpInfoParse(const std::vector<std::string> 
 
 void UbseCliModuleRegistry::UbseCliDisplayHelpInfo()
 {
-    struct winsize win {};
+    struct winsize win {
+    };
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) < 0) {
         win.ws_col = UBSE_DEFAULT_SCREEN_WIDTH;
     }
@@ -325,9 +335,10 @@ void UbseCliModuleRegistry::UbseCliDisplayHelpInfo()
     }
 }
 
-void UbseCliModuleRegistry::UbseCliDisplayCommandOptionsHelpInfo(const std::string &command, const std::string &type)
+void UbseCliModuleRegistry::UbseCliDisplayCommandOptionsHelpInfo(const std::string& command, const std::string& type)
 {
-    struct winsize win {};
+    struct winsize win {
+    };
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) < 0) {
         win.ws_col = UBSE_DEFAULT_SCREEN_WIDTH;
     }
@@ -343,14 +354,14 @@ void UbseCliModuleRegistry::UbseCliDisplayCommandOptionsHelpInfo(const std::stri
     }
 }
 
-void UbseCliModuleRegistry::UbseCliDisplayParamsHelpInfo(const std::vector<UbseCliOptionsInfo> &options,
-    size_t &line_width_limit)
+void UbseCliModuleRegistry::UbseCliDisplayParamsHelpInfo(const std::vector<UbseCliOptionsInfo>& options,
+                                                         size_t& line_width_limit)
 {
     if (options.empty()) {
         UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(
             "\tThe command does not support any option arguments.");
     }
-    for (const auto &option : options) {
+    for (const auto& option : options) {
         std::stringstream stream;
         int opt_gap = 3;              // The distance between long and short options.
         int min_remaining_width = 32; // To prevent excessive line breaks in help information caused
@@ -363,8 +374,8 @@ void UbseCliModuleRegistry::UbseCliDisplayParamsHelpInfo(const std::vector<UbseC
             UbseCliDisplayOnScreen::UbseCliDisplayWordsWithoutSeparation(one_option_help_info);
             std::cout << std::endl;
         } else {
-            stream << "    -" << std::left << std::setw(opt_gap) << option.shortOpt << ",--" << std::left <<
-                std::setw(min_remaining_width) << option.longOpt << "  " << std::left << option.desc << std::endl;
+            stream << "    -" << std::left << std::setw(opt_gap) << option.shortOpt << ",--" << std::left
+                   << std::setw(min_remaining_width) << option.longOpt << "  " << std::left << option.desc << std::endl;
 
             std::string one_option_help_info = stream.str();
             UbseCliDisplayOptionInfoWithWidthLimit(one_option_help_info, line_width_limit, "\n");
@@ -373,8 +384,9 @@ void UbseCliModuleRegistry::UbseCliDisplayParamsHelpInfo(const std::vector<UbseC
     std::cout << std::endl;
 }
 
-void UbseCliModuleRegistry::UbseCliDisplayOptionInfoWithWidthLimit(const std::string &one_option_help_info,
-    size_t line_width_limit, const std::string &delimiter) const
+void UbseCliModuleRegistry::UbseCliDisplayOptionInfoWithWidthLimit(const std::string& one_option_help_info,
+                                                                   size_t line_width_limit,
+                                                                   const std::string& delimiter) const
 {
     size_t option_info_str_length = one_option_help_info.length();
     size_t left_index = 0;      // traverse the indices of a string.
@@ -387,7 +399,7 @@ void UbseCliModuleRegistry::UbseCliDisplayOptionInfoWithWidthLimit(const std::st
 
     while (left_index < option_info_str_length) {
         each_line_end_index = std::min(left_index + (is_first_line ? line_width_limit : line_width_without_indent),
-            option_info_str_length);
+                                       option_info_str_length);
         is_first_line = false;
 
         size_t line_end_index = each_line_end_index;
@@ -417,7 +429,7 @@ void UbseCliModuleRegistry::UbseCliDisplayOptionInfoWithWidthLimit(const std::st
 
 void UbseCliWaitIndicator::DisplayProgressSpinner()
 {
-    const char *spinner = "-\\|/"; // 纯 ASCII
+    const char* spinner = "-\\|/"; // 纯 ASCII
     const int spinnerLen = 4;
     auto start = std::chrono::steady_clock::now();
     size_t frame = 0;

@@ -14,8 +14,8 @@
 
 #include <map>
 
-#include "ubse_context.h"
 #include "ubse_conf_module.h"
+#include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_plugin_config.h"
@@ -25,8 +25,8 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::plugin;
 
-UbseResult MockGetAllConfigWithPrefix(UbseConfModule *_mockClass, const std::string &prefix,
-    std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockGetAllConfigWithPrefix(UbseConfModule* _mockClass, const std::string& prefix,
+                                      std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> configMap;
     configMap["ubse.plugin.pkg"] = "ssu.so";
@@ -36,8 +36,8 @@ UbseResult MockGetAllConfigWithPrefix(UbseConfModule *_mockClass, const std::str
     return UBSE_OK;
 }
 
-UbseResult MockGetEmptyConfigVals(UbseConfModule *_mockClass, const std::string &prefix,
-    std::map<std::string, std::map<std::string, std::string>> &configVals)
+UbseResult MockGetEmptyConfigVals(UbseConfModule* _mockClass, const std::string& prefix,
+                                  std::map<std::string, std::map<std::string, std::string>>& configVals)
 {
     std::map<std::string, std::string> configMap;
     return UBSE_OK;
@@ -136,7 +136,6 @@ TEST_F(TestUbsePluginConfig, TestLoadPluginConfigsSuccess)
     MOCKER(&UbseConfModule::GetAllConfigWithPrefix).reset();
 }
 
-
 /*
  * 用例描述：
  * 插件加载模块GetAllPluginConfigs函数
@@ -150,4 +149,4 @@ TEST_F(TestUbsePluginConfig, TestGetAllPluginConfigs)
     UbsePluginConfig ubsePluginConfig;
     EXPECT_TRUE(ubsePluginConfig.GetAllPluginConfigs().empty());
 }
-}
+} // namespace ubse::ut::plugin

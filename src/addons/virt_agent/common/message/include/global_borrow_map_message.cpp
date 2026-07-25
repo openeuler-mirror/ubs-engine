@@ -13,8 +13,8 @@
 
 #include "global_borrow_map_message.h"
 
-#include "vm_serial_util.h"
 #include "vm_def.h"
+#include "vm_serial_util.h"
 
 namespace vm {
 VmResult GlobalBorrowMapMessage::Serialize()
@@ -22,13 +22,13 @@ VmResult GlobalBorrowMapMessage::Serialize()
     VmSerialization out;
     auto size = globalBorrowMap_.size();
     out << size;
-    for (auto &borrowIdStatusItem : globalBorrowMap_) {
+    for (auto& borrowIdStatusItem : globalBorrowMap_) {
         out << borrowIdStatusItem.first;
-        BorrowIdStatus &borrowIdStatus = borrowIdStatusItem.second;
+        BorrowIdStatus& borrowIdStatus = borrowIdStatusItem.second;
         out << borrowIdStatus.borrowId;
         out << borrowIdStatus.presentNumaId;
         out << enum_v(borrowIdStatus.memMigrateStatus);
-        VMNodeLocInfo &vmNodeLocInfo = borrowIdStatus.nodeLocInfo;
+        VMNodeLocInfo& vmNodeLocInfo = borrowIdStatus.nodeLocInfo;
         out << vmNodeLocInfo.hostName;
         out << vmNodeLocInfo.hostId;
         out << vmNodeLocInfo.socketId;
@@ -60,14 +60,14 @@ VmResult GlobalBorrowMapMessage::Deserialize()
     }
     try {
         globalBorrowMap_.reserve(mapSize);
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return VM_ERROR_NOMEM;
     }
 
     for (size_t i = 0; i < mapSize; ++i) {
         std::string first;
         BorrowIdStatus second;
-        VMNodeLocInfo &vmNodeLocInfo = second.nodeLocInfo;
+        VMNodeLocInfo& vmNodeLocInfo = second.nodeLocInfo;
         in >> first;
         in >> second.borrowId;
         in >> second.presentNumaId;

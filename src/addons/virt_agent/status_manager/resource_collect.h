@@ -17,15 +17,16 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
 #include <ubse_def.h>
 #include <ubse_mem_controller.h>
 
 #include "vm_def.h"
 #include "vm_error.h"
 #include "vm_info.h"
+#include "vm_lock.h"
 #include "vm_numa_info.h"
 #include "vm_struct.h"
-#include "vm_lock.h"
 
 namespace vm {
 using std::string;
@@ -45,19 +46,19 @@ public:
     static GlobalBorrowMap globalBorrowMap_;
     static uint64_t globalBorrowMapIndex_;
 
-    static ResourceCollect &GetInstance()
+    static ResourceCollect& GetInstance()
     {
         static ResourceCollect gInstance;
         return gInstance;
     };
-    std::unordered_map<std::string, VMBasicInfo> GetVMInfo(VMNodeLocInfo &nodeLocInfo);
+    std::unordered_map<std::string, VMBasicInfo> GetVMInfo(VMNodeLocInfo& nodeLocInfo);
 
-    std::vector<pid_t> GetPidsOnNuma(const VMNodeLocInfo &nodeLocInfo, const std::string &flag = "");
-    void InheritNumaInfo(GlobalNumaInfo &numaInfo, VMNodeLocInfo &tempNodeLoc);
-    VmResult UpdateVMStatus(const NumaMemInfoMap &numaMemInfoMap, const std::string &uuid, const pid_t &pid,
-                            const VmMigrateStatus &vmMigrateStatus);
-    VmResult VmResourceCollectInfoHandle(vector<HostVmDomainInfo> &vmDomainInfoCollectList,
-                                         vector<HostNumaCpuInfo> &numaInfoCollectList);
+    std::vector<pid_t> GetPidsOnNuma(const VMNodeLocInfo& nodeLocInfo, const std::string& flag = "");
+    void InheritNumaInfo(GlobalNumaInfo& numaInfo, VMNodeLocInfo& tempNodeLoc);
+    VmResult UpdateVMStatus(const NumaMemInfoMap& numaMemInfoMap, const std::string& uuid, const pid_t& pid,
+                            const VmMigrateStatus& vmMigrateStatus);
+    VmResult VmResourceCollectInfoHandle(vector<HostVmDomainInfo>& vmDomainInfoCollectList,
+                                         vector<HostNumaCpuInfo>& numaInfoCollectList);
 
     NumaVMInfoMap GetGlobalSampleVMInfo()
     {
@@ -65,7 +66,7 @@ public:
         return globalNumaVMInfoMap;
     }
 
-    GlobalNumaInfoMap *GetGlobalSampleNumaInfo()
+    GlobalNumaInfoMap* GetGlobalSampleNumaInfo()
     {
         std::lock_guard<std::mutex> lockGuard(mGlobalNumaLock);
         return &globalNumaInfoMap;
@@ -80,14 +81,14 @@ public:
         ReadLocker lock(&globalBorrowLock);
         return globalBorrowMap_;
     }
-    VmResult UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo &hostVmDomainInfo,
-                                                                  HostNumaCpuInfo &hostNumaCpuInfo);
-    static void UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus> &borrowIdStatuses);
-    static void DeleteGlobalBorrowMap(const std::vector<std::string> &borrowIds);
-    static VmResult SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryImportDebtInfo> &debtInfos);
+    VmResult UpdateGlobalNumaInfoMapAndGlobalNumaVMInfoMap(HostVmDomainInfo& hostVmDomainInfo,
+                                                           HostNumaCpuInfo& hostNumaCpuInfo);
+    static void UpdateGlobalBorrowMap(const std::vector<BorrowIdStatus>& borrowIdStatuses);
+    static void DeleteGlobalBorrowMap(const std::vector<std::string>& borrowIds);
+    static VmResult SyncGlobalBorrowMap(const std::vector<UbseNumaMemoryImportDebtInfo>& debtInfos);
     static VmResult InitGlobalBorrowMap();
-    static void QueryHandler(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                             void *ctx);
+    static void QueryHandler(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                             void* ctx);
     static void DeInitGlobalBorrowMap();
 
     VmResult LoadVmMigrateData();
@@ -104,13 +105,13 @@ private:
     VMInfoToKeepMap VMInfoToKeep{};
     NumaInfoToKeepMap NumaToKeep{};
 
-    void AddToGlobalVmMap(const vm::VmDomainInfo &ele, VMNodeLocInfo &tempNodeLoc, VMBasicInfo &tempVmBasicInfo);
+    void AddToGlobalVmMap(const vm::VmDomainInfo& ele, VMNodeLocInfo& tempNodeLoc, VMBasicInfo& tempVmBasicInfo);
 
-    void VMDomainInfoToVmBasicInfo(VMBasicInfo &vmBasicInfoIn, const vm::VmDomainInfo &vmDomainInfo);
+    void VMDomainInfoToVmBasicInfo(VMBasicInfo& vmBasicInfoIn, const vm::VmDomainInfo& vmDomainInfo);
 
-    void AddVmDomainInfoCollectToVmMap(const HostVmDomainInfo &vmDomainInfoCollect);
+    void AddVmDomainInfoCollectToVmMap(const HostVmDomainInfo& vmDomainInfoCollect);
 
-    void AddNumaInfo(const HostNumaCpuInfo &numaInfoIn);
+    void AddNumaInfo(const HostNumaCpuInfo& numaInfoIn);
 
     void ClearGlobalVMInfo();
 

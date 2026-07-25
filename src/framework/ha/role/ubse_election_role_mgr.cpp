@@ -29,6 +29,8 @@ using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::utils;
 using namespace ubse::election::message;
+using namespace ubse::com;
+
 std::shared_ptr<RoleMgr> RoleMgr::instance_ = nullptr;
 
 std::shared_ptr<ElectionRole> RoleMgr::GetRole()
@@ -81,7 +83,7 @@ void RoleMgr::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &
     }
 }
 
-void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
+void RoleMgr::SwitchRole(RoleType roleType, RoleContext& ctx)
 {
     if (currentRole_) {
         currentRole_->CleanupRoutes();
@@ -93,7 +95,7 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext &ctx)
     bool flag = false;
     switch (roleType) {
         case RoleType::MASTER:
-            role = RoleMgr::GetInstance().GetRole()->GetRoleType();
+            role = GetRole()->GetRoleType();
             if (role != RoleType::STANDBY) {
                 flag = true;
             }
@@ -201,8 +203,8 @@ uint32_t RoleMgr::RoleChangeAttach(UbseElectionEventType type, UbseElectionHandl
 {
     std::unique_lock<std::recursive_mutex> uniqueLock(mProcessorLock_);
     // 名称查重
-    auto &handlers = handlers_[type];
-    if (std::any_of(handlers.begin(), handlers.end(), [&](const auto &h) { return h->name == handler.name; })) {
+    auto& handlers = handlers_[type];
+    if (std::any_of(handlers.begin(), handlers.end(), [&](const auto& h) { return h->name == handler.name; })) {
         UBSE_LOG_ERROR << "[ELECTION] RoleChangeAttach handler name dup - " << handler.name;
         return UbseElectionDupNameError;
     }
@@ -225,7 +227,7 @@ uint32_t RoleMgr::RoleChangeAttach(UbseElectionEventType type, UbseElectionHandl
 
     // 排序
     std::sort(handlers.begin(), handlers.end(),
-              [](const std::shared_ptr<SafeHandler> &a, const std::shared_ptr<SafeHandler> &b) { return *a < *b; });
+              [](const std::shared_ptr<SafeHandler>& a, const std::shared_ptr<SafeHandler>& b) { return *a < *b; });
     return UbseElectionOk;
 }
 
@@ -236,11 +238,11 @@ uint32_t RoleMgr::RoleChangeDeAttach(UbseElectionEventType type, UbseElectionHan
     if (it == handlers_.end()) {
         return UbseElectionTypeError;
     }
-    auto &handlers = it->second;
+    auto& handlers = it->second;
     auto orig_size = handlers.size();
     std::string name = handler.name;
     auto it_safe = std::find_if(handlers.begin(), handlers.end(),
-                                [&name](const std::shared_ptr<SafeHandler> &ptr) { return ptr->name == name; });
+                                [&name](const std::shared_ptr<SafeHandler>& ptr) { return ptr->name == name; });
     std::shared_ptr<SafeHandler> saftHandler;
     if (it_safe != handlers.end()) {
         saftHandler = *it_safe;
@@ -250,16 +252,16 @@ uint32_t RoleMgr::RoleChangeDeAttach(UbseElectionEventType type, UbseElectionHan
     {
         std::unique_lock<std::mutex> lock(saftHandler->mutex);
         active_handlers_.erase(std::remove_if(active_handlers_.begin(), active_handlers_.end(),
-                                              [&](const HandlerPtr &ptr) { return ptr->name == handler.name; }),
+                                              [&](const HandlerPtr& ptr) { return ptr->name == handler.name; }),
                                active_handlers_.end());
         handlers.erase(
-            std::remove_if(handlers.begin(), handlers.end(), [&](const auto &h) { return h->name == handler.name; }),
+            std::remove_if(handlers.begin(), handlers.end(), [&](const auto& h) { return h->name == handler.name; }),
             handlers.end());
     }
     return handlers.size() != orig_size ? UbseElectionOk : UbseElectionHandlerError;
 }
 
-UbseResult HandleRoleChangeNotifyError(uint32_t ret, UbseElectionEventType &type, const std::string &handlerName)
+UbseResult HandleRoleChangeNotifyError(uint32_t ret, UbseElectionEventType& type, const std::string& handlerName)
 {
     if (ret == UbseElectionError) {
         UBSE_LOG_WARN << "[ELECTION] RoleChangeNotify handler error - " << handlerName;
@@ -281,7 +283,7 @@ uint32_t RoleMgr::RoleChangeNotify(UbseElectionEventType type, UBSE_ID_TYPE newI
         }
     }
     uint32_t ret = UbseElectionOk;
-    for (const auto &safe_h : current_handlers) {
+    for (const auto& safe_h : current_handlers) {
         UBSE_LOG_INFO << "[ELECTION] RoleChangeNotify handler - " << safe_h->name << ", type=" << int(type);
         std::unique_lock<std::mutex> lock(safe_h->mutex);
         if (auto h = safe_h->weak_handler.lock()) {
@@ -296,7 +298,7 @@ uint32_t RoleMgr::RoleChangeNotify(UbseElectionEventType type, UBSE_ID_TYPE newI
         UbseContext::GetInstance().SetWorkReadiness(IS_READY);
     }
     UBSE_LOG_INFO << "[ELECTION] WorkReadiness is " << UbseContext::GetInstance().GetWorkReadiness()
-                << ",ElectionEventType is " << int(type) << ".";
+                  << ",ElectionEventType is " << int(type) << ".";
     return ret;
 }
 

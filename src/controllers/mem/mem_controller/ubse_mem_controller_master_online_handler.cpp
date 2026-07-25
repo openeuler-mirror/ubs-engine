@@ -11,18 +11,18 @@
 #include "ubse_mem_controller_pre_online.h"
 #include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_global_ledger_summary_store.h"
-#include "ubse_mem_scheduler.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::nodeController;
+using namespace ubse::election;
 using namespace ubse::mem::util;
 using namespace ubse::event;
 const uint32_t HA_SEQUENCE_ID = 101; // 需要确保在节点建链后触发，节点建链优先级100
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-uint32_t UbseMemControllerMasterOnlineHandler::MasterOnlineHandler(UbseElectionEventType &type, UBSE_ID_TYPE &nodeId)
+uint32_t UbseMemControllerMasterOnlineHandler::MasterOnlineHandler(UbseElectionEventType& type, UBSE_ID_TYPE& nodeId)
 {
     ClearNodeMap();
     ClearOnLineMap();

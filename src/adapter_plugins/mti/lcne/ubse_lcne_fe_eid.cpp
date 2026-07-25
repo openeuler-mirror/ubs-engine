@@ -11,11 +11,13 @@
  */
 
 #include "ubse_lcne_fe_eid.h" // for Lcne_urma
+#include <algorithm>
+#include <cctype>
 #include "ubse_error.h"
-#include "ubse_http_module.h"       // for UbseHttpModule
-#include "ubse_logger.h"            // for FormatRetCode, UBSE_DEFINE_THIS_MO...
-#include "ubse_mti_eid_interface.h" // for ParseBaseEid
-#include "ubse_pointer_process.h"   // for SafeDeleteArray
+#include "ubse_http_module.h"      // for UbseHttpModule
+#include "ubse_logger.h"           // for FormatRetCode, UBSE_DEFINE_THIS_MO...
+#include "ubse_mti_eid_internal.h" // for ParseBaseEid
+#include "ubse_pointer_process.h"  // for SafeDeleteArray
 #include "ubse_smbios.h"
 #include "ubse_str_util.h" // for ConvertStrToUint32
 #include "ubse_xml.h"      // for UbseXml, UbseXmlError // for UbseByteBuffer
@@ -130,7 +132,6 @@ UbseResult UbseLcneFeEid::GetFeEid(UbseMtiIouInfo& iouInfo, std::vector<UbseMtiF
     if (UpdateFeType(iouInfo, allFeInfos) != UBSE_OK) {
         UBSE_LOG_WARN << "[MTI] Failed to update fe type.";
     }
-
     if (CheckFeEid(allFeInfos) != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI] Failed to check fe eid.";
         return UBSE_ERROR;
@@ -161,7 +162,7 @@ UbseResult UbseLcneFeEid::ExtractBasicInfoFromXml(const std::shared_ptr<UbseXml>
 UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr,
                                                   std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
@@ -215,7 +216,7 @@ UbseResult UbseLcneFeEid::ParseFeTypeListResponse(const std::string& responseStr
 
 UbseResult UbseLcneFeEid::ParseGetFeEidResponse(const std::string& responseStr, std::vector<UbseMtiFeInfo>& allFeInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(responseStr);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(responseStr);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }
@@ -266,6 +267,7 @@ UbseResult UbseLcneFeEid::ParseFeEidXml(std::shared_ptr<UbseXml> ubseEidXml, Ubs
             continue;
         }
         std::string eid = ubseEidXml->Text();
+        std::transform(eid.begin(), eid.end(), eid.begin(), [](unsigned char c) { return std::tolower(c); });
         ubseEidXml->Previous();
         if (ubseEidXml->Next("port-group-id") != nullptr) {
             eidGroups[GetEidGroupId(eid)].primaryEid = eid;

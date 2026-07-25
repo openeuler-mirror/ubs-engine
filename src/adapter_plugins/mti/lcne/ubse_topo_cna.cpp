@@ -45,7 +45,9 @@ void OutPutUrmaEidResultToLog(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
         oss << "\n";
     }
     auto result = oss.str();
-    UBSE_LOG_INFO << "[MTI] CNA Info:" << "\n" << result;
+    UBSE_LOG_INFO << "[MTI] CNA Info:"
+                  << "\n"
+                  << result;
 }
 
 bool ValidateCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
@@ -106,7 +108,7 @@ UbseResult UbseTopoCna::QueryTopoCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaIn
 
 UbseResult UbseTopoCna::ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos)
 {
-    std::shared_ptr<UbseXml> ubseXml = SafeMakeShared<UbseXml>(resBody);
+    std::shared_ptr<UbseXml> ubseXml = UbseXml::Create(resBody);
     if (ubseXml == nullptr) {
         return UBSE_ERROR_NOMEM;
     }

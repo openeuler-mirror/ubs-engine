@@ -5,8 +5,8 @@
 #ifndef UBSE_MANAGER_TEST_VM_VECTOR_UTIL_H
 #define UBSE_MANAGER_TEST_VM_VECTOR_UTIL_H
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "vm_vector_util.h"
 
 namespace ubse::ut::vm {

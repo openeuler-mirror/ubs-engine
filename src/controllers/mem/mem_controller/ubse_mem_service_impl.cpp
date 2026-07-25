@@ -33,7 +33,6 @@
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_controller_query_api.h"
-#include "ubse_mem_topology_info_manager.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 namespace ubse::service::mem {
@@ -48,6 +47,8 @@ using namespace com;
 using namespace ubse::mem::controller::message;
 using namespace ubse::context;
 using namespace ubse::mem::controller::agent;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::utils;
 // 辅助函数：检查节点是否在静态列表中
 bool IsNodeInStaticList(const std::string &nodeId, const std::set<uint32_t> &staticNodeInfoList)
 {
@@ -851,67 +852,11 @@ NodeMemDebtInfoMap UbseMemServiceImpl::UbseGetLocalMemDebtInfo()
     return GetNodeMemDebtInfoMap();
 }
 
-std::string UbseMemServiceImpl::GetAllNumaJsonInfo(const std::string &nodeId)
-{
-    auto list = strategy::UbseMemTopologyInfoManager::GetInstance().GetAllNumaInfo(nodeId);
-    if (list.empty()) {
-        return "";
-    }
-    std::vector<std::string> strVec;
-    for (auto item : list) {
-        std::map<std::string, std::string> numaInfoMap;
-        if (item == nullptr) {
-            continue;
-        }
-        numaInfoMap.emplace("mGlobalIndex", std::to_string(item->mGlobalIndex));
-        numaInfoMap.emplace("mStatus", "true");
-        numaInfoMap.emplace("mTimestamp", std::to_string(item->mTimestamp));
-        numaInfoMap.emplace("mMemTotal", std::to_string(item->mMemTotal));
-        numaInfoMap.emplace("mMemUsed", std::to_string(item->mMemUsed));
-        numaInfoMap.emplace("mMemFree", std::to_string(item->mMemFree));
-        std::string cpuList;
-        for (auto cpu : item->mCpuList) {
-            cpuList += std::to_string(cpu) + ",";
-        }
-        if (!cpuList.empty()) {
-            cpuList.resize(cpuList.size() - 1);
-        }
-        numaInfoMap.emplace("mCpuList", cpuList);
-        numaInfoMap.emplace("mMemBorrowed", std::to_string(item->mMemBorrowed));
-        numaInfoMap.emplace("mWaterBorrowCount", std::to_string(item->mWaterBorrowCount));
-        numaInfoMap.emplace("mMemLent", std::to_string(item->mMemLent));
-        numaInfoMap.emplace("mMemShared", std::to_string(item->mMemShared));
-        numaInfoMap.emplace("mPercent", std::to_string(item->mPercent));
-        numaInfoMap.emplace("mLastWarningType", "NO_WARN");
-        numaInfoMap.emplace("mLastWarningCount", std::to_string(item->mLastWarningCount));
-        auto numaLoc = item->mUbseMemNumaLoc.nodeId + "/" + std::to_string(item->mUbseMemNumaLoc.socketId) + "/" +
-                       std::to_string(item->mUbseMemNumaLoc.numaId);
-        numaInfoMap.emplace("numaLoc", numaLoc);
-        auto hostName =
-            ubse::nodeController::UbseNodeController::GetInstance().GetNodeById(item->mUbseMemNumaLoc.nodeId).hostName;
-        numaInfoMap.emplace("hostName", hostName);
-        std::string tmp;
-        if (!UbseJsonUtil::ConvertMap2JsonStr(numaInfoMap, tmp)) {
-            UBSE_LOG_ERROR << "ConvertMap2JsonStr error";
-            continue;
-        }
-        strVec.emplace_back(tmp);
-    }
-    std::string json;
-    if (!UbseJsonUtil::ConvertVector2JsonStr(strVec, json)) {
-        UBSE_LOG_ERROR << "ConvertVector2JsonStr error.";
-        return "[]";
-    }
-    return json;
-}
 uint32_t UbseMemServiceImpl::UbseAllNumaInfo(std::vector<UbseNumaNodeInfo> &numaNodeInfoList)
 {
     return ubse::mem::account::UbseAllNumaInfo(numaNodeInfoList);
 }
-UbseResult UbseMemServiceImpl::MemReportWhenExportNodeOnFault(int faultType, std::string &faultId)
-{
-    return UbseMemFaultManager::MemReportWhenExportNodeOnFault(faultType, faultId);
-}
+
 UbseResult UbseMemServiceImpl::GetChipAndDieId(uint32_t socketId, std::pair<uint32_t, uint32_t> &chipDiePair)
 {
     return mem::decoder::utils::MemDecoderUtils::GetChipAndDieId(socketId, chipDiePair);

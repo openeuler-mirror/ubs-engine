@@ -14,19 +14,23 @@
 #include <grp.h>
 #include <httplib.h>
 #include <securec.h>
-#include "adapter_plugins/mti/ubse_topology_interface.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_file_util.h"
 #include "ubse_http_common.h"
 #include "ubse_http_server.h"
 #include "ubse_pointer_process.h"
+#include "ubse_security_module.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
 
 namespace ubse::ut::http {
 using namespace ubse::http;
 using namespace ubse::context;
 using namespace ubse::config;
 using namespace ubse::common::def;
+using namespace ubse::security;
+using namespace ubse::utils;
 using namespace httplib;
 
 constexpr const uint32_t DEFAULT_TCP_SERVER_PORT = 8082;
@@ -181,7 +185,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfMoudleFailed)
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
-static UbseResult GetConfMocker(UbseConfModule *This, std::string &section, std::string &configKey, uint32_t &configVal)
+static UbseResult GetConfMocker(UbseConfModule* This, std::string& section, std::string& configKey, uint32_t& configVal)
 {
     configVal = INVALID_TCP_SERVER_PORT;
     return UBSE_OK;
@@ -213,8 +217,8 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortFailedCauseGetConfFailed)
     EXPECT_EQ(port, DEFAULT_TCP_SERVER_PORT);
 }
 
-static UbseResult GetConfMockerWithValidPort(UbseConfModule *This, std::string &section, std::string &configKey,
-                                             uint32_t &configVal)
+static UbseResult GetConfMockerWithValidPort(UbseConfModule* This, std::string& section, std::string& configKey,
+                                             uint32_t& configVal)
 {
     configVal = TCP_SERVER_PORT;
     return UBSE_OK;
@@ -241,7 +245,7 @@ TEST_F(TestUbseHttpTcpServer, GetTcpServerPortSucceed)
     EXPECT_EQ(port, TCP_SERVER_PORT);
 }
 
-static uint32_t TestHandlerForTcpReg(const UbseHttpRequest &req, UbseHttpResponse &resp)
+static uint32_t TestHandlerForTcpReg(const UbseHttpRequest& req, UbseHttpResponse& resp)
 {
     resp.status = static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK);
     return UBSE_OK;
@@ -309,5 +313,31 @@ TEST_F(TestUbseHttpTcpServer, HandleRequest200)
     server.HandleRequest(req, resp);
     EXPECT_EQ(resp.status, OK_200);
     GlobalMockObject::verify();
+}
+TEST_F(TestUbseHttpTcpServer, RegisterRoute_Duplicate)
+{
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+    server.RegisterRoute("/test", "GET", TestHandlerForTcpReg);
+    EXPECT_NO_THROW(server.RegisterRoute("/test", "GET", TestHandlerForTcpReg));
+}
+
+TEST_F(TestUbseHttpTcpServer, GetParentDirectory)
+{
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("/a/b/c"), "/a/b");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("abc"), "");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory("/"), "");
+    EXPECT_EQ(UbseHttpServer::GetParentDirectory(""), "");
+}
+TEST_F(TestUbseHttpTcpServer, UdsRun_DirectoryCreationFailed)
+{
+    UbseHttpServer::Config config;
+    config.name = "TestServer";
+    UbseHttpServer server(config);
+
+    MOCKER(&UbseSecurityModule::ModifyEffectiveCapabilities).stubs().will(returnValue(UBSE_OK));
+    MOCKER(&UbseFileUtil::CreateAndChmodDirectory).stubs().will(returnValue(UBSE_ERROR));
+    EXPECT_NO_THROW(server.UdsRun());
 }
 } // namespace ubse::ut::http

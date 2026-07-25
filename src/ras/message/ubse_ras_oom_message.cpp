@@ -35,13 +35,13 @@ UbseResult UbseRasOomMessage::Deserialize()
     }
     return UBSE_OK;
 }
-void UbseRasOomMessage::Serialization(UbseSerialization &out)
+void UbseRasOomMessage::Serialization(UbseSerialization& out)
 {
     out << nodeId << memNeed << oomNumaId;
     return;
 }
 
-UbseResult UbseRasOomMessage::Deserialization(UbseDeSerialization &in)
+UbseResult UbseRasOomMessage::Deserialization(UbseDeSerialization& in)
 {
     if (!in.Check()) {
         UBSE_LOG_ERROR << "Failed to check UbseMemDebtNumaInfo during deserialization";
@@ -54,4 +54,4 @@ UbseResult UbseRasOomMessage::Deserialization(UbseDeSerialization &in)
     }
     return UBSE_OK;
 }
-} // namespace mxe::ras
+} // namespace ubse::ras

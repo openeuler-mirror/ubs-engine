@@ -23,7 +23,7 @@ extern "C" {
 /**
  * Log handler function
  */
-typedef void (*ubs_virt_agent_log_handler)(uint32_t level, const char *message);
+typedef void (*ubs_virt_agent_log_handler)(uint32_t level, const char* message);
 
 /**
  * @brief  Registers a log handler function. If no handler is registered or a null pointer is registered,

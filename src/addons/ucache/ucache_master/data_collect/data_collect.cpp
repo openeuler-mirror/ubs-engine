@@ -47,9 +47,9 @@ const int MAX_FAILED_TIMES = 10;
 using FuncPtrType = uint32_t (*)();
 struct Task {
     FuncPtrType func;
-    const char *errMsg;
+    const char* errMsg;
 };
-inline uint32_t CheckAndRun(FuncPtrType func, const std::string &message)
+inline uint32_t CheckAndRun(FuncPtrType func, const std::string& message)
 {
     uint32_t result = func();
     if (result != UCACHE_OK) {
@@ -62,7 +62,7 @@ inline uint32_t CheckAndRun(FuncPtrType func, const std::string &message)
 uint32_t DataCollect::GenerateBorrowStrategyRawData()
 {
     borrowStrategyRawData.clear();
-    for (const auto &pair1 : nodeInfos) {
+    for (const auto& pair1 : nodeInfos) {
         BorrowStrategyRawData tmpRawData = {};
         std::string nodeId = pair1.first;
         tmpRawData.nodeId = nodeId;
@@ -73,7 +73,7 @@ uint32_t DataCollect::GenerateBorrowStrategyRawData()
         }
         tmpRawData.freeMemMin = memWaterMarkInfos[nodeId];
         std::map<std::string, NodeInfo> nodeInfo = pair1.second;
-        for (const auto &pair2 : nodeInfo) {
+        for (const auto& pair2 : nodeInfo) {
             std::regex rgx("\\d+");
             std::smatch match;
             int numaId = 0;
@@ -117,7 +117,7 @@ uint32_t DataCollect::GenerateLoanableTotalBorrowMemMap()
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Get node mem info from deserialize failed!";
         return UCACHE_ERR;
     }
-    for (const auto &numaInfo : numaNodeInfoList) {
+    for (const auto& numaInfo : numaNodeInfoList) {
         std::string nodeId = numaInfo.nodeId;
         uint32_t numaId = numaInfo.numaId;
         uint64_t reservedMem = (numaInfo.memTotal * numaInfo.mReservedMemRatio) / 100;
@@ -137,7 +137,7 @@ uint32_t DataCollect::GenerateLoanableTotalBorrowMemMap()
     return UCACHE_OK;
 }
 
-uint32_t ParseRackNodeId(const std::string &originNodeId, std::string &nodeId)
+uint32_t ParseRackNodeId(const std::string& originNodeId, std::string& nodeId)
 {
     size_t pos = originNodeId.rfind("-");
     if (pos == std::string::npos) {
@@ -148,10 +148,10 @@ uint32_t ParseRackNodeId(const std::string &originNodeId, std::string &nodeId)
     return UCACHE_OK;
 }
 
-void PrintPhysicalTopo(const std::map<std::string, std::vector<std::string>> &physicalTopo)
+void PrintPhysicalTopo(const std::map<std::string, std::vector<std::string>>& physicalTopo)
 {
-    for (auto &pair : physicalTopo) {
-        for (const auto &nodeId : pair.second) {
+    for (auto& pair : physicalTopo) {
+        for (const auto& nodeId : pair.second) {
             UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "NodeId=" << pair.first << ", which is linked to nodeId= " << nodeId;
         }
@@ -165,7 +165,7 @@ static void SetPhyNodeStatMap()
         UBSE_LOGGER_WARN(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Get topologies from rack failed! ret is " << ret;
         return;
     }
-    for (const auto &topo : topologies) {
+    for (const auto& topo : topologies) {
         // 如果发生过故障，未上电是恢复状态，上电后置位活跃的正常状态
         if (topo.state != ubse::nodeController::UbseNodeState::UP &&
             DataCollect::phyNodeStatMap[topo.nodeId] == PhyNodeStat::FAULT) {
@@ -180,7 +180,7 @@ static void SetPhyNodeStatMap()
     }
 }
 
-static uint32_t CheckNodeStat(const ubse::nodeController::MemNodeData &node)
+static uint32_t CheckNodeStat(const ubse::nodeController::MemNodeData& node)
 {
     // 节点未连接RM，排除
     if (!node.isRegisterRm) {
@@ -204,7 +204,7 @@ uint32_t DataCollect::GeneratePhysicalTopo()
         return UCACHE_ERR;
     }
     std::vector<std::string> allNodeIds;
-    for (const auto &pair : nodeTopology) {
+    for (const auto& pair : nodeTopology) {
         std::string nodeId;
         if (ParseRackNodeId(pair.first, nodeId) != UCACHE_OK) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Parse rack node id failed!";
@@ -217,7 +217,7 @@ uint32_t DataCollect::GeneratePhysicalTopo()
             continue;
         }
         std::vector<std::string> connectedNodeIds;
-        for (const auto &node : pair.second) {
+        for (const auto& node : pair.second) {
             if (CheckNodeStat(node)) {
                 continue;
             }
@@ -239,10 +239,10 @@ uint32_t DataCollect::GeneratePhysicalTopo()
     PrintPhysicalTopo(physicalTopo);
     return UCACHE_OK;
 }
-uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::MemNodeData> &memNodeDataVec,
-                                             std::map<std::string, std::map<int, int>> &numaSocketMap)
+uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::MemNodeData>& memNodeDataVec,
+                                      std::map<std::string, std::map<int, int>>& numaSocketMap)
 {
-    for (const auto &memNodeData : memNodeDataVec) {
+    for (const auto& memNodeData : memNodeDataVec) {
         int socketId = 0;
         uint32_t ret = SafeStoInt(memNodeData.socket.socketId, socketId);
         if (ret != UCACHE_OK) {
@@ -251,7 +251,7 @@ uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::Me
             return ret;
         }
 
-        for (const auto &numa : memNodeData.socket.numas) {
+        for (const auto& numa : memNodeData.socket.numas) {
             int numaId = 0;
             ret = SafeStoInt(numa.numaId, numaId);
             if (ret != UCACHE_OK) {
@@ -266,10 +266,10 @@ uint32_t GeneratePerNodeNumaSocketMap(const std::vector<ubse::nodeController::Me
     return UCACHE_OK;
 }
 
-void PrintNumaSocketMap(const std::map<std::string, std::map<int, int>> &numaSocketMap)
+void PrintNumaSocketMap(const std::map<std::string, std::map<int, int>>& numaSocketMap)
 {
-    for (auto &pair1 : numaSocketMap) {
-        for (const auto &pair2 : pair1.second) {
+    for (auto& pair1 : numaSocketMap) {
+        for (const auto& pair2 : pair1.second) {
             UBSE_LOGGER_DEBUG(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE)
                 << "NodeId=" << pair1.first << " numaId=" << pair2.first << " socketId=" << pair2.second;
         }
@@ -285,7 +285,7 @@ uint32_t DataCollect::GenerateNumaSocketMap()
         UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Get topo from rack failed!";
         return UCACHE_ERR;
     }
-    for (const auto &pair : nodeTopology) {
+    for (const auto& pair : nodeTopology) {
         ret = GeneratePerNodeNumaSocketMap(pair.second, numaSocketMap);
         if (ret != UCACHE_OK) {
             UBSE_LOGGER_ERROR(UCACHE_MODULE_NAME, UCACHE_MODULE_CODE) << "Generate per node numa socket map failed!";
@@ -296,8 +296,8 @@ uint32_t DataCollect::GenerateNumaSocketMap()
     return UCACHE_OK;
 }
 
-void DataCollect::GenerateLendMap(const BorrowMemInfo &borrowMemInfo, const std::string &lendId,
-                                  std::map<std::string, std::vector<NodeMemBorrowInfo>> &MemMap)
+void DataCollect::GenerateLendMap(const BorrowMemInfo& borrowMemInfo, const std::string& lendId,
+                                  std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap)
 {
     std::string name = borrowMemInfo.name;
     std::string destNodeId = borrowMemInfo.borrowNodeId;
@@ -321,7 +321,7 @@ void DataCollect::GenerateLendMap(const BorrowMemInfo &borrowMemInfo, const std:
     }
 
     auto it = std::find_if(MemMap[lendId].begin(), MemMap[lendId].end(),
-                           [destNodeId, dstNumaId](const NodeMemBorrowInfo &item) {
+                           [destNodeId, dstNumaId](const NodeMemBorrowInfo& item) {
                                return item.destNodeId == destNodeId && item.dstNumaId == dstNumaId;
                            });
     if (it != MemMap[lendId].end()) {
@@ -338,8 +338,8 @@ void DataCollect::GenerateLendMap(const BorrowMemInfo &borrowMemInfo, const std:
     }
 }
 
-void DataCollect::GenerateBorrowMap(const BorrowMemInfo &borrowMemInfo, const std::string &borrowId,
-                                    std::map<std::string, std::vector<NodeMemBorrowInfo>> &MemMap)
+void DataCollect::GenerateBorrowMap(const BorrowMemInfo& borrowMemInfo, const std::string& borrowId,
+                                    std::map<std::string, std::vector<NodeMemBorrowInfo>>& MemMap)
 {
     std::string name = borrowMemInfo.name;
     std::string destNodeId = borrowMemInfo.borrowNodeId;
@@ -363,7 +363,7 @@ void DataCollect::GenerateBorrowMap(const BorrowMemInfo &borrowMemInfo, const st
     }
 
     auto it = std::find_if(MemMap[borrowId].begin(), MemMap[borrowId].end(),
-                           [srcNodeId, dstNumaId](const NodeMemBorrowInfo &item) {
+                           [srcNodeId, dstNumaId](const NodeMemBorrowInfo& item) {
                                return item.srcNodeId == srcNodeId && item.dstNumaId == dstNumaId;
                            });
     if (it != MemMap[borrowId].end()) {
@@ -390,7 +390,7 @@ uint32_t DataCollect::GeneratelendMemMap()
         return UCACHE_ERR;
     }
 
-    for (const auto &borrowMemInfo : borrowMemInfos) {
+    for (const auto& borrowMemInfo : borrowMemInfos) {
         std::string keyId = borrowMemInfo.lentNodeId;
         GenerateLendMap(borrowMemInfo, keyId, lendMemMap);
     }
@@ -407,7 +407,7 @@ uint32_t DataCollect::GenerateborrowMemMap()
         return UCACHE_ERR;
     }
 
-    for (const auto &borrowMemInfo : borrowMemInfos) {
+    for (const auto& borrowMemInfo : borrowMemInfos) {
         std::string keyId = borrowMemInfo.borrowNodeId;
         GenerateBorrowMap(borrowMemInfo, keyId, borrowMemMap);
     }
@@ -417,7 +417,7 @@ uint32_t DataCollect::GenerateborrowMemMap()
 uint32_t DataCollect::GenerateNodeMemoryInfo()
 {
     nodeMemInfos.clear();
-    for (const auto &pair1 : nodeInfos) {
+    for (const auto& pair1 : nodeInfos) {
         NodeMemoryInfo tmpNodeInfo = {};
         std::string nodeId = pair1.first;
         if (memWaterMarkInfos.find(nodeId) == memWaterMarkInfos.end()) {
@@ -427,7 +427,7 @@ uint32_t DataCollect::GenerateNodeMemoryInfo()
         }
         tmpNodeInfo.minFreeKbytes = memWaterMarkInfos[nodeId];
         std::map<std::string, NodeInfo> nodeInfo = pair1.second;
-        for (const auto &pair2 : nodeInfo) {
+        for (const auto& pair2 : nodeInfo) {
             NodeInfo nodeInfo = pair2.second;
             if (!nodeInfo.isRemote) {
                 tmpNodeInfo.totalMemory += nodeInfo.memTotalBytes;
@@ -441,13 +441,13 @@ uint32_t DataCollect::GenerateNodeMemoryInfo()
     return UCACHE_OK;
 }
 
-void SetCgroupInfoDefault(CgroupInfo &cgInfo)
+void SetCgroupInfoDefault(CgroupInfo& cgInfo)
 {
     cgInfo.ioReadBandwidth = 0;
     cgInfo.pageCacheIn = 0;
 }
 
-CgroupInfo CalculateSingleCgroupRate(const CgroupInfos &curr, const CgroupInfos *prev, uint64_t interval)
+CgroupInfo CalculateSingleCgroupRate(const CgroupInfos& curr, const CgroupInfos* prev, uint64_t interval)
 {
     CgroupInfo cgInfo{};
     if (!prev || interval == 0) {
@@ -469,16 +469,16 @@ uint32_t DataCollect::GenerateCgroupInfo()
         return UCACHE_ERR;
     }
 
-    const NodeRawMap &latestNodes = cgroupInfosQueue.back();
-    const NodeRawMap *oldNodes = (cgroupInfosQueue.size() > 1) ? &cgroupInfosQueue.front() : nullptr;
+    const NodeRawMap& latestNodes = cgroupInfosQueue.back();
+    const NodeRawMap* oldNodes = (cgroupInfosQueue.size() > 1) ? &cgroupInfosQueue.front() : nullptr;
 
-    for (const auto &nodePair : latestNodes) {
+    for (const auto& nodePair : latestNodes) {
         std::string nodeId = nodePair.first;
-        const DockerRawMap &latestDockers = nodePair.second;
+        const DockerRawMap& latestDockers = nodePair.second;
 
         DockerResultMap resultDockerMap;
 
-        const DockerRawMap *oldDockers = (oldNodes && oldNodes->count(nodeId)) ? &oldNodes->at(nodeId) : nullptr;
+        const DockerRawMap* oldDockers = (oldNodes && oldNodes->count(nodeId)) ? &oldNodes->at(nodeId) : nullptr;
 
         uint64_t interval = 0;
         if (oldDockers) {
@@ -489,10 +489,10 @@ uint32_t DataCollect::GenerateCgroupInfo()
             }
         }
 
-        for (const auto &dockerPair : latestDockers) {
+        for (const auto& dockerPair : latestDockers) {
             std::string dockerId = dockerPair.first;
-            const CgroupInfos &currData = dockerPair.second;
-            const CgroupInfos *prevData = (oldDockers && oldDockers->count(dockerId)) ? &oldDockers->at(dockerId) :
+            const CgroupInfos& currData = dockerPair.second;
+            const CgroupInfos* prevData = (oldDockers && oldDockers->count(dockerId)) ? &oldDockers->at(dockerId) :
                                                                                         nullptr;
             resultDockerMap[dockerId] = CalculateSingleCgroupRate(currData, prevData, interval);
         }
@@ -566,17 +566,17 @@ uint32_t DataCollect::CollectData()
     return UCACHE_OK;
 }
 
-std::string DataCollect::PrintCgroupInfo(const std::map<std::string, std::map<std::string, CgroupInfo>> &cgroupInfo)
+std::string DataCollect::PrintCgroupInfo(const std::map<std::string, std::map<std::string, CgroupInfo>>& cgroupInfo)
 {
     std::ostringstream oss;
     oss << "{\n";
-    for (const auto &outerPair : cgroupInfo) {
-        const std::string &rackNodeId = outerPair.first;
+    for (const auto& outerPair : cgroupInfo) {
+        const std::string& rackNodeId = outerPair.first;
         oss << "  rack_node_id: \"" << rackNodeId << "\",\n";
 
-        for (const auto &innerPair : outerPair.second) {
-            const std::string &dockerId = innerPair.first;
-            const auto &info = innerPair.second;
+        for (const auto& innerPair : outerPair.second) {
+            const std::string& dockerId = innerPair.first;
+            const auto& info = innerPair.second;
             oss << "    docker_id: \"" << dockerId << "\",\n";
             oss << "    {\n";
             oss << "      pageCacheIn: " << info.pageCacheIn << ",\n";
@@ -589,82 +589,82 @@ std::string DataCollect::PrintCgroupInfo(const std::map<std::string, std::map<st
     return oss.str();
 }
 
-void DataCollect::GetBorrowStrategyRawData(std::vector<BorrowStrategyRawData> &rawData)
+void DataCollect::GetBorrowStrategyRawData(std::vector<BorrowStrategyRawData>& rawData)
 {
     rawData = borrowStrategyRawData;
 }
 
-void DataCollect::GetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>> &rawMap)
+void DataCollect::GetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>>& rawMap)
 {
     rawMap = loanableTotalBorrowMemMap;
 }
 
-void DataCollect::GetPhysicalTopo(std::map<std::string, std::vector<std::string>> &topo)
+void DataCollect::GetPhysicalTopo(std::map<std::string, std::vector<std::string>>& topo)
 {
     topo = physicalTopo;
 }
 
-void DataCollect::GetNumaSocketMap(std::map<std::string, std::map<int, int>> &socketMap)
+void DataCollect::GetNumaSocketMap(std::map<std::string, std::map<int, int>>& socketMap)
 {
     socketMap = numaSocketMap;
 }
 
-void DataCollect::GetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &lendMap)
+void DataCollect::GetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& lendMap)
 {
     lendMap = lendMemMap;
 }
 
-void DataCollect::GetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &borrowMap)
+void DataCollect::GetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap)
 {
     borrowMap = borrowMemMap;
 }
 
-void DataCollect::GetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo> &nodes)
+void DataCollect::GetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo>& nodes)
 {
     nodes = nodeMemInfos;
 }
 
-void DataCollect::GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>> &cgInfos)
+void DataCollect::GetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>>& cgInfos)
 {
     cgInfos = cgroupInfo;
 }
 
-void DataCollect::SetBorrowStrategyRawData(std::vector<BorrowStrategyRawData> &rawData)
+void DataCollect::SetBorrowStrategyRawData(std::vector<BorrowStrategyRawData>& rawData)
 {
     borrowStrategyRawData = rawData;
 }
 
-void DataCollect::SetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>> &rawMap)
+void DataCollect::SetLoanableTotalBorrowMemMap(std::map<std::string, std::map<int, uint64_t>>& rawMap)
 {
     loanableTotalBorrowMemMap = rawMap;
 }
 
-void DataCollect::SetPhysicalTopo(std::map<std::string, std::vector<std::string>> &topo)
+void DataCollect::SetPhysicalTopo(std::map<std::string, std::vector<std::string>>& topo)
 {
     physicalTopo = topo;
 }
 
-void DataCollect::SetNumaSocketMap(std::map<std::string, std::map<int, int>> &socketMap)
+void DataCollect::SetNumaSocketMap(std::map<std::string, std::map<int, int>>& socketMap)
 {
     numaSocketMap = socketMap;
 }
 
-void DataCollect::SetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &lendMap)
+void DataCollect::SetlendMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& lendMap)
 {
     lendMemMap = lendMap;
 }
 
-void DataCollect::SetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>> &borrowMap)
+void DataCollect::SetborrowMemMap(std::map<std::string, std::vector<NodeMemBorrowInfo>>& borrowMap)
 {
     borrowMemMap = borrowMap;
 }
 
-void DataCollect::SetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo> &nodes)
+void DataCollect::SetNodeMemoryInfo(std::map<std::string, NodeMemoryInfo>& nodes)
 {
     nodeMemInfos = nodes;
 }
 
-void DataCollect::SetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>> &cgInfos)
+void DataCollect::SetCgroupInfo(std::map<std::string, std::map<std::string, CgroupInfo>>& cgInfos)
 {
     cgroupInfo = cgInfos;
 }

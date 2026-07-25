@@ -28,7 +28,7 @@ if (SOURCE_COMPILING)
     target_include_directories(cpp-httplib INTERFACE
             ${build-cpp-httplib_SOURCE_DIR}
     )
-elseif ()
+else ()
     message(STATUS "Found cpp-httplib: ${CPPHTTPLIB_INCLUDE_DIR}, ${CPPHTTPLIB_LIBRARY}")
     add_library(cpp-httplib INTERFACE)
     target_include_directories(cpp-httplib SYSTEM INTERFACE ${CPPHTTPLIB_INCLUDE_DIR})

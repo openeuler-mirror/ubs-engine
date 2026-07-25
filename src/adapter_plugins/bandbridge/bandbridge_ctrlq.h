@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  *
@@ -54,7 +55,7 @@ struct bandbridge_ctrlq_ring {
     u16 ci;
     u16 pi;
     u16 depth;
-    void __iomem *base_addr;
+    void __iomem* base_addr;
 };
 
 struct bandbridge_ctrlq_info {
@@ -77,13 +78,13 @@ void bandbridge_ctrlq_deinit(void);
 int bandbridge_ctrlq_get_sq_size(void);
 int bandbridge_ctrlq_get_rq_size(void);
 int bandbridge_ctrlq_check_sq_enough(int sendbuf_size);
-void bandbridge_ctrlq_send_to_sq(void *sendbuf, int sendbuf_size);
-int bandbridge_ctrlq_receive_from_rq(void *recvbuf, int *recvbuf_size, u16 sseq);
-extern void *__iomem g_ctrlq_va;
+void bandbridge_ctrlq_send_to_sq(void* sendbuf, int sendbuf_size);
+int bandbridge_ctrlq_receive_from_rq(void* recvbuf, int* recvbuf_size, u16 sseq);
+extern void* __iomem g_ctrlq_va;
 
-static inline void *__iomem reg_map(char *name, u64 base_addr, int len)
+static inline void* __iomem reg_map(char* name, u64 base_addr, int len)
 {
-    void *__iomem va = NULL;
+    void* __iomem va = NULL;
     va = ioremap(base_addr, len);
     if (!va)
         bandbridge_log_err("%s reg map failed\n", name);

@@ -10,7 +10,7 @@
 
 #include <mutex>
 namespace ubse::mem::decoder::utils {
-using namespace common::def;
+using common::def::UbseResult;
 struct PreHandlerInfo {
     uint32_t dcna;                        // 作为key的一部分, isPreImport为true的时候, dcna有效
     UbseMamiMemImportResult importResult; // 添加表项的结果
@@ -25,7 +25,7 @@ using DcnaToSize = std::unordered_map<uint32_t, uint64_t>;
 
 class UbseMemPrehandleManager {
 public:
-    inline static UbseMemPrehandleManager &GetInstance()
+    inline static UbseMemPrehandleManager& GetInstance()
     {
         static UbseMemPrehandleManager instance;
         return instance;

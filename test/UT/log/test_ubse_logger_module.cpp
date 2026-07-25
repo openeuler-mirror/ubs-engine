@@ -101,7 +101,7 @@ TEST_F(TestUbseLoggerModule, TestInitializeFail)
 {
     GTEST_SKIP();
     UbseLoggerModule loggerModule;
-    void *mockMethod = nullptr;
+    void* mockMethod = nullptr;
     MOCKER(&dlopen).stubs().will(returnValue(mockMethod));
     MOCKER(&UbseLoggerConfig::Initialize).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
@@ -112,4 +112,4 @@ TEST_F(TestUbseLoggerModule, TestInitializeFail)
     EXPECT_NE(loggerModule.Initialize(), UBSE_OK);
 }
 
-}
+} // namespace ubse::ut::log

@@ -24,6 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::urma::ut
 
 #endif //TEST_UBSE_URMA_UVS_MODULE_H

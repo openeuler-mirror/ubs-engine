@@ -20,6 +20,6 @@ namespace vm {
 VmResult VMCommonSdkServerInit();
 VmResult VMMemFragSdkServerInit();
 VmResult ContainerSdkServerInit();
-} // vm
+} // namespace vm
 
 #endif // UBS_VIRT_AGENT_ROUTER_H

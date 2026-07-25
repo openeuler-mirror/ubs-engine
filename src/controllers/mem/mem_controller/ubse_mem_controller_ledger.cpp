@@ -8,6 +8,7 @@
 
 #include <ubse_node.h>
 #include <cstdint>
+#include <set>
 #include <string>
 #include <thread>
 #include "adapter_plugins/mti/ubse_topology_interface.h"
@@ -15,9 +16,11 @@
 #include "ubse_common_def.h"
 #include "ubse_election_def.h"
 #include "ubse_error.h"
+#include "ubse_init_ledger_state.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller.h"
 #include "ubse_mem_controller_api.h"
+#include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_debt_info.h"
 
 #include "api/ubse_mem_controller_share_api.h"
@@ -29,6 +32,7 @@
 #include "ubse_mem_controller_ledger_filter.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
+#include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mem_def.h"
 #include "ubse_mem_global_ledger_report.h"
 #include "ubse_mem_update_obj_state.simpo.h"
@@ -43,10 +47,16 @@ namespace ubse::mem::controller {
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
-using ubse::election::UbseElectionModule;
+using namespace ubse::election;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::security;
 using namespace ubse::adapter_plugins::smbios;
+using namespace ubse::context;
+using namespace ubse::log;
+using namespace ubse::adapter_plugins::mmi;
+using namespace ubse::common::def;
+using namespace ubse::com;
+using namespace ubse::mem::def;
 
 using namespace ubse::context;
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -59,7 +69,8 @@ const uint32_t LEDGER_RUNNING_WAIT_INTERVAL = 1;
 const std::string CRITICAL_ERR_PATH_PREFIX = "/sys/devices/system/node/node";
 const std::string CRITICAL_ERR_FILE = "/critical_err";
 
-enum class RemoteNumaStatus {
+enum class RemoteNumaStatus
+{
     AVAILABLE = 0,
     UNAVAILABLE = 1,
     UNKNOWN = 2,
@@ -112,9 +123,9 @@ uint32_t GetExponentialBackOffSleepTime(uint32_t count)
     return BASE_SLEEP_TIME * MAX_RETRIES;
 }
 
-void GetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                       const NodeMemDebtInfo &masterDebtInfo, const std::string &nodeId,
-                       const std::string &targetNodeId)
+void GetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
+                       const NodeMemDebtInfo& masterDebtInfo, const std::string& nodeId,
+                       const std::string& targetNodeId)
 {
     NodeMemDebtInfo agentDebtInfo{};
     std::string currentNodeId = GetCurNodeId();
@@ -140,16 +151,15 @@ void GetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebt
                 allDebtInfoMap[nodeId] = agentDebtInfo;
                 break;
             }
-            UBSE_LOG_WARN << "nodeId=" << nodeId << " collect ledge failed, will retry, "
-                          << FormatRetCode(ret);
+            UBSE_LOG_WARN << "nodeId=" << nodeId << " collect ledge failed, will retry, " << FormatRetCode(ret);
             std::this_thread::sleep_for(std::chrono::milliseconds(NO_500));
             count++;
         }
     }
 }
 
-UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                                   const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
+UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
+                                   const NodeMemDebtInfo& masterDebtInfo, const std::string& targetNodeId)
 {
     NodeMemDebtInfo agentDebtInfo{};
     std::string currentNodeId = GetCurNodeId();
@@ -170,16 +180,70 @@ UbseResult GetTargetLedgerByNodeId(std::unordered_map<std::string, NodeMemDebtIn
     }
 }
 
-UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                            const NodeMemDebtInfo &masterDebtInfo, const std::string &targetNodeId)
+std::set<std::string> CollectRelatedNodeIds(const NodeMemDebtInfo& ledger)
 {
+    std::set<std::string> nodeIds;
+    auto collect = [&nodeIds](const auto& obj) {
+        if (!obj.algoResult.importNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.importNumaInfos[0].nodeId);
+        }
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    };
+    for (const auto& [_, obj] : ledger.fdImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.fdExportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.numaImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.numaExportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.shareImportObjMap) {
+        nodeIds.insert(obj.importNodeId);
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    }
+    for (const auto& [_, obj] : ledger.shareExportObjMap) {
+        if (!obj.algoResult.exportNumaInfos.empty()) {
+            nodeIds.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+        }
+    }
+    for (const auto& [_, obj] : ledger.addrImportObjMap)
+        collect(obj);
+    for (const auto& [_, obj] : ledger.addrExportObjMap)
+        collect(obj);
+    return nodeIds;
+}
+
+UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
+                            const NodeMemDebtInfo& masterDebtInfo, const std::string& targetNodeId)
+{
+    auto ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto relatedNodeIds = CollectRelatedNodeIds(allDebtInfoMap[targetNodeId]);
     std::vector<UbseRoleInfo> roleInfos;
-    auto ret = UbseNodeGetLinkUpNodes(roleInfos);
-    for (const auto &nodeInfo : roleInfos) {
+    ret = UbseNodeGetLinkUpNodes(roleInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " get link up nodes failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    for (const auto& nodeInfo : roleInfos) {
         ubse::nodeController::UbseNodeInfo ubseNodeInfo =
             UbseNodeController::GetInstance().GetNodeById(nodeInfo.nodeId);
         if (ubseNodeInfo.nodeId.empty()) {
             UBSE_LOG_WARN << "ubseNodeInfo nodeId is empty, nodeId =" << nodeInfo.nodeId;
+            continue;
+        }
+        // 检查条件为已初始化完成，relatedNodeIds非空且nodeId在relatedNodeIds中时,防止节点重启后账本数据为空不进行单导入账本处理操作
+        if (UbseInitLedgerState::GetInstance().IsInitLedgerDone(targetNodeId) && !relatedNodeIds.empty() &&
+            relatedNodeIds.find(ubseNodeInfo.nodeId) == relatedNodeIds.end()) {
+            UBSE_LOG_INFO << "skip ledger for nodeId=" << nodeInfo.nodeId
+                          << ", not in relatedNodeIds, targetNodeId=" << targetNodeId;
             continue;
         }
         if (ubseNodeInfo.nodeId != targetNodeId && ubseNodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT &&
@@ -195,14 +259,10 @@ UbseResult CollectAllLedger(std::unordered_map<std::string, NodeMemDebtInfo> &al
             return UBSE_OK;
         }
     }
-    ret = GetTargetLedgerByNodeId(allDebtInfoMap, masterDebtInfo, targetNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "nodeId=" << targetNodeId << " collect ledge failed, " << FormatRetCode(ret);
-    }
     return ret;
 }
 
-NodeMemDebtInfo GetMasterCtxLedger(const std::string &nodeId)
+NodeMemDebtInfo GetMasterCtxLedger(const std::string& nodeId)
 {
     const auto map = GetNodeMemDebtInfoMap();
     if (const auto it = map.find(nodeId); it != map.end()) {
@@ -212,8 +272,29 @@ NodeMemDebtInfo GetMasterCtxLedger(const std::string &nodeId)
 }
 
 template <typename ImportObj, typename ExportObjMap>
-UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const ExportObjMap &exportObjMap,
-                                        const std::string &name, const std::string &nodeId,
+bool IsSingleImportDebt(const ImportObj& importObj, const ExportObjMap& exportObjMap, const std::string& name,
+                        const std::string& nodeId)
+{
+    std::string exportDebtName;
+    if constexpr (std::is_same_v<std::decay_t<decltype(importObj)>, UbseMemShareBorrowImportObj>) {
+        exportDebtName = name;
+    } else {
+        exportDebtName = name + "_" + nodeId;
+    }
+
+    if (exportObjMap.find(exportDebtName) != exportObjMap.end()) {
+        UBSE_LOG_INFO << "IsSingleImportDebt: exportObjMap found exportDebtName=" << exportDebtName
+                      << ", not single import debt";
+        return false;
+    }
+
+    UBSE_LOG_INFO << "Found single import debt, name=" << name << ", nodeId=" << nodeId;
+    return true;
+}
+
+template <typename ImportObj, typename ExportObjMap>
+UbseResult MasterHandleSingleDebtHelper(const ImportObj& importObj, const ExportObjMap& exportObjMap,
+                                        const std::string& name, const std::string& nodeId,
                                         UbseMemBorrowType borrowType)
 {
     auto ret = UBSE_OK;
@@ -230,7 +311,7 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
     }
 
     bool isValid = true;
-    for (const auto &decoderval : importObj.status.decoderResult) {
+    for (const auto& decoderval : importObj.status.decoderResult) {
         if (!decoderval.valid) {
             isValid = false;
             break;
@@ -239,8 +320,7 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
 
     if (!isValid) {
         int retry = 10;
-        UBSE_LOG_INFO << "Start to invalidate import debt, name=" << name
-                      << ", importNodeId=" << nodeId
+        UBSE_LOG_INFO << "Start to invalidate import debt, name=" << name << ", importNodeId=" << nodeId
                       << ", borrowType=" << int(borrowType);
         while (retry > 0) {
             retry--;
@@ -253,16 +333,50 @@ UbseResult MasterHandleSingleDebtHelper(const ImportObj &importObj, const Export
     return ret;
 }
 
-UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-                                        const std::string &targetNodeId)
+template <typename ImportObj>
+void CollectSingleImportHandleInfo(const ImportObj& importObj, const std::string& name, def::DebtHandleInfos& handles,
+                                   UbseMemBorrowType borrowType)
+{
+    if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemShareBorrowImportObj>) {
+        std::unordered_set<uint64_t> memIds;
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
+            memIds.insert(memId);
+        }
+        UBSE_LOG_INFO << "CollectSingleImportHandleInfo: share type, name=" << name << ", memIdsSize=" << memIds.size()
+                      << ", borrowType=" << int(borrowType);
+        handles.shareVec.push_back({name, std::move(memIds), importObj.req.udsInfo});
+    } else if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemNumaBorrowImportObj>) {
+        std::unordered_set<int64_t> numaIds;
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
+            numaIds.insert(numaId);
+        }
+        UBSE_LOG_INFO << "CollectSingleImportHandleInfo: numa type, name=" << name << ", numaIdsSize=" << numaIds.size()
+                      << ", borrowType=" << int(borrowType);
+        handles.numaVec.push_back({name, std::move(numaIds), importObj.req.udsInfo});
+    } else if constexpr (std::is_same_v<std::decay_t<ImportObj>, UbseMemFdBorrowImportObj>) {
+        std::unordered_set<uint64_t> memIds;
+        for (const auto& [memId, numaId] : importObj.status.importResults) {
+            memIds.insert(memId);
+        }
+        UBSE_LOG_INFO << "CollectSingleImportHandleInfo: fd type, name=" << name << ", memIdsSize=" << memIds.size()
+                      << ", borrowType=" << int(borrowType);
+        handles.fdVec.push_back({name, std::move(memIds), importObj.req.udsInfo});
+    }
+}
+
+UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
+                                        const std::string& targetNodeId)
 {
     auto ret = UBSE_OK;
+    ShareHandleInfoVec shareHandleInfoVec;
+    NumaHandleInfoVec numaHandleInfoVec;
+    FdHandleInfoVec fdHandleInfoVec;
+    def::DebtHandleInfos handles{shareHandleInfoVec, numaHandleInfoVec, fdHandleInfoVec};
 
-    auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId](const auto& importMap,
-                                                             const auto& getExportMap,
-                                                             const auto& getImportNode,
-                                                             UbseMemBorrowType borrowType) {
-        for (const auto &[name, importObj] : importMap) {
+    auto processDebt = [&allDebtInfoMap, &ret, &targetNodeId, &handles](const auto& importMap, const auto& getExportMap,
+                                                                        const auto& getImportNode,
+                                                                        UbseMemBorrowType borrowType) {
+        for (const auto& [name, importObj] : importMap) {
             if (importObj.algoResult.exportNumaInfos.empty()) {
                 UBSE_LOG_ERROR << "exportNumaInfos is empty, skip debt: " << name;
                 continue;
@@ -277,49 +391,138 @@ UbseResult MasterHandleSingleImportDebt(const std::unordered_map<std::string, No
                 continue;
             }
 
-            ret |= MasterHandleSingleDebtHelper(importObj, getExportMap(allDebtInfoMap.at(exportNode)),
-                                                name, importNode, borrowType);
+            ret |= MasterHandleSingleDebtHelper(importObj, getExportMap(allDebtInfoMap.at(exportNode)), name,
+                                                importNode, borrowType);
+            if (importNode != targetNodeId) {
+                continue;
+            }
+
+            if (IsSingleImportDebt(importObj, getExportMap(allDebtInfoMap.at(exportNode)), name, importNode)) {
+                CollectSingleImportHandleInfo(importObj, name, handles, borrowType);
+            }
         }
     };
 
-    for (const auto &[_, debtInfo] : allDebtInfoMap) {
-        processDebt(debtInfo.fdImportObjMap,
-                    [](const auto& exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
-                    [](const auto& importObj) { return importObj.req.importNodeId; },
-                    UbseMemBorrowType::FD_BORROW);
+    for (const auto& [_, debtInfo] : allDebtInfoMap) {
+        processDebt(
+            debtInfo.fdImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.fdExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::FD_BORROW);
 
-        processDebt(debtInfo.numaImportObjMap,
-                    [](const auto& exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
-                    [](const auto& importObj) { return importObj.req.importNodeId; },
-                    UbseMemBorrowType::NUMA_BORROW);
-        processDebt(debtInfo.addrImportObjMap,
-                    [](const auto& exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
-                    [](const auto& importObj) { return importObj.req.importNodeId; },
-                    UbseMemBorrowType::ADDR_BORROW);
+        processDebt(
+            debtInfo.numaImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.numaExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::NUMA_BORROW);
+        processDebt(
+            debtInfo.addrImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.addrExportObjMap; },
+            [](const auto& importObj) { return importObj.req.importNodeId; }, UbseMemBorrowType::ADDR_BORROW);
 
-        processDebt(debtInfo.shareImportObjMap,
-                    [](const auto& exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
-                    [](const auto& importObj) { return importObj.importNodeId; },
-                    UbseMemBorrowType::SHM_BORROW);
+        processDebt(
+            debtInfo.shareImportObjMap, [](const auto& exportDebtInfo) { return exportDebtInfo.shareExportObjMap; },
+            [](const auto& importObj) { return importObj.importNodeId; }, UbseMemBorrowType::SHM_BORROW);
     }
+
+    ret |= UbseMemFaultManager::ReportSingleImportDebt(targetNodeId, shareHandleInfoVec, numaHandleInfoVec,
+                                                       fdHandleInfoVec);
 
     return ret;
 }
 
+struct DebtProcessContext {
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap;
+    const std::string& exportNodeId;
+    const std::string& importNodeId;
+};
+
+inline std::string GetDebtTypeName(UbseMemBorrowType borrowType)
+{
+    switch (borrowType) {
+        case UbseMemBorrowType::FD_BORROW:
+            return "fd";
+        case UbseMemBorrowType::NUMA_BORROW:
+            return "numa";
+        case UbseMemBorrowType::SHM_BORROW:
+            return "share";
+        default:
+            return "unknown";
+    }
+}
+
+template <typename ImportObjMap, typename GetExportMapFunc>
+void ProcessSingleImportDebtWithType(const ImportObjMap& importMap, const DebtProcessContext& ctx,
+                                     GetExportMapFunc getExportMap, UbseMemBorrowType borrowType,
+                                     DebtHandleInfos& handles)
+{
+    for (const auto& [name, importObj] : importMap) {
+        if (importObj.algoResult.exportNumaInfos.empty()) {
+            UBSE_LOG_WARN << "[MEM_CONTROLLER] exportNumaInfos is empty, skip " << GetDebtTypeName(borrowType)
+                          << " debt, name=" << name;
+            continue;
+        }
+        std::string exportNode = importObj.algoResult.exportNumaInfos[0].nodeId;
+        if (exportNode != ctx.exportNodeId) {
+            continue;
+        }
+        if (ctx.allDebtInfoMap.find(exportNode) == ctx.allDebtInfoMap.end()) {
+            UBSE_LOG_WARN << "[MEM_CONTROLLER] exportNode not found in allDebtInfoMap, exportNode=" << exportNode
+                          << ", name=" << name;
+            continue;
+        }
+        if (const auto& exportObjMap = getExportMap(ctx.allDebtInfoMap.at(exportNode));
+            IsSingleImportDebt(importObj, exportObjMap, name, ctx.importNodeId)) {
+            UBSE_LOG_INFO << "[MEM_CONTROLLER] Found single import " << GetDebtTypeName(borrowType)
+                          << " debt, name=" << name << ", importNode=" << ctx.importNodeId
+                          << ", exportNode=" << exportNode;
+            CollectSingleImportHandleInfo(importObj, name, handles, borrowType);
+        }
+    }
+}
+
+UbseResult MasterHandleSingleImportDebtWithExportNode(
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap, const std::string& exportNodeId)
+{
+    auto ret = UBSE_OK;
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] MasterHandleSingleImportDebtWithExportNode start, exportNodeId=" << exportNodeId;
+
+    for (const auto& [importNodeId, debtInfo] : allDebtInfoMap) {
+        ShareHandleInfoVec shareHandleInfoVec;
+        NumaHandleInfoVec numaHandleInfoVec;
+        FdHandleInfoVec fdHandleInfoVec;
+
+        DebtProcessContext ctx{allDebtInfoMap, exportNodeId, importNodeId};
+        DebtHandleInfos handles{shareHandleInfoVec, numaHandleInfoVec, fdHandleInfoVec};
+
+        ProcessSingleImportDebtWithType(
+            debtInfo.fdImportObjMap, ctx,
+            [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.fdExportObjMap; },
+            UbseMemBorrowType::FD_BORROW, handles);
+
+        ProcessSingleImportDebtWithType(
+            debtInfo.numaImportObjMap, ctx,
+            [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.numaExportObjMap; },
+            UbseMemBorrowType::NUMA_BORROW, handles);
+
+        ProcessSingleImportDebtWithType(
+            debtInfo.shareImportObjMap, ctx,
+            [](const auto& exportDebtInfo) -> const auto& { return exportDebtInfo.shareExportObjMap; },
+            UbseMemBorrowType::SHM_BORROW, handles);
+
+        if (!shareHandleInfoVec.empty() || !numaHandleInfoVec.empty() || !fdHandleInfoVec.empty()) {
+            ret |= UbseMemFaultManager::ReportSingleImportDebt(importNodeId, shareHandleInfoVec, numaHandleInfoVec,
+                                                               fdHandleInfoVec);
+        }
+    }
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] MasterHandleSingleImportDebtWithExportNode done, exportNodeId=" << exportNodeId;
+    return ret;
+}
+
 template <typename ImportObjMap>
-UbseResult AgentInvalidateImportDebtHelper(ImportObjMap &importObjMap,
-                                           const std::string &name)
+UbseResult AgentInvalidateImportDebtHelper(ImportObjMap& importObjMap, const std::string& name)
 {
     if (importObjMap.find(name) == importObjMap.end()) {
         UBSE_LOG_INFO << "ImportObjMap not found name=" << name;
         return UBSE_OK;
     }
     auto& debtObj = importObjMap.at(name);
-    uint8_t decoderId = 0;
-    // 使用 std::decay_t 去除引用和 const 属性，确保匹配核心类型
-    if constexpr (std::is_same_v<std::decay_t<decltype(debtObj)>, UbseMemShareBorrowImportObj>) {
-        decoderId = debtObj.req.ubseMemPrivData.cacheableFlag == 1 ? 0 : 1;
-    }
+    uint8_t decoderId = decoder::utils::MemDecoderUtils::GetDecoderIdByPrivData(debtObj.req.ubseMemPrivData);
 
     auto ret = AgentInvalidateDecoderEntry(debtObj.algoResult.attachSocketId, debtObj.status, decoderId);
     if (ret != UBSE_OK) {
@@ -329,12 +532,11 @@ UbseResult AgentInvalidateImportDebtHelper(ImportObjMap &importObjMap,
     return ret;
 }
 
-UbseResult AgentInvalidateImportDebt(const std::string &name,
-                                     UbseMemBorrowType type)
+UbseResult AgentInvalidateImportDebt(const std::string& name, UbseMemBorrowType type)
 {
     auto agentDebtInfo = GetNodeMemDebtInfoMap();
     ubse::nodeController::UbseNodeInfo curNode = UbseNodeController::GetInstance().GetCurNode();
-    auto &debtInfo = agentDebtInfo.at(curNode.nodeId);
+    auto& debtInfo = agentDebtInfo.at(curNode.nodeId);
     uint32_t ret = UBSE_ERROR;
     switch (type) {
         case UbseMemBorrowType::FD_BORROW:
@@ -360,13 +562,23 @@ UbseResult AgentInvalidateImportDebt(const std::string &name,
     return ret;
 }
 
-UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
+UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo& node)
 {
+    if (node.clusterState == UbseNodeClusterState::UBSE_NODE_INIT) {
+        UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, false);
+    } else if (node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING) {
+        UbseInitLedgerState::GetInstance().SetInitLedgerDone(node.nodeId, true);
+    }
+
     if (node.clusterState != UbseNodeClusterState::UBSE_NODE_SMOOTHING) {
         return UBSE_OK;
     }
     UBSE_LOG_INFO << "nodeId=" << node.nodeId << "start ledger.";
     UbseResult ret = UBSE_OK;
+    if (!CheckNodeIsMaster()) {
+        UBSE_LOG_INFO << "current node not master, skip ledger.";
+        return UBSE_OK;
+    }
     auto nodeId = node.nodeId;
     if (!CheckNodeIsMaster()) {
         UBSE_LOG_INFO << "current node not master, skip ledger.";
@@ -376,9 +588,9 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
     // 获取全量账本
     std::unordered_map<std::string, NodeMemDebtInfo> allDebtInfoMap;
     ret |= CollectAllLedger(allDebtInfoMap, masterDebtInfo, nodeId);
-    if (!CheckNodeIsMaster()) {
-        UBSE_LOG_INFO << "current node not master, skip ledger.";
-        return UBSE_OK;
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " collect ledge failed, " << FormatRetCode(ret);
+        return ret;
     }
 
     NodeMemDebtInfo agentDebtInfo{};
@@ -390,6 +602,7 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
     ret |= ShmBorrowLedger(node.nodeId, masterDebtInfo, agentDebtInfo);
     allDebtInfoMap[currentNodeId] = GetMasterCtxLedger(currentNodeId);
     ret |= MasterHandleSingleImportDebt(allDebtInfoMap, nodeId);
+    ret |= MasterHandleSingleImportDebtWithExportNode(allDebtInfoMap, nodeId);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "nodeId=" << node.nodeId << " ledger failed, " << FormatRetCode(ret);
     } else {
@@ -401,7 +614,7 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
             return UBSE_ERROR;
         }
         // 使用 [map = std::move(obj)] 语法将所有权移入 Lambda
-        resourceExecutor->Execute([localMap = std::move(allDebtInfoMap), nodeId]()  {
+        resourceExecutor->Execute([localMap = std::move(allDebtInfoMap), nodeId]() {
             UBSE_LOG_INFO << "Start async thread to notify smap numa status for nodeId=" << nodeId;
             MasterNotifyRemoteNumaStatus(nodeId, localMap);
         });
@@ -415,9 +628,9 @@ UbseResult LedgerHandler(const ubse::nodeController::UbseNodeInfo &node)
     return ret;
 }
 
-UbseResult FdBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &masterDebtInfo,
-                          const NodeMemDebtInfo &agentDebtInfo,
-                          const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult FdBorrowLedger(const std::string& nodeId, const NodeMemDebtInfo& masterDebtInfo,
+                          const NodeMemDebtInfo& agentDebtInfo,
+                          const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     std::vector<UbseMemFdBorrowExportObj> masterRunningExportObjs{};
     std::vector<UbseMemFdBorrowExportObj> masterNotRunningExportObjs{};
@@ -460,9 +673,9 @@ UbseResult FdBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &mast
     return ret;
 }
 
-UbseResult NumaBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &masterDebtInfo,
-                            const NodeMemDebtInfo &agentDebtInfo,
-                            const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult NumaBorrowLedger(const std::string& nodeId, const NodeMemDebtInfo& masterDebtInfo,
+                            const NodeMemDebtInfo& agentDebtInfo,
+                            const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     std::vector<UbseMemNumaBorrowExportObj> masterRunningExportObjs{};
     std::vector<UbseMemNumaBorrowExportObj> masterNotRunningExportObjs{};
@@ -504,9 +717,9 @@ UbseResult NumaBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &ma
     return ret;
 }
 
-UbseResult AddrBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &masterDebtInfo,
-                            const NodeMemDebtInfo &agentDebtInfo,
-                            const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult AddrBorrowLedger(const std::string& nodeId, const NodeMemDebtInfo& masterDebtInfo,
+                            const NodeMemDebtInfo& agentDebtInfo,
+                            const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     std::vector<UbseMemAddrBorrowExportObj> masterRunningExportObjs{};
     std::vector<UbseMemAddrBorrowExportObj> masterNotRunningExportObjs{};
@@ -548,8 +761,8 @@ UbseResult AddrBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &ma
     return ret;
 }
 
-UbseResult ShmBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &masterDebtInfo,
-                           const NodeMemDebtInfo &agentDebtInfo)
+UbseResult ShmBorrowLedger(const std::string& nodeId, const NodeMemDebtInfo& masterDebtInfo,
+                           const NodeMemDebtInfo& agentDebtInfo)
 {
     std::vector<UbseMemShareBorrowExportObj> masterRunningExportObjs{};
     std::vector<UbseMemShareBorrowExportObj> masterNotRunningExportObjs{};
@@ -588,7 +801,7 @@ UbseResult ShmBorrowLedger(const std::string &nodeId, const NodeMemDebtInfo &mas
     return ret;
 }
 
-UbseResult MasterDiffFdExportHandler(const std::string &nodeId, std::vector<UbseMemFdBorrowExportObj> objs)
+UbseResult MasterDiffFdExportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowExportObj> objs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : objs) {
@@ -604,7 +817,7 @@ UbseResult MasterDiffFdExportHandler(const std::string &nodeId, std::vector<Ubse
     return UBSE_OK;
 }
 
-UbseResult MasterDiffFdImportHandler(const std::string &nodeId, std::vector<UbseMemFdBorrowImportObj> objs)
+UbseResult MasterDiffFdImportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowImportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -621,7 +834,7 @@ UbseResult MasterDiffFdImportHandler(const std::string &nodeId, std::vector<Ubse
     return UBSE_OK;
 }
 
-UbseResult MasterDiffNumaExportHandler(const std::string &nodeId, std::vector<UbseMemNumaBorrowExportObj> objs)
+UbseResult MasterDiffNumaExportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowExportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -638,7 +851,7 @@ UbseResult MasterDiffNumaExportHandler(const std::string &nodeId, std::vector<Ub
     return UBSE_OK;
 }
 
-UbseResult MasterDiffNumaImportHandler(const std::string &nodeId, std::vector<UbseMemNumaBorrowImportObj> objs)
+UbseResult MasterDiffNumaImportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowImportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -656,7 +869,7 @@ UbseResult MasterDiffNumaImportHandler(const std::string &nodeId, std::vector<Ub
     return UBSE_OK;
 }
 
-UbseResult MasterDiffAddrExportHandler(const std::string &nodeId, std::vector<UbseMemAddrBorrowExportObj> objs)
+UbseResult MasterDiffAddrExportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowExportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -673,7 +886,7 @@ UbseResult MasterDiffAddrExportHandler(const std::string &nodeId, std::vector<Ub
     return UBSE_OK;
 }
 
-UbseResult MasterDiffAddrImportHandler(const std::string &nodeId, std::vector<UbseMemAddrBorrowImportObj> objs)
+UbseResult MasterDiffAddrImportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowImportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -691,7 +904,7 @@ UbseResult MasterDiffAddrImportHandler(const std::string &nodeId, std::vector<Ub
     return UBSE_OK;
 }
 
-UbseResult MasterDiffShareExportHandler(const std::string &nodeId, std::vector<UbseMemShareBorrowExportObj> objs)
+UbseResult MasterDiffShareExportHandler(const std::string& nodeId, std::vector<UbseMemShareBorrowExportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     for (auto obj : objs) {
@@ -708,7 +921,7 @@ UbseResult MasterDiffShareExportHandler(const std::string &nodeId, std::vector<U
     return UBSE_OK;
 }
 
-UbseResult MasterDiffShareImportHandler(const std::string &nodeId, std::vector<UbseMemShareBorrowImportObj> objs)
+UbseResult MasterDiffShareImportHandler(const std::string& nodeId, std::vector<UbseMemShareBorrowImportObj> objs)
 {
     // 若master存在 单导出，agent不存在单导出
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
@@ -727,17 +940,17 @@ UbseResult MasterDiffShareImportHandler(const std::string &nodeId, std::vector<U
     return UBSE_OK;
 }
 
-void HandleLocalFdImport(UbseMemFdBorrowExportObj obj, const std::string &importNodeId,
-                         const NodeMemDebtInfoMap &nodeMemDebtInfoMap)
+void HandleLocalFdImport(UbseMemFdBorrowExportObj obj, const std::string& importNodeId,
+                         const NodeMemDebtInfoMap& nodeMemDebtInfoMap)
 {
     UBSE_LOG_INFO << "fd export name=" << obj.req.name << ", curr node is import node=" << importNodeId;
     UbseMemFdBorrowImportObj importObj{};
     std::string resKey = obj.req.name;
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end() &&
-    nodeMemDebtInfoMap.at(importNodeId).fdImportObjMap.find(resKey) !=
-        nodeMemDebtInfoMap.at(importNodeId).fdImportObjMap.end()) {
+        nodeMemDebtInfoMap.at(importNodeId).fdImportObjMap.find(resKey) !=
+            nodeMemDebtInfoMap.at(importNodeId).fdImportObjMap.end()) {
         importObj = nodeMemDebtInfoMap.at(importNodeId).fdImportObjMap.at(resKey);
-        }
+    }
     if (importObj.req.name.empty()) {
         // 上下文中不存在导入对象
         UBSE_LOG_INFO << "fd export name=" << obj.req.name << ", curr node is import node=" << importNodeId
@@ -754,9 +967,9 @@ void HandleLocalFdImport(UbseMemFdBorrowExportObj obj, const std::string &import
     }
 }
 
-void HandleRemoteFdImport(UbseMemFdBorrowExportObj obj, const std::string &exportId, const std::string &importNodeId,
-                          const NodeMemDebtInfoMap &nodeMemDebtInfoMap,
-                          const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void HandleRemoteFdImport(UbseMemFdBorrowExportObj obj, const std::string& exportId, const std::string& importNodeId,
+                          const NodeMemDebtInfoMap& nodeMemDebtInfoMap,
+                          const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "fd export name=" << obj.req.name << ", remote import node=" << importNodeId;
     auto node = UbseNodeController::GetInstance().GetNodeById(importNodeId);
@@ -793,8 +1006,8 @@ void HandleRemoteFdImport(UbseMemFdBorrowExportObj obj, const std::string &expor
     }
 }
 
-UbseResult BothFdExportHandler(const std::string &nodeId, std::vector<UbseMemFdBorrowExportObj> objs,
-                               const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult BothFdExportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowExportObj> objs,
+                               const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -818,17 +1031,17 @@ UbseResult BothFdExportHandler(const std::string &nodeId, std::vector<UbseMemFdB
     return UBSE_OK;
 }
 
-void HandleLocalNumaImport(UbseMemNumaBorrowExportObj obj, const std::string &importNodeId,
-                           const NodeMemDebtInfoMap &nodeMemDebtInfoMap)
+void HandleLocalNumaImport(UbseMemNumaBorrowExportObj obj, const std::string& importNodeId,
+                           const NodeMemDebtInfoMap& nodeMemDebtInfoMap)
 {
     UBSE_LOG_INFO << "numa export name=" << obj.req.name << ", curr node is import node=" << importNodeId;
     std::string resKey = obj.req.name;
     UbseMemNumaBorrowImportObj importObj{};
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end() &&
-    nodeMemDebtInfoMap.at(importNodeId).numaImportObjMap.find(resKey) !=
-        nodeMemDebtInfoMap.at(importNodeId).numaImportObjMap.end()) {
+        nodeMemDebtInfoMap.at(importNodeId).numaImportObjMap.find(resKey) !=
+            nodeMemDebtInfoMap.at(importNodeId).numaImportObjMap.end()) {
         importObj = nodeMemDebtInfoMap.at(importNodeId).numaImportObjMap.at(resKey);
-        }
+    }
     if (importObj.req.name.empty()) {
         // 上下文中不存在导入对象
         UBSE_LOG_INFO << "numa export name=" << obj.req.name << ", curr node is import node=" << importNodeId
@@ -845,9 +1058,9 @@ void HandleLocalNumaImport(UbseMemNumaBorrowExportObj obj, const std::string &im
     }
 }
 
-void HandleRemoteNumaImport(UbseMemNumaBorrowExportObj obj, const std::string &exportId,
-                            const std::string &importNodeId, const NodeMemDebtInfoMap &nodeMemDebtInfoMap,
-                            const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void HandleRemoteNumaImport(UbseMemNumaBorrowExportObj obj, const std::string& exportId,
+                            const std::string& importNodeId, const NodeMemDebtInfoMap& nodeMemDebtInfoMap,
+                            const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "numa export name=" << obj.req.name << ", remote import node=" << importNodeId;
     auto node = UbseNodeController::GetInstance().GetNodeById(importNodeId);
@@ -884,8 +1097,8 @@ void HandleRemoteNumaImport(UbseMemNumaBorrowExportObj obj, const std::string &e
     }
 }
 
-UbseResult BothNumaExportHandler(const std::string &nodeId, std::vector<UbseMemNumaBorrowExportObj> objs,
-                                 const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult BothNumaExportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowExportObj> objs,
+                                 const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -910,17 +1123,17 @@ UbseResult BothNumaExportHandler(const std::string &nodeId, std::vector<UbseMemN
     return UBSE_OK;
 }
 
-void HandleLocalAddrImport(UbseMemAddrBorrowExportObj obj, const std::string &importNodeId,
-                           const NodeMemDebtInfoMap &nodeMemDebtInfoMap)
+void HandleLocalAddrImport(UbseMemAddrBorrowExportObj obj, const std::string& importNodeId,
+                           const NodeMemDebtInfoMap& nodeMemDebtInfoMap)
 {
     UBSE_LOG_INFO << "addr export name=" << obj.req.name << ", curr node is import node=" << importNodeId;
     std::string resKey = obj.req.name;
     UbseMemAddrBorrowImportObj importObj{};
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end() &&
-    nodeMemDebtInfoMap.at(importNodeId).addrImportObjMap.find(resKey) !=
-        nodeMemDebtInfoMap.at(importNodeId).addrImportObjMap.end()) {
+        nodeMemDebtInfoMap.at(importNodeId).addrImportObjMap.find(resKey) !=
+            nodeMemDebtInfoMap.at(importNodeId).addrImportObjMap.end()) {
         importObj = nodeMemDebtInfoMap.at(importNodeId).addrImportObjMap.at(resKey);
-        }
+    }
     if (importObj.req.name.empty()) {
         // 上下文中不存在导入对象
         UBSE_LOG_INFO << "addr export name=" << obj.req.name << ", curr node is import node=" << importNodeId
@@ -937,9 +1150,9 @@ void HandleLocalAddrImport(UbseMemAddrBorrowExportObj obj, const std::string &im
     }
 }
 
-void HandleRemoteAddrImport(UbseMemAddrBorrowExportObj obj, const std::string &exportId,
-                            const std::string &importNodeId, const NodeMemDebtInfoMap &nodeMemDebtInfoMap,
-                            const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void HandleRemoteAddrImport(UbseMemAddrBorrowExportObj obj, const std::string& exportId,
+                            const std::string& importNodeId, const NodeMemDebtInfoMap& nodeMemDebtInfoMap,
+                            const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "addr export name=" << obj.req.name << ", remote import node=" << importNodeId;
     auto node = UbseNodeController::GetInstance().GetNodeById(importNodeId);
@@ -976,8 +1189,8 @@ void HandleRemoteAddrImport(UbseMemAddrBorrowExportObj obj, const std::string &e
     }
 }
 
-UbseResult BothAddrExportHandler(const std::string &nodeId, std::vector<UbseMemAddrBorrowExportObj> objs,
-                                 const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult BothAddrExportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowExportObj> objs,
+                                 const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UbseResult ret = UBSE_OK;
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
@@ -999,8 +1212,8 @@ UbseResult BothAddrExportHandler(const std::string &nodeId, std::vector<UbseMemA
     return UBSE_OK;
 }
 
-bool IsMasterExitsRunningFdImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfoMap, const std::string &importNodeId,
-                                     const std::string &name)
+bool IsMasterExitsRunningFdImportObj(const NodeMemDebtInfoMap& nodeMemDebtInfoMap, const std::string& importNodeId,
+                                     const std::string& name)
 {
     std::string resKey = name;
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end()) {
@@ -1022,9 +1235,9 @@ bool IsMasterExitsRunningFdImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfoMa
     return false;
 }
 
-void HandleAgentDiffFdExportWithRemoteImportNode(UbseMemFdBorrowExportObj obj, const std::string &nodeId,
-                                                 const std::string &remoteImportNodeId,
-                                                 const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void HandleAgentDiffFdExportWithRemoteImportNode(UbseMemFdBorrowExportObj obj, const std::string& nodeId,
+                                                 const std::string& remoteImportNodeId,
+                                                 const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "agent diff fd export name=" << obj.req.name
                   << ", curr node is import node=" << remoteImportNodeId;
@@ -1061,8 +1274,8 @@ void HandleAgentDiffFdExportWithRemoteImportNode(UbseMemFdBorrowExportObj obj, c
     }
 }
 
-UbseResult AgentDiffFdExportHandler(const std::string &nodeId, std::vector<UbseMemFdBorrowExportObj> objs,
-                                    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult AgentDiffFdExportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowExportObj> objs,
+                                    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UbseResult ret = UBSE_OK;
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
@@ -1091,7 +1304,7 @@ UbseResult AgentDiffFdExportHandler(const std::string &nodeId, std::vector<UbseM
     return UBSE_OK;
 }
 
-UbseResult AgentDiffFdImportHandler(const std::string &nodeId, std::vector<UbseMemFdBorrowImportObj> objs)
+UbseResult AgentDiffFdImportHandler(const std::string& nodeId, std::vector<UbseMemFdBorrowImportObj> objs)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -1107,8 +1320,8 @@ UbseResult AgentDiffFdImportHandler(const std::string &nodeId, std::vector<UbseM
     return UBSE_OK;
 }
 
-bool IsMasterExitsRunningNumaImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfoMap, const std::string &importNodeId,
-                                       const std::string &name)
+bool IsMasterExitsRunningNumaImportObj(const NodeMemDebtInfoMap& nodeMemDebtInfoMap, const std::string& importNodeId,
+                                       const std::string& name)
 {
     std::string resKey = name;
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end()) {
@@ -1131,8 +1344,8 @@ bool IsMasterExitsRunningNumaImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfo
 }
 
 void HandleAgentDiffNumaExportWithRemoteImportNode(
-    UbseMemNumaBorrowExportObj obj, const std::string &nodeId, const std::string &remoteImportNodeId,
-    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+    UbseMemNumaBorrowExportObj obj, const std::string& nodeId, const std::string& remoteImportNodeId,
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "agent diff numa export name=" << obj.req.name
                   << ", curr node is import node=" << remoteImportNodeId;
@@ -1169,8 +1382,8 @@ void HandleAgentDiffNumaExportWithRemoteImportNode(
     }
 }
 
-UbseResult AgentDiffNumaExportHandler(const std::string &nodeId, std::vector<UbseMemNumaBorrowExportObj> objs,
-                                      const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult AgentDiffNumaExportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowExportObj> objs,
+                                      const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UbseResult ret = UBSE_OK;
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
@@ -1198,7 +1411,7 @@ UbseResult AgentDiffNumaExportHandler(const std::string &nodeId, std::vector<Ubs
     return UBSE_OK;
 }
 
-UbseResult AgentDiffNumaImportHandler(const std::string &nodeId, std::vector<UbseMemNumaBorrowImportObj> objs)
+UbseResult AgentDiffNumaImportHandler(const std::string& nodeId, std::vector<UbseMemNumaBorrowImportObj> objs)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -1214,8 +1427,8 @@ UbseResult AgentDiffNumaImportHandler(const std::string &nodeId, std::vector<Ubs
     return UBSE_OK;
 }
 
-bool IsMasterExitsRunningAddrImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfoMap, const std::string &importNodeId,
-                                       const std::string &name)
+bool IsMasterExitsRunningAddrImportObj(const NodeMemDebtInfoMap& nodeMemDebtInfoMap, const std::string& importNodeId,
+                                       const std::string& name)
 {
     std::string resKey = name;
     if (nodeMemDebtInfoMap.find(importNodeId) != nodeMemDebtInfoMap.end()) {
@@ -1238,8 +1451,8 @@ bool IsMasterExitsRunningAddrImportObj(const NodeMemDebtInfoMap &nodeMemDebtInfo
 }
 
 void HandleAgentDiffAddrExportWithRemoteImportNode(
-    UbseMemAddrBorrowExportObj obj, const std::string &nodeId, const std::string &remoteImportNodeId,
-    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+    UbseMemAddrBorrowExportObj obj, const std::string& nodeId, const std::string& remoteImportNodeId,
+    const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UBSE_LOG_INFO << "agent diff addr export name=" << obj.req.name
                   << ", curr node is import node=" << remoteImportNodeId;
@@ -1276,8 +1489,8 @@ void HandleAgentDiffAddrExportWithRemoteImportNode(
     }
 }
 
-UbseResult AgentDiffAddrExportHandler(const std::string &nodeId, std::vector<UbseMemAddrBorrowExportObj> objs,
-                                      const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+UbseResult AgentDiffAddrExportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowExportObj> objs,
+                                      const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
     UbseResult ret = UBSE_OK;
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
@@ -1300,7 +1513,7 @@ UbseResult AgentDiffAddrExportHandler(const std::string &nodeId, std::vector<Ubs
     return UBSE_OK;
 }
 
-UbseResult AgentDiffAddrImportHandler(const std::string &nodeId, std::vector<UbseMemAddrBorrowImportObj> objs)
+UbseResult AgentDiffAddrImportHandler(const std::string& nodeId, std::vector<UbseMemAddrBorrowImportObj> objs)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -1316,7 +1529,7 @@ UbseResult AgentDiffAddrImportHandler(const std::string &nodeId, std::vector<Ubs
     return UBSE_OK;
 }
 
-UbseResult AgentDiffShareExportHandler(const std::string &nodeId, std::vector<UbseMemShareBorrowExportObj> objs)
+UbseResult AgentDiffShareExportHandler(const std::string& nodeId, std::vector<UbseMemShareBorrowExportObj> objs)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -1337,7 +1550,7 @@ UbseResult AgentDiffShareExportHandler(const std::string &nodeId, std::vector<Ub
     return UBSE_OK;
 }
 
-UbseResult AgentDiffShareImportHandler(const std::string &nodeId, std::vector<UbseMemShareBorrowImportObj> objs)
+UbseResult AgentDiffShareImportHandler(const std::string& nodeId, std::vector<UbseMemShareBorrowImportObj> objs)
 {
     auto nodeMemDebtInfoMap = GetNodeMemDebtInfoMap();
     for (auto obj : objs) {
@@ -1365,8 +1578,8 @@ bool IsProcessExport(UbseMemState state)
 }
 
 template <class ImportObj, class ExportObj>
-bool IsImportRunningLastExportSuccess(const std::string &nodeId, const ImportObj &obj, const ExportObj &exportObj,
-                                      const char *resourceType)
+bool IsImportRunningLastExportSuccess(const std::string& nodeId, const ImportObj& obj, const ExportObj& exportObj,
+                                      const char* resourceType)
 {
     if (exportObj.status.state == adapter_plugins::mmi::UBSE_MEM_EXPORT_SUCCESS) {
         if (obj.isLastExportSuccess) {
@@ -1377,14 +1590,14 @@ bool IsImportRunningLastExportSuccess(const std::string &nodeId, const ImportObj
             message::UbseMemUpdateObjStatePtr updateObjPtr = new (std::nothrow) message::UbseMemUpdateObjState();
             if (updateObjPtr == nullptr) {
                 UBSE_LOG_ERROR << "Failed to new mem update obj state.";
-                return UBSE_ERROR_NULLPTR;
+                return false;
             }
             updateObjPtr->objType = resourceType;
             updateObjPtr->obj = obj;
             auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
             if (comModule == nullptr) {
                 UBSE_LOG_ERROR << "Failed to get com module.";
-                return UBSE_ERROR_NULLPTR;
+                return false;
             }
             SendParam sendParam(obj.req.importNodeId, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
                                 static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_UPDATE_OBJ_STATE_CALLBACK));
@@ -1393,10 +1606,9 @@ bool IsImportRunningLastExportSuccess(const std::string &nodeId, const ImportObj
             if (ret == UBSE_OK) {
                 UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
                               << ",update import node state rpc send success.";
-                return ret;
+                return true;
             }
-
-            return true;
+            return false;
         }
         UBSE_LOG_INFO << "nodeId=" << nodeId << " " << resourceType << " running import name=" << obj.req.name
                       << ", master state=export success, update import last export success.";
@@ -1408,7 +1620,7 @@ bool IsImportRunningLastExportSuccess(const std::string &nodeId, const ImportObj
 }
 
 // 当导入账本 处于导出流程时（export_running, export_destroying） 判定是否需要删除此账本
-bool IsFdImportRunningObjExcess(const std::string &nodeId, const UbseMemFdBorrowImportObj &obj)
+bool IsFdImportRunningObjExcess(const std::string& nodeId, const UbseMemFdBorrowImportObj& obj)
 {
     // 当导入对象状态处于export_destroying时，系统正在执行归还导出操作，判定此时可以删除
     if (obj.status.state == UBSE_MEM_EXPORT_DESTROYING) {
@@ -1441,7 +1653,7 @@ bool IsFdImportRunningObjExcess(const std::string &nodeId, const UbseMemFdBorrow
     return false;
 }
 
-bool IsNumaImportRunningObjExcess(const std::string &nodeId, const UbseMemNumaBorrowImportObj &obj)
+bool IsNumaImportRunningObjExcess(const std::string& nodeId, const UbseMemNumaBorrowImportObj& obj)
 {
     // 当导入对象状态处于export_destroying时，系统正在执行归还导出操作，判定此时可以删除
     if (obj.status.state == UBSE_MEM_EXPORT_DESTROYING) {
@@ -1475,7 +1687,7 @@ bool IsNumaImportRunningObjExcess(const std::string &nodeId, const UbseMemNumaBo
     return false;
 }
 
-bool IsAddrImportRunningObjExcess(const std::string &nodeId, const UbseMemAddrBorrowImportObj &obj)
+bool IsAddrImportRunningObjExcess(const std::string& nodeId, const UbseMemAddrBorrowImportObj& obj)
 {
     // 当导入对象状态处于export_destroying时，系统正在执行归还导出操作，判定此时可以删除
     if (obj.status.state == UBSE_MEM_EXPORT_DESTROYING) {
@@ -1510,8 +1722,8 @@ bool IsAddrImportRunningObjExcess(const std::string &nodeId, const UbseMemAddrBo
     return false;
 }
 
-UbseResult MasterRunningFdExportHandler(const std::string &nodeId,
-                                        const std::vector<UbseMemFdBorrowExportObj> &masterRunningObjs)
+UbseResult MasterRunningFdExportHandler(const std::string& nodeId,
+                                        const std::vector<UbseMemFdBorrowExportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1530,8 +1742,7 @@ UbseResult MasterRunningFdExportHandler(const std::string &nodeId,
         }
         UbseMemFdBorrowExportObj agentObj{};
         ret = QueryFdExport(
-            def::
-            UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : obj.req.importNodeId, exportNodeId : nodeId},
+            def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: obj.req.importNodeId, exportNodeId: nodeId},
             agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " fd running export=" << obj.req.name << " query agent failed.";
@@ -1555,8 +1766,8 @@ UbseResult MasterRunningFdExportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningFdImportHandler(const std::string &nodeId,
-                                        const std::vector<UbseMemFdBorrowImportObj> &masterRunningObjs)
+UbseResult MasterRunningFdImportHandler(const std::string& nodeId,
+                                        const std::vector<UbseMemFdBorrowImportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1581,7 +1792,7 @@ UbseResult MasterRunningFdImportHandler(const std::string &nodeId,
             continue;
         }
         UbseMemFdBorrowImportObj agentObj{};
-        ret = QueryFdImport(def::UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : nodeId}, agentObj);
+        ret = QueryFdImport(def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: nodeId}, agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " fd running import=" << obj.req.name << " query agent failed.";
             continue;
@@ -1604,8 +1815,8 @@ UbseResult MasterRunningFdImportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningNumaExportHandler(const std::string &nodeId,
-                                          const std::vector<UbseMemNumaBorrowExportObj> &masterRunningObjs)
+UbseResult MasterRunningNumaExportHandler(const std::string& nodeId,
+                                          const std::vector<UbseMemNumaBorrowExportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1624,8 +1835,7 @@ UbseResult MasterRunningNumaExportHandler(const std::string &nodeId,
         }
         UbseMemNumaBorrowExportObj agentObj{};
         ret = QueryNumaExport(
-            def::
-            UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : obj.req.importNodeId, exportNodeId : nodeId},
+            def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: obj.req.importNodeId, exportNodeId: nodeId},
             agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " numa running export=" << obj.req.name << " query agent failed.";
@@ -1649,8 +1859,8 @@ UbseResult MasterRunningNumaExportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningNumaImportHandler(const std::string &nodeId,
-                                          const std::vector<UbseMemNumaBorrowImportObj> &masterRunningObjs)
+UbseResult MasterRunningNumaImportHandler(const std::string& nodeId,
+                                          const std::vector<UbseMemNumaBorrowImportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1675,7 +1885,7 @@ UbseResult MasterRunningNumaImportHandler(const std::string &nodeId,
             continue;
         }
         UbseMemNumaBorrowImportObj agentObj{};
-        ret = QueryNumaImport(def::UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : nodeId}, agentObj);
+        ret = QueryNumaImport(def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: nodeId}, agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " numa running import=" << obj.req.name << " query agent failed.";
             continue;
@@ -1698,8 +1908,8 @@ UbseResult MasterRunningNumaImportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningAddrExportHandler(const std::string &nodeId,
-                                          const std::vector<UbseMemAddrBorrowExportObj> &masterRunningObjs)
+UbseResult MasterRunningAddrExportHandler(const std::string& nodeId,
+                                          const std::vector<UbseMemAddrBorrowExportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1718,8 +1928,7 @@ UbseResult MasterRunningAddrExportHandler(const std::string &nodeId,
         }
         UbseMemAddrBorrowExportObj agentObj{};
         ret = QueryAddrExport(
-            def::
-            UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : obj.req.importNodeId, exportNodeId : nodeId},
+            def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: obj.req.importNodeId, exportNodeId: nodeId},
             agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " addr running export=" << obj.req.name << " query agent failed.";
@@ -1743,8 +1952,8 @@ UbseResult MasterRunningAddrExportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningAddrImportHandler(const std::string &nodeId,
-                                          const std::vector<UbseMemAddrBorrowImportObj> &masterRunningObjs)
+UbseResult MasterRunningAddrImportHandler(const std::string& nodeId,
+                                          const std::vector<UbseMemAddrBorrowImportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1769,7 +1978,7 @@ UbseResult MasterRunningAddrImportHandler(const std::string &nodeId,
             continue;
         }
         UbseMemAddrBorrowImportObj agentObj{};
-        ret = QueryAddrImport(def::UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : nodeId}, agentObj);
+        ret = QueryAddrImport(def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: nodeId}, agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " addr running import=" << obj.req.name << " query agent failed.";
             continue;
@@ -1792,8 +2001,8 @@ UbseResult MasterRunningAddrImportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningShareExportHandler(const std::string &nodeId,
-                                           const std::vector<UbseMemShareBorrowExportObj> &masterRunningObjs)
+UbseResult MasterRunningShareExportHandler(const std::string& nodeId,
+                                           const std::vector<UbseMemShareBorrowExportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1811,7 +2020,7 @@ UbseResult MasterRunningShareExportHandler(const std::string &nodeId,
             continue;
         }
         UbseMemShareBorrowExportObj agentObj{};
-        ret = QueryShareExport(def::UbseMemDebtQueryRequest{name : obj.req.name, exportNodeId : nodeId}, agentObj);
+        ret = QueryShareExport(def::UbseMemDebtQueryRequest{name: obj.req.name, exportNodeId: nodeId}, agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " share running export=" << obj.req.name << " query agent failed.";
             continue;
@@ -1834,8 +2043,8 @@ UbseResult MasterRunningShareExportHandler(const std::string &nodeId,
     return UBSE_OK;
 }
 
-UbseResult MasterRunningShareImportHandler(const std::string &nodeId,
-                                           const std::vector<UbseMemShareBorrowImportObj> &masterRunningObjs)
+UbseResult MasterRunningShareImportHandler(const std::string& nodeId,
+                                           const std::vector<UbseMemShareBorrowImportObj>& masterRunningObjs)
 {
     UbseResult ret = UBSE_OK;
     for (auto obj : masterRunningObjs) {
@@ -1853,7 +2062,7 @@ UbseResult MasterRunningShareImportHandler(const std::string &nodeId,
             continue;
         }
         UbseMemShareBorrowImportObj agentObj{};
-        ret = QueryShareImport(def::UbseMemDebtQueryRequest{name : obj.req.name, importNodeId : nodeId}, agentObj);
+        ret = QueryShareImport(def::UbseMemDebtQueryRequest{name: obj.req.name, importNodeId: nodeId}, agentObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << " share running import=" << obj.req.name << " query agent failed.";
             continue;
@@ -1878,16 +2087,16 @@ UbseResult MasterRunningShareImportHandler(const std::string &nodeId,
 
 // 收集导出账本中的共享内存信息
 std::unordered_map<std::string, std::unordered_map<std::string, size_t>> collectExportInfo(
-    const NodeMemDebtInfoMap &debtMap)
+    const NodeMemDebtInfoMap& debtMap)
 {
     std::unordered_map<std::string, std::unordered_map<std::string, size_t>> refCountMap;
-    for (const auto &[nodeId, nodeDebt] : debtMap) {
-        for (const auto &[resId, exportObj] : nodeDebt.shareExportObjMap) {
-            const std::string &name = resId;
+    for (const auto& [nodeId, nodeDebt] : debtMap) {
+        for (const auto& [resId, exportObj] : nodeDebt.shareExportObjMap) {
+            const std::string& name = resId;
             if (exportObj.algoResult.exportNumaInfos.empty()) {
                 continue;
             }
-            const std::string &baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
+            const std::string& baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
             if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING ||
                 exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
                 continue;
@@ -1899,8 +2108,8 @@ std::unordered_map<std::string, std::unordered_map<std::string, size_t>> collect
 }
 
 // 更新引用计数
-void incrementRefCount(std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-                       const std::string &name, const std::string &baseNodeId)
+void incrementRefCount(std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+                       const std::string& name, const std::string& baseNodeId)
 {
     auto nameIt = refCountMap.find(name);
     if (nameIt != refCountMap.end()) {
@@ -1911,16 +2120,16 @@ void incrementRefCount(std::unordered_map<std::string, std::unordered_map<std::s
     }
 }
 // 更新引用计数
-void updateRefCount(std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-                    const NodeMemDebtInfoMap &debtMap)
+void updateRefCount(std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+                    const NodeMemDebtInfoMap& debtMap)
 {
-    for (const auto &[importNodeId, nodeDebt] : debtMap) {
-        for (const auto &[resId, importObj] : nodeDebt.shareImportObjMap) {
-            const std::string &name = resId;
+    for (const auto& [importNodeId, nodeDebt] : debtMap) {
+        for (const auto& [resId, importObj] : nodeDebt.shareImportObjMap) {
+            const std::string& name = resId;
             if (importObj.algoResult.exportNumaInfos.empty()) {
                 continue;
             }
-            const std::string &baseNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
+            const std::string& baseNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
             if (importObj.status.state == UBSE_MEM_IMPORT_DESTROYED) {
                 continue;
             }
@@ -1931,7 +2140,7 @@ void updateRefCount(std::unordered_map<std::string, std::unordered_map<std::stri
 
 // 返回共享内存引用计数map
 std::unordered_map<std::string, std::unordered_map<std::string, size_t>> CountShareMemoryRefCount(
-    const NodeMemDebtInfoMap &debtMap)
+    const NodeMemDebtInfoMap& debtMap)
 {
     std::unordered_map<std::string, std::unordered_map<std::string, size_t>> refCountMap = collectExportInfo(debtMap);
     updateRefCount(refCountMap, debtMap);
@@ -1939,9 +2148,9 @@ std::unordered_map<std::string, std::unordered_map<std::string, size_t>> CountSh
 }
 
 // 判断指定 name 的所有 baseNodeId 的引用计数是否都为 0
-bool IsAllRefCountZero(const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseMap,
-                       const std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-                       const std::string &name)
+bool IsAllRefCountZero(const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseMap,
+                       const std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+                       const std::string& name)
 {
     // 先查找 name 在 refCountMap 中是否存在
     auto nameIt = refCountMap.find(name);
@@ -1949,9 +2158,9 @@ bool IsAllRefCountZero(const std::unordered_map<std::string, std::vector<UbseMem
         return false; // 如果 name 不存在，说明引用计数可能为零，或者结构异常
     }
 
-    const auto &refCounts = nameIt->second;
+    const auto& refCounts = nameIt->second;
 
-    for (const auto &[baseNodeId, objs] : baseMap) {
+    for (const auto& [baseNodeId, objs] : baseMap) {
         auto baseNodeIt = refCounts.find(baseNodeId);
         if (baseNodeIt == refCounts.end() || baseNodeIt->second != 0) {
             return false;
@@ -1963,11 +2172,11 @@ bool IsAllRefCountZero(const std::unordered_map<std::string, std::vector<UbseMem
 
 // 收集所有共享内存对象
 std::vector<UbseMemShareBorrowExportObj> CollectAllExportObjs(
-    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseMap)
+    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseMap)
 {
     std::vector<UbseMemShareBorrowExportObj> allObjs;
-    for (const auto &[baseNodeId, objs] : baseMap) {
-        for (const auto &obj : objs) {
+    for (const auto& [baseNodeId, objs] : baseMap) {
+        for (const auto& obj : objs) {
             allObjs.emplace_back(obj);
         }
     }
@@ -1975,9 +2184,9 @@ std::vector<UbseMemShareBorrowExportObj> CollectAllExportObjs(
 }
 
 // 判断对象是否在 toClean 列表中
-bool IsObjInVector(const UbseMemShareBorrowExportObj &obj, const std::vector<UbseMemShareBorrowExportObj> &vec)
+bool IsObjInVector(const UbseMemShareBorrowExportObj& obj, const std::vector<UbseMemShareBorrowExportObj>& vec)
 {
-    for (const auto &item : vec) {
+    for (const auto& item : vec) {
         if (item.req.name == obj.req.name &&
             item.algoResult.exportNumaInfos[0].nodeId == obj.algoResult.exportNumaInfos[0].nodeId) {
             return true;
@@ -1987,10 +2196,10 @@ bool IsObjInVector(const UbseMemShareBorrowExportObj &obj, const std::vector<Ubs
 }
 
 // 清理所有 anonymous 标记的对象
-void CleanAnonymousObjs(const std::vector<UbseMemShareBorrowExportObj> &allObjs,
-                        std::vector<UbseMemShareBorrowExportObj> &toClean)
+void CleanAnonymousObjs(const std::vector<UbseMemShareBorrowExportObj>& allObjs,
+                        std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
-    for (const auto &obj : allObjs) {
+    for (const auto& obj : allObjs) {
         if (obj.req.shmAnonymous) {
             toClean.emplace_back(obj);
         }
@@ -1998,11 +2207,11 @@ void CleanAnonymousObjs(const std::vector<UbseMemShareBorrowExportObj> &allObjs,
 }
 
 // 过滤掉已清理的对象，保留未清理的
-std::vector<UbseMemShareBorrowExportObj> FilterRemainingObjs(const std::vector<UbseMemShareBorrowExportObj> &allObjs,
-                                                             const std::vector<UbseMemShareBorrowExportObj> &toClean)
+std::vector<UbseMemShareBorrowExportObj> FilterRemainingObjs(const std::vector<UbseMemShareBorrowExportObj>& allObjs,
+                                                             const std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     std::vector<UbseMemShareBorrowExportObj> remainingObjs;
-    for (const auto &obj : allObjs) {
+    for (const auto& obj : allObjs) {
         if (!IsObjInVector(obj, toClean)) {
             remainingObjs.emplace_back(obj);
         }
@@ -2011,8 +2220,8 @@ std::vector<UbseMemShareBorrowExportObj> FilterRemainingObjs(const std::vector<U
 }
 
 // 保留一个对象，其余清理
-void CleanExtraObjs(const std::vector<UbseMemShareBorrowExportObj> &remainingObjs,
-                    std::vector<UbseMemShareBorrowExportObj> &toClean)
+void CleanExtraObjs(const std::vector<UbseMemShareBorrowExportObj>& remainingObjs,
+                    std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     if (remainingObjs.size() > 1) {
         for (size_t i = 1; i < remainingObjs.size(); ++i) {
@@ -2022,20 +2231,20 @@ void CleanExtraObjs(const std::vector<UbseMemShareBorrowExportObj> &remainingObj
 }
 
 // 清理引用计数为 0 的对象
-void CleanRefCountZeroObjs(const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseMap,
-                           const std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-                           const std::string &name, std::vector<UbseMemShareBorrowExportObj> &toClean)
+void CleanRefCountZeroObjs(const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseMap,
+                           const std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+                           const std::string& name, std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     if (refCountMap.find(name) == refCountMap.end()) {
         return;
     }
-    const auto &refCounts = refCountMap.at(name); // 安全使用 at
-    for (const auto &[baseNodeId, objs] : baseMap) {
+    const auto& refCounts = refCountMap.at(name); // 安全使用 at
+    for (const auto& [baseNodeId, objs] : baseMap) {
         if (refCounts.find(baseNodeId) == refCounts.end()) {
             continue;
         }
         if (refCounts.at(baseNodeId) == 0) {
-            for (const auto &obj : objs) {
+            for (const auto& obj : objs) {
                 toClean.emplace_back(obj);
             }
         }
@@ -2044,9 +2253,9 @@ void CleanRefCountZeroObjs(const std::unordered_map<std::string, std::vector<Ubs
 
 // 多个同名内存得到需要清理的对象 判断逻辑
 void CheckAndCleanMultiBaseNode(
-    const std::string &name, const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseMap,
-    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-    std::vector<UbseMemShareBorrowExportObj> &toClean)
+    const std::string& name, const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseMap,
+    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+    std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     if (IsAllRefCountZero(baseMap, refCountMap, name)) {
         // 收集所有对象
@@ -2067,16 +2276,16 @@ void CheckAndCleanMultiBaseNode(
 }
 
 void CheckAndCleanSingleBaseNode(
-    const std::string &name, const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseMap,
-    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-    std::vector<UbseMemShareBorrowExportObj> &toClean)
+    const std::string& name, const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseMap,
+    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+    std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     if (baseMap.empty()) {
         UBSE_LOG_WARN << "map empty.";
         return;
     }
     // 获取第一个节点及其对象
-    const auto &[baseNodeId, objs] = *baseMap.begin();
+    const auto& [baseNodeId, objs] = *baseMap.begin();
     if (refCountMap.find(name) == refCountMap.end() ||
         refCountMap.at(name).find(baseNodeId) == refCountMap.at(name).end()) {
         UBSE_LOG_WARN << "name" << name << " baseNodeId" << baseNodeId << " not found.";
@@ -2089,13 +2298,13 @@ void CheckAndCleanSingleBaseNode(
     }
 }
 
-void ExecuteShareMemoryClean(const std::vector<UbseMemShareBorrowExportObj> &toClean)
+void ExecuteShareMemoryClean(const std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     if (toClean.empty()) {
         UBSE_LOG_INFO << "No shared memory to clean.";
         return;
     }
-    for (const auto &obj : toClean) {
+    for (const auto& obj : toClean) {
         UBSE_LOG_INFO << "Deleting shared memory: name=" << obj.req.name
                       << ", baseNodeId=" << obj.algoResult.exportNumaInfos[0].nodeId;
         // 调用删除接口删除共享内存对象
@@ -2104,17 +2313,17 @@ void ExecuteShareMemoryClean(const std::vector<UbseMemShareBorrowExportObj> &toC
 }
 
 // 收集导出账本中所有共享内存对象，按 name 和 baseNodeId 分组
-UbseMemShareBorrowExportObjMap CollectExportObjsByBaseNode(const NodeMemDebtInfoMap &debtMap)
+UbseMemShareBorrowExportObjMap CollectExportObjsByBaseNode(const NodeMemDebtInfoMap& debtMap)
 {
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>>
         nameBaseToObjsMap;
-    for (const auto &[nodeId, nodeDebt] : debtMap) {
-        for (const auto &[resId, exportObj] : nodeDebt.shareExportObjMap) {
-            const std::string &name = resId;
+    for (const auto& [nodeId, nodeDebt] : debtMap) {
+        for (const auto& [resId, exportObj] : nodeDebt.shareExportObjMap) {
+            const std::string& name = resId;
             if (exportObj.algoResult.exportNumaInfos.empty()) {
                 continue;
             }
-            const std::string &baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
+            const std::string& baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
             if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING ||
                 exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
                 continue;
@@ -2126,8 +2335,8 @@ UbseMemShareBorrowExportObjMap CollectExportObjsByBaseNode(const NodeMemDebtInfo
 }
 
 // 自定义比较函数
-bool CompareUbseMemShareBorrowExportObj(const UbseMemShareBorrowExportObj &obj1,
-                                        const UbseMemShareBorrowExportObj &obj2)
+bool CompareUbseMemShareBorrowExportObj(const UbseMemShareBorrowExportObj& obj1,
+                                        const UbseMemShareBorrowExportObj& obj2)
 {
     // 检查 exportNumaInfos 是否为空
     if (obj1.algoResult.exportNumaInfos.empty() || obj2.algoResult.exportNumaInfos.empty()) {
@@ -2139,13 +2348,13 @@ bool CompareUbseMemShareBorrowExportObj(const UbseMemShareBorrowExportObj &obj1,
 }
 
 std::vector<UbseMemShareBorrowExportObj> GetIntersection(
-    const std::vector<UbseMemShareBorrowExportObj> &originalToClean,
-    const std::vector<UbseMemShareBorrowExportObj> &currentToClean)
+    const std::vector<UbseMemShareBorrowExportObj>& originalToClean,
+    const std::vector<UbseMemShareBorrowExportObj>& currentToClean)
 {
     std::vector<UbseMemShareBorrowExportObj> intersection;
-    for (const auto &obj : currentToClean) {
+    for (const auto& obj : currentToClean) {
         if (std::find_if(originalToClean.begin(), originalToClean.end(),
-                         [&obj](const UbseMemShareBorrowExportObj &obj1) {
+                         [&obj](const UbseMemShareBorrowExportObj& obj1) {
                              return CompareUbseMemShareBorrowExportObj(obj1, obj);
                          }) != originalToClean.end()) {
             intersection.push_back(obj);
@@ -2155,11 +2364,11 @@ std::vector<UbseMemShareBorrowExportObj> GetIntersection(
 }
 
 // 处理 toClean 的逻辑
-void ProcessCurrentCleanList(const NodeMemDebtInfoMap &debtMap, std::vector<UbseMemShareBorrowExportObj> &toClean)
+void ProcessCurrentCleanList(const NodeMemDebtInfoMap& debtMap, std::vector<UbseMemShareBorrowExportObj>& toClean)
 {
     auto refCountMap = CountShareMemoryRefCount(debtMap);
     auto nameExportObjs = CollectExportObjsByBaseNode(debtMap);
-    for (const auto &[name, exportObjs] : nameExportObjs) {
+    for (const auto& [name, exportObjs] : nameExportObjs) {
         if (exportObjs.size() > 1) {
             CheckAndCleanMultiBaseNode(name, exportObjs, refCountMap, toClean);
         } else {
@@ -2229,9 +2438,9 @@ void CleanShmZeroImportHandler()
         return;
     }
     const std::string tag = isGlobalMaster ? " clos mode" : "1d-fullmesh mode";
-    UBSE_LOG_INFO << "[CleanShm]" << tag << " CleanShm started.";    
+    UBSE_LOG_INFO << "[CleanShm]" << tag << " CleanShm started.";
     std::vector<UbseMemShareBorrowExportObj> originalToClean;
-    NodeMemDebtInfoMap originalDebtMap{};    
+    NodeMemDebtInfoMap originalDebtMap{};
     if (isGlobalMaster) {
         GlobalMasterStore store;
         originalDebtMap = BuildShareNodeMemDebtInfoMap(store);
@@ -2239,7 +2448,7 @@ void CleanShmZeroImportHandler()
         CascadeMasterStore store;
         originalDebtMap = BuildShareNodeMemDebtInfoMap(store);
     }
-    ProcessCurrentCleanList(originalDebtMap, originalToClean);    
+    ProcessCurrentCleanList(originalDebtMap, originalToClean);
     if (originalToClean.empty()) {
         UBSE_LOG_INFO << "[CleanShm]" << tag << " no export obj to clean, finished.";
         return;
@@ -2287,18 +2496,18 @@ void ExecuteShareMemoryCleanClos(const std::vector<UbseMemShareBorrowExportObj> 
 
 // 获取共享内存的导出对象映射
 std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> GetExportObjsByBaseNode(
-    const NodeMemDebtInfoMap &debtMap, const std::string &name)
+    const NodeMemDebtInfoMap& debtMap, const std::string& name)
 {
     std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> baseToObjs;
 
-    for (const auto &[nodeId, nodeDebt] : debtMap) {
-        for (const auto &[resId, exportObj] : nodeDebt.shareExportObjMap) {
+    for (const auto& [nodeId, nodeDebt] : debtMap) {
+        for (const auto& [resId, exportObj] : nodeDebt.shareExportObjMap) {
             if (exportObj.status.state == UBSE_MEM_EXPORT_DESTROYING ||
                 exportObj.status.state == UBSE_MEM_EXPORT_DESTROYED) {
                 continue;
             }
             if (resId == name && !exportObj.algoResult.exportNumaInfos.empty()) {
-                const std::string &baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
+                const std::string& baseNodeId = exportObj.algoResult.exportNumaInfos[0].nodeId;
                 baseToObjs[baseNodeId].emplace_back(exportObj);
             }
         }
@@ -2308,9 +2517,9 @@ std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> GetExp
 
 // 收集 baseNodeId 和对应的引用计数
 std::vector<std::pair<std::string, size_t>> CollectBaseRefCount(
-    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseToObjs,
-    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>> &refCountMap,
-    const std::string &name)
+    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseToObjs,
+    const std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& refCountMap,
+    const std::string& name)
 {
     std::vector<std::pair<std::string, size_t>> baseRefCount;
     baseRefCount.reserve(baseToObjs.size());
@@ -2325,7 +2534,7 @@ std::vector<std::pair<std::string, size_t>> CollectBaseRefCount(
         UBSE_LOG_WARN << "name=" << name << " not found in refCountMap, skip collecting ref count.";
         return baseRefCount;
     }
-    for (const auto &[baseNodeId, objs] : baseToObjs) {
+    for (const auto& [baseNodeId, objs] : baseToObjs) {
         // 检查 baseNodeId 是否为空
         if (baseNodeId.empty()) {
             UBSE_LOG_WARN << "baseNodeId is empty, skip this entry.";
@@ -2343,11 +2552,11 @@ std::vector<std::pair<std::string, size_t>> CollectBaseRefCount(
 }
 
 // 找出最大引用计数的 baseNodeId
-std::string FindMaxRefCountBaseNode(const std::vector<std::pair<std::string, size_t>> &baseRefCount)
+std::string FindMaxRefCountBaseNode(const std::vector<std::pair<std::string, size_t>>& baseRefCount)
 {
     size_t maxRefCount = 0;
     std::string maxBaseNodeId;
-    for (const auto &[baseNodeId, count] : baseRefCount) {
+    for (const auto& [baseNodeId, count] : baseRefCount) {
         if (count >= maxRefCount) {
             maxRefCount = count;
             maxBaseNodeId = baseNodeId;
@@ -2359,10 +2568,10 @@ std::string FindMaxRefCountBaseNode(const std::vector<std::pair<std::string, siz
 
 // 获取与 baseNodeId 匹配的导出对象
 UbseMemShareBorrowExportObj GetExportObjByBaseNode(
-    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>> &baseToObjs,
-    const std::string &baseNodeId)
+    const std::unordered_map<std::string, std::vector<UbseMemShareBorrowExportObj>>& baseToObjs,
+    const std::string& baseNodeId)
 {
-    for (const auto &[nodeId, objs] : baseToObjs) {
+    for (const auto& [nodeId, objs] : baseToObjs) {
         if (nodeId == baseNodeId && !objs.empty()) {
             return objs[0];
         }
@@ -2372,24 +2581,24 @@ UbseMemShareBorrowExportObj GetExportObjByBaseNode(
 }
 
 // 判断导入对象是否匹配指定的 name 和 baseNodeId
-bool IsImportObjMatch(const UbseMemShareBorrowImportObj &importObj, const std::string &name,
-                      const std::string &baseNodeId)
+bool IsImportObjMatch(const UbseMemShareBorrowImportObj& importObj, const std::string& name,
+                      const std::string& baseNodeId)
 {
     if (importObj.algoResult.exportNumaInfos.empty()) {
         return false;
     }
-    const std::string &importBaseNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
+    const std::string& importBaseNodeId = importObj.algoResult.exportNumaInfos[0].nodeId;
     return importObj.req.name == name && importBaseNodeId == baseNodeId;
 }
 
 // 从单个节点的导入账本中收集匹配的导入对象
 std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
-    const std::unordered_map<std::string, UbseMemShareBorrowImportObj> &importMap, const std::string &name,
-    const std::string &baseNodeId)
+    const std::unordered_map<std::string, UbseMemShareBorrowImportObj>& importMap, const std::string& name,
+    const std::string& baseNodeId)
 {
     std::vector<UbseMemShareBorrowImportObj> matchedObjs;
 
-    for (const auto &[resId, importObj] : importMap) {
+    for (const auto& [resId, importObj] : importMap) {
         if (IsImportObjMatch(importObj, name, baseNodeId)) {
             matchedObjs.emplace_back(importObj);
         }
@@ -2399,12 +2608,12 @@ std::vector<UbseMemShareBorrowImportObj> CollectImportObjsFromNode(
 }
 
 // 获取name下所有导入对象的子函数
-std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string &name)
+std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjsByName(const std::string& name)
 {
     std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> allImportObjs;
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     auto allNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
-    for (const auto &[nodeId, nodeMap] : allNodeMaps) {
+    for (const auto& [nodeId, nodeMap] : allNodeMaps) {
         auto importObjPtr = nodeMap->Get(name);
         if (importObjPtr && importObjPtr->status.state != UBSE_MEM_IMPORT_DESTROYED) {
             allImportObjs.emplace_back(importObjPtr);
@@ -2416,14 +2625,14 @@ std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>> GetAllImportObjs
 
 // 收集指定 name 的导出对象，按 baseNodeId 分组
 std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> CollectExportObjsByName(
-    const std::string &name)
+    const std::string& name)
 {
     auto baseToExportObjs = std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>>();
 
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     auto allExportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowExportObj>().GetAllNodeMaps();
 
-    for (const auto &[nodeId, nodeMap] : allExportNodeMaps) {
+    for (const auto& [nodeId, nodeMap] : allExportNodeMaps) {
         auto exportObjPtr = nodeMap->Get(name);
         if (!exportObjPtr) {
             continue;
@@ -2433,7 +2642,7 @@ std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportOb
             continue;
         }
         if (!exportObjPtr->algoResult.exportNumaInfos.empty()) {
-            const std::string &baseNodeId = exportObjPtr->algoResult.exportNumaInfos[0].nodeId;
+            const std::string& baseNodeId = exportObjPtr->algoResult.exportNumaInfos[0].nodeId;
             baseToExportObjs[baseNodeId] = exportObjPtr;
         }
     }
@@ -2442,15 +2651,15 @@ std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportOb
 }
 
 void CollectImportObjsAndRefCount(
-    const std::string &name, std::unordered_map<std::string, size_t> &refCountByBaseNode,
-    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>> &baseToImportObjs)
+    const std::string& name, std::unordered_map<std::string, size_t>& refCountByBaseNode,
+    std::unordered_map<std::string, std::vector<std::shared_ptr<const UbseMemShareBorrowImportObj>>>& baseToImportObjs)
 {
-    auto &ledger = UbseMemDebtLedger::GetInstance();
+    auto& ledger = UbseMemDebtLedger::GetInstance();
     auto allImportNodeMaps = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().GetAllNodeMaps();
 
-    for (const auto &[nodeId, nodeMap] : allImportNodeMaps) {
+    for (const auto& [nodeId, nodeMap] : allImportNodeMaps) {
         auto allResources = nodeMap->GetAll();
-        for (const auto &[resId, importObjPtr] : allResources) {
+        for (const auto& [resId, importObjPtr] : allResources) {
             if (resId != name) {
                 continue;
             }
@@ -2458,7 +2667,7 @@ void CollectImportObjsAndRefCount(
                 continue;
             }
             if (!importObjPtr->algoResult.exportNumaInfos.empty()) {
-                const std::string &baseNodeId = importObjPtr->algoResult.exportNumaInfos[0].nodeId;
+                const std::string& baseNodeId = importObjPtr->algoResult.exportNumaInfos[0].nodeId;
                 refCountByBaseNode[baseNodeId]++;
                 baseToImportObjs[baseNodeId].emplace_back(importObjPtr);
             }
@@ -2468,13 +2677,13 @@ void CollectImportObjsAndRefCount(
 
 // 找出最大引用计数的 baseNodeId
 std::string FindMaxRefCountBaseNode(
-    const std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>> &baseToExportObjs,
-    const std::unordered_map<std::string, size_t> &refCountByBaseNode)
+    const std::unordered_map<std::string, std::shared_ptr<const UbseMemShareBorrowExportObj>>& baseToExportObjs,
+    const std::unordered_map<std::string, size_t>& refCountByBaseNode)
 {
     std::string selectedBaseNodeId;
     size_t maxRefCount = 0;
 
-    for (const auto &[baseNodeId, objs] : baseToExportObjs) {
+    for (const auto& [baseNodeId, objs] : baseToExportObjs) {
         size_t count = refCountByBaseNode.count(baseNodeId) ? refCountByBaseNode.at(baseNodeId) : 0;
         if (count >= maxRefCount) {
             maxRefCount = count;
@@ -2485,7 +2694,7 @@ std::string FindMaxRefCountBaseNode(
     return selectedBaseNodeId;
 }
 
-UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string &name)
+UbseMemShareExportWithImports GetMaxRefCountExportObj(const std::string& name)
 {
     // 1. 收集该 name 相关的导出对象，按 baseNodeId 分组
     auto baseToExportObjs = CollectExportObjsByName(name);
@@ -2525,11 +2734,11 @@ struct PairHash {
     }
 };
 
-static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPorts(const std::string &targetNodeId)
+static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPorts(const std::string& targetNodeId)
 {
     auto allLinkInfos = nodeController::UbseNodeController::GetInstance().UbseGetDirConnectInfo();
     std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> linkUpPorts;
-    for (const auto &[_, physicalLink] : allLinkInfos) {
+    for (const auto& [_, physicalLink] : allLinkInfos) {
         // interfaceName非空，本端端口UP
         if (std::to_string(physicalLink.slotId) == targetNodeId && !physicalLink.interfaceName.empty()) {
             UBSE_LOG_INFO << "physicalLink=" << physicalLink.interfaceName << ", chipId=" << physicalLink.chipId
@@ -2537,26 +2746,24 @@ static std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> GetLinkUpPort
             linkUpPorts.insert({physicalLink.chipId, physicalLink.portId});
         }
         if (std::to_string(physicalLink.peerSlotId) == targetNodeId && !physicalLink.peerInterfaceName.empty()) {
-            UBSE_LOG_INFO << "physicalLink=" << physicalLink.peerInterfaceName << ", peerChipId="
-                          << physicalLink.peerChipId << ", peerPortId=" << physicalLink.peerPortId;
+            UBSE_LOG_INFO << "physicalLink=" << physicalLink.peerInterfaceName
+                          << ", peerChipId=" << physicalLink.peerChipId << ", peerPortId=" << physicalLink.peerPortId;
             linkUpPorts.insert({physicalLink.peerChipId, physicalLink.peerPortId});
         }
     }
     return linkUpPorts;
 }
 
-static void BuildLinkToNumaMap(
-    const std::string &targetNodeId,
-    const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap,
-    std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> &linkToNumaMap,
-    std::set<int64_t> &invalidRemoteNumaIds,
-    std::set<int64_t> &unknownRemoteNumaIds)
+static void BuildLinkToNumaMap(const std::string& targetNodeId,
+                               const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap,
+                               std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash>& linkToNumaMap,
+                               std::set<int64_t>& invalidRemoteNumaIds, std::set<int64_t>& unknownRemoteNumaIds)
 {
-    for (const auto &[nodeId, nodeDebt] : allDebtInfoMap) {
+    for (const auto& [nodeId, nodeDebt] : allDebtInfoMap) {
         if (nodeId != targetNodeId) {
             continue;
         }
-        for (const auto &[resId, importObjs] : nodeDebt.numaImportObjMap) {
+        for (const auto& [resId, importObjs] : nodeDebt.numaImportObjMap) {
             if (importObjs.algoResult.importNumaInfos.empty() || importObjs.status.importResults.empty() ||
                 importObjs.algoResult.exportNumaInfos.empty()) {
                 continue;
@@ -2566,8 +2773,8 @@ static void BuildLinkToNumaMap(
                 unknownRemoteNumaIds.insert(importObjs.status.importResults[0].numaId);
             } else {
                 // 当remoteNuma存在单导入账本，则发下该numa状态为不可用
-                const auto &exportNodeDebt = allDebtInfoMap.at(
-                    importObjs.algoResult.exportNumaInfos[0].nodeId).numaExportObjMap;
+                const auto& exportNodeDebt =
+                    allDebtInfoMap.at(importObjs.algoResult.exportNumaInfos[0].nodeId).numaExportObjMap;
                 const std::string exportResId = resId + "_" + nodeId;
                 if (exportNodeDebt.find(exportResId) == exportNodeDebt.end()) {
                     invalidRemoteNumaIds.insert(importObjs.status.importResults[0].numaId);
@@ -2582,10 +2789,9 @@ static void BuildLinkToNumaMap(
 }
 
 static std::vector<std::pair<int64_t, int>> BuildNumaStatus(
-    const std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> &linkToNumaMap,
-    const std::set<int64_t> &invalidRemoteNumaIds,
-    const std::set<int64_t> &unknownRemoteNumaIds,
-    const std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash> &linkUpPorts)
+    const std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash>& linkToNumaMap,
+    const std::set<int64_t>& invalidRemoteNumaIds, const std::set<int64_t>& unknownRemoteNumaIds,
+    const std::unordered_set<std::pair<uint32_t, uint32_t>, PairHash>& linkUpPorts)
 {
     std::vector<std::pair<int64_t, int>> numaStatus;
     numaStatus.reserve(linkToNumaMap.size());
@@ -2606,9 +2812,14 @@ static std::vector<std::pair<int64_t, int>> BuildNumaStatus(
     return numaStatus;
 }
 
-void MasterNotifyRemoteNumaStatus(const std::string &targetNodeId,
-                                  const std::unordered_map<std::string, NodeMemDebtInfo> &allDebtInfoMap)
+void MasterNotifyRemoteNumaStatus(const std::string& targetNodeId,
+                                  const std::unordered_map<std::string, NodeMemDebtInfo>& allDebtInfoMap)
 {
+    if (allDebtInfoMap.find(targetNodeId) == allDebtInfoMap.end() ||
+        allDebtInfoMap.at(targetNodeId).numaImportObjMap.empty()) {
+        return;
+    }
+
     auto linkUpPorts = GetLinkUpPorts(targetNodeId);
 
     std::unordered_map<std::pair<uint32_t, uint32_t>, int64_t, PairHash> linkToNumaMap;
@@ -2616,8 +2827,7 @@ void MasterNotifyRemoteNumaStatus(const std::string &targetNodeId,
     std::set<int64_t> unknownRemoteNumaIds;
     BuildLinkToNumaMap(targetNodeId, allDebtInfoMap, linkToNumaMap, invalidRemoteNumaIds, unknownRemoteNumaIds);
 
-    auto numaStatus = BuildNumaStatus(linkToNumaMap, invalidRemoteNumaIds, unknownRemoteNumaIds,
-                                      linkUpPorts);
+    auto numaStatus = BuildNumaStatus(linkToNumaMap, invalidRemoteNumaIds, unknownRemoteNumaIds, linkUpPorts);
     if (numaStatus.empty()) {
         return;
     }
@@ -2628,7 +2838,7 @@ void MasterNotifyRemoteNumaStatus(const std::string &targetNodeId,
     }
 }
 
-UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>> &numaStatus)
+UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>>& numaStatus)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -2639,7 +2849,7 @@ UbseResult AgentModifyRemoteNumaStatus(const std::vector<std::pair<int64_t, int>
     resourceExecutor->Execute([numaStatus]() {
         std::vector<__u32> caps{CAP_DAC_OVERRIDE};
         UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-        for (const auto &[numaId, status] : numaStatus) {
+        for (const auto& [numaId, status] : numaStatus) {
             if (numaId < 0 || numaId > TOPOLOGY_MAX_TOTAL_NUMA) {
                 UBSE_LOG_ERROR << "Invalid numa id=" << numaId << ", status=" << status;
                 continue;

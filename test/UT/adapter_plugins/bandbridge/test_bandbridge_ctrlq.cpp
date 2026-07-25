@@ -17,18 +17,18 @@ protected:
     }
 };
 
-static void setup_sq(int depth, void *base_addr)
+static void setup_sq(int depth, void* base_addr)
 {
     g_ctrlq_info.sq.depth = depth;
-    g_ctrlq_info.sq.base_addr = (void *)base_addr;
+    g_ctrlq_info.sq.base_addr = (void*)base_addr;
     g_ctrlq_info.sq.pi = 0;
     g_ctrlq_info.sq.ci = 0;
 }
 
-static void setup_rq(int depth, void *base_addr)
+static void setup_rq(int depth, void* base_addr)
 {
     g_ctrlq_info.rq.depth = depth;
-    g_ctrlq_info.rq.base_addr = (void *)base_addr;
+    g_ctrlq_info.rq.base_addr = (void*)base_addr;
     g_ctrlq_info.rq.pi = 0;
     g_ctrlq_info.rq.ci = 0;
 }
@@ -117,7 +117,7 @@ TEST_F(BandbridgeCtrlqTest, ResetRqCi_SetsCiToPi)
 
 TEST_F(BandbridgeCtrlqTest, SendToSq_WritesDataAndAdvancesPi)
 {
-    char *base = (char *)malloc(16 * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(16 * CTRLQ_BB_SIZE);
     memset(base, 0, 16 * CTRLQ_BB_SIZE);
     setup_sq(16, base);
     mock_set_reg(CTRLQ_TX_TAIL_REG, 0);
@@ -136,7 +136,7 @@ TEST_F(BandbridgeCtrlqTest, SendToSq_WritesDataAndAdvancesPi)
 TEST_F(BandbridgeCtrlqTest, SendToSq_MultiBb_WritesAllAndWraps)
 {
     int depth = 4;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_sq(depth, base);
     mock_set_reg(CTRLQ_TX_TAIL_REG, 0);
@@ -155,7 +155,7 @@ TEST_F(BandbridgeCtrlqTest, SendToSq_MultiBb_WritesAllAndWraps)
 TEST_F(BandbridgeCtrlqTest, ReadDataFromRq_ReadsCorrectData)
 {
     int depth = 8;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_rq(depth, base);
     g_ctrlq_info.rq.ci = 3;
@@ -175,7 +175,7 @@ TEST_F(BandbridgeCtrlqTest, ReadDataFromRq_ReadsCorrectData)
 TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_Success_ReturnsZero)
 {
     int depth = 8;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_rq(depth, base);
     g_ctrlq_info.rq.ci = 0;
@@ -195,7 +195,7 @@ TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_Success_ReturnsZero)
 TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_BbNumZero_ReturnsNospc)
 {
     int depth = 8;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_rq(depth, base);
     g_ctrlq_info.rq.ci = 0;
@@ -214,7 +214,7 @@ TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_BbNumZero_ReturnsNospc)
 TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_RecvbufTooSmall_ReturnsNospc)
 {
     int depth = 8;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_rq(depth, base);
     g_ctrlq_info.rq.ci = 0;
@@ -233,7 +233,7 @@ TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_RecvbufTooSmall_ReturnsNospc)
 TEST_F(BandbridgeCtrlqTest, ReceiveFromRq_SeqMismatch_SkipsAndTimeout)
 {
     int depth = 8;
-    char *base = (char *)malloc(depth * CTRLQ_BB_SIZE);
+    char* base = (char*)malloc(depth * CTRLQ_BB_SIZE);
     memset(base, 0, depth * CTRLQ_BB_SIZE);
     setup_rq(depth, base);
     g_ctrlq_info.rq.ci = 0;

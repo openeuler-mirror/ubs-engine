@@ -11,10 +11,10 @@
  */
 
 #include "ubse_event.h"
-#include <utility>
 #include <thread>
-#include "iostream"
+#include <utility>
 #include "cassert"
+#include "iostream"
 
 namespace ubse::event {
 UbseEventHandler g_InitFunc = nullptr;
@@ -27,7 +27,7 @@ bool g_stopCollect = false;
  * @param[in] registerFunc: 事件响应处理函数
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, UbseEventPriority priority)
+uint32_t UbseSubEvent(std::string& eventId, UbseEventHandler registerFunc, UbseEventPriority priority)
 {
     return 0;
 }
@@ -38,7 +38,7 @@ uint32_t UbseSubEvent(std::string &eventId, UbseEventHandler registerFunc, UbseE
  * @param[in] registerFunc: 事件响应处理函数
  * @return NA
  */
-uint32_t UbseUnSubEvent(std::string &eventId, UbseEventHandler registerFunc)
+uint32_t UbseUnSubEvent(std::string& eventId, UbseEventHandler registerFunc)
 {
     return 0;
 }
@@ -49,8 +49,8 @@ uint32_t UbseUnSubEvent(std::string &eventId, UbseEventHandler registerFunc)
  * @param[in] eventMessage: 事件信息，发布方执行完pub即可释放内存；信息格式由发布方定义，响应方需要对应处理
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbsePubEvent(const std::string &eventId, std::string &eventMessage)
+uint32_t UbsePubEvent(const std::string& eventId, std::string& eventMessage)
 {
     return 0;
 }
-}
+} // namespace ubse::event

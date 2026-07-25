@@ -23,23 +23,22 @@
 #include "ubse_lcne_topology.h"
 
 namespace ubse::lcne {
-using namespace common::def;
-using namespace ubse::http;
-using namespace ubse::mti;
+using common::def::UbseResult;
+using ubse::mti::LcneNodeCnaInfo;
 
 class UbseTopoCna {
 public:
-    static UbseTopoCna &GetInstance()
+    static UbseTopoCna& GetInstance()
     {
         static UbseTopoCna instance("127.0.0.1", LcneServer::realPort); // 默认服务在本地 127.0.0.1 默认端口 8799;
         return instance;
     }
     // 全量查询CNA
-    UbseResult QueryTopoCna(std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos);
+    UbseResult QueryTopoCna(std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos);
 
 private:
     UbseTopoCna(std::string host, int port) : host_(std::move(host)), port_(port) {}
-    UbseResult ParseTopoCnaRsp(std::string &resBody, std::vector<LcneNodeCnaInfo> &lcneNodeCnaInfos);
+    UbseResult ParseTopoCnaRsp(std::string& resBody, std::vector<LcneNodeCnaInfo>& lcneNodeCnaInfos);
     std::string host_;
     int port_;
 

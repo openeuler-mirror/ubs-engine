@@ -48,10 +48,10 @@ TEST_F(TestUbseRpcServer, Start)
 {
     UbseRpcServer server{"127.0.0.1", 8080, "name", "id"};
     MOCKER(UbseCommunication::CreateUbseComEngine).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(UBSE_ERROR, server.Start());
+    EXPECT_EQ(UBSE_ERROR_NULLPTR, server.Start());
 }
 
-void StopServer(const std::string &name) {}
+void StopServer(const std::string& name) {}
 
 /*
  * 用例描述：
@@ -68,7 +68,7 @@ TEST_F(TestUbseRpcServer, Stop)
     EXPECT_NO_THROW(server.Stop());
 }
 
-void MockDoReconnectServers(UbseRpcServer *rpcServer,
+void MockDoReconnectServers(UbseRpcServer* rpcServer,
                             std::map<std::string, std::pair<std::string, uint16_t>> serverListNotConnect)
 {
 }

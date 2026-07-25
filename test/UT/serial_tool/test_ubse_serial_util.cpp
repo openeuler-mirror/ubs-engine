@@ -125,7 +125,8 @@ TEST_F(TestUbseSerialUtil, basic_type)
  */
 TEST_F(TestUbseSerialUtil, serial_right_val_type)
 {
-    enum class type {
+    enum class type
+    {
         AA,
         BB,
     };
@@ -242,7 +243,7 @@ TEST_F(TestUbseSerialUtil, vector_map_scene)
         UbseDeSerialization deSerialization(serialization.GetBuffer(), serialization.GetLength());
         deSerialization >> map_d;
         EXPECT_EQ(deSerialization.Check(), true);
-        for (auto &kv : map_d) {
+        for (auto& kv : map_d) {
             EXPECT_EQ(map_d[kv.first], map_s[kv.first]);
         }
     }
@@ -256,9 +257,9 @@ TEST_F(TestUbseSerialUtil, vector_map_scene)
         UbseDeSerialization deSerialization(serialization.GetBuffer(), serialization.GetLength());
         deSerialization >> map_d;
         EXPECT_EQ(deSerialization.Check(), true);
-        for (auto &kv : map_d) {
-            auto &v_d = kv.second;
-            auto &v_s = map_s[kv.first];
+        for (auto& kv : map_d) {
+            auto& v_d = kv.second;
+            auto& v_s = map_s[kv.first];
             EXPECT_EQ(v_s.size(), v_d.size());
             for (uint8_t i = 0; i < v_d.size(); i++) {
                 EXPECT_EQ(v_s[i], v_d[i]);
@@ -320,7 +321,7 @@ TEST_F(TestUbseSerialUtil, string_scene)
 
     {
         UbseSerialization serialization;
-        char *str_s = "hahaha";
+        char* str_s = "hahaha";
         std::string str_d;
         serialization << str_s;
         EXPECT_EQ(serialization.Check(), true);
@@ -334,7 +335,7 @@ TEST_F(TestUbseSerialUtil, string_scene)
     {
         UbseSerialization serialization;
         std::string str_s = "hahaha"; // char* str_s = "hahaha"
-        char *str_d = nullptr;
+        char* str_d = nullptr;
         serialization << str_s;
         EXPECT_EQ(serialization.Check(), true);
 
@@ -389,9 +390,9 @@ TEST_F(TestUbseSerialUtil, nesting)
     EXPECT_EQ(str_s, str_d);
     de_c >> map_d;
     EXPECT_EQ(de_c.Check(), true);
-    for (auto &kv : map_d) {
-        auto &v_d = kv.second;
-        auto &v_s = map_s[kv.first];
+    for (auto& kv : map_d) {
+        auto& v_d = kv.second;
+        auto& v_s = map_s[kv.first];
         EXPECT_EQ(v_s.size(), v_d.size());
         for (uint8_t i = 0; i < v_d.size(); i++) {
             EXPECT_EQ(v_s[i], v_d[i]);
@@ -443,11 +444,11 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
     // Case 1: 正常反序列化非空字符串
     {
         UbseSerialization ser;
-        const char *src = "hello";
+        const char* src = "hello";
         ser << src;
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        char *dst = nullptr;
+        char* dst = nullptr;
         deSer >> dst;
         ASSERT_TRUE(deSer.Check());
         EXPECT_STREQ(dst, "hello");
@@ -458,7 +459,7 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
     {
         UbseDeSerialization deSer;
         deSer.mPos_ = deSer.mBuf_ + deSer.mLen_ + 1; // 强制越界
-        char *str = nullptr;
+        char* str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -470,7 +471,7 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
         ser << x;
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        char *str = nullptr;
+        char* str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -479,10 +480,10 @@ TEST_F(TestUbseSerialUtil, operator_right_arrow_const_char_ptr)
     {
         UbseSerialization ser;
         char empty = '\0';
-        ser.add(reinterpret_cast<uint8_t *>(&empty), 0, GetTypePointerId<char>()); // 手动写入 len=0
+        ser.add(reinterpret_cast<uint8_t*>(&empty), 0, GetTypePointerId<char>()); // 手动写入 len=0
 
         UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
-        char *str = nullptr;
+        char* str = nullptr;
         deSer >> str;
         EXPECT_FALSE(deSer.Check());
     }
@@ -498,22 +499,22 @@ TEST_F(TestUbseSerialUtil, GetBuffer_deSer_with_ctrl)
     EXPECT_TRUE(deSer.Check());
 
     // Case 1: bGetCtrl = false -> 返回 buffer，不置空
-    uint8_t *buf1 = deSer.GetBuffer(false);
+    uint8_t* buf1 = deSer.GetBuffer(false);
     EXPECT_NE(buf1, nullptr);
     EXPECT_NE(deSer.mBuf_, nullptr); // mBuf 仍存在
 
     // Case 2: bGetCtrl = true 且 mGetBufCtrl = true -> 返回原指针，并置 mBuf=nullptr
-    uint8_t *buf2 = deSer.GetBuffer(true);
+    uint8_t* buf2 = deSer.GetBuffer(true);
     EXPECT_EQ(buf2, buf1);
     EXPECT_EQ(deSer.mBuf_, nullptr); // 已释放控制权
 
     // Case 3: 再次调用 GetBuffer(true) -> 因 mGetBufCtrl 仍为 true，但 mBuf=nullptr，应返回 nullptr
-    uint8_t *buf3 = deSer.GetBuffer(true);
+    uint8_t* buf3 = deSer.GetBuffer(true);
     EXPECT_EQ(buf3, nullptr);
 
     // Case 4: 构造时 bNew=false，则 mGetBufCtrl=false，此时 GetBuffer(true) 应返回 nullptr
     UbseDeSerialization deSer2(ser.GetBuffer(), ser.GetLength(), false);
-    uint8_t *buf4 = deSer2.GetBuffer(true);
+    uint8_t* buf4 = deSer2.GetBuffer(true);
     EXPECT_EQ(buf4, nullptr);
 }
 
@@ -552,7 +553,6 @@ TEST_F(TestUbseSerialUtil, GetBuffer_ControlTransfer)
         EXPECT_NE(readOnly, nullptr);
     }
 }
-
 
 // 测试基本类型的 TypeId
 TEST(SerialUtilTest, GetTypeId_BasicTypes)
@@ -628,6 +628,87 @@ TEST(SerialUtilTest, vector_bool_serial)
     de_ser2 >> vectors2;
     EXPECT_TRUE(de_ser2.Check());
     EXPECT_EQ(vectors, vectors2);
+}
+
+TEST(SerialUtilTest, unordered_set_int_serial)
+{
+    std::unordered_set<int> set_s{1, 2, 3, 4, 5};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_uint64_t_serial)
+{
+    std::unordered_set<uint64_t> set_s{100, 200, 300, 400};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<uint64_t> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_string_serial)
+{
+    std::unordered_set<std::string> set_s{"hello", "world", "test"};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<std::string> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_s.size(), set_d.size());
+    for (const auto& val : set_s) {
+        EXPECT_TRUE(set_d.count(val) > 0);
+    }
+}
+
+TEST(SerialUtilTest, unordered_set_empty_serial)
+{
+    std::unordered_set<int> set_s;
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    set_d.insert(999);
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_TRUE(set_d.empty());
+}
+
+TEST(SerialUtilTest, unordered_set_single_element_serial)
+{
+    std::unordered_set<int> set_s{42};
+    UbseSerialization ser;
+    ser << set_s;
+    EXPECT_TRUE(ser.Check());
+
+    std::unordered_set<int> set_d;
+    UbseDeSerialization deSer(ser.GetBuffer(), ser.GetLength());
+    deSer >> set_d;
+    EXPECT_TRUE(deSer.Check());
+    EXPECT_EQ(set_d.size(), 1);
+    EXPECT_TRUE(set_d.count(42) > 0);
 }
 
 } // namespace ubse::ut::serial

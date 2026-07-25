@@ -22,7 +22,7 @@ using namespace ubse::storage::data::conversion;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseStorageReqSimpo::UbseStorageReqSimpo(const UbseStorageReq &req)
+UbseStorageReqSimpo::UbseStorageReqSimpo(const UbseStorageReq& req)
 {
     storageReq_ = req;
 }
@@ -75,8 +75,8 @@ std::string ReqCmdTypeToString(const UbseStorageReqCmdType type)
 std::string UbseStorageReqSimpo::ToString() const
 {
     std::ostringstream str;
-    str << "UbseStorageReqSimpo(" << ReqCmdTypeToString(storageReq_.cmdType) << "," << storageReq_.dbName << "," <<
-        storageReq_.key << ")";
+    str << "UbseStorageReqSimpo(" << ReqCmdTypeToString(storageReq_.cmdType) << "," << storageReq_.dbName << ","
+        << storageReq_.key << ")";
     return str.str();
 }
-}
+} // namespace ubse::storage::message

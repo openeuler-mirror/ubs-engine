@@ -22,17 +22,17 @@
 namespace mempooling {
 class MpStringUtil {
 public:
-    static uint64_t SafeStoullOld(const std::string &str);
-    static int16_t SafeStoi16Old(const std::string &str);
-    static MEM_POOLING_RES SafeStopid(const std::string &str, pid_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStoul(const std::string &str, uint32_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStoull(const std::string &str, uint64_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStoi16(const std::string &str, int16_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStou16(const std::string &str, uint16_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStoi64(const std::string &str, int64_t &ret) noexcept;
-    static MEM_POOLING_RES SafeStof(const std::string &str, float_t &ret) noexcept;
-    static MEM_POOLING_RES Split(const std::string &src, const std::string &sep, std::vector<std::string> &out);
+    static uint64_t SafeStoullOld(const std::string& str);
+    static int16_t SafeStoi16Old(const std::string& str);
+    static MEM_POOLING_RES SafeStopid(const std::string& str, pid_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStoul(const std::string& str, uint32_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStoull(const std::string& str, uint64_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStoi16(const std::string& str, int16_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStou16(const std::string& str, uint16_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStoi64(const std::string& str, int64_t& ret) noexcept;
+    static MEM_POOLING_RES SafeStof(const std::string& str, float_t& ret) noexcept;
+    static MEM_POOLING_RES Split(const std::string& src, const std::string& sep, std::vector<std::string>& out);
 };
-}
+} // namespace mempooling
 
 #endif // MP_STRING_UTIL_H

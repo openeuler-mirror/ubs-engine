@@ -21,6 +21,5 @@ using namespace ubse::serial;
 using VmSerialization = UbseSerialization;
 using VmDeSerialization = UbseDeSerialization;
 
-
 } // namespace vm
 #endif // VM_SERIAL_UTIL_H

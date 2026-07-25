@@ -177,10 +177,3 @@ lcov_branch_coverage = 1
 
 # Specify JSON module to use, or choose best available if set to auto
 lcov_json_module = auto
-
-include = src/
-exclude = .h
-exclude = src/main/
-exclude = src/pro/
-exclude = test/
-exclude = cmake-build-debug/

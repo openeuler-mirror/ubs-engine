@@ -10,30 +10,32 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "test_ubse_election_role_Initializer.h"
+#include "ubse_conf_module.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "test_ubse_election_role_Initializer.h"
 #include "role/ubse_election_role_initializer.h"
-#include "ubse_conf_module.h"
 
 namespace ubse::event::election {
 using namespace ubse::election;
 using namespace ubse::config;
 using namespace ubse::context;
+using namespace ubse::com;
+using namespace ubse::common::def;
 
-UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr *pthis, Node &myself)
+UbseResult FAKE_GetMyselfNode0(UbseElectionNodeMgr* pthis, Node& myself)
 {
     myself.id = "NODE0";
     return 0;
 }
 
-UbseResult FAKE_GetMyselfNode1(UbseElectionNodeMgr *pthis, Node &myself)
+UbseResult FAKE_GetMyselfNode1(UbseElectionNodeMgr* pthis, Node& myself)
 {
     myself.id = "NODE1";
     return 0;
 }
 
-UbseResult FAKE_GetAllNode(std::vector<Node> &allNodes)
+UbseResult FAKE_GetAllNode(std::vector<Node>& allNodes)
 {
     std::vector<Node> allNodes_ = {Node{"NODE0", "192.168.0.1", 10004}, Node{"NODE1", "192.168.0.2", 10005},
                                    Node{"NODE2", "192.168.0.3", 10006}};

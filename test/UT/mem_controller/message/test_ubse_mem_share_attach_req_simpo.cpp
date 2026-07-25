@@ -12,23 +12,17 @@
 
 #include "test_ubse_mem_share_attach_req_simpo.h"
 
-#include "mockcpp/mockcpp.hpp"
-
+#include <memory>
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
 #include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
 
 namespace ubse::mem::controller::message::ut {
-using namespace ubse::message;
-using namespace ubse::utils;
 using namespace ubse::mem::serial;
 
 void TestUbseMemShareAttachReqSimpo::SetUp()
 {
-    GTEST_SKIP();
     Test::SetUp();
-    obj = new UbseMemShareAttachReqSimpo();
 }
 
 void TestUbseMemShareAttachReqSimpo::TearDown()
@@ -37,45 +31,57 @@ void TestUbseMemShareAttachReqSimpo::TearDown()
     GlobalMockObject::verify();
 }
 
-/*
- * 用例描述：测试Serialize方法
- * 测试步骤：
- * 1.模拟Check函数返回值，先false再true
- * 预期结果：
- * Check返回false时，方法返回UBSE_ERROR;反之返回UBSE_OK;
- */
 TEST_F(TestUbseMemShareAttachReqSimpo, Serialize)
 {
-    MOCKER_CPP(&UbseSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Serialize());
-    EXPECT_TRUE(UBSE_OK == obj->Serialize());
+    UbseMemShareAttachReq req;
+    req.name = "test_attach";
+    req.importNodeId = "import_node";
+    req.size = 4096;
+    obj.SetUbseMemShareAttachReq(std::move(req));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
 }
 
-/*
- * 用例描述：测试Deserialize
- * 测试步骤：
- * 1.判断初始状态（mInputRawData为空)时的函数行为
- * 2.给mInputRawData赋值，模拟并判断 UbseMemShareAttachReqDeserialize 在失败情况下Deserialize的返回值
- * 3.判断Check函数返回false和true时Deserialize的行为
- * 预期结果：
- * 1.初始状态函数返回UBSE_ERROR
- * 2. UbseMemShareAttachReqDeserialize 失败时函数返回UBSE_ERROR
- * 3.Check函数返回false时，Deserialize返回UBSE_ERROR
- * 4.一切功能正常时，返回UBSE_OK
- */
-TEST_F(TestUbseMemShareAttachReqSimpo, Deserialize)
+TEST_F(TestUbseMemShareAttachReqSimpo, Serialize_CheckFail)
 {
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    UbseMemShareAttachReq req;
+    req.name = "test";
+    obj.SetUbseMemShareAttachReq(std::move(req));
+    MOCKER_CPP(&UbseMemShareAttachReqSerialization).stubs().will(returnValue(false));
+    EXPECT_EQ(obj.Serialize(), UBSE_ERROR);
+}
 
+TEST_F(TestUbseMemShareAttachReqSimpo, Deserialize_NullInput)
+{
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
+
+TEST_F(TestUbseMemShareAttachReqSimpo, Deserialize_BadData)
+{
     uint32_t size = 4;
-    auto buffer = new (std::nothrow) uint8_t[size];
-    EXPECT_NE(nullptr, buffer);
-    obj->SetInputRawDataFromShared(std::move(static_cast<std::shared_ptr<uint8_t[]>>(buffer)), size);
-    MOCKER_CPP(&UbseMemShareAttachReqSerialization).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
+    auto buffer = std::shared_ptr<uint8_t[]>(new uint8_t[size], std::default_delete<uint8_t[]>());
+    obj.SetInputRawDataFromShared(buffer, size);
+    EXPECT_EQ(obj.Deserialize(), UBSE_ERROR);
+}
 
-    MOCKER_CPP(&UbseDeSerialization::Check).stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_TRUE(UBSE_ERROR == obj->Deserialize());
-    EXPECT_TRUE(UBSE_OK == obj->Deserialize());
+TEST_F(TestUbseMemShareAttachReqSimpo, SerializeDeserialize_RoundTrip)
+{
+    UbseMemShareAttachReq req;
+    req.name = "roundtrip_attach";
+    req.requestNodeId = "req_node";
+    req.importNodeId = "import_node";
+    req.size = 8192;
+    obj.SetUbseMemShareAttachReq(std::move(req));
+    EXPECT_EQ(obj.Serialize(), UBSE_OK);
+
+    auto sharedData = obj.GetSharedOutputData();
+    auto size = obj.SerializedDataSize();
+
+    UbseMemShareAttachReqSimpo obj2;
+    obj2.SetInputRawDataFromShared(sharedData, size);
+    EXPECT_EQ(obj2.Deserialize(), UBSE_OK);
+    auto result = obj2.GetUbseMemShareAttachReq();
+    EXPECT_EQ(result.name, "roundtrip_attach");
+    EXPECT_EQ(result.importNodeId, "import_node");
+    EXPECT_EQ(result.size, 8192);
 }
 } // namespace ubse::mem::controller::message::ut

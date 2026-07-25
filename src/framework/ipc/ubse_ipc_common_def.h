@@ -13,9 +13,13 @@
 #ifndef UBSE_MANAGER_UBSE_IPC_COMMON_DEF_H
 #define UBSE_MANAGER_UBSE_IPC_COMMON_DEF_H
 
+#include <cstdint>
+#include <string>
+
 namespace ubse::ipc {
 
-enum class UbseIpcMemFaultType {
+enum class UbseIpcMemFaultType
+{
     UB_MEM_ATOMIC_DATA_ERR = 0,
     UB_MEM_READ_DATA_ERR,
     UB_MEM_FLOW_POISON,
@@ -38,9 +42,9 @@ enum class UbseIpcMemFaultType {
     UB_MEM_HEALTHY = 1000, // 无故障
 };
 
-struct UbseShmFault {
-    std::string shmName;
-    uint64_t memId;
+struct UbseMemFault {
+    std::string memName;
+    uint64_t handleId;
     UbseIpcMemFaultType type;
 };
 } // namespace ubse::ipc

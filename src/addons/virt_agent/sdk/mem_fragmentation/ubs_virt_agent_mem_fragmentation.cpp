@@ -16,12 +16,12 @@
 #include <securec.h>
 #include <ubse_ipc_client.h>
 #include <ubse_ipc_log.h>
+#include <cstring>
 #include "src/sdk/c/include/ubs_error.h"
-
 #include "ubs_virt_agent_mem_fragmentation_helper.h"
 #include "vm_sdk_def.h"
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_list, uint32_t *node_cnt)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t** node_list, uint32_t* node_cnt)
 {
     if (node_list == nullptr || node_cnt == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: node_list or node_cnt is nullptr or node_cnt is invalid.";
@@ -45,7 +45,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info(numa_info_t **node_l
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_info_list, uint32_t *vm_info_cnt)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t** vm_info_list, uint32_t* vm_info_cnt)
 {
     if (vm_info_list == nullptr || vm_info_cnt == nullptr) {
         IPC_LOG_ERROR << "Invalid parameters: vm_info_list or vm_info_cnt is nullptr or vm_info_cnt is invalid.";
@@ -69,7 +69,7 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_vm_info(vm_domain_info_t **vm_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary *dict)
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeAntiDictionary* dict)
 {
     if (dict == nullptr || dict->entry_count == 0 || dict->entry_count > MAX_NODE_NUM) {
         IPC_LOG_ERROR << "Invalid parameters: nodeAntiAffinityMapJson is nullptr or entry_count is out of range.";
@@ -89,9 +89,9 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
         }
     }
 
-    const NodeAntiDictionary &node_dict = *dict;
+    const NodeAntiDictionary& node_dict = *dict;
     size_t buffer_size = sizeof(node_dict);
-    uint8_t *buffer = allocate_memory(buffer_size);
+    uint8_t* buffer = allocate_memory(buffer_size);
     if (buffer == nullptr) {
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
@@ -117,8 +117,8 @@ virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_anti_affinity(const NodeA
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param *src_param,
-                                                    borrow_strategy_c *borrow_strategy)
+virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_param* src_param,
+                                                    borrow_strategy_c* borrow_strategy)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_borrow_strategy";
     if (src_param == nullptr || borrow_strategy == nullptr ||
@@ -155,13 +155,13 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_strategy(const src_memory_borrow_para
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borrow_setting, mem_borrow_result_c *result)
+virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c* borrow_setting, mem_borrow_result_c* result)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_borrow_execute";
     if (borrow_setting == nullptr || borrow_setting->borrow_strategy.dest_numa_infos_size > MAX_DEST_PARAM_SIZE ||
         result == nullptr || result->borrow_ids_ptr == nullptr || result->present_numa_ids_ptr == nullptr ||
         strnlen(borrow_setting->borrow_strategy.src_host_id, VIRT_MEM_MAX_NODE_ID_LENGTH) >=
-        VIRT_MEM_MAX_NODE_ID_LENGTH) {
+            VIRT_MEM_MAX_NODE_ID_LENGTH) {
         IPC_LOG_ERROR << "Invalid parameters: borrow_strategy or borrow_ids_size or present_numa_ids_size is null,"
                          "or dest_numa_infos_size is invalid, or borrow_ids_ptr is null or borrow_ids_ptr is null,"
                          "or src_host_id is invalid.";
@@ -204,8 +204,8 @@ virt_agent_ret_t ubs_virt_agent_mem_borrow_execute(const borrow_setting_c *borro
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam *srcParam,
-                                                     MemMigrateStrategy *strategy)
+virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrcParam* srcParam,
+                                                     MemMigrateStrategy* strategy)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_migrate_strategy";
     if (srcParam == nullptr || strategy == nullptr) {
@@ -251,14 +251,14 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_strategy(const MemMigrateStrategySrc
     return VA_SUCCESS;
 }
 
-static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t &response_buffer, char **task_id, uint32_t *task_id_len)
+static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t& response_buffer, char** task_id, uint32_t* task_id_len)
 {
     if (response_buffer.buffer == nullptr || response_buffer.length == 0) {
         IPC_LOG_ERROR << "Invalid response buffer: buffer is null or length is 0";
         return false;
     }
 
-    const char *response_str = reinterpret_cast<const char *>(response_buffer.buffer);
+    const char* response_str = reinterpret_cast<const char*>(response_buffer.buffer);
     size_t response_str_len = strnlen(response_str, response_buffer.length);
     if (response_str_len == 0) {
         IPC_LOG_ERROR << "Response buffer contains empty string";
@@ -274,7 +274,7 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t &response_buffer, c
     errno_t result = memcpy_s(*task_id, response_str_len + 1, response_str, response_str_len);
     if (result != 0) {
         IPC_LOG_ERROR << "memcpy_s failed for task_id: " << result;
-        delete[] *task_id;
+        delete[] * task_id;
         *task_id = nullptr;
         return false;
     }
@@ -285,7 +285,7 @@ static bool UnpackTaskIdFromResponse(const ubse_api_buffer_t &response_buffer, c
     return true;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_t *task_id_len)
+virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char** task_id, uint32_t* task_id_len)
 {
     if (task_id == nullptr) {
         IPC_LOG_ERROR << "task_id is null";
@@ -333,7 +333,7 @@ virt_agent_ret_t ubs_virt_agent_mem_return(bool isAsync, char **task_id, uint32_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_len, async_task_info_c *result)
+virt_agent_ret_t ubs_virt_agent_sync_task_query(char* task_id, uint32_t task_id_len, async_task_info_c* result)
 {
     if (task_id == nullptr || result == nullptr || task_id_len == 0) {
         IPC_LOG_ERROR << "Invalid input parameters: task_id or result is null";
@@ -377,7 +377,7 @@ virt_agent_ret_t ubs_virt_agent_sync_task_query(char *task_id, uint32_t task_id_
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam *srcParam)
+virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcParam* srcParam)
 {
     IPC_LOG_INFO << "Start ubs_virt_agent_mem_migrate_execute";
     if (srcParam == nullptr) {
@@ -392,7 +392,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
     }
     for (uint32_t i = 0; i < (*srcParam).borrowIdsCount; i++) {
         if (strnlen((*srcParam).borrowIds[i], MAX_BORROW_ID_LENGTH) >= MAX_BORROW_ID_LENGTH) {
-            IPC_LOG_ERROR << "Invalid parameters: borrowIds[" <<  i << "] is invalid.";
+            IPC_LOG_ERROR << "Invalid parameters: borrowIds[" << i << "] is invalid.";
             return VA_ERROR_INVALID_PARAM;
         }
     }
@@ -412,9 +412,8 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
         IPC_LOG_ERROR << "Failed to allocate memory for request_buffer.buffer.";
         return VA_ERROR_MEM_ALLOCATE_FAILED;
     }
-    ubse_api_buffer_t  response_buffer = {nullptr, 0};
-    ret = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_MIGRATE_EXECUTE, &request_buffer,
-                           &response_buffer);
+    ubse_api_buffer_t response_buffer = {nullptr, 0};
+    ret = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_MIGRATE_EXECUTE, &request_buffer, &response_buffer);
     ubse_api_buffer_delete(&request_buffer);
     ubse_api_buffer_free(&response_buffer);
     if (ret != UBS_SUCCESS) {
@@ -425,7 +424,7 @@ virt_agent_ret_t ubs_virt_agent_mem_migrate_execute(const MemMigrateExecuteSrcPa
     return VA_SUCCESS;
 }
 
-virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
+virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam* srcParam)
 {
     if (srcParam == nullptr || strnlen(srcParam->node_id, VIRT_MEM_MAX_NODE_ID_LENGTH) >= VIRT_MEM_MAX_NODE_ID_LENGTH ||
         srcParam->borrow_id_size == 0 || srcParam->borrow_id_size > MAX_BORROW_ID_COUNT) {
@@ -434,7 +433,7 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
     }
     for (uint32_t i = 0; i < srcParam->borrow_id_size; i++) {
         if (strnlen(srcParam->borrow_id_list[i], MAX_BORROW_ID_LENGTH) >= MAX_BORROW_ID_LENGTH) {
-            IPC_LOG_ERROR << "Invalid parameters: borrow_id_list[" <<  i << "] is invalid.";
+            IPC_LOG_ERROR << "Invalid parameters: borrow_id_list[" << i << "] is invalid.";
             return VA_ERROR_INVALID_PARAM;
         }
     }
@@ -450,8 +449,8 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
     ubse_api_buffer_t requestBuffer = {rollbackMsg.SerializedData(), rollbackMsg.SerializedDataSize()};
 
     ubse_api_buffer_t responseBuffer = {nullptr, 0};
-    uint32_t invokeRet = ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_ROLLBACK,
-                                          &requestBuffer, &responseBuffer);
+    uint32_t invokeRet =
+        ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_ROLLBACK, &requestBuffer, &responseBuffer);
     ubse_api_buffer_delete(&requestBuffer);
     ubse_api_buffer_free(&responseBuffer);
     if (invokeRet != UBS_SUCCESS) {
@@ -459,5 +458,116 @@ virt_agent_ret_t ubs_virt_agent_mem_rollback(const RollbackSrcParam *srcParam)
         return VA_ERROR_BASE;
     }
 
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_mem_fragmentation_node_info_list(node_info_list_s* node_info_list)
+{
+    if (node_info_list == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: node_info_list is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
+    constexpr ubse_api_buffer_t _requestBuffer = {};
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet = ubse_invoke_call(UBS_VA_QUERY, UBS_VA_NODE_INFO_LIST, &_requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        return VA_ERROR_BASE;
+    }
+    MemFragmentationNodeInfoListMsg repMsg(responseBuffer.buffer, responseBuffer.length);
+    if (const auto ret = repMsg.Deserialize(); ret != VA_SUCCESS) {
+        IPC_LOG_ERROR << "node info list deserialize failed, err=" << ret;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_DESERIALIZE_FAILED;
+    }
+    const auto nodeList = repMsg.GetNodeInfoList();
+    ubse_api_buffer_free(&responseBuffer);
+    if (const auto ret = NodeInfoListToCStyle(nodeList, *node_info_list); ret != VM_OK) {
+        IPC_LOG_ERROR << "NodeInfoListToCStyle failed, err=" << ret;
+        return VA_ERROR_BASE;
+    }
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_mem_borrow(const mem_borrow_param_s* param, const bool is_async,
+                                           mem_borrow_result_s* result)
+{
+    if (param == nullptr || result == nullptr) {
+        IPC_LOG_ERROR << "Invalid parameters: param or result is nullptr.";
+        return VA_ERROR_INVALID_PARAM;
+    }
+    BorrowParam borrowParam{};
+    auto ret = BorrowParamFromCStyle(param, borrowParam);
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "BorrowParamFromCStyle failed, err=" << ret;
+        return VA_ERROR_INVALID_PARAM;
+    }
+    MemFragmentationMemBorrowParamMsg reqMsg(borrowParam, is_async);
+    ret = reqMsg.Serialize();
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "MemFragmentationMemBorrowParamMsg Serialize failed, err=" << ret;
+        return VA_ERROR_SERIALIZE_FAILED;
+    }
+    const ubse_api_buffer_t requestBuffer = {
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    const uint32_t invokeRet =
+        ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_MEM_BORROW, &requestBuffer, &responseBuffer);
+    if (invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_BASE;
+    }
+    MemFragmentationMemBorrowResultMsg repMsg(responseBuffer.buffer, responseBuffer.length);
+    ret = repMsg.Deserialize();
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "MemFragmentationMemBorrowResultMsg Deserialize failed, err=" << ret;
+        ubse_api_buffer_free(&responseBuffer);
+        return VA_ERROR_DESERIALIZE_FAILED;
+    }
+    const auto memBorrowRstCs = repMsg.GetMemBorrowResultList();
+    ubse_api_buffer_free(&responseBuffer);
+    ret = BorrowResultToCStyle(memBorrowRstCs, *result);
+    if (ret != VM_OK) {
+        IPC_LOG_ERROR << "BorrowResultToCStyle failed, err=" << ret;
+        return VA_ERROR_BASE;
+    }
+    return VA_SUCCESS;
+}
+
+virt_agent_ret_t ubs_virt_agent_page_swap_enable(const pid_t pid, const page_swap_enable_s* page_swap_enable)
+{
+    std::vector<mem_fragmentation::PageSwapPair> pageSwapPairs;
+    auto ret = PageSwapEnableFromCStyle(page_swap_enable, pageSwapPairs);
+    if (ret != VM_OK) {
+        return VA_ERROR_INVALID_PARAM;
+    }
+    MemFragmentationPageSwapEnableMsg reqMsg(pid, pageSwapPairs);
+    ret = reqMsg.Serialize();
+    if (ret != VM_OK) {
+        return VA_ERROR_SERIALIZE_FAILED;
+    }
+    const ubse_api_buffer_t requestBuffer = {
+        .buffer = reqMsg.SerializedData(),
+        .length = reqMsg.SerializedDataSize(),
+    };
+    ubse_api_buffer_t responseBuffer = {
+        .buffer = nullptr,
+        .length = 0,
+    };
+    if (const uint32_t invokeRet =
+            ubse_invoke_call(UBS_VA_MEM_FRAGMENTATION, UBS_VA_PAGE_SWAP_ENABLE, &requestBuffer, &responseBuffer);
+        invokeRet != UBS_SUCCESS) {
+        IPC_LOG_ERROR << "ubse_invoke_call failed with error code = " << invokeRet;
+        return VA_ERROR_BASE;
+    }
     return VA_SUCCESS;
 }

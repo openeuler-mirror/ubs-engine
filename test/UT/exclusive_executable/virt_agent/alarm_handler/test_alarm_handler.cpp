@@ -1,13 +1,14 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
 #include "test_alarm_handler.h"
 
-#include "alarm_handler.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
-#include "mem_handler.h"
+#include "ubse_ras.h"
+#include "alarm_handler.h"
 #include "escape_algorithm_helper.h"
-#include "status_manager.h"
+#include "mem_handler.h"
 #include "resource_collect.h"
+#include "status_manager.h"
 
 using namespace vm;
 namespace ubse::vm::ut {
@@ -24,19 +25,35 @@ void TestAlarmHandler::TearDown()
     GlobalMockObject::verify();
 }
 
+// RegisterAlarmFaultHandler has two overloads; use MOCKER_CPP to disambiguate.
+// Overload 2 (4-arg): uint32_t(ALARM_FAULT_TYPE, std::string, AlarmFaultHandler, AlarmHandlerPriority)
+// is the one called by Init() for ALARM_OOM_EVENT.
 TEST_F(TestAlarmHandler, InitSuccess)
 {
-    MOCKER(&ubse::event::UbseSubEvent).stubs().will(returnValue(VM_OK));
+    MOCKER_CPP(&ubse::ras::RegisterAlarmFaultHandler,
+               uint32_t(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
+                        ubse::ras::AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(UBSE_OK));
     VmResult ret = AlarmHandler::GetInstance().Init();
     EXPECT_EQ(ret, VM_OK);
-    MOCKER(&ubse::event::UbseSubEvent).reset();
+    MOCKER_CPP(&ubse::ras::RegisterAlarmFaultHandler,
+               uint32_t(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
+                        ubse::ras::AlarmHandlerPriority))
+        .reset();
 
-    MOCKER(&ubse::event::UbseSubEvent).stubs().will(returnValue(VM_ERROR));
+    MOCKER_CPP(&ubse::ras::RegisterAlarmFaultHandler,
+               uint32_t(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
+                        ubse::ras::AlarmHandlerPriority))
+        .stubs()
+        .will(returnValue(VM_ERROR));
     ret = AlarmHandler::GetInstance().Init();
     EXPECT_EQ(ret, VM_ERROR);
-    MOCKER(&ubse::event::UbseSubEvent).reset();
+    MOCKER_CPP(&ubse::ras::RegisterAlarmFaultHandler,
+               uint32_t(ubse::ras::ALARM_FAULT_TYPE, std::string, ubse::ras::AlarmFaultHandler,
+                        ubse::ras::AlarmHandlerPriority))
+        .reset();
 }
-
 
 std::string eventMessage =
     "{\"allNumaInfo\": [{\"mMemTotal\": 127257280512,\"mMemUsed\": 127257280512,\"mMemFree\": 0,\"mMemBorrowed\": "
@@ -102,8 +119,7 @@ TEST_F(TestAlarmHandler, MemNotifyEventHandlerMemNotify)
     MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
 }
 
-UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string &nodeId,
-                                           std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string& nodeId, std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     numaNodeInfoList.push_back(UbseNodeNumaInfo{});
     return UBSE_OK;
@@ -111,10 +127,7 @@ UbseResult MockUbseGetNodeNumaInfoByNodeId(const std::string &nodeId,
 
 TEST_F(TestAlarmHandler, GenAlarmNumaInfo)
 {
-    Notify notify{
-        .nodeId = "node",
-        .numaId = 1
-    };
+    Notify notify{.nodeId = "node", .numaId = 1};
     std::vector<UbsVirtNumaMemoryDebtInfo> debtInfos{};
     AlarmNumaInfo alarmNumaInfo{};
     UbsVirtNumaMemoryDebtInfo debtInfo{};
@@ -183,8 +196,8 @@ TEST_F(TestAlarmHandler, TestBorrowClearEventHandler)
     EXPECT_EQ(ret, VM_OK);
 }
 
-int MyEscapeAlgorithmOK(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                        EscapeAction &action)
+int MyEscapeAlgorithmOK(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                        EscapeAction& action)
 {
     return 0;
 }
@@ -194,8 +207,8 @@ EscapeAlgorithmFunc MockGetStrategyAlgorithmReturnOK()
     return MyEscapeAlgorithmOK;
 }
 
-int MyEscapeAlgorithmWarn(const StrategyConfig &conf, AlarmNumaInfo &alarm, GlobalNumaInfoMap &globalMap,
-                          EscapeAction &action)
+int MyEscapeAlgorithmWarn(const StrategyConfig& conf, AlarmNumaInfo& alarm, GlobalNumaInfoMap& globalMap,
+                          EscapeAction& action)
 {
     return 1;
 }
@@ -210,7 +223,7 @@ EscapeAlgorithmFunc MockGetStrategyAlgorithmReturnNull()
     return nullptr;
 }
 
-VMNodeLocInfo expectedNodeLocInfo = { "node0", "testHostId", {0}, {0}}; // 告警节点位置
+VMNodeLocInfo expectedNodeLocInfo = {"node0", "testHostId", {0}, {0}}; // 告警节点位置
 NodeLocInfo curNodeLoc = NodeLocInfo{
     .hostId = expectedNodeLocInfo.hostId,
     .socketId = expectedNodeLocInfo.socketId,
@@ -221,7 +234,6 @@ NodeLocInfo nodeLocInfo = {
     .socketId = 1,
     .numaId = 3,
 };
-
 
 GlobalBorrowMap MockGetGlobalBorrowMap()
 {
@@ -354,7 +366,7 @@ TEST_F(TestAlarmHandler, HandlerNoUsedBorrowIdsTrue4)
     MOCKER_CPP(&ResourceCollect::GetGlobalBorrowMap, GlobalBorrowMap(ResourceCollect::*)()).reset();
 }
 
-std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo &alarmNumaInfo)
+std::vector<std::string> MockGenVectorByBorrowItem(const AlarmNumaInfo& alarmNumaInfo)
 {
     std::string borrowId = "host1";
     std::vector<std::string> borrowIdsInMem{borrowId};
@@ -414,9 +426,7 @@ TEST_F(TestAlarmHandler, HandlerNoUsedBorrowIdsFalse2)
         .stubs()
         .will(invoke(MockGetGlobalBorrowMap));
     MOCKER(AlarmHandler::GenVectorByBorrowItem).stubs().will(invoke(MockGenVectorByBorrowItem));
-    MOCKER(StatusManager::MigrateByBorrowIdStatus)
-        .stubs()
-        .will(returnValue(VM_OK));
+    MOCKER(StatusManager::MigrateByBorrowIdStatus).stubs().will(returnValue(VM_OK));
     const auto ret = AlarmHandler::HandlerNoUsedBorrowIds(alarmNumaInfo, type);
     EXPECT_FALSE(ret);
     MOCKER(AlarmHandler::GenVectorByBorrowItem).reset();
@@ -521,6 +531,112 @@ TEST_F(TestAlarmHandler, TestAlarmEventHandlerFailed)
     EXPECT_EQ(ret, VM_ERROR);
     MOCKER(&EscapeAlgorithmModule::GetStrategyAlgorithm).reset();
     MOCKER(AlarmHandler::GetGlobalResource).reset();
+}
+
+// ===================== OomEventHandler Tests =====================
+
+TEST_F(TestAlarmHandler, OomEventHandlerStillInTask)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(true));
+    MOCKER(&StatusManager::WaitForTaskCompletion).stubs();
+    MOCKER(&AlarmHandler::ProcessOomActions).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::ProcessOomActions).reset();
+    MOCKER(&StatusManager::WaitForTaskCompletion).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerStillInTaskAfterLock)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    // First StillInTask returns false, second returns true (inside lock guard)
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false)).then(returnValue(true));
+    MOCKER(&StatusManager::WaitForTaskCompletion).stubs();
+    MOCKER(&AlarmHandler::ProcessOomActions).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(&AlarmHandler::ProcessOomActions).reset();
+    MOCKER(&StatusManager::WaitForTaskCompletion).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerGetVirtDebtInfosFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false));
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerGenAlarmNumaInfoFail)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false));
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerHandlerNoUsedBorrowIdsDispatch)
+{
+    // HandlerNoUsedBorrowIds returns false -> sync dispatch done, no async borrow wait
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false));
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(false));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerAlarmEventHandlerFails)
+{
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false));
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_ERROR));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_ERROR);
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
+}
+
+TEST_F(TestAlarmHandler, OomEventHandlerNoAsyncBorrow)
+{
+    // Full flow: still-in-task no -> GetVirtDebtInfos ok -> GenAlarmNumaInfo ok
+    // -> HandlerNoUsedBorrowIds returns true -> AlarmEventHandler ok (no borrow)
+    // -> remainingState is not null -> skip future.get(), return VM_OK
+    Notify notify{.nodeId = "node0", .socketId = 0, .numaId = 1, .waterNotify = false, .oomEventFlag = true};
+    MOCKER(&StatusManager::StillInTask).stubs().will(returnValue(false));
+    MOCKER(AlarmHandler::GetVirtDebtInfos).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).stubs().will(returnValue(VM_OK));
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).stubs().will(returnValue(true));
+    MOCKER(AlarmHandler::AlarmEventHandler).stubs().will(returnValue(VM_OK));
+    VmResult ret = AlarmHandler::OomEventHandler(notify);
+    EXPECT_EQ(ret, VM_OK);
+    MOCKER(AlarmHandler::AlarmEventHandler).reset();
+    MOCKER(AlarmHandler::HandlerNoUsedBorrowIds).reset();
+    MOCKER(AlarmHandler::GenAlarmNumaInfo).reset();
+    MOCKER(AlarmHandler::GetVirtDebtInfos).reset();
+    MOCKER(&StatusManager::StillInTask).reset();
 }
 
 } // namespace ubse::vm::ut

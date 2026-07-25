@@ -121,13 +121,13 @@ struct UbseDevNameHash {
 using UbsePortMap = std::unordered_map<UbseDevPortName, UbseMtiCpuTopoPortInfo, UbseDevPortNameHash>;
 using UbseDeviceInfoPair = std::pair<UbseDeviceInfo, UbsePortMap>;
 struct UbseMtiCpuTopoInfo {
-    uint32_t nodeId;  // 节点ID
-    uint32_t busNodeCna;  // 本设备cna标识
-    std::string primaryEid;  // cpu对应的urma通信eid
-    std::string chipId;  // LCNE提供的chipid
-    std::string cardId;  // IOdie-ID
-    std::string eid;  // 本设备eid
-    std::string guid;  // 本设备guid
+    uint32_t nodeId;        // 节点ID
+    uint32_t busNodeCna;    // 本设备cna标识
+    std::string primaryEid; // cpu对应的urma通信eid
+    std::string chipId;     // LCNE提供的chipid
+    std::string cardId;     // IOdie-ID
+    std::string eid;        // 本设备eid
+    std::string guid;       // 本设备guid
     UbsePortMap portInfos;  // port信息,k:DevPortName,v:边信息
 };
 

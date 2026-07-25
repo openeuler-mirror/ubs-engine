@@ -19,7 +19,7 @@ namespace ubse::election {
 #define MODULE_LOG_NAME "ubse"
 class Master : public ElectionRole {
 public:
-    explicit Master(RoleContext &ctx);
+    explicit Master(RoleContext& ctx);
 
     ~Master()
     {
@@ -28,7 +28,7 @@ public:
         while (activeCount_.load() > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        UBSE_LOG_INFO <<"[ELECTION] Master destruction completed";
+        UBSE_LOG_INFO << "[ELECTION] Master destruction completed";
     }
 
     void ProcTimer() override;
@@ -70,12 +70,13 @@ public:
      * @param allNodes [in] 现在连接的节点信息
      */
     void DealNodeUpdate();
+
 private:
-    void PrepareElectionPkt(ElectionPkt &pkt);
-    void UpdateStandbyNode(ElectionPkt &pkt, ElectionReplyPkt &reply);
-    void ReplaceStandbyNode(ElectionPkt &pkt);
-    void HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt &reply);
-    void GetAllNeighbourNode(std::vector<UBSE_ID_TYPE> &allNodes);
+    void PrepareElectionPkt(ElectionPkt& pkt);
+    void UpdateStandbyNode(ElectionPkt& pkt, ElectionReplyPkt& reply);
+    void ReplaceStandbyNode(ElectionPkt& pkt);
+    void HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReplyPkt& reply);
+    void GetAllNeighbourNode(std::vector<UBSE_ID_TYPE>& allNodes);
     std::vector<UBSE_ID_TYPE> GetAllAgentIDs();
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus(const std::vector<UBSE_ID_TYPE> &allNodes);
@@ -102,13 +103,19 @@ private:
 
 class UnlockGuard {
 public:
-    explicit UnlockGuard(std::unique_lock<std::mutex> &lock) : lock_(lock) { lock_.unlock(); }
-    ~UnlockGuard() { lock_.lock(); }
-    UnlockGuard(const UnlockGuard &) = delete;
-    UnlockGuard &operator=(const UnlockGuard &) = delete;
+    explicit UnlockGuard(std::unique_lock<std::mutex>& lock) : lock_(lock)
+    {
+        lock_.unlock();
+    }
+    ~UnlockGuard()
+    {
+        lock_.lock();
+    }
+    UnlockGuard(const UnlockGuard&) = delete;
+    UnlockGuard& operator=(const UnlockGuard&) = delete;
 
 private:
-    std::unique_lock<std::mutex> &lock_;
+    std::unique_lock<std::mutex>& lock_;
 };
-}
+} // namespace ubse::election
 #endif // UBSE_ELECTION_ROLE_MASTER_H

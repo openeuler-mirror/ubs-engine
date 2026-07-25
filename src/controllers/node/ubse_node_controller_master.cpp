@@ -26,6 +26,7 @@
 #include "ubse_node.h"
 #include "ubse_node_controller_agent.h"
 #include "ubse_node_controller_util.h"
+#include "ubse_node_info_serialize.h"
 #include "ubse_ras_handler.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
@@ -42,9 +43,6 @@ const std::string UBSE_NODE_NODE_UP = "UbseNodeUp";
 const std::string UBSE_NODE_NODE_DOWN = "UbseNodeDown";
 const std::string UBSE_NODE_GLOBAL_MASTER_ONLINE = "UbseGlobalMasterOnLine";
 constexpr int UBSE_RPC_TIMEOUT_MS = 60000; // 5秒超时
-constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
-
-std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeController {
@@ -55,6 +53,12 @@ using namespace ubse::ras;
 using namespace ubse::event;
 using namespace ubse::timer;
 using namespace ubse::serial;
+using namespace ubse::common::def;
+using namespace ubse::task_executor;
+using namespace ubse::com;
+
+constexpr UbseResult UBSE_ERROR_TIMEOUT = 0x80000001;
+std::string LCNE_CHANGE_REPORT_EVENT = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
 
 static bool IsNodeInGroup(const ubse::election::GroupTopology &group, const std::string &nodeId)
 {
@@ -167,6 +171,24 @@ UbseResult RegMasterMsgHandler()
     ret = RegisterMasterRpcService(UbseNodeControllerOpCode::NODE_CONTROLLER_SINGLE_NODE_REPORT,
                                    SingleNodeReportHandler, "Register single node report endpoint failed");
     if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    auto comModule = UbseContext::GetInstance().GetModule<UbseComModule>();
+    if (comModule == nullptr) {
+        UBSE_LOG_ERROR << "get com module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    UbseComBaseMessageHandlerPtr lcneTopologyReportHandler = new (std::nothrow) UbseLcneTopologyMessageChangeHandler();
+    if (lcneTopologyReportHandler == nullptr) {
+        UBSE_LOG_ERROR << "get lcne topology report failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    ret = comModule->RegRpcService<UbseNodeInfoSerialize, UbseNodeInfoSerialize>(lcneTopologyReportHandler);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Register lcne topology report failed";
         return ret;
     }
 
@@ -499,7 +521,7 @@ UbseResult UbseNodeControllerMaster::UbseNodeReportHandler(const UbseNodeInfo &n
 {
     // 参数校验
     if (nodeInfo.nodeId.empty()) {
-        return SER_INVALID_PARAM;
+        return UBSE_ERROR_INVAL;
     }
 
     UbseNodeInfo nodeInfoCopy = nodeInfo;
@@ -619,7 +641,7 @@ UbseResult UbseNodeControllerMaster::UbseGlobalReportHandler(const std::vector<U
 UbseResult UbseNodeControllerMaster::UbseSingleNodeReportHandler(const UbseNodeInfo &info)
 {
     if (info.nodeId.empty()) {
-        return SER_INVALID_PARAM;
+        return UBSE_ERROR_INVAL;
     }
 
     auto role = GetClosRole();
@@ -774,7 +796,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
     UBSE_LOG_INFO << "nodeId=" << nodeInfo.nodeId << ", lcne topology change, msg=" << nodeInfo.eventMessage;
 
     if (nodeInfo.nodeId.empty()) {
-        return SER_INVALID_PARAM;
+        return UBSE_ERROR_INVAL;
     }
 
     // 如果需要，创建临时变量
@@ -794,7 +816,7 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
     return UBSE_OK;
 }
 
-void UbseNodeControllerMaster::UbseNodeUpHandlerExec(const std::string &nodeId)
+void UbseNodeControllerMaster::UbseNodeUpHandlerExec(const std::string& nodeId)
 {
     UBSE_LOG_INFO << "nodeId=" << nodeId << " node up, start to collect topology.";
     UbseNodeInfo info{};
@@ -1103,7 +1125,7 @@ static UbseResult ProcessNodeRequest(const UbseByteBuffer &req, UbseByteBuffer &
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
         UBSE_LOG_ERROR << "Invalid request: data is null but len=" << req.len;
-        return CreateErrorResponse(SER_INVALID_PARAM, resp);
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
     }
 
     // 反序列化
@@ -1145,7 +1167,7 @@ static UbseResult ProcessNodeRequestWithResponse(const UbseByteBuffer &req, Ubse
     // 参数验证
     if (req.data == nullptr && req.len > 0) {
         UBSE_LOG_ERROR << "Invalid request: data is null but len=" << req.len;
-        return CreateErrorResponse(SER_INVALID_PARAM, resp);
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
     }
 
     // 反序列化
@@ -1204,7 +1226,7 @@ UbseResult LcneChangeNodeInfoHandler(const UbseByteBuffer &req, UbseByteBuffer &
 {
     UBSE_LOG_DEBUG << "LcneChangeNodeInfoHandler received request";
     return ProcessNodeRequest(req, resp, [](UbseNodeInfo &info) -> UbseResult {
-        UBSE_LOG_INFO << "Processing LCNE change for node: " << info.nodeId;
+        UBSE_LOG_INFO << "Processing LCNE change for node=" << info.nodeId;
         return UbseNodeControllerMaster::GetInstance().UbseLcneTopologyChangeHandler(info);
     });
 }
@@ -1435,5 +1457,52 @@ void UbseNodeControllerMaster::UbseMasterNotifyMountedGroupMastersAction(const s
         const auto &mountedGroupMasterId = group.groupMasterId;
         NotifyNodeChangeAction(mountedGroupMasterId, nodeId, action);
     }
+}
+
+UbseResult UbseLcneTopologyMessageChangeHandler::Handle(const ubse::message::UbseBaseMessagePtr& req,
+                                                        const ubse::message::UbseBaseMessagePtr& rsp,
+                                                        ubse::com::UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    if (g_globalStop) {
+        UBSE_LOG_INFO << "ubse is stopped, ignore msg";
+        return UBSE_OK;
+    }
+    UBSE_LOG_INFO << "Handling lcne topology change report.";
+    auto request = UbseBaseMessage::DeConvert<UbseNodeInfoSerialize>(req);
+    if (request == nullptr || rsp == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert rpc message";
+        return UBSE_ERROR;
+    }
+    auto ret = request->Deserialize();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "DeSerialize ubse node failed: " << FormatRetCode(ret);
+        rsp->SetErrCode(ret);
+        return ret;
+    }
+    UbseNodeInfo nodeInfo = request->GetUbseNodeInfo();
+    if (ctx->GetDstId() != nodeInfo.nodeId) {
+        UBSE_LOG_ERROR << "receive wrong lcne topology change report, requestId=" << ctx->GetDstId()
+                       << ", nodeId=" << nodeInfo.nodeId;
+        rsp->SetErrCode(UBSE_ERROR);
+        return UBSE_ERROR;
+    }
+    ret = UbseNodeControllerMaster::GetInstance().UbseLcneTopologyChangeHandler(nodeInfo);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Handler failed: " << FormatRetCode(ret);
+        rsp->SetErrCode(ret);
+        return ret;
+    }
+    rsp->SetErrCode(UBSE_OK);
+    return UBSE_OK;
+}
+
+uint16_t UbseLcneTopologyMessageChangeHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER);
+}
+
+uint16_t UbseLcneTopologyMessageChangeHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_LCNE_CHANGE_REPORT_TOPOLOGY);
 }
 } // namespace ubse::nodeController

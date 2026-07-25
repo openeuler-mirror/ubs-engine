@@ -43,8 +43,8 @@ void TestUbseMemAccount::TearDown()
     GlobalMockObject::verify();
 }
 
-uint32_t MockUbseGetMemDebtInfoReturnEmpty([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemDebtInfoReturnEmpty([[maybe_unused]] const std::string& nodeId,
+                                           NodeMemDebtInfoMap& memDebtInfoMap)
 {
     memDebtInfoMap.clear();
     return 0;
@@ -52,7 +52,7 @@ uint32_t MockUbseGetMemDebtInfoReturnEmpty([[maybe_unused]] const std::string &n
 
 nodeController::UbseNumaLocation MockNumaLocation(int nodeId, uint32_t numaId)
 {
-    return nodeController::UbseNumaLocation{ BASE_NODEID + std::to_string(nodeId), numaId };
+    return nodeController::UbseNumaLocation{BASE_NODEID + std::to_string(nodeId), numaId};
 }
 
 ubse::nodeController::UbseNumaInfo MockNumaInfo(nodeController::UbseNumaLocation numaLocation, uint32_t socketId)
@@ -61,10 +61,22 @@ ubse::nodeController::UbseNumaInfo MockNumaInfo(nodeController::UbseNumaLocation
     for (int i = 0; i < CPU_NUM; ++i) {
         cores.emplace_back(i + socketId);
     }
-    return ubse::nodeController::UbseNumaInfo{
-        std::move(numaLocation), socketId,     cores,    (socketId + 1) * MEM_SIZE,
-        socketId * MEM_SIZE,     socketId * 2, socketId, TIME_STAMP + socketId
-    };
+    return ubse::nodeController::UbseNumaInfo{std::move(numaLocation),
+                                              static_cast<uint32_t>(socketId),
+                                              cores,
+                                              static_cast<uint64_t>((socketId + 1) * MEM_SIZE),
+                                              static_cast<uint64_t>(socketId * MEM_SIZE),
+                                              static_cast<uint32_t>(socketId * 2),
+                                              static_cast<uint32_t>(socketId),
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              0,
+                                              static_cast<uint64_t>(TIME_STAMP + socketId)};
 }
 
 std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> MockGetAllNodes()
@@ -84,7 +96,7 @@ std::unordered_map<std::string, ubse::nodeController::UbseNodeInfo> MockGetAllNo
     return res;
 }
 
-void MockImportObj(UbseMemBorrowImportBaseObj &importObj)
+void MockImportObj(UbseMemBorrowImportBaseObj& importObj)
 {
     importObj.status.state = UbseMemState::UBSE_MEM_IMPORT_SUCCESS;
     for (int i = 0; i < MEMID_NUM; ++i) {
@@ -105,7 +117,7 @@ void MockImportObj(UbseMemBorrowImportBaseObj &importObj)
     importObj.algoResult.exportNumaInfos.emplace_back(debtNumaInfo);
 }
 
-void MockExportObj(UbseMemBorrowExportBaseObj &exportObj)
+void MockExportObj(UbseMemBorrowExportBaseObj& exportObj)
 {
     exportObj.status.state = UbseMemState::UBSE_MEM_EXPORT_SUCCESS;
     for (int i = 0; i < MEMID_NUM; ++i) {
@@ -121,8 +133,7 @@ void MockExportObj(UbseMemBorrowExportBaseObj &exportObj)
     exportObj.algoResult.exportNumaInfos.emplace_back(debtNumaInfo);
 }
 
-uint32_t MockUbseGetMemDebtInfo([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemDebtInfo([[maybe_unused]] const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     UbseMemFdBorrowImportObj importObj{};
     UbseMemFdBorrowExportObj exportObj{};
@@ -161,8 +172,8 @@ uint32_t MockUbseGetMemDebtInfo([[maybe_unused]] const std::string &nodeId,
     return 0;
 }
 
-uint32_t MockUbseGetUInt([[maybe_unused]] const std::string &section, [[maybe_unused]] const std::string &configKey,
-    uint32_t &configValue)
+uint32_t MockUbseGetUInt([[maybe_unused]] const std::string& section, [[maybe_unused]] const std::string& configKey,
+                         uint32_t& configValue)
 {
     configValue = CPU_NUM;
     return 0;
@@ -315,12 +326,12 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdEmptyWi
     std::unordered_map<std::string, UbseNodeBorrowLentInfo> nodeBorrowLentInfoMap;
     std::unordered_map<std::string, uint64_t> borrowMap; // key=importNodeId,exportNodeId,numaId
     std::unordered_map<std::string, uint64_t> lentMap;   // exportNodeId,importNodeId,numaId
-    for (const auto &item : outList) {
+    for (const auto& item : outList) {
         nodeBorrowLentInfoMap.emplace(item.nodeId, item);
-        for (const auto &borrowedItem : item.borrowedItem) {
+        for (const auto& borrowedItem : item.borrowedItem) {
             borrowMap[item.nodeId + borrowedItem.nodeId + std::to_string(borrowedItem.numaId)] = borrowedItem.size;
         }
-        for (const auto &borrowedItem : item.lentItem) {
+        for (const auto& borrowedItem : item.lentItem) {
             lentMap[item.nodeId + borrowedItem.nodeId + std::to_string(borrowedItem.numaId)] = borrowedItem.size;
         }
     }
@@ -372,12 +383,12 @@ TEST_F(TestUbseMemAccount, ReturnsBorrowedLentInfoListCorrectlyWhenNodeIdNotEmpt
     std::unordered_map<std::string, UbseNodeBorrowLentInfo> nodeBorrowLentInfoMap;
     std::unordered_map<std::string, uint64_t> borrowMap; // key=importNodeId,exportNodeId,numaId
     std::unordered_map<std::string, uint64_t> lentMap;   // exportNodeId,importNodeId,numaId
-    for (const auto &item : outList) {
+    for (const auto& item : outList) {
         nodeBorrowLentInfoMap.emplace(item.nodeId, item);
-        for (const auto &borrowedItem : item.borrowedItem) {
+        for (const auto& borrowedItem : item.borrowedItem) {
             borrowMap[item.nodeId + borrowedItem.nodeId + std::to_string(borrowedItem.numaId)] = borrowedItem.size;
         }
-        for (const auto &borrowedItem : item.lentItem) {
+        for (const auto& borrowedItem : item.lentItem) {
             lentMap[item.nodeId + borrowedItem.nodeId + std::to_string(borrowedItem.numaId)] = borrowedItem.size;
         }
     }
@@ -433,8 +444,7 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoFullProcedureWithEmptyNumaInfo)
     EXPECT_EQ(numaNodeInfoVec.size(), 0);
 }
 
-uint32_t MockUbseGetMemShareDebtInfo([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemShareDebtInfo([[maybe_unused]] const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     UbseMemShareBorrowImportObj importObj{};
     UbseMemShareBorrowExportObj exportObj{};
@@ -508,8 +518,7 @@ TEST_F(TestUbseMemAccount, UbseAllShmAccountInfoWithEmptyShmInfo)
     EXPECT_EQ(outMap.size(), 0);
 }
 
-uint32_t MockUbseGetMemSingleDebtInfo([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemSingleDebtInfo([[maybe_unused]] const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
 {
     UbseMemFdBorrowImportObj importObj{};
     UbseMemNumaBorrowImportObj memNumaBorrowImportObj{};
@@ -558,8 +567,8 @@ TEST_F(TestUbseMemAccount, SingleLedgerRefill)
     EXPECT_EQ(0, accountMap[BASE_RESOURCEID + "2" + "_" + BASE_NODEID + "0_4"].borrowMemId[0]);
 }
 
-uint32_t MockUbseGetMemShareDebtInfoForSameNumaBorrows([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemShareDebtInfoForSameNumaBorrows([[maybe_unused]] const std::string& nodeId,
+                                                       NodeMemDebtInfoMap& memDebtInfoMap)
 {
     UbseMemShareBorrowExportObj exportObj{};
     MockExportObj(exportObj);
@@ -594,15 +603,15 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoForShareSameNumaBorrows)
     std::vector<UbseNumaNodeInfo> numaNodeInfoVec{};
     auto ret = UbseAllNumaInfo(numaNodeInfoVec);
     EXPECT_EQ(ret, 0);
-    for (const auto &numaInfo : numaNodeInfoVec) {
+    for (const auto& numaInfo : numaNodeInfoVec) {
         if (numaInfo.nodeId == BASE_NODEID + "1" && numaInfo.socketId == 1 && numaInfo.numaId == 0) {
             EXPECT_EQ(numaInfo.mMemShared, MEM_SIZE * 2);
         }
     }
 }
 
-uint32_t MockUbseGetMemNumaDebtInfoForSameNumaBorrows([[maybe_unused]] const std::string &nodeId,
-    NodeMemDebtInfoMap &memDebtInfoMap)
+uint32_t MockUbseGetMemNumaDebtInfoForSameNumaBorrows([[maybe_unused]] const std::string& nodeId,
+                                                      NodeMemDebtInfoMap& memDebtInfoMap)
 {
     UbseMemNumaBorrowExportObj exportObj{};
     MockExportObj(exportObj);
@@ -646,7 +655,7 @@ TEST_F(TestUbseMemAccount, UbseAllNumaInfoForNumaSameNumaBorrows)
     std::vector<UbseNumaNodeInfo> numaNodeInfoVec{};
     auto ret = UbseAllNumaInfo(numaNodeInfoVec);
     EXPECT_EQ(ret, 0);
-    for (const auto &numaInfo : numaNodeInfoVec) {
+    for (const auto& numaInfo : numaNodeInfoVec) {
         if (numaInfo.nodeId == BASE_NODEID + "1" && numaInfo.socketId == 1 && numaInfo.numaId == 0) {
             EXPECT_EQ(numaInfo.mMemLent, MEM_SIZE * 2);
         }
@@ -675,7 +684,7 @@ TEST_F(TestUbseMemAccount, UbseAllBorrowAccountInfoLentSizeCorrect)
     MOCKER_CPP(&ubse::config::UbseGetUInt).stubs().will(invoke(MockUbseGetUInt));
     UbseBorrowAccountMap accountMap;
     UbseAllBorrowAccountInfo(nodeId, accountMap);
-    for (const auto &accountMap1 : accountMap) {
+    for (const auto& accountMap1 : accountMap) {
         EXPECT_EQ(accountMap1.second.lentNumaSizeList.size(), 1);
         EXPECT_EQ(accountMap1.second.lentNumaSizeList[0], MEM_SIZE);
     }

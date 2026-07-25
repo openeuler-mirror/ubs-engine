@@ -13,9 +13,9 @@
 #ifndef UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_H
 #define UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_H
 
+#include "ubse_election_def.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
-#include "ubse_election_def.h"
 
 namespace ubse::event::election {
 
@@ -28,6 +28,6 @@ protected:
     void TearDown() override;
 };
 
-}
+} // namespace ubse::event::election
 
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_H

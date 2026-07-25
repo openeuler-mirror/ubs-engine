@@ -11,18 +11,18 @@
  */
 
 #include "ubse_mem_debt_info_query_handler.h"
-#include "debt/ubse_mem_debt_info_query.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_mem_controller_def.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_partial_fetch.h"
-#include "ubse_mmi_interface.h"
 #include "ubse_mem_util.h"
+#include "ubse_mmi_interface.h"
+#include "debt/ubse_mem_debt_info_query.h"
+#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_controller_def_simpo.h"
+#include "message/ubse_mem_debt_info_query_req_simpo.h"
 #include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::mem::controller::rpc {
@@ -34,6 +34,10 @@ using namespace ubse::mem::controller::message;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller;
+using namespace ubse::com;
+using namespace ubse::log;
+using namespace ubse::mem::controller;
+
 UbseResult UbseMemDebtInfoQueryHandler::RegUbseMemDebtInfoQueryHandler()
 {
     UbseComBaseMessageHandlerPtr ubseComBaseMessageHandler = new (std::nothrow) UbseMemDebtInfoQueryHandler();
@@ -41,7 +45,7 @@ UbseResult UbseMemDebtInfoQueryHandler::RegUbseMemDebtInfoQueryHandler()
         UBSE_LOG_ERROR << "new register UbseMemDebtInfoQueryHandler failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
-    UbseContext &ctx = UbseContext::GetInstance();
+    UbseContext& ctx = UbseContext::GetInstance();
     auto ubseComModule = ctx.GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "get UbseComModule failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
@@ -56,7 +60,7 @@ UbseResult UbseMemDebtInfoQueryHandler::RegUbseMemDebtInfoQueryHandler()
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req和resp
@@ -93,7 +97,7 @@ UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr &req, co
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoFdGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoFdGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -119,7 +123,7 @@ UbseResult UbseMemDebtInfoFdGetHandler::Handle(const UbseBaseMessagePtr &req, co
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoFdListHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoFdListHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                 UbseComBaseMessageHandlerCtxPtr ctx)
 {
     UBSE_LOG_INFO << "UbseMemDebtInfoFdListHandler Handle start";
@@ -146,7 +150,7 @@ UbseResult UbseMemDebtInfoFdListHandler::Handle(const UbseBaseMessagePtr &req, c
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoNumaGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoNumaGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -172,8 +176,8 @@ UbseResult UbseMemDebtInfoNumaGetHandler::Handle(const UbseBaseMessagePtr &req, 
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoNumaGetWithImportNodeHandler::Handle(const UbseBaseMessagePtr &req,
-                                                               const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoNumaGetWithImportNodeHandler::Handle(const UbseBaseMessagePtr& req,
+                                                               const UbseBaseMessagePtr& rsp,
                                                                UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -200,7 +204,7 @@ UbseResult UbseMemDebtInfoNumaGetWithImportNodeHandler::Handle(const UbseBaseMes
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoNumaListHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoNumaListHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                   UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -226,7 +230,7 @@ UbseResult UbseMemDebtInfoNumaListHandler::Handle(const UbseBaseMessagePtr &req,
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                 UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -253,7 +257,7 @@ UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr &req, c
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoShmListHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoShmListHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -279,7 +283,7 @@ UbseResult UbseMemDebtInfoShmListHandler::Handle(const UbseBaseMessagePtr &req, 
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                       UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -306,7 +310,7 @@ UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr &
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoAddrGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoAddrGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 解析req 和resp
@@ -332,7 +336,7 @@ UbseResult UbseMemDebtInfoAddrGetHandler::Handle(const UbseBaseMessagePtr &req, 
     return UBSE_OK;
 }
 
-UbseResult UbseMemDebtInfoPartialFetchHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemDebtInfoPartialFetchHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                       UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto reqPtr = UbseBaseMessage::DeConvert<UbseMemDebtInfoPartialFetchReq>(req);
@@ -365,7 +369,7 @@ UbseResult UbseMemDebtInfoPartialFetchHandler::Handle(const UbseBaseMessagePtr &
     return UBSE_OK;
 }
 
-UbseResult UbseMemNodeBorrowQueryHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemNodeBorrowQueryHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                                  UbseComBaseMessageHandlerCtxPtr ctx)
 {
     // 无入参
@@ -384,7 +388,7 @@ UbseResult UbseMemNodeBorrowQueryHandler::Handle(const UbseBaseMessagePtr &req, 
     return UBSE_OK;
 }
 
-UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
                                            UbseComBaseMessageHandlerCtxPtr ctx)
 {
     auto reqPtr = UbseBaseMessage::DeConvert<UbseMemIdQueryRequestSimpo>(req);

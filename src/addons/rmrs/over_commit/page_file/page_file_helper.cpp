@@ -21,12 +21,11 @@ std::string PageFileHelper::HUGEPAGES_PATH_HEAD = "/sys/devices/system/node/node
 std::string PageFileHelper::HUGEPAGES_PATH_TAIL = "/hugepages/hugepages-2048kB/nr_hugepages";
 const int RETRYCOUNT = 5;
 
-MpResult PageFileHelper::GetHugePageCanonicalPath(const std::string &remoteNumaId, std::string &filePath)
+MpResult PageFileHelper::GetHugePageCanonicalPath(const std::string& remoteNumaId, std::string& filePath)
 {
     filePath = HUGEPAGES_PATH_HEAD + remoteNumaId + HUGEPAGES_PATH_TAIL;
     if (!UbseFileUtil::CanonicalPath(filePath)) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit] HugepagesPath is invalid.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit] HugepagesPath is invalid.";
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit] HugepagesPath is invalid, filePath=" << filePath << ".";
         return MEM_POOLING_ERROR;
@@ -73,18 +72,18 @@ MpResult PageFileHelper::RewriteHugePagesWithRetry(const std::string& filePath, 
     return MEM_POOLING_OK;
 }
 
-MpResult PageFileHelper::AllocateHugePages(const std::vector<MemBorrowInfoWithSrc> &memBorrowInfoWithSrcs)
+MpResult PageFileHelper::AllocateHugePages(const std::vector<MemBorrowInfoWithSrc>& memBorrowInfoWithSrcs)
 {
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit] Allocate hugePages start.";
     std::unordered_map<uint16_t, uint64_t> memBorrowInfoMap;
-    for (const auto &[srcNumaId, presentNumaId, borrowSize] : memBorrowInfoWithSrcs) {
+    for (const auto& [srcNumaId, presentNumaId, borrowSize] : memBorrowInfoWithSrcs) {
         if (memBorrowInfoMap.find(presentNumaId) == memBorrowInfoMap.end()) {
             memBorrowInfoMap[presentNumaId] = borrowSize;
         } else {
             memBorrowInfoMap[presentNumaId] += borrowSize;
         }
     }
-    for (const auto &[fst, snd] : memBorrowInfoMap) {
+    for (const auto& [fst, snd] : memBorrowInfoMap) {
         std::string filePath;
         VmResult ret = GetHugePageCanonicalPath(std::to_string(fst), filePath);
         if (ret != MEM_POOLING_OK) {
@@ -112,12 +111,11 @@ MpResult PageFileHelper::AllocateHugePages(const std::vector<MemBorrowInfoWithSr
     return MEM_POOLING_OK;
 }
 
-MpResult PageFileHelper::GetOriginalHugePages(const std::string &filePath, uint64_t &originalHugePages)
+MpResult PageFileHelper::GetOriginalHugePages(const std::string& filePath, uint64_t& originalHugePages)
 {
     std::ifstream inputFile(filePath);
     if (!inputFile.is_open()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit] Failed to open inputFile.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit] Failed to open inputFile.";
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit] Failed to open inputFile, realPath=" << filePath << ".";
         return MEM_POOLING_ERROR;
@@ -132,14 +130,13 @@ MpResult PageFileHelper::GetOriginalHugePages(const std::string &filePath, uint6
     return MEM_POOLING_OK;
 }
 
-MpResult PageFileHelper::RewriteHugePages(const std::string &realPath, const uint64_t borrowSize)
+MpResult PageFileHelper::RewriteHugePages(const std::string& realPath, const uint64_t borrowSize)
 {
     // 按2M为计算单位,计算最后分配大页的大小
     const uint64_t nrHugePages = borrowSize / KB22MB;
     std::ofstream outputFile(realPath, std::ios::out);
     if (!outputFile.is_open()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[OverCommit] Failed to open file.";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[OverCommit] Failed to open file.";
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[OverCommit] Failed to open file, realPath=" << realPath << ".";
         return MEM_POOLING_ERROR;

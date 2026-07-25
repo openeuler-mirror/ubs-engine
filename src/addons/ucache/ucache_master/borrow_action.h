@@ -13,15 +13,16 @@
 #ifndef UCACHE_BORROW_ACTION_H
 #define UCACHE_BORROW_ACTION_H
 
-#include "mem_borrow.h"
 #include "ubse_error.h"
+#include "mem_borrow.h"
 
 namespace ucache {
 namespace borrow_action {
 
 using namespace ucache::mem_borrow;
 
-enum class ActionType {
+enum class ActionType
+{
     BORROW,
     RETURN
 };
@@ -34,9 +35,9 @@ struct BorrowAction {
 };
 
 template <size_t N>
-UbseResult UbseMemNumaCreateWithLenderSafe(const std::string &name, const UbseMemBorrower &borrower,
-                                           const std::vector<UbseMemNumaLender> &lenders, uint8_t (&usrInfo)[N],
-                                           UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithLenderSafe(const std::string& name, const UbseMemBorrower& borrower,
+                                           const std::vector<UbseMemNumaLender>& lenders, uint8_t (&usrInfo)[N],
+                                           UbseMemNumaDesc& desc)
 {
     static_assert(N == UBSE_MAX_USR_INFO_LEN,
                   "Error: usrInfo buffer size does not meet UbseMemNumaCreateWithLender requirements!");
@@ -47,16 +48,16 @@ UbseResult UbseMemNumaCreateWithLenderSafe(const std::string &name, const UbseMe
 // 借用/归还内存相关接口
 
 // 借用内存
-uint32_t ExecuteBorrowMem(const std::string &from, const std::string &to);
+uint32_t ExecuteBorrowMem(const std::string& from, const std::string& to);
 
 // 归还内存
-uint32_t ExecuteReturnMem(const std::string &from, const std::string &to);
+uint32_t ExecuteReturnMem(const std::string& from, const std::string& to);
 
 // 执行单个借用动作
-uint32_t ProcessOneBorrowAction(const BorrowAction &action);
+uint32_t ProcessOneBorrowAction(const BorrowAction& action);
 
 // 执行借用动作集
-uint32_t ExecuteBorrowActions(const std::vector<BorrowAction> &actionSet);
+uint32_t ExecuteBorrowActions(const std::vector<BorrowAction>& actionSet);
 
 } // namespace borrow_action
 } //  end namespace ucache

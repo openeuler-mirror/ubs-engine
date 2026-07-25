@@ -17,14 +17,14 @@
 #include "ubse_common_def.h"
 
 namespace ubse::utils {
-using namespace ubse::common::def;
+using ubse::common::def::UbseResult;
 class UbseOsUtil {
 public:
-    static UbseResult GetUserNameById(uid_t uid, std::string &userName);
+    static UbseResult GetUserNameById(uid_t uid, std::string& userName);
 
-    static UbseResult Exec(const std::string &cmd, std::string &res);
+    static UbseResult Exec(const std::string& cmd, std::string& res);
 
-    static UbseResult GetUidByName(const std::string &username, uid_t &uid);
+    static UbseResult GetUidByName(const std::string& username, uid_t& uid);
 
     static UbseResult GetNumaIdByPid(const uint64_t &pid, uint32_t &numaId);
 

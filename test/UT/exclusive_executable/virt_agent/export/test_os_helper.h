@@ -25,6 +25,6 @@ public:
 
     void TearDown() override;
 };
-}
+} // namespace ubse::ut::vm
 
 #endif // UBSE_MANAGER_TEST_OS_HELPER_H

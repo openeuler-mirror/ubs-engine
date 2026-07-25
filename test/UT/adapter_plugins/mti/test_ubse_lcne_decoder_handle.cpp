@@ -14,16 +14,17 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "lcne/ubse_lcne_decoder_handle.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
-#include "ubse_lcne_module.h"
+#include "src/adapter_plugins/mti/ubse_lcne_module.h"
+#include "lcne/ubse_lcne_decoder_handle.h"
 #include "src/framework/http/ubse_http_module.h"
 
 namespace ubse::ut::lcne {
 using namespace ubse::lcne;
 using namespace ubse::context;
+using namespace ubse::http;
 
 void TestUbseLcneDecoderHandle ::SetUp()
 {
@@ -291,4 +292,4 @@ TEST_F(TestUbseLcneDecoderHandle, GetAllMemHandlesResponseArrayParseFailed)
     ret = UbseLcneDecoderHandle::GetInstance().GetAllMemHandles(queryInfo, handleValues);
     EXPECT_EQ(ret, UBSE_ERROR);
 }
-}
+} // namespace ubse::ut::lcne

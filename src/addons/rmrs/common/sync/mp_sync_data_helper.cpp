@@ -20,7 +20,7 @@
 namespace mempooling::sync {
 using namespace ubse::log;
 
-MpSyncDataHelper &MpSyncDataHelper::Instance()
+MpSyncDataHelper& MpSyncDataHelper::Instance()
 {
     static MpSyncDataHelper instance;
     return instance;
@@ -36,23 +36,23 @@ MpResult MpSyncDataHelper::DeInit()
     return MEM_POOLING_OK;
 }
 
-void GetSyncResultResHandler(void *ctx, const UbseByteBuffer &respData, uint32_t resCode)
+void GetSyncResultResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode)
 {
     if (ctx == nullptr || respData.data == nullptr || respData.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] Ctx or respData is null.";
         return;
     }
-    uint32_t &ret = *(static_cast<uint32_t *>(ctx));
+    uint32_t& ret = *(static_cast<uint32_t*>(ctx));
     RmrsInStream builder(respData.data, respData.len);
     builder >> ret;
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "[MpElection][SyncData] ret=" << ret;
     return;
 }
 
-MpResult MpSyncDataHelper::SyncDataToNode(const std::vector<std::string> &nodeIdList, const uint32_t &opCode,
-                                          const UbseByteBuffer &data)
+MpResult MpSyncDataHelper::SyncDataToNode(const std::vector<std::string>& nodeIdList, const uint32_t& opCode,
+                                          const UbseByteBuffer& data)
 {
-    for (auto &nodeId : nodeIdList) {
+    for (auto& nodeId : nodeIdList) {
         UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MpElection][SyncData] SyncData to NodeId=" << nodeId << " start.";
         UbseComEndpoint endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = opCode, .address = nodeId};
@@ -72,4 +72,4 @@ MpResult MpSyncDataHelper::SyncDataToNode(const std::vector<std::string> &nodeId
     return MEM_POOLING_OK;
 }
 
-}
+} // namespace mempooling::sync

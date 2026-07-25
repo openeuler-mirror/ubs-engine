@@ -209,9 +209,10 @@ TEST_F(TestUbseLoggerAudit, sendAuditMessage5)
     EXPECT_NO_THROW(UBSE_AUDIT_SECURITY(interface) << "1111111111111111111111 test");
 }
 
-struct TestLibrary {};
+struct TestLibrary {
+};
 inline void MockFunc() {}
-bool CheckName1(const char *name)
+bool CheckName1(const char* name)
 {
     if (strcmp(name, "audit_open") == 0) {
         return true;
@@ -220,7 +221,7 @@ bool CheckName1(const char *name)
     }
 }
 
-bool CheckName2(const char *name)
+bool CheckName2(const char* name)
 {
     if (strcmp(name, "audit_close") == 0) {
         return true;
@@ -240,8 +241,8 @@ bool CheckName2(const char *name)
 TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlopen)
 {
     GTEST_SKIP();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(nullptr)));
-    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
+    std::streambuf* oldCerrBuffer = std::cerr.rdbuf();
     std::stringstream capturedOutput;
     std::cerr.rdbuf(capturedOutput.rdbuf());
     InitializeAuditFunctions();
@@ -261,10 +262,10 @@ TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditOpen)
 {
     GTEST_SKIP();
     auto testLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
-    MOCKER(dlsym).stubs().will(returnValue(static_cast<void *>(nullptr)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&testLibrary)));
+    MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     MOCKER(dlclose).stubs().will(returnValue(0));
-    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::streambuf* oldCerrBuffer = std::cerr.rdbuf();
     std::stringstream capturedOutput;
     std::cerr.rdbuf(capturedOutput.rdbuf());
     InitializeAuditFunctions();
@@ -286,13 +287,13 @@ TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditOpen)
 TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditClose)
 {
     auto testLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&testLibrary)));
     MOCKER(dlsym)
         .stubs()
-        .will(returnValue(reinterpret_cast<void *>(&MockFunc)))
-        .then(returnValue(static_cast<void *>(nullptr)));
+        .will(returnValue(reinterpret_cast<void*>(&MockFunc)))
+        .then(returnValue(static_cast<void*>(nullptr)));
     MOCKER(dlclose).stubs().will(returnValue(0));
-    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::streambuf* oldCerrBuffer = std::cerr.rdbuf();
     std::stringstream capturedOutput;
     std::cerr.rdbuf(capturedOutput.rdbuf());
     InitializeAuditFunctions();
@@ -315,14 +316,14 @@ TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditClose)
 TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditLog)
 {
     auto testLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&testLibrary)));
     MOCKER(dlsym)
         .stubs()
-        .will(returnValue(reinterpret_cast<void *>(&MockFunc)))
-        .then(returnValue(reinterpret_cast<void *>(&MockFunc)))
-        .then(returnValue(static_cast<void *>(nullptr)));
+        .will(returnValue(reinterpret_cast<void*>(&MockFunc)))
+        .then(returnValue(reinterpret_cast<void*>(&MockFunc)))
+        .then(returnValue(static_cast<void*>(nullptr)));
     MOCKER(dlclose).stubs().will(returnValue(0));
-    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::streambuf* oldCerrBuffer = std::cerr.rdbuf();
     std::stringstream capturedOutput;
     std::cerr.rdbuf(capturedOutput.rdbuf());
     InitializeAuditFunctions();
@@ -345,10 +346,10 @@ TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsDlsymAuditLog)
 TEST_F(TestUbseLoggerAudit, InitializeAuditFunctionsSuccess)
 {
     auto testLibrary = TestLibrary();
-    MOCKER(dlopen).stubs().will(returnValue(static_cast<void *>(&testLibrary)));
-    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void *>(&MockFunc)));
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(&testLibrary)));
+    MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(&MockFunc)));
     MOCKER(dlclose).stubs().will(returnValue(0));
-    std::streambuf *oldCerrBuffer = std::cerr.rdbuf();
+    std::streambuf* oldCerrBuffer = std::cerr.rdbuf();
     std::stringstream capturedOutput;
     std::cerr.rdbuf(capturedOutput.rdbuf());
     InitializeAuditFunctions();

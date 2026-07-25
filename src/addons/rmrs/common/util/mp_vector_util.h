@@ -13,18 +13,18 @@
 #ifndef MP_VECTOR_UTIL_H
 #define MP_VECTOR_UTIL_H
 
-#include <vector>
-#include <string>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace mempooling {
 class VectorUtil {
 public:
     template <typename T>
-    static std::string VectorToStr(const std::vector<T> &vec, const std::string delimiter = ",");
+    static std::string VectorToStr(const std::vector<T>& vec, const std::string delimiter = ",");
 };
 template <typename T>
-std::string VectorUtil::VectorToStr(const std::vector<T> &vec, const std::string delimiter)
+std::string VectorUtil::VectorToStr(const std::vector<T>& vec, const std::string delimiter)
 {
     std::ostringstream oss;
     oss << R"([)";
@@ -32,7 +32,7 @@ std::string VectorUtil::VectorToStr(const std::vector<T> &vec, const std::string
     for (size_t i = 0; i < count; ++i) {
         try {
             oss << vec[i].ToString();
-        } catch(const std::exception& e) {
+        } catch (const std::exception& e) {
             oss << delimiter;
         }
     }

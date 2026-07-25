@@ -18,45 +18,38 @@
 #include <vector>
 #include "ubse_common_def.h"
 #include "ubse_node_controller.h"
+#include "ubse_urma_uvs_def.h"
 
 namespace ubse::urma {
-using namespace ubse::common::def;
-using namespace ubse::nodeController;
-
-struct UbseUrmaUvsFe {
-    std::string ubpuId;
-    std::string entityId;
-    std::string primaryEid;
-    std::map<std::string, std::string> portEid;
-};
-
-struct UbseUrmaUvsAggrDev {
-    std::string urmaDevEid;
-    std::vector<UbseUrmaUvsFe> feList;
-};
-
-struct UbseUrmaUvsNodeInfo {
-    std::string nodeId;
-    std::vector<UbseUrmaUvsAggrDev> devList;
-};
+using ubse::common::def::UbseResult;
+using ubse::nodeController::PhysicalLink;
 
 /**
  * @brief 下发拓扑和聚合设备信息到urma_uvs
- * @param [in] current_slot_id：当前节点ID
+ * @param [in] current_node_id：当前节点ID
  * @param [in] allLinkInfo：拓扑链路信息
  * @param [in] bondingInfo：聚合设备信息
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbsePushTopoAndBondingToUvs(std::string &current_slot_id, const std::vector<PhysicalLink> &allLinkInfo,
-                                       const std::vector<UbseUrmaUvsNodeInfo> &bondingInfo);
+UbseResult UbsePushTopoAndBondingToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+                                       const std::vector<UbseUrmaUvsNodeInfo>& bondingInfo);
 
+/*
+ * @brief 下发共享拓扑和聚合设备信息到urma_uvs
+ * @param [in] current_node_id：当前节点ID
+ * @param [in] shareLinkInfo：共享拓扑链路信息
+ * @param [in] allLinkInfo：共享聚合设备信息
+ * @return 成功返回0, 失败返回非0
+ */
+UbseResult UbsePushShareTopoToUvs(const std::string& current_node_id, const std::vector<PhysicalLink>& allLinkInfo,
+                                  const std::vector<UbseUrmaUvsNodeInfo>& shareBondingInfo);
 /**
  * @brief 获得urma设备子路径名称。从urma_uvs获取EID对应的子路径名称（如 /dev/urma0/subpath_abc 中的 subpath_abc）
  * @param [in] urmaEid：urma设备Eid, 格式为 0000:0000:0000:0000:0000:0000:0100:0000
  * @param [out] urmaEidName：urma设备子路径名称，表示urma_uvs给urma设备起的名称。其中聚合设备仅激活后可获得名称
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbseGetUrmaSubpathByEid(const std::string &urmaEid, std::string &urmaSubpath);
+UbseResult UbseGetUrmaSubpathByEid(const std::string& urmaEid, std::string& urmaSubpath);
 
 /**
  * @brief 获得聚合设备状态。从urma_uvs获取聚合设备名称，判断聚合设备是否已经激活
@@ -64,7 +57,7 @@ UbseResult UbseGetUrmaSubpathByEid(const std::string &urmaEid, std::string &urma
  * @param [out] isActivate：聚合设备是否激活
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isActive);
+UbseResult UbseGetBondingActiveStateByEid(const std::string& urmaEid, bool& isActive);
 
 /**
  * @brief 下发信息到urma_uvs激活聚合设备
@@ -72,14 +65,14 @@ UbseResult UbseGetBondingActiveStateByEid(const std::string &urmaEid, bool &isAc
  * @param [in] aggrDevName：聚合设备名称，最大长度为AGGR_DEV_NAME_LEN-1，不包含'\0'
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbseActiveBonding(const std::string &urmaEid, const std::string &aggrDevName);
+UbseResult UbseActiveBonding(const std::string& urmaEid, const std::string& aggrDevName);
 
 /**
  * @brief 下发信息到urma_uvs取消激活聚合设备
  * @param [in] urmaEid：聚合设备Eid, 格式为 0000:0000:0000:0000:0000:0000:0100:0000
  * @return 成功返回0, 失败返回非0
  */
-UbseResult UbseDeactiveBonding(const std::string &urmaEid);
-}
+UbseResult UbseDeactiveBonding(const std::string& urmaEid);
+} // namespace ubse::urma
 
 #endif // UBSE_UVS_INTERFACE_H

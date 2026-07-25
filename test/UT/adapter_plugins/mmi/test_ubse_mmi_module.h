@@ -12,10 +12,10 @@
 
 #ifndef TEST_UBSE_MMI_MODULE_H
 #define TEST_UBSE_MMI_MODULE_H
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <mockcpp/mockcpp.hpp>
+#include <gtest/gtest.h>
 #include <atomic>
+#include <mockcpp/mockcpp.hpp>
 #include "ubse_mmi_module.h"
 
 namespace ubse::ut::mmi {
@@ -32,9 +32,10 @@ class TestUbseMmiModule : public testing::Test {
         Test::TearDown();
         GlobalMockObject::verify();
     }
+
 public:
     static std::atomic<uint64_t> mockMemId_;
 };
-}  // namespace ubse::ut::mmi
+} // namespace ubse::ut::mmi
 
-#endif  // TEST_UBSE_MMI_MODULE_H
+#endif // TEST_UBSE_MMI_MODULE_H

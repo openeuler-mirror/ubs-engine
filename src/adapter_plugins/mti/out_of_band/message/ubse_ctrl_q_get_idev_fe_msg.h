@@ -28,9 +28,9 @@ class UbseCtrlQGetIdevFeRespMsg : public ICtrlQRespMsg {
 public:
     UbseCtrlQGetIdevFeRespMsg() = default;
 
-    UbseResult DecodeRespMsg(const CtrlQRespMessage &msg) override;
+    UbseResult DecodeRespMsg(const CtrlQRespMessage& msg) override;
 
-    const std::vector<UbseMtiIdevPfe> &GetPfeList() const;
+    const std::vector<UbseMtiIdevPfe>& GetPfeList() const;
 
 private:
     std::vector<UbseMtiIdevPfe> pfeList_;

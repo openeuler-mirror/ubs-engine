@@ -13,16 +13,17 @@
 #ifndef EVENT_HANDLER_H
 #define EVENT_HANDLER_H
 
-#include <string>
 #include <atomic>
 #include <map>
+#include <string>
 #include "ubse_ras.h"
 #include "data_collect.h"
 
 namespace ucache::fault_handler {
 using namespace ubse::ras;
 
-enum class EventCondition {
+enum class EventCondition
+{
     UCE_MEMID_FAILURE,
     OTHER_FAILURE
 };

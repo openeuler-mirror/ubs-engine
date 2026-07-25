@@ -15,6 +15,7 @@
 
 #include "ubse_error.h"
 #include "ubse_http_module.h"
+#include "ubse_mti_interface_default.h"
 #include "lcne/ubse_lcne_ets.h"
 
 namespace ubse::ut::lcne {
@@ -31,28 +32,28 @@ UbseResult g_httpRet = UBSE_OK;
 const std::string ETS_PROFILE_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets</name>"
     "<vls><vl><vl-index>0</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>10</weight></vl><vl><vl-index>10</vl-index>"
-    "<priority-group-id>2</priority-group-id><schedule-mode>sp</schedule-mode><weight>1</weight></vl></vls>"
+    "</vl><vl><vl-index>10</vl-index>"
+    "<priority-group-id>2</priority-group-id></vl></vls>"
     "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs>"
+    "<cir>1000</cir><cbs>4096</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILE_WRAPPED_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets1</name>"
     "<vls><vl><vl-index>1</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight></vl></vls>"
+    "</vl></vls>"
     "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight><cir>1000</cir><cbs>4096</cbs>"
+    "<cir>1000</cir><cbs>4096</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILES_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets1</name>"
     "<vls><vl><vl-index>1</vl-index><priority-group-id>1</priority-group-id>"
-    "<schedule-mode>dwrr</schedule-mode><weight>1</weight></vl></vls><priority-groups>"
-    "<priority-group><priority-group-id>1</priority-group-id><schedule-mode>dwrr</schedule-mode>"
-    "<weight>1</weight><cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile>"
+    "</vl></vls><priority-groups>"
+    "<priority-group><priority-group-id>1</priority-group-id>"
+    "<cir>1000</cir><cbs>4096</cbs></priority-group></priority-groups></ets-profile>"
     "<ets-profile><name>test-ets2</name><vls><vl><vl-index>2</vl-index>"
-    "<priority-group-id>2</priority-group-id><schedule-mode>sp</schedule-mode><weight>2</weight></vl></vls>"
+    "<priority-group-id>2</priority-group-id></vl></vls>"
     "<priority-groups><priority-group><priority-group-id>2</priority-group-id>"
-    "<schedule-mode>sp</schedule-mode><weight>2</weight><cir>2000</cir><cbs>8192</cbs>"
+    "<cir>2000</cir><cbs>8192</cbs>"
     "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
 const std::string ETS_PROFILE_NAME_ONLY_XML =
     "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile>"
@@ -128,7 +129,7 @@ TEST_F(TestUbseLcneEts, ParseEtsProfileResponseSuccess)
     EXPECT_EQ(profile.profileName, "test-ets");
     ASSERT_EQ(profile.vls.size(), 2);
     EXPECT_EQ(profile.vls[0].vlIndex, 0);
-    EXPECT_EQ(profile.vls[1].scheduleMode, UbseEtsScheduleMode::SP);
+    EXPECT_EQ(profile.vls[1].vlIndex, 10);
     ASSERT_EQ(profile.priorityGroups.size(), 1);
     EXPECT_EQ(profile.priorityGroups[0].cir, 1000);
     EXPECT_EQ(profile.priorityGroups[0].cbs, 4096);
@@ -169,9 +170,9 @@ TEST_F(TestUbseLcneEts, ParseEtsProfileResponseInvalidNumberFailed)
     std::string responseXml =
         "<ub-qos xmlns=\"urn:huawei:yang:huawei-ub-qos\"><ets-profiles><ets-profile><name>test-ets</name>"
         "<vls><vl><vl-index>invalid</vl-index><priority-group-id>1</priority-group-id>"
-        "<schedule-mode>dwrr</schedule-mode><weight>10</weight></vl></vls>"
+        "</vl></vls>"
         "<priority-groups><priority-group><priority-group-id>1</priority-group-id>"
-        "<schedule-mode>dwrr</schedule-mode><weight>20</weight><cir>1000</cir><cbs>4096</cbs>"
+        "<cir>1000</cir><cbs>4096</cbs>"
         "</priority-group></priority-groups></ets-profile></ets-profiles></ub-qos>";
     UbseMtiEtsProfile profile;
     EXPECT_EQ(UbseLcneEts::GetInstance().ParseEtsProfileResponse(responseXml, profile), UBSE_ERROR);
@@ -190,7 +191,8 @@ TEST_F(TestUbseLcneEts, ParseInterfaceEtsProfileResponseSuccess)
 TEST_F(TestUbseLcneEts, CreateEtsProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().CreateEtsProfile(MakeEtsProfile()), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseCreateEtsProfile(MakeEtsProfile()), UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Accept"), g_request.headers.end());
@@ -203,12 +205,15 @@ TEST_F(TestUbseLcneEts, CreateEtsProfileSuccess)
     EXPECT_NE(g_request.body.find("<name>test-ets</name>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<vl-index>10</vl-index>"), std::string::npos);
     EXPECT_NE(g_request.body.find("<priority-groups>"), std::string::npos);
+    EXPECT_EQ(g_request.body.find("<schedule-mode>"), std::string::npos);
+    EXPECT_EQ(g_request.body.find("<weight>"), std::string::npos);
 }
 
 TEST_F(TestUbseLcneEts, AddEtsVlsToProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsVlsToProfile("test-ets", MakeEtsProfile().vls), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseAddEtsVlsToProfile("test-ets", MakeEtsProfile().vls), UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
@@ -224,8 +229,8 @@ TEST_F(TestUbseLcneEts, AddEtsVlsToProfileSuccess)
 TEST_F(TestUbseLcneEts, AddEtsPriorityGroupsToProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsPriorityGroupsToProfile("test-ets", MakeEtsProfile().priorityGroups),
-              UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseAddEtsPriorityGroupsToProfile("test-ets", MakeEtsProfile().priorityGroups), UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
@@ -242,9 +247,10 @@ TEST_F(TestUbseLcneEts, AddEtsVlsAndPriorityGroupsToProfileSuccess)
 {
     auto etsProfile = MakeEtsProfile();
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().AddEtsVlsAndPriorityGroupsToProfile("test-ets", etsProfile.vls,
-                                                                             etsProfile.priorityGroups),
-              UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(
+        mtiInterface.UbseAddEtsVlsAndPriorityGroupsToProfile("test-ets", etsProfile.vls, etsProfile.priorityGroups),
+        UBSE_OK);
     EXPECT_EQ(g_request.method, "PATCH");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_NE(g_request.headers.find("Content-Type"), g_request.headers.end());
@@ -267,7 +273,8 @@ TEST_F(TestUbseLcneEts, CreateEtsProfileStatusFailed)
 TEST_F(TestUbseLcneEts, DeleteEtsProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().DeleteEtsProfile("test-ets"), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseDeleteEtsProfile("test-ets"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets");
 }
@@ -275,7 +282,8 @@ TEST_F(TestUbseLcneEts, DeleteEtsProfileSuccess)
 TEST_F(TestUbseLcneEts, RemoveEtsVlsFromProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsVlsFromProfile("test-ets"), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseRemoveEtsVlsFromProfile("test-ets"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/vls");
 }
@@ -283,7 +291,8 @@ TEST_F(TestUbseLcneEts, RemoveEtsVlsFromProfileSuccess)
 TEST_F(TestUbseLcneEts, RemoveEtsPriorityGroupsFromProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsPriorityGroupsFromProfile("test-ets"), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseRemoveEtsPriorityGroupsFromProfile("test-ets"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets/priority-groups");
 }
@@ -292,7 +301,8 @@ TEST_F(TestUbseLcneEts, QueryEtsProfileSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), ETS_PROFILE_WRAPPED_XML);
     UbseMtiEtsProfile profile;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryEtsProfile("test-ets1", profile), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseQueryEtsProfile("test-ets1", profile), UBSE_OK);
     EXPECT_EQ(g_request.method, "GET");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles/ets-profile=test-ets1");
     EXPECT_EQ(profile.profileName, "test-ets1");
@@ -303,14 +313,14 @@ TEST_F(TestUbseLcneEts, QueryAllEtsProfilesSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), ETS_PROFILES_XML);
     std::vector<UbseMtiEtsProfile> profiles;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryAllEtsProfiles(profiles), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseQueryAllEtsProfiles(profiles), UBSE_OK);
     EXPECT_EQ(g_request.method, "GET");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ub-qos:ub-qos/ets-profiles");
     ASSERT_EQ(profiles.size(), 2);
     EXPECT_EQ(profiles[0].profileName, "test-ets1");
     EXPECT_EQ(profiles[1].profileName, "test-ets2");
     ASSERT_EQ(profiles[1].vls.size(), 1);
-    EXPECT_EQ(profiles[1].vls[0].scheduleMode, UbseEtsScheduleMode::SP);
 }
 
 TEST_F(TestUbseLcneEts, QueryAllEtsProfilesEmptyBodySuccess)
@@ -349,7 +359,8 @@ TEST_F(TestUbseLcneEts, QueryEtsProfileEmptyContainerNotExist)
 TEST_F(TestUbseLcneEts, ApplyEtsProfileToInterfaceSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().ApplyEtsProfileToInterface("200GUB0/1/2", "default"), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseApplyEtsProfileToInterface("200GUB0/1/2", "default"), UBSE_OK);
     EXPECT_EQ(g_request.method, "PUT");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ifm:ifm/interfaces/interface=(200GUB0/1/2)/huawei-ub-qos:ub-qos/"
                               "ets-application");
@@ -359,7 +370,8 @@ TEST_F(TestUbseLcneEts, ApplyEtsProfileToInterfaceSuccess)
 TEST_F(TestUbseLcneEts, RemoveEtsProfileFromInterfaceSuccess)
 {
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_NO_CONTENT));
-    EXPECT_EQ(UbseLcneEts::GetInstance().RemoveEtsProfileFromInterface("200GUB0/1/2"), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseRemoveEtsProfileFromInterface("200GUB0/1/2"), UBSE_OK);
     EXPECT_EQ(g_request.method, "DELETE");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ifm:ifm/interfaces/interface=(200GUB0/1/2)/huawei-ub-qos:ub-qos/"
                               "ets-application");
@@ -389,7 +401,8 @@ TEST_F(TestUbseLcneEts, QueryAllInterfaceEtsProfileSuccess)
 </ifm>)";
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), responseXml);
     std::vector<UbseMtiInterfaceEtsApplication> applications;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryAllInterfaceEtsProfile(applications), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseQueryAllInterfaceEtsProfile(applications), UBSE_OK);
     EXPECT_EQ(g_request.method, "GET");
     EXPECT_EQ(g_request.path,
               "/restconf/data/huawei-ifm:ifm/interfaces/interface/huawei-ub-qos:ub-qos/ets-application");
@@ -430,7 +443,8 @@ TEST_F(TestUbseLcneEts, QueryInterfaceEtsProfileSuccess)
 </ets-application>)";
     MockHttpResponse(static_cast<int>(UbseHttpStatusCode::UBSE_HTTP_STATUS_CODE_OK), responseXml);
     std::string profileName;
-    EXPECT_EQ(UbseLcneEts::GetInstance().QueryInterfaceEtsProfile("200GUB0/1/2", profileName), UBSE_OK);
+    UbseMtiInterfaceDefault mtiInterface;
+    EXPECT_EQ(mtiInterface.UbseQueryInterfaceEtsProfile("200GUB0/1/2", profileName), UBSE_OK);
     EXPECT_EQ(g_request.method, "GET");
     EXPECT_EQ(g_request.path, "/restconf/data/huawei-ifm:ifm/interfaces/interface=(200GUB0/1/2)/huawei-ub-qos:ub-qos/"
                               "ets-application");

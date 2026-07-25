@@ -44,6 +44,7 @@
 ###     --lsan                  Enable LeakSanitizer (LSAN)
 ###     --tsan                  Enable ThreadSanitizer (TSAN)
 ###     --ubsan                 Enable UndefinedBehaviorSanitizer (UBSAN)
+set -euo pipefail
 
 # 函数内命令（后台命令）失败时，立即退出函数
  set -o errtrace
@@ -85,7 +86,7 @@ declare -A BUILD_DIRS=(
 # 获取项目根目录（目前为构建脚本所在目录）
 PROJECT_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
-output_dir=${PROJECT_ROOT_DIR}/output
+output_dir="${PROJECT_ROOT_DIR}/output"
 
 build_target="all"
 build_type="Release"
@@ -95,11 +96,21 @@ generator="Unix Makefiles"
 
 enable_coverage="OFF"
 enable_test="OFF"
-enable_fuzz="OFF"
+enable_it_tests="OFF"
 skip_run_tests="OFF"
-force_colored_output="OFF" # 强制启用ANSI颜色输出
-deploy_version="2.0.0.B098" # 发布版本，B098 为稳定日构建版本（OS包会取上个稳定迭代版本）
-enable_ub="ON" # 启用 UB 环境编译
+force_colored_output="OFF"
+deploy_version="2.0.0.B098"
+enable_ub="ON"
+enable_pre_commit="OFF"
+enable_http_server="OFF"
+enable_source_compiling="OFF"
+enable_asan="OFF"
+enable_lsan="OFF"
+enable_tsan="OFF"
+enable_ubsan="OFF"
+toolchain_file=""
+is_build_project="false"
+enable_clean="OFF"
 
 # 判断是否在流水线构建
 build_in_ci=false
@@ -130,7 +141,7 @@ FAILURE='[\033[1;31mFAILED\033[0;39m]'
 
 # 日志打印辅助函数
 function log_info() {
-    LOG_FILE=${build_dir}/build.log
+    LOG_FILE="${build_dir}/build.log"
     if [ $# -lt 1 ]; then
         return
     fi
@@ -263,6 +274,10 @@ function parse_args() {
             enable_ub='ON'
             shift
             ;;
+        --pre-commit)
+            enable_pre_commit='ON'
+            shift
+            ;;
         --)
             trans_flag=true
             shift
@@ -317,12 +332,14 @@ function clean() {
 # 执行 CMake 构建
 function build_cmake() {
     # 启用测试
-    if [[ "$build_target" == 'test' || "$build_target" == 'ut' ||  "$build_target" == 'fuzz' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" == 'pt' ]]; then
+    if [[ "$build_target" == 'test' || "$build_target" == 'ut' || "$build_target" =~ _ut$ || "$build_target" == 'it' || "$build_target" =~ _it$ || "$build_target" == 'ubse_it_daemon' || "$build_target" == 'pt' ]]; then
         enable_test='ON'
         build_type='Debug'
     fi
-    if [["$build_target" == 'fuzz']]; then
-        enable_fuzz='ON'
+
+    # IT 测试需要 UBSE_IT_TEST_MODE 编译宏，由 ENABLE_IT_TESTS 控制
+    if [[ "$build_target" == 'it' || "$build_target" =~ _it$ || "$build_target" == 'ubse_it_daemon' ]]; then
+        enable_it_tests='ON'
     fi
 
     # 根据构建类型选择不同构建目录
@@ -340,14 +357,6 @@ function build_cmake() {
     # 确保构建目录已创建
     [ ! -d "${build_dir}" ] && mkdir -p "${build_dir}"
 
-
-    # 流水线构建，安全考虑只保留 commit id
-    version_cmd=("$PROJECT_ROOT_DIR/scripts/build/update_version.sh" "$build_dir/VERSION")
-    version_cmd+=(--pure)
-    [[ "$enable_ub" == 'OFF' ]] && version_cmd+=(--hccs)
-    # 执行命令
-    bash "${version_cmd[@]}"
-
     log_info "***** start build_cmake *****"
 
     log_info "building target ${build_target}."
@@ -355,7 +364,6 @@ function build_cmake() {
     if [[ "$generator" == 'Ninja' ]]; then
         force_colored_output='ON'
     fi
-
     if rpm -q kernel-devel >/dev/null 2>&1; then
         KERNEL_VERSION=$(rpm -q kernel-devel | head -1 | awk -F 'kernel-devel-' '{print $2}')
     else
@@ -364,36 +372,44 @@ function build_cmake() {
     # CMake 配置
     export B_VERSION="${deploy_version}"
     export TRANS_PARAMS="${trans_params[@]}"
-    cmake --no-warn-unused-cli -S . -B ${build_dir} -G "${generator}" \
-        -DCMAKE_BUILD_TYPE=${build_type} \
-        -DCMAKE_CXX_STANDARD="${std}" \
-        -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
-        -DCMAKE_RPM_INSTALL_PREFIX=/usr/local/softbus \
-        -DRPM_PACKAGE_VERSION="1.0.0" \
-        -DRPM_PACKAGE_RELEASE=1 \
-        -DBUILD_TESTS=${enable_test} \
-        -DENABLE_COVERAGE=${enable_coverage} \
-        -DSOURCE_COMPILING=${enable_source_compiling} \
-        -DSKIP_RUN_TESTS=${skip_run_tests} \
-        -DASAN_BUILD=${enable_asan} \
-        -DENABLE_HTTP_SERVER=${enable_http_server} \
-        -DFORCE_COLORED_OUTPUT=${force_colored_output} \
-        -DBUILD_IN_CI=${build_in_ci} \
-        -DB_VERSION="${deploy_version}" \
-        -DENABLE_UB="${enable_ub}" \
-        -DENABLE_FUZZ="${enable_fuzz}" \
+    local cmake_args=(
+        --no-warn-unused-cli -S . -B "${build_dir}" -G "${generator}"
+        -DCMAKE_BUILD_TYPE="${build_type}"
+        -DCMAKE_CXX_STANDARD="${std}"
+        -DBUILD_TESTS="${enable_test}"
+        -DENABLE_IT_TESTS=${enable_it_tests} \
+        -DENABLE_COVERAGE="${enable_coverage}"
+        -DSOURCE_COMPILING="${enable_source_compiling}"
+        -DSKIP_RUN_TESTS="${skip_run_tests}"
+        -DASAN_BUILD="${enable_asan}"
+        -DENABLE_HTTP_SERVER="${enable_http_server}"
+        -DFORCE_COLORED_OUTPUT="${force_colored_output}"
+        -DBUILD_IN_CI="${build_in_ci}"
+        -DB_VERSION="${deploy_version}"
+        -DENABLE_UB="${enable_ub}"
+        -DCMAKE_EXPORT_COMPILE_COMMANDS="${enable_pre_commit}"
         -DKERNEL_VERSION="${KERNEL_VERSION}"
+    )
+    [[ -n "${toolchain_file}" ]] && cmake_args+=(-DCMAKE_TOOLCHAIN_FILE="${toolchain_file}")
+    cmake "${cmake_args[@]}"
+
+    if [[ "$enable_pre_commit" == 'ON' ]]; then
+        log_info "Pre-commit mode: only generating compile_commands.json, skipping build."
+        return 0
+    fi
 
     # 确保先构建 Debug 版本的所有代码，生成全面覆盖率报告
     if [[ "$enable_coverage" == 'ON' && "$build_type" == 'Debug' && "$build_target" != 'all' ]]; then
-        cmake --build ${build_dir} --target all -j ${jobs}
+        cmake --build "${build_dir}" --target all -j "${jobs}"
     fi
 
     # CMake 构建
-    cmake --build ${build_dir} --target ${build_target} -j ${jobs}
+    cmake --build "${build_dir}" --target "${build_target}" -j "${jobs}"
 
     # 生成覆盖率报告
     if [[ "$enable_coverage" == 'ON' ]]; then
+        export COVERAGE_MODULE="$build_target"
+        log_info "Coverage module: ${COVERAGE_MODULE}"
         # 检查是否存在 .gcda 文件
         if find "${build_dir}" -type f -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
             cmake --build "${build_dir}" --target coverage
@@ -403,7 +419,7 @@ function build_cmake() {
     fi
 
     local ret=$?
-    if [ $ret -ne 0 ]; then
+    if [ "$ret" -ne 0 ]; then
         log_info "build_cmake failed"
         echo_failure
         exit 1

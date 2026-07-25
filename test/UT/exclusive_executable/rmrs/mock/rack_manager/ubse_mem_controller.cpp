@@ -27,41 +27,41 @@ namespace ubse::mem::controller {
 * @return #RACK_ERROR_INVAL 14 无效参数
 * @return 2 部分成功
 */
-UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string &nodeId, std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfoWithNode(const std::string& nodeId, std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseMemNumaDelete(const std::string &name, const UbseMemBorrower &borrower)
+UbseResult UbseMemNumaDelete(const std::string& name, const UbseMemBorrower& borrower)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseMemNumaCreateWithLender(const std::string &name, const UbseMemBorrower &borrower,
-                                          const std::vector<UbseMemNumaLender> &lenders,
-                                          uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithLender(const std::string& name, const UbseMemBorrower& borrower,
+                                       const std::vector<UbseMemNumaLender>& lenders,
+                                       uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN], UbseMemNumaDesc& desc)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseMemNumaCreate(const std::string &name, const UbseMemBorrower &borrower,
-                                const UbseMemNumaCreateOpt &opt, UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreate(const std::string& name, const UbseMemBorrower& borrower, const UbseMemNumaCreateOpt& opt,
+                             UbseMemNumaDesc& desc)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo> &debtInfos)
+UbseResult UbseGetNumaMemDebtInfo(std::vector<UbseNumaMemoryDebtInfo>& debtInfos)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo> &numaNodeInfoList)
+UbseResult UbseGetAllNodeNumaInfo(std::vector<UbseNodeNumaInfo>& numaNodeInfoList)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMemBorrower &borrower,
-                                             const UbseMemNumaCandidateOpt &opt, UbseMemNumaDesc &desc)
+UbseResult UbseMemNumaCreateWithCandidate(const std::string& name, const UbseMemBorrower& borrower,
+                                          const UbseMemNumaCandidateOpt& opt, UbseMemNumaDesc& desc)
 {
     return UBSE_OK;
 }
@@ -73,9 +73,8 @@ UbseResult UbseMemNumaCreateWithCandidate(const std::string &name, const UbseMem
 * @param memResult [out] 借用结果
 * @return 查询成功返回0，失败返回1
 */
-uint32_t UbseQueryResult(const std::string &name, UbseMemResult &result,
-                         UbseMemBorrowType borrowType)
+uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMemBorrowType borrowType)
 {
     return 0;
 }
-}
+} // namespace ubse::mem::controller

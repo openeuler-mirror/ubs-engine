@@ -30,7 +30,7 @@ namespace ubse::nodeController {
  * UBSE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBSE_ERR_INTERNAL:UBSE服务端内部错误
  */
-void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList);
+void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink>& linkList);
 
 /**
  * @brief 查询全量节点信息
@@ -44,16 +44,16 @@ void UbseNodeCpuTopoList(std::vector<def::UbseCpuLink> &linkList);
  * UBSE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBSE_ERR_INTERNAL:UBSE服务端内部错误
  */
-void UbseNodeList(std::vector<def::UbseNode> &nodeList);
+void UbseNodeList(std::vector<def::UbseNode>& nodeList);
 
-void UbseNodeGet(def::UbseNode &node);
+void UbseNodeGet(def::UbseNode& node);
 /**
  * 主节点侧根据节点id查询节点信息
  * @param nodeId [IN]节点id
  * @param node [OUT]对应节点信息
  */
-void UbseNodeGetByNodeIdInMaster(const std::string &nodeId, def::UbseNode &node);
-void UbseNodeGetByNodeId(const std::string &nodeId, def::UbseNode &node);
+void UbseNodeGetByNodeIdInMaster(const std::string& nodeId, def::UbseNode& node);
+void UbseNodeGetByNodeId(const std::string& nodeId, def::UbseNode& node);
 
 uint32_t UbseNodeNumaMemGet(const std::string &nodeId, std::vector<service::mem::UbseNumaNodeInfo> &nodeNumaMemList);
 

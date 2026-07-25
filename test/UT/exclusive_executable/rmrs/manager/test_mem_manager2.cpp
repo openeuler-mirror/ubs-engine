@@ -10,25 +10,25 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include <iostream>
+#include <gmock/gmock.h>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
-#include <gmock/gmock.h>
 #include "gtest/gtest.h"
 #include "mockcpp/mokc.h"
 #define private public
 #include "ubse_storage.h"
+#include "exporter.h"
 #include "mem_manager.h"
 #include "mp_configuration.h"
 #include "mp_mem_json_util.h"
 #include "mp_sync_data_helper.h"
 #include "numa_info.h"
-#include "securec.h"
-#include "exporter.h"
 #include "rmrs_serialize.h"
+#include "securec.h"
 
 #undef private
 using namespace std;
@@ -58,7 +58,7 @@ std::string borrowStrList = R"({"boring":[1],})";
 
 TEST_F(TestMemManager2, UpdateBorrowRecordsSucceed)
 {
-    mempooling::BorrowRecordHelper &obj = mempooling::BorrowRecordHelper::Instance();
+    mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     auto ret = obj.UpdateBorrowRecords();
     EXPECT_EQ(ret, MEM_POOLING_OK);
 }
@@ -70,20 +70,20 @@ TEST_F(TestMemManager2, ParseBorrowRecordFieldsFail)
     rapidjson::Value borrowRecordInfo(kObjectType);
     borrowRecordInfo.AddMember("test", "test", alloc);
     BorrowRecord borrowRecord;
-    MOCKER_CPP(&JsonUtil::GetJsonInt16Value, bool(*)(const rapidjson::Value &, const char *, int16_t &))
+    MOCKER_CPP(&JsonUtil::GetJsonInt16Value, bool (*)(const rapidjson::Value&, const char*, int16_t&))
         .stubs()
         .will(returnValue(false));
     auto ret = MemRequestHelper::ParseBorrowRecordFields(borrowRecordInfo, borrowRecord);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-uint32_t RackMemGetTopologyInfoMock1(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+uint32_t RackMemGetTopologyInfoMock1(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     MemNodeData memNodeDataA;
     memNodeDataA.nodeId = "NodeA";
     memNodeDataA.hostname = "hostA";
     memNodeDataA.isRegisterRm = true;
-    memNodeDataA.socket.socketId = "100";        // 只允许socketId=100
+    memNodeDataA.socket.socketId = "100";                              // 只允许socketId=100
     memNodeDataA.socket.numas = {ubse::nodeController::NumaData{"0"}}; // 只包含 numaId = 0
     nodeTopology["node0-36"].push_back(memNodeDataA);
     return 0;
@@ -152,10 +152,10 @@ TEST_F(TestMemManager2, GetVmInfosCompletedPairSuccess)
 TEST_F(TestMemManager2, SmapEnableCompleted_Update_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     int16_t numaId = 1;
     auto ret = obj.Update(numaId);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -164,10 +164,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Update_succeed)
 TEST_F(TestMemManager2, SmapEnableCompleted_Update_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     int16_t numaId = 1;
     auto ret = obj.Update(numaId);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -176,10 +176,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Update_failed)
 TEST_F(TestMemManager2, SmapEnableCompleted_Remove_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     obj.smapEnableCompleted.insert(1);
     int16_t numaId = 1;
     auto ret = obj.Remove(numaId);
@@ -189,10 +189,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Remove_succeed)
 TEST_F(TestMemManager2, SmapEnableCompleted_Remove_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     obj.smapEnableCompleted.insert(1);
     int16_t numaId = 1;
     auto ret = obj.Remove(numaId);
@@ -201,11 +201,11 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Remove_failed)
 
 TEST_F(TestMemManager2, SmapEnableCompleted_Query_succeed)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key, void *ctx,
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     std::vector<int16_t> smapEnableCompletedList;
     auto ret = obj.Query(smapEnableCompletedList);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -213,11 +213,11 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Query_succeed)
 
 TEST_F(TestMemManager2, SmapEnableCompleted_Query_failed)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key, void *ctx,
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     std::vector<int16_t> smapEnableCompletedList;
     auto ret = obj.Query(smapEnableCompletedList);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -225,7 +225,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Query_failed)
 
 TEST_F(TestMemManager2, SmapEnableCompleted_GetRawData_empty)
 {
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     obj.smapEnableCompleted.clear();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -236,7 +236,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_GetRawData_empty)
 
 TEST_F(TestMemManager2, SmapEnableCompleted_GetRawData_succeed)
 {
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     obj.smapEnableCompleted = {1, 2, 3};
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -247,10 +247,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_GetRawData_succeed)
 TEST_F(TestMemManager2, SmapEnableCompleted_PutRawData_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
     ret = obj.PutRawData(buffer);
@@ -261,10 +261,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_PutRawData_succeed)
 TEST_F(TestMemManager2, SmapEnableCompleted_PutRawData_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::SmapEnableCompleted &obj = mempooling::SmapEnableCompleted::Instance();
+    mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -273,10 +273,10 @@ TEST_F(TestMemManager2, SmapEnableCompleted_PutRawData_failed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::string borrowId = "borrow_001";
     auto ret = obj.Update(borrowId);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -285,10 +285,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_succeed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::string borrowId = "borrow_001";
     auto ret = obj.Update(borrowId);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -297,10 +297,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_failed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     obj.borrowIdInFaultProcess.insert("borrow_001");
     std::string borrowId = "borrow_001";
     auto ret = obj.Remove(borrowId);
@@ -310,10 +310,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_succeed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     obj.borrowIdInFaultProcess.insert("borrow_001");
     std::string borrowId = "borrow_001";
     auto ret = obj.Remove(borrowId);
@@ -322,11 +322,11 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_failed)
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_succeed)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key, void *ctx,
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::vector<std::string> borrowIdInFaultProcessList;
     auto ret = obj.Query(borrowIdInFaultProcessList);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -334,11 +334,11 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_succeed)
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_failed)
 {
-    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string &keyPrefix, const std::string &key, void *ctx,
+    MOCKER_CPP(UbseStorageQueryData, uint32_t(*)(const std::string& keyPrefix, const std::string& key, void* ctx,
                                                  UbseStorageDealDataFunc func))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::vector<std::string> borrowIdInFaultProcessList;
     auto ret = obj.Query(borrowIdInFaultProcessList);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -346,7 +346,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_failed)
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_GetRawData_empty)
 {
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     obj.borrowIdInFaultProcess.clear();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -357,7 +357,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_GetRawData_empty)
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_GetRawData_succeed)
 {
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     obj.borrowIdInFaultProcess = {"borrow_001", "borrow_002"};
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -368,10 +368,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_GetRawData_succeed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_PutRawData_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
     ret = obj.PutRawData(buffer);
@@ -382,10 +382,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_PutRawData_succeed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_PutRawData_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -394,10 +394,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_PutRawData_failed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     obj.borrowIdInFaultProcess = {"borrow_001", "borrow_002"};
     auto ret = obj.Clear();
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -406,10 +406,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_succeed)
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::BorrowIdInFaultProcess &obj = mempooling::BorrowIdInFaultProcess::Instance();
+    mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     auto ret = obj.Clear();
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
@@ -417,10 +417,10 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_failed)
 TEST_F(TestMemManager2, RemovePidCompleted_Update_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200, 300};
     auto ret = obj.Update(numaId, pids);
@@ -430,10 +430,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_Update_succeed)
 TEST_F(TestMemManager2, RemovePidCompleted_Update_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200, 300};
     auto ret = obj.Update(numaId, pids);
@@ -443,10 +443,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_Update_failed)
 TEST_F(TestMemManager2, RemovePidCompleted_Remove_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted[1] = {100, 200, 300};
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200};
@@ -457,10 +457,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_Remove_succeed)
 TEST_F(TestMemManager2, RemovePidCompleted_Remove_not_found)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted.clear();
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200};
@@ -471,10 +471,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_Remove_not_found)
 TEST_F(TestMemManager2, RemovePidCompleted_Remove_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted[1] = {100, 200, 300};
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200};
@@ -484,7 +484,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_Remove_failed)
 
 TEST_F(TestMemManager2, RemovePidCompleted_Query_succeed)
 {
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted[1] = {100, 200, 300};
     obj.removePidCompleted[2] = {400, 500};
     std::unordered_map<uint16_t, std::unordered_set<pid_t>> removePidCompletedList;
@@ -495,7 +495,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_Query_succeed)
 
 TEST_F(TestMemManager2, RemovePidCompleted_Query_empty)
 {
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted.clear();
     std::unordered_map<uint16_t, std::unordered_set<pid_t>> removePidCompletedList;
     auto ret = obj.Query(removePidCompletedList);
@@ -505,7 +505,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_Query_empty)
 
 TEST_F(TestMemManager2, RemovePidCompleted_GetRawData_empty)
 {
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted.clear();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -516,7 +516,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_GetRawData_empty)
 
 TEST_F(TestMemManager2, RemovePidCompleted_GetRawData_succeed)
 {
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     obj.removePidCompleted[1] = {100, 200, 300};
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
@@ -527,10 +527,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_GetRawData_succeed)
 TEST_F(TestMemManager2, RemovePidCompleted_PutRawData_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer, true);
     ret = obj.PutRawData(buffer);
@@ -541,10 +541,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_PutRawData_succeed)
 TEST_F(TestMemManager2, RemovePidCompleted_PutRawData_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::RemovePidCompleted &obj = mempooling::RemovePidCompleted::Instance();
+    mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -553,10 +553,10 @@ TEST_F(TestMemManager2, RemovePidCompleted_PutRawData_failed)
 TEST_F(TestMemManager2, MemReturnManager_Update_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     std::string borrowId = "borrow_001";
     BorrowItem item;
     item.borrowId = borrowId;
@@ -572,10 +572,10 @@ TEST_F(TestMemManager2, MemReturnManager_Update_succeed)
 TEST_F(TestMemManager2, MemReturnManager_Update_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     std::string borrowId = "borrow_001";
     BorrowItem item;
     item.borrowId = borrowId;
@@ -585,7 +585,7 @@ TEST_F(TestMemManager2, MemReturnManager_Update_failed)
 
 TEST_F(TestMemManager2, MemReturnManager_Query_found)
 {
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_001", {"borrow_001", "node1", 1, "node2", 2, 10}}};
     std::string borrowId = "borrow_001";
     BorrowItem value;
@@ -597,7 +597,7 @@ TEST_F(TestMemManager2, MemReturnManager_Query_found)
 
 TEST_F(TestMemManager2, MemReturnManager_Query_not_found)
 {
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_001", {"borrow_001", "node1", 1, "node2", 2, 10}}};
     std::string borrowId = "borrow_002";
     BorrowItem value;
@@ -607,11 +607,9 @@ TEST_F(TestMemManager2, MemReturnManager_Query_not_found)
 
 TEST_F(TestMemManager2, MemReturnManager_QueryAll_succeed)
 {
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
-    obj.borrowCache = {
-        {"borrow_001", {"borrow_001", "node1", 1, "node2", 2, 10}},
-        {"borrow_002", {"borrow_002", "node1", 2, "node3", 3, 20}}
-    };
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
+    obj.borrowCache = {{"borrow_001", {"borrow_001", "node1", 1, "node2", 2, 10}},
+                       {"borrow_002", {"borrow_002", "node1", 2, "node3", 3, 20}}};
     std::unordered_map<std::string, BorrowItem> borrowCacheAll;
     auto ret = obj.QueryAll(borrowCacheAll);
     EXPECT_EQ(ret, MEM_POOLING_OK);
@@ -620,7 +618,7 @@ TEST_F(TestMemManager2, MemReturnManager_QueryAll_succeed)
 
 TEST_F(TestMemManager2, MemReturnManager_QueryAll_empty)
 {
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache.clear();
     std::unordered_map<std::string, BorrowItem> borrowCacheAll;
     auto ret = obj.QueryAll(borrowCacheAll);
@@ -631,10 +629,10 @@ TEST_F(TestMemManager2, MemReturnManager_QueryAll_empty)
 TEST_F(TestMemManager2, MemReturnManager_PutRawData_succeed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     obj.borrowCache = {{"borrow_001", {"borrow_001", "node1", 1, "node2", 2, 10}}};
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer);
@@ -646,10 +644,10 @@ TEST_F(TestMemManager2, MemReturnManager_PutRawData_succeed)
 TEST_F(TestMemManager2, MemReturnManager_PutRawData_failed)
 {
     MOCKER_CPP(UbseStoragePutData,
-               uint32_t(*)(const std::string &keyPrefix, const std::string &key, UbseByteBuffer *data))
+               uint32_t(*)(const std::string& keyPrefix, const std::string& key, UbseByteBuffer* data))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
-    mempooling::MemReturnManager &obj = mempooling::MemReturnManager::Instance();
+    mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
@@ -864,4 +862,4 @@ TEST_F(TestMemManager2, GenBorrowRecords_ParseFailed)
     EXPECT_EQ(ret, MEM_POOLING_ERROR);
 }
 
-}
+} // namespace mempooling

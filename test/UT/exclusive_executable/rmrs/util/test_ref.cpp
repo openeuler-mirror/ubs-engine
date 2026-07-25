@@ -21,9 +21,9 @@
 #define MOCKER_CPP(api, TT) MOCKCPP_NS::mockAPI<>::get(#api, "", api)
 
 using namespace std;
- 
+
 namespace mempooling::common {
- 
+
 class TestRef : public ::testing::Test {
 public:
     void SetUp() override
@@ -41,7 +41,7 @@ public:
 
 TEST_F(TestRef, SetSameNonnullObject)
 {
-    Referable *objA = new Referable();
+    Referable* objA = new Referable();
     Ref<Referable> refA(objA);
     refA.Set(objA);
     ASSERT_EQ(refA.Get(), objA);
@@ -49,8 +49,8 @@ TEST_F(TestRef, SetSameNonnullObject)
 
 TEST_F(TestRef, SetWithNotNullAnother)
 {
-    Referable *objA = nullptr;
-    Referable *objB = new Referable();
+    Referable* objA = nullptr;
+    Referable* objB = new Referable();
     Ref<Referable> refA(objA);
     refA.Set(objB);
     ASSERT_EQ(refA.Get(), objB);
@@ -58,8 +58,8 @@ TEST_F(TestRef, SetWithNotNullAnother)
 
 TEST_F(TestRef, SetWithNullAnother)
 {
-    Referable *objA = new Referable();
-    Referable *objB = nullptr;
+    Referable* objA = new Referable();
+    Referable* objB = nullptr;
     Ref<Referable> refA(objA);
     refA.Set(objB);
     ASSERT_EQ(refA.Get(), nullptr);
@@ -78,4 +78,4 @@ TEST_F(TestRef, CopyWithNull)
     ASSERT_EQ(refB.Get(), nullptr);
 }
 
-}
+} // namespace mempooling::common

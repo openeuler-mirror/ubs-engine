@@ -26,4 +26,3 @@ public:
 };
 } // namespace ubse::vm::ut
 #endif // TEST_MEM_FRAGMENTATION_MSG_H
-

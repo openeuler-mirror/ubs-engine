@@ -24,7 +24,6 @@ public:
 
     void TearDown() override;
 };
-}
-
+} // namespace ubse::ut::utils
 
 #endif // TEST_UBSE_XML_H

@@ -1,9 +1,9 @@
 /*
-* Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
+  *          http://license.coscl.org.cn/MulanPSL2
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -24,6 +24,8 @@
 #include "ubse_mem_service_impl.cpp"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
+#include "ubse_mem_controller.cpp"
+
 namespace ubse::mem_controller::ut {
 using namespace ubse::service::mem;
 
@@ -213,13 +215,13 @@ TEST_F(TestUbseMemController, UbseGetNumaMemDebtInfo)
     EXPECT_EQ(UbseGetNumaMemDebtInfo(debtInfos), UBSE_OK);
 }
 
-uint32_t MockUbseMemNumaBorrowRespError(const UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t MockUbseMemNumaBorrowRespError(const UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_ERR_INTERNAL);
     return UBSE_ERROR;
 }
 
-uint32_t MockUbseMemNumaBorrowRespSuccess(const UbseMemNumaBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t MockUbseMemNumaBorrowRespSuccess(const UbseMemNumaBorrowReq& req, UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_OK);
     resp.name = "test";
@@ -319,15 +321,15 @@ TEST_F(TestUbseMemController, UbseMemNumaCreateWithCandidate)
     EXPECT_EQ(UbseMemNumaCreateWithCandidate(name, borrower, opt, desc), UBSE_OK);
 }
 
-uint32_t MockUbseMemReturnRespError(const UbseMemReturnReq &req, const MemOperationType &type,
-                                    UbseMemOperationResp &resp)
+uint32_t MockUbseMemReturnRespError(const UbseMemReturnReq& req, const MemOperationType& type,
+                                    UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_ERR_INTERNAL);
     return UBSE_ERROR;
 }
 
-uint32_t MockUbseMemReturnRespSuccess(const UbseMemReturnReq &req, const MemOperationType &type,
-                                      UbseMemOperationResp &resp)
+uint32_t MockUbseMemReturnRespSuccess(const UbseMemReturnReq& req, const MemOperationType& type,
+                                      UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_OK);
     resp.name = "test";
@@ -355,13 +357,13 @@ TEST_F(TestUbseMemController, UbseMemNumaDelete)
     EXPECT_EQ(UbseMemNumaDelete(name, borrower), UBSE_OK);
 }
 
-uint32_t MockUbseMemAddrBorrowRespError(const UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t MockUbseMemAddrBorrowRespError(const UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_ERR_INTERNAL);
     return UBSE_ERROR;
 }
 
-uint32_t MockUbseMemAddrBorrowRespSuccess(const UbseMemAddrBorrowReq &req, UbseMemOperationResp &resp)
+uint32_t MockUbseMemAddrBorrowRespSuccess(const UbseMemAddrBorrowReq& req, UbseMemOperationResp& resp)
 {
     resp.errorCode = static_cast<uint32_t>(UBSE_OK);
     resp.name = "test";
@@ -448,7 +450,7 @@ TEST_F(TestUbseMemController, UbseGetAllNodeNumaInfo)
     EXPECT_EQ(UbseGetAllNodeNumaInfo(numaNodeInfoList), UBSE_OK);
 }
 
-UbseResult MockGetNodeNumaInfoFromAccountAndSort(std::vector<ubse::mem::account::UbseNumaNodeInfo> &numaNodeInfos)
+UbseResult MockGetNodeNumaInfoFromAccountAndSort(std::vector<ubse::mem::account::UbseNumaNodeInfo>& numaNodeInfos)
 {
     ubse::mem::account::UbseNumaNodeInfo info;
     info.nodeId = "1";
@@ -481,7 +483,7 @@ TEST_F(TestUbseMemController, UbseGetNodeNumaInfoByNodeId)
     EXPECT_EQ(UbseGetNodeNumaInfoByNodeId(nodeId, numaNodeInfoList), UBSE_OK);
 }
 
-uint32_t MockGetMemInfoFromInnerFD(std::vector<NumaStaticInfo> &numaInfo, std::vector<LedgerDymaticInfo> &ledgerInfo)
+uint32_t MockGetMemInfoFromInnerFD(std::vector<NumaStaticInfo>& numaInfo, std::vector<LedgerDymaticInfo>& ledgerInfo)
 {
     std::string srcNodeId = "1";
     std::string dstNodeId = "2";
@@ -493,7 +495,7 @@ uint32_t MockGetMemInfoFromInnerFD(std::vector<NumaStaticInfo> &numaInfo, std::v
     return UBSE_OK;
 }
 
-uint32_t MockGetMemInfoFromInnerSHARE(std::vector<NumaStaticInfo> &numaInfo, std::vector<LedgerDymaticInfo> &ledgerInfo)
+uint32_t MockGetMemInfoFromInnerSHARE(std::vector<NumaStaticInfo>& numaInfo, std::vector<LedgerDymaticInfo>& ledgerInfo)
 {
     std::string srcNodeId = "1";
     std::string dstNodeId = "2";

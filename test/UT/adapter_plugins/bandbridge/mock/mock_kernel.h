@@ -48,7 +48,7 @@ struct class {
 #define MISC_DYNAMIC_MINOR 255
 #define PATH_MAX 4096
 #define HZ 1000
-#define THIS_MODULE ((struct module *)0)
+#define THIS_MODULE ((struct module*)0)
 
 #define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 #define unlikely(x) (x)
@@ -100,17 +100,17 @@ struct class {
 
 struct task_struct {
     char comm[16];
-    struct task_struct *group_leader;
-    struct mm_struct *mm;
-    struct nsproxy *nsproxy;
+    struct task_struct* group_leader;
+    struct mm_struct* mm;
+    struct nsproxy* nsproxy;
 };
 
 struct mm_struct {
-    struct file *exe_file;
+    struct file* exe_file;
 };
 
 struct nsproxy {
-    struct pid_namespace *pid_ns_for_children;
+    struct pid_namespace* pid_ns_for_children;
 };
 
 struct pid_namespace {
@@ -127,12 +127,12 @@ struct vfsmount {
 };
 
 struct path {
-    struct dentry *dentry;
-    struct vfsmount *mnt;
+    struct dentry* dentry;
+    struct vfsmount* mnt;
 };
 
 struct file {
-    void *private_data;
+    void* private_data;
     struct path f_path;
 };
 
@@ -141,7 +141,7 @@ struct inode {
 };
 
 struct cdev {
-    struct module *owner;
+    struct module* owner;
 };
 
 struct mutex {
@@ -150,9 +150,9 @@ struct mutex {
 
 struct miscdevice {
     int minor;
-    const char *name;
-    const struct file_operations *fops;
-    struct device *this_device;
+    const char* name;
+    const struct file_operations* fops;
+    struct device* this_device;
 };
 
 struct poll_table_struct {
@@ -160,11 +160,11 @@ struct poll_table_struct {
 };
 
 struct file_operations {
-    struct module *owner;
-    int (*open)(struct inode *, struct file *);
-    int (*release)(struct inode *, struct file *);
-    long (*unlocked_ioctl)(struct file *, unsigned int, unsigned long);
-    unsigned int (*poll)(struct file *, struct poll_table_struct *);
+    struct module* owner;
+    int (*open)(struct inode*, struct file*);
+    int (*release)(struct inode*, struct file*);
+    long (*unlocked_ioctl)(struct file*, unsigned int, unsigned long);
+    unsigned int (*poll)(struct file*, struct poll_table_struct*);
 };
 
 struct device {
@@ -191,32 +191,32 @@ extern u32 mock_reg_space[];
 extern bool mock_msleep_instant;
 
 bool capable(int cap);
-void *kmalloc(size_t size, int flags);
-void kfree(const void *ptr);
-void *vmalloc(size_t size);
-void vfree(const void *ptr);
-void *ioremap(uint64_t phys_addr, size_t size);
-void iounmap(void *addr);
-uint32_t readl(const volatile void *addr);
-void writel(uint32_t value, volatile void *addr);
-void memcpy_toio(volatile void *dst, const void *src, size_t count);
-void memcpy_fromio(void *dst, const volatile void *src, size_t count);
-unsigned long copy_from_user(void *to, const void __user *from, unsigned long n);
-unsigned long copy_to_user(void __user *to, const void *from, unsigned long n);
-int misc_register(struct miscdevice *misc);
-void misc_deregister(struct miscdevice *misc);
-char *d_path(const struct path *path, char *buf, int buflen);
-void mutex_init(struct mutex *m);
-void mutex_lock(struct mutex *m);
-void mutex_unlock(struct mutex *m);
+void* kmalloc(size_t size, int flags);
+void kfree(const void* ptr);
+void* vmalloc(size_t size);
+void vfree(const void* ptr);
+void* ioremap(uint64_t phys_addr, size_t size);
+void iounmap(void* addr);
+uint32_t readl(const volatile void* addr);
+void writel(uint32_t value, volatile void* addr);
+void memcpy_toio(volatile void* dst, const void* src, size_t count);
+void memcpy_fromio(void* dst, const volatile void* src, size_t count);
+unsigned long copy_from_user(void* to, const void __user* from, unsigned long n);
+unsigned long copy_to_user(void __user* to, const void* from, unsigned long n);
+int misc_register(struct miscdevice* misc);
+void misc_deregister(struct miscdevice* misc);
+char* d_path(const struct path* path, char* buf, int buflen);
+void mutex_init(struct mutex* m);
+void mutex_lock(struct mutex* m);
+void mutex_unlock(struct mutex* m);
 void msleep(unsigned int msecs);
-int strscpy(char *dest, const char *src, size_t count);
-void init_waitqueue_head(struct wait_queue_head *q);
+int strscpy(char* dest, const char* src, size_t count);
+void init_waitqueue_head(struct wait_queue_head* q);
 
 void mock_reset_all(void);
 void mock_set_capable_net_admin(bool val);
-void mock_set_process_name(const char *name);
-void mock_set_exe_path(const char *path);
+void mock_set_process_name(const char* name);
+void mock_set_exe_path(const char* path);
 void mock_set_pid_ns_is_init(bool is_init);
 void mock_set_kmalloc_fail(bool fail);
 void mock_set_vmalloc_fail(bool fail);

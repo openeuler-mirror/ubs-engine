@@ -18,7 +18,7 @@ namespace ubse::nodeController {
 * @param topologies 节点的拓扑信息
 * @return RackResult, 成功返回0, 失败返回非0
 */
-uint32_t RackGetNodeTopology(std::vector<UbseNodeTopology> &topologies)
+uint32_t RackGetNodeTopology(std::vector<UbseNodeTopology>& topologies)
 {
     return 0;
 }
@@ -28,9 +28,9 @@ uint32_t RackGetNodeTopology(std::vector<UbseNodeTopology> &topologies)
  * @param[out] nodeTopology: 所有节点和他的一跳链接信息
  * @return 成功返回0, 失败返回非0
  */
-uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>> &nodeTopology)
+uint32_t UbseMemGetTopologyInfo(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
 {
     return 0;
 }
 
-}
+} // namespace ubse::nodeController

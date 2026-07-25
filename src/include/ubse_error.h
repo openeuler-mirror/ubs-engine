@@ -97,6 +97,7 @@
 #define UBSE_ERR_NODE_NOT_EXIST UBSE_ERROR_DEF(1027)               /* 节点不存在 */
 #define UBSE_ERR_NODE_FAULT UBSE_ERROR_DEF(1028)                   /* 节点故障 */
 #define UBSE_ENGINE_ERR_EXPORT_LEDGERING UBSE_ERROR_DEF(1029)      /* 导出节点对账中 */
+#define UBSE_ENGINE_ERR_IMPORT_LEDGERING UBSE_ERROR_DEF(1041)      /* 导入节点对账中 */
 
 /* ****************************************************** */
 /* Node Controller模块错误码定义，全局唯一，范围1100~1199，记录系统的标准错误返回 */
@@ -210,11 +211,13 @@
 #define UBSE_RAS_ERROR_SWITCHING_ROLE UBSE_INTERNAL_ERROR_DEF(608)             /* 主备倒换中 */
 #define UBSE_RAS_ERROR_SET_FAULT_EVENT_ON UBSE_INTERNAL_ERROR_DEF(609)         /* 打开故障事件开关失败 */
 #define UBSE_RAS_ERROR_SET_SENTRY_REPORTER UBSE_INTERNAL_ERROR_DEF(610)        /* 向sysSentry配置EID失败 */
+#define UBSE_RAS_ERROR_FAULT_PENDING_EXIST UBSE_INTERNAL_ERROR_DEF(611)        /* 故障正在被其它线程处理 */
 
 /* ====================== MMI错误码 (10700~10799) ====================== */
-#define UBSE_MMI_OBMM_OP_FAILED UBSE_INTERNAL_ERROR_DEF(700) /* OBMM 接口调用失败 */
-#define UBSE_MMI_DAEMON_FAILED UBSE_INTERNAL_ERROR_DEF(701)  /* UBSE 接口调用失败 */
-#define UBSE_MMI_OPEN_FAILED UBSE_INTERNAL_ERROR_DEF(702)    /* 文件打不开 */
+#define UBSE_MMI_OBMM_OP_FAILED UBSE_INTERNAL_ERROR_DEF(700)  /* OBMM 接口调用失败 */
+#define UBSE_MMI_DAEMON_FAILED UBSE_INTERNAL_ERROR_DEF(701)   /* UBSE 接口调用失败 */
+#define UBSE_MMI_OPEN_FAILED UBSE_INTERNAL_ERROR_DEF(702)     /* 文件打不开 */
+#define UBSE_MMI_OBMM_OP_TIMEOUT UBSE_INTERNAL_ERROR_DEF(703) /* OBMM 接口调用超时 */
 
 /* ====================== Mem Scheduler错误码 (10800~10899) ====================== */
 #define UBSE_SCHEDULER_ERROR_INVAL UBSE_INTERNAL_ERROR_DEF(800)            /* 借用参数不合法错误 */
@@ -235,11 +238,25 @@
 #define UBSE_MEMCONTROLLER_ERROR_GET_INFO_FAIL UBSE_INTERNAL_ERROR_DEF(1002)   /* 从内部获取数据失败 */
 #define UBSE_MEMCONTROLLER_ERROR_PAR_SUCCESS UBSE_INTERNAL_ERROR_DEF(1003) /* 对账未完成，查询账本返回部分成功 */
 
+/* ====================== URMA Controller错误码 (11100~11199) ====================== */
+#define UBSE_URMACONTRL_ERROR_ACCESS_MTI_FAILED UBSE_INTERNAL_ERROR_DEF(1100)        /* 访问MTI接口失败 */
+#define UBSE_URMACONTRL_ERROR_PRIO_GROUP_EXIST UBSE_INTERNAL_ERROR_DEF(1101)         /* 优先级组已存在 */
+#define UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_EXISTED UBSE_INTERNAL_ERROR_DEF(1102) /* ETS模板未创建 */
+#define UBSE_URMACONTRL_ERROR_ETS_TEMPLATE_NOT_APPLIED UBSE_INTERNAL_ERROR_DEF(1103) /* ETS模板未应用 */
+
+#define UBSE_URMACONTRL_ERROR_QUERY_PORTS_STATUS_FAILED UBSE_INTERNAL_ERROR_DEF(1104) /* 查询端口状态失败 */
+#define UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED UBSE_INTERNAL_ERROR_DEF(1105)      /* 查询节点信息失败 */
+#define UBSE_URMACONTRL_ERROR_CREATE_DEV_FAILED UBSE_INTERNAL_ERROR_DEF(1106)         /* 创建URMA设备失败 */
+#define UBSE_URMACONTRL_ERROR_DEV_NOT_INACTIVE UBSE_INTERNAL_ERROR_DEF(1107) /* URMA设备状态异常，无法分配 */
+#define UBSE_URMACONTRL_ERROR_DEV_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(1108)    /* URMA设备在内存中不存在 */
+#define UBSE_URMACONTRL_ERROR_DEV_NAME_INVALID UBSE_INTERNAL_ERROR_DEF(1109) /* URMA设备名称无效 */
+#define UBSE_URMACONTRL_ERROR_NEED_RETRY UBSE_INTERNAL_ERROR_DEF(1110) /* 内部重试超市，需要调用方重试 */
+
 /* ====================== MTI错误码 (11200~11299) ====================== */
 #define UBSE_MTI_ERROR_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(1200) /* MTI查询对象不存在 */
 
 /* 公共方法判断错误码 */
-#define UBSE_RESULT_FAIL(ret) (static_cast<UbseResult>(ret) != UBSE_OK)
-#define UBSE_RESULT_OK(ret) (static_cast<UbseResult>(ret) == UBSE_OK)
+#define UBSE_RESULT_FAIL(ret) (static_cast<uint32_t>(ret) != UBSE_OK)
+#define UBSE_RESULT_OK(ret) (static_cast<uint32_t>(ret) == UBSE_OK)
 
 #endif // UBSE_ERROR_H

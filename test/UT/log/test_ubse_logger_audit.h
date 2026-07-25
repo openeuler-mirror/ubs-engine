@@ -24,6 +24,6 @@ public:
     virtual void SetUp(void);
     virtual void TearDown(void);
 };
-}
+} // namespace ubse::ut::log
 
 #endif // UBSE_TEST_UBSE_LOGGER_AUDIT_H

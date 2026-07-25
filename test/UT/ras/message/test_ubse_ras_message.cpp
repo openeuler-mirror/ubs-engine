@@ -69,7 +69,7 @@ TEST_F(TestUbseRasMessage, OomSerialize)
 TEST_F(TestUbseRasMessage, OomDeserializeFail)
 {
     rasOOmMessage->mInputRawData.reset(new uint8_t[NO_256]);
-    *reinterpret_cast<uint32_t *>(rasOOmMessage->mInputRawData.get()) = 0;
+    *reinterpret_cast<uint32_t*>(rasOOmMessage->mInputRawData.get()) = 0;
     rasOOmMessage->mInputRawDataSize = NO_256;
     auto res = rasOOmMessage->Deserialize();
     EXPECT_EQ(res, UBSE_ERROR);

@@ -142,7 +142,7 @@ void TestHamMigrate::TearDown()
 }
 
 // 读Json文件
-VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
+VmResult ReadJsonFile(const std::string& filename, std::string& jsonString)
 {
     std::string caseDir = std::string(UT_DIRECTORY) + "/exclusive_executable/virt_agent/migrate/case/";
     std::ifstream file(caseDir + filename);
@@ -158,7 +158,7 @@ VmResult ReadJsonFile(const std::string &filename, std::string &jsonString)
     return VM_OK;
 }
 
-VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
+VmResult setUbseByteBuffer(const std::string& bodyString, UbseByteBuffer& resp)
 {
     size_t len = bodyString.size();
     auto *body = new (std::nothrow) uint8_t[len];
@@ -173,7 +173,7 @@ VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
     }
     resp.data = body;
     resp.len = len;
-    resp.freeFunc = [](uint8_t *data) {
+    resp.freeFunc = [](uint8_t* data) {
         if (data != nullptr) {
             delete[] data;
         }
@@ -181,13 +181,13 @@ VmResult setUbseByteBuffer(const std::string &bodyString, UbseByteBuffer &resp)
     return VM_OK;
 }
 
-uint32_t UbseNodeGetNodeIdByHostname(const std::string &hostname, std::string &nodeId)
+uint32_t UbseNodeGetNodeIdByHostname(const std::string& hostname, std::string& nodeId)
 {
     nodeId = hostname;
     return VM_OK;
 }
 
-UbseResult UbseNodeGetDebt(const std::string &nodeId, std::vector<UbseMemAddrDesc> &debtInfos)
+UbseResult UbseNodeGetDebt(const std::string& nodeId, std::vector<UbseMemAddrDesc>& debtInfos)
 {
     UbseMemAddrDesc memDebtInfoMap;
     UbseTopoNode ubseTopoNode;
@@ -198,7 +198,7 @@ UbseResult UbseNodeGetDebt(const std::string &nodeId, std::vector<UbseMemAddrDes
     return UBSE_OK;
 }
 
-VmResult GetHostVmDomainInfo(const uint64_t &remoteUsedMem, HostVmDomainInfo &hostVmDomainInfo)
+VmResult GetHostVmDomainInfo(const uint64_t& remoteUsedMem, HostVmDomainInfo& hostVmDomainInfo)
 {
     VmDomainInfo vmDomainInfo;
     mempooling::VmDomainNumaInfo vmDomainNumaInfo{0, 0, 0, 0, 0};
@@ -237,7 +237,7 @@ VmResult GetHamMigrateVmInfoNoBorrow(const std::string &nodeId, int pid, HamMigr
     return VM_OK;
 }
 
-VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult GetAllHamMigrateVmInfos(std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     return GetHamMigrateVmInfos("", hamMigrateVmInfos);
 }
@@ -251,7 +251,7 @@ VmResult VmInfosByDstNodeIdNotMigrating(const std::string &dstNodeId, std::vecto
     return VM_OK;
 }
 
-VmResult VmInfosByDstNodeIdMigrating(const std::string &dstNodeId, std::vector<HamMigrateVmInfo> &hamMigrateVmInfos)
+VmResult VmInfosByDstNodeIdMigrating(const std::string& dstNodeId, std::vector<HamMigrateVmInfo>& hamMigrateVmInfos)
 {
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.uuid = "vm-uuid";
@@ -278,7 +278,7 @@ struct CheckNodeId {
 
     std::string nodeId;
 
-    bool operator()(const std::string &checkNodeId)
+    bool operator()(const std::string& checkNodeId)
     {
         return nodeId == checkNodeId;
     }
@@ -442,7 +442,7 @@ std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoBorro
                                                                                          {1, 1, 1, 1, true},
                                                                                      }};
 
-VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo &hostVmDomainInfo)
+VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo& hostVmDomainInfo)
 {
     VmDomainInfo vmDomainInfo{.remoteUsedMem = 1, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoBorrow;
@@ -452,7 +452,7 @@ VmResult MockGetVmDomainInfosFromGlobalOne(HostVmDomainInfo &hostVmDomainInfo)
 
 std::unordered_map<int16_t, mempooling::VmDomainNumaInfo> globalNumaMemInfoNoBorrow = {{0, {0, 0, 0, 0, true}}};
 
-VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo &hostVmDomainInfo)
+VmResult MockGetVmDomainInfosFromGlobalZero(HostVmDomainInfo& hostVmDomainInfo)
 {
     VmDomainInfo vmDomainInfo{.remoteUsedMem = 0, .pid = srcPid};
     vmDomainInfo.numaMemInfo = globalNumaMemInfoNoBorrow;
@@ -844,7 +844,6 @@ TEST_F(TestHamMigrate, NoBorrow_Migrate_success_clear_success)
         .id("3");
 
     gClearThread = std::thread(&HamMigrate::ClearQueueOperation);
-
     HamMigrateVmInfo hamMigrateVmInfo;
     hamMigrateVmInfo.nodeId = NODE;
     hamMigrateVmInfo.pid = PID;

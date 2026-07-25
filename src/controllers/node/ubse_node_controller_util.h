@@ -39,20 +39,20 @@ enum class UbseClosNodeRole {
 
 class UbseNodeControllerLockMgr {
 public:
-    static void WriteLock(const std::string &nodeId);
+    static void WriteLock(const std::string& nodeId);
 
-    static void WriteUnLock(const std::string &nodeId);
+    static void WriteUnLock(const std::string& nodeId);
 
-    static void TryWriteLock(const std::string &nodeId);
+    static void TryWriteLock(const std::string& nodeId);
 
-    static void ReadLock(const std::string &nodeId);
+    static void ReadLock(const std::string& nodeId);
 
-    static void ReadUnLock(const std::string &nodeId);
+    static void ReadUnLock(const std::string& nodeId);
 
-    static bool TryReadLock(const std::string &nodeId);
+    static bool TryReadLock(const std::string& nodeId);
 
 private:
-    static std::shared_ptr<std::shared_mutex> GetLock(const std::string &nodeId);
+    static std::shared_ptr<std::shared_mutex> GetLock(const std::string& nodeId);
 
 private:
     static std::mutex nodeControllerMutex_;

@@ -20,6 +20,6 @@ namespace ucache::master {
 
 uint32_t Init();
 void Exit();
-}
+} // namespace ucache::master
 
 #endif /* UCACHE_MASTER_H */

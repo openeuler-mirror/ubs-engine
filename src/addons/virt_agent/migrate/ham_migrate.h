@@ -72,8 +72,8 @@ namespace vm {
         static std::atomic<bool> exitFlag;
         static std::atomic_bool runFlag;
 
-        static VmResult GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo &numaMemInfo, int &numaId, int &socketId);
-    };
+    static VmResult GetLocalNumaInfoFromNumaMemInfo(const MemNumaInfo& numaMemInfo, int& numaId, int& socketId);
+};
 } // namespace vm
 
 #endif // HAM_MIGRATE_H

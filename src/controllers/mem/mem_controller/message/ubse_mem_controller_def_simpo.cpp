@@ -62,12 +62,12 @@ UbseResult UbseMemFdDescListSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemFdDescListSerialization(out, data_);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     mOutputRawDataSize = out.GetLength();
     mOutputRawData = std::unique_ptr<uint8_t[]>(out.GetBuffer(true));
@@ -97,7 +97,7 @@ UbseResult DefUbseMemNumaDescSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseDefMemNumaDescSerialization(out, data_);
     if (!out.Check()) {
@@ -133,7 +133,7 @@ UbseResult DefUbseMemNumaDescListSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseDefMemNumaDescListSerialization(out, data_);
     if (!out.Check()) {
@@ -168,7 +168,7 @@ UbseResult UbseMemNumaDescSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemNumaDescSerialization(out, data_);
     if (!out.Check()) {
@@ -204,7 +204,7 @@ UbseResult UbseMemAddrDescSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemAddrDescSerialization(out, data_);
 
@@ -241,7 +241,7 @@ UbseResult UbseMemShmDescSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemShmDescSerialization(out, data_);
     if (!out.Check()) {
@@ -277,7 +277,7 @@ UbseResult UbseMemShmDescListSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemShmDescListSerialization(out, data_);
     if (!out.Check()) {
@@ -312,7 +312,7 @@ UbseResult UbseMemShmMemStatusDescSimpo::Serialize()
     UbseErrCodeSerialization(out, mErrCode);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize ErrCode failed.";
-        return UBSE_ERROR_DESERIALIZE_FAILED;
+        return UBSE_ERROR_SERIALIZE_FAILED;
     }
     UbseMemShmMemStatusDescSerialization(out, data_);
     if (!out.Check()) {
@@ -372,12 +372,11 @@ UbseResult UbseMemDebtQueryRequestSimpo::Deserialize()
     return UBSE_OK;
 }
 
-
 UbseResult UbseMemIdQueryRequestSimpo::Serialize()
 {
     serial::UbseSerialization out;
-    out << memIdQueryRequest_.name << memIdQueryRequest_.importNodeId <<
-        memIdQueryRequest_.importMemId << memIdQueryRequest_.borrowType;
+    out << memIdQueryRequest_.name << memIdQueryRequest_.importNodeId << memIdQueryRequest_.importMemId
+        << memIdQueryRequest_.borrowType;
     UbseUdsInfoSerialization(out, memIdQueryRequest_.udsInfo);
     if (!out.Check()) {
         UBSE_LOG_ERROR << "Serialize failed.";
@@ -395,8 +394,8 @@ UbseResult UbseMemIdQueryRequestSimpo::Deserialize()
         return UBSE_ERROR;
     }
     serial::UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    in >> memIdQueryRequest_.name >> memIdQueryRequest_.importNodeId >>
-          memIdQueryRequest_.importMemId >> memIdQueryRequest_.borrowType;
+    in >> memIdQueryRequest_.name >> memIdQueryRequest_.importNodeId >> memIdQueryRequest_.importMemId >>
+        memIdQueryRequest_.borrowType;
     if (!UbseUdsInfoDeserialization(in, memIdQueryRequest_.udsInfo)) {
         UBSE_LOG_ERROR << "Failed to deserialize UbseUdsInfo";
         return UBSE_ERROR;

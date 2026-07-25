@@ -12,11 +12,11 @@
 
 #ifndef UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_INITIALIZER_H
 #define UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_INITIALIZER_H
+#include "ubse_election_def.h"
 #include "gtest/gtest.h"
 #include "mockcpp/mockcpp.hpp"
 #include "role/ubse_election_role_initializer.h"
 #include "role/ubse_election_role_mgr.h"
-#include "ubse_election_def.h"
 
 namespace ubse::event::election {
 using namespace ubse::election;
@@ -37,5 +37,5 @@ void TestUbseElectionRoleInitializer::TearDown()
     GlobalMockObject::verify();
 }
 
-}
+} // namespace ubse::event::election
 #endif // UBSE_MANAGER_TEST_UBSE_ELECTION_ROLE_H

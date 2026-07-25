@@ -28,12 +28,12 @@ namespace ubse::timer {
  * @param interval [in] 定时器回调周期，周期范围[1, 3600]，单位: s
  * @return 0: 成功; 非0: 失败
  */
-uint32_t UbseTimerHandlerRegister(const std::string &name, UbseTimerHandler handler, uint32_t interval);
+uint32_t UbseTimerHandlerRegister(const std::string& name, UbseTimerHandler handler, uint32_t interval);
 
 /**
  * 取消注册定时器
  * @param name [in] 定时器回调标识
  */
-void UbseTimerHandlerUnregister(const std::string &name);
+void UbseTimerHandlerUnregister(const std::string& name);
 } // namespace ubse::timer
 #endif // UBS_ENGINE_UBSE_TIMER_CONTROLLER_H

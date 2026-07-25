@@ -26,9 +26,14 @@
 #include "src/framework/misc/referable/ubse_ref.h"
 
 namespace ubse::task_executor {
-using namespace ubse::utils;
+using ubse::utils::Ref;
+using ubse::utils::Referable;
+using ubse::utils::RingBufferBlockingQueue;
 
-enum class UbseRunnableType {
+using ThreadInitCallback = std::function<void()>;
+
+enum class UbseRunnableType
+{
     NORMAL = 0,
     STOP = 1,
 };
@@ -37,7 +42,7 @@ class UbseRunnable : public Referable {
 public:
     UbseRunnable() : mTask{nullptr} {}
 
-    explicit UbseRunnable(const std::function<void()> &task) : mTask{task} {}
+    explicit UbseRunnable(const std::function<void()>& task) : mTask{task} {}
     ~UbseRunnable() override = default;
 
     virtual void Run();
@@ -58,7 +63,7 @@ constexpr uint32_t ES_MAX_THR_NUM = 256;
 
 class UbseTaskExecutor : public Referable {
 public:
-    static Ref<UbseTaskExecutor> Create(const std::string &name, uint16_t threadNum, uint32_t queueCapacity = 1000);
+    static Ref<UbseTaskExecutor> Create(const std::string& name, uint16_t threadNum, uint32_t queueCapacity = 1000);
 
 public:
     ~UbseTaskExecutor() override;
@@ -67,13 +72,15 @@ public:
 
     void Stop();
 
-    bool Execute(const UbseRunnablePtr &runnable);
+    bool Execute(const UbseRunnablePtr& runnable);
 
-    bool Execute(const std::function<void()> &task);
+    bool Execute(const std::function<void()>& task);
 
-    void SetThreadName(const std::string &name);
+    void SetThreadName(const std::string& name);
 
     void SetCpuSetStartIndex(int16_t idx);
+
+    void SetThreadInitCallback(const ThreadInitCallback& callback);
 
     void Wait();
 
@@ -83,19 +90,19 @@ public:
     }
 
 private:
-    UbseTaskExecutor(const std::string &name, uint16_t threadNum, uint32_t queueCapacity);
+    UbseTaskExecutor(const std::string& name, uint16_t threadNum, uint32_t queueCapacity);
     void RunInThread(int16_t cpuId);
-    void DoRunnable(bool &flag);
+    void DoRunnable(bool& flag);
 
 private:
-    RingBufferBlockingQueue<UbseRunnable *> mRunnableQueue;
+    RingBufferBlockingQueue<UbseRunnable*> mRunnableQueue;
     uint16_t mThreadNum = 0;
     int16_t mCpuSetStartIdx = -1;
     uint16_t mCapacity;
     std::vector<std::unique_ptr<std::thread>> mThreads;
     std::atomic<bool> mStarted;
     std::atomic<bool> mStopped;
-    std::atomic<uint16_t> mStartedThreadNum;
+    std::atomic<uint16_t> mStartedThreadNum{0};
     std::string mThreadName;
 
     std::mutex mtx;
@@ -103,7 +110,8 @@ private:
     std::condition_variable done;
     std::atomic<size_t> pending{0}; // Number of threads currently working + Number of tasks waiting in the queue
     std::atomic<uint64_t> totalSubmitted{0}; // Number of total Submitted.
-    std::atomic<uint64_t> totalCompleted{0};  // Number of total Completed.
+    std::atomic<uint64_t> totalCompleted{0}; // Number of total Completed.
+    ThreadInitCallback mThreadInitCallback;
 };
 using UbseTaskExecutorPtr = Ref<UbseTaskExecutor>;
 } // namespace ubse::task_executor

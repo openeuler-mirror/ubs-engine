@@ -10,12 +10,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "test_ubse_cli_file_utils.h"
+#include <linux/limits.h>
+#include <sys/stat.h>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include <sys/stat.h>
-#include <linux/limits.h>
 #include "ubse_cert_file_utils.h"
 
 namespace ubse::ut::cli {
@@ -26,7 +26,7 @@ void TestUbseCliFileUtils::TearDown() {}
 
 class TempFile {
 public:
-    explicit TempFile(const std::filesystem::path &dir = std::filesystem::temp_directory_path())
+    explicit TempFile(const std::filesystem::path& dir = std::filesystem::temp_directory_path())
         : path_(dir / RandomName())
     {
         std::ofstream(path_.native());
@@ -39,7 +39,7 @@ public:
         }
     }
 
-    const std::filesystem::path &path() const
+    const std::filesystem::path& path() const
     {
         return path_;
     }
@@ -54,7 +54,7 @@ private:
 
 class TempDir {
 public:
-    explicit TempDir(const std::filesystem::path &base = std::filesystem::temp_directory_path())
+    explicit TempDir(const std::filesystem::path& base = std::filesystem::temp_directory_path())
         : path_(base / RandomName())
     {
         std::filesystem::create_directory(path_);
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    const std::filesystem::path &path() const
+    const std::filesystem::path& path() const
     {
         return path_;
     }

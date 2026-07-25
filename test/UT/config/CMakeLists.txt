@@ -1,4 +1,5 @@
 add_ut(ubse_config)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_config_ut
         PRIVATE
         ubse_http
@@ -11,4 +12,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_ubse_config_ut
         ubse_parse
         ubse_election
         ubse_security
-        ubse_dev)
+        ubse_dev
+        ubse_context)

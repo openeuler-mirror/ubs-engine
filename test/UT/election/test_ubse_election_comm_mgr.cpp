@@ -14,11 +14,11 @@
 #include <unordered_map>
 #include "src/framework/node_mgr/ubse_node_static_info_mgr.h"
 #include "ubse_conf_module.h"
-#include "ubse_election_comm_mgr.cpp"
 #include "ubse_election_comm_mgr.h"
 #include "ubse_election_node_mgr.h"
 #include "ubse_election_utils.h"
 #include "ubse_error.h"
+#include "ubse_election_comm_mgr.cpp"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -29,7 +29,7 @@ std::string nodeId = "1";
 std::string name = "UbseElection";
 UbseElectionCommMgr commMgr(nodeId, name);
 
-UbseResult MockGetAllNode(UbseElectionNodeMgr *pthis, std::vector<Node> &allNodes)
+UbseResult MockGetAllNode(UbseElectionNodeMgr* pthis, std::vector<Node>& allNodes)
 {
     std::vector<Node> allNodes_ = {Node{"Node1", "192.168.0.1", 10004}, Node{"Node2", "192.168.0.2", 10005},
                                    Node{"Node3", "192.168.0.3", 10006}};

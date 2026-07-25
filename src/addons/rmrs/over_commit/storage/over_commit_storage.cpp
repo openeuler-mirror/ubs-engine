@@ -12,16 +12,16 @@
 
 #include "over_commit_storage.h"
 #include "ubse_def.h"
+#include "ubse_election.h"
 #include "ubse_logger.h"
+#include "ubse_pointer_process.h"
 #include "ubse_storage.h"
 #include "mp_configuration.h"
 #include "mp_json_util.h"
 #include "mp_string_util.h"
 #include "mp_sync_data_helper.h"
-#include "ubse_pointer_process.h"
 #include "rmrs_serialize.h"
 #include "securec.h"
-#include "ubse_election.h"
 namespace mempooling {
 using namespace ubse::log;
 using namespace ubse::storage;
@@ -34,13 +34,13 @@ const std::string HIGH_WATER_MAKR = "high_water";
 const std::string LOW_WATER_MAKR = "low_water";
 const int HIGH_WATER_MARK_THRESHOLD = 100;
 
-static void GetRawData(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+static void GetRawData(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     if (ctx == nullptr || buff.len == 0 || buff.data == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get Raw Data failed.";
         return;
     }
-    UbseByteBuffer &data = *(static_cast<UbseByteBuffer *>(ctx));
+    UbseByteBuffer& data = *(static_cast<UbseByteBuffer*>(ctx));
     data.data = new (std::nothrow) uint8_t[buff.len];
     if (data.data == nullptr) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -62,10 +62,10 @@ std::string BindTypeToStr(const NumaBindType value)
     }
 }
 
-MpResult OverCommitStorage::BindTypeMapToStr(std::string &str)
+MpResult OverCommitStorage::BindTypeMapToStr(std::string& str)
 {
     JSON_MAP map;
-    for (auto &pair : mNodeNumaBindMap) {
+    for (auto& pair : mNodeNumaBindMap) {
         auto iter = BIND_TYPE_TO_STR_MAP.find(pair.second);
         if (iter == BIND_TYPE_TO_STR_MAP.end()) {
             return MEM_POOLING_ERROR;
@@ -76,7 +76,7 @@ MpResult OverCommitStorage::BindTypeMapToStr(std::string &str)
     return MEM_POOLING_OK;
 }
 
-static NumaBindType StrToBindType(const std::string &value)
+static NumaBindType StrToBindType(const std::string& value)
 {
     auto iter = STR_TO_BIND_TYPE_MAP.find(value);
     if (iter == STR_TO_BIND_TYPE_MAP.end()) { // not found
@@ -86,13 +86,13 @@ static NumaBindType StrToBindType(const std::string &value)
     }
 }
 
-static void GetBindTypePair(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff, void *ctx)
+static void GetBindTypePair(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff, void* ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get Bind Type Pair failed.";
         return;
     }
-    std::map<std::string, std::string> &map = *(static_cast<std::map<std::string, std::string> *>(ctx));
+    std::map<std::string, std::string>& map = *(static_cast<std::map<std::string, std::string>*>(ctx));
 
     RmrsInStream builder(buff.data, buff.len);
     builder >> map;
@@ -102,14 +102,14 @@ static void GetBindTypePair(const std::string &keyPrefix, const std::string &key
     return;
 }
 
-static void GetWaterMarkPair(const std::string &keyPrefix, const std::string &key, const UbseByteBuffer &buff,
-                             void *ctx)
+static void GetWaterMarkPair(const std::string& keyPrefix, const std::string& key, const UbseByteBuffer& buff,
+                             void* ctx)
 {
     if (ctx == nullptr || buff.data == nullptr || buff.len == 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get Water Mark Pair failed.";
         return;
     }
-    std::unordered_map<std::string, uint16_t> &map = *(static_cast<std::unordered_map<std::string, uint16_t> *>(ctx));
+    std::unordered_map<std::string, uint16_t>& map = *(static_cast<std::unordered_map<std::string, uint16_t>*>(ctx));
     std::string dataStr(buff.data, buff.data + buff.len);
 
     JSON_MAP resStrMap;
@@ -130,9 +130,9 @@ static void GetWaterMarkPair(const std::string &keyPrefix, const std::string &ke
     return;
 }
 
-MpResult ClearData(const std::vector<std::string> &keyList)
+MpResult ClearData(const std::vector<std::string>& keyList)
 {
-    for (auto &key : keyList) {
+    for (auto& key : keyList) {
         auto ret = UbseStorageDeleteData(KEYPREFIX_BINDTYPE, key);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -143,7 +143,7 @@ MpResult ClearData(const std::vector<std::string> &keyList)
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::PutNumaBindTypeRawData(UbseByteBuffer &data)
+MpResult OverCommitStorage::PutNumaBindTypeRawData(UbseByteBuffer& data)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[PersistentStore][NumaBindType] Put NumaBindType start.";
 
@@ -160,7 +160,7 @@ MpResult OverCommitStorage::PutNumaBindTypeRawData(UbseByteBuffer &data)
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::GetNumaBindTypeRawData(UbseByteBuffer &data, bool needLock)
+MpResult OverCommitStorage::GetNumaBindTypeRawData(UbseByteBuffer& data, bool needLock)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[PersistentStore][VmInfosCompleted] GetNumaBindTypeRawData start.";
@@ -180,7 +180,7 @@ MpResult OverCommitStorage::GetNumaBindTypeRawData(UbseByteBuffer &data, bool ne
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::UpdateBindTypeDB(const std::string &nodeId, const NumaBindType value)
+MpResult OverCommitStorage::UpdateBindTypeDB(const std::string& nodeId, const NumaBindType value)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG_DB << "UpdateBindTypeDB start.";
     std::string valueStr = BindTypeToStr(value);
@@ -196,7 +196,7 @@ MpResult OverCommitStorage::UpdateBindTypeDB(const std::string &nodeId, const Nu
     mNodeNumaBindMap[nodeId] = value;
     // 如果当前nodeId无绑定类型 或 绑定类型变更，则入库并更新内存值
     JSON_MAP jsonMap;
-    for (auto &pair : mNodeNumaBindMap) {
+    for (auto& pair : mNodeNumaBindMap) {
         jsonMap[pair.first] = BindTypeToStr(pair.second);
     }
     // 2. 持久化更新到rack数据库中
@@ -255,7 +255,7 @@ MpResult OverCommitStorage::SelectBindTypeDB()
     std::lock_guard<std::mutex> lock(mtx);
     mNodeNumaBindMap.clear();
     JSON_MAP jsonMap;
-    auto ret = UbseStorageQueryData(KEYPREFIX, KEYPREFIX_BINDTYPE, static_cast<void *>(&jsonMap), GetBindTypePair);
+    auto ret = UbseStorageQueryData(KEYPREFIX, KEYPREFIX_BINDTYPE, static_cast<void*>(&jsonMap), GetBindTypePair);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[PersistentStore][VmInfosCompleted] RackStorageQueryAllData fail, key=" << KEYPREFIX_BINDTYPE << ".";
@@ -263,16 +263,16 @@ MpResult OverCommitStorage::SelectBindTypeDB()
     }
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "jsonMap size=" << jsonMap.size() << ".";
 
-    for (auto &pair : jsonMap) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE) << "nodeId="
-            << pair.first << "bindType=" << pair.second << ".";
+    for (auto& pair : jsonMap) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "nodeId=" << pair.first << "bindType=" << pair.second << ".";
         mNodeNumaBindMap[pair.first] = StrToBindType(pair.second);
     }
 
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::GetNumaBindType(const std::string &nodeId, NumaBindType &value)
+MpResult OverCommitStorage::GetNumaBindType(const std::string& nodeId, NumaBindType& value)
 {
     auto iter = mNodeNumaBindMap.find(nodeId);
     if (iter == mNodeNumaBindMap.end()) {
@@ -327,10 +327,10 @@ MpResult OverCommitStorage::UpdateWaterMark(const uint16_t highWaterMark, const 
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::GetWaterMark(uint16_t &highWaterMark, uint16_t &lowWaterMark)
+MpResult OverCommitStorage::GetWaterMark(uint16_t& highWaterMark, uint16_t& lowWaterMark)
 {
     std::unordered_map<std::string, uint16_t> map;
-    auto ret = UbseStorageQueryData(KEYPREFIX, KEYPREFIX_WATERMARK, static_cast<void *>(&map), GetWaterMarkPair);
+    auto ret = UbseStorageQueryData(KEYPREFIX, KEYPREFIX_WATERMARK, static_cast<void*>(&map), GetWaterMarkPair);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG_DB << "Query Water Mark Error.";
         return MEM_POOLING_ERROR;
@@ -354,7 +354,7 @@ MpResult OverCommitStorage::GetWaterMark(uint16_t &highWaterMark, uint16_t &lowW
     return MEM_POOLING_OK;
 }
 
-MpResult OverCommitStorage::UpdateUint16(const std::string &keyPrefix, const std::string &key, const uint16_t &value)
+MpResult OverCommitStorage::UpdateUint16(const std::string& keyPrefix, const std::string& key, const uint16_t& value)
 {
     UbseByteBuffer buffer{};
     auto highWaterMarkStr = std::to_string(value);
@@ -367,7 +367,8 @@ MpResult OverCommitStorage::UpdateUint16(const std::string &keyPrefix, const std
     auto mcpyRet = memcpy_s(buffer.data, size, highWaterMarkStr.c_str(), size);
     if (mcpyRet != EOK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-        << TAG_DB << "Memcpy_s failed, ret=" << mcpyRet << ", value=" << highWaterMarkStr << ", size=" << size << " .";
+            << TAG_DB << "Memcpy_s failed, ret=" << mcpyRet << ", value=" << highWaterMarkStr << ", size=" << size
+            << " .";
         SafeDeleteArray(buffer.data);
         return MEM_POOLING_ERROR;
     }
@@ -379,8 +380,8 @@ MpResult OverCommitStorage::UpdateUint16(const std::string &keyPrefix, const std
 
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << TAG_DB << "UbseStoragePutData failed keyPrefix=" << KEYPREFIX_WATERMARK << ", key="
-            << HIGH_WATER_MAKR << ", bind type=" << highWaterMarkStr << ", ret=" << ret << ".";
+            << TAG_DB << "UbseStoragePutData failed keyPrefix=" << KEYPREFIX_WATERMARK << ", key=" << HIGH_WATER_MAKR
+            << ", bind type=" << highWaterMarkStr << ", ret=" << ret << ".";
         return MEM_POOLING_ERROR;
     }
     return MEM_POOLING_OK;

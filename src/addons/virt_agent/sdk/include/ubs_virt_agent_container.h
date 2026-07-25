@@ -100,7 +100,7 @@ typedef struct {
  * @param InfoSize  [OUT] number of PID memory info entries returned
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_container_info_query(pid_param* param, pid_mem_info **pidInfos, uint32_t *InfoSize);
+int32_t ubs_container_info_query(pid_param* param, pid_mem_info** pidInfos, uint32_t* InfoSize);
 
 /**
  * @brief  inject or update container memory watermark (waterLine)
@@ -116,8 +116,8 @@ int32_t ubs_container_inject_waterLine(watermark_t* param);
  * @param InfoSize        [OUT] number of PID information entries returned
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_container_get_container_pids(container_id_list *containerIdList, container_pid_info **param,
-                                         uint32_t *InfoSize);
+int32_t ubs_container_get_container_pids(container_id_list* containerIdList, container_pid_info** param,
+                                         uint32_t* InfoSize);
 
 /**
  * @brief  perform memory borrow operation based on waterline strategy
@@ -126,22 +126,22 @@ int32_t ubs_container_get_container_pids(container_id_list *containerIdList, con
  * @param idsSize          [OUT] number of borrowed memory IDs returned
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t *memBorrowRequest, char ***borrowIds,
-                                            uint32_t *idsSize);
+int32_t ubs_virt_agent_waterline_mem_borrow(mem_borrow_request_t* memBorrowRequest, char*** borrowIds,
+                                            uint32_t* idsSize);
 
 /**
  * @brief  perform memory migrate operation based on waterline strategy
  * @param memMigrateRequest [IN] memory migrate request parameters including source node and migration details
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t *memMigrateRequest);
+int32_t ubs_virt_agent_waterline_mem_migrate(mem_migrate_request_t* memMigrateRequest);
 
 /**
  * @brief  return previously borrowed memory based on waterline strategy
  * @param memReturnRequest [IN] memory return request parameters including source node and borrowed memory IDs
  * @return 0 for success, non-zero for error
  */
-int32_t ubs_virt_agent_waterline_mem_return(return_request_t *returnRequest);
+int32_t ubs_virt_agent_waterline_mem_return(return_request_t* returnRequest);
 
 #ifdef __cplusplus
 }

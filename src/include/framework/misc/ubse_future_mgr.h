@@ -40,7 +40,7 @@ class UbseObjPromise : public UbseObjPromiseBase {
 public:
     std::promise<T> promise;
 
-    bool SetResult(const std::any &result) override
+    bool SetResult(const std::any& result) override
     {
         if (result.type() != typeid(T)) {
             return false;
@@ -49,10 +49,10 @@ public:
             T value = std::any_cast<T>(result);
             promise.set_value(value);
             return true;
-        } catch (const std::bad_any_cast &e) {
+        } catch (const std::bad_any_cast& e) {
             UBSE_LOG_ERROR << "bad cast:" << e.what();
             return false;
-        } catch (const std::future_error &e) {
+        } catch (const std::future_error& e) {
             // promise状态错误，比如重复设置，记录日志或忽略
             UBSE_LOG_ERROR << "promise status error:" << e.what();
             return false;
@@ -78,14 +78,14 @@ public:
      * @param result
      * @return
      */
-    static bool SetResult(const std::string &requestId, const std::any &result);
+    static bool SetResult(const std::string& requestId, const std::any& result);
 
     /* *
      * 查找是否存在请求
      * @param requestId
      * @return
      */
-    static bool Find(const std::string &requestId);
+    static bool Find(const std::string& requestId);
 
     /* *
      * 返回当前的请求数量，便于测试用例开发.
@@ -110,7 +110,7 @@ public:
         return future;
     }
 
-    bool SetResult(const std::any &result);
+    bool SetResult(const std::any& result);
 
 private:
     std::mutex mtx_;

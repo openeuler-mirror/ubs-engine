@@ -5,7 +5,7 @@
 # -*- rpm-spec -*-
 Summary:        RPM package
 Name:           ubs-engine
-Version:        1.0.0
+Version:        1.0.1
 Release:        1
 License:        Mulan PSL v2
 URL:            https://atomgit.com/openeuler/ubs-engine
@@ -14,7 +14,7 @@ Group:          System Environment/Base
 Vendor:         Huawei Technologies Co., Ltd.
 Prefix: /usr
 
-BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3
+BuildRequires:  cmake >= 3.22 make >= 4.3 gcc-c++ >= 10.3 gcc >= 10.3 python3-setuptools
 BuildRequires:  glibc-devel >= 2.34 libstdc++-devel >= 10.3
 BuildRequires:  systemd-devel >= 249
 BuildRequires:  libboundscheck >= v1.1 libxml2-devel >= 2.9 openssl-devel >= 3.0 cpp-httplib-devel >= 0.40.0 rapidjson-devel >= 1.1.0 ubs-comm-devel >= 1.0.1-7
@@ -35,6 +35,14 @@ Requires(postun): coreutils gawk util-linux systemd shadow glibc-common
 %description
 UBS Engine
 
+# ========================================================
+#                   SUBPACKAGE: ubs-engine-process-mem
+# ========================================================
+%package processmem
+Summary: processmem plugin
+Requires: %{name} = %{version}-%{release}
+%description processmem
+Development package for processmem plugin
 
 # ========================================================
 #                   SUBPACKAGE: ubs-engine-client-libs
@@ -46,6 +54,7 @@ UBS Engine
 Summary: UBSE client shared library for third-party integration
 Provides: %{lib_name}.so.%{lib_soversion}
 Requires: libboundscheck, libstdc++
+Conflicts: %{name} < %{version}-%{release}
 Obsoletes: %{name}-client-libs < %{version}-%{release}
 Provides: %{name}-client-libs = %{version}-%{release}
 
@@ -218,6 +227,9 @@ mkdir -p %{buildroot}/etc/ubse/
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/conf/ubse*.conf %{buildroot}/etc/ubse/
 mkdir -p %{buildroot}/etc/ubse/plugins
 
+mkdir -p %{buildroot}/etc/ubse/topo
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/conf/topo/*.json %{buildroot}/etc/ubse/topo/
+
 mkdir -p %{buildroot}/etc/bash_completion.d/
 cp -f %{_builddir}/%{project_dir}/scripts/command_completion/cli_commands.sh %{buildroot}/etc/bash_completion.d/
 
@@ -228,18 +240,21 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libvirtagent.so %{buildroo
 cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libstrategy.so %{buildroot}/usr/lib64/
 cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/plugin_virt_agent.conf %{buildroot}/etc/ubse/plugins/
 cp %{_builddir}/%{project_dir}/src/addons/virt_agent/conf/auth-virt_agent.conf %{buildroot}/etc/ubse/plugins/
-cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/
-ln -sf libubs-virt-agent.so.1.0.0 %{buildroot}/usr/lib64/libubs-virt-agent.so.1
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/
+ln -sf libubs-virt-agent.so.%{version} %{buildroot}/usr/lib64/libubs-virt-agent.so.1
 ln -sf libubs-virt-agent.so.1 %{buildroot}/usr/lib64/libubs-virt-agent.so
 mkdir -p %{buildroot}/usr/include/virt_agent
 cp -r %{_builddir}/%{project_dir}/src/addons/virt_agent/sdk/include/* %{buildroot}/usr/include/virt_agent/
 
+#install processmem
+cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/lib/libprocess_mem.so %{buildroot}/usr/lib64/
+cp %{_builddir}/%{project_dir}/conf/plugin_process_mem.conf %{buildroot}/etc/ubse/plugins/
 
 #install client-libs
 cmake --install %{_builddir}/%{project_dir}/%{cmake_build_dir} \
     --component ubse_sdk \
     --prefix %{buildroot}/usr
-ln -sf libubse-client.so.1.0.0 %{buildroot}/usr/lib64/libubse-client.so.1
+ln -sf libubse-client.so.%{version} %{buildroot}/usr/lib64/libubse-client.so.1
 
 #install client-devel
 ln -sf libubse-client.so.1 %{buildroot}/usr/lib64/libubse-client.so
@@ -443,6 +458,8 @@ fi
 %dir /etc/ubse/
 %config(noreplace) /etc/ubse/ubse*.conf
 %dir /etc/ubse/plugins
+%dir /etc/ubse/topo
+%config(noreplace) /etc/ubse/topo/*.json
 %defattr(755,root,root,-)
 %dir /usr/lib64/ubse_plugin
 /usr/lib64/ubse_plugin/libmem_plugin.so
@@ -456,7 +473,7 @@ fi
 
 %files client-libs
 %defattr(755,root,root,-)
-/usr/lib64/libubse-client.so.1.0.0
+/usr/lib64/libubse-client.so.%{version}
 %defattr(-,root,root,-)
 /usr/lib64/libubse-client.so.1
 
@@ -478,7 +495,7 @@ fi
 %defattr(755,root,root,-)
 /usr/lib64/libvirtagent.so
 /usr/lib64/libstrategy.so
-/usr/lib64/libubs-virt-agent.so.1.0.0
+/usr/lib64/libubs-virt-agent.so.%{version}
 %defattr(-,root,root,-)
 /usr/lib64/libubs-virt-agent.so.1
 /usr/lib64/libubs-virt-agent.so
@@ -503,3 +520,7 @@ fi
 /usr/lib64/libmempooling.so
 %defattr(644,root,root,755)
 /usr/local/mempooling/include/mempooling/
+
+%files processmem
+%config(noreplace) %{_sysconfdir}/ubse/plugins/plugin_process_mem.conf
+%{_libdir}/libprocess_mem.so

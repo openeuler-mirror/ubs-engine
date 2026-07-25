@@ -18,8 +18,11 @@
 #include "ubse_mem_service_impl.h"
 #include "ubse_common_def.h"
 namespace ubse::mem::controller {
-using namespace ubse::common::def;
+using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
+using ubse::common::def::UbseResult;
+using ubse::module::UbseModule;
 using namespace ubse::context;
+
 class UbseMemControllerModule : public UbseModule {
 public:
     static constexpr const char *kModuleName = "UbseMemControllerModule";
@@ -34,7 +37,9 @@ public:
     UbseResult Start() override;
 
     void Stop() override;
+
 private:
+    bool enabled_ = true;
     std::shared_ptr<service::mem::UbseMemServiceImpl> memService_;
 };
 

@@ -14,15 +14,16 @@
 #ifndef VM_INFO_H
 #define VM_INFO_H
 
-#include <string>
-#include <vector>
-#include <unordered_map>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "mempooling_def.h"
 
 namespace vm {
-enum class VmEventType {
+enum class VmEventType
+{
     UNKNOWN = 1,
     START,
     SHUTDOWN,
@@ -39,13 +40,13 @@ struct VmDomainInfo {
     std::string name{};
     std::string state{};
     time_t vmCreateTime{}; // VM creation time
-    uint64_t maxMem{};   // Requested memory size of the VM
-    uint64_t usedMem{};  // Memory currently used by the VM (proc)
+    uint64_t maxMem{};     // Requested memory size of the VM
+    uint64_t usedMem{};    // Memory currently used by the VM (proc)
     uint64_t remoteUsedMem{};
     std::string nodeId{};
-    std::string hostName{};  // Host ID of the node (from config file)
-    int64_t pid{};           // VM process PID
-    time_t timestamp{};      // Collection timestamp
+    std::string hostName{};    // Host ID of the node (from config file)
+    int64_t pid{};             // VM process PID
+    time_t timestamp{};        // Collection timestamp
     MemNumaInfo numaMemInfo{}; // key is numaId
 
     std::string toString() const
@@ -60,9 +61,9 @@ struct VmDomainInfo {
         oss << "usedMem:" << usedMem << ",";
         oss << "remoteUsedMem:" << remoteUsedMem << ",";
         oss << "hostName:" << hostName << ",";
-        oss << "pid:" << pid <<",";
+        oss << "pid:" << pid << ",";
         oss << "numaMemInfo:[";
-        for (const auto &item : numaMemInfo) {
+        for (const auto& item : numaMemInfo) {
             oss << item.second.ToString() << ",";
         }
         oss << "]";
@@ -86,7 +87,7 @@ struct HostVmDomainInfo {
         oss << "nodeId:" << nodeId << ",";
         oss << "hostName:" << hostName << ",";
         oss << "vmDomainInfos:[";
-        for (const auto &vmDomainInfo : vmDomainInfos) {
+        for (const auto& vmDomainInfo : vmDomainInfos) {
             oss << vmDomainInfo.toString() << ",";
         }
         oss << "]";
@@ -94,6 +95,6 @@ struct HostVmDomainInfo {
         return oss.str();
     }
 };
-} // VM
+} // namespace vm
 
 #endif // VM_INFO_H

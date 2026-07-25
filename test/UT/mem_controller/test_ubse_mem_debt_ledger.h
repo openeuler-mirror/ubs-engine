@@ -29,14 +29,14 @@ public:
     void TearDown() override;
 
 protected:
-    UbseMemFdBorrowImportObj CreateFdImportObj(const std::string &name, const std::string &nodeId);
-    UbseMemFdBorrowExportObj CreateFdExportObj(const std::string &name, const std::string &nodeId);
-    UbseMemNumaBorrowImportObj CreateNumaImportObj(const std::string &name, const std::string &nodeId);
-    UbseMemNumaBorrowExportObj CreateNumaExportObj(const std::string &name, const std::string &nodeId);
-    UbseMemShareBorrowImportObj CreateShareImportObj(const std::string &name, const std::string &nodeId);
-    UbseMemShareBorrowExportObj CreateShareExportObj(const std::string &name, const std::string &nodeId);
-    UbseMemAddrBorrowImportObj CreateAddrImportObj(const std::string &name, const std::string &nodeId);
-    UbseMemAddrBorrowExportObj CreateAddrExportObj(const std::string &name, const std::string &nodeId);
+    UbseMemFdBorrowImportObj CreateFdImportObj(const std::string& name, const std::string& nodeId);
+    UbseMemFdBorrowExportObj CreateFdExportObj(const std::string& name, const std::string& nodeId);
+    UbseMemNumaBorrowImportObj CreateNumaImportObj(const std::string& name, const std::string& nodeId);
+    UbseMemNumaBorrowExportObj CreateNumaExportObj(const std::string& name, const std::string& nodeId);
+    UbseMemShareBorrowImportObj CreateShareImportObj(const std::string& name, const std::string& nodeId);
+    UbseMemShareBorrowExportObj CreateShareExportObj(const std::string& name, const std::string& nodeId);
+    UbseMemAddrBorrowImportObj CreateAddrImportObj(const std::string& name, const std::string& nodeId);
+    UbseMemAddrBorrowExportObj CreateAddrExportObj(const std::string& name, const std::string& nodeId);
 };
 
 class TestUbseMemNodeDebtMap : public testing::Test {
@@ -48,7 +48,7 @@ public:
     void TearDown() override;
 
 protected:
-    UbseMemFdBorrowImportObj CreateTestObj(const std::string &name, UbseMemState state);
+    UbseMemFdBorrowImportObj CreateTestObj(const std::string& name, UbseMemState state);
 };
 
 class TestUbseMemTypeDebtMap : public testing::Test {
@@ -60,8 +60,8 @@ public:
     void TearDown() override;
 
 protected:
-    UbseMemFdBorrowImportObj CreateTestImportObj(const std::string &name);
-    UbseMemFdBorrowExportObj CreateTestExportObj(const std::string &name);
+    UbseMemFdBorrowImportObj CreateTestImportObj(const std::string& name);
+    UbseMemFdBorrowExportObj CreateTestExportObj(const std::string& name);
 };
 
 class TestTypeTraits : public testing::Test {
@@ -73,5 +73,5 @@ public:
     void TearDown() override;
 };
 
-}
+} // namespace ubse::mem::controller::debt::ut
 #endif

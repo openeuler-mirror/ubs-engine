@@ -11,11 +11,11 @@
  */
 
 #include "test_ubse_election_node_mgr.h"
-#include "ubse_election_node_mgr.cpp"
 #include "ubse_election_node_mgr.h"
+#include "ubse_lcne_module.h"
 #include "ubse_mti_interface_default.h"
 #include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "ubse_lcne_module.h"
+#include "ubse_election_node_mgr.cpp"
 
 namespace ubse::ut::election {
 using namespace ubse::election;
@@ -34,8 +34,8 @@ void TestUbseElectionNodeMgr::TearDown()
 
 TEST_F(TestUbseElectionNodeMgr, getInstance_ShouldReturnSameInstance_WhenCalledMultipleTimes)
 {
-    UbseElectionNodeMgr &instance1 = UbseElectionNodeMgr::GetInstance();
-    UbseElectionNodeMgr &instance2 = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& instance1 = UbseElectionNodeMgr::GetInstance();
+    UbseElectionNodeMgr& instance2 = UbseElectionNodeMgr::GetInstance();
     EXPECT_EQ(&instance1, &instance2);
 }
 
@@ -118,12 +118,11 @@ TEST_F(TestUbseElectionNodeMgr, GetAllNeighbourNode_ShouldReturnError_WhenMyself
 {
     std::vector<Node> neighbourNodes;
     UbseElectionNodeMgr rn;
-    rn.currentAllNodes_ = { { "1", "127.0.0.1", 5003 }, { "2", "127.0.0.2", 5003 } };
-    rn.currentNode_ = { "1", "127.0.0.1", 5003 };
+    rn.currentAllNodes_ = {{"1", "127.0.0.1", 5003}, {"2", "127.0.0.2", 5003}};
+    rn.currentNode_ = {"1", "127.0.0.1", 5003};
     UbseResult result = rn.GetAllNeighbourNode(neighbourNodes);
     EXPECT_EQ(result, UBSE_OK);
 }
-
 
 TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnError_WhenNoNodeFound)
 {
@@ -139,7 +138,7 @@ TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnOK_WhenNodeFound)
     UbseElectionNodeMgr nodeMgr;
     std::string ip;
     uint16_t port;
-    nodeMgr.currentAllNodes_ = { { "1", "127.0.0.1", 8080 } }; // 8080，端口信息
+    nodeMgr.currentAllNodes_ = {{"1", "127.0.0.1", 8080}}; // 8080，端口信息
     UbseResult result = nodeMgr.GetNodeInfoByID("1", ip, port);
     EXPECT_EQ(result, UBSE_OK);
     EXPECT_EQ(ip, "127.0.0.1");
@@ -150,7 +149,7 @@ TEST_F(TestUbseElectionNodeMgr, GetNodeInfoByID_ShouldReturnError_WhenIDNotFound
 {
     std::string ip;
     uint16_t port;
-    nodeMgr.currentAllNodes_ = { { "1", "127.0.0.1", 8080 } };
+    nodeMgr.currentAllNodes_ = {{"1", "127.0.0.1", 8080}};
     UbseResult result = nodeMgr.GetNodeInfoByID("2", ip, port);
     EXPECT_EQ(result, UBSE_ERROR);
 }

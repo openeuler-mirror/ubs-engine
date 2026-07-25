@@ -13,15 +13,15 @@
 #include "ubse_sync_req.h"
 #include <iostream>
 
-#include "ubse_ipc_common.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 
 namespace ubse::ipc {
 UbseSyncReq::~UbseSyncReq()
 {
     std::unique_lock<std::mutex> lock(mtx_);
     waitList_.clear();
-    for (auto &resp : responses_) {
+    for (auto& resp : responses_) {
         if (resp.second.body != nullptr) {
             delete[] resp.second.body;
             resp.second.body = nullptr;
@@ -42,7 +42,7 @@ bool UbseSyncReq::IsReqIdRegister(uint64_t reqId)
     return waitList_.find(reqId) != waitList_.end();
 }
 
-uint32_t UbseSyncReq::WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage &msg)
+uint32_t UbseSyncReq::WaitForResp(uint64_t reqId, int timeout, UbseResponseMessage& msg)
 {
     const auto start = std::chrono::steady_clock::now();
     const auto duration = std::chrono::milliseconds(timeout);
