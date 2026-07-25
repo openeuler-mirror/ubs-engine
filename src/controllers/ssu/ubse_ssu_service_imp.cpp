@@ -2152,6 +2152,48 @@ static uint32_t VerifyGetInfoIdentity(const UbseSsuAllocIdentityInfo &identity, 
     return UBSE_OK;
 }
 
+// 填充UbseSsuAllocResult中每个namespace的allowHostNqnList：
+// defaultNqn置于首位（与http_handler取front作为defaultHostNqn的约定一致），后接硬件allow列表中其余NQN（去重）。
+// 设备缓存未命中时尝试按需刷新；GetNameSpaceAllowHostList失败时仅以defaultNqn降级填充该ns，不影响其余ns。
+static void FillAllowHostNqnList(UbseSsuAllocResult &result, std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    std::unordered_set<std::string> refreshedEids;
+    for (auto &nsInfo : result.nameSpaceList) {
+        const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        if (targetNs == nullptr) {
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+            if (targetNs == nullptr) {
+                UBSE_LOG_WARN << "FillAllowHostNqnList: namespace not found in cache, eid=" << nsInfo.tgtEid
+                              << ", nsId=" << nsInfo.namespaceId;
+                continue;
+            }
+        }
+        std::string defaultNqn(targetNs->customData.defaultNqn,
+                               strnlen(targetNs->customData.defaultNqn, sizeof(targetNs->customData.defaultNqn)));
+        nsInfo.allowHostNqnList.clear();
+        std::unordered_set<std::string> seenNqns;
+        if (!defaultNqn.empty()) {
+            nsInfo.allowHostNqnList.push_back(defaultNqn);
+            seenNqns.insert(defaultNqn);
+        }
+        std::vector<std::string> hwAllowList;
+        auto ret = UbseSsuAdapterInterface::GetInstance().GetNameSpaceAllowHostList(*targetNs, hwAllowList);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "FillAllowHostNqnList: GetNameSpaceAllowHostList failed, eid=" << nsInfo.tgtEid
+                          << ", nsId=" << nsInfo.namespaceId << ", ret=" << ret;
+            // 防御性：失败时不依赖适配器对输出参数的清理行为，避免残留数据透传给调用方
+            hwAllowList.clear();
+        }
+        for (auto &hostNqn : hwAllowList) {
+            // 去重：defaultNqn 与 hwAllowList 内部重复均排除，seenNqns.insert().second 为 true 表示新插入
+            if (seenNqns.insert(hostNqn).second) {
+                nsInfo.allowHostNqnList.push_back(std::move(hostNqn));
+            }
+        }
+    }
+}
+
 // ListAllocInfo主入口：根据节点角色选择查询方式
 uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &result,
                                           const UbseSsuAllocIdentityInfo &identity)
@@ -2180,6 +2222,10 @@ uint32_t UbseSsuServiceImp::ListAllocInfo(std::vector<UbseSsuAllocResult> &resul
                 continue;
             }
             result.push_back(entryPtr->allocResult);
+        }
+        // 从硬件实时获取每个ns的allowHostNqnList，账本中的快照不承载可变权限状态
+        for (auto &allocResult : result) {
+            FillAllowHostNqnList(allocResult, devMap);
         }
         return UBSE_OK;
     }
@@ -2224,6 +2270,8 @@ uint32_t UbseSsuServiceImp::GetAllocInfoByName(const std::string &name, UbseSsuA
             return UBSE_ERROR;
         }
         result = entryPtr->allocResult;
+        // 从硬件实时获取每个ns的allowHostNqnList，账本中的快照不承载可变权限状态
+        FillAllowHostNqnList(result, devMap);
         return UBSE_OK;
     }
 
