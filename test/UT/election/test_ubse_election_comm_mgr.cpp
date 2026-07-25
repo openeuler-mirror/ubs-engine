@@ -29,12 +29,21 @@ std::string nodeId = "1";
 std::string name = "UbseElection";
 UbseElectionCommMgr commMgr(nodeId, name);
 
-UbseResult MockGetAllNode(UbseElectionNodeMgr* pthis, std::vector<Node>& allNodes)
+namespace ubse::nodeMgr {
+bool operator==(const UbseNodeStaticInfo &lhs, const UbseNodeStaticInfo &rhs)
 {
-    std::vector<Node> allNodes_ = {Node{"Node1", "192.168.0.1", 10004}, Node{"Node2", "192.168.0.2", 10005},
-                                   Node{"Node3", "192.168.0.3", 10006}};
-    allNodes = allNodes_;
-    return UBSE_OK;
+    return lhs.nodeId == rhs.nodeId;
+}
+} // namespace ubse::nodeMgr
+
+std::vector<UbseNodeStaticInfo> MockGetAllNodes()
+{
+    std::vector<UbseNodeStaticInfo> allNodes = {
+        UbseNodeStaticInfo{0, 0, "Node1", "192.168.0.1", "", {}},
+        UbseNodeStaticInfo{0, 0, "Node2", "192.168.0.2", "", {}},
+        UbseNodeStaticInfo{0, 0, "Node3", "192.168.0.3", "", {}}
+    };
+    return allNodes;
 }
 
 void TestUbseElectionCommMgr::SetUp()
@@ -181,19 +190,8 @@ TEST_F(TestUbseElectionCommMgr, GetAllNodeFailed_ShouldReturnError_WhenGetAllNod
 {
     std::string eventId = "testEventId";
     std::string eventMessage = "testEventMessage";
-    MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(returnValue(UBSE_ERROR));
     UbseResult result = commMgr.ElectionResponseHandler(eventId, eventMessage);
     EXPECT_EQ(result, UBSE_ERROR);
-}
-
-TEST_F(TestUbseElectionCommMgr, NodeLinkState_ShouldReturnOk_WhenNodeLinkStateOne)
-{
-    std::string eventId = "testEventId";
-    std::string eventMessage = "nodeId:Node1,ubseLinkState:1,timeStamp:2728907847,changeChType:Heartbeat;"
-                               "nodeId:Node2,ubseLinkState:1,timeStamp:2728907848,changeChType:Normal;";
-    MOCKER(&UbseElectionNodeMgr::GetAllNode).stubs().will(invoke(MockGetAllNode));
-    UbseResult result = commMgr.ElectionResponseHandler(eventId, eventMessage);
-    EXPECT_EQ(result, UBSE_OK);
 }
 
 TEST_F(TestUbseElectionCommMgr, StartEventNodeSuccess)
@@ -286,7 +284,7 @@ TEST_F(TestUbseElectionCommMgr, Start_ShouldReturnError_WhenStartComServiceFail)
 TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenGetCurrentNodeInfoFail)
 {
     UbseComMessageCtx msgCtx;
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
     EXPECT_EQ(true, HaVerifyMsgCb(msgCtx));
 }
 
@@ -294,7 +292,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenRoleIsNotAgen
 {
     UbseComMessageCtx msgCtx;
     UbseRoleInfo currentNode{"Node1", "master"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -305,7 +303,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenElectionModul
 {
     UbseComMessageCtx msgCtx;
     UbseRoleInfo currentNode{"Node1", "agent"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -318,7 +316,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenGetLocalMaste
 {
     UbseComMessageCtx msgCtx;
     UbseRoleInfo currentNode{"Node1", "agent"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -333,7 +331,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenEngineNotFou
     msgCtx.SetEngineName("NotExistEngine");
     msgCtx.SetChannelId(1);
     UbseRoleInfo currentNode{"Node1", "agent"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -352,7 +350,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenGetChannelFa
     msgCtx.SetEngineName("UbseMasterRpcServer");
     msgCtx.SetChannelId(1);
     UbseRoleInfo currentNode{"Node1", "agent"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -373,7 +371,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnFalse_WhenRemoteNodeIs
     msgCtx.SetEngineName("UbseMasterRpcServer");
     msgCtx.SetChannelId(1);
     UbseRoleInfo currentNode{"Node1", "agent"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -399,7 +397,7 @@ TEST_F(TestUbseElectionCommMgr, HaVerifyMsgCb_ShouldReturnTrue_WhenRemoteNodeIsM
     msgCtx.SetEngineName("UbseMasterRpcServer");
     msgCtx.SetChannelId(1);
     UbseRoleInfo currentNode{"Node1", "standby"};
-    MOCKER_CPP(ubse::election::UbseGetCurrentNodeInfo)
+    MOCKER_CPP(UbseGetCurrentNodeInfo)
         .stubs()
         .with(mockcpp::outBound(currentNode))
         .will(returnValue(UBSE_OK));
@@ -546,9 +544,32 @@ TEST_F(TestUbseElectionCommMgr, GenerateUrmaUvsNodeInfo)
     EXPECT_EQ("4344:4944:0000:0000:0000:0000:0100:0001", nodes[0].devList[0].feList[0].portEid["10"]);
 }
 
+TEST_F(TestUbseElectionCommMgr, NodeLinkState_ShouldReturnOk_WhenNodeLinkStateOne)
+{
+    std::string eventId = "testEventId";
+    std::string eventMessage = "nodeId:Node1,ubseLinkState:1,timeStamp:2728907847,changeChType:Heartbeat;"
+                               "nodeId:Node2,ubseLinkState:1,timeStamp:2728907848,changeChType:Normal;";
+    UbseNodeStaticInfo info1{};
+    info1.nodeId = "1";
+    info1.groupId = 1;
+    info1.bonding0Eid = "4245:4944:0000:0000:0000:0000:0100:0001";
+    UbseMtiEidGroup eidInfo{};
+    eidInfo.entityId = "12";
+    eidInfo.primaryEid = "4244:4944:0000:0000:0000:0000:0100:0001";
+    eidInfo.portEids["10"] = "4344:4944:0000:0000:0000:0000:0100:0001";
+    info1.feEidList["11"] = eidInfo;
+    UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
+    UbseResult result = commMgr.ElectionResponseHandler(eventId, eventMessage);
+    EXPECT_EQ(result, UBSE_OK);
+}
+
 TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenAlreadyConnected)
 {
-    commMgr.connectedInterMgmtMasters_ = {"1", "2", "3"};
+    commMgr.connectedInterMgmtMasters_["group2"] = "2";
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId)
+        .stubs()
+        .with(any(), outBound(std::string("group2")))
+        .will(returnValue(UBSE_OK));
     uint32_t result = commMgr.ConnectMasterNode("2", "192.168.0.2");
     EXPECT_EQ(result, UBSE_OK);
 }
@@ -556,6 +577,10 @@ TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenAlreadyConn
 TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenUbseComModuleNull)
 {
     commMgr.connectedInterMgmtMasters_.clear();
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId)
+        .stubs()
+        .with(any(), outBound(std::string("group2")))
+        .will(returnValue(UBSE_OK));
     uint32_t result = commMgr.ConnectMasterNode("5", "192.168.0.5");
     EXPECT_EQ(result, UBSE_ERROR);
 }
@@ -563,6 +588,10 @@ TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenUbseComM
 TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenConnectWithOptionFail)
 {
     commMgr.connectedInterMgmtMasters_.clear();
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId)
+        .stubs()
+        .with(any(), outBound(std::string("group2")))
+        .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_ERROR));
@@ -573,6 +602,10 @@ TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnError_WhenConnectW
 TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenConnectWithOptionSuccess)
 {
     commMgr.connectedInterMgmtMasters_.clear();
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId)
+        .stubs()
+        .with(any(), outBound(std::string("group2")))
+        .will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     MOCKER(&UbseComModule::ConnectWithOption).stubs().will(returnValue(UBSE_OK));
@@ -583,6 +616,10 @@ TEST_F(TestUbseElectionCommMgr, ConnectMasterNode_ShouldReturnOk_WhenConnectWith
 TEST_F(TestUbseElectionCommMgr, ConnectForGroupMaster_ShouldReturnOk_WhenAlreadyConnected)
 {
     commMgr.interMgmtGrpLinkMap_["group1"] = "2";
+    MOCKER(&UbseElectionNodeMgr::GetGroupIdByNodeId)
+      .stubs()
+      .with(any(), outBound(std::string("group1")))
+      .will(returnValue(UBSE_OK));
     uint32_t result = commMgr.ConnectForGroupMaster("2", "192.168.0.2");
     EXPECT_EQ(result, UBSE_OK);
 }

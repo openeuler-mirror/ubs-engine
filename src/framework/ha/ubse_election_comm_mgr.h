@@ -85,7 +85,7 @@ public:
 private:
     void ElectionNodeDownNotify(const std::string &nodeId);
     std::vector<UBSE_ID_TYPE> connectedIntraGroupNodes_; // 已建立连接的本组内NodeId列表
-    std::vector<UBSE_ID_TYPE> connectedInterMgmtMasters_; // 已建立连接的其他管理组的MasterId列表
+    std::unordered_map<std::string, UBSE_ID_TYPE> connectedInterMgmtMasters_; // 已建立连接的其他管理组Master map; k:groupId v:masterId
     mutable std::shared_mutex mtx_{};
     mutable std::shared_mutex interMgmtMastersMtx_{};
     mutable std::shared_mutex interMgmtGroupLinkMtx_{};

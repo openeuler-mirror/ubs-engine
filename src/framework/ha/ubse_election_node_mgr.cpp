@@ -85,7 +85,7 @@ UbseElectionNodeMgr::UbseElectionNodeMgr()
     }
     ubEnable_ = IsUrma();
     if (GetRootIpList().empty()) { rootEnable_ = false; }
-    if (GetAllNodesStoredByGroup().size() != NO_1) { isHierarchicalElection_ = true; }
+
     ret = LoadConfig();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[ELECTION] UbseElectionNodeMgr: LoadConfig failed.";
@@ -113,28 +113,20 @@ std::unordered_set<UBSE_ID_TYPE> UbseElectionNodeMgr::GetTopoLinkedNodes() const
     return topoLinkedNodes;
 }
 
-void UbseElectionNodeMgr::UpdateCurrentNode()
-{
-    currentAllNodes_.push_back(currentNode_);
-    nodeIpMap_.emplace(currentNode_.ip, currentNode_.id);
-}
-
 void UbseElectionNodeMgr::ParseAllNodesVector()
 {
+    auto ubseNodeInfos = GetAllNodes();
+    if (ubseNodeInfos.empty()) {
+        UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
+        return;
+    }
+    if (GetAllNodesStoredByGroup().size() != NO_1) { isHierarchicalElection_ = true; }
     std::unique_lock<std::shared_mutex> lock(mtx_);
     currentAllNodes_.clear();
     nodeIpMap_.clear();
     if (rootEnable_) {
         // 指定根节点选主(单层选主tcp)，所有节点信息需要通过注册节点发现的事件来更新
-        currentAllNodes_.clear();
-        nodeIpMap_.clear();
         std::vector<std::string> ipList{};
-        auto ubseNodeInfos = GetAllNodes();
-        if (ubseNodeInfos.empty()) {
-            UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
-            UpdateCurrentNode();
-            return;
-        }
         for (const auto &nodeInfo : ubseNodeInfos) {
             Node tempNode;
             tempNode.id = nodeInfo.nodeId;
@@ -148,13 +140,6 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
     if (!isHierarchicalElection_) {
         if (ubEnable_) {
             // 单层urma
-            currentAllNodes_.clear();
-            nodeIpMap_.clear();
-            auto ubseNodeInfos = GetAllNodes();
-            if (ubseNodeInfos.empty()) {
-                UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
-                return;
-            }
             auto topoLinkedNodes = GetTopoLinkedNodes();
             for (const auto &node : ubseNodeInfos) {
                 Node tempNode;
@@ -169,11 +154,6 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
         } else if (!ubEnable_ && currentAllNodes_.empty()) {
             // 单层tcp
             std::vector<std::string> ipList{};
-            auto ubseNodeInfos = GetAllNodes();
-            if (ubseNodeInfos.empty()) {
-                UBSE_LOG_ERROR << "[ELECTION] LoadConfig get allNodes failed.";
-                return;
-            }
             for (const auto &nodeInfo : ubseNodeInfos) {
                 Node tempNode;
                 tempNode.ip = nodeInfo.addr;
@@ -190,6 +170,11 @@ void UbseElectionNodeMgr::ParseAllNodesVector()
         // 双层urma或者tcp
         if (!rootEnable_) {
             GetGroupNodes(currentAllNodes_);
+            for (const auto &nodeInfo : ubseNodeInfos) {
+                std::string ip = IsUrma()? nodeInfo.bonding0Eid : nodeInfo.addr;
+                UBSE_LOG_INFO << "[ELECTION] node id is " << nodeInfo.nodeId << ", ip is " << ip;
+                nodeIpMap_.emplace(ip, nodeInfo.nodeId);
+            }
         }
     }
 }
@@ -390,7 +375,6 @@ UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
         node.port = TCP_LISTEN_PORT;
         UBSE_LOG_INFO << "[ELECTION] group node id is " << node.id << ", ip is " << node.ip << ", port is " << node.port;
         groupNodes.push_back(node);
-        nodeIpMap_.emplace(node.ip, node.id);
     }
     return UBSE_OK;
 }
@@ -398,7 +382,6 @@ UbseResult UbseElectionNodeMgr::GetGroupNodes(std::vector<Node> &groupNodes)
 UbseResult UbseElectionNodeMgr::GetGroupId(std::string &groupId)
 {
     UbseNodeStaticInfo nodeInfo = GetCurrentNode();
-    UBSE_LOG_INFO <<"[ELECTION] Current node group id is " << nodeInfo.groupId;
     groupId = std::to_string(nodeInfo.groupId);
     return UBSE_OK;
 }

@@ -78,7 +78,7 @@ void RoleMgr::RecvInterGroupInfo(const InterGroupInfo &rcvInfo, InterGroupInfo &
     std::lock_guard<std::mutex> lock(mutex_);
     if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_QUERY_LOCAL_MASTER) {
         GetRole()->RecvInterGroupInfo(rcvInfo, replyInfo);
-    } else if (rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
+    } else if (GetGlobalRole() != nullptr && rcvInfo.type == ELECTION_GROUP_INFO_TYPE_GLOBAL_CASCADE_REPORT) {
         GetGlobalRole()->RecvInterGroupInfo(rcvInfo, replyInfo);
     }
 }
@@ -110,6 +110,24 @@ void RoleMgr::SwitchRole(RoleType roleType, RoleContext& ctx)
             RoleChangeNotifyAsync(UbseElectionEventType::MASTER_ONLINE_NOTIFICATION, ctx.masterId);
             if (UbseElectionNodeMgr::GetInstance().IsHierarchicalElection()
                 && !UbseElectionNodeMgr::GetInstance().IsRootEnable()) {
+                // 初始化管理组数量缓存
+                auto curNodeInfo = nodeMgr::GetCurrentNode();
+                UBSE_ID_TYPE curNodeId = curNodeInfo.nodeId;
+                std::string curNodeGrpId = std::to_string(curNodeInfo.groupId);
+                InitManagingGroupCount();
+                std::unordered_map<uint16_t, std::vector<nodeMgr::UbseNodeStaticInfo>> nodeMap =
+                    nodeMgr::GetAllNodesStoredByGroup();
+                auto discoveryTargetMap = ComputeDiscoveryTargets(curNodeId, nodeMap);
+                for (const auto &kv : discoveryTargetMap) {
+                    if (kv.first != curNodeGrpId) {
+                        UBSE_LOG_INFO << "[ELECTION] discoveryTargetMap:group Id = " << kv.first << ", node id = " << kv.second;
+                        discoveryTargetByGroup[kv.first] = kv.second;
+                    }
+                }
+                // 失败计数初始化
+                for (const auto& kv : discoveryTargetByGroup) {
+                    connFailedCntByGroup[kv.first] = 0;
+                }
                 globalCurrentRole_ = SafeMakeShared<GlobalInitializer>();
                 if (!globalCurrentRole_) {
                     UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared globalCurrentRole failed.";
@@ -316,12 +334,13 @@ void RoleMgr::RoleChangeNotifyAsync(UbseElectionEventType type, UBSE_ID_TYPE new
 std::string RoleMgr::GetIpById(const UBSE_ID_TYPE &id)
 {
     auto node = nodeMgr::GetUbseNodeById(id);
-    if (node.addr.empty()) {
+    std::string ipStr =  nodeMgr::IsUrma()? node.bonding0Eid : node.addr;
+    if (ipStr.empty()) {
         UBSE_LOG_ERROR << "[ELECTION] Failed to get ip by id, id = " << id;
         return "";
     }
-    UBSE_LOG_INFO << "[ELECTION] GetIp by id, ip = " << node.addr << ", id = " << id;
-    return node.addr;
+    UBSE_LOG_INFO << "[ELECTION] GetIp by id, ip = " << ipStr << ", id = " << id;
+    return ipStr;
 }
 
 static std::string NextNodeInGroup(const std::string &nodeStr)
@@ -574,7 +593,6 @@ void RoleMgr::InitManagingGroupCount()
 bool RoleMgr::IsManagingGroup(const UBSE_ID_TYPE &groupId)
 {
     if (managingGroupCount_ == 0) {
-        UBSE_LOG_ERROR << "[ELECTION] managingGroupCount_ not initialized";
         return false;
     }
 

@@ -46,22 +46,6 @@ public:
         if (!commMgr_) {
             UBSE_LOG_ERROR << "[ELECTION] SafeMakeShared Initializer commMgr failed.";
         }
-        std::lock_guard<std::mutex> lock(mutex_);
-        // 初始化管理组数量缓存
-        InitManagingGroupCount();
-        std::unordered_map<uint16_t, std::vector<nodeMgr::UbseNodeStaticInfo>> nodeMap =
-            nodeMgr::GetAllNodesStoredByGroup();
-        auto discoveryTargetMap = ComputeDiscoveryTargets(myself.id, nodeMap);
-        for (const auto &kv : discoveryTargetMap) {
-            UBSE_LOG_INFO << "[ELECTION] discoveryTargetMap:group Id = " << kv.first << ", node id = " << kv.second;
-            if (kv.second != myself.id) {
-                discoveryTargetByGroup[kv.first] = kv.second;
-            }
-        }
-        // 失败计数初始化
-        for (const auto& kv : discoveryTargetByGroup) {
-            connFailedCntByGroup[kv.first] = 0;
-        }
     };
 
     static RoleMgr& GetInstance()

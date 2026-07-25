@@ -38,6 +38,26 @@ void GlobalMaster::InitNodesStatus()
     }
 }
 
+void GlobalMaster::SyncBroadcastMap()
+{
+    std::vector<UBSE_ID_TYPE> latestMasterIds = RoleMgr::GetInstance().GetManagingGroupMasterIds();
+    std::set<UBSE_ID_TYPE> latestSet(latestMasterIds.begin(), latestMasterIds.end());
+    for (auto it = globalStandbyAgentBroadcast_.begin(); it != globalStandbyAgentBroadcast_.end();) {
+        if (latestSet.find(it->first) == latestSet.end()) {
+            UBSE_LOG_INFO << "[ELECTION] SyncBroadcastMap remove stale master: " << it->first;
+            it = globalStandbyAgentBroadcast_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    for (const auto &nodeId : latestMasterIds) {
+        if (globalStandbyAgentBroadcast_.find(nodeId) == globalStandbyAgentBroadcast_.end()) {
+            globalStandbyAgentBroadcast_[nodeId] = BroadcastStatus::Default();
+            UBSE_LOG_INFO << "[ELECTION] SyncBroadcastMap add new master: " << nodeId;
+        }
+    }
+}
+
 GlobalMaster::GlobalMaster(RoleContext &ctx) : globalTurnId_(0)
 {
     UbseTimerHandlerRegister(
@@ -177,6 +197,7 @@ void GlobalMaster::ProcTimer()
         std::unique_lock<std::mutex> lock(mtx_);
         ElectionPkt pkt;
         ElectionReplyPkt reply;
+        SyncBroadcastMap();
         if (globalStandbyId_ == INVALID_NODE_ID) {
             globalStandbyId_ = FindSmallestIdExcludingMaster(nodeId_, GetActiveNodes());
             if (globalStandbyId_ != INVALID_NODE_ID) {
@@ -416,6 +437,23 @@ void GlobalMaster::HandleSplitBrainMerge(const ElectionPkt rcvPkt, ElectionReply
     }
 }
 
+void AcceptNewGlobalMaster(const ElectionPkt rcvPkt, ElectionReplyPkt &reply, const UBSE_ID_TYPE masterId)
+{
+    if (rcvPkt.standbyId == masterId) {
+        RoleContext ctx;
+        ctx.masterId = rcvPkt.masterId;
+        ctx.turnId = rcvPkt.turnId;
+        ctx.standbyId = masterId;
+        RoleMgr::GetInstance().SwitchGlobalRole(GlobalRoleType::GLOBAL_STANDBY, ctx);
+    } else {
+        RoleContext ctx;
+        ctx.masterId = rcvPkt.masterId;
+        ctx.turnId = rcvPkt.turnId;
+        RoleMgr::GetInstance().SwitchGlobalRole(GlobalRoleType::GLOBAL_AGENT, ctx);
+    }
+    reply.replyResult = ELECTION_PKT_RESULT_ACCEPT;
+}
+
 uint32_t GlobalMaster::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt &reply)
 {
     std::vector<UBSE_ID_TYPE> agentIds = GetAllGlobalAgentIds();
@@ -437,10 +475,10 @@ uint32_t GlobalMaster::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt
         if (agentIds.size() > partitionAgentIDs.size()) {
             reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
         } else if (agentIds.size() < partitionAgentIDs.size()) {
-            AcceptNewMaster(rcvPkt, reply, nodeId_);
+            AcceptNewGlobalMaster(rcvPkt, reply, nodeId_);
         } else {
             if (rcvPkt.turnId > globalTurnId_) {
-                AcceptNewMaster(rcvPkt, reply, nodeId_);
+                AcceptNewGlobalMaster(rcvPkt, reply, nodeId_);
             } else if (rcvPkt.turnId == globalTurnId_) {
                 HandleSplitBrainMerge(rcvPkt, reply);
             } else {

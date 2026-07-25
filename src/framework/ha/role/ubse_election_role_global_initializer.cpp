@@ -304,8 +304,13 @@ void AsyncDealCascadeReply(void* ctx, void* recv, uint32_t len, int32_t result)
     }
     {
         std::lock_guard<std::mutex> lck(cascadeMtx);
-        globalStandbyId = reply.groupStandbyId;
-        globalMasterId = reply.groupMasterId;
+        globalStandbyId = reply.globalStandbyId;
+        bool globalMasterChanged = (globalMasterId != reply.globalMasterId);
+        globalMasterId = reply.globalMasterId;
+        if (!globalMasterId.empty() && globalMasterChanged) {
+            RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_MASTER_ONLINE_NOTIFICATION, reply.globalMasterId);
+            UBSE_LOG_INFO << "[ELECTION] The Global Master is online: " << reply.globalMasterId;
+        }
         managingGroupInfo.groupId = reply.groupId;
         managingGroupInfo.nodeId = reply.nodeId;
         managingGroupInfo.groupMasterId = reply.groupMasterId;
