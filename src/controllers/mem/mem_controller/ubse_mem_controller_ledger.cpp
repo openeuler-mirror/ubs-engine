@@ -47,7 +47,7 @@ namespace ubse::mem::controller {
 using namespace ubse::mem::util;
 using namespace ubse::mem::controller;
 using namespace ubse::nodeController;
-using ubse::election::UbseElectionModule;
+using namespace ubse::election;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::security;
 using namespace ubse::adapter_plugins::smbios;
