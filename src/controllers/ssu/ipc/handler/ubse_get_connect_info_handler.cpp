@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseGetConnectInfoHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuGetConnectInfoPack(connectInfoList, response);
+    return message::SsuGetConnectInfoPack(connectInfoList, response);
 }
 
 UbseResult UbseGetConnectInfoHandler::Handle()
@@ -45,7 +45,7 @@ UbseResult UbseGetConnectInfoHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuGetConnectInfoUnpack(*buffer_, name, vfe);
+    return message::SsuGetConnectInfoUnpack(*buffer_, name, vfe);
 }
 
 } // namespace ubse::ssu::ipc

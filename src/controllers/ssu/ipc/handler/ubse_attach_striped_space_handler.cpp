@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAttachStripedSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAttachStripedSpacePack(nsDevPaths, devPath, response);
+    return message::SsuAttachStripedSpacePack(nsDevPaths, devPath, response);
 }
 
 UbseResult UbseAttachStripedSpaceHandler::Handle()
@@ -30,7 +30,7 @@ UbseResult UbseAttachStripedSpaceHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    req.identity_ = identity_;
+    req.identity = identity_;
     auto ret = ssuService->AttachStripedSpace(req, nsDevPaths, devPath);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace failed, ret:" << log::FormatRetCode(ret);
@@ -45,7 +45,7 @@ UbseResult UbseAttachStripedSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuAttachStripedSpaceUnpack(*buffer_, req);
+    return message::SsuAttachStripedSpaceUnpack(*buffer_, req);
 }
 
 } // namespace ubse::ssu::ipc

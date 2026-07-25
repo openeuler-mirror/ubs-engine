@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseFeDeviceAllocHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuFeDeviceAllocPack(busInstanceGuid, response);
+    return message::SsuFeDeviceAllocPack(busInstanceGuid, response);
 }
 
 UbseResult UbseFeDeviceAllocHandler::Handle()
@@ -44,7 +44,7 @@ UbseResult UbseFeDeviceAllocHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuFeDeviceAllocUnpack(*buffer_, upi, vfe, busInstanceGuid);
+    return message::SsuFeDeviceAllocUnpack(*buffer_, upi, vfe, busInstanceGuid);
 }
 
 } // namespace ubse::ssu::ipc

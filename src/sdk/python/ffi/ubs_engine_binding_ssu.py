@@ -130,34 +130,67 @@ def validate_striped_space_req(req: UbsSsuStripedSpaceReq) -> None:
     if req.chunk_size not in valid_chunk_sizes:
         raise UbsErrInvalidArg("invalid chunk size")
 
-def validate_fe_device_alloc_params(vfe: Optional[UbsUbVfe], guid: Optional[bytes]) -> None:
+def validate_fe_device_alloc_params(vfe: UbsUbVfe, guid: str) -> None:
     """校验FE设备分配参数是否合法。
 
     Args:
         vfe: VFE信息
-        guid: 总线实例GUID
+        guid: 总线实例GUID字符串, 空字符串表示不传guid
 
     Raises:
-        UbsErrNullPointer: vfe或guid为None
+        UbsErrInvalidArg: guid长度非法
     """
-    if vfe is None:
-        raise UbsErrInvalidArg("vfe is None")
-    if guid is not None and len(guid) != UBS_SSU_GUID_LENGTH:
+    # guid允许为空字符串(表示不传), 非空时长度必须为UBS_SSU_GUID_LENGTH
+    if guid != "" and len(guid) != UBS_SSU_GUID_LENGTH:
         raise UbsErrInvalidArg(f"bus_instance_guid length must be {UBS_SSU_GUID_LENGTH}")
 
-def validate_fe_device_free_params(vfe: Optional[UbsUbVfe]) -> None:
+def validate_fe_device_free_params(vfe: UbsUbVfe) -> None:
     """校验FE设备释放参数是否合法。
 
     Args:
         vfe: VFE信息
+    """
+    if len(vfe.bind_bus_instance_guid) != UBS_SSU_GUID_LENGTH:
+        raise UbsErrInvalidArg("invalid vfe.bind_bus_instance_guid")
+# ====================== 请求打包函数 ======================
+
+def pack_guid(guid: str) -> bytes:
+    """将GUID字符串打包为32字节定长裸数据(不足补0, 超长截断)。
+
+    协议格式: ``[32 bytes 裸数据]``, 无长度前缀。
+    与C++端 ``GuidPack(StringToArrayForGuid)`` 对齐。
+
+    Args:
+        guid: GUID字符串
+
+    Returns:
+        32字节定长字节数组
+    """
+    encoded = guid.encode('utf-8') if isinstance(guid, str) else bytes(guid)
+    if len(encoded) > UBS_SSU_GUID_LENGTH:
+        encoded = encoded[:UBS_SSU_GUID_LENGTH]
+    return encoded.ljust(UBS_SSU_GUID_LENGTH, b'\x00')
+
+
+def unpack_guid(u: BinaryUnpacker) -> str:
+    """从解包器中读取32字节定长GUID并转换为字符串。
+
+    与C++端 ``GuidUnpack`` 逐字节读取对齐。
+
+    Args:
+        u: 解包器实例
+
+    Returns:
+        UTF-8解码后的GUID字符串
 
     Raises:
-        UbsErrNullPointer: vfe为None
+        UbsInsufficientDataError: 剩余数据不足32字节
     """
-    if vfe is None:
-        raise UbsErrInvalidArg("vfe is None")
+    raw = bytearray()
+    for _ in range(UBS_SSU_GUID_LENGTH):
+        raw.append(u.unpack_uint8())
+    return raw.decode('utf-8', errors='replace')
 
-# ====================== 请求打包函数 ======================
 
 def pack_string(s: str, max_len: int) -> bytes:
     """将字符串打包为长度前缀字节数组。"""
@@ -255,8 +288,8 @@ def pack_vfe(vfe: UbsUbVfe) -> bytes:
             .pack_uint8(vfe.die_id)
             .pack_uint16(vfe.pfe_id)
             .pack_uint16(vfe.vfe_id)
-            .pack_string(vfe.vfe_guid, UBS_SSU_GUID_LENGTH)
-            .pack_string(vfe.bind_bus_instance_guid, UBS_SSU_GUID_LENGTH)
+            .pack_raw(pack_guid(vfe.vfe_guid))
+            .pack_raw(pack_guid(vfe.bind_bus_instance_guid))
             .result())
 
 
@@ -283,12 +316,12 @@ def pack_connect_info_req(name: str, vfe: Optional[UbsUbVfe]) -> bytes:
     return packer.result()
 
 
-def pack_fe_device_req(upi: int, vfe: UbsUbVfe, bus_instance_guid: bytes) -> bytes:
+def pack_fe_device_req(upi: int, vfe: UbsUbVfe, bus_instance_guid: str) -> bytes:
     """将FE设备操作请求参数打包为字节数组。
     Args:
         upi: 租户隔离标识
         vfe: VFE信息
-        bus_instance_guid: 总线实例GUID
+        bus_instance_guid: 总线实例GUID字符串
 
     Returns:
         打包后的字节数组
@@ -296,7 +329,7 @@ def pack_fe_device_req(upi: int, vfe: UbsUbVfe, bus_instance_guid: bytes) -> byt
     return (BinaryPacker()
             .pack_uint32(upi)
             .pack_raw(pack_vfe(vfe))
-            .pack_string(bus_instance_guid, UBS_SSU_GUID_LENGTH)
+            .pack_raw(pack_guid(bus_instance_guid))
             .result())
 
 
@@ -377,8 +410,8 @@ def unpack_vfe(u: BinaryUnpacker) -> UbsUbVfe:
         die_id=u.unpack_uint8(),
         pfe_id=u.unpack_uint16(),
         vfe_id=u.unpack_uint16(),
-        vfe_guid=u.unpack_string(UBS_SSU_GUID_LENGTH),
-        bind_bus_instance_guid=u.unpack_string(UBS_SSU_GUID_LENGTH),
+        vfe_guid=unpack_guid(u),
+        bind_bus_instance_guid=unpack_guid(u),
     )
 
 
@@ -398,7 +431,7 @@ def unpack_fe(u: BinaryUnpacker) -> UbsUbFe:
     chip_id = u.unpack_uint8()
     die_id = u.unpack_uint8()
     pfe_id = u.unpack_uint16()
-    pfe_guid = u.unpack_string(UBS_SSU_GUID_LENGTH)
+    pfe_guid = unpack_guid(u)
     vfe_cnt = u.unpack_uint32()
 
     vfe_list = [unpack_vfe(u) for _ in range(vfe_cnt)]
