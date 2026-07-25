@@ -640,6 +640,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ImportObjCreating)
     auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
     exportObj->req.name = "test";
     exportObj->status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exportObj->algoResult.exportNumaInfos.push_back({.nodeId = "1", .socketId = 0, .numaId = 0});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
                                                                                            exportObj);
 
@@ -658,6 +659,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ImportObjDeleting)
     auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
     exportObj->req.name = "test";
     exportObj->status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exportObj->algoResult.exportNumaInfos.push_back({.nodeId = "1", .socketId = 0, .numaId = 0});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
                                                                                            exportObj);
 
@@ -676,6 +678,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_MemIdNotFound)
     auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
     exportObj->req.name = "test";
     exportObj->status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exportObj->algoResult.exportNumaInfos.push_back({.nodeId = "1", .socketId = 0, .numaId = 0});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
                                                                                            exportObj);
 
@@ -693,6 +696,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ConvertNodeIdFail)
     auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
     exportObj->req.name = "test";
     exportObj->status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exportObj->algoResult.exportNumaInfos.push_back({.nodeId = "1", .socketId = 0, .numaId = 0});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
                                                                                            exportObj);
 
@@ -711,6 +715,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_Success)
     auto exportObj = std::make_shared<UbseMemShareBorrowExportObj>();
     exportObj->req.name = "test";
     exportObj->status.state = UBSE_MEM_EXPORT_SUCCESS;
+    exportObj->algoResult.exportNumaInfos.push_back({.nodeId = "1", .socketId = 0, .numaId = 0});
     UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("exportNode", "test",
                                                                                            exportObj);
 
