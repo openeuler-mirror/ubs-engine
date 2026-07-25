@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAllocSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAllocSpacePack(result, response);
+    return message::SsuAllocSpacePack(result, response);
 }
 
 UbseResult UbseAllocSpaceHandler::Handle()
@@ -44,7 +44,7 @@ UbseResult UbseAllocSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuAllocSpaceUnpack(*buffer_, req);
+    return message::SsuAllocSpaceUnpack(*buffer_, req);
 }
 
 } // namespace ubse::ssu::ipc

@@ -34,6 +34,7 @@
 #include "handler/ubse_get_ns_stats_handler.h"
 #include "handler/ubse_list_alloc_info_handler.h"
 #include "handler/ubse_remove_access_permission_handler.h"
+#include "ipc/include/ubse_ipc_common.h"
 namespace ubse::ssu::ipc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
@@ -49,7 +50,7 @@ UbseResult RegisterSsuIpcHandler(const uint16_t opCode, const std::string &permi
     auto callback = [factory](const UbseIpcMessage &buffer, const UbseRequestContext &context) -> UbseResult {
         return factory()->Execute(buffer, context);
     };
-    auto ret = RegisterIpcHandler(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU), opCode, callback, permission);
+    auto ret = RegisterIpcHandler(UBSE_SSU, opCode, callback, permission);
     return ret;
 }
 
@@ -113,7 +114,7 @@ UbseResult UbseSsuHandler::Init(const api::server::UbseIpcMessage &buffer,
     return PopulateIdentityInfo();
 }
 template <typename Handler>
-static UbseResult RegisterHandler(UbseSsuOpCode opCode, const std::string &permission)
+static UbseResult RegisterHandler(const ubse_ipc_ssu_op_code_t opCode, const std::string &permission)
 {
     auto ret =
         RegisterSsuIpcHandler(static_cast<uint16_t>(opCode), permission, []() { return std::make_unique<Handler>(); });
@@ -125,71 +126,63 @@ static UbseResult RegisterHandler(UbseSsuOpCode opCode, const std::string &permi
 
 static UbseResult RegisterSpaceHandlers()
 {
-    auto ret = RegisterHandler<UbseAllocSpaceHandler>(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ, SSU_PERMISSION);
+    auto ret = RegisterHandler<UbseAllocSpaceHandler>(UBSE_IPC_SSU_ALLOC_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseFreeSpaceHandler>(UbseSsuOpCode::UBSE_SSU_FREE_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseFreeSpaceHandler>(UBSE_IPC_SSU_FREE_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseListAllocInfoHandler>(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseListAllocInfoHandler>(UBSE_IPC_SSU_LIST_ALLOC_INFO, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    return RegisterHandler<UbseGetAllocInfoByNameHandler>(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ,
-                                                          SSU_PERMISSION);
+    return RegisterHandler<UbseGetAllocInfoByNameHandler>(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME, SSU_PERMISSION);
 }
 
 static UbseResult RegisterInfoHandlers()
 {
-    auto ret = RegisterHandler<UbseGetNsStatsHandler>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ, SSU_PERMISSION);
+    auto ret = RegisterHandler<UbseGetNsStatsHandler>(UBSE_IPC_SSU_GET_NS_STATS, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    return RegisterHandler<UbseGetConnectInfoHandler>(UbseSsuOpCode::UBSE_SSU_GET_CONNECT_INFO_REQ, SSU_PERMISSION);
+    return RegisterHandler<UbseGetConnectInfoHandler>(UBSE_IPC_SSU_GET_CONNECT_INFO, SSU_PERMISSION);
 }
 
 static UbseResult RegisterPermissionHandlers()
 {
-    auto ret = RegisterHandler<UbseAddAccessPermissionHandler>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_REQ,
-                                                               SSU_PERMISSION);
+    auto ret = RegisterHandler<UbseAddAccessPermissionHandler>(UBSE_IPC_SSU_ADD_ACCESS_PERMISSION, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    return RegisterHandler<UbseRemoveAccessPermissionHandler>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_REQ,
-                                                              SSU_PERMISSION);
+    return RegisterHandler<UbseRemoveAccessPermissionHandler>(UBSE_IPC_SSU_REMOVE_ACCESS_PERMISSION, SSU_PERMISSION);
 }
 
 static UbseResult RegisterAttachDetachHandlers()
 {
-    auto ret = RegisterHandler<UbseAttachSpaceHandler>(UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ, SSU_PERMISSION);
+    auto ret = RegisterHandler<UbseAttachSpaceHandler>(UBSE_IPC_SSU_ATTACH_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseDetachSpaceHandler>(UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseDetachSpaceHandler>(UBSE_IPC_SSU_DETACH_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret =
-        RegisterHandler<UbseAttachLinearSpaceHandler>(UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseAttachLinearSpaceHandler>(UBSE_IPC_SSU_ATTACH_LINEAR_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret =
-        RegisterHandler<UbseDetachLinearSpaceHandler>(UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseDetachLinearSpaceHandler>(UBSE_IPC_SSU_DETACH_LINEAR_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseAttachStripedSpaceHandler>(UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ,
-                                                         SSU_PERMISSION);
+    ret = RegisterHandler<UbseAttachStripedSpaceHandler>(UBSE_IPC_SSU_ATTACH_STRIPED_SPACE, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    return RegisterHandler<UbseDetachStripedSpaceHandler>(UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ,
-                                                          SSU_PERMISSION);
+    return RegisterHandler<UbseDetachStripedSpaceHandler>(UBSE_IPC_SSU_DETACH_STRIPED_SPACE, SSU_PERMISSION);
 }
 
 static UbseResult RegisterFeDeviceHandlers()
 {
-    auto ret =
-        RegisterHandler<UbseGetFeDeviceListHandler>(UbseSsuOpCode::UBSE_SSU_GET_FE_DEVICE_LIST_REQ, SSU_PERMISSION);
+    auto ret = RegisterHandler<UbseGetFeDeviceListHandler>(UBSE_IPC_SSU_GET_FE_DEVICE_LIST, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    ret = RegisterHandler<UbseFeDeviceAllocHandler>(UbseSsuOpCode::UBSE_SSU_FE_DEVICE_ALLOC_REQ, SSU_PERMISSION);
+    ret = RegisterHandler<UbseFeDeviceAllocHandler>(UBSE_IPC_SSU_FE_DEVICE_ALLOC, SSU_PERMISSION);
     if (ret != UBSE_OK)
         return ret;
-    return RegisterHandler<UbseFeDeviceFreeHandler>(UbseSsuOpCode::UBSE_SSU_FE_DEVICE_FREE_REQ, SSU_PERMISSION);
+    return RegisterHandler<UbseFeDeviceFreeHandler>(UBSE_IPC_SSU_FE_DEVICE_FREE, SSU_PERMISSION);
 }
 
 UbseResult RegisterSdkDispatcher()

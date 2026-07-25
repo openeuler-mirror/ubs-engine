@@ -14,7 +14,7 @@
 package ssu
 
 const (
-	UbseModuleCode = 0x000D // SSU模块代码
+	UbseModuleCode = 0x0006 // SSU模块代码
 
 	// SSU操作码, 对齐 C++ ubse_ssu_op_code.h
 	UbseSsuListAllocInfo             = 0x0004 // 查询分配信息列表请求

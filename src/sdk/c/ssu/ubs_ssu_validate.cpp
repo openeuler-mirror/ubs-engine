@@ -338,7 +338,21 @@ uint32_t ubs_ssu_fe_device_free_validate(uint32_t upi,const ubs_ub_vfe_t *vfe)
     if (upi == 0) {
         return UBS_ERR_INVALID_ARG;
     }
-    return ubs_ssu_vfe_is_valid(vfe);
+    if (ubs_ssu_vfe_is_valid(vfe) != UBS_SUCCESS) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    // bind_bus_instance_guid不能为空(全0视为空)
+    bool allZero = true;
+    for (size_t i = 0; i < UBS_SSU_GUID_LENGTH; i++) {
+        if (vfe->bind_bus_instance_guid[i] != 0) {
+            allZero = false;
+            break;
+        }
+    }
+    if (allZero) {
+        return UBS_ERR_INVALID_ARG;
+    }
+    return UBS_SUCCESS;
 }
 
 }  // namespace ssu

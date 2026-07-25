@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseAttachSpaceHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAttachSpacePack(nsDevPaths, response);
+    return message::SsuAttachSpacePack(nsDevPaths, response);
 }
 
 UbseResult UbseAttachSpaceHandler::Handle()
@@ -30,7 +30,7 @@ UbseResult UbseAttachSpaceHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    req.identity_ = identity_;
+    req.identity = identity_;
     auto ret = ssuService->AttachSpace(req, nsDevPaths);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachSpace failed, ret:" << log::FormatRetCode(ret);
@@ -45,7 +45,7 @@ UbseResult UbseAttachSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuAttachSpaceUnpack(*buffer_, req);
+    return message::SsuAttachSpaceUnpack(*buffer_, req);
 }
 
 } // namespace ubse::ssu::ipc

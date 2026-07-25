@@ -44,7 +44,7 @@ UbseResult UbseRemoveAccessPermissionHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuRemoveAccessPermissionUnpack(*buffer_, name, nqn);
+    return message::SsuRemoveAccessPermissionUnpack(*buffer_, name, nqn);
 }
 
 } // namespace ubse::ssu::ipc

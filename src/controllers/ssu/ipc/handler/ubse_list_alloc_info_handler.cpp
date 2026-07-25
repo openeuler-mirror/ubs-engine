@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseListAllocInfoHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuAllocResultListPack(result, response);
+    return message::SsuAllocResultListPack(result, response);
 }
 
 UbseResult UbseListAllocInfoHandler::Handle()

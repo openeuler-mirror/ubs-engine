@@ -184,6 +184,14 @@ int32_t ubs_ssu_alloc_info_list(ubs_ssu_alloc_result_t **results, uint32_t *resu
 void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t **results, uint32_t result_cnt);
 
 /**
+ * @brief 释放命名空间设备路径列表
+ *
+ * @param ns_dev_paths 命名空间设备路径列表指针
+ * @param ns_dev_path_cnt 命名空间设备路径数量
+ */
+void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t *ns_dev_path_cnt);
+
+/**
  * @brief 获取存储空间的命名空间统计信息
  *
  * 查询指定存储空间下各命名空间的容量使用情况, 包括总容量和已用容量。
@@ -245,9 +253,8 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint3
  * 根据请求参数分配指定数量和大小的命名空间, 支持顺序分配和分布式分配两种策略。
  *
  * @param req [IN] 分配请求参数
- * @param result [IN/OUT] 分配结果, 包含已分配的命名空间信息列表, 由调用方分配结构体内存;
- *                        其中namespaces指针由SDK内部动态分配, 调用方需通过
- *                        ubs_ssu_alloc_info_free接口主动释放
+ * @param result [OUT] 分配结果指针的地址, 由SDK内部动态分配整个 ubs_ssu_alloc_result_t 对象;
+ *                     调用方需通过 ubs_ssu_alloc_info_free 接口主动释放
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ERR_OUT_OF_RANGE:参数超出范围(ns_size不满足整除条件或name超长等);
@@ -260,14 +267,16 @@ void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint3
  *
  * @note 当ns_num为1时, strategy参数不生效
  */
-int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t *result);
+int32_t ubs_ssu_space_alloc(const ubs_ssu_alloc_space_req_t *req, ubs_ssu_alloc_result_t **result);
 /**
- * @brief 释放ubs_ssu_alloc_result_t中动态分配的命名空间列表
+ * @brief 释放ubs_ssu_space_alloc返回的分配结果
  *
- * @param result [IN] ubs_ssu_alloc_result_t, 仅释放其内部namespaces指针指向的内存,
- *                    不释放result本身
+ * 释放result指向的整个 ubs_ssu_alloc_result_t 对象(包括其内部动态分配的 namespaces 数组),
+ * 并将调用方的指针置为 nullptr。
+ *
+ * @param result [IN/OUT] 指向 ubs_ssu_alloc_result_t* 的指针,可为 nullptr
  */
-void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t *result);
+void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result);
 /**
  * @brief 释放已分配的存储空间
  *
@@ -335,7 +344,8 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  * 将指定的存储空间挂载到系统, 使其可被主机访问。
  *
  * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name和源EID
- * @param dev_path [OUT] 挂载后的设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
+ * @param ns_dev_paths [OUT] 命名空间设备路径列表, 由SDK内部动态分配, 调用方需通过ubs_ssu_ns_dev_paths_free接口释放
+ * @param ns_dev_path_cnt [OUT] 命名空间设备路径数量
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
  * UBS_ERR_OUT_OF_RANGE:name参数超出范围;
@@ -345,7 +355,8 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn);
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
+int32_t ubs_ssu_space_attach(const ubs_ssu_space_req_t *req, char ***ns_dev_paths,
+                             uint32_t *ns_dev_path_cnt);
 
 /**
  * @brief 卸载已分配的存储空间
@@ -372,6 +383,8 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
  * 将多个命名空间设备以线性拼接方式聚合为一个逻辑块设备并挂载。
  *
  * @param req [IN] 挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID和聚合后的块设备名称
+ * @param ns_dev_paths [OUT] 命名空间设备路径列表, 由SDK内部动态分配, 调用方需通过ubs_ssu_ns_dev_paths_free接口释放
+ * @param ns_dev_path_cnt [OUT] 命名空间设备路径数量
  * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -385,6 +398,7 @@ int32_t ubs_ssu_space_detach(const ubs_ssu_space_req_t *req);
  * @note 线性编址模式下, 数据按顺序填充各成员设备
  */
 int32_t ubs_ssu_linear_space_attach(const ubs_ssu_linear_space_req_t *req,
+                                    char ***ns_dev_paths, uint32_t *ns_dev_path_cnt,
                                     char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
 
 /**
@@ -411,6 +425,8 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
  *
  * @param req [IN] 条带化挂载请求参数, 包含存储空间标识、Host的NVMe Qualified Name、源EID、
  *                 聚合后的块设备名称、RAID级别和chunk大小
+ * @param ns_dev_paths [OUT] 命名空间设备路径列表, 由SDK内部动态分配, 调用方需通过ubs_ssu_ns_dev_paths_free接口释放
+ * @param ns_dev_path_cnt [OUT] 命名空间设备路径数量
  * @param dev_path [OUT] 挂载后的聚合设备路径, 调用方需分配不小于UBS_SSU_MAX_DEV_PATH_LENGTH字节的缓冲区
  * @return UBS_SUCCESS:操作成功;
  * UBS_ERR_NULL_POINTER:空指针;
@@ -425,6 +441,7 @@ int32_t ubs_ssu_linear_space_detach(const ubs_ssu_linear_space_req_t *req);
  * @note RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
  */
 int32_t ubs_ssu_striped_space_attach(const ubs_ssu_striped_space_req_t *req,
+                                     char ***ns_dev_paths, uint32_t *ns_dev_path_cnt,
                                      char dev_path[UBS_SSU_MAX_DEV_PATH_LENGTH]);
 
 /**

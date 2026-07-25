@@ -15,6 +15,9 @@
 #include "ubse_error.h"
 #include "ubse_logger.h"
 
+#include <algorithm>
+#include <array>
+
 namespace ubse::ssu::ipc::message {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::plugin::service::ssu;
@@ -47,6 +50,46 @@ uint32_t StringCalcSize(const std::string &str, uint32_t maxLen)
     return sizeof(uint32_t) + len;
 }
 
+std::array<uint8_t, UBS_SSU_GUID_LENGTH> StringToArrayForGuid(const std::string &str)
+{
+    std::array<uint8_t, UBS_SSU_GUID_LENGTH> arr{};
+    size_t copySize = std::min(str.size(), arr.size());
+    std::copy(str.begin(), str.begin() + copySize, arr.begin());
+    return arr;
+}
+
+UbseResult GuidPack(ubse::utils::UbsePackUtil &packUtil, const std::string &guid)
+{
+    for (auto id : StringToArrayForGuid(guid)) {
+        if (!packUtil.UbsePackUint8(id)) {
+            return UBSE_ERROR_SERIALIZE_FAILED;
+        }
+    }
+    return UBSE_OK;
+}
+
+UbseResult GuidUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, std::string &guid)
+{
+    guid.clear();
+    bool allZero = true;
+    for (size_t i = 0; i < UBS_SSU_GUID_LENGTH; i++) {
+        uint8_t tmp = 0;
+        if (!unpackUtil.UnpackUint8(tmp)) {
+            UBSE_LOG_ERROR << "Failed to unpack guid";
+            return UBSE_ERROR_DESERIALIZE_FAILED;
+        }
+        if (tmp != 0) {
+            allZero = false;
+        }
+        guid += static_cast<char>(tmp);
+    }
+    // 32字节全0表示客户端未传guid, 转为空字符串以便业务层用empty()判断
+    if (allZero) {
+        guid.clear();
+    }
+    return UBSE_OK;
+}
+
 UbseResult VfePack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuVfe &vfe)
 {
     if (!packUtil.UbsePackUint8(vfe.slotId)) {
@@ -64,10 +107,10 @@ UbseResult VfePack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuVfe &vfe)
     if (!packUtil.UbsePackUint16(vfe.vfeId)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
-    if (StringPack(packUtil, vfe.vfeGuid, MAX_GUID_LEN) != UBSE_OK) {
+    if (GuidPack(packUtil, vfe.vfeGuid) != UBSE_OK) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
-    return StringPack(packUtil, vfe.bindBusInstanceGuid, MAX_GUID_LEN);
+    return GuidPack(packUtil, vfe.bindBusInstanceGuid);
 }
 
 UbseResult VfeUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, UbseSsuVfe &vfe)
@@ -87,15 +130,14 @@ UbseResult VfeUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, UbseSsuVfe &vfe)
     if (!unpackUtil.UnpackUint16(vfe.vfeId)) {
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    if (StringUnpack(unpackUtil, vfe.vfeGuid, MAX_GUID_LEN) != UBSE_OK) {
+    if (GuidUnpack(unpackUtil, vfe.vfeGuid) != UBSE_OK) {
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return StringUnpack(unpackUtil, vfe.bindBusInstanceGuid, MAX_GUID_LEN);
+    return GuidUnpack(unpackUtil, vfe.bindBusInstanceGuid);
 }
 uint32_t VfeCalcSize(const UbseSsuVfe &vfe)
 {
-    return sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 + StringCalcSize(vfe.vfeGuid, MAX_GUID_LEN) +
-           StringCalcSize(vfe.bindBusInstanceGuid, MAX_GUID_LEN);
+    return sizeof(uint8_t) * 3 + sizeof(uint16_t) * 2 + UBS_SSU_GUID_LENGTH + UBS_SSU_GUID_LENGTH;
 }
 UbseResult NameSpaceInfoPack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuNameSpaceInfo &info)
 {
@@ -313,7 +355,7 @@ UbseResult FePack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuFe &fe)
     if (!packUtil.UbsePackUint16(fe.pfeId)) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
-    if (StringPack(packUtil, fe.pfeGuid, MAX_GUID_LEN) != UBSE_OK) {
+    if (GuidPack(packUtil, fe.pfeGuid) != UBSE_OK) {
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
     uint32_t vfeCount = static_cast<uint32_t>(fe.vfeList.size());
@@ -330,8 +372,7 @@ UbseResult FePack(ubse::utils::UbsePackUtil &packUtil, const UbseSsuFe &fe)
 
 uint32_t FeCalcSize(const UbseSsuFe &fe)
 {
-    uint32_t size = sizeof(uint8_t) * 3 + sizeof(uint16_t) + sizeof(uint32_t) +
-                    StringCalcSize(fe.pfeGuid, MAX_GUID_LEN);
+    uint32_t size = sizeof(uint8_t) * 3 + sizeof(uint16_t) + sizeof(uint32_t) + UBS_SSU_GUID_LENGTH;
     for (const auto &vfe : fe.vfeList) {
         size += VfeCalcSize(vfe);
     }

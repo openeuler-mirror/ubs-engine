@@ -24,11 +24,36 @@ import (
 // 对象级别函数仅处理结构体本身的字段序列化, 不包含消息层面的标志位或计数前缀。
 // 消息层面的逻辑(如hasVfe标志位、列表计数)由消息级别函数处理。
 
+// packGuid 将GUID字符串打包为32字节定长裸数据(不足补0, 超长截断)。
+//
+// 协议格式: [32 bytes 裸数据], 无长度前缀。
+// 与C++端 GuidPack(StringToArrayForGuid) 对齐。
+func packGuid(guid string) []byte {
+	var arr [UbsSsuMaxGuidLength]byte
+	copy(arr[:], guid)
+	return arr[:]
+}
+
+// unpackGuid 从解包器中读取32字节定长GUID并转换为字符串。
+//
+// 与C++端 GuidUnpack 逐字节读取对齐。
+func unpackGuid(u *pack.BinaryUnpacker) (string, error) {
+	var buf [UbsSsuMaxGuidLength]byte
+	for i := 0; i < UbsSsuMaxGuidLength; i++ {
+		b, err := u.UnpackUint8()
+		if err != nil {
+			return "", err
+		}
+		buf[i] = b
+	}
+	return string(buf[:]), nil
+}
+
 // packVfe 将VFE信息打包为字节数组
 //
 // 字段顺序: slotId(u8), chipId(u8), dieId(u8), pfeId(u16), vfeId(u16),
 //
-//	vfeGuid(string,UbsSsuMaxGuidLength), bindBusInstanceGuid(string,UbsSsuMaxGuidLength)
+//	vfeGuid(guid,32字节定长), bindBusInstanceGuid(guid,32字节定长)
 //
 // 注意: 本函数不包含hasVfe标志位, 标志位由消息级别函数 packConnectInfoReq 处理。
 func packVfe(vfe *UbsUbVfe) []byte {
@@ -38,8 +63,8 @@ func packVfe(vfe *UbsUbVfe) []byte {
 		PackUint8(vfe.DieId).
 		PackUint16(vfe.PfeId).
 		PackUint16(vfe.VfeId).
-		PackString(vfe.VfeGuid, UbsSsuMaxGuidLength).
-		PackString(vfe.BindBusInstanceGuid, UbsSsuMaxGuidLength).
+		PackRaw(packGuid(vfe.VfeGuid)).
+		PackRaw(packGuid(vfe.BindBusInstanceGuid)).
 		Bytes()
 }
 
@@ -67,11 +92,11 @@ func unpackVfe(u *pack.BinaryUnpacker) (UbsUbVfe, error) {
 	if err != nil {
 		return UbsUbVfe{}, err
 	}
-	vfeGuid, err := u.UnpackString(UbsSsuMaxGuidLength)
+	vfeGuid, err := unpackGuid(u)
 	if err != nil {
 		return UbsUbVfe{}, err
 	}
-	bindBusInstanceGuid, err := u.UnpackString(UbsSsuMaxGuidLength)
+	bindBusInstanceGuid, err := unpackGuid(u)
 	if err != nil {
 		return UbsUbVfe{}, err
 	}
@@ -172,7 +197,7 @@ func unpackAllocResultImpl(u *pack.BinaryUnpacker) (UbsSsuAllocResult, error) {
 //
 // 字段顺序: slotId(u8), chipId(u8), dieId(u8), pfeId(u16),
 //
-//	pfeGuid(string,32), vfeCount(u32), vfeList[](Vfe)
+//	pfeGuid(guid,32字节定长), vfeCount(u32), vfeList[](Vfe)
 //
 // 注意: C++ FePack中vfeCount使用uint32打包, 这里必须使用UnpackUint32。
 func unpackFe(u *pack.BinaryUnpacker) (UbsSsuFe, error) {
@@ -192,7 +217,7 @@ func unpackFe(u *pack.BinaryUnpacker) (UbsSsuFe, error) {
 	if err != nil {
 		return UbsSsuFe{}, err
 	}
-	pfeGuid, err := u.UnpackString(UbsSsuMaxGuidLength)
+	pfeGuid, err := unpackGuid(u)
 	if err != nil {
 		return UbsSsuFe{}, err
 	}
@@ -354,12 +379,12 @@ func packConnectInfoReq(name string, vfe *UbsUbVfe) []byte {
 
 // packFeDeviceAllocReq 将FE设备操作请求参数打包为字节数组
 //
-// 字段顺序: upi(u32), VFE结构体, busInstanceGuid(string,UbsSsuMaxGuidLength)
+// 字段顺序: upi(u32), VFE结构体, busInstanceGuid(guid,32字节定长)
 func packFeDeviceAllocReq(upi uint32, vfe *UbsUbVfe, busInstanceGuid string) []byte {
 	return pack.NewBinaryPacker().
 		PackUint32(upi).
 		PackRaw(packVfe(vfe)).
-		PackString(busInstanceGuid, UbsSsuMaxGuidLength).
+		PackRaw(packGuid(busInstanceGuid)).
 		Bytes()
 }
 
@@ -438,7 +463,7 @@ func unpackFeDeviceList(response []byte) ([]UbsSsuFe, error) {
 
 // unpackFeDeviceAllocResp 从响应中解包FE设备分配结果
 //
-// 消息格式: busInstanceGuid(string,UbsSsuMaxGuidLength)
+// 消息格式: busInstanceGuid(guid,32字节定长)
 func unpackFeDeviceAllocResp(response []byte) (string, error) {
-	return pack.NewBinaryUnpacker(response).UnpackString(UbsSsuMaxGuidLength)
+	return unpackGuid(pack.NewBinaryUnpacker(response))
 }

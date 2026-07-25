@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseGetFeDeviceListHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuGetFeDeviceListPack(feList, response);
+    return message::SsuGetFeDeviceListPack(feList, response);
 }
 
 UbseResult UbseGetFeDeviceListHandler::Handle()

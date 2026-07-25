@@ -44,7 +44,7 @@ UbseResult UbseFreeSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuFreeSpaceUnpack(*buffer_, name);
+    return message::SsuFreeSpaceUnpack(*buffer_, name);
 }
 
 } // namespace ubse::ssu::ipc

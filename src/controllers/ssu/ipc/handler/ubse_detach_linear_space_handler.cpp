@@ -30,7 +30,7 @@ UbseResult UbseDetachLinearSpaceHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    req.identity_ = identity_;
+    req.identity = identity_;
     auto ret = ssuService->DetachLinearSpace(req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachLinearSpace failed, ret:" << log::FormatRetCode(ret);
@@ -45,7 +45,7 @@ UbseResult UbseDetachLinearSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuDetachLinearSpaceUnpack(*buffer_, req);
+    return message::SsuDetachLinearSpaceUnpack(*buffer_, req);
 }
 
 } // namespace ubse::ssu::ipc
