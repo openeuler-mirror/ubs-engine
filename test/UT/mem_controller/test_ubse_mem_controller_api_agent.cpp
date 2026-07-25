@@ -20,6 +20,7 @@
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_api_common.h"

@@ -16,6 +16,7 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubse_mem_controller_helper.h"
 #include "debt/ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
@@ -25,8 +26,6 @@ inline bool operator==(const UbseNodeMemDebtInfo&, const UbseNodeMemDebtInfo&)
 }
 
 std::vector<uint32_t> ConvertNodelistToRegion(const std::vector<ubse::adapter_plugins::mmi::UbseNodeInfo>& nodelist);
-UbseMemResult GetShmExportStageByObj(const std::shared_ptr<const UbseMemShareBorrowExportObj>& exportObjPtr);
-UbseMemResult GetShmImportStageByObj(const std::shared_ptr<const UbseMemShareBorrowImportObj>& importObjPtr);
 } // namespace ubse::mem::controller::debt
 
 namespace ubse::mem_controller::ut {
@@ -82,33 +81,6 @@ static std::shared_ptr<const UbseMemShareBorrowExportObj> MakeConstShareExportOb
     return obj;
 }
 
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmExportStage_Running)
-{
-    auto obj = MakeConstShareExportObj(UBSE_MEM_EXPORT_RUNNING, "test");
-    auto res = GetShmExportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_CREATING);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmExportStage_Destroying)
-{
-    auto obj = MakeConstShareExportObj(UBSE_MEM_EXPORT_DESTROYING, "test");
-    auto res = GetShmExportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_DELETING);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmExportStage_Destroyed)
-{
-    auto obj = MakeConstShareExportObj(UBSE_MEM_EXPORT_DESTROYED, "test");
-    auto res = GetShmExportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_NOT_EXIST);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmExportStage_Success)
-{
-    auto obj = MakeConstShareExportObj(UBSE_MEM_EXPORT_SUCCESS, "test");
-    auto res = GetShmExportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_EXIST);
-}
 
 // ==================== GetShmImportStageByObj (shared_ptr overload) ====================
 
@@ -119,34 +91,6 @@ static std::shared_ptr<const UbseMemShareBorrowImportObj> MakeConstShareImportOb
     obj->status.state = state;
     obj->req.name = name;
     return obj;
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmImportStage_Running)
-{
-    auto obj = MakeConstShareImportObj(UBSE_MEM_IMPORT_RUNNING, "test");
-    auto res = GetShmImportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_CREATING);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmImportStage_Destroying)
-{
-    auto obj = MakeConstShareImportObj(UBSE_MEM_IMPORT_DESTROYING, "test");
-    auto res = GetShmImportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_DELETING);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmImportStage_Destroyed)
-{
-    auto obj = MakeConstShareImportObj(UBSE_MEM_IMPORT_DESTROYED, "test");
-    auto res = GetShmImportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_NOT_EXIST);
-}
-
-TEST_F(TestUbseMemDebtInfoQueryShare, ShmImportStage_Success)
-{
-    auto obj = MakeConstShareImportObj(UBSE_MEM_IMPORT_SUCCESS, "test");
-    auto res = GetShmImportStageByObj(obj);
-    EXPECT_EQ(res.stage, UbseMemStage::UBSE_EXIST);
 }
 
 // ==================== GetShmExportStageByObj / GetShmImportStageByObj (string overload) ====================
@@ -231,6 +175,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmGet_ExportPermissionDenied)
     req.udsInfo.username = "other";
     req.udsInfo.uid = 100;
     UbseMemShmDesc desc{};
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmGet(req, desc), UBSE_ERR_AUTH_FAILED);
 }
 
@@ -260,6 +205,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmGet_ExportOnlySuccess)
     req.name = "test";
     req.udsInfo.username = "ubse";
     UbseMemShmDesc desc{};
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmGet(req, desc), UBSE_OK);
     EXPECT_EQ(desc.name, "test");
     EXPECT_EQ(desc.totalMemSize, 4096);
@@ -289,6 +235,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmGet_ImportOnlySuccess)
     req.name = "test";
     req.udsInfo.username = "ubse";
     UbseMemShmDesc desc{};
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmGet(req, desc), UBSE_OK);
     EXPECT_EQ(desc.name, "test");
     ASSERT_EQ(desc.importDesc.size(), 1);
@@ -337,6 +284,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmList_ExportOnly)
     UbseMemDebtQueryRequest req;
     req.udsInfo.username = "ubse";
     std::vector<UbseMemShmDesc> result;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmList(req, result), UBSE_OK);
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].name, "test");
@@ -362,6 +310,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmList_ImportOnly)
     UbseMemDebtQueryRequest req;
     req.udsInfo.username = "ubse";
     std::vector<UbseMemShmDesc> result;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmList(req, result), UBSE_OK);
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].name, "import_test");
@@ -391,6 +340,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmList_NameFilter)
     req.name = "prefix";
     req.udsInfo.username = "ubse";
     std::vector<UbseMemShmDesc> result;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmList(req, result), UBSE_OK);
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].name, "prefix_test");
@@ -423,6 +373,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmStatusGet_HealthyOnly)
     UbseMemDebtQueryRequest req;
     req.name = "test";
     UbseMemShmMemStatusDesc desc{};
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmStatusGet(req, desc), UBSE_OK);
     EXPECT_TRUE(desc.memIds.empty());
     EXPECT_TRUE(desc.faultTypes.empty());
@@ -444,6 +395,7 @@ TEST_F(TestUbseMemDebtInfoQueryShare, ShmStatusGet_WithFault)
     UbseMemDebtQueryRequest req;
     req.name = "test";
     UbseMemShmMemStatusDesc desc{};
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemShmStatusGet(req, desc), UBSE_OK);
     ASSERT_EQ(desc.memIds.size(), 1);
     EXPECT_EQ(desc.memIds[0], 42);

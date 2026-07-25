@@ -16,6 +16,7 @@
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_node_controller.h"
+#include "ubse_mem_controller_helper.h"
 #include "debt/ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
@@ -534,6 +535,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_PermissionDenied)
     req.udsInfo.username = "different_user";
     req.udsInfo.uid = 2000;
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ERR_AUTH_FAILED);
 }
 
@@ -555,6 +557,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ExportNodeNotFound)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ENGINE_ERR_EXPORT_LEDGERING);
 }
 
@@ -568,6 +571,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ExportNodeInit)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ENGINE_ERR_EXPORT_LEDGERING);
 }
 
@@ -581,6 +585,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ExportNodeSmoothing)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ENGINE_ERR_EXPORT_LEDGERING);
 }
 
@@ -594,6 +599,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ExportNodeUnknown)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ENGINE_ERR_EXPORT_LEDGERING);
 }
 
@@ -639,6 +645,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ImportObjCreating)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ERR_CREATING);
 }
 
@@ -656,6 +663,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ImportObjDeleting)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ERR_DELETING);
 }
 
@@ -690,6 +698,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_ConvertNodeIdFail)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_ERROR);
 }
 
@@ -707,6 +716,7 @@ TEST_F(TestUbseMemDebtInfoQuery, GetMemIdByImport_Success)
 
     auto req = MakeShmRequest("test", "importNode", 42);
     UbseExportMemDesc memDesc;
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     EXPECT_EQ(UbseMemGetMemIdByImport(req, memDesc), UBSE_OK);
     EXPECT_EQ(memDesc.exportSlotId, 7);
     EXPECT_EQ(memDesc.exportMemId, 100);

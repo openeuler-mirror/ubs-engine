@@ -193,6 +193,10 @@ uint32_t UbseMemShmGet(const UbseMemDebtQueryRequest& request, UbseMemShmDesc& s
         bool found = false;
         UbseMemShareBorrowExportObj exportObj;
         if (store.LoadExport(request.name, exportObj) == UBSE_OK) {
+            if (!exportObj.req.udsInfo.CheckPermission(request.udsInfo)) {
+                UBSE_LOG_ERROR << "Permission denied. related name: " << request.name;
+                return UBSE_ERR_AUTH_FAILED;
+            }
             auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(std::move(exportObj));
             ShmDecExportAssignment(request.name, shmDesc, exportObjPtr);
             found = true;

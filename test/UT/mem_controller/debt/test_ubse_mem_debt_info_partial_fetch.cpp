@@ -15,6 +15,7 @@
 #include <memory>
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_mem_controller_helper.h"
 #include "debt/ubse_mem_debt_ledger.h"
 
 namespace ubse::mem::controller::debt {
@@ -171,6 +172,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ExportNuma)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.numaExportObjMap["test_numa"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -213,6 +215,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ExportFd)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.fdExportObjMap["test_fd"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -246,6 +249,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ExportShm)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.shareExportObjMap["test_shm"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -282,6 +286,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ExportAddr)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.addrExportObjMap["test_addr"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -321,6 +326,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ImportNuma)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.numaImportObjMap["test_import_numa"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -353,6 +359,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ImportShm)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.shareImportObjMap["test_shm_import"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -393,6 +400,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ImportFd)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.fdImportObjMap["test_fd_import"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -415,6 +423,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_InitBorrowTyp
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.numaExportObjMap["test_numa"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -437,6 +446,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_NameFilter)
     nodeInfo.numaExportObjMap["match_name"] = obj1;
     nodeInfo.numaExportObjMap["other_name"] = obj2;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -459,6 +469,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_InvalidType)
     auto obj = MakeNumaExportObj("test", 1, 2, 3);
     nodeInfo.numaExportObjMap["test"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -480,6 +491,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_Pagination)
         nodeInfo.numaExportObjMap["obj_" + std::to_string(i)] = obj;
     }
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -527,6 +539,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_StateFilter)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.numaExportObjMap["filtered_state"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;
@@ -561,6 +574,7 @@ TEST_F(TestUbseMemDebtInfoPartialFetch, FetchDebtInfoByTypeAndPage_ImportAddr)
     UbseNodeMemDebtInfo nodeInfo;
     nodeInfo.addrImportObjMap["test_addr_import"] = obj;
 
+    MOCKER_CPP(&ubse::mem::controller::UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
     MOCKER_CPP(&UbseMemDebtLedger::GetNodeMemDebtInfo).stubs().will(returnValue(nodeInfo));
 
     DebtFetchInfo fetchInfo;

@@ -445,7 +445,7 @@ uint32_t ValidateObjs(const std::shared_ptr<const ImportObjType>& importObjPtr,
                        << ", importMemId=" << request.importMemId << ", name=" << request.name;
         return UBSE_ERR_AUTH_FAILED;
     }
-    if (!exportObjPtr) {
+    if (!exportObjPtr || exportObjPtr->algoResult.exportNumaInfos.empty()) {
         return GetExportErrorCode(importObj, request);
     }
     UbseMemStage memStage = GetMemStageByImportObjState(importObjPtr);
@@ -500,20 +500,12 @@ static uint32_t ProcessShmImport(IShareStore &store, const def::UbseMemIdQueryRe
                                def::UbseExportMemDesc &memDesc)
 {
     UbseMemShareBorrowExportObj exportObj;
-    auto ret = store.LoadExport(request.name, exportObj);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "LoadExport failed, name=" << request.name << ", ret=" << FormatRetCode(ret);
-        return UBSE_ERR_NOT_EXIST;
-    }
-    if (exportObj.algoResult.exportNumaInfos.empty()) {
-        UBSE_LOG_WARN << "ExportObj with empty export numa infos, name=" << request.name;
-        return UBSE_ERR_NOT_EXIST;
-    }
+    store.LoadExport(request.name, exportObj);
     auto exportObjPtr = std::make_shared<const UbseMemShareBorrowExportObj>(std::move(exportObj));
     auto importObjPtr = std::shared_ptr<const UbseMemShareBorrowImportObj>{};
     UbseMemShareBorrowImportObj importObj;
     if (!request.importNodeId.empty()) {
-        ret = store.LoadImport(request.importNodeId, request.name, importObj);
+        auto ret = store.LoadImport(request.importNodeId, request.name, importObj);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "LoadImport failed, name=" << request.name
                            << ", importNodeId=" << request.importNodeId << ", ret=" << FormatRetCode(ret);
