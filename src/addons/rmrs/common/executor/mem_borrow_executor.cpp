@@ -64,7 +64,9 @@ MpResult MemBorrowExecutor::PrepareMemNumaCreateParams(const std::string attachN
 
     // ubse: 借入方
     borrower.nodeId = attachNode;
-    borrower.affinitySocketId = attr.waterMallocAttr.srcSocket;
+    if (MpConfiguration::GetInstance().GetMustSamePlane()) {
+        borrower.affinitySocketId = attr.waterMallocAttr.srcSocket;
+    }
     borrower.uid = attr.waterMallocAttr.uid;
     borrower.username = attr.waterMallocAttr.username;
     // ubse: 借出方
