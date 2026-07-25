@@ -16,6 +16,7 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
 #include "ubse_error.h"
@@ -25,7 +26,6 @@
 #include "ubse_node_controller_collector.h"
 #include "ubse_node_controller_util.h"
 #include "ubse_serial_util.h"
-#include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_timer.h"
 
 const uint32_t UBSE_NODE_COLLECT_RETRY_INTERVAL = 2;  // 节点侧采集失败重试周期，单位/s
@@ -732,9 +732,6 @@ UbseResult nodeChangeHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
             UBSE_LOG_WARN << "SetUrmaUvs failed: " << FormatRetCode(ret);
         }
         ret = PubNodeUrmaChange(node, action);
-    } else if (action == UBSE_EVENT_GLOBAL_MASTER_ONLINE) {
-        UBSE_LOG_INFO << "[CLOS_EVENT] receive global master online notification from prev, globalMasterId=" << node;
-        ret = UbsePubEvent(action, node);
     }
 
     return CreateErrorResponse(ret, resp);

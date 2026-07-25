@@ -277,11 +277,6 @@ UbseResult UbseNodeControllerMaster::UbseGlobalMasterOnlineHandler(const std::st
                       << ", " << FormatRetCode(pubRet);
     }
 
-    auto role = GetClosRole();
-    if (role == UbseClosNodeRole::PD_MASTER || role == UbseClosNodeRole::GLOBAL_MASTER) {
-        UbseMasterNotifyMountedGroupMastersAction(globalMasterId, UBSE_EVENT_GLOBAL_MASTER_ONLINE);
-    }
-
     return UBSE_OK;
 }
 
@@ -1430,32 +1425,6 @@ void UbseNodeControllerMaster::UbseMasterNotifyAllAgentsAction(const std::string
     auto nodeInfos = UbseNodeController::GetInstance().GetAllNodes();
     for (auto &node : nodeInfos) {
         NotifyNodeChangeAction(node.first, nodeId, action);
-    }
-}
-
-void UbseNodeControllerMaster::UbseMasterNotifyMountedGroupMastersAction(const std::string &nodeId,
-                                                                         const std::string &action)
-{
-    auto module = UbseContext::GetInstance().GetModule<ubse::election::UbseElectionModule>();
-    if (module == nullptr) {
-        UBSE_LOG_ERROR << "[CLOS_EVENT] election module not load, skip notifying mounted group masters";
-        return;
-    }
-
-    ubse::election::HaTopologyInfo topology{};
-    auto ret = module->GetCurNodeGlobalTopoInfo(topology);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[CLOS_EVENT] get ha topology failed, skip action=" << action << ", " << FormatRetCode(ret);
-        return;
-    }
-
-    auto currentNodeId = UbseNodeController::GetInstance().GetCurrentNodeId();
-    for (const auto &group : topology.groups) {
-        if (group.isManagingGroup) {
-            continue;
-        }
-        const auto &mountedGroupMasterId = group.groupMasterId;
-        NotifyNodeChangeAction(mountedGroupMasterId, nodeId, action);
     }
 }
 
