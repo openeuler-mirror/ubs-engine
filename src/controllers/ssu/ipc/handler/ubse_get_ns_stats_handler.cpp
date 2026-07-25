@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseGetNsStatsHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuGetNsStatsPack(statsList, response);
+    return message::SsuGetNsStatsPack(statsList, response);
 }
 
 UbseResult UbseGetNsStatsHandler::Handle()
@@ -44,7 +44,7 @@ UbseResult UbseGetNsStatsHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuGetNsStatsUnpack(*buffer_, name);
+    return message::SsuGetNsStatsUnpack(*buffer_, name);
 }
 
 } // namespace ubse::ssu::ipc

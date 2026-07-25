@@ -20,7 +20,7 @@ using namespace common::def;
 
 UbseResult UbseGetAllocInfoByNameHandler::Pack(api::server::UbseIpcMessage &response)
 {
-    return SsuGetAllocInfoByNamePack(result, response);
+    return message::SsuGetAllocInfoByNamePack(result, response);
 }
 
 UbseResult UbseGetAllocInfoByNameHandler::Handle()
@@ -44,7 +44,7 @@ UbseResult UbseGetAllocInfoByNameHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuGetAllocInfoByNameUnpack(*buffer_, name);
+    return message::SsuGetAllocInfoByNameUnpack(*buffer_, name);
 }
 
 } // namespace ubse::ssu::ipc

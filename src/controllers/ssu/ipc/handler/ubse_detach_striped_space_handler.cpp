@@ -30,7 +30,7 @@ UbseResult UbseDetachStripedSpaceHandler::Handle()
         UBSE_LOG_ERROR << "UbseSsuService is not registered";
         return UBSE_ERROR_MODULE_LOAD_FAILED;
     }
-    req.identity_ = identity_;
+    req.identity = identity_;
     auto ret = ssuService->DetachStripedSpace(req);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "DetachStripedSpace failed, ret:" << log::FormatRetCode(ret);
@@ -45,7 +45,7 @@ UbseResult UbseDetachStripedSpaceHandler::Unpack()
         UBSE_LOG_ERROR << "buffer is nullptr";
         return UBSE_ERROR_DESERIALIZE_FAILED;
     }
-    return SsuDetachStripedSpaceUnpack(*buffer_, req);
+    return message::SsuDetachStripedSpaceUnpack(*buffer_, req);
 }
 
 } // namespace ubse::ssu::ipc

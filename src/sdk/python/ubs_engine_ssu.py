@@ -26,7 +26,7 @@ from ubse.models.ubs_engine_model_ssu import (
 )
 from ubse.ffi.ubs_binary_codec import BinaryUnpacker
 from ubs_engine_codes_ssu import (
-    UBSE_MODULE_CODE,
+    UBSE_SSU_MODULE_CODE,
     OP_ALLOC_REQ, OP_FREE_REQ,
     OP_LIST_ALLOC_INFO_REQ, OP_GET_NS_STATS_REQ, OP_GET_CONNECT_INFO_REQ,
     OP_ADD_ACCESS_PERMISSION_REQ, OP_REMOVE_ACCESS_PERMISSION_REQ,
@@ -65,7 +65,7 @@ def ubs_ssu_alloc_info_list() -> List[UbsSsuAllocResult]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    response = invoke_call(UBSE_MODULE_CODE, OP_LIST_ALLOC_INFO_REQ)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_LIST_ALLOC_INFO_REQ)
     return unpack_alloc_result_list(response)
 
 
@@ -93,7 +93,7 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
     """
     validate_alloc_space_req(req)
     request = pack_alloc_space_req(req)
-    response = invoke_call(UBSE_MODULE_CODE, OP_ALLOC_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ALLOC_REQ, request)
     return unpack_alloc_result(response)
 
 
@@ -117,7 +117,7 @@ def ubs_ssu_space_free(name: str) -> None:
     """
     validate_name(name)
     request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
-    invoke_call(UBSE_MODULE_CODE, OP_FREE_REQ, request)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_FREE_REQ, request)
 
 
 def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
@@ -142,7 +142,7 @@ def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
     validate_name(name)
     validate_nqn(nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
-    invoke_call(UBSE_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
 
 
 def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
@@ -167,7 +167,7 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
     validate_name(name)
     validate_nqn(nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
-    invoke_call(UBSE_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
 
 
 def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
@@ -190,7 +190,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
     """
     validate_name(req.name)
     request = pack_space_req(req)
-    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
     return unpack_ns_dev_paths_response(response)
 
 
@@ -214,7 +214,7 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
     """
     validate_name(req.name)
     request = pack_space_req(req)
-    invoke_call(UBSE_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
 
 
 def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], str]:
@@ -239,7 +239,7 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
     validate_name(req.name)
     validate_dev_name(req.dev_name)
     request = pack_linear_space_req(req)
-    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
     u = BinaryUnpacker(response)
     ns_dev_paths = unpack_ns_dev_paths(u)
     dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
@@ -265,7 +265,7 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
     validate_name(req.name)
     validate_dev_name(req.dev_name)
     request = pack_linear_space_req(req)
-    invoke_call(UBSE_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
 
 
 def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str], str]:
@@ -292,7 +292,7 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
     """
     validate_striped_space_req(req)
     request = pack_striped_space_req(req)
-    response = invoke_call(UBSE_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_STRIPED_SPACE_REQ, request)
     u = BinaryUnpacker(response)
     ns_dev_paths = unpack_ns_dev_paths(u)
     dev_path = u.unpack_string(UBS_SSU_MAX_DEV_PATH_LENGTH)
@@ -318,7 +318,7 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
     validate_name(req.name)
     validate_dev_name(req.dev_name)
     request = pack_striped_space_req(req)
-    invoke_call(UBSE_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
 
 
 def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
@@ -342,7 +342,7 @@ def ubs_ssu_ns_stats_get(name: str) -> List[UbsSsuNsStats]:
     """
     validate_name(name)
     request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
-    response = invoke_call(UBSE_MODULE_CODE, OP_GET_NS_STATS_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_NS_STATS_REQ, request)
     return unpack_ns_stats_list(response)
 
 
@@ -368,7 +368,7 @@ def ubs_ssu_connect_info_get(name: str, vfe: Optional[UbsUbVfe] = None) -> List[
     """
     validate_name(name)
     request = pack_connect_info_req(name, vfe)
-    response = invoke_call(UBSE_MODULE_CODE, OP_GET_CONNECT_INFO_REQ, request)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_CONNECT_INFO_REQ, request)
     return unpack_connect_info_list(response)
 
 
@@ -386,11 +386,11 @@ def ubs_ssu_fe_device_list() -> List[UbsUbFe]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    response = invoke_call(UBSE_MODULE_CODE, OP_GET_FE_DEVICE_LIST_REQ)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_GET_FE_DEVICE_LIST_REQ)
     return unpack_fe_device_list(response)
 
 
-def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
+def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: str) -> str:
     """将VFE绑定到虚拟机
 
     将指定的虚拟功能单元绑定到目标虚拟机，使虚拟机可通过该VFE访问存储资源。
@@ -398,9 +398,11 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
     Args:
         upi: 租户隔离标识
         vfe: 要绑定的VFE信息（UbsUbVfe 对象）
-        guid: 输入输出参数，总线实例GUID，标识目标虚拟机。
-              调用前应分配长度为 UBS_SSU_GUID_LENGTH 的 bytearray，
-              函数将修改其内容。
+        guid: 总线实例GUID，标识目标虚拟机。
+              长度应为 UBS_SSU_GUID_LENGTH 个字符。
+
+    Returns:
+        绑定后更新后的总线实例GUID字符串；若响应数据不足则返回原 guid。
 
     Raises:
         UbsErrInvalidArg: 参数校验错误
@@ -410,11 +412,12 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: bytearray) -> None:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    validate_fe_device_alloc_params(vfe, bytes(guid))
-    request = pack_fe_device_req(upi, vfe, bytes(guid))
-    response = invoke_call(UBSE_MODULE_CODE, OP_FE_DEVICE_ALLOC_REQ, request)
-    if len(response) >= UBS_SSU_GUID_LENGTH:
-        guid[:UBS_SSU_GUID_LENGTH] = response[:UBS_SSU_GUID_LENGTH]
+    validate_fe_device_alloc_params(vfe, guid)
+    request = pack_fe_device_req(upi, vfe, guid)
+    response = invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_ALLOC_REQ, request)
+    if len(response) < UBS_SSU_GUID_LENGTH:
+        raise UbsEngineInternalError("invalid response length for fe_device_alloc")
+    return response[:UBS_SSU_GUID_LENGTH].decode('utf-8', errors='replace')
 
 
 def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe) -> None:
@@ -436,4 +439,4 @@ def ubs_ssu_fe_device_free(upi: int, vfe: UbsUbVfe) -> None:
     """
     validate_fe_device_free_params(vfe)
     request = pack_fe_device_free_req(upi, vfe)
-    invoke_call(UBSE_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)
+    invoke_call(UBSE_SSU_MODULE_CODE, OP_FE_DEVICE_FREE_REQ, request)

@@ -17,6 +17,8 @@
 #include "ubse_common_def.h"
 #include "ubse_pack_util.h"
 
+#include <array>
+
 namespace ubse::ssu::ipc::message {
 
 constexpr uint32_t MAX_NAME_LEN = 48;
@@ -26,11 +28,16 @@ constexpr uint32_t MAX_DEV_PATH_LEN = 63;
 constexpr uint32_t MAX_TENANT_LEN = 17;
 constexpr uint32_t MAX_EID_LEN = 17;
 constexpr uint32_t MAX_UUID_LEN = 37;
-constexpr uint32_t MAX_GUID_LEN = 32;
+constexpr uint32_t UBS_SSU_GUID_LENGTH = 32;
 
 common::def::UbseResult StringPack(ubse::utils::UbsePackUtil &packUtil, const std::string &str, uint32_t maxLen);
 common::def::UbseResult StringUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, std::string &str, uint32_t maxLen);
 uint32_t StringCalcSize(const std::string &str, uint32_t maxLen);
+
+// 定长二进制32字节的GUID打包/解包, 结构体字段仍为std::string, 打包时零填充至32字节
+std::array<uint8_t, UBS_SSU_GUID_LENGTH> StringToArrayForGuid(const std::string &str);
+common::def::UbseResult GuidPack(ubse::utils::UbsePackUtil &packUtil, const std::string &guid);
+common::def::UbseResult GuidUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, std::string &guid);
 
 common::def::UbseResult VfePack(ubse::utils::UbsePackUtil &packUtil, const plugin::service::ssu::UbseSsuVfe &vfe);
 common::def::UbseResult VfeUnpack(ubse::utils::UbseUnpackUtil &unpackUtil, plugin::service::ssu::UbseSsuVfe &vfe);
