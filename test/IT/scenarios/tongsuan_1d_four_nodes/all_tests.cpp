@@ -14,6 +14,7 @@
 #include "tests/election/election_cases.h"
 #include "tests/fault/fault_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
+#include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
@@ -191,3 +192,8 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 {
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
 }
+
+// ====================================================================
+// P2 测试 — Fault Log 校验
+// ====================================================================
+

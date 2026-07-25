@@ -73,6 +73,8 @@ public:
     // --- Mem SHM APIs ---
     int32_t MemShmCreate(const char* name, uint64_t size, uint8_t usrInfo[32], uint64_t flag,
                          const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider);
+    int32_t MemShmCreateWithAffinity(const char* name, uint64_t size, uint64_t affinity, uint8_t usrInfo[32], uint64_t flag,
+                         const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider);
     int32_t MemShmAttach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode, ubs_mem_shm_desc_t** shmDesc);
     int32_t MemShmDetach(const char* name);
     int32_t MemShmDelete(const char* name);

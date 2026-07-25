@@ -141,6 +141,12 @@ int32_t ItSdkClient::MemShmCreate(const char* name, uint64_t size, uint8_t usrIn
     return InvokeSdk([&]() { return ubs_mem_shm_create(name, size, usrInfo, flag, region, provider); });
 }
 
+int32_t ItSdkClient::MemShmCreateWithAffinity(const char* name, uint64_t size, uint64_t affinity, uint8_t usrInfo[32], uint64_t flag,
+                                  const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
+{
+    return InvokeSdk([&]() { return ubs_mem_shm_create_with_affinity(name, size, affinity, usrInfo, flag, region, provider); });
+}
+
 int32_t ItSdkClient::MemShmAttach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
                                   ubs_mem_shm_desc_t** shmDesc)
 {

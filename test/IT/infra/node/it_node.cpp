@@ -401,4 +401,8 @@ std::string ItNode::GetLogFilePath() const
     return spec_.workDir + "/log/ubse.log";
 }
 
+std::string ItNode::GetLogFaultFilePath() const
+{
+    return spec_.workDir + "/log/ubse_fault.log";
+}
 } // namespace ubse::it::infra

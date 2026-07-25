@@ -129,6 +129,9 @@ public:
     /** @brief Path to the daemon's "ubse" module log file (workDir/log/ubse.log). */
     std::string GetLogFilePath() const;
 
+    /** @brief Path to the daemon's "ubse_fault" module log file (workDir/log/ubse_fault.log). */
+    std::string GetLogFaultFilePath() const;
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();

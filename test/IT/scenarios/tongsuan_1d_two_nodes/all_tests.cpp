@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
+#include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
@@ -891,4 +892,20 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
 {
     ubse::it::tests::election::RunTwoNodeElectionTest(Cluster());
+}
+
+// ====================================================================
+// P2 测试 — Fault Log 校验
+// ====================================================================
+
+// P2-FaultLog-BorrowCheckFailed-01: FD size < 4MB 触发 BORROW_CHECK_FAILED
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P2FaultLogBorrowCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowCheckFailed(Cluster());
+}
+
+// P2-FaultLog-BorrowNameExist-01: FD 同名重复创建触发 BORROW_NAME_EXIST
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P2FaultLogBorrowNameExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowNameExist(Cluster());
 }
