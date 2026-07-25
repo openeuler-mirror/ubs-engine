@@ -569,12 +569,6 @@ static UbseResult QueryGlobalShmNodeLedgerSummary(const std::string &targetNodeI
         return UBSE_ERROR_INVAL;
     }
 
-    const auto allNodes = nodeController::UbseNodeController::GetInstance().GetAllNodes();
-    if (allNodes.find(targetNodeId) == allNodes.end()) {
-        UBSE_LOG_ERROR << "target node does not exist, targetNodeId=" << targetNodeId;
-        return UBSE_ERR_NODE_NOT_EXIST;
-    }
-
     summary.nodeId = targetNodeId;
     summary.sourceMasterNodeId = nodeController::UbseNodeController::GetInstance().GetCurNode().nodeId;
     const auto debtInfo = GetNoDeletedNodeMemDebtInfoById(targetNodeId);

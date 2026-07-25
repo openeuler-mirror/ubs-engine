@@ -46,7 +46,7 @@ uint32_t UbseMemControllerMasterOnlineHandler::HandleGlobalMasterOnline(const st
         return UBSE_OK;
     }
 
-    auto allNodes = UbseNodeController::GetInstance().GetAllNodes();
+    auto allNodes = UbseNodeController::GetInstance().GetLocalNodeInfos();
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
         UBSE_LOG_ERROR << "Failed to get ubseMemController executor for summary reporting";
