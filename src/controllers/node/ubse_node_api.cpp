@@ -234,7 +234,7 @@ uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const Ubse
                 ubseSerial << UBSE_ROLE_AGENT;
             }
         }
-        ubseSerial << (UbseSmbios::GetInstance().IsClosType() ? "-" : node.bondingEid);
+        ubseSerial << node.bondingEid;
         ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
     }
     if (!ubseSerial.Check()) {

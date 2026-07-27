@@ -181,17 +181,6 @@ UbseResult GetBondingEidByNodeId(std::string& bondingEid, const std::string& nod
 }
 
 QueryEidByNodeIdCb queryCb = [](std::string nodeId, std::string &eid) {
-    bool rootEnable = false;
-    nodeMgr::GetRootIpList().empty() ? rootEnable = false : rootEnable = true;
-    if (rootEnable) {
-        auto node = nodeMgr::GetUbseNodeById(nodeId);
-        if (node.nodeId.empty()) {
-            UBSE_LOG_WARN << "Node " << nodeId << " not found";
-            return false;
-        }
-        eid = node.addr;
-        return true;
-    }
     bool ubEnable = nodeMgr::IsUrma();
     if (ubEnable) {
         if (GetBondingEidByNodeId(eid, nodeId) != UBSE_OK) {

@@ -353,10 +353,11 @@ UbseResult UbseComEngine::DoConnect(UbseComChannelConnectInfo& info, UBSHcomConn
                                     options);
 }
 
-UbseResult GetRemoteNodeIdByCall(const std::string& remoteIP, const UBSHcomChannelPtr& channelPtr,
+UbseResult GetRemoteNodeIdByCall(const std::string& remoteIP, const std::string& localNodeId,
+                                 const std::string& localIp, const UBSHcomChannelPtr& channelPtr,
                                  std::string& remoteNodeId)
 {
-    std::string data = "GetRemoteNodeId";
+    std::string data = "GetRemoteNodeId@" + localNodeId + "@" + localIp;
     const UBSHcomRequest reqMsg{data.data(), static_cast<uint32_t>(data.length()), OpCodeType::GET_REMOTE_ID};
     UBSHcomResponse rspMsg;
     auto ret = channelPtr->Call(reqMsg, rspMsg);
@@ -421,7 +422,8 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
         return UBSE_ERROR_NULLPTR;
     }
     SetChannelTimeout(channelPtr, timeout_);
-    if (GetRemoteNodeIdByCall(info.GetIp(), channelPtr, remoteNodeId) != UBSE_OK) {
+    if (GetRemoteNodeIdByCall(info.GetIp(), engineInfo_.GetNodeId(), engineInfo_.GetIpInfo().first, channelPtr,
+                               remoteNodeId) != UBSE_OK) {
         auto chId = channelPtr->GetId();
         DestroyChannel(channelPtr);
         RemoveConnectingNode(info.GetIp(), chType);
@@ -515,11 +517,6 @@ UbseResult UbseComEngine::Start()
     InitEngineOptions();
     std::vector<__u32> caps = {CAP_DAC_OVERRIDE};
     UbseSecurityModule::ModifyEffectiveCapabilities(caps, true);
-    if (UbseSmbios::GetInstance().IsClosType()) {
-        UBSE_LOG_INFO << "Clos type, skip start hcomservice";
-        UbseSecurityModule::ModifyEffectiveCapabilities(caps, false);
-        return UBSE_OK;
-    }
     auto ret = hcomNetService_->Start();
     if (UBSE_RESULT_FAIL(ret)) {
         std::cerr << "Create engine " << engineName << " failed, start service fail" << std::endl;
@@ -967,6 +964,23 @@ void NoHandlerReply(UbseComMessageCtx& message)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
 }
 
+std::string GetPeerIpFromGetRemoteNodeIdReq(const UBSHcomServiceContext& context)
+{
+    auto data = context.MessageData();
+    auto dataLen = context.MessageDataLen();
+    if (data == nullptr || dataLen == 0) {
+        return "";
+    }
+    std::string body(static_cast<const char*>(data), dataLen);
+    std::vector<std::string> fields;
+    constexpr const char* PAYLOAD_SPLIT_SEP_LOCAL = "@";
+    Split(body, PAYLOAD_SPLIT_SEP_LOCAL, fields);
+    if (fields.size() >= 3) {
+        return fields[2];
+    }
+    return "";
+}
+
 void ReplyWithResult(UbseComMessageCtx &message, UbseReplyResult err)
 {
     auto res = (UbseReplyResultToString(err));
@@ -977,7 +991,7 @@ void ReplyWithResult(UbseComMessageCtx &message, UbseReplyResult err)
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
 }
 
-void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext &context)
+void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
 {
     mti::UbseMtiNodeInfo localNodeInfo;
     const auto ret = mti::UbseGetLocalNodeInfo(localNodeInfo);
@@ -1001,9 +1015,8 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext &context)
         UBSE_LOG_ERROR << "Reply local node id fail";
     }
     auto payLoadPair = SplitPayload(ch->GetPeerConnectPayload());
-    std::string ip;
+    std::string ip = GetPeerIpFromGetRemoteNodeIdReq(context);
     UbseComChannelConnectInfo connectInfo;
-    queryCb_(payLoadPair.first, ip);
     connectInfo.SetPort(TCP_LISTEN_PORT);
     connectInfo.SetCurNodeId(engineInfo_.GetNodeId());
     connectInfo.SetRemoteNodeId(payLoadPair.first);

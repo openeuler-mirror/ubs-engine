@@ -38,7 +38,10 @@ using namespace ubse::utils;
 UbseResult UbseNodeDiscoveryStaticMode::Init()
 {
     UbseResult ret = UBSE_OK;
-    isClos_ = UbseSmbios::GetInstance().IsClosType();
+    isClos_ = UbseNodeStaticInfoMgr::GetInstance().IsClos();
+    if (isClos_) {
+        podCapability_ = UbseNodeStaticInfoMgr::GetInstance().GetPodCapability();
+    }
     ret = GenerateClusterStaticInfo();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "init cluster static info failed, " << FormatRetCode(ret);
@@ -59,7 +62,7 @@ UbseResult UbseNodeDiscoveryStaticMode::GenerateClosStaticInfo(const UbseNodeSta
     for (const auto &chip : currentSuperNode.feEidList) {
         UbseMtiEidGroup eidGroup{};
         eidGroup.entityId = chip.second.entityId;
-        ret = OverwriteEid(nodeId, chip.second.primaryEid, eidGroup.primaryEid);
+        ret = OverwriteEid(serverIdx, chip.second.primaryEid, eidGroup.primaryEid);
         if (ret != UBSE_OK) {
             UBSE_LOG_ERROR << "nodeId=" << nodeId << ", chipId=" << chip.first << " generate primary eid failed, "
                            << FormatRetCode(ret);
@@ -67,7 +70,7 @@ UbseResult UbseNodeDiscoveryStaticMode::GenerateClosStaticInfo(const UbseNodeSta
         }
         for (const auto &portEid : chip.second.portEids) {
             std::string eid;
-            ret = OverwriteEid(nodeId, portEid.second, eid);
+            ret = OverwriteEid(serverIdx, portEid.second, eid);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "nodeId=" << nodeId << ", chipId=" << chip.first << ", portId=" << portEid.first
                                << " generate primary eid failed, " << FormatRetCode(ret);

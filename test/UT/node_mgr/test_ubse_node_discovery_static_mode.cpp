@@ -126,8 +126,8 @@ TEST_F(TestUbseNodeDiscoveryStaticMode, GenerateClosStaticInfo)
 
     UbseNodeDiscoveryStaticMode::GetInstance().podCapability_ = 2;
     UbseNodeStaticInfo info{};
-    EXPECT_EQ(UBSE_OK, UbseNodeDiscoveryStaticMode::GetInstance().GenerateClosStaticInfo(curNode, 10, info));
-    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0b00:0000", info.bonding0Eid);
+    EXPECT_EQ(UBSE_OK, UbseNodeDiscoveryStaticMode::GetInstance().GenerateClosStaticInfo(curNode, 11, info));
+    EXPECT_EQ("4245:4944:0000:0000:0000:0000:0c00:0000", info.bonding0Eid);
     EXPECT_EQ("4245:4944:0000:0000:0000:0000:1105:8011", info.feEidList["1"].primaryEid);
     EXPECT_EQ("4245:4944:0000:0000:0000:0000:1105:8111", info.feEidList["1"].portEids["3"]);
     EXPECT_EQ("2", info.feEidList["1"].entityId);
