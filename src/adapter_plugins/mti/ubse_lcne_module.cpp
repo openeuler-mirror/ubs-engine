@@ -212,6 +212,7 @@ UbseResult UbseLcneModule::GetComUrmaEid()
                 UBSE_LOG_ERROR << "[MTI] Failed to get UrmaEid from local board.";
                 return UBSE_ERROR;
             }
+            iou.slotId = dev.first.slotId;
             allSocketComEid[iou] = fe;
             UBSE_LOG_INFO << "[MTI] allSocketComEid ubpu=" << dev.first.ubpuId << ", entity=" << fe.entityId
                            << ", primaryEid=" << fe.primaryEid << ", portEids.size=" << fe.portEids.size();

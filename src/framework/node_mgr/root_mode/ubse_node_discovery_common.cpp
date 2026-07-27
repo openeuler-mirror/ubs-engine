@@ -223,21 +223,6 @@ UbseResult UbseNodeDiscoveryCommon::NewChannelCallback(const std::string &remote
     UBSE_LOG_INFO << "new channel callback, remoteIp=" << remoteIp << ", remoteNodeId=" << remoteNodeId;
     std::unique_lock lock(mutex_);
     clusterNodeIdToIpMap_[remoteNodeId] = remoteIp;
-    UbseNodeStaticInfo node{};
-    node.superPodId = 0;
-    uint32_t nodeIndex = 0;
-    if (ConvertStrToUint32(remoteNodeId, nodeIndex) != UBSE_OK) {
-        UBSE_LOG_ERROR << "convert nodeId=" << remoteNodeId << " to uint32_t failed";
-        return UBSE_ERROR;
-    }
-    uint32_t podCapability = UbseNodeStaticInfoMgr::GetInstance().GetPodCapability();
-    if (podCapability == 0) {
-        return UBSE_ERROR;
-    }
-    node.groupId = (nodeIndex - 1) / podCapability + 1;
-    node.nodeId = remoteNodeId;
-    node.addr = remoteIp;
-    UbseNodeStaticInfoMgr::GetInstance().SetNodes({node});
     return UBSE_OK;
 }
 
