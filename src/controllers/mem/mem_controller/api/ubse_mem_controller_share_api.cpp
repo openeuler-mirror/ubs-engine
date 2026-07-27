@@ -445,6 +445,8 @@ UbseResult ShmAttachPreCheck(const UbseMemShareAttachReq& req, UbseMemOperationR
         return UBSE_ERROR_ACCES;
     }
     if (ExistImportObj(req.name, req.importNodeId, importObjs, importObj)) {
+        BorrowFailedAdvice(
+            {MemFault::SHARED_ATTACH_EXIST, req.name, MemType::SHM, req.size, "", req.importNodeId, req.importNodeId});
         ExistImportObjHandler(req, importObj, resp, req.name, req.importNodeId);
         return UBSE_ERR_EXISTED;
     }

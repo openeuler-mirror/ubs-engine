@@ -46,12 +46,12 @@ void RunP1FaultLogBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
         // 使用numa cli传入不存在的链路，触发BORROW_CHECK_FAILED
         ubse::it::infra::ItMemCreateInfo createInfo;
         // 传入不存在的链路，触发链路检查失败
-        auto ret = cliInvoker.CreateMemoryNuma(createInfo, name, "128M", "1/1/1-2/1/1");
+        auto ret = cliInvoker.CreateMemoryNuma(createInfo, name, "4M", "1/1/1-2/1/1");
     }
 
     // 等待并校验 fault log 中出现 BORROW_CHECK_FAILED (faultCode=1)
     auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0001"; }, 5000);
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0001"; });
 
     ASSERT_FALSE(entries.empty()) << "Expected fault log entry with ErrorCode=ubse_borrow_0001 not found";
     const auto& entry = entries[0];
@@ -64,7 +64,7 @@ void RunP1FaultLogBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty());
 }
 
-// BorrowNameExist-01: FD/NUMA/Share 同名重复创建触发 BORROW_NAME_EXIST，校验 ubse_fault.log
+// BorrowNameExist-01: FD/NUMA/Share 同名重复创建 触发 BORROW_NAME_EXIST，校验 ubse_fault.log
 void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -147,7 +147,7 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
 
     // 统一等待并获取所有BORROW_NAME_EXIST类型的fault log (faultCode=2)
     auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0002"; }, 5000, 3); // 等待3条日志
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0002"; }, 3); // 等待3条日志
 
     // 校验日志总数
     ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0002, got "
@@ -179,7 +179,6 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
     EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
-
 }
 
 // BorrowChipNotSupport-01: 底层芯片不支持FD/NUMA借用 触发 BORROW_CHIP_NOT_SUPPORT，校验 ubse_fault.log
@@ -224,11 +223,12 @@ void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster)
     }
 
     // 统一等待并获取所有BORROW_CHIP_NOT_SUPPORT类型的fault log (faultCode=3)
-    auto entries = ItFaultLogHelper::WaitForFaultLog(faultLogPath,
-        [](const FaultLogEntry& e) {return e.errorCode == "ubse_borrow_0003";}, 5000, 2); // 等待2条日志
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0003"; }, 2); // 等待2条日志
 
     // 校验日志总数
-    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0003, got " << entries.size();
+    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0003, got "
+                                  << entries.size();
 
     // 校验FD类型日志
     const auto& fdEntry = entries[0];
@@ -249,10 +249,11 @@ void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
 }
 
-// BorrowScheduleFailed-01: 借用调度失败 触发 BORROW_SCHEDULE_FAILED，校验 ubse_fault.log
+// BorrowScheduleFailed-01: FD/NUMA/Share 借用调度失败 触发 BORROW_SCHEDULE_FAILED，校验 ubse_fault.log
 void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
+    auto& sdk2 = cluster.GetSdkClient("2");
     std::string masterNodeId;
     auto ret = cluster.GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
@@ -260,7 +261,88 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     // 清空 fault log，避免前序用例干扰
     ItFaultLogHelper::ClearFaultLog(faultLogPath);
 
+    const char* name_p = "it_p1_fl_br_schedule_failed";
+    ubs_mem_numa_desc_t numaDesc{};
 
+    // 创建NUMA失败，触发 BORROW_SCHEDULE_FAILED
+    IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating NUMA with schedule failed: name=" << name_p;
+    ret = sdk.MemNumaCreate(name_p, numaSize, MEM_DISTANCE_L0, &numaDesc);
+    EXPECT_IT_OK(ret);
+
+    {
+        const char* name = "it_p1_fl_br_schedule_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        // 创建FD失败，触发 BORROW_SCHEDULE_FAILED
+        IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating FD with schedule failed: name=" << name;
+        ret = sdk2.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE);
+    }
+
+    {
+        const char* name = "it_p1_fl_br_schedule_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        // 创建NUMA失败，触发 BORROW_SCHEDULE_FAILED
+        IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating NUMA with schedule failed: name=" << name;
+        ret = sdk2.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE);
+    }
+
+    {
+        const char* name = "it_p1_fl_br_schedule_failed_share";
+        ubs_mem_shm_desc_t shareDesc{};
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        // 创建Share失败，触发 BORROW_SCHEDULE_FAILED
+        IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating Share with schedule failed: name=" << name;
+        ubs_mem_lender_t lender{.lender_size = fdSize, .slot_id = 1, .socket_id = 1, .numa_id = 1, .port_id = 0};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_ALLOCATE);
+    }
+
+    // 清理
+    ret = sdk.MemNumaDelete(name_p);
+    ASSERT_IT_OK(ret);
+
+    // 统一等待并获取所有BORROW_SCHEDULE_FAILED类型的fault log (faultCode=4)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0004"; }, 3); // 等待3条日志
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0004, got "
+                                  << entries.size();
+
+    // 校验FD类型日志
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_br_schedule_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry.requestNode, "2") << "FD requestNode mismatch";
+    EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_schedule_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, "2") << "NUMA requestNode mismatch";
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_schedule_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
 
 // ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在 触发 SHARE_BORROW_CHECK_FAILED
@@ -287,17 +369,15 @@ void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
         region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
         region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
 
-        constexpr uint64_t shmSize128M = 128ULL * 1024ULL * 1024ULL;
-
         // create + attach
         IT_LOG_INFO << "Creating SHM for memid query: name=" << name;
         ret = sdk.MemShmCreateWithAffinity(name, shareSize, affinity_socket_id, usrInfo, 0, &region, nullptr);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_SHM_AFFINITY_PARAMS_ABNORMAL);
     }
-    
+
     // 等待并校验 fault log 中出现 SHARE_BORROW_CHECK_FAILED (faultCode=16)
     auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0016"; }, 5000);
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0016"; });
 
     ASSERT_FALSE(entries.empty()) << "Expected fault log entry with ErrorCode=ubse_borrow_0016 not found";
     const auto& entry = entries[0];
@@ -305,7 +385,7 @@ void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry.requestSize, shareSize);
     EXPECT_EQ(entry.requestNode, "1");
-    EXPECT_EQ(entry.adviceCode, 16u); // SHARE_BORROW_CHECK_FAILED
+    EXPECT_EQ(entry.adviceCode, 1u); // SHARE_BORROW_CHECK_FAILED
     EXPECT_FALSE(entry.errorInfo.empty());
     EXPECT_FALSE(entry.advice.empty());
 }
@@ -336,7 +416,7 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
         region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
         ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
         ASSERT_IT_OK(ret);
-        
+
         // 节点1尝试attach不存在的共享内存，触发SHARE_ATTACH_CHECK_FAILED
         IT_LOG_INFO << "[ShareAttachCheckFailed-01] Attaching share name not exist: name=" << name;
         ubs_mem_shm_desc_t* attachDesc = nullptr;
@@ -357,10 +437,11 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
 
     // 等待并校验fault log中出现SHARE_ATTACH_CHECK_FAILED (faultCode=17)
     auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0017"; }, 5000);
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0017"; }, 2);
 
     // 校验日志总数
-    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0017, got " << entries.size();
+    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0017, got "
+                                  << entries.size();
 
     // 校验节点1尝试attach不存在的共享内存，触发SHARE_ATTACH_CHECK_FAILED的日志
     const auto& entry1 = entries[0];
@@ -368,7 +449,7 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry1.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry1.requestSize, 0);
     EXPECT_EQ(entry1.requestNode, "1"); // attach请求共享内存不存在
-    EXPECT_EQ(entry1.adviceCode, 17u); // SHARE_ATTACH_CHECK_FAILED
+    EXPECT_EQ(entry1.adviceCode, 1u);   // SHARE_ATTACH_CHECK_FAILED
     EXPECT_FALSE(entry1.errorInfo.empty());
     EXPECT_FALSE(entry1.advice.empty());
 
@@ -378,12 +459,11 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry3.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry3.requestSize, 0);
     EXPECT_EQ(entry3.requestNode, nodeId); // attach请求节点为节点3/4(非主节点且不在共享域)
-    EXPECT_EQ(entry3.adviceCode, 17u); // SHARE_ATTACH_CHECK_FAILED
+    EXPECT_EQ(entry3.adviceCode, 1u);      // SHARE_ATTACH_CHECK_FAILED
     EXPECT_FALSE(entry3.errorInfo.empty());
     EXPECT_FALSE(entry3.advice.empty());
 }
 
-// ShareAttachAuthFailed-01: Share attach与create时用户身份不一致 触发 SHARE_ATTACH_AUTH_FAILED
 void RunP1FaultLogShareAttachAuthFailed(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -391,10 +471,105 @@ void RunP1FaultLogShareAttachAuthFailed(ubse::it::infra::ItCluster& cluster)
     auto ret = cluster.GetMasterNodeId(masterNodeId);
     EXPECT_IT_OK(ret);
     auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
-    // 清空 fault log，避免前序用例干扰
     ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_att_auth_failed";
+    {
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        // 节点1创建共享内存
+        IT_LOG_INFO << "[ShareAttachAuthFailed-01] Creating SHM with node 1: name=" << name;
+        ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        ASSERT_IT_OK(ret);
+
+        // 节点2尝试attach，用户身份与创建时不一致，触发SHARE_ATTACH_AUTH_FAILED
+        auto& attachSdk = cluster.GetSdkClient("2");
+        IT_LOG_INFO << "[ShareAttachAuthFailed-01] Attaching SHM with node 2 (different identity): name=" << name;
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = attachSdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_AUTH_FAILED);
+
+        // 清理
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 等待并校验 fault log 中出现 SHARE_ATTACH_AUTH_FAILED (faultCode=18)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0018"; });
+
+    ASSERT_FALSE(entries.empty()) << "Expected fault log entry with ErrorCode=ubse_borrow_0018 not found";
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, shareSize);
+    EXPECT_EQ(entry.requestNode, "2");
+    EXPECT_EQ(entry.adviceCode, 18u); // SHARED_ATTACH_AUTH_FAILED
+    EXPECT_FALSE(entry.errorInfo.empty());
+    EXPECT_FALSE(entry.advice.empty());
 }
 
 // ShareAttachExist-01: Share attach请求节点重复attach 触发 SHARE_ATTACH_EXIST
-void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster);
+void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_att_exist";
+    {
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        // 节点1创建共享内存
+        IT_LOG_INFO << "[ShareAttachExist-01] Creating SHM with node 1: name=" << name;
+        auto ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试attach
+        IT_LOG_INFO << "[ShareAttachExist-01] Attaching SHM : name=" << name;
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_OK(ret);
+
+        // 节点1再次attach，触发SHARE_ATTACH_EXIST
+        IT_LOG_INFO << "[ShareAttachExist-01] Attaching SHM duplicated: name=" << name;
+        ubs_mem_shm_desc_t* attachDesc2 = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc2);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
+
+        // 清理
+        ret = sdk.MemShmDetach(name);
+        ASSERT_IT_OK(ret);
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 等待并校验 fault log 中出现 SHARE_ATTACH_EXIST (faultCode=19)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0019"; });
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0019, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, "1");
+    EXPECT_EQ(entry.adviceCode, 5u); // SHARE_ATTACH_EXIST
+    EXPECT_FALSE(entry.errorInfo.empty());
+    EXPECT_FALSE(entry.advice.empty());
+}
 } // namespace ubse::it::tests::mem_borrow

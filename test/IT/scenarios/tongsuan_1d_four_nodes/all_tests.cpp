@@ -197,3 +197,8 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 // P2 测试 — Fault Log 校验
 // ====================================================================
 
+// P1-FaultLog-ShareAttachCheckFailed-01: attach不存在的共享内存 或 attach请求节点不在共享域
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareAttachCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachCheckFailed(Cluster());
+}

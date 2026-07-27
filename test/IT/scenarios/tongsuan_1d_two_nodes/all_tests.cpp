@@ -895,17 +895,35 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
 }
 
 // ====================================================================
-// P2 测试 — Fault Log 校验
+// P1 测试 — Fault Log 校验
 // ====================================================================
 
-// P2-FaultLog-BorrowCheckFailed-01: FD size < 4MB 触发 BORROW_CHECK_FAILED
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P2FaultLogBorrowCheckFailed01)
+// P2-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowCheckFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowCheckFailed(Cluster());
 }
 
-// P2-FaultLog-BorrowNameExist-01: FD 同名重复创建触发 BORROW_NAME_EXIST
-TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P2FaultLogBorrowNameExist01)
+// P2-FaultLog-BorrowNameExist-01: 同名重复创建
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowNameExist01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowNameExist(Cluster());
+}
+
+// P1-FaultLog-BorrowScheduleFailed-01: 借用调度失败
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowScheduleFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowScheduleFailed(Cluster());
+}
+
+// P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareBorrowCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareBorrowCheckFailed(Cluster());
+}
+
+// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach 触发 SHARE_ATTACH_EXIST
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareAttachExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachExist(Cluster());
 }

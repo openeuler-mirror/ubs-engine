@@ -26,18 +26,18 @@ namespace ubse::it::infra {
  * Each field corresponds to a key=value pair in the BorrowFailedAdvice output.
  */
 struct FaultLogEntry {
-    std::string processDesc;   // "Borrow Schedule failed" / "Import failed" / ...
-    std::string requestName;   // RequestName=xxx
-    std::string borrowType;    // BorrowType=WATER_BORROW / APP_NUMA_BORROW / ...
-    uint64_t requestSize = 0;  // RequestSize=xxx (bytes)
-    std::string exportNode;    // ExportNode=xxx
-    std::string importNode;    // ImportNode=xxx
-    std::string requestNode;   // RequestNode=xxx
-    std::string masterNode;    // MasterNode=xxx
-    std::string errorCode;     // ErrorCode=ubse_borrow_XXXX
-    std::string errorInfo;     // ErrorInfo=xxx
-    uint32_t adviceCode = 0;   // AdviceCode=xxx
-    std::string advice;        // Advice=xxx
+    std::string processDesc;  // "Borrow Schedule failed" / "Import failed" / ...
+    std::string requestName;  // RequestName=xxx
+    std::string borrowType;   // BorrowType=WATER_BORROW / APP_NUMA_BORROW / ...
+    uint64_t requestSize = 0; // RequestSize=xxx (bytes)
+    std::string exportNode;   // ExportNode=xxx
+    std::string importNode;   // ImportNode=xxx
+    std::string requestNode;  // RequestNode=xxx
+    std::string masterNode;   // MasterNode=xxx
+    std::string errorCode;    // ErrorCode=ubse_borrow_XXXX
+    std::string errorInfo;    // ErrorInfo=xxx
+    uint32_t adviceCode = 0;  // AdviceCode=xxx
+    std::string advice;       // Advice=xxx
 };
 
 /**
@@ -74,7 +74,7 @@ public:
     static std::vector<FaultLogEntry> ParseAllEntries(const std::string& faultLogPath);
 
     /**
-     * @brief Poll the fault log until a matching entry appears or timeout.
+     * @brief Poll the fault log until enough matching entries appear or timeout.
      *
      * Reads the fault log file every @p pollIntervalMs, parsing all [UBSE_MEM]
      * entries and checking each against @p matcher. Returns all matching entries
@@ -82,13 +82,15 @@ public:
      *
      * @param faultLogPath Absolute path to ubse_fault.log
      * @param matcher Predicate returning true for matching entries
-     * @param timeoutMs Maximum wait time in milliseconds (default 10s)
-     * @param pollIntervalMs Time between polls in milliseconds (default 500ms)
+     * @param expectedCount Minimum number of matching entries to wait for (default 1)
+     * @param timeoutMs Maximum wait time in milliseconds (default 5s)
+     * @param pollIntervalMs Time between polls in milliseconds (default 100ms)
      * @return All matching entries found (empty if timeout)
      */
     static std::vector<FaultLogEntry> WaitForFaultLog(const std::string& faultLogPath,
                                                       std::function<bool(const FaultLogEntry&)> matcher,
-                                                      uint32_t timeoutMs = 10000, uint32_t pollIntervalMs = 500);
+                                                      size_t expectedCount = 1, uint32_t timeoutMs = 5000,
+                                                      uint32_t pollIntervalMs = 100);
 
     /**
      * @brief Clear (truncate) the fault log file.

@@ -126,27 +126,30 @@ std::vector<FaultLogEntry> ItFaultLogHelper::ParseAllEntries(const std::string& 
 
 std::vector<FaultLogEntry> ItFaultLogHelper::WaitForFaultLog(const std::string& faultLogPath,
                                                              std::function<bool(const FaultLogEntry&)> matcher,
-                                                             uint32_t timeoutMs, uint32_t pollIntervalMs)
+                                                             size_t expectedCount, uint32_t timeoutMs,
+                                                             uint32_t pollIntervalMs)
 {
     auto startTime = std::chrono::steady_clock::now();
     std::vector<FaultLogEntry> allMatches;
 
     while (true) {
+        allMatches.clear();
         auto entries = ParseAllEntries(faultLogPath);
         for (auto& entry : entries) {
             if (matcher(entry)) {
                 allMatches.push_back(std::move(entry));
             }
         }
-        if (!allMatches.empty()) {
+        if (!allMatches.empty() && allMatches.size() >= expectedCount) {
             return allMatches;
         }
 
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - startTime);
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime);
         if (elapsed.count() >= timeoutMs) {
-            IT_LOG_INFO << "[FaultLogHelper] WaitForFaultLog timed out after " << timeoutMs << "ms";
-            return {};
+            IT_LOG_INFO << "[FaultLogHelper] WaitForFaultLog timed out after " << timeoutMs << "ms"
+                        << ", found " << allMatches.size() << " of " << expectedCount << " expected entries";
+            return allMatches;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMs));

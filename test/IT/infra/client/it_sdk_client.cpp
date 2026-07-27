@@ -99,6 +99,13 @@ int32_t ItSdkClient::MemFdCreate(const char* name, uint64_t size, const ubs_mem_
     return InvokeSdk([&]() { return ubs_mem_fd_create(name, size, owner, mode, distance, fdDesc); });
 }
 
+int32_t ItSdkClient::MemFdCreateWithLender(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                           const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                           ubs_mem_fd_desc_t* fdDesc)
+{
+    return InvokeSdk([&]() { return ubs_mem_fd_create_with_lender(name, owner, mode, lender, lender_cnt, fdDesc); });
+}
+
 int32_t ItSdkClient::MemFdGet(const char* name, ubs_mem_fd_desc_t* fdDesc)
 {
     return InvokeSdk([&]() { return ubs_mem_fd_get(name, fdDesc); });
@@ -125,6 +132,12 @@ int32_t ItSdkClient::MemNumaCreate(const char* name, uint64_t size, ubs_mem_dist
     return InvokeSdk([&]() { return ubs_mem_numa_create(name, size, distance, numaDesc); });
 }
 
+int32_t ItSdkClient::MemNumaCreateWithLender(const char* name, const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                             ubs_mem_numa_desc_t* numa_desc)
+{
+    return InvokeSdk([&]() { return ubs_mem_numa_create_with_lender(name, lender, lender_cnt, numa_desc); });
+}
+
 int32_t ItSdkClient::MemNumaGet(const char* name, ubs_mem_numa_desc_t* numaDesc)
 {
     return InvokeSdk([&]() { return ubs_mem_numa_get(name, numaDesc); });
@@ -141,10 +154,18 @@ int32_t ItSdkClient::MemShmCreate(const char* name, uint64_t size, uint8_t usrIn
     return InvokeSdk([&]() { return ubs_mem_shm_create(name, size, usrInfo, flag, region, provider); });
 }
 
-int32_t ItSdkClient::MemShmCreateWithAffinity(const char* name, uint64_t size, uint64_t affinity, uint8_t usrInfo[32], uint64_t flag,
-                                  const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider)
+int32_t ItSdkClient::MemShmCreateWithLender(const char* name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
+                                            const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender)
 {
-    return InvokeSdk([&]() { return ubs_mem_shm_create_with_affinity(name, size, affinity, usrInfo, flag, region, provider); });
+    return InvokeSdk([&]() { return ubs_mem_shm_create_with_lender(name, usr_info, flag, region, lender); });
+}
+
+int32_t ItSdkClient::MemShmCreateWithAffinity(const char* name, uint64_t size, uint64_t affinity, uint8_t usrInfo[32],
+                                              uint64_t flag, const ubs_mem_nodes_t* region,
+                                              const ubs_mem_nodes_t* provider)
+{
+    return InvokeSdk(
+        [&]() { return ubs_mem_shm_create_with_affinity(name, size, affinity, usrInfo, flag, region, provider); });
 }
 
 int32_t ItSdkClient::MemShmAttach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,

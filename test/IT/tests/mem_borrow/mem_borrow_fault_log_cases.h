@@ -34,7 +34,7 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在 触发 SHARE_BORROW_CHECK_FAILED
 void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareAttachCheckFailed-01: Share attach请求节点不在共享域 触发 SHARE_ATTACH_CHECK_FAILED
+// P1-FaultLog-ShareAttachCheckFailed-01: Share attach不存在的共享内存 或 attach请求节点不在共享域 触发 SHARE_ATTACH_CHECK_FAILED
 void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster);
 
 // P1-FaultLog-ShareAttachAuthFailed-01: Share attach与create时用户身份不一致 触发 SHARE_ATTACH_AUTH_FAILED
