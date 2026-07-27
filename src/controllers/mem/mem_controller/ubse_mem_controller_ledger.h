@@ -12,6 +12,14 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::controller {
+
+enum class RemoteNumaStatus
+{
+    AVAILABLE = 0,
+    UNAVAILABLE = 1,
+    UNKNOWN = 2,
+};
+
 using ubse::adapter_plugins::mmi::NodeMemDebtInfo;
 using ubse::adapter_plugins::mmi::NodeMemDebtInfoMap;
 using ubse::adapter_plugins::mmi::UbseMemAddrBorrowExportObj;

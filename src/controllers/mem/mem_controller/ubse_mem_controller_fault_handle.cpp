@@ -34,6 +34,7 @@
 #include "ubse_ipc_common_def.h"
 #include "ubse_ipc_utils.h"
 #include "ubse_json_util.h"
+#include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_share_api.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_single_import_message.h"
@@ -1045,6 +1046,24 @@ static void ReportAllPortFaultHandles(const PortEventInfo& info, const std::stri
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] " << action << " numa fault report failed, slotId=" << info.slotId
                        << ", chipId=" << info.chipId << ", portId=" << info.portId << "." << FormatRetCode(ret);
+    }
+    if constexpr (FaultType == MEM_LINK_DOWN) {
+        debt::NumaHandleInfoVec numaHandleInfo;
+        auto queryRet = debt::UbseQueryNumaPortFaultHandleInfo(info.slotId, info.chipId, info.portId, numaHandleInfo);
+        if (queryRet == UBSE_OK && !numaHandleInfo.empty()) {
+            std::unordered_set<int64_t> uniqueNumaIds;
+            for (const auto& handle : numaHandleInfo) {
+                uniqueNumaIds.insert(handle.numaIds.begin(), handle.numaIds.end());
+            }
+            if (!uniqueNumaIds.empty()) {
+                std::vector<std::pair<int64_t, int>> numaStatus;
+                numaStatus.reserve(uniqueNumaIds.size());
+                for (auto numaId : uniqueNumaIds) {
+                    numaStatus.emplace_back(numaId, static_cast<int>(RemoteNumaStatus::UNAVAILABLE));
+                }
+                AgentModifyRemoteNumaStatus(numaStatus);
+            }
+        }
     }
     ret = ReportPortFaultHandles<UBSE_LONGLINK_FAULT_FD, UBSE_LONG_LINK_REGISTER, FaultType, debt::FdHandleInfoVec>(
         info, "fd", debt::UbseQueryFdPortFaultHandleInfo, [](const auto& h) -> const auto& { return h.memIds; });

@@ -526,6 +526,16 @@ UbseResult UbseNodeControllerMaster::UbseLcneTopologyChangeHandler(const UbseNod
     }
     UbseMasterNotifyAllAgentsAction(nodeInfoCopy.nodeId, UBSE_EVENT_NODE_TOPO_LINK_CHANGE);
 
+    if (nodeInfoCopy.eventMessage.find("UP;") != std::string::npos) {
+        UBSE_LOG_INFO << "nodeId=" << nodeInfoCopy.nodeId << ", detect link up, trigger ledger.";
+        std::string nodeId = nodeInfoCopy.nodeId;
+        taskExecMutex_.lock();
+        if (taskExecutor_ != nullptr) {
+            taskExecutor_->Execute([this, nodeId]() { UbseNodeCycleLedger(nodeId); });
+        }
+        taskExecMutex_.unlock();
+    }
+
     return UBSE_OK;
 }
 
