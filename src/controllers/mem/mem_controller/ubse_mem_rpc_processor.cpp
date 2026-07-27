@@ -22,6 +22,7 @@
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "message/ubse_mem_share_borrow_req_simpo.h"
 #include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_share_delete_import_ledger_req_simpo.h"
 #include "trace_context.h"
 #include "ubse_api_server_module.h"
 #include "ubse_com_module.h"
@@ -1264,6 +1265,15 @@ UbseResult MemScheduleHandler::RegisterClosShmMemHandlers(const std::shared_ptr<
         return ret;
     }
 
+    UbseComBaseMessageHandlerPtr deleteImportLedgerCascadeMaster =
+        new (std::nothrow) UbseMemCascadeDeleteShareImportDebtsMessageHandler();
+    ret = comModule->RegRpcService<UbseMemShareDeleteImportLedgerReqSimpo, UbseMemCallbackMessage>(
+        deleteImportLedgerCascadeMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Unable to register UbseMemCascadeDeleteShareImportDebtsMessageHandler";
+        return ret;
+    }
+
     UbseComBaseMessageHandlerPtr deleteCascadeMasterToGlobal =
         new (std::nothrow) UbseMemShareDeleteCascadeToGlobalMessageHandler();
     ret = comModule->RegRpcService<UbseMemShareBorrowExportobjSimpo, UbseMemCallbackMessage>(deleteCascadeMasterToGlobal);
@@ -1940,6 +1950,34 @@ UbseResult UbseMemShareDeleteCascadeMasterMessageHandler::Handle(const UbseBaseM
     });
     response->data = SYNC_SUCCESS;
     return UBSE_OK;
+}
+
+uint16_t UbseMemCascadeDeleteShareImportDebtsMessageHandler::GetOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DELETE_IMPORT_DEBT_CASCADE_HANDLE);
+}
+
+uint16_t UbseMemCascadeDeleteShareImportDebtsMessageHandler::GetModuleCode()
+{
+    return static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW);
+}
+
+UbseResult UbseMemCascadeDeleteShareImportDebtsMessageHandler::Handle(const UbseBaseMessagePtr &req,
+                                                                              const UbseBaseMessagePtr &rsp,
+                                                                              UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseMemShareDeleteImportLedgerReqSimpo>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseMemCallbackMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Failed to convert ptr (delete import ledger)";
+        return UBSE_ERROR_NULLPTR;
+    }
+    auto faultNodeId = request->GetNodeId();
+    UBSE_LOG_INFO << "Received delete import ledger request, faultNodeId=" << faultNodeId;
+
+    auto result = CascadeHandlerDeleteFaultImportDebt(faultNodeId);
+    response->data = SYNC_SUCCESS;
+    return result;
 }
 
 uint16_t UbseMemShareDeleteCascadeToGlobalMessageHandler::GetOpCode()

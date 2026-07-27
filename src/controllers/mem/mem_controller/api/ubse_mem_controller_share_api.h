@@ -13,6 +13,7 @@
 #ifndef UBS_ENGINE_UBSE_MEM_CONTROLLER_SHARE_API_H
 #define UBS_ENGINE_UBSE_MEM_CONTROLLER_SHARE_API_H
 #include <cstdint>
+#include <string>
 #include "ubse_mmi_interface.h"
 #include "ubse_mem_controller.h"
 
@@ -107,6 +108,11 @@ uint32_t CascadeMasterHandlerGlobalDeleteCallback(const UbseMemShareBorrowExport
 uint32_t CascadeMasterHandlerAgentDeleteExportCallback(const UbseMemShareBorrowExportObj &exportObj);
 
 uint32_t GlobalMasterHandlerDeleteExportCallback(const UbseMemShareBorrowExportObj &exportObj);
+
+// 故障触发，按节点 ID 删除 share import 账本
+uint32_t DeleteShareImportDebtInfoByNodeId(const std::string &faultNodeId);
+
+uint32_t CascadeHandlerDeleteFaultImportDebt(const std::string &faultNodeId);
 
 // 共享内存分层选主借用请求转发
 void CascadeMasterSendBorrowReqToGlobalMaster(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp);

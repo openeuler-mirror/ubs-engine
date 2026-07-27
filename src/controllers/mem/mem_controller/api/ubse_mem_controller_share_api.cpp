@@ -28,6 +28,7 @@
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_mem_debt_ledger.h"
+#include "ubse_mem_global_ledger_summary_store.h"
 #include "ubse_mem_scheduler_impl.h"
 #include "ubse_mem_share_capabilities.h"
 #include "ubse_mem_share_forward.h"
@@ -1886,4 +1887,51 @@ void CascadeMasterSendReturnReqToGlobalMaster(const UbseMemReturnReq &req, UbseM
     }
 }
 
+uint32_t DeleteShareImportDebtInfoByNodeId(const std::string &faultNodeId)
+{
+    bool isWithoutGlobalMaster = UbseCheckWithoutGlobalMasterNodeId();
+    if (isWithoutGlobalMaster) {
+        UBSE_LOG_INFO << "Single-layer, delete share import ledger directly.";
+        return CascadeHandlerDeleteFaultImportDebt(faultNodeId);
+    }
+    std::string cascadeMasterNodeId;
+    auto ret = UbseGetCascadeMasterNodeIdByAgentNodeId(faultNodeId, cascadeMasterNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to get cascade master for faultNodeId=" << faultNodeId
+                       << ", " << FormatRetCode(ret);
+        return ret;
+    }
+
+    UBSE_LOG_INFO << "Hierarchical, forward delete import ledger to cascade master, "
+                  << "faultNodeId=" << faultNodeId << ", cascadeMasterNodeId=" << cascadeMasterNodeId;
+    ret = ForwardDeleteImportLedgerToCascade(faultNodeId, cascadeMasterNodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to forward delete import debt to cascade master"
+                       << FormatRetCode(ret);
+        return ret;
+    }
+    auto &summaryStore = UbseGlobalLedgerSummaryStore::GetInstance();
+    UbseGlobalNodeLedgerSummary summary;
+    if (summaryStore.GetNodeSummary(faultNodeId, summary) == UBSE_OK) {
+        for (const auto &[name, item] : summary.shmSummary.importItems) {
+            summaryStore.RemoveNodeImportItem(faultNodeId, name);
+        }
+    } else {
+        UBSE_LOG_WARN << "No import summary to delete for faultNodeId=" << faultNodeId;
+    }
+    UBSE_LOG_INFO << "Share import debt summary deleted from global master, faultNodeId=" << faultNodeId;
+    return UBSE_OK;
+}
+
+uint32_t CascadeHandlerDeleteFaultImportDebt(const std::string &faultNodeId)
+{
+    auto &ledger = debt::UbseMemDebtLedger::GetInstance();
+    bool removed = ledger.GetDebtMap<UbseMemShareBorrowImportObj>().RemoveNodeMap(faultNodeId);
+    if (removed) {
+        UBSE_LOG_INFO << "Share import debts deleted by cascade master, faultNodeId=" << faultNodeId;
+    } else {
+        UBSE_LOG_WARN << "No share import debts to delete for faultNodeId=" << faultNodeId;
+    }
+    return UBSE_OK;
+}
 } // namespace ubse::mem::controller

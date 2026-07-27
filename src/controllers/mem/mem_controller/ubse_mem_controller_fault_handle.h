@@ -57,6 +57,8 @@ private:
 
     static uint32_t MemFaultHandler(ras::ALARM_FAULT_TYPE alarmFaultEvent, std::string faultInfo);
 
+    static uint32_t ClosImportMemFaultHandler(ras::ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultNodeId);
+
     static UbseResult SendMemFaultMessageByType(const std::string& memType, uint64_t memId, const std::string& memName,
                                                 const adapter_plugins::mmi::UbseUdsInfo& udsInfo,
                                                 ubse::adapter_plugins::mmi::UbMemFaultType type);

@@ -38,6 +38,7 @@
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_single_import_message.h"
 #include "ubse_serial_util.h"
+#include "ubse_smbios.h"
 #include "ubse_timer.h"
 
 namespace ubse::mem::controller {
@@ -54,11 +55,13 @@ using namespace ubse::serial;
 using namespace ubse::ras;
 using namespace ubse::common::def;
 using namespace ubse::task_executor;
+using adapter_plugins::smbios::UbseSmbios;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string MEM_FAULT_ALAUBSE_NAME = "MemFaultAlarm";
 const std::string BMC_FAULT_ALARM_NAME = "BmcFaultAlarm";
+const std::string CLOS_IMPORT_MEM_FAULT_ALARM_NAME = "ClosImportMemFaultAlarm";
 const std::string MEM_FAULT_DELIVER_TASK_PREFIX = "MemFaultDeliver";
 const std::string MEM_FAULT_INFO_JSON_MEM_ID = "memid";
 const std::string MEM_FAULT_INFO_JSON_RAS_TYPE = "raw_ubus_mem_err_type";
@@ -517,6 +520,24 @@ UbseResult UbseMemFaultManager::InitMemFaultManager()
         return ret;
     }
 
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        ret = RegisterAlarmFaultHandler(ALARM_PANIC_EVENT, CLOS_IMPORT_MEM_FAULT_ALARM_NAME,
+                                         ClosImportMemFaultHandler);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register clos import mem fault alarm (panic). "
+                           << FormatRetCode(ret);
+            return ret;
+        }
+
+        ret = RegisterAlarmFaultHandler(ALARM_KERNEL_REBOOT_EVENT, CLOS_IMPORT_MEM_FAULT_ALARM_NAME,
+                                         ClosImportMemFaultHandler);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to register clos import mem fault alarm (kernel reboot). "
+                           << FormatRetCode(ret);
+            return ret;
+        }
+    }
+
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Succeed to register mem fault alarm.";
     return ret;
 }
@@ -542,6 +563,22 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister BMC fault alarm. " << FormatRetCode(ret);
         return UBSE_ERROR;
+    }
+
+    if (UbseSmbios::GetInstance().IsClosType()) {
+        alarmName = CLOS_IMPORT_MEM_FAULT_ALARM_NAME;
+        ret = UnRegisterAlarmFaultHandler(ALARM_PANIC_EVENT, alarmName);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister clos import mem fault alarm (panic). "
+                           << FormatRetCode(ret);
+            return UBSE_ERROR;
+        }
+        ret = UnRegisterAlarmFaultHandler(ALARM_KERNEL_REBOOT_EVENT, alarmName);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister delete import ledger fault alarm (kernel reboot). "
+                           << FormatRetCode(ret);
+            return UBSE_ERROR;
+        }
     }
 
     std::string eventId = PANIC_REBOOT_FAULT_LOCAL_EVENT_ID;
@@ -666,6 +703,14 @@ UbseResult UbseMemFaultManager::MemReportWhenExportNodeOnFault(ALARM_FAULT_TYPE 
     std::string faultIdCopy = faultId;
     executorPtr->Execute([faultIdCopy] { SubmitMemReportTaskWhenNodeStopsMemoryService(faultIdCopy); });
     return UBSE_OK;
+}
+
+uint32_t UbseMemFaultManager::ClosImportMemFaultHandler(ALARM_FAULT_TYPE alarmFaultEvent,
+                                                              const std::string& faultNodeId)
+{
+    UBSE_LOG_INFO << "[MEM_CONTROLLER] ClosImportMemFaultHandler triggered, "
+                  << "faultType=" << static_cast<uint32_t>(alarmFaultEvent) << ", faultNodeId=" << faultNodeId;
+    return DeleteShareImportDebtInfoByNodeId(faultNodeId);
 }
 
 UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string& targetNodeId,

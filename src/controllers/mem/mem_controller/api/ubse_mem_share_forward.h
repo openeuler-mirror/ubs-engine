@@ -61,6 +61,10 @@ UbseResult ForwardDetachCallbackToGlobal(const UbseMemShareBorrowImportObj &impo
 UbseResult ForwardDetachReqToPd(const UbseMemShareDetachReq &req);
 UbseResult ForwardDetachReqToGlobal(const UbseMemShareDetachReq &req);
 
+// ---- 故障触发，删除导入账本
+UbseResult ForwardDeleteImportLedgerToCascade(const std::string &faultNodeId,
+                                               const std::string &cascadeMasterNodeId);
+
 } // namespace ubse::mem::controller
 
 #endif // UBS_ENGINE_UBSE_MEM_SHARE_FORWARD_H
