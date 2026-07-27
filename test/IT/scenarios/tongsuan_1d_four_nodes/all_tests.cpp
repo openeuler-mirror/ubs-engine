@@ -14,6 +14,7 @@
 #include "tests/election/election_cases.h"
 #include "tests/fault/fault_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
+#include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshFourNodesScenario;
@@ -190,4 +191,20 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, ElectionConvergence)
 TEST_F(Tongsuan1dFullMeshFourNodesScenario, MasterRestartStandbyTakesOver)
 {
     ubse::it::tests::election::RunFourNodeMasterRestartTest(Cluster());
+}
+
+// ====================================================================
+// P2 测试 — Fault Log 校验
+// ====================================================================
+
+// P1-FaultLog-ShareAttachCheckFailed-01: attach不存在的共享内存 或 attach请求节点不在共享域
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareAttachCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachCheckFailed(Cluster());
+}
+
+// P1-FaultLog-ShareReturnRegionFailed-01: Share 归还节点不在共享域
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareReturnRegionFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnRegionFailed(Cluster());
 }

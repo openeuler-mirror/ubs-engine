@@ -18,6 +18,7 @@
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
 #include "ubse_logger.h"
+#include "ubse_mem_advice.h"
 #include "ubse_mem_api.h"
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_buffer_convert.h"
@@ -1605,6 +1606,8 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq&
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "failed to get master and local node id, "
                        << FormatRetCode(ret) + ", requestId=" << context.requestId;
+        BorrowFailedAdvice(
+            {MemFault::BORROW_FAULT_INTERNAL, req.name, MemType::NUMA, req.size, "", localNodeId, localNodeId});
         return UBSE_ERROR;
     }
     req.importNodeId = localNodeId;
@@ -1616,9 +1619,13 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq&
     }
     if (GetSrcSocketId(req) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get src socket for borrow via specifying link.";
+        BorrowFailedAdvice({MemFault::BORROW_CHECK_FAILED, req.name, MemType::NUMA, req.size, "", req.importNodeId,
+                            req.requestNodeId});
         return UBSE_ERR_LINK_NOT_EXIST;
     }
     if (GetSrcNuma(req) != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::BORROW_FAULT_INTERNAL, req.name, MemType::NUMA, req.size, "", req.importNodeId,
+                            req.requestNodeId});
         return UBSE_ERR_FIND_SRC_NUMA;
     }
     if (IsHighSafety()) {

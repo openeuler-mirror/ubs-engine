@@ -60,6 +60,8 @@ public:
     // --- Mem FD APIs ---
     int32_t MemFdCreate(const char* name, uint64_t size, const ubs_mem_fd_owner_t* owner, mode_t mode,
                         ubs_mem_distance_t distance, ubs_mem_fd_desc_t* fdDesc);
+    int32_t MemFdCreateWithLender(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode,
+                                  const ubs_mem_lender_t* lender, uint32_t lender_cnt, ubs_mem_fd_desc_t* fd_desc);
     int32_t MemFdGet(const char* name, ubs_mem_fd_desc_t* fdDesc);
     int32_t MemFdDelete(const char* name);
     int32_t MemFdList(ubs_mem_fd_desc_t** fdDescs, uint32_t* fdDescCnt);
@@ -67,12 +69,18 @@ public:
 
     // --- Mem NUMA APIs ---
     int32_t MemNumaCreate(const char* name, uint64_t size, ubs_mem_distance_t distance, ubs_mem_numa_desc_t* numaDesc);
+    int32_t MemNumaCreateWithLender(const char* name, const ubs_mem_lender_t* lender, uint32_t lender_cnt,
+                                    ubs_mem_numa_desc_t* numa_desc);
     int32_t MemNumaGet(const char* name, ubs_mem_numa_desc_t* numaDesc);
     int32_t MemNumaDelete(const char* name);
 
     // --- Mem SHM APIs ---
     int32_t MemShmCreate(const char* name, uint64_t size, uint8_t usrInfo[32], uint64_t flag,
                          const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider);
+    int32_t MemShmCreateWithLender(const char* name, uint8_t usr_info[UBS_MEM_MAX_USR_INFO_LEN], uint64_t flag,
+                                   const ubs_mem_nodes_t* region, const ubs_mem_lender_t* lender);
+    int32_t MemShmCreateWithAffinity(const char* name, uint64_t size, uint64_t affinity, uint8_t usrInfo[32],
+                                     uint64_t flag, const ubs_mem_nodes_t* region, const ubs_mem_nodes_t* provider);
     int32_t MemShmAttach(const char* name, const ubs_mem_fd_owner_t* owner, mode_t mode, ubs_mem_shm_desc_t** shmDesc);
     int32_t MemShmDetach(const char* name);
     int32_t MemShmDelete(const char* name);

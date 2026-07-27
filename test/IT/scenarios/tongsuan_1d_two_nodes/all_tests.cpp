@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
+#include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
@@ -891,4 +892,56 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1CliCreateNumaParamVariant01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ElectionConvergence)
 {
     ubse::it::tests::election::RunTwoNodeElectionTest(Cluster());
+}
+
+// ====================================================================
+// P1 测试 — Fault Log 校验
+// ====================================================================
+
+// P2-FaultLog-BorrowCheckFailed-01: NUMA借用传入的链路不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowCheckFailed(Cluster());
+}
+
+// P2-FaultLog-BorrowNameExist-01: 同名重复创建
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowNameExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowNameExist(Cluster());
+}
+
+// P1-FaultLog-BorrowScheduleFailed-01: 借用调度失败
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogBorrowScheduleFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowScheduleFailed(Cluster());
+}
+
+// P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareBorrowCheckFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareBorrowCheckFailed(Cluster());
+}
+
+// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareAttachExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachExist(Cluster());
+}
+
+// P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogReturnNameNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogReturnNameNotExist(Cluster());
+}
+
+// P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareReturnInAttached01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnInAttached(Cluster());
+}
+
+// P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareDetachNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareDetachNotExist(Cluster());
 }
