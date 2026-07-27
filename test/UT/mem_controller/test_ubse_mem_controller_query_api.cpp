@@ -24,7 +24,7 @@
 #include "ubse_node_controller_query_api.h"
 #include "debt/ubse_mem_debt_info_query.h"
 #include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_controller_def_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;
@@ -412,7 +412,9 @@ TEST_F(TestUbseMemControllerQueryApi, UbseMemNodeBorrowInfoQueryWhenLocalNotMast
         .will(returnValue(nullModule))
         .then(returnValue(comModule));
     UbseMemNodeBorrowInfoMessagePtr responsePtr = new (std::nothrow) UbseMemNodeBorrowInfoMessage();
-    responsePtr->nodeBorrowInfos_.push_back(UbseNodeBorrowInfo());
+    auto nodeInfos = responsePtr->GetUbseMesgInfo();
+    nodeInfos.push_back(UbseNodeBorrowInfo());
+    responsePtr->SetUbseMesgInfo(nodeInfos);
     const auto func = &UbseComModule::RpcSend<UbseMemNodeBorrowInfoReqMessagePtr, UbseMemNodeBorrowInfoMessagePtr>;
     MOCKER_CPP(func).stubs().will(returnValue(UBSE_OK));
 

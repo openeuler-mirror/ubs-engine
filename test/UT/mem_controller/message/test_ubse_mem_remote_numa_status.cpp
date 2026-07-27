@@ -15,7 +15,7 @@
 #include <memory>
 #include "ubse_error.h"
 #include "ubse_serial_util.h"
-#include "message/ubse_mem_controller_serial.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller::message::ut {
 using namespace ubse::serial;

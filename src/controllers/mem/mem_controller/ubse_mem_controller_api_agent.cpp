@@ -33,13 +33,7 @@
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "request_helper.h"
 #include "request_id.h"
 
@@ -413,7 +407,7 @@ static UbseResult SendRpcRequestForFdBorrow(const UbseMemFdBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemFdBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -507,7 +501,7 @@ static UbseResult SendRpcRequestForNumaBorrow(const UbseMemNumaBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemNumaBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -584,7 +578,7 @@ static UbseResult SendRpcRequestForAddrBorrow(const UbseMemAddrBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemAddrBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
@@ -676,7 +670,7 @@ static UbseResult SendRpcRequestForShareBorrow(const UbseMemShareBorrowReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemShareBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -749,7 +743,7 @@ static UbseResult SendRpcRequestShareAttach(const UbseMemShareAttachReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemShareAttachReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Getting ubse response ptr failed.";
@@ -813,7 +807,7 @@ static UbseResult SendRpcRequestForShareDetach(const UbseMemShareDetachReq& req)
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemShareDetachReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     return comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
 }
@@ -894,7 +888,7 @@ static UbseResult SendRpcRequestForReturn(const UbseMemReturnReq& req, const Mem
         UBSE_LOG_ERROR << "Getting ubse request ptr failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemReturnReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "UbseBaseMessagePtr is null";

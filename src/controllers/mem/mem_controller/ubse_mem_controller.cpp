@@ -26,8 +26,7 @@
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "api/ubse_mem_controller_helper.h"
-#include "message/ubse_mem_opt_req_simpo.h"
-#include "message/ubse_mem_opt_result_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_controller/debt/ubse_mem_debt_info.h"
 
 namespace ubse::mem::controller {
@@ -63,7 +62,7 @@ uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMem
         UBSE_LOG_ERROR << "Allocate memory failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
         return UBSE_ERROR_NULLPTR;
     }
-    reqPtr->SetOptRequest(name, currentInfo.nodeId, borrowType);
+    reqPtr->SetUbseMesgInfo(std::make_tuple(name, borrowType, currentInfo.nodeId));
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemOptResultSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Allocate memory failed, " << FormatRetCode(UBSE_ERROR_NULLPTR);
@@ -83,7 +82,7 @@ uint32_t UbseQueryResult(const std::string& name, UbseMemResult& result, UbseMem
     }
 
     auto ubseMemOptResultSimpoPtr = UbseBaseMessage::DeConvert<UbseMemOptResultSimpo>(ubseResponsePtr);
-    result = ubseMemOptResultSimpoPtr->GetResp();
+    result = std::get<0>(ubseMemOptResultSimpoPtr->GetUbseMesgInfo());
     return UBSE_OK;
 }
 

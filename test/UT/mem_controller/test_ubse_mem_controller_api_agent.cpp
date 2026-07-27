@@ -30,13 +30,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_serial_util.h"
 #include "ubse_thread_pool_module.h"
-#include "message/test_ubse_mem_share_detach_req_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "request_helper.h"
 
 namespace ubse::mem::controller::agent {

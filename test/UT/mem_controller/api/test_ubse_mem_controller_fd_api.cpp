@@ -22,9 +22,7 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mmi_module.h"
 #include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "test_ubse_mem_controller_fd_api.h"
 

@@ -22,7 +22,7 @@
 #include "ubse_node_controller.h"
 #include "lcne/ubse_lcne_decoder_entry.h"
 #include "lcne/ubse_lcne_decoder_handle.h"
-#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_prehandle_manager.h"
 

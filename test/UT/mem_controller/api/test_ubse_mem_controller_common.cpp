@@ -21,7 +21,7 @@
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_helper.h"
 #include "ubse_mmi_def.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace mem::controller;

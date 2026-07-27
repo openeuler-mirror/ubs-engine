@@ -14,7 +14,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller::message;

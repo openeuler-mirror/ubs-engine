@@ -23,11 +23,11 @@
 #include "ubse_mem_controller_fault_handle.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
-#include "ubse_mem_single_import_message.h"
 #include "ubse_ras.h"
 #include "ubse_serial_util.h"
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "ubse_mem_controller_fault_handle.cpp"
 
 namespace ubse::mem_controller::ut {
@@ -488,9 +488,9 @@ TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_Success)
     numaVec.push_back(numaInfo);
     fdVec.push_back(fdInfo);
 
-    msg.SetShareHandleInfoVec(shareVec);
-    msg.SetNumaHandleInfoVec(numaVec);
-    msg.SetFdHandleInfoVec(fdVec);
+    msg.Set<0>(shareVec);
+    msg.Set<1>(numaVec);
+    msg.Set<2>(fdVec);
     msg.Serialize();
 
     UbseByteBuffer req{.data = msg.SerializedData(), .len = msg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {
@@ -521,7 +521,7 @@ TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_NullExecu
     ubse::mem::def::ShareHandleInfoVec shareVec;
     shareVec.push_back(shareInfo);
 
-    msg.SetShareHandleInfoVec(shareVec);
+    msg.Set<0>(shareVec);
     msg.Serialize();
 
     UbseByteBuffer req{.data = msg.SerializedData(), .len = msg.SerializedDataSize(), .freeFunc = [](uint8_t*) -> void {

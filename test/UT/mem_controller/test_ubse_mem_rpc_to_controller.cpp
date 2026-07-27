@@ -16,7 +16,7 @@
 #include "ubse_mem_async_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem::controller;

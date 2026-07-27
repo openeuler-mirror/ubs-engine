@@ -14,9 +14,7 @@
 #define UBSE_MEM_UPDATE_OBJ_STATE_SIMPO_H
 #include <variant>
 #include "ubse_base_message.h"
-#include "ubse_common_def.h"
-#include "ubse_error.h"
-#include "ubse_mmi_def.h"
+#include "ubse_mem_auto_serial.h"
 namespace ubse::mem::controller::message {
 class UbseMemUpdateObjState : public ubse::message::UbseBaseMessage {
 public:
@@ -28,10 +26,10 @@ public:
     common::def::UbseResult Deserialize() override;
 
 public:
-    std::string objType; // 对象类型，如fd、numa等
+    std::string objType;
     std::variant<adapter_plugins::mmi::UbseMemNumaBorrowImportObj, adapter_plugins::mmi::UbseMemAddrBorrowImportObj,
                  adapter_plugins::mmi::UbseMemFdBorrowImportObj>
-        obj; // 对象信息，使用variant存储不同类型的对象,目前只包含import对象
+        obj;
 };
 using UbseMemUpdateObjStatePtr = utils::Ref<UbseMemUpdateObjState>;
 

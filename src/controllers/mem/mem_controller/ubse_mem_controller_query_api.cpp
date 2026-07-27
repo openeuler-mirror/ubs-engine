@@ -25,9 +25,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_query_api.h"
 #include "api/ubse_mem_controller_api_common.h"
-#include "message/node_mem_debtInfo_query_req_simpo.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/sdk/c/include/ubs_engine_topo.h"
 
 namespace ubse::mem::controller {
@@ -74,7 +72,7 @@ uint32_t SendQueryToMasterIfNotMaster(def::UbseMemDebtQueryRequest& request, std
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemDebtQueryRequest(request);
+    ubseRequestPtr->SetUbseMesgInfo(request);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) TSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ubseResponsePtr.";
@@ -104,7 +102,7 @@ uint32_t SendMemIdQueryToMaster(def::UbseMemIdQueryRequest& request, std::string
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemIdQueryRequest(request);
+    ubseRequestPtr->SetUbseMesgInfo(request);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemExportMemDescSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ubseResponsePtr.";
@@ -166,7 +164,7 @@ uint32_t UbseMemFdGet(const std::string& name, def::UbseMemFdDesc& fdDesc, const
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        fdDesc = descSimpoPtr.Get()->GetUbseMemFdDesc();
+        fdDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemFdGet(request, fdDesc);
@@ -203,7 +201,7 @@ uint32_t UbseMemFdList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseMem
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        fdDescs = descSimpoPtr.Get()->GetUbseMemFdDescList();
+        fdDescs = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemFdList(request, fdDescs);
@@ -240,7 +238,7 @@ uint32_t UbseMemShmStatusGet(const std::string& name, def::UbseMemShmMemStatusDe
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        shmStatusDesc = descSimpoPtr.Get()->GetUbseMemShmMemStatusDesc();
+        shmStatusDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemShmStatusGet(request, shmStatusDesc);
@@ -280,7 +278,7 @@ uint32_t UbseMemNumaGet(const std::string& name, def::UbseMemNumaDesc& numaDesc,
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        numaDesc = descSimpoPtr.Get()->GetUbseMemNumaDesc();
+        numaDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemNumaGet(request, numaDesc);
@@ -318,7 +316,7 @@ uint32_t UbseMemNumaList(const def::UbseUdsInfo& udsInfo, std::vector<def::UbseM
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        numaDescs = descSimpoPtr.Get()->GetUbseMemNumaDescList();
+        numaDescs = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemNumaList(request, numaDescs);
@@ -359,7 +357,7 @@ uint32_t UbseMemShmGet(const std::string& name, def::UbseMemShmDesc& shmDesc, co
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
+        shmDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemShmGet(request, shmDesc);
@@ -395,7 +393,7 @@ uint32_t UbseMemShmGetByNodeId(const std::string& name, def::UbseMemShmDesc& shm
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        shmDesc = descSimpoPtr.Get()->GetUbseMemShmDesc();
+        shmDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemShmGet(request, shmDesc);
@@ -432,7 +430,7 @@ uint32_t UbseMemShmList(def::UbseMemDebtQueryRequest& request, std::vector<def::
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        shmDescs = descSimpoPtr.Get()->GetUbseMemShmDescList();
+        shmDescs = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemShmList(request, shmDescs);
@@ -493,7 +491,7 @@ int32_t UbseMemAddrGet(const std::string& name, const std::string& importNodeId,
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        desc = descSimpoPtr.Get()->GetUbseMemAddrDesc();
+        desc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemAddrGet(request, desc);
@@ -531,7 +529,7 @@ int32_t UbseMemNumaGetWithImportNode(const std::string& name, const std::string&
             UBSE_LOG_ERROR << "Failed to deal query, " << FormatRetCode(ret);
             return ret;
         }
-        numaDesc = descSimpoPtr.Get()->GetUbseMemNumaDesc();
+        numaDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     } else {
         // 是master，直接查询
         ret = debt::UbseMemNumaGetWithImportNode(request, numaDesc);
@@ -559,7 +557,7 @@ uint32_t UbseGetMemDebtInfoFromMaster(const std::string& nodeId, NodeMemDebtInfo
         UBSE_LOG_ERROR << "new ptr failed";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetNodeId(nodeId);
+    ubseRequestPtr->SetUbseMesgInfo(nodeId);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) NodeMemDebtInfoSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "new ubseResponsePtr failed";
@@ -578,7 +576,7 @@ uint32_t UbseGetMemDebtInfoFromMaster(const std::string& nodeId, NodeMemDebtInfo
         return retCode;
     }
     auto nodeMemDebtInfoSimpoPtr = UbseBaseMessage::DeConvert<NodeMemDebtInfoSimpo>(ubseResponsePtr);
-    memDebtInfoMap = nodeMemDebtInfoSimpoPtr->GetNodeMemDebtInfoMap();
+    memDebtInfoMap = nodeMemDebtInfoSimpoPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& memDebtInfoMap)
@@ -596,7 +594,7 @@ uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& m
     if (ubseRequestPtr == nullptr) {
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetNodeId(nodeId);
+    ubseRequestPtr->SetUbseMesgInfo(nodeId);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) NodeMemDebtInfoSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "new ubseResponsePtr failed";
@@ -613,7 +611,7 @@ uint32_t GetDebtInfoMapByNodeId(const std::string& nodeId, NodeMemDebtInfoMap& m
         return retCode;
     }
     auto nodeMemDebtInfoSimpoPtr = UbseBaseMessage::DeConvert<NodeMemDebtInfoSimpo>(ubseResponsePtr);
-    memDebtInfoMap = nodeMemDebtInfoSimpoPtr->GetNodeMemDebtInfoMap();
+    memDebtInfoMap = nodeMemDebtInfoSimpoPtr->GetUbseMesgInfo();
     return UBSE_OK;
 }
 
@@ -655,7 +653,7 @@ uint32_t UbseMemNodeBorrowInfoQuery(std::vector<def::UbseNodeBorrowInfo>& nodeBo
             UBSE_LOG_ERROR << "Failed to convert responsePtr";
             return UBSE_ERROR_NULLPTR;
         }
-        nodeBorrowInfo = responsePtr->GetUbseNodeBorrowInfos();
+        nodeBorrowInfo = responsePtr->GetUbseMesgInfo();
     } else {
         // 主节点直接查询
         ret = debt::UbseMemNodeBorrowQuery(nodeBorrowInfo);
@@ -683,7 +681,7 @@ uint32_t UbseMemIdGetByImportMemId(def::UbseMemIdQueryRequest& request, def::Ubs
         UBSE_LOG_ERROR << "Failed to deal query , " << FormatRetCode(ret);
         return ret;
     }
-    exportMemDesc = descSimpoPtr.Get()->GetUbseMemExportMemDesc();
+    exportMemDesc = descSimpoPtr.Get()->GetUbseMesgInfo();
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller

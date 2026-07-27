@@ -16,9 +16,8 @@
 #include "ubse_mem_controller.h"
 #include "ubse_mem_debt_info.h"
 #include "ubse_mem_debt_info_query.h"
-#include "../message/ubse_mem_opt_req_simpo.h"
-#include "../message/ubse_mem_opt_result_simpo.h"
 #include "../ubse_mem_controller_api.h"
+#include "message/ubse_mem_simpo_types.h"
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::context;
@@ -57,24 +56,26 @@ UbseResult UbseMemGetOptResultHandler::Handle(const UbseBaseMessagePtr& req, con
         return UBSE_ERROR_NULLPTR;
     }
 
+    auto reqTuple = reqPtr->GetUbseMesgInfo();
     UbseMemResult result;
-    if (reqPtr->GetType() == UbseMemBorrowType::FD_BORROW) {
-        result = debt::GetFdStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
-    } else if (reqPtr->GetType() == UbseMemBorrowType::NUMA_BORROW) {
-        result = debt::GetNumaStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
-    } else if (reqPtr->GetType() == UbseMemBorrowType::ADDR_BORROW) {
-        result = debt::GetAddrStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
-    } else if (reqPtr->GetType() == UbseMemBorrowType::SHM_BORROW) {
-        result = debt::GetShmExportStageByObj(reqPtr->GetName());
-    } else if (reqPtr->GetType() == UbseMemBorrowType::SHM_ATTACH) {
-        result = debt::GetShmImportStageByObj(reqPtr->GetName(), reqPtr->GetImportNodeId());
+    if (std::get<1>(reqTuple) == UbseMemBorrowType::FD_BORROW) {
+        result = debt::GetFdStageByObj(std::get<0>(reqTuple), std::get<2>(reqTuple));
+    } else if (std::get<1>(reqTuple) == UbseMemBorrowType::NUMA_BORROW) {
+        result = debt::GetNumaStageByObj(std::get<0>(reqTuple), std::get<2>(reqTuple));
+    } else if (std::get<1>(reqTuple) == UbseMemBorrowType::ADDR_BORROW) {
+        result = debt::GetAddrStageByObj(std::get<0>(reqTuple), std::get<2>(reqTuple));
+    } else if (std::get<1>(reqTuple) == UbseMemBorrowType::SHM_BORROW) {
+        result = debt::GetShmExportStageByObj(std::get<0>(reqTuple));
+    } else if (std::get<1>(reqTuple) == UbseMemBorrowType::SHM_ATTACH) {
+        result = debt::GetShmImportStageByObj(std::get<0>(reqTuple), std::get<2>(reqTuple));
     }
     auto respPtr = UbseBaseMessage::DeConvert<mem::controller::message::UbseMemOptResultSimpo>(rsp);
     if (respPtr == nullptr) {
         UBSE_LOG_ERROR << "new NodeMemDebtInfoSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetResp(result);
+    auto respTuple = respPtr->GetUbseMesgInfo();
+    respPtr->SetUbseMesgInfo(std::make_tuple(result, std::get<1>(respTuple)));
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller::rpc

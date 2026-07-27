@@ -29,13 +29,11 @@
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -99,7 +97,7 @@ UbseResult SendFdExportObj(const UbseMemFdBorrowExportObj& exportObj, const bool
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
@@ -261,7 +259,7 @@ UbseResult SendFdImportObjForPermission(const std::string& nodeId, const UbseMem
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseMemOperationRespSimpoPtr ubseResponsePtr = new (std::nothrow) UbseMemOperationRespSimpo();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
@@ -272,7 +270,7 @@ UbseResult SendFdImportObjForPermission(const std::string& nodeId, const UbseMem
     for (int i = 0; i < SEND_RETRY_TIMES; i++) {
         ret = comModule->RpcSend(sendParam, ptr, ubseResponsePtr);
         if (ret == UBSE_OK) {
-            auto resp = ubseResponsePtr->GetUbseMemOperationResp();
+            auto resp = ubseResponsePtr->GetUbseMesgInfo();
             if (resp.errorCode != UBSE_OK) {
                 UBSE_LOG_ERROR << "Failed to importObj for permission, name=" << importObj.req.name
                                << ", requestId=" << importObj.req.requestId;
@@ -608,7 +606,7 @@ UbseResult SendFdImportObj(const UbseMemFdBorrowImportObj& importObj, const bool
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemFdBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << importObj.req.requestId;

@@ -18,11 +18,11 @@
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_mem_controller_def.h"
-#include "ubse_mem_controller_def_serial.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_serial_util.h"
+#include "message/ubse_mem_controller_def_serial.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::log;

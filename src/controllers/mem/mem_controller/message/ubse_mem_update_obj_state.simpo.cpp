@@ -13,8 +13,7 @@
 
 #include "ubse_error.h"
 #include "ubse_logger.h"
-#include "ubse_mem_controller_serial.h"
-#include "ubse_serial_util.h"
+#include "ubse_mem_auto_serial.h"
 
 namespace ubse::mem::controller::message {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -28,15 +27,7 @@ common::def::UbseResult SerializeObjType(serial::UbseSerialization& out,
                                          const std::string& expectedType)
 {
     if (auto importObj = std::get_if<ObjType>(&obj)) {
-        bool success = false;
-        if constexpr (std::is_same_v<ObjType, adapter_plugins::mmi::UbseMemFdBorrowImportObj>) {
-            success = serial::UbseMemFdBorrowImportObjSerialization(out, *importObj);
-        } else if constexpr (std::is_same_v<ObjType, adapter_plugins::mmi::UbseMemNumaBorrowImportObj>) {
-            success = serial::UbseMemNumaBorrowImportObjSerialization(out, *importObj);
-        } else if constexpr (std::is_same_v<ObjType, adapter_plugins::mmi::UbseMemAddrBorrowImportObj>) {
-            success = serial::UbseMemAddrBorrowImportObjSerialization(out, *importObj);
-        }
-        if (!success) {
+        if (!ubse::serial::util::SerializeField(out, *importObj)) {
             UBSE_LOG_ERROR << "Failed to serialize.";
             return UBSE_ERROR;
         }
@@ -88,21 +79,21 @@ common::def::UbseResult UbseMemUpdateObjState::Deserialize()
     UBSE_LOG_INFO << "Deserialize objType=" << objType;
     if (objType == "fd") {
         adapter_plugins::mmi::UbseMemFdBorrowImportObj importObj;
-        if (!serial::UbseMemFdBorrowImportObjDeserialization(in, importObj)) {
+        if (!ubse::serial::util::DeSerializeField(in, importObj)) {
             UBSE_LOG_ERROR << "Failed to deserialize.";
             return UBSE_ERROR;
         }
         obj = importObj;
     } else if (objType == "numa") {
         adapter_plugins::mmi::UbseMemNumaBorrowImportObj importObj;
-        if (!serial::UbseMemNumaBorrowImportObjDeserialization(in, importObj)) {
+        if (!ubse::serial::util::DeSerializeField(in, importObj)) {
             UBSE_LOG_ERROR << "Failed to deserialize.";
             return UBSE_ERROR;
         }
         obj = importObj;
     } else if (objType == "addr") {
         adapter_plugins::mmi::UbseMemAddrBorrowImportObj importObj;
-        if (!serial::UbseMemAddrBorrowImportObjDeserialization(in, importObj)) {
+        if (!ubse::serial::util::DeSerializeField(in, importObj)) {
             UBSE_LOG_ERROR << "Failed to deserialize.";
             return UBSE_ERROR;
         }

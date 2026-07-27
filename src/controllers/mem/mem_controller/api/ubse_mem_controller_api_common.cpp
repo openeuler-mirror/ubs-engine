@@ -30,12 +30,11 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_sign_token_bucket.h"
-#include "../message/node_mem_debtInfo_query_req_simpo.h"
-#include "../message/ubse_mem_operation_resp_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_residual_decoder.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -50,6 +49,7 @@ using namespace adapter_plugins::mti::mami;
 using namespace adapter_plugins::mti;
 using namespace ubse::utils;
 using namespace ubse::config;
+using namespace ubse::adapter_plugins::mmi;
 static uint32_t MAX_WAIT_TIME(ubse::mem::strategy::API_TIME_OUT); // 单位:second
 std::atomic<uint64_t> g_fdUnimportFailedCount{0};
 std::atomic<uint64_t> g_numaUnimportFailedCount{0};
@@ -190,7 +190,7 @@ uint32_t BuildOperationRespWhenFail(UbseMemOperationResp& resp, const std::strin
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemOperationResp(resp);
+    ptr->SetUbseMesgInfo(resp);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
@@ -234,7 +234,7 @@ uint32_t BuildOperationRespWhenSuccess(UbseMemOperationResp& resp, UbseResult er
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemOperationResp(resp);
+    ptr->SetUbseMesgInfo(resp);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << resp.requestId;

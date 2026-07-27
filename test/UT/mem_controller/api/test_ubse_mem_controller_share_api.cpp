@@ -22,9 +22,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_node.h"
 #include "ubse_topo_util.h"
 #include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "message/ubse_mem_share_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_share_borrow_importobj_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;

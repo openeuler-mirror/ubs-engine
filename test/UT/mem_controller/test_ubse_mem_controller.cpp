@@ -18,7 +18,7 @@
 #include "ubse_mem_controller_module.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
-#include "message/ubse_mem_opt_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "ubse_mem_controller.cpp"
 
 namespace ubse::mem_controller::ut {

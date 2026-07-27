@@ -30,12 +30,11 @@
 #include "ubse_node_controller_util.h"
 #include "ubse_topo_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_share_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_share_borrow_importobj_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -201,7 +200,7 @@ UbseResult SendShareExportObj(const UbseMemShareBorrowExportObj& exportObj, cons
         UBSE_LOG_ERROR << "Failed to new ptr, requestId=" << exportObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemShareBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ubseResponsePtr, requestId=" << exportObj.req.requestId;
@@ -529,7 +528,7 @@ UbseResult SendShareImportObj(const UbseMemShareBorrowImportObj& importObj, cons
                        << ", requestId=" << importObj.req.requestId;
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemShareBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ubseResponsePtr."

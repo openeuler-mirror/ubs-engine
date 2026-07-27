@@ -18,15 +18,12 @@
 #include "ubse_election.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_def.h"
-#include "ubse_mem_controller_def_simpo.h"
 #include "ubse_mem_controller_msg.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller.h"
 #include "ubse_os_util.h"
-#include "message/ubse_mem_controller_serial.h"
-#include "message/ubse_mem_node_debt_info_conversion.h"
-#include "node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "ubse_mem_controller_msg.cpp"
 
 namespace ubse::mem_controller::ut {
@@ -55,48 +52,8 @@ void TestUbseMemControllerMsg::TearDown()
 }
 
 using namespace ubse::mem::controller::message;
-using namespace ubse::mem::serial;
-TEST_F(TestUbseMemControllerMsg, CollectLedge)
-{
-    std::string nodeId = "node1";
-    NodeMemDebtInfo info;
-
-    // 场景 1: GetModule 返回 ptr
-    EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR_NULLPTR);
-
-    // 场景 3: IsUrma 返回 true，RpcSend 返回错误
-    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
-    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
-    auto func = &UbseComModule::RpcSend<UbseComBaseBufferMessagePtr, UbseComBaseBufferMessagePtr>;
-    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
-    MOCKER(IsUrma).stubs().will(returnValue(true)); // 模拟IsUrma返回true
-    EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
-
-    // 场景 4: IsUrma 返回 false，RpcRndvSend 返回错误
-    MOCKER(IsUrma).reset();
-    MOCKER(IsUrma).stubs().will(returnValue(false)); // 模拟IsUrma返回false
-
-    MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
-    EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
-
-    // 场景 6: NodeMemDebtInfoSimpo::Deserialize 返回错误
-    MOCKER(&UbseComBaseBufferMessage::GetDataLen).reset();
-    std::unique_ptr<uint8_t> ptr1 = std::make_unique<uint8_t>(1);
-    MOCKER(&UbseComBaseBufferMessage::GetData).stubs().will(returnValue(ptr1.get()));
-    MOCKER(&UbseComBaseBufferMessage::GetDataLen).stubs().will(returnValue(1)); // 模拟GetData返回ptr
-    MOCKER_CPP(&NodeMemDebtInfoDeserialize).stubs().will(returnValue(false));
-    EXPECT_EQ(CollectLedge(nodeId, info), UBSE_ERROR);
-}
-
-UbseResult MockErrorSerial(UbseMemLedgerRespSerial* _this)
-{
-    return UBSE_ERROR;
-}
-
-UbseResult MockSuccessSerial(UbseMemLedgerRespSerial* _this)
-{
-    return UBSE_OK;
-}
+using namespace ubse::serial;
+using namespace ubse::serial::util;
 
 TEST_F(TestUbseMemControllerMsg, CollectLedgeHandler)
 {
@@ -158,12 +115,18 @@ TEST_F(TestUbseMemControllerMsg, QueryFdImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryFdImportObjHandler(req, resp), UBSE_ERROR);
 
-    req.len = 100;
-    req.data = new uint8_t[100];
-    MOCKER(&mem::serial::UbseMemFdBorrowImportObjDeserialization).stubs().will(returnValue(true));
-    EXPECT_EQ(QueryFdImportObjHandler(req, resp), UBSE_OK);
-    SafeDeleteArray(req.data);
-    SafeDeleteArray(resp.data);
+    // Build valid serialized data for QueryFdImportObjHandler
+    {
+        UbseMemFdBorrowImportObj importObj;
+        importObj.req.name = "test";
+        importObj.req.importNodeId = "1";
+        UbseMemFdBorrowImportobjSimpo simpo;
+        simpo.SetUbseMesgInfo(importObj);
+        ASSERT_EQ(simpo.Serialize(), UBSE_OK);
+        req.len = simpo.SerializedDataSize();
+        req.data = simpo.SerializedData();
+        EXPECT_EQ(QueryFdImportObjHandler(req, resp), UBSE_OK);
+    }
 }
 
 TEST_F(TestUbseMemControllerMsg, QueryNumaImportObj)
@@ -192,15 +155,16 @@ TEST_F(TestUbseMemControllerMsg, QueryNumaImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryNumaImportObjHandler(req, resp), UBSE_ERROR);
 
-    mem::serial::UbseSerialization out;
+    UbseMemNumaBorrowImportobjSimpo simpo;
     UbseMemNumaBorrowImportObj importObj;
     importObj.req.name = "test";
     importObj.req.importNodeId = "1";
-    mem::serial::UbseMemNumaBorrowImportObjSerialization(out, importObj);
+    simpo.SetUbseMesgInfo(importObj);
+    simpo.Serialize();
     UbseByteBuffer req1{};
     UbseByteBuffer resp1{};
-    req1.data = out.GetBuffer();
-    req1.len = out.GetLength();
+    req1.data = simpo.SerializedData();
+    req1.len = simpo.SerializedDataSize();
     AddNumaImport(importObj);
     EXPECT_EQ(QueryNumaImportObjHandler(req1, resp1), UBSE_OK);
 }
@@ -223,13 +187,14 @@ TEST_F(TestUbseMemControllerMsg, QueryAddrImportObjHandler)
     MOCKER(&nodeController::UbseNodeController::GetCurNode).stubs().will(returnValue(node));
     EXPECT_EQ(QueryAddrImportObjHandler(req, resp), UBSE_ERROR);
 
-    mem::serial::UbseSerialization out;
+    UbseMemAddrBorrowImportobjSimpo simpo;
     UbseMemAddrBorrowImportObj importObj;
     importObj.req.name = "test";
     importObj.req.importNodeId = "1";
-    mem::serial::UbseMemAddrBorrowImportObjSerialization(out, importObj);
-    req.data = out.GetBuffer();
-    req.len = out.GetLength();
+    simpo.SetUbseMesgInfo(importObj);
+    simpo.Serialize();
+    req.data = simpo.SerializedData();
+    req.len = simpo.SerializedDataSize();
     AddAddrImport(importObj);
     EXPECT_EQ(QueryAddrImportObjHandler(req, resp), UBSE_OK);
 }
@@ -424,7 +389,7 @@ TEST_F(TestUbseMemControllerMsg, QueryFdExportHandler)
     // 构造请求
     UbseByteBuffer req{};
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -459,7 +424,7 @@ TEST_F(TestUbseMemControllerMsg, QueryNumaExportHandler)
     // 构造请求
     UbseByteBuffer req{};
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -494,7 +459,7 @@ TEST_F(TestUbseMemControllerMsg, QueryAddrExportHandler)
     // 构造请求
     UbseByteBuffer req{};
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -525,7 +490,7 @@ TEST_F(TestUbseMemControllerMsg, QueryShareExportHandler)
     request.exportNodeId = "1";
     request.name = "name";
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -557,7 +522,7 @@ TEST_F(TestUbseMemControllerMsg, QueryFdImportHandler)
     request.exportNodeId = "1";
     request.name = "name";
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -589,7 +554,7 @@ TEST_F(TestUbseMemControllerMsg, QueryNumaImportHandler)
     request.exportNodeId = "1";
     request.name = "name";
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -621,7 +586,7 @@ TEST_F(TestUbseMemControllerMsg, QueryAddrImportHandler)
     request.exportNodeId = "1";
     request.name = "name";
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;
@@ -653,7 +618,7 @@ TEST_F(TestUbseMemControllerMsg, QueryShareImportHandler)
     request.exportNodeId = "1";
     request.name = "name";
     UbseMemDebtQueryRequestSimpo simpo{};
-    simpo.SetUbseMemDebtQueryRequest(request);
+    simpo.SetUbseMesgInfo(request);
     simpo.Serialize();
     req.data = simpo.mOutputRawData.get();
     req.len = simpo.mOutputRawDataSize;

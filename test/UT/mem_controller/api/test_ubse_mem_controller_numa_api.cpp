@@ -15,8 +15,8 @@
 #include "ubse_election.h"
 #include "ubse_mem_debt_info_query.h"
 #include "ubse_mem_debt_ledger.h"
-#include "ubse_mem_numa_borrow_exportobj_simpo.h"
 #include "ubse_mmi_interface_impl.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 #include "ubse_mem_controller_numa_api.cpp"
 
