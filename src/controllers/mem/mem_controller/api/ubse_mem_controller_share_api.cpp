@@ -119,6 +119,8 @@ uint32_t UbseMemShareBorrow(UbseMemShareBorrowReq &req, UbseMemOperationResp &re
     UBSE_LOG_INFO << "Share borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId;
     auto lock = LoggingLockGuard(req.name);
+    resp.requestId = req.requestId;
+    resp.name = req.name;
     if (!IsMemShareModeFeatureSupported(req.ubseMemPrivData.cacheableFlag)) {
         BorrowFailedAdvice({MemFault::SHARED_CHIP_MODE_NOT_SUPPORTED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_BORROW);
@@ -249,6 +251,7 @@ uint32_t UbseMemShareAttach(const UbseMemShareAttachReq &req, UbseMemOperationRe
     // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
     auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);    
     resp.requestId = req.requestId;
+    resp.name = req.name;
     if (!IsMemShareFeatureSupported()) {
         BorrowFailedAdvice(
             {MemFault::SHARED_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
@@ -342,6 +345,7 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq &req, UbseMemOperationRe
                   << ", requestId=" << req.requestId << ", realRequestNodeId=" << realRequestNodeId;
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
     resp.requestId = req.requestId;
+    resp.name = req.name;
     if (!IsMemShareFeatureSupported()) {
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_DETACH);
     }
@@ -1331,12 +1335,12 @@ uint32_t UbseMemShareAttachClos(const UbseMemShareAttachReq &req, UbseMemOperati
     // deleteAndBorrowLock 避免attach时获取到export对象后, delete紧跟着对export进行删除,导致单边导入账本
     auto deleteAndBorrowLock = LoggingLockGuard(req.name, LoggingLockGuard::LockType::READ);     
     resp.requestId = req.requestId;
+    resp.name = req.name;
     if (!IsMemShareFeatureSupported()) {
         BorrowFailedAdvice(
             {MemFault::SHARED_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_ATTACH);
     }
-    resp.name = req.name;
     if (req.importNodeId.empty()) {
         return BuildOperationRespWhenFail(resp, req.name, req.importNodeId, "attach with no node is valid.",
                                           UBSE_ERR_SHM_NODE_EMPTY, MemOperationType::SHARED_ATTACH);
@@ -1854,6 +1858,8 @@ uint32_t CascadeMasterHandlerAgentDeleteExportCallback(const UbseMemShareBorrowE
 
 void CascadeMasterSendBorrowReqToGlobalMaster(const UbseMemShareBorrowReq &req, UbseMemOperationResp &resp)
 {
+    resp.requestId = req.requestId;
+    resp.name = req.name;
     if (ForwardBorrowReqToGlobal(req) != UBSE_OK) {
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to send borrow req to Global Master",
                                    UBSE_ERR_COM_FAILED, MemOperationType::SHARED_BORROW);
@@ -1862,6 +1868,8 @@ void CascadeMasterSendBorrowReqToGlobalMaster(const UbseMemShareBorrowReq &req, 
 
 void CascadeMasterSendAttachReqToGlobalMaster(const UbseMemShareAttachReq &req, UbseMemOperationResp &resp)
 {
+    resp.requestId = req.requestId;
+    resp.name = req.name;
     if (ForwardAttachReqToGlobal(req) != UBSE_OK) {
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to send attach req to Global Master",
                                    UBSE_ERR_COM_FAILED, MemOperationType::SHARED_ATTACH);
@@ -1870,6 +1878,8 @@ void CascadeMasterSendAttachReqToGlobalMaster(const UbseMemShareAttachReq &req, 
 
 void CascadeMasterSendReturnReqToGlobalMaster(const UbseMemReturnReq &req, UbseMemOperationResp &resp)
 {
+    resp.requestId = req.requestId;
+    resp.name = req.name;
     if (ForwardReturnReqToGlobal(req) != UBSE_OK) {
         BuildOperationRespWhenFail(resp, req.name, req.requestNodeId, "Failed to send return req to Global Master",
                                    UBSE_ERR_COM_FAILED, MemOperationType::SHARED_RETURN);
