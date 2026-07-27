@@ -67,6 +67,7 @@ private:
     std::vector<UBSE_ID_TYPE> GetAllGlobalAgentIds() const;
     std::vector<UBSE_ID_TYPE> GetActiveNodes();
     void InitNodesStatus();
+    void SyncBroadcastMap();
     UbseResult SendGlobalHeartBeat(UBSE_ID_TYPE destID, const ElectionPkt &pkt);
     void DetectCascadeGroupTimeout();
 
