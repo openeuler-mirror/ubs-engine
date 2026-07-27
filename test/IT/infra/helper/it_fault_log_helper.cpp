@@ -52,7 +52,11 @@ uint64_t ExtractUint64(const std::string& line, const std::string& key)
     if (bytePos != std::string::npos) {
         val = val.substr(0, bytePos);
     }
-    return std::stoull(val);
+    try {
+        return std::stoull(val);
+    } catch (const std::invalid_argument&) {
+        return 0;
+    }
 }
 
 uint32_t ExtractUint32(const std::string& line, const std::string& key)
@@ -61,7 +65,11 @@ uint32_t ExtractUint32(const std::string& line, const std::string& key)
     if (val.empty()) {
         return 0;
     }
-    return static_cast<uint32_t>(std::stoul(val));
+    try {
+        return static_cast<uint32_t>(std::stoul(val));
+    } catch (const std::invalid_argument&) {
+        return 0;
+    }
 }
 } // namespace
 

@@ -31,17 +31,29 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-BorrowScheduleFailed-01: 借用调度失败 触发 BORROW_SCHEDULE_FAILED
 void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在 触发 SHARE_BORROW_CHECK_FAILED
+// P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在 触发 SHARED_BORROW_CHECK_FAILED
 void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareAttachCheckFailed-01: Share attach不存在的共享内存 或 attach请求节点不在共享域 触发 SHARE_ATTACH_CHECK_FAILED
+// P1-FaultLog-ShareAttachCheckFailed-01: Share attach不存在的共享内存 或 attach请求节点不在共享域 触发 SHARED_ATTACH_CHECK_FAILED
 void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareAttachAuthFailed-01: Share attach与create时用户身份不一致 触发 SHARE_ATTACH_AUTH_FAILED
+// P1-FaultLog-ShareAttachAuthFailed-01: Share attach与create时用户身份不一致 触发 SHARED_ATTACH_AUTH_FAILED
 void RunP1FaultLogShareAttachAuthFailed(ubse::it::infra::ItCluster& cluster);
 
-// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach 触发 SHARE_ATTACH_EXIST
+// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach 触发 SHARED_ATTACH_EXIST
 void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
+void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
+void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ShareReturnRegionFailed-01: Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
+void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
+void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster);
 } // namespace ubse::it::tests::mem_borrow
 
 #endif // IT_MEM_BORROW_FAULT_LOG_CASES_H

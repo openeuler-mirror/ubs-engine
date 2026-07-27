@@ -202,3 +202,9 @@ TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareAttachCheckFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachCheckFailed(Cluster());
 }
+
+// P1-FaultLog-ShareReturnRegionFailed-01: Share 归还节点不在共享域
+TEST_F(Tongsuan1dFullMeshFourNodesScenario, P1FaultLogShareReturnRegionFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnRegionFailed(Cluster());
+}

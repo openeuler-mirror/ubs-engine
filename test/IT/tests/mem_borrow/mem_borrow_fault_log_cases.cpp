@@ -159,6 +159,7 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
     EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
     EXPECT_EQ(fdEntry.requestNode, "1") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 1u); //CHECK_FAILED
     EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
     EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
 
@@ -168,6 +169,7 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
     EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
     EXPECT_EQ(numaEntry.requestNode, "1") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 1u); //CHECK_FAILED
     EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
 
@@ -177,6 +179,7 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
     EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
     EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 1u); //CHECK_FAILED
     EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
@@ -323,6 +326,7 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
     EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
     EXPECT_EQ(fdEntry.requestNode, "2") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 3u); //SCHEDULE_FAILED
     EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
     EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
 
@@ -332,6 +336,7 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
     EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
     EXPECT_EQ(numaEntry.requestNode, "2") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 3u); //SCHEDULE_FAILED
     EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
 
@@ -341,6 +346,7 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
     EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
     EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 3u); //SCHEDULE_FAILED
     EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
@@ -385,7 +391,7 @@ void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry.requestSize, shareSize);
     EXPECT_EQ(entry.requestNode, "1");
-    EXPECT_EQ(entry.adviceCode, 1u); // SHARE_BORROW_CHECK_FAILED
+    EXPECT_EQ(entry.adviceCode, 1u); // CHECK_FAILED
     EXPECT_FALSE(entry.errorInfo.empty());
     EXPECT_FALSE(entry.advice.empty());
 }
@@ -449,7 +455,7 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry1.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry1.requestSize, 0);
     EXPECT_EQ(entry1.requestNode, "1"); // attach请求共享内存不存在
-    EXPECT_EQ(entry1.adviceCode, 1u);   // SHARE_ATTACH_CHECK_FAILED
+    EXPECT_EQ(entry1.adviceCode, 1u);   // CHECK_FAILED
     EXPECT_FALSE(entry1.errorInfo.empty());
     EXPECT_FALSE(entry1.advice.empty());
 
@@ -459,7 +465,7 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry3.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry3.requestSize, 0);
     EXPECT_EQ(entry3.requestNode, nodeId); // attach请求节点为节点3/4(非主节点且不在共享域)
-    EXPECT_EQ(entry3.adviceCode, 1u);      // SHARE_ATTACH_CHECK_FAILED
+    EXPECT_EQ(entry3.adviceCode, 1u);      // CHECK_FAILED
     EXPECT_FALSE(entry3.errorInfo.empty());
     EXPECT_FALSE(entry3.advice.empty());
 }
@@ -509,7 +515,7 @@ void RunP1FaultLogShareAttachAuthFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry.requestSize, shareSize);
     EXPECT_EQ(entry.requestNode, "2");
-    EXPECT_EQ(entry.adviceCode, 18u); // SHARED_ATTACH_AUTH_FAILED
+    EXPECT_EQ(entry.adviceCode, 10u); // NO_OP_PERMISSION
     EXPECT_FALSE(entry.errorInfo.empty());
     EXPECT_FALSE(entry.advice.empty());
 }
@@ -568,8 +574,226 @@ void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
     EXPECT_EQ(entry.requestSize, 0);
     EXPECT_EQ(entry.requestNode, "1");
-    EXPECT_EQ(entry.adviceCode, 5u); // SHARE_ATTACH_EXIST
+    EXPECT_EQ(entry.adviceCode, 5u); // RESOURCE_EXIST
     EXPECT_FALSE(entry.errorInfo.empty());
     EXPECT_FALSE(entry.advice.empty());
+}
+
+// P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
+void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_ret_name_not_exist_fd";
+        // 节点1尝试归还不存在的共享内存，触发RETURN_NAME_NOT_EXIST
+        IT_LOG_INFO << "[ReturnNameNotExist-01] Returning FD name not exist: name=" << name;
+        ret = sdk.MemFdDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+    }
+    {
+        const char* name = "it_p1_fl_ret_name_not_exist_numa";
+        // 节点1尝试归还不存在的共享内存，触发RETURN_NAME_NOT_EXIST
+        IT_LOG_INFO << "[ReturnNameNotExist-01] Returning NUMA name not exist: name=" << name;
+        ret = sdk.MemNumaDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+    }
+    {
+        const char* name = "it_p1_fl_ret_name_not_exist_share";
+        // 节点1尝试归还不存在的共享内存，触发RETURN_NAME_NOT_EXIST
+        IT_LOG_INFO << "[ReturnNameNotExist-01] Returning SHM name not exist: name=" << name;
+        ret = sdk.MemShmDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_NOT_EXIST);
+    }
+
+    // 等待并校验 fault log 中出现 RETURN_NAME_NOT_EXIST (faultCode=22)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0022"; }, 3);
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0022, got "
+                                  << entries.size(); // 校验日志内容
+
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_name_not_exist_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, "1");
+    EXPECT_EQ(fdEntry.adviceCode, 8u); // RESOURCE_NOT_EXIST
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_name_not_exist_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, "1");
+    EXPECT_EQ(numaEntry.adviceCode, 8u); // RESOURCE_NOT_EXIST
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_name_not_exist_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, "1");
+    EXPECT_EQ(shareEntry.adviceCode, 8u); // RESOURCE_NOT_EXIST
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
+void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto& sdk2 = cluster.GetSdkClient("2");
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_ret_in_attached";
+    {
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        // 创建共享内存，共享域包含节点1和节点2
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        ASSERT_IT_OK(ret);
+
+        // 节点2 attach共享内存
+        IT_LOG_INFO << "[ShareReturnInAttached-01] Attaching share from node 2: name=" << name;
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk2.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_OK(ret);
+
+        // 节点1尝试归还存在attach的共享内存，触发SHARED_RETURN_IN_ATTACHED
+        IT_LOG_INFO << "[ShareReturnInAttached-01] Returning share with attached node: name=" << name;
+        ret = sdk.MemShmDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_SHM_ATTACH_USING);
+
+        // 清理attach
+        ret = sdk2.MemShmDetach(name);
+        ASSERT_IT_OK(ret);
+        // 清理共享内存
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 等待并校验fault log中出现SHARED_RETURN_IN_ATTACHED (faultCode=37)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0037"; });
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0037, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, "1");
+    EXPECT_EQ(entry.adviceCode, 9u); // RES_OP_CONFLICT
+    EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
+}
+
+// P1-FaultLog-ShareReturnRegionFailed-01(四节点): Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
+void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+    // 判断节点3是否为主节点，若不是则使用节点3，若是则使用节点4
+    std::string nodeId = (masterNodeId != "3") ? "3" : "4";
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_ret_region_failed";
+    {
+        ubs_mem_shm_desc_t shareDesc{};
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        // 创建共享内存，共享域包含节点1和节点2
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        ASSERT_IT_OK(ret);
+
+        // 节点3尝试归还共享内存，触发SHARED_RETURN_REGION_FAILED
+        auto& returnSdk = cluster.GetSdkClient(nodeId);
+        IT_LOG_INFO << "[ShareReturnRegionFailed-01] Returning share from node not in region: name=" << name;
+        ret = returnSdk.MemShmDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_AUTH_FAILED);
+
+        // 清理
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 等待并校验 fault log 中出现 SHARED_RETURN_REGION_FAILED (faultCode=38)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0038"; });
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0038, got "
+                                  << entries.size(); // 校验日志内容
+
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, nodeId);
+    EXPECT_EQ(entry.adviceCode, 1u); // CHECK_FAILED
+    EXPECT_FALSE(entry.errorInfo.empty());
+    EXPECT_FALSE(entry.advice.empty());
+}
+
+// P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
+void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_detach_not_exist";
+    {
+        // 节点1尝试detach不存在的共享内存，触发SHARED_DETACH_NOT_EXIST
+        IT_LOG_INFO << "[ShareDetachNotExist-01] Detaching share name not exist: name=" << name;
+        auto ret = sdk.MemShmDetach(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_SHM_NO_ATTACH);
+    }
+
+    // 等待并校验 fault log 中出现 SHARED_DETACH_NOT_EXIST (faultCode=41)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0041"; });
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0041, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, "1");
+    EXPECT_EQ(entry.adviceCode, 8u); // RESOURCE_NOT_EXIST
+    EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
 }
 } // namespace ubse::it::tests::mem_borrow

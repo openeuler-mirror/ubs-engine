@@ -922,8 +922,26 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareBorrowCheckFailed01)
     ubse::it::tests::mem_borrow::RunP1FaultLogShareBorrowCheckFailed(Cluster());
 }
 
-// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach 触发 SHARE_ATTACH_EXIST
+// P1-FaultLog-ShareAttachExist-01: Share attach请求节点重复attach
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareAttachExist01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareAttachExist(Cluster());
+}
+
+// P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogReturnNameNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogReturnNameNotExist(Cluster());
+}
+
+// P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareReturnInAttached01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnInAttached(Cluster());
+}
+
+// P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareDetachNotExist01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareDetachNotExist(Cluster());
 }
