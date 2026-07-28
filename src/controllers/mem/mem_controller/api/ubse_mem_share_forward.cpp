@@ -25,6 +25,7 @@
 #include "../message/ubse_mem_share_attach_req_simpo.h"
 #include "../message/ubse_mem_return_req_simpo.h"
 #include "../message/ubse_mem_share_detach_req_simpo.h"
+#include "../message/ubse_mem_share_delete_import_ledger_req_simpo.h"
 #include "../ubse_mem_rpc_processor.h"
 #include "ubse_com_module.h"
 #include "ubse_com_op_code.h"
@@ -52,6 +53,7 @@ using ubse::mem::controller::message::UbseMemShareBorrowReqSimpo;
 using ubse::mem::controller::message::UbseMemShareAttachReqSimpo;
 using ubse::mem::controller::message::UbseMemReturnReqSimpo;
 using ubse::mem::controller::message::UbseMemShareDetachReqSimpo;
+using ubse::mem::controller::message::UbseMemShareDeleteImportLedgerReqSimpo;
 
 namespace {
 
@@ -130,6 +132,11 @@ constexpr uint16_t DetachToPdOpCode()
 constexpr uint16_t DetachPdToGlobalOpCode()
 {
     return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DETACH_MANAGE_MASTER_TO_GLOBAL_MASTER);
+}
+
+constexpr uint16_t DeleteImportLedgerToCascadeOpCode()
+{
+    return static_cast<uint16_t>(UbseMemBorrowCallbackOpCode::UBSE_MEM_SHARE_DELETE_IMPORT_DEBT_CASCADE_HANDLE);
 }
 
 // -------------------- 发送底座 --------------------
@@ -252,6 +259,11 @@ void SetReturnReq(UbseMemReturnReqSimpo *simpo, const UbseMemReturnReq &req)
 void SetDetachReq(UbseMemShareDetachReqSimpo *simpo, const UbseMemShareDetachReq &req)
 {
     simpo->SetUbseMemShareDetachReq(req);
+}
+
+void SetDeleteImportLedgerReq(UbseMemShareDeleteImportLedgerReqSimpo *simpo, const std::string &nodeId)
+{
+    simpo->SetNodeId(nodeId);
 }
 
 // -------------------- 日志标识 --------------------
@@ -469,6 +481,15 @@ UbseResult ForwardDetachReqToGlobal(const UbseMemShareDetachReq &req)
     return SendWithRetry<UbseMemShareDetachReqSimpo, UbseMemShareDetachReq>(
         globalMasterNodeId, DetachPdToGlobalOpCode(), req, SetDetachReq,
         BuildReqLogTag("detach to Global Master", req));
+}
+
+// ==================== 故障触发删除导入账本（global master → cascade master） ====================
+UbseResult ForwardDeleteImportLedgerToCascade(const std::string &faultNodeId,
+                                               const std::string &cascadeMasterNodeId)
+{
+    std::string logTag = "delete import ledger to cascade master, faultNodeId=" + faultNodeId;
+    return SendWithRetry<UbseMemShareDeleteImportLedgerReqSimpo, std::string>(
+        cascadeMasterNodeId, DeleteImportLedgerToCascadeOpCode(), faultNodeId, SetDeleteImportLedgerReq, logTag);
 }
 
 } // namespace ubse::mem::controller

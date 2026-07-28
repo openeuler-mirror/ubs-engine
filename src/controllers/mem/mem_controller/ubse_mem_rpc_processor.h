@@ -320,6 +320,16 @@ public:
     uint16_t GetModuleCode() override;
 };
 
+class UbseMemCascadeDeleteShareImportDebtsMessageHandler : public UbseComBaseMessageHandler {
+public:
+    UbseResult Handle(const UbseBaseMessagePtr &req, const UbseBaseMessagePtr &rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override;
+
+    uint16_t GetModuleCode() override;
+};
+
 class UbseMemShareBorrowImportObjCallbackMessageHandler : public UbseComBaseMessageHandler {
 public:
     UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
