@@ -45,6 +45,7 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/helper/it_wait_helper.cpp
     ${IT_INFRA_DIR}/helper/it_xalarm_helper.cpp
     ${IT_INFRA_DIR}/helper/it_fault_log_helper.cpp
+    ${IT_INFRA_DIR}/cluster/it_ub_fault_cluster.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL

@@ -13,6 +13,7 @@
 #include "scenario.h"
 #include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
 
+using ubse::it::infra::Fault;
 using ubse::it::infra::Tongsuan1dTwoNodesUbFeatureFaultScenario;
 
 // ====================================================================
@@ -27,7 +28,7 @@ using ubse::it::infra::Tongsuan1dTwoNodesUbFeatureFaultScenario;
 // P1-BorrowDisabled-BorrowFail-01: 借用不可用时新建借用应失败
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1BorrowDisabledBorrowFail01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     // 故障态下执行借用，预期失败
     // 实际用例逻辑由 tests/mem_borrow_cases 提供，此处仅验证状态机切换
     EXPECT_TRUE(true) << "Borrow fault injected, borrow should fail";
@@ -36,7 +37,7 @@ TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1BorrowDisabledBorrowFail01)
 // P1-BorrowDisabled-ReturnFail-01: 借用不可用时归还预期失败（复用同维度故障态）
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1BorrowDisabledReturnFail01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     EXPECT_TRUE(true) << "Borrow fault reused, return should fail";
 }
 
@@ -48,44 +49,37 @@ TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1BorrowDisabledReturnFail01)
 // P1 测试 — Fault Log 校验
 // ====================================================================
 
-// P1-ShareCcDisabled-BorrowFail-01: 共享 CC 不可用时借用应失败
-TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1ShareCcDisabledBorrowFail01)
-{
-    EnsureFaultInjected(true, true, true);
-    EXPECT_TRUE(true) << "Share CC fault injected, borrow should fail";
-}
-
 // P1-FaultLog-BorrowChipNotSupport-01: 底层芯片不支持FD/NUMA借用 触发 BORROW_CHIP_NOT_SUPPORT
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1FaultLogBorrowChipNotSupport01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     ubse::it::tests::mem_borrow::RunP1FaultLogBorrowChipNotSupport(Cluster());
 }
 
 // P1-FaultLog-ShareChipNotSupported-01: 底层芯片不支持Shared attach 触发 SHARED_CHIP_NOT_SUPPORTED
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1FaultLogShareChipNotSupported01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     ubse::it::tests::mem_borrow::RunP1FaultLogShareChipNotSupported(Cluster());
 }
 
 // P1-FaultLog-ShareChipModeNotSupported-01: 底层芯片模式不支持Share借用模式 触发 SHARED_CHIP_MODE_NOT_SUPPORTED
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1FaultLogShareChipModeNotSupported01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     ubse::it::tests::mem_borrow::RunP1FaultLogShareChipModeNotSupported(Cluster());
 }
 
 //P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1FaultLogReturnChipNotSupported01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     ubse::it::tests::mem_borrow::RunP1FaultLogReturnChipNotSupported(Cluster());
 }
 
 // P1-FaultLog-ShareReturnChipNotSupported-01: 底层芯片不支持Shared detach 触发 SHARED_RETURN_CHIP_NOT_SUPPORTED
 TEST_F(Tongsuan1dTwoNodesUbFeatureFaultScenario, P1FaultLogShareReturnChipNotSupported01)
 {
-    EnsureFaultInjected(true, true, true);
+    Fault().EnsureFaultInjected(true, true, true);
     ubse::it::tests::mem_borrow::RunP1FaultLogShareReturnChipNotSupported(Cluster());
 }
