@@ -28,6 +28,13 @@ static const std::string DE_SERIALIZATION_ERROR = "ERROR: Deserialization failed
 static const std::string NODE_INTERNAL_ERROR = "ERROR: Internal error with error code ";
 static const std::string CLUSTRR_EMPTY_ERROR = "ERROR: Failed to obtain cluster information.";
 
+// display cluster option reg
+static const std::string DISPLAY_CLUSTER_G_OPTION = "global";
+// display cluster option desc
+static const std::string DISPLAY_CLUSTER_G_OPTION_TIP = "Display global cluster information of CLOS networking.";
+static const std::string DISPLAY_CLUSTER_GLOBAL_NOT_SUPPORTED =
+    "ERROR: The -g or --global option is only supported in hierarchical election scenarios of CLOS networking.";
+
 static const std::string TYPE_CPU = "cpu";
 
 // display topo option reg
@@ -87,14 +94,23 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliProcessClusterDa
 }
 
 std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliQueryClusterInfoFunc(
-    [[maybe_unused]] const std::map<std::string, std::string>& params)
+    const std::map<std::string, std::string>& params)
 {
+    uint8_t globalQuery = params.find(DISPLAY_CLUSTER_G_OPTION) != params.end() ? 1 : 0;
     UbseSerialization ubse_req_serial(UBSE_CLI_NUM_8);
+    ubse_req_serial << globalQuery;
+    if (!ubse_req_serial.Check()) {
+        return UbseCliStringPromptReply("ERROR: Request serialization failed.");
+    }
+
     ubse_api_buffer_t ubse_req_buffer{ubse_req_serial.GetBuffer(), static_cast<uint32_t>(ubse_req_serial.GetLength())};
     ubse_api_buffer_t ubse_res_buffer{};
-    uint32_t ret = ubse_invoke_call(UBSE_NODE, UBSE_CLUSTER_INFO, &ubse_req_buffer, &ubse_res_buffer);
+    uint32_t ret = ubse_invoke_call(UBSE_NODE, UBSE_NODE_CLI_CLUSTER_INFO, &ubse_req_buffer, &ubse_res_buffer);
     UbseCliBufferGuard ubseCliBufferGuard(ubse_res_buffer);
     if (ret != UBSE_OK) {
+        if (globalQuery == 1 && ret == UBSE_ERROR_INVAL) {
+            return UbseCliStringPromptReply(DISPLAY_CLUSTER_GLOBAL_NOT_SUPPORTED);
+        }
         return UbseCliStringPromptReply(NODE_INTERNAL_ERROR + std::to_string(ret));
     }
     UbseDeSerialization ubse_de_serial(ubse_res_buffer.buffer, ubse_res_buffer.length);
@@ -254,7 +270,10 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegNodeModule::UbseCliSDKQueryCpuTopoF
 UbseCliCommandInfo UbseCliRegNodeModule::UbseCliQueryClusterInfo()
 {
     UbseCliRegBuilder builder;
-    builder.UbseCliSetCommand("display").UbseCliSetType("cluster").UbseCliSetFunc(UbseCliQueryClusterInfoFunc);
+    builder.UbseCliSetCommand("display")
+        .UbseCliSetType("cluster")
+        .UbseCliAddFlagOption("g", DISPLAY_CLUSTER_G_OPTION, DISPLAY_CLUSTER_G_OPTION_TIP)
+        .UbseCliSetFunc(UbseCliQueryClusterInfoFunc);
     return builder.UbseCliBuild();
 }
 

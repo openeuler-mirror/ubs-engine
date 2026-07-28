@@ -11,15 +11,24 @@
  */
 #include "ubse_node_api.h"
 
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "ubs_engine.h"
 #include "ubse_api_server_module.h"
-#include "ubse_conf.h"
+#include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election_module.h"
 #include "ubse_logger.h"
 #include "ubse_node.h"
 #include "ubse_node_api_convert.h"
 #include "ubse_node_controller.h"
+#include "ubse_node_controller_master.h"
 #include "ubse_node_controller_query_api.h"
+#include "ubse_node_mgr.h"
+#include "ubse_pointer_process.h"
 #include "ubse_serial_util.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
@@ -31,8 +40,8 @@ using namespace ubse::serial;
 using namespace ubse::log;
 using namespace ::api::server;
 using namespace ubse::nodeController;
+using namespace ubse::com;
 using namespace ubse::utils;
-using namespace ubse::common::def;
 using namespace ubse::election;
 using namespace ubse::adapter_plugins::smbios;
 
@@ -40,6 +49,26 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 
 const std::string TOPO_PERMISSION = "topo";
 const std::string MEM_STAT_PERMISSION = "mem.stat";
+constexpr uint32_t CLUSTER_QUERY_RPC_TIMEOUT_MS = 60000;
+constexpr uint32_t CLUSTER_QUERY_TIMEOUT_ERROR = 0x80000001;
+
+uint32_t SendErrorResponse(uint32_t errorCode, uint64_t requestId, const std::string& errorMsg)
+{
+    UBSE_LOG_ERROR << errorMsg << ", " << FormatRetCode(errorCode);
+    auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (ubseApiModule == nullptr) {
+        UBSE_LOG_ERROR << "Failed to get api server module";
+        return UBSE_ERROR_NULLPTR;
+    }
+    UbseIpcMessage errorResp{};
+    errorResp.buffer = nullptr;
+    errorResp.length = 0;
+    auto ret = ubseApiModule->SendResponse(errorCode, requestId, errorResp);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Send error response failed, " << FormatRetCode(ret);
+    }
+    return ret;
+}
 
 uint32_t UbseNodeApi::UbseServerNodeGet(const UbseIpcMessage& req, const UbseRequestContext& context)
 {
@@ -205,75 +234,301 @@ std::unordered_map<std::string, std::string> UbseGetRoleMap(const UbseRequestCon
     return roleMap;
 }
 
-uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req, const UbseRequestContext& context)
+static uint32_t BuildClusterQueryRequest(uint8_t globalQuery, UbseByteBuffer& reqBuffer)
 {
-    if (req.buffer == nullptr) {
-        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", Cluster IPC request info is null.";
-        return UBSE_ERROR_NULLPTR;
-    }
-    std::vector<UbseNodeInfo> nodeList;
-    UbseClusterList(nodeList);
-    std::unordered_map<std::string, std::string> roleMap = UbseGetRoleMap(context);
-    UbseSerialization ubseSerial;
-    ubseSerial << (right_v<std::size_t>(nodeList.size()));
-    // hostName(slotId), role, bondingEid;
-    for (const auto& node : nodeList) {
-        UBSE_LOG_INFO << "requestId=" << context.requestId << ", hostname=" << node.hostName
-                      << ", slotId=" << node.slotId << ", clusterState=" << static_cast<uint32_t>(node.clusterState);
-        bool isOnline = node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
-                        node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
-        std::string slotIdStr = std::to_string(node.slotId);
-        ubseSerial << ((!isOnline || node.hostName.empty() ? "-" : node.hostName) + "(" + slotIdStr + ")");
-        if (!isOnline) {
-            ubseSerial << "-";
-        } else {
-            auto it = roleMap.find(slotIdStr);
-            if (it != roleMap.end()) {
-                ubseSerial << it->second;
-            } else {
-                ubseSerial << UBSE_ROLE_AGENT;
-            }
-        }
-        ubseSerial << node.bondingEid;
-        ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
-    }
-    if (!ubseSerial.Check()) {
-        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", Serialization of cluster response info failed";
+    UbseSerialization outStream;
+    outStream << globalQuery;
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] serialize cluster query request failed";
         return UBSE_ERROR_SERIALIZE_FAILED;
     }
-    UbseIpcMessage res{ubseSerial.GetBuffer(), static_cast<uint32_t>(ubseSerial.GetLength())};
+
+    size_t size = outStream.GetLength();
+    uint8_t* buffer = outStream.GetBuffer(true);
+    if (buffer == nullptr || size == 0) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] query request buffer is empty";
+        SafeDeleteArray(buffer, size);
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    reqBuffer = {buffer, size, [size](uint8_t* p) noexcept {
+                     SafeDeleteArray(p, size);
+                 }};
+    return UBSE_OK;
+}
+
+static uint32_t QueryClusterInfoDirect(uint8_t globalQuery, std::vector<uint8_t> &response)
+{
+    UbseByteBuffer reqBuffer;
+    auto ret = BuildClusterQueryRequest(globalQuery, reqBuffer);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    UbseByteBuffer respBuffer;
+    ret = ClusterInfoQueryHandler(reqBuffer, respBuffer);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    if (respBuffer.data == nullptr || respBuffer.len == 0) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] direct query response is empty";
+        return UBSE_ERROR_NULLPTR;
+    }
+    response.assign(respBuffer.data, respBuffer.data + respBuffer.len);
+    return UBSE_OK;
+}
+
+static uint32_t QueryClusterInfoRemote(const std::string &targetNodeId, uint8_t globalQuery,
+                                       std::vector<uint8_t> &response)
+{
+    const UbseComEndpoint endpoint{
+        .moduleId = static_cast<uint16_t>(UbseModuleCode::NODE_CONTROLLER),
+        .serviceId = static_cast<uint32_t>(UbseNodeControllerOpCode::NODE_CONTROLLER_CLUSTER_INFO),
+        .address = targetNodeId,
+    };
+    struct SyncData {
+        uint32_t queryRet{UBSE_OK};
+        bool callbackCalled{false};
+        std::vector<uint8_t> response{};
+        std::mutex mutex{};
+        std::condition_variable cv{};
+    };
+    auto syncData = std::make_shared<SyncData>();
+    UbseByteBuffer reqBuffer;
+    auto ret = BuildClusterQueryRequest(globalQuery, reqBuffer);
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    ret = UbseRpcSend(
+        endpoint, reqBuffer, nullptr,
+        [syncData, targetNodeId](void *, const UbseByteBuffer &respData, uint32_t resCode) {
+            {
+                std::lock_guard<std::mutex> lock(syncData->mutex);
+                syncData->queryRet = resCode;
+
+                if (resCode == UBSE_OK) {
+                    if (respData.data == nullptr || respData.len == 0) {
+                        UBSE_LOG_ERROR << "[CLUSTER_QUERY] remote response is empty, targetNodeId=" << targetNodeId;
+                        syncData->queryRet = UBSE_ERROR_NULLPTR;
+                    } else {
+                        syncData->response.assign(respData.data, respData.data + respData.len);
+                    }
+                }
+
+                syncData->callbackCalled = true;
+            }
+            syncData->cv.notify_one();
+        });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] send query failed, targetNodeId=" << targetNodeId << ", "
+                       << FormatRetCode(ret);
+        return ret;
+    }
+    std::unique_lock<std::mutex> lock(syncData->mutex);
+    auto timeout = std::chrono::milliseconds(CLUSTER_QUERY_RPC_TIMEOUT_MS);
+    if (!syncData->cv.wait_for(lock, timeout, [syncData]() {
+            return syncData->callbackCalled;
+        })) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] query timeout, targetNodeId=" << targetNodeId;
+        return CLUSTER_QUERY_TIMEOUT_ERROR;
+    }
+    if (syncData->queryRet != UBSE_OK) {
+        return syncData->queryRet;
+    }
+    response = std::move(syncData->response);
+    return UBSE_OK;
+}
+
+static uint32_t SendClusterInfoResponse(std::vector<uint8_t> &response, const UbseRequestContext &context)
+{
+    if (response.empty()) {
+        return SendErrorResponse(
+            UBSE_ERROR_NULLPTR, context.requestId, "Cluster query response is empty");
+    }
     auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
     if (apiServerModule == nullptr) {
         UBSE_LOG_ERROR << "requestId=" << context.requestId << ", Get api server module failed";
         return UBSE_ERROR_NULLPTR;
     }
+    UbseIpcMessage res{
+        response.data(),
+        static_cast<uint32_t>(response.size())
+    };
     auto ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, res);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "requestId=" << context.requestId << ", ClusterInfoQuery response send failed,"
-                       << FormatRetCode(ret);
-        return UBSE_ERROR;
-    }
-    return UBSE_OK;
-}
-
-uint32_t SendErrorResponse(uint32_t errorCode, uint64_t requestId, const std::string& errorMsg)
-{
-    UBSE_LOG_ERROR << errorMsg << ", " << FormatRetCode(errorCode);
-    auto ubseApiModule = ubse::context::UbseContext::GetInstance().GetModule<UbseApiServerModule>();
-    if (ubseApiModule == nullptr) {
-        UBSE_LOG_ERROR << "Failed to get api server module";
-        return UBSE_ERROR_NULLPTR;
-    }
-    UbseIpcMessage errorResp{};
-    errorResp.buffer = nullptr;
-    errorResp.length = 0;
-    auto ret = ubseApiModule->SendResponse(errorCode, requestId, errorResp);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Send error response failed, " << FormatRetCode(ret);
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", ClusterInfoQuery response send failed, " << FormatRetCode(ret);
     }
     return ret;
 }
 
+static uint32_t QueryClosClusterInfo(uint8_t globalQuery, const UbseRequestContext &context)
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        return SendErrorResponse(
+            UBSE_ERROR_NULLPTR, context.requestId, "Election module not loaded");
+    }
+    Node targetNode{};
+    uint32_t ret = UBSE_OK;
+    if (globalQuery == 1) {
+        auto rootList = nodeMgr::GetRootIpList();
+        auto nodes = nodeMgr::GetAllNodesStoredByGroup();
+        if (!rootList.empty() || nodes.size() <= 1) {
+            UBSE_LOG_ERROR << "requestId=" << context.requestId
+                           << ", global cluster query is not supported in non-CLOS networking";
+            return SendErrorResponse(UBSE_ERROR_INVAL, context.requestId,
+                                     "Global cluster query is not supported in non-CLOS networking");
+        }
+        ret = module->UbseGetMasterNode(targetNode);
+    } else {
+        ret = module->GetLocalMasterNode(targetNode);
+    }
+    UBSE_LOG_INFO << "Sending message to node: " << targetNode.id;
+    if (ret != UBSE_OK || targetNode.id.empty()) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", get cluster query target failed, globalQuery="
+                       << static_cast<uint32_t>(globalQuery) << ", " << FormatRetCode(ret);
+        return SendErrorResponse(ret, context.requestId, "Get cluster query target failed");
+    }
+    Node currentNode{};
+    ret = module->GetCurrentNode(currentNode);
+    if (ret != UBSE_OK || currentNode.id.empty()) {
+        return SendErrorResponse(ret, context.requestId, "Get current node failed");
+    }
+    std::vector<uint8_t> response{};
+    if (currentNode.id == targetNode.id) {
+        ret = QueryClusterInfoDirect(globalQuery, response);
+    } else {
+        ret = QueryClusterInfoRemote(targetNode.id, globalQuery, response);
+    }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", query cluster info failed, targetNodeId=" << targetNode.id
+                       << ", globalQuery=" << static_cast<uint32_t>(globalQuery)
+                       << ", " << FormatRetCode(ret);
+        return SendErrorResponse(ret, context.requestId, "Query cluster information failed");
+    }
+    return SendClusterInfoResponse(response, context);
+}
+
+static uint32_t SendOriginalClusterInfo(const UbseRequestContext& context)
+{
+    std::vector<UbseNodeInfo> nodeList;
+    UbseClusterList(nodeList);
+
+    std::unordered_map<std::string, std::string> roleMap = UbseGetRoleMap(context);
+
+    UbseSerialization ubseSerial;
+    ubseSerial << right_v<std::size_t>(nodeList.size());
+
+    for (const auto& node : nodeList) {
+        UBSE_LOG_INFO << "requestId=" << context.requestId
+                      << ", hostname=" << node.hostName
+                      << ", slotId=" << node.slotId
+                      << ", clusterState=" << static_cast<uint32_t>(node.clusterState);
+
+        bool isOnline = node.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+                        node.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
+
+        std::string slotIdStr = std::to_string(node.slotId);
+        ubseSerial << ((!isOnline || node.hostName.empty() ? "-" : node.hostName) +
+                       "(" + slotIdStr + ")");
+
+        if (!isOnline) {
+            ubseSerial << "-";
+        } else {
+            auto iter = roleMap.find(slotIdStr);
+            if (iter != roleMap.end()) {
+                ubseSerial << iter->second;
+            } else {
+                ubseSerial << UBSE_ROLE_AGENT;
+            }
+        }
+
+        ubseSerial << node.bondingEid;
+        ubseSerial << (!isOnline || node.guid.empty() ? "-" : node.guid);
+    }
+
+    if (!ubseSerial.Check()) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", Serialization of cluster response info failed";
+        return UBSE_ERROR_SERIALIZE_FAILED;
+    }
+
+    UbseIpcMessage res{
+        ubseSerial.GetBuffer(),
+        static_cast<uint32_t>(ubseSerial.GetLength())
+    };
+
+    auto apiServerModule = UbseContext::GetInstance().GetModule<UbseApiServerModule>();
+    if (apiServerModule == nullptr) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", Get api server module failed";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    auto ret = apiServerModule->SendResponse(UBSE_OK, context.requestId, res);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", ClusterInfoQuery response send failed, "
+                       << FormatRetCode(ret);
+        return UBSE_ERROR;
+    }
+
+    return UBSE_OK;
+}
+
+uint32_t UbseNodeApi::UbseQueryClusterInfo(const UbseIpcMessage& req,
+                                           const UbseRequestContext& context)
+{
+    if (req.buffer == nullptr) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", Cluster IPC request info is null.";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    return SendOriginalClusterInfo(context);
+}
+
+uint32_t UbseNodeApi::UbseQueryCliClusterInfo(const UbseIpcMessage& req,
+                                              const UbseRequestContext& context)
+{
+    if (req.buffer == nullptr || req.length == 0) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", CLI cluster request is empty";
+        return SendErrorResponse(UBSE_ERROR_INVAL,
+                                 context.requestId,
+                                 "CLI cluster request is empty");
+    }
+
+    uint8_t globalQuery = 0;
+    UbseDeSerialization inStream(req.buffer, req.length);
+    inStream >> globalQuery;
+
+    if (!inStream.Check() || globalQuery > 1) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", deserialize global query flag failed";
+        return SendErrorResponse(UBSE_ERROR_INVAL,
+                                 context.requestId,
+                                 "Deserialize global query flag failed");
+    }
+
+    bool isClos = UbseSmbios::GetInstance().IsClosType();
+    if (isClos) {
+        return QueryClosClusterInfo(globalQuery, context);
+    }
+
+    if (globalQuery == 1) {
+        UBSE_LOG_ERROR << "requestId=" << context.requestId
+                       << ", global cluster query is not supported in non-CLOS networking";
+        return SendErrorResponse(
+            UBSE_ERROR_INVAL,
+            context.requestId,
+            "Global cluster query is not supported in non-CLOS networking");
+    }
+
+    return SendOriginalClusterInfo(context);
+}
 static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage& req, std::string& targetNodeId,
                                              const UbseRequestContext& context)
 {
@@ -505,6 +760,7 @@ UbseResult UbseNodeApi::Register()
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CPU_TOPO_LIST, UbseServerCpuTopoList,
                                                       TOPO_PERMISSION);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_CLUSTER_INFO, UbseQueryClusterInfo);
+    ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CLI_CLUSTER_INFO, UbseQueryCliClusterInfo);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CLI_CPU_TOPO_LIST, UbseQueryCpuTopo);
     ret |= ubse_api_server_module->RegisterIpcHandler(UBSE_NODE, UBSE_NODE_CLI_NODE_INFO, UbseQueryNodeInfo);
     if (ret != UBSE_OK) {

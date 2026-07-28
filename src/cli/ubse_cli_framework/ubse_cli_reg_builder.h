@@ -31,7 +31,8 @@ struct UbseCliOptionsInfo {
 
     bool operator==(const UbseCliOptionsInfo& other) const
     {
-        return shortOpt == other.shortOpt && longOpt == other.longOpt && desc == other.desc;
+        return shortOpt == other.shortOpt && longOpt == other.longOpt && desc == other.desc &&
+               isFlag == other.isFlag;
     }
 };
 

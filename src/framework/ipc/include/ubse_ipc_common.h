@@ -97,6 +97,7 @@ typedef enum {
     UBSE_NODE_CLI_NODE_INFO = 0x0005,
     UBSE_NODE_CLI_CPU_TOPO_LIST = 0x0006,
     UBSE_CLUSTER_INFO = 0x0007,
+    UBSE_NODE_CLI_CLUSTER_INFO = 0x0008,
 } ubse_ipc_node_op_code_t;
 
 typedef enum {

@@ -19,6 +19,7 @@
 #include "adapter_plugins/mti/ubse_smbios.h"
 #include "ubse_common_def.h"
 #include "ubse_election.h"
+#include "ubse_election_module.h"
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"

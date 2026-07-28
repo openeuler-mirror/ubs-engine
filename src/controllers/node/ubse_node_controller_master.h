@@ -159,6 +159,11 @@ UbseResult GlobalNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &re
 UbseResult SingleNodeReportHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
 
 /**
+* 处理CLI集群信息查询
+*/
+UbseResult ClusterInfoQueryHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+
+/**
  * 处理Agent查询全量节点列表
  * @param req 请求数据
  * @param resp 响应数据，包含全量节点列表

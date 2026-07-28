@@ -13,6 +13,7 @@
 #include "ubse_node_controller_master.h"
 
 #include <unistd.h>
+#include <algorithm>
 #include <condition_variable>
 #include <mutex>
 #include <sstream>
@@ -116,6 +117,8 @@ static void CollectGroupNodeIds(const ubse::election::GroupTopology &group, bool
     }
 }
 
+UbseResult ClusterInfoQueryHandler(const UbseByteBuffer &req, UbseByteBuffer &resp);
+
 template <typename Handler>
 static UbseResult RegisterMasterRpcService(UbseNodeControllerOpCode opCode, Handler handler,
                                            const char *errorMessage)
@@ -172,6 +175,12 @@ UbseResult RegMasterMsgHandler()
 
     ret = RegisterMasterRpcService(UbseNodeControllerOpCode::NODE_CONTROLLER_SINGLE_NODE_REPORT,
                                    SingleNodeReportHandler, "Register single node report endpoint failed");
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+
+    ret = RegisterMasterRpcService(UbseNodeControllerOpCode::NODE_CONTROLLER_CLUSTER_INFO,
+                                   ClusterInfoQueryHandler, "Register cluster info endpoint failed");
     if (ret != UBSE_OK) {
         return ret;
     }
@@ -1158,6 +1167,213 @@ static UbseResult CreateErrorResponse(UbseResult errorCode, UbseByteBuffer &resp
         resp = {nullptr, 0, nullptr}; // 内存分配失败，只能返回空
         return UBSE_ERROR_NULLPTR;
     }
+}
+
+struct ClusterDisplayNode {
+    UbseNodeInfo nodeInfo;
+    std::string role;
+};
+
+static bool IsClusterNodeOnline(const UbseNodeInfo& nodeInfo)
+{
+    return nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_SMOOTHING ||
+           nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_WORKING;
+}
+
+static void SortClusterDisplayNodes(std::vector<ClusterDisplayNode>& displayNodes)
+{
+    std::sort(displayNodes.begin(), displayNodes.end(),
+              [](const ClusterDisplayNode& left, const ClusterDisplayNode& right) {
+                  return left.nodeInfo.slotId < right.nodeInfo.slotId;
+              });
+}
+
+static UbseResult BuildLocalClusterDisplayNodes(std::vector<ClusterDisplayNode>& displayNodes)
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] election module not load";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    Node localMaster{};
+    auto ret = module->GetLocalMasterNode(localMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] get local master failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    Node localStandby{};
+    ret = module->GetLocalStandbyNode(localStandby);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLUSTER_QUERY] get local standby failed, " << FormatRetCode(ret);
+        localStandby.id.clear();
+    }
+
+    uint32_t currentGroupId = GetGroupId();
+    auto nodeInfos = UbseNodeController::GetInstance().GetLocalNodeInfos();
+
+    for (const auto& [_, nodeInfo] : nodeInfos) {
+        if (nodeInfo.groupId != currentGroupId) {
+            continue;
+        }
+
+        std::string role = UBSE_ROLE_AGENT;
+        if (nodeInfo.nodeId == localMaster.id) {
+            role = UBSE_ROLE_MASTER;
+        } else if (!localStandby.id.empty() && nodeInfo.nodeId == localStandby.id) {
+            role = UBSE_ROLE_SLAVE;
+        }
+
+        displayNodes.push_back({nodeInfo, role});
+    }
+
+    SortClusterDisplayNodes(displayNodes);
+    return UBSE_OK;
+}
+
+static void AddGroupMasterId(const GroupTopology& group, std::unordered_set<std::string>& groupMasterIds)
+{
+    if (!group.groupMasterId.empty()) {
+        groupMasterIds.insert(group.groupMasterId);
+    }
+}
+
+static UbseResult BuildGlobalClusterDisplayNodes(std::vector<ClusterDisplayNode>& displayNodes)
+{
+    auto module = UbseContext::GetInstance().GetModule<UbseElectionModule>();
+    if (module == nullptr) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] election module not load";
+        return UBSE_ERROR_NULLPTR;
+    }
+
+    HaTopologyInfo topology{};
+    auto ret = module->GetCurNodeGlobalTopoInfo(topology);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] get global topology failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    Node globalMaster{};
+    ret = module->UbseGetMasterNode(globalMaster);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] get global master failed, " << FormatRetCode(ret);
+        return ret;
+    }
+
+    Node globalStandby{};
+    ret = module->UbseGetStandbyNode(globalStandby);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[CLUSTER_QUERY] get global standby failed, " << FormatRetCode(ret);
+        globalStandby.id.clear();
+    }
+
+    std::unordered_map<std::string, bool> groupMasters{};
+
+    auto addGroupMaster = [&groupMasters](const GroupTopology& group) {
+        if (group.groupMasterId.empty()) {
+            return;
+        }
+
+        auto iter = groupMasters.find(group.groupMasterId);
+        if (iter == groupMasters.end()) {
+            groupMasters.emplace(group.groupMasterId, group.isManagingGroup);
+            return;
+        }
+
+        // 同一节点重复出现时，管理组属性优先保留
+        iter->second = iter->second || group.isManagingGroup;
+    };
+
+    addGroupMaster(topology.currentGroup);
+    for (const auto& group : topology.groups) {
+        addGroupMaster(group);
+    }
+
+    auto nodeInfos = UbseNodeController::GetInstance().GetLocalNodeInfos();
+    for (const auto& [groupMasterId, isManagingGroup] : groupMasters) {
+        auto iter = nodeInfos.find(groupMasterId);
+        if (iter == nodeInfos.end()) {
+            UBSE_LOG_WARN << "[CLUSTER_QUERY] group master not found in node cache, nodeId=" << groupMasterId;
+            continue;
+        }
+
+        std::string role;
+        if (groupMasterId == globalMaster.id) {
+            role = "global master";
+        } else if (!globalStandby.id.empty() && groupMasterId == globalStandby.id) {
+            role = "global standby";
+        } else if (isManagingGroup) {
+            role = "global agent";
+        } else {
+            role = "global cascade";
+        }
+
+        displayNodes.push_back({iter->second, role});
+    }
+
+    SortClusterDisplayNodes(displayNodes);
+    return UBSE_OK;
+}
+
+static UbseResult SerializeClusterDisplayNodes(const std::vector<ClusterDisplayNode>& displayNodes,
+                                               UbseByteBuffer& resp)
+{
+    UbseSerialization outStream;
+    outStream << right_v<size_t>(displayNodes.size());
+
+    for (const auto& displayNode : displayNodes) {
+        const auto& nodeInfo = displayNode.nodeInfo;
+        bool isOnline = IsClusterNodeOnline(nodeInfo);
+        std::string slotId = std::to_string(nodeInfo.slotId);
+        std::string nodeName = (!isOnline || nodeInfo.hostName.empty() ? "-" : nodeInfo.hostName) + "(" + slotId + ")";
+        std::string role = isOnline ? displayNode.role : "-";
+        std::string guid = (!isOnline || nodeInfo.guid.empty()) ? "-" : nodeInfo.guid;
+
+        outStream << nodeName << role << nodeInfo.bondingEid << guid;
+    }
+
+    if (!outStream.Check()) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] serialize cluster display nodes failed";
+        return UBSE_ERROR;
+    }
+
+    size_t size = outStream.GetLength();
+    uint8_t* buffer = outStream.GetBuffer(true);
+    resp = {buffer, size, [size](uint8_t* p) noexcept {
+                SafeDeleteArray(p, size);
+            }};
+    return UBSE_OK;
+}
+
+UbseResult ClusterInfoQueryHandler(const UbseByteBuffer& req, UbseByteBuffer& resp)
+{
+    if (req.data == nullptr || req.len == 0) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] request is empty";
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
+    }
+
+    uint8_t globalQuery = 0;
+    UbseDeSerialization inStream(req.data, req.len);
+    inStream >> globalQuery;
+    if (!inStream.Check() || globalQuery > 1) {
+        UBSE_LOG_ERROR << "[CLUSTER_QUERY] deserialize query type failed";
+        return CreateErrorResponse(UBSE_ERROR_INVAL, resp);
+    }
+
+    std::vector<ClusterDisplayNode> displayNodes{};
+    UbseResult ret = UBSE_OK;
+    if (globalQuery == 1) {
+        ret = BuildGlobalClusterDisplayNodes(displayNodes);
+    } else {
+        ret = BuildLocalClusterDisplayNodes(displayNodes);
+    }
+
+    if (ret != UBSE_OK) {
+        return CreateErrorResponse(ret, resp);
+    }
+
+    return SerializeClusterDisplayNodes(displayNodes, resp);
 }
 
 // 处理节点信息请求的通用函数
