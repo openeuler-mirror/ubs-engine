@@ -155,14 +155,15 @@ void ProcessMemPidInfoManager::Init()
         g_borrowTimeOut = borrowDefaultTimeOut;
     }
 
-    const int workThreadNum = 2;
+    const int borrowThreadNum = 10;
+    const int returnThreadNum = 10;
     const int exceptionThreadNum = 4;
     const int queSize = 1024;
-    borrowExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidBorrow", workThreadNum, queSize);
+    borrowExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidBorrow", borrowThreadNum, queSize);
     if (borrowExecutor == nullptr || !borrowExecutor->Start()) {
         UBSE_LOG_ERROR << "borrowExecutor start failed";
     }
-    returnExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidReturn", workThreadNum, queSize);
+    returnExecutor = ubse::task_executor::UbseTaskExecutor::Create("PidReturn", returnThreadNum, queSize);
     if (returnExecutor == nullptr || !returnExecutor->Start()) {
         UBSE_LOG_ERROR << "returnExecutor start failed";
     }
@@ -779,6 +780,9 @@ void AsyncMigrateBackAndFreeForRemovedPid(const RemovedPidDebt& entry)
         UBSE_LOG_INFO << "RefreshBorrowInfo: process exited, returning memory directly for pid=" << entry.pid;
         for (const auto& name : entry.debtNames) {
             auto ret = process_mem::pid::bridge::ProcessMemPidBridge::MemoryReturn(name);
+            if (ret == UBSE_ERR_NOT_EXIST || ret == UBSE_ERR_UNIMPORT_SUCCESS || ret == UBSE_ERR_DELETING) {
+                continue;
+            }
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "RefreshBorrowInfo MemoryReturn failed for exited pid=" << entry.pid
                                << ", debt=" << name << ", ret=" << ret;
