@@ -18,6 +18,7 @@
 #include "ubse_logger.h"
 #include "ubse_service_registry.h"
 #include "ubse_ssu_http_handler.h"
+#include "ubse_ssu_ipc_handler.h"
 #include "ubse_ssu_rpc_processor.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_thread_pool_module.h"
@@ -34,7 +35,8 @@ using ubse::plugin::service::ssu::UbseSsuService;
 using ubse::ssu::service::UbseSsuServiceImp;
 
 // 注册插件模块
-static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 3>{
+static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 4>{
+    UbseOptionModule::UbseNodeControllerModule,
     UbseOptionModule::UbseElectionModule,
     UbseOptionModule::UbseComModule,
     UbseOptionModule::UbseVipModule,
@@ -101,7 +103,11 @@ UbseResult UbseSsuControllerModule::Start()
         UBSE_LOG_ERROR << "Failed to register ssu http handlers, ret=" << ret;
         return ret;
     }
-
+    ret = ipc::RegisterSdkDispatcher();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to register ssu ipc handlers, ret=" << ret;
+        return ret;
+    }
     UBSE_LOG_INFO << "UbseSsuControllerModule Start success";
     return UBSE_OK;
 }
