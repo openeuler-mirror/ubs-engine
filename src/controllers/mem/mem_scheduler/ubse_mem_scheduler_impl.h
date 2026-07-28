@@ -75,10 +75,7 @@ public:
     {
         std::unique_lock<std::mutex> guard(lock_);
         if (memObj.status.state == adapter_plugins::mmi::UBSE_MEM_SCHEDULING) {
-            SchedulerRequest request = ConvertMemObjToRequest(memObj);
-            if (nodeInfo_->GetLenderBalance() && request.requestMode_ == RequestMode::BORROW) {
-                request.params_["lenderBalance"] = true;
-            }
+            auto request = SchedulerRequest::BuildRequest(memObj, nodeInfo_.get());
             auto ret = ScheduleBorrow(request, memObj.algoResult);
             if (ret != UBSE_OK) {
                 UBSE_LOG_ERROR << "Memory handle borrow request failed, name=" << memObj.req.name;

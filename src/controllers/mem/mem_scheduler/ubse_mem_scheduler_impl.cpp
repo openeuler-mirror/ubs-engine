@@ -118,7 +118,7 @@ UbseResult SchedulerImpl::Init()
     scoreManager_->Init();
     nodeInfo_->InitPageSize();
     nodeInfo_->InitRadiusConfig();
-    nodeInfo_->InitLenderBalance();
+    nodeInfo_->InitSchedulerMode();
     initialized_ = true;
     UBSE_LOG_INFO << "Mem-scheduler inits successfully";
     return UBSE_OK;

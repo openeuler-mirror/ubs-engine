@@ -33,6 +33,8 @@ constexpr char CONF_MEM_SECTION[] = "ubse.memory";
 constexpr char CONF_RADIUS_BORROW[] = "radius.borrow";
 constexpr char CONF_RADIUS_LENDER[] = "radius.lender";
 constexpr char CONF_LENDER_BALANCE[] = "lender.balance";
+constexpr char CONF_SCHEDULER_MODE[] = "scheduler.mode";
+constexpr char CONF_BANDWIDTH_TOLERANCE[] = "bandwidth.tolerance";
 constexpr char CONF_OS_SECTION[] = "os";
 constexpr char CONF_PAGE_SIZE[] = "page_size";
 constexpr char CONF_PROVIDER[] = "provider";
@@ -102,21 +104,67 @@ void SchedulerNodeManager::InitRadiusConfig()
     loadRadius(CONF_RADIUS_LENDER, radiusLender_);
 }
 
-void SchedulerNodeManager::InitLenderBalance()
+void SchedulerNodeManager::InitSchedulerMode()
 {
     auto confModule = context::UbseContext::GetInstance().GetModule<config::UbseConfModule>();
     if (confModule == nullptr) {
-        UBSE_LOG_WARN << "confModule is null, use default lenderBalance=false";
+        UBSE_LOG_WARN << "confModule is null, use default scheduler.mode=free-priority";
+        schedulerMode_ = SchedulerMode::FreePriority;
         return;
     }
-    bool lenderBalance = false;
-    auto ret = confModule->GetConf<bool>(CONF_MEM_SECTION, CONF_LENDER_BALANCE, lenderBalance);
-    if (ret == UBSE_OK) {
-        lenderBalance_ = lenderBalance;
-        UBSE_LOG_INFO << "Config ubse.memory.lender.balance=" << lenderBalance_;
-    } else {
-        UBSE_LOG_WARN << "Failed to get config ubse.memory.lender.balance, use default lenderBalance=false";
+    std::string modeStr;
+    auto ret = confModule->GetConf<std::string>(CONF_MEM_SECTION, CONF_SCHEDULER_MODE, modeStr);
+    if (ret != UBSE_OK || modeStr.empty()) {
+        bool lenderBalance = false;
+        ret = confModule->GetConf<bool>(CONF_MEM_SECTION, CONF_LENDER_BALANCE, lenderBalance);
+        if (ret == UBSE_OK) {
+            UBSE_LOG_WARN << "Config 'lender.balance' is deprecated, use 'scheduler.mode' instead. "
+                          << "Current: lender.balance=" << lenderBalance;
+            schedulerMode_ = lenderBalance ? SchedulerMode::ReliabilityPriority : SchedulerMode::FreePriority;
+            UBSE_LOG_INFO << "Config ubse.memory.scheduler.mode (from lender.balance)="
+                          << (lenderBalance ? "reliability-priority" : "free-priority");
+            return;
+        }
+        UBSE_LOG_WARN << "Config ubse.memory.scheduler.mode not found, use default=free-priority";
+        schedulerMode_ = SchedulerMode::FreePriority;
+        return;
     }
+    if (modeStr == "reliability-priority") {
+        schedulerMode_ = SchedulerMode::ReliabilityPriority;
+    } else if (modeStr == "performance-priority") {
+        schedulerMode_ = SchedulerMode::PerformancePriority;
+    } else if (modeStr == "free-priority") {
+        schedulerMode_ = SchedulerMode::FreePriority;
+    } else {
+        UBSE_LOG_WARN << "Unknown scheduler.mode=" << modeStr << ", fallback to free-priority";
+        schedulerMode_ = SchedulerMode::FreePriority;
+    }
+    UBSE_LOG_INFO << "Config ubse.memory.scheduler.mode=" << modeStr;
+}
+
+void SchedulerNodeManager::InitBandwidthTolerance(uint32_t blockSize)
+{
+    auto confModule = context::UbseContext::GetInstance().GetModule<config::UbseConfModule>();
+    if (confModule == nullptr) {
+        bandwidthTolerance_ = NO_2 * blockSize;
+        UBSE_LOG_INFO << "Config bandwidth.tolerance not set (confModule null), default=" << bandwidthTolerance_;
+        return;
+    }
+    uint32_t tolerance = 0;
+    auto ret = confModule->GetConf<uint32_t>(CONF_MEM_SECTION, CONF_BANDWIDTH_TOLERANCE, tolerance);
+    if (ret != UBSE_OK) {
+        bandwidthTolerance_ = NO_2 * blockSize;
+        UBSE_LOG_INFO << "Config bandwidth.tolerance not set, default=" << bandwidthTolerance_;
+        return;
+    }
+    if (tolerance < blockSize) {
+        UBSE_LOG_WARN << "Config bandwidth.tolerance=" << tolerance << " < blockSize=" << blockSize << ", fallback to "
+                      << (NO_2 * blockSize);
+        bandwidthTolerance_ = NO_2 * blockSize;
+    } else {
+        bandwidthTolerance_ = tolerance;
+    }
+    UBSE_LOG_INFO << "Config bandwidth.tolerance=" << bandwidthTolerance_;
 }
 
 void SchedulerNodeManager::InitPageSize()
@@ -288,6 +336,10 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
         }
         UpdateProviderNodeList(nodeInfo.nodeId, nodeInfo.hostName);
         UpdateGroupNodeList(nodeInfo.nodeId, nodeInfo.hostName);
+        // 使用首个节点的 blockSize 初始化 bandwidthTolerance
+        if (bandwidthTolerance_ == 0) {
+            InitBandwidthTolerance(nodeInfo.blockSize);
+        }
     }
     auto& nodeData = nodeMap_[nodeInfo.nodeId];
     nodeData->UpdateNodeClusterState(nodeInfo.clusterState);

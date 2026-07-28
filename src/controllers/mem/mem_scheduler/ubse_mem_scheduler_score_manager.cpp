@@ -16,6 +16,7 @@
 #include "ubse_logger.h"
 
 #include "scheduler_score/ubse_mem_scheduler_balance_score.h"
+#include "scheduler_score/ubse_mem_scheduler_borrow_bandwidth_score.h"
 #include "scheduler_score/ubse_mem_scheduler_borrow_reliability_score.h"
 #include "scheduler_score/ubse_mem_scheduler_divide_numa_score.h"
 #include "scheduler_score/ubse_mem_scheduler_latency_score.h"
@@ -41,6 +42,7 @@ UbseResult SchedulerScoreManager::Init()
     RegisterScore(std::make_unique<ReliabilityBalanceScore>());
     RegisterScore(std::make_unique<BorrowReliabilityScore>());
     RegisterScore(std::make_unique<ShareReliabilityScore>());
+    RegisterScore(std::make_unique<BorrowBandwidthScore>());
     RegisterScore(std::make_unique<DivideNumaScore>());
     UBSE_LOG_INFO << "Register scores: " << scoreMap_.size();
     return UBSE_OK;
@@ -84,6 +86,9 @@ double SchedulerScoreManager::GetWeightFor(const std::string& name, const ScoreW
     }
     if (name == "DivideNumaScore") {
         return weights.wDivideNuma;
+    }
+    if (name == "BorrowBandwidthScore") {
+        return weights.wBandwidth;
     }
     return 0.0;
 }

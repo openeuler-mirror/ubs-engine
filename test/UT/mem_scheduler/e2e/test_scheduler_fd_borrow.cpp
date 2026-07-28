@@ -1606,7 +1606,7 @@ TEST_F(TestSchedulerEndToEnd, SocketFreeMem_PipelineReject)
 // ==================== FD + 1Dfullmesh (LinkPortDownFilter) ====================
 
 /**
- * @brief 用例 32: FDBorrow1DFullmesh_PeerSocketDown
+ * @brief 用例 32: FdBorrow1DFullmesh_PeerSocketDown
  *
  * 1Dfullmesh 下 node2 socket36 端口 DOWN，socket276 正常。LinkPortDownFilter 过滤掉 socket36，从 socket276 出借。
  *
@@ -1624,7 +1624,7 @@ TEST_F(TestSchedulerEndToEnd, SocketFreeMem_PipelineReject)
  *   2. exportNumaInfos[0].nodeId == "2"
  *   3. exportNumaInfos[0].socketId == 276（socket36 被 LinkPortDownFilter 过滤）
  */
-TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_PeerSocketDown)
+TEST_F(TestSchedulerEndToEnd, FdBorrow1DFullmesh_PeerSocketDown)
 {
     std::unordered_map<std::string, UbseNodeInfo> nodeMap;
     SetupTwoNodeFD1DFullmesh(nodeMap, false, true);
@@ -1640,14 +1640,14 @@ TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_PeerSocketDown)
 }
 
 /**
- * @brief 用例 33: FDBorrow1DFullmesh_AllSocketsDown
+ * @brief 用例 33: FdBorrow1DFullmesh_AllSocketsDown
  *
  * 1Dfullmesh 下 node2 所有 socket 端口 DOWN，LinkPortDownFilter 清空所有候选。
  *
  * 预期输出:
  *   1. 返回值 != UBSE_OK
  */
-TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_AllSocketsDown)
+TEST_F(TestSchedulerEndToEnd, FdBorrow1DFullmesh_AllSocketsDown)
 {
     std::unordered_map<std::string, UbseNodeInfo> nodeMap;
     SetupTwoNodeFD1DFullmesh(nodeMap, false, false);
@@ -1657,7 +1657,7 @@ TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_AllSocketsDown)
 }
 
 /**
- * @brief 用例 34: FDBorrow1DFullmesh_MultiNodePartition
+ * @brief 用例 34: FdBorrow1DFullmesh_MultiNodePartition
  *
  * 3 节点，node1↔node2 可达，node1↔node3 不通。LinkPortDownFilter 过滤不可达的 node3。
  *
@@ -1665,7 +1665,7 @@ TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_AllSocketsDown)
  *   1. 返回值 == UBSE_OK
  *   2. exportNumaInfos[0].nodeId == "2"
  */
-TEST_F(TestSchedulerEndToEnd, FDBorrow1DFullmesh_MultiNodePartition)
+TEST_F(TestSchedulerEndToEnd, FdBorrow1DFullmesh_MultiNodePartition)
 {
     auto nodeMap = CreateNodeMap(3);
     // node1 ↔ node2 full mesh

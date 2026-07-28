@@ -11,33 +11,14 @@
  */
 #include "ubse_mem_scheduler_request.h"
 
-#include "ubse_conf_module.h"
-#include "ubse_context.h"
 #include "ubse_logger.h"
 #include "ubse_math_util.h"
+#include "ubse_mem_scheduler_node_manager.h"
 
 namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
-namespace {
-
-constexpr char CONF_MEM_SECTION[] = "ubse.memory";
-constexpr char CONF_LENDER_BALANCE[] = "lender.balance";
-
-bool IsLenderBalanceEnabled()
-{
-    auto confModule = context::UbseContext::GetInstance().GetModule<config::UbseConfModule>();
-    if (confModule == nullptr) {
-        return false;
-    }
-    bool lenderBalance = false;
-    confModule->GetConf<bool>(CONF_MEM_SECTION, CONF_LENDER_BALANCE, lenderBalance);
-    return lenderBalance;
-}
-
-} // namespace
-
-SchedulerRequest SchedulerRequest::FromFdBorrowReq(const adapter_plugins::mmi::UbseMemFdBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromFdBorrow(const adapter_plugins::mmi::UbseMemFdBorrowReq& req)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
@@ -72,21 +53,12 @@ SchedulerRequest SchedulerRequest::FromFdBorrowReq(const adapter_plugins::mmi::U
         schedulerReq.filterNames_.emplace_back("SpecifiedLenderFilter");
     }
 
-    schedulerReq.scoreNames_ = {
-        "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
-    };
-    if (IsLenderBalanceEnabled()) {
-        schedulerReq.scoreNames_[3] = "ReliabilityBalanceScore";
-        schedulerReq.weights_ = ScoreWeights::ForLenderBalance();
-    } else {
-        schedulerReq.weights_ = ScoreWeights::ForBorrow();
-    }
     schedulerReq.requestMode_ = RequestMode::BORROW;
 
     return schedulerReq;
 }
 
-SchedulerRequest SchedulerRequest::FromNumaBorrowReq(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromNumaBorrow(const adapter_plugins::mmi::UbseMemNumaBorrowReq& req)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
@@ -134,21 +106,12 @@ SchedulerRequest SchedulerRequest::FromNumaBorrowReq(const adapter_plugins::mmi:
         schedulerReq.params_["affinitySocketId"] = req.srcSocket;
     }
 
-    schedulerReq.scoreNames_ = {
-        "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
-    };
-    if (IsLenderBalanceEnabled()) {
-        schedulerReq.scoreNames_[3] = "ReliabilityBalanceScore";
-        schedulerReq.weights_ = ScoreWeights::ForLenderBalance();
-    } else {
-        schedulerReq.weights_ = ScoreWeights::ForBorrow();
-    }
     schedulerReq.requestMode_ = RequestMode::BORROW;
 
     return schedulerReq;
 }
 
-SchedulerRequest SchedulerRequest::FromAddrBorrowReq(const adapter_plugins::mmi::UbseMemAddrBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromAddrBorrow(const adapter_plugins::mmi::UbseMemAddrBorrowReq& req)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
@@ -176,17 +139,13 @@ SchedulerRequest SchedulerRequest::FromAddrBorrowReq(const adapter_plugins::mmi:
         schedulerReq.filterNames_.emplace_back("SpecifiedLenderFilter");
     }
 
-    schedulerReq.scoreNames_ = {
-        "LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore", "DivideNumaScore",
-    };
-    schedulerReq.weights_ = ScoreWeights::ForBorrow();
     schedulerReq.requestMode_ = RequestMode::BORROW;
     schedulerReq.params_["isAddr"] = true;
 
     return schedulerReq;
 }
 
-SchedulerRequest SchedulerRequest::FromShareBorrowReq(const adapter_plugins::mmi::UbseMemShareBorrowReq& req)
+SchedulerRequest SchedulerRequest::BuildFromShareBorrow(const adapter_plugins::mmi::UbseMemShareBorrowReq& req)
 {
     SchedulerRequest schedulerReq;
     schedulerReq.name_ = req.name;
@@ -215,13 +174,42 @@ SchedulerRequest SchedulerRequest::FromShareBorrowReq(const adapter_plugins::mmi
         schedulerReq.filterNames_.emplace_back("SpecifiedLenderFilter");
     }
 
-    schedulerReq.scoreNames_ = {
-        "LatencyScore", "RegionBalanceScore", "BalanceScore", "ShareReliabilityScore", "DivideNumaScore",
-    };
     schedulerReq.requestMode_ = RequestMode::SHARE;
-    schedulerReq.weights_ = ScoreWeights::ForShare();
 
     return schedulerReq;
+}
+
+SchedulerRequest SchedulerRequest::SetupFromNodeConf(SchedulerRequest&& req, SchedulerNodeManager* info)
+{
+    if (req.requestMode_ == RequestMode::SHARE) {
+        req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "ShareReliabilityScore",
+                           "DivideNumaScore"};
+        req.weights_ = ScoreWeights::ForShare();
+        return std::move(req);
+    }
+    auto mode = info->GetSchedulerMode();
+    switch (mode) {
+        case SchedulerMode::FreePriority:
+            req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowReliabilityScore",
+                               "DivideNumaScore"};
+            req.weights_ = ScoreWeights::ForBorrow();
+            break;
+        case SchedulerMode::ReliabilityPriority:
+            req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "ReliabilityBalanceScore",
+                               "DivideNumaScore"};
+            req.weights_ = ScoreWeights::ForLenderBalance();
+            req.params_["lenderBalance"] = true;
+            break;
+        case SchedulerMode::PerformancePriority:
+            req.scoreNames_ = {"LatencyScore", "RegionBalanceScore", "BalanceScore", "BorrowBandwidthScore",
+                               "DivideNumaScore"};
+            req.weights_ = ScoreWeights::ForPerformancePriority();
+            req.params_["schedulerMode"] = std::string("performance-priority");
+            break;
+        default:
+            break;
+    }
+    return std::move(req);
 }
 
 } // namespace ubse::mem::scheduler

@@ -23,6 +23,7 @@ struct ScoreWeights {
     double wBalance{0.53};
     double wReliability{0.13};
     double wDivideNuma{0.08};
+    double wBandwidth{0.0};
 
     static ScoreWeights ForBorrow()
     {
@@ -37,6 +38,7 @@ struct ScoreWeights {
         w.wBalance = 0.52;
         w.wReliability = 0.12;
         w.wDivideNuma = 0.12;
+        w.wBandwidth = 0.0;
         return w;
     }
 
@@ -48,6 +50,19 @@ struct ScoreWeights {
         w.wBalance = 0.13;
         w.wReliability = 0.53;
         w.wDivideNuma = 0.08;
+        w.wBandwidth = 0.0;
+        return w;
+    }
+
+    static ScoreWeights ForPerformancePriority()
+    {
+        ScoreWeights w;
+        w.wLatency = 0.08;
+        w.wRegionBalance = 0.08;
+        w.wBalance = 0.25;
+        w.wBandwidth = 0.52;
+        w.wReliability = 0.0;
+        w.wDivideNuma = 0.07;
         return w;
     }
 };

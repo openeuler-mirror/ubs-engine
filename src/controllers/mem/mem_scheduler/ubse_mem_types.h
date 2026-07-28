@@ -18,6 +18,14 @@
 #include "ubse_node_controller.h"
 
 namespace ubse::mem::scheduler {
+
+enum class SchedulerMode
+{
+    FreePriority,
+    ReliabilityPriority,
+    PerformancePriority
+};
+
 using UbseNodeInfo = ubse::nodeController::UbseNodeInfo;
 using UbseNumaInfo = ubse::nodeController::UbseNumaInfo;
 using UbseAllocator = ubse::nodeController::UbseAllocator;

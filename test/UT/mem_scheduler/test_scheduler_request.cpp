@@ -23,9 +23,9 @@ using namespace ubse::adapter_plugins::mmi;
 constexpr uint64_t KB = 1024ULL;
 constexpr uint64_t MB = KB * 1024;
 
-// ==================== FromFdBorrowReq ====================
+// ==================== BuildFromFdBorrow ====================
 
-TEST_F(TestSchedulerRequest, FromFdBorrowReqMapsFields)
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowMapsFields)
 {
     UbseMemFdBorrowReq req{};
     req.name = "r1";
@@ -34,7 +34,7 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqMapsFields)
     req.size = 128 * MB;
     req.candidateNodeList = {"3"};
 
-    auto result = SchedulerRequest::FromFdBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromFdBorrow(req);
 
     EXPECT_EQ(result.name_, "r1");
     EXPECT_EQ(result.requestNodeId_, "1");
@@ -44,7 +44,7 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqMapsFields)
     EXPECT_EQ(result.requestMode_, RequestMode::BORROW);
 }
 
-TEST_F(TestSchedulerRequest, FromFdBorrowReqFilterChain)
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowFilterChain)
 {
     UbseMemFdBorrowReq req{};
     req.name = "r1";
@@ -52,7 +52,7 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqFilterChain)
     req.importNodeId = "2";
     req.size = 128 * MB;
 
-    auto result = SchedulerRequest::FromFdBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromFdBorrow(req);
 
     EXPECT_TRUE(result.filterNames_.size() >= 12);
     EXPECT_EQ(result.filterNames_[0], "ConfigConsistencyFilter");
@@ -60,7 +60,7 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqFilterChain)
     EXPECT_EQ(result.filterNames_[2], "LenderRoleFilter");
 }
 
-TEST_F(TestSchedulerRequest, FromFdBorrowReqWithCandidate)
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowWithCandidate)
 {
     UbseMemFdBorrowReq req{};
     req.name = "r1";
@@ -69,13 +69,13 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqWithCandidate)
     req.size = 128 * MB;
     req.candidateNodeList = {"2", "3"};
 
-    auto result = SchedulerRequest::FromFdBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromFdBorrow(req);
 
     EXPECT_NE(std::find(result.filterNames_.begin(), result.filterNames_.end(), "RequestedProvidersFilter"),
               result.filterNames_.end());
 }
 
-TEST_F(TestSchedulerRequest, FromFdBorrowReqEmptyCandidateNoRequestedProvidersFilter)
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowEmptyCandidateNoRequestedProvidersFilter)
 {
     UbseMemFdBorrowReq req{};
     req.name = "r1";
@@ -83,13 +83,13 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqEmptyCandidateNoRequestedProvidersFi
     req.importNodeId = "2";
     req.size = 128 * MB;
 
-    auto result = SchedulerRequest::FromFdBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromFdBorrow(req);
 
     EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "RequestedProvidersFilter"),
               result.filterNames_.end());
 }
 
-TEST_F(TestSchedulerRequest, FromFdBorrowReqWithLenderLocs)
+TEST_F(TestSchedulerRequest, BuildFromFdBorrowWithLenderLocs)
 {
     UbseMemFdBorrowReq req{};
     req.name = "r1";
@@ -99,7 +99,7 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqWithLenderLocs)
     req.lenderLocs = {{"3", 0}};
     req.lenderSizes = {128 * MB};
 
-    auto result = SchedulerRequest::FromFdBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromFdBorrow(req);
 
     EXPECT_NE(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SpecifiedLenderFilter"),
               result.filterNames_.end());
@@ -109,9 +109,9 @@ TEST_F(TestSchedulerRequest, FromFdBorrowReqWithLenderLocs)
     EXPECT_EQ((*lenderInfos)[0].nodeId, "3");
 }
 
-// ==================== FromNumaBorrowReq ====================
+// ==================== BuildFromNumaBorrow ====================
 
-TEST_F(TestSchedulerRequest, FromNumaBorrowReqMapsFields)
+TEST_F(TestSchedulerRequest, BuildFromNumaBorrowMapsFields)
 {
     UbseMemNumaBorrowReq req{};
     req.name = "n1";
@@ -121,7 +121,7 @@ TEST_F(TestSchedulerRequest, FromNumaBorrowReqMapsFields)
     req.srcSocket = 36;
     req.highWatermark = 80;
 
-    auto result = SchedulerRequest::FromNumaBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromNumaBorrow(req);
 
     EXPECT_EQ(result.name_, "n1");
     EXPECT_EQ(result.requestSize_, 256 * MB);
@@ -129,7 +129,7 @@ TEST_F(TestSchedulerRequest, FromNumaBorrowReqMapsFields)
     EXPECT_EQ(result.GetParamOpt<int>("affinitySocketId"), 36);
 }
 
-TEST_F(TestSchedulerRequest, FromNumaBorrowReqAddsSocketAffinityFilter)
+TEST_F(TestSchedulerRequest, BuildFromNumaBorrowAddsSocketAffinityFilter)
 {
     UbseMemNumaBorrowReq req{};
     req.name = "n1";
@@ -138,13 +138,13 @@ TEST_F(TestSchedulerRequest, FromNumaBorrowReqAddsSocketAffinityFilter)
     req.size = 256 * MB;
     req.srcSocket = 36;
 
-    auto result = SchedulerRequest::FromNumaBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromNumaBorrow(req);
 
     EXPECT_NE(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
               result.filterNames_.end());
 }
 
-TEST_F(TestSchedulerRequest, FromNumaBorrowReqNoSrcSocket)
+TEST_F(TestSchedulerRequest, BuildFromNumaBorrowNoSrcSocket)
 {
     UbseMemNumaBorrowReq req{};
     req.name = "n1";
@@ -153,15 +153,15 @@ TEST_F(TestSchedulerRequest, FromNumaBorrowReqNoSrcSocket)
     req.size = 256 * MB;
     req.srcSocket = -1;
 
-    auto result = SchedulerRequest::FromNumaBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromNumaBorrow(req);
 
     EXPECT_EQ(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
               result.filterNames_.end());
 }
 
-// ==================== FromShareBorrowReq ====================
+// ==================== BuildFromShareBorrow ====================
 
-TEST_F(TestSchedulerRequest, FromShareBorrowReqMapsFields)
+TEST_F(TestSchedulerRequest, BuildFromShareBorrowMapsFields)
 {
     UbseMemShareBorrowReq req{};
     req.name = "s1";
@@ -169,7 +169,7 @@ TEST_F(TestSchedulerRequest, FromShareBorrowReqMapsFields)
     req.size = 256 * MB;
     req.providerList = {"2", "3"};
 
-    auto result = SchedulerRequest::FromShareBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromShareBorrow(req);
 
     EXPECT_EQ(result.name_, "s1");
     EXPECT_EQ(result.requestSize_, 256 * MB);
@@ -177,7 +177,7 @@ TEST_F(TestSchedulerRequest, FromShareBorrowReqMapsFields)
     EXPECT_EQ(result.requestMode_, RequestMode::SHARE);
 }
 
-TEST_F(TestSchedulerRequest, FromShareBorrowReqWithAffinity)
+TEST_F(TestSchedulerRequest, BuildFromShareBorrowWithAffinity)
 {
     UbseMemShareBorrowReq req{};
     req.name = "s1";
@@ -186,7 +186,7 @@ TEST_F(TestSchedulerRequest, FromShareBorrowReqWithAffinity)
     req.withAffinity.enableCreateWithAffinity = true;
     req.withAffinity.affinitySocketId = 36;
 
-    auto result = SchedulerRequest::FromShareBorrowReq(req);
+    auto result = SchedulerRequest::BuildFromShareBorrow(req);
 
     EXPECT_NE(std::find(result.filterNames_.begin(), result.filterNames_.end(), "SocketAffinityFilter"),
               result.filterNames_.end());

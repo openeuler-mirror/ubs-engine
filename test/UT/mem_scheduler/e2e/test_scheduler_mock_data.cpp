@@ -223,6 +223,16 @@ void SetupDefaultConfig()
         .stubs()
         .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBalanceDefault))
         .will(returnValue(UBSE_OK));
+
+    // scheduler.mode not set → fallback to lender.balance
+    std::string schedulerMode;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(schedulerMode))
+        .will(returnValue(UBSE_ERROR));
+
+    // bandwidth.tolerance not set → use 2 * blockSize default
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
 }
 
 } // namespace ubse::mem::scheduler::ut

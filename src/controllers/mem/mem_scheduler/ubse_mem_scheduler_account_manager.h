@@ -94,6 +94,9 @@ public:
     [[nodiscard]] NumaBorrowInfo GetNumaBorrowInfo(const NodeId& exportNodeId, SocketId socketId,
                                                    const NodeId& importNodeId) const;
 
+    [[nodiscard]] uint64_t GetTotalLentToBorrower(const NodeId& exportNodeId, SocketId socketId,
+                                                  const NodeId& importNodeId) const;
+
     void Clear();
 
 private:

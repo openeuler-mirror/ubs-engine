@@ -171,6 +171,26 @@ NumaBorrowInfo SchedulerAccountManager::GetNumaBorrowInfo(const std::string& exp
     return info;
 }
 
+uint64_t SchedulerAccountManager::GetTotalLentToBorrower(const std::string& exportNodeId, uint32_t socketId,
+                                                         const std::string& importNodeId) const
+{
+    uint64_t total = 0;
+    for (const auto& [id, accountInfo] : borrowAccount_) {
+        if (id.nodeId != importNodeId) {
+            continue;
+        }
+        for (const auto& exportNuma : accountInfo.GetExportNumaLocs()) {
+            if (exportNuma.nodeId == exportNodeId && static_cast<uint32_t>(exportNuma.socketId) == socketId) {
+                if (!ubse::utils::SafeAdd(total, exportNuma.size, total)) {
+                    UBSE_LOG_ERROR << "Overflow when summing lent size";
+                    return UINT64_MAX / 2;
+                }
+            }
+        }
+    }
+    return total;
+}
+
 void SchedulerAccountManager::Clear()
 {
     borrowAccount_.clear();
