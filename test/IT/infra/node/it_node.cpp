@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <utility>
 
@@ -27,6 +28,52 @@ constexpr uint32_t DEFAULT_NUMA_COUNT = 2;
 constexpr uint32_t DEFAULT_CPUS_PER_NUMA = 8;
 // socket ID for each NUMA node (real hardware: 36 for socket0, 236 for socket1)
 constexpr uint32_t SOCKET_IDS[] = {36, 236};
+
+constexpr uint64_t UB_MEM_BORROW_NC_MASK = 1ULL << 0;
+constexpr uint64_t UB_MEM_BORROW_CC_MASK = 1ULL << 1;
+constexpr uint64_t UB_MEM_SHARE_NC_MASK = 1ULL << 2;
+constexpr uint64_t UB_MEM_SHARE_CC_MASK = 1ULL << 3;
+constexpr uint64_t UB_MEM_ALL_MASK = UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK | UB_MEM_SHARE_NC_MASK |
+                                     UB_MEM_SHARE_CC_MASK;
+constexpr uint64_t UB_URMA_ALL_MASK = 0xffULL << 16;
+constexpr uint64_t UB_FEATURE_ALL_MASK = UB_MEM_ALL_MASK | UB_URMA_ALL_MASK;
+
+// /sys/bus/ub/ub_feature default content: all UB features enabled.
+// Line 1 is the feature bitmask read by UbseConfModule::LoadUbFeature()
+// (parsed via std::stoull as uint64_t). Remaining lines are human-readable
+// +/- markers. Both are kept in sync by BuildUbFeatureContent().
+const std::string UB_FEATURE_DEFAULT_CONTENT = "0x00ffffff\n"
+                                               "UB Memory Borrowing(Non Cacheable)+\n"
+                                               "UB Memory Borrowing(Cacheable)+\n"
+                                               "UB Memory Sharing(Non Cacheable)+\n"
+                                               "UB Memory Sharing(Cacheable)+\n"
+                                               "URMA RTP-ROI+\nURMA RTP-ROT+\nURMA RTP-ROL+\n"
+                                               "URMA CTP-ROI+\nURMA CTP-ROT+\nURMA CTP-ROL+\n"
+                                               "URMA CTP-UNO+\nURMA UTP-UNO+\n";
+
+std::string BuildUbFeatureContent(bool borrowDisabled, bool shareNcDisabled, bool shareCcDisabled)
+{
+    uint64_t mask = UB_FEATURE_ALL_MASK;
+    if (borrowDisabled) {
+        mask &= ~(UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK);
+    }
+    if (shareNcDisabled) {
+        mask &= ~UB_MEM_SHARE_NC_MASK;
+    }
+    if (shareCcDisabled) {
+        mask &= ~UB_MEM_SHARE_CC_MASK;
+    }
+
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::setw(8) << std::setfill('0') << mask << "\n";
+    oss << "UB Memory Borrowing(Non Cacheable)" << (borrowDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Borrowing(Cacheable)" << (borrowDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Sharing(Non Cacheable)" << (shareNcDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Sharing(Cacheable)" << (shareCcDisabled ? "-" : "+") << "\n";
+    oss << "URMA RTP-ROI+\nURMA RTP-ROT+\nURMA RTP-ROL+\nURMA CTP-ROI+\n";
+    oss << "URMA CTP-ROT+\nURMA CTP-ROL+\nURMA CTP-UNO+\nURMA UTP-UNO+\n";
+    return oss.str();
+}
 
 void WriteFile(const std::string& path, const std::string& content)
 {
@@ -174,6 +221,11 @@ void ItNode::CreateSysfsTree()
 
     // /proc/net/fib_trie (empty - IP collection will fail gracefully)
     WriteFile(base + "/proc/net/fib_trie", "");
+
+    // UB feature flags: default to all features enabled.
+    // Read by UbseConfModule::LoadUbFeature() from /sys/bus/ub/ub_feature.
+    // Path is redirected to here by RedirectSysfsPath() in ubse_interface_preload.cpp.
+    WriteFile(base + "/sys/bus/ub/ub_feature", UB_FEATURE_DEFAULT_CONTENT);
 }
 
 NodeProcessConfig ItNode::BuildProcessConfig() const
@@ -404,5 +456,30 @@ std::string ItNode::GetLogFilePath() const
 std::string ItNode::GetLogFaultFilePath() const
 {
     return spec_.workDir + "/log/ubse_fault.log";
+}
+
+std::string ItNode::GetUbFeaturePath() const
+{
+    return spec_.workDir + "/sysfs/sys/bus/ub/ub_feature";
+}
+
+void ItNode::SetUbFeatureFault(bool borrowDisabled, bool shareNcDisabled, bool shareCcDisabled)
+{
+    WriteFile(GetUbFeaturePath(), BuildUbFeatureContent(borrowDisabled, shareNcDisabled, shareCcDisabled));
+}
+
+void ItNode::RestoreUbFeature()
+{
+    WriteFile(GetUbFeaturePath(), UB_FEATURE_DEFAULT_CONTENT);
+}
+
+void ItNode::RemoveUbFeatureMock()
+{
+    const std::string path = GetUbFeaturePath();
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    if (ec) {
+        IT_LOG_WARN << "Failed to remove mock ub_feature file: " << path << ", ec=" << ec.message();
+    }
 }
 } // namespace ubse::it::infra

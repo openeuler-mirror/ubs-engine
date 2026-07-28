@@ -46,7 +46,7 @@ void RunP1FaultLogBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
         // 使用numa cli传入不存在的链路，触发BORROW_CHECK_FAILED
         ubse::it::infra::ItMemCreateInfo createInfo;
         // 传入不存在的链路，触发链路检查失败
-        auto ret = cliInvoker.CreateMemoryNuma(createInfo, name, "4M", "1/1/1-2/1/1");
+        cliInvoker.CreateMemoryNuma(createInfo, name, "4M", "1/1/1-2/1/1");
     }
 
     // 等待并校验 fault log 中出现 BORROW_CHECK_FAILED (faultCode=1)
@@ -119,7 +119,6 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
     // 测试Share同名重复创建
     {
         const char* name = "it_p1_fl_name_exist_share";
-        ubs_mem_shm_desc_t shareDesc{};
         uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
         // 第一次创建成功
@@ -136,7 +135,6 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
 
         // 同名重复创建，触发 BORROW_NAME_EXIST
         IT_LOG_INFO << "[NameExist] Creating Share with duplicate name: name=" << name;
-        ubs_mem_shm_desc_t shareDesc2{};
         ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
         EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_EXISTED);
 
@@ -187,50 +185,43 @@ void RunP1FaultLogBorrowNameExist(ubse::it::infra::ItCluster& cluster)
 // BorrowChipNotSupport-01: 底层芯片不支持FD/NUMA借用 触发 BORROW_CHIP_NOT_SUPPORT，校验 ubse_fault.log
 void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster)
 {
+    auto& cliInvoker = cluster.GetCliInvoker("1");
     auto& sdk = cluster.GetSdkClient("1");
-    std::string masterNodeId;
-    auto ret = cluster.GetMasterNodeId(masterNodeId);
-    EXPECT_IT_OK(ret);
-    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
     // 清空 fault log，避免前序用例干扰
     ItFaultLogHelper::ClearFaultLog(faultLogPath);
 
-    // 测试FD借用不支持
     {
         const char* name = "it_p1_fl_chip_not_support_fd";
         ubs_mem_fd_desc_t fdDesc{};
 
         // 创建FD失败，触发 BORROW_CHIP_NOT_SUPPORT
         IT_LOG_INFO << "[BorrowChipNotSupport-01] Creating FD with chip not support: name=" << name;
-        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        auto ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
         EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
 
-        // 清理
-        ret = sdk.MemFdDelete(name);
-        ASSERT_IT_OK(ret);
+        ubse::it::infra::ItMemCreateInfo createInfo;
+        cliInvoker.CreateMemoryFd(createInfo, name, "4M");
     }
-
-    // 测试NUMA借用不支持
     {
         const char* name = "it_p1_fl_chip_not_support_numa";
         ubs_mem_numa_desc_t numaDesc{};
 
         // 创建NUMA失败，触发 BORROW_CHIP_NOT_SUPPORT
         IT_LOG_INFO << "[BorrowChipNotSupport-01] Creating NUMA with chip not support: name=" << name;
-        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        auto ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
         EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
 
-        // 清理
-        ret = sdk.MemNumaDelete(name);
-        ASSERT_IT_OK(ret);
+        ubse::it::infra::ItMemCreateInfo createInfo;
+        cliInvoker.CreateMemoryNuma(createInfo, name, "4M");
     }
 
     // 统一等待并获取所有BORROW_CHIP_NOT_SUPPORT类型的fault log (faultCode=3)
     auto entries = ItFaultLogHelper::WaitForFaultLog(
-        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0003"; }, 2); // 等待2条日志
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0003"; }, 4); // 等待4条日志
 
     // 校验日志总数
-    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0003, got "
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entries with ErrorCode=ubse_borrow_0003, got "
                                   << entries.size();
 
     // 校验FD类型日志
@@ -239,17 +230,38 @@ void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
     EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
     EXPECT_EQ(fdEntry.requestNode, "1") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 11u); //UB_FEATURE_NOT_SUPPORTED
     EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
     EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
 
+    // 校验FD类型日志
+    const auto& fdEntry1 = entries[1];
+    EXPECT_EQ(fdEntry1.requestName, "it_p1_fl_chip_not_support_fd") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry1.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry1.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry1.requestNode, "1") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry1.adviceCode, 11u); //UB_FEATURE_NOT_SUPPORTED
+    EXPECT_FALSE(fdEntry1.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry1.advice.empty()) << "FD advice is empty";
+
     // 校验NUMA类型日志
-    const auto& numaEntry = entries[1];
+    const auto& numaEntry = entries[2];
     EXPECT_EQ(numaEntry.requestName, "it_p1_fl_chip_not_support_numa") << "NUMA requestName mismatch";
     EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
     EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
     EXPECT_EQ(numaEntry.requestNode, "1") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 11u); //UB_FEATURE_NOT_SUPPORTED
     EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    const auto& numaEntry1 = entries[3];
+    EXPECT_EQ(numaEntry1.requestName, "it_p1_fl_chip_not_support_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry1.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry1.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry1.requestNode, "1") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry1.adviceCode, 11u); //UB_FEATURE_NOT_SUPPORTED
+    EXPECT_FALSE(numaEntry1.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry1.advice.empty()) << "NUMA advice is empty";
 }
 
 // BorrowScheduleFailed-01: FD/NUMA/Share 借用调度失败 触发 BORROW_SCHEDULE_FAILED，校验 ubse_fault.log
@@ -284,7 +296,6 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
 
     {
         const char* name = "it_p1_fl_br_schedule_failed_numa";
-        ubs_mem_numa_desc_t numaDesc{};
 
         // 创建NUMA失败，触发 BORROW_SCHEDULE_FAILED
         IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating NUMA with schedule failed: name=" << name;
@@ -294,7 +305,6 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
 
     {
         const char* name = "it_p1_fl_br_schedule_failed_share";
-        ubs_mem_shm_desc_t shareDesc{};
         uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
         // 创建Share失败，触发 BORROW_SCHEDULE_FAILED
@@ -364,7 +374,6 @@ void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster)
 
     {
         const char* name = "it_p1_fl_share_br_check_failed";
-        ubs_mem_shm_desc_t shareDesc{};
         uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
         uint64_t affinity_socket_id = 0;
 
@@ -412,7 +421,6 @@ void RunP1FaultLogShareAttachCheckFailed(ubse::it::infra::ItCluster& cluster)
     // 测试Share attach尝试attach不存在的共享内存，或请求节点不在共享域，且attach节点不是主节点
     {
         const char* name = "it_p1_fl_share_att_check_failed";
-        ubs_mem_shm_desc_t shareDesc{};
         uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
         // 创建共享内存，共享域包含节点1和节点2
@@ -579,6 +587,124 @@ void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty());
 }
 
+// P1-FaultLog-ShareChipNotSupported-01: 底层芯片不支持Shared attach 触发 SHARED_CHIP_NOT_SUPPORTED
+void RunP1FaultLogShareChipNotSupported(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_share_chip_not_supported";
+
+        // SDK尝试attach共享内存
+        IT_LOG_INFO << "[ShareAttachAuthFailed-01] Attaching SHM name=" << name;
+        auto ret = sdk.MemShmAttach(name, nullptr, 0, nullptr);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试attach共享内存
+        IT_LOG_INFO << "[ShareChipNotSupported-01] Attaching SHM name=" << name;
+        ubse::it::infra::ItMemCreateInfo attachInfo;
+        cliInvoker.AttachMemory(attachInfo, name);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0020"; }, 2);
+
+    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entries with ErrorCode=ubse_borrow_0020, got "
+                                  << entries.size();
+
+    // 校验SDK创建共享内存触发SHARED_CHIP_NOT_SUPPORTED的日志
+    const auto& sdkEntry = entries[0];
+    EXPECT_EQ(sdkEntry.requestName, "it_p1_fl_share_chip_not_supported");
+    EXPECT_EQ(sdkEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(sdkEntry.requestSize, 0);
+    EXPECT_EQ(sdkEntry.requestNode, "1");
+    EXPECT_EQ(sdkEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(sdkEntry.errorInfo.empty());
+    EXPECT_FALSE(sdkEntry.advice.empty());
+
+    // 校验CLI创建共享内存触发SHARED_CHIP_NOT_SUPPORTED的日志
+    const auto& cliEntry = entries[1];
+    EXPECT_EQ(cliEntry.requestName, "it_p1_fl_share_chip_not_supported");
+    EXPECT_EQ(cliEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(cliEntry.requestSize, 0);
+    EXPECT_EQ(cliEntry.requestNode, "1");
+    EXPECT_EQ(cliEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(cliEntry.errorInfo.empty());
+    EXPECT_FALSE(cliEntry.advice.empty());
+}
+
+// P1-FaultLog-ShareChipModeNotSupported-01: 底层芯片模式不支持Share借用模式 触发 SHARED_CHIP_MODE_NOT_SUPPORTED
+void RunP1FaultLogShareChipModeNotSupported(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_share_chip_mode_not_supported";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        // SDK创建共享内存, NC模式不支持Share借用模式
+        IT_LOG_INFO << "[ShareChipModeNotSupported-01] Creating SHM name=" << name;
+        auto ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        //SDK创建共享内存, CC模式不支持Share借用模式
+        IT_LOG_INFO << "[ShareChipModeNotSupported-01] Creating SHM with mode CC: name=" << name;
+        ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0x4, &region, nullptr);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试创建共享内存
+        IT_LOG_INFO << "[ShareChipModeNotSupported-01] Creating SHM name=" << name;
+        ubse::it::infra::ItMemCreateInfo shareCreateInfo;
+        cliInvoker.CreateMemoryShare(shareCreateInfo, name, "4M", "1,2");
+    }
+
+    // 等待并校验 fault log 中出现 SHARED_CHIP_MODE_NOT_SUPPORTED (faultCode=21)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0021"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0021, got "
+                                  << entries.size();
+
+    // 校验SDK创建共享内存触发SHARED_CHIP_MODE_NOT_SUPPORTED的日志
+    const auto& sdkEntry = entries[0];
+    EXPECT_EQ(sdkEntry.requestName, "it_p1_fl_share_chip_mode_not_supported");
+    EXPECT_EQ(sdkEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(sdkEntry.requestSize, shareSize);
+    EXPECT_EQ(sdkEntry.requestNode, "1");
+    EXPECT_EQ(sdkEntry.adviceCode, 11u); // CHIP_MODE_NOT_SUPPORTED
+    EXPECT_FALSE(sdkEntry.errorInfo.empty());
+    EXPECT_FALSE(sdkEntry.advice.empty());
+
+    const auto& sdkEntry1 = entries[1];
+    EXPECT_EQ(sdkEntry1.requestName, "it_p1_fl_share_chip_mode_not_supported");
+    EXPECT_EQ(sdkEntry1.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(sdkEntry1.requestSize, shareSize);
+    EXPECT_EQ(sdkEntry1.requestNode, "1");
+    EXPECT_EQ(sdkEntry1.adviceCode, 11u); // CHIP_MODE_NOT_SUPPORTED
+    EXPECT_FALSE(sdkEntry1.errorInfo.empty());
+    EXPECT_FALSE(sdkEntry1.advice.empty());
+
+    // 校验CLI创建共享内存触发SHARED_CHIP_MODE_NOT_SUPPORTED的日志
+    const auto& cliEntry = entries[2];
+    EXPECT_EQ(cliEntry.requestName, "it_p1_fl_share_chip_mode_not_supported");
+    EXPECT_EQ(cliEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(cliEntry.requestSize, shareSize);
+    EXPECT_EQ(cliEntry.requestNode, "1");
+    EXPECT_EQ(cliEntry.adviceCode, 11u); // CHIP_MODE_NOT_SUPPORTED
+    EXPECT_FALSE(cliEntry.errorInfo.empty());
+    EXPECT_FALSE(cliEntry.advice.empty());
+}
+
 // P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
 void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster)
 {
@@ -645,6 +771,82 @@ void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(shareEntry.adviceCode, 8u); // RESOURCE_NOT_EXIST
     EXPECT_FALSE(shareEntry.errorInfo.empty());
     EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+//P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
+void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_ret_chip_not_supported_fd";
+        // SDK尝试归还不存在的共享内存，触发RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ReturnChipNotSupported-01] Returning FD name not exist: name=" << name;
+        auto ret = sdk.MemFdDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试归还不存在的共享内存，触发RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ReturnChipNotSupported-01] Returning FD name not exist: name=" << name;
+        cliInvoker.DeleteMemory(name, "fd");
+    }
+    {
+        const char* name = "it_p1_fl_ret_chip_not_supported_numa";
+        // SDK尝试归还不存在的共享内存，触发RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ReturnChipNotSupported-01] Returning NUMA name not exist: name=" << name;
+        auto ret = sdk.MemNumaDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试归还不存在的共享内存，触发RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ReturnChipNotSupported-01] Returning NUMA name not exist: name=" << name;
+        cliInvoker.DeleteMemory(name, "numa");
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0023"; }, 4);
+
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entries with ErrorCode=ubse_borrow_0023, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_chip_not_supported_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, "1");
+    EXPECT_EQ(fdEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& cliFdEntry = entries[1];
+    EXPECT_EQ(cliFdEntry.requestName, "it_p1_fl_ret_chip_not_supported_fd");
+    EXPECT_EQ(cliFdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(cliFdEntry.requestSize, 0);
+    EXPECT_EQ(cliFdEntry.requestNode, "1");
+    EXPECT_EQ(cliFdEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(cliFdEntry.errorInfo.empty());
+    EXPECT_FALSE(cliFdEntry.advice.empty());
+
+    const auto& numaEntry = entries[2];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_chip_not_supported_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, "1");
+    EXPECT_EQ(numaEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& cliNumaEntry = entries[3];
+    EXPECT_EQ(cliNumaEntry.requestName, "it_p1_fl_ret_chip_not_supported_numa");
+    EXPECT_EQ(cliNumaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(cliNumaEntry.requestSize, 0);
+    EXPECT_EQ(cliNumaEntry.requestNode, "1");
+    EXPECT_EQ(cliNumaEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(cliNumaEntry.errorInfo.empty());
+    EXPECT_FALSE(cliNumaEntry.advice.empty());
 }
 
 // P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
@@ -722,7 +924,6 @@ void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
 
     const char* name = "it_p1_fl_share_ret_region_failed";
     {
-        ubs_mem_shm_desc_t shareDesc{};
         uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
 
         // 创建共享内存，共享域包含节点1和节点2
@@ -795,5 +996,83 @@ void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(entry.adviceCode, 8u); // RESOURCE_NOT_EXIST
     EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
     EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
+}
+
+// P1-FaultLog-ShareReturnChipNotSupported-01: 底层芯片不支持Share归还 触发 SHARED_RETURN_CHIP_NOT_SUPPORTED
+void RunP1FaultLogShareReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
+{
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_share_ret_chip_not_supported";
+        // SDK尝试归还共享内存，触发SHARED_RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ShareReturnChipNotSupported-01] Returning share chip not supported: name=" << name;
+        auto ret = sdk.MemShmDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试归还共享内存，触发SHARED_RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ShareReturnChipNotSupported-01] Returning share chip not supported: name=" << name;
+        cliInvoker.DeleteMemory(name, "share");
+    }
+    {
+        const char* name = "it_p1_fl_share_detach_ret_chip_not_supported";
+        // SDK尝试detach共享内存，触发SHARED_RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ShareReturnChipNotSupported-01] Detaching share chip not supported: name=" << name;
+        auto ret = sdk.MemShmDetach(name);
+        EXPECT_IT_ERROR(ret, UBS_ERR_NOT_SUPPORTED);
+
+        // CLI尝试detach共享内存，触发SHARED_RETURN_CHIP_NOT_SUPPORTED
+        IT_LOG_INFO << "[ShareReturnChipNotSupported-01] Detaching share chip not supported: name=" << name;
+        cliInvoker.DetachMemory(name);
+    }
+
+    // 等待并校验 fault log 中出现 SHARED_RETURN_CHIP_NOT_SUPPORTED (faultCode=42)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0042"; }, 4);
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entries with ErrorCode=ubse_borrow_0042, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, "it_p1_fl_share_ret_chip_not_supported");
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, "1");
+    EXPECT_EQ(entry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
+
+    const auto& cliEntry = entries[1];
+    EXPECT_EQ(cliEntry.requestName, "it_p1_fl_share_ret_chip_not_supported");
+    EXPECT_EQ(cliEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(cliEntry.requestSize, 0);
+    EXPECT_EQ(cliEntry.requestNode, "1");
+    EXPECT_EQ(cliEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(cliEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(cliEntry.advice.empty()) << "Share advice is empty";
+
+    const auto& detachEntry = entries[2];
+    EXPECT_EQ(detachEntry.requestName, "it_p1_fl_share_detach_ret_chip_not_supported");
+    EXPECT_EQ(detachEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(detachEntry.requestSize, 0);
+    EXPECT_EQ(detachEntry.requestNode, "1");
+    EXPECT_EQ(detachEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(detachEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(detachEntry.advice.empty()) << "Share advice is empty";
+
+    const auto& cliDetachEntry = entries[3];
+    EXPECT_EQ(cliDetachEntry.requestName, "it_p1_fl_share_detach_ret_chip_not_supported");
+    EXPECT_EQ(cliDetachEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(cliDetachEntry.requestSize, 0);
+    EXPECT_EQ(cliDetachEntry.requestNode, "1");
+    EXPECT_EQ(cliDetachEntry.adviceCode, 11u); // CHIP_NOT_SUPPORTED
+    EXPECT_FALSE(cliDetachEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(cliDetachEntry.advice.empty()) << "Share advice is empty";
 }
 } // namespace ubse::it::tests::mem_borrow

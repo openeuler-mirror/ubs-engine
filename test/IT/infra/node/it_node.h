@@ -132,6 +132,30 @@ public:
     /** @brief Path to the daemon's "ubse_fault" module log file (workDir/log/ubse_fault.log). */
     std::string GetLogFaultFilePath() const;
 
+    /** @brief Path to the generated per-node ub_feature file. */
+    std::string GetUbFeaturePath() const;
+
+    /**
+     * @brief Inject UB feature fault by selectively disabling features.
+     *
+     * @param borrowDisabled  true: UB Memory Borrowing 不可用
+     * @param shareNcDisabled true: UB Memory Sharing(Non Cacheable) 不可用
+     * @param shareCcDisabled true: UB Memory Sharing(Cacheable) 不可用
+     */
+    void SetUbFeatureFault(bool borrowDisabled, bool shareNcDisabled, bool shareCcDisabled);
+
+    /** @brief Restore /sys/bus/ub/ub_feature to the default (all features enabled). */
+    void RestoreUbFeature();
+
+    /**
+     * @brief Remove the mock /sys/bus/ub/ub_feature file.
+     *
+     * Simulates the "file not found" fault: UbseConfModule::LoadUbFeature()
+     * falls back to UB_FEATURE_ALL_MASK (all features enabled) when the file
+     * cannot be opened.
+     */
+    void RemoveUbFeatureMock();
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();

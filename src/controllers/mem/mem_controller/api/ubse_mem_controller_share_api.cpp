@@ -299,7 +299,8 @@ uint32_t UbseMemShareBorrow(const UbseMemShareBorrowReq& req, UbseMemOperationRe
     resp.name = name;
     resp.requestId = normalizedReq.requestId;
     if (!IsMemShareModeFeatureSupported(normalizedReq.ubseMemPrivData.cacheableFlag)) {
-        BorrowFailedAdvice({MemFault::SHARED_CHIP_MODE_NOT_SUPPORTED, name, MemType::SHM, 0, "", "", requestNodeId});
+        BorrowFailedAdvice(
+            {MemFault::SHARED_CHIP_MODE_NOT_SUPPORTED, name, MemType::SHM, req.size, "", "", requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, name, requestNodeId, MemOperationType::SHARED_BORROW);
     }
     std::vector<UbseMemShareBorrowExportObj> exportObjs;
@@ -779,7 +780,8 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
     auto lock = LoggingLockGuard(req.name + "_" + req.requestNodeId);
     resp.requestId = req.requestId;
     if (!IsMemShareFeatureSupported()) {
-        BorrowFailedAdvice({MemFault::SHARED_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        BorrowFailedAdvice(
+            {MemFault::SHARED_RETURN_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_DETACH);
     }
     if (req.unImportNodeId.empty()) {

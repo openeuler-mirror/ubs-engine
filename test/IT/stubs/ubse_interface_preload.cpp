@@ -284,6 +284,7 @@ std::string RedirectUbseConfPath(const char* path)
 constexpr const char* SYSFS_NODE_PREFIX = "/sys/devices/system/node/";
 constexpr const char* SYSFS_CPU_PREFIX = "/sys/devices/system/cpu/";
 constexpr const char* SYSFS_OBMM_PREFIX = "/sys/kernel/obmm_mempool/";
+constexpr const char* SYSFS_UB_PREFIX = "/sys/bus/ub/";
 constexpr const char* PROC_FIB_TRIE = "/proc/net/fib_trie";
 constexpr const char* UBSE_IT_SYSFS_DIR_ENV = "UBSE_IT_SYSFS_DIR";
 
@@ -304,6 +305,9 @@ std::string RedirectSysfsPath(const char* path)
         return std::string(sysfsDir) + original;
     }
     if (original.rfind(SYSFS_OBMM_PREFIX, 0) == 0) {
+        return std::string(sysfsDir) + original;
+    }
+    if (original.rfind(SYSFS_UB_PREFIX, 0) == 0) {
         return std::string(sysfsDir) + original;
     }
     if (original == PROC_FIB_TRIE) {
