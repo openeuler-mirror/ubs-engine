@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "ubse_com_cert_verify.h"
 #include "ubse_com_def.h"
 #include "ubse_com_op_code.h"
 #include "ubse_conf.h"
@@ -50,17 +51,14 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 // 对于reply的接收端，通信框架截取该值用于判断是否为错误码（StringToUbseReplyResult成功表示数据为errcode，否则认为是数据）；
 // 该值受UbseReplyResult结构定义的errcode影响，当前errcode最大字符长度是20
 constexpr int MAX_ERROR_CODE_LENGTH = 20;
-static const std::string CERT_DIR = "/var/lib/ubse/cert/";
-static const std::string SERVER_CERT_FILENAME = CERT_DIR + "server.pem";
-static const std::string TRUST_CERT_FILENAME = CERT_DIR + "trust.pem";
-static const std::string CA_CRL_FILENAME = CERT_DIR + "ca.crl";
-static const std::string SERVER_KEY_FILENAME = CERT_DIR + "server_key.pem";
-static const std::string PASSWORD_FILENAME = CERT_DIR + "key_pwd.txt";
 const std::string UBSE_CERT_SECTION = "ubse.rpc";
 const std::string UBSE_CERT_CONFIG_KEY = "cert.use";
 ubse::utils::ReadWriteLock rwHanldeMapLock;
 const std::string GET_NODE_ID_FAIL_MSG = "ERROR";
 static const size_t MAX_KEY_PASS_LENGTH = 1024;
+
+static UBSHcomPeerCertVerifyType peerCertVerifyType = VERIFY_BY_DEFAULT;
+static UBSHcomTLSCertVerifyCallback certVerifyCb = nullptr;
 
 void UbseComLinkManager::LogChannelInfo()
 {
@@ -429,6 +427,7 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
         return UBSE_ERROR;
     }
     info.SetRemoteNodeId(remoteNodeId);
+
     UbseComChannelInfo chInfo(false, chType, engineName, channelPtr, info);
     rwLock_.LockWrite();
     linkManager_.InsertChannel(chInfo);
@@ -662,16 +661,24 @@ bool UbseComEngine::SplitIp(const std::string ipPortStr, std::string& ip)
 void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions& tlsOptions)
 {
     tlsOptions.enableTls = GetEnableTlsValue();
-    // 注册证书回调
+
     tlsOptions.cfCb = std::bind(&CertCallback, std::placeholders::_1, std::placeholders::_2);
 
-    // 注册CA回调
     tlsOptions.caCb = std::bind(&CACallback, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
                                 std::placeholders::_4, std::placeholders::_5);
 
-    // 注册私钥回调
     tlsOptions.pkCb = std::bind(&PrivateKeyCallback, std::placeholders::_1, std::placeholders::_2,
                                 std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
+
+    peerCertVerifyType = VERIFY_BY_CUSTOM_FUNC;
+    certVerifyCb = CertVerifyCallback;
+
+    // 缓存本节点 nodeid，供 CertVerifyCallback 在握手时校验本端证书 otherName 是否与之匹配。
+    // TLS 开关仅由配置项 cert.use 控制，证书自校验不在初始化阶段做，而是放到握手回调中。
+    SetExpectedLocalNodeId(engineInfo_.GetNodeId());
+
+    UBSE_LOG_INFO << "RegisterTLSCallbacks: configured custom cert verification, localNodeId="
+                  << engineInfo_.GetNodeId();
 }
 
 bool CertCallback(const std::string& name, std::string& value)
@@ -737,16 +744,15 @@ bool PrivateKeyCallback(const std::string& name, std::string& value, void*& keyP
 }
 
 bool CACallback(const std::string& name, std::string& caPath, std::string& crlPath,
-                UBSHcomPeerCertVerifyType& peerCertVerifyType, UBSHcomTLSCertVerifyCallback& cb)
+                UBSHcomPeerCertVerifyType& verifyType, UBSHcomTLSCertVerifyCallback& cb)
 {
-    UBSE_LOG_INFO << "Start to load ca cert";
     caPath = TRUST_CERT_FILENAME;
-    // 检查CRL文件是否存在且可读
-    const char* crlFilename = CA_CRL_FILENAME.c_str();
-    if (access(crlFilename, F_OK | R_OK) == 0) {
+    if (access(CA_CRL_FILENAME, F_OK | R_OK) == 0) {
         crlPath = CA_CRL_FILENAME;
     }
-    peerCertVerifyType = VERIFY_BY_DEFAULT;
+
+    verifyType = peerCertVerifyType;
+    cb = certVerifyCb;
     return true;
 }
 
