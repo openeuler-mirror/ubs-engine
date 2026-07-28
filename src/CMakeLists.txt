@@ -53,7 +53,6 @@ target_link_libraries(ubse PRIVATE
         ubse_http
         ubse_vip
         ubse_election
-        ubse_mti
         syssentry
         cert_api_static
         api_server
@@ -71,6 +70,8 @@ target_link_libraries(ubse PRIVATE
         ubse_context
         ubse_plugin
         ubse_mmi
+        ubse_mti
+        ubse_utils
         ubse_node_controller_register_config
         ubse_node_controller
         ubse_ssu

@@ -68,7 +68,7 @@ std::string PluginNameFromSoPath(const std::string &path)
 void UbsePluginLoader::DiscoverAndLoad()
 {
     if (!fs::exists(PLUGIN_DIR)) {
-        UBSE_LOG_INFO << "Plugin directory does not exist: " << PLUGIN_DIR;
+        std::cout << "Plugin directory does not exist: " << PLUGIN_DIR << std::endl;
         return;
     }
 
@@ -77,7 +77,7 @@ void UbsePluginLoader::DiscoverAndLoad()
     bool admissionEnabled = (loadRet == UBSE_OK && !admission.GetAllowedPlugins().empty());
     const auto &allowedPlugins = admission.GetAllowedPlugins();
 
-    UBSE_LOG_INFO << "Scanning plugin directory: " << PLUGIN_DIR;
+    std::cout  << "Scanning plugin directory: " << PLUGIN_DIR << std::endl;
 
     for (const auto &entry : fs::directory_iterator(PLUGIN_DIR)) {
         if (!entry.is_regular_file() || !IsSoFile(entry.path().string())) {
@@ -88,22 +88,22 @@ void UbsePluginLoader::DiscoverAndLoad()
         std::string pluginName = PluginNameFromSoPath(path);
 
         if (!IsPluginAllowed(pluginName, admissionEnabled, allowedPlugins)) {
-            UBSE_LOG_INFO << "Plugin denied: " << pluginName << " (" << path << ")";
+            std::cerr << "Plugin denied: " << pluginName << " (" << path << ")" << std::endl;
             continue;
         }
 
-        UBSE_LOG_INFO << "Loading plugin: " << path;
+        std::cout  << "Loading plugin: " << path << std::endl;
         void *handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_NODELETE);
         if (!handle) {
-            UBSE_LOG_ERROR << "Failed to load " << path << ": " << dlerror();
+            std::cerr << "Failed to load " << path << ": " << dlerror() << std::endl;
             continue;
         }
 
         handles_.push_back(handle);
-        UBSE_LOG_INFO << "Successfully loaded: " << path;
+        std::cout  << "Successfully loaded: " << path << std::endl;
     }
 
-    UBSE_LOG_INFO << "Total plugins loaded: " << handles_.size();
+    std::cout  << "Total plugins loaded: " << handles_.size() << std::endl;
 }
 
 void UbsePluginLoader::UnloadAll()
@@ -112,7 +112,7 @@ void UbsePluginLoader::UnloadAll()
         dlclose(handle);
     }
     handles_.clear();
-    UBSE_LOG_INFO << "All plugins unloaded.";
+    std::cout  << "All plugins unloaded." << std::endl;
 }
 
 void DiscoverAndLoad()

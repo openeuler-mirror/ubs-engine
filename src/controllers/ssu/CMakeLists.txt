@@ -33,8 +33,7 @@ endforeach()
 
 target_include_directories(ssu_plugin PUBLIC ${SSU_PLUGIN_INCLUDES})
 
-# ubse_ssu 由主程序通过 --whole-archive 提供，插件运行时解析
-# target_link_libraries(ssu_plugin PRIVATE ubse_ssu)
+ target_link_libraries(ssu_plugin PRIVATE ubse_ssu_ipc)
 
 target_link_options(ssu_plugin PRIVATE -Wl,--allow-shlib-undefined)
 

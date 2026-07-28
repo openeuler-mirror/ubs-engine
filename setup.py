@@ -27,11 +27,15 @@ TEMP_MODELS_DIR = "temp_ubse_models"
 shutil.copytree("src/sdk/python/models", TEMP_MODELS_DIR, dirs_exist_ok=True)
 shutil.copytree("src/addons/virt_agent/sdk/python/models", TEMP_MODELS_DIR, dirs_exist_ok=True)
 
+TEMP_IPC_DIR = "temp_ubse_ipc"
+shutil.copytree("src/sdk/python/ipc", TEMP_IPC_DIR, dirs_exist_ok=True)
+
 setup(
     name="ubse",
     version="1.0.1",
     package_dir={"ubse": TEMP_DIR,
                  "ubse.ffi": TEMP_FFI_DIR,
-                 "ubse.models": TEMP_MODELS_DIR},
-    packages=["ubse", "ubse.ffi", "ubse.models"],
+                 "ubse.models": TEMP_MODELS_DIR,
+                 "ubse.ipc": TEMP_IPC_DIR},
+    packages=["ubse", "ubse.ffi", "ubse.models", "ubse.ipc"],
 )
