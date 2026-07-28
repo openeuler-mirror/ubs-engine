@@ -24,7 +24,7 @@ UbseResult ConfigConsistencyFilter::FilterNodes(std::vector<NodeInfo>& nodes, co
     for (const auto& node : nodes) {
         auto nodePtr = nodeInfo.GetNodeInfo(node.nodeId);
         if (!nodePtr) {
-            RecordWarning(std::string("GetNodeInfo failed, node=") + node.nodeId);
+            RecordError(std::string("GetNodeInfo failed, node=") + node.nodeId);
             return UBSE_SCHEDULER_ERROR_INVAL;
         }
         if (!nodePtr->IsLender()) {

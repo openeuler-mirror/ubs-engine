@@ -19,7 +19,7 @@ UbseResult RoleConflictFilter::FilterNodes(std::vector<NodeInfo>& nodes, const S
 {
     auto memNode = nodeInfo.GetNodeInfo(request.importNodeId_);
     if (!memNode) {
-        RecordWarning(std::string("GetNodeInfo failed, node=") + request.importNodeId_);
+        RecordError(std::string("GetNodeInfo failed, node=") + request.importNodeId_);
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
     if (memNode->GetLentSize() > 0) {

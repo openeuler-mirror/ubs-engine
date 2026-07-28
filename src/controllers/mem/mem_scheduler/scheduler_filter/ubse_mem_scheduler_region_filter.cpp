@@ -29,33 +29,59 @@ UbseResult RegionFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Schedul
     }
     const auto& region = regionOpt.value();
 
+    auto isClosOpt = request.GetParamOpt<bool>("isClosType");
+    bool isClos = isClosOpt.has_value() && isClosOpt.value();
+
     std::set<NodeId> regionNodes;
-    for (const auto& node : region.nodelist) {
-        std::set<NodeId> others;
-        for (const auto& other : region.nodelist) {
-            // 只考虑已注册的活跃节点，未启动节点不参与可达性检查
-            if (other.nodeId != node.nodeId && nodeInfo.GetNodeInfo(other.nodeId) != nullptr) {
-                others.insert(other.nodeId);
+    if (isClos) {
+        // CLOS 拓扑，创建共享内存节点只关心本节点和交换机是否有一个 UP 端口
+        for (const auto& node : region.nodelist) {
+            auto nodePtr = nodeInfo.GetNodeInfo(node.nodeId);
+            if (!nodePtr) {
+                RecordReject(node.nodeId, "node not registered");
+                continue;
+            }
+            bool hasUpPort = false;
+            for (const auto& [_, socket] : nodePtr->GetAllSocketInfo()) {
+                if (!socket->GetPorts().empty()) {
+                    hasUpPort = true;
+                    break;
+                }
+            }
+            if (hasUpPort) {
+                regionNodes.insert(node.nodeId);
+            } else {
+                RecordReject(node.nodeId, "all local ports are DOWN in CLOS topology");
             }
         }
-        if (others.empty()) {
-            regionNodes.insert(node.nodeId);
-            continue;
-        }
-        auto reachablePeers = nodeInfo.GetReachablePeers(node.nodeId);
-        bool canReachAll = std::all_of(others.begin(), others.end(), [&](const NodeId& target) {
-            return std::any_of(reachablePeers.begin(), reachablePeers.end(),
-                               [&](const auto& peer) { return peer.first == target; });
-        });
-        if (canReachAll) {
-            regionNodes.insert(node.nodeId);
-        } else {
-            for (const auto& target : others) {
-                bool reachable = std::any_of(reachablePeers.begin(), reachablePeers.end(),
-                                             [&](const auto& peer) { return peer.first == target; });
-                if (!reachable) {
-                    RecordWarning(std::string("RegionFilter: nodeId=") + node.nodeId +
-                                  " cannot reach region node=" + target);
+    } else {
+        // 1D full mesh组网，创建共享内存节点必须能到达其他所有节点
+        for (const auto& node : region.nodelist) {
+            std::set<NodeId> others;
+            for (const auto& other : region.nodelist) {
+                if (other.nodeId != node.nodeId && nodeInfo.GetNodeInfo(other.nodeId) != nullptr) {
+                    others.insert(other.nodeId);
+                }
+            }
+            if (others.empty()) {
+                regionNodes.insert(node.nodeId);
+                continue;
+            }
+            auto reachablePeers = nodeInfo.GetReachablePeers(node.nodeId);
+            bool canReachAll = std::all_of(others.begin(), others.end(), [&](const NodeId& target) {
+                return std::any_of(reachablePeers.begin(), reachablePeers.end(),
+                                   [&](const auto& peer) { return peer.first == target; });
+            });
+            if (canReachAll) {
+                regionNodes.insert(node.nodeId);
+            } else {
+                for (const auto& target : others) {
+                    bool reachable = std::any_of(reachablePeers.begin(), reachablePeers.end(),
+                                                 [&](const auto& peer) { return peer.first == target; });
+                    if (!reachable) {
+                        RecordWarning(std::string("RegionFilter: nodeId=") + node.nodeId +
+                                      " cannot reach region node=" + target);
+                    }
                 }
             }
         }

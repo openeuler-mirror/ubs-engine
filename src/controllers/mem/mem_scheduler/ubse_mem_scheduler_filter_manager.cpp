@@ -19,6 +19,7 @@
 #include "scheduler_filter/ubse_mem_scheduler_group_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_lend_count_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_lender_role_filter.h"
+#include "scheduler_filter/ubse_mem_scheduler_local_port_down_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_max_lent_size_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_node_state_filter.h"
 #include "scheduler_filter/ubse_mem_scheduler_provider_filter.h"
@@ -55,6 +56,7 @@ UbseResult SchedulerFilterManager::Init()
     RegisterFilter(std::make_unique<RadiusBorrowFilter>());
     RegisterFilter(std::make_unique<RadiusLenderFilter>());
     RegisterFilter(std::make_unique<RegionFilter>());
+    RegisterFilter(std::make_unique<LocalPortDownFilter>());
     RegisterFilter(std::make_unique<FreeMemoryFilter>());
     UBSE_LOG_INFO << "Register filters: " << filterMap_.size();
 

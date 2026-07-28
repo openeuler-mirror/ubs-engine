@@ -10,6 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "test_scheduler_fixture.h"
 
 namespace ubse::mem::scheduler::ut {
@@ -93,28 +94,47 @@ void SetupThreeNodeShareEnv1DFullmeshWithPartition(std::unordered_map<std::strin
     SetupMockNodeMap(nodeMap);
 }
 
+void SetupTwoNodeClosEnv(std::unordered_map<std::string, UbseNodeInfo>& nodeMap, bool node2Sock36Up,
+                         bool node2Sock276Up)
+{
+    MOCKER_CPP(&ubse::adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    nodeMap = CreateNodeMap(2);
+    nodeMap["1"].isLender = false;
+    AddPeerRelation(nodeMap["1"], "0", 0, 0);
+    AddPeerRelation(nodeMap["1"], "0", 1, 1);
+    if (node2Sock36Up) {
+        AddPeerRelation(nodeMap["2"], "0", 0, 0);
+    }
+    if (node2Sock276Up) {
+        AddPeerRelation(nodeMap["2"], "0", 1, 1);
+    }
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+}
+
 } // namespace
 
 /**
  * @brief 用例 1: ShareMemoryBorrowWillSuccess
  *
  * MemoryObjChangeHandler SCHEDULING 共享导出决策。
- * SHARE 链不含 BorrowedLenderFilter, 设节点1 isLender=false,
+ * SHARE 链不含 BorrowedLenderFilter，设节点1 isLender=false，
  * LenderNodeFilter 仅保留节点2。
  *
- * 前置状态: 两节点已注册, 节点1 非 lender, 全互联链路
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
  *
  * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. 注册两节点, 节点1 isLender=false, full-mesh peer, Mock GetAllNodes
- *   2. 构造 SHARE export obj(shmRegion=["1","2"], state:SCHEDULING)
- *   3. 调用 MemoryObjChangeHandler(obj)
+ *   1. SetupTwoNodeShareEnv：注册两节点，节点1 isLender=false，full-mesh peer，Mock GetAllNodes
+ *   2. MakeShareObj("share-export-1", BYTE_256MB)：构造 SHARE export obj，shmRegion=["1","2"]，state=SCHEDULING
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
  *   2. algoResult.exportNumaInfos[0].nodeId == "2"
- *   3. importNumaInfos 为空 (SHARE 不需要)
+ *   3. importNumaInfos 为空（SHARE 不需要）
  */
 TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWillSuccess)
 {
@@ -134,16 +154,16 @@ TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWillSuccess)
 /**
  * @brief 用例 2: ShareMemoryBorrowWithAffinity
  *
- * 指定 affinity socketId=36, NumaPlaneFilter 只保留同平面 socket。
+ * 指定 affinity socketId=36，SocketAffinityFilter 只保留同平面 socket。
  *
- * 前置状态: 两节点已注册, 节点1 非 lender, 节点2 socket36 可达
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
  *
- * 测试输入: UbseMemShareBorrowExportObj{withAffinity:{36}, state:SCHEDULING}
+ * 测试输入: UbseMemShareBorrowExportObj{withAffinity:{36}, shmRegion:["1","2"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. 注册两节点, 节点1 isLender=false, full-mesh peer, Mock GetAllNodes
- *   2. 构造 SHARE export obj(withAffinity={36}, shmRegion=["1","2"], state:SCHEDULING)
- *   3. 调用 MemoryObjChangeHandler(obj)
+ *   1. SetupTwoNodeShareEnv：注册两节点，节点1 isLender=false，full-mesh peer，Mock GetAllNodes
+ *   2. MakeShareObj(..., true)：构造 SHARE export obj，affinity=36，shmRegion=["1","2"]，state=SCHEDULING
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
@@ -164,16 +184,16 @@ TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWithAffinity)
 /**
  * @brief 用例 3: ShareMemoryBorrowWithProviderList
  *
- * 指定 providerList=["3"], CandidateFilter 只保留节点3。
+ * 指定 providerList=["3"]，RequestedProvidersFilter 只保留节点3。
  *
- * 前置状态: 四节点已注册, 均为 lender, 全互联链路
+ * 前置状态: 四节点已注册，均为 lender，全互联链路
  *
  * 测试输入: UbseMemShareBorrowExportObj{providerList:["3"], shmRegion:["1","2","3","4"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. 注册四节点, full-mesh peer, Mock GetAllNodes
- *   2. 构造 SHARE export obj(providerList=["3"], shmRegion=["1"~"4"], state:SCHEDULING)
- *   3. 调用 MemoryObjChangeHandler(obj)
+ *   1. CreateNodeMap(4)：创建四节点，full-mesh peer，注册并 Mock GetAllNodes
+ *   2. 构造 SHARE export obj（providerList=["3"]，shmRegion=["1","2","3","4"]，state=SCHEDULING）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
@@ -208,10 +228,10 @@ TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWithProviderList)
 }
 
 /**
- * @brief 用例 S4: ShareMemoryBorrowWithAffinityAndProviderList
+ * @brief 用例 4: ShareMemoryBorrowWithAffinityAndProviderList
  *
- * 组合 affinity socket=36 + providerList=["1"]，验证 NumaPlaneFilter
- * 与 CandidateFilter 联合过滤路径。
+ * 组合 affinity socket=36 + providerList=["1"]，验证 SocketAffinityFilter
+ * 与 RequestedProvidersFilter 联合过滤路径。
  *
  * 前置状态: 四节点已注册，全互联链路
  *
@@ -221,9 +241,9 @@ TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWithProviderList)
  *   }
  *
  * 操作步骤:
- *   1. 注册四节点，full-mesh peer，Mock GetAllNodes
- *   2. 构造 SHARE export obj（providerList=["1"], affinity=36, 4-node region）
- *   3. 调用 MemoryObjChangeHandler
+ *   1. CreateNodeMap(4)：创建四节点，full-mesh peer，注册并 Mock GetAllNodes
+ *   2. 构造 SHARE export obj（providerList=["1"]，affinity=36，4-node region，state=SCHEDULING）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
@@ -262,19 +282,21 @@ TEST_F(TestSchedulerEndToEnd, ShareMemoryBorrowWithAffinityAndProviderList)
 }
 
 /**
- * @brief 用例 4: ShareBorrowInHugetlbPmd
+ * @brief 用例 5: ShareBorrowInHugetlbPmd
  *
- * SHARE + HUGETLB_PMD, 验证 2M 大页计算路径。
+ * SHARE + HUGETLB_PMD，验证 2M 大页计算路径。
  *
- * 前置状态: 两节点已注册, 节点1 非 lender, allocator=HUGETLB_PMD, blockSize=64,
- *           nr_hugepages_2M=256, free_hugepages_2M=256
+ * 前置状态: 两节点已注册，节点1 非 lender，allocator=HUGETLB_PMD，blockSize=64，
+ *           nr_hugepages_2M=256，free_hugepages_2M=256，全互联链路
  *
  * 测试输入: UbseMemShareBorrowExportObj{name:"share-hugepmd", shmRegion:["1","2"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. 覆盖 allocator/pmdMapping 为 HUGETLB_PMD
- *   2. 重建注册节点, Mock GetAllNodes
- *   3. 调用 MemoryObjChangeHandler(obj)
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 覆盖 allocator/pmdMapping 为 HUGETLB_PMD，设置大页参数
+ *   3. ClearCache + 重建注册节点，Mock GetAllNodes
+ *   4. MakeShareObj("share-hugepmd", BYTE_256MB)：构造 SHARE export obj
+ *   5. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
@@ -318,10 +340,23 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowInHugetlbPmd)
 // ==================== 1Dfullmesh (LinkPortDownFilter) ====================
 
 /**
- * @brief 用例 7: ShareBorrow1DFullmesh_PeerSocketDown
+ * @brief 用例 6: ShareBorrow1DFullmesh_PeerSocketDown
  *
  * 1Dfullmesh 下 node2 socket36 端口 DOWN（无 peer 可达），socket276 正常。
- * LinkPortDownFilter 过滤掉 socket36，从 socket276 出借。
+ * LocalPortDownFilter 过滤掉 socket36，从 socket276 出借。
+ *
+ * 前置状态: 两节点已注册，1Dfullmesh 链路，socket36 down，socket276 up
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv1DFullmesh(socket36=false, socket276=true)：注册两节点，仅 socket276 有端口
+ *   2. MakeShareObj("share-1dfull-sock36down", BYTE_256MB)：构造 SHARE export obj
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].socketId == 276（socket36 被 LocalPortDownFilter 过滤）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_PeerSocketDown)
 {
@@ -339,10 +374,22 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_PeerSocketDown)
 }
 
 /**
- * @brief 用例 8: ShareBorrow1DFullmesh_AllSocketsDown
+ * @brief 用例 7: ShareBorrow1DFullmesh_AllSocketsDown
  *
  * 1Dfullmesh 下 node2 所有 socket 端口 DOWN，无可达 peer。
- * LinkPortDownFilter 过滤所有 socket，失败，无候选节点。
+ * LocalPortDownFilter 过滤所有 socket，无候选节点。
+ *
+ * 前置状态: 两节点已注册，1Dfullmesh 链路，socket36 down，socket276 down
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv1DFullmesh(socket36=false, socket276=false)：注册两节点，无端口
+ *   2. MakeShareObj("share-1dfull-alldown", BYTE_256MB)：构造 SHARE export obj
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（LocalPortDownFilter 过滤所有 socket，无候选）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_AllSocketsDown)
 {
@@ -354,10 +401,23 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_AllSocketsDown)
 }
 
 /**
- * @brief 用例 9: ShareBorrow1DFullmesh_MultiNodePartition
+ * @brief 用例 8: ShareBorrow1DFullmesh_MultiNodePartition
  *
  * 3 节点，node1 只能到达 node2，无法到达 node3。
- * LinkPortDownFilter 过滤掉不可达的 node3，从 node2 出借。
+ * LocalPortDownFilter 过滤掉不可达的 node3，从 node2 出借。
+ *
+ * 前置状态: 3 节点已注册，1Dfullmesh 链路，node1↔node2 互联，node2↔node3 互联，node1↔node3 不通
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2","3"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupThreeNodeShareEnv1DFullmeshWithPartition：注册三节点，创建 partition 拓扑
+ *   2. 构造 SHARE export obj（shmRegion=["1","2","3"]，state=SCHEDULING）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"（node3 被 LocalPortDownFilter 过滤）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_MultiNodePartition)
 {
@@ -383,54 +443,168 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow1DFullmesh_MultiNodePartition)
     EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
 }
 
+// ==================== CLOS (LocalPortDownFilter + RegionFilter) ====================
+
 /**
- * @brief 用例 13: ShareBorrowExportDestroyed
+ * @brief 用例 9: ShareBorrow_Clos_BasicSuccess
  *
- * 测试 SHARE 借用 EXPORT_DESTROYED 归还路径:
- * SCHEDULING → AddNumaLend → memLent 增加,
- * EXPORT_DESTROYED → SubNumaLend → memLent 恢复为 0。
+ * CLOS 组网，两节点所有 socket 端口 UP。
+ * RegionFilter CLOS 路径检查本端端口，两节点均合格。
+ * node1 isLender=false 被 LenderRoleFilter 过滤，node2 出借。
  *
- * 前置状态: 两节点已注册, 节点1 非 lender, 全互联链路
+ * 前置状态: CLOS 组网，IsClosType()=true，两节点已注册，节点1 非 lender，所有端口 UP
  *
- * 测试输入:
- *   步骤1: UbseMemShareBorrowExportObj{state:SCHEDULING}
- *   步骤2: 同一 obj{state:EXPORT_DESTROYED}
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. MemoryObjChangeHandler(obj) with SCHEDULING → AddNumaLend
- *   2. 验证 export 节点 NUMA memLent == exportSize
- *   3. obj{EXPORT_DESTROYED} → MemoryObjChangeHandler
- *   4. 验证 export 节点 NUMA memLent == 0
+ *   1. MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true))：Mock CLOS 组网
+ *   2. SetupTwoNodeClosEnv(nodeMap, true, true)：注册两节点，两个 socket 均有 UP 端口
+ *   3. MakeShareObj("share-clos-basic", BYTE_256MB)：构造 SHARE export obj
+ *   4. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
- *   1. 步骤3 返回值 == UBSE_OK
- *   2. 步骤4: memLent == 0
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"（RegionFilter 保留两节点，LenderRoleFilter 过滤 node1）
  */
-TEST_F(TestSchedulerEndToEnd, ShareBorrowExportDestroyed)
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_Clos_BasicSuccess)
 {
     std::unordered_map<std::string, UbseNodeInfo> nodeMap;
-    SetupTwoNodeShareEnv(nodeMap);
-    auto& impl = SchedulerImpl::GetInstance();
+    SetupTwoNodeClosEnv(nodeMap, true, true);
 
-    auto obj = MakeShareObj("share-destroy-1", BYTE_256MB);
-    ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
+    auto obj = MakeShareObj("share-clos-basic", BYTE_256MB);
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
 
-    auto exportSize = obj.algoResult.exportNumaInfos[0].size;
-    auto exportNumaId = static_cast<NumaId>(obj.algoResult.exportNumaInfos[0].numaId);
-    auto exportNuma = impl.nodeInfo_->GetNumaInfo("2", exportNumaId);
-    ASSERT_NE(exportNuma, nullptr);
-    EXPECT_EQ(exportNuma->GetMemSharedSize(), exportSize);
-
-    obj.status.state = adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
-    ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
-    EXPECT_EQ(exportNuma->GetMemSharedSize(), 0u);
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+    EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
 }
 
 /**
- * @brief 用例 11: ShareBorrow_RegionFilter_NodeNotInRegion
+ * @brief 用例 10: ShareBorrow_Clos_RegionNodeNoUpPort
+ *
+ * CLOS 组网，两节点，node2 端口全 DOWN。
+ * RegionFilter CLOS 路径检查 node2 无 UP 端口 → 拒绝。
+ * node1 isLender=false → LenderRoleFilter 拒绝。
+ * 无候选节点，调度失败。
+ *
+ * 前置状态: CLOS 组网，IsClosType()=true，两节点已注册，节点1 非 lender，node2 无端口
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true))：Mock CLOS 组网
+ *   2. SetupTwoNodeClosEnv(nodeMap, false, false)：注册两节点，node2 无 UP 端口
+ *   3. MakeShareObj("share-clos-noport", BYTE_256MB)：构造 SHARE export obj
+ *   4. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（RegionFilter 拒绝 node2，LenderRoleFilter 拒绝 node1，无候选）
+ */
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_Clos_RegionNodeNoUpPort)
+{
+    std::unordered_map<std::string, UbseNodeInfo> nodeMap;
+    SetupTwoNodeClosEnv(nodeMap, false, false);
+
+    auto obj = MakeShareObj("share-clos-noport", BYTE_256MB);
+    ASSERT_NE(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+}
+
+/**
+ * @brief 用例 11: ShareBorrow_Clos_MultiNode_PartialDown
+ *
+ * CLOS 组网，三节点，node3 端口全 DOWN。
+ * RegionFilter CLOS 路径过滤 node3，保留 node1/node2。
+ * node1 isLender=false 被 LenderRoleFilter 过滤，node2 出借。
+ *
+ * 前置状态: CLOS 组网，IsClosType()=true，三节点已注册，节点1 非 lender，node3 无端口
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2","3"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true))：Mock CLOS 组网
+ *   2. CreateNodeMap(3)：创建三节点，node1/node2 加 UP 端口，node3 无端口
+ *   3. 注册三节点，Mock GetAllNodes
+ *   4. 构造 SHARE export obj（shmRegion=["1","2","3"]，state=SCHEDULING）
+ *   5. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"（node3 被 RegionFilter 过滤，node1 被 LenderRoleFilter 过滤）
+ */
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_Clos_MultiNode_PartialDown)
+{
+    MOCKER_CPP(&ubse::adapter_plugins::smbios::UbseSmbios::IsClosType).stubs().will(returnValue(true));
+
+    auto nodeMap = CreateNodeMap(3);
+    nodeMap["1"].isLender = false;
+    AddPeerRelation(nodeMap["1"], "0", 0, 0);
+    AddPeerRelation(nodeMap["1"], "0", 1, 1);
+    AddPeerRelation(nodeMap["2"], "0", 0, 0);
+    AddPeerRelation(nodeMap["2"], "0", 1, 1);
+    // node3: no ports (all sockets DOWN)
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["3"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    adapter_plugins::mmi::UbseMemShareBorrowExportObj obj{};
+    obj.req.name = "share-clos-multi-down";
+    obj.req.requestNodeId = "1";
+    obj.req.size = BYTE_256MB;
+    for (const auto& nodeId : {"1", "2", "3"}) {
+        adapter_plugins::mmi::UbseNodeInfo ni{};
+        ni.nodeId = nodeId;
+        obj.req.shmRegion.nodelist.push_back(ni);
+    }
+    obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+    EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
+}
+
+/**
+ * @brief 用例 12: ShareBorrow_Clos_LocalPortDownFilter_SocketDown
+ *
+ * CLOS 组网，两节点，node2 的 socket36 端口 DOWN（无端口），socket276 正常。
+ * RegionFilter：node2 仍有 socket276 UP → 保留。
+ * LocalPortDownFilter：socket36 无端口 → 移除；socket276 正常 → 保留。
+ * 评分/选择落到 socket276。
+ *
+ * 前置状态: CLOS 组网，IsClosType()=true，两节点已注册，节点1 非 lender，node2 socket36 无端口
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true))：Mock CLOS 组网
+ *   2. SetupTwoNodeClosEnv(nodeMap, false, true)：注册两节点，node2 仅 socket276 有 UP 端口
+ *   3. MakeShareObj("share-clos-sockdown", BYTE_256MB)：构造 SHARE export obj
+ *   4. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].socketId == 276（socket36 被 LocalPortDownFilter 过滤）
+ */
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_Clos_LocalPortDownFilter_SocketDown)
+{
+    std::unordered_map<std::string, UbseNodeInfo> nodeMap;
+    SetupTwoNodeClosEnv(nodeMap, false, true);
+
+    auto obj = MakeShareObj("share-clos-sockdown", BYTE_256MB);
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].socketId, 276);
+    EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
+}
+/**
+ * @brief 用例 13: ShareBorrow_RegionFilter_NodeNotInRegion
  *
  * 4 节点，shmRegion.nodelist=[node1,node2,node3]（node4 不在域中）。
- * RegionFilter 过滤掉 node4，LenderNodeFilter 过滤掉 node1(isLender=false)，
+ * RegionFilter 过滤掉 node4，LenderRoleFilter 过滤掉 node1（isLender=false），
  * 仅 node2/node3 候选，调度成功。
  *
  * 前置状态: 四节点已注册，节点1 isLender=false，全互联链路
@@ -438,13 +612,13 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowExportDestroyed)
  * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2","3"], state:SCHEDULING}
  *
  * 操作步骤:
- *   1. 注册四节点，full-mesh peer，Mock GetAllNodes
- *   2. SHARE export obj（shmRegion=[node1,node2,node3], state:SCHEDULING）
- *   3. 调用 MemoryObjChangeHandler
+ *   1. CreateNodeMap(4)：创建四节点，node1 isLender=false，full-mesh peer，注册并 Mock GetAllNodes
+ *   2. 构造 SHARE export obj（shmRegion=["1","2","3"]，state=SCHEDULING）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
  *
  * 预期输出:
  *   1. 返回值 == UBSE_OK
- *   2. exportNumaInfos[0].nodeId 为 "2" 或 "3"（node4 被 RegionFilter 过滤）
+ *   2. exportNumaInfos[0].nodeId 为 "2" 或 "3"（node4 被 RegionFilter 过滤，node1 被 LenderRoleFilter 过滤）
  *   3. importNumaInfos 为空
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow_RegionFilter_NodeNotInRegion)
@@ -478,13 +652,63 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow_RegionFilter_NodeNotInRegion)
     EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
 }
 
+// ==================== RegionFilter 过滤 ====================
+
+// ==================== P2: SHM Region Empty Nodelist ====================
+
+/**
+ * @brief 用例 14: ShmRegionEmptyNodelist
+ *
+ * shmRegion.nodelist 为空，RegionFilter 移除全部节点，调度失败。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{name:"share-empty-region", shmRegion:{nodelist:[]}, state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（nodelist 为空，state=SCHEDULING）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（RegionFilter 在空 region 下移除全部节点）
+ */
+TEST_F(TestSchedulerEndToEnd, ShmRegionEmptyNodelist)
+{
+    std::unordered_map<std::string, UbseNodeInfo> nodeMap;
+    SetupTwoNodeShareEnv(nodeMap);
+
+    adapter_plugins::mmi::UbseMemShareBorrowExportObj obj{};
+    obj.req.name = "share-empty-region";
+    obj.req.requestNodeId = "1";
+    obj.req.size = BYTE_256MB;
+    // nodelist 为空
+    obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+
+    ASSERT_NE(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+}
+
 // ==================== LenderInfo (ShareBorrowWithLenderInfo) ====================
 
 /**
- * @brief 用例 14: ShareBorrowWithLenderInfo_NodeOnly
+ * @brief 用例 15: ShareBorrowWithLenderInfo_NodeOnly
  *
- * lenderInfo 仅指定 nodeId + lender_size (socketId/numaId=UINT32_MAX),
- * LenderInfoFilter 只过滤 node, 由 Score + SelectNumaByFreeMemory 自由选择 socket/numa。
+ * lenderInfo 仅指定 nodeId + lender_size（socketId/numaId=UINT32_MAX），
+ * SpecifiedLenderFilter 只过滤 node，由 Score + SelectNumaByFreeMemory 自由选择 socket/numa。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.nodeId="2"，lender_size=256MB，shmRegion=["1","2"]）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"
+ *   3. attachSocketId > 0
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NodeOnly)
 {
@@ -512,10 +736,24 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NodeOnly)
 }
 
 /**
- * @brief 用例 S1: ShareBorrowWithLenderInfo_SocketOnly
+ * @brief 用例 16: ShareBorrowWithLenderInfo_SocketOnly
  *
- * lenderInfo 指定 nodeId + socketId (numaId=UINT32_MAX),
- * LenderInfoFilter 过滤到 node2/socket36, 由 Score + SelectNumaByFreeMemory 选取 NUMA。
+ * lenderInfo 指定 nodeId + socketId（numaId=UINT32_MAX），
+ * SpecifiedLenderFilter 过滤到 node2/socket36，由 Score + SelectNumaByFreeMemory 选取 NUMA。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", socketId:36, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.nodeId="2"，socketId=36，lender_size=256MB）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"
+ *   3. attachSocketId == 36
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_SocketOnly)
 {
@@ -544,10 +782,24 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_SocketOnly)
 }
 
 /**
- * @brief 用例 S2: ShareBorrowWithLenderInfo_NumaOnly
+ * @brief 用例 17: ShareBorrowWithLenderInfo_NumaOnly
  *
- * lenderInfo 指定 nodeId + numaId (socketId=UINT32_MAX),
- * LenderInfoFilter 通过 GetSocketIdByNumaId 解析出 socketId, 精确 pin。
+ * lenderInfo 指定 nodeId + numaId（socketId=UINT32_MAX），
+ * SpecifiedLenderFilter 通过 GetSocketIdByNumaId 解析出 socketId，精确 pin。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", numaId:0, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.nodeId="2"，numaId=0，lender_size=256MB）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"
+ *   3. exportNumaInfos[0].numaId == 0
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaOnly)
 {
@@ -576,9 +828,24 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaOnly)
 }
 
 /**
- * @brief 用例 15: ShareBorrowWithLenderInfo_Pinned
+ * @brief 用例 18: ShareBorrowWithLenderInfo_Pinned
  *
- * lenderInfo 指定完整 nodeId + socketId + numaId + lender_size, 精确 pin。
+ * lenderInfo 指定完整 nodeId + socketId + numaId + lender_size，SpecifiedLenderFilter 精确 pin。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", socketId:36, numaId:0, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（完整 lenderInfo，shmRegion=["1","2"]）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. exportNumaInfos[0].nodeId == "2"
+ *   3. exportNumaInfos[0].numaId == 0
+ *   4. exportNumaInfos[0].size == BYTE_256MB
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_Pinned)
 {
@@ -609,9 +876,21 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_Pinned)
 }
 
 /**
- * @brief 用例 S3: ShareBorrowWithLenderInfo_NumaOnly_NotFound
+ * @brief 用例 19: ShareBorrowWithLenderInfo_NumaOnly_NotFound
  *
- * lenderInfo 指定不存在的 NUMA id, LenderInfoFilter 过滤后无候选。
+ * lenderInfo 指定不存在的 NUMA id（numaId=99），SpecifiedLenderFilter 过滤后无候选。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", numaId:99, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.numaId=99，shmRegion=["1","2"]）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（SpecifiedLenderFilter 无匹配 NUMA）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaOnly_NotFound)
 {
@@ -636,9 +915,21 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaOnly_NotFound)
 }
 
 /**
- * @brief 用例 16: ShareBorrowWithLenderInfo_NodeNotFound
+ * @brief 用例 20: ShareBorrowWithLenderInfo_NodeNotFound
  *
- * lenderInfo 指定不存在的节点, LenderInfoFilter 过滤后无候选。
+ * lenderInfo 指定不存在的节点（nodeId="3"），SpecifiedLenderFilter 过滤后无候选。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"3", lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.nodeId="3"，shmRegion=["1","2"]）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（SpecifiedLenderFilter 找不到 node3）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NodeNotFound)
 {
@@ -662,9 +953,24 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NodeNotFound)
 }
 
 /**
- * @brief 用例 17: ShareBorrowWithLenderInfo_InsufficientMem
+ * @brief 用例 21: ShareBorrowWithLenderInfo_InsufficientMem
  *
- * lenderInfo 指定完整位置, 但该 NUMA 空闲 hugepage 为 0, LenderInfoFilter 拒绝。
+ * lenderInfo 指定完整位置，但该 NUMA 空闲 hugepage 为 0，SpecifiedLenderFilter 拒绝。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，allocator=HUGETLB_PMD，blockSize=64，
+ *           nr_hugepages_2M=0，free_hugepages_2M=0，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", socketId:36, numaId:0, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 覆盖 allocator 为 HUGETLB_PMD，空闲大页设为 0
+ *   3. ClearCache + 重建注册节点，Mock GetAllNodes
+ *   4. 构造 SHARE export obj（完整 lenderInfo，shmRegion=["1","2"]）
+ *   5. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（SpecifiedLenderFilter 拒绝空闲大页为 0 的 NUMA）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_InsufficientMem)
 {
@@ -705,11 +1011,22 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_InsufficientMem)
 }
 
 /**
- * @brief 用例 18: ShareBorrowWithLenderInfo_NumaNotUnderSocket
+ * @brief 用例 22: ShareBorrowWithLenderInfo_NumaNotUnderSocket
  *
- * lenderInfo 指定 socketId=36, numaId=3, 但 NUMA3 属于 socket276,
- * FilterBySocketId 保留 socket36, FilterByNumaIds 移除 NUMA3 (不在 socket36 下),
- * 全部候选被过滤。
+ * lenderInfo 指定 socketId=36，numaId=3，但 NUMA3 属于 socket276，
+ * SpecifiedLenderFilter 保留 socket36，FilterByNumaIds 移除 NUMA3（不在 socket36 下），全部候选被过滤。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{lenderInfo:{nodeId:"2", socketId:36, numaId:3, lender_size:256MB}, shmRegion:["1","2"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. SetupTwoNodeShareEnv：注册两节点，full-mesh peer，Mock GetAllNodes
+ *   2. 构造 SHARE export obj（lenderInfo.socketId=36，numaId=3，shmRegion=["1","2"]）
+ *   3. MemoryObjChangeHandler(obj)：执行调度决策
+ *
+ * 预期输出:
+ *   1. 返回值 != UBSE_OK（NUMA3 不在 socket36 下，FilterByNumaIds 移除全部候选）
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaNotUnderSocket)
 {
@@ -734,12 +1051,29 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrowWithLenderInfo_NumaNotUnderSocket)
     ASSERT_NE(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
 }
 
-// ==================== SHARE STATE_FAILED ====================
+// ==================== 生命周期与状态 ====================
 
 /**
- * @brief 19: ShareBorrow_StateFailed
+ * @brief 用例 23: ShareBorrow_StateFailed
  *
- * SCHEDULING → AddNumaShare → STATE_FAILED → SubNumaShare → memShared 归零。
+ * SCHEDULING → AddNumaShare（memShared 增加）→ STATE_FAILED → SubNumaShare（memShared 归零）。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入:
+ *   步骤1: UbseMemShareBorrowExportObj{state:SCHEDULING}
+ *   步骤2: 同一 obj{state:STATE_FAILED}
+ *
+ * 操作步骤:
+ *   1. MemoryObjChangeHandler(obj) with SCHEDULING → AddNumaShare
+ *   2. 验证 export 节点 NUMA memShared == exportSize
+ *   3. obj.status.state = STATE_FAILED → MemoryObjChangeHandler → SubNumaShare
+ *   4. 验证 export 节点 NUMA memShared == 0
+ *
+ * 预期输出:
+ *   1. 步骤1 返回值 == UBSE_OK
+ *   2. 步骤3 返回值 == UBSE_OK
+ *   3. 步骤4: memShared == 0
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow_StateFailed)
 {
@@ -761,14 +1095,31 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow_StateFailed)
     EXPECT_EQ(exportNuma->GetMemSharedSize(), 0u);
 }
 
-// ==================== SHARE Account Catch-Up ====================
-
 /**
- * @brief 20: ShareBorrow_CatchUpImportAfterExport
+ * @brief 用例 24: ShareBorrow_CatchUpImportAfterExport
  *
- * SCHEDULING → EXPORT_DESTROYED（SubNumaShare, ONLY_IMPORT_EXIST）
- * → EXPORT_SUCCESS（AddNumaShare, IMPORT_EXPORT_EXIST），
+ * SCHEDULING → EXPORT_DESTROYED（SubNumaShare，ONLY_IMPORT_EXIST）
+ * → EXPORT_SUCCESS（AddNumaShare，IMPORT_EXPORT_EXIST），
  * 验证 export 销毁后可重新恢复。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入:
+ *   步骤1: UbseMemShareBorrowExportObj{state:SCHEDULING}
+ *   步骤2: 同一 obj{state:EXPORT_DESTROYED}
+ *   步骤3: 同一 obj{state:EXPORT_SUCCESS}
+ *
+ * 操作步骤:
+ *   1. MemoryObjChangeHandler(obj) with SCHEDULING → AddNumaShare（memShared = exportSize）
+ *   2. obj.status.state = EXPORT_DESTROYED → MemoryObjChangeHandler → SubNumaShare（memShared = 0）
+ *   3. obj.status.state = EXPORT_SUCCESS → MemoryObjChangeHandler → AddNumaShare（memShared = exportSize）
+ *   4. 验证 export 节点 NUMA memShared == exportSize
+ *
+ * 预期输出:
+ *   1. 步骤1 返回值 == UBSE_OK
+ *   2. 步骤2 返回值 == UBSE_OK
+ *   3. 步骤3 返回值 == UBSE_OK
+ *   4. 步骤4: memShared == exportSize
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow_CatchUpImportAfterExport)
 {
@@ -795,11 +1146,30 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow_CatchUpImportAfterExport)
 }
 
 /**
- * @brief 21: ShareBorrow_ExportFirstThenImportDestroyed
+ * @brief 用例 25: ShareBorrow_ExportFirstThenImportDestroyed
  *
  * SCHEDULING → EXPORT_DESTROYED → IMPORT_DESTROYED，
  * 验证逆序销毁路径：先 export 销毁，后 import 销毁。
  * SHARE 的 IMPORT_DESTROYED 为 no-op（无 SubNumaBorrow）。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入:
+ *   步骤1: UbseMemShareBorrowExportObj{state:SCHEDULING}
+ *   步骤2: 同一 obj{state:EXPORT_DESTROYED}
+ *   步骤3: 同一 obj{state:IMPORT_DESTROYED}
+ *
+ * 操作步骤:
+ *   1. MemoryObjChangeHandler(obj) with SCHEDULING → AddNumaShare（memShared = exportSize）
+ *   2. obj.status.state = EXPORT_DESTROYED → MemoryObjChangeHandler → SubNumaShare（memShared = 0）
+ *   3. obj.status.state = IMPORT_DESTROYED → MemoryObjChangeHandler（SHARE 的 IMPORT_DESTROYED 为 no-op）
+ *   4. 验证 export 节点 NUMA memShared == 0
+ *
+ * 预期输出:
+ *   1. 步骤1 返回值 == UBSE_OK
+ *   2. 步骤2 返回值 == UBSE_OK
+ *   3. 步骤3 返回值 == UBSE_OK
+ *   4. 步骤4: memShared == 0
  */
 TEST_F(TestSchedulerEndToEnd, ShareBorrow_ExportFirstThenImportDestroyed)
 {
@@ -825,26 +1195,49 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow_ExportFirstThenImportDestroyed)
     EXPECT_EQ(exportNuma->GetMemSharedSize(), 0u);
 }
 
-// ==================== P2: SHM Region Empty Nodelist ====================
+// ==================== 生命周期与状态 ====================
 
 /**
- * @brief 22: ShmRegionEmptyNodelist
+ * @brief 用例 26: ShareBorrowExportDestroyed
  *
- * shmRegion.nodelist 为空，RegionFilter 移除全部节点，调度失败。
+ * SHARE 借用完整销毁路径：SCHEDULING → AddNumaShare（memShared 增加）
+ * → EXPORT_DESTROYED → SubNumaShare（memShared 归零）。
+ *
+ * 前置状态: 两节点已注册，节点1 非 lender，全互联链路
+ *
+ * 测试输入:
+ *   步骤1: UbseMemShareBorrowExportObj{state:SCHEDULING}
+ *   步骤2: 同一 obj{state:EXPORT_DESTROYED}
+ *
+ * 操作步骤:
+ *   1. MemoryObjChangeHandler(obj) with SCHEDULING → AddNumaShare
+ *   2. 验证 export 节点 NUMA memShared == exportSize
+ *   3. obj.status.state = EXPORT_DESTROYED → MemoryObjChangeHandler → SubNumaShare
+ *   4. 验证 export 节点 NUMA memShared == 0
+ *
+ * 预期输出:
+ *   1. 步骤1 返回值 == UBSE_OK
+ *   2. 步骤3 返回值 == UBSE_OK
+ *   3. 步骤4: memShared == 0
  */
-TEST_F(TestSchedulerEndToEnd, ShmRegionEmptyNodelist)
+TEST_F(TestSchedulerEndToEnd, ShareBorrowExportDestroyed)
 {
     std::unordered_map<std::string, UbseNodeInfo> nodeMap;
     SetupTwoNodeShareEnv(nodeMap);
+    auto& impl = SchedulerImpl::GetInstance();
 
-    adapter_plugins::mmi::UbseMemShareBorrowExportObj obj{};
-    obj.req.name = "share-empty-region";
-    obj.req.requestNodeId = "1";
-    obj.req.size = BYTE_256MB;
-    // nodelist 为空
-    obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+    auto obj = MakeShareObj("share-destroy-1", BYTE_256MB);
+    ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
 
-    ASSERT_NE(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+    auto exportSize = obj.algoResult.exportNumaInfos[0].size;
+    auto exportNumaId = static_cast<NumaId>(obj.algoResult.exportNumaInfos[0].numaId);
+    auto exportNuma = impl.nodeInfo_->GetNumaInfo("2", exportNumaId);
+    ASSERT_NE(exportNuma, nullptr);
+    EXPECT_EQ(exportNuma->GetMemSharedSize(), exportSize);
+
+    obj.status.state = adapter_plugins::mmi::UBSE_MEM_EXPORT_DESTROYED;
+    ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
+    EXPECT_EQ(exportNuma->GetMemSharedSize(), 0u);
 }
 
 } // namespace ubse::mem::scheduler::ut
