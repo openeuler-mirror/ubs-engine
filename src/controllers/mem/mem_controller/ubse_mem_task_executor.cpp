@@ -41,7 +41,7 @@ const char* UbseMemNumaCreateOperation::GetOperationName() const
 uint32_t UbseMemNumaCreateOperation::Execute(UbseMemOperationResp& resp)
 {
     req_.importNodeId = req_.requestNodeId;
-    if (uint32_t ret = agent::UbseMemNumaBorrow(req_, resp) != UBSE_OK) {
+    if (uint32_t ret = agent::UbseMemNumaBorrow(req_, resp); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "UbseMemNumaBorrow failed," << FormatRetCode(ret);
         return ret;
     }

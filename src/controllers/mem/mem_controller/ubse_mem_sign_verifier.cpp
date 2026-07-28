@@ -144,12 +144,12 @@ UbseResult ParseResponse(const std::string& rspJson, std::string& signedData, st
         }
     }
 
-    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(doc, "signed_data", signedData) != UBSE_OK) {
+    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(doc, "signed_data", signedData); res != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse signed_data failed, " << FormatRetCode(res);
         return res;
     }
 
-    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(doc, "id", trustRingId) != UBSE_OK) {
+    if (const UbseResult res = UbseJsonUtil::GetStrFromJsonPtr(doc, "id", trustRingId); res != UBSE_OK) {
         UBSE_LOG_ERROR << "[MTI_MEM] Parse id failed, " << FormatRetCode(res);
         return res;
     }

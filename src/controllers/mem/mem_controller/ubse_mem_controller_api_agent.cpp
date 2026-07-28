@@ -236,7 +236,7 @@ UbseResult DealLinkInfo(const std::string& linkInfo, UbseMemNumaBorrowReq& numaB
             UBSE_LOG_ERROR << "Failed to conver str to int.";
             return ret;
         }
-        if (auto ret = FillLinkInfo(secondLink, numaBorrowReq) != UBSE_OK) {
+        if (auto ret = FillLinkInfo(secondLink, numaBorrowReq); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill link info.";
             return ret;
         }
@@ -247,7 +247,7 @@ UbseResult DealLinkInfo(const std::string& linkInfo, UbseMemNumaBorrowReq& numaB
             UBSE_LOG_ERROR << "Failed to conver str to int.";
             return ret;
         }
-        if (auto ret = FillLinkInfo(firstLink, numaBorrowReq) != UBSE_OK) {
+        if (auto ret = FillLinkInfo(firstLink, numaBorrowReq); ret != UBSE_OK) {
             UBSE_LOG_ERROR << "Failed to fill link info.";
             return ret;
         }
