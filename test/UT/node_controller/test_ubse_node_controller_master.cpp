@@ -3,6 +3,7 @@
  */
 
 #include "test_ubse_node_controller_master.h"
+#include "ubse_election_module.h"
 #include "ubse_node_controller_master.cpp"
 
 namespace ubse::node_controller::ut {

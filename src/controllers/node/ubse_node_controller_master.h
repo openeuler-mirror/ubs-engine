@@ -99,8 +99,6 @@ private:
 
     void UbseMasterNotifyAllAgentsAction(const std::string& nodeId, std::string action);
 
-    void UbseMasterNotifyMountedGroupMastersAction(const std::string &nodeId, const std::string &action);
-
     /**
      * 节点上报汇聚，每隔1min，打印一次节点上报记录
      */
