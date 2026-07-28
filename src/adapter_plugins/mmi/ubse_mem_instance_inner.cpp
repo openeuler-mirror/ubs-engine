@@ -689,18 +689,6 @@ UbseResult MemInstanceInnerAddrBorrow::AfterMemAddrExportExecutor(
         exportObj.status.errCode = UBSE_MMI_OBMM_OP_FAILED;
         return UBSE_MMI_OBMM_OP_FAILED;
     }
-    for (auto& item : exportNumaInfoMap) {
-        UbseMemDebtNumaInfo tmpImportDebtNumaInfo{};
-        UbseMemDebtNumaInfo tmpExportDebtNumaInfo{};
-        tmpImportDebtNumaInfo.nodeId = exportObj.req.importNodeId;
-        tmpImportDebtNumaInfo.numaId = exportObj.req.srcNuma;
-        tmpImportDebtNumaInfo.size = item.second;
-        tmpExportDebtNumaInfo.nodeId = exportObj.req.exportNodeId;
-        tmpExportDebtNumaInfo.numaId = static_cast<int64_t>(item.first);
-        tmpExportDebtNumaInfo.size = item.second;
-        exportObj.algoResult.importNumaInfos.push_back(tmpImportDebtNumaInfo);
-        exportObj.algoResult.exportNumaInfos.push_back(tmpExportDebtNumaInfo);
-    }
     return UBSE_OK;
 }
 
