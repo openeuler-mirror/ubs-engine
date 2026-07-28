@@ -575,7 +575,7 @@ UbseResult UbseMemFaultManager::DeInitMemFaultManager()
         }
         ret = UnRegisterAlarmFaultHandler(ALARM_KERNEL_REBOOT_EVENT, alarmName);
         if (ret != UBSE_OK) {
-            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister delete import ledger fault alarm (kernel reboot). "
+            UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to unregister clos import mem fault alarm (kernel reboot). "
                            << FormatRetCode(ret);
             return UBSE_ERROR;
         }

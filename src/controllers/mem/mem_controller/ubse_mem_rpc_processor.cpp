@@ -1976,8 +1976,12 @@ UbseResult UbseMemCascadeDeleteShareImportDebtsMessageHandler::Handle(const Ubse
     UBSE_LOG_INFO << "Received delete import ledger request, faultNodeId=" << faultNodeId;
 
     auto result = CascadeHandlerDeleteFaultImportDebt(faultNodeId);
+   if (result != UBSE_OK) {
+        response->data = SYNC_FAILED;
+        return result;
+    }
     response->data = SYNC_SUCCESS;
-    return result;
+    return UBSE_OK;
 }
 
 uint16_t UbseMemShareDeleteCascadeToGlobalMessageHandler::GetOpCode()
