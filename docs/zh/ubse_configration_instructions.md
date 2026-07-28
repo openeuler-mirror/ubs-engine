@@ -36,6 +36,9 @@ log.sys.type=user
 heartbeat.timeInterval=2000
 # Threshold for the number of lost standby node heartbeats. The value ranges from 3 to 20. Any invalid value will default to 3.
 heartbeat.lostThreshold=3
+# Configure the list of candidate master node IDs (comma-separated). When this is configured with at least one valid node ID, only the nodes in this list are allowed to become master, and the election.candidate switch above does not take effect. When this item is not configured, empty, or invalid, it is treated as not configured and the election.candidate switch is used instead. This item is disabled by default.
+# NOTE: All nodes in the cluster must use the same configuration value.
+# election.candidateNodes=1,2,3
 
 ```
 
@@ -65,7 +68,8 @@ section取值：[ubse.election]
 | 1  | heartbeat.timeInterval  | 发送心跳间隔时间，单位毫秒。  | 默认值：2000<br>单位：毫秒<br>取值范围：[1000, 60000]<br>参数配置取值范围之外的值会被重置为默认值。 |
 | 2  | heartbeat.lostThreshold | 备节点心跳丢失次数阈值。    | 默认值：3<br>取值范围：[3, 20]<br>参数配置取值范围之外的值会被重置为默认值。                   |
 | 3  | election.candidate | 节点是否参与选主。       | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
-| 4  | election.wait | 节点是否等待最小节点发起选主。 | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
+| 4  | election.candidateNodes | 候选主节点ID列表（逗号分隔）。<br>⚠ 集群内所有节点该配置项必须配置一致。 | 默认值：用#注释（不配置）<br>配置且非空时，仅列表内节点可升主，election.candidate 开关不再生效；<br>未配置/为空/解析非法时，回退到 election.candidate 开关。 |
+| 5  | election.wait | 节点是否等待最小节点发起选主。 | 默认值：true<br>取值范围：[true，false]<br>如果取值超过范围，则取默认值true。       |
 
 ## rpc通信配置说明
 

@@ -74,6 +74,14 @@ void HandleMasterOnlineNotification(const ElectionPkt& rcvPkt, ElectionReplyPkt&
 
 uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
+        !IsAllowedMasterNode(rcvPkt.masterId)) {
+        UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
+        reply.replyId = standbyId_;
+        reply.masterId = masterId_;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+        return 0;
+    }
     if (rcvPkt.type == ELECTION_PKT_TYPE_SELECT) {
         // 备节点拒绝所有选主报文，不管主如何，备优先会成为主
         reply.replyId = standbyId_;

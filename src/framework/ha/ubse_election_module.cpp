@@ -18,6 +18,7 @@
 #include "ubse_election_pkt_handler.h"
 #include "ubse_smbios.h"
 #include "config.h"
+#include "role/ubse_election_role.h"
 #include "role/ubse_election_role_mgr.h"
 
 namespace ubse::election {
@@ -39,6 +40,7 @@ UbseResult UbseElectionModule::Initialize()
         UBSE_LOG_INFO << "Non-clos type dected, election module will occupy com urma bonding";
         UbseNodeController::GetInstance().RegisterHostBonding();
     }
+    InitElectionConfig();
     return UBSE_OK;
 }
 

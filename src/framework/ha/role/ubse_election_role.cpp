@@ -11,10 +11,13 @@
  */
 
 #include "ubse_election_role.h"
+#include <algorithm>
 #include <iostream>
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
 #include "ubse_election_role_mgr.h"
+#include "ubse_str_util.h"
+#include "../ubse_election_node_mgr.h"
 
 namespace ubse::election {
 using namespace ubse::module;
@@ -23,6 +26,16 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
 constexpr size_t MIN_NODES_FOR_COMPARISON = 2;
 constexpr size_t SECOND_SMALLEST_INDEX = 1;
+
+namespace {
+struct ElectionConfig {
+    std::vector<std::string> candidateNodes;
+    bool hasCandidateNodes = false;
+    bool electionCandidate = true;
+    bool electionWait = true;
+};
+ElectionConfig g_electionConfig;
+} // anonymous namespace
 
 UbseResult GetBootTime(uint64_t& bootTime)
 {
@@ -189,36 +202,107 @@ uint32_t ForceElection(UBSE_ID_TYPE myselfID)
     return ELECTION_PKT_TYPE_REJECT;
 }
 
-bool GetElectionCandidate()
+std::vector<std::string> ParseCandidateNodeList(const std::string& rawValue)
+{
+    std::vector<std::string> rawNodes;
+    ubse::utils::Split(rawValue, ",", rawNodes);
+    std::vector<std::string> candidateNodes;
+    candidateNodes.reserve(rawNodes.size());
+    for (auto& node : rawNodes) {
+        auto trimmed = ubse::utils::Trim(node);
+        if (!trimmed.empty()) {
+            candidateNodes.emplace_back(std::move(trimmed));
+        }
+    }
+    return candidateNodes;
+}
+
+bool GetElectionCandidateNodesFromConf(std::vector<std::string>& candidateNodes)
+{
+    if (g_electionConfig.hasCandidateNodes) {
+        candidateNodes = g_electionConfig.candidateNodes;
+        return true;
+    }
+    return false;
+}
+
+bool IsMyselfInCandidateNodes(const std::vector<std::string>& candidateNodes)
+{
+    Node myselfNode{};
+    if (UBSE_ERROR == UbseElectionNodeMgr::GetInstance().GetMyselfNode(myselfNode)) {
+        UBSE_LOG_ERROR << "[ELECTION] IsMyselfInCandidateNodes: GetMyselfNode failed.";
+        return false;
+    }
+    return std::find(candidateNodes.begin(), candidateNodes.end(), myselfNode.id) != candidateNodes.end();
+}
+
+bool IsAllowedMasterNode(const UBSE_ID_TYPE& nodeId)
+{
+    std::vector<std::string> candidateNodes;
+    if (!GetElectionCandidateNodesFromConf(candidateNodes)) {
+        // 未配置候选主节点列表（或为空/非法），不限制主节点
+        return true;
+    }
+    return std::find(candidateNodes.begin(), candidateNodes.end(), nodeId) != candidateNodes.end();
+}
+
+bool GetElectionCandidateConfig()
+{
+    return g_electionConfig.electionCandidate;
+}
+
+void InitElectionConfig()
 {
     auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
     if (module == nullptr) {
-        UBSE_LOG_ERROR << "[ELECTION] GetRole: GetConfModule failed.";
-        return true;
+        UBSE_LOG_ERROR << "[ELECTION] InitElectionConfig: GetConfModule failed, using defaults.";
+        return;
     }
-    bool electionCandidate;
-    UbseResult ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_CANDIDATE, electionCandidate);
+
+    std::string rawValue;
+    UbseResult ret = module->GetConf<std::string>(UBSE_ELECTION_SECTION, UBSE_ELECTION_CANDIDATE_NODES, rawValue);
+    if (ret == UBSE_OK) {
+        g_electionConfig.candidateNodes = ParseCandidateNodeList(rawValue);
+        g_electionConfig.hasCandidateNodes = !g_electionConfig.candidateNodes.empty();
+        if (g_electionConfig.candidateNodes.empty()) {
+            UBSE_LOG_WARN << "[ELECTION] election.candidateNodes is empty or invalid, treated as not configured.";
+        }
+    }
+
+    ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_CANDIDATE, g_electionConfig.electionCandidate);
     if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] Get election_candidate failed, will set it true.";
-        electionCandidate = true;
+        UBSE_LOG_WARN << "[ELECTION] Get election.candidate failed, will set it true.";
+        g_electionConfig.electionCandidate = true;
     }
-    return electionCandidate;
+
+    ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_WAIT, g_electionConfig.electionWait);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "[ELECTION] Get election.wait failed, will set it true.";
+        g_electionConfig.electionWait = true;
+    }
+
+    UBSE_LOG_INFO << "[ELECTION] Config loaded: candidateNodes="
+                  << (g_electionConfig.hasCandidateNodes ? "configured" : "not configured")
+                  << ", electionCandidate=" << g_electionConfig.electionCandidate
+                  << ", electionWait=" << g_electionConfig.electionWait << ".";
+}
+
+bool GetElectionCandidate()
+{
+    std::vector<std::string> candidateNodes;
+    if (GetElectionCandidateNodesFromConf(candidateNodes)) {
+        // 配置了候选主节点列表，以该列表为准，election.candidate 开关不生效
+        bool isCandidate = IsMyselfInCandidateNodes(candidateNodes);
+        UBSE_LOG_DEBUG << "[ELECTION] election.candidateNodes takes effect, isCandidate=" << isCandidate << ".";
+        return isCandidate;
+    }
+    // 未配置候选主节点列表（或配置为空/非法），回退到原 election.candidate 开关
+    return GetElectionCandidateConfig();
 }
 
 bool GetElectionWait()
 {
-    auto module = ubse::context::UbseContext::GetInstance().GetModule<ubse::config::UbseConfModule>();
-    if (module == nullptr) {
-        UBSE_LOG_ERROR << "[ELECTION] GetRole: GetConfModule failed.";
-        return true;
-    }
-    bool electionWait;
-    UbseResult ret = module->GetConf<bool>(UBSE_ELECTION_SECTION, UBSE_ELECTION_WAIT, electionWait);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] Get election_wait failed, will set it true.";
-        electionWait = true;
-    }
-    return electionWait;
+    return g_electionConfig.electionWait;
 }
 
 bool IsHeartBeatEnabled(HeartBeatStatus status)
