@@ -54,7 +54,8 @@ public:
     uint64_t GetMaxBorrowSize() const;
     void InitPageSize();
     void InitRadiusConfig();
-    void InitLenderBalance();
+    void InitSchedulerMode();
+    void InitBandwidthTolerance(uint32_t blockSize);
 
     uint16_t GetRadiusBorrow() const
     {
@@ -66,7 +67,15 @@ public:
     }
     bool GetLenderBalance() const
     {
-        return lenderBalance_;
+        return schedulerMode_ == SchedulerMode::ReliabilityPriority;
+    }
+    SchedulerMode GetSchedulerMode() const
+    {
+        return schedulerMode_;
+    }
+    uint32_t GetBandwidthTolerance() const
+    {
+        return bandwidthTolerance_;
     }
 
     void UpdateProviderNodeList(const NodeId& nodeId, const std::string& hostName);
@@ -103,7 +112,9 @@ private:
     std::map<NodeId, std::map<SocketId, ChipId>> socketToChip_;
     SchedulerAccountManager* account_{nullptr};
     bool isPageSize64K_{false};
-    bool lenderBalance_{false};
+
+    SchedulerMode schedulerMode_{SchedulerMode::FreePriority};
+    uint32_t bandwidthTolerance_{0};
     uint16_t radiusBorrow_{UINT16_MAX};
     uint16_t radiusLender_{UINT16_MAX};
 };

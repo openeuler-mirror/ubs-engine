@@ -684,4 +684,163 @@ TEST_F(TestSchedulerEndToEnd, NumaBorrow_FaultNodeInCandidate)
     EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "3");
 }
 
+// ==================== PerformancePriority E2E ====================
+
+/**
+ * @brief 用例 16: NumaBorrowPerformancePriority_BandwidthDistribution
+ *
+ * 验证 BorrowBandwidthScore 使借出负载低的 lender 被优先选中。
+ * Phase1 用 candidateNodeList=["3"] 预加载 node3 借出量（10 次）。
+ * Phase2 无限制借用——node2（零负载）带宽评分优于 node3（高负载），应选中 node2。
+ *
+ * 前置状态: 三节点已注册（1 borrower, 2, 3 lenders），全互联链路
+ *           SetupSchedulerMode("performance-priority")
+ *
+ * 测试输入:
+ *   Phase1: UbseMemNumaBorrowImportObj×10{candidateNodeList:["3"], srcSocket:36, state:SCHEDULING}
+ *   Phase2: UbseMemNumaBorrowImportObj{srcSocket:36, state:SCHEDULING}
+ *
+ * 预期输出:
+ *   1. Phase1 10 次均返回 UBSE_OK
+ *   2. Phase2 返回值 == UBSE_OK
+ *   3. Phase2 algoResult.exportNumaInfos[0].nodeId == "2"（低负载 lender 胜出）
+ */
+TEST_F(TestSchedulerEndToEnd, NumaBorrowPerformancePriority_BandwidthDistribution)
+{
+    auto nodeMap = CreateNodeMap(3);
+    AddFullMeshPeers(nodeMap);
+    SetupSchedulerMode("performance-priority");
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["3"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    auto& impl = SchedulerImpl::GetInstance();
+
+    // Phase1: preload node3 with 10 borrows
+    for (int i = 0; i < 10; ++i) {
+        adapter_plugins::mmi::UbseMemNumaBorrowImportObj preload{};
+        preload.req.name = "bandwidth-preload-" + std::to_string(i);
+        preload.req.requestNodeId = "1";
+        preload.req.importNodeId = "1";
+        preload.req.size = BYTE_128MB;
+        preload.req.srcSocket = 36;
+        preload.req.candidateNodeList = {"3"};
+        preload.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+        ASSERT_EQ(impl.MemoryObjChangeHandler(preload), UBSE_OK);
+    }
+
+    // Phase2: borrow without restriction → should pick node2 (less loaded)
+    auto obj = MakeNumaObj("bandwidth-test", BYTE_128MB);
+    ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
+
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+}
+
+/**
+ * @brief 用例 17: NumaBorrowPerformancePriority_ToleranceBelowBlockSize
+ *
+ * bandwidth.tolerance=32 < blockSize(128)，应触发兜底为 2*blockSize=256。
+ *
+ * 前置状态: 两节点已注册（blockSize=128）, 全互联链路
+ *           SetupSchedulerMode("performance-priority", "32")
+ *
+ * 测试输入: UbseMemNumaBorrowImportObj{srcSocket:36, size:128MB, state:SCHEDULING}
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ */
+TEST_F(TestSchedulerEndToEnd, NumaBorrowPerformancePriority_ToleranceBelowBlockSize)
+{
+    auto nodeMap = CreateNodeMap(2);
+    AddFullMeshPeers(nodeMap);
+    SetupSchedulerMode("performance-priority", "32");
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    auto obj = MakeNumaObj("tolerance-below-block", BYTE_128MB);
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+}
+
+/**
+ * @brief 用例 18: NumaBorrowPerformancePriority_MultipleLendersSequential
+ *
+ * 4 节点（1 borrower + 3 lenders），连续 3 次借用（每次 256MB）。
+ * performance-priority 下 3 次借用应分散到 3 个不同 lender。
+ *
+ * 前置状态: 四节点已注册（1 borrower, 2~4 lenders），全互联链路
+ *           SetupSchedulerMode("performance-priority")
+ *
+ * 测试输入: UbseMemNumaBorrowImportObj×3{srcSocket:36, size:256MB, state:SCHEDULING}
+ *
+ * 预期输出:
+ *   1. 3 次均返回 UBSE_OK
+ *   2. 每次 algoResult.exportNumaInfos 非空
+ *   3. 3 个 lender 均被借出过
+ */
+TEST_F(TestSchedulerEndToEnd, NumaBorrowPerformancePriority_MultipleLendersSequential)
+{
+    auto nodeMap = CreateNodeMap(4);
+    AddFullMeshPeers(nodeMap);
+    SetupSchedulerMode("performance-priority");
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["3"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["4"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    auto& impl = SchedulerImpl::GetInstance();
+    std::set<std::string> usedLenders;
+
+    for (int i = 0; i < 3; ++i) {
+        adapter_plugins::mmi::UbseMemNumaBorrowImportObj obj{};
+        obj.req.name = "multi-lender-" + std::to_string(i);
+        obj.req.requestNodeId = "1";
+        obj.req.importNodeId = "1";
+        obj.req.size = BYTE_256MB;
+        obj.req.srcSocket = 36;
+        obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+
+        ASSERT_EQ(impl.MemoryObjChangeHandler(obj), UBSE_OK);
+        ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+        usedLenders.insert(obj.algoResult.exportNumaInfos[0].nodeId);
+    }
+
+    EXPECT_EQ(usedLenders.size(), 3u);
+}
+
+/**
+ * @brief 用例 19: NumaBorrowPerformancePriority_ModePrecedence
+ *
+ * 同时配置 scheduler.mode=performance-priority 和 lender.balance=true，
+ * scheduler.mode 应优先。不走 Reliability 路径（不存在 params_["lenderBalance"]）。
+ *
+ * 前置状态: 两节点已注册, 全互联链路
+ *           SetupSchedulerMode("performance-priority", "", true)
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_OK
+ *   2. algoResult.exportNumaInfos[0].nodeId == "2"
+ */
+TEST_F(TestSchedulerEndToEnd, NumaBorrowPerformancePriority_ModePrecedence)
+{
+    auto nodeMap = CreateNodeMap(2);
+    AddFullMeshPeers(nodeMap);
+    SetupSchedulerMode("performance-priority", "", true);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    auto obj = MakeNumaObj("mode-precedence", BYTE_128MB);
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_OK);
+
+    ASSERT_FALSE(obj.algoResult.exportNumaInfos.empty());
+    EXPECT_EQ(obj.algoResult.exportNumaInfos[0].nodeId, "2");
+}
+
 } // namespace ubse::mem::scheduler::ut

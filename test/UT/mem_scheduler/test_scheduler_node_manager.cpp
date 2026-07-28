@@ -166,4 +166,276 @@ TEST_F(TestSchedulerNodeManager, GetGroupNodesEmptyWithoutConfig)
     EXPECT_TRUE(mgr.GetGroupNodes("1").empty());
 }
 
+// ==================== SchedulerMode Tests ====================
+
+TEST_F(TestSchedulerNodeManager, SchedulerModeFreePriority)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    std::string modeStr = "free-priority";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(modeStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::FreePriority);
+    EXPECT_FALSE(mgr.GetLenderBalance());
+}
+
+TEST_F(TestSchedulerNodeManager, SchedulerModeReliabilityPriority)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    std::string modeStr = "reliability-priority";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(modeStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::ReliabilityPriority);
+    EXPECT_TRUE(mgr.GetLenderBalance());
+}
+
+TEST_F(TestSchedulerNodeManager, SchedulerModePerformancePriority)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    std::string modeStr = "performance-priority";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(modeStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::PerformancePriority);
+    EXPECT_FALSE(mgr.GetLenderBalance());
+}
+
+TEST_F(TestSchedulerNodeManager, SchedulerModeFallbackToLenderBalanceTrue)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    // scheduler.mode not set → fallback to lender.balance
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(std::string("")))
+        .will(returnValue(UBSE_ERROR));
+
+    bool lenderBal = true;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBal))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::ReliabilityPriority);
+    EXPECT_TRUE(mgr.GetLenderBalance());
+}
+
+TEST_F(TestSchedulerNodeManager, SchedulerModeFallbackToLenderBalanceFalse)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(std::string("")))
+        .will(returnValue(UBSE_ERROR));
+
+    bool lenderBal = false;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBal))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::FreePriority);
+    EXPECT_FALSE(mgr.GetLenderBalance());
+}
+
+TEST_F(TestSchedulerNodeManager, SchedulerModeUnknownFallbackToFreePriority)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    std::string modeStr = "unknown";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(modeStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string providerStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(providerStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string pageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(pageSize))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitSchedulerMode();
+    EXPECT_EQ(mgr.GetSchedulerMode(), SchedulerMode::FreePriority);
+    EXPECT_FALSE(mgr.GetLenderBalance());
+}
+
+// ==================== BandwidthTolerance Tests ====================
+
+TEST_F(TestSchedulerNodeManager, BandwidthToleranceValid)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    uint32_t tolerance = 256;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("bandwidth.tolerance")), outBound(tolerance))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitBandwidthTolerance(128);
+    EXPECT_EQ(mgr.GetBandwidthTolerance(), 256u);
+}
+
+TEST_F(TestSchedulerNodeManager, BandwidthToleranceBelowBlockSizeFallsBack)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    uint32_t tolerance = 64; // < blockSize(128)
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("bandwidth.tolerance")), outBound(tolerance))
+        .will(returnValue(UBSE_OK));
+
+    mgr.InitBandwidthTolerance(128);
+    EXPECT_EQ(mgr.GetBandwidthTolerance(), 256u); // 2 * 128
+}
+
+TEST_F(TestSchedulerNodeManager, BandwidthToleranceNotSetUsesDefault)
+{
+    SchedulerNodeManager mgr;
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("bandwidth.tolerance")), outBound(uint32_t(0)))
+        .will(returnValue(UBSE_ERROR));
+
+    mgr.InitBandwidthTolerance(128);
+    EXPECT_EQ(mgr.GetBandwidthTolerance(), 256u); // 2 * 128
+}
+
 } // namespace ubse::mem::scheduler::ut

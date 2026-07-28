@@ -26,6 +26,7 @@ protected:
     void SetPageSize(const std::string& pageSize);
     void SetupRadiusConfig(const std::string& radiusBorrow, const std::string& radiusLender);
     void SetupLenderBalanceConfig(bool enabled);
+    void SetupSchedulerMode(const std::string& modeStr, const std::string& tolerance = "", bool lenderBalance = false);
     void SetupFilterTestConfig(const std::string& providerStr, bool providerOk, const std::string& groupStr,
                                bool groupOk);
 };

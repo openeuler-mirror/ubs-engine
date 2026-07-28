@@ -24,21 +24,28 @@ UbseResult BalanceScore::ScoreNodes(const std::vector<NodeInfo>& nodes, const Sc
     for (const auto& node : nodes) {
         for (const auto& socketInfo : node.socketInfos) {
             double socketScore = 0.0;
+            size_t numaCount = 0;
             for (auto numaId : socketInfo.numaInfos) {
                 auto* numaPtr = nodeInfo.GetNumaInfo(node.nodeId, numaId);
                 if (numaPtr == nullptr) {
                     socketScore += 1.0;
+                    ++numaCount;
                     continue;
                 }
                 uint64_t numaTotal = numaPtr->GetMemTotalSize();
                 if (numaTotal == 0) {
                     socketScore += 1.0;
+                    ++numaCount;
                     continue;
                 }
                 uint64_t numaUsed = numaPtr->GetMemUsedSize();
                 double balance =
                     (static_cast<double>(requestSize) + static_cast<double>(numaUsed)) / static_cast<double>(numaTotal);
-                socketScore += balance;
+                socketScore += std::min(balance, 1.0);
+                ++numaCount;
+            }
+            if (numaCount > 0) {
+                socketScore /= static_cast<double>(numaCount);
             }
             scores[idx++] = socketScore;
             RecordScore(node.nodeId, std::string("socketId=") + std::to_string(socketInfo.socketId) +

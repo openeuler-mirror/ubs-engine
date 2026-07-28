@@ -56,6 +56,12 @@ void TestSchedulerEndToEnd::SetPageSize(const std::string& pageSize)
         .with(eq(std::string("ubse.memory")), eq(std::string("radius.lender")), outBound(radiusLender))
         .will(returnValue(UBSE_OK));
 
+    std::string schedulerMode;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(schedulerMode))
+        .will(returnValue(UBSE_ERROR));
+
     SchedulerImpl::GetInstance().ClearCache();
     SchedulerImpl::GetInstance().initialized_ = false;
     SchedulerImpl::GetInstance().Init();
@@ -94,6 +100,12 @@ void TestSchedulerEndToEnd::SetupRadiusConfig(const std::string& radiusBorrow, c
         .stubs()
         .with(eq(std::string("ubse.memory")), eq(std::string("radius.lender")), outBound(radiusLender))
         .will(returnValue(UBSE_OK));
+
+    std::string schedulerMode;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(schedulerMode))
+        .will(returnValue(UBSE_ERROR));
 
     SchedulerImpl::GetInstance().ClearCache();
     SchedulerImpl::GetInstance().initialized_ = false;
@@ -143,6 +155,81 @@ void TestSchedulerEndToEnd::SetupLenderBalanceConfig(bool enabled)
         .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(val))
         .will(returnValue(UBSE_OK));
 
+    // scheduler.mode not set → fallback to lender.balance
+    std::string schedulerMode;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(schedulerMode))
+        .will(returnValue(UBSE_ERROR));
+
+    // bandwidth.tolerance not set → use 2 * blockSize default
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
+
+    SchedulerImpl::GetInstance().ClearCache();
+    SchedulerImpl::GetInstance().initialized_ = false;
+    SchedulerImpl::GetInstance().Init();
+}
+
+void TestSchedulerEndToEnd::SetupSchedulerMode(const std::string& modeStr, const std::string& tolerance,
+                                               bool lenderBalance)
+{
+    MOCKER(&UbseNodeController::GetAllNodes).reset();
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>).reset();
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>).reset();
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>).reset();
+
+    auto mockConfModule = std::make_shared<config::UbseConfModule>();
+    MOCKER(&context::UbseContext::GetModule<config::UbseConfModule>).stubs().will(returnValue(mockConfModule));
+
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("provider")), outBound(std::string("")))
+        .will(returnValue(UBSE_OK));
+
+    std::string groupStr = "host-1,host-2,host-3,host-4,host-5,host-6,host-7,host-8";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("group")), outBound(groupStr))
+        .will(returnValue(UBSE_OK));
+
+    std::string defaultPageSize = "4096";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("os")), eq(std::string("page_size")), outBound(defaultPageSize))
+        .will(returnValue(UBSE_OK));
+
+    std::string radiusEmpty = "";
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("radius.borrow")), outBound(radiusEmpty))
+        .will(returnValue(UBSE_OK));
+
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("radius.lender")), outBound(radiusEmpty))
+        .will(returnValue(UBSE_OK));
+
+    MOCKER_CPP(&config::UbseConfModule::GetConf<bool>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBalance))
+        .will(returnValue(UBSE_OK));
+
+    std::string modeOut = modeStr;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(modeOut))
+        .will(returnValue(UBSE_OK));
+
+    if (!tolerance.empty()) {
+        uint32_t val = static_cast<uint32_t>(std::stoul(tolerance));
+        MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>)
+            .stubs()
+            .with(eq(std::string("ubse.memory")), eq(std::string("bandwidth.tolerance")), outBound(val))
+            .will(returnValue(UBSE_OK));
+    } else {
+        MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
+    }
+
     SchedulerImpl::GetInstance().ClearCache();
     SchedulerImpl::GetInstance().initialized_ = false;
     SchedulerImpl::GetInstance().Init();
@@ -190,6 +277,16 @@ void TestSchedulerEndToEnd::SetupFilterTestConfig(const std::string& providerStr
         .stubs()
         .with(eq(std::string("ubse.memory")), eq(std::string("lender.balance")), outBound(lenderBalanceDefault))
         .will(returnValue(UBSE_OK));
+
+    // scheduler.mode not set → fallback to lender.balance
+    std::string schedulerMode;
+    MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)
+        .stubs()
+        .with(eq(std::string("ubse.memory")), eq(std::string("scheduler.mode")), outBound(schedulerMode))
+        .will(returnValue(UBSE_ERROR));
+
+    // bandwidth.tolerance not set → use 2 * blockSize default
+    MOCKER_CPP(&config::UbseConfModule::GetConf<uint32_t>).stubs().will(returnValue(UBSE_ERROR));
 }
 
 } // namespace ubse::mem::scheduler::ut

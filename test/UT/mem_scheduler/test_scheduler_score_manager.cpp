@@ -17,6 +17,7 @@
 #include "ubse_mem_scheduler_account_manager.h"
 #include "ubse_mem_scheduler_node_manager.h"
 #include "ubse_mem_scheduler_score_manager.h"
+#include "scheduler_score/ubse_mem_scheduler_borrow_bandwidth_score.h"
 
 namespace ubse::mem::scheduler::ut {
 
@@ -192,6 +193,90 @@ TEST_F(TestSchedulerScoreManager, ReliabilityBalanceScoreExecutes)
     EXPECT_EQ(ret, UBSE_OK);
     ASSERT_EQ(results.size(), 1u);
     EXPECT_GT(results[0].totalCost, 0.0);
+}
+
+// ==================== BorrowBandwidthScore Tests ====================
+
+TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreRegistered)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init();
+
+    auto* scorer = mgr.FindScoreByName("BorrowBandwidthScore");
+    ASSERT_NE(scorer, nullptr);
+}
+
+TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreNormalization)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init(); // register all scorers
+
+    nodeMgr.InitBandwidthTolerance(128);
+
+    NodeInfo n1;
+    n1.nodeId = "lender1";
+    n1.socketInfos = {{36, {0, 1}}, {37, {2, 3}}, {38, {4, 5}}};
+
+    std::vector<NodeInfo> nodes = {n1};
+    SchedulerRequest req;
+    req.requestNodeId_ = "borrower1";
+    req.requestSize_ = 128 * 1024 * 1024;
+    req.scoreNames_ = {"BorrowBandwidthScore"};
+    req.weights_ = ScoreWeights::ForPerformancePriority();
+    std::vector<ScoredNode> results;
+
+    auto ret = mgr.ScoreAndRank(nodes, req, results, 3);
+    EXPECT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(results.size(), 3u);
+    EXPECT_GT(results[0].totalCost, 0.0);
+    EXPECT_GT(results[1].totalCost, 0.0);
+    EXPECT_GT(results[2].totalCost, 0.0);
+}
+
+TEST_F(TestSchedulerScoreManager, BorrowBandwidthScoreDirectCall)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    nodeMgr.InitBandwidthTolerance(128);
+
+    BorrowBandwidthScore scorer;
+    NodeInfo n1;
+    n1.nodeId = "lender1";
+    n1.socketInfos = {{36, {0, 1}}, {37, {2, 3}}};
+    std::vector<NodeInfo> nodes = {n1};
+
+    SchedulerRequest req;
+    req.requestNodeId_ = "borrower1";
+
+    std::vector<double> scores(2, 0.0);
+    auto ret = scorer.ScoreNodes(nodes, nodeMgr, accMgr, req, scores);
+    EXPECT_EQ(ret, UBSE_OK);
+    // Both should be 1.0 (lend amount = 0, dist = 0 >= 0)
+    EXPECT_DOUBLE_EQ(scores[0], 1.0);
+    EXPECT_DOUBLE_EQ(scores[1], 1.0);
+}
+
+TEST_F(TestSchedulerScoreManager, GetWeightForBorrowBandwidthScore)
+{
+    SchedulerNodeManager nodeMgr;
+    SchedulerAccountManager accMgr;
+    SchedulerScoreManager mgr(&nodeMgr, &accMgr);
+    mgr.Init();
+
+    ScoreWeights w = ScoreWeights::ForPerformancePriority();
+    double weight = mgr.GetWeightFor("BorrowBandwidthScore", w);
+    EXPECT_DOUBLE_EQ(weight, 0.52);
+}
+
+TEST_F(TestSchedulerScoreManager, PerformancePriorityWeightsSumToMinusOne)
+{
+    ScoreWeights w = ScoreWeights::ForPerformancePriority();
+    double sum = w.wLatency + w.wRegionBalance + w.wBalance + w.wBandwidth + w.wReliability + w.wDivideNuma;
+    EXPECT_DOUBLE_EQ(sum, 1.0);
 }
 
 } // namespace ubse::mem::scheduler::ut
