@@ -16,7 +16,9 @@
 
 #include <ubse_api_server_def.h>
 #include <ubse_def.h>
+#include <condition_variable>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 #include "mem_fragmentation_msg.h"
@@ -36,6 +38,14 @@ struct VMMigrateParam {
     std::string borrowInNode{};
     std::vector<VMPresetParam> vmInfoList{};
     std::uint64_t borrowSize{};
+};
+
+// Shared context for AsyncMemBorrowExec two-phase refactoring: pass successTaskIds between borrow threads and watcher thread + synchronization
+struct AsyncBorrowCtx {
+    std::mutex mux;
+    std::condition_variable cv;
+    int pendingCount{0};                     // Remaining borrow thread count, protected by lock
+    std::vector<std::string> successTaskIds; // taskIds that succeeded in phase-1
 };
 
 class VirtMemFragSdk {
@@ -81,6 +91,7 @@ private:
                                       const UbseRequestContext& context);
     static uint32_t PackMigrateStrategyRsp(const MigrateStrategyResult& migrateStrategyResult, UbseIpcMessage& buffer);
     static VmResult SetSrcNodeHugePage(const MemBorrowExecuteResult& borrowExecuteResult);
+    static VmResult SetSrcNodeHugePageGlobal();
     /** ==============big memory virtual machine============== */
     static VmResult NodeInfoListSerialize(const std::vector<mem_fragmentation::NodeInfo>& nodeInfoList,
                                           UbseIpcMessage& resp);
@@ -95,8 +106,15 @@ private:
                                            bool& isAsync);
     static VmResult MemBorrowStrategyByRMRS(const mem_fragmentation::BorrowParam& borrowParam,
                                             std::vector<MemBorrowStrategyResult>& borrowResult);
-    static VmResult RunBorrowExec(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
-                                  mem_borrow_result_c& memBorrowRstC);
+    static VmResult SyncRunBorrowExec(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
+                                      mem_borrow_result_c& memBorrowRstC);
+    static VmResult ExecBorrowCore(const std::string& taskId, const MemBorrowStrategyResult& memBorrowStrategyRst,
+                                   MemBorrowExecuteResult& memBorrowExecRst);
+    // AsyncMemBorrowExec two-phase: borrow threads run phase-1 + result archiving, watcher thread runs phase-2 global hugepage after all borrows complete
+    static void AsyncBorrowWorker(std::shared_ptr<AsyncBorrowCtx> ctx, const std::string& taskId,
+                                  const MemBorrowStrategyResult& borrowStrategyRst);
+    static void AsyncBorrowWatcher(std::shared_ptr<AsyncBorrowCtx> ctx);
+    static void AsyncBorrowCountDown(std::shared_ptr<AsyncBorrowCtx> ctx);
     static VmResult SyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,
                                       std::vector<mem_borrow_result_c>& memBorrowRstCs);
     static VmResult AsyncMemBorrowExec(const std::vector<MemBorrowStrategyResult>& borrowStrategyRsts,

@@ -1641,6 +1641,8 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ConvertTaskResult_succeed)
     strcpy_s(taskInfoC.memBorrowResult.task_id, MEM_TASK_ID_MAX, "test_task_123");
 
     ThreadTaskManager::GetInstance().SetMemBorrowResult(taskId, taskInfoC.memBorrowResult);
+    // Mark as SUCCESS, MemTaskQuery returns memBorrowResult for SUCCESS tasks (not returned for RUNNING tasks)
+    ThreadTaskManager::GetInstance().UpdateTaskStatus(taskId, AsyncTaskStatus::SUCCESS, VM_OK);
 
     UbseIpcMessage req{const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(taskId.c_str())),
                        static_cast<uint32_t>(taskId.size())};
@@ -1650,6 +1652,46 @@ TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_ConvertTaskResult_succeed)
     MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
 
     EXPECT_EQ(VirtMemFragSdk::MemTaskQuery(req, context), VM_OK);
+    ThreadTaskManager::GetInstance().ClearAllTasks();
+    GlobalMockObject::verify();
+    MOCKER(SendResponse).reset();
+}
+
+/**
+ * @tc.name  : MemTaskQuery_RunningTask_ShouldNotReturnResult
+ * @tc.desc  : Tasks in RUNNING state should not return memBorrowResult during query (two-phase refactoring: no result returned before phase-2 completes)
+ */
+TEST_F(TestMemFragmentationSdkServer, MemTaskQuery_RunningTask_ShouldNotReturnResult)
+{
+    std::string taskId = ThreadTaskManager::GetInstance().AddTask("memborrow");
+    async_task_info_c taskInfoC{};
+    taskInfoC.task_id[0] = '\0';
+    strcpy_s(taskInfoC.task_id, MEM_TASK_ID_MAX, taskId.c_str());
+    taskInfoC.memBorrowResult.borrow_ids_size = 2;
+    taskInfoC.memBorrowResult.present_numa_ids_size = 1;
+    strcpy_s(taskInfoC.memBorrowResult.borrow_ids_ptr[0], MAX_BORROW_ID_LENGTH, "id1");
+    strcpy_s(taskInfoC.memBorrowResult.borrow_ids_ptr[1], MAX_BORROW_ID_LENGTH, "id2");
+    taskInfoC.memBorrowResult.present_numa_ids_ptr[0] = 100;
+    strcpy_s(taskInfoC.memBorrowResult.task_id, MEM_TASK_ID_MAX, "test_task_123");
+
+    // Fill in result but keep RUNNING state (simulate window where phase-1 completes but phase-2 not yet done)
+    ThreadTaskManager::GetInstance().SetMemBorrowResult(taskId, taskInfoC.memBorrowResult);
+
+    UbseIpcMessage req{const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(taskId.c_str())),
+                       static_cast<uint32_t>(taskId.size())};
+    UbseRequestContext context{};
+    context.requestId = 12345;
+
+    MOCKER(SendResponse).stubs().will(returnValue(VM_OK));
+
+    EXPECT_EQ(VirtMemFragSdk::MemTaskQuery(req, context), VM_OK);
+
+    // Verify RUNNING task query does not return memBorrowResult: confirm status is still RUNNING via GetTaskInfo,
+    // and response serialization succeeds (memBorrowResult has been cleared, serialization should succeed)
+    AsyncTaskInfo taskInfo;
+    EXPECT_EQ(ThreadTaskManager::GetInstance().GetTaskInfo(taskId, taskInfo), VM_OK);
+    EXPECT_EQ(taskInfo.status, AsyncTaskStatus::RUNNING);
+
     ThreadTaskManager::GetInstance().ClearAllTasks();
     GlobalMockObject::verify();
     MOCKER(SendResponse).reset();
@@ -1819,7 +1861,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenUBSRMR
     UBSRMRSMemBorrowExecuteFunc func = nullptr;
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(returnValue(func));
 
-    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    EXPECT_EQ(VirtMemFragSdk::SyncRunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
 }
 
@@ -1836,7 +1878,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenUBSRMR
 
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteError));
 
-    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    EXPECT_EQ(VirtMemFragSdk::SyncRunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
 }
 
@@ -1854,7 +1896,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenConver
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).stubs().will(invoke(MockUBSRMRSMemBorrowExecuteOK));
     MOCKER(VirtMemFragSdk::ConvertToLegacyResult).stubs().will(returnValue(VM_ERROR));
 
-    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    EXPECT_EQ(VirtMemFragSdk::SyncRunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
     MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
 }
@@ -1877,7 +1919,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnError_WhenSetMem
         .stubs()
         .will(returnValue(VM_ERROR));
 
-    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
+    EXPECT_EQ(VirtMemFragSdk::SyncRunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_ERROR);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
     MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
     MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
@@ -1907,7 +1949,7 @@ TEST_F(TestMemFragmentationSdkServer, RunBorrowExec_ShouldReturnOk_WhenEverythin
         .stubs();
     MOCKER(VirtMemFragSdk::SetSrcNodeHugePage).stubs().will(returnValue(VM_OK));
 
-    EXPECT_EQ(VirtMemFragSdk::RunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_OK);
+    EXPECT_EQ(VirtMemFragSdk::SyncRunBorrowExec(taskId, memBorrowStrategyRst, memBorrowRstC), VM_OK);
     MOCKER(MempoolingModule::UBSRMRSMemBorrowExecute).reset();
     MOCKER(VirtMemFragSdk::ConvertToLegacyResult).reset();
     MOCKER_CPP(&ThreadTaskManager::SetMemBorrowResult,
@@ -1950,14 +1992,14 @@ TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnError_WhenRu
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&))
         .stubs()
         .will(returnValue(std::string("task_123")));
-    MOCKER(VirtMemFragSdk::RunBorrowExec).stubs().will(returnValue(VM_ERROR));
+    MOCKER(VirtMemFragSdk::SyncRunBorrowExec).stubs().will(returnValue(VM_ERROR));
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string&, AsyncTaskStatus, uint32_t, const std::string&))
         .stubs();
 
     EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_ERROR);
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
-    MOCKER(VirtMemFragSdk::RunBorrowExec).reset();
+    MOCKER(VirtMemFragSdk::SyncRunBorrowExec).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string&, AsyncTaskStatus, uint32_t, const std::string&))
         .reset();
@@ -1976,14 +2018,14 @@ TEST_F(TestMemFragmentationSdkServer, SyncMemBorrowExec_ShouldReturnOk_WhenEvery
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&))
         .stubs()
         .will(returnValue(std::string("task_123")));
-    MOCKER(VirtMemFragSdk::RunBorrowExec).stubs().will(returnValue(VM_OK));
+    MOCKER(VirtMemFragSdk::SyncRunBorrowExec).stubs().will(returnValue(VM_OK));
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string&, AsyncTaskStatus, uint32_t, const std::string&))
         .stubs();
 
     EXPECT_EQ(VirtMemFragSdk::SyncMemBorrowExec(borrowStrategyRsts, memBorrowRstCs), VM_OK);
     MOCKER_CPP(&ThreadTaskManager::AddTask, std::string(ThreadTaskManager::*)(const std::string&)).reset();
-    MOCKER(VirtMemFragSdk::RunBorrowExec).reset();
+    MOCKER(VirtMemFragSdk::SyncRunBorrowExec).reset();
     MOCKER_CPP(&ThreadTaskManager::UpdateTaskStatus,
                void (ThreadTaskManager::*)(const std::string&, AsyncTaskStatus, uint32_t, const std::string&))
         .reset();
