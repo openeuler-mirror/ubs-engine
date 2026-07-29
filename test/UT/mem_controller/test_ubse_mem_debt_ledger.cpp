@@ -11,9 +11,12 @@
  */
 
 #include "test_ubse_mem_debt_ledger.h"
+
 #include <atomic>
 #include <thread>
 #include <vector>
+
+#include "ubse_mem_share_store.h"
 
 namespace ubse::mem::controller::debt::ut {
 
@@ -1597,6 +1600,63 @@ TEST_F(TestUbseMemDebtLedger, ClearOtherNodeMaps_NonExistentNode_ShouldClearAll)
 
     auto result = ledger.GetAllDebtInfo();
     EXPECT_TRUE(result.empty());
+}
+
+TEST_F(TestUbseMemDebtLedger, CountShareMemoryRefCount_SingleBaseNode)
+{
+    auto exportObj = CreateShareExportObj("shm_rc", "1");
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", "shm_rc", exportObj);
+
+    auto imp1 = CreateShareImportObj("shm_rc", "2");
+    auto imp2 = CreateShareImportObj("shm_rc", "3");
+    auto imp3 = CreateShareImportObj("shm_rc", "4");
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("2", "shm_rc", imp1);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("3", "shm_rc", imp2);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("4", "shm_rc", imp3);
+
+    CascadeMasterStore store;
+    std::vector<UbseMemShareBorrowImportObj> imports;
+    store.LoadAllImports("shm_rc", imports);
+    EXPECT_EQ(3u, imports.size());
+}
+
+TEST_F(TestUbseMemDebtLedger, CountShareMemoryRefCount_NoImport_AllZero)
+{
+    auto exportObj = CreateShareExportObj("shm_no_imp", "1");
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", "shm_no_imp",
+                                                                                            exportObj);
+
+    CascadeMasterStore store;
+    std::vector<UbseMemShareBorrowImportObj> imports;
+    store.LoadAllImports("shm_no_imp", imports);
+    EXPECT_TRUE(imports.empty());
+}
+
+TEST_F(TestUbseMemDebtLedger, DeleteAllShareImports_ThenRemoveExport)
+{
+    auto exportObj = CreateShareExportObj("shm_del", "1");
+    exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{.nodeId = "1", .size = 1048576});
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowExportObj>().PutResource("1", "shm_del", exportObj);
+
+    auto imp1 = CreateShareImportObj("shm_del", "2");
+    auto imp2 = CreateShareImportObj("shm_del", "3");
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("2", "shm_del", imp1);
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("3", "shm_del", imp2);
+
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().RemoveResource("2", "shm_del");
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().RemoveResource("3", "shm_del");
+
+    CascadeMasterStore store;
+    store.RemoveExport(exportObj);
+
+    auto ptr = UbseMemDebtLedger::GetInstance()
+                   .GetDebtMap<UbseMemShareBorrowExportObj>()
+                   .GetResource("1", "shm_del");
+    EXPECT_EQ(nullptr, ptr);
+
+    std::vector<UbseMemShareBorrowImportObj> imports;
+    store.LoadAllImports("shm_del", imports);
+    EXPECT_TRUE(imports.empty());
 }
 
 } // namespace ubse::mem::controller::debt::ut
