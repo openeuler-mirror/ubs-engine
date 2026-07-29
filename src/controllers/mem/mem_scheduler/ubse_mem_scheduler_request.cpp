@@ -15,6 +15,7 @@
 #include "ubse_context.h"
 #include "ubse_logger.h"
 #include "ubse_math_util.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
@@ -199,9 +200,13 @@ SchedulerRequest SchedulerRequest::FromShareBorrowReq(const adapter_plugins::mmi
         schedulerReq.params_["affinitySocketId"] = static_cast<int>(req.withAffinity.affinitySocketId);
     }
 
-    schedulerReq.filterNames_ = {"ConfigConsistencyFilter", "LenderRoleFilter",  "ProviderFilter",
-                                 "NodeStateFilter",         "RegionFilter",      "LendCountFilter",
-                                 "TopoReachabilityFilter",  "MaxLentSizeFilter", "FreeMemoryFilter"};
+    bool isClosType = ubse::adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType();
+    const char* linkFilter = isClosType ? "LocalPortDownFilter" : "TopoReachabilityFilter";
+    schedulerReq.params_["isClosType"] = isClosType;
+
+    schedulerReq.filterNames_ = {
+        "ConfigConsistencyFilter", "LenderRoleFilter", "ProviderFilter",    "NodeStateFilter", "RegionFilter",
+        "LendCountFilter",         linkFilter,         "MaxLentSizeFilter", "FreeMemoryFilter"};
     if (!req.providerList.empty()) {
         schedulerReq.filterNames_.emplace_back("RequestedProvidersFilter");
     }

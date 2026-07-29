@@ -22,7 +22,7 @@ UbseResult TopoReachabilityFilter::FilterNodes(std::vector<NodeInfo>& nodes, con
     auto importNodeId = request.requestNodeId_;
     auto node = nodeInfo.GetNodeInfo(importNodeId);
     if (!node) {
-        RecordWarning(std::string("GetNodeInfo failed, node=") + importNodeId);
+        RecordError(std::string("GetNodeInfo failed, node=") + importNodeId);
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
 

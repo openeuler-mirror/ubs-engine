@@ -84,8 +84,8 @@ UbseResult SpecifiedLenderFilter::CheckNumaCapacity(std::vector<NodeInfo>& nodes
     }
     auto* nodePtr = nodeInfo.GetNodeInfo(nodes.front().nodeId);
     if (nodePtr == nullptr) {
-        RecordWarning(std::string("GetNodeInfo failed, node=") + nodes.front().nodeId);
-        return UBSE_ERROR;
+        RecordError(std::string("GetNodeInfo failed, node=") + nodes.front().nodeId);
+        return UBSE_SCHEDULER_ERROR_INVAL;
     }
     uint64_t blockSize = static_cast<uint64_t>(nodePtr->GetBlockSize()) * ONE_M;
     auto highWatermarkOpt = request.GetParamOpt<size_t>("highWatermark");
@@ -139,8 +139,8 @@ UbseResult SpecifiedLenderFilter::ValidatePortId(const adapter_plugins::mmi::Ubs
 {
     auto* socketInfo = nodeInfo.GetSocketInfo(lender.nodeId, socketId);
     if (socketInfo == nullptr) {
-        RecordWarning(std::string("GetSocketInfo failed, node=") + lender.nodeId +
-                      ", socket=" + std::to_string(socketId));
+        RecordError(std::string("GetSocketInfo failed, node=") + lender.nodeId +
+                       ", socket=" + std::to_string(socketId));
         return UBSE_SCHEDULER_ERROR_INVAL;
     }
     if (socketInfo->GetPorts().count(lender.portId) == 0) {
