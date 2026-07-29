@@ -26,6 +26,18 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "message/ubse_mem_operation_resp_simpo.h"
 #include "message/ubse_mem_share_borrow_exportobj_simpo.h"
 #include "message/ubse_mem_share_borrow_importobj_simpo.h"
+#include "ubse_mem_share_store.h"
+#include "ubse_mem_global_ledger_summary_store.h"
+#include "ubse_mem_global_ledger_summary.h"
+#include "ubse_mem_share_capabilities.h"
+
+namespace ubse::mem::controller {
+void EraseShareExport(const UbseMemShareBorrowExportObj &exportObj);
+void EraseShareImport(const UbseMemShareBorrowImportObj &importObj);
+void ShareExportFillResp(UbseMemOperationResp &resp, const UbseMemShareBorrowExportObj &exportObj);
+void ShareExportUpdateState(UbseMemShareBorrowExportObj &exportObj, const UbseMemState &state);
+void ShareImportUpdateState(UbseMemShareBorrowImportObj &importObj, const UbseMemState &state);
+} // namespace ubse::mem::controller
 
 namespace ubse::mem_controller::share::ut {
 using namespace ubse::com;
@@ -221,7 +233,10 @@ TEST_F(TestUbseMemControllerShareApi, ShareBorrowResourceExists)
     UbseMemOperationResp resp{};
     auto ret = UbseMemShareBorrow(req, resp);
     EXPECT_EQ(UBSE_ERR_EXISTED, resp.errorCode);
+    EXPECT_EQ(SHM_NAME, resp.name);
+    EXPECT_EQ(NODE_ONE, resp.requestNodeId);
 }
+
 uint32_t UbseMemShmExportObjStateChangeHandlerMock(UbseMemShareBorrowExportObj &exportObj)
 {
     ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
@@ -963,5 +978,267 @@ TEST_F(TestUbseMemControllerShareApi, UpdateFaultShareExportObjTest)
     PutShareExportObj(nodeId, SHM_NAME, exportObj);
     ret = UpdateFaultShareExportObj(nodeId, memId, memName, type);
     EXPECT_EQ(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrow_DuplicateName_Exist)
+{
+    ConstructShareBorrowAccount();
+    UbseRoleInfo currentNode;
+    currentNode.nodeRole = election::ELECTION_ROLE_MASTER;
+    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNode)).will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+    SendShareExportObjMockSet();
+    BuildOperationMockSet();
+
+    UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
+    UbseMemShareBorrowReq req{};
+    req.name = SHM_NAME;
+    req.requestNodeId = NODE_ONE;
+    req.udsInfo = udsInfo;
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareBorrow(req, resp);
+    EXPECT_EQ(UBSE_ERR_EXISTED, resp.errorCode);
+    EXPECT_EQ(SHM_NAME, resp.name);
+    EXPECT_EQ(NODE_ONE, resp.requestNodeId);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareBorrow_EmptyName_ReturnsError)
+{
+    UbseRoleInfo currentNode;
+    currentNode.nodeRole = election::ELECTION_ROLE_MASTER;
+    MOCKER_CPP(&UbseGetCurrentNodeInfo).stubs().with(outBound(currentNode)).will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> module = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&context::UbseContext::GetModule<com::UbseComModule>).stubs().will(returnValue(module));
+    SendShareExportObjMockSet();
+    BuildOperationMockSet();
+    UbseUdsInfo udsInfo{.uid = 0, .gid = 0, .pid = 0};
+    UbseMemShareBorrowReq req{};
+    req.requestNodeId = NODE_ONE;
+    req.udsInfo = udsInfo;
+    UbseMemOperationResp resp{};
+    auto ret = UbseMemShareBorrow(req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+    EXPECT_NE(UBSE_OK, resp.errorCode);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareAttach_NoExportObj_NotExist)
+{
+    UbseMemShareAttachReq req = ConstructAttachReq();
+    UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseMemShareAttach(req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareAttach_EmptyImportNodeId_Error)
+{
+    UbseMemShareAttachReq req = ConstructAttachReq();
+    req.importNodeId = "";
+    UbseMemOperationResp resp{};
+    MOCKER_CPP(WaitInitLedgerSuccess).stubs().will(returnValue(UBSE_OK));
+    auto ret = UbseMemShareAttach(req, resp);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseMemShareDetach_NoImportObj_Error)
+{
+    UbseMemShareDetachReq req;
+    req.name = SHM_NAME;
+    req.unImportNodeId = NODE_ONE;
+    UbseMemOperationResp resp;
+    auto ret = UbseMemShareDetach(req, resp, NODE_ONE);
+    EXPECT_NE(UBSE_OK, ret);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ConstructShareImportObj_FieldsCorrect)
+{
+    UbseMemShareAttachReq req{};
+    req.importNodeId = NODE_ONE;
+    req.name = SHM_NAME;
+    req.requestNodeId = NODE_ONE;
+    req.size = 8192;
+    req.udsInfo = UbseUdsInfo{.uid = 100, .gid = 200, .pid = 300};
+    req.owner = FdOwner{.uid = 100, .gid = 200, .pid = 300, .mode = 0644};
+    req.requestId = 999;
+
+    UbseMemShareBorrowImportObj importObj{};
+    ConstructShareImportObj(importObj, req);
+
+    EXPECT_EQ(NODE_ONE, importObj.importNodeId);
+    EXPECT_EQ(SHM_NAME, importObj.req.name);
+    EXPECT_EQ(8192u, importObj.shareAttr.size);
+    EXPECT_EQ(100u, importObj.shareAttr.owner.uid);
+    EXPECT_EQ(UBSE_MEM_IMPORT_RUNNING, importObj.status.state);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, importObj.status.expectState);
+    EXPECT_EQ(999u, importObj.req.requestId);
+    EXPECT_EQ(NODE_ONE, importObj.req.requestNodeId);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ExportCallbackExportObjSet_CreateSuccess_UpdatesState)
+{
+    UbseMemShareBorrowExportObj exportObj{};
+    ExportCallbackExportObjSet(exportObj, UBSE_MEM_EXPORT_SUCCESS, UBSE_MEM_EXPORT_SUCCESS);
+    auto ptr = GetShareExportObj(exportObj.algoResult.exportNumaInfos[0].nodeId, SHM_NAME);
+    ASSERT_NE(nullptr, ptr);
+    EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, ptr->status.state);
+    EXPECT_EQ(SHM_NAME, ptr->req.name);
+    EXPECT_EQ(NODE_ONE, ptr->req.requestNodeId);
+}
+
+TEST_F(TestUbseMemControllerShareApi, LoadAllImports_Multiple_ReturnsAll)
+{
+    const std::string name = "load_all_test";
+    UbseMemShareBorrowImportObj imp1{};
+    imp1.req.name = name;
+    imp1.importNodeId = NODE_ONE;
+    imp1.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemShareBorrowImportObj imp2{};
+    imp2.req.name = name;
+    imp2.importNodeId = NODE_TWO;
+    imp2.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    PutShareImportObj(NODE_ONE, name, imp1);
+    PutShareImportObj(NODE_TWO, name, imp2);
+
+    CascadeMasterStore store;
+    std::vector<UbseMemShareBorrowImportObj> results;
+    auto ret = store.LoadAllImports(name, results);
+    EXPECT_EQ(UBSE_OK, ret);
+    EXPECT_EQ(2u, results.size());
+}
+
+TEST_F(TestUbseMemControllerShareApi, UbseGlobalLedgerSummaryStore_ContainsBorrowName_True)
+{
+    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
+    UbseGlobalLedgerSummaryItem item;
+    item.name = "test_borrow";
+    item.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseGlobalLedgerSummaryStore::GetInstance().PutNodeExportItem("1", item);
+    EXPECT_TRUE(UbseGlobalLedgerSummaryStore::GetInstance().ContainsBorrowName("test_borrow"));
+    UbseGlobalLedgerSummaryStore::GetInstance().Clear();
+}
+
+TEST_F(TestUbseMemControllerShareApi, EraseShareExport_DeletesFromLedger)
+{
+    UbseMemShareBorrowExportObj obj;
+    obj.req.name = "erase_export";
+    obj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = NODE_ONE;
+    obj.algoResult.exportNumaInfos.push_back(numaInfo);
+    PutShareExportObj(NODE_ONE, "erase_export", obj);
+    EXPECT_NE(nullptr, GetShareExportObj(NODE_ONE, "erase_export"));
+    EraseShareExport(obj);
+    EXPECT_EQ(nullptr, GetShareExportObj(NODE_ONE, "erase_export"));
+}
+
+TEST_F(TestUbseMemControllerShareApi, EraseShareImport_DeletesFromLedger)
+{
+    UbseMemShareBorrowImportObj obj;
+    obj.req.name = "erase_import";
+    obj.importNodeId = NODE_ONE;
+    obj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    PutShareImportObj(NODE_ONE, "erase_import", obj);
+    EXPECT_TRUE(ShareImportObjExists(NODE_ONE, "erase_import"));
+    EraseShareImport(obj);
+    EXPECT_FALSE(ShareImportObjExists(NODE_ONE, "erase_import"));
+}
+
+TEST_F(TestUbseMemControllerShareApi, ShareExportFillResp_FillsMemIdList)
+{
+    UbseMemShareBorrowExportObj exportObj;
+    UbseMemObmmInfo obmm1{.memId = 100};
+    UbseMemObmmInfo obmm2{.memId = 200};
+    exportObj.status.exportObmmInfo.push_back(obmm1);
+    exportObj.status.exportObmmInfo.push_back(obmm2);
+    UbseMemOperationResp resp;
+    ShareExportFillResp(resp, exportObj);
+    EXPECT_EQ(2u, resp.memIdList.size());
+    EXPECT_EQ(100u, resp.memIdList[0]);
+    EXPECT_EQ(200u, resp.memIdList[1]);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ShareExportUpdateState_UpdatesLedgerState)
+{
+    const std::string name = "update_state_export";
+    UbseMemShareBorrowExportObj obj;
+    obj.req.name = name;
+    obj.status.state = UBSE_MEM_EXPORT_RUNNING;
+    UbseMemDebtNumaInfo numaInfo;
+    numaInfo.nodeId = NODE_ONE;
+    obj.algoResult.exportNumaInfos.push_back(numaInfo);
+    PutShareExportObj(NODE_ONE, name, obj);
+    obj.status.state = UBSE_MEM_EXPORT_SUCCESS;
+    ShareExportUpdateState(obj, UBSE_MEM_EXPORT_SUCCESS);
+    auto ptr = GetShareExportObj(NODE_ONE, name);
+    ASSERT_NE(nullptr, ptr);
+    EXPECT_EQ(UBSE_MEM_EXPORT_SUCCESS, ptr->status.state);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ShareImportUpdateState_UpdatesLedgerState)
+{
+    const std::string name = "update_state_import";
+    UbseMemShareBorrowImportObj obj;
+    obj.req.name = name;
+    obj.importNodeId = NODE_ONE;
+    obj.status.state = UBSE_MEM_IMPORT_RUNNING;
+    PutShareImportObj(NODE_ONE, name, obj);
+    obj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    ShareImportUpdateState(obj, UBSE_MEM_IMPORT_SUCCESS);
+    auto ptr = GetShareImportObj(NODE_ONE, name);
+    ASSERT_NE(nullptr, ptr);
+    EXPECT_EQ(UBSE_MEM_IMPORT_SUCCESS, ptr->status.state);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ExistImportObj_DestroyedState_Filtered)
+{
+    UbseMemShareBorrowImportObj destroyedObj;
+    destroyedObj.req.name = SHM_NAME;
+    destroyedObj.importNodeId = NODE_ONE;
+    destroyedObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
+    std::vector<UbseMemShareBorrowImportObj> existImports = {destroyedObj};
+    UbseMemShareBorrowImportObj outObj;
+    bool found = ExistImportObj(SHM_NAME, NODE_ONE, existImports, outObj);
+    EXPECT_FALSE(found);
+}
+
+TEST_F(TestUbseMemControllerShareApi, ExistImportObj_ActiveMatch_ReturnsTrue)
+{
+    UbseMemShareBorrowImportObj activeObj;
+    activeObj.req.name = SHM_NAME;
+    activeObj.importNodeId = NODE_ONE;
+    activeObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    std::vector<UbseMemShareBorrowImportObj> existImports = {activeObj};
+    UbseMemShareBorrowImportObj outObj;
+    bool found = ExistImportObj(SHM_NAME, NODE_ONE, existImports, outObj);
+    EXPECT_TRUE(found);
+    EXPECT_EQ(SHM_NAME, outObj.req.name);
+    EXPECT_EQ(NODE_ONE, outObj.importNodeId);
+}
+
+TEST_F(TestUbseMemControllerShareApi, CheckRegions_ImportNodeInRegion_ReturnsTrue)
+{
+    UbseMemShareAttachReq req;
+    req.importNodeId = NODE_TWO;
+    UbseMemShareBorrowExportObj exportObj;
+    UbseMemDebtNumaInfo numaInfo{.nodeId = NODE_ONE};
+    exportObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    ubse::adapter_plugins::mmi::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = NODE_TWO;
+    exportObj.req.shmRegion.nodelist.push_back(nodeInfo);
+    EXPECT_TRUE(CheckRegions(req, exportObj));
+}
+
+TEST_F(TestUbseMemControllerShareApi, CheckRegions_ImportNodeNotInRegion_ReturnsFalse)
+{
+    UbseMemShareAttachReq req;
+    req.importNodeId = NODE_TWO;
+    UbseMemShareBorrowExportObj exportObj;
+    UbseMemDebtNumaInfo numaInfo{.nodeId = NODE_ONE};
+    exportObj.algoResult.exportNumaInfos.push_back(numaInfo);
+    ubse::adapter_plugins::mmi::UbseNodeInfo nodeInfo;
+    nodeInfo.nodeId = "99";
+    exportObj.req.shmRegion.nodelist.push_back(nodeInfo);
+    EXPECT_FALSE(CheckRegions(req, exportObj));
 }
 } // namespace ubse::mem_controller::share::ut

@@ -29,6 +29,9 @@
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_mem_controller_fault_handle.cpp"
+#include "ubse_mem_share_store.h"
+#include "ubse_mem_global_ledger_summary_store.h"
+#include "ubse_mem_controller_helper.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::ras;
@@ -1092,4 +1095,66 @@ TEST_F(TestUbseMemControllerFaultHandle, OnePortUpHandle_Success)
     PortEventInfo info{.status = "UP", .slotId = "1", .chipId = "2", .portId = "5"};
     EXPECT_EQ(UbseMemFaultManager::OnePortUpHandle(info), UBSE_OK);
 }
+TEST_F(TestUbseMemControllerFaultHandle, DeleteShareImportDebtInfoByNodeId_DeletesTargetOnly)
+{
+    UbseMemShareBorrowImportObj obj1;
+    obj1.req.name = "shm1";
+    obj1.importNodeId = "3";
+    obj1.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("3", "shm1", obj1);
+
+    UbseMemShareBorrowImportObj obj2;
+    obj2.req.name = "shm2";
+    obj2.importNodeId = "3";
+    obj2.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("3", "shm2", obj2);
+
+    UbseMemShareBorrowImportObj otherObj;
+    otherObj.req.name = "other_shm";
+    otherObj.importNodeId = "2";
+    otherObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("2", "other_shm", otherObj);
+
+    MOCKER_CPP(&UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    DeleteShareImportDebtInfoByNodeId("3");
+
+    CascadeMasterStore store;
+    UbseMemShareBorrowImportObj out;
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, store.LoadImport("3", "shm1", out));
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, store.LoadImport("3", "shm2", out));
+    EXPECT_EQ(UBSE_OK, store.LoadImport("2", "other_shm", out));
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, DeleteShareImportDebtInfoByNodeId_NothingToDelete_NoCrash)
+{
+    MOCKER_CPP(&UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    DeleteShareImportDebtInfoByNodeId("99");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, DeleteShareImportDebtInfoByNodeId_MixedNodes_DeletesTargetOnly)
+{
+    UbseMemShareBorrowImportObj targetObj;
+    targetObj.req.name = "shm_mixed";
+    targetObj.importNodeId = "5";
+    targetObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("5", "shm_mixed", targetObj);
+
+    UbseMemShareBorrowImportObj otherObj;
+    otherObj.req.name = "other_shm";
+    otherObj.importNodeId = "6";
+    otherObj.status.state = UBSE_MEM_IMPORT_SUCCESS;
+    UbseMemDebtLedger::GetInstance().GetDebtMap<UbseMemShareBorrowImportObj>().PutResource("6", "other_shm", otherObj);
+
+    MOCKER_CPP(&UbseCheckWithoutGlobalMasterNodeId).stubs().will(returnValue(true));
+
+    DeleteShareImportDebtInfoByNodeId("5");
+
+    CascadeMasterStore store;
+    UbseMemShareBorrowImportObj out;
+    EXPECT_EQ(UBSE_ERR_NOT_EXIST, store.LoadImport("5", "shm_mixed", out));
+    EXPECT_EQ(UBSE_OK, store.LoadImport("6", "other_shm", out));
+}
+
 } // namespace ubse::mem_controller::ut
