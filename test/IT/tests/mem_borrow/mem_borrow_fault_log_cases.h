@@ -31,6 +31,12 @@ void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-BorrowScheduleFailed-01: 借用调度失败 触发 BORROW_SCHEDULE_FAILED
 void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster);
 
+// P1-FaultLog-BorrowObmmExportFailed-01: OBMM导出失败 触发 BORROW_OBMM_EXPORT_FAILED
+void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowObmmImportFailed-01: OBMM导入失败 触发 BORROW_OBMM_IMPORT_FAILED
+void RunP1FaultLogBorrowObmmImportFailed(ubse::it::infra::ItCluster& cluster);
+
 // P1-FaultLog-ShareBorrowCheckFailed-01: Share借用传入的亲和的socket_id不存在 触发 SHARED_BORROW_CHECK_FAILED
 void RunP1FaultLogShareBorrowCheckFailed(ubse::it::infra::ItCluster& cluster);
 
@@ -52,8 +58,14 @@ void RunP1FaultLogShareChipModeNotSupported(ubse::it::infra::ItCluster& cluster)
 // P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
 void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster);
 
-//P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
+// P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
 void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnObmmExportFailed-01: OBMM导出失败 触发 RETURN_OBMM_EXPORT_FAILED
+void RunP1FaultLogReturnObmmExportFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnObmmImportFailed-01: OBMM导入失败 触发 RETURN_OBMM_IMPORT_FAILED
+void RunP1FaultLogReturnObmmImportFailed(ubse::it::infra::ItCluster& cluster);
 
 // P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
 void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster);

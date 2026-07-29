@@ -13,6 +13,7 @@
 #ifndef IT_NODE_H
 #define IT_NODE_H
 
+#include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -23,6 +24,7 @@
 #include "it_cli_invoker.h"
 #include "it_cluster_spec.h"
 #include "it_lcne_client.h"
+#include "it_obmm_stub_control.h"
 #include "it_sdk_client.h"
 #include "mock_lcne_server.h"
 #include "node_process_manager.h"
@@ -156,10 +158,41 @@ public:
      */
     void RemoveUbFeatureMock();
 
+    /**
+     * @brief Inject OBMM fault via shared memory (runtime, no restart needed).
+     *
+     * @param failMask  Bitmask of ObmmStubControl::OpBit to indicate which
+     *                  operations should fail.
+     * @param errnoVal  errno value set by stub on failure (default ENOMEM).
+     * @param count     Per-op remaining failure count. nullptr or element 0
+     *                  means persistent failure; >0 means fail N times then
+     *                  auto-recover.
+     */
+    UbseResult SetObmmFault(uint32_t failMask, int errnoVal = ENOMEM, const uint32_t count[8] = nullptr);
+
+    /** @brief Restore OBMM to normal (clear all fault bits). */
+    UbseResult RestoreObmmFault();
+
+    /**
+     * @brief Convenience: set/clear failure for a specific OBMM operation.
+     *
+     * Unified wrapper over failMask bit manipulation, supports every OpBit
+     * (OP_EXPORT/OP_UNEXPORT/OP_IMPORT/OP_UNIMPORT/OP_EXPORT_USERADDR/
+     * OP_QUERY_PA/OP_PREIMPORT/OP_UNPREIMPORT). When @p fail is true the
+     * operation is set to fail persistently with errno=ENOMEM; when false
+     * the corresponding bit is cleared.
+     *
+     * @param op   Operation bit (see ObmmStubControl::OpBit).
+     * @param fail true: inject failure; false: clear failure.
+     */
+    void SetOpFailed(ObmmStubControl::OpBit op, bool fail);
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();
     NodeProcessConfig BuildProcessConfig() const;
+    void InitObmmShm();
+    void DestroyObmmShm();
 
     NodeSpec spec_;
     ClusterContext ctx_;
@@ -170,6 +203,10 @@ private:
     std::unique_ptr<NodeProcessManager> process_;
     std::unique_ptr<ItSdkClient> sdkClient_;
     std::unique_ptr<ItLcneClient> lcneClient_;
+
+    std::string obmmShmName_;
+    int obmmShmFd_{-1};
+    ObmmStubControl* obmmCtrl_{nullptr};
 };
 
 } // namespace ubse::it::infra

@@ -11,7 +11,9 @@
  */
 
 #include "mem_borrow_fault_log_cases.h"
+#include <unistd.h>
 #include <cstdint>
+#include "ubse_error.h"
 
 #include "it_assertion.h"
 #include "it_console_log.h"
@@ -25,6 +27,7 @@ namespace ubse::it::tests::mem_borrow {
 
 using ubse::it::infra::FaultLogEntry;
 using ubse::it::infra::ItFaultLogHelper;
+using ubse::it::infra::ObmmStubControl;
 
 namespace {
 constexpr uint64_t fdSize = UBS_MEM_MIN_SIZE; // 4MB
@@ -357,6 +360,180 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
     EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
     EXPECT_EQ(shareEntry.adviceCode, 3u); //SCHEDULE_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+}
+
+// BorrowObmmExportFailed-01: OBMM导出失败 触发 BORROW_OBMM_EXPORT_FAILED
+void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster)
+{
+    auto& obmmStubControl = cluster.GetObmmStubControl("2");
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_EXPORT, true);
+
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("2").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_br_obmm_export_failed";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        // 创建FD失败，触发 BORROW_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[BorrowObmmExportFailed-01] Creating FD with OBMM export failed: name=" << name;
+        auto ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_obmm_export_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        // 创建NUMA失败，触发 BORROW_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[BorrowObmmExportFailed-01] Creating NUMA with OBMM export failed: name=" << name;
+        auto ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_obmm_export_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        // 创建Share失败，触发 BORROW_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[BorrowObmmExportFailed-01] Creating Share with OBMM export failed: name=" << name;
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_ERROR(ret, UBSE_MMI_OBMM_OP_FAILED);
+    }
+
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_EXPORT, false);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0013"; }, 3); // 等待3条日志
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0013, got "
+                                  << entries.size();
+    // 校验FD类型日志
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_br_obmm_export_failed") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry.requestNode, "1") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_obmm_export_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, "1") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_obmm_export_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+}
+
+// P1-FaultLog-BorrowObmmImportFailed-01: OBMM导入失败 触发 BORROW_OBMM_IMPORT_FAILED
+void RunP1FaultLogBorrowObmmImportFailed(ubse::it::infra::ItCluster& cluster)
+{
+    auto& obmmStubControl = cluster.GetObmmStubControl("1");
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_IMPORT, true);
+
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_br_obmm_import_failed";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        // 创建FD失败，触发 BORROW_OBMM_IMPORT_FAILED
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating FD with OBMM import failed: name=" << name;
+        auto ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_obmm_import_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        // 创建NUMA失败，触发 BORROW_OBMM_IMPORT_FAILED
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating NUMA with OBMM import failed: name=" << name;
+        auto ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_obmm_import_failed_share";
+        // 创建Share成功
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating SHM: name=" << name;
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        //导入失败，触发 BORROW_OBMM_IMPORT_FAILED
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+
+        // 清理
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_IMPORT, false);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0014"; }, 3); // 等待3条日志
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0014, got "
+                                  << entries.size();
+    // 校验FD类型日志
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_br_obmm_import_failed") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry.requestNode, "1") << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_obmm_import_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, "1") << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_obmm_import_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, "1") << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 4u); //OBMM_FAILED
     EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
@@ -849,7 +1026,217 @@ void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(cliNumaEntry.advice.empty());
 }
 
-// P1-FaultLog-ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
+// ReturnObmmExportFailed-01: OBMM导出失败 触发 RETURN_OBMM_EXPORT_FAILED
+void RunP1FaultLogReturnObmmExportFailed(ubse::it::infra::ItCluster& cluster)
+{
+    auto& obmmStubControl = cluster.GetObmmStubControl("2");
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_UNEXPORT, true);
+
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("2").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_ret_obmm_unexport_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        IT_LOG_INFO << "[NameExist] Creating FD: name=" << name;
+        auto ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试归还共享内存，触发RETURN_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmExportFailed-01] Returning OBMM export failed: name=" << name;
+        ret = sdk.MemFdDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_obmm_unexport_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating NUMA: name=" << name;
+        auto ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试归还共享内存，触发RETURN_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmExportFailed-01] Returning OBMM export failed: name=" << name;
+        ret = sdk.MemNumaDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_obmm_unexport_failed_share";
+        ubs_mem_shm_desc_t shmDesc{};
+
+        // 创建共享内存
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating SHM: name=" << name;
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试归还共享内存，触发RETURN_OBMM_EXPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmExportFailed-01] Returning OBMM export failed: name=" << name;
+        ret = sdk.MemShmDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_UNEXPORT, false);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0034"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0034, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_obmm_unexport_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, "1");
+    EXPECT_EQ(fdEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_obmm_unexport_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, "1");
+    EXPECT_EQ(numaEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_obmm_unexport_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, "1");
+    EXPECT_EQ(shareEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// ReturnObmmImportFailed-01: OBMM导入失败 触发 RETURN_OBMM_IMPORT_FAILED
+void RunP1FaultLogReturnObmmImportFailed(ubse::it::infra::ItCluster& cluster)
+{
+    auto& obmmStubControl = cluster.GetObmmStubControl("1");
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_UNIMPORT, true);
+
+    auto& sdk = cluster.GetSdkClient("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_ret_obmm_unimport_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        IT_LOG_INFO << "[NameExist] Creating FD: name=" << name;
+        auto ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试归还共享内存，触发RETURN_OBMM_IMPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmImportFailed-01] Returning OBMM import failed: name=" << name;
+        ret = sdk.MemFdDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_obmm_unimport_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        // 创建NUMA成功
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating NUMA: name=" << name;
+        auto ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试归还共享内存，触发RETURN_OBMM_IMPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmImportFailed-01] Returning OBMM import failed: name=" << name;
+        ret = sdk.MemNumaDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_obmm_unimport_failed_share";
+        ubs_mem_shm_desc_t shmDesc{};
+
+        // 创建共享内存成功
+        IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating SHM: name=" << name;
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        ASSERT_IT_OK(ret);
+
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        ASSERT_IT_OK(ret);
+
+        // 节点1尝试Detach共享内存，触发RETURN_OBMM_IMPORT_FAILED
+        IT_LOG_INFO << "[ReturnObmmImportFailed-01] Detaching OBMM import failed: name=" << name;
+        ret = sdk.MemShmDetach(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    obmmStubControl.SetOpFailed(ObmmStubControl::OP_UNIMPORT, false);
+
+    {
+        auto ret = sdk.MemFdDelete("it_p1_fl_ret_obmm_unimport_failed_fd");
+        EXPECT_IT_OK(ret);
+
+        ret = sdk.MemNumaDelete("it_p1_fl_ret_obmm_unimport_failed_numa");
+        EXPECT_IT_OK(ret);
+
+        ret = sdk.MemShmDetach("it_p1_fl_ret_obmm_unimport_failed_share");
+        EXPECT_IT_OK(ret);
+
+        ret = sdk.MemShmDelete("it_p1_fl_ret_obmm_unimport_failed_share");
+        EXPECT_IT_OK(ret);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0035"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0035, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_obmm_unimport_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, "1");
+    EXPECT_EQ(fdEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_obmm_unimport_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, "1");
+    EXPECT_EQ(numaEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_obmm_unimport_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, "1");
+    EXPECT_EQ(shareEntry.adviceCode, 4u); //OBMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// ShareReturnInAttached-01: Share 归还节点存在attach 触发 SHARED_RETURN_IN_ATTACHED
 void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");

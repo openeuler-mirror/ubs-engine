@@ -891,8 +891,8 @@ uint32_t ShareExportRunningAgentCallback(UbseMemOperationResp& resp, UbseMemShar
     if (auto ret = UbseMmiInterface::GetInstance().ShmExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to export, name=" << name << ", requestNodeId=" << requestNodeId
                        << ", requestId=" << exportObj.req.requestId;
-        BorrowFailedAdvice(
-            {MemFault::BORROW_OBMM_EXPORT_FAILED, name, MemType::SHM, 0, exportNodeId, "", requestNodeId});
+        BorrowFailedAdvice({MemFault::BORROW_OBMM_EXPORT_FAILED, name, MemType::SHM, exportObj.req.size, exportNodeId,
+                            "", requestNodeId});
         exportObj.errorCode = ret;
         exportObj.status.state = UBSE_MEM_EXPORT_DESTROYED;
         EraseShareExport(exportObj);

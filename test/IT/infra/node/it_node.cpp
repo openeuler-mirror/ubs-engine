@@ -12,6 +12,9 @@
 
 #include "it_node.h"
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -249,6 +252,7 @@ NodeProcessConfig ItNode::BuildProcessConfig() const
 UbseResult ItNode::Start()
 {
     CreateWorkDirectories();
+    InitObmmShm();
 
     // Start mock LCNE server (daemon connects to it on startup)
     mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsPath_, spec_.slotId, ctx_.clusterSlotIds);
@@ -302,6 +306,7 @@ UbseResult ItNode::Stop()
         unlink(lcneUdsPath_.c_str());
     }
 
+    DestroyObmmShm();
     return UBSE_OK;
 }
 
@@ -480,6 +485,102 @@ void ItNode::RemoveUbFeatureMock()
     std::filesystem::remove(path, ec);
     if (ec) {
         IT_LOG_WARN << "Failed to remove mock ub_feature file: " << path << ", ec=" << ec.message();
+    }
+}
+
+void ItNode::InitObmmShm()
+{
+    if (obmmCtrl_ != nullptr) {
+        return;
+    }
+    // shm name 与 obmm_stub.cpp 约定: /obmm_stub_<nodeId>
+    obmmShmName_ = "/obmm_stub_" + spec_.nodeId;
+    obmmShmFd_ = shm_open(obmmShmName_.c_str(), O_CREAT | O_RDWR, 0600);
+    if (obmmShmFd_ < 0) {
+        IT_LOG_WARN << "Failed to create OBMM shm '" << obmmShmName_ << "': " << strerror(errno);
+        obmmShmName_.clear();
+        return;
+    }
+    if (ftruncate(obmmShmFd_, sizeof(ObmmStubControl)) != 0) {
+        IT_LOG_WARN << "Failed to truncate OBMM shm: " << strerror(errno);
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+        obmmShmName_.clear();
+        return;
+    }
+    void* p = mmap(nullptr, sizeof(ObmmStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, obmmShmFd_, 0);
+    if (p == MAP_FAILED) {
+        IT_LOG_WARN << "Failed to mmap OBMM shm: " << strerror(errno);
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+        obmmShmName_.clear();
+        return;
+    }
+    obmmCtrl_ = static_cast<ObmmStubControl*>(p);
+    obmmCtrl_->magic.store(ObmmStubControl::MAGIC, std::memory_order_release);
+    obmmCtrl_->failMask.store(0, std::memory_order_relaxed);
+    obmmCtrl_->errnoVal.store(ENOMEM, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ObmmStubControl::OP_COUNT; ++i) {
+        obmmCtrl_->count[i].store(0, std::memory_order_relaxed);
+    }
+}
+
+void ItNode::DestroyObmmShm()
+{
+    if (obmmCtrl_ != nullptr) {
+        obmmCtrl_->magic.store(0, std::memory_order_release);
+        munmap(obmmCtrl_, sizeof(ObmmStubControl));
+        obmmCtrl_ = nullptr;
+    }
+    if (obmmShmFd_ >= 0) {
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+    }
+    if (!obmmShmName_.empty()) {
+        shm_unlink(obmmShmName_.c_str());
+        obmmShmName_.clear();
+    }
+}
+
+UbseResult ItNode::SetObmmFault(uint32_t failMask, int errnoVal, const uint32_t count[8])
+{
+    if (obmmCtrl_ == nullptr) {
+        IT_LOG_ERROR << "OBMM shm not initialized for node " << spec_.nodeId;
+        return UBSE_ERROR_DEF(1);
+    }
+    obmmCtrl_->errnoVal.store(errnoVal, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ObmmStubControl::OP_COUNT; ++i) {
+        uint32_t c = (count != nullptr) ? count[i] : 0;
+        obmmCtrl_->count[i].store(c, std::memory_order_relaxed);
+    }
+    obmmCtrl_->failMask.store(failMask, std::memory_order_release);
+    IT_LOG_INFO << "OBMM fault set on node " << spec_.nodeId << ", failMask=0x" << std::hex << failMask
+                << ", errno=" << std::dec << errnoVal;
+    return UBSE_OK;
+}
+
+UbseResult ItNode::RestoreObmmFault()
+{
+    if (obmmCtrl_ == nullptr) {
+        return UBSE_OK;
+    }
+    obmmCtrl_->failMask.store(0, std::memory_order_release);
+    IT_LOG_INFO << "OBMM fault cleared on node " << spec_.nodeId;
+    return UBSE_OK;
+}
+
+void ItNode::SetOpFailed(ObmmStubControl::OpBit op, bool fail)
+{
+    if (obmmCtrl_ == nullptr) {
+        return;
+    }
+    uint32_t bit = 1u << op;
+    if (fail) {
+        obmmCtrl_->errnoVal.store(ENOMEM, std::memory_order_relaxed);
+        obmmCtrl_->count[op].store(0, std::memory_order_relaxed);
+        obmmCtrl_->failMask.fetch_or(bit, std::memory_order_release);
+    } else {
+        obmmCtrl_->failMask.fetch_and(~bit, std::memory_order_release);
     }
 }
 } // namespace ubse::it::infra

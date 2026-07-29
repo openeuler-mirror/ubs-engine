@@ -431,8 +431,8 @@ uint32_t SendNumaExport(const UbseMemNumaBorrowExportObj& exportObj, const std::
     if (res != UBSE_OK) {
         auto importNodeId = exportObj.req.importNodeId;
         auto faultCode = unexport ? MemFault::RETURN_EXPORT_SEND_FAILED : MemFault::BORROW_EXPORT_SEND_FAILED;
-        BorrowFailedAdvice(
-            {faultCode, name, MemType::NUMA, exportObj.req.size, exportNodeId, importNodeId, importNodeId});
+        auto size = unexport ? 0 : exportObj.req.size;
+        BorrowFailedAdvice({faultCode, name, MemType::NUMA, size, exportNodeId, importNodeId, importNodeId});
     }
     return res;
 }
@@ -504,8 +504,8 @@ uint32_t NumaExportDestroyingCallback(UbseMemOperationResp& resp, UbseMemNumaBor
     NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().NumaUnExportExecutor(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unexport name=" << name << ", requestId=" << exportObj.req.requestId;
-        BorrowFailedAdvice({MemFault::RETURN_OBMM_EXPORT_FAILED, name, MemType::NUMA, exportObj.req.size, exportNodeId,
-                            requestNodeId, requestNodeId});
+        BorrowFailedAdvice(
+            {MemFault::RETURN_OBMM_EXPORT_FAILED, name, MemType::NUMA, 0, exportNodeId, requestNodeId, requestNodeId});
         exportObj.errorCode = ret;
         NumaExportUpdateState(exportObj, UBSE_MEM_EXPORT_SUCCESS);
         // 返回主节点 更新
@@ -720,8 +720,8 @@ uint32_t NumaExportExpectDestroyMasterCallback(UbseMemOperationResp& resp, UbseM
         return UBSE_OK;
     }
     if (auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::NUMA_RETURN); ret != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::NUMA, exportObj.req.size,
-                            exportNodeId, importNodeId, requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_REQ_SEND_FAILED, name, MemType::NUMA, 0, exportNodeId,
+                            importNodeId, requestNodeId});
         return ret;
     }
     return UBSE_OK;
@@ -867,15 +867,15 @@ uint32_t NumaImportDestroyingHandler(UbseMemOperationResp& resp, UbseMemNumaBorr
     auto res = decoder::utils::MemDecoderUtils::GetChipAndDieId(importObj.algoResult.attachSocketId, chipDiePair);
     if (res != UBSE_OK) {
         UBSE_LOG_ERROR << "GetChipAndDieId by socketId failed";
-        BorrowFailedAdvice({MemFault::RETURN_FAULT_IMPORT_INTERNAL, name, MemType::NUMA, importObj.req.size,
-                            exportNodeId, requestNodeId, requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_FAULT_IMPORT_INTERNAL, name, MemType::NUMA, 0, exportNodeId, requestNodeId,
+                            requestNodeId});
         return UBSE_MEMCONTROLLER_ERROR_UNIMPORT_FAILED;
     }
     NumaImportUpdateState(importObj, UBSE_MEM_EXPORT_DESTROYING);
     if (auto ret = UbseMmiInterface::GetInstance().NumaUnImportExecutor(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to unimport, name=" << name << ", requestId=" << resp.requestId;
-        BorrowFailedAdvice({MemFault::RETURN_OBMM_IMPORT_FAILED, name, MemType::NUMA, importObj.req.size, exportNodeId,
-                            requestNodeId, requestNodeId});
+        BorrowFailedAdvice(
+            {MemFault::RETURN_OBMM_IMPORT_FAILED, name, MemType::NUMA, 0, exportNodeId, requestNodeId, requestNodeId});
         return ret;
     }
     UBSE_LOG_INFO << "Success to unimport numa, name=" << name << ", requestId=" << resp.requestId;
@@ -906,7 +906,7 @@ uint32_t NumaImportDestroyingAgentCallback(UbseMemOperationResp& resp, UbseMemNu
     auto ret = SendNumaImportObj(importObj, false);
     if (ret != UBSE_OK) {
         BorrowFailedAdvice(
-            {MemFault::RETURN_IMPORT_SEND_FAILED, name, MemType::NUMA, importObj.req.size,
+            {MemFault::RETURN_IMPORT_SEND_FAILED, name, MemType::NUMA, 0,
              importObj.algoResult.exportNumaInfos.empty() ? "" : importObj.algoResult.exportNumaInfos[0].nodeId,
              requestNodeId, requestNodeId});
     }
