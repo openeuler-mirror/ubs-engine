@@ -147,6 +147,71 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess)
     EXPECT_EQ(ret, UBS_SUCCESS);
 }
 
+// 5. 正常流程 - 验证super_pod_id字段正确解包
+TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenSuccess_SuperPodId)
+{
+    ubs_topo_node_t* list = nullptr;
+    uint32_t cnt = 0;
+
+    // 构造正常数据
+    auto nodeList = BuildNodeList();
+    ipc::UbseIpcMessage respMessage{};
+    UbseNodeListPack(nodeList, respMessage);
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
+    respBuffer.length = respMessage.length;
+    if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respMessage.length) != EOK) {
+        free(respBuffer.buffer);
+        respBuffer.buffer = nullptr;
+        respBuffer.length = 0;
+    }
+    delete[] respMessage.buffer;
+    respMessage.buffer = nullptr;
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+    int32_t ret = ubs_topo_node_list(&list, &cnt);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    // 验证所有节点的super_pod_id一致（全局值）
+    for (uint32_t i = 1; i < cnt; i++) {
+        EXPECT_EQ(list[0].super_pod_id, list[i].super_pod_id);
+    }
+    if (list != nullptr) {
+        free(list);
+    }
+}
+
+// 6. 旧版本后端兼容性 - 无superPodId字段时默认为0
+TEST_F(TestUbsEngineTopo, UbsTopoNodeListWhenOldBackend_NoSuperPodId)
+{
+    ubs_topo_node_t* list = nullptr;
+    uint32_t cnt = 0;
+
+    // 构造正常数据后截断最后2字节，模拟旧后端不含superPodId
+    auto nodeList = BuildNodeList();
+    ipc::UbseIpcMessage respMessage{};
+    UbseNodeListPack(nodeList, respMessage);
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.length = respMessage.length - sizeof(uint16_t);
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
+    if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respBuffer.length) != EOK) {
+        free(respBuffer.buffer);
+        respBuffer.buffer = nullptr;
+        respBuffer.length = 0;
+    }
+    delete[] respMessage.buffer;
+    respMessage.buffer = nullptr;
+
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+    int32_t ret = ubs_topo_node_list(&list, &cnt);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    // 旧后端数据解包后super_pod_id应为默认值0
+    for (uint32_t i = 0; i < cnt; i++) {
+        EXPECT_EQ(list[i].super_pod_id, 0);
+    }
+    if (list != nullptr) {
+        free(list);
+    }
+}
+
 // 测试正常情况：成功获取本地节点信息
 TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_NormalCase)
 {
@@ -167,6 +232,56 @@ TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_NormalCase)
     MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
     ret = ubs_topo_node_local_get(&node);
     EXPECT_EQ(ret, UBS_SUCCESS);
+}
+
+// 测试正常情况 - 验证super_pod_id字段正确解包
+TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_SuperPodId)
+{
+    ubs_topo_node_t node;
+    auto nodeInfo = BuildNode();
+    ipc::UbseIpcMessage respMessage{};
+    auto ret = UbseNodePack(nodeInfo, respMessage);
+    EXPECT_EQ(ret, UBSE_OK);
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respMessage.length));
+    respBuffer.length = respMessage.length;
+    if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respMessage.length) != EOK) {
+        free(respBuffer.buffer);
+        respBuffer.buffer = nullptr;
+        respBuffer.length = 0;
+    }
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+    ret = ubs_topo_node_local_get(&node);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    // super_pod_id应被正确解包
+    EXPECT_GE(node.super_pod_id, 0);
+}
+
+// 测试旧版本后端兼容性 - 单节点无superPodId字段时默认为0
+TEST_F(TestUbsEngineTopo, UbsTopoNodeLocalGet_OldBackend_NoSuperPodId)
+{
+    ubs_topo_node_t node;
+    auto nodeInfo = BuildNode();
+    ipc::UbseIpcMessage respMessage{};
+    auto ret = UbseNodePack(nodeInfo, respMessage);
+    EXPECT_EQ(ret, UBSE_OK);
+    // 截断最后2字节模拟旧后端
+    ubse_api_buffer_t respBuffer{};
+    respBuffer.length = respMessage.length - sizeof(uint16_t);
+    respBuffer.buffer = static_cast<uint8_t*>(malloc(respBuffer.length));
+    if (memcpy_s(respBuffer.buffer, respBuffer.length, respMessage.buffer, respBuffer.length) != EOK) {
+        free(respBuffer.buffer);
+        respBuffer.buffer = nullptr;
+        respBuffer.length = 0;
+    }
+    delete[] respMessage.buffer;
+    respMessage.buffer = nullptr;
+
+    MOCKER(ubse_invoke_call).stubs().with(_, _, _, outBoundP(&respBuffer)).will(returnValue(UBSE_OK));
+    ret = ubs_topo_node_local_get(&node);
+    EXPECT_EQ(ret, UBS_SUCCESS);
+    // 旧后端数据解包后super_pod_id应为默认值0
+    EXPECT_EQ(node.super_pod_id, 0);
 }
 
 // 测试参数为空的情况

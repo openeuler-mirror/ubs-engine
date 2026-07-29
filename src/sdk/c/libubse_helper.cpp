@@ -87,6 +87,17 @@ static ubs_error_t unpack_int32(unpack_ctx_t* ctx, int32_t* value)
     return UBS_SUCCESS;
 }
 
+static ubs_error_t unpack_uint16(unpack_ctx_t* ctx, uint16_t* value)
+{
+    if (ctx->remaining < sizeof(uint16_t)) {
+        return UBS_ERR_BUFFER_TOO_SMALL;
+    }
+    *value = *reinterpret_cast<const uint16_t*>(ctx->ptr); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+    ctx->ptr += sizeof(uint16_t);
+    ctx->remaining -= sizeof(uint16_t);
+    return UBS_SUCCESS;
+}
+
 static ubs_error_t unpack_uint64(unpack_ctx_t* ctx, uint64_t* value)
 {
     if (ctx->remaining < sizeof(uint64_t)) {
@@ -1475,13 +1486,31 @@ ubs_error_t ubse_node_list_unpack(const uint8_t* buffer, uint32_t len, ubs_topo_
             return ret;
         }
     }
+    // 解包super_pod_id（全局值，位于所有node数据之后；兼容旧版本后端不发送该字段）
+    uint16_t superPodId = 0;
+    if (unpack_uint16(&ctx, &superPodId) == UBS_SUCCESS) {
+        for (uint32_t i = 0; i < *node_cnt; i++) {
+            (*node_list)[i].super_pod_id = superPodId;
+        }
+    } else {
+        IPC_LOG_INFO << "super_pod_id not present in response, using default 0";
+    }
     return UBS_SUCCESS;
 }
 
 ubs_error_t ubse_node_unpack(const uint8_t* buffer, uint32_t len, ubs_topo_node_t* node)
 {
     unpack_ctx_t ctx = {buffer, len};
-    return ubse_node_unpack_inner(&ctx, node);
+    auto ret = ubse_node_unpack_inner(&ctx, node);
+    if (ret != UBS_SUCCESS) {
+        return ret;
+    }
+    // 解包super_pod_id（全局值，位于node数据之后；兼容旧版本后端不发送该字段）
+    node->super_pod_id = 0;
+    if (unpack_uint16(&ctx, &node->super_pod_id) != UBS_SUCCESS) {
+        IPC_LOG_INFO << "super_pod_id not present in response, using default 0";
+    }
+    return UBS_SUCCESS;
 }
 
 ubs_error_t ubse_mem_shm_import_desc_unpack(unpack_ctx_t* ctx, ubs_mem_shm_import_desc_t* import_desc)
