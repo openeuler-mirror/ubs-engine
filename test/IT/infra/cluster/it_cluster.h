@@ -73,6 +73,14 @@ public:
     ItNode& GetNode(const std::string& nodeId);
 
     /**
+     * @brief Get OBMM stub control handle for a node (delegate to ItNode).
+     *
+     * Returns the ItNode reference whose SetOpFailed/SetObmmFault/
+     * RestoreObmmFault methods act as the OBMM fault control API.
+     */
+    ItNode& GetObmmStubControl(const std::string& nodeId);
+
+    /**
      * @brief Get an SDK client connected to a specific node.
      *
      * Delegates to ItNode::GetSdkClient().

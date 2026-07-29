@@ -24,6 +24,8 @@
  * Export/import records are tracked in a static map for consistency.
  */
 
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <atomic>
 #include <cstdint>
@@ -33,6 +35,10 @@
 #include <mutex>
 #include <string>
 #include <thread>
+
+#include "it_obmm_stub_control.h"
+
+using ubse::it::infra::ObmmStubControl;
 
 #ifndef UBSE_EID_LENGTH
 #define UBSE_EID_LENGTH 16
@@ -74,28 +80,119 @@ static std::mutex g_records_mutex;
 static std::map<mem_id, obmm_mem_desc*> g_export_records;
 static std::map<mem_id, int> g_import_numa_records;
 
+// --- Shared-memory control block (runtime fault injection) ---
+// Lazily mapped on first should_fail() call from env UBSE_IT_OBMM_SHM.
+// Once mapped, reads are atomic loads (~10ns), suitable for high-frequency
+// obmm calls. If mapping fails or shm is absent, falls back to env-based
+// UBSE_OBMM_STUB_FAIL behavior (backward compatible).
+static ObmmStubControl* g_ctrl = nullptr;
+
+static int op_index(const char* operation)
+{
+    if (operation == nullptr) {
+        return -1;
+    }
+    if (strcmp(operation, "export") == 0) {
+        return ObmmStubControl::OP_EXPORT;
+    }
+    if (strcmp(operation, "unexport") == 0) {
+        return ObmmStubControl::OP_UNEXPORT;
+    }
+    if (strcmp(operation, "import") == 0) {
+        return ObmmStubControl::OP_IMPORT;
+    }
+    if (strcmp(operation, "unimport") == 0) {
+        return ObmmStubControl::OP_UNIMPORT;
+    }
+    if (strcmp(operation, "export_useraddr") == 0) {
+        return ObmmStubControl::OP_EXPORT_USERADDR;
+    }
+    if (strcmp(operation, "query_pa") == 0) {
+        return ObmmStubControl::OP_QUERY_PA;
+    }
+    if (strcmp(operation, "preimport") == 0) {
+        return ObmmStubControl::OP_PREIMPORT;
+    }
+    if (strcmp(operation, "unpreimport") == 0) {
+        return ObmmStubControl::OP_UNPREIMPORT;
+    }
+    return -1;
+}
+
+static void ensure_ctrl_loaded()
+{
+    static std::once_flag once;
+    std::call_once(once, []() {
+        // shm name 与 ItNode 约定: /obmm_stub_<nodeId>
+        const char* nodeId = getenv("UBSE_IT_NODE_ID");
+        if (nodeId == nullptr || nodeId[0] == '\0') {
+            return;
+        }
+        std::string name = "/obmm_stub_" + std::string(nodeId);
+        int fd = shm_open(name.c_str(), O_RDWR, 0600);
+        if (fd < 0) {
+            return;
+        }
+        void* p = mmap(nullptr, sizeof(ObmmStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        close(fd);
+        if (p == MAP_FAILED) {
+            return;
+        }
+        auto* ctrl = static_cast<ObmmStubControl*>(p);
+        if (ctrl->magic.load(std::memory_order_acquire) != ObmmStubControl::MAGIC) {
+            munmap(ctrl, sizeof(ObmmStubControl));
+            return;
+        }
+        g_ctrl = ctrl;
+    });
+}
+
 static bool should_fail(const char* operation)
 {
     const char* fail_list = getenv("UBSE_OBMM_STUB_FAIL");
-    if (fail_list == nullptr || fail_list[0] == '\0') {
+    if (fail_list != nullptr && fail_list[0] != '\0') {
+        std::string list(fail_list);
+        std::string op(operation);
+        size_t pos = 0;
+        while (pos < list.size()) {
+            size_t comma = list.find(',', pos);
+            std::string token = (comma == std::string::npos) ? list.substr(pos) : list.substr(pos, comma - pos);
+            if (token == op) {
+                errno = ENOMEM;
+                return true;
+            }
+            if (comma == std::string::npos) {
+                break;
+            }
+            pos = comma + 1;
+        }
+    }
+
+    // 2) Shared-memory runtime fault injection
+    ensure_ctrl_loaded();
+    if (g_ctrl == nullptr) {
         return false;
     }
-    std::string list(fail_list);
-    std::string op(operation);
-
-    size_t pos = 0;
-    while (pos < list.size()) {
-        size_t comma = list.find(',', pos);
-        std::string token = (comma == std::string::npos) ? list.substr(pos) : list.substr(pos, comma - pos);
-        if (token == op) {
-            return true;
-        }
-        if (comma == std::string::npos) {
-            break;
-        }
-        pos = comma + 1;
+    int idx = op_index(operation);
+    if (idx < 0) {
+        return false;
     }
-    return false;
+    uint32_t mask = g_ctrl->failMask.load(std::memory_order_relaxed);
+    if ((mask & (1u << idx)) == 0) {
+        return false;
+    }
+    errno = g_ctrl->errnoVal.load(std::memory_order_relaxed);
+    // count>0: decrement; reaches 0 → clear bit and let this call succeed
+    uint32_t remaining = g_ctrl->count[idx].load(std::memory_order_relaxed);
+    if (remaining > 0) {
+        uint32_t prev = g_ctrl->count[idx].fetch_sub(1, std::memory_order_relaxed);
+        if (prev == 0) {
+            // Another thread consumed the last failure; clear bit and succeed
+            g_ctrl->failMask.fetch_and(~(1u << idx), std::memory_order_relaxed);
+            return false;
+        }
+    }
+    return true;
 }
 
 static void apply_delay()

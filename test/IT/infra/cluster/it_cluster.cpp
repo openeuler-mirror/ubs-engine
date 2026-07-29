@@ -160,6 +160,11 @@ ItNode& ItCluster::GetNode(const std::string& nodeId)
     return *it->second;
 }
 
+ItNode& ItCluster::GetObmmStubControl(const std::string& nodeId)
+{
+    return GetNode(nodeId);
+}
+
 ItSdkClient& ItCluster::GetSdkClient(const std::string& nodeId)
 {
     auto it = nodes_.find(nodeId);

@@ -1205,6 +1205,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req
     SetBaseReqInfo(req, context);
     ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
     if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, req.name, MemType::FD, req.size, "", req.importNodeId, req.requestNodeId});
         return ret;
     }
 
@@ -1615,6 +1618,9 @@ uint32_t UbseMemControllerDispatcher::UbseMemNumaBorrowRpc(UbseMemNumaBorrowReq&
     SetBaseReqInfo(req, context);
     ret = SetDefaultMemBorrowPrivData(req.ubseMemPrivData);
     if (ret != UBSE_OK) {
+        auto fault = ret == UBSE_ERR_NOT_SUPPORTED ? MemFault::BORROW_CHIP_NOT_SUPPORTED :
+                                                     MemFault::BORROW_FAULT_INTERNAL;
+        BorrowFailedAdvice({fault, req.name, MemType::NUMA, req.size, "", req.importNodeId, req.requestNodeId});
         return ret;
     }
     if (GetSrcSocketId(req) != UBSE_OK) {

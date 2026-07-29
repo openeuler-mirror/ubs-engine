@@ -12,8 +12,12 @@
 
 #include "it_node.h"
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <utility>
 
@@ -27,6 +31,52 @@ constexpr uint32_t DEFAULT_NUMA_COUNT = 2;
 constexpr uint32_t DEFAULT_CPUS_PER_NUMA = 8;
 // socket ID for each NUMA node (real hardware: 36 for socket0, 236 for socket1)
 constexpr uint32_t SOCKET_IDS[] = {36, 236};
+
+constexpr uint64_t UB_MEM_BORROW_NC_MASK = 1ULL << 0;
+constexpr uint64_t UB_MEM_BORROW_CC_MASK = 1ULL << 1;
+constexpr uint64_t UB_MEM_SHARE_NC_MASK = 1ULL << 2;
+constexpr uint64_t UB_MEM_SHARE_CC_MASK = 1ULL << 3;
+constexpr uint64_t UB_MEM_ALL_MASK = UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK | UB_MEM_SHARE_NC_MASK |
+                                     UB_MEM_SHARE_CC_MASK;
+constexpr uint64_t UB_URMA_ALL_MASK = 0xffULL << 16;
+constexpr uint64_t UB_FEATURE_ALL_MASK = UB_MEM_ALL_MASK | UB_URMA_ALL_MASK;
+
+// /sys/bus/ub/ub_feature default content: all UB features enabled.
+// Line 1 is the feature bitmask read by UbseConfModule::LoadUbFeature()
+// (parsed via std::stoull as uint64_t). Remaining lines are human-readable
+// +/- markers. Both are kept in sync by BuildUbFeatureContent().
+const std::string UB_FEATURE_DEFAULT_CONTENT = "0x00ffffff\n"
+                                               "UB Memory Borrowing(Non Cacheable)+\n"
+                                               "UB Memory Borrowing(Cacheable)+\n"
+                                               "UB Memory Sharing(Non Cacheable)+\n"
+                                               "UB Memory Sharing(Cacheable)+\n"
+                                               "URMA RTP-ROI+\nURMA RTP-ROT+\nURMA RTP-ROL+\n"
+                                               "URMA CTP-ROI+\nURMA CTP-ROT+\nURMA CTP-ROL+\n"
+                                               "URMA CTP-UNO+\nURMA UTP-UNO+\n";
+
+std::string BuildUbFeatureContent(bool borrowDisabled, bool shareNcDisabled, bool shareCcDisabled)
+{
+    uint64_t mask = UB_FEATURE_ALL_MASK;
+    if (borrowDisabled) {
+        mask &= ~(UB_MEM_BORROW_NC_MASK | UB_MEM_BORROW_CC_MASK);
+    }
+    if (shareNcDisabled) {
+        mask &= ~UB_MEM_SHARE_NC_MASK;
+    }
+    if (shareCcDisabled) {
+        mask &= ~UB_MEM_SHARE_CC_MASK;
+    }
+
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::setw(8) << std::setfill('0') << mask << "\n";
+    oss << "UB Memory Borrowing(Non Cacheable)" << (borrowDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Borrowing(Cacheable)" << (borrowDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Sharing(Non Cacheable)" << (shareNcDisabled ? "-" : "+") << "\n";
+    oss << "UB Memory Sharing(Cacheable)" << (shareCcDisabled ? "-" : "+") << "\n";
+    oss << "URMA RTP-ROI+\nURMA RTP-ROT+\nURMA RTP-ROL+\nURMA CTP-ROI+\n";
+    oss << "URMA CTP-ROT+\nURMA CTP-ROL+\nURMA CTP-UNO+\nURMA UTP-UNO+\n";
+    return oss.str();
+}
 
 void WriteFile(const std::string& path, const std::string& content)
 {
@@ -174,6 +224,11 @@ void ItNode::CreateSysfsTree()
 
     // /proc/net/fib_trie (empty - IP collection will fail gracefully)
     WriteFile(base + "/proc/net/fib_trie", "");
+
+    // UB feature flags: default to all features enabled.
+    // Read by UbseConfModule::LoadUbFeature() from /sys/bus/ub/ub_feature.
+    // Path is redirected to here by RedirectSysfsPath() in ubse_interface_preload.cpp.
+    WriteFile(base + "/sys/bus/ub/ub_feature", UB_FEATURE_DEFAULT_CONTENT);
 }
 
 NodeProcessConfig ItNode::BuildProcessConfig() const
@@ -197,6 +252,7 @@ NodeProcessConfig ItNode::BuildProcessConfig() const
 UbseResult ItNode::Start()
 {
     CreateWorkDirectories();
+    InitObmmShm();
 
     // Start mock LCNE server (daemon connects to it on startup)
     mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsPath_, spec_.slotId, ctx_.clusterSlotIds);
@@ -250,6 +306,7 @@ UbseResult ItNode::Stop()
         unlink(lcneUdsPath_.c_str());
     }
 
+    DestroyObmmShm();
     return UBSE_OK;
 }
 
@@ -404,5 +461,126 @@ std::string ItNode::GetLogFilePath() const
 std::string ItNode::GetLogFaultFilePath() const
 {
     return spec_.workDir + "/log/ubse_fault.log";
+}
+
+std::string ItNode::GetUbFeaturePath() const
+{
+    return spec_.workDir + "/sysfs/sys/bus/ub/ub_feature";
+}
+
+void ItNode::SetUbFeatureFault(bool borrowDisabled, bool shareNcDisabled, bool shareCcDisabled)
+{
+    WriteFile(GetUbFeaturePath(), BuildUbFeatureContent(borrowDisabled, shareNcDisabled, shareCcDisabled));
+}
+
+void ItNode::RestoreUbFeature()
+{
+    WriteFile(GetUbFeaturePath(), UB_FEATURE_DEFAULT_CONTENT);
+}
+
+void ItNode::RemoveUbFeatureMock()
+{
+    const std::string path = GetUbFeaturePath();
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    if (ec) {
+        IT_LOG_WARN << "Failed to remove mock ub_feature file: " << path << ", ec=" << ec.message();
+    }
+}
+
+void ItNode::InitObmmShm()
+{
+    if (obmmCtrl_ != nullptr) {
+        return;
+    }
+    // shm name 与 obmm_stub.cpp 约定: /obmm_stub_<nodeId>
+    obmmShmName_ = "/obmm_stub_" + spec_.nodeId;
+    obmmShmFd_ = shm_open(obmmShmName_.c_str(), O_CREAT | O_RDWR, 0600);
+    if (obmmShmFd_ < 0) {
+        IT_LOG_WARN << "Failed to create OBMM shm '" << obmmShmName_ << "': " << strerror(errno);
+        obmmShmName_.clear();
+        return;
+    }
+    if (ftruncate(obmmShmFd_, sizeof(ObmmStubControl)) != 0) {
+        IT_LOG_WARN << "Failed to truncate OBMM shm: " << strerror(errno);
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+        obmmShmName_.clear();
+        return;
+    }
+    void* p = mmap(nullptr, sizeof(ObmmStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, obmmShmFd_, 0);
+    if (p == MAP_FAILED) {
+        IT_LOG_WARN << "Failed to mmap OBMM shm: " << strerror(errno);
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+        obmmShmName_.clear();
+        return;
+    }
+    obmmCtrl_ = static_cast<ObmmStubControl*>(p);
+    obmmCtrl_->magic.store(ObmmStubControl::MAGIC, std::memory_order_release);
+    obmmCtrl_->failMask.store(0, std::memory_order_relaxed);
+    obmmCtrl_->errnoVal.store(ENOMEM, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ObmmStubControl::OP_COUNT; ++i) {
+        obmmCtrl_->count[i].store(0, std::memory_order_relaxed);
+    }
+}
+
+void ItNode::DestroyObmmShm()
+{
+    if (obmmCtrl_ != nullptr) {
+        obmmCtrl_->magic.store(0, std::memory_order_release);
+        munmap(obmmCtrl_, sizeof(ObmmStubControl));
+        obmmCtrl_ = nullptr;
+    }
+    if (obmmShmFd_ >= 0) {
+        close(obmmShmFd_);
+        obmmShmFd_ = -1;
+    }
+    if (!obmmShmName_.empty()) {
+        shm_unlink(obmmShmName_.c_str());
+        obmmShmName_.clear();
+    }
+}
+
+UbseResult ItNode::SetObmmFault(uint32_t failMask, int errnoVal, const uint32_t count[8])
+{
+    if (obmmCtrl_ == nullptr) {
+        IT_LOG_ERROR << "OBMM shm not initialized for node " << spec_.nodeId;
+        return UBSE_ERROR_DEF(1);
+    }
+    obmmCtrl_->errnoVal.store(errnoVal, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ObmmStubControl::OP_COUNT; ++i) {
+        uint32_t c = (count != nullptr) ? count[i] : 0;
+        obmmCtrl_->count[i].store(c, std::memory_order_relaxed);
+    }
+    obmmCtrl_->failMask.store(failMask, std::memory_order_release);
+    IT_LOG_INFO << "OBMM fault set on node " << spec_.nodeId << ", failMask=0x" << std::hex << failMask
+                << ", errno=" << std::dec << errnoVal;
+    return UBSE_OK;
+}
+
+UbseResult ItNode::RestoreObmmFault()
+{
+    if (obmmCtrl_ == nullptr) {
+        return UBSE_OK;
+    }
+    obmmCtrl_->failMask.store(0, std::memory_order_release);
+    IT_LOG_INFO << "OBMM fault cleared on node " << spec_.nodeId;
+    return UBSE_OK;
+}
+
+void ItNode::SetOpFailed(ObmmStubControl::OpBit op, bool fail)
+{
+    if (obmmCtrl_ == nullptr) {
+        return;
+    }
+    uint32_t bit = 1u << op;
+    if (fail) {
+        obmmCtrl_->errnoVal.store(ENOMEM, std::memory_order_relaxed);
+        obmmCtrl_->count[op].store(0, std::memory_order_relaxed);
+        obmmCtrl_->failMask.fetch_or(bit, std::memory_order_release);
+    } else {
+        obmmCtrl_->failMask.fetch_and(~bit, std::memory_order_release);
+    }
 }
 } // namespace ubse::it::infra

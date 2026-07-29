@@ -45,6 +45,7 @@ add_library(ubse_it_infra STATIC
     ${IT_INFRA_DIR}/helper/it_wait_helper.cpp
     ${IT_INFRA_DIR}/helper/it_xalarm_helper.cpp
     ${IT_INFRA_DIR}/helper/it_fault_log_helper.cpp
+    ${IT_INFRA_DIR}/cluster/it_ub_fault_cluster.cpp
 )
 
 add_executable(ubse_it_node_launcher EXCLUDE_FROM_ALL
@@ -185,6 +186,8 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_single_node
     tongsuan_1d_two_nodes
     tongsuan_1d_two_nodes_election_candidate_false
+    tongsuan_1d_two_nodes_ub_feature_fault
+    tongsuan_1d_two_nodes_obmm_fault
     tongsuan_1d_four_nodes
     zhisuan_npu_single_node
 )
