@@ -18,6 +18,7 @@
 #include "ubse_election_def.h"
 #include "ubse_error.h"
 #include "ubse_context.h"
+#include "ubse_node_static_info_mgr.h"
 
 namespace ubse::mem::controller::ut {
 using namespace ubse::mem::controller;
@@ -27,10 +28,12 @@ using namespace ubse::context;
 void TestUbseMemControllerHelper::SetUp()
 {
     Test::SetUp();
+    nodeMgr::UbseNodeStaticInfoMgr::GetInstance().nodes_.clear();
 }
 
 void TestUbseMemControllerHelper::TearDown()
 {
+    nodeMgr::UbseNodeStaticInfoMgr::GetInstance().nodes_.clear();
     Test::TearDown();
     GlobalMockObject::verify();
 }
@@ -67,7 +70,7 @@ static UbseResult MockTopoInfoWithAgentInCurrentGroup(UbseElectionModule*, HaTop
     topoInfo.currentNode.nodeId = "node1";
     topoInfo.currentNode.groupRole = RoleType::MASTER;
     topoInfo.currentNode.globalRole = GlobalRoleType::GLOBAL_MASTER;
-    topoInfo.currentGroup.groupId = "group1";
+    topoInfo.currentGroup.groupId = "1";
     topoInfo.currentGroup.groupMasterId = "cm1";
     topoInfo.currentGroup.isManagingGroup = false;
     topoInfo.currentGroup.groupNodes = {"agent1", "agent2"};
@@ -79,11 +82,11 @@ static UbseResult MockTopoInfoWithAgentInOtherGroup(UbseElectionModule*, HaTopol
     topoInfo.currentNode.nodeId = "node1";
     topoInfo.currentNode.groupRole = RoleType::MASTER;
     topoInfo.currentNode.globalRole = GlobalRoleType::GLOBAL_MASTER;
-    topoInfo.currentGroup.groupId = "group1";
+    topoInfo.currentGroup.groupId = "1";
     topoInfo.currentGroup.groupMasterId = "master1";
     topoInfo.currentGroup.isManagingGroup = false;
     topoInfo.currentGroup.groupNodes = {};
-    topoInfo.groups.push_back({.groupId = "group2",
+    topoInfo.groups.push_back({.groupId = "2",
                                .isManagingGroup = false,
                                .groupMasterId = "cm2",
                                .groupNodes = {"agent3", "agent4"}});
@@ -161,6 +164,10 @@ TEST_F(TestUbseMemControllerHelper, UbseCheckWithoutGlobalMasterNodeId_WithGloba
 // CP-05: UbseGetCascadeMasterNodeIdByAgentNodeId_Success_CurrentGroup
 TEST_F(TestUbseMemControllerHelper, UbseGetCascadeMasterNodeIdByAgentNodeId_Success_CurrentGroup)
 {
+    nodeMgr::UbseNodeStaticInfo info1{};
+    info1.nodeId = "agent1";
+    info1.groupId = 1;
+    nodeMgr::UbseNodeStaticInfoMgr::GetInstance().SetNodes({info1});
     auto module = std::make_shared<UbseElectionModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
     MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo).stubs().will(invoke(MockTopoInfoWithAgentInCurrentGroup));
@@ -173,6 +180,10 @@ TEST_F(TestUbseMemControllerHelper, UbseGetCascadeMasterNodeIdByAgentNodeId_Succ
 // CP-06: UbseGetCascadeMasterNodeIdByAgentNodeId_Success_OtherGroup
 TEST_F(TestUbseMemControllerHelper, UbseGetCascadeMasterNodeIdByAgentNodeId_Success_OtherGroup)
 {
+    nodeMgr::UbseNodeStaticInfo info3{};
+    info3.nodeId = "agent3";
+    info3.groupId = 2;
+    nodeMgr::UbseNodeStaticInfoMgr::GetInstance().SetNodes({info3});
     auto module = std::make_shared<UbseElectionModule>();
     MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(module));
     MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo).stubs().will(invoke(MockTopoInfoWithAgentInOtherGroup));

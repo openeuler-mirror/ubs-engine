@@ -12,11 +12,13 @@
 
 #include "ubse_mem_controller_helper.h"
 #include <securec.h>
+#include <string>
 #include "ubse_election.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_util.h"
+#include "ubse_node_mgr.h"
 #include "ubse_request_id_util.h"
 #include "ubse_common_def.h"
 #include "ubse_context.h"
@@ -288,23 +290,30 @@ UbseResult UbseGetCascadeMasterNodeIdByAgentNodeId(const std::string &agentNodeI
         UBSE_LOG_ERROR << "election module is not loaded";
         return UBSE_ERROR;
     }
+    std::string groupId = std::to_string(nodeMgr::GetUbseNodeById(agentNodeId).groupId);
     HaTopologyInfo topoInfo{};
     if (electionModule->GetCurNodeGlobalTopoInfo(topoInfo) != UBSE_OK) {
         UBSE_LOG_ERROR << "get current node global topo info failed";
         return UBSE_ERROR;
     }
     auto &curGroup = topoInfo.currentGroup;
-    if (std::find(curGroup.groupNodes.begin(), curGroup.groupNodes.end(), agentNodeId) != curGroup.groupNodes.end()) {
+    if (curGroup.groupId == groupId) {
         cascadeMasterNodeId = curGroup.groupMasterId;
         return UBSE_OK;
     }
     for (const auto &group : topoInfo.groups) {
-        if (std::find(group.groupNodes.begin(), group.groupNodes.end(), agentNodeId) != group.groupNodes.end()) {
+        if (group.groupId == groupId) {
             cascadeMasterNodeId = group.groupMasterId;
             return UBSE_OK;
         }
     }
-    UBSE_LOG_ERROR << "cascade master for agent node not found in topology, agentNodeId=" << agentNodeId;
+    std::string groupIds;
+    groupIds += curGroup.groupId + ",";
+    for (const auto &group : topoInfo.groups) {
+        groupIds += group.groupId + ",";
+    }
+    UBSE_LOG_ERROR << "cascade master for agent node not found in topology, agentNodeId=" << agentNodeId
+                   << ", groupIds=" << groupIds << ", toFindGroupId=" << groupId;
     return UBSE_ERROR;
 }
 
@@ -438,12 +447,12 @@ bool UbseCheckWithoutGlobalMasterNodeId()
         UBSE_LOG_ERROR << "get global topo info failed";
         return false;
     }
+    UBSE_LOG_INFO << "current nodeId=" << topoInfo.currentNode.nodeId << ", global role=" << static_cast<int>(topoInfo.currentNode.globalRole)
+                   << ", group role=" << static_cast<int>(topoInfo.currentNode.groupRole);    
     if (topoInfo.currentNode.groupRole == RoleType::MASTER && topoInfo.currentNode.globalRole == GlobalRoleType::GLOBAL_NONE) {
         // 满足此条件说明当前没有全局主节点, 且当前节点是主节点
         return true;
     }
-    UBSE_LOG_ERROR << "current node is not master node, global role=" << static_cast<int>(topoInfo.currentNode.globalRole)
-                   << ", group role=" << static_cast<int>(topoInfo.currentNode.groupRole);
     return false;
 }
 } // namespace ubse::mem::controller
