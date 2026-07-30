@@ -265,7 +265,7 @@ uint32_t UbseRegRpcService(const UbseComEndpoint& endpoint, const UbseComService
 
 uint32_t UbseRegRpcEndpoint(uint16_t moduleCode, uint16_t opCode)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
     if (ubseComModuleRef == nullptr) {
         UBSE_LOG_ERROR << "Get ubseComModule fail";
@@ -282,8 +282,8 @@ uint32_t UbseRegRpcEndpoint(uint16_t moduleCode, uint16_t opCode)
     return ret;
 }
 
-uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqData, void *ctx,
-                     const UbseComRespHandler &handler)
+uint32_t UbseRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
+                     const UbseComRespHandler& handler)
 {
     std::string role = GetCurRole();
     UBSE_LOG_DEBUG << "Ubse sync send msg to node=" << endpoint.address << ", moduleCode=" << endpoint.moduleId
@@ -292,28 +292,14 @@ uint32_t UbseRpcSend(const UbseComEndpoint &endpoint, const UbseByteBuffer &reqD
         UBSE_LOG_ERROR << "Failed to send for request data is nullptr";
         return UBSE_ERROR_NULLPTR;
     }
-    if (role == ELECTION_ROLE_MASTER) {
-        if (endpoint.address.empty()) {
-            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
-                                        ", service_ID=" + std::to_string(endpoint.serviceId));
-            UBSE_LOG_ERROR << "Sync send for module code=" << endpoint.moduleId << ", opCode=" << endpoint.serviceId
-                           << ", give empty node id ";
-            return UBSE_ERROR_INVAL;
-        }
-        return UbseComHelper::UbseSyncCallFunc(endpoint, reqData, ctx, handler);
+    if (endpoint.address.empty()) {
+        FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                    ", service_ID=" + std::to_string(endpoint.serviceId));
+        UBSE_LOG_ERROR << "Sync send for module code=" << endpoint.moduleId << ", opCode=" << endpoint.serviceId
+                       << ", give empty node id ";
+        return UBSE_ERROR_INVAL;
     }
-    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
-        std::string masterNode = GetMasterNodeId();
-        if (masterNode.empty()) {
-            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
-                                        ", service_ID=" + std::to_string(endpoint.serviceId));
-            UBSE_LOG_ERROR << "Can't get ubse master node id";
-            return UBSE_ERROR_INVAL;
-        }
-        UbseComEndpoint newEndPoint = UbseComEndpoint{endpoint.moduleId, endpoint.serviceId, masterNode};
-        return UbseComHelper::UbseSyncCallFunc(newEndPoint, reqData, ctx, handler);
-    }
-    return UBSE_ERROR_INVAL;
+    return UbseComHelper::UbseSyncCallFunc(endpoint, reqData, ctx, handler);
 }
 
 uint32_t UbseRpcAsyncSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
@@ -326,31 +312,19 @@ uint32_t UbseRpcAsyncSend(const UbseComEndpoint& endpoint, const UbseByteBuffer&
         UBSE_LOG_ERROR << "Failed to send for request data is nullptr";
         return UBSE_ERROR_NULLPTR;
     }
-    if (role == ELECTION_ROLE_MASTER) {
-        if (endpoint.address.empty()) {
-            FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
-                                        ", service_ID=" + std::to_string(endpoint.serviceId));
-            UBSE_LOG_ERROR << "Async send for module code=" << endpoint.moduleId << ", opCode=" << endpoint.serviceId
-                           << ", give empty node id ";
-            return UBSE_ERROR_INVAL;
-        }
-        return UbseComHelper::UbseAsyncCallFunc(endpoint, reqData, ctx, handler);
+    if (endpoint.address.empty()) {
+        FreeByteBuffer(reqData, "module_ID=" + std::to_string(endpoint.moduleId) +
+                                    ", service_ID=" + std::to_string(endpoint.serviceId));
+        UBSE_LOG_ERROR << "Async send for module code=" << endpoint.moduleId << ", opCode=" << endpoint.serviceId
+                       << ", give empty node id ";
+        return UBSE_ERROR_INVAL;
     }
-    if (role == ELECTION_ROLE_AGENT || role == ELECTION_ROLE_STANDBY) {
-        std::string masterNode = GetMasterNodeId();
-        if (masterNode.empty()) {
-            UBSE_LOG_ERROR << "Can't get ubse master node id";
-            return UBSE_ERROR_INVAL;
-        }
-        UbseComEndpoint newEndPoint = UbseComEndpoint{endpoint.moduleId, endpoint.serviceId, masterNode};
-        return UbseComHelper::UbseAsyncCallFunc(newEndPoint, reqData, ctx, handler);
-    }
-    return UBSE_ERROR_INVAL;
+    return UbseComHelper::UbseAsyncCallFunc(endpoint, reqData, ctx, handler);
 }
 
-uint32_t UbseRpcEndpoint::UbseRpcSend(const std::string &targetNodeId, const UbseRpcMessage &req, UbseRpcMessage &resp)
+uint32_t UbseRpcEndpoint::UbseRpcSend(const std::string& targetNodeId, const UbseRpcMessage& req, UbseRpcMessage& resp)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
     if (ubseComModuleRef == nullptr) {
         UBSE_LOG_ERROR << "UbseRpcEndpoint sync send get ubseComModule fail";
@@ -364,10 +338,10 @@ uint32_t UbseRpcEndpoint::UbseRpcSend(const std::string &targetNodeId, const Ubs
     return ret;
 }
 
-uint32_t UbseRpcEndpoint::UbseRpcAsyncSend(const std::string &targetNodeId, const UbseRpcMessage &req,
-                                           std::shared_ptr<UbseRpcAsyncCallBack> &callback)
+uint32_t UbseRpcEndpoint::UbseRpcAsyncSend(const std::string& targetNodeId, const UbseRpcMessage& req,
+                                           std::shared_ptr<UbseRpcAsyncCallBack>& callback)
 {
-    auto &ctxRef = UbseContext::GetInstance();
+    auto& ctxRef = UbseContext::GetInstance();
     auto ubseComModuleRef = ctxRef.GetModule<UbseComModule>();
     if (ubseComModuleRef == nullptr) {
         UBSE_LOG_ERROR << "UbseRpcEndpoint async send get ubseComModule fail";
@@ -375,8 +349,8 @@ uint32_t UbseRpcEndpoint::UbseRpcAsyncSend(const std::string &targetNodeId, cons
     }
 
     UbseComCallback comCallback;
-    comCallback.cb = [callback](void *ctx, void *recv, uint32_t len, int32_t result) {
-        callback->CallBackFunc(static_cast<uint8_t *>(recv), len, result);
+    comCallback.cb = [callback](void* ctx, void* recv, uint32_t len, int32_t result) {
+        callback->CallBackFunc(static_cast<uint8_t*>(recv), len, result);
     };
     comCallback.cbCtx = nullptr;
 
@@ -406,7 +380,7 @@ std::map<std::pair<uint16_t, uint16_t>, std::shared_ptr<UbseRpcEndpoint>> UbseRp
 std::shared_mutex UbseRpcEndpointFactory::rpcEndpointsMutex_;
 
 std::shared_ptr<UbseRpcEndpoint> UbseRpcEndpointFactory::Build(uint16_t moduleCode, uint16_t opCode,
-                                                               const UbseRpcMessageReceiver &receiver)
+                                                               const UbseRpcMessageReceiver& receiver)
 {
     std::lock_guard<std::shared_mutex> lock(rpcEndpointsMutex_);
     auto key = std::make_pair(moduleCode, opCode);
