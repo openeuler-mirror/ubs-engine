@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -253,6 +254,7 @@ UbseResult ItNode::Start()
 {
     CreateWorkDirectories();
     InitObmmShm();
+    InitComShm();
 
     // Start mock LCNE server (daemon connects to it on startup)
     mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsPath_, spec_.slotId, ctx_.clusterSlotIds);
@@ -307,6 +309,7 @@ UbseResult ItNode::Stop()
     }
 
     DestroyObmmShm();
+    DestroyComShm();
     return UBSE_OK;
 }
 
@@ -591,5 +594,110 @@ void ItNode::SetOpDelay(ObmmStubControl::OpBit op, uint32_t ms)
     }
     obmmCtrl_->delayMs[op].store(ms, std::memory_order_relaxed);
     IT_LOG_INFO << "OBMM delay set on node " << spec_.nodeId << ", op=" << op << ", ms=" << ms;
+}
+
+// --- Com (RpcSend) fault injection ---
+// Mirrors InitObmmShm/DestroyObmmShm/SetObmmFault/RestoreObmmFault.
+
+void ItNode::InitComShm()
+{
+    if (comCtrl_ != nullptr) {
+        return;
+    }
+    // shm name 与 ubse_com_engine_it_mock.cpp 约定: /com_stub_<nodeId>
+    comShmName_ = "/com_stub_" + spec_.nodeId;
+    comShmFd_ = shm_open(comShmName_.c_str(), O_CREAT | O_RDWR, 0600);
+    if (comShmFd_ < 0) {
+        IT_LOG_WARN << "Failed to create Com shm '" << comShmName_ << "': " << strerror(errno);
+        comShmName_.clear();
+        return;
+    }
+    if (ftruncate(comShmFd_, sizeof(ComStubControl)) != 0) {
+        IT_LOG_WARN << "Failed to truncate Com shm: " << strerror(errno);
+        close(comShmFd_);
+        comShmFd_ = -1;
+        comShmName_.clear();
+        return;
+    }
+    void* p = mmap(nullptr, sizeof(ComStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, comShmFd_, 0);
+    if (p == MAP_FAILED) {
+        IT_LOG_WARN << "Failed to mmap Com shm: " << strerror(errno);
+        close(comShmFd_);
+        comShmFd_ = -1;
+        comShmName_.clear();
+        return;
+    }
+    comCtrl_ = static_cast<ComStubControl*>(p);
+    comCtrl_->magic.store(ComStubControl::MAGIC, std::memory_order_release);
+    comCtrl_->failMask.store(0, std::memory_order_relaxed);
+    comCtrl_->errnoVal.store(UBSE_COM_ERROR_SYNC_CALL_FAIL, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ComStubControl::OP_COUNT; ++i) {
+        comCtrl_->count[i].store(0, std::memory_order_relaxed);
+    }
+    comCtrl_->dstSeq.store(0, std::memory_order_relaxed);
+    std::memset(comCtrl_->dstNodeId, 0, ComStubControl::DST_NODE_ID_MAX);
+}
+
+void ItNode::DestroyComShm()
+{
+    if (comCtrl_ != nullptr) {
+        comCtrl_->magic.store(0, std::memory_order_release);
+        munmap(comCtrl_, sizeof(ComStubControl));
+        comCtrl_ = nullptr;
+    }
+    if (comShmFd_ >= 0) {
+        close(comShmFd_);
+        comShmFd_ = -1;
+    }
+    if (!comShmName_.empty()) {
+        shm_unlink(comShmName_.c_str());
+        comShmName_.clear();
+    }
+}
+
+UbseResult ItNode::SetComFault(uint32_t failMask, uint32_t errnoVal, const uint32_t count[2],
+                               const std::string& dstNodeId)
+{
+    if (comCtrl_ == nullptr) {
+        IT_LOG_ERROR << "Com shm not initialized for node " << spec_.nodeId;
+        return UBSE_ERROR_DEF(1);
+    }
+    comCtrl_->errnoVal.store(errnoVal, std::memory_order_relaxed);
+    for (uint32_t i = 0; i < ComStubControl::OP_COUNT; ++i) {
+        uint32_t c = (count != nullptr) ? count[i] : 0;
+        comCtrl_->count[i].store(c, std::memory_order_relaxed);
+    }
+    SetComDstNodeId(*comCtrl_, dstNodeId);
+    comCtrl_->failMask.store(failMask, std::memory_order_release);
+    IT_LOG_INFO << "Com fault set on node " << spec_.nodeId << ", failMask=0x" << std::hex << failMask
+                << ", errno=" << std::dec << errnoVal << ", dstNodeId=" << (dstNodeId.empty() ? "*" : dstNodeId);
+    return UBSE_OK;
+}
+
+UbseResult ItNode::RestoreComFault()
+{
+    if (comCtrl_ == nullptr) {
+        return UBSE_OK;
+    }
+    comCtrl_->failMask.store(0, std::memory_order_release);
+    SetComDstNodeId(*comCtrl_, "");
+    IT_LOG_INFO << "Com fault cleared on node " << spec_.nodeId;
+    return UBSE_OK;
+}
+
+void ItNode::SetComSendFailed(const std::string& dstNodeId, bool fail)
+{
+    if (comCtrl_ == nullptr) {
+        return;
+    }
+    uint32_t bit = 1u << ComStubControl::OP_SYNC_SEND;
+    if (fail) {
+        comCtrl_->errnoVal.store(UBSE_COM_ERROR_SYNC_CALL_FAIL, std::memory_order_relaxed);
+        comCtrl_->count[ComStubControl::OP_SYNC_SEND].store(0, std::memory_order_relaxed);
+        SetComDstNodeId(*comCtrl_, dstNodeId);
+        comCtrl_->failMask.fetch_or(bit, std::memory_order_release);
+    } else {
+        comCtrl_->failMask.fetch_and(~bit, std::memory_order_release);
+    }
 }
 } // namespace ubse::it::infra

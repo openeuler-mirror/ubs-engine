@@ -57,3 +57,15 @@ TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogShareDetachReqConflict01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareDetachReqConflict(Cluster());
 }
+
+// P1-FaultLog-BorrowMasterToExSendFailed-01: 主节点向导出节点发送借用请求失败 触发 BORROW_MASTER_TO_EX_SEND_FAILED
+TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogBorrowMasterToExSendFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowMasterToExSendFailed(Cluster());
+}
+
+// P1-FaultLog-BorrowReqSendFailed-01: 请求节点向主节点发送借用请求失败 触发 BORROW_REQ_SEND_FAILED
+TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogBorrowReqSendFailed01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogBorrowReqSendFailed(Cluster());
+}

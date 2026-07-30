@@ -23,6 +23,7 @@
 #include "ubse_error.h"
 #include "it_cli_invoker.h"
 #include "it_cluster_spec.h"
+#include "it_com_stub_control.h"
 #include "it_lcne_client.h"
 #include "it_obmm_stub_control.h"
 #include "it_sdk_client.h"
@@ -202,12 +203,53 @@ public:
      */
     void SetOpDelay(ObmmStubControl::OpBit op, uint32_t ms = 0);
 
+    // --- Com (RpcSend) fault injection via shared memory ---
+    // Mirrors the OBMM stub pattern: per-node shm "/com_stub_<nodeId>",
+    // runtime injectable, no daemon restart needed. Default failMask=0
+    // (no fault at cluster startup); only takes effect when a test case
+    // explicitly calls SetComFault().
+
+    /**
+     * @brief Inject RPC send fault via shared memory (runtime, no restart).
+     *
+     * @param failMask  Bitmask of ComStubControl::OpBit (currently only
+     *                  OP_SYNC_SEND is honored by the mock).
+     * @param errnoVal  UbseResult returned by mock on failure
+     *                  (default UBSE_COM_ERROR_SYNC_CALL_FAIL).
+     * @param count     Per-op remaining failure count. nullptr or element 0
+     *                  means persistent failure; >0 means fail N times then
+     *                  auto-recover.
+     * @param dstNodeId Destination node ID filter. Empty means fail for ALL
+     *                  destinations; non-empty means only fail when sending
+     *                  to this specific node (other nodes' RPCs unaffected).
+     */
+    UbseResult SetComFault(uint32_t failMask, uint32_t errnoVal = UBSE_COM_ERROR_SYNC_CALL_FAIL,
+                           const uint32_t count[2] = nullptr, const std::string& dstNodeId = "");
+
+    /** @brief Restore RPC send to normal (clear all fault bits and dst filter). */
+    UbseResult RestoreComFault();
+
+    /**
+     * @brief Convenience: set/clear failure for synchronous RpcSend to a
+     *        specific destination node.
+     *
+     * @param dstNodeId Destination node ID. Empty means fail for ALL
+     *                  destinations; non-empty means only fail when the RPC
+     *                  targets this node.
+     * @param fail      true: inject failure (UbseComMsgSend returns
+     *                  UBSE_COM_ERROR_SYNC_CALL_FAIL persistently);
+     *                  false: clear the corresponding bit.
+     */
+    void SetComSendFailed(const std::string& dstNodeId, bool fail);
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();
     NodeProcessConfig BuildProcessConfig() const;
     void InitObmmShm();
     void DestroyObmmShm();
+    void InitComShm();
+    void DestroyComShm();
 
     NodeSpec spec_;
     ClusterContext ctx_;
@@ -222,6 +264,10 @@ private:
     std::string obmmShmName_;
     int obmmShmFd_{-1};
     ObmmStubControl* obmmCtrl_{nullptr};
+
+    std::string comShmName_;
+    int comShmFd_{-1};
+    ComStubControl* comCtrl_{nullptr};
 };
 
 } // namespace ubse::it::infra

@@ -7,6 +7,7 @@ target_include_directories(ubse_com_engine_it_mock PRIVATE
     ${PROJECT_SOURCE_DIR}/src/framework/misc
     ${PROJECT_SOURCE_DIR}/src/include
     ${PROJECT_SOURCE_DIR}/src/include/adapter_plugins/smbios
+    ${PROJECT_SOURCE_DIR}/test/IT/infra/spec
     ${CMAKE_BINARY_DIR}/include
 )
 

@@ -365,6 +365,180 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
 
+// BorrowMasterToExSendFailed-01: 主节点向导出节点发送借用请求失败 触发 BORROW_MASTER_TO_EX_SEND_FAILED
+void RunP1FaultLogBorrowMasterToExSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "2" == masterNodeId ? 1 : 2;
+    auto exportNodeIdStr = std::to_string(exportNodeId);
+    auto importNodeId = masterNodeId;
+    auto& comStubControl = cluster.GetComStubControl(masterNodeId);
+    comStubControl.SetComSendFailed(exportNodeIdStr, true);
+
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    {
+        const char* name = "it_p1_fl_br_master_to_export_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        ubs_mem_lender_t lender{.lender_size = fdSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        IT_LOG_INFO << "Creating FD with lender: name=" << name << ", size=" << lender.lender_size
+                    << ", lender slot=" << lender.slot_id;
+        ret = sdk.MemFdCreateWithLender(name, nullptr, 0, &lender, 1, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_export_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        ubs_mem_lender_t lender{.lender_size = numaSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        IT_LOG_INFO << "Creating NUMA with lender: name=" << name << ", size=" << lender.lender_size
+                    << ", lender slot=" << lender.slot_id;
+        ret = sdk.MemNumaCreateWithLender(name, &lender, 1, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+
+    comStubControl.SetComSendFailed(exportNodeIdStr, false);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0005"; }, 2); // 等待2条日志
+
+    ASSERT_EQ(entries.size(), 2u) << "Expected 2 fault log entry with ErrorCode=ubse_borrow_0005, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, "it_p1_fl_br_master_to_export_send_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(entry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(entry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(entry.requestNode, importNodeId) << "FD requestNode mismatch";
+    EXPECT_EQ(entry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(entry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_master_to_export_send_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, importNodeId) << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+}
+
+// BorrowReqSendFailed-01: 请求节点向主节点发送借用请求失败 触发 BORROW_REQ_SEND_FAILED
+void RunP1FaultLogBorrowReqSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    auto exportNodeId = masterNodeId;
+    auto reqNodeId = "1" == masterNodeId ? "2" : "1";
+    auto& comStubControl = cluster.GetComStubControl(reqNodeId);
+    comStubControl.SetComSendFailed(masterNodeId, true);
+
+    auto& sdk = cluster.GetSdkClient(reqNodeId);
+    auto faultLogPath = cluster.GetNode(reqNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+    {
+        const char* name = "it_p1_fl_br_req_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+
+        // 创建FD失败，触发 BORROW_REQ_SEND_FAILED
+        IT_LOG_INFO << "[BorrowReqSendFailed-01] Creating FD with req send failed: name=" << name;
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_req_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+
+        // 创建NUMA失败，触发 BORROW_REQ_SEND_FAILED
+        IT_LOG_INFO << "[BorrowReqSendFailed-01] Creating NUMA with req send failed: name=" << name;
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_req_send_failed_share";
+        // 创建Share失败，触发 BORROW_REQ_SEND_FAILED
+        IT_LOG_INFO << "[BorrowReqSendFailed-01] Creating Share with req send failed: name=" << name;
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreate(name, shareSize, usrInfo, 0, &region, nullptr);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    comStubControl.SetComSendFailed(masterNodeId, false);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0010"; }, 4); // 等待4条日志
+
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entry with ErrorCode=ubse_borrow_0010, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_br_req_send_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry.requestNode, reqNodeId) << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_req_send_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, reqNodeId) << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_req_send_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, reqNodeId) << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+
+    // 校验Share Attach类型日志
+    const auto& shareAttachEntry = entries[3];
+    EXPECT_EQ(shareAttachEntry.requestName, "it_p1_fl_br_req_send_failed_share") << "Share Attach requestName mismatch";
+    EXPECT_EQ(shareAttachEntry.borrowType, "SHARE_BORROW") << "Share Attach borrowType mismatch";
+    EXPECT_EQ(shareAttachEntry.requestSize, 0) << "Share Attach requestSize mismatch";
+    EXPECT_EQ(shareAttachEntry.requestNode, reqNodeId) << "Share Attach requestNode mismatch";
+    EXPECT_EQ(shareAttachEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareAttachEntry.errorInfo.empty()) << "Share Attach errorInfo is empty";
+    EXPECT_FALSE(shareAttachEntry.advice.empty()) << "Share Attach advice is empty";
+}
+
 // BorrowObmmExportFailed-01: OBMM导出失败 触发 BORROW_OBMM_EXPORT_FAILED
 void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster)
 {
@@ -951,7 +1125,7 @@ void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(shareEntry.advice.empty());
 }
 
-//P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
+//ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
 void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
@@ -1027,7 +1201,7 @@ void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(cliNumaEntry.advice.empty());
 }
 
-// P1-FaultLog-ReturnReqConflict-01:  FD/NUMA/Share 归还请求冲突
+// ReturnReqConflict-01:  FD/NUMA/Share 归还请求冲突
 void RunP1FaultLogReturnReqConflict(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1481,7 +1655,7 @@ void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty());
 }
 
-// P1-FaultLog-ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
+// ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
 void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");

@@ -31,6 +31,24 @@ void RunP1FaultLogBorrowChipNotSupport(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-BorrowScheduleFailed-01: 借用调度失败 触发 BORROW_SCHEDULE_FAILED
 void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster);
 
+// P1-FaultLog-BorrowMasterToExSendFailed-01: 主节点向导出节点发送借用请求失败 触发 BORROW_MASTER_TO_EX_SEND_FAILED
+void RunP1FaultLogBorrowMasterToExSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowMasterToImSendFailed-01: 主节点向导入节点发送借用请求失败 触发 BORROW_MASTER_TO_IM_SEND_FAILED
+void RunP1FaultLogBorrowMasterToImSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowMasterToReqSendFailed-01: 主节点向请求节点发送借用请求失败 触发 BORROW_MASTER_TO_REQ_SEND_FAILED
+void RunP1FaultLogBorrowMasterToReqSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowExportSendFailed-01: 导出节点向主节点发送借用响应失败 触发 BORROW_EXPORT_SEND_FAILED
+void RunP1FaultLogBorrowExportSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowImportSendFailed-01: 导入节点向主节点发送借用响应失败 触发 BORROW_IMPORT_SEND_FAILED
+void RunP1FaultLogBorrowImportSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-BorrowReqSendFailed-01: 请求节点向主节点发送借用请求失败 触发 BORROW_REQ_SEND_FAILED
+void RunP1FaultLogBorrowReqSendFailed(ubse::it::infra::ItCluster& cluster);
+
 // P1-FaultLog-BorrowObmmExportFailed-01: OBMM导出失败 触发 BORROW_OBMM_EXPORT_FAILED
 void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster);
 
