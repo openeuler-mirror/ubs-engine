@@ -13,6 +13,7 @@
 #include "mem_borrow_fault_log_cases.h"
 #include <unistd.h>
 #include <cstdint>
+#include <future>
 #include "ubse_error.h"
 
 #include "it_assertion.h"
@@ -312,7 +313,7 @@ void RunP1FaultLogBorrowScheduleFailed(ubse::it::infra::ItCluster& cluster)
 
         // 创建Share失败，触发 BORROW_SCHEDULE_FAILED
         IT_LOG_INFO << "[BorrowScheduleFailed-01] Creating Share with schedule failed: name=" << name;
-        ubs_mem_lender_t lender{.lender_size = fdSize, .slot_id = 1, .socket_id = 1, .numa_id = 1, .port_id = 0};
+        ubs_mem_lender_t lender{.lender_size = shareSize, .slot_id = 1, .socket_id = 1, .numa_id = 1, .port_id = 0};
         ubs_mem_nodes_t region{};
         region.node_cnt = 2;
         region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
@@ -447,7 +448,7 @@ void RunP1FaultLogBorrowObmmExportFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
 }
 
-// P1-FaultLog-BorrowObmmImportFailed-01: OBMM导入失败 触发 BORROW_OBMM_IMPORT_FAILED
+// BorrowObmmImportFailed-01: OBMM导入失败 触发 BORROW_OBMM_IMPORT_FAILED
 void RunP1FaultLogBorrowObmmImportFailed(ubse::it::infra::ItCluster& cluster)
 {
     auto& obmmStubControl = cluster.GetObmmStubControl("1");
@@ -764,7 +765,7 @@ void RunP1FaultLogShareAttachExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty());
 }
 
-// P1-FaultLog-ShareChipNotSupported-01: 底层芯片不支持Shared attach 触发 SHARED_CHIP_NOT_SUPPORTED
+// ShareChipNotSupported-01: 底层芯片不支持Shared attach 触发 SHARED_CHIP_NOT_SUPPORTED
 void RunP1FaultLogShareChipNotSupported(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
@@ -813,7 +814,7 @@ void RunP1FaultLogShareChipNotSupported(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(cliEntry.advice.empty());
 }
 
-// P1-FaultLog-ShareChipModeNotSupported-01: 底层芯片模式不支持Share借用模式 触发 SHARED_CHIP_MODE_NOT_SUPPORTED
+// ShareChipModeNotSupported-01: 底层芯片模式不支持Share借用模式 触发 SHARED_CHIP_MODE_NOT_SUPPORTED
 void RunP1FaultLogShareChipModeNotSupported(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");
@@ -882,7 +883,7 @@ void RunP1FaultLogShareChipModeNotSupported(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(cliEntry.advice.empty());
 }
 
-// P1-FaultLog-ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
+// ReturnNameNotExist-01:  FD/NUMA/Share 归还不存在的共享内存 触发 RETURN_NAME_NOT_EXIST
 void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1026,6 +1027,138 @@ void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(cliNumaEntry.advice.empty());
 }
 
+// P1-FaultLog-ReturnReqConflict-01:  FD/NUMA/Share 归还请求冲突
+void RunP1FaultLogReturnReqConflict(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& obmmStubControl = cluster.GetObmmStubControl("2");
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_EXPORT, 1000);
+    {
+        const char* name = "it_p1_fl_ret_req_conflict_fd";
+
+        // 同时创建FD请求和归还请求，构造请求冲突，触发RETURN_REQ_CONFLICT
+        IT_LOG_INFO << "[ReturnReqConflict-01] Creating FD with request conflict: name=" << name;
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() -> int {
+            ubs_mem_fd_desc_t fdDesc1{};
+            return sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc1);
+        });
+        auto future2 = std::async(std::launch::async, [&]() -> int {
+            EXPECT_NE(cliInvoker.DeleteMemory(name, "fd"), UBS_SUCCESS);
+            return 0;
+        });
+    }
+    {
+        const char* name = "it_p1_fl_ret_req_conflict_numa";
+
+        // 同时创建NUMA请求和归还请求，构造请求冲突，触发RETURN_REQ_CONFLICT
+        IT_LOG_INFO << "[ReturnReqConflict-01] Creating NUMA with request conflict: name=" << name;
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() -> int {
+            ubs_mem_numa_desc_t numaDesc1{};
+            return sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc1);
+        });
+        auto future2 = std::async(std::launch::async, [&]() -> int {
+            EXPECT_NE(cliInvoker.DeleteMemory(name, "numa"), UBS_SUCCESS);
+            return 0;
+        });
+    }
+    {
+        const char* name = "it_p1_fl_ret_req_conflict_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        // 使用两个sdk同时创建Share请求，构造请求冲突，触发RETURN_REQ_CONFLICT
+        IT_LOG_INFO << "[ReturnReqConflict-01] Creating SHM with request conflict: name=" << name;
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() -> int {
+            return sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        });
+        // ShareReturnValidate 调 FindShareBorrowObjByName → GetMaxRefCountExportObj → CollectExportObjsByName
+        // CollectExportObjsByName 显式跳过非 SUCCESS 状态,拿不到 RUNNING 对象
+    }
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNEXPORT, 1000);
+    {
+        // 同时创建FD CLI 和 SDK 归还请求，构造请求冲突，触发RETURN_REQ_CONFLICT
+        const char* name = "it_p1_fl_ret_req_conflict_fd";
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() -> int { return sdk.MemFdDelete(name); });
+        auto future2 = std::async(std::launch::async, [&]() -> int {
+            EXPECT_NE(cliInvoker.DeleteMemory(name, "fd"), UBS_SUCCESS);
+            return 0;
+        });
+    }
+    {
+        // 同时创建NUMA CLI 和 SDK 归还请求，构造请求冲突，触发RETURN_REQ_CONFLICT
+        const char* name = "it_p1_fl_ret_req_conflict_numa";
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() -> int { return sdk.MemNumaDelete(name); });
+        auto future2 = std::async(std::launch::async, [&]() -> int {
+            EXPECT_NE(cliInvoker.DeleteMemory(name, "numa"), UBS_SUCCESS);
+            return 0;
+        });
+    }
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNEXPORT);
+
+    {
+        // 清理
+        sdk.MemShmDelete("it_p1_fl_ret_req_conflict_share");
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0030"; }, 4);
+
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entries with ErrorCode=ubse_borrow_0030, got "
+                                  << entries.size();
+    // 校验日志内容
+
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_req_conflict_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, "1");
+    EXPECT_EQ(fdEntry.adviceCode, 9u); // REQ_CONFLICT
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_req_conflict_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, "1");
+    EXPECT_EQ(numaEntry.adviceCode, 9u); // REQ_CONFLICT
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& fdEntry1 = entries[2];
+    EXPECT_EQ(fdEntry1.requestName, "it_p1_fl_ret_req_conflict_fd");
+    EXPECT_EQ(fdEntry1.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry1.requestSize, 0);
+    EXPECT_EQ(fdEntry1.requestNode, "1");
+    EXPECT_EQ(fdEntry1.adviceCode, 9u); // REQ_CONFLICT
+    EXPECT_FALSE(fdEntry1.errorInfo.empty());
+    EXPECT_FALSE(fdEntry1.advice.empty());
+
+    const auto& numaEntry1 = entries[3];
+    EXPECT_EQ(numaEntry1.requestName, "it_p1_fl_ret_req_conflict_numa");
+    EXPECT_EQ(numaEntry1.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry1.requestSize, 0);
+    EXPECT_EQ(numaEntry1.requestNode, "1");
+    EXPECT_EQ(numaEntry1.adviceCode, 9u); // REQ_CONFLICT
+    EXPECT_FALSE(numaEntry1.errorInfo.empty());
+    EXPECT_FALSE(numaEntry1.advice.empty());
+}
+
 // ReturnObmmExportFailed-01: OBMM导出失败 触发 RETURN_OBMM_EXPORT_FAILED
 void RunP1FaultLogReturnObmmExportFailed(ubse::it::infra::ItCluster& cluster)
 {
@@ -1065,7 +1198,6 @@ void RunP1FaultLogReturnObmmExportFailed(ubse::it::infra::ItCluster& cluster)
     }
     {
         const char* name = "it_p1_fl_ret_obmm_unexport_failed_share";
-        ubs_mem_shm_desc_t shmDesc{};
 
         // 创建共享内存
         IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating SHM: name=" << name;
@@ -1162,7 +1294,6 @@ void RunP1FaultLogReturnObmmImportFailed(ubse::it::infra::ItCluster& cluster)
     }
     {
         const char* name = "it_p1_fl_ret_obmm_unimport_failed_share";
-        ubs_mem_shm_desc_t shmDesc{};
 
         // 创建共享内存成功
         IT_LOG_INFO << "[BorrowObmmImportFailed-01] Creating SHM: name=" << name;
@@ -1297,7 +1428,7 @@ void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
 }
 
-// P1-FaultLog-ShareReturnRegionFailed-01(四节点): Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
+// ShareReturnRegionFailed-01(四节点): Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
 void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1350,7 +1481,75 @@ void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty());
 }
 
-// P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
+// P1-FaultLog-ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
+void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster)
+{
+    auto& sdk = cluster.GetSdkClient("1");
+    auto& cliInvoker = cluster.GetCliInvoker("1");
+    auto faultLogPath = cluster.GetNode("1").GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    const char* name = "it_p1_fl_share_detach_req_conflict";
+    {
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+
+        // 创建共享内存，共享域包含节点1和节点2
+        ubs_mem_lender_t lender{
+            .lender_size = shareSize, .slot_id = 2, .socket_id = UINT32_MAX, .numa_id = 0, .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        auto ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        ASSERT_IT_OK(ret);
+    }
+
+    auto& obmmStubControl = cluster.GetObmmStubControl("1");
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 1000);
+
+    {
+        IT_LOG_INFO << "[ReturnReqConflict-01] Creating SHM with request conflict: name=" << name;
+        // 使用std::future获取线程返回值
+        auto future1 = std::async(std::launch::async, [&]() {
+            ubs_mem_shm_desc_t* attachDesc = nullptr;
+            return sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        });
+        auto future2 = std::async(std::launch::async, [&]() -> int {
+            EXPECT_NE(cliInvoker.DetachMemory(name), UBS_SUCCESS);
+            return 0;
+        });
+    }
+
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
+
+    {
+        // 清理
+        auto ret = sdk.MemShmDetach(name);
+        ASSERT_IT_OK(ret);
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    // 等待并校验 fault log 中出现 SHARED_DETACH_REQ_CONFLICT (faultCode=40)
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0040"; });
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 1u) << "Expected 1 fault log entry with ErrorCode=ubse_borrow_0040, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, name);
+    EXPECT_EQ(entry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(entry.requestSize, 0);
+    EXPECT_EQ(entry.requestNode, "1");
+    EXPECT_EQ(entry.adviceCode, 9u); // RES_OP_CONFLICT
+    EXPECT_FALSE(entry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
+}
+
+// ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
 void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster)
 {
     auto& sdk = cluster.GetSdkClient("1");
@@ -1385,7 +1584,7 @@ void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster)
     EXPECT_FALSE(entry.advice.empty()) << "Share advice is empty";
 }
 
-// P1-FaultLog-ShareReturnChipNotSupported-01: 底层芯片不支持Share归还 触发 SHARED_RETURN_CHIP_NOT_SUPPORTED
+// ShareReturnChipNotSupported-01: 底层芯片不支持Share归还 触发 SHARED_RETURN_CHIP_NOT_SUPPORTED
 void RunP1FaultLogShareReturnChipNotSupported(ubse::it::infra::ItCluster& cluster)
 {
     auto& cliInvoker = cluster.GetCliInvoker("1");

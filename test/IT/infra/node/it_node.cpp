@@ -583,4 +583,13 @@ void ItNode::SetOpFailed(ObmmStubControl::OpBit op, bool fail)
         obmmCtrl_->failMask.fetch_and(~bit, std::memory_order_release);
     }
 }
+
+void ItNode::SetOpDelay(ObmmStubControl::OpBit op, uint32_t ms)
+{
+    if (obmmCtrl_ == nullptr) {
+        return;
+    }
+    obmmCtrl_->delayMs[op].store(ms, std::memory_order_relaxed);
+    IT_LOG_INFO << "OBMM delay set on node " << spec_.nodeId << ", op=" << op << ", ms=" << ms;
+}
 } // namespace ubse::it::infra

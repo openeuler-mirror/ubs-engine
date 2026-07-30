@@ -187,6 +187,21 @@ public:
      */
     void SetOpFailed(ObmmStubControl::OpBit op, bool fail);
 
+    /**
+     * @brief Convenience: set/clear delay for a specific OBMM operation.
+     *
+     * Unified wrapper over delayMs manipulation, supports every OpBit
+     * (OP_EXPORT/OP_UNEXPORT/OP_IMPORT/OP_UNIMPORT/OP_EXPORT_USERADDR/
+     * OP_QUERY_PA/OP_PREIMPORT/OP_UNPREIMPORT). When @p ms > 0 the
+     * operation is delayed by @p ms milliseconds before returning; when 0
+     * the delay is cleared. Runtime-adjustable via atomic store, takes
+     * effect immediately on the next obmm_* call (no restart needed).
+     *
+     * @param op  Operation bit (see ObmmStubControl::OpBit).
+     * @param ms  Delay in milliseconds; 0 to clear.
+     */
+    void SetOpDelay(ObmmStubControl::OpBit op, uint32_t ms = 0);
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();

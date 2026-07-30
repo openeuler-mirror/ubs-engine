@@ -20,6 +20,10 @@
  *   - UBSE_OBMM_STUB_FAIL: comma-separated operations that should fail
  *   - UBSE_OBMM_STUB_DELAY_MS: delay in milliseconds for all operations
  *
+ * Runtime per-op fault injection (failure/delay) is supported via shared
+ * memory (ObmmStubControl) when UBSE_IT_NODE_ID is set; see apply_delay()
+ * and should_fail() for details.
+ *
  * mem_id generation uses an atomic counter starting from 1000.
  * Export/import records are tracked in a static map for consistency.
  */
@@ -195,8 +199,21 @@ static bool should_fail(const char* operation)
     return true;
 }
 
-static void apply_delay()
+static void apply_delay(const char* operation)
 {
+    // 1) shm per-op 延迟（运行时控制，优先级高）
+    ensure_ctrl_loaded();
+    if (g_ctrl != nullptr) {
+        int idx = op_index(operation);
+        if (idx >= 0) {
+            uint32_t ms = g_ctrl->delayMs[idx].load(std::memory_order_relaxed);
+            if (ms > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+                return;
+            }
+        }
+    }
+    // 2) env var 回退（向后兼容，全局默认延迟）
     const char* delay_str = getenv("UBSE_OBMM_STUB_DELAY_MS");
     if (delay_str != nullptr && delay_str[0] != '\0') {
         int delay_ms = atoi(delay_str);
@@ -210,7 +227,7 @@ extern "C" {
 
 mem_id obmm_export(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long flags, struct obmm_mem_desc* desc)
 {
-    apply_delay();
+    apply_delay("export");
     if (should_fail("export")) {
         return 0;
     }
@@ -239,7 +256,7 @@ mem_id obmm_export(const size_t length[OBMM_MAX_LOCAL_NUMA_NODES], unsigned long
 
 int obmm_unexport(mem_id id, unsigned long flags)
 {
-    apply_delay();
+    apply_delay("unexport");
     if (should_fail("unexport")) {
         return -1;
     }
@@ -252,7 +269,7 @@ int obmm_unexport(mem_id id, unsigned long flags)
 
 mem_id obmm_import(const struct obmm_mem_desc* desc, unsigned long flags, int base_dist, int* numa)
 {
-    apply_delay();
+    apply_delay("import");
     if (should_fail("import")) {
         return 0;
     }
@@ -275,7 +292,7 @@ mem_id obmm_import(const struct obmm_mem_desc* desc, unsigned long flags, int ba
 
 int obmm_unimport(mem_id id, unsigned long flags)
 {
-    apply_delay();
+    apply_delay("unimport");
     if (should_fail("unimport")) {
         return -1;
     }
@@ -288,7 +305,7 @@ int obmm_unimport(mem_id id, unsigned long flags)
 
 mem_id obmm_export_useraddr(int pid, void* va, size_t size, unsigned long flags, struct obmm_mem_desc* desc)
 {
-    apply_delay();
+    apply_delay("export_useraddr");
     if (should_fail("export_useraddr")) {
         return 0;
     }
@@ -314,7 +331,7 @@ mem_id obmm_export_useraddr(int pid, void* va, size_t size, unsigned long flags,
 
 int obmm_query_pa_by_memid(mem_id id, unsigned long offset, unsigned long* pa)
 {
-    apply_delay();
+    apply_delay("query_pa");
     if (should_fail("query_pa")) {
         return -1;
     }
@@ -328,7 +345,7 @@ int obmm_query_pa_by_memid(mem_id id, unsigned long offset, unsigned long* pa)
 
 int obmm_preimport(struct obmm_preimport_info* preimport_info, unsigned long flags)
 {
-    apply_delay();
+    apply_delay("preimport");
     if (should_fail("preimport")) {
         return -1;
     }
@@ -338,7 +355,7 @@ int obmm_preimport(struct obmm_preimport_info* preimport_info, unsigned long fla
 
 int obmm_unpreimport(const struct obmm_preimport_info* preimport_info, unsigned long flags)
 {
-    apply_delay();
+    apply_delay("unpreimport");
     if (should_fail("unpreimport")) {
         return -1;
     }

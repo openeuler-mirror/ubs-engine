@@ -45,3 +45,15 @@ TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogReturnObmmImportFailed01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogReturnObmmImportFailed(Cluster());
 }
+
+// P1-FaultLog-BorrowReqConflict-01: 借用请求冲突 触发 RETURN_REQ_CONFLICT
+TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogBorrowReqConflict01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogReturnReqConflict(Cluster());
+}
+
+// P1-FaultLog-ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
+TEST_F(Tongsuan1dTwoNodesObmmFaultScenario, P1FaultLogShareDetachReqConflict01)
+{
+    ubse::it::tests::mem_borrow::RunP1FaultLogShareDetachReqConflict(Cluster());
+}

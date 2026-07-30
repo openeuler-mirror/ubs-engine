@@ -33,6 +33,8 @@ namespace ubse::it::infra {
  *   - errnoVal:  errno value set by stub when returning failure
  *   - count[i]:  per-op remaining failure count. 0 = persistent failure;
  *                >0 = fail N times then auto-recover. Atomically decremented.
+ *   - delayMs[i]: per-op delay in milliseconds. 0 = no delay; >0 = sleep
+ *                before the op returns. Runtime-adjustable via atomic store.
  *
  * Bit assignment (must match OpIndex in obmm_stub.cpp):
  *   bit 0: export
@@ -52,6 +54,7 @@ struct ObmmStubControl {
     std::atomic<uint32_t> failMask{0};
     std::atomic<int32_t> errnoVal{0};
     std::atomic<uint32_t> count[OP_COUNT]{};
+    std::atomic<uint32_t> delayMs[OP_COUNT]{};
 
     /** Bit positions for failMask. */
     enum OpBit : uint32_t

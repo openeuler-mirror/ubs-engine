@@ -61,6 +61,9 @@ void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
 void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster);
 
+// P1-FaultLog-ReturnReqConflict-01:  FD/NUMA/Share 归还请求冲突 触发 RETURN_REQ_CONFLICT
+void RunP1FaultLogReturnReqConflict(ubse::it::infra::ItCluster& cluster);
+
 // P1-FaultLog-ReturnObmmExportFailed-01: OBMM导出失败 触发 RETURN_OBMM_EXPORT_FAILED
 void RunP1FaultLogReturnObmmExportFailed(ubse::it::infra::ItCluster& cluster);
 
@@ -72,6 +75,9 @@ void RunP1FaultLogShareReturnInAttached(ubse::it::infra::ItCluster& cluster);
 
 // P1-FaultLog-ShareReturnRegionFailed-01: Share 归还节点不在共享域 触发 SHARED_RETURN_REGION_FAILED
 void RunP1FaultLogShareReturnRegionFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ShareDetachReqConflict-01: Share detach请求冲突 触发 SHARED_DETACH_REQ_CONFLICT
+void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster);
 
 // P1-FaultLog-ShareDetachNotExist-01: Share detach不存在的共享内存 触发 SHARED_DETACH_NOT_EXIST
 void RunP1FaultLogShareDetachNotExist(ubse::it::infra::ItCluster& cluster);
