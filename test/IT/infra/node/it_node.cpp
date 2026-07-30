@@ -700,4 +700,19 @@ void ItNode::SetComSendFailed(const std::string& dstNodeId, bool fail)
         comCtrl_->failMask.fetch_and(~bit, std::memory_order_release);
     }
 }
+
+void ItNode::SetMemApiWaitTimeOut(uint32_t timeoutMs)
+{
+    if (comCtrl_ == nullptr) {
+        IT_LOG_WARN << "Com shm not initialized for node " << spec_.nodeId << ", cannot set mem API wait timeout";
+        return;
+    }
+    comCtrl_->waitExImSendTimeOutMs.store(timeoutMs, std::memory_order_relaxed);
+    IT_LOG_INFO << "Mem API wait timeout set on node " << spec_.nodeId << ", timeoutMs=" << timeoutMs;
+}
+
+void ItNode::RestoreMemApiWaitTimeOut()
+{
+    SetMemApiWaitTimeOut(0);
+}
 } // namespace ubse::it::infra

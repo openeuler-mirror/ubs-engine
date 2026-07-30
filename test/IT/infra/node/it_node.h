@@ -242,6 +242,22 @@ public:
      */
     void SetComSendFailed(const std::string& dstNodeId, bool fail);
 
+    /**
+     * @brief Override GetWaitTimeOut() return value to control maxRetryTimes.
+     *
+     * Sets ComStubControl::waitExImSendTimeOutMs, which is read by the link-time
+     * replacement of GetWaitTimeOut() in ubse_com_engine_it_mock.cpp.
+     * When timeoutMs > 0, GetWaitTimeOut() returns this value, and
+     * maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION (= timeoutMs).
+     *
+     * @param timeoutMs  Desired timeout in milliseconds (also = maxRetryTimes).
+     *                   0 restores the default (MAX_WAIT_TIME_MS = 30000).
+     */
+    void SetMemApiWaitTimeOut(uint32_t timeoutMs);
+
+    /** @brief Restore GetWaitTimeOut() to default (MAX_WAIT_TIME_MS = 30000). */
+    void RestoreMemApiWaitTimeOut();
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();

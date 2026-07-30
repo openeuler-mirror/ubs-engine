@@ -51,6 +51,7 @@
 #include "trace_context.h"
 
 using ubse::it::infra::ComStubControl;
+using ubse::it::infra::GetComStubControl;
 
 namespace ubse::com {
 
@@ -61,61 +62,28 @@ void UbseComEngine::RegisterTLSCallbacks(UBSHcomTlsOptions& tlsOptions)
 }
 
 // ====== 2. RPC fault injection via shared memory ======
-// Lazily mapped on first UbseComMsgSend call from env UBSE_IT_NODE_ID.
-// Once mapped, reads are atomic loads (~10ns), suitable for the RPC hot path.
-// If mapping fails or shm is absent, falls through to normal send (no fault).
-static ComStubControl* g_comCtrl = nullptr;
-
-static void EnsureComCtrlLoaded()
-{
-    static std::once_flag once;
-    std::call_once(once, []() {
-        // shm name 与 ItNode::InitComShm 约定: /com_stub_<nodeId>
-        const char* nodeId = getenv("UBSE_IT_NODE_ID");
-        if (nodeId == nullptr || nodeId[0] == '\0') {
-            return;
-        }
-        std::string name = "/com_stub_" + std::string(nodeId);
-        int fd = shm_open(name.c_str(), O_RDWR, 0600);
-        if (fd < 0) {
-            return;
-        }
-        void* p = mmap(nullptr, sizeof(ComStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        close(fd);
-        if (p == MAP_FAILED) {
-            return;
-        }
-        auto* ctrl = static_cast<ComStubControl*>(p);
-        if (ctrl->magic.load(std::memory_order_acquire) != ComStubControl::MAGIC) {
-            munmap(ctrl, sizeof(ComStubControl));
-            return;
-        }
-        g_comCtrl = ctrl;
-    });
-}
-
+// Uses GetComStubControl() from it_com_stub_loader.h (shared with other IT mocks).
 static bool ShouldComFail(uint32_t opBit, const std::string& dstNodeId)
 {
-    EnsureComCtrlLoaded();
-    if (g_comCtrl == nullptr) {
+    auto* ctrl = GetComStubControl();
+    if (ctrl == nullptr) {
         return false;
     }
-    uint32_t mask = g_comCtrl->failMask.load(std::memory_order_relaxed);
+    uint32_t mask = ctrl->failMask.load(std::memory_order_relaxed);
     if ((mask & (1u << opBit)) == 0) {
         return false;
     }
     // Destination filter: empty filter matches all; non-empty must match dstNodeId.
-    if (!ComDstNodeIdMatches(*g_comCtrl, dstNodeId)) {
+    if (!ComDstNodeIdMatches(*ctrl, dstNodeId)) {
         return false;
     }
-    // count>0: decrement; reaches 0 → clear bit and let this call succeed
-    uint32_t remaining = g_comCtrl->count[opBit].load(std::memory_order_relaxed);
+    // count>0: decrement; reaches 0 → clear bit for next call
+    uint32_t remaining = ctrl->count[opBit].load(std::memory_order_relaxed);
     if (remaining > 0) {
-        uint32_t prev = g_comCtrl->count[opBit].fetch_sub(1, std::memory_order_relaxed);
-        if (prev == 0) {
-            // Another thread consumed the last failure; clear bit and succeed
-            g_comCtrl->failMask.fetch_and(~(1u << opBit), std::memory_order_relaxed);
-            return false;
+        uint32_t prev = ctrl->count[opBit].fetch_sub(1, std::memory_order_relaxed);
+        if (prev == 1) {
+            // This was the last failure; clear bit so next call succeeds
+            ctrl->failMask.fetch_and(~(1u << opBit), std::memory_order_relaxed);
         }
     }
     return true;
@@ -187,7 +155,7 @@ UbseResult UbseCommunication::UbseComMsgSend(const std::string& engineName, Ubse
     // Fault injection check (default: no fault, falls through to real logic)
     // Destination filter (dstNodeId) allows failing only sends to a specific node.
     if (ShouldComFail(ComStubControl::OP_SYNC_SEND, message.GetDstId())) {
-        return static_cast<UbseResult>(g_comCtrl->errnoVal.load(std::memory_order_relaxed));
+        return static_cast<UbseResult>(GetComStubControl()->errnoVal.load(std::memory_order_relaxed));
     }
 
     // --- Real send logic (mirror of ubse_com_engine.cpp) ---

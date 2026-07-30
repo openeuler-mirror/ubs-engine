@@ -14,3 +14,11 @@ target_include_directories(ubse_com_engine_it_mock PRIVATE
 target_link_libraries(ubse_com_engine_it_mock PRIVATE
     hcom
 )
+
+add_library(ubse_mem_controller_api_it_mock STATIC
+    ubse_mem_controller_api_it_mock.cpp
+)
+
+target_include_directories(ubse_mem_controller_api_it_mock PRIVATE
+    ${PROJECT_SOURCE_DIR}/test/IT/infra/spec
+)

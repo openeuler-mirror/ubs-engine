@@ -18,6 +18,12 @@
 #include <cstring>
 #include <string>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <cstdlib>
+#include <mutex>
+
 namespace ubse::it::infra {
 
 /**
@@ -68,6 +74,11 @@ struct ComStubControl {
     // Destination filter (seqlock-protected, see SetComDstNodeId/ComDstNodeIdMatches)
     std::atomic<uint32_t> dstSeq{0};
     char dstNodeId[DST_NODE_ID_MAX]{};
+
+    // Mem API wait timeout override (ms). 0 = use real implementation (MAX_WAIT_TIME_MS).
+    // When >0, GetWaitTimeOut() returns this value, controlling maxRetryTimes in
+    // AgentSendFdExportObj / AgentSendFdImportObj etc.
+    std::atomic<uint32_t> waitExImSendTimeOutMs{0};
 
     /** Bit positions for failMask. */
     enum OpBit : uint32_t
@@ -120,6 +131,42 @@ inline bool ComDstNodeIdMatches(const ComStubControl& ctrl, const std::string& d
         return true;
     }
     return dstId == std::string(buf);
+}
+
+/**
+ * @brief Lazily load the ComStubControl shared memory block.
+ *
+ * Called by IT mock overrides (ubse_com_engine_it_mock, ubse_mem_controller_api_it_mock).
+ * Uses a function-local static once_flag so all translation units share a single
+ * load attempt. Returns nullptr if shm is absent or magic mismatch.
+ */
+inline ComStubControl* GetComStubControl()
+{
+    static std::once_flag once;
+    static ComStubControl* ctrl = nullptr;
+    std::call_once(once, []() {
+        const char* nodeId = getenv("UBSE_IT_NODE_ID");
+        if (nodeId == nullptr || nodeId[0] == '\0') {
+            return;
+        }
+        std::string name = "/com_stub_" + std::string(nodeId);
+        int fd = shm_open(name.c_str(), O_RDWR, 0600);
+        if (fd < 0) {
+            return;
+        }
+        void* p = mmap(nullptr, sizeof(ComStubControl), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        close(fd);
+        if (p == MAP_FAILED) {
+            return;
+        }
+        auto* loaded = static_cast<ComStubControl*>(p);
+        if (loaded->magic.load(std::memory_order_acquire) != ComStubControl::MAGIC) {
+            munmap(loaded, sizeof(ComStubControl));
+            return;
+        }
+        ctrl = loaded;
+    });
+    return ctrl;
 }
 
 } // namespace ubse::it::infra

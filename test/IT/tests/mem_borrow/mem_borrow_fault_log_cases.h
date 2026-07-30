@@ -79,6 +79,24 @@ void RunP1FaultLogReturnNameNotExist(ubse::it::infra::ItCluster& cluster);
 // P1-FaultLog-ReturnChipNotSupported-01: 底层芯片不支持FD/NUMA归还 触发 RETURN_CHIP_NOT_SUPPORTED
 void RunP1FaultLogReturnChipNotSupported(ubse::it::infra::ItCluster& cluster);
 
+// P1-FaultLog-ReturnMasterToExSendFailed-01: 主节点向导出节点发送归还请求失败 触发 RETURN_MASTER_TO_EX_SEND_FAILED
+void RunP1FaultLogReturnMasterToExSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnMasterToImSendFailed-01: 主节点向导入节点发送归还请求失败 触发 RETURN_MASTER_TO_IM_SEND_FAILED
+void RunP1FaultLogReturnMasterToImSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnMasterToReqSendFailed-01: 主节点向请求节点发送归还请求失败 触发 RETURN_MASTER_TO_REQ_SEND_FAILED
+void RunP1FaultLogReturnMasterToReqSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnExportSendFailed-01: 导出节点向主节点发送归还响应失败 触发 RETURN_EXPORT_SEND_FAILED
+void RunP1FaultLogReturnExportSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnImportSendFailed-01: 导入节点向主节点发送归还响应失败 触发 RETURN_IMPORT_SEND_FAILED
+void RunP1FaultLogReturnImportSendFailed(ubse::it::infra::ItCluster& cluster);
+
+// P1-FaultLog-ReturnReqSendFailed-01: 请求节点向主节点发送归还请求失败 触发 RETURN_REQ_SEND_FAILED
+void RunP1FaultLogReturnReqSendFailed(ubse::it::infra::ItCluster& cluster);
+
 // P1-FaultLog-ReturnReqConflict-01:  FD/NUMA/Share 归还请求冲突 触发 RETURN_REQ_CONFLICT
 void RunP1FaultLogReturnReqConflict(ubse::it::infra::ItCluster& cluster);
 

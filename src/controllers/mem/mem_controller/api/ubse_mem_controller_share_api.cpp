@@ -822,6 +822,8 @@ uint32_t UbseMemShareDetach(const UbseMemShareDetachReq& req, UbseMemOperationRe
     ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_DESTROYING);
     //  下发importObj;
     if (auto ret = SendShareImportObj(importObj, true, req.unImportNodeId); ret != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::RETURN_MASTER_TO_IM_SEND_FAILED, req.name, MemType::SHM, 0,
+                            importObj.algoResult.exportNumaInfos[0].nodeId, req.unImportNodeId, req.requestNodeId});
         return ShareDetachRollback(importObj, req, resp, ret);
     }
     return UBSE_OK;
@@ -1056,7 +1058,12 @@ uint32_t ShareExportMasterCallback(const std::string& exportNodeId, UbseMemShare
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(copy);
         UBSE_LOG_INFO << "this is shm callback before shm exportObjstateChange, name=" << exportObj.req.name
                       << ", requestId=" << exportObj.req.requestId;
-        return BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_BORROW);
+        auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK, MemOperationType::SHARED_BORROW);
+        if (ret != UBSE_OK) {
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, exportObj.req.name, MemType::SHM,
+                                exportObj.req.size, exportNodeId, "", exportObj.req.requestNodeId});
+        }
+        return ret;
     }
     // 归还逻辑
     if (exportObj.status.expectState == UBSE_MEM_EXPORT_DESTROYED) {
@@ -1196,7 +1203,7 @@ uint32_t ShareImportRunningAgentCallBack(UbseMemOperationResp& resp, UbseMemShar
         ShareImportUpdateState(importObj, UBSE_MEM_IMPORT_SUCCESS);
     }
     if (res = SendShareImportObj(importObj, false); res != UBSE_OK) {
-        BorrowFailedAdvice({MemFault::RETURN_IMPORT_SEND_FAILED, importObj.req.name, MemType::SHM, importObj.req.size,
+        BorrowFailedAdvice({MemFault::BORROW_IMPORT_SEND_FAILED, importObj.req.name, MemType::SHM, importObj.req.size,
                             importObj.algoResult.exportNumaInfos[0].nodeId, importObj.importNodeId, requestNodeId});
     }
     return res;
