@@ -170,39 +170,45 @@ TEST_F(TestUbseCom, UbseRpcSendAgentFailWhenModelFail)
 
 /*
  * 用例描述：
- * agent同步由于找不到master节点发消息失败
+ * agent同步找不到master节点时仍按指定地址发送成功
  * 测试步骤：
  * 1.设置role为agent
  * 2.调用模块接口
  * 预期结果：
- * 1.函数返回UBSE_ERROR
+ * 1.函数返回UBSE_OK
  */
-TEST_F(TestUbseCom, UbseRpcSendAgentFailWhenNoMaster)
+TEST_F(TestUbseCom, UbseRpcSendAgentSuccessWhenNoMaster)
 {
     MOCKER(GetCurRole).stubs().will(returnValue(ELECTION_ROLE_AGENT));
     std::string res = "";
     MOCKER(GetMasterNodeId).stubs().will(returnValue(res));
     const auto func = &UbseComModule::RpcSend<UbseComBaseBufferMessagePtr, UbseComBaseBufferMessagePtr>;
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto ret = UbseRpcSend(TEST_ENDPOINT, TEST_BUFFER, g_ctx, TestRespHandler);
-    ASSERT_EQ(UBSE_ERROR_INVAL, ret);
+    ASSERT_EQ(UBSE_OK, ret);
 }
 
 /*
  * 用例描述：
- * 获取角色失败发消息失败
+ * 获取角色失败时仍按指定地址发送成功
  * 测试步骤：
- * 1.设置role为agent
+ * 1.设置获取role失败
  * 2.调用模块接口
  * 预期结果：
- * 1.函数返回UBSE_ERROR
+ * 1.函数返回UBSE_OK
  */
-TEST_F(TestUbseCom, UbseRpcSendFailWhenNoRole)
+TEST_F(TestUbseCom, UbseRpcSendSuccessWhenNoRole)
 {
     std::string res = "";
     MOCKER(GetCurRole).stubs().will(returnValue(res));
+    const auto func = &UbseComModule::RpcSend<UbseComBaseBufferMessagePtr, UbseComBaseBufferMessagePtr>;
+    MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto ret = UbseRpcSend(TEST_ENDPOINT, TEST_BUFFER, g_ctx, TestRespHandler);
-    ASSERT_EQ(UBSE_ERROR_INVAL, ret);
+    ASSERT_EQ(UBSE_OK, ret);
 }
 
 /*
@@ -290,39 +296,45 @@ TEST_F(TestUbseCom, UbseRpcAsySendAgentFailWhenModelFail)
 
 /*
  * 用例描述：
- * agent异步由于找不到master节点发消息失败
+ * agent异步找不到master节点时仍按指定地址发送成功
  * 测试步骤：
  * 1.设置role为agent
  * 2.调用模块接口
  * 预期结果：
- * 1.函数返回UBSE_ERROR
+ * 1.函数返回UBSE_OK
  */
-TEST_F(TestUbseCom, UbseRpcAsySendAgentFailWhenNoMaster)
+TEST_F(TestUbseCom, UbseRpcAsySendAgentSuccessWhenNoMaster)
 {
     MOCKER(GetCurRole).stubs().will(returnValue(ELECTION_ROLE_AGENT));
     const auto func = &UbseComModule::RpcAsyncSend<UbseComBaseBufferMessagePtr>;
     std::string res = "";
     MOCKER(GetMasterNodeId).stubs().will(returnValue(res));
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto ret = UbseRpcAsyncSend(TEST_ENDPOINT, TEST_BUFFER, g_ctx, TestRespHandler);
-    ASSERT_EQ(UBSE_ERROR_INVAL, ret);
+    ASSERT_EQ(UBSE_OK, ret);
 }
 
 /*
  * 用例描述：
- * 获取角色失败异步发消息失败
+ * 获取角色失败时仍按指定地址异步发送成功
  * 测试步骤：
- * 1.设置role为agent
+ * 1.设置获取role失败
  * 2.调用模块接口
  * 预期结果：
- * 1.函数返回UBSE_ERROR
+ * 1.函数返回UBSE_OK
  */
-TEST_F(TestUbseCom, UbseRpcAsySendFailWhenNoRole)
+TEST_F(TestUbseCom, UbseRpcAsySendSuccessWhenNoRole)
 {
     std::string res = "";
     MOCKER(GetCurRole).stubs().will(returnValue(res));
+    const auto func = &UbseComModule::RpcAsyncSend<UbseComBaseBufferMessagePtr>;
+    MOCKER(func).stubs().will(returnValue(UBSE_OK));
+    std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
+    MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
     auto ret = UbseRpcAsyncSend(TEST_ENDPOINT, TEST_BUFFER, g_ctx, TestRespHandler);
-    ASSERT_EQ(UBSE_ERROR_INVAL, ret);
+    ASSERT_EQ(UBSE_OK, ret);
 }
 
 /*
@@ -504,9 +516,8 @@ TEST_F(TestUbseCom, UbseRegRpcEndpointFailWhenModuleNull)
  */
 TEST_F(TestUbseCom, UbseRpcEndpointSendSuccess)
 {
-    const auto func =
-        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
-                                                   UbseRpcMessage &)>(&UbseComModule::RpcSend);
+    const auto func = static_cast<UbseResult (UbseComModule::*)(
+        const std::string&, uint16_t, uint16_t, const UbseRpcMessage&, UbseRpcMessage&)>(&UbseComModule::RpcSend);
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
@@ -527,9 +538,8 @@ TEST_F(TestUbseCom, UbseRpcEndpointSendSuccess)
  */
 TEST_F(TestUbseCom, UbseRpcEndpointSendFailWhenModelFail)
 {
-    const auto func =
-        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
-                                                   UbseRpcMessage &)>(&UbseComModule::RpcSend);
+    const auto func = static_cast<UbseResult (UbseComModule::*)(
+        const std::string&, uint16_t, uint16_t, const UbseRpcMessage&, UbseRpcMessage&)>(&UbseComModule::RpcSend);
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
@@ -570,8 +580,8 @@ TEST_F(TestUbseCom, UbseRpcEndpointSendFailWhenModuleNull)
 TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendSuccess)
 {
     const auto func =
-        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
-                                                   const UbseComCallback &)>(&UbseComModule::RpcAsyncSend);
+        static_cast<UbseResult (UbseComModule::*)(const std::string&, uint16_t, uint16_t, const UbseRpcMessage&,
+                                                  const UbseComCallback&)>(&UbseComModule::RpcAsyncSend);
     MOCKER(func).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
@@ -593,8 +603,8 @@ TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendSuccess)
 TEST_F(TestUbseCom, UbseRpcEndpointAsyncSendFailWhenModelFail)
 {
     const auto func =
-        static_cast<UbseResult (UbseComModule::*)(const std::string &, uint16_t, uint16_t, const UbseRpcMessage &,
-                                                   const UbseComCallback &)>(&UbseComModule::RpcAsyncSend);
+        static_cast<UbseResult (UbseComModule::*)(const std::string&, uint16_t, uint16_t, const UbseRpcMessage&,
+                                                  const UbseComCallback&)>(&UbseComModule::RpcAsyncSend);
     MOCKER(func).stubs().will(returnValue(UBSE_ERROR));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
@@ -641,14 +651,14 @@ TEST_F(TestUbseCom, UbseRpcEndpointGetProperties)
     uint16_t testModuleCode = 10;
     uint16_t testOpCode = 20;
     bool receiverCalled = false;
-    UbseRpcMessageReceiver testReceiver = [&receiverCalled](const uint8_t *reqData, uint32_t reqSize,
-                                                             std::unique_ptr<UbseRpcMessage> &resp) {
+    UbseRpcMessageReceiver testReceiver = [&receiverCalled](const uint8_t* reqData, uint32_t reqSize,
+                                                            std::unique_ptr<UbseRpcMessage>& resp) {
         receiverCalled = true;
     };
     UbseRpcEndpoint endpoint(testModuleCode, testOpCode, testReceiver);
     EXPECT_EQ(testModuleCode, endpoint.GetModuleCode());
     EXPECT_EQ(testOpCode, endpoint.GetOpCode());
-    const auto &recv = endpoint.GetReceiver();
+    const auto& recv = endpoint.GetReceiver();
     EXPECT_FALSE(recv == nullptr);
 }
 
@@ -679,15 +689,15 @@ TEST_F(TestUbseCom, UbseRpcEndpointDefaultConstructor)
  */
 TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildNew)
 {
-    const auto regFunc =
-        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    const auto regFunc = static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
     MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     uint16_t testModuleCode = 100;
     uint16_t testOpCode = 200;
-    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t*, uint32_t, std::unique_ptr<UbseRpcMessage>&) {
+    };
     auto endpoint = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
     EXPECT_EQ(testModuleCode, endpoint->GetModuleCode());
     EXPECT_EQ(testOpCode, endpoint->GetOpCode());
@@ -703,15 +713,15 @@ TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildNew)
  */
 TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildExisting)
 {
-    const auto regFunc =
-        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    const auto regFunc = static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
     MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     uint16_t testModuleCode = 100;
     uint16_t testOpCode = 200;
-    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t*, uint32_t, std::unique_ptr<UbseRpcMessage>&) {
+    };
     auto endpoint1 = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
     auto endpoint2 = UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
     EXPECT_EQ(endpoint1->GetModuleCode(), endpoint2->GetModuleCode());
@@ -732,15 +742,15 @@ TEST_F(TestUbseCom, UbseRpcEndpointFactoryBuildExisting)
  */
 TEST_F(TestUbseCom, UbseRpcEndpointFactoryGetRpcEndpointFound)
 {
-    const auto regFunc =
-        static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
+    const auto regFunc = static_cast<UbseResult (UbseComModule::*)(uint16_t, uint16_t)>(&UbseComModule::RegRpcService);
     MOCKER(regFunc).stubs().will(returnValue(UBSE_OK));
     std::shared_ptr<UbseComModule> ubseComModule = std::make_shared<UbseComModule>();
     MOCKER(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(ubseComModule));
 
     uint16_t testModuleCode = 100;
     uint16_t testOpCode = 200;
-    UbseRpcMessageReceiver testReceiver = [](const uint8_t *, uint32_t, std::unique_ptr<UbseRpcMessage> &) {};
+    UbseRpcMessageReceiver testReceiver = [](const uint8_t*, uint32_t, std::unique_ptr<UbseRpcMessage>&) {
+    };
     UbseRpcEndpointFactory::Build(testModuleCode, testOpCode, testReceiver);
     auto found = UbseRpcEndpointFactory::GetRpcEndpoint(testModuleCode, testOpCode);
     ASSERT_NE(nullptr, found);
