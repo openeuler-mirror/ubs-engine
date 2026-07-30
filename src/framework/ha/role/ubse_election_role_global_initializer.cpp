@@ -393,9 +393,13 @@ void GlobalInitializer::ReportCascadeGroupToManagingGroup()
     cascadeGroupReport.groupMasterId = role->GetMasterNode();
     cascadeGroupReport.groupStandbyId = role->GetStandbyNode();
     cascadeGroupReport.groupNodeIds.push_back(cascadeGroupReport.groupMasterId);
-    cascadeGroupReport.groupNodeIds.push_back(cascadeGroupReport.groupStandbyId);
+    if (cascadeGroupReport.groupStandbyId != INVALID_NODE_ID) {
+        cascadeGroupReport.groupNodeIds.push_back(cascadeGroupReport.groupStandbyId);
+    }
     for (const auto &agentNode : role->GetAgentNodes()) {
-        cascadeGroupReport.groupNodeIds.push_back(agentNode);
+        if (agentNode != cascadeGroupReport.groupMasterId && agentNode != cascadeGroupReport.groupStandbyId) {
+            cascadeGroupReport.groupNodeIds.push_back(agentNode);
+        }
     }
 
     std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> discoveryNodes =
