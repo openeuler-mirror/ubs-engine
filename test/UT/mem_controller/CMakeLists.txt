@@ -20,7 +20,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_mem_plugin_ut
         syssentry
         ubse_vsock_client
         ubse_security
+        ubse_node_mgr
 )
 target_include_directories(${CMAKE_PROJECT_NAME}_mem_plugin_ut PRIVATE
         ${PROJECT_SOURCE_DIR}/src/controllers/include
-        ${PROJECT_SOURCE_DIR}/src/include)
+        ${PROJECT_SOURCE_DIR}/src/include
+        ${PROJECT_SOURCE_DIR}/src/framework/node_mgr)

@@ -32,6 +32,7 @@
 #include "ubse_mem_share_store.h"
 #include "ubse_mem_global_ledger_summary_store.h"
 #include "ubse_mem_controller_helper.h"
+#include "ubse_node_static_info_mgr.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::ras;
@@ -45,6 +46,27 @@ using namespace ubse::mem::def;
 using namespace ubse::mem::controller::debt;
 using namespace ubse::adapter_plugins::mmi;
 using namespace ubse::task_executor;
+using namespace ubse::nodeMgr;
+
+// Mock IsHierarchicalMode: true=双层选主, false=非双层
+// GetRootIpList 返回 vector<string> 可直接 mock；GetAllNodes 返回 vector<UbseNodeStaticInfo>
+// 因 UbseNodeStaticInfo 无 operator==，mockcpp 无法 mock，改用 SetNodes 设置真实数据
+static void MockHierarchicalMode(bool hierarchical)
+{
+    if (hierarchical) {
+        std::vector<std::string> emptyRoots;
+        MOCKER_CPP(ubse::nodeMgr::GetRootIpList).stubs().will(returnValue(emptyRoots));
+        std::vector<UbseNodeStaticInfo> nodes;
+        UbseNodeStaticInfo n1; n1.nodeId = "ut_hier_node1";
+        UbseNodeStaticInfo n2; n2.nodeId = "ut_hier_node2";
+        nodes.push_back(n1);
+        nodes.push_back(n2);
+        UbseNodeStaticInfoMgr::GetInstance().SetNodes(nodes);
+    } else {
+        std::vector<std::string> roots{"10.0.0.1"};
+        MOCKER_CPP(ubse::nodeMgr::GetRootIpList).stubs().will(returnValue(roots));
+    }
+}
 
 void TestUbseMemControllerFaultHandle::SetUp()
 {
@@ -54,7 +76,7 @@ void TestUbseMemControllerFaultHandle::TearDown()
 {
     UbseMemFaultManager::executorPtr = nullptr;
     UbseMemDebtLedger::GetInstance().ClearAllNodeMaps();
-    g_pendingBmcFaultEvents.clear();
+    g_pendingFaultEvents.clear();
     g_portDownRecords.clear();
     Test::TearDown();
     GlobalMockObject::verify();
@@ -169,14 +191,6 @@ TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_InvalidFau
     std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
     std::string eventMessage = "1_not_a_number";
     EXPECT_NE(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ValidMessage)
-{
-    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
-    std::string eventMessage = "2_1013";
-    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).stubs().will(returnValue(UBSE_OK));
-    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, MemReportWhenExportNodeOnFault_EmptyFaultId)
@@ -332,21 +346,6 @@ TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_GetNodeInfoFailed)
     EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_ERROR);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_SuccessWithMultipleNodes)
-{
-    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
-    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
-
-    std::vector<UbseRoleInfo> roleInfos;
-    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
-    roleInfos.emplace_back("agent2", ELECTION_ROLE_AGENT);
-    roleInfos.emplace_back("agent3", ELECTION_ROLE_AGENT);
-    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
-    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
-
-    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
-}
-
 TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_SendFailed)
 {
     UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
@@ -394,13 +393,13 @@ TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_GetAllNodeInfosFailed)
     EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultTimerHandler_NullExecutor)
+TEST_F(TestUbseMemControllerFaultHandle, FaultDeliverTimerHandler_NullExecutor)
 {
     UbseMemFaultManager::executorPtr = nullptr;
-    EXPECT_EQ(UbseMemFaultManager::BmcFaultTimerHandler(), UBSE_OK);
+    EXPECT_EQ(UbseMemFaultManager::FaultDeliverTimerHandler(), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultTimerHandler_ProcessesPendingEvents)
+TEST_F(TestUbseMemControllerFaultHandle, FaultDeliverTimerHandler_ProcessesPendingEvents)
 {
     UbseMemFaultManager::executorPtr = nullptr;
 
@@ -411,29 +410,22 @@ TEST_F(TestUbseMemControllerFaultHandle, BmcFaultTimerHandler_ProcessesPendingEv
     MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
 
-    PushBmcFaultEvent("faultNode1", static_cast<uint32_t>(ALARM_REBOOT_EVENT));
+    PushFaultEvent("faultNode1", static_cast<uint32_t>(ALARM_REBOOT_EVENT));
 
-    ProcessBmcFaultEvents();
+    ProcessFaultEvents();
 
-    EXPECT_TRUE(g_pendingBmcFaultEvents.empty());
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultTimerHandler_NullExecutorLogsError)
-{
-    UbseMemFaultManager::executorPtr = nullptr;
-
-    EXPECT_EQ(UbseMemFaultManager::BmcFaultTimerHandler(), UBSE_OK);
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultAgentsHandler_DeserializeFailed)
+TEST_F(TestUbseMemControllerFaultHandle, FaultAgentsNotifyHandler_DeserializeFailed)
 {
     UbseByteBuffer req{.data = nullptr, .len = 0, .freeFunc = nullptr};
     UbseByteBuffer resp{.data = nullptr, .len = 0, .freeFunc = nullptr};
 
-    UbseMemFaultManager::BmcFaultAgentsHandler(req, resp);
+    UbseMemFaultManager::FaultAgentsNotifyHandler(req, resp);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, BmcFaultAgentsHandler_Success)
+TEST_F(TestUbseMemControllerFaultHandle, FaultAgentsNotifyHandler_Success)
 {
     std::string faultNodeId = "faultNode1";
     uint32_t faultTypeValue = static_cast<uint32_t>(ALARM_REBOOT_EVENT);
@@ -447,7 +439,7 @@ TEST_F(TestUbseMemControllerFaultHandle, BmcFaultAgentsHandler_Success)
 
     MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).stubs().will(returnValue(UBSE_OK));
 
-    UbseMemFaultManager::BmcFaultAgentsHandler(req, resp);
+    UbseMemFaultManager::FaultAgentsNotifyHandler(req, resp);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, SingleImportDebtNotifyHandler_DeserializeFailed)
@@ -766,7 +758,7 @@ TEST_F(TestUbseMemControllerFaultHandle, FindNameByMemIdInImportObj_FoundInNumaI
     EXPECT_EQ(handleId, 5);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, ProcessBmcFaultEvents_EmptyQueue)
+TEST_F(TestUbseMemControllerFaultHandle, ProcessFaultEvents_EmptyQueue)
 {
     UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
@@ -774,10 +766,10 @@ TEST_F(TestUbseMemControllerFaultHandle, ProcessBmcFaultEvents_EmptyQueue)
     std::vector<UbseRoleInfo> roleInfos;
     MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
 
-    ProcessBmcFaultEvents();
+    ProcessFaultEvents();
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, ProcessBmcFaultEvents_TimeoutRemovesEvent)
+TEST_F(TestUbseMemControllerFaultHandle, ProcessFaultEvents_TimeoutRemovesEvent)
 {
     UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
@@ -787,48 +779,27 @@ TEST_F(TestUbseMemControllerFaultHandle, ProcessBmcFaultEvents_TimeoutRemovesEve
     MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
     MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
 
-    PushBmcFaultEvent("faultNode1", static_cast<uint32_t>(ALARM_REBOOT_EVENT));
+    PushFaultEvent("faultNode1", static_cast<uint32_t>(ALARM_REBOOT_EVENT));
 
-    for (auto& [key, event] : g_pendingBmcFaultEvents) {
-        event.retryCount = BMC_FAULT_MAX_RETRY_COUNT + 1;
+    for (auto& [key, event] : g_pendingFaultEvents) {
+        event.retryCount = FAULT_DELIVER_MAX_RETRY_COUNT + 1;
     }
 
-    ProcessBmcFaultEvents();
+    ProcessFaultEvents();
 
-    EXPECT_TRUE(g_pendingBmcFaultEvents.empty());
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, SendBmcFaultToNode_SerializeFailed)
+TEST_F(TestUbseMemControllerFaultHandle, SendFaultToNode_SerializeFailed)
 {
-    EXPECT_NE(SendBmcFaultToNode("targetNode", "faultNode1", 100), UBSE_OK);
+    EXPECT_NE(SendFaultToNode("targetNode", "faultNode1", 100), UBSE_OK);
 }
 
-TEST_F(TestUbseMemControllerFaultHandle, SendBmcFaultToNode_Success)
+TEST_F(TestUbseMemControllerFaultHandle, SendFaultToNode_Success)
 {
     MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
 
-    EXPECT_EQ(SendBmcFaultToNode("targetNode", "faultNode1", 100), UBSE_OK);
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, GetAllNodeIds_Failed)
-{
-    MOCKER_CPP(UbseGetAllNodeInfos).stubs().will(returnValue(UBSE_ERROR));
-
-    std::set<std::string> allNodeIds;
-    EXPECT_FALSE(GetAllNodeIds(allNodeIds));
-    EXPECT_TRUE(allNodeIds.empty());
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, GetAllNodeIds_Success)
-{
-    std::vector<UbseRoleInfo> roleInfos;
-    roleInfos.emplace_back("node1", ELECTION_ROLE_MASTER);
-    roleInfos.emplace_back("node2", ELECTION_ROLE_AGENT);
-    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
-
-    std::set<std::string> allNodeIds;
-    EXPECT_TRUE(GetAllNodeIds(allNodeIds));
-    EXPECT_EQ(allNodeIds.size(), 2);
+    EXPECT_EQ(SendFaultToNode("targetNode", "faultNode1", 100), UBSE_OK);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, CreateTaskExecutor_GetModuleFailed)
@@ -976,7 +947,9 @@ TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownSuccess)
     UbseMemFaultManager::executorPtr = mockExecutor;
 
     EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+    // TryErasePortDown 返回 true 说明端口确实已 Down
+    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
+    EXPECT_TRUE(TryErasePortDown(info));
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownAlreadyDown)
@@ -985,7 +958,7 @@ TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownAlreadyDo
     std::string eventMsg = "DOWN;1:2:5:0";
 
     PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    AddPortDown(info);
+    TryAddPortDown(info);
 
     EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
 }
@@ -993,8 +966,7 @@ TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortDownAlreadyDo
 TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpSuccess)
 {
     PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    AddPortDown(info);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
+    TryAddPortDown(info);
 
     using ExecuteFuncType = bool (UbseTaskExecutor::*)(const std::function<void()>&);
     MOCKER(static_cast<ExecuteFuncType>(&UbseTaskExecutor::Execute)).stubs().will(returnValue(true));
@@ -1004,7 +976,8 @@ TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpSuccess)
     std::string eventId;
     std::string eventMsg = "UP;1:2:5:0";
     EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
-    EXPECT_FALSE(IsPortDown("1", "2", "5"));
+    // TryErasePortDown 返回 false 说明端口已不在 Down 记录中
+    EXPECT_FALSE(TryErasePortDown(info));
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpNotInDownRecord)
@@ -1012,52 +985,6 @@ TEST_F(TestUbseMemControllerFaultHandle, PortDownUpEventHandle_PortUpNotInDownRe
     std::string eventId;
     std::string eventMsg = "UP;1:2:5:0";
     EXPECT_EQ(UbseMemFaultManager::PortDownUpEventHandle(eventId, eventMsg), UBSE_OK);
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, IsPortDown_NotDown)
-{
-    EXPECT_FALSE(IsPortDown("1", "2", "5"));
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, IsPortDown_IsDown)
-{
-    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    AddPortDown(info);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, AddPortDown_NewRecord)
-{
-    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    AddPortDown(info);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
-    EXPECT_FALSE(IsPortDown("1", "2", "3"));
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, AddPortDown_MultiplePorts)
-{
-    PortEventInfo info1{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    PortEventInfo info2{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "6"};
-    AddPortDown(info1);
-    AddPortDown(info2);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
-    EXPECT_TRUE(IsPortDown("1", "2", "6"));
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, ErasePortDown_Success)
-{
-    PortEventInfo info{.status = "DOWN", .slotId = "1", .chipId = "2", .portId = "5"};
-    AddPortDown(info);
-    EXPECT_TRUE(IsPortDown("1", "2", "5"));
-
-    ErasePortDown(info);
-    EXPECT_FALSE(IsPortDown("1", "2", "5"));
-}
-
-TEST_F(TestUbseMemControllerFaultHandle, ErasePortDown_NotExist)
-{
-    PortEventInfo info{.status = "UP", .slotId = "1", .chipId = "2", .portId = "5"};
-    ErasePortDown(info);
 }
 
 TEST_F(TestUbseMemControllerFaultHandle, OnePortDownHandle_NullExecutor)
@@ -1155,6 +1082,353 @@ TEST_F(TestUbseMemControllerFaultHandle, DeleteShareImportDebtInfoByNodeId_Mixed
     UbseMemShareBorrowImportObj out;
     EXPECT_EQ(UBSE_ERR_NOT_EXIST, store.LoadImport("5", "shm_mixed", out));
     EXPECT_EQ(UBSE_OK, store.LoadImport("6", "other_shm", out));
+}
+
+// === 新增 UT：覆盖三种场景(Clos单层/Clos双层/非Clos) × ②③ 故障 ===
+
+// 辅助函数：Clos双层全局主拓扑（currentNode为全局主，包含两个组主）
+static UbseResult MockTopoInfoClosDoubleLayerGlobalMaster(UbseElectionModule*, HaTopologyInfo& topoInfo)
+{
+    topoInfo.currentNode.nodeId = "globalMaster";
+    topoInfo.currentNode.globalRole = GlobalRoleType::GLOBAL_MASTER;
+    topoInfo.currentGroup.groupId = "1";
+    topoInfo.currentGroup.groupMasterId = "groupMaster1";
+    GroupTopology group2;
+    group2.groupId = "2";
+    group2.groupMasterId = "groupMaster2";
+    topoInfo.groups.push_back(group2);
+    return UBSE_OK;
+}
+
+// --- Clos单层 ---
+
+// Clos单层 ②BMC节点宕机：本地主处理并广播全部节点
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_ClosSingleLayer_MasterBroadcastsToAllNodes)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    roleInfos.emplace_back("agent2", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+// Clos单层 ③Panic/Reboot：本地主只转发不清理本节点债务（由 agent 通过 FaultAgentsNotifyHandler 清理）
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ClosSingleLayer_ForwardsOnlyNoLocalCleanup)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+
+    // ShouldHandlePanicLocal=false：主节点不调用本地清理
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).expects(never());
+
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+}
+
+// --- Clos双层 ---
+
+// Clos双层 ②BMC节点宕机：非全局主节点跳过处理
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_ClosDoubleLayer_NotGlobalMaster_Skips)
+{
+    MockHierarchicalMode(true);
+
+    std::shared_ptr<UbseElectionModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+
+    UbseRoleInfo curNodeInfo("node1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
+}
+
+// Clos双层 ②BMC节点宕机：全局主处理并广播各组主
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_ClosDoubleLayer_GlobalMaster_BroadcastsToGroupMasters)
+{
+    MockHierarchicalMode(true);
+
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .stubs()
+        .will(invoke(MockTopoInfoClosDoubleLayerGlobalMaster));
+
+    UbseRoleInfo curNodeInfo("globalMaster", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+// Clos双层 ③Panic/Reboot：非全局主节点跳过处理
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ClosDoubleLayer_NotGlobalMaster_Skips)
+{
+    MockHierarchicalMode(true);
+
+    std::shared_ptr<UbseElectionModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
+}
+
+// Clos双层 ③Panic/Reboot：全局主只转发给各组主，不清理本节点债务（由组长/agent 通过 FaultAgentsNotifyHandler 清理）
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_ClosDoubleLayer_GlobalMaster_ForwardsOnlyNoLocalCleanup)
+{
+    MockHierarchicalMode(true);
+
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .stubs()
+        .will(invoke(MockTopoInfoClosDoubleLayerGlobalMaster));
+
+    // ShouldHandlePanicLocal=false：全局主不调用本地清理
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).expects(never());
+
+    UbseRoleInfo curNodeInfo("globalMaster", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+}
+
+// --- 非Clos ---
+
+// 非Clos ②BMC节点宕机：本地主处理并广播全部节点
+TEST_F(TestUbseMemControllerFaultHandle, BmcFaultHandler_NonClos_MasterBroadcastsToAllNodes)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("agent1", ELECTION_ROLE_AGENT);
+    roleInfos.emplace_back("agent2", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseRpcAsyncSend).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseMemFaultManager::BmcFaultHandler(ALARM_REBOOT_EVENT, "faultNode1"), UBSE_OK);
+}
+
+// 非Clos ③Panic/Reboot：本地主先自扫本地，不广播
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_NonClos_ProcessesNoBroadcast)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).stubs().will(returnValue(UBSE_OK));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+    // 验证非Clos场景下③Panic/Reboot不触发广播
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
+}
+
+// 非Clos ③Panic/Reboot：agent 节点也需清理本节点导入债务（bug 修复回归）
+// 重构前：agent 节点因 ShouldHandle=false 直接 return，漏清理本节点债务
+// 重构后：ShouldHandlePanicLocal 恒真，agent 节点也会调用 MemReportWhenExportNodeOnFault
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_NonClos_AgentAlsoProcessesLocalCleanup)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+
+    UbseRoleInfo curNodeInfo("agent1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+
+    // 期望：agent 节点也调用本节点清理
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault)
+        .expects(once())
+        .will(returnValue(UBSE_OK));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_OK);
+    // 不触发广播
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
+}
+
+// 非Clos ③Panic/Reboot：本节点清理失败时返回错误，不进入转发
+TEST_F(TestUbseMemControllerFaultHandle, PanicRebootFaultEventHandler_NonClos_LocalCleanupFailed)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+
+    MOCKER(&UbseMemFaultManager::MemReportWhenExportNodeOnFault).stubs().will(returnValue(UBSE_ERROR));
+
+    std::string eventId = "UbsePanicAndRebootFaultLocalEvent";
+    std::string eventMessage = "faultNode1_1007";
+    EXPECT_EQ(UbseMemFaultManager::PanicRebootFaultEventHandler(eventId, eventMessage), UBSE_ERROR);
+    EXPECT_TRUE(g_pendingFaultEvents.empty());
+}
+
+// === TDD: Strategy 单元测试 ===
+
+// GetStrategy 工厂路由验证
+TEST_F(TestUbseMemControllerFaultHandle, GetStrategy_ClosDoubleLayer)
+{
+    MockHierarchicalMode(true);
+    EXPECT_EQ(GetStrategy().Name(), "CLOS_DOUBLE_LAYER");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, GetStrategy_ClosSingleLayer)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    EXPECT_EQ(GetStrategy().Name(), "CLOS_SINGLE_LAYER");
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, GetStrategy_NonClos)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    EXPECT_EQ(GetStrategy().Name(), "NON_CLOS");
+}
+
+// ClosDoubleLayerStrategy: ShouldHandleBmc/ShouldProcessFaultQueue/ShouldForwardPanic 依赖全局主，ShouldHandlePanicLocal 恒假
+TEST_F(TestUbseMemControllerFaultHandle, ClosDoubleLayerStrategy_ShouldHandle_GlobalMaster)
+{
+    MockHierarchicalMode(true);
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .stubs()
+        .will(invoke(MockTopoInfoClosDoubleLayerGlobalMaster));
+    auto& s = GetStrategy();
+    EXPECT_TRUE(s.ShouldHandleBmc());
+    EXPECT_TRUE(s.ShouldProcessFaultQueue());
+    EXPECT_FALSE(s.ShouldHandlePanicLocal());
+    EXPECT_TRUE(s.ShouldForwardPanic());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ClosDoubleLayerStrategy_ShouldHandle_NotGlobalMaster)
+{
+    MockHierarchicalMode(true);
+    std::shared_ptr<UbseElectionModule> nullModule;
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(nullModule));
+    auto& s = GetStrategy();
+    EXPECT_FALSE(s.ShouldHandleBmc());
+    EXPECT_FALSE(s.ShouldProcessFaultQueue());
+    EXPECT_FALSE(s.ShouldHandlePanicLocal());
+    EXPECT_FALSE(s.ShouldForwardPanic());
+}
+
+// ClosDoubleLayerStrategy: 策略属性
+TEST_F(TestUbseMemControllerFaultHandle, ClosDoubleLayerStrategy_Policy)
+{
+    MockHierarchicalMode(true);
+    auto& s = GetStrategy();
+    EXPECT_TRUE(s.ShouldForwardToGroupNodes());
+}
+
+// ClosSingleLayerStrategy: ShouldHandleBmc/ShouldProcessFaultQueue/ShouldForwardPanic 依赖本地主，ShouldHandlePanicLocal 恒假
+TEST_F(TestUbseMemControllerFaultHandle, ClosSingleLayerStrategy_ShouldHandle_LocalMaster)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    auto& s = GetStrategy();
+    EXPECT_TRUE(s.ShouldHandleBmc());
+    EXPECT_TRUE(s.ShouldProcessFaultQueue());
+    EXPECT_FALSE(s.ShouldHandlePanicLocal());
+    EXPECT_TRUE(s.ShouldForwardPanic());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, ClosSingleLayerStrategy_Policy)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
+    auto& s = GetStrategy();
+    EXPECT_FALSE(s.ShouldForwardToGroupNodes());
+}
+
+// NonClosStrategy: ShouldHandleBmc/ShouldProcessFaultQueue 依赖本地主，ShouldHandlePanicLocal 恒真，ShouldForwardPanic 恒假
+TEST_F(TestUbseMemControllerFaultHandle, NonClosStrategy_ShouldHandle_LocalMaster)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    UbseRoleInfo curNodeInfo("master", ELECTION_ROLE_MASTER);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    auto& s = GetStrategy();
+    EXPECT_TRUE(s.ShouldHandleBmc());
+    EXPECT_TRUE(s.ShouldProcessFaultQueue());
+    EXPECT_TRUE(s.ShouldHandlePanicLocal());
+    EXPECT_FALSE(s.ShouldForwardPanic());
+}
+
+// NonClosStrategy: 非 master 节点 ShouldHandlePanicLocal 仍为 true（所有节点都清理本节点债务）
+TEST_F(TestUbseMemControllerFaultHandle, NonClosStrategy_ShouldHandlePanicLocal_AlwaysTrueForAgent)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    UbseRoleInfo curNodeInfo("agent1", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(curNodeInfo)).will(returnValue(UBSE_OK));
+    auto& s = GetStrategy();
+    EXPECT_FALSE(s.ShouldHandleBmc());
+    EXPECT_FALSE(s.ShouldProcessFaultQueue());
+    EXPECT_TRUE(s.ShouldHandlePanicLocal());
+    EXPECT_FALSE(s.ShouldForwardPanic());
+}
+
+TEST_F(TestUbseMemControllerFaultHandle, NonClosStrategy_Policy)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    auto& s = GetStrategy();
+    EXPECT_FALSE(s.ShouldForwardToGroupNodes());
+}
+
+// GetTargetNodeIds: ClosDoubleLayer 走 GetAllManagingGroupMasterIds
+TEST_F(TestUbseMemControllerFaultHandle, ClosDoubleLayerStrategy_GetTargetNodeIds)
+{
+    MockHierarchicalMode(true);
+    auto electionModule = std::make_shared<UbseElectionModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseElectionModule>).stubs().will(returnValue(electionModule));
+    MOCKER(&UbseElectionModule::GetCurNodeGlobalTopoInfo)
+        .stubs()
+        .will(invoke(MockTopoInfoClosDoubleLayerGlobalMaster));
+    std::set<std::string> ids;
+    EXPECT_TRUE(GetStrategy().GetTargetNodeIds(ids));
+    EXPECT_EQ(ids.size(), 2u); // groupMaster1 + groupMaster2
+}
+
+// GetTargetNodeIds: NonClos 走 GetAllNodeIdsFromRoleInfos
+TEST_F(TestUbseMemControllerFaultHandle, NonClosStrategy_GetTargetNodeIds)
+{
+    MockHierarchicalMode(false);
+    MOCKER(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    std::vector<UbseRoleInfo> roleInfos;
+    roleInfos.emplace_back("node1", ELECTION_ROLE_MASTER);
+    roleInfos.emplace_back("node2", ELECTION_ROLE_AGENT);
+    MOCKER_CPP(UbseGetAllNodeInfos).stubs().with(outBound(roleInfos)).will(returnValue(UBSE_OK));
+    std::set<std::string> ids;
+    EXPECT_TRUE(GetStrategy().GetTargetNodeIds(ids));
+    EXPECT_EQ(ids.size(), 2u);
 }
 
 } // namespace ubse::mem_controller::ut

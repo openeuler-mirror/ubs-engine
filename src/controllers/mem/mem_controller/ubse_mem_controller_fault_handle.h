@@ -47,9 +47,11 @@ private:
 
     static uint32_t BmcFaultHandler(ras::ALARM_FAULT_TYPE alarmFaultEvent, const std::string& faultInfo);
 
-    static uint32_t BmcFaultTimerHandler();
+    // 故障转发定时器：周期性驱动待转发故障事件（BMC + Panic/Reboot 共用）
+    static uint32_t FaultDeliverTimerHandler();
 
-    static void BmcFaultAgentsHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
+    // Agent 节点接收主节点转发的故障通知（BMC + Panic/Reboot 共用）
+    static void FaultAgentsNotifyHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 
     static UbseResult MemReportWhenExportNodeOnFault(ras::ALARM_FAULT_TYPE faultType, std::string& faultId);
 
