@@ -707,9 +707,21 @@ void GlobalMaster::DeleteAllDownstreamGroupRoutes()
 std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()
 {
     std::lock_guard<std::mutex> lock(mtx_);
+    auto activeNodes = GetActiveNodes();
+    std::unordered_set<UBSE_ID_TYPE> activeSet(activeNodes.begin(), activeNodes.end());
     std::vector<GroupTopology> managingGroupTopologies{};
-    for (const auto &node : globalStandbyAgentGroupTopologies_) {
-        managingGroupTopologies.push_back(node.second);
+    for (auto it = globalStandbyAgentGroupTopologies_.begin(); it != globalStandbyAgentGroupTopologies_.end();) {
+        const auto &groupMasterId = it->second.groupMasterId;
+        if (activeSet.find(groupMasterId) == activeSet.end()) {
+            UBSE_LOG_INFO << "[ELECTION] skip non-active managing group, groupId=" << it->first
+                          << ", groupMasterId=" << groupMasterId;
+            uint16_t cascadeGroupId = std::stoi(it->first) + managingToCascadeNodeId_.size();
+            globalCascadeGroupTopologies_.erase(std::to_string(cascadeGroupId));
+            it = globalStandbyAgentGroupTopologies_.erase(it);
+            continue;
+        }
+        managingGroupTopologies.push_back(it->second);
+        ++it;
     }
     return managingGroupTopologies;
 }
