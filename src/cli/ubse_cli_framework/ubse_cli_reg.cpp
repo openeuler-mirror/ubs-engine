@@ -242,8 +242,8 @@ void UbseCliModuleRegistry::UbseCliSetProgramContext(const std::string &program_
     showTypeInUsage_ = show_type_in_usage;
 }
 
-void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string &command_key,
-    const UbseCliCommandInfo &command_info)
+void UbseCliModuleRegistry::UbseCliRegisterOptions(const std::string& command_key,
+                                                   const UbseCliCommandInfo& command_info)
 {
     std::unordered_set<std::string> options_set{};
     std::vector<UbseCliOptionsInfo> filtered_options{};

@@ -125,6 +125,7 @@ enum class UbseNodeControllerOpCode
     NODE_CONTROLLER_CABINET_FULL_REPORT = 0x0007, // 柜级全量上报
     NODE_CONTROLLER_GLOBAL_FULL_REPORT = 0x0008,  // 全局全量上报
     NODE_CONTROLLER_SINGLE_NODE_REPORT = 0x0009,  // 单节点上报
+    NODE_CONTROLLER_CLUSTER_INFO = 0x000A,        // 集群信息查询
 };
 
 // UBSE内存响应控制操作码
