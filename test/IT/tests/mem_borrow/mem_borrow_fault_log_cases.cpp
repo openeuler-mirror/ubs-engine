@@ -428,6 +428,292 @@ void RunP1FaultLogBorrowMasterToExSendFailed(ubse::it::infra::ItCluster& cluster
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
 }
 
+// BorrowMasterToImSendFailed-01: 主节点向导入节点发送借用请求失败 触发 BORROW_MASTER_TO_IM_SEND_FAILED
+void RunP1FaultLogBorrowMasterToImSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(masterNodeId); // 发送方
+    uint32_t count[2] = {6, 0};                                     // OP_SYNC_SEND 失败6次，OP_ASYNC_SEND 不注入
+
+    {
+        const char* name = "it_p1_fl_br_master_to_import_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        IT_LOG_INFO << "Creating FD with lender: name=" << name;
+        // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_import_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        IT_LOG_INFO << "Creating NUMA with lender: name=" << name;
+        // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_import_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        IT_LOG_INFO << "Creating Share with lender: name=" << name;
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+
+        // 清理
+        ret = sdk.MemShmDelete(name);
+        ASSERT_IT_OK(ret);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0006"; }, 3); // 等待3条日志
+
+    // 校验日志总数
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entry with ErrorCode=ubse_borrow_0006, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, "it_p1_fl_br_master_to_import_send_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(entry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(entry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(entry.requestNode, importNodeId) << "FD requestNode mismatch";
+    EXPECT_EQ(entry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(entry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "FD advice is empty";
+
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_master_to_import_send_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, importNodeId) << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_master_to_import_send_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, 0) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, importNodeId) << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+}
+
+// BorrowMasterToReqSendFailed-01: 主节点向请求节点发送借用请求失败 触发 BORROW_MASTER_TO_REQ_SEND_FAILED
+void RunP1FaultLogBorrowMasterToReqSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(masterNodeId);
+    auto& obmmStubControl = cluster.GetObmmStubControl(importNodeId);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 100);
+
+    {
+        const char* name = "it_p1_fl_br_master_to_req_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        IT_LOG_INFO << "Creating FD with lender: name=" << name;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t(
+            [&](std::promise<int> p) {
+                p.set_value(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc));
+            },
+            std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(importNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_req_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        IT_LOG_INFO << "Creating NUMA with lender: name=" << name;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t(
+            [&](std::promise<int> p) { p.set_value(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)); },
+            std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(importNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_req_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        IT_LOG_INFO << "Creating Share with lender: name=" << name;
+        comStubControl.SetComSendFailed(importNodeId, true);
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t(
+            [&](std::promise<int> p) { p.set_value(sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender)); },
+            std::move(promise));
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    {
+        const char* name = "it_p1_fl_br_master_to_req_send_failed_attach";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Attaching SHM: name=" << name;
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemShmAttach(name, nullptr, 0, &attachDesc)); },
+                      std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(importNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
+    {
+        // 清理创建的资源
+        ret = sdk.MemShmDetach("it_p1_fl_br_master_to_req_send_failed_attach");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemShmDelete("it_p1_fl_br_master_to_req_send_failed_attach");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemShmDelete("it_p1_fl_br_master_to_req_send_failed_share");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemNumaDelete("it_p1_fl_br_master_to_req_send_failed_numa");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemFdDelete("it_p1_fl_br_master_to_req_send_failed_fd");
+        EXPECT_IT_OK(ret);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0007"; }, 4); // 等待4条日志
+
+    ASSERT_EQ(entries.size(), 4u) << "Expected 4 fault log entries with ErrorCode=ubse_borrow_0007, got "
+                                  << entries.size();
+
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_br_master_to_req_send_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(fdEntry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(fdEntry.requestNode, importNodeId) << "FD requestNode mismatch";
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(fdEntry.advice.empty()) << "FD advice is empty";
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_master_to_req_send_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, importNodeId) << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_master_to_req_send_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, importNodeId) << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+
+    const auto& attachEntry = entries[3];
+    EXPECT_EQ(attachEntry.requestName, "it_p1_fl_br_master_to_req_send_failed_attach") << "Attach requestName mismatch";
+    EXPECT_EQ(attachEntry.borrowType, "SHARE_BORROW") << "Attach borrowType mismatch";
+    EXPECT_EQ(attachEntry.requestSize, shareSize) << "Attach requestSize mismatch";
+    EXPECT_EQ(attachEntry.requestNode, importNodeId) << "Attach requestNode mismatch";
+    EXPECT_EQ(attachEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(attachEntry.errorInfo.empty()) << "Attach errorInfo is empty";
+    EXPECT_FALSE(attachEntry.advice.empty()) << "Attach advice is empty";
+}
+
 // BorrowExportSendFailed-01: 导出节点向主节点发送借用响应失败 触发 BORROW_EXPORT_SEND_FAILED
 void RunP1FaultLogBorrowExportSendFailed(ubse::it::infra::ItCluster& cluster)
 {
@@ -514,6 +800,156 @@ void RunP1FaultLogBorrowExportSendFailed(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
     EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
     EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+
+    // 后置，当前情况下重启主节点和导出节点，资源自动清理
+    cluster.RestartNode(masterNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(masterNodeId));
+    cluster.RestartNode(exportNodeIdStr, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(exportNodeIdStr));
+}
+
+// BorrowImportSendFailed-01: 导入节点向主节点发送借用响应失败 触发 BORROW_IMPORT_SEND_FAILED
+void RunP1FaultLogBorrowImportSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto exportNodeIdStr = std::to_string(exportNodeId);
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(importNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(importNodeId);
+    comStubControl.SetMemApiWaitTimeOut(1);
+
+    auto& obmmStubControl = cluster.GetObmmStubControl(importNodeId);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 100);
+
+    {
+        const char* name = "it_p1_fl_br_import_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        IT_LOG_INFO << "Creating FD: name=" << name;
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t(
+            [&](std::promise<int> p) {
+                p.set_value(sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc));
+            },
+            std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        t.join();
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_br_import_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        IT_LOG_INFO << "Creating NUMA: name=" << name;
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t(
+            [&](std::promise<int> p) { p.set_value(sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc)); },
+            std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        t.join();
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_br_import_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+        IT_LOG_INFO << "Attaching SHM: name=" << name;
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemShmAttach(name, nullptr, 0, &attachDesc)); },
+                      std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT);
+    comStubControl.RestoreMemApiWaitTimeOut();
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0009"; }, 3); // 等待3条日志
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entry with ErrorCode=ubse_borrow_0009, got "
+                                  << entries.size();
+    // 校验日志内容
+    const auto& entry = entries[0];
+    EXPECT_EQ(entry.requestName, "it_p1_fl_br_import_send_failed_fd") << "FD requestName mismatch";
+    EXPECT_EQ(entry.borrowType, "WATER_BORROW") << "FD borrowType mismatch";
+    EXPECT_EQ(entry.requestSize, fdSize) << "FD requestSize mismatch";
+    EXPECT_EQ(entry.requestNode, importNodeId) << "FD requestNode mismatch";
+    EXPECT_EQ(entry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(entry.errorInfo.empty()) << "FD errorInfo is empty";
+    EXPECT_FALSE(entry.advice.empty()) << "FD advice is empty";
+    // 校验NUMA类型日志
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_br_import_send_failed_numa") << "NUMA requestName mismatch";
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW") << "NUMA borrowType mismatch";
+    EXPECT_EQ(numaEntry.requestSize, numaSize) << "NUMA requestSize mismatch";
+    EXPECT_EQ(numaEntry.requestNode, importNodeId) << "NUMA requestNode mismatch";
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty()) << "NUMA errorInfo is empty";
+    EXPECT_FALSE(numaEntry.advice.empty()) << "NUMA advice is empty";
+    // 校验Share类型日志
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_br_import_send_failed_share") << "Share requestName mismatch";
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW") << "Share borrowType mismatch";
+    EXPECT_EQ(shareEntry.requestSize, shareSize) << "Share requestSize mismatch";
+    EXPECT_EQ(shareEntry.requestNode, importNodeId) << "Share requestNode mismatch";
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty()) << "Share errorInfo is empty";
+    EXPECT_FALSE(shareEntry.advice.empty()) << "Share advice is empty";
+
+    // 后置，当前情况下重启主节点和导入节点，资源自动清理
+    cluster.RestartNode(masterNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(masterNodeId));
+    cluster.RestartNode(importNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(importNodeId));
 }
 
 // BorrowReqSendFailed-01: 请求节点向主节点发送借用请求失败 触发 BORROW_REQ_SEND_FAILED
@@ -1438,6 +1874,535 @@ void RunP1FaultLogReturnMasterToExSendFailed(ubse::it::infra::ItCluster& cluster
     EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
     EXPECT_FALSE(shareEntry.errorInfo.empty());
     EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// ReturnMasterToImSendFailed-01: 主节点向导入节点发送归还请求失败 触发 RETURN_MASTER_TO_IM_SEND_FAILED
+void RunP1FaultLogReturnMasterToImSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(masterNodeId); // 发送方
+    uint32_t count[2] = {6, 0};                                     // OP_SYNC_SEND 失败6次，OP_ASYNC_SEND 不注入
+
+    {
+        const char* name = "it_p1_fl_ret_master_to_import_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting FD: name=" << name;
+        // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+
+        ret = sdk.MemFdDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_master_to_import_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting NUMA: name=" << name;
+        // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+
+        ret = sdk.MemNumaDelete(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    {
+        const char* name = "it_p1_fl_ret_master_to_import_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        IT_LOG_INFO << "Creating Share with lender: name=" << name;
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Detaching Share: name=" << name;
+        // 在 master 节点上注入故障：向 importNodeId 发送消息失败 6 次，之后自动恢复
+        comStubControl.SetComFault(0x1, UBSE_COM_ERROR_SYNC_CALL_FAIL, count, importNodeId);
+
+        ret = sdk.MemShmDetach(name);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_INTERNAL);
+    }
+    comStubControl.RestoreComFault();
+    {
+        ret = sdk.MemFdDelete("it_p1_fl_ret_master_to_import_send_failed_fd");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemNumaDelete("it_p1_fl_ret_master_to_import_send_failed_numa");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemShmDetach("it_p1_fl_ret_master_to_import_send_failed_share");
+        EXPECT_IT_OK(ret);
+        ret = sdk.MemShmDelete("it_p1_fl_ret_master_to_import_send_failed_share");
+        EXPECT_IT_OK(ret);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0025"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0025, got "
+                                  << entries.size();
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_master_to_import_send_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, importNodeId);
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_master_to_import_send_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, importNodeId);
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_master_to_import_send_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, importNodeId);
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// ReturnMasterToReqSendFailed-01: 主节点向请求节点发送归还请求失败 触发 RETURN_MASTER_TO_REQ_SEND_FAILED
+void RunP1FaultLogReturnMasterToReqSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(masterNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(masterNodeId);
+    auto& obmmStubControl = cluster.GetObmmStubControl(importNodeId);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT, 100);
+
+    {
+        const char* name = "it_p1_fl_ret_master_to_req_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting FD: name=" << name;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemFdDelete(name)); }, std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(importNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    {
+        const char* name = "it_p1_fl_ret_master_to_req_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting NUMA: name=" << name;
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemNumaDelete(name)); }, std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(importNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    {
+        const char* name = "it_p1_fl_ret_master_to_req_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting Share: name=" << name;
+        comStubControl.SetComSendFailed(importNodeId, true);
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemShmDelete(name)); }, std::move(promise));
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(importNodeId, false);
+        EXPECT_IT_ERROR(ret, UBS_ENGINE_ERR_TIMEOUT);
+    }
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0026"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0026, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_master_to_req_send_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, importNodeId);
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_master_to_req_send_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, importNodeId);
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_master_to_req_send_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, importNodeId);
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+}
+
+// ReturnExportSendFailed-01: 导出节点向主节点发送归还响应失败 触发 RETURN_EXPORT_SEND_FAILED
+void RunP1FaultLogReturnExportSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    auto importNodeId = masterNodeId;
+    uint32_t exportNodeId = "1" == masterNodeId ? 2 : 1;
+    auto exportNodeIdStr = std::to_string(exportNodeId);
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(exportNodeIdStr).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(exportNodeIdStr);
+    comStubControl.SetMemApiWaitTimeOut(1);
+    {
+        const char* name = "it_p1_fl_ret_export_to_master_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting FD: name=" << name;
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemFdDelete(name)); }, std::move(promise));
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_ret_export_to_master_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting NUMA: name=" << name;
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemNumaDelete(name)); }, std::move(promise));
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_ret_export_to_master_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting Share: name=" << name;
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemShmDelete(name)); }, std::move(promise));
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0027"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0027, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_export_to_master_send_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, importNodeId);
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_export_to_master_send_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, importNodeId);
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_export_to_master_send_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, importNodeId);
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+
+    // 后置，当前情况下重启主节点和导入节点，资源自动清理
+    cluster.RestartNode(masterNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(masterNodeId));
+    cluster.RestartNode(exportNodeIdStr, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(exportNodeIdStr));
+}
+
+// ReturnImportSendFailed-01: 导入节点向主节点发送归还响应失败 触发 RETURN_IMPORT_SEND_FAILED
+void RunP1FaultLogReturnImportSendFailed(ubse::it::infra::ItCluster& cluster)
+{
+    std::string masterNodeId;
+    auto ret = cluster.GetMasterNodeId(masterNodeId);
+    EXPECT_IT_OK(ret);
+
+    uint32_t exportNodeId = "1" == masterNodeId ? 1 : 2;
+    auto exportNodeIdStr = std::to_string(exportNodeId);
+    auto importNodeId = "1" == masterNodeId ? "2" : "1";
+    auto& sdk = cluster.GetSdkClient(importNodeId);
+    auto faultLogPath = cluster.GetNode(importNodeId).GetLogFaultFilePath();
+    // 清空 fault log，避免前序用例干扰
+    ItFaultLogHelper::ClearFaultLog(faultLogPath);
+
+    auto& comStubControl = cluster.GetComStubControl(importNodeId);
+    comStubControl.SetMemApiWaitTimeOut(1);
+
+    auto& obmmStubControl = cluster.GetObmmStubControl(importNodeId);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT, 2000);
+
+    {
+        const char* name = "it_p1_fl_ret_import_to_master_send_failed_fd";
+        ubs_mem_fd_desc_t fdDesc{};
+        ret = sdk.MemFdCreate(name, fdSize, nullptr, 0, MEM_DISTANCE_L0, &fdDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting FD: name=" << name;
+
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemFdDelete(name)); }, std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_ret_import_to_master_send_failed_numa";
+        ubs_mem_numa_desc_t numaDesc{};
+        ret = sdk.MemNumaCreate(name, numaSize, MEM_DISTANCE_L0, &numaDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Deleting NUMA: name=" << name;
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemNumaDelete(name)); }, std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    {
+        const char* name = "it_p1_fl_ret_import_to_master_send_failed_share";
+        uint8_t usrInfo[UBS_MEM_MAX_USR_INFO_LEN] = {0};
+        ubs_mem_lender_t lender{.lender_size = shareSize,
+                                .slot_id = exportNodeId,
+                                .socket_id = UINT32_MAX,
+                                .numa_id = 0,
+                                .port_id = UINT32_MAX};
+        ubs_mem_nodes_t region{};
+        region.node_cnt = 2;
+        region.slot_ids[0] = cluster.GetNode("1").GetSpec().slotId;
+        region.slot_ids[1] = cluster.GetNode("2").GetSpec().slotId;
+        ret = sdk.MemShmCreateWithLender(name, usrInfo, 0, &region, &lender);
+        EXPECT_IT_OK(ret);
+
+        ubs_mem_shm_desc_t* attachDesc = nullptr;
+        ret = sdk.MemShmAttach(name, nullptr, 0, &attachDesc);
+        EXPECT_IT_OK(ret);
+
+        IT_LOG_INFO << "Detaching Share: name=" << name;
+        // 使用std::thread+promise实现1秒超时，超时后pthread_cancel杀死线程
+        std::promise<int> promise;
+        auto future = promise.get_future();
+        std::thread t([&](std::promise<int> p) { p.set_value(sdk.MemShmDetach(name)); }, std::move(promise));
+        usleep(10000);
+        comStubControl.SetComSendFailed(masterNodeId, true);
+        if (future.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
+            ret = UBS_ENGINE_ERR_TIMEOUT;
+            pthread_cancel(t.native_handle());
+            t.join();
+        } else {
+            ret = future.get();
+        }
+        comStubControl.SetComSendFailed(masterNodeId, false);
+        EXPECT_NE(ret, UBS_SUCCESS);
+    }
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT);
+    comStubControl.SetMemApiWaitTimeOut(0);
+
+    auto entries = ItFaultLogHelper::WaitForFaultLog(
+        faultLogPath, [](const FaultLogEntry& e) { return e.errorCode == "ubse_borrow_0028"; }, 3);
+
+    ASSERT_EQ(entries.size(), 3u) << "Expected 3 fault log entries with ErrorCode=ubse_borrow_0028, got "
+                                  << entries.size();
+
+    // 校验日志内容
+    const auto& fdEntry = entries[0];
+    EXPECT_EQ(fdEntry.requestName, "it_p1_fl_ret_import_to_master_send_failed_fd");
+    EXPECT_EQ(fdEntry.borrowType, "WATER_BORROW");
+    EXPECT_EQ(fdEntry.requestSize, 0);
+    EXPECT_EQ(fdEntry.requestNode, importNodeId);
+    EXPECT_EQ(fdEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(fdEntry.errorInfo.empty());
+    EXPECT_FALSE(fdEntry.advice.empty());
+
+    const auto& numaEntry = entries[1];
+    EXPECT_EQ(numaEntry.requestName, "it_p1_fl_ret_import_to_master_send_failed_numa");
+    EXPECT_EQ(numaEntry.borrowType, "APP_NUMA_BORROW");
+    EXPECT_EQ(numaEntry.requestSize, 0);
+    EXPECT_EQ(numaEntry.requestNode, importNodeId);
+    EXPECT_EQ(numaEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(numaEntry.errorInfo.empty());
+    EXPECT_FALSE(numaEntry.advice.empty());
+
+    const auto& shareEntry = entries[2];
+    EXPECT_EQ(shareEntry.requestName, "it_p1_fl_ret_import_to_master_send_failed_share");
+    EXPECT_EQ(shareEntry.borrowType, "SHARE_BORROW");
+    EXPECT_EQ(shareEntry.requestSize, 0);
+    EXPECT_EQ(shareEntry.requestNode, importNodeId);
+    EXPECT_EQ(shareEntry.adviceCode, 2u); // COMM_FAILED
+    EXPECT_FALSE(shareEntry.errorInfo.empty());
+    EXPECT_FALSE(shareEntry.advice.empty());
+
+    // 后置，当前情况下重启主节点和导入节点，资源自动清理
+    cluster.RestartNode(masterNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(masterNodeId));
+    cluster.RestartNode(importNodeId, true, 30000);
+    EXPECT_TRUE(cluster.IsNodeRunning(importNodeId));
 }
 
 // ReturnReqSendFailed-01: 请求节点向主节点发送归还请求失败 触发 RETURN_REQ_SEND_FAILED
