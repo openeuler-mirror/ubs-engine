@@ -142,6 +142,17 @@ TEST_F(TestUbseMtiEidInterface, ParseCnaFromEid_SameCna)
     EXPECT_EQ(cna1, cna2);
 }
 
+TEST_F(TestUbseMtiEidInterface, ParseCnaValueFromEid_ReturnsNumericCna)
+{
+    const std::string eid = "0000:0000:0044:5200:0010:0000:140b:c510";
+    uint32_t cna = 0;
+
+    auto ret = ParseCnaValueFromEid(eid, cna);
+
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(cna, 0x140bc5U);
+}
+
 /*
  * 用例描述
  * 测试ConstructEid正常构造

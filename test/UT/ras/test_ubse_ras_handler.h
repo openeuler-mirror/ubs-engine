@@ -21,6 +21,7 @@
 #include "ubse_error.h"
 #include "ubse_lcne_module.h"
 #include "ubse_node_controller.h"
+#include "ubse_node_mgr.h"
 #include "ubse_ras.h"
 #include "ubse_ras_handler.h"
 #include "ubse_str_util.h"
@@ -28,7 +29,7 @@
 #include "message/ubse_ras_message.h"
 #include "mockcpp/mockcpp.hpp"
 namespace ubse::ras {
-extern void SwitchRoleWhenMasterFault(std::string& faultInfo);
+extern void SwitchRoleWhenMasterFault(const std::string& faultNodeId);
 extern UbseResult SendSwitchRoleToStandby(const ubse::election::UbseRoleInfo& curRoleInfo, const std::string& msg);
 extern void SetGlobalAckMsgId(const std::string& msgId);
 } // namespace ubse::ras

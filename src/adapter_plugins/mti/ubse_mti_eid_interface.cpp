@@ -164,4 +164,14 @@ uint32_t ParseCnaFromEid(const std::string& eid, std::string& cna)
     ConstructEid(cnaBitStr, cna);
     return UBSE_OK;
 }
+
+uint32_t ParseCnaValueFromEid(const std::string& eid, uint32_t& cna)
+{
+    std::string bitStr;
+    if (ParseBaseEid(eid, bitStr) != UBSE_OK || CNA_BIT_OFFSET + CNA_BIT_LEN > bitStr.size()) {
+        return UBSE_ERROR;
+    }
+    cna = static_cast<uint32_t>(std::bitset<CNA_BIT_LEN>(bitStr.substr(CNA_BIT_OFFSET, CNA_BIT_LEN)).to_ulong());
+    return UBSE_OK;
+}
 } // namespace ubse::utils

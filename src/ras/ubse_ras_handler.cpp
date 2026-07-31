@@ -28,14 +28,17 @@
 #include "ubse_error.h"
 #include "ubse_event.h"
 #include "ubse_logger.h"
-#include "plugin_services/mem/ubse_mem_service.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
+#include "ubse_node_mgr.h"
 #include "ubse_pointer_process.h"
 #include "ubse_ras_oom_handler.h"
+#include "ubse_ras_panic_reboot_handler.h"
 #include "ubse_str_util.h"
 #include "message/ubse_ras_message.h"
+#include "message/ubse_ras_panic_reboot_message.h"
+#include "plugin_services/mem/ubse_mem_service.h"
 #include "securec.h"
 
 namespace ubse::ras {
@@ -52,6 +55,7 @@ using namespace ubse::context;
 using namespace ubse::utils;
 using namespace ubse::service;
 using namespace ubse::service::mem;
+using namespace ubse::nodeMgr;
 std::unordered_map<ALARM_FAULT_TYPE, std::set<std::string>> g_MSG_ID_MAP{};
 std::unordered_map<std::string, std::unordered_map<std::string, uint32_t>> g_HANDLER_RESULT{};
 
@@ -160,7 +164,7 @@ struct DebtInfo {
 };
 
 // 辅助函数：检查节点是否在静态列表中
-bool IsNodeInStaticList(const std::string& nodeId, const std::vector<UbseNodeInfo>& staticNodeInfoList)
+bool IsNodeInStaticList(const std::string& nodeId, const std::vector<UbseNodeStaticInfo>& staticNodeInfoList)
 {
     return std::any_of(staticNodeInfoList.begin(), staticNodeInfoList.end(),
                        [nodeId](const auto& node) { return node.nodeId == nodeId; });
@@ -304,7 +308,7 @@ void LogMemDebtInfoWithNode(ALARM_FAULT_TYPE faultType, const std::string& nodeI
     }
 
     // 获取节点信息
-    std::vector<UbseNodeInfo> staticNodeInfoList = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    auto staticNodeInfoList = ubse::nodeMgr::GetAllNodes();
     std::unordered_map<std::string, UbseNodeInfo> nodeMap = UbseNodeController::GetInstance().GetAllNodes();
 
     // 检查节点是否存在
@@ -690,38 +694,6 @@ UbseResult UbseRasHandler::HandleOomFault(alarm_msg* msg)
     return UBSE_OK;
 }
 
-void SwitchRoleWhenMasterFault(std::string& faultInfo)
-{
-    UbseRoleInfo masterInfo;
-    auto ret = UbseGetMasterInfo(masterInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get master node info failed, " << FormatRetCode(ret);
-        return;
-    }
-    UbseRoleInfo curInfo;
-    ret = UbseGetCurrentNodeInfo(curInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get current node info failed, " << FormatRetCode(ret);
-        return;
-    }
-    if (masterInfo.nodeId == faultInfo && masterInfo.nodeId == curInfo.nodeId) {
-        auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<UbseElectionModule>();
-        if (electionModule == nullptr) {
-            UBSE_LOG_ERROR << "Get election module failed. ";
-            return;
-        }
-        electionModule->SwitchAgentFromMaster();
-    }
-    if (masterInfo.nodeId == faultInfo && curInfo.nodeRole == ELECTION_ROLE_STANDBY) {
-        auto electionModule = ubse::context::UbseContext::GetInstance().GetModule<UbseElectionModule>();
-        if (electionModule == nullptr) {
-            UBSE_LOG_ERROR << "Get election module failed. ";
-            return;
-        }
-        electionModule->SwitchMasterFromStandby();
-    }
-}
-
 UbseResult UbseRasHandler::HandleMemoryFault(ALARM_FAULT_TYPE faultType, std::string info)
 {
     auto ret = ExecuteFaultHandler(faultType, info);
@@ -735,77 +707,43 @@ UbseResult UbseRasHandler::HandleMemoryFault(ALARM_FAULT_TYPE faultType, std::st
     return ret;
 }
 
-UbseResult HandlePanicAndRebootFaultPreSet(ALARM_FAULT_TYPE faultType, const std::string& info,
-                                           std::string& faultNodeId, std::string& msgId)
+// 注册RAS模块全部RPC服务（BMC重启、主备切换、PANIC/内核重启转发与结果通知）
+static UbseResult RegisterRasRpcServices(std::shared_ptr<UbseComModule>& comModulePtr)
 {
-    auto ret = HandleCnaAndEidMsg(info, faultNodeId);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "fault info is invalid. ";
-        return ret;
-    }
-    std::string panicAndRebootFaultLocalEventId = "UbsePanicAndRebootFaultLocalEvent";
-    std::string eventMsg = faultNodeId + "_" + std::to_string(static_cast<uint32_t>(faultType));
-    if (ret = ubse::event::UbsePubEvent(panicAndRebootFaultLocalEventId, eventMsg); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Publish panic and reboot fault local event failed, eventId="
-                      << panicAndRebootFaultLocalEventId << ", eventMsg=" << eventMsg << ", " << FormatRetCode(ret);
-    }
-    SwitchRoleWhenMasterFault(faultNodeId);
-
-    UbseRoleInfo roleInfo;
-    ret = UbseGetCurrentNodeInfo(roleInfo);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Get current node info failed, " << FormatRetCode(ret);
-        return ret;
-    }
-    if (roleInfo.nodeRole != UBSE_ROLE_MASTER) {
-        return UBSE_RAS_IS_NOT_MASTER_OR_MEM_IS_NOT_INIT;
-    }
-
-    std::vector<std::string> msgVec;
-    ubse::utils::Split(info, "_", msgVec);
-    if (msgVec.size() <= 1 || !IsDigitString(msgVec[0])) {
-        UBSE_LOG_ERROR << "msg pucParas is invalid, msg=" << info;
+    UbseComBaseMessageHandlerPtr ubseRasComHandlerPtr = new (std::nothrow) UbseRasComHandler();
+    UbseComBaseMessageHandlerPtr ubseRasSwitchHandlerPtr = new (std::nothrow) UbseRasSwitchRoleHandler();
+    UbseComBaseMessageHandlerPtr ubseRasPanicRebootHandlerPtr = new (std::nothrow) UbseRasPanicRebootHandler();
+    UbseComBaseMessageHandlerPtr ubseRasPanicResultHandlerPtr = new (std::nothrow) UbseRasPanicRebootResultHandler();
+    if (ubseRasComHandlerPtr == nullptr || ubseRasSwitchHandlerPtr == nullptr ||
+        ubseRasPanicRebootHandlerPtr == nullptr || ubseRasPanicResultHandlerPtr == nullptr) {
+        UBSE_LOG_ERROR << "Ubse ras com handler ptr is nullptr. ";
         return UBSE_ERROR_NULLPTR;
     }
-    msgId = msgVec[0];
-    LogMemDebtInfoWithNode(faultType, faultNodeId);
-    auto nodeInfo = UbseNodeController::GetInstance().GetNodeById(faultNodeId);
-    // 如果是自故障节点上线以来，首次收到PANIC消息，则记录并清空过滤表
-    if (nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
-        UBSE_LOG_INFO << "nodeId=" << faultNodeId << " fault, to clear handler result, msgId=" << msgId;
-        ClearFaultHandlerResult(faultNodeId + "-" + msgId);
+    auto ret = comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasComHandlerPtr);
+    ret |= comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasSwitchHandlerPtr);
+    ret |=
+        comModulePtr->RegRpcService<UbseRasPanicRebootMessage, UbseRasPanicRebootMessage>(ubseRasPanicRebootHandlerPtr);
+    ret |=
+        comModulePtr->RegRpcService<UbseRasPanicRebootMessage, UbseRasPanicRebootMessage>(ubseRasPanicResultHandlerPtr);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Reg rpc service fail, " << FormatRetCode(ret);
     }
-    return UBSE_OK;
+    return ret;
 }
 
-UbseResult UbseRasHandler::HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType, const std::string& info)
+// 订阅集群拓扑变化事件，按网络故障执行已注册的处理回调
+UbseResult UbseRasHandler::SubscribeClusterTopoChangeEvent()
 {
-    std::string faultNodeId;
-    std::string msgId;
-    if (auto ret = HandlePanicAndRebootFaultPreSet(faultType, info, faultNodeId, msgId); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Handle panic and reboot fault preset failed, " << FormatRetCode(ret);
+    std::string eventId = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
+    auto ret = UbseSubEvent(eventId, [](std::string& eventId, const std::string& eventMessage) {
+        auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_NET_FAULT, eventMessage);
+        UBSE_LOG_INFO << "Execute net fault finish. ";
         return ret;
+    });
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Rack sub event failed, " << FormatRetCode(ret);
     }
-    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE, faultNodeId);
-    auto nodeModule = ubse::context::UbseContext::GetInstance().GetModule<UbseNodeControllerModule>();
-    if (nodeModule == nullptr) {
-        UBSE_LOG_ERROR << "Get node controller module failed. ";
-        return UBSE_ERROR_NULLPTR;
-    }
-    std::string panicAndRebootFaultEventId = "UbsePanicAndRebootFaultEvent";
-    std::string eventMsg = faultNodeId + "_" + std::to_string(static_cast<uint32_t>(faultType));
-    if (auto ret = ubse::event::UbsePubEvent(panicAndRebootFaultEventId, eventMsg); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Watermark warningProcess event publish failed, ret is " << ret;
-    }
-    if (auto ret = ExecuteFaultHandler(faultType, faultNodeId, faultNodeId + "-" + msgId); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Fault execute failed, " << FormatRetCode(ret);
-        return ret;
-    }
-    // 故障处理过程中，节点状态可能会被nodeUp事件恢复，需要再次设置fault状态
-    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_HANDLER_TYPE, faultNodeId);
-    std::string ackStr = info + "_" + std::to_string(UBSE_OK);
-    UbseRasHandler::GetInstance().CallNodeHandle(NodeHandlerType::NODE_FAULT_STATE_CLEAR_HANDLER_TYPE, faultNodeId);
-    return ReportAckToSysSentry(faultType + 1, ackStr);
+    return ret;
 }
 
 UbseResult UbseRasHandler::StartRasHandler()
@@ -815,29 +753,15 @@ UbseResult UbseRasHandler::StartRasHandler()
         UBSE_LOG_ERROR << "Get ubse com module ptr fail. ";
         return UBSE_ERROR_INVAL;
     }
-    UbseComBaseMessageHandlerPtr ubseRasComHandlerPtr = new (std::nothrow) UbseRasComHandler();
-    UbseComBaseMessageHandlerPtr ubseRasSwitchHandlerPtr = new (std::nothrow) UbseRasSwitchRoleHandler();
-    if (ubseRasComHandlerPtr == nullptr || ubseRasSwitchHandlerPtr == nullptr) {
-        UBSE_LOG_ERROR << "Ubse ras com handler ptr is nullptr. ";
-        return UBSE_ERROR_NULLPTR;
-    }
-    auto ret = comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasComHandlerPtr);
-    ret |= comModulePtr->RegRpcService<UbseRasMessage, UbseRasMessage>(ubseRasSwitchHandlerPtr);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Reg rpc service fail, " << FormatRetCode(ret);
+    if (auto ret = RegisterRasRpcServices(comModulePtr); ret != UBSE_OK) {
         return ret;
     }
-    std::string eventId = UBSE_EVENT_CLUSTER_TOPOLOGY_CHANGE;
-    ret = UbseSubEvent(eventId, [](std::string& eventId, const std::string& eventMessage) {
-        auto ret = UbseRasHandler::GetInstance().ExecuteFaultHandler(ALARM_NET_FAULT, eventMessage);
-        UBSE_LOG_INFO << "Execute net fault finish. ";
-        return ret;
-    });
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Rack sub event failed, " << FormatRetCode(ret);
+    if (auto ret = SubscribeClusterTopoChangeEvent(); ret != UBSE_OK) {
         return ret;
     }
-
+    if (auto ret = SubscribePanicRebootForwardFaultEvent(); ret != UBSE_OK) {
+        return ret;
+    }
     return UBSE_OK;
 }
 
@@ -933,24 +857,6 @@ bool IsMemInitFinished()
         return false;
     }
     return true;
-}
-
-UbseResult HandleCnaAndEidMsg(const std::string& faultInfo, std::string& faultNodeId)
-{
-    std::string cna;
-    std::string eid;
-    uint64_t msgId;
-    auto ret = ubse::utils::SplitSysSentryMsg(faultInfo, msgId, cna, eid);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "split panic sysSentry msg fail, faultInfo=" << faultInfo;
-        return UBSE_RAS_PANIC_REBOOT_MSG_INVALID;
-    }
-    faultNodeId = QueryNodeIdByEid(eid);
-    if (faultNodeId.empty() || !IsDigitString(faultNodeId)) {
-        UBSE_LOG_ERROR << "query node id by eid fail, please check lcne, eid=" << eid;
-        return UBSE_RAS_ERROR_QUERY_NODE_BY_EID;
-    }
-    return UBSE_OK;
 }
 
 std::string ToLowerEid(const std::string& eid)

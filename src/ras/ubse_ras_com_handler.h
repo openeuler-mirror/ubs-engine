@@ -76,6 +76,46 @@ public:
     }
 };
 using UbseOomHandlerPtr = Ref<UbseOomHandler>;
+
+// 全局主节点侧：接收故障接收节点转发的PANIC/内核重启故障，处理成功后异步回发结果
+class UbseRasPanicRebootHandler : public UbseComBaseMessageHandler {
+public:
+    UbseRasPanicRebootHandler() = default;
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_PANIC_REBOOT);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::RAS);
+    }
+};
+using UbseRasPanicRebootHandlerPtr = Ref<UbseRasPanicRebootHandler>;
+
+// 故障接收节点侧：接收主节点回发的故障处理结果，向本机sysSentry上报ack
+class UbseRasPanicRebootResultHandler : public UbseComBaseMessageHandler {
+public:
+    UbseRasPanicRebootResultHandler() = default;
+
+    UbseResult Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                      UbseComBaseMessageHandlerCtxPtr ctx) override;
+
+    uint16_t GetOpCode() override
+    {
+        return static_cast<uint16_t>(UbseRasOpCode::UBSE_RAS_PANIC_REBOOT_RESULT);
+    }
+
+    uint16_t GetModuleCode() override
+    {
+        return static_cast<uint16_t>(UbseModuleCode::RAS);
+    }
+};
+using UbseRasPanicRebootResultHandlerPtr = Ref<UbseRasPanicRebootResultHandler>;
 } // namespace ubse::ras
 
 #endif // UBSE_MANAGER_UBSE_RAS_COM_HANDLER_H

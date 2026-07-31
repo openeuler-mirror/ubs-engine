@@ -81,6 +81,7 @@ TEST_F(TestUbseRasComHandler, HandleSuccess)
     };
     auto request = UbseBaseMessage::DeConvert<UbseRasMessage>(req);
     request->SetData("1");
+    request->SetMsg("1");
     ubse::nodeController::UbseNodeInfo testNodeInfo;
     testNodeInfo.nodeId = "1";
     ubse::nodeController::UbseNodeController::GetInstance().UpdateNodeInfo("1", testNodeInfo);
@@ -130,14 +131,14 @@ TEST_F(TestUbseRasComHandler, TestUbseOomHandler)
     EXPECT_NO_THROW(handler.Handle(req, rsp, &ctx));
 }
 
-TEST_F(TestUbseRasComHandler, TestUbseOomHandler2)
+TEST_F(TestUbseRasComHandler, TestUbseOomHandlerWithEmptyNodeId)
 {
-    const UbseBaseMessagePtr req = new UbseRasMessage();
-    const UbseBaseMessagePtr rsp = new UbseRasMessage();
+    const UbseBaseMessagePtr req = new UbseRasOomMessage(0, "", 0);
+    const UbseBaseMessagePtr rsp = new UbseRasOomMessage();
     UbseComBaseMessageHandlerCtx ctx{"", 0, 0, ""};
     UbseOomHandler handler;
     auto res = handler.Handle(req, rsp, &ctx);
-    ASSERT_EQ(res, UBSE_ERROR);
+    ASSERT_EQ(res, UBSE_ERROR_INVAL);
 }
 
 TEST_F(TestUbseRasComHandler, CheckCommonParamWhenInvalidArgs)
@@ -256,6 +257,24 @@ TEST_F(TestUbseRasComHandler, HandleWhenNodeIdNotDigit)
     request->SetData("abc");
     auto res = handler.Handle(req, rsp, &ctx);
     ASSERT_EQ(res, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseRasComHandler, PanicRebootHandlerWhenReqIsNull)
+{
+    const UbseBaseMessagePtr req = nullptr;
+    const UbseBaseMessagePtr rsp = new UbseRasPanicRebootMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, "2"};
+    UbseRasPanicRebootHandler handler;
+    EXPECT_EQ(handler.Handle(req, rsp, &ctx), UBSE_ERROR_NULLPTR);
+}
+
+TEST_F(TestUbseRasComHandler, PanicResultHandlerWhenReqIsNull)
+{
+    const UbseBaseMessagePtr req = nullptr;
+    const UbseBaseMessagePtr rsp = new UbseRasPanicRebootMessage();
+    UbseComBaseMessageHandlerCtx ctx{"", 0, 0, "1"};
+    UbseRasPanicRebootResultHandler handler;
+    EXPECT_EQ(handler.Handle(req, rsp, &ctx), UBSE_ERROR_NULLPTR);
 }
 
 } // namespace ubse::ras::ut

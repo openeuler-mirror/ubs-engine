@@ -39,6 +39,9 @@ inline bool IsAllowedSpecialChar(char ch)
 
 inline bool IsDigitString(const std::string& str)
 {
+    if (str.empty()) {
+        return false;
+    }
     return std::all_of(str.begin(), str.end(), [](char ch) { return std::isdigit(ch); });
 }
 
@@ -94,6 +97,18 @@ public:
      * @return
      */
     UbseResult RegisterAlarmFaultHandler(const AlarmHandler& alarmHandler);
+
+    /**
+     * 主节点处理PANIC / Kernel Reboot故障的核心流程（本地路径与跨机柜转发路径共用）。
+     * 包含：账本信息记录、清理历史处理结果、发布故障事件、设置节点Fault状态、
+     * 执行已注册的故障处理回调、成功后的清理回调。只返回处理结果，不负责应答sysSentry。
+     * @param faultType 故障类型（ALARM_PANIC_EVENT / ALARM_KERNEL_REBOOT_EVENT）
+     * @param faultNodeId 故障节点ID
+     * @param msgId sysSentry消息ID
+     * @return 处理成功返回UBSE_OK
+     */
+    UbseResult ProcessPanicRebootFaultOnMaster(ALARM_FAULT_TYPE faultType, const std::string& faultNodeId,
+                                               const std::string& msgId);
 
     /**
      * 解注册故障处理函数
@@ -153,7 +168,9 @@ private:
     UbseResult HandleOomFault(alarm_msg* msg);
 
     /*
-     * 处理PANIC / Kernel Reboot 故障
+     * 处理PANIC / Kernel Reboot 故障。
+     * 所有收到广播的节点先提取故障信息、必要时主备倒换；
+     * 再统一异步转发给全局主节点处理（主节点自身也走self RPC）。
      */
     UbseResult HandlePanicAndRebootFault(ALARM_FAULT_TYPE faultType, const std::string& info);
 
@@ -171,6 +188,11 @@ private:
     void ExecuteFaultHandlerTask(ALARM_FAULT_TYPE faultType, const std::string& faultInfo, const std::string& msg,
                                  const std::string& faultId, bool needReportAck);
 
+    /*
+     * 订阅集群拓扑变化事件，按网络故障执行已注册的处理回调
+     */
+    static UbseResult SubscribeClusterTopoChangeEvent();
+
 private:
     static UbseRasHandler instance;
     std::unordered_map<ALARM_FAULT_TYPE, std::map<AlarmHandlerPriority, HandlerMap>> faultHandlerMap{};
@@ -181,8 +203,8 @@ private:
 };
 
 bool IsMemInitFinished();
-UbseResult HandleCnaAndEidMsg(const std::string& faultInfo, std::string& faultNodeId);
 std::string QueryNodeIdByEid(const std::string& eid);
+std::string ToLowerEid(const std::string& eid);
 UbseResult ReportAckToSysSentry(ALARM_FAULT_TYPE alarmFaultType, const std::string& message);
 void LogMemDebtInfoWithNode(ALARM_FAULT_TYPE faultType, const std::string& faultNode);
 void ClearFaultHandlerResult(const std::string& msgId);
