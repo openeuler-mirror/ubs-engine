@@ -73,6 +73,7 @@ class UbsTopoNodeT(ctypes.Structure):
         ("numa_ids", (ctypes.c_uint32 * UBS_TOPO_NUMA_NUM) * UBS_TOPO_SOCKET_NUM),
         ("ips", UbsTopoIpAddressT * UBS_TOPO_IPADDR_NUM),
         ("host_name", ctypes.c_char * HOST_NAME_MAX),
+        ("super_pod_id", ctypes.c_uint16),
     ]
 
     def __str__(self):
@@ -98,6 +99,7 @@ class UbsTopoNodeT(ctypes.Structure):
             f"  numa_ids={numa_list}\n"
             f"  ips={ip_list}\n"
             f"  host_name='{hostname}'\n"
+            f"  super_pod_id={self.super_pod_id}\n"
             f")"
         )
 

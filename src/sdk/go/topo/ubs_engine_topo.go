@@ -62,11 +62,12 @@ const (
 
 // UbsTopoNode 定义节点信息结构体
 type UbsTopoNode struct {
-	SlotId   uint32
-	SocketId [TopoSocketNum]uint32
-	NumaIds  [TopoSocketNum][TopoNumaNum]uint32
-	IPs      []net.IP
-	HostName string
+	SlotId     uint32
+	SocketId   [TopoSocketNum]uint32
+	NumaIds    [TopoSocketNum][TopoNumaNum]uint32
+	IPs        []net.IP
+	HostName   string
+	SuperPodId uint16
 }
 
 // UbsTopoLink 定义拓扑连接信息结构体
@@ -191,9 +192,10 @@ func convertTopoNode(cNode *C.ubs_topo_node_t) *UbsTopoNode {
 	}
 
 	goNode := &UbsTopoNode{
-		SlotId:   uint32(cNode.slot_id),
-		IPs:      make([]net.IP, 0),
-		HostName: C.GoString(&cNode.host_name[0]),
+		SlotId:     uint32(cNode.slot_id),
+		IPs:        make([]net.IP, 0),
+		HostName:   C.GoString(&cNode.host_name[0]),
+		SuperPodId: uint16(cNode.super_pod_id),
 	}
 
 	// 复制SocketId数组

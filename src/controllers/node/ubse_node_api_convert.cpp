@@ -16,10 +16,12 @@
 
 #include "ubse_error.h"
 #include "ubse_ipc_common.h"
+#include "ubse_smbios.h"
 #include "ubs_engine_mem.h"
 
 namespace ubse::node::api {
 using namespace ubse::utils;
+using namespace ubse::adapter_plugins::smbios;
 const uint32_t BITS_PER_HALF_UINT64 = 32;
 // 自定义64位网络字节序转换
 uint64_t HtonllCustom(uint64_t host_value)
@@ -136,8 +138,8 @@ uint32_t UbseNodePackInner(const UbseNode& node, UbsePackUtil& packUtil)
 
 uint32_t UbseNodePack(const UbseNode& node, ipc::UbseIpcMessage& buffer)
 {
-    // 申请内存
-    auto size = UbseNodeCalcSize(node);
+    // 申请内存（node数据 + superPodId）
+    auto size = UbseNodeCalcSize(node) + sizeof(uint16_t);
     buffer.buffer = new (std::nothrow) uint8_t[size];
     if (buffer.buffer == nullptr) {
         return UBSE_ERROR_SERIALIZE_FAILED;
@@ -150,8 +152,13 @@ uint32_t UbseNodePack(const UbseNode& node, ipc::UbseIpcMessage& buffer)
         delete[] buffer.buffer;
         buffer.buffer = nullptr;
         buffer.length = 0;
+        return ret;
     }
-    return ret;
+    // 打包superPodId（全局值，放在node数据之后，保证旧SDK兼容）
+    uint16_t superPodId = 0;
+    (void)UbseSmbios::GetInstance().GetSuperPodId(superPodId);
+    packUtil.UbsePackUint16(superPodId);
+    return UBSE_OK;
 }
 
 static uint32_t UbseCpuLinkPackInner(const UbseCpuLink& ubseCpuLink, UbsePackUtil& packUtil)
@@ -174,8 +181,8 @@ static uint32_t UbseCpuLinkPackInner(const UbseCpuLink& ubseCpuLink, UbsePackUti
 
 uint32_t UbseNodeListPack(const std::vector<UbseNode>& nodeList, ipc::UbseIpcMessage& buffer)
 {
-    // 申请内存
-    auto size = UbseNodeListCalcSize(nodeList);
+    // 申请内存（nodeList数据 + superPodId）
+    auto size = UbseNodeListCalcSize(nodeList) + sizeof(uint16_t);
     buffer.buffer = new (std::nothrow) uint8_t[size];
     if (buffer.buffer == nullptr) {
         return UBSE_ERROR_SERIALIZE_FAILED;
@@ -193,6 +200,10 @@ uint32_t UbseNodeListPack(const std::vector<UbseNode>& nodeList, ipc::UbseIpcMes
             return ret;
         }
     }
+    // 打包superPodId（全局值，放在所有node数据之后，保证旧SDK兼容）
+    uint16_t superPodId = 0;
+    (void)UbseSmbios::GetInstance().GetSuperPodId(superPodId);
+    packUtil.UbsePackUint16(superPodId);
     buffer.length = size;
     return UBSE_OK;
 }

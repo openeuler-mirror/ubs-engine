@@ -39,6 +39,7 @@ typedef struct {
     uint32_t numa_ids[UBS_TOPO_SOCKET_NUM][UBS_TOPO_NUMA_NUM];
     ubs_topo_ip_address_t ips[UBS_TOPO_IPADDR_NUM];
     char host_name[HOST_NAME_MAX]; // 主机名
+    uint16_t super_pod_id;         // 超节点ID
 } ubs_topo_node_t;
 
 /**
