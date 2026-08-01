@@ -24,6 +24,7 @@ using namespace ubse::module;
 using namespace ::ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::config;
+using ::ubse::log::FormatRetCode;
 constexpr size_t MIN_NODES_FOR_COMPARISON = 2;
 constexpr size_t SECOND_SMALLEST_INDEX = 1;
 
@@ -170,7 +171,12 @@ uint32_t SendElectionPkt(UBSE_ID_TYPE myselfID)
         ElectionReplyPkt reply;
         pkt.type = ELECTION_PKT_TYPE_SELECT;
         pkt.masterId = myselfID;
-        RoleMgr::GetInstance().GetCommMgr()->SendElectionPkt(it, pkt, reply);
+        auto ret = RoleMgr::GetInstance().GetCommMgr()->SendElectionPkt(it, pkt, reply);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "[ELECTION] SendElectionPkt to node=" << it << " failed or timeout, " << FormatRetCode(ret)
+                          << ", treat as accept by default";
+            continue;
+        }
         if (reply.replyResult == ELECTION_PKT_RESULT_ACCEPT) {
             continue;
         } else if (reply.replyResult == ELECTION_PKT_TYPE_REJECT) {

@@ -13,6 +13,7 @@
 #include "ubse_election_comm_mgr.h"
 #include <algorithm>
 #include <future>
+#include <memory>
 #include <shared_mutex>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
@@ -35,6 +36,14 @@ using namespace ubse::utils;
 using namespace ubse::message;
 using namespace ubse::common::def;
 UBSE_DEFINE_THIS_MODULE("ubse");
+
+namespace {
+// RpcAsyncSend 异步回调与调用方共享的上下文：保证超时提前返回后，迟到的回调仍可安全写结果
+struct ElectionPktSendCtx {
+    std::promise<UbseResult> done;
+    UbseBaseMessagePtr replySimpoPtr;
+};
+} // anonymous namespace
 
 uint32_t UbseElectionCommMgr::Connect(const UBSE_ID_TYPE& dstIp)
 {
@@ -126,27 +135,45 @@ uint32_t UbseElectionCommMgr::SendElectionPkt(UBSE_ID_TYPE destID, const Electio
     // 需要定义一下ModuleCode和OpCode
     ubse::com::SendParam sendParam(destID, static_cast<uint16_t>(UbseModuleCode::ELECTION),
                                    static_cast<uint16_t>(UbseElectionOpCode::ELECTION_PKT), UbseChannelType::NORMAL);
-    UbseBaseMessagePtr electionReplySimpoPtr = new (std::nothrow) UbseElectionReplyPktSimpo(reply);
-    if (electionReplySimpoPtr == nullptr) {
+    auto ctx = std::make_shared<ElectionPktSendCtx>();
+    ctx->replySimpoPtr = new (std::nothrow) UbseElectionReplyPktSimpo();
+    if (ctx->replySimpoPtr == nullptr) {
         UBSE_LOG_ERROR << "[ELECTION] Newing UbseElectionReplyPktSimpo failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    auto future = std::async(std::launch::async, [ubseComModule, sendParam, electionSimpoPtr, electionReplySimpoPtr]() {
-                      return ubseComModule->RpcSend(sendParam, electionSimpoPtr, electionReplySimpoPtr);
-                  }).share();
-    auto status = future.wait_for(std::chrono::seconds(UbseElectionNodeMgr::GetInstance().GetHeartBeatTime()));
-    if (status == std::future_status::ready) {
-        auto ret = future.get();
-        // 将响应对象从原始指针转换为UbseResourceRpcResponseSimpo类型
-        auto response = UbseBaseMessage::DeConvert<UbseElectionReplyPktSimpo>(electionReplySimpoPtr);
-        // 获取响应结果
-        reply = response->GetElectionReplyPkt();
+    // 使用异步RpcSend，避免同步RpcSend阻塞到hcom的60s超时；调用方按心跳时间有界等待
+    ubse::com::UbseComCallback callback;
+    callback.cb = [ctx](void*, void* recv, uint32_t len, int32_t result) {
+        if (result != 0 || recv == nullptr || len == 0) {
+            ctx->done.set_value(UBSE_ERROR);
+            return;
+        }
+        auto ret = ctx->replySimpoPtr->SetInputRawData(static_cast<uint8_t*>(recv), len);
+        if (ret == UBSE_OK) {
+            ret = ctx->replySimpoPtr->Deserialize();
+        }
+        ctx->done.set_value(ret);
+    };
+    auto ret = ubseComModule->RpcAsyncSend(sendParam, electionSimpoPtr, callback);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] RpcAsyncSend dispatch failed to " << destID << ", " << FormatRetCode(ret);
         return ret;
-        // 处理 ret
-    } else {
-        UBSE_LOG_ERROR << "[ELECTION] RpcSend dispatch timeout when send pkt to " << destID;
+    }
+    auto waitTime = std::chrono::milliseconds(UbseElectionNodeMgr::GetInstance().GetHeartBeatTime());
+    auto future = ctx->done.get_future();
+    if (future.wait_for(waitTime) != std::future_status::ready) {
+        UBSE_LOG_ERROR << "[ELECTION] send election pkt to " << destID << " timeout";
         return UBSE_ERROR;
     }
+    ret = future.get();
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "[ELECTION] send election pkt to " << destID << " failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    auto response = UbseBaseMessage::DeConvert<UbseElectionReplyPktSimpo>(ctx->replySimpoPtr);
+    reply = response->GetElectionReplyPkt();
+
+    return UBSE_OK;
 }
 
 std::vector<UBSE_ID_TYPE> UbseElectionCommMgr::GetConnectedNodes() const

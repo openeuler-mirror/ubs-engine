@@ -61,12 +61,14 @@ UbseResult FAKE_SendElectionPktReject(UbseElectionCommMgr* pthis, UBSE_ID_TYPE d
                                       ElectionReplyPkt& reply)
 {
     reply.replyResult = ELECTION_PKT_TYPE_REJECT;
+    return UBSE_OK;
 }
 
 UbseResult FAKE_SendElectionPktHasMaster(UbseElectionCommMgr* pthis, UBSE_ID_TYPE destID, const ElectionPkt& pkt,
                                          ElectionReplyPkt& reply)
 {
     reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
+    return UBSE_OK;
 }
 
 TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesRejected)
@@ -155,6 +157,24 @@ TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenAllNodesHasM
     uint32_t result = SendElectionPkt(myselfID);
 
     EXPECT_EQ(result, ELECTION_PKT_TYPE_REJECT_HAS_MASTER);
+}
+
+TEST_F(TestUbseElectionRole, SendElectionPkt_ShouldReturnAccept_WhenSendFailedOrTimeout)
+{
+    // given
+    UBSE_ID_TYPE myselfID = "NODE0";
+    std::vector<UBSE_ID_TYPE> allNodes = {"NODE1", "NODE2"};
+    MOCKER(&ubse::election::UbseElectionCommMgr::SendElectionPkt).stubs().will(returnValue((uint32_t)UBSE_ERROR));
+    MOCKER(&ubse::election::UbseElectionCommMgr::GetConnectedNodes).stubs().will(returnValue(allNodes));
+    std::shared_ptr<UbseElectionCommMgr> commMgr =
+        std::make_shared<UbseElectionCommMgr>("Node1", "UbseMasterRpcServer");
+    MOCKER(&RoleMgr::GetCommMgr).stubs().will(returnValue(commMgr));
+
+    // when
+    uint32_t result = SendElectionPkt(myselfID);
+
+    // then
+    EXPECT_EQ(result, ELECTION_PKT_RESULT_ACCEPT);
 }
 
 TEST_F(TestUbseElectionRole, IsSmallestNode_ShouldReturnTrue_WhenIDSmallest)
