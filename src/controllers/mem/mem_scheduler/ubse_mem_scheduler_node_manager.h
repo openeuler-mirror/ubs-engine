@@ -42,6 +42,7 @@ public:
     UbseResult UpdateAllNumaMemInfo(const std::unordered_map<NodeId, UbseNodeInfo>& nodeMap);
     void UpdateNumaMemInfo(const UbseNumaInfo& numaInfo, UbseAllocator allocator, uint32_t pmdMapping,
                            SchedulerNumaInfo* numaPtr);
+    void UpdateStaticNodeInfo(std::set<uint32_t> staticNodeIds);
 
     // Filter support
     SchedulerNodeInfo* GetNodeInfo(const NodeId& nodeId) const;
@@ -82,6 +83,10 @@ public:
     void UpdateGroupNodeList(const NodeId& nodeId, const std::string& hostName);
     const std::set<NodeId>& GetProviderNodeList() const;
     const std::set<NodeId>& GetGroupNodes(const NodeId& nodeId) const;
+    const std::set<NodeId>& GetStaticNodes() const
+    {
+        return staticNodes_;
+    }
 
     void Clear();
 
@@ -104,6 +109,7 @@ private:
 
     std::unordered_map<NodeId, std::unique_ptr<SchedulerNodeInfo>> nodeMap_;
     std::vector<NodeInfo> nodeInfos_;
+    std::set<NodeId> staticNodes_;
     std::set<NodeId> providerNodes_;
     std::vector<std::set<NodeId>> groupNodes_;
 

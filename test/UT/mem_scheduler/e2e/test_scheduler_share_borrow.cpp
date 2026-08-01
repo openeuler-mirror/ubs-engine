@@ -478,6 +478,52 @@ TEST_F(TestSchedulerEndToEnd, ShareBorrow_RegionFilter_NodeNotInRegion)
     EXPECT_TRUE(obj.algoResult.importNumaInfos.empty());
 }
 
+/**
+ * @brief 用例 12: ShareBorrow_RegionNodeNotDeployed_Rejected
+ *
+ * shmRegion 中的节点不在部署节点集合（staticNodes_）中时，
+ * RegionFilter 直接返回 UBSE_SCHEDULER_ERROR_INVAL，借用被拒绝。
+ *
+ * 前置状态: 三节点已注册（node3 已注册但未部署，部署集合仅含 node1/node2），全互联链路
+ *
+ * 测试输入: UbseMemShareBorrowExportObj{shmRegion:["1","2","3"], state:SCHEDULING}
+ *
+ * 操作步骤:
+ *   1. mock UbseGetAllDeployedNode 返回 {1,2}（node3 未部署）
+ *   2. 注册三节点，full-mesh peer，Mock GetAllNodes
+ *   3. 构造 SHARE export obj（shmRegion=[node1,node2,node3], state:SCHEDULING）
+ *   4. 调用 MemoryObjChangeHandler
+ *
+ * 预期输出:
+ *   1. 返回值 == UBSE_SCHEDULER_ERROR_INVAL（node3 不在部署节点中）
+ *   2. exportNumaInfos 为空
+ */
+TEST_F(TestSchedulerEndToEnd, ShareBorrow_RegionNodeNotDeployed_Rejected)
+{
+    SetupMockDeployedNodes({1, 2});
+
+    auto nodeMap = CreateNodeMap(3);
+    AddFullMeshPeers(nodeMap);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["2"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["3"]);
+    SchedulerImpl::GetInstance().NodeObjChangeHandler(nodeMap["1"]);
+    SetupMockNodeMap(nodeMap);
+
+    adapter_plugins::mmi::UbseMemShareBorrowExportObj obj{};
+    obj.req.name = "share-region-node-not-deployed";
+    obj.req.requestNodeId = "1";
+    obj.req.size = BYTE_256MB;
+    for (const auto& nodeId : {"1", "2", "3"}) {
+        adapter_plugins::mmi::UbseNodeInfo ni{};
+        ni.nodeId = nodeId;
+        obj.req.shmRegion.nodelist.push_back(ni);
+    }
+    obj.status.state = adapter_plugins::mmi::UBSE_MEM_SCHEDULING;
+
+    ASSERT_EQ(SchedulerImpl::GetInstance().MemoryObjChangeHandler(obj), UBSE_SCHEDULER_ERROR_INVAL);
+    EXPECT_TRUE(obj.algoResult.exportNumaInfos.empty());
+}
+
 // ==================== LenderInfo (ShareBorrowWithLenderInfo) ====================
 
 /**

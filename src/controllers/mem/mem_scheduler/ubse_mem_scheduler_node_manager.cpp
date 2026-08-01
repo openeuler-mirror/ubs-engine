@@ -336,6 +336,8 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
         }
         UpdateProviderNodeList(nodeInfo.nodeId, nodeInfo.hostName);
         UpdateGroupNodeList(nodeInfo.nodeId, nodeInfo.hostName);
+        auto staticNodeIds = nodeController::UbseNodeController::GetInstance().UbseGetAllDeployedNode();
+        UpdateStaticNodeInfo(staticNodeIds);
         // 使用首个节点的 blockSize 初始化 bandwidthTolerance
         if (bandwidthTolerance_ == 0) {
             InitBandwidthTolerance(nodeInfo.blockSize);
@@ -346,6 +348,13 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
     nodeData->UpdateHostName(nodeInfo.hostName);
     nodeData->UpdateIsLender(nodeInfo.isLender);
     return UBSE_OK;
+}
+
+void SchedulerNodeManager::UpdateStaticNodeInfo(std::set<uint32_t> staticNodeIds)
+{
+    for (const auto& nodeId : staticNodeIds) {
+        staticNodes_.insert(std::to_string(nodeId));
+    }
 }
 
 bool SchedulerNodeManager::InitOneNodeData(const nodeController::UbseNodeInfo& nodeInfo)
@@ -597,6 +606,7 @@ void SchedulerNodeManager::Clear()
     groupNodes_.clear();
     chipToSocket_.clear();
     socketToChip_.clear();
+    staticNodes_.clear();
 }
 
 } // namespace ubse::mem::scheduler
