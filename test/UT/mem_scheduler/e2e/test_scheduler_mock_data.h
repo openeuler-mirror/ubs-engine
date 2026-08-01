@@ -12,6 +12,7 @@
 #ifndef TEST_SCHEDULER_MOCK_DATA_H
 #define TEST_SCHEDULER_MOCK_DATA_H
 
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -85,6 +86,8 @@ void SetupMockNodeMapRef(const std::unordered_map<std::string, UbseNodeInfo>& no
                          std::unordered_map<std::string, UbseNodeInfo>& nodeMapRef);
 
 void SetupMockConfig(const std::string& providerStr, const std::string& groupStr);
+
+void SetupMockDeployedNodes(std::set<uint32_t> deployedNodes = {1, 2, 3, 4, 5, 6, 7, 8});
 
 void SetupDefaultConfig();
 

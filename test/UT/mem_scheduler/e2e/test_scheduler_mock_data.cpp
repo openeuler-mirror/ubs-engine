@@ -196,9 +196,16 @@ void SetupMockConfig(const std::string& providerStr, const std::string& groupStr
         .will(returnValue(UBSE_OK));
 }
 
+void SetupMockDeployedNodes(std::set<uint32_t> deployedNodes)
+{
+    MOCKER(&UbseNodeController::UbseGetAllDeployedNode).reset();
+    MOCKER(&UbseNodeController::UbseGetAllDeployedNode).stubs().will(returnValue(deployedNodes));
+}
+
 void SetupDefaultConfig()
 {
     SetupMockConfig("", "host-1,host-2,host-3,host-4,host-5,host-6,host-7,host-8");
+    SetupMockDeployedNodes();
 
     std::string defaultPageSize = "4096";
     MOCKER_CPP(&config::UbseConfModule::GetConf<std::string>)

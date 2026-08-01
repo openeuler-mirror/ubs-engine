@@ -31,6 +31,10 @@ UbseResult RegionFilter::FilterNodes(std::vector<NodeInfo>& nodes, const Schedul
 
     std::set<NodeId> regionNodes;
     for (const auto& node : region.nodelist) {
+        if (nodeInfo.GetStaticNodes().find(node.nodeId) == nodeInfo.GetStaticNodes().end()) {
+            RecordError(std::string("Region nodeId=") + node.nodeId + " is not in deployed node");
+            return UBSE_SCHEDULER_ERROR_INVAL;
+        }
         std::set<NodeId> others;
         for (const auto& other : region.nodelist) {
             // 只考虑已注册的活跃节点，未启动节点不参与可达性检查
