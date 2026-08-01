@@ -11,6 +11,7 @@
  */
 #include "ubse_mem_scheduler_node_manager.h"
 
+#include <algorithm>
 #include <cctype>
 #include <exception>
 #include <string>
@@ -137,6 +138,7 @@ void SchedulerNodeManager::InitSchedulerMode()
         schedulerMode_ = SchedulerMode::FreePriority;
     } else {
         UBSE_LOG_WARN << "Unknown scheduler.mode=" << modeStr << ", fallback to free-priority";
+        modeStr = "free-priority";
         schedulerMode_ = SchedulerMode::FreePriority;
     }
     UBSE_LOG_INFO << "Config ubse.memory.scheduler.mode=" << modeStr;
@@ -268,6 +270,9 @@ void SchedulerNodeManager::UpdateNodeInfoCache(const NodeId& nodeId)
     if (iter == nodeMap_.end()) {
         return;
     }
+    auto oldIt = std::remove_if(nodeInfos_.begin(), nodeInfos_.end(),
+                                [&nodeId](const NodeInfo& cached) { return cached.nodeId == nodeId; });
+    nodeInfos_.erase(oldIt, nodeInfos_.end());
     nodeInfos_.push_back(iter->second->GetNodeInfo());
 }
 
@@ -310,8 +315,11 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
     UBSE_LOG_INFO << "Update node=" << nodeInfo.nodeId
                   << " scheduler cluster state, state=" << static_cast<int>(nodeInfo.clusterState);
 
-    if (nodeMap_.find(nodeInfo.nodeId) == nodeMap_.end() ||
-        nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_INIT) {
+    auto nodeIt = nodeMap_.find(nodeInfo.nodeId);
+    // 节点初次上报 或 节点要求初始化 或 节点从未知/故障状态恢复（脱离集群重连或故障重启，需要重新初始化以防期间配置变更）
+    if (nodeIt == nodeMap_.end() || nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_INIT ||
+        nodeIt->second->GetClusterState() == UbseNodeClusterState::UBSE_NODE_UNKNOWN ||
+        nodeIt->second->GetClusterState() == UbseNodeClusterState::UBSE_NODE_FAULT) {
         // nodecontroller不对等的设计，当节点收到sysentry故障时，要创建一个新的nodeinfo
         // 但是里面数据都是错误(socket和numa数据都是空的)，这时候不能构造对象
         if (nodeInfo.clusterState == UbseNodeClusterState::UBSE_NODE_FAULT) {
@@ -346,7 +354,6 @@ UbseResult SchedulerNodeManager::UpdateNodeInfo(const nodeController::UbseNodeIn
     auto& nodeData = nodeMap_[nodeInfo.nodeId];
     nodeData->UpdateNodeClusterState(nodeInfo.clusterState);
     nodeData->UpdateHostName(nodeInfo.hostName);
-    nodeData->UpdateIsLender(nodeInfo.isLender);
     return UBSE_OK;
 }
 
