@@ -2,12 +2,15 @@
 #include <mutex>
 
 #include "ubse_election_module.h"
+#include "ubse_mti_eid_interface.h"
 #include "ubse_node_controller.h"
 #include "ubse_node_controller_module.h"
 #include "ubse_ras_com_handler.h"
 #include "ubse_ras_handler.h"
+#include "ubse_ras_panic_reboot_handler.h"
 #include "message/ubse_ras_message.h"
 #include "message/ubse_ras_oom_message.h"
+#include "message/ubse_ras_panic_reboot_message.h"
 
 namespace ubse::ras {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -160,6 +163,89 @@ UbseResult UbseOomHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseM
     auto numaInfo = nodeInfo.numaInfos[numaLocation];
     // OOM 事件处理已经移交virt,
     response->SetErrCode(UBSE_OK);
+    return UBSE_OK;
+}
+
+// 校验转发报文字段格式；故障节点由全局主事件线程根据EID解析。
+static UbseResult ValidatePanicRebootForwardMsg(const UbseRasPanicRebootMessagePtr& request,
+                                                const UbseRasPanicRebootMessagePtr& response)
+{
+    auto faultEid = request->GetFaultEid();
+    auto msgId = request->GetMsgId();
+    auto forwardNodeId = request->GetForwardNodeId();
+    auto faultType = static_cast<ALARM_FAULT_TYPE>(request->GetFaultType());
+    uint32_t unusedCna = 0;
+    if (ubse::utils::ParseCnaValueFromEid(faultEid, unusedCna) != UBSE_OK || !IsDigitString(msgId) ||
+        !IsDigitString(forwardNodeId) || (faultType != ALARM_PANIC_EVENT && faultType != ALARM_KERNEL_REBOOT_EVENT)) {
+        UBSE_LOG_ERROR << "Invalid panic reboot fault message, faultEid=" << faultEid << ", msgId=" << msgId
+                       << ", forwardNodeId=" << forwardNodeId << ", faultType=" << faultType;
+        response->SetResult(UBSE_ERROR_INVAL);
+        return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseRasPanicRebootHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                                             UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseRasPanicRebootMessage>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseRasPanicRebootMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid input, the request or response is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (auto ret = ValidatePanicRebootForwardMsg(request, response); ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Validate panic reboot forward msg failed, " << FormatRetCode(ret);
+        return ret;
+    }
+    // 本节点不是主节点（可能正处于选举切换中），不处理也不回发结果；
+    // 同机柜其它收到广播的节点会转发到新的主节点
+    if (!IsCurrentNodeMaster()) {
+        UBSE_LOG_WARN << "Current node is not master, refuse to handle forwarded panic reboot fault, "
+                      << "faultEid=" << request->GetFaultEid() << ", msgId=" << request->GetMsgId();
+        response->SetResult(UBSE_RAS_IS_NOT_MASTER_OR_MEM_IS_NOT_INIT);
+        return UBSE_OK;
+    }
+    // 通信线程不做耗时的故障处理：发布故障事件，由事件模块线程执行处理并回发结果
+    auto ret = PubPanicRebootForwardFaultEvent(static_cast<ALARM_FAULT_TYPE>(request->GetFaultType()),
+                                               request->GetFaultEid(), request->GetMsgId(),
+                                               request->GetForwardNodeId());
+    response->SetResult(ret);
+    return UBSE_OK;
+}
+
+// 校验结果通知报文字段格式，失败时设置响应结果
+static UbseResult ValidatePanicRebootResultMsg(const UbseRasPanicRebootMessagePtr& request,
+                                               const UbseRasPanicRebootMessagePtr& response)
+{
+    auto msgId = request->GetMsgId();
+    auto faultType = static_cast<ALARM_FAULT_TYPE>(request->GetFaultType());
+    if (!IsDigitString(msgId) || (faultType != ALARM_PANIC_EVENT && faultType != ALARM_KERNEL_REBOOT_EVENT)) {
+        UBSE_LOG_ERROR << "Invalid panic reboot result message, msgId=" << msgId << ", faultType=" << faultType;
+        response->SetResult(UBSE_ERROR_INVAL);
+        return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseRasPanicRebootResultHandler::Handle(const UbseBaseMessagePtr& req, const UbseBaseMessagePtr& rsp,
+                                                   UbseComBaseMessageHandlerCtxPtr ctx)
+{
+    auto request = UbseBaseMessage::DeConvert<UbseRasPanicRebootMessage>(req);
+    auto response = UbseBaseMessage::DeConvert<UbseRasPanicRebootMessage>(rsp);
+    if (request == nullptr || response == nullptr) {
+        UBSE_LOG_ERROR << "Invalid input, the request or response is null";
+        return UBSE_ERROR_NULLPTR;
+    }
+    if (auto ret = ValidatePanicRebootResultMsg(request, response); ret != UBSE_OK) {
+        return ret;
+    }
+    auto msgId = request->GetMsgId();
+    auto faultType = static_cast<ALARM_FAULT_TYPE>(request->GetFaultType());
+    UBSE_LOG_INFO << "Received panic reboot fault handle result from master, msgId=" << msgId
+                  << ", faultType=" << faultType << ", report ack to sysSentry";
+    auto ret = ReportAckToSysSentry(faultType + 1, msgId + "_" + std::to_string(UBSE_OK));
+    response->SetResult(ret);
     return UBSE_OK;
 }
 

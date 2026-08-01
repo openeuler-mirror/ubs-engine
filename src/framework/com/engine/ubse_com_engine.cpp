@@ -19,11 +19,6 @@
 #include <fstream>
 #include <iostream>
 
-#include "adapter_plugins/mti/ubse_topology_interface.h"
-#include "adapter_plugins/mti/ubse_smbios.h"
-#include "crc/ubse_crc.h"
-#include "hcom/hcom_service_context.h"
-#include "trace_context.h"
 #include "ubse_com_base.h"
 #include "ubse_com_def.h"
 #include "ubse_com_op_code.h"
@@ -34,6 +29,11 @@
 #include "ubse_pointer_process.h"
 #include "ubse_security_module.h"
 #include "ubse_str_util.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "adapter_plugins/mti/ubse_topology_interface.h"
+#include "crc/ubse_crc.h"
+#include "hcom/hcom_service_context.h"
+#include "trace_context.h"
 
 namespace ubse::com {
 using namespace ubse::log;
@@ -423,7 +423,7 @@ UbseResult UbseComEngine::GetRemoteNodeId(UbseComChannelConnectInfo& info, UbseC
     }
     SetChannelTimeout(channelPtr, timeout_);
     if (GetRemoteNodeIdByCall(info.GetIp(), engineInfo_.GetNodeId(), engineInfo_.GetIpInfo().first, channelPtr,
-                               remoteNodeId) != UBSE_OK) {
+                              remoteNodeId) != UBSE_OK) {
         auto chId = channelPtr->GetId();
         DestroyChannel(channelPtr);
         RemoveConnectingNode(info.GetIp(), chType);
@@ -778,7 +778,7 @@ void UbseComEngine::RegisterVerifyMsgCb(VerifyMsgCb cb)
     verifyMsgCb_ = cb;
 }
 
-std::string UbseComEngine::GetNodeIdByIp(const std::string &ip)
+std::string UbseComEngine::GetNodeIdByIp(const std::string& ip)
 {
     rwLock_.LockRead();
     auto id = linkManager_.GetNodeIdByIp(ip);
@@ -981,11 +981,11 @@ std::string GetPeerIpFromGetRemoteNodeIdReq(const UBSHcomServiceContext& context
     return "";
 }
 
-void ReplyWithResult(UbseComMessageCtx &message, UbseReplyResult err)
+void ReplyWithResult(UbseComMessageCtx& message, UbseReplyResult err)
 {
     auto res = (UbseReplyResultToString(err));
     UbseComDataDesc data;
-    data.data = reinterpret_cast<uint8_t *>(res.data());
+    data.data = reinterpret_cast<uint8_t*>(res.data());
     data.len = res.length();
     UbseComCallback usrCb;
     UbseCommunication::UbseComMsgReply(message, data, usrCb);
@@ -1035,7 +1035,7 @@ void UbseComEngine::HandleGetLocalNodeId(const UBSHcomServiceContext& context)
                   << ch->GetPeerConnectPayload() << "] successfully";
 }
 
-void UbseComEngine::ForwardMessage(UbseComMessageCtx &msgCtx, const std::string &finalDst)
+void UbseComEngine::ForwardMessage(UbseComMessageCtx& msgCtx, const std::string& finalDst)
 {
     UBSE_LOG_DEBUG << "Engine " << engineInfo_.GetName() << " forward message to " << finalDst;
     std::string nextHop = routeTable_.Lookup(finalDst);
@@ -1066,9 +1066,9 @@ void UbseComEngine::ForwardMessage(UbseComMessageCtx &msgCtx, const std::string 
     SubmitForward(engineInfo_.GetName(), std::move(fwCtx));
 }
 
-UbseComMessagePtr UbseComEngine::CopyForwardMsg(UbseComMessageCtx &msgCtx)
+UbseComMessagePtr UbseComEngine::CopyForwardMsg(UbseComMessageCtx& msgCtx)
 {
-    auto *origMsg = static_cast<UbseComMessage *>(static_cast<void *>(msgCtx.GetMessage()));
+    auto* origMsg = static_cast<UbseComMessage*>(static_cast<void*>(msgCtx.GetMessage()));
     uint32_t bodyLen = origMsg->GetMessageBodyLen();
 
     auto msgCopyPtr = UbseComMessage::AllocMessage(bodyLen);
@@ -1077,14 +1077,14 @@ UbseComMessagePtr UbseComEngine::CopyForwardMsg(UbseComMessageCtx &msgCtx)
         return nullptr;
     }
 
-    auto *copy = static_cast<UbseComMessage *>(static_cast<void *>(msgCopyPtr));
-    copy->SetMessageHead(const_cast<UbseComMessageHead &>(origMsg->GetMessageHead()));
+    auto* copy = static_cast<UbseComMessage*>(static_cast<void*>(msgCopyPtr));
+    copy->SetMessageHead(const_cast<UbseComMessageHead&>(origMsg->GetMessageHead()));
     copy->SetMessageBody(origMsg->GetMessageBody(), bodyLen);
 
     return msgCopyPtr;
 }
 
-void UbseComEngine::SubmitForward(const std::string &engineName, UbseComMessageCtx fwCtx)
+void UbseComEngine::SubmitForward(const std::string& engineName, UbseComMessageCtx fwCtx)
 {
     HandlerExecutor executor = (engineName == UBSE_AGENT_IPC_SERVER_ENGINE_NAME) ?
                                    UbseComBase::GetIpcHandlerExecutor() :
@@ -1112,7 +1112,7 @@ void UbseComEngine::SubmitForward(const std::string &engineName, UbseComMessageC
         executorType::COM);
 }
 
-UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
+UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext& context)
 {
     UBSE_LOG_DEBUG << "Get remote call";
     auto msg = GetMessageFromNetServiceContext(context);
@@ -1141,7 +1141,7 @@ UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
     msgCtx.SetRemoteCall();
     ParseContextMsg(context, msg, msgCtx);
     // 多跳转发检查
-    auto *fwMsg = static_cast<UbseComMessage *>(static_cast<void *>(msgCtx.GetMessage()));
+    auto* fwMsg = static_cast<UbseComMessage*>(static_cast<void*>(msgCtx.GetMessage()));
     std::string finalDst = fwMsg->GetFinalDstNodeId();
     if (finalDst != engineInfo_.GetNodeId()) {
         ForwardMessage(msgCtx, finalDst);
@@ -1158,7 +1158,7 @@ UbseResult UbseComEngine::HandleRemoteCall(UBSHcomServiceContext &context)
     return UBSE_OK;
 }
 
-bool UbseComEngine::VerifyMsg(UbseComMessageCtx &msgCtx)
+bool UbseComEngine::VerifyMsg(UbseComMessageCtx& msgCtx)
 {
     VerifyMsgCb cb;
     {
