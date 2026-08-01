@@ -13,6 +13,7 @@
 #include "test_sys_sentry_module.h"
 #include "ubse_timer.h"
 #include "adapter_plugins/mti/ubse_mti_def.h"
+#include "adapter_plugins/mti/ubse_mti_eid_interface.h"
 #include "adapter_plugins/mti/ubse_mti_interface.h"
 #include "src/adapter_plugins/mti/ubse_mti_interface_default.h"
 
@@ -30,6 +31,7 @@ void TestSysSentryModule::SetUp()
     UbseRasObserver::GetInstance().isSentryMsgMonitorRunning = false;
     UbseRasObserver::GetInstance().stopThread = false;
     UbseRasObserver::GetInstance().worker = std::make_unique<std::thread>();
+    module->nodeDiscoverySubscribed_ = false;
 }
 
 void TestSysSentryModule::TearDown()
@@ -74,6 +76,28 @@ TEST_F(TestSysSentryModule, Stop)
     UbseRasObserver::GetInstance().stopThread = false;
     module->Stop();
     EXPECT_TRUE(UbseRasObserver::GetInstance().stopThread);
+}
+
+TEST_F(TestSysSentryModule, BuildClosBroadcastDomainWithOnePeer)
+{
+    const std::string localEid = "4245:4944:0000:0000:0000:0000:0100:0000";
+    std::map<UbseMtiIouInfo, UbseMtiEidGroup> allEids = {
+        {UbseMtiIouInfo{"5", "0", ""}, {.primaryEid = localEid}},
+    };
+    std::string peerEid;
+    ASSERT_EQ(ubse::utils::OverwriteEid(5, localEid, peerEid), UBSE_OK);
+    uint32_t localCna = 0;
+    uint32_t peerCna = 0;
+    ASSERT_EQ(ubse::utils::ParseCnaValueFromEid(localEid, localCna), UBSE_OK);
+    ASSERT_EQ(ubse::utils::ParseCnaValueFromEid(peerEid, peerCna), UBSE_OK);
+
+    SysSentryBroadcastDomain domain;
+    ASSERT_EQ(BuildClosBroadcastDomain("5", {6}, allEids, domain), UBSE_OK);
+    EXPECT_EQ(domain.clientEid, localEid);
+    EXPECT_EQ(domain.clientCna, std::to_string(localCna));
+    EXPECT_EQ(domain.serverEids, localEid + "," + peerEid);
+    EXPECT_EQ(domain.serverCnas, std::to_string(peerCna));
+    EXPECT_EQ(domain.peerNodeIds, (std::vector<uint32_t>{6}));
 }
 
 TEST_F(TestSysSentryModule, GetEidsWhenLcneModuleIsNull)
@@ -176,75 +200,6 @@ TEST_F(TestSysSentryModule, GetEids_LocalNodeNotInTopo)
     auto res = GetEids(clientEid, serverEids);
     ASSERT_EQ(res, UBSE_OK);
     EXPECT_TRUE(clientEid.empty());
-}
-
-TEST_F(TestSysSentryModule, GetCurNodeCna)
-{
-    UbseMtiInterfaceDefault mtiDefault;
-    MOCKER_CPP_VIRTUAL(&mtiDefault, &UbseMtiInterfaceDefault::GetClusterCpuTopo).stubs().will(returnValue(UBSE_ERROR));
-    std::vector<std::string> busNodeCnas;
-    auto ret = GetCurNodeCna(busNodeCnas);
-    EXPECT_EQ(ret, UBSE_ERROR);
-
-    UbseDevName devName1_1("1-1");
-    UbseDevName devName1_2("1-2");
-    UbseDevName devName2_1("2-1");
-    UbseDevName devName2_2("2-2");
-    UbseMtiCpuTopoInfo cpuTopoInfo1_1{.nodeId = 1, .busNodeCna = 0x123, .chipId = "1", .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo1_2{.nodeId = 1, .busNodeCna = 0x456, .chipId = "2", .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_1{.nodeId = 2, .busNodeCna = 0x789, .chipId = "1", .portInfos = {}};
-    UbseMtiCpuTopoInfo cpuTopoInfo2_2{.nodeId = 2, .busNodeCna = 0xabc, .chipId = "2", .portInfos = {}};
-    UbseMtiCpuTopoInfoMap topo;
-    topo[devName1_1] = cpuTopoInfo1_1;
-    topo[devName1_2] = cpuTopoInfo1_2;
-    topo[devName2_1] = cpuTopoInfo2_1;
-    topo[devName2_2] = cpuTopoInfo2_2;
-    GlobalMockObject::verify();
-    MOCKER_CPP_VIRTUAL(&mtiDefault, &UbseMtiInterfaceDefault::GetClusterCpuTopo)
-        .stubs()
-        .with(outBound(topo))
-        .will(returnValue(UBSE_OK));
-    UbseMtiNodeInfo localNodeInfo{.nodeId = "1", .eid = ""};
-    MOCKER_CPP_VIRTUAL(&mtiDefault, &UbseMtiInterfaceDefault::GetLocalNodeInfo)
-        .stubs()
-        .with(outBound(localNodeInfo))
-        .will(returnValue(UBSE_ERROR));
-    ret = GetCurNodeCna(busNodeCnas);
-    EXPECT_EQ(ret, UBSE_ERROR);
-
-    GlobalMockObject::verify();
-    MOCKER_CPP_VIRTUAL(&mtiDefault, &UbseMtiInterfaceDefault::GetClusterCpuTopo)
-        .stubs()
-        .with(outBound(topo))
-        .will(returnValue(UBSE_OK));
-    MOCKER_CPP_VIRTUAL(&mtiDefault, &UbseMtiInterfaceDefault::GetLocalNodeInfo)
-        .stubs()
-        .with(outBound(localNodeInfo))
-        .will(returnValue(UBSE_OK));
-    ret = GetCurNodeCna(busNodeCnas);
-    EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(busNodeCnas.size(), 2);
-}
-
-TEST_F(TestSysSentryModule, GetCurNodeCna_SplitDevNameFail)
-{
-    auto& mtiInterface = UbseMtiInterface::GetInstance();
-    UbseMtiCpuTopoInfoMap topo;
-    UbseDevName badDev;
-    badDev.devName = "node1";
-    topo[badDev] = {.nodeId = 1, .busNodeCna = 0x123, .chipId = ""};
-    MOCKER_CPP_VIRTUAL(&mtiInterface, &ubse::adapter_plugins::mti::UbseMtiInterface::GetClusterCpuTopo)
-        .stubs()
-        .with(outBound(topo))
-        .will(returnValue(UBSE_OK));
-    UbseMtiNodeInfo localNodeInfo{.nodeId = "1", .eid = ""};
-    MOCKER_CPP_VIRTUAL(&mtiInterface, &ubse::adapter_plugins::mti::UbseMtiInterface::GetLocalNodeInfo)
-        .stubs()
-        .with(outBound(localNodeInfo))
-        .will(returnValue(UBSE_OK));
-    std::vector<std::string> busNodeCnas;
-    auto ret = GetCurNodeCna(busNodeCnas);
-    EXPECT_EQ(ret, UBSE_ERROR_AGAIN);
 }
 
 TEST_F(TestSysSentryModule, LinkStrings_EmptyResult)

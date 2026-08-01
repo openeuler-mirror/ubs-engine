@@ -62,6 +62,7 @@ public:
     bool IsSentryMsgMonitorRunning() const;
     void RegQueryMsgMonitorTimer();     // 注册查询sentry_msg_helper运行状态的定时器
     void UbseQueryMsgMonitorTimerRun(); // 定时查询sentry_msg_helper运行状态的回调
+    UbseResult RequestBroadcastDomainRefresh();
 
 private:
     /*
@@ -86,6 +87,12 @@ private:
     void UnRegisterXalarm(alarm_register** registerInfo);
 
     UbseResult Init();
+    UbseResult ScheduleBroadcastDomainRefresh();
+    UbseResult RegisterConfigRetryTimer();
+    void UnregisterConfigRetryTimer();
+    void UnregisterConfigRetryTimerIfIdle();
+    void RunBroadcastDomainRefresh();
+    void InvalidateSysSentryConfig();
 
 private:
     std::unique_ptr<std::thread> worker;
@@ -96,7 +103,11 @@ private:
     XalarmUnRegisterFunc xalarmUnRegisterFunc = nullptr;
     std::atomic<bool> configSysSentrySuccess = false;
     std::atomic<bool> isSentryMsgMonitorRunning = false;
+    // 完整配置成功后存在尚未处理的动态广播域变化，由配置互斥锁保护。
+    bool broadcastRefreshPending = false;
     std::mutex configSysSentryMtx;
 };
+
+uint32_t HandleSysSentryNodeDiscoveryEvent(std::string& eventId, std::string& eventMessage);
 } // namespace syssentry
 #endif // UBSE_MANAGER_UBSE_RAS_OBSERVER_H

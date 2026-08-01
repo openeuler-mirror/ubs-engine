@@ -35,7 +35,6 @@
 namespace syssentry {
 extern std::vector<std::string> SplitString(const std::string& str, char delimiter);
 extern UbseResult GetEids(std::string& clientEid, std::string& serverEids);
-extern UbseResult GetCurNodeCna(std::vector<std::string>& busNodeCnas);
 extern UbseResult SetSysSentryFaultReporter();
 extern void LinkStrings(std::string& result, const std::string linkSymbol, const std::vector<std::string> strings);
 extern std::string ShellEscape(const std::string& str);
