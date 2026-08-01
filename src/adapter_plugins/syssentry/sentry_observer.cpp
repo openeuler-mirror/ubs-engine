@@ -163,8 +163,9 @@ UbseResult UbseRasObserver::Start()
 void UbseRasObserver::Stop()
 {
     stopThread = true;
+    InvalidateSysSentryConfig();
+    UnregisterConfigRetryTimer();
     ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_QUERY_MSG_MONITOR_TIMER_NAME);
-    ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
     if (worker && worker->joinable()) {
         worker->detach();
         // 确保释放线程资源
@@ -205,9 +206,12 @@ void UbseRasObserver::SentryEventListen()
         auto ret = xalarmGetEventFunc(msg, registerInfo);
         if (ret < 0) {
             UBSE_LOG_WARN << "Failed to get msg. ErrorCode=" << ret;
+            const bool disconnected = ret == -ENOTCONN || ret == -EBADF;
+            if (disconnected) {
+                InvalidateSysSentryConfig();
+            }
             RegisterSentryEvent(&registerInfo);
-            if (ret == -ENOTCONN || ret == -EBADF) {
-                configSysSentrySuccess = false;
+            if (disconnected) {
                 UBSE_LOG_INFO << "Re-config sentry";
                 UbseConfigSysSentryWithRetry();
                 ubse::ras::UbseRasHandler::GetInstance().ClearAllMsgId(); // 内核重插，清除msgId
@@ -232,7 +236,6 @@ void UbseRasObserver::SentryEventListen()
         TraceContext::Clear();
     }
     UnRegisterXalarm(&registerInfo);
-    SafeDelete(registerInfo);
 }
 
 void UbseRasObserver::RegisterSentryEvent(alarm_register** registerInfo)
@@ -295,10 +298,17 @@ bool UbseRasObserver::IsSentryMsgMonitorRunning() const
 UbseResult UbseRasObserver::UbseConfigSysSentry()
 {
     std::unique_lock<std::mutex> mtx(configSysSentryMtx);
+    // 模块停止后不再配置 sysSentry，按幂等成功返回。
+    if (stopThread || g_globalStop) {
+        UBSE_LOG_INFO << "Skip configuring sysSentry because the module is stopping";
+        return UBSE_OK;
+    }
+    // 已完成完整配置时无需重复执行 sentryctl。
     if (configSysSentrySuccess) {
         UBSE_LOG_INFO << "SysSentry has been configured";
         return UBSE_OK;
     }
+    // 完整配置任一命令失败时返回错误，由上层统一注册重试定时器。
     if (SetSysSentryFaultReporter() != UBSE_OK) {
         UBSE_LOG_DEBUG << "Fail to set fault reporter";
         return UBSE_RAS_ERROR_SET_SENTRY_REPORTER;
@@ -310,56 +320,214 @@ UbseResult UbseRasObserver::UbseConfigSysSentry()
 
 void UbseRasObserver::UbseConfigSysSentryTimerRun()
 {
-    if (UbseRasObserver::GetInstance().UbseConfigSysSentry() == UBSE_OK) {
-        UBSE_LOG_INFO << "Success to config sysSentry";
-        ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
-        return;
+    bool stopRetry = false;
+    bool configReady = false;
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        stopRetry = stopThread || g_globalStop;
+        configReady = configSysSentrySuccess;
     }
-    if (stopThread) {
+    if (stopRetry) {
+        // 停止阶段立即注销重试定时器，不再执行配置任务。
         UBSE_LOG_INFO << "Stop retry config sysSentry";
-        ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+        UnregisterConfigRetryTimer();
         return;
     }
-    UBSE_LOG_DEBUG << "Unable to config sysSentry, will retry in " << UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL << "s";
+    if (configReady) {
+        RunBroadcastDomainRefresh();
+    } else if (UbseConfigSysSentry() != UBSE_OK) {
+        // 完整配置仍未成功时保留定时器，等待下一次重试。
+        UBSE_LOG_DEBUG << "Unable to config sysSentry, will retry in " << UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL
+                       << "s";
+        return;
+    }
+    UnregisterConfigRetryTimerIfIdle();
 }
 
 UbseResult UbseRasObserver::UbseConfigSysSentryWithRetry()
 {
     UBSE_LOG_INFO << "Start to config sysSentry";
-    if (g_globalStop) {
-        UBSE_LOG_INFO << "detect global stop flag, will stop config";
-        ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+    bool stopRetry = false;
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        stopRetry = stopThread || g_globalStop;
+    }
+    if (stopRetry) {
+        // 停止阶段注销已有重试定时器，不再启动新的配置。
+        UBSE_LOG_INFO << "Stop configuring sysSentry because the module is stopping";
+        UnregisterConfigRetryTimer();
         return UBSE_OK;
     }
+    // 完整配置成功时无需创建重试定时器。
     if (UbseConfigSysSentry() == UBSE_OK) {
         UBSE_LOG_INFO << "Success to config sysSentry";
         return UBSE_OK;
     }
     // 配置sysSentry可能耗时过长，此处需要再校验一遍
-    if (g_globalStop) {
-        UBSE_LOG_INFO << "detect global stop flag, will stop config";
-        return UBSE_OK;
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        // 配置执行期间收到停止信号时，不再注册后续重试。
+        if (stopThread || g_globalStop) {
+            UBSE_LOG_INFO << "Stop configuring sysSentry because the module started stopping during configuration";
+            return UBSE_OK;
+        }
+        // 配置期间可能由并发重试完成，此时无需重复注册定时器。
+        if (configSysSentrySuccess) {
+            UBSE_LOG_DEBUG << "Skip registering sysSentry retry because configuration has completed";
+            return UBSE_OK;
+        }
     }
     UBSE_LOG_WARN << "Failed to config sysSentry, will retry later";
+    return RegisterConfigRetryTimer();
+}
+
+uint32_t HandleSysSentryNodeDiscoveryEvent(std::string& eventId, std::string& eventMessage)
+{
+    (void)eventId;
+    (void)eventMessage;
+    return UbseRasObserver::GetInstance().RequestBroadcastDomainRefresh();
+}
+
+void UbseRasObserver::InvalidateSysSentryConfig()
+{
+    std::lock_guard<std::mutex> lock(configSysSentryMtx);
+    configSysSentrySuccess = false;
+    broadcastRefreshPending = false;
+    ResetSysSentryFaultBroadcastDomain();
+    UBSE_LOG_DEBUG << "Invalidated sysSentry configuration state and broadcast peer snapshot";
+}
+
+UbseResult UbseRasObserver::RequestBroadcastDomainRefresh()
+{
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        // 停止阶段不再接收新的广播域刷新请求。
+        if (stopThread || g_globalStop) {
+            UBSE_LOG_INFO << "Skip requesting sysSentry broadcast refresh because the module is stopping";
+            return UBSE_OK;
+        }
+        // 完整配置会读取最新 NodeMgr 数据，未完成前无需保留动态刷新请求。
+        if (!configSysSentrySuccess) {
+            UBSE_LOG_DEBUG << "Skip requesting sysSentry broadcast refresh because full configuration is not ready";
+            return UBSE_OK;
+        }
+        broadcastRefreshPending = true;
+    }
+    return ScheduleBroadcastDomainRefresh();
+}
+
+UbseResult UbseRasObserver::ScheduleBroadcastDomainRefresh()
+{
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        // 停止阶段不再向 RAS 执行器投递刷新任务。
+        if (stopThread || g_globalStop) {
+            UBSE_LOG_INFO << "Skip scheduling sysSentry broadcast refresh because the module is stopping";
+            return UBSE_OK;
+        }
+        // 完整配置失效后应由完整配置流程恢复，不单独刷新广播域。
+        if (!configSysSentrySuccess) {
+            UBSE_LOG_DEBUG << "Skip scheduling sysSentry broadcast refresh because full configuration is not ready";
+            return UBSE_OK;
+        }
+        // 没有待处理变化时不投递空刷新任务。
+        if (!broadcastRefreshPending) {
+            UBSE_LOG_DEBUG << "Skip scheduling sysSentry broadcast refresh because no refresh is pending";
+            return UBSE_OK;
+        }
+    }
+
+    auto taskModule = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    // 缺少任务模块时无法投递刷新任务，保留 pending 并尝试注册统一重试。
+    if (taskModule == nullptr) {
+        UBSE_LOG_ERROR << "Get task module failed while scheduling broadcast refresh";
+        (void)RegisterConfigRetryTimer();
+        return UBSE_ERROR;
+    }
+    auto executor = taskModule->Get(UBSE_RAS_TASK_NAME);
+    // RAS 执行器尚不可用时不丢弃刷新请求，交由统一定时器重试。
+    if (executor == nullptr) {
+        UBSE_LOG_WARN << "RAS executor is unavailable while scheduling broadcast refresh";
+        (void)RegisterConfigRetryTimer();
+        return UBSE_ERROR;
+    }
+    // 投递失败时 pending 仍为 true，后续定时器会再次尝试刷新。
+    if (!executor->Execute([]() -> void { UbseRasObserver::GetInstance().RunBroadcastDomainRefresh(); })) {
+        UBSE_LOG_WARN << "Failed to enqueue sysSentry broadcast refresh";
+        (void)RegisterConfigRetryTimer();
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+void UbseRasObserver::RunBroadcastDomainRefresh()
+{
+    UbseResult ret = UBSE_OK;
+    {
+        std::lock_guard<std::mutex> lock(configSysSentryMtx);
+        // 已进入停止阶段的排队任务直接退出，不再访问 sysSentry。
+        if (stopThread || g_globalStop) {
+            UBSE_LOG_INFO << "Skip running sysSentry broadcast refresh because the module is stopping";
+            return;
+        }
+        // Sentry 断连会使完整配置失效，广播域由后续完整配置恢复。
+        if (!configSysSentrySuccess) {
+            UBSE_LOG_DEBUG << "Skip running sysSentry broadcast refresh because full configuration is not ready";
+            return;
+        }
+        // 重复排队的任务没有 pending 时无需执行命令。
+        if (!broadcastRefreshPending) {
+            UBSE_LOG_DEBUG << "Skip running sysSentry broadcast refresh because no refresh is pending";
+            return;
+        }
+        broadcastRefreshPending = false;
+        ret = RefreshSysSentryFaultBroadcastDomain();
+        // 仅在运行态且完整配置仍有效时保留失败请求；停止或断连由生命周期流程重新配置。
+        if (ret != UBSE_OK && !stopThread && !g_globalStop && configSysSentrySuccess) {
+            broadcastRefreshPending = true;
+        }
+    }
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to refresh sysSentry broadcast domain, " << FormatRetCode(ret);
+        (void)RegisterConfigRetryTimer();
+    }
+}
+
+UbseResult UbseRasObserver::RegisterConfigRetryTimer()
+{
+    auto taskModule = UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
+    // 缺少任务模块时无法创建可执行的重试回调，直接返回注册失败。
+    if (taskModule == nullptr) {
+        UBSE_LOG_ERROR << "Get task module failed while registering sysSentry retry";
+        return UBSE_ERROR;
+    }
+    auto executor = taskModule->Get(UBSE_RAS_TASK_NAME);
+    // 重试回调依赖 RAS 执行器，执行器不存在时不能注册无效定时器。
+    if (executor == nullptr) {
+        UBSE_LOG_WARN << "RAS executor is unavailable while registering sysSentry retry";
+        return UBSE_ERROR;
+    }
+    std::lock_guard<std::mutex> lock(configSysSentryMtx);
+    // 停止阶段不再注册新的重试定时器。
+    if (stopThread || g_globalStop) {
+        UBSE_LOG_INFO << "Skip registering sysSentry retry timer because the module is stopping";
+        return UBSE_OK;
+    }
+    // 回调只使用预先获取的执行器，避免定时器注销等待回调时与配置锁互相等待。
     auto ret = ubse::timer::UbseTimerHandlerRegister(
         UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME,
-        []() -> UbseResult {
-            if (g_globalStop) {
-                UBSE_LOG_INFO << "detect global stop flag, will stop config";
-                ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+        [executor]() -> UbseResult {
+            auto& observer = UbseRasObserver::GetInstance();
+            // Stop 已负责注销定时器；并发触发的尾部回调只需幂等退出。
+            if (observer.stopThread || g_globalStop) {
+                UBSE_LOG_INFO << "Skip enqueueing sysSentry retry because the module is stopping";
                 return UBSE_OK;
             }
-            auto taskModule = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
-            if (taskModule == nullptr) {
-                UBSE_LOG_ERROR << "Get task module failed";
+            // 队列拒绝任务时向 timer 框架返回失败，保留后续触发机会。
+            if (!executor->Execute([]() -> void { UbseRasObserver::GetInstance().UbseConfigSysSentryTimerRun(); })) {
+                UBSE_LOG_WARN << "Failed to enqueue sysSentry retry task";
                 return UBSE_ERROR;
             }
-            UbseTaskExecutorPtr executor = taskModule->Get(UBSE_RAS_TASK_NAME);
-            if (executor == nullptr) {
-                UBSE_LOG_WARN << "executor empty, skip config sysSentry";
-                return UBSE_OK;
-            }
-            executor->Execute([]() -> void { UbseRasObserver::GetInstance().UbseConfigSysSentryTimerRun(); });
             return UBSE_OK;
         },
         UBSE_RAS_CONFIG_SYSSENTRY_TIMER_INTERVAL);
@@ -368,4 +536,31 @@ UbseResult UbseRasObserver::UbseConfigSysSentryWithRetry()
     }
     return ret;
 }
+
+void UbseRasObserver::UnregisterConfigRetryTimer()
+{
+    std::lock_guard<std::mutex> lock(configSysSentryMtx);
+    UBSE_LOG_DEBUG << "Unregister sysSentry retry timer";
+    ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+}
+
+void UbseRasObserver::UnregisterConfigRetryTimerIfIdle()
+{
+    std::lock_guard<std::mutex> lock(configSysSentryMtx);
+    const bool stopping = stopThread || g_globalStop;
+    // 完整配置仍未成功时保留定时器，继续重试完整配置。
+    if (!stopping && !configSysSentrySuccess) {
+        UBSE_LOG_DEBUG << "Keep sysSentry retry timer because full configuration is not ready";
+        return;
+    }
+    // 仍有动态变化待处理时保留定时器，继续重试广播域刷新。
+    if (!stopping && broadcastRefreshPending) {
+        UBSE_LOG_DEBUG << "Keep sysSentry retry timer because a broadcast refresh is pending";
+        return;
+    }
+    // 停止或所有配置均已收敛时，定时器不再需要继续触发。
+    UBSE_LOG_DEBUG << "Unregister sysSentry retry timer because no retry work remains";
+    ubse::timer::UbseTimerHandlerUnregister(UBSE_RAS_CONFIG_SYSSENTRY_TIMER_NAME);
+}
+
 } // namespace syssentry

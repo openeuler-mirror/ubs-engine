@@ -25,6 +25,7 @@ void TestSentryObserver::SetUp()
     UbseRasObserver::GetInstance().configSysSentrySuccess = false;
     UbseRasObserver::GetInstance().isSentryMsgMonitorRunning = false;
     UbseRasObserver::GetInstance().stopThread = false;
+    UbseRasObserver::GetInstance().broadcastRefreshPending = false;
     UbseRasObserver::GetInstance().worker = std::make_unique<std::thread>();
 }
 
@@ -244,6 +245,15 @@ TEST_F(TestSentryObserver, UbseConfigSysSentry_Success)
     EXPECT_TRUE(observer.configSysSentrySuccess);
 }
 
+TEST_F(TestSentryObserver, NodeDiscoveryBeforeInitialConfigDoesNotSetPending)
+{
+    auto& observer = UbseRasObserver::GetInstance();
+    observer.configSysSentrySuccess = false;
+
+    EXPECT_EQ(observer.RequestBroadcastDomainRefresh(), UBSE_OK);
+    EXPECT_FALSE(observer.broadcastRefreshPending);
+}
+
 // ==================== UbseQueryMsgMonitorTimerRun ====================
 
 static UbseResult StubExecRunning(const std::string& command, std::string& result)
@@ -324,8 +334,17 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_Success)
     EXPECT_EQ(ret, UBSE_OK);
 }
 
+static void PrepareConfigRetryExecutor()
+{
+    auto taskModule = std::make_shared<UbseTaskExecutorModule>();
+    auto executor = UbseTaskExecutor::Create("config-retry-test", 1, 8);
+    MOCKER_CPP(&UbseContext::GetModule<UbseTaskExecutorModule>).stubs().will(returnValue(taskModule));
+    MOCKER_CPP(&UbseTaskExecutorModule::Get).stubs().will(returnValue(executor));
+}
+
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegistered)
 {
+    PrepareConfigRetryExecutor();
     MOCKER(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_OK));
     auto& observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
@@ -334,6 +353,7 @@ TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegistered)
 
 TEST_F(TestSentryObserver, UbseConfigSysSentryWithRetry_TimerRegisterFail)
 {
+    PrepareConfigRetryExecutor();
     MOCKER(ubse::timer::UbseTimerHandlerRegister).stubs().will(returnValue(UBSE_ERROR));
     auto& observer = UbseRasObserver::GetInstance();
     auto ret = observer.UbseConfigSysSentryWithRetry();
