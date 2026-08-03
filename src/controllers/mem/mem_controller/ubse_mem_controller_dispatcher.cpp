@@ -765,6 +765,11 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
+        if (reqSimpoPtr != nullptr) {
+            auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
+            BorrowFailedAdvice(
+                {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
+        }
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
@@ -817,6 +822,8 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
     }
 
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
@@ -875,6 +882,8 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
     }
 
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
@@ -914,6 +923,11 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
+        if (reqSimpoPtr != nullptr) {
+            auto req = reqSimpoPtr->GetUbseMemShareAttachReq();
+            BorrowFailedAdvice(
+                {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
+        }
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
@@ -1128,6 +1142,11 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
+        if (reqSimpoPtr != nullptr) {
+            auto req = reqSimpoPtr->GetUbseMemShareDetachReq();
+            BorrowFailedAdvice(
+                {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        }
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return UBSE_ERROR;
     }
@@ -1166,6 +1185,11 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
     }
 
     if (ret != UBSE_OK) {
+        if (reqSimpoPtr != nullptr) {
+            auto req = reqSimpoPtr.Get()->GetUbseMemReturnReq();
+            BorrowFailedAdvice(
+                {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        }
         UBSE_LOG_ERROR << "failed to send request, " << FormatRetCode(ret) + ", requestId=" << context.requestId;
         return ret;
     }
@@ -1241,6 +1265,8 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req
     }
     ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice({MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::FD, req.size, "", req.importNodeId,
+                            req.requestNodeId});
         UBSE_LOG_ERROR << "Failed to Send to fd borrow req to master, " << FormatRetCode(ret);
         return ret;
     }
@@ -1333,6 +1359,8 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
     }
     auto ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
     if (ret != UBSE_OK) {
+        BorrowFailedAdvice(
+            {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::FD, 0, "", req.importNodeId, req.requestNodeId});
         UBSE_LOG_ERROR << "Failed to Send fd borrow request, " << FormatRetCode(ret);
         return ret;
     }
@@ -1590,6 +1618,8 @@ uint32_t MemNumaBorrowRpc(const std::string& masterNodeId, const std::string& lo
         }
         const auto ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
         if (ret != UBSE_OK) {
+            BorrowFailedAdvice({MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::NUMA, req.size, "",
+                                req.importNodeId, req.requestNodeId});
             UBSE_LOG_ERROR << "Failed to Send to numa borrow req to master, " << FormatRetCode(ret);
             return ret;
         }
@@ -1730,6 +1760,8 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage& 
         }
         ret = comModule->RpcSend(sendParam, ubseRequestPtr, ubseResponsePtr);
         if (ret != UBSE_OK) {
+            BorrowFailedAdvice(
+                {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::NUMA, 0, "", "", req.requestNodeId});
             UBSE_LOG_ERROR << "Failed to Send to numa return req to master, " << FormatRetCode(ret);
             return ret;
         }

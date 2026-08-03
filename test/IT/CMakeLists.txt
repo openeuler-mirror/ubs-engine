@@ -104,6 +104,7 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_mti_mock
         ubse_node_controller_it_mock
         ubse_com_engine_it_mock
+        ubse_mem_controller_api_it_mock
         ubse_capability_it_stub
         ubse_npu_controller_it_mock
         -Wl,--no-whole-archive
@@ -187,7 +188,7 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_two_nodes
     tongsuan_1d_two_nodes_election_candidate_false
     tongsuan_1d_two_nodes_ub_feature_fault
-    tongsuan_1d_two_nodes_obmm_fault
+    tongsuan_1d_two_nodes_runtime_fault
     tongsuan_1d_four_nodes
     zhisuan_npu_single_node
 )

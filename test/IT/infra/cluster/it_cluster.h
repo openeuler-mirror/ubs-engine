@@ -81,6 +81,16 @@ public:
     ItNode& GetObmmStubControl(const std::string& nodeId);
 
     /**
+     * @brief Get Com (RPC) stub control handle for a node (delegate to ItNode).
+     *
+     * Returns the ItNode reference whose SetComFault/SetComSendFailed/
+     * RestoreComFault methods act as the Com fault control API. The node
+     * whose handle is returned is the RPC *sender*; the destination is
+     * specified as a parameter to SetComSendFailed/SetComFault.
+     */
+    ItNode& GetComStubControl(const std::string& nodeId);
+
+    /**
      * @brief Get an SDK client connected to a specific node.
      *
      * Delegates to ItNode::GetSdkClient().

@@ -936,7 +936,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq& req, const MemOperationType& type
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << "RpcSend dispatch failed";
         BorrowFailedAdvice(
-            {MemFault::BORROW_REQ_SEND_FAILED, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
+            {MemFault::RETURN_REQ_SEND_FAILED, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
         return ret;
     }
     UBSE_LOG_INFO << "begin wait resp, name=" << req.name << ", requestNodeId=" << req.requestNodeId
@@ -946,7 +946,7 @@ uint32_t UbseMemReturn(const UbseMemReturnReq& req, const MemOperationType& type
         resp.requestNodeId = req.requestNodeId;
         resp.errorCode = UBSE_ERR_TIMEOUT;
         UBSE_LOG_ERROR << "requestId=" << requestId << " borrow timeout.";
-        BorrowFailedAdvice({MemFault::BORROW_TIME_OUT, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
+        BorrowFailedAdvice({MemFault::RETURN_TIME_OUT, req.name, GetMemType(type), 0, "", "", req.requestNodeId});
         auto memBorrowWaitTimeOutExecutor = GetExecutor("ubseMemController");
         if (memBorrowWaitTimeOutExecutor == nullptr) {
             UBSE_LOG_ERROR << "Get memBorrowWaitTimeOutExecutor is nullptr";

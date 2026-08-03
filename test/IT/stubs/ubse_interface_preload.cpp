@@ -680,3 +680,14 @@ extern "C" int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t bufle
     *result = pwd;
     return 0;
 }
+
+// ============================================================
+// sleep stub: redirect sleep() to 10ms regardless of argument
+// ============================================================
+
+extern "C" unsigned int sleep(unsigned int seconds)
+{
+    (void)seconds;
+    usleep(10000); // 10ms
+    return 0;
+}

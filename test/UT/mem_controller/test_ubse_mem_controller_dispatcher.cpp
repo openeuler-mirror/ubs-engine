@@ -224,8 +224,14 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmCreateDispatcher)
         .stubs()
         .with(outBound(localNodeId), outBound(masterNodeId))
         .will(returnValue(UBSE_OK));
+    UbseMemShareBorrowReq req{};
+    req.requestNodeId = "1";
+    req.name = "test";
+    UbseMemShareBorrowReqSimpoPtr ptr = new UbseMemShareBorrowReqSimpo();
+    ptr->SetUbseMemShareBorrowReq(req);
     MOCKER(&UbseMemControllerDispatcher::BufferToShmBorrowReq)
         .stubs()
+        .with(any(), outBound(ptr), any(), any(), any())
         .will(returnValue(UBSE_ERROR))
         .then(returnValue(UBSE_OK));
     EXPECT_EQ(dispatcher.MemShmCreateDispatcher(buffer, context), UBSE_ERROR);

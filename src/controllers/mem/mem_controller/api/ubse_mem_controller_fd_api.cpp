@@ -923,8 +923,8 @@ uint32_t FdImportExpectSuccessMasterCallback(UbseMemOperationResp& resp, UbseMem
         SchedulerImpl::GetInstance().MemoryObjChangeHandler(importObj);
         auto ret = BuildOperationRespWhenSuccess(resp, UBSE_OK);
         if (ret != UBSE_OK) {
-            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, 0, exportNodeId,
-                                importNodeId, importObj.req.requestNodeId});
+            BorrowFailedAdvice({MemFault::BORROW_MASTER_TO_REQ_SEND_FAILED, name, MemType::FD, importObj.req.size,
+                                exportNodeId, importNodeId, importObj.req.requestNodeId});
         }
         return ret;
     }

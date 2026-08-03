@@ -23,6 +23,7 @@
 #include "ubse_error.h"
 #include "it_cli_invoker.h"
 #include "it_cluster_spec.h"
+#include "it_com_stub_control.h"
 #include "it_lcne_client.h"
 #include "it_obmm_stub_control.h"
 #include "it_sdk_client.h"
@@ -187,12 +188,84 @@ public:
      */
     void SetOpFailed(ObmmStubControl::OpBit op, bool fail);
 
+    /**
+     * @brief Convenience: set/clear delay for a specific OBMM operation.
+     *
+     * Unified wrapper over delayMs manipulation, supports every OpBit
+     * (OP_EXPORT/OP_UNEXPORT/OP_IMPORT/OP_UNIMPORT/OP_EXPORT_USERADDR/
+     * OP_QUERY_PA/OP_PREIMPORT/OP_UNPREIMPORT). When @p ms > 0 the
+     * operation is delayed by @p ms milliseconds before returning; when 0
+     * the delay is cleared. Runtime-adjustable via atomic store, takes
+     * effect immediately on the next obmm_* call (no restart needed).
+     *
+     * @param op  Operation bit (see ObmmStubControl::OpBit).
+     * @param ms  Delay in milliseconds; 0 to clear.
+     */
+    void SetOpDelay(ObmmStubControl::OpBit op, uint32_t ms = 0);
+
+    // --- Com (RpcSend) fault injection via shared memory ---
+    // Mirrors the OBMM stub pattern: per-node shm "/com_stub_<nodeId>",
+    // runtime injectable, no daemon restart needed. Default failMask=0
+    // (no fault at cluster startup); only takes effect when a test case
+    // explicitly calls SetComFault().
+
+    /**
+     * @brief Inject RPC send fault via shared memory (runtime, no restart).
+     *
+     * @param failMask  Bitmask of ComStubControl::OpBit (currently only
+     *                  OP_SYNC_SEND is honored by the mock).
+     * @param errnoVal  UbseResult returned by mock on failure
+     *                  (default UBSE_COM_ERROR_SYNC_CALL_FAIL).
+     * @param count     Per-op remaining failure count. nullptr or element 0
+     *                  means persistent failure; >0 means fail N times then
+     *                  auto-recover.
+     * @param dstNodeId Destination node ID filter. Empty means fail for ALL
+     *                  destinations; non-empty means only fail when sending
+     *                  to this specific node (other nodes' RPCs unaffected).
+     */
+    UbseResult SetComFault(uint32_t failMask, uint32_t errnoVal = UBSE_COM_ERROR_SYNC_CALL_FAIL,
+                           const uint32_t count[2] = nullptr, const std::string& dstNodeId = "");
+
+    /** @brief Restore RPC send to normal (clear all fault bits and dst filter). */
+    UbseResult RestoreComFault();
+
+    /**
+     * @brief Convenience: set/clear failure for synchronous RpcSend to a
+     *        specific destination node.
+     *
+     * @param dstNodeId Destination node ID. Empty means fail for ALL
+     *                  destinations; non-empty means only fail when the RPC
+     *                  targets this node.
+     * @param fail      true: inject failure (UbseComMsgSend returns
+     *                  UBSE_COM_ERROR_SYNC_CALL_FAIL persistently);
+     *                  false: clear the corresponding bit.
+     */
+    void SetComSendFailed(const std::string& dstNodeId, bool fail);
+
+    /**
+     * @brief Override GetWaitTimeOut() return value to control maxRetryTimes.
+     *
+     * Sets ComStubControl::waitExImSendTimeOutMs, which is read by the link-time
+     * replacement of GetWaitTimeOut() in ubse_com_engine_it_mock.cpp.
+     * When timeoutMs > 0, GetWaitTimeOut() returns this value, and
+     * maxRetryTimes = GetWaitTimeOut() / SEND_RETRY_DURATION (= timeoutMs).
+     *
+     * @param timeoutMs  Desired timeout in milliseconds (also = maxRetryTimes).
+     *                   0 restores the default (MAX_WAIT_TIME_MS = 30000).
+     */
+    void SetMemApiWaitTimeOut(uint32_t timeoutMs);
+
+    /** @brief Restore GetWaitTimeOut() to default (MAX_WAIT_TIME_MS = 30000). */
+    void RestoreMemApiWaitTimeOut();
+
 private:
     void CreateWorkDirectories();
     void CreateSysfsTree();
     NodeProcessConfig BuildProcessConfig() const;
     void InitObmmShm();
     void DestroyObmmShm();
+    void InitComShm();
+    void DestroyComShm();
 
     NodeSpec spec_;
     ClusterContext ctx_;
@@ -207,6 +280,10 @@ private:
     std::string obmmShmName_;
     int obmmShmFd_{-1};
     ObmmStubControl* obmmCtrl_{nullptr};
+
+    std::string comShmName_;
+    int comShmFd_{-1};
+    ComStubControl* comCtrl_{nullptr};
 };
 
 } // namespace ubse::it::infra
