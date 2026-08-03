@@ -273,6 +273,9 @@ sudo ubsectl display cluster
 
 > Ensure that your CMake version is 3.11 or later.
 
+> **Prerequisite**: Before building the demos, complete [Development Package Installation](#12-development-package-installation) first,
+> so that `/usr/include/ubse/` (SDK headers) and `libubse-client` (dynamic library) are available.
+
 Create a directory for building in the example directory. The directory is usually named `build`.
 
 ```bash
