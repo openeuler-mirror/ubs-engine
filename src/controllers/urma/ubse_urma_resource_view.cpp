@@ -1,9 +1,13 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *          http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
  */
 
 #include "ubse_urma_resource_view.h"
@@ -22,6 +26,7 @@
 #include "ubse_logger.h"
 #include "ubse_mti_interface.h"
 #include "ubse_node_controller.h"
+#include "ubse_pointer_process.h"
 #include "ubse_smbios.h"
 #include "ubse_str_util.h"
 #include "ubse_urma_controller.h"
@@ -181,7 +186,12 @@ UbseResult BuildHostBackingInfo(const std::string& nodeId, UbseUrmaInfo& info)
     info.hwResId = hwResId;
     info.eidGroups.reserve(planned.feList.size());
     for (const auto& plannedFe : planned.feList) {
-        auto feInfo = std::make_shared<UbseFeInfo>();
+        auto feInfo = SafeMakeShared<UbseFeInfo>();
+        if (feInfo == nullptr) {
+            UBSE_LOG_ERROR << "Failed to allocate host URMA FE metadata, nodeId=" << nodeId
+                           << ", primaryEid=" << plannedFe.primaryEid;
+            return UBSE_ERROR_NULLPTR;
+        }
         feInfo->slotId = nodeId;
         feInfo->ubpuId = plannedFe.ubpuId;
         feInfo->entityId = plannedFe.entityId;
@@ -400,7 +410,7 @@ UbseResult GetUrmaProjectionMode(UrmaProjectionMode& mode)
 }
 } // namespace
 
-UbseResult UbseUrmaResourceView::CollectCurrentBackings(CurrentBackings& backings) const
+UbseResult UbseUrmaResourceView::CollectCurrentBackings(CurrentBackings& backings, bool hostOnly) const
 {
     backings.clear();
     const auto curNode = UbseNodeController::GetInstance().GetCurNode();
@@ -409,10 +419,12 @@ UbseResult UbseUrmaResourceView::CollectCurrentBackings(CurrentBackings& backing
         return UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED;
     }
 
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    for (auto& [name, info] : nodeInfo.urmaList) {
-        if (name != UBSE_HOST_URMA_DEV_NAME) {
-            backings.emplace(name, CurrentBacking{std::move(info), false});
+    if (!hostOnly) {
+        auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+        for (auto& [name, info] : nodeInfo.urmaList) {
+            if (name != UBSE_HOST_URMA_DEV_NAME) {
+                backings.emplace(name, CurrentBacking{std::move(info), false});
+            }
         }
     }
     if (!UbseNodeController::GetInstance().IsHostBondingRegistered()) {
@@ -430,7 +442,7 @@ UbseResult UbseUrmaResourceView::CollectCurrentBackings(CurrentBackings& backing
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaResourceView::CollectAllocBackings(CurrentBackings& backings) const
+UbseResult UbseUrmaResourceView::CollectAllocBackings(CurrentBackings& backings, bool hostOnly) const
 {
     backings.clear();
     const auto curNode = UbseNodeController::GetInstance().GetCurNode();
@@ -438,10 +450,12 @@ UbseResult UbseUrmaResourceView::CollectAllocBackings(CurrentBackings& backings)
         UBSE_LOG_ERROR << "Failed to get current node while collecting URMA allocation backings";
         return UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED;
     }
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    for (auto& [name, info] : nodeInfo.urmaList) {
-        if (name != UBSE_HOST_URMA_DEV_NAME) {
-            backings.emplace(name, CurrentBacking{std::move(info), false});
+    if (!hostOnly) {
+        auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
+        for (auto& [name, info] : nodeInfo.urmaList) {
+            if (name != UBSE_HOST_URMA_DEV_NAME) {
+                backings.emplace(name, CurrentBacking{std::move(info), false});
+            }
         }
     }
     // alloc 建立名称映射时不读取 b0 planning，命中后再进入 Node 所属的分配路径。
@@ -524,9 +538,16 @@ UbseResult UbseUrmaResourceView::BuildProjectionGroups(const CurrentBackings& ba
 UbseResult UbseUrmaResourceView::BuildLogicalProjection(const std::vector<std::string>& filter,
                                                         UrmaLogicalProjection& projection) const
 {
+    return BuildLogicalProjection(filter, projection, false);
+}
+
+UbseResult UbseUrmaResourceView::BuildLogicalProjection(const std::vector<std::string>& filter,
+                                                        UrmaLogicalProjection& projection, bool hostOnly) const
+{
     projection = {};
     CurrentBackings current;
-    auto ret = CollectCurrentBackings(current);
+    // 现阶段共享 EID 模式只收集 bonding_dev_0
+    auto ret = CollectCurrentBackings(current, hostOnly);
     if (ret != UBSE_OK || (ret = ValidateProjectionBackings(current)) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to validate current URMA backings, ret=" << ret;
         return ret;
@@ -545,7 +566,7 @@ UbseResult UbseUrmaResourceView::BuildGroupedSummaries(std::vector<std::string>&
                                                        std::vector<uint64_t>& hwResIds) const
 {
     UrmaLogicalProjection projection;
-    auto ret = BuildLogicalProjection({}, projection);
+    auto ret = BuildLogicalProjection({}, projection, true);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to build grouped URMA device summaries, ret=" << ret;
         return ret;
@@ -618,7 +639,7 @@ UbseResult UbseUrmaResourceView::BuildGroupedDetails(const std::vector<std::stri
                                                      std::vector<UbseUrmaDevBrief>& devInfos) const
 {
     UrmaLogicalProjection projection;
-    auto ret = BuildLogicalProjection(filter, projection);
+    auto ret = BuildLogicalProjection(filter, projection, true);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to build grouped URMA device details, ret=" << ret;
         return ret;
@@ -722,22 +743,6 @@ bool UbseUrmaResourceView::IsBackingCreated(const UbseUrmaInfo& info) const
     return true;
 }
 
-UbseResult UbseUrmaResourceView::ValidateAllocTarget(const std::string& targetName, const CurrentBacking& target) const
-{
-    if (targetName.empty()) {
-        UBSE_LOG_ERROR << "Resolved URMA backing name is empty";
-        return UBSE_ERROR_INVAL;
-    }
-    // alloc 只依赖本次解析出的目标 backing，不扫描或校验其他设备的 EID。
-    const auto ret = ValidateBacking(target.info);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Resolved URMA backing metadata is invalid, backingName=" << targetName
-                       << ", bondingEid=" << target.info.urmaDevEid << ", ret=" << ret;
-        return ret;
-    }
-    return UBSE_OK;
-}
-
 UbseResult UbseUrmaResourceView::ResolveGroupedAllocTarget(const std::string& logicalName,
                                                            UrmaAllocTarget& resolved) const
 {
@@ -751,7 +756,8 @@ UbseResult UbseUrmaResourceView::ResolveGroupedAllocTarget(const std::string& lo
     }
 
     CurrentBackings current;
-    if ((ret = CollectAllocBackings(current)) != UBSE_OK) {
+    // grouped alloc 仅在共享 EID 模式调用，只收集 bonding_dev_0。
+    if ((ret = CollectAllocBackings(current, true)) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to collect current URMA allocation backings, name=" << logicalName << ", ret=" << ret;
         return ret;
     }
@@ -776,11 +782,6 @@ UbseResult UbseUrmaResourceView::ResolveGroupedAllocTarget(const std::string& lo
     if (backing == current.end()) {
         UBSE_LOG_ERROR << "Mapped URMA allocation backing is missing, backingName=" << backingName;
         return UBSE_URMACONTRL_ERROR_DEV_NOT_EXIST;
-    }
-    if (!backing->second.isHostBonding && (ret = ValidateAllocTarget(backingName, backing->second)) != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to validate resolved URMA allocation backing, name=" << logicalName
-                       << ", backingName=" << backingName << ", ret=" << ret;
-        return ret;
     }
     // 映射只返回真实名称，后续分配继续使用原有 manager/Node 流程。
     resolved.backingName = backingName;

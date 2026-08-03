@@ -1,9 +1,13 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *          http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
  */
 
 #ifndef UBSE_URMA_RESOURCE_VIEW_H
@@ -94,9 +98,11 @@ private:
     using CurrentBackings = std::map<std::string, CurrentBacking, CurrentBackingCompare>;
     using LogicalBackingMap = std::map<std::string, std::string, ubse::urma::UrmaNameCompare>;
 
-    UbseResult CollectCurrentBackings(CurrentBackings& backings) const;
-    UbseResult CollectAllocBackings(CurrentBackings& backings) const;
+    UbseResult CollectCurrentBackings(CurrentBackings& backings, bool hostOnly) const;
+    UbseResult CollectAllocBackings(CurrentBackings& backings, bool hostOnly) const;
     UbseResult ValidateProjectionBackings(const CurrentBackings& backings) const;
+    UbseResult BuildLogicalProjection(const std::vector<std::string>& filter, UrmaLogicalProjection& projection,
+                                      bool hostOnly) const;
     UbseResult BuildProjectionGroups(const CurrentBackings& backings, const std::vector<std::string>& filter,
                                      UrmaLogicalProjection& projection) const;
     UbseResult BuildGroupedSummaries(std::vector<std::string>& names, std::vector<uint32_t>& states,
@@ -108,7 +114,6 @@ private:
     UbseResult BuildDirectDetails(const std::vector<std::string>& filter,
                                   std::vector<UbseUrmaDevBrief>& devInfos) const;
     UbseResult ResolveGroupedAllocTarget(const std::string& logicalName, UrmaAllocTarget& target) const;
-    UbseResult ValidateAllocTarget(const std::string& targetName, const CurrentBacking& target) const;
     UbseResult RefreshLogicalBackingMapLocked(const CurrentBackings& backings) const;
 
     mutable std::mutex mappingMutex;

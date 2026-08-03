@@ -1,3 +1,15 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * ubs-engine is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 #ifndef TEST_UBSE_URMA_CONTROLLER_DEF_H
 #define TEST_UBSE_URMA_CONTROLLER_DEF_H
 
@@ -32,6 +44,32 @@ UbseResult PostUpdateUrmaInfosTask(const std::map<std::string, uint64_t>& urmaIn
 UbseResult UbseUrmaAsyncNotifyOneNodeUrmaInfoChange(const std::string& notifyNodeId);
 UbseResult BrocastUrmaInfoTask(const std::string& nodeId);
 } // namespace ubse::urmaController
+
+namespace ubse::urmaController::ut {
+inline ubse::urma::UbseUrmaInfo MakeBacking(const std::string& devEid, const std::string& firstFeEid,
+                                            const std::string& secondFeEid, uint64_t hwResId = 1)
+{
+    ubse::urma::UbseUrmaInfo info{};
+    info.urmaDevEid = devEid;
+    info.urmaDevType = ubse::urma::UrmaDevType::UNIQUE;
+    info.state = ubse::urma::UrmaDevState::UNKNOWN;
+    info.hwResId = hwResId;
+    auto firstFe = std::make_shared<ubse::urma::UbseFeInfo>();
+    auto secondFe = std::make_shared<ubse::urma::UbseFeInfo>();
+    info.eidGroups.push_back({firstFeEid, {}, std::move(firstFe)});
+    info.eidGroups.push_back({secondFeEid, {}, std::move(secondFe)});
+    return info;
+}
+
+inline void InsertBacking(const std::string& name, ubse::urma::UbseUrmaInfo info, const std::string& nodeId = "1")
+{
+    auto& manager = UbseUrmaControllerManager::GetInstance();
+    ubse::utils::WriteLocker<ubse::utils::ReadWriteLock> writeLock(&manager.rwLock);
+    manager.nodeInfos[nodeId].nodeId = nodeId;
+    manager.nodeInfos[nodeId].urmaList[name] = std::move(info);
+}
+
+} // namespace ubse::urmaController::ut
 
 namespace ubse::urma {
 inline bool operator==(const UbseFeInfo& a, const UbseFeInfo& b)

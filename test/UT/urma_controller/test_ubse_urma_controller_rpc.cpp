@@ -58,11 +58,79 @@ TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryReqSimpo)
     UrmaDevQueryReqSimpo simpo4;
     UrmaDevQueryRpcReq req2{};
     req2.nodeId = 99;
+    req2.deviceNames = {"bonding_dev_1", "bonding_dev_193"};
     simpo4.SetUbseUrmaDevReq(req2);
     ASSERT_EQ(simpo4.Serialize(), UBSE_OK);
     UrmaDevQueryReqSimpo simpo5(simpo4.SerializedData(), simpo4.SerializedDataSize());
     ASSERT_EQ(simpo5.Deserialize(), UBSE_OK);
     EXPECT_EQ(simpo5.GetUbseUrmaDevReq().nodeId, 99u);
+    EXPECT_EQ(simpo5.GetUbseUrmaDevReq().deviceNames, req2.deviceNames);
+}
+
+TEST_F(TestUbseUrmaControllerRpc, QueryRequestAcceptsLegacyNodeOnlyPayload)
+{
+    ubse::serial::UbseSerialization legacy;
+    const uint32_t nodeId = 7;
+    legacy << nodeId;
+    ASSERT_TRUE(legacy.Check());
+    UrmaDevQueryReqSimpo in(legacy.GetBuffer(), static_cast<uint32_t>(legacy.GetLength()));
+    ASSERT_EQ(in.Deserialize(), UBSE_OK);
+    EXPECT_EQ(in.GetUbseUrmaDevReq().nodeId, 7u);
+    EXPECT_TRUE(in.GetUbseUrmaDevReq().deviceNames.empty());
+}
+
+TEST_F(TestUbseUrmaControllerRpc, QueryRequestRejectsMoreThan1024NamesOnDeserialize)
+{
+    UrmaDevQueryReqSimpo out;
+    out.SetUbseUrmaDevReq({7, std::vector<std::string>(1025, "bonding_dev_1")});
+    ASSERT_EQ(out.Serialize(), UBSE_OK);
+
+    UrmaDevQueryReqSimpo in(out.SerializedData(), out.SerializedDataSize());
+    EXPECT_EQ(in.Deserialize(), UBSE_ERROR_DESERIALIZE_FAILED);
+    EXPECT_TRUE(in.GetUbseUrmaDevReq().deviceNames.empty());
+}
+
+TEST_F(TestUbseUrmaControllerRpc, QueryHandlerPassesFilterToTargetNode)
+{
+    UbseRoleInfo currentInfo;
+    currentInfo.nodeId = "7";
+    UbseRoleInfo masterInfo;
+    masterInfo.nodeId = "1";
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    const std::vector<std::string> filter{"bonding_dev_193"};
+    MOCKER_CPP(&UbseUrmaController::GetLocalUrmaDevs).expects(once()).with(eq(filter), _).will(returnValue(UBSE_OK));
+
+    Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
+    req->SetUbseUrmaDevReq({7, filter});
+    Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
+    UbseUrmaDevQueryMessageHandler handler;
+    EXPECT_EQ(handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr), UBSE_OK);
+    EXPECT_EQ(rsp->GetUbseUrmaDevRsp().result, UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerRpc, QueryHandlerClearsRowsWhenTargetBuildFails)
+{
+    UbseRoleInfo currentInfo;
+    currentInfo.nodeId = "7";
+    UbseRoleInfo masterInfo;
+    masterInfo.nodeId = "1";
+    MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(UbseGetMasterInfo).stubs().with(outBound(masterInfo)).will(returnValue(UBSE_OK));
+    const std::vector<std::string> filter{"bonding_dev_193"};
+    std::vector<UbseUrmaDevBrief> partial(1);
+    MOCKER_CPP(&UbseUrmaController::GetLocalUrmaDevs)
+        .stubs()
+        .with(eq(filter), outBound(partial))
+        .will(returnValue(UBSE_ERROR_INVAL));
+
+    Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
+    req->SetUbseUrmaDevReq({7, filter});
+    Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
+    UbseUrmaDevQueryMessageHandler handler;
+    EXPECT_EQ(handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr), UBSE_OK);
+    EXPECT_EQ(rsp->GetUbseUrmaDevRsp().result, UBSE_ERROR_INVAL);
+    EXPECT_TRUE(rsp->GetUbseUrmaDevRsp().urmaInfos.empty());
 }
 
 TEST_F(TestUbseUrmaControllerRpc, UrmaDevQueryRspSimpo_RoundTrip)
@@ -328,7 +396,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_GetMasterInfoFails)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 0});
+    req->SetUbseUrmaDevReq({.nodeId = 0, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
@@ -341,7 +409,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_GetCurrentNodeInfoFails)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_ERROR));
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 0});
+    req->SetUbseUrmaDevReq({.nodeId = 0, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
@@ -357,7 +425,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_LocalNodeQuery)
     MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByRpc).stubs();
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 123});
+    req->SetUbseUrmaDevReq({.nodeId = 123, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
@@ -374,7 +442,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_OtherNode_ReturnsInval)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 123});
+    req->SetUbseUrmaDevReq({.nodeId = 123, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
@@ -391,7 +459,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_MasterForward_ComModuleNull)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 123});
+    req->SetUbseUrmaDevReq({.nodeId = 123, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
@@ -411,7 +479,7 @@ TEST_F(TestUbseUrmaControllerRpc, DevQueryHandle_MasterForward_RpcSendFails)
     MOCKER_CPP(UbseGetCurrentNodeInfo).stubs().with(outBound(currentInfo)).will(returnValue(UBSE_OK));
 
     Ref<UrmaDevQueryReqSimpo> req = new UrmaDevQueryReqSimpo();
-    req->SetUbseUrmaDevReq({.nodeId = 123});
+    req->SetUbseUrmaDevReq({.nodeId = 123, .deviceNames = {}});
     Ref<UrmaDevQueryRspSimpo> rsp = new UrmaDevQueryRspSimpo();
     UbseUrmaDevQueryMessageHandler handler;
     auto ret = handler.Handle(UbseBaseMessage::Convert(req), UbseBaseMessage::Convert(rsp), nullptr);
