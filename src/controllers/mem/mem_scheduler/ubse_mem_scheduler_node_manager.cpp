@@ -26,7 +26,7 @@ namespace ubse::mem::scheduler {
 UBSE_DEFINE_THIS_MODULE("ubse_mem_scheduler");
 
 constexpr uint16_t NO_512 = 512;
-constexpr uint16_t NO_63 = 63;
+constexpr uint16_t HOSTNAME_SHORT_MAX_LEN = 63;
 constexpr uint16_t NO_2 = 2;
 constexpr uint16_t DEFAULT_RADIUS = 65535;
 
@@ -43,12 +43,25 @@ constexpr char CONF_GROUP[] = "group";
 
 bool IsValidHostName(const std::string& hostName)
 {
+    if (hostName.empty()) {
+        UBSE_LOG_WARN << "The hostname is empty.";
+        return false;
+    }
+    if (hostName.size() > HOSTNAME_SHORT_MAX_LEN) {
+        UBSE_LOG_WARN << "The length of the hostname=" << hostName << " exceeds 63 characters.";
+        return false;
+    }
     for (size_t i = 0; i < hostName.size(); i++) {
         if (!std::isdigit(static_cast<unsigned char>(hostName[i])) &&
             !std::islower(static_cast<unsigned char>(hostName[i])) &&
             !std::isupper(static_cast<unsigned char>(hostName[i])) && hostName[i] != '-') {
+            UBSE_LOG_WARN << "The hostname=" << hostName << " has illegal characters.";
             return false;
         }
+    }
+    if (hostName.front() == '-' || hostName.back() == '-') {
+        UBSE_LOG_WARN << "The hostname=" << hostName << " contains '-' at the beginning or end.";
+        return false;
     }
     return true;
 }
@@ -445,15 +458,17 @@ void SchedulerNodeManager::UpdateProviderNodeList(const NodeId& nodeId, const st
     std::vector<std::string> providerListConfVec;
     utils::Split(providerConf, ",", providerListConfVec);
     for (auto it = providerListConfVec.begin(); it != providerListConfVec.end();) {
-        if (it->length() > NO_63) {
-            UBSE_LOG_WARN << "The length of the hostname=" << *it << " exceeds 63 characters.";
-            it = providerListConfVec.erase(it);
-        } else if (!IsValidHostName(*it)) {
-            UBSE_LOG_WARN << "The hostname=" << *it << " has illegal characters.";
+        if (!IsValidHostName(*it)) {
             it = providerListConfVec.erase(it);
         } else {
             ++it;
         }
+    }
+    // 若provider为空，则等价于没配置，所有节点皆可借出
+    if (providerListConfVec.empty()) {
+        UBSE_LOG_INFO << "The provider conf is empty. Use the default set.";
+        providerNodes_.insert(nodeId);
+        return;
     }
     auto it = std::find(providerListConfVec.begin(), providerListConfVec.end(), hostName);
     if (it != providerListConfVec.end()) {
@@ -486,11 +501,7 @@ void SchedulerNodeManager::UpdateGroupNodeList(const NodeId& nodeId, const std::
         std::vector<std::string> groups;
         utils::Split(groupConf, ",", groups);
         for (auto it = groups.begin(); it != groups.end();) {
-            if (it->length() > NO_63) {
-                UBSE_LOG_WARN << "The length of the hostname=" << *it << " exceeds 63 characters.";
-                it = groups.erase(it);
-            } else if (!IsValidHostName(*it)) {
-                UBSE_LOG_WARN << "The hostname=" << *it << " has illegal characters.";
+            if (!IsValidHostName(*it)) {
                 it = groups.erase(it);
             } else {
                 ++it;
@@ -499,6 +510,15 @@ void SchedulerNodeManager::UpdateGroupNodeList(const NodeId& nodeId, const std::
         if (!groups.empty()) {
             groupListVec.push_back(groups);
         }
+    }
+    // 若group为空，则等价于没配置，所有节点皆可借出
+    if (groupListVec.empty()) {
+        UBSE_LOG_INFO << "The group conf is empty. Use the default set.";
+        if (groupNodes_.empty()) {
+            groupNodes_.resize(1);
+        }
+        groupNodes_[0].insert(nodeId);
+        return;
     }
     // 3.更新node的group信息
     for (size_t i = 0; i < groupListVec.size(); ++i) {
