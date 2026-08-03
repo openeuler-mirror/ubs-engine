@@ -515,9 +515,30 @@ uint32_t UbseNodeApi::UbseQueryCliClusterInfo(const UbseIpcMessage& req,
 
     bool isClos = UbseSmbios::GetInstance().IsClosType();
     if (isClos) {
+        auto rootList = nodeMgr::GetRootIpList();
+        auto nodes = nodeMgr::GetAllNodesStoredByGroup();
+
+        // CLOS指定根节点选主属于单层选主，不支持全局层查询。
+        // 不带-g时应按普通单层集群查询，展示全集群节点，而不是仅展示当前柜内节点。
+        bool isHierarchicalElection = rootList.empty() && nodes.size() > 1;
+        if (!isHierarchicalElection) {
+            if (globalQuery == 1) {
+                UBSE_LOG_ERROR << "requestId=" << context.requestId
+                               << ", global cluster query is not supported in specified-root election";
+                return SendErrorResponse(
+                    UBSE_ERROR_INVAL,
+                    context.requestId,
+                    "Global cluster query is not supported in specified-root election");
+            }
+
+            return SendOriginalClusterInfo(context);
+        }
+
+        // CLOS分层选主：不带-g查询当前柜，带-g查询全局选主结果。
         return QueryClosClusterInfo(globalQuery, context);
     }
 
+    // 非CLOS场景不支持-g，只支持查询单层全集群信息。
     if (globalQuery == 1) {
         UBSE_LOG_ERROR << "requestId=" << context.requestId
                        << ", global cluster query is not supported in non-CLOS networking";
@@ -529,6 +550,7 @@ uint32_t UbseNodeApi::UbseQueryCliClusterInfo(const UbseIpcMessage& req,
 
     return SendOriginalClusterInfo(context);
 }
+
 static uint32_t ParseNodeIdFromRequestStrict(const UbseIpcMessage& req, std::string& targetNodeId,
                                              const UbseRequestContext& context)
 {

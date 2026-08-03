@@ -318,9 +318,22 @@ static UbseResult GetParentGroupMasterNodeId(std::string &prevNodeId)
     return UBSE_OK;
 }
 
+static bool IsHierarchicalElection()
+{
+    auto rootList = ubse::nodeMgr::GetRootIpList();
+    auto nodes = ubse::nodeMgr::GetAllNodesStoredByGroup();
+    return rootList.empty() && nodes.size() > 1;
+}
+
 UbseResult GetPrevReportNodeId(std::string &prevNodeId)
 {
     prevNodeId.clear();
+
+    // 指定根节点选主属于单层选主，所有节点直接向根主节点上报。
+    // 根主节点获取到的上报目标是自身，由调用方跳过向自身上报。
+    if (!IsHierarchicalElection()) {
+        return GetGlobalMasterNodeId(prevNodeId);
+    }
 
     auto role = GetClosRole();
     if (role == UbseClosNodeRole::UNKNOWN) {
