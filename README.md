@@ -145,15 +145,30 @@ bash build.sh package
 
 #### 4.2 开发者测试
 
-开发者测试包括 IT 和 UT，源码都位于 test 目录下。
+开发者测试包括 IT 和 UT，源码都位于 test 目录下。支持 5 个独立 UT 二进制：
+
+| 二进制 | 测试范围 |
+|--------|---------|
+| `ubs-engine_ut` | 主项目单元测试 |
+| `ubs-engine_ucache_plugin_ut` | ucache 插件测试 |
+| `ubs-engine_rmrs_plugin_ut` | 内存池化插件测试 |
+| `ubs-engine_virtagent_ut` | 虚拟化代理测试 |
+| `ubs-engine_process_mem_ut` | processmem 插件测试 |
+
+> **注意**：`ut` target 将编译和测试执行绑定为单一 ninja target，若某个测试失败将导致后续测试的编译/执行被中断。
+> 建议先编译所有测试，再逐个运行。
 
 ```shell
-# 只跑 UT 测试
+# 步骤1：只编译所有 UT 测试（不执行）
+bash build.sh ut --skip-run-tests
+
+# 步骤2：运行全部测试
 bash build.sh ut
-# 只跑部分测试用例
+
+# 或单独运行某个 UT 二进制
+./cmake-build-debug/bin/ubs-engine_ut
+# 或运行部分用例
 bash build.sh ut -- --gtest_filter="TestRackHttpClient.*:TestRackHttpReq.*"
-# 只跑一组测试用例
-bash build.sh ut -- --gtest_filter="TestRackHttpClient.*"
 # 只跑一个用例
 bash build.sh ut -- --gtest_filter="TestUbseMemControllerAddrApi.CheckAddrResourceStateExist"
 ```
@@ -184,15 +199,6 @@ bash build.sh ubse_http_ut -C
 ```shell
 # 后台启动 HTTP 服务器，将打印覆盖率报告的 URL
 bash build.sh ut -C -H
-```
-
-### 
-
-高级技巧
-
-```shell
-# 只构建测试，不执行
-bash build.sh ut --skip-run-tests
 ```
 
 #### 5 许可证
