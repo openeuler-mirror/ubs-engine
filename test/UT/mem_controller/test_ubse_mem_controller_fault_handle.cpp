@@ -49,16 +49,17 @@ using namespace ubse::task_executor;
 using namespace ubse::nodeMgr;
 
 // Mock IsHierarchicalMode: true=双层选主, false=非双层
-// GetRootIpList 返回 vector<string> 可直接 mock；GetAllNodes 返回 vector<UbseNodeStaticInfo>
-// 因 UbseNodeStaticInfo 无 operator==，mockcpp 无法 mock，改用 SetNodes 设置真实数据
+// GetRootIpList 返回 vector<string> 可直接 mock；GetAllNodesStoredByGroup 返回
+// unordered_map<uint16_t, vector<UbseNodeStaticInfo>>，因 UbseNodeStaticInfo 无 operator==，
+// mockcpp 无法 mock，改用 SetNodes 设置真实数据（按 groupId 组织）
 static void MockHierarchicalMode(bool hierarchical)
 {
     if (hierarchical) {
         std::vector<std::string> emptyRoots;
         MOCKER_CPP(ubse::nodeMgr::GetRootIpList).stubs().will(returnValue(emptyRoots));
         std::vector<UbseNodeStaticInfo> nodes;
-        UbseNodeStaticInfo n1; n1.nodeId = "ut_hier_node1";
-        UbseNodeStaticInfo n2; n2.nodeId = "ut_hier_node2";
+        UbseNodeStaticInfo n1; n1.nodeId = "ut_hier_node1"; n1.groupId = 1;
+        UbseNodeStaticInfo n2; n2.nodeId = "ut_hier_node2"; n2.groupId = 2;
         nodes.push_back(n1);
         nodes.push_back(n2);
         UbseNodeStaticInfoMgr::GetInstance().SetNodes(nodes);

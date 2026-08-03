@@ -188,7 +188,7 @@ static UbseComEndpoint GetMemFaultComEndpoint(uint16_t opCode, const std::string
 static bool IsHierarchicalMode()
 {
     auto rootList = ubse::nodeMgr::GetRootIpList();
-    auto nodes = ubse::nodeMgr::GetAllNodes();
+    auto nodes = ubse::nodeMgr::GetAllNodesStoredByGroup();
     return rootList.empty() && nodes.size() > 1;
 }
 
