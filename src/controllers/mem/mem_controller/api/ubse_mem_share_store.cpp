@@ -16,6 +16,7 @@
 
 #include <unordered_map>
 
+#include "ubse_error.h"
 #include "ubse_logger.h"
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_debt_ledger.h"
@@ -25,6 +26,7 @@
 #include "ubse_node_controller.h"
 #include "ubse_topo_util.h"
 #include "ubse_str_util.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -329,8 +331,13 @@ uint32_t CascadeMasterStore::GetCnaTopo(const UbseMemShareAttachReq &req,
 
     UBSE_LOG_INFO << "req info: importNodeId=" << req.importNodeId << ", exportNodeId=" << remoteNode
                   << " export socketId=" << exportObj.algoResult.exportNumaInfos[0].socketId;
-    auto ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj, false,
-                                        importObj.req.lenderInfo.portId);
+    auto ret = UBSE_OK;                  
+    if (adapter_plugins::smbios::UbseSmbios::GetInstance().IsClosType()) {
+        ret = GetCnaInfoWhenImportClos(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj);
+    } else {
+        ret = GetCnaInfoWhenImport(exportObj.algoResult.exportNumaInfos[0].nodeId, req.importNodeId, importObj, false,
+                                            importObj.req.lenderInfo.portId);
+    }
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to get cna info when import, " << ubse::log::FormatRetCode(ret)
                        << ", requestId=" << req.requestId;

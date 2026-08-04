@@ -1139,6 +1139,11 @@ uint32_t UbseMemShareBorrowClos(UbseMemShareBorrowReq &req, UbseMemOperationResp
 {
     UBSE_LOG_INFO << "clos share borrow begins, name=" << req.name << ", requestNodeId=" << req.requestNodeId
                   << ", requestId=" << req.requestId;
+    if (!IsMemShareFeatureSupported()) {
+        resp.name = req.name;
+        resp.requestId = req.requestId;        
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_BORROW);
+    }
     auto lock = LoggingLockGuard(req.name);
     GlobalMasterStore store;
     UbseMemShareBorrowExportObj exportObj;
@@ -1600,6 +1605,11 @@ uint32_t UbseMemShareGlobalDetach(const UbseMemShareDetachReq &req, UbseMemOpera
     auto lock = LoggingLockGuard(req.name + "_" + req.unImportNodeId);
     resp.requestId = req.requestId;
     resp.name = req.name;
+    if (!IsMemShareFeatureSupported()) {
+        BorrowFailedAdvice(
+            {MemFault::SHARED_RETURN_CHIP_NOT_SUPPORTED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
+        return BuildMemFeatureNotSupportedResp(resp, req.name, req.requestNodeId, MemOperationType::SHARED_DETACH);
+    }    
     if (!UbseCheckDetachNodeIdInManageDomain(req.unImportNodeId, realRequestNodeId)) {
         UBSE_LOG_ERROR << "detach nodeId validation failed, realRequestNodeId="
                        << realRequestNodeId << ", unImportNodeId=" << req.unImportNodeId;
