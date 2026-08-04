@@ -12,9 +12,6 @@
 
 #include "ubse_node_discovery_common.h"
 
-#include "adapter_plugins/mti/ubse_smbios.h"
-#include "message/ubse_node_discovery_list_serial.h"
-#include "message/ubse_node_discovery_serial.h"
 #include "ubse_com_module.h"
 #include "ubse_conf_module.h"
 #include "ubse_context.h"
@@ -22,10 +19,14 @@
 #include "ubse_event_module.h"
 #include "ubse_logger.h"
 #include "ubse_net_util.h"
-#include "ubse_str_util.h"
+#include "ubse_node_mgr.h"
 #include "ubse_node_mgr_root_mode_utils.h"
 #include "ubse_node_static_info_mgr.h"
+#include "ubse_str_util.h"
 #include "ubse_timer.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
+#include "message/ubse_node_discovery_list_serial.h"
+#include "message/ubse_node_discovery_serial.h"
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 namespace ubse::nodeMgr {
@@ -390,7 +391,17 @@ void UbseNodeDiscoveryCommon::OnReportSuccess(const std::string &rootIp, const s
 {
     UbseTimerHandlerUnregister(taskName);
     if (rootIp == defaultRoot_) {
+        // 默认根节点恢复，清理所有非默认根节点的重试任务（定时器与记录）
+        std::vector<std::string> rootIps = UbseNodeStaticInfoMgr::GetInstance().GetRootIpList();
+        for (const auto &ip : rootIps) {
+            if (ip != defaultRoot_) {
+                UbseTimerHandlerUnregister(GenerateDiscoveryTaskName(ip));
+            }
+        }
         DisconnectNonDefaultRoot();
+        std::unique_lock lock(reportRetryRecordsMutex_);
+        reportRetryRecords_.clear();
+        return;
     }
     std::unique_lock lock(reportRetryRecordsMutex_);
     reportRetryRecords_.erase(rootIp);
@@ -416,7 +427,12 @@ std::string FindNextRootIp(const std::string &ip)
 
 void UbseNodeDiscoveryCommon::OnReportFailure(const std::string &rootIp, const std::string &taskName)
 {
+    std::string connectedNonDefaultRoot = GetConnectedNonDefaultRoot();
     std::unique_lock lock(reportRetryRecordsMutex_);
+    if (rootIp != defaultRoot_ && reportRetryRecords_.find(defaultRoot_) == reportRetryRecords_.end()) {
+        UBSE_LOG_INFO << "default root already recovered, skip retry for root=" << rootIp;
+        return;
+    }
     auto &record = reportRetryRecords_[rootIp];
     record.retryCount++;
     if (record.retryCount < MAX_RETRY_COUNT) {
@@ -437,13 +453,29 @@ void UbseNodeDiscoveryCommon::OnReportFailure(const std::string &rootIp, const s
         UbseTimerHandlerUnregister(taskName);
         DisconnectNonDefaultRoot();
         reportRetryRecords_.erase(rootIp);
+        connectedNonDefaultRoot.clear(); // DisconnectNonDefaultRoot 已清除，同步更新缓存
+    } else {
+        record.retryCount = MAX_RETRY_COUNT;
     }
-    lock.unlock();
-    if (!GetConnectedNonDefaultRoot().empty()) {
+    bool hasNonDefaultRootRetry = false;
+    for (const auto &pair : reportRetryRecords_) {
+        if (pair.first != defaultRoot_) {
+            hasNonDefaultRootRetry = true;
+            break;
+        }
+    }
+    if (hasNonDefaultRootRetry || !connectedNonDefaultRoot.empty()
+        || UbseNodeStaticInfoMgr::GetInstance().GetRootIpList().size() == 1) {
         return;
     }
     auto nextRootIp = FindNextRootIp(rootIp);
-    UBSE_LOG_INFO << "connect and report to root" << rootIp << " failed, try next ip=" << nextRootIp;
+    // 跳过默认根节点，由其独立定时器负责重试
+    if (nextRootIp == defaultRoot_) {
+        nextRootIp = FindNextRootIp(defaultRoot_);
+    }
+    reportRetryRecords_[nextRootIp];
+    lock.unlock();
+    UBSE_LOG_INFO << "connect and report to root=" << rootIp << " failed, try next ip=" << nextRootIp;
     ExecNodeDiscoveryTask(nextRootIp);
 }
 
@@ -451,7 +483,6 @@ void UbseNodeDiscoveryCommon::DisconnectNonDefaultRoot()
 {
     std::string nonDefaultRoot = GetConnectedNonDefaultRoot();
     if (nonDefaultRoot.empty()) {
-        UBSE_LOG_INFO << "no non-default root connected, skip disconnect";
         return;
     }
 
