@@ -402,7 +402,7 @@ void GlobalInitializer::ReportCascadeGroupToManagingGroup()
         }
     }
 
-    std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> discoveryNodes =
+    std::unordered_map<std::string, UBSE_ID_TYPE> discoveryNodes =
         RoleMgr::GetInstance().GetCommMgr()->GetInterManagementGroupLinkMap();
     for (const auto &item : discoveryNodes) {
         auto sendRet = SendCascadeInformation(item.second, cascadeGroupReport);

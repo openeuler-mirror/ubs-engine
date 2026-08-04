@@ -116,6 +116,8 @@ public:
      */
     bool IsManagingGroup(const UBSE_ID_TYPE &groupId);
 
+    uint16_t GetManagingGroupCount() const;
+
 private:
     void InitManagingGroupCount();
 

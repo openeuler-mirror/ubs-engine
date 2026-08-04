@@ -89,6 +89,14 @@ public:
     UbseResult GetCurNodeGlobalTopoInfo(HaTopologyInfo &haTopology);
 
     /* *
+   * @brief 获取节点所在组及其配对组的选主静态分组所有节点ID
+   * 若节点属于管理组，返回管理组+对应级联组的节点；若节点属于级联组，返回级联组+对应管理组的节点
+   * @param nodeId [in] 任意节点ID
+   * @return 包含该节点所在组及其配对组选主静态分组所有节点ID的向量
+   */
+    std::vector<UBSE_ID_TYPE> GetStaticNodeIdsInManageAndCascadeGroup(const std::string& nodeId);
+
+    /* *
      * 查询当前节点ID
      * @param currentNode 当前节点信息
      */

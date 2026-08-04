@@ -415,22 +415,15 @@ bool UbseCheckDetachNodeIdInManageDomain(const std::string &unImportNodeId, cons
     if (cascadeStaticGroupInfo.groupId == manageStaticGroupInfo.groupId) {
         return true;
     }
-    auto nodesMap = nodeMgr::GetAllNodesStoredByGroup();
-    uint16_t totalGroupCount = nodesMap.size();
-    uint16_t managingGroupCount = 0;
-    if (totalGroupCount % NO_2 != 0) {
-        UBSE_LOG_ERROR << "Invalid totalGroupCount=" << totalGroupCount
-                       << ", expected even number. Please check cluster configuration.";
-        return false;
+
+    auto nodeIds = electionModule->GetStaticNodeIdsInManageAndCascadeGroup(manageMasterNodeId);
+    for (const auto &nodeId : nodeIds) {
+        if (nodeId == unImportNodeId) {
+            return true;
+        }
     }
-    managingGroupCount = totalGroupCount / NO_2;
-    if (cascadeStaticGroupInfo.groupId > manageStaticGroupInfo.groupId &&
-        cascadeStaticGroupInfo.groupId - manageStaticGroupInfo.groupId == managingGroupCount) {
-        return true;
-    }
-    UBSE_LOG_ERROR << "groupIdDiff=" << (cascadeStaticGroupInfo.groupId - manageStaticGroupInfo.groupId)
-                   << ", managingGroupCount=" << managingGroupCount
-                   << ", no match";
+    UBSE_LOG_ERROR << "unImportNodeId=" << unImportNodeId << ", not found in manageMasterNodeId=" << manageMasterNodeId
+                   << " manage domain";
     return false;
 }
 

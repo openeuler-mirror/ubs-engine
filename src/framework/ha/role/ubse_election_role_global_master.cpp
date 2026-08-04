@@ -258,7 +258,8 @@ void GlobalMaster::DealNodeUpdate()
         auto nodeInfo = nodeMgr::GetUbseNodeById(nodeId);
         auto it = managingToCascadeNodeId_.find(std::to_string(nodeInfo.groupId));
         if (it == managingToCascadeNodeId_.end()) { continue; }
-        uint16_t cascadeGroupId = nodeInfo.groupId + managingToCascadeNodeId_.size();
+        uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
+        uint16_t cascadeGroupId = nodeInfo.groupId + managingGroupCount;
         AddDownstreamGroupRoute(std::to_string(cascadeGroupId), it->second, nodeId);
     }
 
@@ -266,7 +267,8 @@ void GlobalMaster::DealNodeUpdate()
         UBSE_LOG_INFO << "[ELECTION] Global Master NodeRemoved: " << nodeId;
         RoleMgr::GetInstance().RoleChangeNotifyAsync(UbseElectionEventType::GLOBAL_NODE_DOWN, nodeId);
         for (const auto &kv : managingToCascadeNodeId_) {
-            uint16_t cascadeGroupId = static_cast<uint16_t>(std::stoul(kv.first)) + managingToCascadeNodeId_.size();
+            uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
+            uint16_t cascadeGroupId = static_cast<uint16_t>(std::stoul(kv.first)) + managingGroupCount;
             auto it = downstreamRouteEntries_.find(std::to_string(cascadeGroupId));
             if (it != downstreamRouteEntries_.end() && it->second.nextHopNodeId == nodeId) {
                 DeleteDownstreamGroupRoute(std::to_string(cascadeGroupId));
@@ -466,8 +468,8 @@ uint32_t GlobalMaster::RecvPktHeart(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt
         partitionAgentIDs.push_back(rcvPkt.standbyId);
     }
 
-    auto groupMap = nodeMgr::GetAllNodesStoredByGroup();
-    auto managingGroupCount = groupMap.size() / 2;
+    // 当前集群数量大于一半管理柜的数量，则拒绝其他所有心跳
+    uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
     // 当前集群数量大于一半管理柜的数量，则拒绝其他所有心跳
     if (agentIds.size() + 1 > managingGroupCount) {
         reply.replyResult = ELECTION_PKT_TYPE_REJECT_HAS_MASTER;
@@ -642,13 +644,22 @@ void GlobalMaster::CleanupRoutes()
 void GlobalMaster::InitManagingToCascadeNodeIds()
 {
     auto groupMap = nodeMgr::GetAllNodesStoredByGroup();
-    if (groupMap.empty() || groupMap.size() % 2 != 0) { return; }
+    if (groupMap.empty()) { return; }
     std::vector<uint16_t> sortedGroupIds;
     for (const auto &kv : groupMap) { sortedGroupIds.push_back(kv.first); }
     std::sort(sortedGroupIds.begin(), sortedGroupIds.end());
-    uint16_t managingGroupCount = sortedGroupIds.size() / 2;
+    uint16_t totalGroupCount = static_cast<uint16_t>(sortedGroupIds.size());
+    uint16_t managingGroupCount = totalGroupCount / 2;
+    if (totalGroupCount % 2 != 0) {
+        managingGroupCount += 1;
+    }
     for (size_t i = 0; i < managingGroupCount; ++i) {
         uint16_t managingGroupId = sortedGroupIds[i];
+        if (i + managingGroupCount >= sortedGroupIds.size()) {
+            UBSE_LOG_INFO << "[ELECTION] managing group " << managingGroupId
+                          << " has no paired cascade group (odd total count).";
+            continue;
+        }
         uint16_t cascadeGroupId = sortedGroupIds[i + managingGroupCount];
         const auto &cascadeNodes = groupMap[cascadeGroupId];
         if (cascadeNodes.empty()) { continue; }
@@ -715,7 +726,8 @@ std::vector<GroupTopology> GlobalMaster::GetManagingGroupNodeIds()
         if (activeSet.find(groupMasterId) == activeSet.end()) {
             UBSE_LOG_INFO << "[ELECTION] skip non-active managing group, groupId=" << it->first
                           << ", groupMasterId=" << groupMasterId;
-            uint16_t cascadeGroupId = std::stoi(it->first) + managingToCascadeNodeId_.size();
+            uint16_t managingGroupCount = RoleMgr::GetInstance().GetManagingGroupCount();
+            uint16_t cascadeGroupId = std::stoi(it->first) + managingGroupCount;
             globalCascadeGroupTopologies_.erase(std::to_string(cascadeGroupId));
             it = globalStandbyAgentGroupTopologies_.erase(it);
             continue;
