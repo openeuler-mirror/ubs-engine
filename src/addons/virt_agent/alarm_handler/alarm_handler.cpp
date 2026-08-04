@@ -20,7 +20,9 @@
 #include <ubse_event.h>
 #include <ubse_logger.h>
 #include <ubse_ras.h>
+#include <chrono>
 #include <regex>
+#include <thread>
 #include "escape_algorithm_helper.h"
 #include "resource_collect.h"
 #include "resource_query.h"
@@ -35,6 +37,12 @@ using namespace ubse::event;
 using namespace ubse::ras;
 
 std::mutex AlarmHandler::alarmLock{};
+
+namespace {
+constexpr std::chrono::seconds kHugePageWaitTimeout(30);
+constexpr std::chrono::seconds kHugePagePollInterval(1);
+constexpr uint64_t kHugePageSizeBytes = 2ULL * 1024 * 1024;
+} // namespace
 
 VmResult AlarmHandler::Init()
 {
@@ -229,6 +237,11 @@ VmResult AlarmHandler::OomEventHandler(const Notify& notify)
     UBSE_LOG_INFO << "[oom] start oom event handling, nodeId=" << notify.nodeId << ", socketId=" << notify.socketId
                   << ", numaId=" << notify.numaId;
 
+    VMNodeLocInfo alarmNumaLoc{};
+    alarmNumaLoc.hostId = notify.nodeId;
+    alarmNumaLoc.socketId = static_cast<int16_t>(notify.socketId);
+    alarmNumaLoc.numaId = static_cast<int16_t>(notify.numaId);
+
     // Double-check StillInTask (same as MemNotifyEventHandler).
     // Instead of returning VM_OK directly, await concurrent borrow or wait for non-borrow completion.
     if (StatusManager::StillInTask(notify.nodeId, notify.socketId, notify.numaId)) {
@@ -237,6 +250,10 @@ VmResult AlarmHandler::OomEventHandler(const Notify& notify)
         const auto shFuture =
             StatusManager::GetInFlightBorrowSharedFuture(notify.nodeId, notify.socketId, notify.numaId);
         if (shFuture != nullptr) {
+            // Asynchronous migration tasks need to wait by default
+            if (WaitForFreeHugePage(alarmNumaLoc) != VM_OK) {
+                UBSE_LOG_ERROR << "[oom] timeout waiting for free huge page (pre-lock concurrent borrow).";
+            }
             const auto borrowResult = shFuture->get();
             UBSE_LOG_DEBUG << "[oom] waited for concurrent borrow result=" << static_cast<int>(borrowResult);
             return borrowResult;
@@ -251,6 +268,9 @@ VmResult AlarmHandler::OomEventHandler(const Notify& notify)
         const auto shFuture =
             StatusManager::GetInFlightBorrowSharedFuture(notify.nodeId, notify.socketId, notify.numaId);
         if (shFuture != nullptr) {
+            if (WaitForFreeHugePage(alarmNumaLoc) != VM_OK) {
+                UBSE_LOG_ERROR << "[oom] timeout waiting for free huge page (post-lock concurrent borrow).";
+            }
             const auto borrowResult = shFuture->get();
             UBSE_LOG_DEBUG << "[oom] waited for concurrent borrow result=" << static_cast<int>(borrowResult);
             return borrowResult;
@@ -307,14 +327,40 @@ VmResult AlarmHandler::ProcessOomActions(const Notify& notify)
         const auto borrowResult = future.get();
         UBSE_LOG_INFO << "[oom] async borrow completed, result=" << static_cast<int>(borrowResult);
         if (borrowResult == VM_OK) {
-            // Asynchronous migration tasks need to wait by default
-            std::this_thread::sleep_for(std::chrono::seconds(DEFAULT_ASYNC_MIGRATE_WAIT_SECONDES));
+            if (WaitForFreeHugePage(alarmNumaInfo.numaLoc) != VM_OK) {
+                UBSE_LOG_ERROR << "[oom] timeout waiting for free huge page (async borrow done).";
+            }
         }
         return borrowResult;
     }
 
+    if (WaitForFreeHugePage(alarmNumaInfo.numaLoc) != VM_OK) {
+        UBSE_LOG_ERROR << "[oom] timeout waiting for free huge page (no async borrow).";
+    }
     UBSE_LOG_DEBUG << "[oom] oom event handling done (no async borrow).";
     return VM_OK;
+}
+
+VmResult AlarmHandler::WaitForFreeHugePage(const VMNodeLocInfo& numaLoc)
+{
+    const auto startTime = std::chrono::steady_clock::now();
+
+    while (std::chrono::steady_clock::now() - startTime < kHugePageWaitTimeout) {
+        const auto& numaInfoMap = ResourceCollect::GetInstance().GetGlobalSampleNumaInfo();
+        if (auto it = numaInfoMap.find(numaLoc); it != numaInfoMap.end()) {
+            const uint64_t memTotal = it->second.numaMemTotal;
+            const uint64_t memUsed = it->second.numaMemUsed;
+            if (const uint64_t freeBytes = (memTotal > memUsed) ? (memTotal - memUsed) : 0;
+                freeBytes >= kHugePageSizeBytes) {
+                UBSE_LOG_INFO << "[oom] numa " << numaLoc.numaId
+                              << " has at least one free huge page, freeBytes=" << freeBytes;
+                return VM_OK;
+            }
+        }
+        std::this_thread::sleep_for(kHugePagePollInterval);
+    }
+
+    return VM_ERROR;
 }
 
 VmResult AlarmHandler::MemNotifyEventHandler(std::string& eventId, std::string& eventMessage)
