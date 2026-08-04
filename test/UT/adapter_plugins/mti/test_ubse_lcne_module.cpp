@@ -308,7 +308,7 @@ TEST_F(TestUbseLcneModule, UpdateClusterIpListAndLocalIp_ParseIpRange)
     localIps.push_back("192.168.1.2");
     MOCKER_CPP(&UbseNetUtil::GetIpInfo).stubs().with(outBound(localIps)).will(returnValue(UBSE_OK));
     module.UpdateClusterIpListAndLocalIp();
-    EXPECT_EQ(module.clusterIpList.size(), 4);
+    ASSERT_EQ(module.clusterIpList.size(), 4);
     EXPECT_EQ(module.clusterIpList[0], "10.0.0.1");
     EXPECT_EQ(module.localIp, "192.168.1.2");
 }

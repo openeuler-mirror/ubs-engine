@@ -199,6 +199,7 @@ TEST_F(TestUbseLcneFe, ParseFeTypeListResponse)
     allFeInfos.push_back({"1", "1", "1", "93"});
     auto ret = UbseLcneFeEid::GetInstance().ParseFeTypeListResponse(responseStr, allFeInfos);
     EXPECT_EQ(UBSE_OK, ret);
+    ASSERT_EQ(allFeInfos.size(), 3);
     EXPECT_EQ("2", allFeInfos[0].entityId);
     EXPECT_EQ(UbseMtiFeType::PHYSICAL_TYPE, allFeInfos[0].fetype);
     EXPECT_EQ("9", allFeInfos[1].entityId);

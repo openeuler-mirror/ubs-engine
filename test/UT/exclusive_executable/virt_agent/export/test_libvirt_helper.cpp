@@ -13,6 +13,11 @@ using namespace libvirt;
 namespace ubse::ut::vm {
 static VirConnectOpenFunc virConnectOpenFunc = nullptr;
 
+bool IsVirConnectOpenMockEffective(VirConnectOpenFunc expectedFunc)
+{
+    return LibvirtModule::VirConnectOpen() == expectedFunc;
+}
+
 // 设置测试环境
 void TestLibvirtHelper::SetUp()
 {
@@ -104,6 +109,9 @@ TEST_F(TestLibvirtHelper, InitFail2)
 {
     MOCKER(LibvirtModule::Init).stubs().will(returnValue(VM_OK));
     MOCKER(LibvirtModule::VirConnectOpen).stubs().will(invoke(MockVirConnectOpenReturnNullptr));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(&TestVirConnectOpenReturnNullptr))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     EXPECT_EQ(LibvirtHelper::GetInstance().Init(), VM_ERROR);
     EXPECT_EQ(LibvirtHelper::GetInstance().CloseConn(), VM_ERROR);
     MOCKER(LibvirtModule::Init).reset();
@@ -115,6 +123,9 @@ TEST_F(TestLibvirtHelper, InitFail3)
 {
     MOCKER(LibvirtModule::Init).stubs().will(returnValue(VM_OK));
     MOCKER(LibvirtModule::VirConnectOpen).stubs().will(invoke(MockVirConnectOpen));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(&TestVirConnectOpen))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     EXPECT_EQ(LibvirtHelper::GetInstance().Init(), VM_OK);
     MOCKER(LibvirtModule::Init).reset();
     MOCKER(LibvirtModule::VirConnectOpen).reset();
@@ -137,6 +148,9 @@ TEST_F(TestLibvirtHelper, ConnectThrowException)
 {
     LibvirtHelper libvirtHelper;
     MOCKER(LibvirtModule::VirConnectOpen).stubs().will(invoke(MockVirConnectOpenThrowException));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(&TestVirConnectOpenThrowException))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     EXPECT_EQ(libvirtHelper.Connect(), VM_ERROR);
 }
 
@@ -155,6 +169,9 @@ TEST_F(TestLibvirtHelper, CloseConnOk)
 {
     MOCKER(LibvirtModule::Init).stubs().will(returnValue(VM_OK));
     MOCKER(LibvirtModule::VirConnectOpen).stubs().will(invoke(MockVirConnectOpen));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(&TestVirConnectOpen))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     MOCKER(LibvirtModule::VirConnectClose).stubs().will(invoke(MockVirConnectClose));
     LibvirtHelper::GetInstance().Connect();
     EXPECT_EQ(LibvirtHelper::GetInstance().CloseConn(), VM_OK);

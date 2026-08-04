@@ -42,19 +42,29 @@ void HandleFuncMock()
 
 TEST_F(UcacheRuntimeManagerTest, InitTest)
 {
+    // 先建立 dlopen/dlsym 拦截，避免首次调用依赖真实环境中的 libubturbo_client.so
+    // 场景1：dlopen 返回 nullptr（库加载失败）→ Init 返回 UCACHE_ERR
+    MOCKER(dlopen).reset();
+    MOCKER(dlsym).reset();
+    MOCKER(dlopen).stubs().will(returnValue(static_cast<void*>(nullptr)));
     uint32_t ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_ERR);
 
+    // 场景2：dlopen 与 dlsym 均成功 → Init 返回 UCACHE_OK
+    MOCKER(dlopen).reset();
     MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
     MOCKER(dlsym).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
     ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_OK);
 
-    GlobalMockObject::verify();
+    // 场景3：dlopen 成功但 dlsym 返回 nullptr（符号获取失败）→ Init 返回 UCACHE_ERR
+    MOCKER(dlsym).reset();
     MOCKER(dlopen).stubs().will(returnValue(reinterpret_cast<void*>(HandleFuncMock)));
     MOCKER(dlsym).stubs().will(returnValue(static_cast<void*>(nullptr)));
     ret = TurboRuntimeManager::Init();
     EXPECT_EQ(ret, UCACHE_ERR);
+
+    GlobalMockObject::verify();
 }
 
 TEST_F(UcacheRuntimeManagerTest, DeinitTest)
