@@ -15,9 +15,7 @@
 #include "ubse_context.h"
 #include "ubse_mem_controller.h"
 #include "ubse_module.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
-#include "message/ubse_mem_opt_req_simpo.h"
-#include "message/ubse_mem_opt_result_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;
@@ -60,16 +58,16 @@ TEST_F(TestUbseMemGetOptResultHandler, Handle)
     UbseComBaseMessageHandlerCtxPtr ctx;
     UbseMemGetOptResultHandler q;
     std::string importId = "1";
-    req->SetOptRequest("test", importId, UbseMemBorrowType::FD_BORROW);
+    req->SetUbseMesgInfo(std::make_tuple("test", UbseMemBorrowType::FD_BORROW, importId));
     auto request = UbseBaseMessage::Convert<UbseMemOptReqSimpo>(req);
     auto response = UbseBaseMessage::Convert<UbseMemOptResultSimpo>(rsp);
     auto ret = q.Handle(request, response, ctx);
     EXPECT_EQ(ret, UBSE_OK);
-    req->SetOptRequest("test", importId, UbseMemBorrowType::NUMA_BORROW);
+    req->SetUbseMesgInfo(std::make_tuple("test", UbseMemBorrowType::NUMA_BORROW, importId));
     request = UbseBaseMessage::Convert<UbseMemOptReqSimpo>(req);
     ret = q.Handle(request, response, ctx);
     EXPECT_EQ(ret, UBSE_OK);
-    req->SetOptRequest("test", importId, UbseMemBorrowType::ADDR_BORROW);
+    req->SetUbseMesgInfo(std::make_tuple("test", UbseMemBorrowType::ADDR_BORROW, importId));
     request = UbseBaseMessage::Convert<UbseMemOptReqSimpo>(req);
     ret = q.Handle(request, response, ctx);
     EXPECT_EQ(ret, UBSE_OK);

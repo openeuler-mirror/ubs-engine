@@ -19,9 +19,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "debt/ubse_mem_debt_info_query.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -70,15 +68,15 @@ UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr& req, co
 
     // 取数据;
     NodeMemDebtInfoMap data;
-    if (reqPtr->GetNodeId().empty()) {
+    if (reqPtr->GetUbseMesgInfo().empty()) {
         // 全量数据
         data = mem::controller::GetNodeMemDebtInfoMap();
     } else {
         // 指定节点数据
         auto debtInfoMap = mem::controller::GetNodeMemDebtInfoMap();
-        auto it = debtInfoMap.find(reqPtr->GetNodeId());
+        auto it = debtInfoMap.find(reqPtr->GetUbseMesgInfo());
         if (it != debtInfoMap.end()) {
-            data[reqPtr->GetNodeId()] = it->second;
+            data[reqPtr->GetUbseMesgInfo()] = it->second;
         }
     }
     // 检查数据是否有效
@@ -91,7 +89,7 @@ UbseResult UbseMemDebtInfoQueryHandler::Handle(const UbseBaseMessagePtr& req, co
         UBSE_LOG_ERROR << "new NodeMemDebtInfoSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetNodeMemDebtInfoSimpo(data);
+    respPtr->SetUbseMesgInfo(data);
     return UBSE_OK;
 }
 
@@ -107,7 +105,7 @@ UbseResult UbseMemDebtInfoFdGetHandler::Handle(const UbseBaseMessagePtr& req, co
 
     // 取数据
     def::UbseMemFdDesc desc{};
-    if (const auto ret = debt::UbseMemFdGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemFdGet(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -117,7 +115,7 @@ UbseResult UbseMemDebtInfoFdGetHandler::Handle(const UbseBaseMessagePtr& req, co
         UBSE_LOG_ERROR << "new UbseMemFdDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemFdDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -134,7 +132,7 @@ UbseResult UbseMemDebtInfoFdListHandler::Handle(const UbseBaseMessagePtr& req, c
 
     // 取数据
     std::vector<def::UbseMemFdDesc> desc{};
-    if (const auto ret = debt::UbseMemFdList(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemFdList(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd list failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -144,7 +142,7 @@ UbseResult UbseMemDebtInfoFdListHandler::Handle(const UbseBaseMessagePtr& req, c
         UBSE_LOG_ERROR << "new UbseMemFdDescListSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemFdDescList(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -160,7 +158,7 @@ UbseResult UbseMemDebtInfoNumaGetHandler::Handle(const UbseBaseMessagePtr& req, 
 
     // 取数据
     def::UbseMemNumaDesc desc{};
-    if (const auto ret = debt::UbseMemNumaGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemNumaGet(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "numa get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -170,7 +168,7 @@ UbseResult UbseMemDebtInfoNumaGetHandler::Handle(const UbseBaseMessagePtr& req, 
         UBSE_LOG_ERROR << "new DefUbseMemNumaDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemNumaDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -187,8 +185,7 @@ UbseResult UbseMemDebtInfoNumaGetWithImportNodeHandler::Handle(const UbseBaseMes
 
     // 取数据
     UbseMemNumaDesc desc{};
-    if (const auto ret = debt::UbseMemNumaGetWithImportNode(reqPtr->GetUbseMemDebtQueryRequest(), desc);
-        ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemNumaGetWithImportNode(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "numa get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -198,7 +195,7 @@ UbseResult UbseMemDebtInfoNumaGetWithImportNodeHandler::Handle(const UbseBaseMes
         UBSE_LOG_ERROR << "new UbseMemNumaDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemNumaDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -214,7 +211,7 @@ UbseResult UbseMemDebtInfoNumaListHandler::Handle(const UbseBaseMessagePtr& req,
 
     // 取数据
     std::vector<def::UbseMemNumaDesc> desc{};
-    if (const auto ret = debt::UbseMemNumaList(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemNumaList(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd list failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -224,7 +221,7 @@ UbseResult UbseMemDebtInfoNumaListHandler::Handle(const UbseBaseMessagePtr& req,
         UBSE_LOG_ERROR << "new DefUbseMemNumaDescListSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemNumaDescList(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -240,7 +237,7 @@ UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr& req, c
 
     // 取数据
     def::UbseMemShmDesc desc{};
-    if (const auto ret = debt::UbseMemShmGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemShmGet(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -250,7 +247,7 @@ UbseResult UbseMemDebtInfoShmGetHandler::Handle(const UbseBaseMessagePtr& req, c
         UBSE_LOG_ERROR << "new UbseMemShmDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemShmDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -266,7 +263,7 @@ UbseResult UbseMemDebtInfoShmListHandler::Handle(const UbseBaseMessagePtr& req, 
 
     // 取数据
     std::vector<def::UbseMemShmDesc> desc{};
-    if (const auto ret = debt::UbseMemShmList(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemShmList(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -276,7 +273,7 @@ UbseResult UbseMemDebtInfoShmListHandler::Handle(const UbseBaseMessagePtr& req, 
         UBSE_LOG_ERROR << "new UbseMemShmDescListSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemShmDescList(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -292,7 +289,7 @@ UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr& 
 
     // 取数据
     def::UbseMemShmMemStatusDesc desc{};
-    if (const auto ret = debt::UbseMemShmStatusGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemShmStatusGet(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -302,7 +299,7 @@ UbseResult UbseMemDebtInfoShmStatusGetHandler::Handle(const UbseBaseMessagePtr& 
         UBSE_LOG_ERROR << "new UbseMemShmMemStatusDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemShmMemStatusDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -318,7 +315,7 @@ UbseResult UbseMemDebtInfoAddrGetHandler::Handle(const UbseBaseMessagePtr& req, 
 
     // 取数据
     UbseMemAddrDesc desc{};
-    if (const auto ret = debt::UbseMemAddrGet(reqPtr->GetUbseMemDebtQueryRequest(), desc); ret != UBSE_OK) {
+    if (const auto ret = debt::UbseMemAddrGet(reqPtr->GetUbseMesgInfo(), desc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "fd get failed, ret: " << FormatRetCode(ret);
         return ret;
     }
@@ -328,7 +325,7 @@ UbseResult UbseMemDebtInfoAddrGetHandler::Handle(const UbseBaseMessagePtr& req, 
         UBSE_LOG_ERROR << "new UbseMemAddrDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemAddrDesc(desc);
+    respPtr->SetUbseMesgInfo(desc);
     return UBSE_OK;
 }
 
@@ -380,7 +377,7 @@ UbseResult UbseMemNodeBorrowQueryHandler::Handle(const UbseBaseMessagePtr& req, 
         UBSE_LOG_ERROR << "new NodeMemDebtInfoSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseNodeBorrowInfos(nodeBorrowInfo);
+    respPtr->SetUbseMesgInfo(nodeBorrowInfo);
     return UBSE_OK;
 }
 
@@ -392,7 +389,7 @@ UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr& req, const 
         UBSE_LOG_ERROR << "new UbseMemIdQueryRequestSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    def::UbseMemIdQueryRequest request = reqPtr->GetUbseMemIdQueryRequest();
+    def::UbseMemIdQueryRequest request = reqPtr->GetUbseMesgInfo();
     def::UbseExportMemDesc exportMemDesc{};
     if (const auto ret = mem::controller::debt::UbseMemGetMemIdByImport(request, exportMemDesc); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "mem id get failed, " << FormatRetCode(ret);
@@ -403,7 +400,7 @@ UbseResult UbseMemIdInfoGetHandler::Handle(const UbseBaseMessagePtr& req, const 
         UBSE_LOG_ERROR << "new UbseMemExportMemDescSimpo failed!";
         return UBSE_ERROR_NULLPTR;
     }
-    respPtr->SetUbseMemExportMemDesc(exportMemDesc);
+    respPtr->SetUbseMesgInfo(exportMemDesc);
     return UBSE_OK;
 }
 } // namespace ubse::mem::controller::rpc

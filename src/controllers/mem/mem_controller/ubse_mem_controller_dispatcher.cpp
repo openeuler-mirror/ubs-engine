@@ -34,7 +34,7 @@
 #include "ubse_str_util.h"
 #include "api/ubse_mem_controller_api_common.h"
 #include "message/ubse_mem_controller_def_serial.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "ubs_engine_mem.h"
 
 namespace ubse::mem::controller {
@@ -533,7 +533,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmBorrowReq(const UbseIpcMessag
         UBSE_LOG_ERROR << "new obj failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    reqSimpo->SetUbseMemShareBorrowReq(shareBorrowReq);
+    reqSimpo->SetUbseMesgInfo(shareBorrowReq);
     return UBSE_OK;
 }
 UbseResult UbseMemControllerDispatcher::BufferToShmAttachReq(const UbseIpcMessage& buffer,
@@ -555,7 +555,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmAttachReq(const UbseIpcMessag
         UBSE_LOG_ERROR << "new obj failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    reqSimpo->SetUbseMemShareAttachReq(shareAttachReq);
+    reqSimpo->SetUbseMesgInfo(shareAttachReq);
     return UBSE_OK;
 }
 UbseResult UbseMemControllerDispatcher::BufferToShmGetReq(const UbseIpcMessage& buffer, std::string& name)
@@ -593,7 +593,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmDetachReq(const UbseIpcMessag
         UBSE_LOG_ERROR << "new obj failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    reqSimpo->SetUbseMemShareDetachReq(shareDetachReq);
+    reqSimpo->SetUbseMesgInfo(shareDetachReq);
     return UBSE_OK;
 }
 UbseResult UbseMemControllerDispatcher::BufferToShmReturnReq(const UbseIpcMessage& buffer,
@@ -615,7 +615,7 @@ UbseResult UbseMemControllerDispatcher::BufferToShmReturnReq(const UbseIpcMessag
         UBSE_LOG_ERROR << "new obj failed.";
         return UBSE_ERROR_NULLPTR;
     }
-    reqSimpo->SetUbseMemReturnReq(shareRetrunReq);
+    reqSimpo->SetUbseMesgInfo(shareRetrunReq);
     return UBSE_OK;
 }
 uint32_t UbseMemControllerDispatcher::MemShmBorrowRespDispatcher(UbseMemOperationResp& resp)
@@ -746,14 +746,14 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
     }
 
     if (IsHighSafety()) {
-        auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
+        auto req = reqSimpoPtr->GetUbseMesgInfo();
         if (const auto res =
                 UbseMemSignVerifier::Sign("share", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
             res != UBSE_OK) {
             UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
             return res;
         }
-        reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+        reqSimpoPtr->SetUbseMesgInfo(req);
     }
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
@@ -800,7 +800,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
     }
 
     // 开启指定CPU平面进行创建
-    auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
+    auto req = reqSimpoPtr->GetUbseMesgInfo();
     req.withAffinity.enableCreateWithAffinity = true;
     req.withAffinity.createReqNodeId = localNodeId;
     if (IsHighSafety()) {
@@ -811,7 +811,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithAffinity(const U
             return res;
         }
     }
-    reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+    reqSimpoPtr->SetUbseMesgInfo(req);
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_BORROW),
@@ -862,7 +862,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
         UBSE_LOG_ERROR << "reqSimpoPtr is nullptr";
         return UBSE_ERROR_NULLPTR;
     }
-    reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+    reqSimpoPtr->SetUbseMesgInfo(req);
     if (IsHighSafety()) {
         if (const auto res =
                 UbseMemSignVerifier::Sign("share", req.trustRingData.reqSignedData, req.trustRingData.trustRingId);
@@ -870,7 +870,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcherWithLender(const Ubs
             UBSE_LOG_ERROR << "Sign for request failed, " << FormatRetCode(res);
             return res;
         }
-        reqSimpoPtr->SetUbseMemShareBorrowReq(req);
+        reqSimpoPtr->SetUbseMesgInfo(req);
     }
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
@@ -1174,7 +1174,7 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
         return ret;
     }
 
-    UBSE_LOG_INFO << "return request name=" << reqSimpoPtr.Get()->GetUbseMemReturnReq().name;
+    UBSE_LOG_INFO << "return request name=" << reqSimpoPtr.Get()->GetUbseMesgInfo().name;
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         ret = SendToMasterIfNotMaster(masterNodeId, reqSimpoPtr, static_cast<uint16_t>(UbseModuleCode::UBSE_MEM_RESP),
@@ -1257,7 +1257,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdBorrowRpc(UbseMemFdBorrowReq& req
         UBSE_LOG_ERROR << "Failed to new ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemFdBorrowReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr";
@@ -1351,7 +1351,7 @@ uint32_t UbseMemControllerDispatcher::UbseMemFdReturnDispatch(const UbseIpcMessa
         UBSE_LOG_ERROR << "Failed to new ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemReturnReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr";
@@ -1602,7 +1602,7 @@ uint32_t MemNumaBorrowRpc(const std::string& masterNodeId, const std::string& lo
             UBSE_LOG_ERROR << "Failed to new ptr";
             return UBSE_ERROR_NULLPTR;
         }
-        ubseRequestPtr->SetUbseMemNumaBorrowReq(req);
+        ubseRequestPtr->SetUbseMesgInfo(req);
         UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
         if (ubseResponsePtr == nullptr) {
             UBSE_LOG_ERROR << "Failed to new ptr";
@@ -1742,7 +1742,7 @@ UbseResult UbseMemControllerDispatcher::UbseMemNumaDelete(const UbseIpcMessage& 
         UBSE_LOG_ERROR << "Failed to new ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    ubseRequestPtr->SetUbseMemReturnReq(req);
+    ubseRequestPtr->SetUbseMesgInfo(req);
     // 不是master调用RPC异步发送
     if (localNodeId != masterNodeId) {
         UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();

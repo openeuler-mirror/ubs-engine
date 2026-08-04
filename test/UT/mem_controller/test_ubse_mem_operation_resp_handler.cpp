@@ -16,7 +16,7 @@
 #include "ubse_error.h"
 #include "ubse_mem_controller_handler.h"
 #include "ubse_mmi_interface.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "request_helper.h"
 namespace ubse::mem_controller::ut {
 using namespace ubse::mem_controller;

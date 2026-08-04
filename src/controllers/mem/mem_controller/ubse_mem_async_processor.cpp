@@ -6,12 +6,13 @@
 #include "ubse_mem_controller_api.h"
 #include "ubse_mem_controller_dispatcher.h"
 #include "ubse_thread_pool_module.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
 
 using namespace ubse::task_executor;
+using namespace message;
 UbseTaskExecutorPtr GetExecutor(const std::string& name)
 {
     auto taskExecutor = ubse::context::UbseContext::GetInstance().GetModule<UbseTaskExecutorModule>();
@@ -24,7 +25,7 @@ UbseTaskExecutorPtr GetExecutor(const std::string& name)
     }
     return resourceExecutor;
 }
-message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSimpoPtr request)
+UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSimpoPtr request)
 {
     const auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -33,12 +34,12 @@ message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSim
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
-        message::UbseMemOperationResp resp{};
-        UbseMemShareBorrow(request.Get()->GetUbseMemShareBorrowReq(), resp);
+        UbseMemOperationResp resp{};
+        UbseMemShareBorrow(request.Get()->GetUbseMesgInfo(), resp);
     });
     return UBSE_OK;
 }
-message::UbseResult AsyncMemShmBorrowRespProcessor(message::UbseMemOperationRespSimpoPtr request)
+UbseResult AsyncMemShmBorrowRespProcessor(UbseMemOperationRespSimpoPtr request)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -47,13 +48,13 @@ message::UbseResult AsyncMemShmBorrowRespProcessor(message::UbseMemOperationResp
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
-        auto resp = request.Get()->GetUbseMemOperationResp();
+        auto resp = request.Get()->GetUbseMesgInfo();
         UbseMemControllerDispatcher::MemShmBorrowRespDispatcher(resp);
     });
     return UBSE_OK;
 }
 
-message::UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSimpoPtr request)
+UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSimpoPtr request)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -62,12 +63,12 @@ message::UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSim
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
-        message::UbseMemOperationResp resp{};
-        UbseMemShareAttach(request.Get()->GetUbseMemShareAttachReq(), resp);
+        UbseMemOperationResp resp{};
+        UbseMemShareAttach(request.Get()->GetUbseMesgInfo(), resp);
     });
     return UBSE_OK;
 }
-message::UbseResult AsyncMemShmAttachRespProcessor(message::UbseMemOperationRespSimpoPtr request)
+UbseResult AsyncMemShmAttachRespProcessor(UbseMemOperationRespSimpoPtr request)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -76,45 +77,15 @@ message::UbseResult AsyncMemShmAttachRespProcessor(message::UbseMemOperationResp
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
-        auto resp = request.Get()->GetUbseMemOperationResp();
+        auto resp = request.Get()->GetUbseMesgInfo();
         UbseMemControllerDispatcher::MemShmAttachRespDispatcher(resp);
     });
     return UBSE_OK;
 }
 
 // todo 入参
-message::UbseResult AsyncMemShmDetachProcessor(message::UbseMemShareDetachReqSimpoPtr request,
-                                               const std::string& realRequestNodeId)
-{
-    auto resourceExecutor = GetExecutor("ubseMemController");
-    if (resourceExecutor == nullptr) {
-        UBSE_LOG_ERROR << "Get ubseMemController fail";
-        return UBSE_ERROR_NULLPTR;
-    }
-    // 使用线程池异步执行
-    resourceExecutor->Execute([request, realRequestNodeId]() {
-        message::UbseMemOperationResp resp{};
-        UbseMemShareDetach(request.Get()->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
-    });
-    return UBSE_OK;
-}
-message::UbseResult AsyncMemShmDetachRespProcessor(message::UbseMemOperationRespSimpoPtr request)
-{
-    auto resourceExecutor = GetExecutor("ubseMemController");
-    if (resourceExecutor == nullptr) {
-        UBSE_LOG_ERROR << "Get ubseMemController fail";
-        return UBSE_ERROR_NULLPTR;
-    }
-    // 使用线程池异步执行
-    resourceExecutor->Execute([request]() {
-        auto resp = request.Get()->GetUbseMemOperationResp();
-        UbseMemControllerDispatcher::MemShmDetachRespDispatcher(resp);
-    });
-    return UBSE_OK;
-}
-
-message::UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr request,
-                                               const std::string& realRequestNodeId)
+UbseResult AsyncMemShmDetachProcessor(message::UbseMemShareDetachReqSimpoPtr request,
+                                      const std::string& realRequestNodeId)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -124,11 +95,11 @@ message::UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr
     // 使用线程池异步执行
     resourceExecutor->Execute([request, realRequestNodeId]() {
         UbseMemOperationResp resp{};
-        UbseMemShareReturn(request.Get()->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        UbseMemShareDetach(request.Get()->GetUbseMesgInfo(), resp, realRequestNodeId);
     });
     return UBSE_OK;
 }
-message::UbseResult AsyncMemCommonReturnRespProcessor(message::UbseMemOperationRespSimpoPtr request)
+UbseResult AsyncMemShmDetachRespProcessor(UbseMemOperationRespSimpoPtr request)
 {
     auto resourceExecutor = GetExecutor("ubseMemController");
     if (resourceExecutor == nullptr) {
@@ -137,7 +108,36 @@ message::UbseResult AsyncMemCommonReturnRespProcessor(message::UbseMemOperationR
     }
     // 使用线程池异步执行
     resourceExecutor->Execute([request]() {
-        auto resp = request.Get()->GetUbseMemOperationResp();
+        auto resp = request.Get()->GetUbseMesgInfo();
+        UbseMemControllerDispatcher::MemShmDetachRespDispatcher(resp);
+    });
+    return UBSE_OK;
+}
+
+UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr request, const std::string& realRequestNodeId)
+{
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 使用线程池异步执行
+    resourceExecutor->Execute([request, realRequestNodeId]() {
+        UbseMemOperationResp resp{};
+        UbseMemShareReturn(request.Get()->GetUbseMesgInfo(), resp, realRequestNodeId);
+    });
+    return UBSE_OK;
+}
+UbseResult AsyncMemCommonReturnRespProcessor(UbseMemOperationRespSimpoPtr request)
+{
+    auto resourceExecutor = GetExecutor("ubseMemController");
+    if (resourceExecutor == nullptr) {
+        UBSE_LOG_ERROR << "Get ubseMemController fail";
+        return UBSE_ERROR_NULLPTR;
+    }
+    // 使用线程池异步执行
+    resourceExecutor->Execute([request]() {
+        auto resp = request.Get()->GetUbseMesgInfo();
         UbseMemControllerDispatcher::MemReturnRespDispatcher(resp);
     });
     return UBSE_OK;

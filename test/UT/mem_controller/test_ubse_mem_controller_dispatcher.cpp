@@ -268,7 +268,7 @@ TEST_F(TestUbseMemControllerDispatcher, MemShmCreateDispatcherWithAffinity)
     req.requestNodeId = "1";
     req.name = "test";
     UbseMemShareBorrowReqSimpoPtr ptr = new UbseMemShareBorrowReqSimpo();
-    ptr->SetUbseMemShareBorrowReq(req);
+    ptr->SetUbseMesgInfo(req);
     MOCKER(&UbseMemControllerDispatcher::BufferToShmBorrowReq)
         .stubs()
         .with(any(), outBound(ptr), any(), any(), any())

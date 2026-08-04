@@ -37,13 +37,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_thread_pool_module.h"
 #include "ubse_timer.h"
 #include "ubse_topo_util.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/adapter_plugins/mmi/ubse_mmi_module.h"
 
 namespace ubse::mem_controller::ut {

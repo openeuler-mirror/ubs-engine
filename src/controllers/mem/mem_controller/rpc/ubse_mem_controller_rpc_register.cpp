@@ -18,11 +18,9 @@
 #include "ubse_mem_agent_update_obj_state.h"
 #include "ubse_mem_debt_info_query_handler.h"
 #include "ubse_mem_update_obj_state.simpo.h"
-#include "message/node_mem_debtInfo_query_req_simpo.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "message/ubse_mem_debt_info_partial_fetch_res.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller::rpc {
 UBSE_DEFINE_THIS_MODULE("ubse");

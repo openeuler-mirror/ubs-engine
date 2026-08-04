@@ -13,7 +13,7 @@
 #include "ubse_mem_remote_numa_status.h"
 #include "ubse_error.h"
 #include "ubse_logger_module.h"
-#include "ubse_mem_controller_serial.h"
+#include "ubse_serial_util.h"
 namespace ubse::mem::controller::message {
 using namespace ubse::serial;
 

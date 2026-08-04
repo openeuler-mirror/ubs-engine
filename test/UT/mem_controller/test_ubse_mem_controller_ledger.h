@@ -13,8 +13,7 @@
 #ifndef UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_LEDGER_H
 #define UBS_ENGINE_TEST_UBSE_MEM_CONTROLLER_LEDGER_H
 #include <gtest/gtest.h>
-
-#include "message/node_mem_debt_info_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 class TestUbseMemControllerLedger : public testing::Test {

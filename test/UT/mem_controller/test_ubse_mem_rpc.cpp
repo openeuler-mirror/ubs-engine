@@ -26,22 +26,7 @@
 #include "ubse_mem_rpc_processor.h"
 #include "ubse_mem_util.h"
 #include "ubse_thread_pool.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_share_borrow_importobj_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace task_executor;
@@ -393,7 +378,7 @@ TEST_F(TestUbseMemRpc, UbseMemFdBorrowExportObjCallbackMessageHandler)
     EXPECT_NE(ptr, nullptr);
     UbseMemFdBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemFdBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
     EXPECT_NE(rsp, nullptr);
@@ -501,7 +486,7 @@ TEST_F(TestUbseMemRpc, UbseMemNumaBorrowExportObjCallbackMessageHandler)
     EXPECT_NE(ptr, nullptr);
     UbseMemNumaBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemNumaBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemNumaBorrowExportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
@@ -579,7 +564,7 @@ TEST_F(TestUbseMemRpc, UbseMemShareBorrowExportObjCallbackMessageHandler)
     EXPECT_NE(ptr, nullptr);
     UbseMemShareBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemShareBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareBorrowExportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
@@ -657,7 +642,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowExportObjCallbackMessageHandler)
     EXPECT_NE(ptr, nullptr);
     UbseMemAddrBorrowExportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemAddrBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemShareBorrowExportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();
@@ -699,7 +684,7 @@ TEST_F(TestUbseMemRpc, UbseMemAddrBorrowImportObjCallbackMessageHandler)
     EXPECT_NE(ptr, nullptr);
     UbseMemAddrBorrowImportObj exportObj{};
     exportObj.algoResult.exportNumaInfos.emplace_back(UbseMemDebtNumaInfo{});
-    ptr->SetUbseMemAddrBorrowImportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
 
     const UbseBaseMessagePtr req = new (std::nothrow) UbseMemAddrBorrowImportobjSimpo();
     const UbseBaseMessagePtr rsp = new (std::nothrow) UbseMemCallbackMessage();

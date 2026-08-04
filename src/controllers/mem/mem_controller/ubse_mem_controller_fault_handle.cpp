@@ -37,9 +37,9 @@
 #include "ubse_mem_controller_ledger.h"
 #include "ubse_mem_controller_share_api.h"
 #include "ubse_mem_debt_info_query.h"
-#include "ubse_mem_single_import_message.h"
 #include "ubse_serial_util.h"
 #include "ubse_timer.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 using namespace ubse::adapter_plugins::mmi;
@@ -684,9 +684,9 @@ UbseResult UbseMemFaultManager::ReportSingleImportDebt(const std::string& target
     }
 
     message::UbseMemSingleImportMessage notifyMsg;
-    notifyMsg.SetShareHandleInfoVec(shareHandleInfoVec);
-    notifyMsg.SetNumaHandleInfoVec(numaHandleInfoVec);
-    notifyMsg.SetFdHandleInfoVec(fdHandleInfoVec);
+    notifyMsg.Set<0>(shareHandleInfoVec);
+    notifyMsg.Set<1>(numaHandleInfoVec);
+    notifyMsg.Set<2>(fdHandleInfoVec);
     auto ret = notifyMsg.Serialize();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to serialize single import debt message for targetNodeId="
@@ -724,9 +724,9 @@ void UbseMemFaultManager::SingleImportDebtNotifyHandler(const UbseByteBuffer& re
         return;
     }
 
-    auto shareHandleInfoVec = simpo.GetShareHandleInfoVec();
-    auto numaHandleInfoVec = simpo.GetNumaHandleInfoVec();
-    auto fdHandleInfoVec = simpo.GetFdHandleInfoVec();
+    auto shareHandleInfoVec = simpo.Get<0>();
+    auto numaHandleInfoVec = simpo.Get<1>();
+    auto fdHandleInfoVec = simpo.Get<2>();
 
     UBSE_LOG_INFO << "[MEM_CONTROLLER] Processing single import debt, shareCount=" << shareHandleInfoVec.size()
                   << ", numaCount=" << numaHandleInfoVec.size() << ", fdCount=" << fdHandleInfoVec.size();

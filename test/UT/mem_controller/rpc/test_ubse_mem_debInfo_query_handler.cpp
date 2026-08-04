@@ -19,11 +19,9 @@
 #include "ubse_mem_debt_info_partial_fetch.h"
 #include "ubse_module.h"
 #include "debt/ubse_mem_debt_info_query.h"
-#include "message/node_mem_debt_info_simpo.h"
-#include "message/ubse_mem_controller_def_simpo.h"
 #include "message/ubse_mem_debt_info_partial_fetch_req.h"
 #include "message/ubse_mem_debt_info_partial_fetch_res.h"
-#include "message/ubse_mem_debt_info_query_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem_controller::ut {
 using namespace ubse::context;

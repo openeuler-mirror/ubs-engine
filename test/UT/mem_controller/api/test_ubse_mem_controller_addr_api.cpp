@@ -22,9 +22,7 @@ using ubse::mem::scheduler::SchedulerImpl;
 #include "ubse_mem_controller_api_common.h"
 #include "ubse_mem_controller_msg.h"
 #include "debt/ubse_mem_debt_ledger.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "src/controllers/mem/mem_decoder_utils/ubse_mem_decoder_utils.h"
 namespace ubse::mem_controller::addr::ut {
 using namespace ubse::mem::controller;

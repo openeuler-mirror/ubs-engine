@@ -14,7 +14,7 @@
 #include "ubse_context.h"
 #include "ubse_error.h"
 #include "ubse_mmi_interface.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "request_helper.h"
 #include "request_id.h"
 
@@ -31,7 +31,7 @@ UbseResult UbseMemOperationRespHandler::Handle(const UbseBaseMessagePtr& req, co
 {
     auto request = UbseBaseMessage::DeConvert<UbseMemOperationRespSimpo>(req);
 
-    UbseMemOperationResp memOperationResp = request->GetUbseMemOperationResp();
+    UbseMemOperationResp memOperationResp = request->GetUbseMesgInfo();
     UBSE_LOG_INFO << "name is " << memOperationResp.name << ", requestNodeId is " << memOperationResp.requestNodeId;
     auto requestId = GetRequestIdNew(memOperationResp.name, memOperationResp.requestNodeId);
     if (!FutureMgr::SetResult(requestId, memOperationResp)) {

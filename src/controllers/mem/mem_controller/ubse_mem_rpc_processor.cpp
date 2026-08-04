@@ -17,22 +17,7 @@
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
 #include "ubse_str_util.h"
-#include "message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_importobj_simpo.h"
-#include "message/ubse_mem_addr_borrow_req_simpo.h"
-#include "message/ubse_mem_fd_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_importobj_simpo.h"
-#include "message/ubse_mem_fd_borrow_req_simpo.h"
-#include "message/ubse_mem_numa_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_importobj_simpo.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_exportobj_simpo.h"
-#include "message/ubse_mem_share_borrow_importobj_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 #include "trace_context.h"
 
 namespace ubse::mem::controller {
@@ -46,7 +31,7 @@ using namespace ubse::mem::controller;
 using namespace ubse::context;
 using namespace api::server;
 using namespace ubse::mem::util;
-using namespace ubse::mem::serial;
+using namespace ubse::serial;
 
 const std::string SYNC_SUCCESS = "sync_success";
 const std::string SYNC_FAILED = "sync_failed";
@@ -71,7 +56,7 @@ UbseResult UbseMemFdBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req, 
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemFdBorrow(request->GetUbseMemFdBorrowReq(), resp);
+        UbseMemFdBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -107,7 +92,7 @@ UbseResult UbseMemNumaBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemNumaBorrow(request->GetUbseMemNumaBorrowReq(), resp);
+        UbseMemNumaBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -143,7 +128,7 @@ UbseResult UbseMemAddrBorrowMessageHandler::Handle(const UbseBaseMessagePtr& req
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemAddrBorrow(request->GetUbseMemAddrBorrowReq(), resp);
+        UbseMemAddrBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -179,7 +164,7 @@ UbseResult UbseMemShareBorrowMessageHandler::Handle(const UbseBaseMessagePtr& re
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareBorrow(request->GetUbseMemShareBorrowReq(), resp);
+        UbseMemShareBorrow(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -216,7 +201,7 @@ UbseResult UbseMemShareAttachMessageHandler::Handle(const UbseBaseMessagePtr& re
     resourceExecutor->Execute([request, traceId]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareAttach(request->GetUbseMemShareAttachReq(), resp);
+        UbseMemShareAttach(request->GetUbseMesgInfo(), resp);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -252,7 +237,7 @@ UbseResult UbseMemShareDetachMessageHandler::Handle(const UbseBaseMessagePtr& re
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareDetach(request->GetUbseMemShareDetachReq(), resp, realRequestNodeId);
+        UbseMemShareDetach(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
     response->data = SYNC_SUCCESS;
@@ -288,7 +273,7 @@ UbseResult UbseMemFdReturnHandler::Handle(const UbseBaseMessagePtr& req, const U
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemFdReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        UbseMemFdReturn(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -325,7 +310,7 @@ UbseResult UbseMemNumaReturnHandler::Handle(const UbseBaseMessagePtr& req, const
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemNumaReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        UbseMemNumaReturn(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -362,7 +347,7 @@ UbseResult UbseMemShareReturnHandler::Handle(const UbseBaseMessagePtr& req, cons
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemShareReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        UbseMemShareReturn(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -399,7 +384,7 @@ UbseResult UbseMemAddrReturnHandler::Handle(const UbseBaseMessagePtr& req, const
     resourceExecutor->Execute([request, traceId, realRequestNodeId = ctx->GetDstId()]() {
         TraceContext::SetTraceId(traceId);
         UbseMemOperationResp resp{};
-        UbseMemAddrReturn(request->GetUbseMemReturnReq(), resp, realRequestNodeId);
+        UbseMemAddrReturn(request->GetUbseMesgInfo(), resp, realRequestNodeId);
         TraceContext::Clear();
     });
 
@@ -455,7 +440,7 @@ UbseResult UbseMemFdBorrowExportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto exportObj = request->GetUbseMemFdBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fd borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -513,7 +498,7 @@ UbseResult UbseMemFdBorrowImportObjCallbackMessageHandler::Handle(const UbseBase
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto importObj = request->GetUbseMemFdBorrowImportObj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Fd borrow importObj is invalid, please check the importObj";
         return ret;
@@ -568,12 +553,12 @@ UbseResult UbseMemFdBorrowImportObjForPermissionCallbackMessageHandler::Handle(c
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto memFdBorrowImportObj = request->GetUbseMemFdBorrowImportObj();
+    auto memFdBorrowImportObj = request->GetUbseMesgInfo();
     UBSE_LOG_INFO << "Received FdImportObjForPermission, name=" << memFdBorrowImportObj.req.name;
     UbseMemOperationResp resp{};
     resp.errorCode = UbseMemFdBorrowImportObjForPermissionCallback(memFdBorrowImportObj);
     resp.requestId = memFdBorrowImportObj.req.requestId;
-    response->SetUbseMemOperationResp(resp);
+    response->SetUbseMesgInfo(resp);
     return UBSE_OK;
 }
 
@@ -597,7 +582,7 @@ UbseResult UbseMemNumaBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto exportObj = request->GetUbseMemNumaBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Numa borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -652,7 +637,7 @@ UbseResult UbseMemNumaBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto importObj = request->GetUbseMemNumaBorrowImportObj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Numa borrow importObj is invalid, please check the importObj";
         return ret;
@@ -705,7 +690,7 @@ UbseResult UbseMemShareBorrowExportObjCallbackMessageHandler::Handle(const UbseB
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto exportObj = request->GetUbseMemShareBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = ShareBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Share borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -758,7 +743,7 @@ UbseResult UbseMemShareBorrowImportObjCallbackMessageHandler::Handle(const UbseB
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto importObj = request->GetUbseMemShareBorrowImportObj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = ShareBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Share borrow importObj is invalid, please check the importObj";
         return ret;
@@ -811,7 +796,7 @@ UbseResult UbseMemAddrBorrowExportObjCallbackMessageHandler::Handle(const UbseBa
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto exportObj = request->GetUbseMemAddrBorrowExportObj();
+    auto exportObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(exportObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow exportObj is invalid, please check the exportObj";
         return ret;
@@ -864,7 +849,7 @@ UbseResult UbseMemAddrBorrowImportObjCallbackMessageHandler::Handle(const UbseBa
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto importObj = request->GetUbseMemAddrBorrowImportobj();
+    auto importObj = request->GetUbseMesgInfo();
     if (auto ret = MemoryBorrowRpcObjCheck(importObj); ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Addr borrow importObj is invalid, please check the importObj";
         return ret;
@@ -1329,7 +1314,7 @@ UbseMemFdPermissionReqMessage::UbseMemFdPermissionReqMessage(UbseMemFdPermission
 UbseResult UbseMemFdPermissionReqMessage::Serialize()
 {
     UbseSerialization out;
-    if (!serial::UbseMemFdPermissionReqSerialize(out, fdPermissionReq)) {
+    if (!ubse::serial::util::SerializeField(out, fdPermissionReq)) {
         return UBSE_ERROR;
     }
     mOutputRawDataSize = out.GetLength();
@@ -1344,7 +1329,7 @@ UbseResult UbseMemFdPermissionReqMessage::Deserialize()
         return UBSE_ERROR;
     }
     UbseDeSerialization in(mInputRawData.get(), mInputRawDataSize);
-    if (!serial::UbseMemFdPermissionReqDeserialize(in, fdPermissionReq)) {
+    if (!ubse::serial::util::DeSerializeField(in, fdPermissionReq)) {
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -1411,7 +1396,7 @@ UbseResult UbseMemFdBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr& r
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto operationResp = request->GetUbseMemOperationResp();
+    auto operationResp = request->GetUbseMesgInfo();
     UBSE_LOG_INFO << "Receive fd borrow resp. name=" << operationResp.name << ", requestId=" << operationResp.requestId
                   << ", response errorcode=" << operationResp.errorCode;
 
@@ -1468,7 +1453,7 @@ UbseResult UbseMemFdReturnRespMessageHandler::Handle(const UbseBaseMessagePtr& r
         return UBSE_ERROR_NULLPTR;
     }
     response->data = SYNC_SUCCESS;
-    auto operationResp = request->GetUbseMemOperationResp();
+    auto operationResp = request->GetUbseMesgInfo();
     UBSE_LOG_INFO << "Receive fd return resp. name=" << operationResp.name << ", requestId=" << operationResp.requestId
                   << ", response errorcode=" << operationResp.errorCode;
     auto apiServer = UbseContext::GetInstance().GetModule<api::server::UbseApiServerModule>();
@@ -1506,7 +1491,7 @@ UbseResult UbseMemNumaBorrowRespMessageHandler::Handle(const UbseBaseMessagePtr&
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = DoNumaBorrowRespAsync(request->GetUbseMemOperationResp());
+    auto ret = DoNumaBorrowRespAsync(request->GetUbseMesgInfo());
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "do numa borrow resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;
@@ -1535,7 +1520,7 @@ UbseResult UbseMemNumaReturnRespMessageHandler::Handle(const UbseBaseMessagePtr&
         UBSE_LOG_ERROR << "Failed to convert ptr";
         return UBSE_ERROR_NULLPTR;
     }
-    auto ret = DoReturnRespAsync(request->GetUbseMemOperationResp());
+    auto ret = DoReturnRespAsync(request->GetUbseMesgInfo());
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "do return resp async failed. " << FormatRetCode(ret);
         response->data = SYNC_FAILED;

@@ -6,11 +6,7 @@
 
 #include "ubse_api_server_module.h"
 #include "ubse_mem_controller_def.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 using ::api::server::UbseIpcMessage;

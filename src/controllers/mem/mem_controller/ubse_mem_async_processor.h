@@ -3,28 +3,22 @@
 #define UBSE_MANAGER_UBSE_MEM_ASYNC_PROCESSOR_H
 #include "ubse_com_def.h"
 #include "ubse_mmi_interface.h"
-#include "message/ubse_mem_numa_borrow_req_simpo.h"
-#include "message/ubse_mem_operation_resp_simpo.h"
-#include "message/ubse_mem_return_req_simpo.h"
-#include "message/ubse_mem_share_attach_req_simpo.h"
-#include "message/ubse_mem_share_borrow_req_simpo.h"
-#include "message/ubse_mem_share_detach_req_simpo.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 using ubse::adapter_plugins::mmi::UbseMemNumaBorrowReq;
 using ubse::adapter_plugins::mmi::UbseMemOperationResp;
 using ubse::adapter_plugins::mmi::UbseMemReturnReq;
 using ubse::common::def::UbseResult;
-message::UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSimpoPtr request);
-message::UbseResult AsyncMemShmBorrowRespProcessor(message::UbseMemOperationRespSimpoPtr request);
-message::UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSimpoPtr request);
-message::UbseResult AsyncMemShmAttachRespProcessor(message::UbseMemOperationRespSimpoPtr request);
-message::UbseResult AsyncMemShmDetachProcessor(message::UbseMemShareDetachReqSimpoPtr request,
-                                               const std::string& realRequestNodeId);
-message::UbseResult AsyncMemShmDetachRespProcessor(message::UbseMemOperationRespSimpoPtr request);
-message::UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr request,
-                                               const std::string& realRequestNodeId);
-message::UbseResult AsyncMemCommonReturnRespProcessor(message::UbseMemOperationRespSimpoPtr request);
+UbseResult AsyncMemShmBorrowProcessor(message::UbseMemShareBorrowReqSimpoPtr request);
+UbseResult AsyncMemShmBorrowRespProcessor(message::UbseMemOperationRespSimpoPtr request);
+UbseResult AsyncMemShmAttachProcessor(message::UbseMemShareAttachReqSimpoPtr request);
+UbseResult AsyncMemShmAttachRespProcessor(message::UbseMemOperationRespSimpoPtr request);
+UbseResult AsyncMemShmDetachProcessor(message::UbseMemShareDetachReqSimpoPtr request,
+                                      const std::string& realRequestNodeId);
+UbseResult AsyncMemShmDetachRespProcessor(message::UbseMemOperationRespSimpoPtr request);
+UbseResult AsyncMemShmReturnProcessor(message::UbseMemReturnReqSimpoPtr request, const std::string& realRequestNodeId);
+UbseResult AsyncMemCommonReturnRespProcessor(message::UbseMemOperationRespSimpoPtr request);
 UbseResult DoNumaBorrowAsync(const UbseMemNumaBorrowReq& request);
 UbseResult DoNumaBorrowRespAsync(const UbseMemOperationResp& resp);
 UbseResult DoReturnAsync(const UbseMemReturnReq& request, const std::string& realRequestNodeId);

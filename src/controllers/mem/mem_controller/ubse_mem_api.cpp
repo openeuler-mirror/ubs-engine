@@ -27,7 +27,6 @@
 #include "ubse_mem_configuration.h"
 #include "ubse_mem_controller_api_agent.h"
 #include "ubse_mem_controller_api_common.h"
-#include "ubse_mem_controller_def_serial.h"
 #include "ubse_mem_controller_module.h"
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_debt_info_partial_fetch_req.h"
@@ -39,6 +38,7 @@
 #include "ubse_os_util.h"
 #include "ubse_serial_util.h"
 #include "ubse_str_util.h"
+#include "message/ubse_mem_controller_def_serial.h"
 #include "src/sdk/c/include/ubs_engine.h"
 
 namespace ubse::mem::api {

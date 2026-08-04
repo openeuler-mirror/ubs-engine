@@ -29,12 +29,11 @@
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
-#include "../message/ubse_mem_addr_borrow_exportobj_simpo.h"
-#include "../message/ubse_mem_addr_borrow_importobj_simpo.h"
 #include "../ubse_mem_account.h"
 #include "../ubse_mem_controller_api.h"
 #include "../ubse_mem_controller_ledger.h"
 #include "../ubse_mem_rpc_processor.h"
+#include "message/ubse_mem_simpo_types.h"
 
 namespace ubse::mem::controller {
 UBSE_DEFINE_THIS_MODULE("ubse");
@@ -139,7 +138,7 @@ UbseResult SendAddrExportObj(const UbseMemAddrBorrowExportObj& exportObj, const 
         UBSE_LOG_ERROR << "Failed to new UbseMemAddrBorrowExportobjSimpoPtr.";
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemAddrBorrowExportobj(exportObj);
+    ptr->SetUbseMesgInfo(exportObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr.";
@@ -331,7 +330,7 @@ UbseResult SendAddrImportObj(const UbseMemAddrBorrowImportObj& importObj, const 
         UBSE_LOG_ERROR << "Failed to new ptr.";
         return UBSE_ERROR_NULLPTR;
     }
-    ptr->SetUbseMemAddrBorrowImportobj(importObj);
+    ptr->SetUbseMesgInfo(importObj);
     UbseBaseMessagePtr ubseResponsePtr = new (std::nothrow) UbseMemCallbackMessage();
     if (ubseResponsePtr == nullptr) {
         UBSE_LOG_ERROR << "Failed to new ptr.";
