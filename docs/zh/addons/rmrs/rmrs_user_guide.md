@@ -38,6 +38,10 @@ rmrs.fragment.mustSamePlane=true
 
 # 内存碎片场景，借用是否切分为 4G 粒度（true: 切分，false: 不切分）
 rmrs.fragmemt.enableBorrowSplit=true
+# 超分场景，是否为虚机多numa场景（true: 虚机多numa场景, false: 单numa场景）
+overcommit.enableMultiNuma=false
+# 故障处理，是否启用简化方案（true: 简化方案, false: 完整方案）
+rmrs.fault.simplified=false
 ```
 
 大规格虚机场景下，建议调整为：
@@ -45,6 +49,12 @@ rmrs.fragmemt.enableBorrowSplit=true
 ```ini
 rmrs.fragment.mustSamePlane=false
 rmrs.fragmemt.enableBorrowSplit=false
+```
+
+裸机redis场景下，需调整为：
+
+```ini
+rmrs.fault.simplified=true
 ```
 
 ### /etc/ubse/ubse_plugin_admission.conf
