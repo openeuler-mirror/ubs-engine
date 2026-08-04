@@ -322,8 +322,6 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
     status.decoderResult.clear();
     UbseMamiMemImportInfo mamiImportInfo{};
     SetMamiImportInfoByDecoderParam(chipDiePair, importDecoderParam, mamiImportInfo);
-    decoder::utils::DecoderEntryLoc loc{};
-    SetDecoderLocByMamiImportInfo(mamiImportInfo, loc);
     if (importDecoderParam.isHighSafety &&
         exportObmmInfo.size() != importDecoderParam.trustRingData.lendSignedDatas.size()) {
         UBSE_LOG_ERROR << "The size of of signed data is illegal.";
@@ -336,6 +334,8 @@ UbseResult ImportToAddDecoderEntry(const std::pair<uint32_t, uint32_t>& chipDieP
             token.emplace(UbseSignTokenBucket::GetInstance().Acquire());
         }
         SetMamiImportInfoByExportInfo(exportObmmInfo[i], mamiImportInfo);
+        decoder::utils::DecoderEntryLoc loc{};
+        SetDecoderLocByMamiImportInfo(mamiImportInfo, loc);
         UbseMamiMemImportResult importResult{};
         ubse::adapter_plugins::mti::UbseDecoderTrustRingData trustRingData{importDecoderParam.isHighSafety};
         if (importDecoderParam.isHighSafety) {
