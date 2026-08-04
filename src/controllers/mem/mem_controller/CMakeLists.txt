@@ -59,8 +59,7 @@ endforeach()
 
 target_include_directories(mem_plugin PRIVATE ${MEM_PLUGIN_INCLUDES})
 target_link_libraries(mem_plugin PUBLIC  ubse_controller_rpc ubse_controller_message ubse_controller_api
-        ubse_mem_controller_debt ubse_mem_scheduler ubse_mem_decoder_utils
-        PRIVATE ubse_message ubse_vsock_client)
+        ubse_mem_controller_debt ubse_mem_scheduler ubse_mem_decoder_utils)
 target_link_options(mem_plugin PRIVATE -Wl,--allow-shlib-undefined)
 set_target_properties(mem_plugin PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 

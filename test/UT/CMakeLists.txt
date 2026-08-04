@@ -66,6 +66,7 @@ target_link_libraries(${UT_BINARY} PUBLIC
         ssu_plugin
         ubse_ssu
         ubse_vip
+        ubse_vsock_client
 )
 
 target_link_libraries(${UT_BINARY} PUBLIC
