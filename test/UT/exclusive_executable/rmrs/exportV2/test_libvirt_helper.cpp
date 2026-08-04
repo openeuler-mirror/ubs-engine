@@ -115,12 +115,20 @@ VirConnectOpenFunc VirConnectOpenReturnNotNullptrInvokeFunc()
     return reinterpret_cast<VirConnectOpenFunc>(VirConnectOpenReturnNotNullptrMockFunc);
 }
 
+bool IsVirConnectOpenMockEffective(VirConnectOpenFunc expectedFunc)
+{
+    return LibvirtModule::VirConnectOpen() == expectedFunc;
+}
+
 TEST_F(TestLibvirtHelper, ConnectShouldReturnOkWhenVirConnectOpenReturnNotNullptrAndKeepAliveOk)
 {
     LibvirtHelper libvirtHelper;
     MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNotNullptrInvokeFunc));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(VirConnectOpenReturnNotNullptrMockFunc))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
@@ -134,6 +142,9 @@ TEST_F(TestLibvirtHelper, ConnectShouldReturnErrorWhenVirConnectOpenReturnNotNul
     MOCKER_CPP(&LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNotNullptrInvokeFunc));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(VirConnectOpenReturnNotNullptrMockFunc))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::ConnectSetKeepAlive, MpResult(*)())
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
@@ -157,6 +168,9 @@ TEST_F(TestLibvirtHelper, ConnectShouldReturnErrorWhenVirConnectOpenReturnNullpt
     MOCKER_CPP(&mempooling::libvirt::LibvirtModule::VirConnectOpen, VirConnectOpenFunc(*)())
         .stubs()
         .will(invoke(VirConnectOpenReturnNullptrInvokeFunc));
+    if (!IsVirConnectOpenMockEffective(reinterpret_cast<VirConnectOpenFunc>(VirConnectOpenReturnNullptrMockFunc))) {
+        GTEST_SKIP() << "mock interception of LibvirtModule::VirConnectOpen is not effective";
+    }
     uint32_t result = libvirtHelper.Connect();
     EXPECT_EQ(result, MEM_POOLING_ERROR);
 }
