@@ -264,7 +264,7 @@ std::vector<UBSE_ID_TYPE> UbseElectionCommMgr::GetConnectedMasterNodes() const
     return result;
 }
 
-std::unordered_map<UBSE_ID_TYPE, UBSE_ID_TYPE> UbseElectionCommMgr::GetInterManagementGroupLinkMap() const
+std::unordered_map<std::string, UBSE_ID_TYPE> UbseElectionCommMgr::GetInterManagementGroupLinkMap() const
 {
     std::shared_lock<std::shared_mutex> lock(interMgmtGroupLinkMtx_);
     return interMgmtGrpLinkMap_;

@@ -539,4 +539,54 @@ UbseResult UbseElectionModule::GetCurNodeGlobalTopoInfo(HaTopologyInfo &haTopolo
     }
     return BuildLocalGroupTopology(haTopology, role, myGroupId, isManaging);
 }
+
+std::vector<UBSE_ID_TYPE> UbseElectionModule::GetStaticNodeIdsInManageAndCascadeGroup(const std::string& nodeId)
+{
+    std::vector<UBSE_ID_TYPE> nodeIds;
+    auto nodeInfo = nodeMgr::GetUbseNodeById(nodeId);
+    if (nodeInfo.groupId == 0) {
+        UBSE_LOG_WARN << "[ELECTION] GetStaticNodeIdsInManageAndCascadeGroup: node group ID is 0";
+        return nodeIds;
+    }
+    auto &roleMgr = RoleMgr::GetInstance();
+    uint16_t managingGroupCount = roleMgr.GetManagingGroupCount();
+    if (managingGroupCount == 0) {
+        UBSE_LOG_WARN << "[ELECTION] GetStaticNodeIdsInManageAndCascadeGroup: managingGroupCount is 0";
+        return nodeIds;
+    }
+    auto groupMap = nodeMgr::GetAllNodesStoredByGroup();
+    std::string groupIdStr = std::to_string(nodeInfo.groupId);
+    if (roleMgr.IsManagingGroup(groupIdStr)) {
+        // 管理组节点 → 返回管理组 + 级联组
+        auto managingIt = groupMap.find(nodeInfo.groupId);
+        if (managingIt != groupMap.end()) {
+            for (const auto &node : managingIt->second) {
+                nodeIds.push_back(node.nodeId);
+            }
+        }
+        uint16_t cascadeGroupId = nodeInfo.groupId + managingGroupCount;
+        auto cascadeIt = groupMap.find(cascadeGroupId);
+        if (cascadeIt != groupMap.end()) {
+            for (const auto &node : cascadeIt->second) {
+                nodeIds.push_back(node.nodeId);
+            }
+        }
+    } else {
+        // 级联组节点 → 返回级联组 + 管理组
+        auto cascadeIt = groupMap.find(nodeInfo.groupId);
+        if (cascadeIt != groupMap.end()) {
+            for (const auto &node : cascadeIt->second) {
+                nodeIds.push_back(node.nodeId);
+            }
+        }
+        uint16_t managingGroupId = nodeInfo.groupId - managingGroupCount;
+        auto managingIt = groupMap.find(managingGroupId);
+        if (managingIt != groupMap.end()) {
+            for (const auto &node : managingIt->second) {
+                nodeIds.push_back(node.nodeId);
+            }
+        }
+    }
+    return nodeIds;
+}
 } // namespace ubse::election

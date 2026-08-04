@@ -574,17 +574,15 @@ void RoleMgr::InitManagingGroupCount()
 {
     auto nodesMap = nodeMgr::GetAllNodesStoredByGroup();
     uint16_t totalGroupCount = nodesMap.size();
-    // 校验总组数必须为偶数
-    if (totalGroupCount % NO_2 != 0) {
-        UBSE_LOG_ERROR << "[ELECTION] Invalid totalGroupCount=" << totalGroupCount
-                       << ", expected even number. Please check cluster configuration.";
-        managingGroupCount_ = 0;  // 无效值
+    if (totalGroupCount == 0) {
+        UBSE_LOG_ERROR << "[ELECTION] Invalid totalGroupCount=0, please check cluster configuration.";
+        managingGroupCount_ = 0;
         return;
     }
-
-    managingGroupCount_ = totalGroupCount / NO_2;
-    if (managingGroupCount_ == 0) {
-        managingGroupCount_ = 1;
+    if (totalGroupCount % NO_2 != 0) {
+        managingGroupCount_ = totalGroupCount / NO_2 + 1;
+    } else {
+        managingGroupCount_ = totalGroupCount / NO_2;
     }
     UBSE_LOG_INFO << "[ELECTION] InitManagingGroupCount: managingGroupCount_=" << managingGroupCount_
                   << ", totalGroupCount=" << totalGroupCount;
@@ -646,5 +644,10 @@ std::unordered_map<std::string, std::string> RoleMgr::ComputeDiscoveryTargets(co
         }
     }
     return result;
+}
+
+uint16_t RoleMgr::GetManagingGroupCount() const
+{
+    return managingGroupCount_;
 }
 } // namespace ubse::election
