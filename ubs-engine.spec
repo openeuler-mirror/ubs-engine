@@ -267,6 +267,11 @@ cp %{_builddir}/%{project_dir}/%{cmake_build_dir}/modules/bandbridge.ko %{buildr
 #install python-sdk
 %py3_install
 
+#install SEI sudoers
+mkdir -p %{buildroot}/etc/sudoers.d/
+cp %{_builddir}/%{project_dir}/scripts/rpm/ubse-sei-sudo %{buildroot}/etc/sudoers.d/ubse-sei
+chmod 440 %{buildroot}/etc/sudoers.d/ubse-sei
+
 
 %pre
 set -e
@@ -439,6 +444,8 @@ fi
 %config(noreplace) /etc/ubse/topo/*.json
 %defattr(644,root,root,-)
 /etc/bash_completion.d/cli_commands.sh
+%defattr(440,root,root,-)
+%config(noreplace) /etc/sudoers.d/ubse-sei
 %ifarch aarch64
 %defattr(644,root,root,755)
 %dir /lib/modules/ubse

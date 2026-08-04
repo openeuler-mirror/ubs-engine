@@ -28,3 +28,4 @@ __pycache__
 .omo
 .opencode/user.*
 code_review_report
+.codegraph/

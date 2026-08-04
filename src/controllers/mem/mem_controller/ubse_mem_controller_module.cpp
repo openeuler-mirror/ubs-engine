@@ -17,6 +17,7 @@
 #include "ubse_mem_controller_query_api.h"
 #include "ubse_mem_residual_decoder.h"
 #include "ubse_mem_rpc_processor.h"
+#include "ubse_mem_sei_degrade.h"
 #include "ubse_timer.h"
 #include "rpc/ubse_mem_controller_rpc_register.h"
 #include "rpc/ubse_mem_get_opt_result_handler.h"
@@ -211,6 +212,8 @@ UbseResult UbseMemControllerModule::Start()
             UBSE_LOG_ERROR << "[MEM_CONTROLLER] Failed to initialize mem fault handler.";
             return ret;
         }
+
+        UbseMemSeiDegradeManager::GetInstance().Init();
 
         ret = UbseMemGetOptResultHandler::RegUbseMemGetOptResultHandler();
         if (ret != UBSE_OK) {

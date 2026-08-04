@@ -25,6 +25,7 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_scheduler_impl.h"
+#include "ubse_mem_sei_degrade.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_node_controller_util.h"
@@ -765,6 +766,7 @@ uint32_t FdImportRunningHandler(UbseMemFdBorrowImportObj& importObj, const std::
     UBSE_LOG_INFO << "Success to import fd, name=" << name << ", requestId=" << importObj.req.requestId;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << importObj.req.importNodeId << " FdMemory Import "
                              << std::to_string(importObj.req.size) << " Bytes Success";
+    AsyncTryEnableSei();
     return UBSE_OK;
 }
 
@@ -845,6 +847,7 @@ uint32_t FdImportDestroyingAgentCallback(UbseMemFdBorrowImportObj& importObj, co
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseFdImport(importObj);
+        AsyncTryDisableSei();
     }
     if (auto ret = SendFdImportObj(importObj, false); ret != UBSE_OK) {
         auto exportNodeId =

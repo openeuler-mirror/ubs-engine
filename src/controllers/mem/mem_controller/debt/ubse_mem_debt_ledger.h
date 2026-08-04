@@ -478,6 +478,15 @@ public:
         }
     }
 
+    size_t GetNodeMapCount(const std::string& nodeId) const
+    {
+        auto nodePtr = FindNodeMap(nodeId);
+        if (!nodePtr) {
+            return 0;
+        }
+        return nodePtr->GetAll().size();
+    }
+
 private:
     mutable std::shared_mutex mutex_;
     NodeMap nodeMap_;
@@ -663,6 +672,16 @@ public:
         for (const auto& [name, obj] : nodeMemDebtInfo.addrExportObjMap) {
             GetDebtMap<UbseMemAddrBorrowExportObj>().PutResource(nodeId, name, obj);
         }
+    }
+
+    size_t GetNodeImportCount(const std::string& nodeId) const
+    {
+        size_t count = 0;
+        count += GetDebtMap<UbseMemFdBorrowImportObj>().GetNodeMapCount(nodeId);
+        count += GetDebtMap<UbseMemNumaBorrowImportObj>().GetNodeMapCount(nodeId);
+        count += GetDebtMap<UbseMemAddrBorrowImportObj>().GetNodeMapCount(nodeId);
+        count += GetDebtMap<UbseMemShareBorrowImportObj>().GetNodeMapCount(nodeId);
+        return count;
     }
 
 private:
