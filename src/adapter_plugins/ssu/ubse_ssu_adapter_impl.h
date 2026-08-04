@@ -13,6 +13,8 @@
 #ifndef UBSE_SSU_ADAPTER_IMPL_H
 #define UBSE_SSU_ADAPTER_IMPL_H
 
+#include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -29,7 +31,8 @@ using ubse::utils::UbseDlManager;
 
 constexpr int EID_SIZE = 16;
 constexpr int MAX_NAMESPACES_PER_CTRL = 64;
-constexpr uint32_t DEV_PATH_SIZE = 32;
+constexpr uint32_t DEV_PATH_SIZE = 128;
+constexpr uint32_t DEV_IP_SIZE = 46;   // 同 INET6_ADDRSTRLEN，IPv6 文本最长 45 + NUL
 constexpr uint32_t SUBNQN_SIZE = 32;
 constexpr uint32_t GUID_SIZE = 16;
 constexpr uint32_t UUID_SIZE = 16;
@@ -52,7 +55,7 @@ enum class DevStatusT : int {
 typedef struct {
     DevEidT srcEid;
     DevEidT tgtEid;
-    char *devIp;
+    char devIp[DEV_IP_SIZE];
     bool useUb;
     char subNqn[SUBNQN_SIZE];
     uint32_t jettyId;
@@ -155,6 +158,11 @@ private:
     void ConvertDevInfo(const DevInfoT& devInfo, UbseSsuDevInfo& info);
 
     uint32_t GetSrcEid(DevEidT &srcEid);
+
+    // 按EID从环境变量SSU_NVME_SERVER_IP_LIST（格式: IP:PORT/EID）一次性查找对应的IP和PORT，
+    // IP 通过 strncpy_s 写入 devIp[DEV_IP_SIZE]，PORT作为jettyId返回。
+    // 查到返回UBSE_OK并输出devIp/jettyId；未查到返回UBSE_ERROR（调用方可视场景决定是否容错）。
+    uint32_t GetDevAddrByEid(const std::string& eid, char devIp[DEV_IP_SIZE], uint32_t& jettyId);
 
     uint32_t BuildNamespaceInfoForCreate(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);
     uint32_t BuildNamespaceInfoForBasic(const UbseSsuDevNameSpace& nameSpace, DevNamespaceInfoT& nsInfo);

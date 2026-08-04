@@ -12,6 +12,7 @@
 
 #include "test_ubse_ssu_adapter_impl.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <securec.h>
 
@@ -97,12 +98,36 @@ void TestUbseSsuAdapterImpl::TearDown()
 
 TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_EmptyList)
 {
+    // 空列表时 BuildDevAddrList 会从环境变量 SSU_NVME_SERVER_IP_LIST 读取；
+    // 测试环境未设置该环境变量，因此应返回失败。
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::vector<UbseSsuDevInfo> ssuInfoList;
     std::vector<DevAddrT> devList;
     uint32_t ret = impl.BuildDevAddrList(ssuInfoList, devList);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_EmptyListReadsFromEnv)
+{
+    // 空列表时从环境变量 SSU_NVME_SERVER_IP_LIST 读取并构建 devList
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid1 = MakeEid('A');
+    std::string eid2 = MakeEid('B');
+    std::string entry = "192.168.1.10:8080/" + eid1 + ",192.168.1.11:9090/" + eid2;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    std::vector<UbseSsuDevInfo> ssuInfoList;
+    std::vector<DevAddrT> devList;
+    uint32_t ret = impl.BuildDevAddrList(ssuInfoList, devList);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
     EXPECT_EQ(ret, UBSE_OK);
-    EXPECT_EQ(devList.size(), 0u);
+    ASSERT_EQ(devList.size(), 2u);
+    EXPECT_EQ(memcmp(devList[0].tgtEid.raw, eid1.c_str(), EID_SIZE), 0);
+    EXPECT_EQ(std::string(devList[0].devIp), "192.168.1.10");
+    EXPECT_EQ(devList[0].jettyId, 8080u);
+    EXPECT_FALSE(devList[0].useUb);
+    EXPECT_EQ(memcmp(devList[1].tgtEid.raw, eid2.c_str(), EID_SIZE), 0);
+    EXPECT_EQ(std::string(devList[1].devIp), "192.168.1.11");
+    EXPECT_EQ(devList[1].jettyId, 9090u);
 }
 
 TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_SingleValidDev)
@@ -116,7 +141,8 @@ TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_SingleValidDev)
     ASSERT_EQ(devList.size(), 1u);
     EXPECT_EQ(memcmp(devList[0].tgtEid.raw, eid.c_str(), EID_SIZE), 0);
     EXPECT_EQ(std::string(devList[0].subNqn), "nqn.test");
-    EXPECT_EQ(devList[0].devIp, nullptr);
+    // devIp 是固定数组；环境变量未设置时 GetDevAddrByEid 查不到，devIp 保持空字符串
+    EXPECT_EQ(devList[0].devIp[0], 0);
     EXPECT_FALSE(devList[0].useUb);
 }
 
@@ -137,34 +163,25 @@ TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_MultipleValidDevs)
     EXPECT_EQ(memcmp(devList[1].tgtEid.raw, eid2.c_str(), EID_SIZE), 0);
 }
 
-TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_InvalidEidLength)
+TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_ShortEidCopiedSafely)
 {
+    // eid.size() < EID_SIZE 时按实际长度拷贝，剩余字节保持 0（不越界读取 eid 缓冲区）
     auto &impl = UbseSsuAdapterImpl::GetInstance();
-    std::vector<UbseSsuDevInfo> ssuInfoList = {MakeDevInfo("short_eid", "nqn.test")};
+    std::string shortEid = "short_eid"; // 9 字节 < EID_SIZE(16)
+    std::vector<UbseSsuDevInfo> ssuInfoList = {MakeDevInfo(shortEid, "nqn.test")};
     std::vector<DevAddrT> devList;
     uint32_t ret = impl.BuildDevAddrList(ssuInfoList, devList);
-    EXPECT_NE(ret, UBSE_OK);
+    EXPECT_EQ(ret, UBSE_OK);
+    ASSERT_EQ(devList.size(), 1u);
+    EXPECT_EQ(memcmp(devList[0].tgtEid.raw, shortEid.c_str(), shortEid.size()), 0);
+    // 尾部剩余字节应为 0
+    for (size_t i = shortEid.size(); i < EID_SIZE; ++i) {
+        EXPECT_EQ(devList[0].tgtEid.raw[i], 0);
+    }
 }
 
-TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_EmptySubNqn)
-{
-    auto &impl = UbseSsuAdapterImpl::GetInstance();
-    std::string eid = MakeEid('A');
-    std::vector<UbseSsuDevInfo> ssuInfoList = {MakeDevInfo(eid, "")};
-    std::vector<DevAddrT> devList;
-    uint32_t ret = impl.BuildDevAddrList(ssuInfoList, devList);
-    EXPECT_NE(ret, UBSE_OK);
-}
-
-TEST_F(TestUbseSsuAdapterImpl, BuildDevAddrList_EidTooLong)
-{
-    auto &impl = UbseSsuAdapterImpl::GetInstance();
-    std::string eid(EID_SIZE + 5, 'X');
-    std::vector<UbseSsuDevInfo> ssuInfoList = {MakeDevInfo(eid, "nqn.test")};
-    std::vector<DevAddrT> devList;
-    uint32_t ret = impl.BuildDevAddrList(ssuInfoList, devList);
-    EXPECT_NE(ret, UBSE_OK);
-}
+// 注：BuildDevAddrList 不再校验 EID 长度/subNqn 是否为空（校验已移至 BuildNamespaceInfoForCreate/Basic，
+// 由对应的 *InvalidEidLength*/*EmptySubNqn* 等用例覆盖），故不再保留此类用例。
 
 // ==================== BuildNamespaceInfoForCreate ====================
 
@@ -190,7 +207,8 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_ValidInput)
     EXPECT_EQ(nsInfo.baseAttr.anagrpid, 2u);
     EXPECT_EQ(nsInfo.baseAttr.nvmsetid, 3u);
     EXPECT_TRUE(nsInfo.baseAttr.nmic);
-    EXPECT_EQ(nsInfo.devAddr.devIp, nullptr);
+    // devIp 是固定数组；环境变量未设置时 GetDevAddrByEid 查不到，devIp 保持空字符串
+    EXPECT_EQ(nsInfo.devAddr.devIp[0], 0);
     EXPECT_FALSE(nsInfo.devAddr.useUb);
 }
 
@@ -245,14 +263,19 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_EidTooLong)
 
 TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForCreate_JettyIdSet)
 {
+    // jettyId 现在按 EID 从环境变量 SSU_NVME_SERVER_IP_LIST 查找得到，
+    // 不再从 ns.subSystem.jettyId 取值。设置环境变量以验证查找逻辑。
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::string eid = MakeEid('C');
+    std::string entry = "192.168.1.100:42/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
     auto ns = MakeNameSpaceForCreate(eid, "nqn.create", 1024, 512);
-    ns.subSystem.jettyId = 42;
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = impl.BuildNamespaceInfoForCreate(ns, nsInfo);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(nsInfo.devAddr.jettyId, 42u);
+    EXPECT_EQ(std::string(nsInfo.devAddr.devIp), "192.168.1.100");
 }
 
 // ==================== BuildNamespaceInfoForBasic ====================
@@ -268,7 +291,8 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_ValidInput)
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(nsInfo.namespaceId, 1u);
     EXPECT_EQ(memcmp(nsInfo.devAddr.tgtEid.raw, eid.c_str(), EID_SIZE), 0);
-    EXPECT_EQ(nsInfo.devAddr.devIp, nullptr);
+    // devIp 是固定数组；环境变量未设置时 GetDevAddrByEid 查不到，devIp 保持空字符串
+    EXPECT_EQ(nsInfo.devAddr.devIp[0], 0);
     EXPECT_FALSE(nsInfo.devAddr.useUb);
 }
 
@@ -325,14 +349,19 @@ TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_EmptyGuid)
 
 TEST_F(TestUbseSsuAdapterImpl, BuildNamespaceInfoForBasic_JettyIdSet)
 {
+    // jettyId 现在按 EID 从环境变量 SSU_NVME_SERVER_IP_LIST 查找得到，
+    // 不再从 ns.subSystem.jettyId 取值。设置环境变量以验证查找逻辑。
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::string eid = MakeEid('D');
+    std::string entry = "192.168.2.200:99/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
     auto ns = MakeNameSpaceForBasic(eid, "nqn.basic", 5, "guid");
-    ns.subSystem.jettyId = 99;
     DevNamespaceInfoT nsInfo{};
     uint32_t ret = impl.BuildNamespaceInfoForBasic(ns, nsInfo);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
     EXPECT_EQ(ret, UBSE_OK);
     EXPECT_EQ(nsInfo.devAddr.jettyId, 99u);
+    EXPECT_EQ(std::string(nsInfo.devAddr.devIp), "192.168.2.200");
 }
 
 // ==================== ConvertDevInfo ====================
@@ -483,6 +512,155 @@ TEST_F(TestUbseSsuAdapterImpl, GetSrcEid_Success)
     for (int i = 0; i < EID_SIZE; ++i) {
         EXPECT_EQ(srcEid.raw[i], 0);
     }
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetSrcEid_WithEnvVar)
+{
+    // 设置 SSU_SRC_EID 时应将其内容拷贝到 srcEid.raw
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string srcEidStr = MakeEid('Z');
+    setenv("SSU_SRC_EID", srcEidStr.c_str(), 1);
+    DevEidT srcEid{};
+    memset_s(srcEid.raw, EID_SIZE, 0, EID_SIZE);
+    uint32_t ret = impl.GetSrcEid(srcEid);
+    unsetenv("SSU_SRC_EID");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(memcmp(srcEid.raw, srcEidStr.c_str(), EID_SIZE), 0);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetSrcEid_TruncatedWhenTooLong)
+{
+    // SSU_SRC_EID 超过 EID_SIZE 时应按 EID_SIZE 截断拷贝
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string longEid(EID_SIZE + 10, 'Z');
+    setenv("SSU_SRC_EID", longEid.c_str(), 1);
+    DevEidT srcEid{};
+    memset_s(srcEid.raw, EID_SIZE, 0xFF, EID_SIZE);
+    uint32_t ret = impl.GetSrcEid(srcEid);
+    unsetenv("SSU_SRC_EID");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(memcmp(srcEid.raw, longEid.c_str(), EID_SIZE), 0);
+}
+
+// ==================== GetDevAddrByEid ====================
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_Success)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('A');
+    std::string entry = "192.168.1.10:8080/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(std::string(devIp), "192.168.1.10");
+    EXPECT_EQ(jettyId, 8080u);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_EnvNotSet)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    std::string eid = MakeEid('A');
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 999;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    EXPECT_NE(ret, UBSE_OK);
+    // 入口处 devIp/jettyId 被重置为 0
+    EXPECT_EQ(devIp[0], 0);
+    EXPECT_EQ(jettyId, 0u);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_EidNotFound)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid1 = MakeEid('A');
+    std::string eid2 = MakeEid('B');
+    std::string entry = "192.168.1.10:8080/" + eid1;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid2, devIp, jettyId); // 查找 B，仅存在 A
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_MultipleEntriesMatchSecond)
+{
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid1 = MakeEid('A');
+    std::string eid2 = MakeEid('B');
+    std::string entry = "10.0.0.1:1/" + eid1 + ",10.0.0.2:2/" + eid2;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid2, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(std::string(devIp), "10.0.0.2");
+    EXPECT_EQ(jettyId, 2u);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_SkipsMalformedEntries)
+{
+    // 单条格式错误应被跳过继续查找：第一条畸形（无 /EID），第二条匹配目标 EID，应成功
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('A');
+    std::string entry = "bad_entry,10.0.0.2:2/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(std::string(devIp), "10.0.0.2");
+    EXPECT_EQ(jettyId, 2u);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_InvalidEntryMissingSlash)
+{
+    // 条目缺少 /EID 分隔符，ParseSsuIpEntry 失败被跳过；列表中无匹配 EID，返回失败
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('A');
+    setenv("SSU_NVME_SERVER_IP_LIST", "192.168.1.10:8080", 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_NE(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_Ipv6Address)
+{
+    // IPv6 地址用 rfind(':') 分离 IP 与 PORT，应正确解析
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('A');
+    std::string entry = "[2001:db8::1]:443/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_EQ(ret, UBSE_OK);
+    EXPECT_EQ(std::string(devIp), "[2001:db8::1]");
+    EXPECT_EQ(jettyId, 443u);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, GetDevAddrByEid_IpTooLong)
+{
+    // IP 长度 >= DEV_IP_SIZE 时应返回失败
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::string eid = MakeEid('A');
+    std::string longIp(DEV_IP_SIZE + 5, 'x');
+    std::string entry = longIp + ":8080/" + eid;
+    setenv("SSU_NVME_SERVER_IP_LIST", entry.c_str(), 1);
+    char devIp[DEV_IP_SIZE] = {0};
+    uint32_t jettyId = 0;
+    uint32_t ret = impl.GetDevAddrByEid(eid, devIp, jettyId);
+    unsetenv("SSU_NVME_SERVER_IP_LIST");
+    EXPECT_NE(ret, UBSE_OK);
 }
 
 // ==================== ValidatePersistentPaths ====================
@@ -727,6 +905,17 @@ TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_Raid5InvalidPath)
     EXPECT_NE(ret, UBSE_OK);
 }
 
+TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_InvalidDeviceNameRejected)
+{
+    // deviceName 含 shell 元字符应被白名单校验拦截，防止命令注入
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-eui.0011223344556677"};
+    UbseCreateBlockDeviceOptions opts;
+    std::string devicePath;
+    uint32_t ret = impl.CreateBlockDevice("test;rm -rf /", paths, opts, devicePath);
+    EXPECT_NE(ret, UBSE_OK);
+}
+
 // ==================== DeleteBlockDevice ====================
 
 TEST_F(TestUbseSsuAdapterImpl, DeleteBlockDevice_NonExistentDevice)
@@ -734,6 +923,14 @@ TEST_F(TestUbseSsuAdapterImpl, DeleteBlockDevice_NonExistentDevice)
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     uint32_t ret = impl.DeleteBlockDevice("nonexistent_device_12345");
     EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, DeleteBlockDevice_InvalidDeviceNameRejected)
+{
+    // deviceName 含 shell 元字符应被白名单校验拦截，防止命令注入
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    uint32_t ret = impl.DeleteBlockDevice("test;rm -rf /");
+    EXPECT_NE(ret, UBSE_OK);
 }
 
 // ==================== VerifyNamespaceGuid ====================
@@ -978,6 +1175,15 @@ TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_OnlyByIdPrefix)
     std::vector<std::string> paths = {"/dev/disk/by-id/"};
     uint32_t ret = impl.ValidatePersistentPaths(paths);
     EXPECT_EQ(ret, UBSE_OK);
+}
+
+TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_UnsafeCharsRejected)
+{
+    // 前缀合法但含 shell 元字符（;）应被拒绝，防止命令注入
+    auto &impl = UbseSsuAdapterImpl::GetInstance();
+    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-eui.0011223344556677;rm -rf /"};
+    uint32_t ret = impl.ValidatePersistentPaths(paths);
+    EXPECT_NE(ret, UBSE_OK);
 }
 
 // ==================== ConvertDevInfo Namespace with userData ====================

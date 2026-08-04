@@ -14,7 +14,6 @@
 #include "ubse_logger.h"
 
 namespace ubse::utils {
-UBSE_DEFINE_THIS_MODULE("ubse");
 
 UbseDlManager::UbseDlManager(std::string libPath) : libPath_(std::move(libPath)) {}
 
@@ -36,7 +35,7 @@ UbseResult UbseDlManager::Open()
     }
 
     dlerror();
-    handle_ = dlopen(libPath_.c_str(), RTLD_LAZY);
+    handle_ = dlopen(libPath_.c_str(), RTLD_LAZY|RTLD_LOCAL);
     if (handle_ == nullptr) {
         const char *err = dlerror();
         UBSE_LOG_ERROR << "Failed to load " << libPath_ << ": " << (err ? err : "unknown error");
