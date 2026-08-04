@@ -21,22 +21,19 @@
 
 #include "test_ubse_cli_ssu_mock_invoke.h"
 #include "ubse_cli_ssu_cmd_reg.h"
-#include "ubse_com_op_code.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
+#include "ubse_ipc_common.h"
 
 namespace ubse::ut::cli {
 using namespace ubse::cli::framework;
 using namespace ubse::cli::reg;
 using namespace ubse::plugin::service::ssu;
-using ubse::com::UbseModuleCode;
-using ubse::com::UbseSsuOpCode;
-
 namespace {
 constexpr uint64_t GIB = 1024ULL * 1024ULL * 1024ULL;
-constexpr uint16_t SSU_MODULE_CODE = static_cast<uint16_t>(UbseModuleCode::UBSE_SSU);
+constexpr uint16_t SSU_MODULE_CODE = static_cast<uint16_t>(UBSE_SSU);
 
-constexpr uint16_t SsuOpCode(UbseSsuOpCode opCode)
+constexpr uint16_t SsuOpCode(ubse_ipc_ssu_op_code_t opCode)
 {
     return static_cast<uint16_t>(opCode);
 }
@@ -206,7 +203,7 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsInfoWhenEmpty)
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_empty));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}}), INFO_EMPTY);
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_LIST_ALLOC_INFO));
 }
 
 // 摘要表正向内容校验：表头列名与各分配的 name/size/strategy 均应出现在输出中。
@@ -291,7 +288,7 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailSerializesNameAndUsesDetailOpcode)
     auto result = UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams());
     EXPECT_NE(result, nullptr);
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetailReq.name, "alloc-space-1");
 }
@@ -518,7 +515,7 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAppliesDefaults)
     auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams());
     EXPECT_NE(result, nullptr);
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ALLOC_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastCreateReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastCreateReq.nsSize, 10ULL * GIB);
@@ -579,8 +576,8 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRequestUsesEmptyBody)
     uint8_t nonEmptyRequest = 0;
     ubse_api_buffer_t reqBuffer{&nonEmptyRequest, sizeof(nonEmptyRequest)};
     ubse_api_buffer_t resBuffer{};
-    EXPECT_EQ(mock_ssu_alloc_summary_invoke_call_empty(
-                  SSU_MODULE_CODE, SsuOpCode(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ), &reqBuffer, &resBuffer),
+    EXPECT_EQ(mock_ssu_alloc_summary_invoke_call_empty(SSU_MODULE_CODE, SsuOpCode(UBSE_IPC_SSU_LIST_ALLOC_INFO),
+                                                       &reqBuffer, &resBuffer),
               UBSE_OK);
     EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
     std::free(resBuffer.buffer);
@@ -620,7 +617,7 @@ TEST_F(TestUbseCliSsuCmdReg, AttachSpaceSerializesEmptyOptionalHostNqnAndSrcEid)
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
     ExpectAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams()));
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastAttachSpaceReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastAttachSpaceReq.hostNqn, "");
@@ -719,7 +716,7 @@ TEST_F(TestUbseCliSsuCmdReg, AttachLinearSerializesRequestAndPrintsPaths)
     params["src_eid"] = "eid-1234";
     ExpectAggregatedAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params));
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_LINEAR_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastAttachLinearReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastAttachLinearReq.hostNqn, "nqn.2026-07.com.huawei:host1");
@@ -766,7 +763,7 @@ TEST_F(TestUbseCliSsuCmdReg, AttachStripedSerializesRequestAndPrintsPaths)
     params["src_eid"] = "eid-1234";
     ExpectAggregatedAttachOutput(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params));
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_STRIPED_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastAttachStripedReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastAttachStripedReq.hostNqn, "nqn.2026-07.com.huawei:host1");
@@ -820,7 +817,7 @@ TEST_F(TestUbseCliSsuCmdReg, DetachSpaceSerializesRequestAndReturnsEmptyOutput)
     params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
     EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetachSpaceReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastDetachSpaceReq.hostNqn, "nqn.2026-07.com.huawei:host1");
@@ -877,7 +874,8 @@ TEST_F(TestUbseCliSsuCmdReg, DetachLinearUsesLinearOpcodeAndReturnsEmptyOutput)
     params["type"] = "Linear";
     params["dev_name"] = "ssu-linear.0";
     EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_LINEAR_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetachLinearReq.devName, "ssu-linear.0");
     EXPECT_TRUE(g_ssuMockLastDetachLinearReq.srcEid.empty());
@@ -893,7 +891,7 @@ TEST_F(TestUbseCliSsuCmdReg, DetachStripedUsesStripedOpcodeAndReturnsEmptyOutput
     params["host_nqn"] = "nqn.2026-07.com.huawei:host1";
     EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
     EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
-    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ));
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_STRIPED_SPACE));
     EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
     EXPECT_EQ(g_ssuMockLastDetachStripedReq.name, "alloc-space-1");
     EXPECT_EQ(g_ssuMockLastDetachStripedReq.hostNqn, "nqn.2026-07.com.huawei:host1");

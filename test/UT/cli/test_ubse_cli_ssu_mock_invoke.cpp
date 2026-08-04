@@ -16,13 +16,12 @@
 #include <cstring>
 #include <utility>
 
-#include "ubse_com_op_code.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 #include "ubse_pack_util.h"
 
 using namespace ubse::cli::reg;
 using namespace ubse::plugin::service::ssu;
-using ubse::com::UbseSsuOpCode;
 using ubse::utils::UbsePackUtil;
 using ubse::utils::UbseUnpackUtil;
 
@@ -58,7 +57,7 @@ void ResetSsuMockCapture()
 namespace {
 constexpr uint32_t MAX_STRING_LEN = 1024;
 
-constexpr uint16_t SsuOpCode(UbseSsuOpCode opCode)
+constexpr uint16_t SsuOpCode(ubse_ipc_ssu_op_code_t opCode)
 {
     return static_cast<uint16_t>(opCode);
 }
@@ -283,7 +282,7 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
     if (requestData->buffer != nullptr && requestData->length != 0) {
         g_ssuMockLastRequestPayload.assign(requestData->buffer, requestData->buffer + requestData->length);
     }
-    if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ)) {
+    if (opCode == SsuOpCode(UBSE_IPC_SSU_LIST_ALLOC_INFO)) {
         g_ssuMockLastRequestDeserialized = requestData->buffer == nullptr && requestData->length == 0;
         return;
     }
@@ -292,35 +291,35 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
     }
 
     UbseUnpackUtil unpack(requestData->buffer, requestData->length);
-    if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ)) {
+    if (opCode == SsuOpCode(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME)) {
         g_ssuMockLastRequestDeserialized = unpack.UnpackString(g_ssuMockLastDetailReq.name, SSU_CLI_WIRE_MAX_NAME_LENGTH);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_ALLOC_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ALLOC_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackCreate(unpack, g_ssuMockLastCreateReq);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastAttachSpaceReq.name,
                                                        g_ssuMockLastAttachSpaceReq.hostNqn,
                                                        g_ssuMockLastAttachSpaceReq.srcEid);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ATTACH_LINEAR_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastAttachLinearReq.name,
                                                        g_ssuMockLastAttachLinearReq.hostNqn,
                                                        g_ssuMockLastAttachLinearReq.srcEid) &&
                                            unpack.UnpackString(g_ssuMockLastAttachLinearReq.devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ATTACH_STRIPED_SPACE)) {
         g_ssuMockLastRequestDeserialized =
             UnpackSpace(unpack, g_ssuMockLastAttachStripedReq.name, g_ssuMockLastAttachStripedReq.hostNqn,
                         g_ssuMockLastAttachStripedReq.srcEid) &&
             unpack.UnpackString(g_ssuMockLastAttachStripedReq.devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH) &&
             UnpackStripedTail(unpack, g_ssuMockLastAttachStripedReq.level, g_ssuMockLastAttachStripedReq.chunkSize);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_DETACH_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastDetachSpaceReq.name,
                                                        g_ssuMockLastDetachSpaceReq.hostNqn,
                                                        g_ssuMockLastDetachSpaceReq.srcEid);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_DETACH_LINEAR_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackSpace(unpack, g_ssuMockLastDetachLinearReq.name,
                                                        g_ssuMockLastDetachLinearReq.hostNqn,
                                                        g_ssuMockLastDetachLinearReq.srcEid) &&
                                            unpack.UnpackString(g_ssuMockLastDetachLinearReq.devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH);
-    } else if (opCode == SsuOpCode(UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ)) {
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_DETACH_STRIPED_SPACE)) {
         g_ssuMockLastRequestDeserialized =
             UnpackSpace(unpack, g_ssuMockLastDetachStripedReq.name, g_ssuMockLastDetachStripedReq.hostNqn,
                         g_ssuMockLastDetachStripedReq.srcEid) &&

@@ -19,13 +19,10 @@
 #include "ubse_cli_buffer_guard.h"
 #include "ubse_cli_ssu_limits.h"
 #include "ubse_cli_ssu_struct.h"
-#include "ubse_com_op_code.h"
 #include "ubse_error.h"
+#include "ubse_ipc_common.h"
 
 namespace ubse::cli::reg {
-using ubse::com::UbseModuleCode;
-using ubse::com::UbseSsuOpCode;
-
 // 向 CLI 框架注册 SSU 模块：框架在加载期通过宏收集模块类，统一调度命令字分发。
 // "CLI_SSU_MODULE" 为模块唯一标识，UbseCliRegSsuModule 为负责 display/create ssu 命令的实现类。
 UBSE_CLI_REGISTER_MODULE("CLI_SSU_MODULE", UbseCliRegSsuModule);
@@ -161,7 +158,7 @@ std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachSpace
 std::shared_ptr<UbseCliResultEcho> BuildAttachOutput(const UbseCliSsuAttachAggregatedRsp &response);
 
 template <typename PostCall>
-std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op,
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
                                                 const ubse_api_buffer_t &reqBuffer, PostCall postCall)
 {
     ubse_api_buffer_t resBuffer{};
@@ -176,8 +173,8 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOp
 
 // 请求 payload 在同步 ubse_invoke_call 返回前由本函数的 vector 持有。
 template <typename ReqT, typename RspT, typename BuildOutput>
-std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request,
-                                                BuildOutput buildOutput)
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                const ReqT &request, BuildOutput buildOutput)
 {
     std::vector<uint8_t> payload;
     if (!request.Serialize(payload)) {
@@ -196,7 +193,8 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOp
 
 // 无请求体、有响应体：内部生成长度为 0 的请求，不创建伪序列化协议头。
 template <typename RspT, typename BuildOutput>
-std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, BuildOutput buildOutput)
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                BuildOutput buildOutput)
 {
     const ubse_api_buffer_t reqBuffer{nullptr, 0};
     return InvokeSsuIpc(module, op, reqBuffer,
@@ -211,7 +209,8 @@ std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOp
 
 // 有请求体、无响应体：默认序列化请求，IPC 成功后直接返回空输出。
 template <typename ReqT>
-std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(UbseModuleCode module, UbseSsuOpCode op, const ReqT &request)
+std::shared_ptr<UbseCliResultEcho> InvokeSsuIpc(ubse_ipc_module_code_t module, ubse_ipc_ssu_op_code_t op,
+                                                const ReqT &request)
 {
     std::vector<uint8_t> payload;
     if (!request.Serialize(payload)) {
@@ -234,7 +233,7 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachSpace(const std::map<std::string,
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
     request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
     return InvokeSsuIpc<UbseCliSsuAttachSpaceReq, UbseCliSsuAttachSpaceRsp>(
-        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_SPACE_REQ, request,
+        UBSE_SSU, UBSE_IPC_SSU_ATTACH_SPACE, request,
         [](const UbseCliSsuAttachSpaceRsp &response) { return BuildAttachOutput(response); });
 }
 
@@ -257,7 +256,7 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachLinear(const std::map<std::string
     request.srcEid = GetOptionalValue(params, SRC_EID_OPT);
     request.devName = devName->second;
     return InvokeSsuIpc<UbseCliSsuAttachLinearReq, UbseCliSsuAttachAggregatedRsp>(
-        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_LINEAR_SPACE_REQ, request,
+        UBSE_SSU, UBSE_IPC_SSU_ATTACH_LINEAR_SPACE, request,
         [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
 }
 
@@ -292,7 +291,7 @@ std::shared_ptr<UbseCliResultEcho> HandleAttachStriped(const std::map<std::strin
         return UbseCliRegModule::UbseCliStringPromptReply(ERR_INVALID_CHUNK_SIZE);
     }
     return InvokeSsuIpc<UbseCliSsuAttachStripedReq, UbseCliSsuAttachAggregatedRsp>(
-        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ATTACH_STRIPED_SPACE_REQ, request,
+        UBSE_SSU, UBSE_IPC_SSU_ATTACH_STRIPED_SPACE, request,
         [](const UbseCliSsuAttachAggregatedRsp &response) { return BuildAttachOutput(response); });
 }
 
@@ -305,7 +304,7 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachSpace(const std::map<std::string,
     UbseCliSsuDetachSpaceReq request;
     request.name = params.at(NAME_OPT);
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
-    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_SPACE_REQ, request);
+    return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_SPACE, request);
 }
 
 std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::string, std::string> &params,
@@ -325,14 +324,14 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::st
         request.name = params.at(NAME_OPT);
         request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
         request.devName = devName->second;
-        return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_LINEAR_SPACE_REQ, request);
+        return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_LINEAR_SPACE, request);
     }
 
     UbseCliSsuDetachStripedReq request;
     request.name = params.at(NAME_OPT);
     request.hostNqn = GetOptionalValue(params, HOST_NQN_OPT);
     request.devName = devName->second;
-    return InvokeSsuIpc(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_DETACH_STRIPED_SPACE_REQ, request);
+    return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_DETACH_STRIPED_SPACE, request);
 }
 } // namespace
 
@@ -424,7 +423,7 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
 // 摘要查询：空列表返回 INFO 提示而非空表，避免用户误判为故障。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocSummary()
 {
-    return InvokeSsuIpc<UbseCliSsuAllocListRsp>(UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ,
+    return InvokeSsuIpc<UbseCliSsuAllocListRsp>(UBSE_SSU, UBSE_IPC_SSU_LIST_ALLOC_INFO,
                                                 [](const UbseCliSsuAllocListRsp &response) {
                                                     if (response.allocations.empty()) {
                                                         return UbseCliRegModule::UbseCliStringPromptReply(INFO_EMPTY);
@@ -447,8 +446,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::DisplayAllocDetail(
 
     UbseCliSsuAllocDetailReq request;
     request.name = name->second;
-    return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocResult>(
-        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ, request, BuildDetailOutput);
+    return InvokeSsuIpc<UbseCliSsuAllocDetailReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME,
+                                                                         request, BuildDetailOutput);
 }
 
 // create ssu 入口：按"必填校验 → 格式校验 → 序列化 → IPC → 回显"顺序推进，
@@ -485,8 +484,8 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
         strategy != params.end() && !ParseStrategy(strategy->second, request.strategy)) {
         return UbseCliStringPromptReply(ERR_INVALID_STRATEGY);
     }
-    return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(
-        UbseModuleCode::UBSE_SSU, UbseSsuOpCode::UBSE_SSU_ALLOC_REQ, request, BuildDetailOutput);
+    return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_ALLOC_SPACE, request,
+                                                                         BuildDetailOutput);
 }
 
 // attach ssu 入口：通用参数先校验，随后按 --type 拆分普通/Linear/Striped 三类请求和响应。
