@@ -766,7 +766,7 @@ uint32_t UbseMemControllerDispatcher::MemShmCreateDispatcher(const UbseIpcMessag
 
     if (ret != UBSE_OK) {
         if (reqSimpoPtr != nullptr) {
-            auto req = reqSimpoPtr->GetUbseMemShareBorrowReq();
+            auto req = reqSimpoPtr->GetUbseMesgInfo();
             BorrowFailedAdvice(
                 {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         }
@@ -924,7 +924,7 @@ uint32_t UbseMemControllerDispatcher::MemShmAttachDispatcher(const UbseIpcMessag
 
     if (ret != UBSE_OK) {
         if (reqSimpoPtr != nullptr) {
-            auto req = reqSimpoPtr->GetUbseMemShareAttachReq();
+            auto req = reqSimpoPtr->GetUbseMesgInfo();
             BorrowFailedAdvice(
                 {MemFault::BORROW_REQ_SEND_FAILED, req.name, MemType::SHM, req.size, "", "", req.requestNodeId});
         }
@@ -1143,7 +1143,7 @@ uint32_t UbseMemControllerDispatcher::MemShmDetachDispatcher(const UbseIpcMessag
 
     if (ret != UBSE_OK) {
         if (reqSimpoPtr != nullptr) {
-            auto req = reqSimpoPtr->GetUbseMemShareDetachReq();
+            auto req = reqSimpoPtr->GetUbseMesgInfo();
             BorrowFailedAdvice(
                 {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         }
@@ -1186,7 +1186,7 @@ uint32_t UbseMemControllerDispatcher::MemShmReturnDispatcher(const UbseIpcMessag
 
     if (ret != UBSE_OK) {
         if (reqSimpoPtr != nullptr) {
-            auto req = reqSimpoPtr.Get()->GetUbseMemReturnReq();
+            auto req = reqSimpoPtr.Get()->GetUbseMesgInfo();
             BorrowFailedAdvice(
                 {MemFault::RETURN_REQ_SEND_FAILED, req.name, MemType::SHM, 0, "", "", req.requestNodeId});
         }
