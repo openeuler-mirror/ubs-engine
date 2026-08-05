@@ -111,6 +111,9 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_context
         ubse_plugin
         ubse_mti
+        ubse_mmi
+        ubse_vsock_client
+        mem_controller_adapter
         ubse_net_util_it_mock
         ubse_utils
         ubse_node_controller_register_config
@@ -133,7 +136,6 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_urma_uvs
         ubse_urma_controller
         npu_controller
-        ubse_controller
         ubse_vip
         ubse_node_mgr
 )
@@ -162,6 +164,7 @@ add_dependencies(ubse_it_runtime
     urma_uvs_stub
     xalarm_stub
     mock_plugin
+    mem_plugin
 )
 
 # =====================================================
