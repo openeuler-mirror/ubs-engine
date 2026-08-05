@@ -95,7 +95,10 @@ add_executable(ubse_it_daemon EXCLUDE_FROM_ALL
     ${IT_DAEMON_SOURCES}
 )
 
-# mock SMBIOS must appear first in link order so its symbols override real ones
+# mock libraries must appear first in link order so their symbols override real ones.
+# Libraries containing module registration static variables / __attribute__((constructor))
+# must be linked with --whole-archive to prevent the linker from discarding them.
+# This mirrors the ubse target's link strategy in src/CMakeLists.txt.
 target_link_libraries(ubse_it_daemon PRIVATE
         -Wl,--whole-archive
         ubse_smbios_mock
@@ -104,20 +107,24 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_com_engine_it_mock
         ubse_capability_it_stub
         ubse_npu_controller_it_mock
+        ubse_it_module_registrar
+        ubse_context
+        ubse_plugin
+        ubse_mti
+        ubse_net_util_it_mock
+        ubse_utils
+        ubse_node_controller_register_config
+        ubse_node_controller
+        ubse_ras
         -Wl,--no-whole-archive
         ubse_security
-        ubse_context
         ubse_config
         ubse_com
         ubse_event
         ubse_storage
         ubse_log
-        ubse_plugin
         ubse_http
         ubse_election
-        ubse_mti
-        ubse_node_controller
-        ubse_ras
         syssentry
         cert_api_static
         api_server
@@ -127,9 +134,8 @@ target_link_libraries(ubse_it_daemon PRIVATE
         ubse_urma_controller
         npu_controller
         ubse_controller
-        -Wl,--whole-archive
-        ubse_node_controller_register_config
-        -Wl,--no-whole-archive
+        ubse_vip
+        ubse_node_mgr
 )
 
 # Duplicate symbols are expected: mock vs real ubse_smbios. Linker uses first occurrence.
@@ -140,7 +146,10 @@ target_link_options(ubse_it_daemon PRIVATE
 )
 
 target_compile_options(ubse_it_daemon PRIVATE ${DEBUG_FLAGS})
-target_include_directories(ubse_it_daemon PRIVATE ${CMAKE_BINARY_DIR}/rpc)
+target_include_directories(ubse_it_daemon PRIVATE
+    ${CMAKE_BINARY_DIR}/rpc
+    ${PROJECT_SOURCE_DIR}/src/framework/node_mgr
+)
 add_dependencies(ubse_it_daemon ubse_it_node_launcher)
 
 add_custom_target(ubse_it_runtime)
@@ -185,6 +194,7 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_two_nodes
     tongsuan_1d_two_nodes_election_candidate_false
     tongsuan_1d_four_nodes
+    tongsuan_clos_eight_nodes
     zhisuan_npu_single_node
 )
 

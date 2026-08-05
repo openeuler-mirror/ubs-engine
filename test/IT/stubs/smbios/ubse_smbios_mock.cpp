@@ -18,10 +18,10 @@
  * daemon binary) via --whole-archive to override the real ubse_smbios symbols.
  *
  * Environment variables (read ONLY by this stub, never by business code):
- *   UBSE_IT_MESH_TYPE    - 组网类型 ("1"=FULL_MESH, "8"=CLOS)
- *   UBSE_IT_POD_ID       - 超节点ID (e.g. "1")
- *   UBSE_IT_SUPER_POD_ID - 二层超节点ID (e.g. "1")
- *   UBSE_IT_SERVER_IDX   - 服务器索引 (e.g. "0")
+ *   UBSE_IT_MESH_TYPE    - 组网类型 ("128"=FULL_MESH, "129"=CLOS)
+ *   UBSE_IT_POD_ID       - 超节点ID (CLOS 下为 0)
+ *   UBSE_IT_SUPER_POD_ID - 二层超节点ID (CLOS 下 1..N，逐节点递增)
+ *   UBSE_IT_SERVER_IDX   - 服务器索引 (CLOS 下 0..N-1，nodeId=serverIdx+1)
  *
  * BUSINESS CODE IS NEVER MODIFIED. All IT-specific behavior is in this file only.
  */
@@ -41,13 +41,14 @@ static int32_t GetEnvInt(const char* var, int32_t defaultVal)
 
 uint32_t UbseSmbios::GetMeshType(UbseMeshType& meshType)
 {
-    meshType = static_cast<UbseMeshType>(GetEnvInt("UBSE_IT_MESH_TYPE", 1));
+    meshType = static_cast<UbseMeshType>(GetEnvInt("UBSE_IT_MESH_TYPE", static_cast<int32_t>(UbseMeshType::FULL_MESH)));
     return UBSE_OK;
 }
 
 bool UbseSmbios::IsClosType()
 {
-    return static_cast<UbseMeshType>(GetEnvInt("UBSE_IT_MESH_TYPE", 1)) == UbseMeshType::CLOS;
+    return static_cast<UbseMeshType>(GetEnvInt("UBSE_IT_MESH_TYPE", static_cast<int32_t>(UbseMeshType::FULL_MESH))) ==
+           UbseMeshType::CLOS;
 }
 
 uint32_t UbseSmbios::GetSuperPodId(uint16_t& superPodId)
@@ -58,7 +59,7 @@ uint32_t UbseSmbios::GetSuperPodId(uint16_t& superPodId)
 
 uint32_t UbseSmbios::GetPodId(uint16_t& podId)
 {
-    podId = static_cast<uint16_t>(GetEnvInt("UBSE_IT_POD_ID", 1));
+    podId = static_cast<uint16_t>(GetEnvInt("UBSE_IT_POD_ID", 0));
     return UBSE_OK;
 }
 

@@ -86,9 +86,18 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     environment.emplace_back("UBSE_IT_LOG_PATH=" + workDir_ + "/log");
     environment.emplace_back(ubse::common::def::UBSE_HCOM_FILE_PATH_PREFIX + "=" + workDir_ + "/hcom");
     environment.emplace_back("UBSE_IT_MESH_TYPE=" + std::to_string(meshType_));
-    environment.emplace_back("UBSE_IT_POD_ID=1");
+    // CLOS: podId=0, superPodId=1, serverIdx=nodeId-1 (逐节点递增)
+    // FULL_MESH: podId/superPodId/serverIdx 保持默认即可
+    environment.emplace_back("UBSE_IT_POD_ID=0");
     environment.emplace_back("UBSE_IT_SUPER_POD_ID=1");
-    environment.emplace_back("UBSE_IT_SERVER_IDX=0");
+    // nodeId 从 1 开始，serverIdx 从 0 开始：serverIdx = nodeId - 1
+    uint32_t serverIdx = 0;
+    try {
+        serverIdx = static_cast<uint32_t>(std::stoul(nodeId_)) - 1;
+    } catch (...) {
+        serverIdx = 0;
+    }
+    environment.emplace_back("UBSE_IT_SERVER_IDX=" + std::to_string(serverIdx));
     if (!sceneType_.empty()) {
         environment.emplace_back("SCENE_TYPE=" + sceneType_);
     }
@@ -108,6 +117,16 @@ UbseResult NodeProcessManager::Start()
     std::filesystem::create_directories(workDir_ + "/run");
     std::filesystem::create_directories(workDir_ + "/log");
     std::filesystem::create_directories(workDir_ + "/hcom");
+    std::filesystem::create_directories(workDir_ + "/plugin");
+
+    // Copy mock_plugin.so into per-node plugin directory so the daemon can
+    // discover and dlopen it via the bind-mounted /usr/lib64/ubse_plugin.
+    const std::string mockPluginSrc = stubLibDir_ + "/libmock_plugin.so";
+    const std::string mockPluginDst = workDir_ + "/plugin/libmock_plugin.so";
+    if (std::filesystem::exists(mockPluginSrc)) {
+        std::filesystem::copy_file(mockPluginSrc, mockPluginDst,
+                                   std::filesystem::copy_options::overwrite_existing);
+    }
 
     /* Create xalarm FIFO (idempotent, already done by stub if daemon started first) */
     if (mkfifo(xalarmFifoPath_.c_str(), 0666) != 0 && errno != EEXIST) {
