@@ -19,8 +19,10 @@
 
 #include "ubse_common_def.h"
 #include "ubse_error.h"
+#include "ubse_logger.h"
 
 namespace ubse::utils {
+UBSE_DEFINE_THIS_MODULE("ubse");
 using namespace ubse::common::def;
 
 class UbseDlManager {
@@ -45,12 +47,14 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (handle_ == nullptr) {
+            UBSE_LOG_ERROR << "handle is nullptr " <<funcName;
             return UBSE_ERROR;
         }
 
         dlerror();
         funcPtr = reinterpret_cast<FuncPtr>(dlsym(handle_, funcName.c_str()));
         if (dlerror() != nullptr) {
+            UBSE_LOG_ERROR << "dlerror is not nullptr " <<funcName;
             return UBSE_ERROR;
         }
         return UBSE_OK;

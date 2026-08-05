@@ -20,7 +20,8 @@ using namespace ubse::adapter_plugins::ssu::def;
 
 constexpr int EID_SIZE = 16;
 constexpr int MAX_NAMESPACES_PER_CTRL = 64;
-constexpr uint32_t DEV_PATH_SIZE = 32;
+constexpr uint32_t DEV_PATH_SIZE = 128;
+constexpr uint32_t DEV_IP_SIZE = 46; // 同 INET6_ADDRSTRLEN，与真实头文件 ubse_ssu_adapter_impl.h 保持一致
 constexpr uint32_t SUBNQN_SIZE = 32;
 constexpr uint32_t GUID_SIZE = 16;
 constexpr uint32_t UUID_SIZE = 16;
@@ -43,7 +44,7 @@ enum class DevStatusT : int {
 typedef struct {
     DevEidT srcEid;
     DevEidT tgtEid;
-    char *devIp;
+    char devIp[DEV_IP_SIZE];
     bool useUb;
     char subNqn[SUBNQN_SIZE];
     uint32_t jettyId;

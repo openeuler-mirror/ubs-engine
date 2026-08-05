@@ -187,7 +187,7 @@ public:
      * 支持LINEAR（线性拼接）和 STRIPED（条带化）两种编址方式，条带化支持RAID0和RAID5
      *
      * 可靠性要求：
-     *   - devicePathList 应使用 persistentPath（/dev/disk/by-id/nvme-eui.<guid>），
+     *   - devicePathList 应使用 persistentPath（/dev/disk/by-id/nvme-uuid.<uuid>），
      *     而非 devicePath（/dev/nvmeXnY），确保重启后 mdadm 超级块匹配可靠
      *   - 创建成功后必须执行 mdadm --detail --scan >> /etc/mdadm/mdadm.conf
      *     并 update-initramfs -u，确保重启后 RAID 自动组装

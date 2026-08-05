@@ -11,16 +11,20 @@
  */
 
 #include "ubse_ssu_adapter_impl.h"
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <securec.h>
 #include <sstream>
+#include <cerrno>
+#include <array>
+#include <cstdio>
 #include <glib.h>
-extern "C" {
-#include <blockdev/lvm.h>
-#include <blockdev/mdraid.h>
-}
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include "ubse_conf.h"
+#include "src/framework/misc/ubse_env_util.h"
 #include "src/framework/misc/ubse_os_util.h"
 
 namespace ubse::adapter_plugins::ssu::def {
@@ -55,6 +59,161 @@ uint32_t GetAdminNqn(std::string &adminNqn)
     }
     return UBSE_OK;
 }
+
+// /dev 下的 ssu 子目录，所有由 SSU 创建的块设备符号链接都集中在此目录下，
+// 避免直接散落在 /dev/{vgName}/ 或 /dev/md/ 等路径中。
+constexpr const char *SSU_DEV_DIR = "/dev/ssu";
+
+// 确保 /dev/ssu 目录存在（幂等，已存在则直接返回成功）
+uint32_t EnsureSsuDevDir()
+{
+    if (g_file_test(SSU_DEV_DIR, G_FILE_TEST_IS_DIR)) {
+        return UBSE_OK;
+    }
+    if (mkdir(SSU_DEV_DIR, 0755) != 0 && errno != EEXIST) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to create directory " << SSU_DEV_DIR << ", errno=" << err;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+// 在 /dev/ssu/{deviceName} 创建指向 targetPath 的符号链接，linkPath 输出最终的链接路径
+uint32_t CreateSsuDevSymlink(const std::string &deviceName, const std::string &targetPath,
+                             std::string &linkPath)
+{
+    uint32_t ret = EnsureSsuDevDir();
+    if (ret != UBSE_OK) {
+        return ret;
+    }
+    linkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    // 移除已存在的符号链接以保证幂等性
+    unlink(linkPath.c_str());
+    if (symlink(targetPath.c_str(), linkPath.c_str()) != 0) {
+        int err = errno;
+        UBSE_LOG_ERROR << "Failed to create symlink " << linkPath << " -> " << targetPath
+                       << ", errno=" << err;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+// 移除 /dev/ssu/{deviceName} 符号链接（幂等，不存在时视为成功）
+void RemoveSsuDevSymlink(const std::string &deviceName)
+{
+    std::string linkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    if (unlink(linkPath.c_str()) != 0 && errno != ENOENT) {
+        int err = errno;
+        UBSE_LOG_WARN << "Failed to remove symlink " << linkPath << ", errno=" << err;
+    }
+}
+
+// 通过sudo执行shell命令，合并stdout和stderr到output。
+// 返回UBSE_OK表示命令成功退出（exit code 0），UBSE_ERROR表示失败。
+constexpr size_t CMD_OUT_BUF_SIZE = 4096;
+
+// 校验设备名仅包含安全字符 [A-Za-z0-9_-]，防止外部输入经由 ExecWithSudo 拼入
+// shell 字符串时引发命令注入（deviceName 来源于 RPC 请求，属用户可控输入）。
+bool IsSafeDeviceName(const std::string &name)
+{
+    if (name.empty()) {
+        return false;
+    }
+    for (char c : name) {
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// 校验路径仅包含安全字符 [A-Za-z0-9_./-]，阻止 shell 元字符（;|&`$ 等）进入命令行。
+bool IsSafePath(const std::string &path)
+{
+    if (path.empty()) {
+        return false;
+    }
+    for (char c : path) {
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '.' || c == '/' || c == '-';
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
+uint32_t ExecWithSudo(const std::string &cmd, std::string &output)
+{
+    std::string sudoCmd = "sudo " + cmd + " 2>&1";
+    std::array<char, CMD_OUT_BUF_SIZE> buffer{};
+    output.clear();
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(sudoCmd.c_str(), "r"), pclose);
+    if (!pipe) {
+        UBSE_LOG_ERROR << "ExecWithSudo popen failed, cmd=" << cmd << ", errno=" << errno;
+        return UBSE_ERROR;
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        output += buffer.data();
+    }
+    int status = pclose(pipe.release());
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return UBSE_ERROR;
+    }
+    if (!output.empty()) {
+        UBSE_LOG_INFO << "ExecWithSudo success, cmd=" << cmd << ", output=" << output;
+    } else {
+        UBSE_LOG_INFO << "ExecWithSudo success, cmd=" << cmd;
+    }
+    return UBSE_OK;
+}
+
+// 解析 SSU_NVME_SERVER_IP_LIST 的单条条目（格式: IP:PORT/EID）。
+// 成功返回 true 并输出 ip/port/eid；失败返回 false 并已记录日志。
+// 用 rfind(':') 分离 IP 和 PORT，兼容 IPv6 地址。
+bool ParseSsuIpEntry(const std::string &entry, std::string &ip, uint32_t &port, std::string &eid)
+{
+    GStrvGuard parts(g_strsplit(entry.c_str(), "/", 2));
+    if (!parts || !*parts || !*(parts.get() + 1)) {
+        UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, expected IP:PORT/EID: " << entry;
+        return false;
+    }
+    std::string ipAndPort(*parts.get());
+    eid = std::string(*(parts.get() + 1));
+
+    size_t colonPos = ipAndPort.rfind(':');
+    if (colonPos == std::string::npos) {
+        UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, missing PORT, "
+                       << "expected IP:PORT/EID: " << entry;
+        return false;
+    }
+    ip = ipAndPort.substr(0, colonPos);
+    std::string portStr = ipAndPort.substr(colonPos + 1);
+    if (portStr.empty()) {
+        UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, empty PORT: " << entry;
+        return false;
+    }
+    try {
+        unsigned long portVal = std::stoul(portStr);
+        if (portVal == 0 || portVal > 0xFFFFFFFFu) {
+            UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, PORT out of range: " << entry;
+            return false;
+        }
+        port = static_cast<uint32_t>(portVal);
+    } catch (const std::exception &e) {
+        UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, PORT not numeric: " << entry
+                       << ", error: " << e.what();
+        return false;
+    }
+    if (ip.empty()) {
+        UBSE_LOG_ERROR << "Invalid SSU_NVME_SERVER_IP_LIST entry, empty IP: " << entry;
+        return false;
+    }
+    return true;
+}
+
 }
 
 UbseSsuAdapterImpl::UbseSsuAdapterImpl() : dlManager_(SSU_PATH) {}
@@ -114,7 +273,58 @@ UbseResult UbseSsuAdapterImpl::DlOpenLib()
 uint32_t UbseSsuAdapterImpl::GetSrcEid(DevEidT &srcEid)
 {
     memset_s(srcEid.raw, EID_SIZE, 0, EID_SIZE);
+    // 从ubse.service环境变量SSU_SRC_EID读取源端EID
+    std::string eidStr = ubse::utils::GetEnv<std::string>("SSU_SRC_EID", "");
+    if (eidStr.empty()) {
+        return UBSE_OK;
+    }
+    size_t copyLen = std::min(eidStr.size(), static_cast<size_t>(EID_SIZE));
+    memcpy_s(srcEid.raw, EID_SIZE, eidStr.c_str(), copyLen);
     return UBSE_OK;
+}
+
+uint32_t UbseSsuAdapterImpl::GetDevAddrByEid(const std::string& eid, char devIp[DEV_IP_SIZE], uint32_t& jettyId)
+{
+    devIp[0] = 0;
+    jettyId = 0;
+    // 从环境变量SSU_NVME_SERVER_IP_LIST（格式: IP:PORT/EID，多条以逗号分隔）中
+    // 按EID一次性查找对应的IP和PORT，IP 通过 strncpy_s 写入调用方提供的固定数组。
+    std::string ipListStr = ubse::utils::GetEnv<std::string>("SSU_NVME_SERVER_IP_LIST", "");
+    if (ipListStr.empty()) {
+        UBSE_LOG_WARN << "SSU_NVME_SERVER_IP_LIST is not set, cannot resolve devAddr for eid=" << eid;
+        return UBSE_ERROR;
+    }
+    GStrvGuard entries(g_strsplit(ipListStr.c_str(), ",", -1));
+    if (!entries || !*entries) {
+        UBSE_LOG_ERROR << "Failed to parse SSU_NVME_SERVER_IP_LIST: " << ipListStr;
+        return UBSE_ERROR;
+    }
+    for (gchar** it = entries.get(); *it != nullptr; ++it) {
+        std::string entry(*it);
+        std::string ip;
+        uint32_t port = 0;
+        std::string entryEid;
+        if (!ParseSsuIpEntry(entry, ip, port, entryEid)) {
+            // 单条格式错误不应影响其它正确条目的查找，跳过并继续遍历
+            UBSE_LOG_WARN << "Skipping malformed SSU_NVME_SERVER_IP_LIST entry: " << entry;
+            continue;
+        }
+        if (entryEid != eid) {
+            continue;
+        }
+        if (ip.size() >= DEV_IP_SIZE) {
+            UBSE_LOG_ERROR << "ip too long, size=" << ip.size() << ", max=" << DEV_IP_SIZE - 1;
+            return UBSE_ERROR;
+        }
+        if (strncpy_s(devIp, DEV_IP_SIZE, ip.c_str(), ip.size()) != EOK) {
+            UBSE_LOG_ERROR << "strncpy_s failed for ip: " << ip;
+            return UBSE_ERROR;
+        }
+        jettyId = port;
+        return UBSE_OK;
+    }
+    UBSE_LOG_WARN << "No matching entry found for eid=" << eid << " in SSU_NVME_SERVER_IP_LIST";
+    return UBSE_ERROR;
 }
 
 /**
@@ -126,32 +336,75 @@ uint32_t UbseSsuAdapterImpl::GetSrcEid(DevEidT &srcEid)
 uint32_t UbseSsuAdapterImpl::BuildDevAddrList(const std::vector<UbseSsuDevInfo>& ssuInfoList,
                                               std::vector<DevAddrT>& devList)
 {
+    // 当输入列表为空时，从ubse.service环境变量SSU_NVME_SERVER_IP_LIST读取
+    // 格式: IP:PORT/EID，多条以逗号分隔，例如: 192.168.100.100:18080/EID,192.168.100.101:18081/EID
+    // 其中 PORT 用于填充 DevAddrT.jettyId，devIp 只存纯 IP
+    if (ssuInfoList.empty()) {
+        std::string ipListStr = ubse::utils::GetEnv<std::string>("SSU_NVME_SERVER_IP_LIST", "");
+        if (ipListStr.empty()) {
+            UBSE_LOG_ERROR << "ssuInfoList is empty and SSU_NVME_SERVER_IP_LIST is not set";
+            return UBSE_ERROR;
+        }
+        GStrvGuard entries(g_strsplit(ipListStr.c_str(), ",", -1));
+        if (!entries || !*entries) {
+            UBSE_LOG_ERROR << "Failed to parse SSU_NVME_SERVER_IP_LIST: " << ipListStr;
+            return UBSE_ERROR;
+        }
+        for (gchar** it = entries.get(); *it != nullptr; ++it) {
+            std::string entry(*it);
+            std::string ip;
+            uint32_t jettyId = 0;
+            std::string eid;
+            if (!ParseSsuIpEntry(entry, ip, jettyId, eid)) {
+                return UBSE_ERROR; // 解析错误已记录日志
+            }
+            if (ip.size() >= DEV_IP_SIZE) {
+                UBSE_LOG_ERROR << "ip too long, size=" << ip.size() << ", max=" << DEV_IP_SIZE - 1;
+                return UBSE_ERROR;
+            }
+            DevAddrT addr{};
+            memset_s(&addr.srcEid.raw, EID_SIZE, 0, EID_SIZE);
+            if (GetSrcEid(addr.srcEid) != UBSE_OK) {
+                return UBSE_ERROR;
+            }
+            memset_s(&addr.tgtEid.raw, EID_SIZE, 0, EID_SIZE);
+            size_t copyLen = std::min(eid.size(), static_cast<size_t>(EID_SIZE));
+            memcpy_s(addr.tgtEid.raw, EID_SIZE, eid.c_str(), copyLen);
+            if (strncpy_s(addr.devIp, DEV_IP_SIZE, ip.c_str(), ip.size()) != EOK) {
+                UBSE_LOG_ERROR << "strncpy_s failed for ip: " << ip;
+                return UBSE_ERROR;
+            }
+            addr.useUb = false;
+            memset_s(addr.subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
+            addr.jettyId = jettyId;
+            devList.push_back(addr);
+        }
+        return UBSE_OK;
+    }
+
     devList.resize(ssuInfoList.size());
     for (size_t i = 0; i < ssuInfoList.size(); ++i) {
         const std::string& eid = ssuInfoList[i].subSystem.eid;
         const std::string& subNqn = ssuInfoList[i].subSystem.subNqn;
-        
-        // EID必须是固定长度
-        if (eid.size() != EID_SIZE) {
-            UBSE_LOG_ERROR << "Invalid EID length: " << eid.size() << ", expected " << EID_SIZE;
-            return UBSE_ERROR;
-        }
-        
-        // subNqn不能为空
-        if (subNqn.empty()) {
-            UBSE_LOG_ERROR << "subNqn is empty";
-            return UBSE_ERROR;
-        }
-        
         memset_s(&devList[i].srcEid.raw, EID_SIZE, 0, EID_SIZE);
         if (GetSrcEid(devList[i].srcEid) != UBSE_OK) {
             return UBSE_ERROR;
         }
         memset_s(&devList[i].tgtEid.raw, EID_SIZE, 0, EID_SIZE);
-        memcpy_s(devList[i].tgtEid.raw, EID_SIZE, eid.c_str(), EID_SIZE);
-        devList[i].devIp = nullptr;
+        // 按 eid 实际长度拷贝，避免 eid.size() < EID_SIZE 时越界读取 eid 字符串缓冲区
+        size_t eidCopyLen = std::min(eid.size(), static_cast<size_t>(EID_SIZE));
+        memcpy_s(devList[i].tgtEid.raw, EID_SIZE, eid.c_str(), eidCopyLen);
+        // 按EID从环境变量SSU_NVME_SERVER_IP_LIST一次性查找IP和PORT（查不到保持空字符串/0）
+        memset_s(devList[i].devIp, DEV_IP_SIZE, 0, DEV_IP_SIZE);
+        uint32_t jettyId = 0;
+        if (GetDevAddrByEid(eid, devList[i].devIp, jettyId) == UBSE_OK) {
+            devList[i].jettyId = jettyId;
+        } else {
+            devList[i].devIp[0] = 0;
+            devList[i].jettyId = 0;
+        }
         devList[i].useUb = false;
-        memset_s(devList[i].subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
+        memset_s(&devList[i].subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
         strncpy_s(devList[i].subNqn, SUBNQN_SIZE, subNqn.c_str(), subNqn.size());
     }
     return UBSE_OK;
@@ -236,17 +489,15 @@ uint32_t UbseSsuAdapterImpl::GetDevList(std::vector<UbseSsuDevInfo> &ssuInfoList
         return UBSE_ERROR;
     }
 
-    if (ssuInfoList.empty()) {
-        return UBSE_ERROR;
-    }
-
+    // 允许ssuInfoList为空，此时BuildDevAddrList会从环境变量SSU_NVME_SERVER_IP_LIST读取
     std::vector<DevAddrT> devList;
     uint32_t ret = BuildDevAddrList(ssuInfoList, devList);
     if (ret != UBSE_OK) {
         return ret;
     }
 
-    std::vector<DevInfoT> devInfoList(ssuInfoList.size());
+    // devInfoList大小需与devList一致（环境变量分支下可能与ssuInfoList大小不同）
+    std::vector<DevInfoT> devInfoList(devList.size());
     int acqRet = acquireDevInfo_(adminNqn.c_str(), devList.data(), static_cast<int>(devList.size()),
                                  devInfoList.data());
     if (acqRet != 0) {
@@ -299,13 +550,21 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForCreate(const UbseSsuDevNameSpa
     memset_s(&nsInfo.devAddr.tgtEid.raw, EID_SIZE, 0, EID_SIZE);
     memcpy_s(nsInfo.devAddr.tgtEid.raw, EID_SIZE,
              nameSpace.subSystem.eid.c_str(), EID_SIZE);
-    nsInfo.devAddr.devIp = nullptr;
+    // 按EID从环境变量SSU_NVME_SERVER_IP_LIST一次性查找IP和PORT（attach场景必需；
+    // 查不到保持nullptr/0，由底层库处理）
+    memset_s(nsInfo.devAddr.devIp, DEV_IP_SIZE, 0, DEV_IP_SIZE);
+    uint32_t jettyId = 0;
+    if (GetDevAddrByEid(nameSpace.subSystem.eid, nsInfo.devAddr.devIp, jettyId) == UBSE_OK) {
+        nsInfo.devAddr.jettyId = jettyId;
+    } else {
+        nsInfo.devAddr.devIp[0] = 0;
+        nsInfo.devAddr.jettyId = 0;
+    }
     nsInfo.devAddr.useUb = false;
-    memset_s(nsInfo.devAddr.subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
+    memset_s(&nsInfo.devAddr.subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
     strncpy_s(nsInfo.devAddr.subNqn, SUBNQN_SIZE,
               nameSpace.subSystem.subNqn.c_str(), nameSpace.subSystem.subNqn.size());
-    nsInfo.devAddr.jettyId = nameSpace.subSystem.jettyId;
-    
+
     // 设置基础属性
     nsInfo.baseAttr.ncap = nameSpace.ncap;
     nsInfo.baseAttr.nsze = nameSpace.nsze;
@@ -345,10 +604,22 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForBasic(const UbseSsuDevNameSpac
     memset_s(&nsInfo.devAddr.tgtEid.raw, EID_SIZE, 0, EID_SIZE);
     memcpy_s(nsInfo.devAddr.tgtEid.raw, EID_SIZE,
              nameSpace.subSystem.eid.c_str(), EID_SIZE);
-    nsInfo.devAddr.devIp = nullptr;
+    // 按EID从环境变量SSU_NVME_SERVER_IP_LIST一次性查找IP和PORT（attach场景必需；
+    // 查不到保持空字符串/0，由底层库处理）
+    memset_s(nsInfo.devAddr.devIp, DEV_IP_SIZE, 0, DEV_IP_SIZE);
+    uint32_t jettyId = 0;
+    if (GetDevAddrByEid(nameSpace.subSystem.eid, nsInfo.devAddr.devIp, jettyId) == UBSE_OK) {
+        nsInfo.devAddr.jettyId = jettyId;
+    } else {
+        nsInfo.devAddr.devIp[0] = 0;
+        nsInfo.devAddr.jettyId = 0;
+    }
     nsInfo.devAddr.useUb = false;
-    nsInfo.devAddr.jettyId = nameSpace.subSystem.jettyId;
-    
+    // subNqn在attach/detach场景必需：attach用其执行nvme connect，detach用其查找本地nvme设备
+    memset_s(&nsInfo.devAddr.subNqn, SUBNQN_SIZE, 0, SUBNQN_SIZE);
+    strncpy_s(nsInfo.devAddr.subNqn, SUBNQN_SIZE,
+              nameSpace.subSystem.subNqn.c_str(), nameSpace.subSystem.subNqn.size());
+
     // 设置namespaceId
     nsInfo.namespaceId = nameSpace.namespaceId;
     
@@ -701,6 +972,11 @@ uint32_t UbseSsuAdapterImpl::ValidatePersistentPaths(const std::vector<std::stri
                            << ", expected format: /dev/disk/by-id/nvme-eui.<guid>";
             return UBSE_ERROR;
         }
+        // 阻止 shell 元字符进入后续 ExecWithSudo 拼接的命令行，防止命令注入
+        if (!IsSafePath(path)) {
+            UBSE_LOG_ERROR << "Device path contains unsafe characters: " << path;
+            return UBSE_ERROR;
+        }
     }
     return UBSE_OK;
 }
@@ -717,65 +993,64 @@ uint32_t UbseSsuAdapterImpl::CreateLinearBlockDevice(const std::string& deviceNa
                                                      const std::vector<std::string>& devicePathList,
                                                      std::string& devicePath)
 {
-    gchar** devs = (gchar**)g_try_malloc0((devicePathList.size() + 1) * sizeof(gchar*));
-    if (devs == nullptr) {
-        UBSE_LOG_ERROR << "Failed to allocate memory for device paths";
-        return UBSE_ERROR;
-    }
-    GStrvGuard devsGuard(devs);
-    for (size_t i = 0; i < devicePathList.size(); ++i) {
-        devs[i] = g_strdup(devicePathList[i].c_str());
-    }
-
-    GError* error = nullptr;
-    std::vector<std::string> createdPVs;
     std::string vgName = deviceName + "_vg";
+    std::vector<std::string> createdPVs;
+    std::string output;
 
     // 创建物理卷（逐个创建）
-    for (size_t i = 0; i < devicePathList.size(); ++i) {
-        gboolean pvRet = bd_lvm_pvcreate(devicePathList[i].c_str(), 0, 0, nullptr, &error);
-        if (!pvRet) {
-            UBSE_LOG_ERROR << "Failed to create PV for " << devicePathList[i] << ": " << error->message;
-            g_error_free(error);
+    for (const auto& devPath : devicePathList) {
+        if (ExecWithSudo("pvcreate -y " + devPath, output) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to create PV for " << devPath << ", output=" << output;
             for (const auto& pvPath : createdPVs) {
-                bd_lvm_pvremove(pvPath.c_str(), nullptr, nullptr);
+                ExecWithSudo("pvremove -ff " + pvPath, output);
             }
             return UBSE_ERROR;
         }
-        createdPVs.push_back(devicePathList[i]);
+        createdPVs.push_back(devPath);
     }
 
     // 创建卷组（卷组名：{deviceName}_vg）
-    gboolean vgRet = bd_lvm_vgcreate(vgName.c_str(), (const gchar**)devs, 0, nullptr, &error);
-    if (!vgRet) {
-        UBSE_LOG_ERROR << "Failed to create VG: " << error->message;
-        g_error_free(error);
+    std::string vgCmd = "vgcreate " + vgName;
+    for (const auto& devPath : devicePathList) {
+        vgCmd += " " + devPath;
+    }
+    if (ExecWithSudo(vgCmd, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to create VG " << vgName << ", output=" << output;
         for (const auto& pvPath : createdPVs) {
-            bd_lvm_pvremove(pvPath.c_str(), nullptr, nullptr);
+            ExecWithSudo("pvremove -ff " + pvPath, output);
         }
         return UBSE_ERROR;
     }
 
-    // 创建逻辑卷（线性模式，逻辑卷名：{deviceName}，分配全部空间）
-    gboolean lvRet = bd_lvm_lvcreate(vgName.c_str(), deviceName.c_str(), 0, "linear", nullptr, nullptr, &error);
-    if (!lvRet) {
-        UBSE_LOG_ERROR << "Failed to create LV: " << error->message;
-        g_error_free(error);
-        bd_lvm_lvremove(vgName.c_str(), deviceName.c_str(), (gboolean)1, nullptr, nullptr);
-        bd_lvm_vgremove(vgName.c_str(), nullptr, nullptr);
+    // 创建逻辑卷（线性模式，分配全部空间）
+    if (ExecWithSudo("lvcreate -y -l 100%FREE -n " + deviceName + " " + vgName, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to create LV " << deviceName << " in VG " << vgName << ", output=" << output;
+        ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output);
+        ExecWithSudo("vgremove -f " + vgName, output);
         for (const auto& pvPath : createdPVs) {
-            bd_lvm_pvremove(pvPath.c_str(), nullptr, nullptr);
+            ExecWithSudo("pvremove -ff " + pvPath, output);
         }
         return UBSE_ERROR;
     }
 
-    devicePath = "/dev/" + vgName + "/" + deviceName;
+    // 实际设备路径为 /dev/{vgName}/{deviceName}，在 /dev/ssu/ 下创建符号链接统一管理
+    std::string actualPath = "/dev/" + vgName + "/" + deviceName;
+    if (CreateSsuDevSymlink(deviceName, actualPath, devicePath) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to create symlink for " << deviceName
+                      << ", rolling back LVM (vg=" << vgName << ")";
+        ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output);
+        ExecWithSudo("vgremove -f " + vgName, output);
+        for (const auto& pvPath : createdPVs) {
+            ExecWithSudo("pvremove -ff " + pvPath, output);
+        }
+        return UBSE_ERROR;
+    }
     return UBSE_OK;
 }
 
 /**
  * @brief 使用mdadm创建条带化块设备（RAID0/RAID5）
- * @details 使用libblockdev的mdraid模块创建RAID阵列
+ * @details 使用mdadm创建RAID阵列
  * @param deviceName 设备名称
  * @param devicePathList 底层设备路径列表
  * @param options 创建选项（RAID级别、条带大小等）
@@ -787,32 +1062,40 @@ uint32_t UbseSsuAdapterImpl::CreateStripedBlockDevice(const std::string& deviceN
                                                       const UbseCreateBlockDeviceOptions& options,
                                                       std::string& devicePath)
 {
-    gchar** devs = (gchar**)g_try_malloc0((devicePathList.size() + 1) * sizeof(gchar*));
-    if (devs == nullptr) {
-        UBSE_LOG_ERROR << "Failed to allocate memory for device paths";
-        return UBSE_ERROR;
-    }
-    GStrvGuard devsGuard(devs);
-    for (size_t i = 0; i < devicePathList.size(); ++i) {
-        devs[i] = g_strdup(devicePathList[i].c_str());
-    }
-
-    GError* error = nullptr;
-
-    const gchar* md_level_str = "raid0";
+    const char* md_level_str = "raid0";
     if (options.raidLevel == UbseSsuRaidLevel::RAID5) {
         md_level_str = "raid5";
     }
 
-    gboolean mdRet = bd_md_create(deviceName.c_str(), md_level_str, (const gchar**)devs,
-                                  0, nullptr, nullptr, options.chunkSize * 1024, nullptr, &error);
-    if (!mdRet) {
-        UBSE_LOG_ERROR << "Failed to create MD RAID: " << error->message;
-        g_error_free(error);
+    std::string mdPath = "/dev/md/" + deviceName;
+    // --auto=yes 让 mdadm 在设备节点不存在时自动创建 /dev/mdXxx，否则在使用命名阵列
+    // /dev/md/<name> 时可能因底层 /dev/md127 节点缺失而报
+    // "unexpected failure opening /dev/md127"。
+    std::string cmd = "mdadm --create " + mdPath + " --auto=yes --run --level=" + md_level_str +
+                      " --raid-devices=" + std::to_string(devicePathList.size());
+    // options.chunkSize 单位为 KB（见 ubse_ssu_def.h），mdadm --chunk 同样以 KB 为单位，
+    // 二者单位一致，无需再乘 1024（原先 * 1024 会将值放大 1024 倍导致 mdadm 失败）。
+    uint64_t chunkKb = static_cast<uint64_t>(options.chunkSize);
+    if (chunkKb != 0) {
+        cmd += " --chunk=" + std::to_string(chunkKb);
+    }
+    for (const auto& devPath : devicePathList) {
+        cmd += " " + devPath;
+    }
+
+    std::string output;
+    if (ExecWithSudo(cmd, output) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to create MD RAID " << mdPath << ", output=" << output;
         return UBSE_ERROR;
     }
 
-    devicePath = "/dev/md/" + deviceName;
+    // 实际设备路径为 /dev/md/{deviceName}，在 /dev/ssu/ 下创建符号链接统一管理
+    if (CreateSsuDevSymlink(deviceName, mdPath, devicePath) != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to create symlink for " << deviceName
+                      << ", rolling back mdadm device at " << mdPath;
+        ExecWithSudo("mdadm --stop --force " + mdPath, output);
+        return UBSE_ERROR;
+    }
 
     return UBSE_OK;
 }
@@ -835,6 +1118,12 @@ uint32_t UbseSsuAdapterImpl::CreateBlockDevice(const std::string &deviceName,
                                                const UbseCreateBlockDeviceOptions &options,
                                                std::string &devicePath)
 {
+    // deviceName 来源于 RPC 请求，属用户可控输入，会拼入 ExecWithSudo 的 shell 命令，
+    // 必须先做白名单校验以防命令注入。
+    if (!IsSafeDeviceName(deviceName)) {
+        UBSE_LOG_ERROR << "Invalid deviceName with unsafe characters: " << deviceName;
+        return UBSE_ERROR;
+    }
     uint32_t ret = ValidatePersistentPaths(devicePathList);
     if (ret != 0) {
         return ret;
@@ -865,53 +1154,58 @@ uint32_t UbseSsuAdapterImpl::CreateBlockDevice(const std::string &deviceName,
  */
 uint32_t UbseSsuAdapterImpl::DeleteBlockDevice(const std::string &deviceName)
 {
-    GError* error = nullptr;
+    // deviceName 来源于 RPC 请求，会拼入 ExecWithSudo 的 shell 命令，先做白名单校验以防命令注入。
+    if (!IsSafeDeviceName(deviceName)) {
+        UBSE_LOG_ERROR << "Invalid deviceName with unsafe characters: " << deviceName;
+        return UBSE_ERROR;
+    }
+    // /dev/ssu/{deviceName} 是对外暴露的符号链接，底层设备可能为 LVM 或 mdadm。
+    // 注意必须用 IS_SYMLINK 而非 EXISTS：EXISTS 会跟随链接判断目标是否存在，
+    // 当底层设备已被外部删除导致断链时 EXISTS 返回 FALSE，会漏掉断链的清理。
+    std::string ssuLinkPath = std::string(SSU_DEV_DIR) + "/" + deviceName;
+    bool ssuLinkExists = g_file_test(ssuLinkPath.c_str(), G_FILE_TEST_IS_SYMLINK);
 
-    // 先检查设备是否存在
+    // 先检查底层设备是否存在
     std::string mdDevicePath = "/dev/md/" + deviceName;
     bool mdDeviceExists = g_file_test(mdDevicePath.c_str(), G_FILE_TEST_EXISTS);
-    
+
     std::string vgName = deviceName + "_vg";
     // 检查LVM逻辑卷是否存在，通过两种路径检查
     std::string lvPath1 = "/dev/mapper/" + vgName + "-" + deviceName;
     std::string lvPath2 = "/dev/" + vgName + "/" + deviceName;
     bool lvmDeviceExists = g_file_test(lvPath1.c_str(), G_FILE_TEST_EXISTS) ||
                            g_file_test(lvPath2.c_str(), G_FILE_TEST_EXISTS);
-    // 如果都不存在，直接返回成功（幂等）
-    if (!mdDeviceExists && !lvmDeviceExists) {
+    // 如果底层设备和符号链接都不存在，直接返回成功（幂等）
+    if (!ssuLinkExists && !mdDeviceExists && !lvmDeviceExists) {
         UBSE_LOG_INFO << "Block device " << deviceName << " does not exist, returning success (idempotent)";
         return UBSE_OK;
     }
+    std::string output;
     // 如果LVM设备存在，尝试删除LVM
     if (lvmDeviceExists) {
-        gboolean lvRet = bd_lvm_lvremove(vgName.c_str(), deviceName.c_str(), (gboolean)1, nullptr, &error);
-        if (lvRet) {
-            bd_lvm_vgremove(vgName.c_str(), nullptr, nullptr);
+        if (ExecWithSudo("lvremove -f " + vgName + "/" + deviceName, output) == UBSE_OK) {
+            ExecWithSudo("vgremove -f " + vgName, output);
+            RemoveSsuDevSymlink(deviceName);
             UBSE_LOG_INFO << "Successfully deleted LVM block device " << deviceName;
             return UBSE_OK;
         }
-        // LVM删除失败，返回错误
-        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ": "
-                       << (error ? error->message : "unknown error");
-        if (error != nullptr) {
-            g_error_free(error);
-        }
+        UBSE_LOG_ERROR << "Failed to delete LVM block device " << deviceName << ", output=" << output;
         return UBSE_ERROR;
     }
     // 如果md设备存在，尝试删除md
     if (mdDeviceExists) {
-        gboolean mdRemoveRet = bd_md_remove(mdDevicePath.c_str(), nullptr, (gboolean)1, nullptr, &error);
-        if (mdRemoveRet) {
+        if (ExecWithSudo("mdadm --stop --force " + mdDevicePath, output) == UBSE_OK) {
+            RemoveSsuDevSymlink(deviceName);
             UBSE_LOG_INFO << "Successfully deleted mdadm block device " << deviceName;
             return UBSE_OK;
         }
-        // md删除失败，返回错误
-        UBSE_LOG_ERROR << "Failed to delete mdadm block device " << deviceName << ": "
-                       << (error ? error->message : "unknown error");
-        if (error != nullptr) {
-            g_error_free(error);
-        }
+        UBSE_LOG_ERROR << "Failed to delete mdadm block device " << deviceName << ", output=" << output;
         return UBSE_ERROR;
+    }
+    // 底层设备不存在但符号链接残留，清理符号链接
+    if (ssuLinkExists) {
+        RemoveSsuDevSymlink(deviceName);
+        UBSE_LOG_INFO << "Removed orphan symlink for block device " << deviceName;
     }
     return UBSE_OK;
 }
