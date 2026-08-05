@@ -18,3 +18,5 @@
 .gitattributes text eol=lf
 .gitignore text eol=lf
 .lcovrc text eol=lf
+# 强制 sudoers 配置文件始终使用 LF，防止 sudo 解析报错
+scripts/rpm/ubse-sei-sudo text eol=lf
