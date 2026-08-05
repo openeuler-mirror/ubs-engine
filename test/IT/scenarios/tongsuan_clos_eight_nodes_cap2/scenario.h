@@ -10,13 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "scenario.h"
-#include "tests/election/election_cases.h"
+#include "it_scenario_fixture.h"
 
-using ubse::it::infra::TongsuanClosEightNodesScenario;
-
-// P1-Election-MultiNode-01: CLOS 八节点选举收敛为 1主+1备+6代理
-TEST_F(TongsuanClosEightNodesScenario, P1ElectionEightNodeClosOk01)
-{
-    ubse::it::tests::election::RunEightNodeElectionTest(Cluster());
-}
+// 通算CLOS八节点场景(cluster.pod.capability=2)：启动八节点CLOS集群,每个pod含2节点(1主1备),全局共4个主
+IT_DEFINE_SCENARIO(TongsuanClosEightNodesCap2Scenario,
+                   MakeBuilder().Tongsuan().EightNode().MeshType(0x81)
+                       .WithConfig("ubse.rpc", "cluster.pod.capability", "2")
+                       .Start(cluster_))

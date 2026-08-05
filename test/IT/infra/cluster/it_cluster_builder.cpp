@@ -126,6 +126,13 @@ ItClusterBuilder& ItClusterBuilder::WithNodeConfig(const std::string& nodeId, co
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::WithConfig(const std::string& section, const std::string& key,
+                                               const std::string& value)
+{
+    globalConfigOverrides_[section][key] = value;
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -146,6 +153,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.mockPluginEnabled = mockPluginEnabled_;
     spec.meshType = meshType_;
     spec.nodeConfigOverrides = nodeConfigOverrides_;
+    spec.globalConfigOverrides = globalConfigOverrides_;
     spec.Normalize();
     return spec;
 }

@@ -51,6 +51,9 @@ struct ClusterSpec {
     // Applied on top of global overrides during config generation.
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides;
 
+    // Global config overrides: section -> key -> value. Applied to all nodes.
+    std::map<std::string, std::map<std::string, std::string>> globalConfigOverrides;
+
     static ClusterSpec FromRuntimePaths(const std::string& binaryPath, const std::string& baseWorkDir,
                                         const std::vector<NodeSpec>& nodes, const std::string& stubLibDir = "");
 

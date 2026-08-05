@@ -195,6 +195,7 @@ set(UBSE_IT_SCENARIOS
     tongsuan_1d_two_nodes_election_candidate_false
     tongsuan_1d_four_nodes
     tongsuan_clos_eight_nodes
+    tongsuan_clos_eight_nodes_cap2
     zhisuan_npu_single_node
 )
 

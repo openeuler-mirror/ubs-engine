@@ -55,6 +55,12 @@ UbseResult ItCluster::StartCluster(bool waitForElection, uint32_t electionTimeou
 {
     // Phase 0: Generate per-node config files
     ItConfigBuilder configBuilder(clusterSpec_.nodes, clusterSpec_.baseWorkDir);
+    // Apply global config overrides (applies to all nodes)
+    for (const auto& [section, keys] : clusterSpec_.globalConfigOverrides) {
+        for (const auto& [key, value] : keys) {
+            configBuilder.WithOverride(section, key, value);
+        }
+    }
     // Apply per-node config overrides (e.g. election.candidate per node)
     for (const auto& [nodeId, sections] : clusterSpec_.nodeConfigOverrides) {
         for (const auto& [section, keys] : sections) {
