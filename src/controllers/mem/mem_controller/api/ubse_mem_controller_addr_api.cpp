@@ -26,6 +26,7 @@
 #include "ubse_mem_debt_ledger.h"
 #include "ubse_mem_decoder_utils.h"
 #include "ubse_mem_scheduler_impl.h"
+#include "ubse_mem_sei_degrade.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_node_controller_util.h"
 #include "../logging_lock_guard.h"
@@ -695,6 +696,7 @@ uint32_t DealAddrAgentImport(const std::string& requestNodeId, UbseMemAddrBorrow
     }
     UBSE_LOG_INFO << "Success to import, name=" << name;
     UBSE_AUDIT_RUNTIME_ALLOC << name << " on Node: " << importNodeId << " AddrMemory Import Success";
+    AsyncTryEnableSei();
     return UBSE_OK;
 }
 
@@ -775,6 +777,7 @@ uint32_t AddrImportDestroyingCallback(const std::string& requestNodeId, UbseMemA
     } else {
         importObj.status.state = UBSE_MEM_IMPORT_DESTROYED;
         EraseAddrImport(importObj);
+        AsyncTryDisableSei();
     }
     return SendAddrImport(importObj, name, importObj.req.importNodeId, true);
 }

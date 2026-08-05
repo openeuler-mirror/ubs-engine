@@ -1,0 +1,2 @@
+ubse ALL=(root) NOPASSWD: /usr/sbin/sysctl -w kernel.arm64_sync_sei=0
+ubse ALL=(root) NOPASSWD: /usr/sbin/sysctl -w kernel.arm64_sync_sei=1

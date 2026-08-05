@@ -25,6 +25,7 @@
 #include "ubse_mem_def.h"
 #include "ubse_mem_prehandle_manager.h"
 #include "ubse_mem_scheduler_impl.h"
+#include "ubse_mem_sei_degrade.h"
 #include "ubse_mem_sign_verifier.h"
 #include "ubse_mem_util.h"
 #include "ubse_mmi_interface.h"
@@ -100,7 +101,12 @@ uint32_t CreateTaskExecutor()
     }
     auto ret = executorModule->Create("ubseMemController", 18, 1000);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to create executor.";
+        UBSE_LOG_ERROR << "Failed to create ubseMemController executor.";
+        return UBSE_ERROR;
+    }
+    ret = executorModule->Create("ubseSeiExecutor", 1, 16); // 内存借用最大并发是16;单线程保证 FIFO 顺序
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to create ubseSeiExecutor executor.";
         return UBSE_ERROR;
     }
     return UBSE_OK;
@@ -213,6 +219,7 @@ uint32_t LoadLocalAllObjs(const ubse::nodeController::UbseNodeInfo& node)
     }
     LoadObjState(nodeMemDebtInfo);
     UbseMemDebtLedger::GetInstance().LoadFromNodeMemDebtInfo(node.nodeId, nodeMemDebtInfo);
+    UbseMemSeiDegradeManager::GetInstance().RecoverSeiState();
 
     return UBSE_OK;
 }
