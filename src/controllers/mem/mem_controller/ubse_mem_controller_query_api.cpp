@@ -350,7 +350,6 @@ uint32_t UbseMemShmGet(const std::string& name, def::UbseMemShmDesc& shmDesc, co
         UBSE_LOG_ERROR << "failed to get master and local node id, " << FormatRetCode(ret);
         return UBSE_ERR_DAEMON_UNREACHABLE;
     }
-    request.importNodeId = localNodeId;
     if (udsInfo != nullptr) {
         request.udsInfo = *udsInfo;
     }
