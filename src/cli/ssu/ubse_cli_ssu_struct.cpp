@@ -80,15 +80,15 @@ bool IsValidChunkSize(uint32_t raw)
 
 bool PackSpaceFields(UbsePackUtil &pack, const std::string &name, const std::string &hostNqn, const std::string &srcEid)
 {
-    return PackString(pack, name, SSU_CLI_WIRE_MAX_NAME_LENGTH) &&
-           PackString(pack, hostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH) &&
-           PackString(pack, srcEid, SSU_CLI_WIRE_MAX_EID_LENGTH);
+    return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH) &&
+           PackString(pack, hostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) &&
+           PackString(pack, srcEid, SSU_CLI_MAX_SRC_EID_LENGTH);
 }
 
 bool SpaceFieldsFit(const std::string &name, const std::string &hostNqn, const std::string &srcEid)
 {
-    return StringFits(name, SSU_CLI_WIRE_MAX_NAME_LENGTH) && StringFits(hostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH) &&
-           StringFits(srcEid, SSU_CLI_WIRE_MAX_EID_LENGTH);
+    return StringFits(name, SSU_CLI_MAX_NAME_LENGTH) && StringFits(hostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) &&
+           StringFits(srcEid, SSU_CLI_MAX_SRC_EID_LENGTH);
 }
 
 uint32_t SpaceFieldsSize(const std::string &name, const std::string &hostNqn, const std::string &srcEid)
@@ -104,7 +104,7 @@ bool UnpackString(UbseUnpackUtil &unpack, std::string &value, uint32_t maxLength
 bool UnpackNsDevPaths(UbseUnpackUtil &unpack, std::vector<std::string> &value)
 {
     uint32_t count = 0;
-    if (!unpack.UnpackUint32(count) || count > SSU_CLI_MAX_NAMESPACES) {
+    if (!unpack.UnpackUint32(count) || count > SSU_CLI_MAX_NS_NUM) {
         return false;
     }
 
@@ -112,7 +112,7 @@ bool UnpackNsDevPaths(UbseUnpackUtil &unpack, std::vector<std::string> &value)
     decoded.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
         std::string path;
-        if (!UnpackString(unpack, path, SSU_CLI_WIRE_MAX_DEV_PATH_LENGTH)) {
+        if (!UnpackString(unpack, path, SSU_CLI_MAX_DEV_PATH_LENGTH)) {
             return false;
         }
         decoded.emplace_back(std::move(path));
@@ -126,20 +126,20 @@ bool UnpackNameSpace(UbseUnpackUtil &unpack, UbseCliSsuNameSpaceInfo &value)
     UbseCliSsuNameSpaceInfo decoded;
     uint32_t lbaFormat = 0;
     uint32_t hostNqnCount = 0;
-    if (!UnpackString(unpack, decoded.tgtEid, SSU_CLI_WIRE_MAX_EID_LENGTH) ||
-        !UnpackString(unpack, decoded.tgtNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH) ||
-        !UnpackString(unpack, decoded.nsUuid, SSU_CLI_WIRE_MAX_UUID_LENGTH) ||
+    if (!UnpackString(unpack, decoded.tgtEid, SSU_CLI_MAX_SRC_EID_LENGTH) ||
+        !UnpackString(unpack, decoded.tgtNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) ||
+        !UnpackString(unpack, decoded.nsUuid, SSU_CLI_MAX_UUID_LENGTH) ||
         !unpack.UnpackUint32(decoded.namespaceId) ||
-        !UnpackString(unpack, decoded.nsDevPath, SSU_CLI_WIRE_MAX_DEV_PATH_LENGTH) ||
+        !UnpackString(unpack, decoded.nsDevPath, SSU_CLI_MAX_DEV_PATH_LENGTH) ||
         !unpack.UnpackUint64(decoded.nsSize) || !unpack.UnpackUint32(lbaFormat) || !IsValidLbaFormat(lbaFormat) ||
-        !unpack.UnpackUint32(hostNqnCount) || hostNqnCount > SSU_CLI_MAX_ALLOWED_HOST_NQNS) {
+        !unpack.UnpackUint32(hostNqnCount) || hostNqnCount > SSU_CLI_MAX_DESERIALIZED_HOST_NQNS) {
         return false;
     }
     decoded.lbaFormat = static_cast<UbseSsuLBAFormat>(lbaFormat);
     decoded.allowHostNqnList.reserve(hostNqnCount);
     for (uint32_t i = 0; i < hostNqnCount; ++i) {
         std::string hostNqn;
-        if (!UnpackString(unpack, hostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH)) {
+        if (!UnpackString(unpack, hostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH)) {
             return false;
         }
         decoded.allowHostNqnList.emplace_back(std::move(hostNqn));
@@ -153,8 +153,8 @@ bool UnpackAllocResult(UbseUnpackUtil &unpack, UbseCliSsuAllocResult &value)
     UbseCliSsuAllocResult decoded;
     uint8_t strategy = 0;
     uint32_t namespaceCount = 0;
-    if (!UnpackString(unpack, decoded.name, SSU_CLI_WIRE_MAX_NAME_LENGTH) || !unpack.UnpackUint8(strategy) ||
-        !IsValidStrategy(strategy) || !unpack.UnpackUint32(namespaceCount) || namespaceCount > SSU_CLI_MAX_NAMESPACES) {
+    if (!UnpackString(unpack, decoded.name, SSU_CLI_MAX_NAME_LENGTH) || !unpack.UnpackUint8(strategy) ||
+        !IsValidStrategy(strategy) || !unpack.UnpackUint32(namespaceCount) || namespaceCount > SSU_CLI_MAX_NS_NUM) {
         return false;
     }
     decoded.strategy = static_cast<UbseSsuAllocStrategy>(strategy);
@@ -183,18 +183,18 @@ bool DecodePayload(const uint8_t *buffer, uint32_t length, Decode decode)
 
 bool UbseCliSsuAllocDetailReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!StringFits(name, SSU_CLI_WIRE_MAX_NAME_LENGTH)) {
+    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH)) {
         return false;
     }
     return BuildPayload(StringSize(name), payload,
-                        [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_WIRE_MAX_NAME_LENGTH); });
+                        [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH); });
 }
 
 bool UbseCliSsuAllocCreateReq::Serialize(std::vector<uint8_t> &payload) const
 {
     const auto rawLbaFormat = static_cast<uint32_t>(lbaFormat);
     const auto rawStrategy = static_cast<uint8_t>(strategy);
-    if (!StringFits(name, SSU_CLI_WIRE_MAX_NAME_LENGTH) || !StringFits(tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH) ||
+    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH) || !StringFits(tenant, SSU_CLI_MAX_TENANT_LENGTH) ||
         !IsValidLbaFormat(rawLbaFormat) || !IsValidStrategy(rawStrategy)) {
         return false;
     }
@@ -203,9 +203,9 @@ bool UbseCliSsuAllocCreateReq::Serialize(std::vector<uint8_t> &payload) const
         static_cast<uint32_t>(sizeof(nsSize) + sizeof(nsNum) + sizeof(rawLbaFormat) + sizeof(rawStrategy)) +
         StringSize(tenant);
     return BuildPayload(size, payload, [this, rawLbaFormat, rawStrategy](UbsePackUtil &pack) {
-        return PackString(pack, name, SSU_CLI_WIRE_MAX_NAME_LENGTH) && pack.UbsePackUint64(nsSize) &&
+        return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH) && pack.UbsePackUint64(nsSize) &&
                pack.UbsePackUint32(nsNum) && pack.UbsePackUint32(rawLbaFormat) && pack.UbsePackUint8(rawStrategy) &&
-               PackString(pack, tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH);
+               PackString(pack, tenant, SSU_CLI_MAX_TENANT_LENGTH);
     });
 }
 
@@ -220,13 +220,13 @@ bool UbseCliSsuAttachSpaceReq::Serialize(std::vector<uint8_t> &payload) const
 
 bool UbseCliSsuAttachLinearReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH)) {
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH)) {
         return false;
     }
     return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName), payload,
                         [this](UbsePackUtil &pack) {
                             return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-                                   PackString(pack, devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH);
+                                   PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH);
                         });
 }
 
@@ -234,7 +234,7 @@ bool UbseCliSsuAttachStripedReq::Serialize(std::vector<uint8_t> &payload) const
 {
     const auto rawLevel = static_cast<uint8_t>(level);
     const auto rawChunkSize = static_cast<uint32_t>(chunkSize);
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH) ||
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH) ||
         !IsValidRaidLevel(rawLevel) || !IsValidChunkSize(rawChunkSize)) {
         return false;
     }
@@ -242,7 +242,7 @@ bool UbseCliSsuAttachStripedReq::Serialize(std::vector<uint8_t> &payload) const
         SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName) + sizeof(rawLevel) + sizeof(rawChunkSize);
     return BuildPayload(size, payload, [this, rawLevel, rawChunkSize](UbsePackUtil &pack) {
         return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-               PackString(pack, devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
+               PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
                pack.UbsePackUint32(rawChunkSize);
     });
 }
@@ -264,7 +264,7 @@ bool UbseCliSsuAttachAggregatedRsp::Deserialize(const uint8_t *buffer, uint32_t 
     std::string decodedDevPath;
     if (!DecodePayload(buffer, length, [&decodedNsDevPaths, &decodedDevPath](UbseUnpackUtil &unpack) {
             return UnpackNsDevPaths(unpack, decodedNsDevPaths) &&
-                   UnpackString(unpack, decodedDevPath, SSU_CLI_WIRE_MAX_DEV_PATH_LENGTH);
+                   UnpackString(unpack, decodedDevPath, SSU_CLI_MAX_DEV_PATH_LENGTH);
         })) {
         return false;
     }
@@ -284,13 +284,13 @@ bool UbseCliSsuDetachSpaceReq::Serialize(std::vector<uint8_t> &payload) const
 
 bool UbseCliSsuDetachLinearReq::Serialize(std::vector<uint8_t> &payload) const
 {
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH)) {
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH)) {
         return false;
     }
     return BuildPayload(SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName), payload,
                         [this](UbsePackUtil &pack) {
                             return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-                                   PackString(pack, devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH);
+                                   PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH);
                         });
 }
 
@@ -298,7 +298,7 @@ bool UbseCliSsuDetachStripedReq::Serialize(std::vector<uint8_t> &payload) const
 {
     const auto rawLevel = static_cast<uint8_t>(level);
     const auto rawChunkSize = static_cast<uint32_t>(chunkSize);
-    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH) ||
+    if (!SpaceFieldsFit(name, hostNqn, srcEid) || !StringFits(devName, SSU_CLI_MAX_DEV_NAME_LENGTH) ||
         !IsValidRaidLevel(rawLevel) || !IsValidChunkSize(rawChunkSize)) {
         return false;
     }
@@ -306,7 +306,7 @@ bool UbseCliSsuDetachStripedReq::Serialize(std::vector<uint8_t> &payload) const
         SpaceFieldsSize(name, hostNqn, srcEid) + StringSize(devName) + sizeof(rawLevel) + sizeof(rawChunkSize);
     return BuildPayload(size, payload, [this, rawLevel, rawChunkSize](UbsePackUtil &pack) {
         return PackSpaceFields(pack, name, hostNqn, srcEid) &&
-               PackString(pack, devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
+               PackString(pack, devName, SSU_CLI_MAX_DEV_NAME_LENGTH) && pack.UbsePackUint8(rawLevel) &&
                pack.UbsePackUint32(rawChunkSize);
     });
 }

@@ -187,9 +187,9 @@ void ExpectSpaceFields(UbseUnpackUtil &unpack, const std::string &name, const st
     std::string actualName;
     std::string actualHostNqn;
     std::string actualSrcEid;
-    EXPECT_TRUE(unpack.UnpackString(actualName, SSU_CLI_WIRE_MAX_NAME_LENGTH));
-    EXPECT_TRUE(unpack.UnpackString(actualHostNqn, SSU_CLI_WIRE_MAX_NQN_LENGTH));
-    EXPECT_TRUE(unpack.UnpackString(actualSrcEid, SSU_CLI_WIRE_MAX_EID_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(actualName, SSU_CLI_MAX_NAME_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(actualHostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(actualSrcEid, SSU_CLI_MAX_SRC_EID_LENGTH));
     EXPECT_EQ(actualName, name);
     EXPECT_EQ(actualHostNqn, hostNqn);
     EXPECT_EQ(actualSrcEid, srcEid);
@@ -225,12 +225,12 @@ TEST(TestUbseCliSsuStruct, CreateRequestMatchesHandlerFieldOrderAndEnumWidths)
     uint32_t count = 0;
     uint32_t lbaFormat = 0;
     uint8_t strategy = UINT8_MAX;
-    EXPECT_TRUE(unpack.UnpackString(name, SSU_CLI_WIRE_MAX_NAME_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(name, SSU_CLI_MAX_NAME_LENGTH));
     EXPECT_TRUE(unpack.UnpackUint64(size));
     EXPECT_TRUE(unpack.UnpackUint32(count));
     EXPECT_TRUE(unpack.UnpackUint32(lbaFormat));
     EXPECT_TRUE(unpack.UnpackUint8(strategy));
-    EXPECT_TRUE(unpack.UnpackString(tenant, SSU_CLI_WIRE_MAX_TENANT_LENGTH));
+    EXPECT_TRUE(unpack.UnpackString(tenant, SSU_CLI_MAX_TENANT_LENGTH));
     EXPECT_EQ(name, request.name);
     EXPECT_EQ(size, request.nsSize);
     EXPECT_EQ(count, request.nsNum);
@@ -250,7 +250,7 @@ TEST(TestUbseCliSsuStruct, AttachRequestsMatchSpaceLinearAndStripedUnpackers)
     auto linearUnpack = SerializeAndOpen(linear, payload);
     ExpectSpaceFields(linearUnpack, "alloc-a", "host-a", "eid-a");
     std::string devName;
-    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_MAX_DEV_NAME_LENGTH));
     EXPECT_EQ(devName, "linear0");
 
     UbseCliSsuAttachStripedReq striped{"alloc-a",
@@ -263,7 +263,7 @@ TEST(TestUbseCliSsuStruct, AttachRequestsMatchSpaceLinearAndStripedUnpackers)
     ExpectSpaceFields(stripedUnpack, "alloc-a", "host-a", "eid-a");
     uint8_t level = 0;
     uint32_t chunkSize = 0;
-    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_MAX_DEV_NAME_LENGTH));
     EXPECT_TRUE(stripedUnpack.UnpackUint8(level));
     EXPECT_TRUE(stripedUnpack.UnpackUint32(chunkSize));
     EXPECT_EQ(devName, "striped0");
@@ -287,7 +287,7 @@ TEST(TestUbseCliSsuStruct, DetachRequestsIncludeHandlerPlaceholders)
     auto linearUnpack = SerializeAndOpen(linear, payload);
     ExpectSpaceFields(linearUnpack, "alloc-a", "host-a", "");
     std::string devName;
-    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(linearUnpack.UnpackString(devName, SSU_CLI_MAX_DEV_NAME_LENGTH));
     EXPECT_EQ(devName, "linear0");
 
     UbseCliSsuDetachStripedReq striped;
@@ -298,7 +298,7 @@ TEST(TestUbseCliSsuStruct, DetachRequestsIncludeHandlerPlaceholders)
     ExpectSpaceFields(stripedUnpack, "alloc-a", "host-a", "");
     uint8_t level = UINT8_MAX;
     uint32_t chunkSize = 0;
-    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_WIRE_MAX_DEV_NAME_LENGTH));
+    EXPECT_TRUE(stripedUnpack.UnpackString(devName, SSU_CLI_MAX_DEV_NAME_LENGTH));
     EXPECT_TRUE(stripedUnpack.UnpackUint8(level));
     EXPECT_TRUE(stripedUnpack.UnpackUint32(chunkSize));
     EXPECT_EQ(level, static_cast<uint8_t>(UbseSsuAggregationRaidLevel::RAID0));
@@ -363,6 +363,20 @@ TEST(TestUbseCliSsuStruct, AggregatedAttachResponseRejectsMissingDevicePath)
     EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 }
 
+TEST(TestUbseCliSsuStruct, ResponsesRejectStringsOnePastCliLimits)
+{
+    const auto pathPayload = PackAttachSpaceResponse({std::string(SSU_CLI_MAX_DEV_PATH_LENGTH + 1, 'a')});
+    UbseCliSsuAttachSpaceRsp attachResponse;
+    EXPECT_FALSE(attachResponse.Deserialize(pathPayload.data(), static_cast<uint32_t>(pathPayload.size())));
+
+    auto allocation = MakeAllocation(std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a'),
+                                     UbseSsuAllocStrategy::LINEAR, 1);
+    const auto allocationPayload = PackAllocationList({allocation});
+    UbseCliSsuAllocListRsp allocationResponse;
+    EXPECT_FALSE(
+        allocationResponse.Deserialize(allocationPayload.data(), static_cast<uint32_t>(allocationPayload.size())));
+}
+
 TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedLists)
 {
     std::vector<uint8_t> payload(sizeof(uint32_t));
@@ -381,13 +395,28 @@ TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedLists)
     EXPECT_FALSE(allocationResponse.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
 }
 
-TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedAllowedHostListAndInvalidEnums)
+TEST(TestUbseCliSsuStruct, ResponsesAcceptAllowedHostListBeyondNamespaceLimit)
+{
+    auto allocation = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
+    allocation.nameSpaceList.resize(1);
+    auto &allowedHosts = allocation.nameSpaceList[0].allowHostNqnList;
+    allowedHosts.assign(SSU_CLI_MAX_NS_NUM + 1, "nqn.2026-07:host-a");
+
+    const auto payload = PackAllocationList({allocation});
+    UbseCliSsuAllocListRsp response;
+    ASSERT_TRUE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
+    ASSERT_EQ(response.allocations.size(), 1U);
+    ASSERT_EQ(response.allocations[0].nameSpaceList.size(), 1U);
+    EXPECT_EQ(response.allocations[0].nameSpaceList[0].allowHostNqnList, allowedHosts);
+}
+
+TEST(TestUbseCliSsuStruct, ResponsesRejectDefensiveHostLimitAndInvalidEnums)
 {
     auto allocation = MakeAllocation("alloc-a", UbseSsuAllocStrategy::LINEAR, 1);
     allocation.nameSpaceList.resize(1);
     allocation.nameSpaceList[0].allowHostNqnList.clear();
     auto payload = PackAllocationList({allocation});
-    uint32_t tooManyHosts = SSU_CLI_MAX_NS_NUM + 1;
+    uint32_t tooManyHosts = SSU_CLI_MAX_DESERIALIZED_HOST_NQNS + 1;
     std::memcpy(payload.data() + payload.size() - sizeof(uint32_t), &tooManyHosts, sizeof(tooManyHosts));
     UbseCliSsuAllocListRsp response;
     EXPECT_FALSE(response.Deserialize(payload.data(), static_cast<uint32_t>(payload.size())));
@@ -410,17 +439,33 @@ TEST(TestUbseCliSsuStruct, ResponsesRejectOversizedAllowedHostListAndInvalidEnum
 
 TEST(TestUbseCliSsuStruct, RequestsRejectOverlongStringsAndInvalidEnums)
 {
-    UbseCliSsuAllocDetailReq detail{std::string(49, 'a')};
+    UbseCliSsuAllocDetailReq detail{std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a')};
     std::vector<uint8_t> payload;
     EXPECT_FALSE(detail.Serialize(payload));
 
     UbseCliSsuAllocCreateReq create;
     create.name = "alloc-a";
+    create.tenant = std::string(SSU_CLI_MAX_TENANT_LENGTH + 1, 'a');
+    EXPECT_FALSE(create.Serialize(payload));
+    create.tenant.clear();
     create.lbaFormat = static_cast<UbseSsuLBAFormat>(1234);
     EXPECT_FALSE(create.Serialize(payload));
     create.lbaFormat = UbseSsuLBAFormat::LBA_FORMAT_512;
     create.strategy = static_cast<UbseSsuAllocStrategy>(9);
     EXPECT_FALSE(create.Serialize(payload));
+
+    UbseCliSsuAttachSpaceReq space;
+    space.name = "alloc-a";
+    space.hostNqn = std::string(SSU_CLI_MAX_HOST_NQN_LENGTH + 1, 'a');
+    EXPECT_FALSE(space.Serialize(payload));
+    space.hostNqn.clear();
+    space.srcEid = std::string(SSU_CLI_MAX_SRC_EID_LENGTH + 1, 'a');
+    EXPECT_FALSE(space.Serialize(payload));
+
+    UbseCliSsuAttachLinearReq linear;
+    linear.name = "alloc-a";
+    linear.devName = std::string(SSU_CLI_MAX_DEV_NAME_LENGTH + 1, 'a');
+    EXPECT_FALSE(linear.Serialize(payload));
 
     UbseCliSsuAttachStripedReq striped;
     striped.name = "alloc-a";
@@ -433,8 +478,8 @@ TEST(TestUbseCliSsuStruct, RequestsRejectOverlongStringsAndInvalidEnums)
 
 TEST(TestUbseCliSsuStruct, PublicConstantsReuseSsuLimits)
 {
-    EXPECT_EQ(SSU_CLI_MAX_NAME_LENGTH, 48U);
-    EXPECT_EQ(SSU_CLI_MAX_NS_NUM, ubse::adapter_plugins::ssu::def::UBSE_SSU_MAX_HOST_NUM);
+    EXPECT_EQ(SSU_CLI_MAX_NAME_LENGTH, 47U);
+    EXPECT_EQ(SSU_CLI_MAX_NS_NUM, 128U);
     EXPECT_EQ(SSU_CLI_MIN_SIZE_BYTES, 1024ULL * 1024ULL * 1024ULL);
 }
 } // namespace ubse::ut::cli

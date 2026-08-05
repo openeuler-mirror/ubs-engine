@@ -334,8 +334,8 @@ TEST_F(TestUbseCliSsuCmdReg, CreateRejectsInvalidNameCharacters)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_NAME_PREFIX);
 }
 
-// name 恰好 48 字符上限应被接受（与服务层 48 字符契约一致）。
-TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsNameAtFortyEightCharLimit)
+// name 恰好达到常量定义的字符上限时应被接受。
+TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsNameAtLengthLimit)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
     auto params = CreateParams();
@@ -346,8 +346,8 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsNameAtFortyEightCharLimit)
     EXPECT_EQ(g_ssuMockLastCreateReq.name, std::string(SSU_CLI_MAX_NAME_LENGTH, 'a'));
 }
 
-// name 超过 48 字符上限应返回 name 格式错误。
-TEST_F(TestUbseCliSsuCmdReg, CreateRejectsNameLongerThanFortyEight)
+// name 超过常量定义的字符上限时应返回 name 格式错误。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsNameLongerThanLimit)
 {
     auto params = CreateParams();
     params["name"] = std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a');
