@@ -47,6 +47,13 @@ void RunTwoNodeElectionCandidateFalseTest(ubse::it::infra::ItCluster& cluster);
 // 四节点选举测试：验证集群收敛为1主+1备+2代理
 void RunFourNodeElectionTest(ubse::it::infra::ItCluster& cluster);
 
+// 八节点CLOS选举测试：通过 display cluster 获取集群视图,验证收敛为1主+1备+6代理
+void RunEightNodeElectionTest(ubse::it::infra::ItCluster& cluster);
+
+// 八节点CLOS cap=2选举测试：每个pod含2节点,display cluster 在各节点返回2节点(1主1备),
+// display cluster -g 返回4个全局节点(每个pod的主)
+void RunEightNodeClosCap2ElectionTest(ubse::it::infra::ItCluster& cluster);
+
 // 四节点主节点重启测试：收敛后重启主节点，备节点应接管成为新主，集群最终重新收敛
 void RunFourNodeMasterRestartTest(ubse::it::infra::ItCluster& cluster);
 

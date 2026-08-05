@@ -102,6 +102,23 @@ int32_t ItCliInvoker::QueryClusterInfo(std::vector<ItNodeInfo>& nodeInfos)
     return ParseTableOutput(output, nodeInfos);
 }
 
+int32_t ItCliInvoker::QueryGlobalClusterInfo(std::vector<ItNodeInfo>& nodeInfos)
+{
+    std::string cmd = ShellQuote(cliBinaryPath_) + " display cluster -g";
+    IT_LOG_INFO << "Executing command: " << cmd;
+    std::string output = ExecuteCommand(cmd);
+    if (output.empty()) {
+        IT_LOG_ERROR << "CLI command returned empty output: " << cmd;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    if (output.find("ERROR:") != std::string::npos) {
+        IT_LOG_ERROR << "CLI command returned error: " << output;
+        return UBS_ENGINE_ERR_CONNECTION_FAILED;
+    }
+    LogCliOutput(output);
+    return ParseTableOutput(output, nodeInfos);
+}
+
 int32_t ItCliInvoker::QueryNodeInfo(ItNodeInfo& nodeInfo, const std::string& nodeId)
 {
     std::string cmd = ShellQuote(cliBinaryPath_) + " display node";
@@ -270,33 +287,33 @@ std::string ItCliInvoker::ExecuteCommand(const std::string& command) const
 
 int32_t ItCliInvoker::ParseTableOutput(const std::string& output, std::vector<ItNodeInfo>& nodeInfos) const
 {
-    std::istringstream iss(output);
-    std::string line;
-    int separatorCount = 0;
-    while (std::getline(iss, line)) {
-        if (line.find("---") != std::string::npos) {
-            ++separatorCount;
-            continue;
-        }
-        // Skip everything before the second separator (top separator + header row + mid separator)
-        if (separatorCount < 2) {
-            continue;
-        }
-        std::istringstream lineStream(line);
-        std::string node;
-        std::string role;
-        std::string bondingEid;
-        std::string guid;
-        lineStream >> node >> role >> bondingEid >> guid;
-        if (node.empty() || role.empty()) {
-            continue;
-        }
+    // 使用 UbseCliTableParser 基于表头列位置切片,天然支持含空格的 role 列
+    // (如全局视图 "global master"/"global standby"/"global cascade")。
+    UbseCliTableParser parser(output);
+    auto records = parser.Parse();
+    nodeInfos.clear();
+    for (const auto& rec : records) {
         ItNodeInfo info;
-        info.node = node;
-        info.role = role;
-        info.bondingEid = bondingEid;
-        info.guid = guid;
-        nodeInfos.push_back(info);
+        auto it = rec.find("node");
+        if (it != rec.end()) {
+            info.node = it->second;
+        }
+        it = rec.find("role");
+        if (it != rec.end()) {
+            info.role = it->second;
+        }
+        it = rec.find("bonding-eid");
+        if (it != rec.end()) {
+            info.bondingEid = it->second;
+        }
+        it = rec.find("guid");
+        if (it != rec.end()) {
+            info.guid = it->second;
+        }
+        if (info.node.empty() || info.role.empty()) {
+            continue;
+        }
+        nodeInfos.push_back(std::move(info));
     }
     if (nodeInfos.empty()) {
         IT_LOG_WARN << "No node info parsed from CLI output";

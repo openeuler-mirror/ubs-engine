@@ -26,10 +26,27 @@ namespace ubse::it::infra {
 
 using ubse::common::def::UbseResult;
 
+/**
+ * @brief Mock LCNE HTTP server for IT testing (UDS only).
+ *
+ * Supports two topology modes:
+ *   - FULL_MESH: slot-based XML (BusInstanceXml, TopologyNodesXml, etc.)
+ *   - CLOS: nodeId-based XML (ClosBusInstanceXml, ClosTopologyNodesXml, etc.)
+ *         CLOS uses keyed single-query for ⑦⑧, skips ⑥ static-urma-eids.
+ */
 class MockLcneServer {
 public:
-    // UDS mode: listen on Unix domain socket at udsPath, with slotId for multi-node scenarios
-    MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds = {});
+    /**
+     * @brief Constructor.
+     * @param udsPath Unix domain socket path
+     * @param slotId Slot ID for FULL_MESH XML generation
+     * @param clusterSlotIds All slot IDs in the cluster (for topology links)
+     * @param isClos true: use CLOS XML generators; false: use FULL_MESH generators
+     * @param nodeId CLOS node ID (= serverIdx + 1), only used when isClos=true
+     */
+    MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds = {},
+                   bool isClos = false, uint32_t nodeId = 1);
+
     ~MockLcneServer();
 
     UbseResult Start();
@@ -41,13 +58,25 @@ public:
     {
         return slotId_;
     }
+    uint32_t GetNodeId() const
+    {
+        return nodeId_;
+    }
+    bool IsClos() const
+    {
+        return isClos_;
+    }
 
 private:
     void RegisterHandlers();
+    void RegisterFullMeshHandlers();
+    void RegisterClosHandlers();
 
     httplib::Server server_;
     std::string udsPath_;
     uint32_t slotId_ = 1;
+    uint32_t nodeId_ = 1;
+    bool isClos_ = false;
     std::vector<uint32_t> clusterSlotIds_;
     std::thread serverThread_;
     std::atomic_bool running_;

@@ -79,10 +79,24 @@ struct LcneLogicEntityInfo {
  *
  * Provides direct access to mock LCNE server's HTTP endpoints
  * for topology and CNA information retrieval.
+ * Supports both UDS and TCP transport modes.
  */
 class ItLcneClient {
 public:
+    /**
+     * @brief UDS mode constructor.
+     * @param udsPath Unix domain socket path of the mock LCNE server
+     * @param sysfsBase Optional sysfs base path for socket ID mapping
+     */
     explicit ItLcneClient(const std::string& udsPath, const std::string& sysfsBase = "");
+
+    /**
+     * @brief TCP mode constructor.
+     * @param host TCP host (typically "127.0.0.1")
+     * @param port TCP port of the mock LCNE server
+     * @param sysfsBase Optional sysfs base path for socket ID mapping
+     */
+    ItLcneClient(const std::string& host, uint16_t port, const std::string& sysfsBase = "");
 
     ~ItLcneClient();
 

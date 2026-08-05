@@ -14,12 +14,15 @@
 
 #include <chrono>
 #include <fstream>
+#include <set>
 #include <thread>
 
 #include <gtest/gtest.h>
 
 #include "ubse_common_def.h"
 #include "it_assertion.h"
+#include "it_cli_invoker.h"
+#include "it_node_info.h"
 #include "it_wait_helper.h"
 
 namespace ubse::it::tests::election {
@@ -310,6 +313,87 @@ void RunFourNodeMasterRestartTest(ubse::it::infra::ItCluster& cluster)
     EXPECT_EQ(after.masterCount, 1U);
     EXPECT_EQ(after.standbyCount, 1U);
     EXPECT_EQ(after.agentCount, 2U);
+}
+
+// 八节点CLOS选举测试：通过 display cluster 获取集群视图,验证收敛为1主+1备+6代理
+void RunEightNodeElectionTest(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_FALSE(nodeIds.empty());
+    // 在第一个节点上执行 display cluster,一次性获取整个集群的节点角色
+    auto& cliInvoker = cluster.GetCliInvoker(nodeIds.front());
+    std::vector<ubse::it::infra::ItNodeInfo> nodeInfos;
+    ASSERT_EQ(cliInvoker.QueryClusterInfo(nodeInfos), UBS_SUCCESS) << "display cluster 执行失败";
+    ASSERT_EQ(nodeInfos.size(), 8u) << "期望8个节点,实际=" << nodeInfos.size();
+
+    uint32_t masterCount = 0, standbyCount = 0, agentCount = 0;
+    std::string masterNodeId, standbyNodeId;
+    for (const auto& info : nodeInfos) {
+        if (info.role == ubse::election::ELECTION_ROLE_MASTER) {
+            ++masterCount;
+            masterNodeId = info.node;
+        } else if (info.role == ubse::election::ELECTION_ROLE_STANDBY) {
+            ++standbyCount;
+            standbyNodeId = info.node;
+        } else if (info.role == ubse::election::ELECTION_ROLE_AGENT) {
+            ++agentCount;
+        }
+    }
+    EXPECT_EQ(masterCount, 1u) << "期望1个主节点,实际=" << masterCount;
+    EXPECT_EQ(standbyCount, 1u) << "期望1个备节点,实际=" << standbyCount;
+    EXPECT_EQ(agentCount, 6u) << "期望6个代理节点,实际=" << agentCount;
+
+    // 执行 display topo 查看拓扑(仅观察输出,不做校验)
+    std::vector<ubse::it::infra::ItTopoCpuLink> topoLinks;
+    cliInvoker.QueryTopoCpu(topoLinks);
+}
+
+// 八节点CLOS cap=2选举测试：每个pod含2节点,各节点 display cluster 返回2节点(1主1备),
+// display cluster -g 返回4个全局节点(即各pod的本地主,经全局二次选举后角色为
+// global master/global standby/global cascade)
+void RunEightNodeClosCap2ElectionTest(ubse::it::infra::ItCluster& cluster)
+{
+    const auto& nodeIds = cluster.GetNodeIds();
+    ASSERT_EQ(nodeIds.size(), 8u) << "本用例要求8节点集群,实际=" << nodeIds.size();
+
+    // 1. 在每个节点上执行 display cluster,验证返回2节点(1主1备),并收集各pod的本地主节点名
+    std::set<std::string> localMasterNodes;
+    for (const auto& nodeId : nodeIds) {
+        auto& cli = cluster.GetCliInvoker(nodeId);
+        std::vector<ubse::it::infra::ItNodeInfo> nodes;
+        ASSERT_EQ(cli.QueryClusterInfo(nodes), UBS_SUCCESS)
+            << "节点 " << nodeId << " 执行 display cluster 失败";
+        ASSERT_EQ(nodes.size(), 2u) << "节点 " << nodeId << " 期望2节点(1主1备),实际=" << nodes.size();
+
+        uint32_t master = 0, standby = 0;
+        for (const auto& info : nodes) {
+            if (info.role == ubse::election::ELECTION_ROLE_MASTER) {
+                ++master;
+                localMasterNodes.insert(info.node);
+            } else if (info.role == ubse::election::ELECTION_ROLE_STANDBY) {
+                ++standby;
+            }
+        }
+        EXPECT_EQ(master, 1u) << "节点 " << nodeId << " 所在pod期望1个主节点,实际=" << master;
+        EXPECT_EQ(standby, 1u) << "节点 " << nodeId << " 所在pod期望1个备节点,实际=" << standby;
+    }
+    ASSERT_EQ(localMasterNodes.size(), 4u) << "期望4个pod各1个本地主,实际=" << localMasterNodes.size();
+
+    // 2. 执行 display cluster -g,验证返回4个全局节点,且恰好是各pod的本地主集合
+    auto& cli = cluster.GetCliInvoker(nodeIds.front());
+    std::vector<ubse::it::infra::ItNodeInfo> globalNodes;
+    ASSERT_EQ(cli.QueryGlobalClusterInfo(globalNodes), UBS_SUCCESS) << "display cluster -g 执行失败";
+    ASSERT_EQ(globalNodes.size(), 4u) << "全局视图期望4个节点(各pod主),实际=" << globalNodes.size();
+
+    std::set<std::string> globalNodeNames;
+    for (const auto& info : globalNodes) {
+        globalNodeNames.insert(info.node);
+        // 全局角色应为 global master/global standby/global cascade 之一(均含 "global" 前缀)
+        EXPECT_NE(info.role.find("global"), std::string::npos)
+            << "全局节点 " << info.node << " 角色应含 global 前缀,实际=" << info.role;
+    }
+    EXPECT_EQ(globalNodeNames, localMasterNodes)
+        << "全局视图节点应与各pod本地主集合一致";
 }
 
 } // namespace ubse::it::tests::election

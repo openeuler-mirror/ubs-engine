@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "ubse_error.h"
+#include "adapter_plugins/mti/ubse_smbios.h"
 #include "it_console_log.h"
 
 namespace ubse::it::infra {
@@ -199,7 +200,11 @@ UbseResult ItNode::Start()
     CreateWorkDirectories();
 
     // Start mock LCNE server (daemon connects to it on startup)
-    mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsPath_, spec_.slotId, ctx_.clusterSlotIds);
+    // CLOS 模式: 根据 meshType 判断，使用 nodeId(=serverIdx+1) 生成 CLOS 专属 XML
+    // FULL_MESH 模式: 使用 slotId 生成拓扑 XML
+    const bool isClos = (ctx_.meshType == static_cast<uint32_t>(UbseMeshType::CLOS));
+    const uint32_t nodeId = isClos ? (std::stoul(spec_.nodeId)) : spec_.slotId;
+    mockLcneServer_ = std::make_unique<MockLcneServer>(lcneUdsPath_, spec_.slotId, ctx_.clusterSlotIds, isClos, nodeId);
     UbseResult ret = mockLcneServer_->Start();
     if (ret != UBSE_OK) {
         IT_LOG_ERROR << "Failed to start MockLcneServer for node " << spec_.nodeId;

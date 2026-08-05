@@ -35,6 +35,7 @@ void SetupMountNamespace(const std::string& workDir)
     BindMount(workDir + "/run", "/var/run/ubse");
     BindMount(workDir + "/log", "/var/log/ubse");
     BindMount(workDir + "/run/ubm/socket/ubm_nuds", "/run/ubm/socket/ubm_nuds");
+    BindMount(workDir + "/plugin", "/usr/lib64/ubse_plugin");
 }
 
 } // namespace

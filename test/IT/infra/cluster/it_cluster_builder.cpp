@@ -52,6 +52,16 @@ ItClusterBuilder& ItClusterBuilder::FourNode()
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::EightNode()
+{
+    // CLOS 8 节点：slotId 固定为 1（CLOS 不使用 slotId），nodeId 1..8
+    nodes_ = {NodeSpec{"1", "127.0.0.2", 8082, 1}, NodeSpec{"2", "127.0.0.3", 8083, 1},
+              NodeSpec{"3", "127.0.0.4", 8084, 1}, NodeSpec{"4", "127.0.0.5", 8085, 1},
+              NodeSpec{"5", "127.0.0.6", 8086, 1}, NodeSpec{"6", "127.0.0.7", 8087, 1},
+              NodeSpec{"7", "127.0.0.8", 8088, 1}, NodeSpec{"8", "127.0.0.9", 8089, 1}};
+    return *this;
+}
+
 ItClusterBuilder& ItClusterBuilder::Nodes(std::vector<NodeSpec> nodes)
 {
     nodes_ = std::move(nodes);
@@ -116,6 +126,13 @@ ItClusterBuilder& ItClusterBuilder::WithNodeConfig(const std::string& nodeId, co
     return *this;
 }
 
+ItClusterBuilder& ItClusterBuilder::WithConfig(const std::string& section, const std::string& key,
+                                               const std::string& value)
+{
+    globalConfigOverrides_[section][key] = value;
+    return *this;
+}
+
 UbseResult ItClusterBuilder::Start(std::unique_ptr<ItCluster>& cluster) const
 {
     if (nodes_.empty()) {
@@ -136,6 +153,7 @@ ClusterSpec ItClusterBuilder::BuildSpec() const
     spec.mockPluginEnabled = mockPluginEnabled_;
     spec.meshType = meshType_;
     spec.nodeConfigOverrides = nodeConfigOverrides_;
+    spec.globalConfigOverrides = globalConfigOverrides_;
     spec.Normalize();
     return spec;
 }

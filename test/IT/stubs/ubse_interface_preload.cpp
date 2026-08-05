@@ -38,6 +38,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <pwd.h>
 #include <stddef.h>
@@ -284,6 +286,7 @@ std::string RedirectUbseConfPath(const char* path)
 constexpr const char* SYSFS_NODE_PREFIX = "/sys/devices/system/node/";
 constexpr const char* SYSFS_CPU_PREFIX = "/sys/devices/system/cpu/";
 constexpr const char* SYSFS_OBMM_PREFIX = "/sys/kernel/obmm_mempool/";
+constexpr const char* SYSFS_UB_PREFIX = "/sys/bus/ub/";
 constexpr const char* PROC_FIB_TRIE = "/proc/net/fib_trie";
 constexpr const char* UBSE_IT_SYSFS_DIR_ENV = "UBSE_IT_SYSFS_DIR";
 
@@ -304,6 +307,9 @@ std::string RedirectSysfsPath(const char* path)
         return std::string(sysfsDir) + original;
     }
     if (original.rfind(SYSFS_OBMM_PREFIX, 0) == 0) {
+        return std::string(sysfsDir) + original;
+    }
+    if (original.rfind(SYSFS_UB_PREFIX, 0) == 0) {
         return std::string(sysfsDir) + original;
     }
     if (original == PROC_FIB_TRIE) {
@@ -674,5 +680,81 @@ extern "C" int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t bufle
     FillFakeUbsePasswd(*pwd, uid);
     pwd->pw_name = buf;
     *result = pwd;
+    return 0;
+}
+
+// ============================================================
+// getifaddrs/freeifaddrs stub: return UBSE_IT_NODE_IP as the only
+// interface address. UbseNetUtil::GetIpInfo and FindSameNetMask call
+// getifaddrs to enumerate local IPs; in IT each node should only see
+// its own assigned IP (UBSE_IT_NODE_IP), not the host's real interfaces.
+// ============================================================
+
+struct ifaddrs g_itIfaddr;
+struct sockaddr_in g_itIfaddrAddr;
+char g_itIfaddrName[] = "lo";
+
+extern "C" int getifaddrs(struct ifaddrs** ifap)
+{
+    if (ifap == nullptr) {
+        errno = EFAULT;
+        return -1;
+    }
+    const char* nodeIp = getenv("UBSE_IT_NODE_IP");
+    if (nodeIp == nullptr || nodeIp[0] == '\0') {
+        // No IT node IP configured; fall back to real getifaddrs
+        static int (*real_getifaddrs)(struct ifaddrs**) = nullptr;
+        if (real_getifaddrs == nullptr) {
+            real_getifaddrs = reinterpret_cast<int (*)(struct ifaddrs**)>(dlsym(RTLD_NEXT, "getifaddrs"));
+        }
+        if (real_getifaddrs == nullptr) {
+            errno = ENOSYS;
+            return -1;
+        }
+        return real_getifaddrs(ifap);
+    }
+    // Build a single-entry ifaddrs with the IT node IP
+    memset(&g_itIfaddrAddr, 0, sizeof(g_itIfaddrAddr));
+    g_itIfaddrAddr.sin_family = AF_INET;
+    if (inet_pton(AF_INET, nodeIp, &g_itIfaddrAddr.sin_addr) != 1) {
+        errno = EINVAL;
+        return -1;
+    }
+    memset(&g_itIfaddr, 0, sizeof(g_itIfaddr));
+    g_itIfaddr.ifa_next = nullptr;
+    g_itIfaddr.ifa_name = g_itIfaddrName;
+    g_itIfaddr.ifa_addr = reinterpret_cast<struct sockaddr*>(&g_itIfaddrAddr);
+    g_itIfaddr.ifa_netmask = nullptr;
+    g_itIfaddr.ifa_ifu.ifu_broadaddr = nullptr;
+    g_itIfaddr.ifa_data = nullptr;
+    g_itIfaddr.ifa_flags = IFF_UP | IFF_RUNNING | IFF_LOOPBACK;
+    *ifap = &g_itIfaddr;
+    return 0;
+}
+
+extern "C" void freeifaddrs(struct ifaddrs* ifa)
+{
+    // Our mock returns a static global; nothing to free.
+    // Only call real freeifaddrs if the pointer is not ours.
+    if (ifa == &g_itIfaddr) {
+        return;
+    }
+    static void (*real_freeifaddrs)(struct ifaddrs*) = nullptr;
+    if (real_freeifaddrs == nullptr) {
+        real_freeifaddrs = reinterpret_cast<void (*)(struct ifaddrs*)>(dlsym(RTLD_NEXT, "freeifaddrs"));
+    }
+    if (real_freeifaddrs != nullptr) {
+        real_freeifaddrs(ifa);
+    }
+}
+
+// ============================================================
+// sleep stub: redirect sleep() to 10ms regardless of argument
+// ============================================================
+
+extern "C" unsigned int sleep(unsigned int seconds)
+{
+    (void)seconds;
+    usleep(10000); // 10ms
     return 0;
 }

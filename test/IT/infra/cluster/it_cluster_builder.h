@@ -53,6 +53,7 @@ public:
     ItClusterBuilder& SingleNode();
     ItClusterBuilder& TwoNode();
     ItClusterBuilder& FourNode();
+    ItClusterBuilder& EightNode();
     ItClusterBuilder& Nodes(std::vector<NodeSpec> nodes);
     ItClusterBuilder& StartupTimeoutMs(uint32_t timeoutMs);
     ItClusterBuilder& ElectionTimeoutMs(uint32_t timeoutMs);
@@ -64,6 +65,9 @@ public:
     /** @brief Add a per-node key=value config override in a specific section (nodeId only). */
     ItClusterBuilder& WithNodeConfig(const std::string& nodeId, const std::string& section, const std::string& key,
                                      const std::string& value);
+
+    /** @brief Add a global key=value config override in a specific section (applies to all nodes). */
+    ItClusterBuilder& WithConfig(const std::string& section, const std::string& key, const std::string& value);
 
     /**
      * @brief Build and start the cluster.
@@ -90,6 +94,7 @@ private:
     bool mockPluginEnabled_ = true;
     bool waitForElection_ = true;
     std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nodeConfigOverrides_;
+    std::map<std::string, std::map<std::string, std::string>> globalConfigOverrides_;
 };
 
 } // namespace ubse::it::infra

@@ -12,6 +12,7 @@
 
 #include "mock_lcne_server.h"
 
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <chrono>
@@ -22,9 +23,12 @@
 
 namespace ubse::it::infra {
 
-MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId, const std::vector<uint32_t>& clusterSlotIds)
+MockLcneServer::MockLcneServer(const std::string& udsPath, uint32_t slotId,
+                               const std::vector<uint32_t>& clusterSlotIds, bool isClos, uint32_t nodeId)
     : udsPath_(udsPath),
       slotId_(slotId),
+      nodeId_(isClos ? nodeId : slotId),
+      isClos_(isClos),
       clusterSlotIds_(clusterSlotIds),
       running_(false)
 {
@@ -38,34 +42,13 @@ MockLcneServer::~MockLcneServer()
 
 void MockLcneServer::RegisterHandlers()
 {
-    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entity-mappings",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(lcne_xml::BusInstanceXml(slotId_), "application/yang-data+xml");
-                });
+    if (isClos_) {
+        RegisterClosHandlers();
+    } else {
+        RegisterFullMeshHandlers();
+    }
 
-    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(lcne_xml::IoDieInfoXml(slotId_), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(lcne_xml::HostInfoXml(slotId_), "application/yang-data+xml");
-                });
-
-    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/nodes",
-                [this](const httplib::Request&, httplib::Response& res) {
-                    res.status = httplib::OK_200;
-                    res.set_header("Content-Type", "application/yang-data+xml");
-                    res.set_content(lcne_xml::TopologyNodesXml(slotId_, clusterSlotIds_), "application/yang-data+xml");
-                });
-
+    // Common handlers shared by both modes
     server_.Post("/restconf/operations/notifications:create-subscription",
                  [](const httplib::Request&, httplib::Response& res) {
                      res.status = httplib::OK_200;
@@ -100,6 +83,38 @@ void MockLcneServer::RegisterHandlers()
                      res.set_header("Content-Type", "application/json");
                      res.set_content(lcne_xml::DecoderHandleResponseJson(), "application/json");
                  });
+}
+
+void MockLcneServer::RegisterFullMeshHandlers()
+{
+    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entity-mappings",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::BusInstanceXml(slotId_), "application/yang-data+xml");
+                });
+
+    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::IoDieInfoXml(slotId_), "application/yang-data+xml");
+                });
+
+    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::HostInfoXml(slotId_), "application/yang-data+xml");
+                });
+
+    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/nodes",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::TopologyNodesXml(slotId_, clusterSlotIds_),
+                                    "application/yang-data+xml");
+                });
 
     server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/addresses",
                 [this](const httplib::Request&, httplib::Response& res) {
@@ -108,6 +123,7 @@ void MockLcneServer::RegisterHandlers()
                     res.set_content(lcne_xml::TopologyCnaXml(slotId_), "application/yang-data+xml");
                 });
 
+    // FULL_MESH only: static-urma-eids (CLOS skips this, uses ⑦ keyed query instead)
     server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/static-urma-eids",
                 [](const httplib::Request&, httplib::Response& res) {
                     res.status = httplib::OK_200;
@@ -144,6 +160,79 @@ void MockLcneServer::RegisterHandlers()
                 });
 }
 
+void MockLcneServer::RegisterClosHandlers()
+{
+    // CLOS ① logic-entity-mappings (nodeId-based EID)
+    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entity-mappings",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosBusInstanceXml(nodeId_), "application/yang-data+xml");
+                });
+
+    // CLOS ② iou-infos (2 ubpu, upi=0x7FFF)
+    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/iou-infos",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosIoDieInfoXml(nodeId_), "application/yang-data+xml");
+                });
+
+    // CLOS ③ logic-entities (host, upi=0x7FFF)
+    server_.Get("/restconf/data/huawei-vbussw-inventory:vbussw-inventory/logic-entities",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosHostInfoXml(nodeId_), "application/yang-data+xml");
+                });
+
+    // CLOS ④ topology/nodes (2 ubpu × 8 ports, port-4 UP, all remote-* = "-")
+    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/nodes",
+                [](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosTopologyNodesXml(), "application/yang-data+xml");
+                });
+
+    // CLOS ⑤ topology/addresses (bus-primary-cna/bus-port-cna with 0x80*(nodeId-1) offset)
+    server_.Get("/restconf/data/huawei-lingqu-topology:lingqu-topology/addresses",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosTopologyCnaXml(nodeId_), "application/yang-data+xml");
+                });
+
+    // CLOS ⑦ entity-urma-communication-infos (keyed single query: /entity-urma-communication-info=1,1,1)
+    // CLOS does NOT call the list path, but register it for completeness
+    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/entity-urma-communication-infos",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosFeEidXml(nodeId_), "application/yang-data+xml");
+                });
+    server_.Get(R"(/restconf/data/huawei-vbussw-service:vbussw-service/entity-urma-communication-infos/.+)",
+                [this](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosFeEidXml(nodeId_), "application/yang-data+xml");
+                });
+
+    // CLOS ⑧ mue-ue-binding-infos (keyed single query: /mue-ue-binding-info=1,1,1)
+    // Same XML for all nodes (mue-id 2..9, all PHYSICAL_TYPE)
+    server_.Get("/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos",
+                [](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosFeBindingXml(), "application/yang-data+xml");
+                });
+    server_.Get(R"(/restconf/data/huawei-vbussw-service:vbussw-service/mue-ue-binding-infos/.+)",
+                [](const httplib::Request&, httplib::Response& res) {
+                    res.status = httplib::OK_200;
+                    res.set_header("Content-Type", "application/yang-data+xml");
+                    res.set_content(lcne_xml::ClosFeBindingXml(), "application/yang-data+xml");
+                });
+}
+
 UbseResult MockLcneServer::Start()
 {
     if (running_) {
@@ -154,6 +243,7 @@ UbseResult MockLcneServer::Start()
         serverThread_.join();
     }
 
+    // UDS mode: listen on Unix domain socket
     std::filesystem::create_directories(std::filesystem::path(udsPath_).parent_path());
     unlink(udsPath_.c_str());
     server_.set_address_family(AF_UNIX);
@@ -165,10 +255,11 @@ UbseResult MockLcneServer::Start()
             IT_LOG_ERROR << "MockLcneServer failed to listen on " << udsPath_;
             running_ = false;
         }
-        IT_LOG_INFO << "MockLcneServer stopped";
+        IT_LOG_INFO << "MockLcneServer (UDS) stopped";
     });
-
-    IT_LOG_INFO << "MockLcneServer started on " << udsPath_;
+    IT_LOG_INFO << "MockLcneServer started on " << udsPath_
+                << (isClos_ ? " (CLOS mode, nodeId=" + std::to_string(nodeId_) + ")"
+                            : " (FULL_MESH mode, slotId=" + std::to_string(slotId_) + ")");
     return UBSE_OK;
 }
 
@@ -184,16 +275,18 @@ UbseResult MockLcneServer::Stop()
         serverThread_.join();
     }
 
-    unlink(udsPath_.c_str());
+    if (!udsPath_.empty()) {
+        unlink(udsPath_.c_str());
+    }
 
-    IT_LOG_INFO << "MockLcneServer stopped and socket unlinked";
+    IT_LOG_INFO << "MockLcneServer stopped";
     return UBSE_OK;
 }
 
 bool MockLcneServer::IsReady()
 {
-    struct stat st {
-    };
+    // UDS mode: check if socket file exists
+    struct stat st {};
     return stat(udsPath_.c_str(), &st) == 0;
 }
 
