@@ -36,6 +36,7 @@ public:
 
     uint64_t GetTurnId() override
     {
+        std::lock_guard<std::mutex> lock(roleMutex_);
         return turnId_;
     }
 

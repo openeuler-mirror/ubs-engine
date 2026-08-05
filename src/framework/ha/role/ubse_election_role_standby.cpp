@@ -39,6 +39,11 @@ Standby::Standby(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 
 void Standby::ProcTimer()
 {
+    // 陈旧对象不应继续执行（避免误升主）：先持锁后校验，与 RecvPkt 在同一把锁内互斥
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    if (!IsCurrentRole()) {
+        return;
+    }
     // 备节点丢失心跳次数阈值
     uint32_t standbyLostHbSwitchThreshold = ElectionRole::GetHbLostTimes();
     if (IsStandbyHeartBeatTimeout(standbyLostHbSwitchThreshold) && GetElectionCandidate()) {
@@ -74,6 +79,13 @@ void HandleMasterOnlineNotification(const ElectionPkt& rcvPkt, ElectionReplyPkt&
 
 uint32_t Standby::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    // 陈旧角色对象（已被并发 SwitchRole 替换）不应再处理报文，避免按陈旧状态覆盖新角色
+    if (!IsCurrentRole()) {
+        UBSE_LOG_INFO << "[ELECTION] Standby: stale role object, skip RecvPkt from nodeId=" << srcID;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT;
+        return 0;
+    }
     if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
         !IsAllowedMasterNode(rcvPkt.masterId)) {
         UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
@@ -137,21 +149,25 @@ void Standby::RecvPktForHeart(const ElectionPkt& rcvPkt, ElectionReplyPkt& reply
 
 UBSE_ID_TYPE Standby::GetMasterNode()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return masterId_;
 }
 
 UBSE_ID_TYPE Standby::GetStandbyNode()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return standbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Standby::GetAgentNodes()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return agentIds_;
 }
 
 uint8_t Standby::GetMasterStatus()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return masterStatus_;
 }
 

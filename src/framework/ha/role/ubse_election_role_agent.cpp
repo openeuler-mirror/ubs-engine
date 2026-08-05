@@ -33,21 +33,44 @@ Agent::Agent(RoleContext& ctx) : turnId_(0), lastHeartTime_()
 
 void Agent::ProcTimer()
 {
+    // 并发 SwitchRole 可能已把 currentRole_ 换成新对象，陈旧对象不应继续执行选举
+    if (!IsCurrentRole()) {
+        return;
+    }
     // 从节点丢失主的心跳次数阈值，约定从节点丢失心跳次数阈值比备节点的多2次。
     uint32_t agentLostHbSwitchThreshold = (ElectionRole::GetHbLostTimes() + NO_2);
-    if (IsAgentHeartBeatTimeout(agentLostHbSwitchThreshold)) {
-        if (GetElectionCandidate() && ForceElection(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-            RoleContext ctx;
-            ctx.masterId = myselfID_;
-            ctx.standbyId = INVALID_NODE_ID;
-            ctx.turnId = turnId_;
-            UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Master";
-            RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
-        } else {
-            RoleContext ctx;
-            UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Initializer";
-            RoleMgr::GetInstance().SwitchRole(RoleType::INITIALIZER, ctx);
-        }
+    bool hbTimeout = false;
+    {
+        std::lock_guard<std::mutex> lock(roleMutex_);
+        hbTimeout = IsAgentHeartBeatTimeout(agentLostHbSwitchThreshold);
+    }
+    if (!hbTimeout) {
+        return;
+    }
+    // 锁外：发起选举（ForceElection 内含阻塞的有界等待发送），持锁期间禁止网络等待
+    bool candidate = GetElectionCandidate();
+    uint32_t electionResult = ELECTION_PKT_TYPE_REJECT;
+    if (candidate) {
+        electionResult = ForceElection(myselfID_);
+    }
+    // 短临界区：校验本对象仍是当前角色（发送期间可能被并发收编），再决策
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    if (!IsCurrentRole()) {
+        // 选举发送期间角色已被并发收编（如收到 HEART 转 STANDBY/AGENT），放弃切换
+        UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: role changed during election, skip switch";
+        return;
+    }
+    if (electionResult == ELECTION_PKT_RESULT_ACCEPT) {
+        RoleContext ctx;
+        ctx.masterId = myselfID_;
+        ctx.standbyId = INVALID_NODE_ID;
+        ctx.turnId = turnId_;
+        UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Master";
+        RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+    } else {
+        RoleContext ctx;
+        UBSE_LOG_INFO << "[ELECTION] Agent ProcTimer: switch Initializer";
+        RoleMgr::GetInstance().SwitchRole(RoleType::INITIALIZER, ctx);
     }
 }
 
@@ -73,6 +96,13 @@ void Agent::HandleMasterChange(const ElectionPkt& rcvPkt, ElectionReplyPkt& repl
 
 uint32_t Agent::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    // 陈旧角色对象（已被并发 SwitchRole 替换）不应再处理报文，避免按陈旧状态覆盖新角色
+    if (!IsCurrentRole()) {
+        UBSE_LOG_INFO << "[ELECTION] Agent: stale role object, skip RecvPkt from nodeId=" << srcID;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT;
+        return 0;
+    }
     if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
         !IsAllowedMasterNode(rcvPkt.masterId)) {
         UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
@@ -166,26 +196,31 @@ void Agent::RecvPktForSelect(ElectionReplyPkt& reply) const
 
 UBSE_ID_TYPE Agent::GetMasterNode()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return masterId_;
 }
 
 UBSE_ID_TYPE Agent::GetStandbyNode()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return standbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Agent::GetAgentNodes()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return agentIds_;
 }
 
 uint8_t Agent::GetMasterStatus()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return masterStatus_;
 }
 
 uint8_t Agent::GetStandbyStatus()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return standbyStatus_;
 }
 

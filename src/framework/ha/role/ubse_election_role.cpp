@@ -315,4 +315,9 @@ bool IsHeartBeatEnabled(HeartBeatStatus status)
 {
     return status == HeartBeatStatus::ENABLED;
 }
+
+bool ElectionRole::IsCurrentRole() const
+{
+    return RoleMgr::GetInstance().GetRole().get() == this;
+}
 } // namespace ubse::election

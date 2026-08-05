@@ -14,6 +14,7 @@
 #define UBSE_ELECTION_ROLE_INITIALIZER_H
 
 #include <pthread.h>
+#include <memory>
 #include "ubse_election_role.h"
 #include "../ubse_election_def.h"
 
@@ -45,12 +46,15 @@ public:
 
     uint64_t GetTurnId() override
     {
+        std::lock_guard<std::mutex> lock(roleMutex_);
         return turnId_;
     }
 
 private:
     void ProcRoleSwitch();
     void CheckAndSwitchMaster(const Node& myself, const std::vector<Node>& allNodes, RoleContext ctx);
+    // 选举发送（锁外）结束后，校验本对象仍是当前角色，再切换为主
+    void TrySwitchToMaster(RoleContext& ctx);
 
 private:
     uint64_t startTimeMs_;

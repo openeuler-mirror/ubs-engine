@@ -26,14 +26,13 @@ UbseResult FAKE_GetMyselfNode2(UbseElectionNodeMgr* pthis, Node& myself)
 TEST_F(TestUbseElectionRoleAgent, ProcTimer_ShouldReturnMaster_WhenForceMasterFail)
 {
     // given
-    RoleContext ctx = {1, "NODE0", "NODE1"};
-    Agent agent(ctx);
+    auto role = RoleMgr::GetInstance().GetRole();
 
     MOCKER(&Agent::IsAgentHeartBeatTimeout).stubs().will(returnValue(true));
     MOCKER(&ubse::election::ForceElection).stubs().will(returnValue((uint32_t)1));
 
     // when
-    agent.ProcTimer();
+    role->ProcTimer();
 
     // then
     EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::INITIALIZER);
@@ -95,6 +94,36 @@ TEST_F(TestUbseElectionRoleAgent, ProcTimer_ShouldSwitchToInitializer_WhenForceE
     MOCKER(&Agent::IsAgentHeartBeatTimeout).stubs().will(returnValue(true));
     MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
     MOCKER(&ubse::election::ForceElection).stubs().will(returnValue((uint32_t)ELECTION_PKT_TYPE_REJECT));
+
+    // when
+    auto role = RoleMgr::GetInstance().GetRole();
+    role->ProcTimer();
+
+    // then
+    EXPECT_EQ(RoleMgr::GetInstance().GetRole()->GetRoleType(), RoleType::INITIALIZER);
+}
+
+uint32_t FAKE_ForceElectionSwitchToInitializer(UBSE_ID_TYPE myselfID)
+{
+    RoleContext ctx;
+    RoleMgr::GetInstance().SwitchRole(RoleType::INITIALIZER, ctx);
+    return ELECTION_PKT_RESULT_ACCEPT;
+}
+
+TEST_F(TestUbseElectionRoleAgent, ProcTimer_ShouldNotSwitchMaster_WhenRoleChangedDuringElection)
+{
+    // given
+    MOCKER(&ubse::election::UbseElectionNodeMgr::GetMyselfNode).stubs().will(invoke(FAKE_GetMyselfNode2));
+    RoleContext ctx;
+    ctx.masterId = "NODE0";
+    ctx.standbyId = "NODE1";
+    ctx.turnId = 1;
+    RoleMgr::GetInstance().SwitchRole(RoleType::AGENT, ctx);
+
+    MOCKER(&Agent::IsAgentHeartBeatTimeout).stubs().will(returnValue(true));
+    MOCKER(&ubse::election::GetElectionCandidate).stubs().will(returnValue(true));
+    // ForceElection 期间角色被并发收编成 INITIALIZER（模拟收到 HEART/连接变更抢占）
+    MOCKER(&ubse::election::ForceElection).stubs().will(invoke(FAKE_ForceElectionSwitchToInitializer));
 
     // when
     auto role = RoleMgr::GetInstance().GetRole();

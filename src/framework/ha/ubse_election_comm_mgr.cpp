@@ -217,9 +217,13 @@ UbseResult UbseElectionCommMgr::ElectionResponseHandler(std::string& eventId, st
                 ElectionNodeDownNotify(it.nodeId);
                 UBSE_LOG_INFO << "[ELECTION] Event disconnect to node id is: " << it.nodeId
                               << ", eventId is: " << eventId;
-                connectSuccessNodes_.erase(
-                    std::remove(connectSuccessNodes_.begin(), connectSuccessNodes_.end(), it.nodeId),
-                    connectSuccessNodes_.end());
+                {
+                    // 与 GetConnectedNodes/Connect/DisConnect 的读写锁保持一致，避免事件线程并发修改
+                    std::unique_lock<std::shared_mutex> writeLock(mtx_);
+                    connectSuccessNodes_.erase(
+                        std::remove(connectSuccessNodes_.begin(), connectSuccessNodes_.end(), it.nodeId),
+                        connectSuccessNodes_.end());
+                }
             }
         }
     }
