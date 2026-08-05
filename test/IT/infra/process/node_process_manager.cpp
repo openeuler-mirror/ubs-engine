@@ -94,6 +94,7 @@ std::vector<std::string> NodeProcessManager::BuildChildEnvironment() const
     }
     environment.emplace_back("UBSE_IT_XALARM_FIFO_PATH=" + xalarmFifoPath_);
     environment.emplace_back("UBSE_IT_SYSFS_DIR=" + workDir_ + "/sysfs");
+    environment.emplace_back("UBSE_IT_SEI_FILE_PATH=" + workDir_ + "/sei_degrade_status");
     return environment;
 }
 

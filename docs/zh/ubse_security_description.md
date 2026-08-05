@@ -29,6 +29,7 @@ UBSE服务以ubse用户作为运行用户，特权的使用遵从最小化使用
 | 5    | 设置bonding eid            | CAP_NET_ADMIN         | ioctl：/dev/uburma/*<br />ioctl执行后，会额外检查特权CAP_NET_ADMIN |
 | 6    | UDS的sock文件创建          | CAP_DAC_OVERRIDE      | 在/run目录下创建 ubse/ubse.sock， 而/run目录是内存文件系统，重启后其子目录会清除，故重启后/run/ubse/ubse.sock需要重建，需要override权限<br/> ubse/ubse.sock 可否放在ubse有权创建的目录下，或者systemd起来时，自动创建. |
 | 7    | urma通信                   | CAP_DAC_OVERRIDE      | 依赖关系urma->udma->ummu<br/>ummu依赖下述两个文件：<br/>1）/dev/ummu/tid root:root 600 存储urma通信需要的tokenid，属于敏感信息. <br/>2）/usr/lib64/libummu.so root:root 600 -> 755 |
+| 8    | SEI降级执行sysctl提权       | CAP_SETUID  CAP_SETGID | 通过sudo执行sysctl修改内核参数kernel.arm64_sync_sei，sudo为setuid-root二进制，内核执行时需这两个capability允许uid/gid切换 |
 
 #### 文件及目录权限设计
 
@@ -56,6 +57,7 @@ ubs-engine-\<version>-\<release>.aarch64.rpm安装后的权限如下：
 | /var/lib/ubse/data                  | 目录       | ubse:ubse | 750 | 内部文件权限：600                   |
 | /var/lib/ubse/lcne_cert             | 目录       | ubse:ubse | 700 | 内部文件权限：600                   |
 | /var/run/ubse                       | 目录       | ubse:ubse | 755 | 内部动态创建socket文件，权限：660        |
+| /etc/sudoers.d/ubse-sei             | 配置文件   | root:root | 440 | SEI降级sysctl提权，仅授予ubse用户执行sysctl的免密权限 |
 
 #### 客户端运行库权限设计
 
