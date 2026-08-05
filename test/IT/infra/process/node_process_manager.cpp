@@ -119,13 +119,20 @@ UbseResult NodeProcessManager::Start()
     std::filesystem::create_directories(workDir_ + "/hcom");
     std::filesystem::create_directories(workDir_ + "/plugin");
 
-    // Copy mock_plugin.so into per-node plugin directory so the daemon can
-    // discover and dlopen it via the bind-mounted /usr/lib64/ubse_plugin.
-    const std::string mockPluginSrc = stubLibDir_ + "/libmock_plugin.so";
-    const std::string mockPluginDst = workDir_ + "/plugin/libmock_plugin.so";
-    if (std::filesystem::exists(mockPluginSrc)) {
-        std::filesystem::copy_file(mockPluginSrc, mockPluginDst,
-                                   std::filesystem::copy_options::overwrite_existing);
+    // Copy plugin .so files into per-node plugin directory so the daemon can
+    // discover and dlopen them via the bind-mounted /usr/lib64/ubse_plugin.
+    // - libmock_plugin.so: IT fault/OOM handler (always deployed)
+    // - libmem_plugin.so: mem controller module (PLUGIN_MODULE_IMPL), needed for
+    //   mem CLI/SDK APIs; without it UbseMemControllerModule never registers.
+    const std::vector<std::pair<std::string, std::string>> pluginArtifacts = {
+        {stubLibDir_ + "/libmem_plugin.so", workDir_ + "/plugin/libmem_plugin.so"},
+    };
+    for (const auto& [src, dst] : pluginArtifacts) {
+        if (std::filesystem::exists(src)) {
+            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+        } else {
+            IT_LOG_WARN << "Plugin artifact not found, skip: " << src;
+        }
     }
 
     /* Create xalarm FIFO (idempotent, already done by stub if daemon started first) */
