@@ -35,6 +35,12 @@ struct UbseCliSsuAllocDetailReq {
     bool Serialize(std::vector<uint8_t> &payload) const;
 };
 
+// 空间释放请求：仅携带待释放的分配名称。
+struct UbseCliSsuFreeSpaceReq {
+    std::string name;
+    bool Serialize(std::vector<uint8_t> &payload) const;
+};
+
 // 分配创建请求：name/size 必填，其余字段在 CLI 侧带缺省值。
 // 字段对齐服务层 UbseSsuAllocSpaceReq，tenant 当前为线报文字段，默认空字符串。
 struct UbseCliSsuAllocCreateReq {

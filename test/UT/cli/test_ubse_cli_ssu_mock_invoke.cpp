@@ -28,6 +28,7 @@ using ubse::utils::UbseUnpackUtil;
 uint16_t g_ssuMockLastModuleCode = 0;
 uint16_t g_ssuMockLastOpCode = 0;
 UbseCliSsuAllocDetailReq g_ssuMockLastDetailReq{};
+UbseCliSsuFreeSpaceReq g_ssuMockLastFreeSpaceReq{};
 UbseCliSsuAllocCreateReq g_ssuMockLastCreateReq{};
 UbseCliSsuAttachSpaceReq g_ssuMockLastAttachSpaceReq{};
 UbseCliSsuAttachLinearReq g_ssuMockLastAttachLinearReq{};
@@ -43,6 +44,7 @@ void ResetSsuMockCapture()
     g_ssuMockLastModuleCode = 0;
     g_ssuMockLastOpCode = 0;
     g_ssuMockLastDetailReq = {};
+    g_ssuMockLastFreeSpaceReq = {};
     g_ssuMockLastCreateReq = {};
     g_ssuMockLastAttachSpaceReq = {};
     g_ssuMockLastAttachLinearReq = {};
@@ -62,37 +64,37 @@ constexpr uint16_t SsuOpCode(ubse_ipc_ssu_op_code_t opCode)
     return static_cast<uint16_t>(opCode);
 }
 
-uint32_t StringSize(const std::string &value)
+uint32_t StringSize(const std::string& value)
 {
     return static_cast<uint32_t>(sizeof(uint32_t) + value.size());
 }
 
-uint32_t NameSpaceSize(const UbseCliSsuNameSpaceInfo &value)
+uint32_t NameSpaceSize(const UbseCliSsuNameSpaceInfo& value)
 {
     uint32_t size = StringSize(value.tgtEid) + StringSize(value.tgtNqn) + StringSize(value.nsUuid) +
                     static_cast<uint32_t>(sizeof(uint32_t)) + StringSize(value.nsDevPath) +
                     static_cast<uint32_t>(sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint32_t));
-    for (const auto &hostNqn : value.allowHostNqnList) {
+    for (const auto& hostNqn : value.allowHostNqnList) {
         size += StringSize(hostNqn);
     }
     return size;
 }
 
-uint32_t AllocationSize(const UbseCliSsuAllocResult &value)
+uint32_t AllocationSize(const UbseCliSsuAllocResult& value)
 {
     uint32_t size = StringSize(value.name) + static_cast<uint32_t>(sizeof(uint8_t) + sizeof(uint32_t));
-    for (const auto &nameSpace : value.nameSpaceList) {
+    for (const auto& nameSpace : value.nameSpaceList) {
         size += NameSpaceSize(nameSpace);
     }
     return size;
 }
 
-bool PackString(UbsePackUtil &pack, const std::string &value)
+bool PackString(UbsePackUtil& pack, const std::string& value)
 {
     return pack.UbsePackString(value, MAX_STRING_LEN);
 }
 
-bool PackNameSpace(UbsePackUtil &pack, const UbseCliSsuNameSpaceInfo &value)
+bool PackNameSpace(UbsePackUtil& pack, const UbseCliSsuNameSpaceInfo& value)
 {
     if (!PackString(pack, value.tgtEid) || !PackString(pack, value.tgtNqn) || !PackString(pack, value.nsUuid) ||
         !pack.UbsePackUint32(value.namespaceId) || !PackString(pack, value.nsDevPath) ||
@@ -100,7 +102,7 @@ bool PackNameSpace(UbsePackUtil &pack, const UbseCliSsuNameSpaceInfo &value)
         !pack.UbsePackUint32(static_cast<uint32_t>(value.allowHostNqnList.size()))) {
         return false;
     }
-    for (const auto &hostNqn : value.allowHostNqnList) {
+    for (const auto& hostNqn : value.allowHostNqnList) {
         if (!PackString(pack, hostNqn)) {
             return false;
         }
@@ -108,13 +110,13 @@ bool PackNameSpace(UbsePackUtil &pack, const UbseCliSsuNameSpaceInfo &value)
     return true;
 }
 
-bool PackAllocation(UbsePackUtil &pack, const UbseCliSsuAllocResult &value)
+bool PackAllocation(UbsePackUtil& pack, const UbseCliSsuAllocResult& value)
 {
     if (!PackString(pack, value.name) || !pack.UbsePackUint8(static_cast<uint8_t>(value.strategy)) ||
         !pack.UbsePackUint32(static_cast<uint32_t>(value.nameSpaceList.size()))) {
         return false;
     }
-    for (const auto &nameSpace : value.nameSpaceList) {
+    for (const auto& nameSpace : value.nameSpaceList) {
         if (!PackNameSpace(pack, nameSpace)) {
             return false;
         }
@@ -123,12 +125,12 @@ bool PackAllocation(UbsePackUtil &pack, const UbseCliSsuAllocResult &value)
 }
 
 template <typename Pack>
-uint32_t BuildResponse(uint32_t size, ubse_api_buffer_t *responseData, Pack packFields)
+uint32_t BuildResponse(uint32_t size, ubse_api_buffer_t* responseData, Pack packFields)
 {
     if (responseData == nullptr) {
         return UBSE_ERROR;
     }
-    responseData->buffer = static_cast<uint8_t *>(malloc(size));
+    responseData->buffer = static_cast<uint8_t*>(malloc(size));
     responseData->length = 0;
     if (responseData->buffer == nullptr) {
         return UBSE_ERROR;
@@ -143,23 +145,23 @@ uint32_t BuildResponse(uint32_t size, ubse_api_buffer_t *responseData, Pack pack
     return UBSE_OK;
 }
 
-uint32_t BuildAllocationResponse(const UbseCliSsuAllocResult &value, ubse_api_buffer_t *responseData)
+uint32_t BuildAllocationResponse(const UbseCliSsuAllocResult& value, ubse_api_buffer_t* responseData)
 {
     return BuildResponse(AllocationSize(value), responseData,
-                         [&value](UbsePackUtil &pack) { return PackAllocation(pack, value); });
+                         [&value](UbsePackUtil& pack) { return PackAllocation(pack, value); });
 }
 
-uint32_t BuildAllocationListResponse(const std::vector<UbseCliSsuAllocResult> &values, ubse_api_buffer_t *responseData)
+uint32_t BuildAllocationListResponse(const std::vector<UbseCliSsuAllocResult>& values, ubse_api_buffer_t* responseData)
 {
     uint32_t size = sizeof(uint32_t);
-    for (const auto &value : values) {
+    for (const auto& value : values) {
         size += AllocationSize(value);
     }
-    return BuildResponse(size, responseData, [&values](UbsePackUtil &pack) {
+    return BuildResponse(size, responseData, [&values](UbsePackUtil& pack) {
         if (!pack.UbsePackUint32(static_cast<uint32_t>(values.size()))) {
             return false;
         }
-        for (const auto &value : values) {
+        for (const auto& value : values) {
             if (!PackAllocation(pack, value)) {
                 return false;
             }
@@ -168,17 +170,17 @@ uint32_t BuildAllocationListResponse(const std::vector<UbseCliSsuAllocResult> &v
     });
 }
 
-uint32_t BuildAttachSpaceResponse(const std::vector<std::string> &nsDevPaths, ubse_api_buffer_t *responseData)
+uint32_t BuildAttachSpaceResponse(const std::vector<std::string>& nsDevPaths, ubse_api_buffer_t* responseData)
 {
     uint32_t size = sizeof(uint32_t);
-    for (const auto &path : nsDevPaths) {
+    for (const auto& path : nsDevPaths) {
         size += StringSize(path);
     }
-    return BuildResponse(size, responseData, [&nsDevPaths](UbsePackUtil &pack) {
+    return BuildResponse(size, responseData, [&nsDevPaths](UbsePackUtil& pack) {
         if (!pack.UbsePackUint32(static_cast<uint32_t>(nsDevPaths.size()))) {
             return false;
         }
-        for (const auto &path : nsDevPaths) {
+        for (const auto& path : nsDevPaths) {
             if (!PackString(pack, path)) {
                 return false;
             }
@@ -187,18 +189,18 @@ uint32_t BuildAttachSpaceResponse(const std::vector<std::string> &nsDevPaths, ub
     });
 }
 
-uint32_t BuildAttachAggregatedResponse(const std::vector<std::string> &nsDevPaths, const std::string &devPath,
-                                       ubse_api_buffer_t *responseData)
+uint32_t BuildAttachAggregatedResponse(const std::vector<std::string>& nsDevPaths, const std::string& devPath,
+                                       ubse_api_buffer_t* responseData)
 {
     uint32_t size = sizeof(uint32_t) + StringSize(devPath);
-    for (const auto &path : nsDevPaths) {
+    for (const auto& path : nsDevPaths) {
         size += StringSize(path);
     }
-    return BuildResponse(size, responseData, [&nsDevPaths, &devPath](UbsePackUtil &pack) {
+    return BuildResponse(size, responseData, [&nsDevPaths, &devPath](UbsePackUtil& pack) {
         if (!pack.UbsePackUint32(static_cast<uint32_t>(nsDevPaths.size()))) {
             return false;
         }
-        for (const auto &path : nsDevPaths) {
+        for (const auto& path : nsDevPaths) {
             if (!PackString(pack, path)) {
                 return false;
             }
@@ -233,14 +235,14 @@ UbseCliSsuAllocResult BuildSsuAllocResult()
     return result;
 }
 
-bool UnpackSpace(UbseUnpackUtil &unpack, std::string &name, std::string &hostNqn, std::string &srcEid)
+bool UnpackSpace(UbseUnpackUtil& unpack, std::string& name, std::string& hostNqn, std::string& srcEid)
 {
     return unpack.UnpackString(name, SSU_CLI_MAX_NAME_LENGTH) &&
            unpack.UnpackString(hostNqn, SSU_CLI_MAX_HOST_NQN_LENGTH) &&
            unpack.UnpackString(srcEid, SSU_CLI_MAX_SRC_EID_LENGTH);
 }
 
-bool UnpackCreate(UbseUnpackUtil &unpack, UbseCliSsuAllocCreateReq &request)
+bool UnpackCreate(UbseUnpackUtil& unpack, UbseCliSsuAllocCreateReq& request)
 {
     uint32_t lbaFormat = 0;
     uint8_t strategy = 0;
@@ -255,7 +257,7 @@ bool UnpackCreate(UbseUnpackUtil &unpack, UbseCliSsuAllocCreateReq &request)
     return true;
 }
 
-bool UnpackStripedTail(UbseUnpackUtil &unpack, UbseSsuAggregationRaidLevel &level, UbseSsuChunkSize &chunkSize)
+bool UnpackStripedTail(UbseUnpackUtil& unpack, UbseSsuAggregationRaidLevel& level, UbseSsuChunkSize& chunkSize)
 {
     uint8_t rawLevel = 0;
     uint32_t rawChunkSize = 0;
@@ -272,7 +274,7 @@ bool UnpackStripedTail(UbseUnpackUtil &unpack, UbseSsuAggregationRaidLevel &leve
     return true;
 }
 
-void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buffer_t *requestData)
+void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buffer_t* requestData)
 {
     g_ssuMockLastModuleCode = moduleCode;
     g_ssuMockLastOpCode = opCode;
@@ -293,6 +295,8 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
     UbseUnpackUtil unpack(requestData->buffer, requestData->length);
     if (opCode == SsuOpCode(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME)) {
         g_ssuMockLastRequestDeserialized = unpack.UnpackString(g_ssuMockLastDetailReq.name, SSU_CLI_MAX_NAME_LENGTH);
+    } else if (opCode == SsuOpCode(UBSE_IPC_SSU_FREE_SPACE)) {
+        g_ssuMockLastRequestDeserialized = unpack.UnpackString(g_ssuMockLastFreeSpaceReq.name, SSU_CLI_MAX_NAME_LENGTH);
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ALLOC_SPACE)) {
         g_ssuMockLastRequestDeserialized = UnpackCreate(unpack, g_ssuMockLastCreateReq);
     } else if (opCode == SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE)) {
@@ -330,24 +334,24 @@ void CaptureSsuRequest(uint16_t moduleCode, uint16_t opCode, const ubse_api_buff
 } // namespace
 
 uint32_t mock_ssu_alloc_summary_invoke_call_empty(uint16_t moduleCode, uint16_t opCode,
-                                                  const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                  const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAllocationListResponse({}, responseData);
 }
 
 uint32_t mock_ssu_alloc_summary_invoke_call_bad_response(uint16_t moduleCode, uint16_t opCode,
-                                                         const ubse_api_buffer_t *requestData,
-                                                         ubse_api_buffer_t *responseData)
+                                                         const ubse_api_buffer_t* requestData,
+                                                         ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildResponse(sizeof(uint32_t), responseData,
-                         [](UbsePackUtil &pack) { return pack.UbsePackUint32(UINT32_MAX); });
+                         [](UbsePackUtil& pack) { return pack.UbsePackUint32(UINT32_MAX); });
 }
 
 uint32_t mock_ssu_alloc_summary_invoke_call_empty_body(uint16_t moduleCode, uint16_t opCode,
-                                                       const ubse_api_buffer_t *requestData,
-                                                       ubse_api_buffer_t *responseData)
+                                                       const ubse_api_buffer_t* requestData,
+                                                       ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     responseData->buffer = nullptr;
@@ -356,8 +360,8 @@ uint32_t mock_ssu_alloc_summary_invoke_call_empty_body(uint16_t moduleCode, uint
 }
 
 uint32_t mock_ssu_alloc_summary_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                   const ubse_api_buffer_t *requestData,
-                                                   ubse_api_buffer_t *responseData)
+                                                   const ubse_api_buffer_t* requestData,
+                                                   ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     auto alloc1 = BuildSsuAllocResult();
@@ -376,8 +380,8 @@ uint32_t mock_ssu_alloc_summary_invoke_call_normal(uint16_t moduleCode, uint16_t
 }
 
 uint32_t mock_ssu_alloc_summary_invoke_call_subgib(uint16_t moduleCode, uint16_t opCode,
-                                                   const ubse_api_buffer_t *requestData,
-                                                   ubse_api_buffer_t *responseData)
+                                                   const ubse_api_buffer_t* requestData,
+                                                   ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     UbseCliSsuAllocResult alloc;
@@ -395,7 +399,7 @@ uint32_t mock_ssu_alloc_summary_invoke_call_subgib(uint16_t moduleCode, uint16_t
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_empty(uint16_t moduleCode, uint16_t opCode,
-                                                 const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                 const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     UbseCliSsuAllocResult response;
@@ -405,23 +409,23 @@ uint32_t mock_ssu_alloc_detail_invoke_call_empty(uint16_t moduleCode, uint16_t o
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_bad_response(uint16_t moduleCode, uint16_t opCode,
-                                                        const ubse_api_buffer_t *requestData,
-                                                        ubse_api_buffer_t *responseData)
+                                                        const ubse_api_buffer_t* requestData,
+                                                        ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildResponse(sizeof(uint32_t), responseData,
-                         [](UbsePackUtil &pack) { return pack.UbsePackUint32(UINT32_MAX); });
+                         [](UbsePackUtil& pack) { return pack.UbsePackUint32(UINT32_MAX); });
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                  const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                  const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAllocationResponse(BuildSsuAllocResult(), responseData);
 }
 
 uint32_t mock_ssu_alloc_detail_invoke_call_subgib(uint16_t moduleCode, uint16_t opCode,
-                                                  const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                  const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     auto response = BuildSsuAllocResult();
@@ -431,46 +435,57 @@ uint32_t mock_ssu_alloc_detail_invoke_call_subgib(uint16_t moduleCode, uint16_t 
 }
 
 uint32_t mock_ssu_alloc_create_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                  const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                  const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAllocationResponse(BuildSsuAllocResult(), responseData);
 }
 
+uint32_t mock_ssu_free_space_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
+                                                const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
+{
+    CaptureSsuRequest(moduleCode, opCode, requestData);
+    if (responseData != nullptr) {
+        responseData->buffer = nullptr;
+        responseData->length = 0;
+    }
+    return UBSE_OK;
+}
+
 uint32_t mock_ssu_attach_space_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                  const ubse_api_buffer_t *requestData, ubse_api_buffer_t *responseData)
+                                                  const ubse_api_buffer_t* requestData, ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAttachSpaceResponse({"/dev/nvme0n1", "/dev/nvme1n1"}, responseData);
 }
 
 uint32_t mock_ssu_attach_space_invoke_call_bad_response(uint16_t moduleCode, uint16_t opCode,
-                                                        const ubse_api_buffer_t *requestData,
-                                                        ubse_api_buffer_t *responseData)
+                                                        const ubse_api_buffer_t* requestData,
+                                                        ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildResponse(sizeof(uint32_t), responseData,
-                         [](UbsePackUtil &pack) { return pack.UbsePackUint32(UINT32_MAX); });
+                         [](UbsePackUtil& pack) { return pack.UbsePackUint32(UINT32_MAX); });
 }
 
 uint32_t mock_ssu_attach_linear_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                   const ubse_api_buffer_t *requestData,
-                                                   ubse_api_buffer_t *responseData)
+                                                   const ubse_api_buffer_t* requestData,
+                                                   ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAttachAggregatedResponse({"/dev/nvme0n1", "/dev/nvme1n1"}, "/dev/ubse_ssu0", responseData);
 }
 
 uint32_t mock_ssu_attach_striped_invoke_call_normal(uint16_t moduleCode, uint16_t opCode,
-                                                    const ubse_api_buffer_t *requestData,
-                                                    ubse_api_buffer_t *responseData)
+                                                    const ubse_api_buffer_t* requestData,
+                                                    ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     return BuildAttachAggregatedResponse({"/dev/nvme0n1", "/dev/nvme1n1"}, "/dev/ubse_ssu0", responseData);
 }
 
-uint32_t mock_ssu_detach_invoke_call_normal(uint16_t moduleCode, uint16_t opCode, const ubse_api_buffer_t *requestData,
-                                            ubse_api_buffer_t *responseData)
+uint32_t mock_ssu_detach_invoke_call_normal(uint16_t moduleCode, uint16_t opCode, const ubse_api_buffer_t* requestData,
+                                            ubse_api_buffer_t* responseData)
 {
     CaptureSsuRequest(moduleCode, opCode, requestData);
     if (responseData != nullptr) {

@@ -337,9 +337,10 @@ std::shared_ptr<UbseCliResultEcho> HandleDetachAggregated(const std::map<std::st
 
 void UbseCliRegSsuModule::UbseCliSignUp()
 {
-    // 注册顺序即 display/create 命令进入模块命令列表的顺序，框架据此生成补全与帮助。
+    // 注册顺序即命令进入模块命令列表的顺序，框架据此生成补全与帮助。
     this->cmd_.emplace_back(UbseCliDisplaySsu());
     this->cmd_.emplace_back(UbseCliCreateSsu());
+    this->cmd_.emplace_back(UbseCliDeleteSsu());
     this->cmd_.emplace_back(UbseCliAttachSsu());
     this->cmd_.emplace_back(UbseCliDetachSsu());
 }
@@ -400,6 +401,17 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliCreateSsu()
         .UbseCliAddOption("m", NS_NUM_OPT, "SSU namespace count.")
         .UbseCliAddOption("r", STRATEGY_OPT, "SSU allocation strategy.")
         .UbseCliSetFunc(UbseCliCreateSsuFunc);
+    return builder.UbseCliBuild();
+}
+
+// delete ssu：仅需分配名称，成功时服务端不返回响应体。
+UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDeleteSsu()
+{
+    UbseCliRegBuilder builder;
+    builder.UbseCliSetCommand("delete")
+        .UbseCliSetType("ssu")
+        .UbseCliAddOption("n", NAME_OPT, "SSU allocation name.")
+        .UbseCliSetFunc(UbseCliDeleteSsuFunc);
     return builder.UbseCliBuild();
 }
 
@@ -486,6 +498,23 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliCreateSsuFunc(
     }
     return InvokeSsuIpc<UbseCliSsuAllocCreateReq, UbseCliSsuAllocResult>(UBSE_SSU, UBSE_IPC_SSU_ALLOC_SPACE, request,
                                                                          BuildDetailOutput);
+}
+
+// delete ssu 入口：复用分配名称校验，序列化后调用无响应体的释放 IPC。
+std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDeleteSsuFunc(
+    [[maybe_unused]] const std::map<std::string, std::string> &params)
+{
+    auto name = params.find(NAME_OPT);
+    if (name == params.end()) {
+        return UbseCliStringPromptReply(ERR_NAME_REQUIRED);
+    }
+    if (!IsValidName(name->second)) {
+        return UbseCliStringPromptReply(ERR_INVALID_NAME);
+    }
+
+    UbseCliSsuFreeSpaceReq request;
+    request.name = name->second;
+    return InvokeSsuIpc(UBSE_SSU, UBSE_IPC_SSU_FREE_SPACE, request);
 }
 
 // attach ssu 入口：通用参数先校验，随后按 --type 拆分普通/Linear/Striped 三类请求和响应。
