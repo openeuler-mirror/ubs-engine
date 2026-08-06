@@ -47,6 +47,7 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <cstdarg>
 #include <string>
 
 namespace {
@@ -316,6 +317,100 @@ std::string RedirectSysfsPath(const char* path)
     return original;
 }
 } // namespace
+
+// ============================================================
+// sleep stub: redirect sleep() to 10ms regardless of argument
+// ============================================================
+
+extern "C" unsigned int sleep(unsigned int seconds)
+{
+    (void)seconds;
+    usleep(10000); // 10ms
+    return 0;
+}
+typedef int (*open_func_t)(const char*, int, mode_t);
+static open_func_t real_open_func = nullptr;
+
+static void init_real_open()
+{
+    if (real_open_func == nullptr) {
+        real_open_func = reinterpret_cast<open_func_t>(dlsym(RTLD_NEXT, "open"));
+    }
+}
+
+extern "C" int open(const char* pathname, int flags, ...)
+{
+    init_real_open();
+    if (real_open_func == nullptr) {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    mode_t mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, mode_t);
+        va_end(args);
+    }
+
+    const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
+    if (seiPath != nullptr && seiPath[0] != '\0' && pathname != nullptr &&
+        strcmp(pathname, "/proc/sys/kernel/arm64_sync_sei") == 0) {
+        pathname = seiPath;
+        if ((flags & O_CREAT) == 0) {
+            flags |= O_CREAT;
+            mode = 0644;
+        }
+    }
+
+    return real_open_func(pathname, flags, mode);
+}
+
+// ============================================================
+// popen stub: intercept sysctl arm64_sync_sei writes via popen,
+// redirecting to UBSE_IT_SEI_FILE_PATH.  The production code
+// writes SEI via "popen("sudo /usr/sbin/sysctl -w kernel.arm64_sync_sei=X 2>&1")",
+// which bypasses the open() stub (sudo/sysctl ignore LD_PRELOAD).
+// ============================================================
+
+typedef FILE* (*popen_func_t)(const char*, const char*);
+static popen_func_t real_popen_func = nullptr;
+
+static void init_real_popen()
+{
+    if (real_popen_func == nullptr) {
+        real_popen_func = reinterpret_cast<popen_func_t>(dlsym(RTLD_NEXT, "popen"));
+    }
+}
+
+extern "C" FILE* popen(const char* command, const char* mode)
+{
+    init_real_popen();
+    if (real_popen_func == nullptr) {
+        errno = ENOSYS;
+        return nullptr;
+    }
+
+    const char* seiPath = getenv("UBSE_IT_SEI_FILE_PATH");
+    if (seiPath != nullptr && seiPath[0] != '\0' && command != nullptr) {
+        const char* key = "arm64_sync_sei=";
+        const char* pos = strstr(command, key);
+        if (pos != nullptr) {
+            pos += strlen(key);
+            if (*pos == '0' || *pos == '1') {
+                FILE* f = fopen(seiPath, "w");
+                if (f != nullptr) {
+                    fputc(*pos, f);
+                    fclose(f);
+                }
+            }
+            return real_popen_func("echo ok", "r");
+        }
+    }
+
+    return real_popen_func(command, mode);
+}
 
 // ============================================================
 // /etc/ubse path redirection: redirect config directory access
@@ -678,16 +773,5 @@ extern "C" int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t bufle
     FillFakeUbsePasswd(*pwd, uid);
     pwd->pw_name = buf;
     *result = pwd;
-    return 0;
-}
-
-// ============================================================
-// sleep stub: redirect sleep() to 10ms regardless of argument
-// ============================================================
-
-extern "C" unsigned int sleep(unsigned int seconds)
-{
-    (void)seconds;
-    usleep(10000); // 10ms
     return 0;
 }

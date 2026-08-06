@@ -79,6 +79,7 @@
   | /var/lib/ubse/data                  | 持久化数据    |
   | /var/lib/ubse/lcne_cert/            | 高安部署证书目录|
   | /var/run/ubse/                      | 运行时 socket |
+  | /etc/sudoers.d/ubse-sei             | SEI降级sysctl提权 |
   | /lib/modules/ubse/bandbridge.ko              | NPU直通虚机和LCNE进行带外通信 |
   | /lib/modules/$(uname -r)/extra/bandbridge.ko | 软链接，指向/lib/modules/ubse/bandbridge.ko             |
 

@@ -14,6 +14,7 @@
 #include "tests/election/election_cases.h"
 #include "tests/mem_borrow/mem_borrow_cases.h"
 #include "tests/mem_borrow/mem_borrow_fault_log_cases.h"
+#include "tests/sei_degrade/sei_degrade_cases.h"
 #include "tests/topo/topo_cases.h"
 
 using ubse::it::infra::Tongsuan1dFullMeshTwoNodesScenario;
@@ -944,4 +945,15 @@ TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareReturnInAttached01)
 TEST_F(Tongsuan1dFullMeshTwoNodesScenario, P1FaultLogShareDetachNotExist01)
 {
     ubse::it::tests::mem_borrow::RunP1FaultLogShareDetachNotExist(Cluster());
+}
+
+// ====================================================================
+// SEI 降级测试
+// ====================================================================
+
+// IT-01~IT-04: SEI 降级生命周期测试
+// 节点2借入FD→继续借入NUMA→归还FD(仍有NUMA)→归还NUMA(末次)
+TEST_F(Tongsuan1dFullMeshTwoNodesScenario, ITSeiDegradeLifecycle)
+{
+    ubse::it::tests::sei_degrade::RunITSeiDegradeLifecycle(Cluster());
 }

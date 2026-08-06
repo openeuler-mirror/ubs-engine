@@ -117,7 +117,7 @@ section取值：[ubse.memory]
 | 11 | obmm.memory.offline.timeout | obmm_unimport操作超时时间。       | 默认值：用#注释<br>单位：秒<br>取值范围：[10, 1800]                                        | - 当显式配置该配置项且值在范围内时，obmm_unimport超时时间固定为该值。<br>- 当不配置、配置值非法或超出范围时，超时时间由内部决策。 |
 | 12 | scheduler.mode | 内存调度模式，控制 socket NUMA 选择策略。 | 默认值：free-priority<br>取值范围：free-priority / reliability-priority / performance-priority<br>如果取值超过范围，则取默认值free-priority。 | - **free-priority**：优先选择剩余内存最多的节点。<br>- **reliability-priority**：优先复用已有借用关系并均衡各节点的借出数。<br>- **performance-priority**：均衡各节点带宽利用率，兼顾时延、内存利用率和可靠性。<br>- 当不配置时，检查已弃用的 `lender.balance`（第 6 项），兼容方式如下：<br>&nbsp;&nbsp;lender.balance=true 时取值 reliability-priority，lender.balance=false 取值 free-priority。 |
 | 13 | bandwidth.tolerance | performance-priority 模式下带宽均衡的容忍度阈值。 | 默认值：2 × block.size（通常 256 MB）<br>单位：MB<br>如果取值小于block.size，则取默认值。 | 候选 socket 的当前借出量低于平均值至少该阈值时得分归零（最优），介于平均值与该阈值之间时得分线性插值在 (0,1] 范围。 |
-| 14 | sei.enable | 内存借用场景下是否开启 OS SEI 降级，首次借用内存时开启 SEI 降级开关(通过触发sysctl -w kernel.arm64_sync_sei=1实现)以抑制 OS Panic，末次借用归还后关闭。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围或非法，则取默认值false。 | - 仅在借入节点生效。<br>- 依赖 /etc/sudoers.d/ubse-sei 授予 ubse 用户 sysctl 提权权限。<br>- 关闭后首次借用不会触发 SEI 降级，内存错误可能触发 OS Panic。 |
+| 14 | sei.enable | sei.enable=true时, 发生首次借用内存后,打开SEI降级功能(触发sysctl -w kernel.arm64_sync_sei=1)以抑制OS由于UB断链后,借入方使用Atomic指令或者内存访问指令时,上报SEI异常导致Panic;末次借用归还后关闭SEI降级功能。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围或非法，则取默认值false。 | - 仅在借入节点生效。<br>- 依赖 /etc/sudoers.d/ubse-sei 授予 ubse 用户 sysctl 提权权限。<br>- sei.enable=false时不会触发SEI降级，UB断链导致的内存错误可能触发 OS Panic。 |
 
 ## URMA配置说明
 
