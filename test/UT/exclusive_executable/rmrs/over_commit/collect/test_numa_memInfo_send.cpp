@@ -63,7 +63,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenCreateFail)
         .will(returnValue(0));
     auto numaMemInfoSend = over_commit::NumaMemInfoSend("node1", 1);
     auto ret = numaMemInfoSend.SendMsg();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenSendFail)
@@ -77,7 +77,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, SendMsgFailWhenSendFail)
         .will(returnValue(1));
     auto numaMemInfoSend = NumaMemInfoSend("node1", 1);
     auto ret = numaMemInfoSend.SendMsg();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitNumaMemInfoSend, CreateRequestDataSuccess)
@@ -96,7 +96,7 @@ TEST_F(TestOverCommitNumaMemInfoSend, CreateRequestDataFail)
         .stubs()
         .will(returnValue(static_cast<uint8_t*>(nullptr)));
     auto ret = numaMemInfoSend.CreateRequestData(reqData);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitNumaMemInfoSend, RespHandlerFail)

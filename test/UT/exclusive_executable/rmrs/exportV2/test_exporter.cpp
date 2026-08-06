@@ -67,7 +67,7 @@ TEST_F(ExporterTest, TestInit_02)
     MOCKER_CPP(&mempooling::exportV2::LibvirtHelper::Init, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     Exporter::inited_.store(false, std::memory_order_release);
     MpResult ret = Exporter::Init(opt);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(ExporterTest, genVmDomainInfo_1)

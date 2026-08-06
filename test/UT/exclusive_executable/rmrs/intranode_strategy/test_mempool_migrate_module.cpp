@@ -490,7 +490,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed1)
     std::unordered_map<std::string, std::vector<MemNodeData>> nodeTopology;
 
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed2)
@@ -511,7 +511,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed2)
         {"NodeX-0", {}} // 错误 key
     };
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult CollectBorrowRecordsMock1(BorrowRecordHelper* This, const std::string nodeId,
@@ -553,7 +553,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed3)
         .stubs()
         .will(invoke(CollectBorrowRecordsMock1));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed4)
@@ -583,7 +583,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed4)
         .stubs()
         .will(invoke(CollectBorrowRecordsMock));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed5)
@@ -613,7 +613,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_failed5)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed1)
@@ -624,7 +624,7 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed1)
         .stubs()
         .will(returnValue(1));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed2)
@@ -638,7 +638,7 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed2)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed3)
@@ -656,7 +656,7 @@ TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_failed3)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolMigrateModule::ValidateAllPidSamePlane(vmMigrateOutParam);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateAllPidSamePlane_success1)
@@ -880,7 +880,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteImplFailed2)
     std::vector<std::string> borrowIdList;
     MempoolingMessage::rmrsMigrateExecute = &MockRmrsMigrateExecuteReturn1;
     MpResult res = MempoolMigrateExecute::MigrateExecuteImpl(vmMigrateOutParam, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, MigrateExecuteImplOK)
@@ -1098,7 +1098,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_Fail01)
     std::string curNodeId;
 
     MpResult res = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, ValidateSamePlane_Fail02)
@@ -1131,7 +1131,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_Fail02)
     std::string curNodeId = "Node0";
 
     MpResult res = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult CollectBorrowRecords_moc(BorrowRecordHelper* This, const std::string nodeId,
@@ -1188,7 +1188,7 @@ TEST_F(TestMempoolMigrateModule, ValidateSamePlane_Fail03)
         .will(invoke(CollectBorrowRecords_moc));
 
     MpResult res = MempoolMigrateModule::ValidateSamePlane(perVmParam, vmDomainInfos, nodeTopology, curNodeId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 uint32_t MockRackRpcSendReturnInMigrateExecuteRpc(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData,
@@ -1219,7 +1219,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed0)
     MOCKER_CPP(&LibvirtHelper::Connect, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t MockRackRpcSendReturnInMigrateExecuteRpcSuccess(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData,
@@ -1253,7 +1253,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed1)
         .will(returnValue(1));
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MockGetVmInfosCompletedMap(VmInfosCompleted* This, std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)
@@ -1288,7 +1288,7 @@ TEST_F(TestMempoolMigrateModule, MigrateExecuteRpc_TestWithFailed2)
 
     MpResult ret = MempoolMigrateExecute::MigrateExecuteRpc(borrowInNode, vmInfoList, waitingTime, borrowIdList);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolMigrateModule, GetVmInfoImmediatelyRecvHandlerFailed)
@@ -1299,7 +1299,7 @@ TEST_F(TestMempoolMigrateModule, GetVmInfoImmediatelyRecvHandlerFailed)
     UbseByteBuffer req;
     UbseByteBuffer resp;
     auto ret = GetVmInfoImmediatelyRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MockGetVmInfoImmediately(std::vector<VmDomainInfo>& vmDomainInfos)

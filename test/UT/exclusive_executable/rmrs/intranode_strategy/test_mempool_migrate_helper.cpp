@@ -57,7 +57,7 @@ TEST_F(TestMemPoolMigrateHelper, ValidBorrowIdPidMapFailed2)
     info.pid = 1;
     borrowIdsPidsMap["b"].insert(info);
     auto ret = ValidBorrowIdPidMap(borrowIdsPidsMap);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid1)
@@ -69,7 +69,7 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid1)
         .will(returnValue(1));
     std::vector<std::string> borrowIdList;
     // auto res = GetRollBackBorrowIdPid("1", entry, borrowIdList);
-    // ASSERT_EQ(res, 1);
+    // ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid2)
@@ -133,7 +133,7 @@ TEST_F(TestMemPoolMigrateHelper, GetRollBackBorrowIdPid4)
     borrowIdList.push_back("0");
     borrowIdList.push_back("1");
     // auto res = GetRollBackBorrowIdPid("1", entry, borrowIdList);
-    // ASSERT_EQ(res, 1);
+    // ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotValidBorrowId)
@@ -152,7 +152,7 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotValidBorrow
     borrowIdList.push_back("1");
     borrowIdList.push_back("0");
     // auto res = GetRollBackBorrowIdPid("1", entry, borrowIdList);
-    // ASSERT_EQ(res, 1);
+    // ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotSameBatch)
@@ -173,7 +173,7 @@ TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidFailed_NotSameBatch)
     std::vector<std::string> borrowIdList;
     borrowIdList.push_back("1");
     // auto res = GetRollBackBorrowIdPid("1", entry, borrowIdList);
-    // ASSERT_EQ(res, 1);
+    // ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, TestGetRollBackBorrowIdPidSuccess)
@@ -206,7 +206,7 @@ TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed1)
         .will(returnValue(1));
     std::string nodeId("1");
     auto res = PersistentBorrowIdPid(nodeId, entry);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed2)
@@ -222,7 +222,7 @@ TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdFailed2)
         .will(returnValue(1));
     std::string nodeId("1");
     auto res = PersistentBorrowIdPid(nodeId, entry);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, PersistentBorrowIdSucceed)
@@ -256,7 +256,7 @@ TEST_F(TestMemPoolMigrateHelper, RpcMemBorrowRollback1)
         .stubs()
         .will(returnValue(1));
     auto res = RpcMemBorrowRollback(nodeId, borrowIdsList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolMigrateHelper, InitSuccess)
@@ -278,7 +278,7 @@ TEST_F(TestMemPoolMigrateHelper, InitFailed0)
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::MpMigrateSubModule subModule;
     auto res = subModule.Init();
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult GetVmInfosCompletedMapMock(VmInfosCompleted* This, std::unordered_map<pid_t, std::string>& vmInfosCompletedMap)

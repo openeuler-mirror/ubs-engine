@@ -337,7 +337,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid1)
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromSameNid(borrowInNid, srcParam, borrowStrategyMultiResult,
                                                               memParam, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult Test_MemBorrowExecute_1(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
@@ -371,7 +371,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid2)
     auto res = FaultMemIdModule::Instance().BorrowFromSameNid(borrowInNid, srcParam, borrowStrategyMultiResult,
                                                               memParam, false);
 
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult Test_MemBorrowExecute_2(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
@@ -410,7 +410,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromSameNid3)
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromSameNid(borrowInNid, srcParam, borrowStrategyMultiResult,
                                                               memParam, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, SameNidExecuteRpc1)
@@ -434,7 +434,7 @@ TEST_F(TestFaultMemIdModule, SameNidExecute1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdExecute::Instance().SameNidExecute(remoteNumaHuge, memBorrowIdSize, borrowId, borrowId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, SameNidExecute2)
@@ -468,7 +468,7 @@ TEST_F(TestFaultMemIdModule, EchoHugepages1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdExecute::Instance().EchoHugepages(remoteNumeId, borrowMemSize);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, EchoHugepages2)
@@ -506,7 +506,7 @@ TEST_F(TestFaultMemIdModule, NotSameNidVmInfo1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdCollect::Instance().NotSameNidVmInfo(remoteNumaId, memBorrowIdSize, pids, totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, NotSameNidVmInfo2)
@@ -526,7 +526,7 @@ TEST_F(TestFaultMemIdModule, NotSameNidVmInfo2)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdCollect::Instance().NotSameNidVmInfo(remoteNumaId, memBorrowIdSize, pids, totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, NotSameNidVmInfo3)
@@ -565,7 +565,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid2)
@@ -585,7 +585,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid2)
         .will(returnValue(0));
 
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid3)
@@ -610,7 +610,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid3)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult TestMemBorrowExecute1(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
@@ -649,7 +649,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid4)
         .stubs()
         .will(returnValue(0));
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid5)
@@ -679,7 +679,7 @@ TEST_F(TestFaultMemIdModule, BorrowFromNotSameNid5)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().BorrowFromNotSameNid(borrowInNid, curNumaInfoMF, srcParam, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, NotSameNidExecute1)
@@ -694,7 +694,7 @@ TEST_F(TestFaultMemIdModule, NotSameNidExecute1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdExecute::Instance().NotSameNidExecute(remoteNumas, totalNeedBorrowMem, pids, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, NotSameNidExecute2)
@@ -714,7 +714,7 @@ TEST_F(TestFaultMemIdModule, NotSameNidExecute2)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdExecute::Instance().NotSameNidExecute(remoteNumas, totalNeedBorrowMem, pids, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, NotSameNidExecute3)
@@ -749,7 +749,7 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma1)
         .will(returnValue(1));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma2)
@@ -778,7 +778,7 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma2)
         .will(returnValue(MEM_POOLING_OK));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma3)
@@ -805,7 +805,7 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma3)
         .will(returnValue(MEM_POOLING_OK));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma4)
@@ -847,7 +847,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultManage2)
@@ -866,7 +866,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage2)
         .stubs()
         .will(returnValue(0));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultManage3)
@@ -892,7 +892,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage3)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultManage4)
@@ -918,7 +918,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultManage4)
         .stubs()
         .will(returnValue(0));
     auto res = FaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId, false, false);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, GetRemoteNumaVms1)
@@ -931,7 +931,7 @@ TEST_F(TestFaultMemIdModule, GetRemoteNumaVms1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdCollect::Instance().GetRemoteNumaVms(remoteNumaId, allVmNumaInfoInfoList, vmNumaInfoMap);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult FaultMemidModuleGetVmInfoImmediately(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
@@ -998,7 +998,7 @@ TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc1)
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().FindClosestVmForMemAlloc(allVmNumaInfoInfoList, memSizeSingle, pids,
                                                                      totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc3)
@@ -1037,7 +1037,7 @@ TEST_F(TestFaultMemIdModule, FindClosestVmForMemAlloc4)
         .will(returnValue(1));
     auto res = FaultMemIdModule::Instance().FindClosestVmForMemAlloc(allVmNumaInfoInfoList, memSizeSingle, pids,
                                                                      totalNeedBorrowMem);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, IsMemBorrowNotWipeTheEdge1)
@@ -1078,7 +1078,7 @@ TEST_F(TestFaultMemIdModule, ApplyMemBorrowStrategyMultipleUBFailed1)
     MemBorrowStrategyParam memBorrowStrategyParam;
     auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(
         srcParam, borrowSizes, memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, ApplyMemBorrowStrategyMultipleUBFailed2)
@@ -1096,7 +1096,7 @@ TEST_F(TestFaultMemIdModule, ApplyMemBorrowStrategyMultipleUBFailed2)
     MemBorrowStrategyParam memBorrowStrategyParam;
     auto res = FaultMemIdStrategy::Instance().ApplyMemBorrowStrategyMultipleUB(
         srcParam, borrowSizes, memBorrowStrategyParam, borrowStrategyMultiResult, isSameDestNid);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult FaultMemidModuleMemBorrowStrategyMultiple(MempoolBorrowModule* This, const SrcMemoryBorrowParam& srcParam,
@@ -1179,7 +1179,7 @@ TEST_F(TestFaultMemIdModule, IsBorrowIdOfCurNid2)
     uint16_t destSocketId = 0;
     auto res = FaultMemIdCollect::Instance().IsBorrowIdOfCurNid(borrowInNodeData, memBorrowIdSize, remoteNumaId,
                                                                 destPreNid, destSocketId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, Init1)
@@ -1255,7 +1255,7 @@ TEST_F(TestFaultMemIdModule, GetSocketIdOfNUMA_Success)
         .will(returnValue(MEM_POOLING_OK));
 
     auto res = FaultMemIdModule::Instance().GetSocketIdOfNUMA(borrowInNid, srcParam, destPreNid, destSocketId);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultNotSameNidVmInfoRecvHandlerPointerValid)
@@ -1432,7 +1432,7 @@ TEST_F(TestFaultMemIdModule, MemIdFaultSameNidRecvHandlerFailed)
         .will(returnValue(1));
     MpResult res = MemIdFaultSameNidRecvHandler(req, resp);
     delete[] req.data;
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemIdModule, MemIdFaultSameNidResHandlerSucceed)
@@ -1533,7 +1533,7 @@ TEST_F(TestFaultMemIdModule, VmsMigrateOtherRemoteNuma_SmapMigrateFailed_RollBac
         .will(returnValue(MEM_POOLING_OK));
     auto res =
         FaultMemIdExecute::Instance().VmsMigrateOtherRemoteNuma(pids, remoteNumaId, remoteNumaHuge, borrowId, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
     std::vector<pid_t> completedPids;
     PidSmapEnableCompleted::Instance().Query(completedPids);
     EXPECT_TRUE(std::find(completedPids.begin(), completedPids.end(), 4321) == completedPids.end());

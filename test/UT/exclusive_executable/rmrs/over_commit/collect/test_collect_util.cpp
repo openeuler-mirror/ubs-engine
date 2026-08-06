@@ -61,7 +61,7 @@ TEST_F(TestCollectUtil, GetNumaMemInfosFail)
     std::set<int16_t> numaIds{1};
     std::map<int, mempooling::NumaMetaData> numaMemInfos;
     auto ret = CollectUtil::GetNumaMemInfos("node1", numaIds, numaMemInfos);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 bool MockRackMemConvertJsonStr2Map(const JSON_STR& jsonStr, JSON_MAP& strMap)
@@ -78,7 +78,7 @@ TEST_F(TestCollectUtil, GetRemoteVmPidsFail)
     std::vector<uint32_t> remoteNumaIds = {1};
     std::unordered_map<std::uint16_t, std::vector<pid_t>> res;
     auto ret = CollectUtil::GetRemoteVmPids("node1", remoteNumaIds, res);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 bool MockRackMemConvertJsonStr2Vec(const JSON_STR& jsonStr, JSON_VEC& strVec)

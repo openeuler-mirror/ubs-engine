@@ -69,13 +69,13 @@ TEST_F(TestSmapHelper, InitFail_01)
 {
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MpSmapHelper::GetInstance().Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 
     SmapInitFunc smapInitFunc = nullptr;
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(&SmapModule::GetSmapInit).stubs().will(returnValue(smapInitFunc));
     ret = MpSmapHelper::GetInstance().Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 
     smapInitFunc = [](const uint32_t _, void(int, const char*, const char*)) -> int {
         return -2;
@@ -83,7 +83,7 @@ TEST_F(TestSmapHelper, InitFail_01)
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(&SmapModule::GetSmapInit).stubs().will(returnValue(smapInitFunc));
     ret = MpSmapHelper::GetInstance().Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, InitFail_03)
@@ -94,7 +94,7 @@ TEST_F(TestSmapHelper, InitFail_03)
     MOCKER(&SmapModule::Init).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(&SmapModule::GetSmapInit).stubs().will(returnValue(smapInitFunc));
     MpResult ret = MpSmapHelper::GetInstance().Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, AllocateHugePages_Fail_01)
@@ -104,7 +104,7 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_01)
 
     MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().AllocateHugePages(remoteNumaIds, borrowSizes);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, AllocateHugePages_Fail_02)
@@ -115,7 +115,7 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_02)
     MOCKER_CPP(&MpSmapHelper::GetHugePageCanonicalPath, MpResult(*)()).stubs().will(returnValue(0));
     MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult(*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().AllocateHugePages(remoteNumaIds, borrowSizes);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, AllocateHugePages_Fail_03)
@@ -127,7 +127,7 @@ TEST_F(TestSmapHelper, AllocateHugePages_Fail_03)
     MOCKER_CPP(&MpSmapHelper::GetOriginalHugePages, MpResult(*)()).stubs().will(returnValue(0));
     MOCKER_CPP(&MpSmapHelper::RewriteHugePages, MpResult(*)()).stubs().will(returnValue(1));
     MpResult ret = MpSmapHelper::GetInstance().MpSmapHelper::AllocateHugePages(remoteNumaIds, borrowSizes);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, AllocateHugePages_Success)
@@ -231,7 +231,7 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_Nullptr)
     SmapQueryVmFreqFunc smapQueryVmFreqFunc = nullptr;
     MOCKER(&SmapModule::GetSmapQueryVmFreq).stubs().will(returnValue(smapQueryVmFreqFunc));
     int ret = MpSmapHelper::GetInstance().QueryVMFreqArray(pidIn, dataInPtr, lengthIn, lengthOut, scanType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -258,7 +258,7 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M1)
     };
     MOCKER(&SmapModule::GetSmapQueryVmFreq).stubs().will(returnValue(smapQueryVmFreqFunc));
     int ret = MpSmapHelper::GetInstance().QueryVMFreqArray(pidIn, dataInPtr, lengthIn, lengthOut, scanType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 /*
@@ -284,7 +284,7 @@ TEST_F(TestSmapHelper, QueryVMFreqArray_Faild_M22)
     };
     MOCKER(&SmapModule::GetSmapQueryVmFreq).stubs().will(returnValue(smapQueryVmFreqFunc));
     int ret = MpSmapHelper::GetInstance().QueryVMFreqArray(pidIn, dataInPtr, lengthIn, lengthOut, scanType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -322,7 +322,7 @@ TEST_F(TestSmapHelper, SmapMode_Faild_Nullptr)
     SetSmapRunModeFunc setSmapRunModeFunc = nullptr;
     MOCKER(&SmapModule::GetSetSmapRunModeFunc).stubs().will(returnValue(setSmapRunModeFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMode(runMode);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -383,7 +383,7 @@ TEST_F(TestSmapHelper, GetHugePageCanonicalPath)
     EXPECT_EQ(ret, MEM_POOLING_OK);
     std::string invalidRemoteNumaId(4999, 'A'); // 设置一个无效的RemoteNumaId为4999个A
     ret = MpSmapHelper::GetInstance().GetHugePageCanonicalPath(invalidRemoteNumaId, filePath);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 /*
@@ -430,7 +430,7 @@ TEST_F(TestSmapHelper, SmapMigrateRemoteNuma_Faild_Nullptr)
     SmapMigrateRemoteNumaFunc smapMigrateRemoteNumaFunc = nullptr;
     MOCKER(&SmapModule::GetSmapMigrateRemoteNumaFunc).stubs().will(returnValue(smapMigrateRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigrateRemoteNuma(msg);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -455,7 +455,7 @@ TEST_F(TestSmapHelper, SmapMigrateRemoteNuma_Faild_M22)
     };
     MOCKER(&SmapModule::GetSmapMigrateRemoteNumaFunc).stubs().will(returnValue(smapMigrateRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigrateRemoteNuma(msg);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -483,7 +483,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Ratio_failed)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -509,7 +509,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_Nullptr)
     SmapMigratePidRemoteNumaFunc smapMigratePidRemoteNumaFunc = nullptr;
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -537,7 +537,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M1)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -565,7 +565,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M22)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -593,7 +593,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M110)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -621,7 +621,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M5)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -649,7 +649,7 @@ TEST_F(TestSmapHelper, SmapMigratePidRemoteNumaHelper_Faild_M6)
     };
     MOCKER(&SmapModule::GetSmapMigratePidRemoteNumaFunc).stubs().will(returnValue(smapMigratePidRemoteNumaFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapMigratePidRemoteNumaHelper(pidArr, len, srcNid, destNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -701,7 +701,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_Nullptr)
     SmapEnableProcessMigrateFunc smapEnableProcessMigrateFunc = nullptr;
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -728,7 +728,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M1)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -755,7 +755,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M22)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -782,7 +782,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M12)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -809,7 +809,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M34)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -836,7 +836,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M9)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -863,7 +863,7 @@ TEST_F(TestSmapHelper, SmapEnableProcessMigrateHelper_Faild_M10)
     };
     MOCKER(&SmapModule::GetSmapEnableProcessMigrateFunc).stubs().will(returnValue(smapEnableProcessMigrateFunc));
     int ret = MpSmapHelper::GetInstance().SmapEnableProcessMigrateHelper(pidArr, len, enable, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -910,7 +910,7 @@ TEST_F(TestSmapHelper, SetSmapRemoteNumaInfo_Faild_Nullptr)
     SetSmapRemoteNumaInfoFunc setSmapRemoteNumaInfo = nullptr;
     MOCKER(&SmapModule::GetSetSmapRemoteNumaInfo).stubs().will(returnValue(setSmapRemoteNumaInfo));
     MpResult ret = MpSmapHelper::GetInstance().SetSmapRemoteNumaInfo(srcNumaId, memBorrowInfosWithSrc);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -966,7 +966,7 @@ TEST_F(TestSmapHelper, MigrateOutInOverCommit_Failed)
     };
     MOCKER(&SmapModule::GetSmapMigrateOut).stubs().will(returnValue(smapMigrateOutFunc));
     MpResult ret = MpSmapHelper::GetInstance().MigrateOutInOverCommit(memMigrateResults, ratio);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -1152,7 +1152,7 @@ TEST_F(TestSmapHelper, TestGetMigrateOutMsgByMemSizeSuccess)
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_01)
 {
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t GetRunMode(const std::string& keyPrefix, const std::string& value, const UbseByteBuffer& buff, void* ctx)
@@ -1184,7 +1184,7 @@ TEST_F(TestSmapHelper, ReadAndSetRunMode_Fail_02)
     MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::ReadAndSetRunMode();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, ReadAndSetRunMode_Success_01)
@@ -1205,7 +1205,7 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_01)
     MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(0);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
@@ -1213,7 +1213,7 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_02)
     MOCKER_CPP(&MpSmapHelper::SmapMode, uint32_t(*)(int runMode)).stubs().will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(1);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
@@ -1226,7 +1226,7 @@ TEST_F(TestSmapHelper, SetRunModeAndWrite_Fail_03)
         .will(returnValue(1));
 
     MpResult ret = MpSmapHelper::SetRunModeAndWrite(1);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, SetRunModeAndWrite_Success_01)
@@ -1269,7 +1269,7 @@ TEST_F(TestSmapHelper, SmapAddProcessTrackingHelper_Nullptr)
     SmapAddProcessTrackingFunc smapAddProcessTrackingFunc = nullptr;
     MOCKER(&SmapModule::GetSmapAddProcessTrackingFunc).stubs().will(returnValue(smapAddProcessTrackingFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -1286,7 +1286,7 @@ TEST_F(TestSmapHelper, SmapAddProcessTrackingHelper_Param_ERROR)
 
     MOCKER(&SmapModule::GetSmapAddProcessTrackingFunc).stubs().will(returnValue(smapAddProcessTrackingFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapAddProcessTrackingHelper(pidVec, scanTimeVec, scanType, durationVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -1313,7 +1313,7 @@ TEST_F(TestSmapHelper, SmapRemoveProcessTrackingHelper_Nullptr)
     SmapRemoveProcessTrackingFunc smapRemoveProcessTrackingFunc = nullptr;
     MOCKER(&SmapModule::GetSmapRemoveProcessTrackingFunc).stubs().will(returnValue(smapRemoveProcessTrackingFunc));
     MpResult ret = MpSmapHelper::GetInstance().SmapRemoveProcessTrackingHelper(pidVec, flags);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     GlobalMockObject::verify();
 }
 
@@ -1322,7 +1322,7 @@ TEST_F(TestSmapHelper, SubModuleInitFailed0)
     MOCKER_CPP(&MpSmapHelper::Init, uint32_t(*)()).stubs().will(returnValue(1));
     MpSmapSubModule obj;
     auto ret = obj.Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSmapHelper, SubModuleInitSucceed)

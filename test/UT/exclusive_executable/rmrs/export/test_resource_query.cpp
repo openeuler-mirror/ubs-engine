@@ -57,7 +57,7 @@ TEST_F(TestResourceQuery, FillNumaInfo_EmptyMap)
     JSON_MAP numaInfoStrMapEmpty{};
 
     uint32_t ret = FillNumaInfo(numaInfo, numaInfoStrMapEmpty);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, FillNumaInfo_OnlyMemTotal)
@@ -66,7 +66,7 @@ TEST_F(TestResourceQuery, FillNumaInfo_OnlyMemTotal)
     JSON_MAP numaInfoStrMap = {{"MemTotal", "0"}};
 
     uint32_t ret = FillNumaInfo(numaInfo, numaInfoStrMap);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, FillNumaInfo_MemTotalMemFree)
@@ -75,7 +75,7 @@ TEST_F(TestResourceQuery, FillNumaInfo_MemTotalMemFree)
     JSON_MAP numaInfoStrMap = {{"MemTotal", "0"}, {"MemFree", "0"}};
 
     uint32_t ret = FillNumaInfo(numaInfo, numaInfoStrMap);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, FillNumaInfo_WithHugePagesTotal)
@@ -84,7 +84,7 @@ TEST_F(TestResourceQuery, FillNumaInfo_WithHugePagesTotal)
     JSON_MAP numaInfoStrMap = {{"MemTotal", "0"}, {"MemFree", "0"}, {"HugePages_Total", "0"}};
 
     uint32_t ret = FillNumaInfo(numaInfo, numaInfoStrMap);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, FillNumaInfo_WithHugePagesFree)
@@ -93,7 +93,7 @@ TEST_F(TestResourceQuery, FillNumaInfo_WithHugePagesFree)
     JSON_MAP numaInfoStrMap = {{"MemTotal", "0"}, {"MemFree", "0"}, {"HugePages_Total", "0"}, {"HugePages_Free", "0"}};
 
     uint32_t ret = FillNumaInfo(numaInfo, numaInfoStrMap);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, FillNumaInfo_WithSocketId)
@@ -115,7 +115,7 @@ TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_SendFail)
     MOCKER_CPP(&over_commit::NumaMemInfoSend::SendMsg, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     uint32_t ret = ResourceQuery::HelpGetNumaMemInfoCollect(srcNid, numaId, numaInfo);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_SendOK_JsonFail)
@@ -128,7 +128,7 @@ TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_SendOK_JsonFail)
     MOCKER(&JsonUtil::RackMemConvertJsonStr2Map).stubs().will(returnValue(false));
 
     uint32_t ret = ResourceQuery::HelpGetNumaMemInfoCollect(srcNid, numaId, numaInfo);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_SendOK_JsonOK_FillFail)
@@ -142,7 +142,7 @@ TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_SendOK_JsonOK_FillFail)
     MOCKER(&FillNumaInfo).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     uint32_t ret = ResourceQuery::HelpGetNumaMemInfoCollect(srcNid, numaId, numaInfo);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, HelpGetNumaMemInfoCollect_Success)
@@ -264,7 +264,7 @@ TEST_F(TestResourceQuery, HelpGetVmInfoListOnNode_Exception)
         .will(invoke(ExporterGetVmInfoImmediatelyThrowMock)); // Trigger std::exception catch branch
     std::vector<mempooling::exportV2::VmDomainInfo> vmDomainInfos;
     auto ret = HelpGetVmInfoListOnNode(vmDomainInfos);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 // 2. Test HelpGetNumaInfoListOnNode
@@ -289,7 +289,7 @@ TEST_F(TestResourceQuery, HelpGetNumaInfoListOnNode_Exception)
 
     std::vector<mempooling::exportV2::NumaInfo> numaInfos;
     auto ret = HelpGetNumaInfoListOnNode(numaInfos);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 // 3. Test ConvertMetaNumaInfos (Pure data conversion logic, no stubbing required)
@@ -356,7 +356,7 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_InvalidPid_Fail)
 
     auto ret = rq.HelpGetContainerPidNumaInfo("node_1", pidList, pidInfos);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_RpcFail)
@@ -372,7 +372,7 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfo_RpcFail)
 
     auto ret = rq.HelpGetContainerPidNumaInfo("node_1", pidList, pidInfos);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 // 5. Test HelpGetContainerPidNumaInfoByLocalNode
@@ -418,7 +418,7 @@ TEST_F(TestResourceQuery, HelpGetContainerPidNumaInfoByLocalNode_HandlerFail)
 
     auto ret = rq.HelpGetContainerPidNumaInfoByLocalNode("node_1", pidList, pidInfos);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling

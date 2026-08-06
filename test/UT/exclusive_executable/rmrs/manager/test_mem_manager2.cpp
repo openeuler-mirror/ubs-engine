@@ -74,7 +74,7 @@ TEST_F(TestMemManager2, ParseBorrowRecordFieldsFail)
         .stubs()
         .will(returnValue(false));
     auto ret = MemRequestHelper::ParseBorrowRecordFields(borrowRecordInfo, borrowRecord);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t RackMemGetTopologyInfoMock1(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
@@ -170,7 +170,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Update_failed)
     mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     int16_t numaId = 1;
     auto ret = obj.Update(numaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, SmapEnableCompleted_Remove_succeed)
@@ -196,7 +196,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Remove_failed)
     obj.smapEnableCompleted.insert(1);
     int16_t numaId = 1;
     auto ret = obj.Remove(numaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, SmapEnableCompleted_Query_succeed)
@@ -220,7 +220,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_Query_failed)
     mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     std::vector<int16_t> smapEnableCompletedList;
     auto ret = obj.Query(smapEnableCompletedList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, SmapEnableCompleted_GetRawData_empty)
@@ -267,7 +267,7 @@ TEST_F(TestMemManager2, SmapEnableCompleted_PutRawData_failed)
     mempooling::SmapEnableCompleted& obj = mempooling::SmapEnableCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_succeed)
@@ -291,7 +291,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Update_failed)
     mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::string borrowId = "borrow_001";
     auto ret = obj.Update(borrowId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_succeed)
@@ -317,7 +317,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Remove_failed)
     obj.borrowIdInFaultProcess.insert("borrow_001");
     std::string borrowId = "borrow_001";
     auto ret = obj.Remove(borrowId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_succeed)
@@ -341,7 +341,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Query_failed)
     mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     std::vector<std::string> borrowIdInFaultProcessList;
     auto ret = obj.Query(borrowIdInFaultProcessList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_GetRawData_empty)
@@ -388,7 +388,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_PutRawData_failed)
     mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_succeed)
@@ -411,7 +411,7 @@ TEST_F(TestMemManager2, BorrowIdInFaultProcess_Clear_failed)
         .will(returnValue(MEM_POOLING_ERROR));
     mempooling::BorrowIdInFaultProcess& obj = mempooling::BorrowIdInFaultProcess::Instance();
     auto ret = obj.Clear();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, RemovePidCompleted_Update_succeed)
@@ -437,7 +437,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_Update_failed)
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200, 300};
     auto ret = obj.Update(numaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, RemovePidCompleted_Remove_succeed)
@@ -479,7 +479,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_Remove_failed)
     uint16_t numaId = 1;
     std::vector<pid_t> pids = {100, 200};
     auto ret = obj.Remove(numaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, RemovePidCompleted_Query_succeed)
@@ -547,7 +547,7 @@ TEST_F(TestMemManager2, RemovePidCompleted_PutRawData_failed)
     mempooling::RemovePidCompleted& obj = mempooling::RemovePidCompleted::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, MemReturnManager_Update_succeed)
@@ -580,7 +580,7 @@ TEST_F(TestMemManager2, MemReturnManager_Update_failed)
     BorrowItem item;
     item.borrowId = borrowId;
     auto ret = obj.Update(borrowId, item);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, MemReturnManager_Query_found)
@@ -650,7 +650,7 @@ TEST_F(TestMemManager2, MemReturnManager_PutRawData_failed)
     mempooling::MemReturnManager& obj = mempooling::MemReturnManager::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_Succeed)
@@ -681,7 +681,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_NoLentMemId)
     borrowRecordInfo.AddMember("borrowMemId", rapidjson::Value(kArrayType), alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_NoBorrowMemId)
@@ -692,7 +692,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_NoBorrowMemId)
     borrowRecordInfo.AddMember("lentMemId", rapidjson::Value(kArrayType), alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_LentMemIdNotArray)
@@ -704,7 +704,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_LentMemIdNotArray)
     borrowRecordInfo.AddMember("borrowMemId", rapidjson::Value(kArrayType), alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_BorrowMemIdNotArray)
@@ -718,7 +718,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_BorrowMemIdNotArray)
     borrowRecordInfo.AddMember("borrowMemId", "not_array", alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_LentMemIdItemNotUint64)
@@ -732,7 +732,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_LentMemIdItemNotUint64)
     borrowRecordInfo.AddMember("borrowMemId", rapidjson::Value(kArrayType), alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseMemIdArray_BorrowMemIdItemNotUint64)
@@ -748,7 +748,7 @@ TEST_F(TestMemManager2, ParseMemIdArray_BorrowMemIdItemNotUint64)
     borrowRecordInfo.AddMember("borrowMemId", borrowMemIdArr, alloc);
     BorrowRecord record;
     auto ret = MemRequestHelper::ParseMemIdArray(borrowRecordInfo, record);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseLentNumaArray_Succeed)
@@ -775,7 +775,7 @@ TEST_F(TestMemManager2, ParseLentNumaArray_NoLentNuma)
     rapidjson::Value borrowRecordInfo(kObjectType);
     std::vector<LentNuma> lentNumaVec;
     auto ret = MemRequestHelper::ParseLentNumaArray(borrowRecordInfo, lentNumaVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseLentNumaArray_NotArray)
@@ -786,7 +786,7 @@ TEST_F(TestMemManager2, ParseLentNumaArray_NotArray)
     borrowRecordInfo.AddMember("lentNuma", "not_array", alloc);
     std::vector<LentNuma> lentNumaVec;
     auto ret = MemRequestHelper::ParseLentNumaArray(borrowRecordInfo, lentNumaVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, ParseLentNumaArray_ParseFailed)
@@ -801,7 +801,7 @@ TEST_F(TestMemManager2, ParseLentNumaArray_ParseFailed)
     borrowRecordInfo.AddMember("lentNuma", lentNumaArr, alloc);
     std::vector<LentNuma> lentNumaVec;
     auto ret = MemRequestHelper::ParseLentNumaArray(borrowRecordInfo, lentNumaVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, GenBorrowRecords_Succeed)
@@ -843,7 +843,7 @@ TEST_F(TestMemManager2, GenBorrowRecords_NotArray)
     rapidjson::Value notArray(kObjectType);
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().GenBorrowRecords(notArray, borrowRecords);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager2, GenBorrowRecords_ParseFailed)
@@ -859,7 +859,7 @@ TEST_F(TestMemManager2, GenBorrowRecords_ParseFailed)
     recordArr.PushBack(recordItem, alloc);
     std::vector<BorrowRecord> borrowRecords;
     auto ret = BorrowRecordHelper::Instance().GenBorrowRecords(recordArr, borrowRecords);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling

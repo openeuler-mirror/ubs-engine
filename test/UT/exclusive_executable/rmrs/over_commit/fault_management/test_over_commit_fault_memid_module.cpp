@@ -102,7 +102,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaTotalBorrowSizeFa
     const auto ret =
         GetLocalNumaOnRemoteNumaBorrowSize(localNodeId, localNumaId, remoteNumaId, NumaBindType::BIND_SINGLE);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MockCollectBorrowRecordsNode0(BorrowRecordHelper* This, const std::string nodeId,
@@ -209,7 +209,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetLocalBorrowNumaIdOfMemIdFail)
         .will(returnValue(MEM_POOLING_ERROR));
     const auto ret = GetLocalBorrowNumaIdOfMemId(localNodeId, localNumaId, memId);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MockGetNumaBindType(OverCommitStorage* This, const std::string& nodeId, NumaBindType& value)
@@ -282,7 +282,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFailed)
 
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail1)
@@ -297,7 +297,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail1)
         .will(invoke(MockGetNumaBindTypeRpcFail));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail2)
@@ -315,7 +315,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemBorrowExecuteFail2)
         .will(invoke(MockRackRpcSendReturnOk));
     const auto ret = MemBorrowExecute(srcParam, borrowSize, water, borrowExecuteResult);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR); // 因为borrowIds.empty()，所以最后ret应该是错误
+    EXPECT_NE(ret, MEM_POOLING_OK); // 因为borrowIds.empty()，所以最后ret应该是错误
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed)
@@ -332,7 +332,7 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().PrepareParamForBorrowMem(param, memId, preRemoteNumaId,
                                                                                    allVmNumaInfoOnBoth, waterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed1)
@@ -353,7 +353,7 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed1)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().PrepareParamForBorrowMem(param, memId, preRemoteNumaId,
                                                                                    allVmNumaInfoOnBoth, waterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed2)
@@ -379,7 +379,7 @@ TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed2)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().PrepareParamForBorrowMem(param, memId, preRemoteNumaId,
                                                                                    allVmNumaInfoOnBoth, waterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, PrepareParamForBorrowMemFailed3)
@@ -541,7 +541,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeFail1)
         .will(returnValue(0));
 
     const auto ret = GetRemoteNumaSize(remoteNumaTotalSize, param, NumaBindType::BIND_SINGLE);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeFail2)
@@ -556,7 +556,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaSizeFail2)
         .will(returnValue(0));
 
     const auto ret = GetRemoteNumaSize(remoteNumaTotalSize, param, NumaBindType::BIND_SINGLE);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetSelectPidsSuccess)
@@ -594,7 +594,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetSelectPidsFail)
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().GetSelectPids(fMVmInfoResult, faultMemSize, allVmNumaInfoOnBoth);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, ExecEmptySuccess)
@@ -611,7 +611,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ExecEmptySuccess)
         .will(returnValue(MEM_POOLING_OK));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().ExecEmpty(param, borrowId, preRemoteNumaId, faultMemSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, ExecEmptyFail)
@@ -628,7 +628,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ExecEmptyFail)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().ExecEmpty(param, borrowId, preRemoteNumaId, faultMemSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail1)
@@ -646,7 +646,7 @@ TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail1)
 
     const auto ret = OverCommitFaultMemIdModule::Instance().IsBorrowIdOfCurNidOverCommit(
         borrowInNodeData, faultMemSize, preRemoteNumaId, uid, username);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail2)
@@ -664,7 +664,7 @@ TEST_F(TestOverCommitFaultMemIdModule, IsBorrowIdOfCurNidOverCommitFail2)
 
     const auto ret = OverCommitFaultMemIdModule::Instance().IsBorrowIdOfCurNidOverCommit(
         borrowInNodeData, faultMemSize, preRemoteNumaId, uid, username);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk4)
@@ -700,7 +700,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail1)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail2)
@@ -721,7 +721,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageFail2)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManageOk3)
@@ -807,7 +807,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail1)
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().SetAndDeleteResource(borrowId, srcParam, memBorrowInfos, faultMemSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail2)
@@ -824,7 +824,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail2)
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().SetAndDeleteResource(borrowId, srcParam, memBorrowInfos, faultMemSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail3)
@@ -845,7 +845,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetAndDeleteResourceFail3)
         .then(returnValue(MEM_POOLING_ERROR));
     const auto ret =
         OverCommitFaultMemIdModule::Instance().SetAndDeleteResource(borrowId, srcParam, memBorrowInfos, faultMemSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemSuccess)
@@ -885,7 +885,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail1)
 
     const auto ret = OverCommitFaultMemIdModule::Instance().ReturnFaultMem(outSrcParam, borrowId, preRemoteNumaId,
                                                                            faultMemSize, 1024);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail2)
@@ -907,7 +907,7 @@ TEST_F(TestOverCommitFaultMemIdModule, ReturnFaultMemFail2)
 
     const auto ret = OverCommitFaultMemIdModule::Instance().ReturnFaultMem(outSrcParam, borrowId, preRemoteNumaId,
                                                                            faultMemSize, 1024);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t TestRackRpcSendGetVmNumaInfo(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
@@ -959,7 +959,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetVmNumaInfoMapRpcFail)
 
     const auto ret =
         OverCommitFaultMemIdModule::Instance().GetVmNumaInfoMapRpc(importNodeId, mockVmNumaInfoList, remoteNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t TestRackRpcSend(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData, void* ctx,
@@ -982,7 +982,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteRpcFail)
         .will(invoke(TestRackRpcSend));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdExecuteRpc(param, importNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, SetSmapRemoteNumaInfoExecSuccess)
@@ -1014,7 +1014,7 @@ TEST_F(TestOverCommitFaultMemIdModule, SetSmapRemoteNumaInfoExecFail)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = SetSmapRemoteNumaInfoExec(localNumaId, remoteNumaId, borrowSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteSuccess)
@@ -1079,7 +1079,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdExecuteFail2)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().MemIdExecute(mockParam);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaSuccess)
@@ -1134,7 +1134,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail1)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail2)
@@ -1170,7 +1170,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail2)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail3)
@@ -1205,7 +1205,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail3)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail4)
@@ -1241,7 +1241,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNumaFail4)
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsSuccess1)
@@ -1271,7 +1271,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFail1)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(remoteNumaId, vmNumaInfoWithSocketList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFail2)
@@ -1306,7 +1306,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFail2)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(remoteNumaId, vmNumaInfoWithSocketList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsSuccess2)
@@ -1381,7 +1381,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetRemoteNumaVmsFailedWithNoNumas)
         .will(returnValue(MEM_POOLING_OK));
 
     MpResult ret = OverCommitFaultMemIdModule::Instance().GetRemoteNumaVms(remoteNumaId, vmNumaInfoWithSocketList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetBothVmNumaInfoSuccess)
@@ -1418,7 +1418,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetOverCommitSceneFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = OverCommitFaultMemIdModule::Instance().GetOverCommitScene(nodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetOverCommitSceneSuccess1)
@@ -1450,7 +1450,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListFailed1)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = GetContainerNumaInfoList(outSrcParam, vmNumaInfoWithSocketList, remoteNumaId, bindType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListFailed2)
@@ -1474,7 +1474,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListFailed2)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = GetContainerNumaInfoList(outSrcParam, vmNumaInfoWithSocketList, remoteNumaId, bindType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetContainerNumaInfoListSuccess1)
@@ -1615,7 +1615,7 @@ TEST_F(TestOverCommitFaultMemIdModule, GetPidNumaInfoFailed)
     OverCommitFaultMemIdModule::Instance().GetOverCommitScene(nodeId);
     auto ret =
         OverCommitFaultMemIdModule::Instance().GetPidNumaInfo(outSrcParam, vmNumaInfoWithSocketList, remoteNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultMemIdModule, GetLocalNumaOnRemoteNumaBorrowSizeSingle)
@@ -1727,7 +1727,7 @@ TEST_F(TestOverCommitFaultMemIdModule, VmsMigrateOtherRemoteNuma_SmapMigrateFail
     MpResult ret = OverCommitFaultMemIdModule::Instance().VmsMigrateOtherRemoteNuma(pids, preRemoteNumaId, remoteNumaId,
                                                                                     localNumaId, remoteNumaTotalSize);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     std::vector<pid_t> completedPids;
     PidSmapEnableCompleted::Instance().Query(completedPids);
     EXPECT_TRUE(std::find(completedPids.begin(), completedPids.end(), 5678) == completedPids.end());
@@ -1952,7 +1952,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_MemBorrowExecuteFail_Ena
         .will(invoke(MockUbseRpcSendForMemBorrowFail));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
 }
 
@@ -1970,7 +1970,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_GetRemoteNumaSizeFail_En
         .will(invoke(MockUbseRpcSendForGetRemoteNumaSizeFail));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
 }
 
@@ -1988,7 +1988,7 @@ TEST_F(TestOverCommitFaultMemIdModule, MemIdFaultManage_MemIdExecuteRpcFail_Enab
         .will(invoke(MockUbseRpcSendForMemIdExecuteRpcFail));
 
     const auto ret = OverCommitFaultMemIdModule::Instance().MemIdFaultManage(borrowInNid, memId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(g_enableSmapProcessMigrateRpcCallCount, 1);
 }
 

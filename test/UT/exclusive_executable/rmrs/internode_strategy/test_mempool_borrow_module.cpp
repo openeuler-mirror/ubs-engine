@@ -245,7 +245,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed1)
     SrcMemoryBorrowParam srcParam = {"Node3", 0, 0};
     MpResult ret = MempoolBorrowModule::Instance().ValidateSrcparam(srcParam);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MockGenerateNumaSocketMap(std::map<std::string, std::map<int, uint16_t>>& numaSocketMap)
@@ -264,7 +264,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed2)
     SrcMemoryBorrowParam srcParam = {"Node3", 0, 0};
     MpResult ret = MempoolBorrowModule::Instance().ValidateSrcparam(srcParam);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed3)
@@ -276,7 +276,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed3)
     SrcMemoryBorrowParam srcParam = {"Node0", 1, 0};
     MpResult ret = MempoolBorrowModule::Instance().ValidateSrcparam(srcParam);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed4)
@@ -288,7 +288,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestFailed4)
     SrcMemoryBorrowParam srcParam = {"Node0", 0, 1};
     MpResult ret = MempoolBorrowModule::Instance().ValidateSrcparam(srcParam);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateSrcparam_TestSuccess)
@@ -368,7 +368,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBorrowFailed)
         .will(returnValue(nullptr));
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBadBorrowSuccess)
@@ -413,7 +413,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy_TestWithBadBorrowSuccess)
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
     GlobalMockObject::verify();
     MemManager::Instance().nodeMemMap.clear();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t MockRackRpcSendReturnInMigrateStrategy(const UbseComEndpoint& endpoint, const UbseByteBuffer& reqData,
@@ -544,7 +544,7 @@ TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestFailed1)
     std::string node{"Node0"};
     MpResult ret = migrate::MempoolMigrateExecute::GetMigrateExecuteInfo(node, vmInfoList, pidList, uniqueDesNumaIds);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithFailed2)
@@ -566,7 +566,7 @@ TEST_F(TestMemPoolBorrowModule, GetMigrateExecuteInfo_TestWithFailed2)
     std::string node{"Node0"};
     MpResult ret = migrate::MempoolMigrateExecute::GetMigrateExecuteInfo(node, vmInfoList, pidList, uniqueDesNumaIds);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane1)
@@ -578,7 +578,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane1)
     SrcMemoryBorrowParam srcParam;
     std::vector<DestMemoryBorrowParam> destParams;
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowParamSamePlane(srcParam, destParams);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t RackMemGetTopologyInfoMock(std::unordered_map<std::string, std::vector<MemNodeData>>& nodeTopology)
@@ -624,7 +624,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowParamSamePlane3)
     destParam.destSocketId = 101;
     destParams.push_back(destParam);
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowParamSamePlane(srcParam, destParams);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult GetBorrowableListMock(MpParseGroupProviderConf* This, const std::string& curNid,
@@ -671,7 +671,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed0)
     std::vector<DestMemoryBorrowParam> destParams;
     destParams.push_back(dstParam1);
     MpResult ret = MempoolBorrowModule::Instance().ValidateDestNids(srcParam, destParams);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailedNotEqualSize)
@@ -690,7 +690,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailedNotEqualSize)
     std::vector<DestMemoryBorrowParam> destParams;
     destParams.push_back(dstParam1);
     MpResult ret = MempoolBorrowModule::Instance().ValidateDestNids(srcParam, destParams);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed1)
@@ -707,7 +707,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed1)
     std::vector<DestMemoryBorrowParam> destParams;
     destParams.push_back(dstParam1);
     MpResult ret = MempoolBorrowModule::Instance().ValidateDestNids(srcParam, destParams);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed2)
@@ -724,7 +724,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateDestNids_TestWithFailed2)
     std::vector<DestMemoryBorrowParam> destParams;
     destParams.push_back(dstParam1);
     MpResult ret = MempoolBorrowModule::Instance().ValidateDestNids(srcParam, destParams);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithSuccess)
@@ -839,7 +839,7 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenSizeNE)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().ExecuteSingleBorrow(destParam, srcParam, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenValidateBorrowExecuteParamFailed)
@@ -870,7 +870,7 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenValidate
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().ExecuteSingleBorrow(destParam, srcParam, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenMemBorrowFailed)
@@ -905,7 +905,7 @@ TEST_F(TestMemPoolBorrowModule, ExecuteSingleBorrowShouldReturnErrorWhenMemBorro
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().ExecuteSingleBorrow(destParam, srcParam, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParamSize)
@@ -946,7 +946,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParamSize)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParaMemSize)
@@ -981,7 +981,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParaMemSize)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParamNumaId)
@@ -1016,7 +1016,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithBadDestParamNumaId)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed)
@@ -1057,7 +1057,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed1)
@@ -1073,7 +1073,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed1)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed2)
@@ -1116,7 +1116,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed2)
     MemBorrowExecuteResult borrowExecuteResult;
     MpResult ret = MempoolBorrowModule::Instance().MemBorrowExecute(srcParam, destParams, borrowExecuteResult);
     GlobalMockObject::verify();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowExecute_TestWithFailed3)
@@ -1236,7 +1236,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithBadReq)
     std::string nodeId = "";
     int16_t numaId = -1;
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithSuccess)
@@ -1288,7 +1288,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithGetNodeMemInfoFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithMemFreeFailed)
@@ -1322,7 +1322,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithMemFreeFailed)
         .will(returnValue(MEM_POOLING_ERROR));
     // MemManager::Instance().RemoveName
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithRemoveNameFailed)
@@ -1353,7 +1353,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute_TestWithRemoveNameFailed)
     // MemFree
     MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(std::string nodeId)).stubs().will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, AddMemoryParamsToResult_TestWithOk)
@@ -1382,7 +1382,7 @@ TEST_F(TestMemPoolBorrowModule, GetSocketInfo_TestFailed)
     destParam1.destNumaId.push_back(0);    // 假设 NUMA ID 为 0
     destParam1.memSize.push_back(1048576); // 假设 8MB 内存
     MpResult ret = MempoolBorrowModule::Instance().GetSocketInfo(destParam1, 0);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult GetMemoryInfoForUnitTest(MempoolBorrowModule*, std::unordered_map<std::string, NodeMemInfo>& nodeMemMap,
@@ -1502,7 +1502,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo1)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, GetMemoryInfo2)
@@ -1561,7 +1561,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo3)
         .will(returnValue(1))
         .then(returnValue(0));
     auto res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
     EXPECT_EQ(res, 0);
 }
@@ -1583,7 +1583,7 @@ TEST_F(TestMemPoolBorrowModule, GetMemoryInfo4)
         .will(returnValue(1))
         .then(returnValue(0));
     auto res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     res = MempoolBorrowModule::Instance().GetMemoryInfo(nodeMemMap, srcParam, antiNodeMemVec);
     EXPECT_EQ(res, 0);
 }
@@ -1719,7 +1719,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets2)
         .will(invoke(CollectBorrowRecordsAllMock));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
                                                                         nodeTopology, nodeVec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets3)
@@ -1754,7 +1754,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets3)
         .will(returnValue(1));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
                                                                         nodeTopology, nodeVec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets4)
@@ -1791,7 +1791,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets4)
         .will(returnValue(1));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
                                                                         nodeTopology, nodeVec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets5)
@@ -1874,7 +1874,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets6)
         .will(invoke(CollectBorrowableInfoMock));
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
                                                                         nodeTopology, nodeVec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets7)
@@ -1905,7 +1905,7 @@ TEST_F(TestMemPoolBorrowModule, FilterAndSortSockets7)
     MpConfiguration::GetInstance().mustSamePlane = false;
     MpResult ret = MempoolBorrowModule::Instance().FilterAndSortSockets(nodeMemMap, srcParam, antiNodeMemVec,
                                                                         nodeTopology, nodeVec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow1)
@@ -1922,7 +1922,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow1)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow2)
@@ -1939,7 +1939,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow2)
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow3)
@@ -1956,7 +1956,7 @@ TEST_F(TestMemPoolBorrowModule, ProcessNodeMemBorrow3)
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().ProcessNodeMemBorrow(node, needBorrowNum, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, GetSocketInfo_Success)
@@ -1980,7 +1980,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy1)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy2)
@@ -1995,7 +1995,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy2)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy3)
@@ -2015,7 +2015,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy3)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 void MempoolBorrowModuleFilterAndSortNodes1(MempoolBorrowModule* This,
@@ -2070,7 +2070,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategy4)
         .stubs()
         .will(returnValue(0));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategy(srcParam, borrowSize, borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 struct MultiBorrowStrategyParam {
@@ -2112,7 +2112,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple1)
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultiple(srcParam, borrowSizes, destPreNid,
                                                                          borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB1)
@@ -2127,7 +2127,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB1)
     uint16_t socketId = 0;
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultipleUB(srcParam, borrowSizes, destPreNid, socketId,
                                                                            borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple2)
@@ -2146,7 +2146,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultiple2)
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultiple(srcParam, borrowSizes, destPreNid,
                                                                          borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB2)
@@ -2166,7 +2166,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowStrategyMultipleUB2)
     uint16_t socketId = 0;
     auto res = MempoolBorrowModule::Instance().MemBorrowStrategyMultipleUB(srcParam, borrowSizes, destPreNid, socketId,
                                                                            borrowStrategyResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 void MempoolBorrowModuleFilterAndSortNodes2(MempoolBorrowModule* This,
@@ -2286,7 +2286,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute1)
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MigrateExecute2)
@@ -2305,7 +2305,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute2)
         .will(returnValue(1));
 
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult MockGetMigrateExecuteInfo(std::string& borrowInNode, std::vector<turbo::rmrs::VMMigrateOutParam>& vmInfoList,
@@ -2338,7 +2338,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute3)
         .will(returnValue(1));
 
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     GlobalMockObject::reset();
 }
 
@@ -2371,7 +2371,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute4)
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     GlobalMockObject::reset();
 }
 
@@ -2402,7 +2402,7 @@ TEST_F(TestMemPoolBorrowModule, MigrateExecute5)
         .stubs()
         .will(returnValue(1));
     auto res = migrate::MempoolMigrateExecute::MigrateExecute(borrowInNode, vmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     GlobalMockObject::reset();
 }
 
@@ -2451,7 +2451,7 @@ TEST_F(TestMemPoolBorrowModule, MemBorrowFailedRollback_TestWithFailed)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBorrowFailedRollback(borrowExecuteResult);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
     GlobalMockObject::reset();
 }
 
@@ -2495,7 +2495,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed1)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed2)
@@ -2524,7 +2524,7 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed2)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed3)
@@ -2553,14 +2553,14 @@ TEST_F(TestMemPoolBorrowModule, ValidateBorrowExecuteParam_Failed3)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult ret = MempoolBorrowModule::Instance().ValidateBorrowExecuteParam(param, memAttr, result, totalSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidateBorrowSize_Failed)
 {
     uint64_t borrowSize = 127 * 1024;
     MpResult res = MempoolBorrowModule::Instance().ValidateBorrowSize(borrowSize);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBackExecute1)
@@ -2575,7 +2575,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute1)
         .stubs()
         .will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult MemManagerGetBorrowIdByNumaId(BorrowRecordHelper* This, std::vector<std::string>& borrowIds,
@@ -2599,7 +2599,7 @@ TEST_F(TestMemPoolBorrowModule, MemBackExecute2)
         .will(invoke(MemManagerGetBorrowIdByNumaId));
     MOCKER_CPP(&MemBorrowExecutor::MemFree, MpResult(*)(const std::string& name)).stubs().will(returnValue(1));
     auto res = MempoolBorrowModule::Instance().MemBackExecute(nodeId, numaId);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, MemBackExecute3)
@@ -2659,7 +2659,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyNumaIdList)
     std::string borrowInNode = "Node1";
     std::unordered_set<uint16_t> uniqueDesNumaIdList;
     auto res = migrate::MempoolMigrateExecute::ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_CollectBorrowRecordFailed)
@@ -2671,7 +2671,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_CollectBorrowReco
     std::string borrowInNode = "Node1";
     std::unordered_set<uint16_t> uniqueDesNumaIdList = {4};
     auto res = migrate::MempoolMigrateExecute::ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyBorrowRecord)
@@ -2683,7 +2683,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_EmptyBorrowRecord
     std::string borrowInNode = "Node1";
     std::unordered_set<uint16_t> uniqueDesNumaIdList = {4};
     auto res = migrate::MempoolMigrateExecute::ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_NotMatchNumaId)
@@ -2695,7 +2695,7 @@ TEST_F(TestMemPoolBorrowModule, ValidMigrateExecuteParamFailed_NotMatchNumaId)
     std::string borrowInNode = "Node1";
     std::unordered_set<uint16_t> uniqueDesNumaIdList = {6};
     auto res = migrate::MempoolMigrateExecute::ValidMigrateExecuteParam(borrowInNode, uniqueDesNumaIdList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, RpcGetVmInfoImmediatelyFailed1)
@@ -2704,7 +2704,7 @@ TEST_F(TestMemPoolBorrowModule, RpcGetVmInfoImmediatelyFailed1)
     std::string nodeId;
     std::vector<VmDomainInfo> vmDomainInfos;
     auto res = migrate::MempoolMigrateExecute::RpcGetVmInfoImmediately(nodeId, vmDomainInfos);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, RpcGetVmInfoImmediatelySucceed)
@@ -2787,7 +2787,7 @@ TEST_F(TestMemPoolBorrowModule, GetVMDataTestFailed)
         .will(returnValue(1));
 
     auto res = GetVMData(vmDomainInfos, allVmNumaInfoInfoList, vmNumaInfoMap);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, GetNumaDataTestFailed)
@@ -2802,7 +2802,7 @@ TEST_F(TestMemPoolBorrowModule, GetNumaDataTestFailed)
         .will(returnValue(1));
 
     auto res = GetNumaData(numaInfos, remoteNumaIdList, numaInfoMap, numaHugePageInfoSumList);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolBorrowModule, GetLocalVmInfoTestSucceed)

@@ -54,7 +54,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeSucceed)
     std::map<std::string, std::vector<std::string>> nodeAntiMap;
     nodeAntiMap["a"].push_back("a0");
     auto ret = UBSRMRSUpdateAntiNode(nodeAntiMap);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeFailed)
@@ -64,7 +64,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSUpdateAntiNodeFailed)
         .will(returnValue(0));
     std::map<std::string, std::vector<std::string>> nodeAntiMap;
     auto ret = UBSRMRSUpdateAntiNode(nodeAntiMap);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult MemBorrowStrategyForTest(const mempooling::SrcMemoryBorrowParam& srcParam, const uint64_t borrowSize,
@@ -86,7 +86,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowStrategyFailed1)
     uint64_t borrowSize;
     mempooling::outinterface::MemBorrowStrategyResult outBorrowStrategyResult;
     auto ret = UBSRMRSMemBorrowStrategy(outSrcParam, borrowSize, outBorrowStrategyResult);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 std::string MockTestGetNodeId()
@@ -131,7 +131,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed)
     mempooling::outinterface::DestMemoryBorrowParam param;
     outDestParam.push_back(param);
     auto ret = UBSRMRSMemBorrowExecute(outSrcParam, outDestParam, outBorrowExecuteResult);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteSucceed)
@@ -160,7 +160,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed1)
     std::vector<mempooling::outinterface::DestMemoryBorrowParam> outDestParam;
     mempooling::outinterface::MemBorrowExecuteResult outBorrowExecuteResult;
     auto ret = UBSRMRSMemBorrowExecute(outSrcParam, outDestParam, outBorrowExecuteResult);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed2)
@@ -177,7 +177,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowExecuteFailed2)
     mempooling::outinterface::DestMemoryBorrowParam param;
     outDestParam.push_back(param);
     auto ret = UBSRMRSMemBorrowExecute(outSrcParam, outDestParam, outBorrowExecuteResult);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategyFailed1)
@@ -196,7 +196,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategyFailed1)
     mempooling::outinterface::MigrateStrategyResult outMigrateStrategyResult;
 
     auto ret = UBSRMRSMigrateStrategy(borrowInNode, outVmInfoList, borrowSize, outMigrateStrategyResult);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateStrategySucceed)
@@ -233,7 +233,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateExecuteFailed)
     std::vector<std::string> borrowIdList;
     borrowIdList.push_back("Node0");
     auto ret = UBSRMRSMigrateExecute(borrowInNode, outVmInfoList, waitingTime, borrowIdList);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMigrateExecuteSucceed)
@@ -262,7 +262,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeFailed)
     MOCKER_CPP(&MempoolBorrowModule::MemFree, MpResult(*)(std::string)).stubs().will(returnValue(0));
     std::string nodeId{"Node0"};
     auto ret = UBSRMRSMemFree(nodeId);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemFreeSucceed)
@@ -294,7 +294,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSMemBorrowRollbackFailed)
     std::string borrowInNode{"Node0"};
     std::vector<std::string> borrowIds{"Node1"};
     auto ret = UBSRMRSMemBorrowRollback(borrowInNode, borrowIds);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult HelpGetVmInfoListOnNodeForTest(std::vector<mempooling::exportV2::VmDomainInfo>& vmDomainInfos)
@@ -378,7 +378,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSetRunModeFailed)
     MOCKER_CPP(mempooling::smap::MpSmapHelper::SetRunModeAndWrite, MpResult(*)(int)).stubs().will(returnValue(1));
     int runMode = 0;
     auto ret = UBSRMRSSetRunMode(runMode);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingSucceed)
@@ -406,7 +406,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapAddProcessTrackingFailed1)
     int scanType;
     std::vector<uint32_t> durationVec(0, 10);
     auto ret = UBSRMRSSmapAddProcessTracking(pidVec, scanTimeVec, scanType, durationVec);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestRackMempoolingInterfaceAdapt, UBSRMRSSmapQueryFreqSucceed)

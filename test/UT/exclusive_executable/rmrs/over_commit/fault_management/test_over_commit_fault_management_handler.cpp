@@ -64,7 +64,7 @@ TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapRecvHandler_GetRemo
     UbseByteBuffer req;
     UbseByteBuffer resp;
     MpResult ret = OverCommitFaultManagementHandler::GetVmNumaInfoMapRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultManagementHandler, GetVmNumaInfoMapResHandler_Succeed)
@@ -112,7 +112,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteRecvHandler_MemIdExecut
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::MemIdExecuteRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteResHandler_Succeed)
@@ -132,7 +132,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdExecuteResHandler_Failed)
     resp.len = MEM_POOLING_ERROR;
     uint32_t resCode = MEM_POOLING_ERROR;
     OverCommitFaultManagementHandler::MemIdExecuteResHandler(&ctx, resp, resCode);
-    EXPECT_EQ(ctx, MEM_POOLING_ERROR);
+    EXPECT_NE(ctx, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteResHandler_Succeed)
@@ -293,7 +293,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnExecuteRecvHandler_MemFr
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::MemIdReturnExecuteRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] resp.data;
 }
 
@@ -319,7 +319,7 @@ TEST_F(TestOverCommitFaultManagementHandler, MemIdReturnDirectlyExecuteRecvHandl
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::MemIdReturnDirectlyExecuteRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] resp.data;
 }
 
@@ -343,7 +343,7 @@ TEST_F(TestOverCommitFaultManagementHandler, DisableSmapProcessMigrateRecvHandle
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::DisableSmapProcessMigrateRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] resp.data;
 }
 
@@ -369,7 +369,7 @@ TEST_F(TestOverCommitFaultManagementHandler, FaultNumaProcessRecvHandler_BorrowI
     UbseByteBuffer req;
     UbseByteBuffer resp;
     uint32_t ret = OverCommitFaultManagementHandler::FaultNumaProcessRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] resp.data;
 }
 

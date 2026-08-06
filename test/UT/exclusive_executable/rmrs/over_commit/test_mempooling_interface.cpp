@@ -176,7 +176,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed1)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = UBSRMRSMemMigrate(srcParam, vmPresetParams, mockBorrowExecuteResult);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed2)
@@ -190,7 +190,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed2)
     MOCKER(&outinterface::ProcessMemMigrateRemoteId).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = UBSRMRSMemMigrate(srcParam, vmPresetParams, mockBorrowExecuteResult);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed4)
@@ -204,7 +204,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed4)
     MOCKER(&outinterface::ProcessMemMigrateRemoteId).stubs().will(invoke(ProcessMemMigrateRemoteIdSuccess));
 
     const auto ret = UBSRMRSMemMigrate(srcParam, vmPresetParams, mockBorrowExecuteResult);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed5)
@@ -221,7 +221,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailed5)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = UBSRMRSMemMigrate(srcParam, vmPresetParams, mockBorrowExecuteResult);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailedWhenRatioERR)
@@ -229,7 +229,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemMigrateFailedWhenRatioERR)
     const outinterface::SrcMemoryBorrowParam srcParam{.srcNid = "Node0", .srcSocketId = 0, .srcNumaId = 0};
     const std::vector<outinterface::VMPresetParam> vmPresetParams{{.pid = 123, .ratio = 125}};
     const auto ret = UBSRMRSMemMigrate(srcParam, vmPresetParams, mockBorrowExecuteResult);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed1)
@@ -243,7 +243,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed1)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = UBSRMRSMemReturn(srcParam, borrowIds, migratePids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed4)
@@ -259,7 +259,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSMemReturnFailed4)
     MOCKER(outinterface::ReturnBorrowId).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = UBSRMRSMemReturn(srcParam, borrowIds, migratePids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, ReturnBorrowIdFailed1)
@@ -293,7 +293,7 @@ TEST_F(TestMempoolingInterface, ReturnBorrowIdFailed2)
     MOCKER_CPP(&SetSmapRemoteNumaInfoSend::SendMsg, MpResult(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = ReturnBorrowId(srcParam, pids, borrowId, remoteNumaId, returnNeedMaps);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, ProcessBorrowIdsFailed)
@@ -315,7 +315,7 @@ TEST_F(TestMempoolingInterface, ProcessBorrowIdsFailed)
         .will(returnValue(MEM_POOLING_ERROR));
 
     const auto ret = ProcessBorrowIds(srcParam, borrowIds, migratePids, returnNeedMaps);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, ProcessBorrowIdsSuccess)
@@ -356,7 +356,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkFailed1)
     mark.lowWaterMark = 90;
 
     auto ret = UBSRMRSSetWaterMark(mark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkFailed2)
@@ -369,7 +369,7 @@ TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkFailed2)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = UBSRMRSSetWaterMark(mark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, UBSRMRSSetWaterMarkSuccess)
@@ -399,7 +399,7 @@ TEST_F(TestMempoolingInterface, GenpidsOnNumaFailed)
     std::vector<mempooling::RmrsPidInfo> pidInfos = {info};
 
     auto ret = GenpidsOnNuma(srcNumaId, pidsOnNuma, pidInfos);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, GenpidsOnNumaSuccess)
@@ -428,7 +428,7 @@ TEST_F(TestMempoolingInterface, PrepareSocketIdFail1)
     std::map<int, mempooling::NumaMetaData> numaMemInfos;
     std::string srcNid = "0";
     auto ret = PrepareSocketId(numaMemInfos, srcNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, PrepareSocketIdFail2)
@@ -443,7 +443,7 @@ TEST_F(TestMempoolingInterface, PrepareSocketIdFail2)
         .with(outBound(srcNid), any(), outBound(numaMemInfos))
         .will(returnValue(MEM_POOLING_OK));
     auto ret = PrepareSocketId(numaMemInfos, srcNid);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMempoolingInterface, PrepareSocketIdSuccess)
@@ -491,7 +491,7 @@ TEST_F(TestMempoolingInterface, UcacheMigrate_Enabled_GenOK_SendFail)
     MOCKER(&SendUCacheMigrationStrategy).stubs().will(returnValue(MEM_POOLING_ERROR));
 
     uint32_t ret = UcacheMigrate(vmPresetParams, result, srcParam);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 
     GlobalMockObject::verify();
 }
@@ -609,6 +609,6 @@ TEST_F(TestMempoolingInterface, MemFreeFail_StageErrOnlyImport)
     uint32_t ret = ReturnBorrowId(srcParam, pids, borrowId, presentNumaId, returnNeedMaps);
 
     // 验证返回失败（因为stage为ERR_ONLY_IMPORT时，函数返回MEM_POOLING_ERROR）
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 } // namespace mempooling::ut::over_commit

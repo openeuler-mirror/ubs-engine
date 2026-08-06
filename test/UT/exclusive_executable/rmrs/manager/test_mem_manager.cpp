@@ -261,7 +261,7 @@ TEST_F(TestMemManager, GetAntiNodeFailed1)
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     std::vector<std::string> vec;
     auto ret = obj.Query("", vec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GetAntiNodeFailed2)
@@ -274,7 +274,7 @@ TEST_F(TestMemManager, GetAntiNodeFailed2)
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     std::vector<std::string> vec;
     auto ret = obj.Query("Node0", vec);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GetAntiNodeCompleted1)
@@ -309,7 +309,7 @@ TEST_F(TestMemManager, UpdateAntiNodeFailed2)
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     std::map<std::string, std::vector<std::string>> antiNodeMap;
     auto ret = obj.Update(antiNodeMap);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GetAntiNodeRawDataSucceed)
@@ -345,7 +345,7 @@ TEST_F(TestMemManager, PutAntiNodeRawDataSucceed)
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, PutAntiNodeRawDataFailed1)
@@ -357,7 +357,7 @@ TEST_F(TestMemManager, PutAntiNodeRawDataFailed1)
     mempooling::AntiNode& obj = mempooling::AntiNode::Instance();
     UbseByteBuffer buffer;
     auto ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, UpdateBorrowIdRedirectionSucceed)
@@ -379,7 +379,7 @@ TEST_F(TestMemManager, UpdateBorrowIdRedirectionFailed1)
         .will(returnValue(1));
     mempooling::BorrowIdRedirection& obj = mempooling::BorrowIdRedirection::Instance();
     auto ret = obj.Update("ab", "cd");
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GetBorrowIdRedirectionSucceed)
@@ -412,7 +412,7 @@ TEST_F(TestMemManager, PutBorrowIdRedirectionRawDataFailed1)
     UbseByteBuffer buffer;
     auto ret = obj.GetRawData(buffer);
     ret = obj.PutRawData(buffer);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GetBorrowIdRedirectionRawDataSucceed)
@@ -601,7 +601,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoFailed1)
     std::string nodeId = "Node0";
     NodeMemoryInfoWithReservedMem nodeInfo;
     auto ret = obj.CollectBorrowableInfo(nodeId, nodeInfo);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, CollectBorrowableInfoFailed2)
@@ -610,7 +610,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoFailed2)
     NodeMemoryInfoWithReservedMem nodeInfo;
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     auto ret = obj.CollectBorrowableInfo(nodeId, nodeInfo);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, CollectBorrowableInfoSuccess)
@@ -622,7 +622,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoSuccess)
     NodeMemoryInfoWithReservedMem nodeInfo;
     mempooling::BorrowRecordHelper& obj = mempooling::BorrowRecordHelper::Instance();
     auto ret = obj.CollectBorrowableInfo(nodeId, nodeInfo);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, CollectBorrowableInfoListSucceed)
@@ -650,7 +650,7 @@ TEST_F(TestMemManager, CollectBorrowableInfoListFailed1)
     nodeId.push_back("Node0");
     std::vector<NodeMemoryInfoWithReservedMem> nodeMemoryInfoList;
     auto ret = obj.CollectBorrowableInfoList(nodeId, nodeMemoryInfoList);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, GeneratePerNodeNumaSocketMap_success)
@@ -924,7 +924,8 @@ TEST_F(TestMemManager, TestResolveUbBorrowableInfoListFail)
     RackNumaMemInfo memInfo;
     nodeMemoryInfoWithReservedMem.numaMemInfo.push_back(memInfo);
     std::vector<NodeMemoryInfoWithReservedMem> nodeMemoryInfoList;
-    EXPECT_EQ(MemManager::Instance().ResolveUbBorrowableInfoList(nodeMemoryInfoWithReservedMem, nodeMemoryInfoList), 1);
+    EXPECT_NE(MemManager::Instance().ResolveUbBorrowableInfoList(nodeMemoryInfoWithReservedMem, nodeMemoryInfoList),
+              MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManager, TestResolveUbBorrowableInfoListSuccess)

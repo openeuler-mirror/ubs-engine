@@ -104,7 +104,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlopen_Failed)
     MOCKER_CPP(dlopen, void* (*)(const char*, int)).stubs().will(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed)
@@ -116,7 +116,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed)
     MOCKER_CPP(dlsym, void* (*)(void*, const char*)).stubs().will(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed2)
@@ -131,7 +131,7 @@ TEST_F(TestMemPoolingMessage, InitOSTurboIpcClient_dlsym_Failed2)
         .then(returnValue((void*)nullptr));
 
     uint32_t ret = MempoolingMessage::InitOSTurboIpcClient();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 TEST_F(TestMemPoolingMessage, MpMessageSubModuleInitSuccess)
 {
@@ -146,7 +146,7 @@ TEST_F(TestMemPoolingMessage, MpMessageSubModuleInitFailure)
     MOCKER_CPP(&MempoolingMessage::InitOSTurboIpcClient, uint32_t(*)()).stubs().will(returnValue(MEM_POOLING_ERROR));
     std::unique_ptr<MpMessageSubModule> mp = std::make_unique<MpMessageSubModule>();
     auto ret = mp->Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling::message

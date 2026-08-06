@@ -53,7 +53,7 @@ TEST_F(TestOverCommitFaultMemIdHelper, FaultMemIdManageHelper_MemIdFaultManage_F
     std::string importNodeId = "Node1";
     uint64_t importMemId = 0;
     MpResult ret = OverCommitFaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling::over_commit

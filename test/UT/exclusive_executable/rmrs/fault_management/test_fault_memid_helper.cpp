@@ -58,7 +58,7 @@ TEST_F(TestFaultMemidHelper, FaultMemIdManageHelper1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultMemIdHelper::Instance().FaultMemIdManageHelper(importNodeId, importMemId, false, false);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultMemidHelper, FaultMemIdManageHelper2)

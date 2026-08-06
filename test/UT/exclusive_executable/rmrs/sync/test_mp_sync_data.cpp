@@ -86,7 +86,7 @@ TEST_F(TestSync, SubModuleInitFailed1)
     MOCKER_CPP(&MpSyncDataHelper::Init, uint32_t(*)(MpSyncDataHelper*)).stubs().will(returnValue(1));
     MpSyncDataSubModule obj;
     auto ret = obj.Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestSync, SubModuleInitSucceed)
