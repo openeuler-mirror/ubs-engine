@@ -12,6 +12,7 @@
 
 #include "test_ubse_cli_ssu_cmd_reg.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -19,11 +20,11 @@
 
 #include <mockcpp/mockcpp.hpp>
 
-#include "test_ubse_cli_ssu_mock_invoke.h"
 #include "ubse_cli_ssu_cmd_reg.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
+#include "test_ubse_cli_ssu_mock_invoke.h"
 
 namespace ubse::ut::cli {
 using namespace ubse::cli::framework;
@@ -32,6 +33,8 @@ using namespace ubse::plugin::service::ssu;
 namespace {
 constexpr uint64_t GIB = 1024ULL * 1024ULL * 1024ULL;
 constexpr uint16_t SSU_MODULE_CODE = static_cast<uint16_t>(UBSE_SSU);
+const std::string ALLOWED_NAME_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.:-_";
+const std::string ALLOWED_DEV_NAME_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
 
 constexpr uint16_t SsuOpCode(ubse_ipc_ssu_op_code_t opCode)
 {
@@ -41,8 +44,6 @@ constexpr uint16_t SsuOpCode(ubse_ipc_ssu_op_code_t opCode)
 // 期望文本与 ubse_cli_ssu_cmd_reg.cpp 中固定错误/提示信息逐字一致，任何文案改动都会被用例捕获。
 const std::string ERR_NAME_REQUIRED = "ERROR: The option -n or --name is required.";
 const std::string ERR_SIZE_REQUIRED = "ERROR: The option -s or --size is required.";
-const std::string ERR_INVALID_NAME =
-    "ERROR: Invalid name. The value must be 1-48 characters and contain only letters, digits, '.', ':', '-' or '_'.";
 const std::string ERR_INVALID_NAME_PREFIX = "ERROR: Invalid name.";
 const std::string ERR_INVALID_SIZE =
     "ERROR: Invalid size. The value must be an integer number of GiB with uppercase G suffix, minimum 1G.";
@@ -73,7 +74,7 @@ const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
 // 捕获 UbseCliDisplayResult 写入 stdout 的文本，便于对回显内容做子串断言。
-std::string Render(const std::shared_ptr<UbseCliResultEcho> &result)
+std::string Render(const std::shared_ptr<UbseCliResultEcho>& result)
 {
     testing::internal::CaptureStdout();
     result->UbseCliDisplayResult();
@@ -81,7 +82,7 @@ std::string Render(const std::shared_ptr<UbseCliResultEcho> &result)
 }
 
 // 渲染结果并断言包含指定子串，用于错误信息/表格内容的正向校验。
-void ExpectRenderedContains(const std::shared_ptr<UbseCliResultEcho> &result, const std::string &needle)
+void ExpectRenderedContains(const std::shared_ptr<UbseCliResultEcho>& result, const std::string& needle)
 {
     const std::string output = Render(result);
     EXPECT_NE(output.find(needle), std::string::npos) << output;
@@ -94,8 +95,43 @@ std::string InvalidNsNumError()
            "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
 }
 
+// 与生产代码同构：name 上限随契约常量动态拼接，避免错误文案再次滞留在旧的 48 字符边界。
+std::string InvalidNameError()
+{
+    return "ERROR: Invalid name. The value must be 1-" + std::to_string(SSU_CLI_MAX_NAME_LENGTH) +
+           " characters and contain only letters, digits, '.', ':', '-' or '_'.";
+}
+
+// 测试侧按 ASCII 契约识别字母和数字，避免 locale 影响完整 ASCII 字符集的分类。
+bool IsAsciiAlphaNumeric(char ch)
+{
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+}
+
+bool IsAllowedNameCharacter(char ch)
+{
+    return IsAsciiAlphaNumeric(ch) || std::string(".:-_").find(ch) != std::string::npos;
+}
+
+bool IsAllowedDevNameCharacter(char ch)
+{
+    return IsAsciiAlphaNumeric(ch) || std::string("._-").find(ch) != std::string::npos;
+}
+
+// 对 CLI 字符白名单逐字符执行正向路径，调用前重置 IPC 捕获，防止前一次成功掩盖当前字符失败。
+template <typename CheckAccepted>
+void ForEveryAllowedCharacter(const std::string& allowedCharacters, const std::string& fieldName,
+                              CheckAccepted checkAccepted)
+{
+    for (const char ch : allowedCharacters) {
+        SCOPED_TRACE(fieldName + " allowed ASCII code: " + std::to_string(static_cast<unsigned char>(ch)));
+        ResetSsuMockCapture();
+        checkAccepted(std::string(1, ch));
+    }
+}
+
 // 构造 alloc_detail 子命令的入参，name 可覆盖以测试不同 name 校验场景。
-std::map<std::string, std::string> DetailParams(const std::string &name = "alloc-space-1")
+std::map<std::string, std::string> DetailParams(const std::string& name = "alloc-space-1")
 {
     return {{"type", "alloc_detail"}, {"name", name}};
 }
@@ -117,14 +153,14 @@ std::map<std::string, std::string> DetachParams()
     return {{"name", "alloc-space-1"}};
 }
 
-void ExpectAttachOutput(const std::shared_ptr<UbseCliResultEcho> &result)
+void ExpectAttachOutput(const std::shared_ptr<UbseCliResultEcho>& result)
 {
     const std::string output = Render(result);
     EXPECT_NE(output.find("ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1"), std::string::npos);
     EXPECT_EQ(output.find("\ndev_path:"), std::string::npos);
 }
 
-void ExpectAggregatedAttachOutput(const std::shared_ptr<UbseCliResultEcho> &result)
+void ExpectAggregatedAttachOutput(const std::shared_ptr<UbseCliResultEcho>& result)
 {
     const std::string output = Render(result);
     const auto nsPathsPos = output.find("ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1");
@@ -136,7 +172,7 @@ void ExpectAggregatedAttachOutput(const std::shared_ptr<UbseCliResultEcho> &resu
 
 // 详情表正向断言：覆盖表头合并行、列标题与典型数据行，确保 create/detail 回显布局完整。
 // 字段对齐服务层 UbseSsuNameSpaceInfo：不含 using_type，含 ns_dev_path/namespace_id，无 SrcNqnList 表尾。
-void ExpectDetailOutput(const std::shared_ptr<UbseCliResultEcho> &result)
+void ExpectDetailOutput(const std::shared_ptr<UbseCliResultEcho>& result)
 {
     const std::string output = Render(result);
     EXPECT_NE(output.find("Name: alloc-space-1"), std::string::npos);
@@ -166,6 +202,8 @@ void TestUbseCliSsuCmdReg::TearDown()
 {
     MOCKER(&ubse_invoke_call).reset(); // 复位 ubse_invoke_call 桩，防止影响后续用例
     GlobalMockObject::verify();        // 校验本用例 mock 期望并释放桩资源
+    UbseCliModuleRegistry::GetInstance().UbseCliReset();
+    UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
 }
 
 // 注册校验：SignUp 后框架应登记 display/create/attach/detach ssu 四条命令。
@@ -293,6 +331,19 @@ TEST_F(TestUbseCliSsuCmdReg, DisplayDetailSerializesNameAndUsesDetailOpcode)
     EXPECT_EQ(g_ssuMockLastDetailReq.name, "alloc-space-1");
 }
 
+// alloc_detail 应接受 name 白名单中的每个 ASCII 字符，并将单字符名称原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, DisplayDetailAcceptsEveryAllowedNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_NAME_CHARACTERS, "name", [](const std::string& name) {
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams(name)), nullptr);
+        EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_GET_ALLOC_INFO_BY_NAME));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastDetailReq.name, name);
+    });
+}
+
 // 详情表正向内容校验：表头合并行、列标题与数据行均应完整呈现，且不含旧字段。
 TEST_F(TestUbseCliSsuCmdReg, DisplayDetailPrintsDetailTable)
 {
@@ -326,12 +377,50 @@ TEST_F(TestUbseCliSsuCmdReg, CreateRejectsMissingSize)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc({{"name", "alloc-space-1"}}), ERR_SIZE_REQUIRED);
 }
 
-// name 含空格等非法字符应返回 name 格式错误。
+// name 应拒绝白名单以外的全部 ASCII 以及常见 UTF-8 非 ASCII 输入。
 TEST_F(TestUbseCliSsuCmdReg, CreateRejectsInvalidNameCharacters)
 {
+    for (int code = 0; code <= 0x7F; ++code) {
+        const char ch = static_cast<char>(code);
+        if (IsAllowedNameCharacter(ch)) {
+            continue;
+        }
+        SCOPED_TRACE("invalid ASCII code: " + std::to_string(code));
+        auto params = CreateParams();
+        params["name"] = std::string("alloc") + ch + "space";
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+    }
+    for (const std::string name : {"名称", "allocé"}) {
+        SCOPED_TRACE("invalid non-ASCII name: " + name);
+        auto params = CreateParams();
+        params["name"] = name;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+    }
+}
+
+// name 的显式空字符串应按 1 字符下限拒绝，并校验完整动态错误文案中的实际 47 字符上限。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsEmptyNameWithCurrentLengthContract)
+{
     auto params = CreateParams();
-    params["name"] = "alloc space";
-    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+    params["name"] = "";
+    std::string output = Render(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params));
+    std::replace(output.begin(), output.end(), '\n', ' ');
+    EXPECT_NE(output.find(InvalidNameError()), std::string::npos) << output;
+}
+
+// create 应接受 name 白名单中的每个 ASCII 字符，并将单字符名称原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsEveryAllowedNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_NAME_CHARACTERS, "name", [](const std::string& name) {
+        auto params = CreateParams();
+        params["name"] = name;
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), nullptr);
+        EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ALLOC_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastCreateReq.name, name);
+    });
 }
 
 // name 恰好达到常量定义的字符上限时应被接受。
@@ -405,6 +494,30 @@ TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsMinimumOneGibSize)
     EXPECT_EQ(g_ssuMockLastCreateReq.nsSize, SSU_CLI_MIN_SIZE_BYTES);
 }
 
+// UINT64_MAX / 1GiB 是 size 乘法不溢出的最大 GiB 整数，应被接受并精确转换为字节。
+TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsMaximumSafeGibSize)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    constexpr uint64_t maxSafeGib = std::numeric_limits<uint64_t>::max() / GIB;
+    auto params = CreateParams();
+    params["size"] = std::to_string(maxSafeGib) + "G";
+    auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(params);
+    EXPECT_NE(result, nullptr);
+    ASSERT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastCreateReq.nsSize, maxSafeGib * GIB);
+}
+
+// size 数字部分中的字母、符号、小数点和空白均应命中逐字符非数字拒绝分支。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsNonDigitCharactersInSizeNumber)
+{
+    for (const std::string size : {"1xG", "+1G", "-1G", "1.5G", " 1G", "1 G"}) {
+        auto params = CreateParams();
+        params["size"] = size;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_SIZE);
+    }
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+}
+
 // ns_num 超出 [1, MAX_NS_NUM] 区间（含 0 与越界值）应返回区间错误。
 TEST_F(TestUbseCliSsuCmdReg, CreateRejectsInvalidNsNum)
 {
@@ -425,12 +538,47 @@ TEST_F(TestUbseCliSsuCmdReg, CreateRejectsNsNumBeyondStoullRange)
     EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
 }
 
+// ns_num 的两个显式合法端点 1 和 128 都应被接受并以 uint32_t 原值序列化。
+TEST_F(TestUbseCliSsuCmdReg, CreateAcceptsExplicitNsNumEndpoints)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_create_invoke_call_normal));
+    for (const uint32_t nsNum : {SSU_CLI_DEFAULT_NS_NUM, SSU_CLI_MAX_NS_NUM}) {
+        auto params = CreateParams();
+        params["ns_num"] = std::to_string(nsNum);
+        auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(params);
+        EXPECT_NE(result, nullptr);
+        ASSERT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastCreateReq.nsNum, nsNum);
+    }
+}
+
+// ns_num 中的字母、正负号和首尾空白均应命中逐字符非数字拒绝分支。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsNonDigitCharactersInNsNum)
+{
+    for (const std::string nsNum : {"12a", "+1", "-1", " 1", "1 "}) {
+        auto params = CreateParams();
+        params["ns_num"] = nsNum;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), InvalidNsNumError());
+    }
+    EXPECT_FALSE(g_ssuMockLastRequestDeserialized);
+}
+
 // lba 取非规范值（如纯数字 4096）应返回 lba 格式错误。
 TEST_F(TestUbseCliSsuCmdReg, CreateRejectsInvalidLba)
 {
     auto params = CreateParams();
     params["lba"] = "4096";
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_LBA);
+}
+
+// 精确枚举匹配路径应拒绝常见符号、空白、控制字符和非 ASCII 输入，而不为每个枚举重复机制测试。
+TEST_F(TestUbseCliSsuCmdReg, CreateRejectsIllegalCharacterClassesInExactMatchEnum)
+{
+    for (const std::string lba : {"4K!", "4 K", "4K\n", "四K"}) {
+        auto params = CreateParams();
+        params["lba"] = lba;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(params), ERR_INVALID_LBA);
+    }
 }
 
 // lba 输入与输出统一为 512B / 4K
@@ -611,6 +759,21 @@ TEST_F(TestUbseCliSsuCmdReg, AttachRejectsInvalidName)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
 }
 
+// 普通 attach 应接受 name 白名单中的每个 ASCII 字符，并将单字符名称原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, AttachAcceptsEveryAllowedNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_NAME_CHARACTERS, "name", [](const std::string& name) {
+        auto params = AttachParams();
+        params["name"] = name;
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), nullptr);
+        EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastAttachSpaceReq.name, name);
+    });
+}
+
 // 普通 attach 不传 host_nqn/src_eid 时，请求体对应字段应为空字符串。
 TEST_F(TestUbseCliSsuCmdReg, AttachSpaceSerializesEmptyOptionalHostNqnAndSrcEid)
 {
@@ -658,6 +821,24 @@ TEST_F(TestUbseCliSsuCmdReg, AttachRejectsEmptyOrTooLongSrcEidWhenExplicit)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_SRC_EID);
 }
 
+// host_nqn/src_eid 显式提供时的 1 字符下限和各自长度上限都应被接受并原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, AttachAcceptsOptionalStringLengthEndpoints)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_normal));
+    for (const auto& values : std::vector<std::pair<std::string, std::string>>{
+             {"h", "e"},
+             {std::string(SSU_CLI_MAX_HOST_NQN_LENGTH, 'h'), std::string(SSU_CLI_MAX_SRC_EID_LENGTH, 'e')}}) {
+        auto params = AttachParams();
+        params["host_nqn"] = values.first;
+        params["src_eid"] = values.second;
+        auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+        EXPECT_NE(result, nullptr);
+        ASSERT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastAttachSpaceReq.hostNqn, values.first);
+        EXPECT_EQ(g_ssuMockLastAttachSpaceReq.srcEid, values.second);
+    }
+}
+
 // --type 只能为 Linear 或 Striped。
 TEST_F(TestUbseCliSsuCmdReg, AttachRejectsInvalidType)
 {
@@ -680,16 +861,61 @@ TEST_F(TestUbseCliSsuCmdReg, AttachSpaceRejectsAggregationOptionsWithoutType)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_ATTACH_AGGREGATION_REQUIRES_TYPE);
 }
 
-// Linear attach 必须携带合法 dev_name。
+// Linear attach 必须携带合法 dev_name，并拒绝白名单外 ASCII 及常见 UTF-8 非 ASCII 输入。
 TEST_F(TestUbseCliSsuCmdReg, AttachLinearRejectsMissingOrInvalidDevName)
 {
     auto params = AttachParams();
     params["type"] = "Linear";
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_LINEAR_DEV_NAME_REQUIRED);
-    params["dev_name"] = "bad/dev";
-    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+    for (int code = 0; code <= 0x7F; ++code) {
+        const char ch = static_cast<char>(code);
+        if (IsAllowedDevNameCharacter(ch)) {
+            continue;
+        }
+        SCOPED_TRACE("invalid ASCII code: " + std::to_string(code));
+        params["dev_name"] = std::string("bad") + ch + "dev";
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+    }
+    for (const std::string devName : {"设备", "devé"}) {
+        SCOPED_TRACE("invalid non-ASCII dev_name: " + devName);
+        params["dev_name"] = devName;
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+    }
     params["dev_name"] = std::string(33, 'a');
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+}
+
+// Linear attach 的 dev_name 显式空值应按格式非法拒绝，1 字符和 32 字符端点应成功进入请求体。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearEnforcesDevNameLengthEndpoints)
+{
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "";
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
+
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_linear_invoke_call_normal));
+    for (const std::string& devName : {std::string("d"), std::string(SSU_CLI_MAX_DEV_NAME_LENGTH, 'd')}) {
+        params["dev_name"] = devName;
+        auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+        EXPECT_NE(result, nullptr);
+        ASSERT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastAttachLinearReq.devName, devName);
+    }
+}
+
+// Linear attach 应接受 dev_name 白名单中的每个 ASCII 字符，并原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearAcceptsEveryAllowedDevNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_linear_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_DEV_NAME_CHARACTERS, "dev_name", [](const std::string& devName) {
+        auto params = AttachParams();
+        params["type"] = "Linear";
+        params["dev_name"] = devName;
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), nullptr);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_LINEAR_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastAttachLinearReq.devName, devName);
+    });
 }
 
 // Linear attach 不允许携带条带化专用参数 level/chunk_size。
@@ -750,6 +976,23 @@ TEST_F(TestUbseCliSsuCmdReg, AttachStripedRejectsInvalidLevelOrChunkSize)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), ERR_INVALID_CHUNK_SIZE);
 }
 
+// Striped attach 应接受 dev_name 白名单中的每个 ASCII 字符，并原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, AttachStripedAcceptsEveryAllowedDevNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_striped_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_DEV_NAME_CHARACTERS, "dev_name", [](const std::string& devName) {
+        auto params = AttachParams();
+        params["type"] = "Striped";
+        params["dev_name"] = devName;
+        params["level"] = "raid0";
+        params["chunk_size"] = "4K";
+        EXPECT_NE(UbseCliRegSsuModule::UbseCliAttachSsuFunc(params), nullptr);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_STRIPED_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastAttachStripedReq.devName, devName);
+    });
+}
+
 // Striped attach 成功时应映射 RAID/chunk 枚举，使用 ATTACH_STRIPED 操作码并输出聚合设备路径。
 TEST_F(TestUbseCliSsuCmdReg, AttachStripedSerializesRequestAndPrintsPaths)
 {
@@ -797,6 +1040,21 @@ TEST_F(TestUbseCliSsuCmdReg, DetachRejectsMissingOrInvalidName)
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
     params["name"] = std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a');
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_NAME_PREFIX);
+}
+
+// 普通 detach 应接受 name 白名单中的每个 ASCII 字符，并将单字符名称原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, DetachAcceptsEveryAllowedNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_NAME_CHARACTERS, "name", [](const std::string& name) {
+        auto params = DetachParams();
+        params["name"] = name;
+        EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+        EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastDetachSpaceReq.name, name);
+    });
 }
 
 // 显式提供的 host_nqn 为空或超出长度限制时，应返回 host_nqn 参数错误。
@@ -854,7 +1112,7 @@ TEST_F(TestUbseCliSsuCmdReg, DetachRejectsInvalidOrNonCanonicalType)
 // Linear/Striped 聚合解绑必须提供格式合法的 dev_name。
 TEST_F(TestUbseCliSsuCmdReg, DetachAggregatedRejectsMissingOrInvalidDevName)
 {
-    for (const auto &entry : std::vector<std::pair<std::string, std::string>>{
+    for (const auto& entry : std::vector<std::pair<std::string, std::string>>{
              {"Linear", ERR_LINEAR_DEV_NAME_REQUIRED}, {"Striped", ERR_STRIPED_DEV_NAME_REQUIRED}}) {
         auto params = DetachParams();
         params["type"] = entry.first;
@@ -864,6 +1122,36 @@ TEST_F(TestUbseCliSsuCmdReg, DetachAggregatedRejectsMissingOrInvalidDevName)
         params["dev_name"] = std::string(33, 'a');
         ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params), ERR_INVALID_DEV_NAME_PREFIX);
     }
+}
+
+// Linear detach 应接受 dev_name 白名单中的每个 ASCII 字符，并原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, DetachLinearAcceptsEveryAllowedDevNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_DEV_NAME_CHARACTERS, "dev_name", [](const std::string& devName) {
+        auto params = DetachParams();
+        params["type"] = "Linear";
+        params["dev_name"] = devName;
+        EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_LINEAR_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastDetachLinearReq.devName, devName);
+    });
+}
+
+// Striped detach 应接受 dev_name 白名单中的每个 ASCII 字符，并原样序列化。
+TEST_F(TestUbseCliSsuCmdReg, DetachStripedAcceptsEveryAllowedDevNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_detach_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_DEV_NAME_CHARACTERS, "dev_name", [](const std::string& devName) {
+        auto params = DetachParams();
+        params["type"] = "Striped";
+        params["dev_name"] = devName;
+        EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDetachSsuFunc(params)).empty());
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_DETACH_STRIPED_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastDetachStripedReq.devName, devName);
+    });
 }
 
 // Linear 聚合解绑应发送 DETACH_LINEAR 操作码，并携带设备名和调用用户身份。
