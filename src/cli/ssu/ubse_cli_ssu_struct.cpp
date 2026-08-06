@@ -190,6 +190,15 @@ bool UbseCliSsuAllocDetailReq::Serialize(std::vector<uint8_t> &payload) const
                         [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH); });
 }
 
+bool UbseCliSsuFreeSpaceReq::Serialize(std::vector<uint8_t> &payload) const
+{
+    if (!StringFits(name, SSU_CLI_MAX_NAME_LENGTH)) {
+        return false;
+    }
+    return BuildPayload(StringSize(name), payload,
+                        [this](UbsePackUtil &pack) { return PackString(pack, name, SSU_CLI_MAX_NAME_LENGTH); });
+}
+
 bool UbseCliSsuAllocCreateReq::Serialize(std::vector<uint8_t> &payload) const
 {
     const auto rawLbaFormat = static_cast<uint32_t>(lbaFormat);

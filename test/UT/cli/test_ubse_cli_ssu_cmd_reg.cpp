@@ -142,6 +142,12 @@ std::map<std::string, std::string> CreateParams()
     return {{"name", "alloc-space-1"}, {"size", "10G"}};
 }
 
+// 构造 delete ssu 的合法入参，name 可覆盖以测试不同 name 校验场景。
+std::map<std::string, std::string> DeleteParams(const std::string& name = "alloc-space-1")
+{
+    return {{"name", name}};
+}
+
 // 构造 attach ssu 的最小合法入参，可选参数由各用例按需追加。
 std::map<std::string, std::string> AttachParams()
 {
@@ -206,8 +212,8 @@ void TestUbseCliSsuCmdReg::TearDown()
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
 }
 
-// 注册校验：SignUp 后框架应登记 display/create/attach/detach ssu 四条命令。
-TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersDisplayAndCreateSsuCommands)
+// 注册校验：SignUp 后框架应登记 display/create/delete/attach/detach ssu 五条命令。
+TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersAllSsuCommands)
 {
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliRegSsuModule module;
@@ -216,6 +222,7 @@ TEST_F(TestUbseCliSsuCmdReg, SignUpRegistersDisplayAndCreateSsuCommands)
 
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("display_ssu"));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("create_ssu"));
+    EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("delete_ssu"));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("attach_ssu"));
     EXPECT_TRUE(UbseCliModuleRegistry::GetInstance().UbseCliCommandExist("detach_ssu"));
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
@@ -711,6 +718,77 @@ TEST_F(TestUbseCliSsuCmdReg, CreateReturnsInternalErrorWithCode)
     MOCKER(&ubse_invoke_call).stubs().will(returnValue(1234));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams()),
                            "ERROR: Internal error with error code 1234.");
+}
+
+// delete ssu 缺少 -n 应返回 name 必选参数错误。
+TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsMissingName)
+{
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc({}), ERR_NAME_REQUIRED);
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+}
+
+// 与 create 使用相同的 name 契约：遍历拒绝白名单以外的全部 ASCII 以及常见 UTF-8 非 ASCII 输入。
+TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsInvalidNameCharacters)
+{
+    for (int code = 0; code <= 0x7F; ++code) {
+        const char ch = static_cast<char>(code);
+        if (IsAllowedNameCharacter(ch)) {
+            continue;
+        }
+        SCOPED_TRACE("invalid ASCII code: " + std::to_string(code));
+        ExpectRenderedContains(
+            UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams(std::string("alloc") + ch + "space")),
+            ERR_INVALID_NAME_PREFIX);
+    }
+    for (const std::string name : {"名称", "allocé"}) {
+        SCOPED_TRACE("invalid non-ASCII name: " + name);
+        ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams(name)), ERR_INVALID_NAME_PREFIX);
+    }
+    // 检查最近一次 IPC 调用是否未发生，避免误放行。
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+}
+
+// CLI name 白名单中的每个 ASCII 字符都应能单独构成合法名称并原样进入释放请求。
+TEST_F(TestUbseCliSsuCmdReg, DeleteAcceptsEveryAllowedNameCharacter)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_free_space_invoke_call_normal));
+    ForEveryAllowedCharacter(ALLOWED_NAME_CHARACTERS, "name", [](const std::string& name) {
+        EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams(name))).empty());
+        EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+        EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_FREE_SPACE));
+        EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+        EXPECT_EQ(g_ssuMockLastFreeSpaceReq.name, name);
+    });
+}
+
+// delete ssu 的 name 为空或超过长度上限时，应在本地拒绝请求且不进入 IPC。
+TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsEmptyOrTooLongName)
+{
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams("")), ERR_INVALID_NAME_PREFIX);
+    ExpectRenderedContains(
+        UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams(std::string(SSU_CLI_MAX_NAME_LENGTH + 1, 'a'))),
+        ERR_INVALID_NAME_PREFIX);
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+}
+
+// 合法 delete 请求应只序列化 name，使用 FREE_SPACE 操作码，成功时不输出内容。
+TEST_F(TestUbseCliSsuCmdReg, DeleteSerializesNameUsesFreeSpaceOpcodeAndReturnsEmptyOutput)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_free_space_invoke_call_normal));
+    EXPECT_TRUE(Render(UbseCliRegSsuModule::UbseCliDeleteSsuFunc({{"name", "alloc-space-1"}})).empty());
+    EXPECT_EQ(g_ssuMockLastModuleCode, SSU_MODULE_CODE);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_FREE_SPACE));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+    EXPECT_EQ(g_ssuMockLastFreeSpaceReq.name, "alloc-space-1");
+    EXPECT_EQ(g_ssuMockLastRequestPayload.size(), sizeof(uint32_t) + std::string("alloc-space-1").size());
+}
+
+// IPC 调用失败时，delete ssu 应在回显中保留服务返回的错误码。
+TEST_F(TestUbseCliSsuCmdReg, DeleteReturnsInternalErrorWithCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(2468));
+    ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc({{"name", "alloc-space-1"}}),
+                           "ERROR: Internal error with error code 2468.");
 }
 
 // 摘要查询使用合法的 0 字节请求体，mock 应显式捕获成功。

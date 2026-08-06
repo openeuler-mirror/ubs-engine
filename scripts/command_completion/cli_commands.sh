@@ -25,7 +25,7 @@ function _ubse_ssu_command_completion() {
     local cmd=${COMP_WORDS[COMP_CWORD-1]}
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W 'display create attach detach' -- ${cur}) )
+        COMPREPLY=( $(compgen -W 'display create delete attach detach' -- ${cur}) )
         return 0
     fi
 
@@ -81,6 +81,15 @@ function _ubse_ssu_command_completion() {
                 return 0
             elif [[ "${cur}" == -* ]]; then
                 COMPREPLY=( $(compgen -W '-n -s -l -m -r' -- ${cur}) )
+                return 0
+            fi
+        ;;
+        'delete')
+            if [[ "${cur}" == --* ]] ; then
+                COMPREPLY=( $(compgen -W '--name' -- ${cur}) )
+                return 0
+            elif [[ "${cur}" == -* ]]; then
+                COMPREPLY=( $(compgen -W '-n' -- ${cur}) )
                 return 0
             fi
         ;;

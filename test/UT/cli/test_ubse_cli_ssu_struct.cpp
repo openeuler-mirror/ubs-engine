@@ -209,6 +209,27 @@ TEST(TestUbseCliSsuStruct, DetailRequestIsBareLengthPrefixedStringWithoutNullTer
     EXPECT_EQ(std::memcmp(payload.data() + sizeof(uint32_t), request.name.data(), request.name.size()), 0);
 }
 
+// 释放请求的 name 应接受协议上限；正向值覆盖大小写字母、数字及每个合法符号等价类。
+// 在该合法边界值上再增加一个字符应直接失败且不改写已有 payload。
+TEST(TestUbseCliSsuStruct, FreeSpaceRequestEnforcesNameLengthBoundary)
+{
+    std::string maxLengthName = "Aa0.:-_";
+    maxLengthName.append(SSU_CLI_MAX_NAME_LENGTH - maxLengthName.size(), 'a');
+    ASSERT_EQ(maxLengthName.size(), SSU_CLI_MAX_NAME_LENGTH);
+    const UbseCliSsuFreeSpaceReq validRequest{maxLengthName};
+    std::vector<uint8_t> payload;
+    auto unpack = SerializeAndOpen(validRequest, payload);
+    std::string actualName;
+    ASSERT_TRUE(unpack.UnpackString(actualName, SSU_CLI_MAX_NAME_LENGTH));
+    EXPECT_EQ(actualName, maxLengthName);
+    EXPECT_EQ(payload.size(), sizeof(uint32_t) + maxLengthName.size());
+
+    const UbseCliSsuFreeSpaceReq overlongRequest{maxLengthName + "a"};
+    const auto validPayload = payload;
+    EXPECT_FALSE(overlongRequest.Serialize(payload));
+    EXPECT_EQ(payload, validPayload);
+}
+
 // create 请求的字段顺序及枚举宽度必须与服务端 handler 解包契约逐字段一致。
 TEST(TestUbseCliSsuStruct, CreateRequestMatchesHandlerFieldOrderAndEnumWidths)
 {
