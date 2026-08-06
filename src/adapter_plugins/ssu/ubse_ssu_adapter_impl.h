@@ -73,9 +73,6 @@ typedef struct {
 
 typedef struct {
     uint32_t namespaceId;
-    uint64_t maxLba;
-    uint64_t lbas;
-    uint64_t totalBytes;
     uint64_t usedBytes;
     char devPath[DEV_PATH_SIZE];
     unsigned char guid[GUID_SIZE];

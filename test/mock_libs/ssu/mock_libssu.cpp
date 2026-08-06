@@ -62,9 +62,6 @@ typedef struct {
 
 typedef struct {
     uint32_t namespaceId;
-    uint64_t maxLba;
-    uint64_t lbas;
-    uint64_t totalBytes;
     uint64_t usedBytes;
     char devPath[DEV_PATH_SIZE];
     unsigned char guid[GUID_SIZE];
@@ -307,9 +304,6 @@ bool LoadNamespaceFromJson(const rapidjson::Value &nsJson, MockDevice &dev, Mock
     }
 
     uint64_t lbaSize = (ns.info.baseAttr.flbas == 0) ? 512ULL : 4096ULL;
-    ns.info.maxLba = ns.info.baseAttr.nsze - 1;
-    ns.info.lbas = ns.info.baseAttr.nsze;
-    ns.info.totalBytes = ns.info.baseAttr.nsze * lbaSize;
     ns.info.devAddr = dev.devAddr;
 
     uint64_t usedBytes = ns.info.baseAttr.ncap * lbaSize;
@@ -680,13 +674,10 @@ int create_namespace(const char *adminNqn, DevNamespaceInfoT *nsInfo)
     ns.info = *nsInfo;
     ns.info.usedBytes = 0;
     ns.info.state = DevStatusT::DEV_ONLINE;
-    ns.info.maxLba = nsInfo->baseAttr.nsze - 1;
-    ns.info.lbas = nsInfo->baseAttr.nsze;
 
     if (nsInfo->baseAttr.nsze > UINT64_MAX / lbaSize) {
         return -1;
     }
-    ns.info.totalBytes = nsInfo->baseAttr.nsze * lbaSize;
 
     ns.info.namespaceId = dev->nextNamespaceId++;
 
@@ -697,7 +688,7 @@ int create_namespace(const char *adminNqn, DevNamespaceInfoT *nsInfo)
     snprintf(customData->name, sizeof(customData->name), "MOCK_NS_%u", ns.info.namespaceId);
     customData->raidLevel = 0;
     customData->nsNum = 1;
-    customData->totalBytes = ns.info.totalBytes;
+    customData->totalBytes = nsInfo->baseAttr.nsze * lbaSize;
     customData->crc = 0;
 
     for (uint32_t i = 0; i < GUID_SIZE; ++i) {

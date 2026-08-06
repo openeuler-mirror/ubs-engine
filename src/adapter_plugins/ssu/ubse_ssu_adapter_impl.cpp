@@ -573,7 +573,7 @@ uint32_t UbseSsuAdapterImpl::BuildNamespaceInfoForCreate(const UbseSsuDevNameSpa
     nsInfo.baseAttr.anagrpid = nameSpace.nsOptions.anagrpid;
     nsInfo.baseAttr.nvmsetid = nameSpace.nsOptions.nvmsetid;
     nsInfo.baseAttr.nmic = (nameSpace.nsOptions.nmic != 0);
-    
+
     // 设置自定义数据
     memcpy_s(nsInfo.userData, sizeof(nsInfo.userData),
              &nameSpace.customData, sizeof(nameSpace.customData));
@@ -1093,7 +1093,14 @@ uint32_t UbseSsuAdapterImpl::CreateStripedBlockDevice(const std::string& deviceN
     if (CreateSsuDevSymlink(deviceName, mdPath, devicePath) != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to create symlink for " << deviceName
                       << ", rolling back mdadm device at " << mdPath;
-        ExecWithSudo("mdadm --stop --force " + mdPath, output);
+        if (ExecWithSudo("mdadm --stop --force " + mdPath, output) != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to stop md device " << mdPath << " during rollback, output=" << output;
+        }
+        for (const auto& devPath : devicePathList) {
+            if (ExecWithSudo("mdadm --zero-superblock " + devPath, output) != UBSE_OK) {
+                UBSE_LOG_WARN << "Failed to zero superblock on " << devPath << " during rollback, output=" << output;
+            }
+        }
         return UBSE_ERROR;
     }
 
