@@ -32,16 +32,32 @@ struct UbseSsuNsVerifyInfo {
     std::string guid;       // 命名空间GUID，AttachDevNameSpace的GUID验证需要
 };
 
+// agent端提交verify的意图与条带化参数
+// isAttach=true时master校验账本state（attach），false时校验state（detach）；
+// isStriped=true时校验条带化参数（attach），detach场景（isAttach=false）下isStriped用于标识卸载类型（线性/条带化）；
+// validateStrategy=true时master校验分配策略与挂载/卸载策略匹配（AttachLinearSpace/AttachStripedSpace/
+// DetachLinearSpace/DetachStripedSpace设置），通用AttachSpace/DetachSpace不限制分配策略，置false
+struct UbseSsuAttachDetachVerifyOption {
+    bool isAttach{true};         // true=attach校验（含state），false=detach校验
+    bool isStriped{false};       // 是否条带化
+    bool validateStrategy{false}; // 是否校验分配策略与挂载/卸载策略匹配, AttachSpace/DetachSpace不校验
+    uint32_t raidLevel{0};       // isStriped有效：RAID0/RAID5
+    uint32_t chunkSize{0};       // isStriped有效：chunk大小，单位KB
+};
+
 struct UbseSsuAttachDetachVerifyReq {
     std::string requestId;
     std::string requestNodeId;
     std::string name;
     UbseSsuAllocIdentityInfo identityInfo;
+    UbseSsuAttachDetachVerifyOption option;
 };
 
 struct UbseSsuAttachDetachVerifyResp {
     std::string requestId;
     uint32_t errorCode{0};
+    bool alreadyAttached{false}; // attach幂等：master校验state==ATTACHED时置true，agent端无需实际attach
+    bool alreadyDetached{false}; // detach幂等：master校验state==CREATED时置true，agent端无需实际detach
     std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
     // agent无本地账本，attach/detach时需从这里获取namespace列表
     std::vector<UbseSsuNameSpaceInfo> nameSpaceList;
@@ -52,7 +68,8 @@ public:
     UbseSsuAttachDetachVerifyReqMsg() = default;
 
     UbseSsuAttachDetachVerifyReqMsg(const std::string &requestId, const std::string &requestNodeId,
-                                    const std::string &name, const UbseSsuAllocIdentityInfo &identity);
+                                    const std::string &name, const UbseSsuAllocIdentityInfo &identity,
+                                    const UbseSsuAttachDetachVerifyOption &option);
 
     const UbseSsuAttachDetachVerifyReq &GetAttachDetachVerifyReq() const;
 

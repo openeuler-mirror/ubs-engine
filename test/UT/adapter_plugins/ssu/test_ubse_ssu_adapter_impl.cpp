@@ -669,8 +669,8 @@ TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_ValidByPaths)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::vector<std::string> paths = {
-        "/dev/disk/by-id/nvme-eui.0011223344556677",
-        "/dev/disk/by-id/nvme-eui.aabbccddeeff0011",
+        "/dev/disk/by-id/nvme-uuid.00112233-4455-6666-7777-888888999999",
+        "/dev/disk/by-id/nvme-uuid.aaaabbbb-cccc-dddd-eeee-ffff00001111",
     };
     uint32_t ret = impl.ValidatePersistentPaths(paths);
     EXPECT_EQ(ret, UBSE_OK);
@@ -679,7 +679,7 @@ TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_ValidByPaths)
 TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_SingleValidPath)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
-    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-eui.0011223344556677"};
+    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-uuid.00112233-4455-6666-7777-888888999999"};
     uint32_t ret = impl.ValidatePersistentPaths(paths);
     EXPECT_EQ(ret, UBSE_OK);
 }
@@ -704,7 +704,7 @@ TEST_F(TestUbseSsuAdapterImpl, ValidatePersistentPaths_MixedValidInvalid)
 {
     auto &impl = UbseSsuAdapterImpl::GetInstance();
     std::vector<std::string> paths = {
-        "/dev/disk/by-id/nvme-eui.0011223344556677",
+        "/dev/disk/by-id/nvme-uuid.00112233-4455-6666-7777-888888999999",
         "/dev/nvme0n1",
     };
     uint32_t ret = impl.ValidatePersistentPaths(paths);
@@ -909,7 +909,7 @@ TEST_F(TestUbseSsuAdapterImpl, CreateBlockDevice_InvalidDeviceNameRejected)
 {
     // deviceName 含 shell 元字符应被白名单校验拦截，防止命令注入
     auto &impl = UbseSsuAdapterImpl::GetInstance();
-    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-eui.0011223344556677"};
+    std::vector<std::string> paths = {"/dev/disk/by-id/nvme-uuid.00112233-4455-6666-7777-888888999999"};
     UbseCreateBlockDeviceOptions opts;
     std::string devicePath;
     uint32_t ret = impl.CreateBlockDevice("test;rm -rf /", paths, opts, devicePath);

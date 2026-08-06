@@ -54,27 +54,33 @@ UbseTaskExecutorPtr GetSsuExecutor()
     return taskExecutor->Get("ubseSsuController");
 }
 
-std::string StrToHex(const std::string &id)
+std::string StrToUuid(const std::string &id)
 {
-    if (id.empty()) {
+    // 原始二进制UUID固定为16字节
+    constexpr size_t UUID_BIN_SIZE = 16;
+    if (id.size() != UUID_BIN_SIZE) {
         return "";
     }
 
-    // 预先精确分配空间：1 字节二进制对应 2 字节十六进制文本
-    std::string hexStr;
-    hexStr.resize(id.size() * 2);
-
     static const char hexDigits[] = "0123456789abcdef";
+    // 标准UUID文本格式：8-4-4-4-12（十六进制），共32个十六进制字符 + 4个连字符 = 36字符
+    // 按字节分组：4字节-2字节-2字节-2字节-6字节
+    static const size_t groupSizes[] = {4, 2, 2, 2, 6};
+    std::string uuidStr;
+    uuidStr.reserve(36);
 
-    for (size_t i = 0; i < id.size(); ++i) {
-        // 转为 unsigned char
-        unsigned char byte = static_cast<unsigned char>(id[i]);
-
-        hexStr[i * 2] = hexDigits[byte >> 4];       // 高 4 位
-        hexStr[i * 2 + 1] = hexDigits[byte & 0x0F]; // 低 4 位
+    size_t offset = 0;
+    for (size_t g = 0; g < 5; ++g) {
+        if (g > 0) {
+            uuidStr.push_back('-');
+        }
+        for (size_t i = 0; i < groupSizes[g]; ++i) {
+            unsigned char byte = static_cast<unsigned char>(id[offset++]);
+            uuidStr.push_back(hexDigits[byte >> 4]);       // 高 4 位
+            uuidStr.push_back(hexDigits[byte & 0x0F]);     // 低 4 位
+        }
     }
-
-    return hexStr;
+    return uuidStr;
 }
 
 uint32_t InitUuid()

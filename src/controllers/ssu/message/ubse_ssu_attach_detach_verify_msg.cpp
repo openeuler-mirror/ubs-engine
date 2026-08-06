@@ -27,8 +27,9 @@ UBSE_DEFINE_THIS_MODULE("ubse");
 UbseSsuAttachDetachVerifyReqMsg::UbseSsuAttachDetachVerifyReqMsg(const std::string &requestId,
                                                                  const std::string &requestNodeId,
                                                                  const std::string &name,
-                                                                 const UbseSsuAllocIdentityInfo &identity)
-    : req_{requestId, requestNodeId, name, identity}
+                                                                 const UbseSsuAllocIdentityInfo &identity,
+                                                                 const UbseSsuAttachDetachVerifyOption &option)
+    : req_{requestId, requestNodeId, name, identity, option}
 {
 }
 
@@ -59,6 +60,11 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Serialize(std::unique_ptr<uint8_t[]> &
     UbseSerialization out;
     out << req_.requestId << req_.requestNodeId << req_.name;
     out << req_.identityInfo.uid << req_.identityInfo.userName;
+    uint32_t isAttach = static_cast<uint32_t>(req_.option.isAttach);
+    uint32_t isStriped = static_cast<uint32_t>(req_.option.isStriped);
+    uint32_t validateStrategy = static_cast<uint32_t>(req_.option.validateStrategy);
+    out << isAttach << isStriped << validateStrategy;
+    out << req_.option.raidLevel << req_.option.chunkSize;
     if (!out.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req serialize failed.";
         return UBSE_ERROR;
@@ -73,6 +79,14 @@ uint32_t UbseSsuAttachDetachVerifyReqMsg::Deserialize(const uint8_t *data, uint3
     UbseDeSerialization in(data, size);
     in >> req_.requestId >> req_.requestNodeId >> req_.name;
     in >> req_.identityInfo.uid >> req_.identityInfo.userName;
+    uint32_t isAttach = 0;
+    uint32_t isStriped = 0;
+    uint32_t validateStrategy = 0;
+    in >> isAttach >> isStriped >> validateStrategy;
+    in >> req_.option.raidLevel >> req_.option.chunkSize;
+    req_.option.isAttach = (isAttach != 0);
+    req_.option.isStriped = (isStriped != 0);
+    req_.option.validateStrategy = (validateStrategy != 0);
     if (!in.Check()) {
         UBSE_LOG_ERROR << "SSU attach verify req deserialize failed.";
         return UBSE_ERROR;
@@ -89,6 +103,9 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Serialize(std::unique_ptr<uint8_t[]> 
 {
     UbseSerialization out;
     out << resp_.requestId << resp_.errorCode;
+    uint32_t alreadyAttached = static_cast<uint32_t>(resp_.alreadyAttached);
+    uint32_t alreadyDetached = static_cast<uint32_t>(resp_.alreadyDetached);
+    out << alreadyAttached << alreadyDetached;
     uint32_t nsCnt = resp_.nsVerifyList.size();
     out << nsCnt;
     for (const auto &ns : resp_.nsVerifyList) {
@@ -112,6 +129,11 @@ uint32_t UbseSsuAttachDetachVerifyRespMsg::Deserialize(const uint8_t *data, uint
 {
     UbseDeSerialization in(data, size);
     in >> resp_.requestId >> resp_.errorCode;
+    uint32_t alreadyAttached = 0;
+    uint32_t alreadyDetached = 0;
+    in >> alreadyAttached >> alreadyDetached;
+    resp_.alreadyAttached = (alreadyAttached != 0);
+    resp_.alreadyDetached = (alreadyDetached != 0);
     uint32_t nsCnt = 0;
     in >> nsCnt;
     resp_.nsVerifyList.clear();

@@ -16,8 +16,8 @@
 #include <string>
 #include <vector>
 namespace ubse::adapter_plugins::ssu::def {
-const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 49; // 包含结尾'\0'
-const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 53; // 包含结尾'\0'
+const uint8_t UBSE_SSU_MAX_NAME_LENGTH = 48; // 包含结尾'\0'
+const uint8_t UBSE_SSU_MAX_USER_NAME_LENGTH = 52; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_NQN_LENGTH = 69; // 包含结尾'\0'
 const uint8_t UBSE_SSU_MAX_RACK_NUM = 2;
 const uint8_t UBSE_SSU_MAX_HOST_NUM = 128;

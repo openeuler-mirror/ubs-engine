@@ -56,6 +56,9 @@ constexpr uint32_t MAX_TIMEOUT_SECONDS = 30;
 // 超时后最大重试次数（不含首次请求）
 constexpr uint32_t MAX_RETRY_COUNT = 3;
 
+// 分配总大小的对齐粒度：1GiB
+constexpr uint64_t ONE_GIB = 1024ULL * 1024ULL * 1024ULL;
+
 // 获取SSU服务单例实例
 UbseSsuServiceImp &UbseSsuServiceImp::GetInstance()
 {
@@ -77,6 +80,9 @@ uint32_t UbseSsuServiceImp::StartCollecting()
         UBSE_LOG_INFO << "StartCollecting: skip on non-master node, role=" << role;
         return UBSE_OK;
     }
+
+    // 首次采集失败（缓存为空）时，由定时器采集成功后触发账本重建
+    collector_.SetOnFirstCollectFailRecovery([this]() { RebuildLedgerFromDevList(); });
 
     ret = collector_.Start();
     if (ret != UBSE_OK) {
@@ -113,6 +119,11 @@ void UbseSsuServiceImp::RebuildLedgerFromDevList()
         return;
     }
     auto devList = collector_.GetCachedDevList();
+    if (devList.empty()) {
+        // 设备列表为空时无从重建账本（Rebuild为空操作，跳过以避免误导性日志）
+        UBSE_LOG_WARN << "RebuildLedgerFromDevList: dev list is empty, skip ledger rebuild";
+        return;
+    }
     UbseSsuDebtLedger::GetInstance().Rebuild(devList);
 }
 
@@ -245,22 +256,11 @@ uint32_t UbseSsuServiceImp::ExecuteScheduler(const UbseSsuAllocSpaceReq &req,
         .tenant = req.tenant,
     };
 
-    if (schedReq.nsNum == 0) {
-        UBSE_LOG_ERROR << "ExecuteScheduler: request nsNum is 0";
-        return UBSE_ERROR;
-    }
-
-    if (req.strategy == UbseSsuAllocStrategy::STRIPED) {
-        if (schedReq.allocSize % schedReq.nsNum != 0) {
-            UBSE_LOG_ERROR << "ExecuteScheduler: allocSize is not divisible by nsNum";
-            return UBSE_ERROR;
-        }
-        auto singleNsSize = schedReq.allocSize / schedReq.nsNum;
-        // 这里验证singleNsSize是否为sectorSize的整数倍，chunkSize验证会在AttachStripedSpace时进行
-        if (singleNsSize % schedReq.lbaSize != 0) {
-            UBSE_LOG_ERROR << "ExecuteScheduler: singleNsSize is not divisible by lbaSize";
-            return UBSE_ERROR;
-        }
+    // 分配总大小必须是1GiB的整数倍（SSU服务API的容量粒度契约）
+    // nsNum非0、条带化整除、singleNsSize按lbaSize对齐等调度器不变量校验由PreCheckHandler负责
+    if (schedReq.allocSize % ONE_GIB != 0) {
+        UBSE_LOG_ERROR << "ExecuteScheduler: allocSize is not multiple of 1GiB, allocSize=" << schedReq.allocSize;
+        return UBSE_ERR_INVALID_ARG;
     }
 
     UbseSsuAllocationContext ctx(devList, schedReq);
@@ -293,7 +293,7 @@ static uint32_t BuildEidToSubNqnMap(const std::vector<std::pair<std::string, uin
 
 // 填充命名空间自定义数据：名称、用户、租户、默认NQN
 static uint32_t FillNsCustomData(UbseSsuDevNameSpace &ns, const UbseSsuAllocSpaceReq &req,
-                                 const UbseSsuAllocIdentityInfo &identity)
+                                 const UbseSsuAllocIdentityInfo &identity, const std::string &hostNqn)
 {
     memset_s(ns.customData.name, sizeof(ns.customData.name), 0, sizeof(ns.customData.name));
     if (strncpy_s(ns.customData.name, sizeof(ns.customData.name), req.name.c_str(), req.name.size()) != EOK) {
@@ -314,7 +314,6 @@ static uint32_t FillNsCustomData(UbseSsuDevNameSpace &ns, const UbseSsuAllocSpac
             return UBSE_ERROR;
         }
     }
-    std::string hostNqn = GenerateHostNqn();
     memset_s(ns.customData.defaultNqn, sizeof(ns.customData.defaultNqn), 0, sizeof(ns.customData.defaultNqn));
     if (strncpy_s(ns.customData.defaultNqn, sizeof(ns.customData.defaultNqn), hostNqn.c_str(), hostNqn.size()) != EOK) {
         UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to copy defaultNqn, defaultNqn=" << hostNqn;
@@ -342,6 +341,8 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
                                     UbseSsuAllocResult &result)
 {
     std::vector<UbseSsuDevNameSpace> createdNsList;
+    // 同一name下的所有namespace共享同一个hostNqn（defaultNqn），只需生成一次
+    std::string hostNqn = GenerateHostNqn();
     for (const auto &[eid, nsSize] : eidNsSizeList) {
         auto subNqnIt = eidToSubNqn.find(eid);
         if (subNqnIt == eidToSubNqn.end()) {
@@ -350,15 +351,18 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
         }
         UbseSsuDevNameSpace ns;
         ns.subSystem = {.eid = eid, .subNqn = subNqnIt->second};
-        ns.nsze = nsSize;
-        ns.ncap = nsSize;
+        // nsze/ncap单位为LBA数量（NVMe规范），需将字节容量除以LBA大小（512B/4K）
+        const uint64_t lbaSize = static_cast<uint64_t>(req.lbaFormat);
+        ns.nsze = nsSize / lbaSize;
+        ns.ncap = nsSize / lbaSize;
         // LBA格式4K，对应flbas=1; LBA格式512B，对应flbas=0
         ns.nsOptions.flbas = (req.lbaFormat == UbseSsuLBAFormat::LBA_FORMAT_4K) ? 1 : 0;
         ns.customData = {.uid = identity.uid,
                          .allocStrategy = static_cast<uint8_t>(req.strategy),
                          .nsNum = static_cast<uint8_t>(req.nsNum),
                          .totalBytes = req.nsSize};
-        if (FillNsCustomData(ns, req, identity) != UBSE_OK) {
+        // hostNqn同时写入customData.defaultNqn(持久化到硬件)与nsInfo.allowHostNqnList(API响应)
+        if (FillNsCustomData(ns, req, identity, hostNqn) != UBSE_OK) {
             UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to fill custom data, eid=" << eid;
             RollbackCreatedNameSpaces(createdNsList);
             return UBSE_ERROR;
@@ -370,20 +374,29 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
             return createRet;
         }
         createdNsList.push_back(ns);
-        auto uuidHexStr = StrToHex(ns.uuid);
-        if (uuidHexStr.empty()) {
-            UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to convert guid to hex, uuid=" << ns.uuid;
+        // 创建成功后为NS添加defaultNqn的访问权限，保证该NS可被默认主机访问
+        auto allowRet = UbseSsuAdapterInterface::GetInstance().AddNameSpaceAllowHost(ns, hostNqn);
+        if (allowRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "CreateDevNameSpaces: AddNameSpaceAllowHost failed, eid=" << eid
+                           << ", nsId=" << ns.namespaceId << ", hostNqn=" << hostNqn << ", ret=" << allowRet;
+            RollbackCreatedNameSpaces(createdNsList);
+            return allowRet;
+        }
+        auto uuidStr = StrToUuid(ns.uuid);
+        if (uuidStr.empty()) {
+            UBSE_LOG_ERROR << "CreateDevNameSpaces: failed to convert uuid to standard format, uuid=" << ns.uuid;
             RollbackCreatedNameSpaces(createdNsList);
             return UBSE_ERROR;
         }
-        auto persistentPath = std::string("/dev/disk/by-id/nvme-uuid.") + uuidHexStr;
+        auto persistentPath = std::string("/dev/disk/by-id/nvme-uuid.") + uuidStr;
         UbseSsuNameSpaceInfo nsInfo = {.tgtEid = ns.subSystem.eid,
                                        .tgtNqn = ns.subSystem.subNqn,
-                                       .nsUuid = ns.uuid,
+                                       .nsUuid = uuidStr,
                                        .namespaceId = ns.namespaceId,
                                        .nsDevPath = persistentPath,
-                                       .nsSize = ns.nsze,
-                                       .lbaFormat = req.lbaFormat};
+                                       .nsSize = nsSize,
+                                       .lbaFormat = req.lbaFormat,
+                                       .allowHostNqnList = {hostNqn}};
         result.nameSpaceList.push_back(nsInfo);
     }
     // 校验实际创建的namespace数量是否等于请求的数量
@@ -399,6 +412,10 @@ static uint32_t CreateDevNameSpaces(const UbseSsuAllocSpaceReq &req,
 uint32_t UbseSsuServiceImp::ExecuteAlloc(const UbseSsuAllocSpaceReq &req, const UbseSsuAllocIdentityInfo &identity,
                                          UbseSsuAllocResult &result)
 {
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "ExecuteAlloc: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
     UBSE_LOG_INFO << "ExecuteAlloc: name=" << req.name << ", nsSize=" << req.nsSize << ", nsNum=" << req.nsNum;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
@@ -546,6 +563,11 @@ static uint32_t FreeSpaceViaRpc(const std::string &name, const UbseSsuAllocIdent
 // 释放主入口：根据节点角色选择不同释放方式
 uint32_t UbseSsuServiceImp::FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
 {
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "FreeSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+
     std::string role;
     auto ret = UbseGetRole(role);
     if (ret != UBSE_OK) {
@@ -603,9 +625,35 @@ static bool IsNsIdentityMatch(const UbseSsuDevNameSpace &targetNs, const UbseSsu
     return strncmp(targetNs.customData.userName, identity.userName.c_str(), nsNameLen) == 0;
 }
 
+// 缓存未命中时从硬件实时刷新指定eid的设备缓存
+// 用于刚分配的namespace尚未被定时采集（30s间隔）覆盖的场景
+static void RefreshDevCache(const std::string &eid, const std::string &subNqn,
+                            std::unordered_set<std::string> &refreshedEids,
+                            std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+{
+    if (refreshedEids.find(eid) != refreshedEids.end()) {
+        return;
+    }
+    refreshedEids.insert(eid);
+    std::vector<UbseSsuDevInfo> freshDevList(1);
+    freshDevList[0].subSystem.eid = eid;
+    freshDevList[0].subSystem.subNqn = subNqn;
+    auto ret = UbseSsuAdapterInterface::GetInstance().GetDevList(freshDevList);
+    if (ret == UBSE_OK && !freshDevList.empty()) {
+        devMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(freshDevList[0]));
+    } else {
+        UBSE_LOG_WARN << "RefreshDevCache: refresh dev from hardware failed, eid=" << eid
+                      << ", ret=" << ret;
+    }
+}
+
 // 执行释放操作：校验命名空间身份并删除命名空间
 uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAllocIdentityInfo &identity)
 {
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "ExecuteFree: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
     UBSE_LOG_INFO << "ExecuteFree: name=" << name;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
 
@@ -625,10 +673,16 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
     uint32_t firstErr = UBSE_OK;
     std::vector<UbseSsuNameSpaceInfo> remainingNs; // 未删成功的namespace，保留在账本中便于上层重试
     std::vector<std::pair<std::string, uint64_t>> releasedCapacity;
+    std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
         if (targetNs == nullptr) {
-            // namespace已不在硬件中（可能已被删除或缓存未刷新），视为已释放，跳过
+            // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        }
+        if (targetNs == nullptr) {
+            // 刷新后仍查不到，才认定NS已不在硬件中（可能已被删除），视为已释放，跳过
             UBSE_LOG_WARN << "ExecuteFree: namespace not found in device cache, treat as already freed, eid="
                           << nsInfo.tgtEid << ", nsId=" << nsInfo.namespaceId;
             continue;
@@ -779,10 +833,13 @@ static uint32_t AgentDetachNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuN
     return AgentAttachDetachNs(false, nsInfo, verifyInfo, nqn);
 }
 
-// agent端：发送identity验证请求到master并同步等待响应（attach/detach通用）。
-// 验证查询耗时较短（master端为纯内存读取），直接通过UbseRpcSend的sync resp返回结果，无需future等待
-static uint32_t VerifyAttachDetachIdentityViaRpc(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                                 UbseSsuAttachDetachVerifyResp &verifyResp)
+// agent端：发送attach/detach前置条件校验请求到master并同步等待响应（attach/detach通用）。
+// 校验内容包括identity、账本state、条带化参数，master端为纯内存读取，通过sync resp直接返回结果
+// option携带attach/detach意图与条带化参数（master端据此校验state与条带化配置）
+static uint32_t VerifyAttachDetachPreconditionViaRpc(const std::string &name,
+                                                     const UbseSsuAllocIdentityInfo &identity,
+                                                     const UbseSsuAttachDetachVerifyOption &option,
+                                                     UbseSsuAttachDetachVerifyResp &verifyResp)
 {
     UbseRoleInfo roleInfo{};
     auto ret = UbseGetCurrentNodeInfo(roleInfo);
@@ -807,7 +864,7 @@ static uint32_t VerifyAttachDetachIdentityViaRpc(const std::string &name, const 
         return UBSE_ERROR;
     }
 
-    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity);
+    UbseSsuAttachDetachVerifyReqMsg reqMsg(requestId, roleInfo.nodeId, name, identity, option);
     UbseSsuAttachDetachVerifyRespMsg syncResp;
     ret = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, syncResp);
     if (ret != UBSE_OK) {
@@ -830,6 +887,75 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                             const UbseSsuAttachDetachVerifyResp *verifyResp = nullptr);
 
+// 校验条带化场景下的参数
+// 保证所有namespace大小一致，且为chunkSize的整数倍
+// Master本地AttachStripedSpace与verify RPC（agent attach）共用
+static uint32_t ValidateStripedNsConfig(const std::string &name, UbseSsuAggregationRaidLevel level,
+                                        UbseSsuChunkSize chunkSize,
+                                        const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList)
+{
+    // 校验 RAID 级别枚举合法性
+    if (level != UbseSsuAggregationRaidLevel::RAID0 && level != UbseSsuAggregationRaidLevel::RAID5) {
+        UBSE_LOG_ERROR << "ValidateStripedNsConfig: invalid raid level, name=" << name
+                       << ", level=" << static_cast<uint32_t>(level);
+        return UBSE_ERR_INVALID_ARG;
+    }
+    // RAID5至少需要3个成员设备
+    if (level == UbseSsuAggregationRaidLevel::RAID5 && nameSpaceList.size() < 3 ||
+        level == UbseSsuAggregationRaidLevel::RAID0 && nameSpaceList.size() < 2) {
+        UBSE_LOG_ERROR << "ValidateStripedNsConfig: "
+                       << (level == UbseSsuAggregationRaidLevel::RAID5 ? "RAID5 requires at least 3 namespaces" :
+                                                                         "RAID0 requires at least 2 namespaces")
+                       << ", name=" << name << ", nsCount=" << nameSpaceList.size();
+        return UBSE_ERR_INVALID_ARG;
+    }
+
+    if (chunkSize != UbseSsuChunkSize::CHUNK_SIZE_4K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_16K &&
+        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_32K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_64K &&
+        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_128K && chunkSize != UbseSsuChunkSize::CHUNK_SIZE_256K &&
+        chunkSize != UbseSsuChunkSize::CHUNK_SIZE_512K) {
+        UBSE_LOG_ERROR << "ValidateStripedNsConfig: invalid chunkSize, name=" << name
+                       << ", chunkSize=" << static_cast<uint32_t>(chunkSize);
+        return UBSE_ERR_INVALID_ARG;
+    }
+    
+    const uint64_t chunkSizeBytes = static_cast<uint64_t>(chunkSize) * 1024; // chunkSize单位KB，转字节
+    if (nameSpaceList.empty()) {
+        UBSE_LOG_ERROR << "ValidateStripedNsConfig: empty nameSpaceList, name=" << name;
+        return UBSE_ERROR;
+    }
+    const uint64_t firstNsSize = nameSpaceList.front().nsSize;
+    for (const auto &nsInfo : nameSpaceList) {
+        if (nsInfo.nsSize != firstNsSize) {
+            UBSE_LOG_ERROR << "ValidateStripedNsConfig: namespace sizes not equal, name=" << name
+                           << ", expected=" << firstNsSize << ", actual=" << nsInfo.nsSize;
+            return UBSE_ERROR;
+        }
+        if (nsInfo.nsSize % chunkSizeBytes != 0) {
+            UBSE_LOG_ERROR << "ValidateStripedNsConfig: namespace size not multiple of chunkSize, name=" << name
+                           << ", nsSize=" << nsInfo.nsSize << ", chunkSize=" << static_cast<uint32_t>(chunkSize)
+                           << "KB";
+            return UBSE_ERROR;
+        }
+    }
+    return UBSE_OK;
+}
+
+// 校验分配策略与挂载/卸载策略是否匹配：条带化分配只能通过AttachStripedSpace挂载、DetachStripedSpace卸载，
+// 线性分配只能通过AttachLinearSpace/DetachLinearSpace，避免编址方式与分配策略不一致
+static uint32_t ValidateAllocStrategyMatch(const std::string &name, UbseSsuAllocStrategy allocStrategy,
+                                           bool isStripedAttach)
+{
+    const bool needStriped = (allocStrategy == UbseSsuAllocStrategy::STRIPED);
+    if (needStriped != isStripedAttach) {
+        UBSE_LOG_ERROR << "ValidateAllocStrategyMatch: alloc strategy mismatch, name=" << name
+                       << ", allocStrategy=" << static_cast<int>(allocStrategy)
+                       << ", isStripedAttach=" << isStripedAttach;
+        return UBSE_ERR_INVALID_ARG;
+    }
+    return UBSE_OK;
+}
+
 // agent端通用attach主流程：发送identity验证请求到master，从响应中获取namespace列表，
 // 验证成功后逐个attach NS。可选创建聚合块设备（blockDeviceOptions非空时，Linear/Striped场景）。
 // 失败时回滚已attach的NS；成功时通过RPC通知master更新状态。
@@ -837,17 +963,34 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
                             const UbseCreateBlockDeviceOptions *blockDeviceOptions,
                             std::vector<std::string> &nsDevPaths, std::string &devPath)
 {
+    // 条带化参数由调用方构造的blockDeviceOptions携带，随verify请求提交master校验；
+    // 仅指定挂载方式（blockDeviceOptions非空，即AttachLinearSpace/AttachStripedSpace）时校验分配策略，
+    // 通用AttachSpace（无聚合块设备）不限制分配策略
+    const bool isStriped = (blockDeviceOptions != nullptr &&
+                            blockDeviceOptions->addressingType == UbseSsuAddressingType::STRIPED);
+    UbseSsuAttachDetachVerifyOption option = {.isAttach = true, .isStriped = isStriped,
+                                              .validateStrategy = (blockDeviceOptions != nullptr)};
+    if (isStriped) {
+        option.raidLevel = static_cast<uint32_t>(blockDeviceOptions->raidLevel);
+        option.chunkSize = blockDeviceOptions->chunkSize;
+    }
+
     UbseSsuAttachDetachVerifyResp verifyResp{};
-    auto ret = VerifyAttachDetachIdentityViaRpc(req.name, req.identity, verifyResp);
+    auto ret = VerifyAttachDetachPreconditionViaRpc(req.name, req.identity, option, verifyResp);
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "AgentAttach: VerifyAttachDetachIdentityViaRpc failed, ret=" << ret << ", name=" << req.name;
+        UBSE_LOG_ERROR << "AgentAttach: VerifyAttachDetachPreconditionViaRpc failed, ret=" << ret << ", name="
+                       << req.name;
         UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
         return ret;
     }
-    if (verifyResp.errorCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "AgentAttach: master verify failed, code=" << verifyResp.errorCode << ", name=" << req.name;
-        UpdateStateOrNotify(req.name, UbseSsuNsState::CREATED, false);
-        return verifyResp.errorCode;
+
+    // 幂等：master校验state==ATTACHED，已挂载空间直接返回ns列表，无需实际attach
+    if (verifyResp.alreadyAttached) {
+        for (const auto &nsInfo : verifyResp.nameSpaceList) {
+            nsDevPaths.push_back(nsInfo.nsDevPath);
+        }
+        UBSE_LOG_INFO << "AgentAttach: already attached, name=" << req.name;
+        return UBSE_OK;
     }
 
     // 从verify响应中获取namespace列表（agent无本地账本）
@@ -899,16 +1042,27 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
 // agent端通用detach主流程：发送identity验证请求到master，从响应中获取namespace列表，
 // 验证成功后逐个detach NS。可选先删除聚合块设备（deleteBlockDevice=true，Linear/Striped场景）。
 // 部分detach失败时保持ATTACHED状态（DetachDevNameSpace幂等，可重试收敛）；全部成功才回退为CREATED。
-static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devName, bool deleteBlockDevice)
+static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devName, bool deleteBlockDevice,
+                            bool isStriped = false)
 {
+    UbseSsuAttachDetachVerifyOption option; // detach场景：master校验state（ATTACHED正常/CREATED幂等）
+    option.isAttach = false;
+    option.isStriped = isStriped; // 携带卸载类型（线性/条带化）
+    // 仅指定卸载方式（deleteBlockDevice为true，即DetachLinearSpace/DetachStripedSpace）时校验分配策略，
+    // 通用DetachSpace（不删除聚合块设备）不限制分配策略
+    option.validateStrategy = deleteBlockDevice;
     UbseSsuAttachDetachVerifyResp verifyResp{};
-    auto ret = VerifyAttachDetachIdentityViaRpc(req.name, req.identity, verifyResp);
+    auto ret = VerifyAttachDetachPreconditionViaRpc(req.name, req.identity, option, verifyResp);
     if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "AgentDetach: VerifyAttachDetachPreconditionViaRpc failed, ret=" << ret << ", name="
+                       << req.name;
         return ret;
     }
-    if (verifyResp.errorCode != UBSE_OK) {
-        UBSE_LOG_ERROR << "AgentDetach: master verify failed, code=" << verifyResp.errorCode << ", name=" << req.name;
-        return verifyResp.errorCode;
+
+    // 幂等：master校验state==CREATED，已detach空间直接返回成功，无需实际detach
+    if (verifyResp.alreadyDetached) {
+        UBSE_LOG_INFO << "AgentDetach: already detached, name=" << req.name;
+        return UBSE_OK;
     }
 
     // 从verify响应中获取namespace列表（agent无本地账本）
@@ -948,31 +1102,94 @@ static uint32_t AgentDetach(const UbseSsuSpaceReq &req, const std::string &devNa
     return UBSE_OK;
 }
 
-// master端：验证identity并返回构造AttachDevNameSpace所需的字段（defaultNqn/jettyId/guid/subNqn）。
-uint32_t UbseSsuServiceImp::VerifyAttachDetachIdentity(const std::string &name,
-                                                       const UbseSsuAllocIdentityInfo &identity,
-                                                       std::vector<UbseSsuNsVerifyInfo> &nsVerifyList)
+// master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回构造AttachDevNameSpace所需字段。
+// option.isAttach=true时校验账本state（ATTACHED幂等成功/CREATED正常/其他失败）；option.isStriped=true时校验条带化参数。
+// detach场景（isAttach=false）校验state（ATTACHED正常/CREATED幂等成功/其他失败），幂等标志经verifyResp返回。
+// 校验结果写入verifyResp（nsVerifyList/幂等标志），errorCode由调用方从返回值统一设置
+uint32_t UbseSsuServiceImp::VerifyAttachDetachPrecondition(const std::string& name,
+                                                           const UbseSsuAllocIdentityInfo& identity,
+                                                           const UbseSsuAttachDetachVerifyOption& option,
+                                                           UbseSsuAttachDetachVerifyResp& verifyResp)
 {
-    UBSE_LOG_INFO << "VerifyAttachDetachIdentity: name=" << name;
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: name=" << name;
 
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
-        UBSE_LOG_ERROR << "VerifyAttachDetachIdentity: record not found, name=" << name;
+        UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: record not found, name=" << name;
         return UBSE_ERROR;
     }
 
+    // 专用路径（AttachLinearSpace/AttachStripedSpace/DetachLinearSpace/DetachStripedSpace）校验
+    // 分配策略与挂载/卸载策略匹配；通用AttachSpace/DetachSpace不限制分配策略（validateStrategy=false）
+    if (option.validateStrategy) {
+        auto strategyRet = ValidateAllocStrategyMatch(name, entryPtr->allocResult.strategy, option.isStriped);
+        if (strategyRet != UBSE_OK) {
+            return strategyRet;
+        }
+    }
+
+    // 校验账本state（与master本地attach/detach语义对齐）：
+    // attach：ATTACHED为幂等成功，CREATED为正常挂载状态，其他状态拒绝
+    // detach：ATTACHED为正常卸载状态，CREATED为幂等成功（已detach），其他状态拒绝
+    if (option.isAttach) {
+        if (entryPtr->state == UbseSsuNsState::ATTACHED) {
+            verifyResp.alreadyAttached = true;
+            UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already attached, name=" << name;
+            return UBSE_OK;
+        }
+        if (entryPtr->state != UbseSsuNsState::CREATED) {
+            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for attach, name=" << name
+                           << ", state=" << static_cast<int>(entryPtr->state);
+            return UBSE_ERROR;
+        }
+    } else {
+        if (entryPtr->state == UbseSsuNsState::CREATED) {
+            verifyResp.alreadyDetached = true;
+            UBSE_LOG_INFO << "VerifyAttachDetachPrecondition: already detached, name=" << name;
+            return UBSE_OK;
+        }
+        if (entryPtr->state != UbseSsuNsState::ATTACHED) {
+            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: invalid state for detach, name=" << name
+                           << ", state=" << static_cast<int>(entryPtr->state);
+            return UBSE_ERROR;
+        }
+    }
+
+    // 仅attach场景校验条带化参数（chunkSize合法性、RAID5成员数、NS大小对齐）。
+    // detach场景不校验：块设备已存在，chunkSize/raidLevel为创建时参数，且detach请求未携带该信息（默认0）
+    if (option.isAttach && option.isStriped) {
+        auto cfgRet = ValidateStripedNsConfig(name, static_cast<UbseSsuAggregationRaidLevel>(option.raidLevel),
+                                              static_cast<UbseSsuChunkSize>(option.chunkSize),
+                                              entryPtr->allocResult.nameSpaceList);
+        if (cfgRet != UBSE_OK) {
+            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: ValidateStripedNsConfig failed, name=" << name;
+            return cfgRet;
+        }
+    }
+
     auto devMap = collector_.GetCachedDevMap();
+    auto& nsVerifyList = verifyResp.nsVerifyList;
     nsVerifyList.clear();
     nsVerifyList.reserve(entryPtr->allocResult.nameSpaceList.size());
+    std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         const UbseSsuDevNameSpace *targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
         if (targetNs == nullptr) {
-            UBSE_LOG_ERROR << "VerifyAttachDetachIdentity: namespace not found in cache, eid=" << nsInfo.tgtEid
+            // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        }
+        if (targetNs == nullptr) {
+            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: namespace not found in cache, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
             return UBSE_ERROR;
         }
         if (!IsNsIdentityMatch(*targetNs, identity)) {
-            UBSE_LOG_ERROR << "VerifyAttachDetachIdentity: identity not match, eid=" << nsInfo.tgtEid
+            UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition: identity not match, eid=" << nsInfo.tgtEid
                            << ", nsId=" << nsInfo.namespaceId;
             return UBSE_ERR_ACCESS_DENIED;
         }
@@ -984,15 +1201,22 @@ uint32_t UbseSsuServiceImp::VerifyAttachDetachIdentity(const std::string &name,
         verifyInfo.guid = targetNs->guid;
         nsVerifyList.push_back(std::move(verifyInfo));
     }
-    UBSE_LOG_INFO << "VerifyAttachDetachIdentity success: name=" << name << ", nsCount=" << nsVerifyList.size();
+    UBSE_LOG_INFO << "VerifyAttachDetachPrecondition success: name=" << name
+                  << ", nsCount=" << nsVerifyList.size();
     return UBSE_OK;
 }
 
 // master端attach单个命名空间
 static uint32_t AttachSingleNs(const UbseSsuNameSpaceInfo &nsInfo, const UbseSsuAllocIdentityInfo &identity,
-                               const std::string &nqn, const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
+                               const std::string &nqn, std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
 {
     auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+    if (targetNs == nullptr) {
+        // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
+        std::unordered_set<std::string> refreshedEids;
+        RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+        targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+    }
     if (targetNs == nullptr) {
         UBSE_LOG_ERROR << "AttachSingleNs: device or namespace not found in cache, eid=" << nsInfo.tgtEid
                        << ", nsId=" << nsInfo.namespaceId;
@@ -1072,8 +1296,12 @@ static uint32_t RollbackAttachedNsAndLedger(const std::vector<UbseSsuNameSpaceIn
 // 挂载空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths)
 {
-    UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << req.nqn;
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "AttachSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "AttachSpace: name=" << req.name << ", nqn=" << req.nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     std::string role;
@@ -1145,8 +1373,12 @@ uint32_t UbseSsuServiceImp::AttachSpace(const UbseSsuSpaceReq &req, std::vector<
 // detach空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::DetachSpace(const UbseSsuSpaceReq &req)
 {
-    UBSE_LOG_INFO << "DetachSpace: name=" << req.name << ", nqn=" << req.nqn;
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "DetachSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "DetachSpace: name=" << req.name << ", nqn=" << req.nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     std::string role;
@@ -1218,7 +1450,7 @@ struct AttachNsCreateBlockDeviceOutput {
 // attach所有NS + 创建聚合块设备 + 账本状态管理（ATTACHING -> ATTACHED / 失败回退）
 static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
                                              const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList,
-                                             const std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
+                                             std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap,
                                              const UbseCreateBlockDeviceOptions &options,
                                              AttachNsCreateBlockDeviceOutput &output)
 {
@@ -1256,9 +1488,16 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
 uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
                                               std::string &devPath)
 {
-    UBSE_LOG_INFO << "AttachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "AttachLinearSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "AttachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
+
+    UbseCreateBlockDeviceOptions options;
+    options.addressingType = UbseSsuAddressingType::LINEAR;
 
     std::string role;
     auto roleRet = UbseGetRole(role);
@@ -1269,8 +1508,6 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
 
     // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
     if (role != ELECTION_ROLE_MASTER) {
-        UbseCreateBlockDeviceOptions options;
-        options.addressingType = UbseSsuAddressingType::LINEAR;
         return AgentAttach(req, req.devName, &options, nsDevPaths, devPath);
     }
 
@@ -1279,6 +1516,12 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachLinearSpace: record not found, name=" << req.name;
         return UBSE_ERROR;
+    }
+
+    // 校验分配策略与挂载策略匹配：线性分配只能线性attach
+    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, false);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // 幂等性：已经attached，再次attach返回成功
@@ -1302,8 +1545,6 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         UBSE_LOG_ERROR << "AttachLinearSpace: failed to update ledger state to ATTACHING, name=" << req.name;
         return UBSE_ERROR;
     }
-    UbseCreateBlockDeviceOptions options;
-    options.addressingType = UbseSsuAddressingType::LINEAR;
 
     auto devMap = collector_.GetCachedDevMap();
     AttachNsCreateBlockDeviceOutput output;
@@ -1321,62 +1562,49 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
     return UBSE_OK;
 }
 
-// 校验条带化场景下的参数
-// 保证所有namespace大小一致，且为chunkSize的整数倍
-static uint32_t ValidateStripedNsConfig(const UbseSsuStripedSpaceReq &req,
-                                        const std::vector<UbseSsuNameSpaceInfo> &nameSpaceList)
-{
-    // RAID5至少需要3个成员设备
-    if (req.level == UbseSsuAggregationRaidLevel::RAID5 && nameSpaceList.size() < 3) {
-        UBSE_LOG_ERROR << "AttachStripedSpace: RAID5 requires at least 3 namespaces, name=" << req.name
-                       << ", nsCount=" << nameSpaceList.size();
-        return UBSE_ERR_INVALID_ARG;
-    }
-
-    if (req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_4K && req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_16K &&
-        req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_32K && req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_64K &&
-        req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_128K && req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_256K &&
-        req.chunkSize != UbseSsuChunkSize::CHUNK_SIZE_512K) {
-        UBSE_LOG_ERROR << "AttachStripedSpace: invalid chunkSize, name=" << req.name
-                       << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize);
-        return UBSE_ERR_INVALID_ARG;
-    }
-    const uint64_t chunkSizeBytes = static_cast<uint64_t>(req.chunkSize) * 1024; // chunkSize单位KB，转字节
-    if (nameSpaceList.empty()) {
-        UBSE_LOG_ERROR << "ValidateStripedNsConfig: empty nameSpaceList, name=" << req.name;
-        return UBSE_ERROR;
-    }
-    const uint64_t firstNsSize = nameSpaceList.front().nsSize;
-    for (const auto &nsInfo : nameSpaceList) {
-        if (nsInfo.nsSize != firstNsSize) {
-            UBSE_LOG_ERROR << "ValidateStripedNsConfig: namespace sizes not equal, name=" << req.name
-                           << ", expected=" << firstNsSize << ", actual=" << nsInfo.nsSize;
-            return UBSE_ERROR;
-        }
-        if (nsInfo.nsSize % chunkSizeBytes != 0) {
-            UBSE_LOG_ERROR << "ValidateStripedNsConfig: namespace size not multiple of chunkSize, name=" << req.name
-                           << ", nsSize=" << nsInfo.nsSize << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize)
-                           << "KB";
-            return UBSE_ERROR;
-        }
-    }
-    return UBSE_OK;
-}
-
 // 挂载条带化空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::vector<std::string> &nsDevPaths,
                                                std::string &devPath)
 {
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "AttachStripedSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
+
     UBSE_LOG_INFO << "AttachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName
                   << ", level=" << static_cast<int>(req.level)
                   << ", chunkSize=" << static_cast<uint32_t>(req.chunkSize);
-
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
+    std::string role;
+    auto roleRet = UbseGetRole(role);
+    if (roleRet != UBSE_OK) {
+        UBSE_LOG_ERROR << "AttachStripedSpace: failed to get node role, ret=" << roleRet;
+        return UBSE_ERROR;
+    }
+
+    UbseCreateBlockDeviceOptions options = {.addressingType = UbseSsuAddressingType::STRIPED,
+                                            .raidLevel = req.level == UbseSsuAggregationRaidLevel::RAID0 ?
+                                                             UbseSsuRaidLevel::RAID0 :
+                                                             UbseSsuRaidLevel::RAID5,
+                                            .chunkSize = static_cast<uint32_t>(req.chunkSize)};
+
+    // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
+    if (role != ELECTION_ROLE_MASTER) {
+        return AgentAttach(req, req.devName, &options, nsDevPaths, devPath);
+    }
+
+    // Master: 检查本地账本后执行
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(req.name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "AttachStripedSpace: record not found, name=" << req.name;
         return UBSE_ERROR;
+    }
+
+    // 校验分配策略与挂载策略匹配：条带化分配只能条带化attach
+    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, true);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // 幂等性：已经attached，再次attach返回成功
@@ -1396,28 +1624,10 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
     }
 
     // 校验条带化场景下的参数
-    auto ret = ValidateStripedNsConfig(req, entryPtr->allocResult.nameSpaceList);
+    auto ret = ValidateStripedNsConfig(req.name, req.level, req.chunkSize, entryPtr->allocResult.nameSpaceList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "AttachStripedSpace: ValidateStripedNsConfig failed, name=" << req.name << ", ret=" << ret;
         return ret;
-    }
-
-    UbseCreateBlockDeviceOptions options = {.addressingType = UbseSsuAddressingType::STRIPED,
-                                            .raidLevel = req.level == UbseSsuAggregationRaidLevel::RAID0 ?
-                                                             UbseSsuRaidLevel::RAID0 :
-                                                             UbseSsuRaidLevel::RAID5,
-                                            .chunkSize = static_cast<uint32_t>(req.chunkSize)};
-
-    std::string role;
-    auto roleRet = UbseGetRole(role);
-    if (roleRet != UBSE_OK) {
-        UBSE_LOG_ERROR << "AttachStripedSpace: failed to get node role, ret=" << roleRet;
-        return UBSE_ERROR;
-    }
-
-    // Agent: 无本地账本，直接通过verify RPC获取ns列表后attach + create block device
-    if (role != ELECTION_ROLE_MASTER) {
-        return AgentAttach(req, req.devName, &options, nsDevPaths, devPath);
     }
 
     // 标记为attaching中
@@ -1487,8 +1697,12 @@ static uint32_t DetachNsAndDeleteBlockDevice(const std::string &tag, const UbseS
 // detach线性空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
 {
-    UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "DetachLinearSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "DetachLinearSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     std::string role;
@@ -1500,7 +1714,7 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
 
     // Agent: 无本地账本，直接通过verify RPC获取ns列表后detach
     if (role != ELECTION_ROLE_MASTER) {
-        return AgentDetach(req, req.devName, true);
+        return AgentDetach(req, req.devName, true, false);
     }
 
     // Master: 检查本地账本后执行
@@ -1508,6 +1722,12 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachLinearSpace: record not found, name=" << req.name;
         return UBSE_ERROR;
+    }
+
+    // 校验分配策略与卸载策略匹配：线性分配只能线性detach
+    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, false);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // 幂等性 已经detach的NS，再次detach返回成功
@@ -1536,8 +1756,12 @@ uint32_t UbseSsuServiceImp::DetachLinearSpace(const UbseSsuLinearSpaceReq &req)
 // 卸载条带化空间主入口，agent/master节点都可调用
 uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req)
 {
-    UBSE_LOG_INFO << "DetachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
+    if (req.name.empty()) {
+        UBSE_LOG_ERROR << "DetachStripedSpace: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "DetachStripedSpace: name=" << req.name << ", nqn=" << req.nqn << ", devName=" << req.devName;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(req.name);
 
     std::string role;
@@ -1549,7 +1773,7 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
 
     // Agent: 无本地账本，直接通过verify RPC获取ns列表后detach
     if (role != ELECTION_ROLE_MASTER) {
-        return AgentDetach(req, req.devName, true);
+        return AgentDetach(req, req.devName, true, true);
     }
 
     // Master: 检查本地账本后执行
@@ -1557,6 +1781,12 @@ uint32_t UbseSsuServiceImp::DetachStripedSpace(const UbseSsuStripedSpaceReq &req
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "DetachStripedSpace: record not found, name=" << req.name;
         return UBSE_ERROR;
+    }
+
+    // 校验分配策略与卸载策略匹配：条带化分配只能条带化detach
+    auto strategyRet = ValidateAllocStrategyMatch(req.name, entryPtr->allocResult.strategy, true);
+    if (strategyRet != UBSE_OK) {
+        return strategyRet;
     }
 
     // 幂等性 已经detach的NS，再次detach返回成功
@@ -1708,8 +1938,12 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
                                                     const UbseSsuAllocIdentityInfo &identity, bool isAdd)
 {
     const std::string funcName = isAdd ? "ExecuteAddAccessPermission" : "ExecuteRemoveAccessPermission";
-    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
+    if (name.empty()) {
+        UBSE_LOG_ERROR << funcName << ": name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << funcName << ": name=" << name << ", nqn=" << nqn;
     auto resourceLock = ubse::utils::UbseLoggingLockGuard(name);
 
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
@@ -1728,9 +1962,16 @@ uint32_t UbseSsuServiceImp::ExecuteAccessPermission(const std::string &name, con
     auto devMap = collector_.GetCachedDevMap();
     // 记录已成功操作的NS信息，用于失败时回滚
     std::vector<SucceededPermNs> succeededNsList;
+    std::unordered_set<std::string> refreshedEids;
     for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
         auto targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
         if (targetNs == nullptr) {
+            // 缓存未命中：从硬件实时刷新（刚分配的ns可能尚未被定时采集覆盖）
+            RefreshDevCache(nsInfo.tgtEid, nsInfo.tgtNqn, refreshedEids, devMap);
+            targetNs = FindNsInDevice(devMap, nsInfo.tgtEid, nsInfo.namespaceId);
+        }
+        if (targetNs == nullptr) {
+            // 刷新后仍查不到，才可认定NS确实不存在
             if (isAdd) {
                 UBSE_LOG_ERROR << funcName << ": namespace not found in cache, eid=" << nsInfo.tgtEid
                                << ", nsId=" << nsInfo.namespaceId;
@@ -1883,34 +2124,16 @@ static uint32_t GetNsStatsViaRpc(const std::string &name, std::vector<UbseSsuNsS
     return UBSE_OK;
 }
 
-// 缓存未命中时从硬件实时刷新指定eid的设备缓存
-// 用于刚分配的namespace尚未被定时采集（30s间隔）覆盖的场景
-static void RefreshDevCache(const std::string &eid, const std::string &subNqn,
-                            std::unordered_set<std::string> &refreshedEids,
-                            std::unordered_map<std::string, UbseSsuDevInfoPtr> &devMap)
-{
-    if (refreshedEids.find(eid) != refreshedEids.end()) {
-        return;
-    }
-    refreshedEids.insert(eid);
-    std::vector<UbseSsuDevInfo> freshDevList(1);
-    freshDevList[0].subSystem.eid = eid;
-    freshDevList[0].subSystem.subNqn = subNqn;
-    auto ret = UbseSsuAdapterInterface::GetInstance().GetDevList(freshDevList);
-    if (ret == UBSE_OK && !freshDevList.empty()) {
-        devMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(freshDevList[0]));
-    } else {
-        UBSE_LOG_WARN << "RefreshDevCache: refresh dev from hardware failed, eid=" << eid
-                      << ", ret=" << ret;
-    }
-}
-
 // master端：查询命名空间统计信息，校验identity后从设备缓存获取usedSize
 uint32_t UbseSsuServiceImp::ExecuteGetNsStats(const std::string &name, std::vector<UbseSsuNsStats> &statsList,
                                               const UbseSsuAllocIdentityInfo &identity)
 {
-    UBSE_LOG_INFO << "ExecuteGetNsStats: name=" << name;
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "ExecuteGetNsStats: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "ExecuteGetNsStats: name=" << name;
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "ExecuteGetNsStats: record not found, name=" << name;
@@ -2340,8 +2563,12 @@ uint32_t UbseSsuServiceImp::ExecuteGetConnectInfo(const std::string &name, const
                                                   std::vector<UbseSsuConnectInfo> &connectInfoList,
                                                   const UbseSsuAllocIdentityInfo &identity)
 {
-    UBSE_LOG_INFO << "ExecuteGetConnectInfo: name=" << name;
+    if (name.empty()) {
+        UBSE_LOG_ERROR << "ExecuteGetConnectInfo: name is empty";
+        return UBSE_ERR_INVALID_ARG;
+    }
 
+    UBSE_LOG_INFO << "ExecuteGetConnectInfo: name=" << name;
     auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(name);
     if (entryPtr == nullptr) {
         UBSE_LOG_ERROR << "ExecuteGetConnectInfo: record not found, name=" << name;

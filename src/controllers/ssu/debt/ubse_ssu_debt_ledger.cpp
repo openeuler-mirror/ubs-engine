@@ -130,10 +130,18 @@ static void RebuildEntry(const std::string &name, const std::vector<const UbseSs
         UbseSsuNameSpaceInfo info;
         info.tgtEid = ns->subSystem.eid;
         info.tgtNqn = ns->subSystem.subNqn;
-        info.nsUuid = ns->uuid;
+        auto uuidStr = StrToUuid(ns->uuid);
+        if (uuidStr.empty()) {
+            UBSE_LOG_ERROR << "RebuildEntry: failed to convert uuid, skip this ns, name=" << name
+                           << ", nsId=" << ns->namespaceId;
+            continue; // 只跳过当前异常 namespace
+        }
+        info.nsUuid = uuidStr;
         info.namespaceId = ns->namespaceId;
-        info.nsDevPath = std::string("/dev/disk/by-id/nvme-eui.") + StrToHex(ns->guid);
-        info.nsSize = ns->nsze;
+        // 与CreateDevNameSpaces生成的持久化路径保持一致：/dev/disk/by-id/nvme-uuid.<标准连字符UUID>
+        info.nsDevPath = std::string("/dev/disk/by-id/nvme-uuid.") + uuidStr;
+        // nsze单位为LBA数量，乘LBA大小换算为字节，与创建路径的nsSize口径保持一致
+        info.nsSize = ns->nsze * static_cast<uint64_t>(req.lbaFormat);
         info.lbaFormat = req.lbaFormat;
         allocResult.nameSpaceList.push_back(info);
     }

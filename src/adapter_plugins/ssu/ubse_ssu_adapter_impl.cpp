@@ -969,7 +969,7 @@ uint32_t UbseSsuAdapterImpl::ValidatePersistentPaths(const std::vector<std::stri
     for (const auto& path : devicePathList) {
         if (path.find("/dev/disk/by-id/") != 0) {
             UBSE_LOG_ERROR << "Device path is not a persistent path (by-id): " << path
-                           << ", expected format: /dev/disk/by-id/nvme-eui.<guid>";
+                           << ", expected format: /dev/disk/by-id/nvme-uuid.<uuid>";
             return UBSE_ERROR;
         }
         // 阻止 shell 元字符进入后续 ExecWithSudo 拼接的命令行，防止命令注入
@@ -1111,7 +1111,7 @@ uint32_t UbseSsuAdapterImpl::CreateStripedBlockDevice(const std::string& deviceN
  * @brief 创建块设备（支持RAID）
  * @details 将多个命名空间组合成一个块设备，支持LINEAR、RAID0、RAID5模式
  *          满足可靠性要求：
- *          1. devicePathList应使用persistentPath（/dev/disk/by-id/nvme-eui.<guid>）
+ *          1. devicePathList应使用persistentPath（/dev/disk/by-id/nvme-uuid.<uuid>）
  *          2. 创建成功后更新mdadm.conf并执行update-initramfs
  *          3. 通过raidUuid标识阵列
  * @param deviceName 设备名称
