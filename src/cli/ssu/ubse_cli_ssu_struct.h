@@ -26,8 +26,8 @@ using ubse::plugin::service::ssu::UbseSsuAllocStrategy;
 using ubse::plugin::service::ssu::UbseSsuChunkSize;
 using ubse::plugin::service::ssu::UbseSsuLBAFormat;
 
-// 以下结构是 CLI ↔ SSU handler 的 wire 契约。字段顺序和宽度必须与
-// `Ssu*Unpack/Ssu*Pack` 保持一致；IPC body 为 UbsePackUtil 裸 payload，不带 serde 协议头。
+// 以下结构是 CLI ↔ SSU handler 的契约。字段顺序和宽度必须与`Ssu*Unpack/Ssu*Pack` 保持一致；
+// IPC body 为 UbsePackUtil 裸 payload，不带 serde 协议头。
 
 // 详情查询请求：仅携带待查询的分配名称。
 struct UbseCliSsuAllocDetailReq {
