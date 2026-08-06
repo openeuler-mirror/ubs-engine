@@ -79,6 +79,8 @@ const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must
 const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
     "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
 const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_SUMMARY_REJECTS_NAME =
+    "ERROR: The option -n or --name is only valid when --type is alloc_detail.";
 const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
     "ERROR: The option -d or --dev_name is required when --type is Linear.";
 const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
@@ -339,7 +341,7 @@ void UbseCliRegSsuModule::UbseCliSignUp()
 }
 
 // display ssu：仅 -t 必填，按 alloc_summary / alloc_detail 分流到不同子处理。
-// -n 仅 alloc_detail 需要，留待子处理自行校验，避免在摘要路径上强校验。
+// -n 仅 alloc_detail 需要：摘要路径显式拒绝 -n，详情路径在子处理中校验。
 UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDisplaySsu()
 {
     UbseCliRegBuilder builder;
@@ -408,7 +410,8 @@ UbseCliCommandInfo UbseCliRegSsuModule::UbseCliDeleteSsu()
     return builder.UbseCliBuild();
 }
 
-// display ssu 入口：先按 -t 分流，缺失或非法 -t 直接返回错误，不进入 IPC 路径。
+// display ssu 入口：先按 -t 分流，缺失或非法 -t 直接返回错误，不进入 IPC 路径；
+// alloc_summary 不接受 -n，显式报错避免用户误以为 -n 生效。
 std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
     [[maybe_unused]] const std::map<std::string, std::string> &params)
 {
@@ -417,6 +420,9 @@ std::shared_ptr<UbseCliResultEcho> UbseCliRegSsuModule::UbseCliDisplaySsuFunc(
         return UbseCliStringPromptReply("ERROR: The option -t or --type is required.");
     }
     if (type->second == ALLOC_SUMMARY_TYPE) {
+        if (params.find(NAME_OPT) != params.end()) {
+            return UbseCliStringPromptReply(ERR_SUMMARY_REJECTS_NAME);
+        }
         return DisplayAllocSummary();
     }
     if (type->second == ALLOC_DETAIL_TYPE) {

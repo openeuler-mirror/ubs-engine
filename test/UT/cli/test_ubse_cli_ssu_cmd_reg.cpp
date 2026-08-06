@@ -55,6 +55,8 @@ const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must
 const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
     "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
 const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_SUMMARY_REJECTS_NAME =
+    "ERROR: The option -n or --name is only valid when --type is alloc_detail.";
 const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
     "ERROR: The option -d or --dev_name is required when --type is Linear.";
 const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
@@ -243,6 +245,16 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsUnsupportedType)
 {
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "unknown"}}),
                            "ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
+}
+
+// alloc_summary 不接受 -n：传入 -n 应显式报错，且不进入 IPC 路径。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsName)
+{
+    ExpectRenderedContains(
+        UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}, {"name", "alloc-space-1"}}),
+        ERR_SUMMARY_REJECTS_NAME);
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+    EXPECT_EQ(g_ssuMockLastOpCode, 0);
 }
 
 // 摘要查询返回空列表时应输出 INFO 提示，并验证实际发出的 module/op code 正确。
