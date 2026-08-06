@@ -280,10 +280,6 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
             TraceContext::Clear();
             return;
         }
-        // 释放成功后从账本中移除对应entry
-        if (!UbseSsuDebtLedger::GetInstance().Remove(freeRpcReq.name)) {
-            UBSE_LOG_ERROR << "FreeReq: ledger entry not found after free success: name=" << freeRpcReq.name;
-        }
         SendSsuFreeRespToAgent(freeRpcReq.requestNodeId, BuildFreeResp(freeRpcReq.requestId, ret));
         TraceContext::Clear();
     });
@@ -310,7 +306,8 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     SetReplySyncResp(resp);
 }
 
-// handler: master端处理来自agent端的attach验证请求：验证identity并返回构造AttachDevNameSpace所需字段。
+// handler: master端处理来自agent端的attach/detach前置条件校验请求：校验identity、账本state、条带化参数，
+// 并返回构造AttachDevNameSpace所需字段。
 // 查询耗时较短（纯内存账本+设备缓存读取），直接在handler线程同步执行，通过sync resp直接返回nsVerifyList，
 // agent端无需future等待
 static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t reqSize,
@@ -331,19 +328,17 @@ static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t
 
     UbseSsuAttachDetachVerifyResp respData;
     respData.requestId = verifyReq.requestId;
-    std::vector<UbseSsuNsVerifyInfo> nsVerifyList;
-    auto ret = UbseSsuServiceImp::GetInstance().VerifyAttachDetachIdentity(verifyReq.name, verifyReq.identityInfo,
-                                                                           nsVerifyList);
+    auto ret = UbseSsuServiceImp::GetInstance().VerifyAttachDetachPrecondition(verifyReq.name, verifyReq.identityInfo,
+                                                                               verifyReq.option, respData);
     respData.errorCode = ret;
     if (ret == UBSE_OK) {
-        respData.nsVerifyList = std::move(nsVerifyList);
         // agent无本地账本，一并返回namespace列表供agent端attach/detach使用
         auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(verifyReq.name);
         if (entryPtr != nullptr) {
             respData.nameSpaceList = entryPtr->allocResult.nameSpaceList;
         }
     } else {
-        UBSE_LOG_ERROR << "VerifyAttachDetachIdentity failed, " << FormatRetCode(ret)
+        UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition failed, " << FormatRetCode(ret)
                        << ", requestId=" << verifyReq.requestId << ", name=" << verifyReq.name;
     }
     resp = std::make_unique<UbseSsuAttachDetachVerifyRespMsg>(respData);

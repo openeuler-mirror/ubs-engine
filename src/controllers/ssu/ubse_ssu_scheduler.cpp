@@ -231,13 +231,42 @@ bool PreCheckHandler::Handle(UbseSsuAllocationContext &ctx)
         return false;
     }
 
-    // VALIDATE - 检查条带化分配时，allocSize是否是nsNum的倍数
-    if (ctx.request.addressingType == UbseSsuAddressingType::STRIPED &&
-        ctx.request.allocSize % ctx.request.nsNum != 0) {
-        UBSE_LOG_ERROR << "allocSize is not divisible by nsNum in STRIPED addressing type";
+    // VALIDATE - 检查lbaSize是否为有效的扇区大小（512B或4096B，0也在此被拒绝）
+    if (ctx.request.lbaSize != LBA0_SECTOR_SIZE && ctx.request.lbaSize != LBA1_SECTOR_SIZE) {
+        UBSE_LOG_ERROR << "Invalid parameters: lbaSize is not 512B or 4096B, lbaSize=" << ctx.request.lbaSize;
         ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
-                               "Allocation Failed: allocSize is not divisible by nsNum in STRIPED addressing type");
+                               "Allocation Failed: Invalid parameters: lbaSize is not 512B or 4096B");
         return false;
+    }
+
+    // VALIDATE - 检查allocSize是否为lbaSize的整数倍
+    if (ctx.request.allocSize % ctx.request.lbaSize != 0) {
+        UBSE_LOG_ERROR << "allocSize is not multiple of lbaSize, allocSize=" << ctx.request.allocSize
+                       << ", lbaSize=" << ctx.request.lbaSize;
+        ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                               "Allocation Failed: allocSize is not multiple of lbaSize");
+        return false;
+    }
+
+    // VALIDATE - 检查条带化分配时，allocSize是否为nsNum的整数倍（条带化需均分到各NS）
+    // 每个NS的大小（allocSize/nsNum）是否为lbaSize的整数倍
+    if (ctx.request.addressingType == UbseSsuAddressingType::STRIPED) {
+        if (ctx.request.allocSize % ctx.request.nsNum != 0) {
+            UBSE_LOG_ERROR << "allocSize is not divisible by nsNum, allocSize=" << ctx.request.allocSize
+                           << ", nsNum=" << ctx.request.nsNum;
+            ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                                   "Allocation Failed: allocSize is not divisible by nsNum "
+                                   "in STRIPED addressing type");
+            return false;
+        }
+        auto singleNsSize = ctx.request.allocSize / ctx.request.nsNum;
+        if (singleNsSize % ctx.request.lbaSize != 0) {
+            UBSE_LOG_ERROR << "singleNsSize is not divisible by lbaSize in STRIPED addressing type";
+            ctx.result = MakeError(UbseSsuAllocRetCode::INVALID_PARAM,
+                                   "Allocation Failed: singleNsSize is not divisible by lbaSize in STRIPED "
+                                   "addressing type");
+            return false;
+        }
     }
 
     // PREPROCESS - 设备信息预过滤，过滤掉不满足条件的设备，并按剩余空间降序、nsCount升序排序

@@ -180,7 +180,7 @@ TEST_F(TestUbseSsuScheduler, PreCheckFilterMaxNsDevices)
     std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 512, 128), MakeDev("eid-2", 1024, 0),
                                         MakeDev("eid-3", 1024, 0)};
     UbseSsuAllocRequest req;
-    req.allocSize = 1024;
+    req.allocSize = 1536; // 需同时为lbaSize(512)和nsNum(3)的整数倍，以通过PreCheck整除校验
     req.nsNum = 3;
     req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::LINEAR;
@@ -274,6 +274,69 @@ TEST_F(TestUbseSsuScheduler, PreCheckStripedAllocSizeNotDivisible)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 3;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::STRIPED;
+    UbseSsuAllocationContext ctx(devs, req);
+
+    PreCheckHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(ctx.result.ret, UbseSsuAllocRetCode::INVALID_PARAM);
+    EXPECT_TRUE(ctx.selectedDevs.empty());
+}
+
+/*
+ * 用例描述：
+ * PreCheckHandler 在 LINEAR 模式下 allocSize 不能被 nsNum 整除时仍应通过校验
+ * （线性分配按各设备剩余空间权重分配，不要求均分）
+ * 测试步骤：
+ * 1、构造 3 个在线设备
+ * 2、LINEAR 模式请求 allocSize=1024、nsNum=3（1024 % 3 != 0）
+ * 3、调用 PreCheckHandler::Handle
+ * 预期结果：
+ * 1、返回 true
+ * 2、ctx.selectedDevs 包含 3 个设备
+ */
+TEST_F(TestUbseSsuScheduler, PreCheckLinearAllocSizeNotDivisible)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 1024, 0), MakeDev("eid-2", 1024, 0),
+                                        MakeDev("eid-3", 1024, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 1024;
+    req.nsNum = 3;
+    req.lbaSize = 512;
+    req.addressingType = UbseSsuAddressingType::LINEAR;
+    UbseSsuAllocationContext ctx(devs, req);
+
+    PreCheckHandler handler;
+    bool ok = handler.Handle(ctx);
+
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(ctx.selectedDevs.size(), 3u);
+}
+
+/*
+ * 用例描述：
+ * PreCheckHandler 在 STRIPED 模式下 allocSize 能被 nsNum 和 lbaSize 整除、
+ * 但 singleNsSize 不能被 lbaSize 整除时返回参数非法
+ * 测试步骤：
+ * 1、构造 2 个在线设备
+ * 2、STRIPED 模式请求 allocSize=2560、nsNum=2、lbaSize=512
+ *    （2560%2==0、2560%512==0，但 singleNsSize=1280，1280%512!=0）
+ * 3、调用 PreCheckHandler::Handle
+ * 预期结果：
+ * 1、返回 false
+ * 2、ctx.result.ret == INVALID_PARAM
+ * 3、ctx.selectedDevs 为空
+ */
+TEST_F(TestUbseSsuScheduler, PreCheckStripedSingleNsSizeNotLbaMultiple)
+{
+    std::vector<UbseSsuDevInfo> devs = {MakeDev("eid-1", 4096, 0), MakeDev("eid-2", 4096, 0)};
+    UbseSsuAllocRequest req;
+    req.allocSize = 2560;
+    req.nsNum = 2;
+    req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 
@@ -623,6 +686,7 @@ TEST_F(TestUbseSsuScheduler, SchedulerExecuteStripedSuccess)
     UbseSsuAllocRequest req;
     req.allocSize = 1024;
     req.nsNum = 2;
+    req.lbaSize = 512;
     req.addressingType = UbseSsuAddressingType::STRIPED;
     UbseSsuAllocationContext ctx(devs, req);
 

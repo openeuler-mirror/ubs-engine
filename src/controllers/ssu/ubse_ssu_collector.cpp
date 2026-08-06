@@ -41,11 +41,14 @@ uint32_t UbseSsuCollector::Start()
     }
 
     // 注册之前先采集一次设备列表，避免首次采集延迟
+    rebuildPending_.store(false);
     auto ret = CollectDeviceList();
     if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "SsuDeviceCollector Start: CollectDeviceList failed, ret=" << FormatRetCode(ret);
-        timerStarted_ = false; // 回滚状态，允许后续重试
-        return ret;
+        // 首次采集失败时置位，由定时器采集成功后触发一次账本重建
+        rebuildPending_.store(true);
+        UBSE_LOG_WARN << "SsuDeviceCollector Start: CollectDeviceList failed, will retry by timer, subsequent "
+                         "operations will trigger on-demand refresh, ret="
+                      << FormatRetCode(ret);
     }
     ret = UbseTimerHandlerRegister(
         DEVICE_COLLECT_TIMER_NAME,
@@ -53,6 +56,11 @@ uint32_t UbseSsuCollector::Start()
             auto collectRet = CollectDeviceList();
             if (collectRet != UBSE_OK) {
                 UBSE_LOG_ERROR << "SsuDeviceCollector: CollectDeviceList failed, ret=" << FormatRetCode(collectRet);
+                return UBSE_OK;
+            }
+            // 首次采集失败后，定时器采集成功（恢复）时触发一次账本重建
+            if (rebuildPending_.exchange(false) && onFirstCollectFailRecovery_) {
+                onFirstCollectFailRecovery_();
             }
             return UBSE_OK;
         },
@@ -88,6 +96,7 @@ uint32_t UbseSsuCollector::CollectDeviceList()
         return UBSE_OK;
     }
     std::vector<UbseSsuDevInfo> devList;
+    // deviceList为空时，GetDevList将返回所有环境变量SSU_NVME_SERVER_IP_LIST指定的设备
     auto ret = UbseSsuAdapterInterface::GetInstance().GetDevList(devList);
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "SsuDeviceCollector: GetDevList failed, ret=" << ret;
@@ -96,7 +105,8 @@ uint32_t UbseSsuCollector::CollectDeviceList()
     std::unordered_map<std::string, UbseSsuDevInfoPtr> newMap;
     newMap.reserve(devList.size());
     for (auto &dev : devList) {
-        newMap[dev.subSystem.eid] = std::make_shared<const UbseSsuDevInfo>(std::move(dev));
+        std::string eid = dev.subSystem.eid;
+        newMap[eid] = std::make_shared<const UbseSsuDevInfo>(std::move(dev));
     }
     
     {
@@ -183,11 +193,17 @@ void UbseSsuCollector::AddReleasedSpace(const std::vector<std::pair<std::string,
 {
     reservationMgr_.AddReleasedSpace(eidBytesList);
 }
-
+// 获取缓存的设备map
 std::unordered_map<std::string, UbseSsuDevInfoPtr> UbseSsuCollector::GetCachedDevMap()
 {
     std::shared_lock<std::shared_mutex> lock(devListCacheMtx_);
     return cachedDevMap_;
+}
+
+// 设置首次采集失败后的恢复回调，用于首次采集失败时由定时器采集成功后触发账本重建
+void UbseSsuCollector::SetOnFirstCollectFailRecovery(const std::function<void()> &onFirstCollectFailRecovery)
+{
+    onFirstCollectFailRecovery_ = onFirstCollectFailRecovery;
 }
 
 } // namespace ubse::ssu::service

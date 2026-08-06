@@ -23,8 +23,9 @@ using namespace ubse::task_executor;
 // 获取SSU任务执行器
 UbseTaskExecutorPtr GetSsuExecutor();
 
-// 将二进制字符串转换为16进制表示
-std::string StrToHex(const std::string &id);
+// 将原始16字节二进制UUID转换为标准连字符格式（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）
+// 输入长度不是16字节时返回空串
+std::string StrToUuid(const std::string &id);
 
 // 生成SSU主机NQN，格式：nqn.2024-01.org.nvmexpress:uuid:12345678-1234-1234-1234-1234567890ab
 // uuid函数内生成，HostNqn用于创建namespace时customDate持久化

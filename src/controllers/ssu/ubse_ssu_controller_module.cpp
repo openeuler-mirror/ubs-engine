@@ -19,6 +19,7 @@
 #include "ubse_service_registry.h"
 #include "ubse_ssu_http_handler.h"
 #include "ubse_ssu_ipc_handler.h"
+#include "ubse_ssu_master_online_handler.h"
 #include "ubse_ssu_rpc_processor.h"
 #include "ubse_ssu_service_imp.h"
 #include "ubse_thread_pool_module.h"
@@ -33,6 +34,7 @@ using namespace ubse::context;
 using namespace ubse::task_executor;
 using ubse::plugin::service::ssu::UbseSsuService;
 using ubse::ssu::service::UbseSsuServiceImp;
+using ubse::ssu::service::UbseSsuMasterOnlineHandler;
 
 // 注册插件模块
 static constexpr auto G_UBSE_SSU_DEPS = std::array<UbseOptionModule, 4>{
@@ -57,11 +59,18 @@ UbseResult UbseSsuControllerModule::Initialize()
         return ret;
     }
 
+    // 注册主上线事件回调，选举完成确定主节点后启动collector
+    // 替代原先在Start()中直接StartCollecting()的做法，避免选举未完成时collecting失败
+    UbseSsuMasterOnlineHandler::Initial();
+
     UBSE_LOG_INFO << "UbseSsuControllerModule Initialize";
     return UBSE_OK;
 }
 
-void UbseSsuControllerModule::UnInitialize() {}
+void UbseSsuControllerModule::UnInitialize()
+{
+    UbseSsuMasterOnlineHandler::Uninitial();
+}
 
 UbseResult UbseSsuControllerModule::Start()
 {
@@ -73,18 +82,11 @@ UbseResult UbseSsuControllerModule::Start()
     ssuService_ = std::shared_ptr<UbseSsuService>(&UbseSsuServiceImp::GetInstance(), [](UbseSsuService *) {});
     ubse::service::UbseServiceRegistry::GetInstance().RegisterService<UbseSsuService>(ssuService_);
 
-    // 启动设备状态收集器，定期更新SSU设备信息
-    auto ret = UbseSsuServiceImp::GetInstance().StartCollecting();
-    if (ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to start ssu collecting, ret=" << ret;
-        return ret;
-    }
-
-    // 从设备列表重建账本，用于初始化或重启恢复
-    UbseSsuServiceImp::GetInstance().RebuildLedgerFromDevList();
+    // collector的启动和账本重建移至UbseSsuMasterOnlineHandler中，
+    // 通过MASTER_ONLINE_NOTIFICATION事件触发，确保选举完成后再执行
 
     // 启动空VM BusInstance清理定时器
-    ret = UbseSsuServiceImp::GetInstance().StartClearTimer();
+    auto ret = UbseSsuServiceImp::GetInstance().StartClearTimer();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to start clear timer, ret=" << ret;
         return ret;

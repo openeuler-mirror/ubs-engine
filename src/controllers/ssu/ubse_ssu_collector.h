@@ -14,6 +14,7 @@
 #define UBSE_SSU_COLLECTOR_H
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <shared_mutex>
 #include <string>
@@ -44,6 +45,8 @@ public:
     std::vector<UbseSsuDevInfo> GetCachedDevList();
     // 获取缓存的设备map
     std::unordered_map<std::string, UbseSsuDevInfoPtr> GetCachedDevMap();
+    // 设置首次采集失败后的恢复回调：首次采集失败时置位，待定时器采集成功（恢复）后触发一次，用于补建账本
+    void SetOnFirstCollectFailRecovery(const std::function<void()> &onFirstCollectFailRecovery);
     // 读取设备列表并叠加预留调整量，避免读取cachedDevMap_和reservationMgr_之间的并发不一致
     std::vector<UbseSsuDevInfo> GetDevListWithReservations();
 
@@ -74,6 +77,10 @@ private:
     mutable std::shared_mutex devListCacheMtx_;
     // 进行中的操作数量，用于判断是否清空预留
     std::atomic<int32_t> pendingOps_{0};
+    // 首次采集失败时置位，等待定时器采集成功后触发一次账本重建
+    std::atomic<bool> rebuildPending_{false};
+    // 首次采集失败后的恢复回调，用于补建账本
+    std::function<void()> onFirstCollectFailRecovery_;
 };
 
 } // namespace ubse::ssu::service

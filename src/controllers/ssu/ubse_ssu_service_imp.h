@@ -80,9 +80,10 @@ public:
                             std::vector<UbseSsuConnectInfo> &connectInfoList,
                             const UbseSsuAllocIdentityInfo &identity) override;
 
-    // master端：验证identity并返回构造Attach/Detach所需的字段(defaultNqn/jettyId/guid)
-    uint32_t VerifyAttachDetachIdentity(const std::string &name, const UbseSsuAllocIdentityInfo &identity,
-                                        std::vector<ubse::ssu::message::UbseSsuNsVerifyInfo> &nsVerifyList);
+    // master端：校验attach/detach前置条件（identity、账本state、条带化参数）并返回所需字段(defaultNqn/jettyId/guid)
+    uint32_t VerifyAttachDetachPrecondition(const std::string& name, const UbseSsuAllocIdentityInfo& identity,
+                                            const ubse::ssu::message::UbseSsuAttachDetachVerifyOption& option,
+                                            ubse::ssu::message::UbseSsuAttachDetachVerifyResp& verifyResp);
 
     uint32_t GetFeDeviceList(std::vector<UbseSsuFe> &feList) override;
 
