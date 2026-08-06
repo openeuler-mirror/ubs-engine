@@ -111,13 +111,6 @@ std::string InvalidNsNumError()
            "-" + std::to_string(SSU_CLI_MAX_NS_NUM) + ".";
 }
 
-// 容量统一按 GiB 整数化展示：CLI 契约规定 size 只以 G 为单位，子 GiB 余数丢弃（显示 0G），
-// 不再回退到 M/K/纯字节，保证输入输出单位一致。
-std::string SizeToString(uint64_t sizeBytes)
-{
-    return std::to_string(sizeBytes / SSU_CLI_BYTES_PER_GIB) + "G";
-}
-
 // 枚举 → 规范字符串：与 Parse* 函数反向对应，输入输出共用同一份字面量，保证往返一致。
 std::string StrategyToString(UbseSsuAllocStrategy strategy)
 {
@@ -584,7 +577,7 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailOutput(const UbseCliSsuAllocResult
 }
 
 // 摘要表：3 列（name/size/strategy），列宽按 UBSE_CLI_NUM_8*10 固定，与 ubse_cli_ssu.md 示例输出对齐。
-// size 由每个分配下 nameSpaceList[*].nsSize 求和得出，与服务层结果模型一致。
+// size 由每个分配下 nameSpaceList[*].nsSize 求和得出，并直接展示原始字节值。
 std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRsp &response)
 {
     UbseCliResBuilder builder(UBSE_CLI_NUM_3, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
@@ -597,7 +590,7 @@ std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRs
     for (const auto &allocation : response.allocations) {
         row = builder.UbseCliAddRow();
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_1, allocation.name);
-        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, SizeToString(SumNameSpaceSize(allocation)));
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_2, std::to_string(SumNameSpaceSize(allocation)));
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, StrategyToString(allocation.strategy));
     }
     builder.UbseCliAddBottomlineSeparate();
@@ -606,6 +599,7 @@ std::shared_ptr<UbseCliResultEcho> BuildSummaryTable(const UbseCliSsuAllocListRs
 
 // 详情表：7 列命名空间信息 + 表头合并行（Name/Strategy），列顺序与 ubse_cli_ssu.md 输出信息说明一致；
 // alloc/create 两类命令共用此布局。字段对齐服务层 UbseSsuNameSpaceInfo，不再展示 using_type 与 SrcNqnList。
+// ns_size 直接展示应答中的原始字节值，不做 GiB 换算或取整。
 std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult &response)
 {
     UbseCliResBuilder builder(UBSE_CLI_NUM_7, UBSE_CLI_NUM_8 * UBSE_CLI_NUM_10);
@@ -632,7 +626,7 @@ std::shared_ptr<UbseCliResultEcho> BuildDetailTable(const UbseCliSsuAllocResult 
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_3, nameSpace.tgtNqn);
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_4, std::to_string(nameSpace.namespaceId));
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_5, nameSpace.nsDevPath);
-        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, SizeToString(nameSpace.nsSize));
+        builder.UbseCliSetCellData(row, UBSE_CLI_NUM_6, std::to_string(nameSpace.nsSize));
         builder.UbseCliSetCellData(row, UBSE_CLI_NUM_7, LbaToString(nameSpace.lbaFormat));
     }
     builder.UbseCliAddBottomlineSeparate();
