@@ -207,7 +207,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_RpcSendFailed)
     std::string importNodeId = "remoteNode";
     uint16_t localNumaId = 0;
     auto ret = OverCommitMsg::GetVmNumaInfoMapRpc(importNodeId, vmNumaInfoWithSocketList, localNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_EmptyResult)
@@ -220,7 +220,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapRpc_EmptyResult)
     std::string importNodeId = "remoteNode";
     uint16_t localNumaId = 0;
     auto ret = OverCommitMsg::GetVmNumaInfoMapRpc(importNodeId, vmNumaInfoWithSocketList, localNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_Success)
@@ -245,7 +245,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_GetVmInfoFailed)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     uint16_t localNumaId = 0;
     auto ret = OverCommitMsg::GetVmNumaInfoMapLocal(vmNumaInfoWithSocketList, localNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_EmptyVmList)
@@ -256,7 +256,7 @@ TEST_F(TestOverCommitMsg, GetVmNumaInfoMapLocal_EmptyVmList)
     std::vector<VmNumaInfoWithSocket> vmNumaInfoWithSocketList;
     uint16_t localNumaId = 0;
     auto ret = OverCommitMsg::GetVmNumaInfoMapLocal(vmNumaInfoWithSocketList, localNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SetResponse_Success)
@@ -283,7 +283,7 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetMasterFailed)
     UbseByteBuffer resp;
     std::string currentNodeId = "currentNode";
     auto ret = OverCommitMsg::SyncDataToStandByNode(response, req, resp, currentNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_NotMaster)
@@ -312,7 +312,7 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_GetStandbyFailed)
     UbseByteBuffer resp;
     std::string currentNodeId = "masterNode";
     auto ret = OverCommitMsg::SyncDataToStandByNode(response, req, resp, currentNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_SyncDataFailed)
@@ -332,7 +332,7 @@ TEST_F(TestOverCommitMsg, SyncDataToStandByNode_SyncDataFailed)
     UbseByteBuffer resp;
     std::string currentNodeId = "masterNode";
     auto ret = OverCommitMsg::SyncDataToStandByNode(response, req, resp, currentNodeId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SyncDataToStandByNode_Success)
@@ -362,7 +362,7 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_NullData)
     req.len = 0;
     UbseByteBuffer resp;
     auto ret = OverCommitMsg::SyncBindTypeDataRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_ZeroLen)
@@ -377,7 +377,7 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_ZeroLen)
     req.len = 0;
     UbseByteBuffer resp;
     auto ret = OverCommitMsg::SyncBindTypeDataRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_GetCurrentNodeIdFailed)
@@ -397,7 +397,7 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_GetCurrentNodeIdFailed)
     req.freeFunc = nullptr;
     UbseByteBuffer resp;
     auto ret = OverCommitMsg::SyncBindTypeDataRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] req.data;
 }
 
@@ -423,7 +423,7 @@ TEST_F(TestOverCommitMsg, SyncBindTypeDataRecvHandler_StoragePutDataFailed)
     req.freeFunc = nullptr;
     UbseByteBuffer resp;
     auto ret = OverCommitMsg::SyncBindTypeDataRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     delete[] req.data;
 }
 

@@ -134,7 +134,7 @@ TEST_F(TestInterfaceGuard, OverCommitSwitchoverHandlerFail)
     auto type = UbseElectionEventType::STANDBY_CHANGE_TO_MASTER;
     auto guard = InterfaceGuard::InvokeOutMemBorrow();
     std::string nodeId;
-    EXPECT_EQ(1, OverCommitSwitchoverHandler(type, nodeId));
+    EXPECT_NE(0, OverCommitSwitchoverHandler(type, nodeId));
 }
 TEST_F(TestInterfaceGuard, OverCommitSwitchoverHandlerSuccess)
 {

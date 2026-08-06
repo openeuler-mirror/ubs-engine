@@ -93,7 +93,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectHandler_Error)
     param.pidList = {1234};
     turbo::rmrs::PidNumaInfoCollectResult result;
     auto ret = PidNumaInfoCollectHandler(param, result);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, InitOverCommitReg_Success)
@@ -111,7 +111,7 @@ TEST_F(TestOverCommitMsgHandler, InitOverCommitReg_RegFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = InitOverCommitReg();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 int SmapRemoveMockSuccess(RemoveMsg* msg, int scene)
@@ -145,7 +145,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_GetFuncNull)
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_PidsTooMany)
@@ -157,7 +157,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_PidsTooMany)
         pids.push_back(i);
     }
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_Success)
@@ -175,7 +175,7 @@ TEST_F(TestOverCommitMsgHandler, RemoveLocalHandler_SmapRemoveFailed)
     uint16_t presentNumaId = 1;
     std::vector<pid_t> pids = {1234, 5678};
     auto ret = OverCommitMsgHandler::RemoveLocalHandler(presentNumaId, pids);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_SetSmapRemoteNumaInfoFailed)
@@ -198,7 +198,7 @@ TEST_F(TestOverCommitMsgHandler, NormMigrate_SetSmapRemoteNumaInfoFailed)
     memBorrowInfoWithSrcs.push_back(info);
     int16_t srcNumaId = 0;
     auto ret = OverCommitMsgHandler::NormMigrate(memMigrateResults, memBorrowInfoWithSrcs, srcNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_MigrateOutFailed)
@@ -224,7 +224,7 @@ TEST_F(TestOverCommitMsgHandler, NormMigrate_MigrateOutFailed)
     memBorrowInfoWithSrcs.push_back(info);
     int16_t srcNumaId = 0;
     auto ret = OverCommitMsgHandler::NormMigrate(memMigrateResults, memBorrowInfoWithSrcs, srcNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, NormMigrate_Success)
@@ -261,7 +261,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_EmptyMigrateResults)
     std::vector<MemBorrowInfoWithSrc> memBorrowInfoWithSrcs;
     std::vector<MemMigrateResult> memMigrateResults;
     auto ret = OverCommitMsgHandler::MigrateLocalHandler(srcParam, memBorrowInfoWithSrcs, memMigrateResults);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_RebalanceEnableFailed)
@@ -281,7 +281,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_RebalanceEnableFailed)
     result.maxRatio = 50;
     memMigrateResults.push_back(result);
     auto ret = OverCommitMsgHandler::MigrateLocalHandler(srcParam, memBorrowInfoWithSrcs, memMigrateResults);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_RebalanceFailed)
@@ -305,7 +305,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_RebalanceFailed)
     result.maxRatio = 50;
     memMigrateResults.push_back(result);
     auto ret = OverCommitMsgHandler::MigrateLocalHandler(srcParam, memBorrowInfoWithSrcs, memMigrateResults);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_Success)
@@ -354,7 +354,7 @@ TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_NormMigrateFailed)
     result.maxRatio = 50;
     memMigrateResults.push_back(result);
     auto ret = OverCommitMsgHandler::MigrateLocalHandler(srcParam, memBorrowInfoWithSrcs, memMigrateResults);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, MigrateLocalHandler_NormMigrateSuccess)

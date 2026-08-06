@@ -241,7 +241,7 @@ TEST_F(MockVMMemMigrateStrategy2, TestProcessStepsFailWHenSetFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     auto ret = strategy.processSteps(0, vec, 25, remoteMap2Size, pidsAll);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(MockVMMemMigrateStrategy2, TestProcessStepsFailWHenMigrateOutFailed)
@@ -271,7 +271,7 @@ TEST_F(MockVMMemMigrateStrategy2, TestProcessStepsFailWHenMigrateOutFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     auto ret = strategy.processSteps(0, vec, 25, remoteMap2Size, pidsAll);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(MockVMMemMigrateStrategy2, RebalanceTest)

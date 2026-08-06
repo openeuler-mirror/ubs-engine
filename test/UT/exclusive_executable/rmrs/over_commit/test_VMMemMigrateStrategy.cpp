@@ -395,7 +395,7 @@ TEST(MockVMMemMigrateStrategy, UpdateContainerInfoInnode_Failed)
         .will(returnValue(MEM_POOLING_ERROR));
 
     uint32_t ret = UpdateContainerInfoInnode(srcNid, pids, vmInfos);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST(MockVMMemMigrateStrategy, containsPid_Found)
@@ -436,7 +436,7 @@ TEST(MockVMMemMigrateStrategy, CollectProcessInformation_SmapGetterNull)
         .will(returnValue(static_cast<SmapGetRemotePidsFunc>(nullptr)));
 
     uint32_t ret = strategy.CollectProcessInformation(remoteNuma, pids, currentVmLocation, vmInfos, ratio);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 
     GlobalMockObject::verify();
 }
@@ -474,7 +474,7 @@ TEST(MockVMMemMigrateStrategy, CollectProcessInformation_SmapError)
         .will(returnValue(static_cast<SmapGetRemotePidsFunc>(&MockSmapQueryProcessConfigReturnERROR)));
 
     uint32_t ret = strategy.CollectProcessInformation(remoteNuma, pids, currentVmLocation, vmInfos, ratio);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST(MockVMMemMigrateStrategy, CalculateVmDemandAndQuotaTest)

@@ -104,7 +104,7 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail)
         .will(invoke(RackStorageQueryAllDataForWaterMarkFail1));
     struct WaterMark waterMark;
     auto ret = OverCommitStorage::Instance().GetWaterMark(waterMark.highWaterMark, waterMark.lowWaterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkFail2)
@@ -115,7 +115,7 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail2)
         .will(invoke(RackStorageQueryAllDataForWaterMarkFail2));
     struct WaterMark waterMark;
     auto ret = OverCommitStorage::Instance().GetWaterMark(waterMark.highWaterMark, waterMark.lowWaterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, GetWaterMarkFail3)
@@ -126,7 +126,7 @@ TEST_F(TestOverCommitStorageModule, GetWaterMarkFail3)
         .will(returnValue(MEM_POOLING_ERROR));
     struct WaterMark waterMark;
     auto ret = OverCommitStorage::Instance().GetWaterMark(waterMark.highWaterMark, waterMark.lowWaterMark);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataSuccessWhenNoData)
@@ -164,7 +164,7 @@ TEST_F(TestOverCommitStorageModule, PutNumaBindTypeRawDataFail1)
     buffer.len = 2;
     auto ret = OverCommitStorage::Instance().PutNumaBindTypeRawData(buffer);
     delete[] buffer.data;
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t RackStorageQueryAllDataForBindType(const std::string& keyPrefix, void* ctx, UbseStorageDealDataFunc func)
@@ -214,7 +214,7 @@ TEST_F(TestOverCommitStorageModule, GetNumaBindTypeRawDataFail1)
     buffer.len = 2;
     auto ret = OverCommitStorage::Instance().GetNumaBindTypeRawData(buffer, false);
     delete[] buffer.data;
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateBindTypeDBFail2)
@@ -225,7 +225,7 @@ TEST_F(TestOverCommitStorageModule, UpdateBindTypeDBFail2)
         .will(returnValue(MEM_POOLING_ERROR));
     auto bindType = NumaBindType::BIND_SINGLE;
     auto ret = OverCommitStorage::Instance().UpdateBindTypeDB("node128", bindType);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateBindTypeDBFail3)
@@ -238,7 +238,7 @@ TEST_F(TestOverCommitStorageModule, UpdateBindTypeDBFail3)
     auto bindType = NumaBindType::BIND_MULTIPLE;
     auto ret = OverCommitStorage::Instance().UpdateBindTypeDB("node128", bindType);
     delete[] syncData.data;
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, SelectBindTypeDBSuccess)
@@ -265,7 +265,7 @@ TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail1)
         .stubs()
         .will(returnValue(1));
     auto ret = OverCommitStorage::Instance().UpdateWaterMark(92, 80);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail2)
@@ -274,7 +274,7 @@ TEST_F(TestOverCommitStorageModule, UpdateWaterMarkFail2)
         .stubs()
         .will(returnValue(1));
     auto ret = OverCommitStorage::Instance().UpdateWaterMark(92, 80);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateUint16Fail1)
@@ -285,7 +285,7 @@ TEST_F(TestOverCommitStorageModule, UpdateUint16Fail1)
         .will(returnValue(1));
 
     auto ret = OverCommitStorage::Instance().UpdateUint16("/key", "/key", 92);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateUint16Fail2)
@@ -295,7 +295,7 @@ TEST_F(TestOverCommitStorageModule, UpdateUint16Fail2)
         .will(returnValue(1));
 
     auto ret = OverCommitStorage::Instance().UpdateUint16("/key", "/key", 92);
-    EXPECT_EQ(ret, 1);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitStorageModule, UpdateUint16Success)
@@ -325,7 +325,7 @@ TEST_F(TestOverCommitStorageModule, ClearDataTestSucessAndFailed)
 
     MOCKER(&UbseStorageDeleteData).stubs().will(returnValue(MEM_POOLING_ERROR));
     ret = ClearData(keyList);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling::over_commit

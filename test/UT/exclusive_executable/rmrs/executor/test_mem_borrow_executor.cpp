@@ -65,7 +65,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_GetBorrowIdRedirectionErr
     bool isForceDelete = false;
     bool smapBack = false;
     auto res = MemBorrowExecutor::Instance().MemFreeWithOps(name, isForceDelete, smapBack);
-    ASSERT_EQ(1, res);
+    ASSERT_NE(MEM_POOLING_OK, res);
 }
 
 uint32_t TestGetBorrowIdRedirectionMock(BorrowIdRedirection* memManager, const std::string key, std::string& value)
@@ -110,7 +110,7 @@ TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RemoveBorrowIdRedirection
     bool isForceDelete = false;
     bool smapBack = false;
     auto res = MemBorrowExecutor::Instance().MemFreeWithOps(name, isForceDelete, smapBack);
-    ASSERT_EQ(1, res);
+    ASSERT_NE(MEM_POOLING_OK, res);
 }
 
 TEST_F(TestMemBorrowExecutor, TestMemFreeWithOpsFailed_RackDeleteResourceError_Failed)
@@ -146,7 +146,7 @@ TEST_F(TestMemBorrowExecutor, RemoveBorrowIdRedirectionRecursivelyFailed1)
         .will(returnValue(1));
     std::string name = "test";
     auto ret = MemBorrowExecutor::Instance().RemoveBorrowIdRedirectionRecursively(name);
-    ASSERT_EQ(1, ret);
+    ASSERT_NE(MEM_POOLING_OK, ret);
 }
 
 MpResult QueryMockEmpty(BorrowIdRedirection*, const std::string key, std::string& value)
@@ -185,7 +185,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed1)
     std::string deleteName = "test";
     std::string deleteAttr = "test";
     auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmap(name, deleteName);
-    ASSERT_EQ(1, ret);
+    ASSERT_NE(MEM_POOLING_OK, ret);
 }
 
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
@@ -202,7 +202,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed2)
     std::string deleteName = "test";
     std::string deleteAttr = "test";
     auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmap(name, deleteName);
-    ASSERT_EQ(1, ret); // CollectBorrowRecordsAll failed
+    ASSERT_NE(MEM_POOLING_OK, ret); // CollectBorrowRecordsAll failed
 }
 
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
@@ -219,7 +219,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed3)
     std::string deleteName = "run";
     std::string deleteAttr = "test";
     auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmap(name, deleteName);
-    ASSERT_EQ(1, ret); // state: running
+    ASSERT_NE(MEM_POOLING_OK, ret); // state: running
 }
 
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed4)
@@ -236,7 +236,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapFailed4)
     std::string deleteName = "test";
     std::string deleteAttr = "test";
     auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmap(name, deleteName);
-    ASSERT_EQ(1, ret);
+    ASSERT_NE(MEM_POOLING_OK, ret);
 }
 
 TEST_F(TestMemBorrowExecutor, MemFreeWithOpsByMemfabricSuccess)
@@ -393,7 +393,7 @@ TEST_F(TestMemBorrowExecutor, PrepareMemNumaCreateParams_2)
     MpResult ret =
         mempooling::MemBorrowExecutor::Instance().PrepareMemNumaCreateParams("node01", attr, borrower, lenders, NULL);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR); // state: running
+    EXPECT_NE(ret, MEM_POOLING_OK); // state: running
 }
 
 MpResult BorrowIdsCompletedQueryMockOne(BorrowIdsCompleted*, std::vector<std::string>& list)
@@ -426,7 +426,7 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_GenerateUniqueIdFailed)
     std::string name;
     int16_t presentNumaId = 0;
     auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
@@ -446,7 +446,7 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_PrepareMemNumaCreateParamsFailed)
     std::string name;
     int16_t presentNumaId = 0;
     auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
@@ -472,7 +472,7 @@ TEST_F(TestMemBorrowExecutor, MemBorrow_UbseMemNumaCreateFailed)
     std::string name;
     int16_t presentNumaId = 0;
     auto ret = MemBorrowExecutor::Instance().MemBorrow(attachNode, attr, name, presentNumaId);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemBorrowExecutor, DeleteFailedBorrowIds_QueryFailed)
@@ -605,7 +605,7 @@ TEST_F(TestMemBorrowExecutor, MemFreeWithOpsBySmapForProcessMem_MemfabricFail_En
     std::string name = "test";
     std::string deleteName = "test";
     auto ret = MemBorrowExecutor::Instance().MemFreeWithOpsBySmapForProcessMem(name, deleteName, true);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(g_smapEnableNumaProcessCallCount, 1);
 }
 

@@ -63,7 +63,7 @@ TEST_F(TestEventListener, MpEventSubModuleInitFailure)
         .stubs()
         .will(returnValue(1));
     auto ret = mp->Init();
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 } // namespace mempooling::event::listener

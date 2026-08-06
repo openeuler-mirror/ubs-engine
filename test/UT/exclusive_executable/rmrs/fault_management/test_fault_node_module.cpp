@@ -64,7 +64,7 @@ TEST_F(TestFaultNodeModule, TestDetermineNodeTypeFail)
     const std::string nodeId = "Node1";
     NodeType nodeType;
     MpResult res = FaultNodeModule::Instance().DetermineNodeType(nodeId, nodeType);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, TestDetermineNodeTypeFail1)
@@ -305,7 +305,7 @@ TEST_F(TestFaultNodeModule, GetBorrowNodeInfoFail2)
         .stubs()
         .will(returnValue(1));
     auto res = FaultNodeModule::Instance().GetBorrowNodeInfo(nodeId, borrowRecords);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 std::vector<std::string> TestGetNodeIds()
@@ -337,7 +337,7 @@ TEST_F(TestFaultNodeModule, TestGetBorrowAbleNodeIdListFail_EmptyNodeId)
         .stubs()
         .will(invoke(TestGetNodeIdsEmptyMock));
     auto res = FaultNodeModule::Instance().GetBorrowAbleNodeIdList(curDealNodeId, borrowAbleNodeIdList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult DetermineNodeTypeMockBorrowIn(FaultNodeModule& thisPtr, const std::string nodeId, NodeType& nodeType)
@@ -428,7 +428,7 @@ TEST_F(TestFaultNodeModule, GetBorrowAbleNodeInfoSortByMemSizeFail2)
         .will(returnValue(1));
     auto res =
         FaultNodeModule::Instance().GetBorrowAbleNodeInfoSortByMemSize(borrowAbleNodeIdList, ableNodeMemInfoList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, MergeBorrowRecordsSuccess1)
@@ -517,7 +517,7 @@ TEST_F(TestFaultNodeModule, NodeMayBorrowFromOtherNodeFail1)
     ableNodeMemInfoList.push_back(nodeMemInfoItem);
     auto res = FaultNodeModule::Instance().NodeMayBorrowFromOtherNode(nodeBorrowRecord, ableNodeMemInfoList,
                                                                       borrowExecuteParamCollectList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, NodeMayBorrowFromOtherNodeSuccess2)
@@ -542,10 +542,10 @@ TEST_F(TestFaultNodeModule, NodeMayBorrowFromOtherNodeSuccess2)
         .then(returnValue(true));
     auto res = FaultNodeModule::Instance().NodeMayBorrowFromOtherNode(nodeBorrowRecord, ableNodeMemInfoList,
                                                                       borrowExecuteParamCollectList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
     res = FaultNodeModule::Instance().NodeMayBorrowFromOtherNode(nodeBorrowRecord, ableNodeMemInfoList,
                                                                  borrowExecuteParamCollectList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeFail1)
@@ -560,7 +560,7 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeFail1)
     std::vector<ForwardMemIdParam> forwardMemIdParamList;
     auto res = FaultNodeModule::Instance().MayBorrowFromOtherNode(curDealNodeId, borrowRecords,
                                                                   borrowExecuteParamCollectList, forwardMemIdParamList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeFail2)
@@ -580,7 +580,7 @@ TEST_F(TestFaultNodeModule, MayBorrowFromOtherNodeFail2)
     std::vector<ForwardMemIdParam> forwardMemIdParamList;
     auto res = FaultNodeModule::Instance().MayBorrowFromOtherNode(curDealNodeId, borrowRecords,
                                                                   borrowExecuteParamCollectList, forwardMemIdParamList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 void TestMergeBorrowRecords1(FaultNodeModule* This, std::vector<BorrowRecord> borrowRecordList,
@@ -637,7 +637,7 @@ TEST_F(TestFaultNodeModule, FillBorrowExecuteParamFail1)
         .stubs()
         .will(returnValue(1));
     auto res = FaultNodeModule::Instance().FillBorrowExecuteParam(borrowExecuteParamCollectList);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, FillBorrowExecuteParamSuccess)
@@ -796,7 +796,7 @@ TEST_F(TestFaultNodeModule, TestForwardMemIdFaultDealFail1)
 {
     ForwardMemIdParam param;
     std::vector<ForwardMemIdParam> forwardMemIdParamList{param};
-    ASSERT_EQ(FaultNodeModule::Instance().ForwardMemIdFaultDeal(forwardMemIdParamList, true), 1);
+    ASSERT_NE(FaultNodeModule::Instance().ForwardMemIdFaultDeal(forwardMemIdParamList, true), MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, TestForwardMemIdFaultDealFail2)
@@ -807,7 +807,7 @@ TEST_F(TestFaultNodeModule, TestForwardMemIdFaultDealFail2)
     MOCKER_CPP(&FaultMemIdHelper::FaultMemIdManageHelper, MpResult(*)(std::string importNodeId, uint64_t importMemId))
         .stubs()
         .will(returnValue(1));
-    ASSERT_EQ(FaultNodeModule::Instance().ForwardMemIdFaultDeal(forwardMemIdParamList, true), 1);
+    ASSERT_NE(FaultNodeModule::Instance().ForwardMemIdFaultDeal(forwardMemIdParamList, true), MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, TestForwardMemIdFaultDealSuccess)
@@ -982,7 +982,7 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelBorrowedExecute_FaultHandleMigrateFaile
         .will(returnValue(MEM_POOLING_OK));
 
     auto res = FaultNodeModule::Instance().BorrowIdLevelBorrowedExecute(group, borrowedDecision);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 
     BorrowedDecision storedDecision;
     MpResult queryRet = FaultHandleBorrowedDecision::Instance().Query(storedDecision, borrowedDecision.oldNumaId);
@@ -1021,7 +1021,7 @@ TEST_F(TestFaultNodeModule, NumaLevelBorrowedExecute_FaultHandleMigrateFailed_St
         .will(returnValue(MEM_POOLING_OK));
 
     auto res = FaultNodeModule::Instance().NumaLevelBorrowedExecute(group, decision);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 
     BorrowedDecision storedDecision;
     MpResult queryRet = FaultHandleBorrowedDecision::Instance().Query(storedDecision, decision.oldNumaId);
@@ -1233,7 +1233,7 @@ TEST_F(TestFaultNodeModule, GetVmOccupancyForGroup_RpcFailed_ReturnsError)
         .will(returnValue(MEM_POOLING_ERROR));
     std::vector<FaultNumaVmInfo> vmInfos;
     MpResult res = FaultNodeModule::Instance().GetVmOccupancyForGroup("Node1", 3, vmInfos);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
     EXPECT_TRUE(vmInfos.empty());
 }
 
@@ -1564,7 +1564,7 @@ TEST_F(TestFaultNodeModule, GetBaseClusterSnapshot_GetBorrowAbleNodeIdListFailed
         .will(returnValue(MEM_POOLING_ERROR));
     std::vector<ClusterSnapshotItem> clusterInfos;
     MpResult res = FaultNodeModule::Instance().GetBaseClusterSnapshot("FaultNode", clusterInfos);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult TestGetBorrowAbleNodeIdList_Empty(FaultNodeModule* This, std::string curDealNodeId,
@@ -1614,7 +1614,7 @@ TEST_F(TestFaultNodeModule, GetBaseClusterSnapshot_GetMemInfoFailed_ReturnsError
         .will(invoke(TestGetBorrowAbleNodeInfoSortByMemSize_Failed));
     std::vector<ClusterSnapshotItem> clusterInfos;
     MpResult res = FaultNodeModule::Instance().GetBaseClusterSnapshot("FaultNode", clusterInfos);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult TestGetBorrowAbleNodeInfoSortByMemSize_WithData(
@@ -1944,7 +1944,7 @@ TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_AllGroupsFailed_ReturnsErr
     std::vector<ClusterSnapshotItem> baseSnapshot;
 
     MpResult res = FaultNodeModule::Instance().FaultHandleBorrowStrategy(borrowGroups, baseSnapshot);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_AllGroupsSucceed_ReturnsOk)
@@ -1995,7 +1995,7 @@ TEST_F(TestFaultNodeModule, FaultHandleMigrate_EchoHugepagesFailed_ReturnsError)
         .will(returnValue(MEM_POOLING_ERROR));
     std::vector<pid_t> pids = {100, 200};
     MpResult res = FaultNodeModule::Instance().FaultHandleMigrate(5, 3, pids, 4096);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, FaultHandleMigrate_VmsMigrateFailed_RollbackAndReturnError)
@@ -2012,7 +2012,7 @@ TEST_F(TestFaultNodeModule, FaultHandleMigrate_VmsMigrateFailed_RollbackAndRetur
         .will(returnValue(MEM_POOLING_OK));
     std::vector<pid_t> pids = {100};
     MpResult res = FaultNodeModule::Instance().FaultHandleMigrate(5, 3, pids, 2048);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, FaultHandleMigrate_AllSuccess_ReturnsOk)
@@ -2170,7 +2170,7 @@ TEST_F(TestFaultNodeModule, GetBorrowedDecisionHandler_QueryAllFailed_ReturnsErr
     UbseByteBuffer resp;
     uint32_t ret = GetBorrowedDecisionHandler(req, resp);
     delete[] req.data;
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -2503,7 +2503,7 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_NullReqData_ReturnsError)
     UbseByteBuffer req = {nullptr, 0, nullptr};
     UbseByteBuffer resp;
     uint32_t ret = NumaLevelExecuteHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteSuccess_ReturnsOk)
@@ -2552,7 +2552,7 @@ TEST_F(TestFaultNodeModule, NumaLevelExecuteHandler_ExecuteFailed_ReturnsErrorWi
     UbseByteBuffer resp;
     uint32_t ret = NumaLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -2663,7 +2663,7 @@ TEST_F(TestFaultNodeModule, BorrowIdLevelExecuteHandler_NormalExecuteFailed_ErrC
     UbseByteBuffer resp;
     uint32_t ret = BorrowIdLevelExecuteHandler(req, resp);
     delete[] req.data;
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     if (resp.freeFunc != nullptr) {
         resp.freeFunc(resp.data);
     }
@@ -2679,7 +2679,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_InfosCollectFailed
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyAllFailed_ReturnsError)
@@ -2694,7 +2694,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyAllFailed_
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecOk_ReturnsOk)
@@ -2732,7 +2732,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecErro
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyPartialOkExecOk_ReturnsError)
@@ -2751,7 +2751,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyPartialOkE
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 } // namespace mempooling

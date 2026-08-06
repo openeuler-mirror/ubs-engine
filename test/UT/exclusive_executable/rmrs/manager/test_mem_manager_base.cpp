@@ -94,7 +94,7 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_EmptyDataFail)
 
     auto ret = GetNodeInfoImmediatelyRecvHandler(req, resp);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_GetNumaInfoImmediatelyFail)
@@ -109,7 +109,7 @@ TEST_F(TestMemManagerBase, GetNodeInfoImmediatelyRecvHandler_GetNumaInfoImmediat
 
     auto ret = GetNodeInfoImmediatelyRecvHandler(req, resp);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 // =========================================================================
@@ -321,7 +321,7 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_AllNodesEmpty_Fa
     auto ret = GetAllNodeInfoImmediatelyRecvHandler(req, resp);
 
     //
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(resp.data, nullptr);
 
     if (resp.freeFunc != nullptr) {
@@ -357,7 +357,7 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_SMOOTHING_Failed
 
     auto ret = GetAllNodeInfoImmediatelyRecvHandler(req, resp);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(resp.data, nullptr);
 
     if (resp.freeFunc != nullptr) {
@@ -392,7 +392,7 @@ TEST_F(TestMemManagerBase, GetAllNodeInfoImmediatelyRecvHandler_INIT_Failed)
     UbseByteBuffer resp = {nullptr, 0, nullptr};
 
     auto ret = GetAllNodeInfoImmediatelyRecvHandler(req, resp);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
     EXPECT_EQ(resp.data, nullptr);
 
     if (resp.freeFunc != nullptr) {

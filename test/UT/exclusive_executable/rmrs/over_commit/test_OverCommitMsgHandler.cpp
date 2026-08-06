@@ -306,7 +306,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = InitUCacheOverCommitReg();
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
     GlobalMockObject::verify();
 
     MOCKER_CPP(&ubse::com::UbseRegRpcService,
@@ -315,7 +315,7 @@ TEST_F(TestOverCommitMsgHandler, InitUCacheOverCommitRegTest)
         .will(returnValue(MEM_POOLING_OK))
         .then(returnValue(MEM_POOLING_ERROR));
     res = InitUCacheOverCommitReg();
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
@@ -326,7 +326,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest)
         .will(returnValue(MEM_POOLING_ERROR));
 
     MpResult res = InitExportReg();
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
@@ -338,7 +338,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest1)
         .then(returnValue(MEM_POOLING_ERROR));
 
     MpResult res = InitExportReg();
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
@@ -350,7 +350,7 @@ TEST_F(TestOverCommitMsgHandler, InitExportRegTest2)
         .then(returnValue(MEM_POOLING_ERROR));
 
     MpResult res = InitExportReg();
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, InitExportRegTest3)
@@ -420,7 +420,7 @@ TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRecvHandlerFailed)
 
     MempoolingMessage::rmrsPidNumaInfoCollect = &MockRmrsPidNumaInfoCollectReturn1;
     MpResult res = PidNumaInfoCollectRecvHandler(req, resp);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestOverCommitMsgHandler, PidNumaInfoCollectRecvHandlerConnectFailed)

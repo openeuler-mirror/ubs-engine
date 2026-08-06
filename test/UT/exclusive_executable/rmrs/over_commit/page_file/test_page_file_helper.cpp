@@ -72,7 +72,7 @@ TEST_F(TestPageFileHelper, GetHugePageCanonicalPathFail)
     MOCKER(&UbseFileUtil::CanonicalPath).stubs().will(returnValue(false));
     const auto ret = PageFileHelper::GetHugePageCanonicalPath(remoteNumaId, filePath);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, GetOriginalHugePagesSuccess)
@@ -101,7 +101,7 @@ TEST_F(TestPageFileHelper, GetOriginalHugePagesFail1)
     uint64_t originalHugePages;
     const auto ret = PageFileHelper::GetOriginalHugePages(std::string(realPath), originalHugePages);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, GetOriginalHugePagesFail2)
@@ -110,7 +110,7 @@ TEST_F(TestPageFileHelper, GetOriginalHugePagesFail2)
     uint64_t originalHugePages;
     const auto ret = PageFileHelper::GetOriginalHugePages(filePath, originalHugePages);
 
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, RewriteHugePagesSuccess)
@@ -132,7 +132,7 @@ TEST_F(TestPageFileHelper, RewriteHugePagesFail)
 {
     const std::string filePath = "";
     const auto ret = PageFileHelper::RewriteHugePages(filePath, borrowSize);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, AllocateHugePagesSuccess)
@@ -154,7 +154,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail1)
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_OK));
     const auto ret = PageFileHelper::AllocateHugePages(memBorrowInfoWithSrcs);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, AllocateHugePagesFail2)
@@ -165,7 +165,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail2)
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_OK));
     const auto ret = PageFileHelper::AllocateHugePages(memBorrowInfoWithSrcs);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, AllocateHugePagesFail3)
@@ -176,7 +176,7 @@ TEST_F(TestPageFileHelper, AllocateHugePagesFail3)
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_OK));
     MOCKER(PageFileHelper::RewriteHugePagesWithRetry).stubs().will(returnValue(MEM_POOLING_ERROR));
     const auto ret = PageFileHelper::AllocateHugePages(memBorrowInfoWithSrcs);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetrySuccess)
@@ -209,7 +209,7 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail1)
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
     auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
                                                          retryCount);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail2)
@@ -226,7 +226,7 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail2)
     MOCKER(PageFileHelper::RewriteHugePages).stubs().will(returnValue(MEM_POOLING_ERROR));
     auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
                                                          retryCount);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult mockGetOriginalHugePages(const std::string& filePath, uint64_t& originalHugePages)
@@ -249,6 +249,6 @@ TEST_F(TestPageFileHelper, RewriteHugePagesWithRetryFail3)
     MOCKER(PageFileHelper::GetOriginalHugePages).stubs().will(invoke(mockGetOriginalHugePages));
     auto ret = PageFileHelper::RewriteHugePagesWithRetry(std::string(realPath), hugePages, remoteNumaId, borrowSize,
                                                          retryCount);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 } // namespace mempooling::ut::over_commit

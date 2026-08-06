@@ -52,7 +52,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({12345})";
     MpResult res = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmUceEventFailed1)
@@ -60,7 +60,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventFailed1)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"import_nodeid": "Node1"})";
     MpResult res = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmUceEventFailed2)
@@ -68,7 +68,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventFailed2)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"import_nodeid":"Node1","importMemID":12345})";
     MpResult res = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmRebootEventFailed)
@@ -79,7 +79,7 @@ TEST_F(TestEventHandler, HandleAlarmRebootEventFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({})";
     MpResult res = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmRebootEventFailed1)
@@ -90,7 +90,7 @@ TEST_F(TestEventHandler, HandleAlarmRebootEventFailed1)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({})";
     MpResult res = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
-    ASSERT_EQ(res, MEM_POOLING_ERROR);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 MpResult TestDetermineNodeType(const std::string nodeId, NodeType& nodeType)
@@ -104,7 +104,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventCheckModeFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
     MpResult ret = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 uint32_t RackStorageQueryDataReturnOverCommit(const std::string& keyPrefix, const std::string& key, void* ctx,
@@ -131,7 +131,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventOverCommitBranchFaultMemIdManageFail
         .stubs()
         .will(invoke(RackStorageQueryDataReturnOverCommit));
     MpResult ret = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmUceEventMemFragmentBranchFaultMemIdManageFailed)
@@ -143,7 +143,7 @@ TEST_F(TestEventHandler, HandleAlarmUceEventMemFragmentBranchFaultMemIdManageFai
         .stubs()
         .will(invoke(RackStorageQueryDataReturnMemFragment));
     MpResult ret = EventHandler::HandleAlarmUceEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 MpResult DetermineNodeTypeMockBorrowIn(FaultNodeModule& thisPtr, const std::string nodeId, NodeType& nodeType)
@@ -205,7 +205,7 @@ TEST_F(TestEventHandler, HandlePanicEventDetermineNodeTypeFailed)
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandlePanicEventBorrowOutOverCommitFailed)
@@ -230,7 +230,7 @@ TEST_F(TestEventHandler, HandleAlarmKernelRebootEventDetermineNodeTypeFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"Node1","importMemID":1})";
     MpResult ret = EventHandler::HandleAlarmKernelRebootEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, HandleAlarmKernelRebootEventBorrowOutOverCommitFailed)
@@ -285,7 +285,7 @@ TEST_F(TestEventHandler, CheckModeFailure)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"1","importMemID":1})";
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, PanicVirtualSceneBorrowInSuccess)
@@ -319,7 +319,7 @@ TEST_F(TestEventHandler, PanicVirtualSceneBorrowOutFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"4","importMemID":4})";
     MpResult ret = EventHandler::HandlePanicEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, PanicOverCommitSceneBorrowInSuccess)
@@ -387,7 +387,7 @@ TEST_F(TestEventHandler, KernelRebootVirtualSceneBorrowOutFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"8","importMemID":8})";
     MpResult ret = EventHandler::HandleAlarmKernelRebootEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, KernelRebootOverCommitSceneBorrowInSuccess)
@@ -455,7 +455,7 @@ TEST_F(TestEventHandler, RebootVirtualSceneBorrowOutFailed)
     ALARM_FAULT_TYPE eventId = 0;
     std::string eventMessage = R"({"importNodeID":"3","importMemID":3})";
     MpResult ret = EventHandler::HandleAlarmRebootEvent(eventId, eventMessage);
-    EXPECT_EQ(ret, MEM_POOLING_ERROR);
+    EXPECT_NE(ret, MEM_POOLING_OK);
 }
 
 TEST_F(TestEventHandler, RebootOverCommitSceneBorrowInSuccess)

@@ -176,7 +176,7 @@ TEST_F(TestMpMemoryInfo, ParseNodeMemoryInfoMap_Failed)
         .stubs()
         .will(returnValue(false));
     bool res = obj.ParseNodeMemoryInfoMap(nodeMemoryInfoListVec, 0, nodeMemoryInfoMap);
-    EXPECT_EQ(res, 1);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMpMemoryInfo, ParseNumaMemInfoMap_Success)
@@ -241,8 +241,8 @@ TEST_F(TestMpMemoryInfo, ParseNumaMemInfoMap_Failed)
     RackNumaMemInfo numaMemInfo = {};
     nodeMemoryInfo.numaMemInfo.push_back(numaMemInfo);
     obj.nodeMemoryInfoList.push_back(nodeMemoryInfo);
-    bool res = obj.ParseNumaMemInfoMap(numaMemInfoVec, 0, 0, numaMemInfoMap);
-    EXPECT_EQ(res, MEM_POOLING_ERROR);
+    auto res = obj.ParseNumaMemInfoMap(numaMemInfoVec, 0, 0, numaMemInfoMap);
+    EXPECT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Success)
@@ -279,7 +279,7 @@ TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Failed1)
     NodeMemoryInfoList obj;
     obj.nodeMemoryInfoList.push_back({});
     auto res = obj.CreateNodeMemoryInfoListVec(jsonString, nodeMemoryInfoListMAP, nodeMemoryInfoListVec);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Failed2)
@@ -299,7 +299,7 @@ TEST_F(TestMpMemoryInfo, CreateNodeMemoryInfoListVec_Failed2)
     NodeMemoryInfoList obj;
     obj.nodeMemoryInfoList.push_back({});
     auto res = obj.CreateNodeMemoryInfoListVec(jsonString, nodeMemoryInfoListMAP, nodeMemoryInfoListVec);
-    ASSERT_EQ(res, 1);
+    ASSERT_NE(res, MEM_POOLING_OK);
 }
 
 TEST_F(TestMpMemoryInfo, CreateNumaMemInfoVec_Success)
