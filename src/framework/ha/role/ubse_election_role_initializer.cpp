@@ -43,8 +43,7 @@ void Initializer::CheckAndSwitchMaster(const Node& myself, const std::vector<Nod
         if (IsSmallestNode(myself, allNodes)) {
             // 阶段1内 最小ID的发起选组，没有拒绝就宣布为主
             if (SendElectionPkt(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-                UBSE_LOG_INFO << "[ELECTION] Initializer: ProcTimer switch master - 1";
-                RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+                TrySwitchToMaster(ctx);
             }
         }
     } else if ((lastTimeMs_ - startTimeMs_) > GetHeartTimeInterval() * NO_2 &&
@@ -52,15 +51,13 @@ void Initializer::CheckAndSwitchMaster(const Node& myself, const std::vector<Nod
         if (IsSecondSmallestNode(myself, allNodes)) {
             // 阶段2内 最小ID的发起选组，没有拒绝就宣布为主
             if (SendElectionPkt(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-                UBSE_LOG_INFO << "[ELECTION] Initializer: ProcTimer switch master - 2";
-                RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+                TrySwitchToMaster(ctx);
             }
         }
     } else {
-        // 和接收互斥
+        // 和接收互斥：发送期间角色可能被并发收编，切换前需校验
         if (SendElectionPkt(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-            UBSE_LOG_INFO << "[ELECTION] Initializer: ProcTimer switch master - 3";
-            RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+            TrySwitchToMaster(ctx);
         }
     }
 }
@@ -74,38 +71,63 @@ void Initializer::ProcRoleSwitch()
     ctx.turnId = 0;
     UbseElectionNodeMgr::GetInstance().GetMyselfNode(myself);
     UbseElectionNodeMgr::GetInstance().GetAllNode(allNodes);
-    auto ret = GetBootTime(lastTimeMs_);
-    if (ret != UBSE_OK) {
-        UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
-    }
     if (GetElectionCandidate() && GetElectionWait()) {
         CheckAndSwitchMaster(myself, allNodes, ctx);
     } else if (GetElectionCandidate() && !GetElectionWait()) {
         if (SendElectionPkt(myselfID_) == ELECTION_PKT_RESULT_ACCEPT) {
-            UBSE_LOG_INFO << "[ELECTION] Initializer: ProcTimer switch master - 4";
-            RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+            TrySwitchToMaster(ctx);
         }
     }
 }
 
 void Initializer::ProcTimer()
 {
+    // 并发 SwitchRole 可能已把 currentRole_ 换成新对象，陈旧对象不应继续执行选举
+    if (!IsCurrentRole()) {
+        return;
+    }
     UbseNodeLocalState localState = UbseElectionNodeMgr::GetInstance().GetLocalNodeState();
     if (localState == UbseNodeLocalState::UBSE_NODE_READY) {
         UBSE_LOG_INFO << "[ELECTION] local node state is ready, start to elect.";
-        if (!isStartTimeSet_) {
-            auto ret = GetBootTime(startTimeMs_);
+        // 阶段决策所需状态在短临界区内更新，阻塞的选举发送放到锁外
+        {
+            std::lock_guard<std::mutex> lock(roleMutex_);
+            if (!isStartTimeSet_) {
+                auto ret = GetBootTime(startTimeMs_);
+                if (ret != UBSE_OK) {
+                    UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
+                }
+                isStartTimeSet_ = true;
+            }
+            auto ret = GetBootTime(lastTimeMs_);
             if (ret != UBSE_OK) {
                 UBSE_LOG_WARN << "[ELECTION] GetBootTime fail";
             }
-            isStartTimeSet_ = true;
         }
         ProcRoleSwitch();
     }
 }
 
+void Initializer::TrySwitchToMaster(RoleContext& ctx)
+{
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    if (!IsCurrentRole()) {
+        // 选举发送期间本对象已被并发收编（如收到 HEART 转 AGENT/STANDBY），放弃升主
+        UBSE_LOG_INFO << "[ELECTION] Initializer: role changed during election, skip switch to master";
+        return;
+    }
+    RoleMgr::GetInstance().SwitchRole(RoleType::MASTER, ctx);
+}
+
 uint32_t Initializer::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    // 陈旧角色对象（已被并发 SwitchRole 替换）不应再处理报文，避免按陈旧状态覆盖新角色
+    if (!IsCurrentRole()) {
+        UBSE_LOG_INFO << "[ELECTION] Initializer: stale role object, skip RecvPkt from nodeId=" << srcID;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT;
+        return UBSE_OK;
+    }
     if ((rcvPkt.type == ELECTION_PKT_TYPE_HEART || rcvPkt.type == ELECTION_PKT_TYPE_SELECT) &&
         !IsAllowedMasterNode(rcvPkt.masterId)) {
         UBSE_LOG_DEBUG << "[ELECTION] Reject packet from non-candidate master: " << rcvPkt.masterId;
@@ -172,11 +194,13 @@ std::vector<UBSE_ID_TYPE> Initializer::GetAgentNodes()
 
 uint8_t Initializer::GetMasterStatus()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return masterStatus_;
 }
 
 uint8_t Initializer::GetStandbyStatus()
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
     return standbyStatus_;
 }
 } // namespace ubse::election

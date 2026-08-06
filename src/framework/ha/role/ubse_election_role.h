@@ -12,6 +12,7 @@
 
 #ifndef UBSE_ELECTION_ROLE_H
 #define UBSE_ELECTION_ROLE_H
+#include <mutex>
 #include <vector>
 #include "../ubse_election_comm_mgr.h"
 #include "../ubse_election_def.h"
@@ -56,6 +57,15 @@ public:
     {
         return UbseElectionNodeMgr::GetInstance().GetHeartBeatLost();
     }
+
+protected:
+    // 当前对象是否仍是 RoleMgr 的当前角色。
+    // RoleMgr::ProcTimer/RecvPkt 已改为锁外执行，并发 SwitchRole 后 this 可能指向陈旧角色对象，
+    // 任何可能产生切换/发送副作用的方法（ProcTimer、TrySwitchToMaster 等）入口都需先校验。
+    bool IsCurrentRole() const;
+    // 角色内部互斥锁：串行化同角色上的 ProcTimer / RecvPkt / 状态读写。
+    // 注意：持锁期间禁止做阻塞的网络等待，网络发送必须在锁外进行。
+    mutable std::mutex roleMutex_;
 };
 UbseResult GetBootTime(uint64_t& bootTime);
 UbseResult ConnectAllNodes();

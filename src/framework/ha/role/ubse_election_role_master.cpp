@@ -195,6 +195,12 @@ void Master::GetAllNeighbourNode(std::vector<UBSE_ID_TYPE>& allNodes)
 
 void Master::ProcTimer()
 {
+    // 陈旧对象不应继续执行（避免发幻影心跳）：先持锁后校验，与 RecvPkt 在同一把锁内互斥
+    std::lock_guard<std::mutex> roleLock(roleMutex_);
+    if (!IsCurrentRole()) {
+        return;
+    }
+    // 串行化与 RecvPkt 的并发访问；内部发送心跳为异步非阻塞，持锁不会造成网络等待
     uint64_t current;
     auto result = GetBootTime(current);
     if (result != UBSE_OK) {
@@ -449,6 +455,13 @@ uint32_t Master::RecvPktElection(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, E
 
 uint32_t Master::RecvPkt(UBSE_ID_TYPE srcID, const ElectionPkt rcvPkt, ElectionReplyPkt& reply)
 {
+    std::lock_guard<std::mutex> lock(roleMutex_);
+    // 陈旧角色对象（已被并发 SwitchRole 替换）不应再处理报文，避免按陈旧状态覆盖新角色
+    if (!IsCurrentRole()) {
+        UBSE_LOG_INFO << "[ELECTION] Master: stale role object, skip RecvPkt from nodeId=" << srcID;
+        reply.replyResult = ELECTION_PKT_TYPE_REJECT;
+        return 0;
+    }
     if (g_globalStop.load()) {
         UBSE_LOG_DEBUG << "[ELECTION] master node is stopping when recv pkt from nodeId=" << srcID;
         return 0;
@@ -483,11 +496,13 @@ UBSE_ID_TYPE Master::GetMasterNode()
 
 UBSE_ID_TYPE Master::GetStandbyNode()
 {
+    std::lock_guard<std::mutex> lock(mtx_);
     return standbyId_;
 }
 
 std::vector<UBSE_ID_TYPE> Master::GetAgentNodes()
 {
+    std::lock_guard<std::mutex> lock(mtx_);
     return GetActiveNodes();
 }
 
@@ -499,6 +514,7 @@ uint8_t Master::GetMasterStatus()
 
 uint8_t Master::GetStandbyStatus()
 {
+    std::lock_guard<std::mutex> lock(mtx_);
     return standbyStatus_;
 }
 
