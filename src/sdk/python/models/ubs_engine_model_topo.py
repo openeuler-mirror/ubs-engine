@@ -26,6 +26,7 @@ class UbsTopoNode:
     numa_ids: list  # List[List[int]] 二维数组
     ips: list  # List[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]
     host_name: str
+    super_pod_id: int
 
     def __str__(self):
         # 构建IP地址的字符串表示
@@ -67,7 +68,8 @@ class UbsTopoNode:
             socket_ids=socket_ids,
             numa_ids=numa_ids,
             ips=ips,
-            host_name=hostname
+            host_name=hostname,
+            super_pod_id=c_node.super_pod_id
         )
 
     @staticmethod
