@@ -42,6 +42,8 @@
   sudo dnf install -y ubs-engine-client-libs
   # 安装python 模块（可选，使用UBSE Python API时需要安装）
   sudo dnf install -y python3-ubs-engine
+  # 安装插件子包（按需，通常由主包自动依赖拉取）
+  sudo dnf install -y ubs-engine-rmrs ubs-engine-ucache ubs-engine-virtagent ubs-engine-processmem ubs-engine-ssu
   ```
 
 - 离线安装
@@ -63,6 +65,12 @@
   sudo dnf install -y ubs-engine-client-libs-<version>-<release>.aarch64.rpm
   # 安装python 模块（可选，使用UBSE Python API时需要安装）
   sudo dnf install -y python3-ubs-engine-<version>-<release>.aarch64.rpm
+  # 安装插件子包（按需，需与主包同版本）
+  sudo dnf install -y ubs-engine-rmrs-<version>-<release>.aarch64.rpm \
+                      ubs-engine-ucache-<version>-<release>.aarch64.rpm \
+                      ubs-engine-virtagent-<version>-<release>.aarch64.rpm \
+                      ubs-engine-processmem-<version>-<release>.aarch64.rpm \
+                      ubs-engine-ssu-<version>-<release>.aarch64.rpm
   ```
 
 ## 安装结果
@@ -78,6 +86,7 @@
   | /var/lib/ubse/cert/                 | 证书目录      |
   | /var/lib/ubse/data                  | 持久化数据    |
   | /var/lib/ubse/lcne_cert/            | 高安部署证书目录|
+  | /var/lib/ubse/vip_server_cert/      | VIP模块证书目录|
   | /var/run/ubse/                      | 运行时 socket |
   | /lib/modules/ubse/bandbridge.ko              | NPU直通虚机和LCNE进行带外通信 |
   | /lib/modules/$(uname -r)/extra/bandbridge.ko | 软链接，指向/lib/modules/ubse/bandbridge.ko             |
@@ -95,6 +104,13 @@
 | ------------------------------ | ---------------------------------------- |
 | `/usr/lib/python3.11/site-packages/ubse` | 内部文件（`*.py`）权限：`644`         |
 | `/usr/lib/python3.11/site-packages/ubse-xx.xx.xx-py3.11.egg-info` | 内部文件权限：`644`，Python包相关信息    |
+
+- ubs-engine ssu 插件安装结果：
+
+  | 文件/目录                                  | 其它说明          |
+  | ------------------------------------------ | ----------------- |
+  | `/usr/lib64/ubse_plugin/libssu_plugin.so` | ssu 插件动态库    |
+  | `/usr/bin/ubsectl-ssu`                     | ssu 插件 CLI 工具 |
 
 ## （可选）修改配置
 
@@ -147,6 +163,32 @@ sudo yum install -y umdk-urma-kmod
     ```bash
     sudo systemctl restart ubse
     ```
+
+## （可选）配置VIP
+
+VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务的虚拟 IP 绑定到当前主节点，保证外部访问地址不变。VIP 模块默认关闭，开启前需在 `/var/lib/ubse/vip_server_cert/` 目录下部署证书文件。
+
+1. 编辑配置文件并开启 VIP：
+
+    ```bash
+    sudo vi /etc/ubse/ubse.conf
+    ```
+
+    ```ini
+    [ubse.vip]
+    vip.enable=true
+    vip.httpServer.listen.ip=192.168.100.200/24
+    vip.httpServer.listen.port=10002
+    ```
+
+2. 重启 ubs engine 服务使配置生效：
+
+    ```bash
+    sudo systemctl restart ubse
+    ```
+
+> [!NOTE]说明
+> 各配置项的完整取值范围、证书文件清单及网卡获取方式等详细说明，请参考 [UBSE配置说明 — VIP配置说明](./ubse_configration_instructions.md#vip配置说明)。
 
 ## （可选）安装Bash Completion脚本库
 
