@@ -64,6 +64,22 @@ UbseResult UbseUrmaUvsModule::Initialize()
         UBSE_LOG_WARN << "Failed to find symbol 'uvs_delete_agg_dev'";
     }
 
+    uvsGetEidSharing = (UvsGetEidSharing)dlsym(handle, "uvs_get_eid_sharing");
+    if (uvsGetEidSharing == nullptr) {
+        UBSE_LOG_WARN << "Failed to find symbol 'uvs_get_eid_sharing', set eidSharingModeEnabled=false";
+    } else {
+        // 共享模式在模块初始化时确定，运行期间保持不变，避免北向视图切换。
+        bool enabled = false;
+        const auto ret = uvsGetEidSharing(&enabled);
+        if (ret != 0) {
+            UBSE_LOG_WARN << "Failed to query URMA EID sharing mode, ret=" << ret
+                          << ", set eidSharingModeEnabled=false";
+        } else {
+            eidSharingModeEnabled = enabled;
+            UBSE_LOG_INFO << "URMA EID sharing mode enabled=" << static_cast<int>(eidSharingModeEnabled);
+        }
+    }
+
     if (uvsSetTopoInfo == nullptr || uvsGetDeviceNameByUrmaEid == nullptr || uvsCreateAggrDev == nullptr ||
         uvsDeleteAggrDev == nullptr) {
         UBSE_LOG_WARN << "Failed to find symbol in libtpsa.so";
@@ -83,6 +99,11 @@ UbseResult UbseUrmaUvsModule::Start()
 
 void UbseUrmaUvsModule::Stop() {}
 
+bool UbseUrmaUvsModule::IsEidSharingModeEnabled() const
+{
+    return eidSharingModeEnabled;
+}
+
 void UbseUrmaUvsModule::Cleanup()
 {
     ubse::utils::WriteLocker<utils::ReadWriteLock> writeLock(&g_invokeUrmaMutex);
@@ -95,5 +116,6 @@ void UbseUrmaUvsModule::Cleanup()
         uvsCreateAggrDev = nullptr;
         uvsDeleteAggrDev = nullptr;
     }
+    uvsGetEidSharing = nullptr;
 }
 } // namespace ubse::urma

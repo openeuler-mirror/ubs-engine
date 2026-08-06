@@ -11,8 +11,10 @@
  */
 
 #include "ubse_urma_controller.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_set>
 #include "ubse_com_module.h"
 #include "ubse_context.h"
 #include "ubse_election.h"
@@ -26,6 +28,7 @@
 #include "ubse_urma_controller_rpc.h"
 #include "ubse_urma_controller_util.h"
 #include "ubse_urma_def.h"
+#include "ubse_urma_resource_view.h"
 #include "ubse_urma_uvs_module.h"
 
 namespace ubse::urmaController {
@@ -81,10 +84,135 @@ std::string GetUrmaDevEidByUrmaName(const std::string& urmaName)
     return urmaInfo.urmaDevEid;
 }
 
-bool IsUdmaDevHealthy(const std::string& feEid)
+static UbseResult GetRequiredUrmaSubpath(const std::string& eid, std::string& subpath)
 {
-    std::string dummyName;
-    return UbseGetUrmaSubpathByEid(feEid, dummyName) == UBSE_OK && !dummyName.empty();
+    auto ret = UbseGetUrmaSubpathByEid(eid, subpath);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query URMA subpath, eid=" << eid << ", ret=" << ret;
+        return ret;
+    }
+    if (subpath.empty()) {
+        UBSE_LOG_ERROR << "URMA subpath is empty, eid=" << eid;
+        return UBSE_ERROR;
+    }
+    return UBSE_OK;
+}
+
+struct HostUrmaBacking {
+    std::string bondingEid;
+    std::vector<std::string> feEids;
+};
+
+static UbseResult QueryHostUrmaBacking(HostUrmaBacking& backing)
+{
+    const auto curNode = UbseNodeController::GetInstance().GetCurNode();
+    if (curNode.nodeId.empty()) {
+        UBSE_LOG_ERROR << "Failed to get current node while querying host URMA backing";
+        return UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED;
+    }
+    std::vector<UbseUrmaUvsNodeInfo> planning;
+    auto ret = UbseNodeController::GetInstance().GetPlanningHostBondingByNodeId(curNode.nodeId, planning);
+    constexpr size_t feCount = 2;
+    if (ret != UBSE_OK || planning.size() != 1 || planning[0].nodeId != curNode.nodeId ||
+        planning[0].devList.size() != 1 || planning[0].devList[0].feList.size() != feCount) {
+        UBSE_LOG_ERROR << "Failed to query complete host URMA planning, backingName=" << UBSE_HOST_URMA_DEV_NAME
+                       << ", nodeId=" << curNode.nodeId << ", ret=" << ret;
+        return ret == UBSE_OK ? UBSE_ERROR_INVAL : ret;
+    }
+    const auto& planned = planning[0].devList[0];
+    if (planned.urmaDevEid.empty() || std::any_of(planned.feList.begin(), planned.feList.end(),
+                                                  [](const auto& fe) { return fe.primaryEid.empty(); })) {
+        UBSE_LOG_ERROR << "Host URMA planning metadata is incomplete, backingName=" << UBSE_HOST_URMA_DEV_NAME;
+        return UBSE_ERROR_INVAL;
+    }
+    HostUrmaBacking result;
+    result.bondingEid = planned.urmaDevEid;
+    for (const auto& fe : planned.feList) {
+        result.feEids.push_back(fe.primaryEid);
+    }
+    backing = std::move(result);
+    return UBSE_OK;
+}
+
+static UbseResult CheckHostUrmaBackingActive(const std::string& bondingEid)
+{
+    bool isActive = false;
+    auto ret = UbseGetBondingActiveStateByEid(bondingEid, isActive);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query host URMA backing state, backingName=" << UBSE_HOST_URMA_DEV_NAME
+                       << ", bondingEid=" << bondingEid << ", ret=" << ret;
+        return ret;
+    }
+    if (isActive) {
+        return UBSE_OK;
+    }
+    // bonding_dev_0 由 Node 创建，SDK 只能使用已激活的真实设备。
+    UBSE_LOG_WARN << "Host URMA backing is not active, backingName=" << UBSE_HOST_URMA_DEV_NAME
+                  << ", bondingEid=" << bondingEid;
+    return UBSE_URMACONTRL_ERROR_DEV_NOT_INACTIVE;
+}
+
+static UbseResult BuildHostUrmaPaths(const HostUrmaBacking& backing, UbseUrmaDevPath& devPaths)
+{
+    UbseUrmaDevPath result;
+    std::string subpath;
+    auto ret = GetRequiredUrmaSubpath(backing.bondingEid, subpath);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to build host URMA bonding path, bondingEid=" << backing.bondingEid
+                       << ", ret=" << ret;
+        return ret;
+    }
+    result.bondingPath = PATH_PREFIX + subpath;
+    for (const auto& feEid : backing.feEids) {
+        if ((ret = GetRequiredUrmaSubpath(feEid, subpath)) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to build host URMA FE path, bondingEid=" << backing.bondingEid
+                           << ", primaryEid=" << feEid << ", ret=" << ret;
+            return ret;
+        }
+        result.vfePaths.push_back(PATH_PREFIX + subpath);
+    }
+    result.bondingEid = backing.bondingEid;
+    devPaths = std::move(result);
+    return UBSE_OK;
+}
+
+static UbseResult AllocHostUrmaBacking(UbseUrmaDevPath& devPaths)
+{
+    auto& manager = UbseUrmaControllerManager::GetInstance();
+    UbseUrmaDevPath cachedPath;
+    if (manager.GetHostUrmaDevPath(cachedPath)) {
+        auto ret = CheckHostUrmaBackingActive(cachedPath.bondingEid);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_WARN << "Failed to reuse cached host URMA device path, bondingEid=" << cachedPath.bondingEid
+                          << ", ret=" << ret;
+            return ret;
+        }
+        devPaths = std::move(cachedPath);
+        return UBSE_OK;
+    }
+
+    // bonding_dev_0 不进入 urmaList，首次分配时从 Node planning 获取稳定 EID。
+    HostUrmaBacking backing;
+    auto ret = QueryHostUrmaBacking(backing);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query host URMA backing for allocation, ret=" << ret;
+        return ret;
+    }
+    ret = CheckHostUrmaBackingActive(backing.bondingEid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Host URMA backing is unavailable for allocation, bondingEid=" << backing.bondingEid
+                      << ", ret=" << ret;
+        return ret;
+    }
+    UbseUrmaDevPath candidate;
+    if ((ret = BuildHostUrmaPaths(backing, candidate)) != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to build host URMA device paths, bondingEid=" << backing.bondingEid
+                       << ", ret=" << ret;
+        return ret;
+    }
+    manager.SetHostUrmaDevPath(candidate);
+    devPaths = std::move(candidate);
+    return UBSE_OK;
 }
 
 bool IsUrmaDevActivated(const std::string& urmaName)
@@ -338,94 +466,45 @@ UbseResult UbseUrmaController::UbseNodeJoinHandler([[maybe_unused]] std::string&
 UbseResult UbseUrmaController::UbseUrmaGetDevs(std::vector<std::string>& nameInfo, std::vector<uint32_t>& status,
                                                std::vector<uint64_t>& hwResIds)
 {
-    auto curNode = UbseNodeController::GetInstance().GetCurNode();
-    if (curNode.nodeId.empty()) {
-        UBSE_LOG_WARN << "Failed to get current node info";
-        return UBSE_ERROR;
+    const auto ret = UbseUrmaResourceView::GetInstance().GetDeviceSummaries(nameInfo, status, hwResIds);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query local URMA device summaries, ret=" << ret;
     }
-    auto urmaNodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(curNode.nodeId);
-    // 查询设备激活状态，若接口查询失败，返回上次查询结果
-    bool isAllPortDown = false;
-    static bool lastQueryResult = false;
-    if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to query all ports status, use last query result="
-                      << static_cast<int>(lastQueryResult);
-        isAllPortDown = lastQueryResult;
-    } else {
-        lastQueryResult = isAllPortDown;
-    }
-    for (auto& dev : urmaNodeInfo.urmaList) {
-        if (dev.first == UBSE_HOST_URMA_DEV_NAME) {
-            continue;
-        }
-        nameInfo.push_back(dev.first);
-        bool health = true;
-        for (auto& eidGroup : dev.second.eidGroups) {
-            if (isAllPortDown) {
-                health = false;
-                break;
-            }
-            if (!IsUdmaDevHealthy(eidGroup.primaryEid)) {
-                health = false;
-                break;
-            }
-        }
-        status.push_back(static_cast<uint32_t>(health ? UrmaDevState::ACTIVED : UrmaDevState::INACTIVED));
-        hwResIds.push_back(dev.second.hwResId);
-    }
-
-    return UBSE_OK;
+    return ret;
 }
 
 bool UbseUrmaController::IsUrmaDevCreated(const UbseUrmaInfo& urmaInfo)
 {
-    // 判断依据为bonding的subPath、下属fe的name是否为空
-    if (urmaInfo.subPath.empty()) {
-        UBSE_LOG_INFO << "Urma dev not created, subPath is empty";
-        return false;
-    }
-    bool isActivate = false;
-    if (auto ret = UbseGetBondingActiveStateByEid(urmaInfo.urmaDevEid, isActivate); ret != UBSE_OK || !isActivate) {
-        UBSE_LOG_INFO << "Urma dev not created, urmaDevEid=" << urmaInfo.urmaDevEid << ", isActivate=" << isActivate;
-        return false;
-    }
-    if (urmaInfo.eidGroups.empty()) {
-        UBSE_LOG_INFO << "Urma dev not created, eidGroups is empty";
-        return false;
-    }
-    for (auto& eidGroup : urmaInfo.eidGroups) {
-        if (eidGroup.feInfo == nullptr || eidGroup.feInfo->name.empty() ||
-            UbseGetBondingActiveStateByEid(eidGroup.primaryEid, isActivate) != UBSE_OK || !isActivate) {
-            UBSE_LOG_INFO << "Urma dev not created, feInfo is empty or fe name is empty";
-            return false;
-        }
-    }
-    return true;
+    return UbseUrmaResourceView::GetInstance().IsBackingCreated(urmaInfo);
 }
 
-UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, UbseUrmaDevPath& devPaths)
+static UbseResult CheckPortStatusForUrmaAlloc(const std::string& urmaName, bool& allocBlocked)
 {
-    UBSE_LOG_INFO << "Receive urma-alloc request, name=" << urmaName;
     bool isAllPortDown = false;
-    if (auto ret = QueryAllPortsDown(isAllPortDown); ret != UBSE_OK || isAllPortDown) {
+    auto ret = QueryAllPortsDown(isAllPortDown);
+    allocBlocked = ret != UBSE_OK || isAllPortDown;
+    if (allocBlocked) {
         UBSE_LOG_WARN << "Failed to query all ports status or all ports are down, cannot allocate urma dev, urmaName="
-                      << urmaName;
+                      << urmaName << ", allPortsDown=" << static_cast<int>(isAllPortDown) << ", ret=" << ret;
         return ret;
     }
-    std::vector<std::string> feNames;
-    std::string eid;
+    return UBSE_OK;
+}
+
+static UbseResult AllocManagerUrmaBacking(const std::string& backingName, UbseUrmaDevPath& devPaths)
+{
+    // 逻辑名称解析完成后，普通真实设备完整复用原有 manager 分配流程。
     UbseUrmaInfo urmaInfo;
-    if (auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfoByName(urmaName, urmaInfo);
-        ret != UBSE_OK) {
+    auto ret = UbseUrmaControllerManager::GetInstance().GetLocalUrmaDevInfoByName(backingName, urmaInfo);
+    if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "Failed to get urma dev from urma controller manager, ret=" << ret
-                      << ", urmaName=" << urmaName;
+                      << ", urmaName=" << backingName;
         return ret;
     }
-    // 如果设备还未创建，调用urma接口创建
-    if (!IsUrmaDevCreated(urmaInfo)) {
-        UBSE_LOG_INFO << "Urma dev not created, urmaName=" << urmaName << ", try to create it";
-        if (ActivateSpecifyUrmaDev(urmaName) != UBSE_OK) {
-            UBSE_LOG_ERROR << "Failed to activate urma bonding, urmaName=" << urmaName;
+    if (!UbseUrmaController::GetInstance().IsUrmaDevCreated(urmaInfo)) {
+        UBSE_LOG_INFO << "URMA backing is not created, backingName=" << backingName << ", try to create it";
+        if (UbseUrmaController::GetInstance().ActivateSpecifyUrmaDev(backingName) != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to activate URMA backing, backingName=" << backingName;
             return UBSE_URMACONTRL_ERROR_CREATE_DEV_FAILED;
         }
     }
@@ -434,14 +513,18 @@ UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, Ubs
         UBSE_LOG_ERROR << "Failed to get current node info";
         return UBSE_URMACONTRL_ERROR_GET_NODE_INFO_FAILED;
     }
-    RefreshUrmaDevStateByName(currentNodeInfo.nodeId, urmaName);
-    if (auto ret = UbseUrmaControllerManager::GetInstance().AllocUrmaDev(urmaName, feNames, eid); ret != UBSE_OK) {
-        UBSE_LOG_ERROR << "Failed to alloc urma dev, ret=" << ret;
+    RefreshUrmaDevStateByName(currentNodeInfo.nodeId, backingName);
+    std::vector<std::string> feNames;
+    std::string eid;
+    ret = UbseUrmaControllerManager::GetInstance().AllocUrmaDev(backingName, feNames, eid);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to allocate URMA backing, backingName=" << backingName << ", ret=" << ret;
         return ret;
     }
-    const size_t minFeNamesSize = 2;
-    if (feNames.size() <= minFeNamesSize) {
-        UBSE_LOG_ERROR << "Failed to alloc for fe name size is less than 2";
+    constexpr size_t feCount = 2;
+    if (feNames.size() <= feCount) {
+        UBSE_LOG_ERROR << "Invalid URMA allocation path count, backingName=" << backingName
+                       << ", actualCount=" << feNames.size();
         return UBSE_ERROR;
     }
     devPaths.bondingPath = PATH_PREFIX + feNames[0];
@@ -452,13 +535,59 @@ UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, Ubs
     return UBSE_OK;
 }
 
+static UbseResult AllocRealUrmaBacking(const UrmaAllocTarget& target, UbseUrmaDevPath& devPaths)
+{
+    // bonding_dev_0 由 Node 创建且不在 urmaList 中，其余真实设备统一走原 manager 流程。
+    if (target.IsHostBonding()) {
+        return AllocHostUrmaBacking(devPaths);
+    }
+    return AllocManagerUrmaBacking(target.GetBackingName(), devPaths);
+}
+
+UbseResult UbseUrmaController::UbseAllocUrmaDev(const std::string& urmaName, UbseUrmaDevPath& devPaths)
+{
+    UBSE_LOG_INFO << "Receive urma-alloc request, name=" << urmaName;
+    UrmaAllocTarget target;
+    auto ret = UbseUrmaResourceView::GetInstance().ResolveAllocTarget(urmaName, target);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to resolve URMA allocation target, name=" << urmaName << ", ret=" << ret;
+        return ret;
+    }
+    bool allocBlocked = false;
+    ret = CheckPortStatusForUrmaAlloc(urmaName, allocBlocked);
+    if (allocBlocked) {
+        return ret;
+    }
+    ret = AllocRealUrmaBacking(target, devPaths);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to allocate resolved URMA backing, logicalName=" << urmaName
+                       << ", backingName=" << target.GetBackingName()
+                       << ", isHostBonding=" << static_cast<int>(target.IsHostBonding()) << ", ret=" << ret;
+    }
+    return ret;
+}
+
 UbseResult UbseUrmaController::UbseFreeUrmaDev([[maybe_unused]] const std::string urmaName)
 {
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& urmaInfo)
+static void IntersectUrmaDevicesByName(const std::vector<std::string>& filter, std::vector<UbseUrmaDevBrief>& devices)
 {
+    if (filter.empty()) {
+        return;
+    }
+    const std::unordered_set<std::string> allowed(filter.begin(), filter.end());
+    devices.erase(
+        std::remove_if(devices.begin(), devices.end(),
+                       [&allowed](const auto& device) { return allowed.find(device.urmaName) == allowed.end(); }),
+        devices.end());
+}
+
+UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t& nodeId, const std::vector<std::string>& filter,
+                                                    std::vector<UbseUrmaDevBrief>& urmaInfo)
+{
+    urmaInfo.clear();
     auto ubseComModule = ubse::context::UbseContext::GetInstance().GetModule<UbseComModule>();
     if (ubseComModule == nullptr) {
         UBSE_LOG_ERROR << "UbseComModule is null";
@@ -469,8 +598,7 @@ UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std:
         UBSE_LOG_ERROR << "new UbseUrmaDevQueryReqSimpo failed";
         return UBSE_ERROR_NULLPTR;
     }
-    UrmaDevQueryRpcReq req;
-    req.nodeId = nodeId;
+    UrmaDevQueryRpcReq req{nodeId, filter};
     ubseRequestPtr->SetUbseUrmaDevReq(req);
     UbseUrmaDevQueryRspPtr ubseResponsePtr = new (std::nothrow) UrmaDevQueryRspSimpo();
     if (ubseResponsePtr == nullptr) {
@@ -496,59 +624,94 @@ UbseResult UbseUrmaController::UbseGetUrmaDevsByRpc(const uint32_t& nodeId, std:
         return res;
     }
     auto rsp = ubseResponsePtr->GetUbseUrmaDevRsp();
-    urmaInfo = rsp.urmaInfos;
     if (rsp.result != UBSE_OK) {
         UBSE_LOG_ERROR << "response result is not OK, " << FormatRetCode(rsp.result);
         return rsp.result;
     }
+    urmaInfo = std::move(rsp.urmaInfos);
+    // 发起端再次取交集，兼容旧节点忽略请求尾部过滤字段后返回全量结果。
+    IntersectUrmaDevicesByName(filter, urmaInfo);
     return UBSE_OK;
 }
 
-UbseResult UbseUrmaController::UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos)
+static UbseResult ValidateRemoteUrmaQueryNode(uint32_t nodeId)
 {
-    if (nodeId == UINT32_MAX) {
-        this->GetLocalUrmaDevs(devInfos);
-        return UBSE_OK;
-    }
     if (UbseSmbios::GetInstance().IsClosType()) {
+        UBSE_LOG_INFO << "Remote URMA device query is unsupported in CLOS mode, nodeId=" << nodeId;
         return UBSE_ERR_NOT_SUPPORTED;
     }
-    std::vector<UbseNodeInfo> ubseStaticNodeInfos = UbseNodeController::GetInstance().GetStaticNodeInfo();
-    if (ubseStaticNodeInfos.empty()) {
-        UBSE_LOG_ERROR << "LoadConfig get allNodes failed.";
+    const auto nodeIdText = std::to_string(nodeId);
+    const auto staticNodes = UbseNodeController::GetInstance().GetStaticNodeInfo();
+    if (staticNodes.empty()) {
+        UBSE_LOG_ERROR << "Failed to load static node information for URMA query, nodeId=" << nodeId;
         return UBSE_ERROR;
     }
-    if (!std::any_of(ubseStaticNodeInfos.begin(), ubseStaticNodeInfos.end(),
-                     [&](const auto& info) { return info.nodeId == std::to_string(nodeId); })) {
-        UBSE_LOG_WARN << "nodeId = " << nodeId << " not in cluster.";
+    if (!std::any_of(staticNodes.begin(), staticNodes.end(),
+                     [&](const auto& info) { return info.nodeId == nodeIdText; })) {
+        UBSE_LOG_WARN << "URMA query node is not in the cluster, nodeId=" << nodeId;
         return UBSE_URMACONTRL_ERROR_DEV_NOT_EXIST;
     }
-    std::unordered_map<std::string, UbseNodeInfo> ubseNodeInfoMap = UbseNodeController::GetInstance().GetAllNodes();
-    if (ubseNodeInfoMap.empty()) {
-        UBSE_LOG_ERROR << "get allNodes from nodectl failed.";
+
+    const auto currentNodes = UbseNodeController::GetInstance().GetAllNodes();
+    if (currentNodes.empty()) {
+        UBSE_LOG_ERROR << "Failed to load current node information for URMA query, nodeId=" << nodeId;
         return UBSE_ERROR_INVAL;
     }
-    if (ubseNodeInfoMap.find(std::to_string(nodeId)) == ubseNodeInfoMap.end()) {
-        UBSE_LOG_WARN << "nodeId = " << nodeId << " not node up.";
+    const auto node = currentNodes.find(nodeIdText);
+    if (node == currentNodes.end()) {
+        UBSE_LOG_WARN << "URMA query node is not online, nodeId=" << nodeId;
         return UBSE_ERROR_INVAL;
     }
-    auto nodeState = ubseNodeInfoMap[std::to_string(nodeId)].clusterState;
-    if (nodeState == UbseNodeClusterState::UBSE_NODE_UNKNOWN || nodeState == UbseNodeClusterState::UBSE_NODE_FAULT ||
-        nodeState == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
-        UBSE_LOG_WARN << "nodeId = " << nodeId << " is fault state = " << (int)nodeState;
+    const auto state = node->second.clusterState;
+    if (state == UbseNodeClusterState::UBSE_NODE_UNKNOWN || state == UbseNodeClusterState::UBSE_NODE_FAULT ||
+        state == UbseNodeClusterState::UBSE_NODE_PRE_BMC) {
+        UBSE_LOG_WARN << "URMA query node is unavailable, nodeId=" << nodeId << ", state=" << static_cast<int>(state);
         return UBSE_ERROR_INVAL;
+    }
+    return UBSE_OK;
+}
+
+UbseResult UbseUrmaController::UbseGetUrmaDevsByNodeId(const uint32_t& nodeId, std::vector<UbseUrmaDevBrief>& devInfos,
+                                                       const std::vector<std::string>& filter)
+{
+    if (nodeId == UINT32_MAX) {
+        const auto ret = GetLocalUrmaDevs(filter, devInfos);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to query local URMA devices, filterCount=" << filter.size() << ", ret=" << ret;
+        }
+        return ret;
+    }
+    auto ret = ValidateRemoteUrmaQueryNode(nodeId);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_WARN << "Failed to validate URMA query node, nodeId=" << nodeId << ", ret=" << ret;
+        return ret;
     }
     AsyncHandlerGuard cntGuard;
     if (ubse::context::g_globalStop) {
         return UBSE_OK;
     }
     ubse::election::UbseRoleInfo currentNodeInfo{};
-    ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
-    if (std::to_string(nodeId) == currentNodeInfo.nodeId) {
-        this->GetLocalUrmaDevs(devInfos);
-        return UBSE_OK;
+    ret = ubse::election::UbseGetCurrentNodeInfo(currentNodeInfo);
+    if (ret != UBSE_OK) {
+        // 延续原行为：获取本节点信息失败时仍尝试通过主节点转发查询。
+        UBSE_LOG_WARN << "Failed to get current node while routing URMA query, targetNodeId=" << nodeId
+                      << ", ret=" << ret;
     }
-    return UbseGetUrmaDevsByRpc(nodeId, devInfos);
+    if (std::to_string(nodeId) == currentNodeInfo.nodeId) {
+        ret = GetLocalUrmaDevs(filter, devInfos);
+        if (ret != UBSE_OK) {
+            UBSE_LOG_ERROR << "Failed to query URMA devices on current node, nodeId=" << nodeId
+                           << ", filterCount=" << filter.size() << ", ret=" << ret;
+        }
+        return ret;
+    }
+    // 复用原跨节点查询消息，在请求尾部携带可选过滤条件，由目标节点生成逻辑设备视图。
+    ret = UbseGetUrmaDevsByRpc(nodeId, filter, devInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query URMA devices on remote node, nodeId=" << nodeId
+                       << ", filterCount=" << filter.size() << ", ret=" << ret;
+    }
+    return ret;
 }
 
 std::vector<ubse::nodeController::PhysicalLink> GetDirConnectInfo()
@@ -650,34 +813,13 @@ UbseResult UbseUrmaController::ActivateSpecifyUrmaDev(const std::string& urmaNam
     return UBSE_OK;
 }
 
-void UbseUrmaController::GetLocalUrmaDevs(std::vector<UbseUrmaDevBrief>& devInfos)
+UbseResult UbseUrmaController::GetLocalUrmaDevs(const std::vector<std::string>& filter,
+                                                std::vector<UbseUrmaDevBrief>& devInfos)
 {
-    UbseRoleInfo currentNodeInfo{};
-    if (UbseGetCurrentNodeInfo(currentNodeInfo) != UBSE_OK) {
-        UBSE_LOG_WARN << "Failed to get current node info";
-        return;
+    const auto ret = UbseUrmaResourceView::GetInstance().GetDeviceDetails(filter, devInfos);
+    if (ret != UBSE_OK) {
+        UBSE_LOG_ERROR << "Failed to query local URMA device details, filterCount=" << filter.size() << ", ret=" << ret;
     }
-    const size_t feCntPerUrmaInfo = 2;
-    RefreshAllUrmaDevsState(currentNodeInfo.nodeId);
-    auto nodeInfo = UbseUrmaControllerManager::GetInstance().GetUrmaNodeInfo(currentNodeInfo.nodeId);
-    for (auto& info : nodeInfo.urmaList) {
-        if (info.first == UBSE_HOST_URMA_DEV_NAME) {
-            continue;
-        }
-        UbseUrmaDevBrief urmaInfo;
-        urmaInfo.urmaName = info.first;
-        if (info.second.eidGroups.size() != feCntPerUrmaInfo) {
-            UBSE_LOG_WARN << "Failed to get fe info for urmaName=" << info.first << " in urmaList";
-            continue;
-        }
-        for (auto& eidGroup : info.second.eidGroups) {
-            urmaInfo.feEids.push_back(eidGroup.primaryEid);
-            urmaInfo.feNames.push_back(eidGroup.feInfo == nullptr ? "" : eidGroup.feInfo->name);
-        }
-        urmaInfo.state = info.second.state;
-        urmaInfo.devEid = info.second.urmaDevEid;
-        urmaInfo.bondingType = info.second.urmaDevType;
-        devInfos.push_back(urmaInfo);
-    }
+    return ret;
 }
 } // namespace ubse::urmaController

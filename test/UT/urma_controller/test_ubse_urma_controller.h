@@ -22,6 +22,7 @@ inline void ClearNodeInfosForTest()
     ubse::utils::WriteLocker<ubse::utils::ReadWriteLock> writeLock(
         &ubse::urmaController::UbseUrmaControllerManager::GetInstance().rwLock);
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().nodeInfos.clear();
+    ubse::urmaController::UbseUrmaControllerManager::GetInstance().hostUrmaDevPath.reset();
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().globalFeId = 0;
     ubse::urmaController::UbseUrmaControllerManager::GetInstance().globalUrmaId = 0;
 }

@@ -123,6 +123,20 @@ TEST_F(TestUbseUrmaControllerManager, SetFeName)
     UbseUrmaControllerManager::GetInstance().nodeInfos = {};
 }
 
+TEST_F(TestUbseUrmaControllerManager, CacheHostUrmaDevPath)
+{
+    auto& manager = UbseUrmaControllerManager::GetInstance();
+    ClearNodeInfosForTest();
+    const UbseUrmaDevPath expected{{"/dev/uburma/fe-a", "/dev/uburma/fe-b"}, "/dev/uburma/bond", "host-eid"};
+    UbseUrmaDevPath actual;
+    EXPECT_FALSE(manager.GetHostUrmaDevPath(actual));
+    manager.SetHostUrmaDevPath(expected);
+    ASSERT_TRUE(manager.GetHostUrmaDevPath(actual));
+    EXPECT_EQ(actual.bondingEid, expected.bondingEid);
+    EXPECT_EQ(actual.bondingPath, expected.bondingPath);
+    EXPECT_EQ(actual.vfePaths, expected.vfePaths);
+}
+
 TEST_F(TestUbseUrmaControllerManager, InsertNewNodeInfo)
 {
     UbseUrmaInfo urmaInfo1{.urmaDevEid = "0123", .urmaDevType = UrmaDevType::UNIQUE, .state = UrmaDevState::UNKNOWN};
@@ -794,6 +808,29 @@ TEST_F(TestUbseUrmaControllerManager, FillUrmaUvsNodeInfo)
     MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(true));
     UbseUrmaControllerManager::GetInstance().SetFeTopoType(FeTopoType::INVALID);
     EXPECT_EQ(FillUrmaUvsNodeInfo(false, nodeInfo, tmpUvsInfo), UBSE_ERROR);
+}
+
+TEST_F(TestUbseUrmaControllerManager, FillUrmaUvsNodeInfoKeepsHostFirstAndPhysicalBondings)
+{
+    UbseUrmaNodeInfo nodeInfo{.nodeId = "1"};
+    nodeInfo.urmaList["bonding_dev_10"].urmaDevEid = "manager-eid-10";
+    nodeInfo.urmaList["bonding_dev_2"].urmaDevEid = "manager-eid-2";
+
+    UbseUrmaUvsNodeInfo hostInfo{.nodeId = "1"};
+    hostInfo.devList.push_back(UbseUrmaUvsAggrDev{.urmaDevEid = "host-eid-0"});
+    std::vector<UbseUrmaUvsNodeInfo> planning{hostInfo};
+    MOCKER_CPP(&UbseSmbios::IsClosType).stubs().will(returnValue(false));
+    MOCKER_CPP(&UbseNodeController::GetPlanningHostBondingByNodeId)
+        .expects(once())
+        .with(eq(std::string("1")), outBound(planning))
+        .will(returnValue(UBSE_OK));
+
+    UbseUrmaUvsNodeInfo result;
+    ASSERT_EQ(FillUrmaUvsNodeInfo(false, nodeInfo, result), UBSE_OK);
+    ASSERT_EQ(result.devList.size(), 3);
+    EXPECT_EQ(result.devList[0].urmaDevEid, "host-eid-0");
+    EXPECT_EQ(result.devList[1].urmaDevEid, "manager-eid-2");
+    EXPECT_EQ(result.devList[2].urmaDevEid, "manager-eid-10");
 }
 
 TEST_F(TestUbseUrmaControllerManager, IsSameFeWithHostUrmaDev)

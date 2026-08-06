@@ -21,6 +21,7 @@
 #include "ubse_conf.h"
 #include "ubse_context.h"
 #include "ubse_error.h"
+#include "ubse_ipc_message.h"
 #include "ubse_pack_util.h"
 #include "ubse_serial_util.h"
 #include "ubse_urma_controller.h"
@@ -119,6 +120,21 @@ TEST_F(TestUbseUrmaControllerApi, LocalDevPack_StatusSizeMismatch)
 
     auto ret = LocalDevPack(nameInfos, status, hwResIds, response);
     EXPECT_EQ(ret, UBSE_ERROR_INVAL);
+}
+
+TEST_F(TestUbseUrmaControllerApi, LocalDevPackRejectsOversizeResponse)
+{
+    constexpr size_t maxPackedNameLength = 31;
+    constexpr size_t entrySize = sizeof(uint32_t) + maxPackedNameLength + sizeof(uint32_t) + sizeof(uint64_t);
+    const size_t count = ((UBSE_MESSAGE_SIZE - sizeof(uint32_t)) / entrySize) + 1;
+    std::vector<std::string> names(count, std::string(maxPackedNameLength, 'x'));
+    std::vector<uint32_t> states(count, 0);
+    std::vector<uint64_t> hwIds(count, 0);
+    UbseIpcMessage response = {nullptr, 0};
+
+    EXPECT_EQ(LocalDevPack(names, states, hwIds, response), UBSE_ERROR_INVAL);
+    EXPECT_EQ(response.buffer, nullptr);
+    EXPECT_EQ(response.length, 0);
 }
 
 TEST_F(TestUbseUrmaControllerApi, ParseUrmaDevGetRequest_NullBuffer)
@@ -726,6 +742,50 @@ TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGetByFilter)
     MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
     MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
     EXPECT_EQ(UbseUrmaControllerApi::UbseUrmaDevGetByFilter(req, ctx), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGetByFilterForwardsFilterToController)
+{
+    UbseRequestContext ctx{};
+    ctx.requestId = 42;
+    UbseIpcMessage req = {reinterpret_cast<uint8_t*>(const_cast<char*>("request")), 7};
+    uint32_t nodeId = 7;
+    std::vector<std::string> filter{"bonding_dev_2", "bonding_dev_193"};
+    std::vector<UbseUrmaDevBrief> rows(1);
+    rows[0].urmaName = "bonding_dev_193";
+    auto apiModule = std::make_shared<UbseApiServerModule>();
+    MOCKER_CPP(ubse::config::UbseIsUrmaSupported).stubs().will(returnValue(true));
+    MOCKER_CPP(ParseUrmaDevGetRequest).stubs().with(_, outBound(nodeId), outBound(filter)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByNodeId)
+        .expects(once())
+        .with(eq(nodeId), outBound(rows), eq(filter))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).stubs().will(returnValue(apiModule));
+    MOCKER_CPP(&UbseApiServerModule::SendResponse).stubs().will(returnValue(UBSE_OK));
+
+    EXPECT_EQ(UbseUrmaControllerApi::UbseUrmaDevGetByFilter(req, ctx), UBSE_OK);
+}
+
+TEST_F(TestUbseUrmaControllerApi, UbseUrmaDevGetByFilterRejectsOversizeSerializedResponse)
+{
+    UbseRequestContext ctx{};
+    UbseIpcMessage req = {reinterpret_cast<uint8_t*>(const_cast<char*>("request")), 7};
+    uint32_t nodeId = 7;
+    std::vector<std::string> filter;
+    UbseUrmaDevBrief oversized{};
+    oversized.urmaName = std::string(UBSE_MESSAGE_SIZE, 'x');
+    oversized.bondingType = UrmaDevType::UNIQUE;
+    oversized.state = UrmaDevState::UNKNOWN;
+    std::vector<UbseUrmaDevBrief> rows{std::move(oversized)};
+    MOCKER_CPP(ubse::config::UbseIsUrmaSupported).stubs().will(returnValue(true));
+    MOCKER_CPP(ParseUrmaDevGetRequest).stubs().with(_, outBound(nodeId), outBound(filter)).will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseUrmaController::UbseGetUrmaDevsByNodeId)
+        .stubs()
+        .with(eq(nodeId), outBound(rows), eq(filter))
+        .will(returnValue(UBSE_OK));
+    MOCKER_CPP(&UbseContext::GetModule<UbseApiServerModule>).expects(never());
+
+    EXPECT_EQ(UbseUrmaControllerApi::UbseUrmaDevGetByFilter(req, ctx), UBSE_ERROR_SERIALIZE_FAILED);
 }
 
 } // namespace ubse::urmaControllerApi::ut

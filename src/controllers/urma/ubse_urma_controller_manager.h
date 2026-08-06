@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <queue>
 #include <string>
 
@@ -28,6 +29,7 @@ namespace ubse::urmaController {
 using common::def::UbseResult;
 using ubse::adapter_plugins::mti::UbseMtiFeInfo;
 using ubse::urma::FeTopoType;
+using ubse::urma::UbseUrmaDevPath;
 using ubse::urma::UbseUrmaInfo;
 using ubse::urma::UbseUrmaNodeInfo;
 using ubse::urma::UbseUrmaUvsNodeInfo;
@@ -128,6 +130,19 @@ public:
      *         UBSE_URMACONTRL_ERROR_DEV_NOT_INACTIVE表示设备未激活不可分配
      */
     UbseResult AllocUrmaDev(const std::string& urmaName, std::vector<std::string>& feNames, std::string& eid);
+
+    /**
+     * @brief 获取 Node 所属 bonding_dev_0 已缓存的分配路径
+     * @param devPath 输出完整的 bonding 与两个 FE 路径
+     * @return true 表示缓存存在，false 表示尚未成功查询过路径
+     */
+    bool GetHostUrmaDevPath(UbseUrmaDevPath& devPath);
+
+    /**
+     * @brief 缓存 Node 所属 bonding_dev_0 的完整分配路径
+     * @param devPath 已成功查询的完整路径
+     */
+    void SetHostUrmaDevPath(const UbseUrmaDevPath& devPath);
 
     /**
      * @brief 将URMA CTL的设备信息转换为拓扑下发时URMA UVS模块所需的格式
@@ -333,6 +348,7 @@ private:
 private:
     utils::ReadWriteLock rwLock;                         // 读写锁，保护nodeInfos等共享数据的并发访问
     std::map<std::string, UbseUrmaNodeInfo> nodeInfos{}; // 各节点的URMA信息映射，key为nodeId
+    std::optional<UbseUrmaDevPath> hostUrmaDevPath{};    // Node 所属 bonding_dev_0 的路径缓存
     std::atomic<uint16_t> globalFeId{0};                 // 节点内全局唯一的FE ID生成器（原子自增）
     std::atomic<uint64_t> globalUrmaId{0};      // 节点内全局唯一的URMA设备ID生成器（原子自增）
     FeTopoType feTopoType{FeTopoType::INVALID}; // 当前FE拓扑类型，由CalculateFeTopoType计算并设置
