@@ -599,4 +599,8 @@ register_module_errors(UBSE_MODULE_CODE, {
     1006: ("UBSE_ERR_EXISTED", UbsEngineExistedError),
     1007: ("UBSE_ERR_NOT_EXIST", UbsEngineNotExistError),
     1013: ("UBSE_ERR_ALLOCATE", UbsEngineAllocateError),
+    2000: ("UBSE_ERR_ALREADY_ALLOCATED", UbsEngineExistedError),
+    2001: ("UBSE_ERR_ALREADY_ATTACHED", UbsEngineExistedError),
+    2002: ("UBSE_ERR_NO_NEED_FREE", UbsEngineNotExistError),
+    2003: ("UBSE_ERR_NO_NEED_DETACH", UbsEngineNotExistError),
 })

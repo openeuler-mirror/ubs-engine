@@ -83,7 +83,7 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
     UbseSsuAllocReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize alloc req, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
 
@@ -93,10 +93,10 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
     std::string requestNodeId = allocRpcReq.requestNodeId;
     auto executor = utils::GetSsuExecutor();
     if (executor == nullptr) {
-        auto respData = BuildErrorResp(requestId, UBSE_ERROR);
+        auto respData = BuildErrorResp(requestId, UBSE_SSU_ERROR_EXECUTOR_NULL);
         SendSsuAllocRespToAgent(requestNodeId, respData);
         UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_EXECUTOR_NULL);
         return;
     }
 
@@ -107,9 +107,9 @@ static void HandleAllocReqReceiver(const uint8_t *reqData, uint32_t reqSize, std
     if (!UbseSsuDebtLedger::GetInstance().Put(entry.name, std::make_shared<const UbseSsuLedgerEntry>(entry))) {
         UBSE_LOG_ERROR << "AllocReq: ledger entry already exists, reject duplicate alloc: name="
                        << allocRpcReq.allocReq.name;
-        UbseSsuAllocResp respData = BuildErrorResp(requestId, UBSE_ERR_EXISTED);
+        UbseSsuAllocResp respData = BuildErrorResp(requestId, UBSE_ERR_ALREADY_ALLOCATED);
         SendSsuAllocRespToAgent(requestNodeId, respData);
-        SetReplySyncResp(resp, UBSE_ERR_EXISTED);
+        SetReplySyncResp(resp);
         return;
     }
 
@@ -152,7 +152,7 @@ static void HandleAllocRespReceiver(const uint8_t *reqData, uint32_t reqSize, st
     UbseSsuAllocRespMsg response;
     if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize alloc resp";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
     auto respData = response.GetSsuAllocResp();
@@ -192,7 +192,7 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
     UbseSsuStatusReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize status update, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
     auto statusReq = request.GetStatusUpdateReq();
@@ -212,13 +212,13 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
             modified = true;
         })) {
         UBSE_LOG_WARN << "StatusUpdate: ledger entry not found: name=" << statusReq.requestName;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_LEDGER_NOT_FOUND);
         return;
     }
     if (!modified) {
         UBSE_LOG_WARN << "StatusUpdate: invalid state transition, name=" << statusReq.requestName
                       << ", from=" << static_cast<int>(fromState) << " to=" << static_cast<int>(statusReq.state);
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_STATE_INVALID);
         return;
     }
     SetReplySyncResp(resp);
@@ -256,7 +256,7 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
     UbseSsuFreeReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize free req, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
 
@@ -264,9 +264,10 @@ static void HandleFreeReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
     auto freeRpcReq = request.GetSsuFreeRequest();
     auto executor = utils::GetSsuExecutor();
     if (executor == nullptr) {
-        SendSsuFreeRespToAgent(freeRpcReq.requestNodeId, BuildFreeResp(freeRpcReq.requestId, UBSE_ERROR));
+        SendSsuFreeRespToAgent(freeRpcReq.requestNodeId,
+                               BuildFreeResp(freeRpcReq.requestId, UBSE_SSU_ERROR_EXECUTOR_NULL));
         UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_EXECUTOR_NULL);
         return;
     }
 
@@ -292,7 +293,7 @@ static void HandleFreeRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     UbseSsuFreeRespMsg response;
     if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize free resp";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
     auto respData = response.GetSsuFreeResponse();
@@ -317,7 +318,7 @@ static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize attach verify req, reqSize=" << reqSize;
         UbseSsuAttachDetachVerifyResp errResp;
-        errResp.errorCode = UBSE_ERROR;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
         resp = std::make_unique<UbseSsuAttachDetachVerifyRespMsg>(errResp);
         return;
     }
@@ -376,7 +377,7 @@ static void HandlePermReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
     UbseSsuPermReqMsg request;
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize perm req, reqSize=" << reqSize;
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
 
@@ -384,9 +385,10 @@ static void HandlePermReqReceiver(const uint8_t *reqData, uint32_t reqSize, std:
     auto permRpcReq = request.GetSsuPermRequest();
     auto executor = utils::GetSsuExecutor();
     if (executor == nullptr) {
-        SendSsuPermRespToAgent(permRpcReq.requestNodeId, BuildPermResp(permRpcReq.requestId, UBSE_ERROR), respOpCode);
+        SendSsuPermRespToAgent(permRpcReq.requestNodeId,
+                               BuildPermResp(permRpcReq.requestId, UBSE_SSU_ERROR_EXECUTOR_NULL), respOpCode);
         UBSE_LOG_ERROR << "Get ubseSsuController executor failed";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_EXECUTOR_NULL);
         return;
     }
 
@@ -428,7 +430,7 @@ static void HandlePermRespReceiver(const uint8_t *reqData, uint32_t reqSize, std
     UbseSsuPermRespMsg response;
     if (response.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize perm resp";
-        SetReplySyncResp(resp, UBSE_ERROR);
+        SetReplySyncResp(resp, UBSE_SSU_ERROR_DESERIALIZE_FAILED);
         return;
     }
     auto respData = response.GetSsuPermResponse();
@@ -451,7 +453,7 @@ static void HandleGetNsStatsReqReceiver(const uint8_t *reqData, uint32_t reqSize
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize get ns stats req, reqSize=" << reqSize;
         UbseSsuGetNsStatsResp errResp;
-        errResp.errorCode = UBSE_ERROR;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
         resp = std::make_unique<UbseSsuGetNsStatsRespMsg>(errResp);
         return;
     }
@@ -478,14 +480,14 @@ uint32_t UbseSsuRpcProcessor::RegisterAllocHandlers()
                                                        HandleAllocReqReceiver);
     if (allocEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register alloc req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     auto respEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                       static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ALLOC_RESP),
                                                       HandleAllocRespReceiver);
     if (respEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register alloc resp receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -499,7 +501,7 @@ static void HandleListAllocInfoReqReceiver(const uint8_t *reqData, uint32_t reqS
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize list alloc info req, reqSize=" << reqSize;
         UbseSsuListAllocInfoResp errResp;
-        errResp.errorCode = UBSE_ERROR;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
         resp = std::make_unique<UbseSsuListAllocInfoRespMsg>(errResp);
         return;
     }
@@ -528,7 +530,7 @@ static void HandleGetAllocInfoReqReceiver(const uint8_t *reqData, uint32_t reqSi
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize get alloc info req, reqSize=" << reqSize;
         UbseSsuGetAllocInfoResp errResp;
-        errResp.errorCode = UBSE_ERROR;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
         resp = std::make_unique<UbseSsuGetAllocInfoRespMsg>(errResp);
         return;
     }
@@ -558,7 +560,7 @@ static void HandleGetConnectInfoReqReceiver(const uint8_t *reqData, uint32_t req
     if (request.Deserialize(reqData, reqSize) != UBSE_OK) {
         UBSE_LOG_ERROR << "Failed to deserialize get connect info req, reqSize=" << reqSize;
         UbseSsuGetConnectInfoResp errResp;
-        errResp.errorCode = UBSE_ERROR;
+        errResp.errorCode = UBSE_SSU_ERROR_DESERIALIZE_FAILED;
         resp = std::make_unique<UbseSsuGetConnectInfoRespMsg>(errResp);
         return;
     }
@@ -587,7 +589,7 @@ uint32_t UbseSsuRpcProcessor::RegisterStatusHandler()
                                                         HandleStatusReceiver);
     if (statusEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register status update receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -600,14 +602,14 @@ uint32_t UbseSsuRpcProcessor::RegisterFreeHandlers()
                                                       HandleFreeReqReceiver);
     if (freeEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register free req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     auto freeRespEndpoint = UbseRpcEndpointFactory::Build(static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
                                                           static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_FREE_RESP),
                                                           HandleFreeRespReceiver);
     if (freeRespEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register free resp receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -620,14 +622,14 @@ uint32_t UbseSsuRpcProcessor::RegisterAddPermHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_REQ), HandleAddPermReqReceiver);
     if (addPermEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register add perm req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     auto addPermRespEndpoint = UbseRpcEndpointFactory::Build(
         static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ADD_ACCESS_PERMISSION_RESP), HandlePermRespReceiver);
     if (addPermRespEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register add perm resp receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -641,7 +643,7 @@ uint32_t UbseSsuRpcProcessor::RegisterAttachDetachVerifyHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_ATTACH_DETACH_VERIFY_REQ), HandleAttachDetachVerifyReqReceiver);
     if (reqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register attach verify req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -654,14 +656,14 @@ uint32_t UbseSsuRpcProcessor::RegisterRemovePermHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_REQ), HandleRemovePermReqReceiver);
     if (removePermEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register remove perm req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     auto removePermRespEndpoint = UbseRpcEndpointFactory::Build(
         static_cast<uint16_t>(UbseModuleCode::UBSE_SSU),
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_REMOVE_ACCESS_PERMISSION_RESP), HandlePermRespReceiver);
     if (removePermRespEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register remove perm resp receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
     return UBSE_OK;
 }
@@ -675,7 +677,7 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_NS_STATS_REQ), HandleGetNsStatsReqReceiver);
     if (getNsStatsReqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register get ns stats req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
 
     // ListAllocInfo（查询响应直接通过sync resp返回，无需注册RESP端点）
@@ -684,7 +686,7 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_LIST_ALLOC_INFO_REQ), HandleListAllocInfoReqReceiver);
     if (listAllocReqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register list alloc info req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
 
     // GetAllocInfoByName（查询响应直接通过sync resp返回，无需注册RESP端点）
@@ -693,7 +695,7 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_ALLOC_INFO_BY_NAME_REQ), HandleGetAllocInfoReqReceiver);
     if (getAllocReqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register get alloc info req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
 
     // GetConnectInfo（查询响应直接通过sync resp返回，无需注册RESP端点）
@@ -702,7 +704,7 @@ uint32_t UbseSsuRpcProcessor::RegisterQueryHandlers()
         static_cast<uint16_t>(UbseSsuOpCode::UBSE_SSU_GET_CONNECT_INFO_REQ), HandleGetConnectInfoReqReceiver);
     if (getConnectInfoReqEndpoint == nullptr) {
         UBSE_LOG_ERROR << "Unable to register get connect info req receiver";
-        return UBSE_ERROR;
+        return UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED;
     }
 
     return UBSE_OK;
@@ -714,43 +716,43 @@ uint32_t UbseSsuRpcProcessor::RegHandler()
     auto ret = RegisterAllocHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterAllocHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterStatusHandler();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterStatusHandler failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterFreeHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterFreeHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterAttachDetachVerifyHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterAttachDetachVerifyHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterAddPermHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterAddPermHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterRemovePermHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterRemovePermHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     ret = RegisterQueryHandlers();
     if (ret != UBSE_OK) {
         UBSE_LOG_ERROR << "RegisterQueryHandlers failed, " << FormatRetCode(ret);
-        return UBSE_ERROR;
+        return ret;
     }
 
     return UBSE_OK;

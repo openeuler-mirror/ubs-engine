@@ -251,7 +251,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      *
-     * @note 释放操作具有幂等性，释放不存在的空间应返回成功
+     * @note 释放操作不再幂等：释放不存在的空间将报错（UBSE_ERR_NO_NEED_FREE）
      */
     virtual uint32_t FreeSpace(const std::string &name, const UbseSsuAllocIdentityInfo &identity) = 0;
 
@@ -304,6 +304,8 @@ public:
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
+     *
+     * @note 已挂载（ATTACHED状态）的空间重复挂载将报错（UBSE_ERR_ALREADY_ATTACHED），不再幂等返回成功
      */
     virtual uint32_t AttachSpace(const UbseSsuSpaceReq &req, std::vector<std::string> &nsDevPaths) = 0;
 
@@ -317,6 +319,7 @@ public:
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
      *
+     * @note 已卸载（CREATED状态）的空间重复卸载将报错（UBSE_ERR_NO_NEED_DETACH），不再幂等返回成功
      * @note 卸载前需确保没有进程正在使用该存储空间
      */
     virtual uint32_t DetachSpace(const UbseSsuSpaceReq &req) = 0;
@@ -334,6 +337,7 @@ public:
      * @retval 非零 失败，具体错误码由实现定义
      *
      * @note 线性编址模式下，数据按顺序填充各成员设备
+     * @note 已挂载（ATTACHED状态）的空间重复挂载将报错（UBSE_ERR_ALREADY_ATTACHED），不再幂等返回成功
      */
     virtual uint32_t AttachLinearSpace(const UbseSsuLinearSpaceReq &req, std::vector<std::string> &nsDevPaths,
                                        std::string &devPath) = 0;
@@ -347,6 +351,8 @@ public:
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
+     *
+     * @note 已卸载（CREATED状态）的空间重复卸载将报错（UBSE_ERR_NO_NEED_DETACH），不再幂等返回成功
      */
     virtual uint32_t DetachLinearSpace(const UbseSsuLinearSpaceReq &req) = 0;
 
@@ -363,6 +369,7 @@ public:
      * @retval 非零 失败，具体错误码由实现定义
      *
      * @note RAID5 至少需要 3 个成员设备
+     * @note 已挂载（ATTACHED状态）的空间重复挂载将报错（UBSE_ERR_ALREADY_ATTACHED），不再幂等返回成功
      * @see UbseSsuStripedSpaceReq, UbseSsuAggregationRaidLevel, UbseSsuChunkSize
      */
     virtual uint32_t AttachStripedSpace(const UbseSsuStripedSpaceReq &req, std::vector<std::string> &nsDevPaths,
@@ -377,6 +384,8 @@ public:
      * @return uint32_t 错误码
      * @retval 0 成功
      * @retval 非零 失败，具体错误码由实现定义
+     *
+     * @note 已卸载（CREATED状态）的空间重复卸载将报错（UBSE_ERR_NO_NEED_DETACH），不再幂等返回成功
      */
     virtual uint32_t DetachStripedSpace(const UbseSsuStripedSpaceReq &req) = 0;
 
