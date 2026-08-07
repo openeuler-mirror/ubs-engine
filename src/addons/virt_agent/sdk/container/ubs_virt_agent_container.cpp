@@ -178,7 +178,7 @@ int32_t ubs_container_inject_waterLine(watermark_t* param)
 int32_t ubs_container_get_container_pids(container_id_list* containerIdList, container_pid_info** pidInfo,
                                          uint32_t* InfoSize)
 {
-    if (!containerIdList || !pidInfo || !InfoSize || (*containerIdList).containerIdSize > SDK_NO_128) {
+    if (!containerIdList || !pidInfo || !InfoSize || (*containerIdList).containerIdSize > SDK_MAX_CONTAINER_NUM) {
         IPC_LOG_ERROR << "Invalid parameters: param is null or InfoSize is null or containerIdSize is invalid.";
         return VM_ERROR;
     }

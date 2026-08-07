@@ -159,8 +159,8 @@ func goStringsToCContainerIdList(ids []string) (C.container_id_list, func(), err
 	cList = C.container_id_list{}
 
 	limit := len(ids)
-	if limit > int(C.SDK_NO_128) {
-		limit = int(C.SDK_NO_128)
+	if limit > int(C.SDK_MAX_CONTAINER_NUM) {
+		limit = int(C.SDK_MAX_CONTAINER_NUM)
 	}
 
 	for i := 0; i < limit; i++ {
@@ -231,7 +231,7 @@ func UbsGetContainerPids(containerIds []string) ([]ContainerPidInfo, error) {
 	}
 
 	count := int(cCount)
-	if count <= 0 || count > C.SDK_NO_128 {
+	if count <= 0 || count > C.SDK_MAX_CONTAINER_NUM {
 		return []ContainerPidInfo{}, fmt.Errorf("invalid pid count returned from C: %d", count)
 	}
 	results := convertCContainerPidInfos(cResult, count)

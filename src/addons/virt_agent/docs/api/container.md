@@ -430,7 +430,7 @@ int32_t ubs_container_get_container_pids(container_id_list *containerIdList, con
 
 ```c
 typedef struct {
-    char containerId[128][128];
+    char containerId[64][128];
     size_t containerIdSize;
 } container_id_list;
 typedef struct {
