@@ -2276,7 +2276,7 @@ void RunP1FaultLogReturnImportSendFailed(ubse::it::infra::ItCluster& cluster)
     comStubControl.SetMemApiWaitTimeOut(1);
 
     auto& obmmStubControl = cluster.GetObmmStubControl(importNodeId);
-    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT, 2000);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_UNIMPORT, 100);
 
     {
         const char* name = "it_p1_fl_ret_import_to_master_send_failed_fd";
@@ -3029,7 +3029,7 @@ void RunP1FaultLogShareDetachReqConflict(ubse::it::infra::ItCluster& cluster)
     }
 
     auto& obmmStubControl = cluster.GetObmmStubControl("1");
-    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 1000);
+    obmmStubControl.SetOpDelay(ObmmStubControl::OP_IMPORT, 100);
 
     {
         IT_LOG_INFO << "[ReturnReqConflict-01] Creating SHM with request conflict: name=" << name;
