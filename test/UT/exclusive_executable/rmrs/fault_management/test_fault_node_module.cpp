@@ -301,7 +301,7 @@ TEST_F(TestFaultNodeModule, GetBorrowNodeInfoFail2)
     std::string nodeId;
     std::vector<BorrowRecord> borrowRecords;
     MOCKER_CPP(&BorrowRecordHelper::GetFragmentFaultBorrowRecords,
-               MpResult(*)(const std::string nodeId, std::vector<BorrowRecord>& borrowRecords))
+               MpResult(*)(std::string nodeId, std::vector<BorrowRecord> & borrowRecords))
         .stubs()
         .will(returnValue(1));
     auto res = FaultNodeModule::Instance().GetBorrowNodeInfo(nodeId, borrowRecords);
@@ -310,7 +310,7 @@ TEST_F(TestFaultNodeModule, GetBorrowNodeInfoFail2)
 
 std::vector<std::string> TestGetNodeIds()
 {
-    std::vector<std::string> allNodeIdList = {"Node1"};
+    std::vector<std::string> allNodeIdList = {"FaultNode2"};
     return allNodeIdList;
 }
 
@@ -1966,7 +1966,7 @@ TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_AllGroupsSucceed_ReturnsOk
     EXPECT_EQ(res, MEM_POOLING_OK);
 }
 
-TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_PartialFailed_ReturnsPartialOk)
+TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_PartialFailed_Returns_LACK_REMOTE_MEM_ERROR)
 {
     MOCKER_CPP(&MpConfiguration::GetMustSamePlane, bool (*)(MpConfiguration*)).stubs().will(returnValue(false));
     MOCKER_CPP(&FaultNodeModule::GenerateNumaLevelDecision,
@@ -1983,7 +1983,7 @@ TEST_F(TestFaultNodeModule, FaultHandleBorrowStrategy_PartialFailed_ReturnsParti
     std::vector<ClusterSnapshotItem> baseSnapshot;
 
     MpResult res = FaultNodeModule::Instance().FaultHandleBorrowStrategy(borrowGroups, baseSnapshot);
-    EXPECT_EQ(res, MEM_POOLING_PARTIAL_OK);
+    EXPECT_EQ(res, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
 }
 
 // ==================== FaultHandleMigrate ====================
@@ -2675,7 +2675,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_InfosCollectFailed
 {
     MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
                MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
-                           std::vector<ClusterSnapshotItem>&))
+                           std::vector<ClusterSnapshotItem>&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_ERROR));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
@@ -2686,7 +2686,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyAllFailed_
 {
     MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
                MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
-                           std::vector<ClusterSnapshotItem>&))
+                           std::vector<ClusterSnapshotItem>&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
@@ -2701,7 +2701,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecOk_R
 {
     MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
                MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
-                           std::vector<ClusterSnapshotItem>&))
+                           std::vector<ClusterSnapshotItem>&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
@@ -2720,7 +2720,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyOkExecErro
 {
     MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
                MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
-                           std::vector<ClusterSnapshotItem>&))
+                           std::vector<ClusterSnapshotItem>&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
@@ -2739,7 +2739,7 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyPartialOkE
 {
     MOCKER_CPP(&FaultNodeModule::FaultHandleInfosCollect,
                MpResult(*)(FaultNodeModule*, const std::string&, std::vector<BorrowGroupResult>&,
-                           std::vector<ClusterSnapshotItem>&))
+                           std::vector<ClusterSnapshotItem>&, std::string&))
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
     MOCKER_CPP(&FaultNodeModule::FaultHandleBorrowStrategy,
@@ -2752,6 +2752,82 @@ TEST_F(TestFaultNodeModule, ProcessBorrowOutNodeFaultParallel_StrategyPartialOkE
         .will(returnValue(MEM_POOLING_OK));
     MpResult res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel("FaultNode", false);
     EXPECT_NE(res, MEM_POOLING_OK);
+}
+
+TEST_F(TestFaultNodeModule, FragmentHandleFault_BorrowRecordUpdateFail_PassesResourceCollectError)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault,
+               MpResult(*)(BorrowRecordHelper*, const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR));
+    MpResult res = FaultNodeModule::Instance().FragmentHandleFault("Node1");
+    EXPECT_EQ(res, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, FragmentHandleFault_DetermineNodeTypeFail_PassesResourceCollectError)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault,
+               MpResult(*)(BorrowRecordHelper*, const std::string))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    MOCKER_CPP(&BorrowRecordHelper::GetFragmentFaultBorrowRecords, MpResult(*)(std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR));
+    MpResult res = FaultNodeModule::Instance().FragmentHandleFault("Node2");
+    EXPECT_EQ(res, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, FaultHandleInfosCollect_GetBorrowNodeInfoFail_ReturnsResourceCollect)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultNodeModule::GetBorrowNodeInfo,
+               MpResult(*)(FaultNodeModule*, std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_ERROR));
+    std::vector<BorrowGroupResult> borrowGroups;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    std::string tmp;
+    MpResult res = FaultNodeModule::Instance().FaultHandleInfosCollect("FaultNode1", borrowGroups, baseSnapshot, tmp);
+    EXPECT_EQ(res, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, FaultHandleInfosCollect_EmptyBorrowRecords_ReturnsResourceCollect)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&FaultNodeModule::GetBorrowNodeInfo,
+               MpResult(*)(FaultNodeModule*, std::string, std::vector<BorrowRecord>&))
+        .stubs()
+        .will(returnValue(MEM_POOLING_OK));
+    std::vector<BorrowGroupResult> borrowGroups;
+    std::vector<ClusterSnapshotItem> baseSnapshot;
+    std::string tmp;
+    MpResult res = FaultNodeModule::Instance().FaultHandleInfosCollect("FaultNode2", borrowGroups, baseSnapshot, tmp);
+    EXPECT_EQ(res, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowAbleNodeIdList_AllNodeEmpty_ReturnsResourceCollect)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)())
+        .stubs()
+        .will(invoke(TestGetNodeIdsEmptyMock));
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)())
+        .stubs()
+        .will(invoke(TestGetNodeIdsEmptyMock));
+    std::vector<std::string> borrowAbleNodeIdList;
+    MpResult res = FaultNodeModule::Instance().GetBorrowAbleNodeIdList("FaultNode1", borrowAbleNodeIdList);
+    EXPECT_EQ(res, MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR);
+}
+
+TEST_F(TestFaultNodeModule, GetBorrowAbleNodeIdList_NoBorrowableNode_ReturnsLackRemote)
+{
+    GlobalMockObject::reset();
+    MOCKER_CPP(&MpConfiguration::GetNodeIds, std::vector<std::string>(*)()).stubs().will(invoke(TestGetNodeIds));
+    std::vector<std::string> borrowAbleNodeIdList;
+    MpResult res = FaultNodeModule::Instance().GetBorrowAbleNodeIdList("FaultNode2", borrowAbleNodeIdList);
+    EXPECT_EQ(res, MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR);
 }
 
 } // namespace mempooling

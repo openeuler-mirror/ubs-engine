@@ -662,7 +662,7 @@ MpResult OverCommitFaultMemIdModule::GetVmNumaInfoMapRpc(std::string importNodeI
         UbseRpcSend(endpoint_get_vm_info, reqData, &res, OverCommitFaultManagementHandler::GetVmNumaInfoMapResHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "UbseRpcSend failed.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_IPC_ERROR;
     }
     if (res.retCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "GetVmNumaInfoMapRpc execute failed.";
@@ -1146,7 +1146,7 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
     MpResult ret = mempooling::exportV2::Exporter::GetVmInfoImmediately(vmDomainInfos);
     if (MEM_POOLING_OK != ret) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "GetVmInfoImmediately failed.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (vmDomainInfos.empty()) {
         LOG_DEBUG << "CurRemoteNode vm empty, numaId=" << remoteNumaId << ".";
@@ -1156,7 +1156,7 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
     ret = mempooling::exportV2::Exporter::GetNumaInfoImmediately(numaInfos);
     if (MEM_POOLING_OK != ret) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "GetNumaInfoImmediately failed.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (numaInfos.empty()) {
         UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << TAG << "numaInfos is empty.";
@@ -1183,7 +1183,7 @@ MpResult OverCommitFaultMemIdModule::GetRemoteNumaVms(uint16_t remoteNumaId,
             numaInfos.begin(), numaInfos.end(),
             [info](mempooling::exportV2::NumaInfo& numaInfo) { return info.localNumaId == numaInfo.metaData.numaId; });
         if (vmLocalNumaInfo == numaInfos.end()) {
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
         }
         auto numaPageIt = vmLocalNumaInfo->metaData.numaPageInfo.find(HUGE_PAGE_SIZE);
         info.localFreeMem = (numaPageIt != vmLocalNumaInfo->metaData.numaPageInfo.end()) ?

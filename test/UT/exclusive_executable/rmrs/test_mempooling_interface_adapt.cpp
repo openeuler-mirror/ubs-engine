@@ -486,7 +486,7 @@ TEST_F(TestRackMempoolingInterfaceAdapt, RemoteNumaMigrate_SmapMigrateFailed_Fil
         .stubs()
         .will(returnValue(MEM_POOLING_OK));
 
-    auto ret = RemoteNumaMigrate(pids, srcNid, destNid);
+    int ret = RemoteNumaMigrate(pids, srcNid, destNid);
     EXPECT_NE(ret, 0);
     EXPECT_EQ(g_filterValidPidListCallCount, 1);
     EXPECT_EQ(g_smapEnableProcessMigrateHelperCallCount, 2);

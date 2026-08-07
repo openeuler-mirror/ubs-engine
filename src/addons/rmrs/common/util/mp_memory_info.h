@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "ubse_str_util.h"
+#include "mp_error.h"
 #include "mp_json_util.h"
 
 namespace mempooling {
@@ -150,7 +151,7 @@ struct NodeMemoryInfoList {
     std::vector<NodeMemoryInfo> nodeMemoryInfoList;
     bool FromJson(const std::string& jsonString);
     bool ParseNodeMemoryInfoMap(const JSON_VEC& nodeMemoryInfoListVec, const int& i, JSON_MAP& nodeMemoryInfoMap);
-    bool ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j, JSON_MAP& numaMemInfoMap);
+    MpResult ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j, JSON_MAP& numaMemInfoMap);
     bool CreateNodeMemoryInfoListVec(const std::string& jsonString, JSON_MAP& NodeMemoryInfoListMAP,
                                      JSON_VEC& nodeMemoryInfoListVec);
     bool CreateNumaMemInfoVec(JSON_VEC& numaMemInfoVec, const int& i, JSON_MAP& nodeMemoryInfoMap);

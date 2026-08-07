@@ -106,8 +106,8 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string& attachNode, const RackC
 
     if (GenerateUniqueId(attachNode, name) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemBorrow][MemBorrowExecute] Generate unique name failed.";
-        return MEM_POOLING_ERROR;
+            << "[MemBorrow][MemBorrowExecute] Generate unique name failed, attachNode=" << attachNode << ".";
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
 
     UbseMemBorrower borrower;
@@ -116,8 +116,9 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string& attachNode, const RackC
 
     if (PrepareMemNumaCreateParams(attachNode, attr, borrower, lenders, usrInfo) != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemBorrow][MemBorrowExecute] Prepare params of MemNumaCreate interface failed.";
-        return MEM_POOLING_ERROR;
+            << "[MemBorrow][MemBorrowExecute] Prepare params of MemNumaCreate interface failed, attachNode="
+            << attachNode << ".";
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
 
     if (isBorrowIdPersistence) {
@@ -138,9 +139,10 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string& attachNode, const RackC
     UbseResult errCode = UbseMemNumaCreateWithLender(name, borrower, lenders, usrInfo, ubseMemNumaDesc);
     auto end = std::chrono::steady_clock::now();
     if (errCode != UBSE_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute]"
-                                                             " Borrow memory by memfabric failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MemBorrowExecute] Borrow memory by memfabric failed, attachNode=" << attachNode
+            << " errCode=" << errCode << ".";
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
     // 处理结果
     presentNumaId = ubseMemNumaDesc.numaId;
@@ -149,7 +151,7 @@ MpResult MemBorrowExecutor::MemBorrow(const std::string& attachNode, const RackC
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowExecute] Borrow memory by memfabric success, but presentNumaId=" << presentNumaId
             << " is invalid, which is less than or equal to 0.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -646,13 +648,14 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
         MpResult retDirect = BorrowIdRedirection::Instance().Query(redirectNameKey, redirectNameVal);
         if (retDirect != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << name << " failed.";
-            return retDirect;
+                << "[MemFree][MemFreeExecute] Get redirection of borrow_id=" << name << " err=" << retDirect << ".";
+            return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
         }
         if (++redirectCount > MAX_REDIRECT_COUNT) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] Redirection chain too long for borrow_id=" << name << ".";
-            return MEM_POOLING_ERROR;
+                << "[MemFree][MemFreeExecute] Redirection chain too long for borrow_id=" << name
+                << " chainLength=" << redirectCount << ".";
+            return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
         }
     } while (!redirectNameVal.empty());
 
@@ -666,14 +669,15 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
         auto ret = MemFreeWithOpsBySmap(name, deleteName, isFault);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] MemFreeWithOpsBySmap failed.";
+                << "[MemFree][MemFreeExecute] MemFreeWithOpsBySmap failed, borrow_id=" << name << " err=" << ret << ".";
             return ret;
         }
     } else {
         auto ret = MemFreeWithOpsByMemfabric(name, deleteName, isFault);
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed.";
+                << "[MemFree][MemFreeExecute] MemFreeWithOpsByMemfabric failed, borrow_id=" << name << " err=" << ret
+                << ".";
             return ret;
         }
     }
@@ -684,8 +688,8 @@ MpResult MemBorrowExecutor::MemFreeWithOps(const std::string& name, bool isForce
     MpResult retDirect = RemoveBorrowIdRedirectionRecursively(name);
     if (retDirect != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[MemFree][MemFreeExecute] Remove redirection of borrow_id=" << name << " failed.";
-        return MEM_POOLING_ERROR;
+            << "[MemFree][MemFreeExecute] Remove redirection of borrow_id=" << name << " err=" << retDirect << ".";
+        return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
     }
 
     return MEM_POOLING_OK;

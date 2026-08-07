@@ -1812,7 +1812,7 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string no
     // 目前架构能查到的所有的节点都可以借用 查询所有节点
     std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
     if (allNodeIdList.empty()) {
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
 
     // 查找nodeId是否在列表中，不存在则添加
@@ -1830,14 +1830,14 @@ MpResult BorrowRecordHelper::UpdateBorrowRecordsWithFragmentFault(std::string no
         if (ret == UBSE_ERR_INTERNAL) {
             LOG_ERROR << "[MemLedger] [BorrowRecords][FaultManager] UbseGetNumaMemDebtInfoWithNode failed, ret="
                       << static_cast<uint32_t>(ret) << ".";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_IPC_ERROR;
         }
         std::vector<BorrowRecord> recordVec;
         for (auto& debtInfo : debtInfos) {
             BorrowRecord record;
             // 最小化修改：调用子函数完成转换
             if (!ConvertDebtToRecord(debtInfo, record)) {
-                return MEM_POOLING_ERROR;
+                return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
             }
             if (record.borrowRemoteNuma < 0) {
                 continue;
@@ -2565,8 +2565,9 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string& nodeId,
     std::map<std::string, std::vector<mempooling::exportV2::NumaInfo>> nodeInfoMap;
     UbseRoleInfo roleInfo;
     if (UbseGetMasterInfo(roleInfo) != 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "UbseGetMasterInfo failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[CollectBorrowableInfo] UbseGetMasterInfo failed, nodeId=" << nodeId << ".";
+        return MEM_POOLING_FAULT_IPC_ERROR;
     }
     UbseComEndpoint endpoint = {
         .moduleId = MP_MODULE_CODE, .serviceId = message::OPCODE_GET_ALL_NODEINFO, .address = roleInfo.nodeId};
@@ -2575,15 +2576,17 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string& nodeId,
     uint32_t retRpc = UbseRpcSend(endpoint, reqData, &nodeInfoMap, GetAllNodeInfoImmediatelyResHandler);
     delete[] reqData.data;
     if (retRpc != 0) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "UbseRpcSend failed , get all nodeInfo failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[CollectBorrowableInfo] UbseRpcSend failed, nodeId=" << nodeId << " retRpc=" << retRpc << ".";
+        return MEM_POOLING_FAULT_IPC_ERROR;
     }
     // 然后获取所有节点memory_info
     std::vector<UbseNodeNumaInfo> numaNodeInfoList;
     UbseResult ret = UbseGetAllNodeNumaInfo(numaNodeInfoList);
     if (ret != UBSE_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "UbseGetAllNodeNumaInfo failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[CollectBorrowableInfo] UbseGetAllNodeNumaInfo failed, nodeId=" << nodeId << " err=" << ret << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     std::unordered_map<std::string, std::vector<mempooling::exportV2::NumaInfoWithReservedMem>>
         nodeInfoMapWithReservedMem;
@@ -2638,8 +2641,8 @@ MpResult BorrowRecordHelper::CollectBorrowableInfo(const std::string& nodeId,
     auto ix = nodeMemoryInfoWithReservedMemList.find(nodeId);
     if (ix == nodeMemoryInfoWithReservedMemList.end()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << " [MemLedger][BorrowableMem] Can't find borrowable info of nodeId=" << nodeId;
-        return MEM_POOLING_ERROR;
+            << "[CollectBorrowableInfo] [MemLedger][BorrowableMem] Can't find borrowable info of nodeId=" << nodeId;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     nodeMemoryInfoWithReservedMem = ix->second;
     LOG_DEBUG << "[MemLedger][BorrowableMem] Parsed memory-info = " << nodeMemoryInfoWithReservedMem.ToString();
@@ -2709,8 +2712,10 @@ MpResult BorrowRecordHelper::CollectBorrowableInfoList(const std::vector<std::st
         NodeMemoryInfoWithReservedMem nodeMemoryInfoWithReservedMem;
         auto ret = CollectBorrowableInfo(node, nodeMemoryInfoWithReservedMem);
         if (ret != MEM_POOLING_OK) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[CollectBorrowableInfoList] CollectBorrowableInfo failed, nodeId=" << node << " err=" << ret << ".";
             nodeMemoryInfoList.clear();
-            return MEM_POOLING_ERROR;
+            return ret;
         }
 #ifdef UB_ENVIRONMENT
         LOG_INFO << "[FaultManager] [FaultLentNode]UB CollectBorrowableInfoList";

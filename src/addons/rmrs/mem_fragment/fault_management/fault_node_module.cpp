@@ -119,12 +119,12 @@ MpResult FaultNodeModule::DetermineNodeTypeFragment(const std::string nodeId, No
 {
     MpResult ret = MEM_POOLING_OK;
     std::vector<BorrowRecord> fragMentFaultBorrowRecords;
-    UbseResult retErrorCode =
+    MpResult retErrorCode =
         BorrowRecordHelper::Instance().GetFragmentFaultBorrowRecords(nodeId, fragMentFaultBorrowRecords);
     if (retErrorCode != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] GetFragmentFaultBorrowRecords failed.";
         nodeType = NodeType::ABNORMAL;
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (fragMentFaultBorrowRecords.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -310,7 +310,9 @@ MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
     // 目前架构能查到的所有的节点都可以借用 查询所有节点
     std::vector<std::string> allNodeIdList = MpConfiguration::GetInstance().GetNodeIds();
     if (allNodeIdList.empty()) {
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] [FaultLentNode] All nodeId list is empty, curDealNodeId=" << curDealNodeId << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     // 去除掉故障节点、已经是借入节点的节点(自己也是)
     for (std::string nodeId : allNodeIdList) {
@@ -327,7 +329,7 @@ MpResult FaultNodeModule::GetBorrowAbleNodeIdList(std::string curDealNodeId,
     if (borrowAbleNodeIdList.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultManager] [FaultLentNode] No borrowable nodeId " << curDealNodeId << ".";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
     }
     return MEM_POOLING_OK;
 }
@@ -339,8 +341,8 @@ MpResult FaultNodeModule::GetBorrowAbleNodeInfoSortByMemSize(
     MpResult res = BorrowRecordHelper::Instance().CollectBorrowableInfoList(borrowAbleNodeIdList, ableNodeMemInfoList);
     if (res != MEM_POOLING_OK || ableNodeMemInfoList.empty()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] [FaultLentNode] CollectBorrowableInfoList failed.";
-        return MEM_POOLING_ERROR;
+            << "[FaultManager] [FaultLentNode] CollectBorrowableInfoList failed, err=" << res << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     // 节点可借内存从大到小排序
     std::sort(ableNodeMemInfoList.begin(), ableNodeMemInfoList.end(),
@@ -779,41 +781,65 @@ void CheckUBTurboIsAliveResHandler(void* ctx, const UbseByteBuffer& respData, ui
     *result = true;
 }
 
+MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId)
+{
+    const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
+    for (const auto& [nId, nodeInfo] : allNodeInfo) {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[EventHandler] nodeId=" << nId << " in state of " << static_cast<int>(nodeInfo.clusterState) << ".";
+        if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
+            nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] Detect " << nId << " in state of " << static_cast<int>(nodeInfo.clusterState)
+                << " instead of working or fault.";
+            return MEM_POOLING_FAULT_PARTIAL_SUCCESS;
+        }
+    }
+    return MEM_POOLING_OK;
+}
+
 MpResult FaultNodeModule::FragmentHandleFault(std::string nodeId)
 {
     faultHandleCurRound++;
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " start.";
-
-    // =========基于不信任原则，获取账本并筛选合法条目===========
-    // =========仅处理合法条目，处理完后返回失败，利用UBSE故障重试机制继续处理===========
+        << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " start, nodeId=" << nodeId << ".";
+    MpResult ret = IsAllOtherNodesWorkingOrFault(nodeId);
     MpResult res = BorrowRecordHelper::Instance().UpdateBorrowRecordsWithFragmentFault(nodeId);
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager] UpdateBorrowRecordsWithFragmentFault failed.";
+            << "[FaultManager] UpdateBorrowRecordsWithFragmentFault failed, nodeId=" << nodeId << " err=" << res << ".";
         return res;
     }
 
     NodeType nodeType = NodeType::ABNORMAL;
     res = FaultNodeModule::Instance().DetermineNodeTypeFragment(nodeId, nodeType);
     if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] DetermineNodeType failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] DetermineNodeTypeFragment failed, nodeId=" << nodeId << " err=" << res << ".";
+        return res;
     }
     if (nodeType == NodeType::BORROW_IN) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] BORROW_IN Fault is handled by ubse.";
+        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] BORROW_IN Fault is handled by ubse, nodeId=" << nodeId << ".";
+        return MEM_POOLING_OK;
     } else if (nodeType == NodeType::BORROW_OUT) {
         res = FaultNodeModule::Instance().ProcessBorrowOutNodeFaultParallel(nodeId, true);
         if (res != MEM_POOLING_OK) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Process BORROW_OUT node fault failed.";
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] ProcessBorrowOutNodeFaultParallel failed, nodeId=" << nodeId << " err=" << res
+                << ".";
+            return res;
         } else {
-            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager] Process BORROW_OUT node fault success.";
+            UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultManager] ProcessBorrowOutNodeFaultParallel success, nodeId=" << nodeId << ".";
         }
+
+    } else {
+        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager] No actionable node type (NodeType=" << static_cast<int>(nodeType)
+            << "), nodeId=" << nodeId << ", letting retry mechanism handle.";
     }
-    UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-        << "[FaultManager] FragmentHandleFault round " << faultHandleCurRound << " end.";
-    // 处理完后返回失败，利用UBSE故障重试机制继续处理
-    return res;
+    return ret;
 }
 
 static void PrintCollectedInfos(const std::vector<BorrowGroupResult>& borrowGroups,
@@ -1025,7 +1051,10 @@ MpResult FaultNodeModule::GetBaseClusterSnapshot(const std::string& faultNodeId,
     std::vector<std::string> borrowAbleNodeIdList;
     MpResult res = GetBorrowAbleNodeIdList(faultNodeId, borrowAbleNodeIdList);
     if (res != MEM_POOLING_OK) {
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[GetBaseClusterSnapshot] GetBorrowAbleNodeIdList failed, faultNodeId=" << faultNodeId << " err=" << res
+            << ".";
+        return res;
     }
     if (borrowAbleNodeIdList.empty()) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1037,7 +1066,10 @@ MpResult FaultNodeModule::GetBaseClusterSnapshot(const std::string& faultNodeId,
     std::vector<NodeMemoryInfoWithReservedMem> ableNodeMemInfoList;
     res = GetBorrowAbleNodeInfoSortByMemSize(borrowAbleNodeIdList, ableNodeMemInfoList);
     if (res != MEM_POOLING_OK || ableNodeMemInfoList.empty()) {
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[GetBaseClusterSnapshot] GetBorrowAbleNodeInfoSortByMemSize failed, faultNodeId=" << faultNodeId
+            << " err=" << res << ".";
+        return res;
     }
 
     // 3. 转换为 ClusterSnapshotItem，并按 blockSize 对齐
@@ -1457,16 +1489,18 @@ MpResult FaultNodeModule::FaultHandleBorrowStrategy(std::vector<BorrowGroupResul
         }
     }
     if (totalFailed == (int)borrowGroups.size()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultHandleParallel][FaultHandleBorrowStrategy] All BorrowGroups generate strategy failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleParallel][FaultHandleBorrowStrategy] All "
+                                                             "BorrowGroups generate strategy failed, totalGroups="
+                                                          << borrowGroups.size() << ".";
+        borrowGroups.clear();
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
     }
 
     if (totalFailed > 0) {
         UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][FaultHandleBorrowStrategy] totalFailed count=" << totalFailed << " out of "
             << borrowGroups.size() << " groups.";
-        return MEM_POOLING_PARTIAL_OK;
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
     }
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -1613,9 +1647,30 @@ void FaultNodeModule::RebuildBorrowGroup(std::vector<BorrowGroupResult>& borrowG
     }
 }
 
+inline MpResult get_higher_priority_error(MpResult err1, MpResult err2)
+{
+    // 静态局部变量，线程安全且只初始化一次
+    static const std::unordered_map<MpResult, int32_t> kErrorRankMap = {
+        {MEM_POOLING_FAULT_IPC_ERROR, 1},        {MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR, 2},
+        {MEM_POOLING_LACK_LOCAL_MEM_ERROR, 3},   {MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR, 4},
+        {MEM_POOLING_FAULT_MIGRATE_ERROR, 5},    {MEM_POOLING_FAULT_BORROW_MEM_ERROR, 6},
+        {MEM_POOLING_FAULT_RETURN_MEM_ERROR, 7}, {MEM_POOLING_FAULT_PARTIAL_SUCCESS, 8},
+        {MEM_POOLING_MIGRATE_TIMEOUT, 9}};
+
+    // 获取 Rank，未定义的错误码默认给极大值（优先级最低）
+    auto get_rank = [&](MpResult err) -> int32_t {
+        auto it = kErrorRankMap.find(err);
+        return (it != kErrorRankMap.end()) ? it->second : INT32_MAX;
+    };
+
+    // 核心逻辑：谁的 Rank 小，就返回谁
+    return (get_rank(err1) < get_rank(err2)) ? err1 : err2;
+}
+
 MpResult FaultNodeModule::FaultHandleInfosCollect(const std::string& faultNodeId,
                                                   std::vector<BorrowGroupResult>& borrowGroups,
-                                                  std::vector<ClusterSnapshotItem>& baseSnapshot)
+                                                  std::vector<ClusterSnapshotItem>& baseSnapshot,
+                                                  std::string& nodeinfos)
 {
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultHandleInfosCollect] Faulthandle parallel collect infos start.";
@@ -1623,28 +1678,47 @@ MpResult FaultNodeModule::FaultHandleInfosCollect(const std::string& faultNodeId
     std::vector<BorrowRecord> borrowRecords;
     MpResult res = GetBorrowNodeInfo(faultNodeId, borrowRecords);
     if (res != MEM_POOLING_OK) {
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleInfosCollect] GetBorrowNodeInfo failed, faultNodeId=" << faultNodeId << " err=" << res
+            << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     if (borrowRecords.empty()) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultHandleInfosCollect] Get borrowRecords are empty.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleInfosCollect] Get borrowRecords are empty, faultNodeId=" << faultNodeId << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     // 初始化块大小（根据故障节点配置）
     SetBlockSizeKB(borrowRecords[0].borrowNode);
 
     borrowGroups = GroupBorrowRecordsByNuma(borrowRecords);
     if (borrowGroups.empty()) {
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleInfosCollect] GroupBorrowRecordsByNuma returned empty, faultNodeId=" << faultNodeId << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
-
+    std::set<std::string> nodeIds;
+    for (auto& bg : borrowGroups) {
+        nodeIds.insert(bg.borrowNodeId);
+    }
+    for (auto& nodeId : nodeIds) {
+        nodeinfos += nodeId;
+        nodeinfos += ",";
+    }
+    if (!nodeinfos.empty()) {
+        nodeinfos.pop_back();
+    }
+    auto finalError = MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     // 2. 采集虚机信息，并剔除采集失败的组
     for (auto it = borrowGroups.begin(); it != borrowGroups.end();) {
         std::vector<FaultNumaVmInfo> vmInfos;
-        if (GetVmOccupancyForGroup(it->borrowNodeId, it->remoteNumaId, vmInfos) != MEM_POOLING_OK) {
+        auto ret = GetVmOccupancyForGroup(it->borrowNodeId, it->remoteNumaId, vmInfos);
+        if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultHandleInfosCollect] Failed to get VM info for (borrowNodeId=" << it->borrowNodeId
-                << ", faultNuma=" << it->remoteNumaId << "), remove this group.";
+                << ", faultNuma=" << it->remoteNumaId << "), ret is " << ret << ", remove this group.";
             it = borrowGroups.erase(it); // 采集失败，删除当前组，iterator指向下一个
+            finalError = get_higher_priority_error(finalError, ret);
             continue;
         }
         it->vmInfos = std::move(vmInfos);
@@ -1657,17 +1731,20 @@ MpResult FaultNodeModule::FaultHandleInfosCollect(const std::string& faultNodeId
 
     // 如果所有组都被剔除，则无需继续
     if (borrowGroups.empty()) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultHandleInfosCollect] No valid borrow groups after VM info collection, skip.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleInfosCollect] No valid borrow groups after VM info collection, faultNodeId=" << faultNodeId
+            << ", borrowNodeIds=[" << nodeinfos << "], return " << finalError << ".";
+        return finalError;
     }
 
     RebuildBorrowGroup(borrowGroups);
 
-    // 3. 获取基础集群快照
+    // 3. 获取基础集群快照（失败时静默清空,降级继续）
     res = GetBaseClusterSnapshot(faultNodeId, baseSnapshot);
     if (res != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "Get cluster sapShot failed, ret=" << res << ".";
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultHandleInfosCollect] GetBaseClusterSnapshot failed (degraded), faultNodeId=" << faultNodeId
+            << " err=" << res << ".";
         baseSnapshot.clear();
     }
 
@@ -1767,23 +1844,26 @@ void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, u
 
 MpResult FaultNodeModule::FaultHandleExecuteParallel(std::vector<BorrowGroupResult>& borrowGroups)
 {
-    std::vector<std::future<MpResult>> futures;
+    if (borrowGroups.empty()) {
+        return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
+    }
+    std::vector<std::future<std::pair<std::string, MpResult>>> futures;
     // 1. 处理 NUMA 级别决策的组
     for (auto& group : borrowGroups) {
         if (group.strategyType != BorrowStrategyType::NUMA_LEVEL_STRATEGY) {
             continue;
         }
 
-        futures.push_back(std::async(std::launch::async, [this, &group]() -> MpResult {
+        futures.push_back(std::async(std::launch::async, [this, &group]() -> std::pair<std::string, MpResult> {
             MpResult result;
             MpResult sendRet = SendNumaLevelExecuteRpc(group.borrowNodeId, group, result);
             if (sendRet != MEM_POOLING_OK) {
-                return MEM_POOLING_ERROR;
+                return {group.borrowNodeId, MEM_POOLING_FAULT_IPC_ERROR};
             }
             UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultHandleParallel] borrowNodeId=" << group.borrowNodeId << ", faultNuma=" << group.remoteNumaId
                 << ",sendRet=" << sendRet << ", result=" << result << ".";
-            return result;
+            return {group.borrowNodeId, result};
         }));
     }
 
@@ -1793,22 +1873,26 @@ MpResult FaultNodeModule::FaultHandleExecuteParallel(std::vector<BorrowGroupResu
             continue;
         }
 
-        futures.push_back(std::async(std::launch::async, [this, &group]() -> MpResult {
+        futures.push_back(std::async(std::launch::async, [this, &group]() -> std::pair<std::string, MpResult> {
             MpResult result;
             MpResult sendRet = SendBorrowIdExecuteRpc(group.borrowNodeId, group, result);
             if (sendRet != MEM_POOLING_OK)
-                return MEM_POOLING_ERROR;
-            return result;
+                return {group.borrowNodeId, MEM_POOLING_FAULT_IPC_ERROR};
+            return {group.borrowNodeId, result};
         }));
     }
 
     // 3. 等待所有任务完成并统计失败数
     int failCount = 0;
     int successCnt = 0;
+    MpResult ret = MEM_POOLING_ERROR;
     for (auto& f : futures) {
-        MpResult res = f.get();
-        if (res != MEM_POOLING_OK) {
+        auto res = f.get();
+        if (res.second != MEM_POOLING_OK) {
             failCount++;
+            ret = get_higher_priority_error(res.second, ret);
+            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+                << "[FaultHandleParallel] borrowNodeId=" << res.first << ", result=" << res.second << ".";
         } else {
             successCnt++;
         }
@@ -1820,10 +1904,7 @@ MpResult FaultNodeModule::FaultHandleExecuteParallel(std::vector<BorrowGroupResu
     if (failCount == 0) {
         return MEM_POOLING_OK;
     }
-    if (successCnt == 0) {
-        return MEM_POOLING_ERROR;
-    }
-    return MEM_POOLING_PARTIAL_OK;
+    return ret;
 }
 
 MpResult FaultNodeModule::FaultHandleMigrate(uint16_t presentNumaId, uint16_t faultNumaId, std::vector<pid_t>& pids,
@@ -1842,7 +1923,7 @@ MpResult FaultNodeModule::FaultHandleMigrate(uint16_t presentNumaId, uint16_t fa
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][FaultHandleMigrate] Echo Hugepages failed.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_MIGRATE_ERROR;
     }
 
     // 远端迁移
@@ -1854,7 +1935,7 @@ MpResult FaultNodeModule::FaultHandleMigrate(uint16_t presentNumaId, uint16_t fa
             << ", newNumaId=" << presentNumaId << ".";
         // 远端迁移失败，回滚释放此次分配的大页
         FaultMemIdExecute::Instance().RollBackHugepages(presentNumaId, borrowMemSize);
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_MIGRATE_ERROR;
     }
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -2010,7 +2091,7 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][BorrowIdLevelExecute] Borrow mem error srcNode=" << group.borrowNodeId
             << ",destNode=" << decision.lentNodeId << ",size=" << decision.lentMemSize << ".";
-        return MEM_POOLING_ERROR;
+        return res;
     }
 
     // 2 分配大页+远端迁移
@@ -2023,7 +2104,7 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
         // 迁移失败，更新以借用但迁移失败的决策到数据库中
         BorrowIdLevelBorrowedDecision borrowedDecision;
         UpdateBorrowedDecisionBorrowIdLevel(group, decision, borrowExecuteResult, borrowedDecision);
-        return MEM_POOLING_ERROR;
+        return res;
     }
 
     // 3 归还旧内存
@@ -2031,7 +2112,7 @@ MpResult FaultNodeModule::BorrowIdLevelExecute(const BorrowGroupResult& group, B
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][BorrowIdLevelExecute] MemFreeWithOps error oldName=" << decision.oldName << ".";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
     }
     // 4 归还成功后更新借用描述符的重定向关系表
     MpResult retBorrId = BorrowIdRedirection::Instance().Update(decision.oldName, borrowExecuteResult.borrowIds[0]);
@@ -2206,7 +2287,7 @@ MpResult FaultNodeModule::NumaLevelMemBorrow(const BorrowGroupResult& group, Num
                         << newName << ", but memFree failed, ret=" << ret << ".";
                 }
             }
-            return MEM_POOLING_ERROR;
+            return res;
         }
         tmpRedirectionMap[record.name] = borrowExecuteResult;
         presentNumaId = borrowExecuteResult.presentNumaId[0]; // 所有record的presentNumaId相同
@@ -2234,7 +2315,7 @@ MpResult FaultNodeModule::NumaLevelBorrowedExecute(const BorrowGroupResult& grou
                                              .numaBorrowedDecision = decision};
         // 更新BorrowedDecisionMap
         FaultHandleBorrowedDecision::Instance().Update(decision.oldNumaId, borrowedDecision);
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_MIGRATE_ERROR;
     }
 
     // 2 迁移完成，移除BorrowedDecisionMap
@@ -2251,7 +2332,7 @@ MpResult FaultNodeModule::NumaLevelBorrowedExecute(const BorrowGroupResult& grou
         if (res != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
         }
         // 4 归还成功后，更新borrowId重定向关系
         MpResult retBorrId = BorrowIdRedirection::Instance().Update(oldName, newName);
@@ -2294,7 +2375,7 @@ MpResult FaultNodeModule::NumaLevelExecuteNormal(const BorrowGroupResult& group,
     if (res != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevelMemBorrow failed.";
-        return MEM_POOLING_ERROR;
+        return res;
     }
 
     // 2 远端迁移
@@ -2306,13 +2387,13 @@ MpResult FaultNodeModule::NumaLevelExecuteNormal(const BorrowGroupResult& group,
         // 迁移失败，更新borrowedDecisionMap
         BorrowedDecision borrowedDecision;
         fillBorrowedDecisionNumaLevel(group, decision, tmpRedirectionMap, borrowedDecision);
-        res = FaultHandleBorrowedDecision::Instance().Update(group.remoteNumaId, borrowedDecision);
-        if (res != MEM_POOLING_OK) {
+        auto ret = FaultHandleBorrowedDecision::Instance().Update(group.remoteNumaId, borrowedDecision);
+        if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultHandleParallel][NumaIdLevelExecute] FaultHandleBorrowedDecision Update failed. oldNumaId="
                 << group.remoteNumaId << ".";
         }
-        return MEM_POOLING_ERROR;
+        return res;
     }
 
     // 3 归还旧内存
@@ -2321,7 +2402,7 @@ MpResult FaultNodeModule::NumaLevelExecuteNormal(const BorrowGroupResult& group,
         if (res != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
         }
 
         MpResult retBorrId = BorrowIdRedirection::Instance().Update(oldName, borrowResult.borrowIds[0]);
@@ -2345,7 +2426,7 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
             if (ret != MEM_POOLING_OK) {
                 UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                     << "[FaultHandleParallel][NumaIdLevelExecute] MemFreeWithOps error oldName " << oldName << ".";
-                return MEM_POOLING_ERROR;
+                return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
             }
         }
         return MEM_POOLING_OK;
@@ -2365,7 +2446,7 @@ MpResult FaultNodeModule::NumaLevelExecute(const BorrowGroupResult& group, NumaL
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[FaultHandleParallel][NumaIdLevelExecute] NumaLevelDoExecute failed.";
-        return MEM_POOLING_ERROR;
+        return ret;
     }
 
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
@@ -2419,37 +2500,32 @@ MpResult FaultNodeModule::ProcessBorrowOutNodeFaultParallel(const std::string no
     // 采集阶段
     std::vector<BorrowGroupResult> borrowGroups;
     std::vector<ClusterSnapshotItem> clusterInfos;
-    auto ret = FaultHandleInfosCollect(nodeId, borrowGroups, clusterInfos);
+    std::string nodeinfos;
+    auto ret = FaultHandleInfosCollect(nodeId, borrowGroups, clusterInfos, nodeinfos);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager][FaultLentNode] Fault handle cluster infos collect failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager][FaultLentNode] Fault handle cluster infos collect failed, nodeId=" << nodeId
+            << " err=" << ret << ".";
+        return ret;
     }
-
     // 故障处理借用决策阶段
     auto strategyRes = FaultHandleBorrowStrategy(borrowGroups, clusterInfos);
     UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager][FaultLentNode] FaultHandle strategyRet=" << strategyRes << ".";
-    if (strategyRes == MEM_POOLING_ERROR) {
-        // 只有决策返回error时表示所有故障numa决策全部失败，直接return
-        // 返回完全成功MEM_POOLING_OK或部分成功MEM_POOLING_PARTIAL_OK都需进入到执行阶段
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[FaultManager][FaultLentNode] Fault handle borrow strategy generate failed.";
-        return MEM_POOLING_ERROR;
-    }
 
     // 故障处理执行阶段
     auto execRes = FaultHandleExecuteParallel(borrowGroups);
     UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE)
         << "[FaultManager][FaultLentNode] FaultHandle execute ret=" << execRes << ".";
 
-    if (execRes == MEM_POOLING_OK && strategyRes == MEM_POOLING_OK) {
-        UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][FaultLentNode] FaultHandle success.";
-        return MEM_POOLING_OK;
+    if (strategyRes != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[FaultManager][FaultLentNode] Fault handle borrow strategy generate failed. BorrowNodeIds: ["
+            << nodeinfos << "], return " << strategyRes << ".";
+        return strategyRes;
     }
 
-    UBSE_LOGGER_INFO(MP_MODULE_NAME, MP_MODULE_CODE) << "[FaultManager][FaultLentNode] FaultHandle finished.";
-    return MEM_POOLING_ERROR;
+    return execRes;
 }
 
 void GetPidListAndHugePageMemSize(const NumaReplaceReturnMsg& rpcMsg, std::vector<pid_t>& destPidList,
