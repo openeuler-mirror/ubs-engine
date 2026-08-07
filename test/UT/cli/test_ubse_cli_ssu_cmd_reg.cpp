@@ -55,6 +55,8 @@ const std::string ERR_INVALID_ATTACH_TYPE = "ERROR: Invalid type. The value must
 const std::string ERR_ATTACH_AGGREGATION_REQUIRES_TYPE =
     "ERROR: The option --dev_name, --level or --chunk_size requires --type.";
 const std::string ERR_DETACH_DEV_NAME_REQUIRES_TYPE = "ERROR: The option --dev_name requires --type.";
+const std::string ERR_SUMMARY_REJECTS_NAME =
+    "ERROR: The option -n or --name is only valid when --type is alloc_detail.";
 const std::string ERR_LINEAR_DEV_NAME_REQUIRED =
     "ERROR: The option -d or --dev_name is required when --type is Linear.";
 const std::string ERR_STRIPED_DEV_NAME_REQUIRED =
@@ -192,6 +194,9 @@ void ExpectDetailOutput(const std::shared_ptr<UbseCliResultEcho>& result)
     EXPECT_NE(output.find("lba_format"), std::string::npos);
     EXPECT_NE(output.find("uuid-aa"), std::string::npos);
     EXPECT_NE(output.find("/dev/nvme0n1"), std::string::npos);
+    // create/alloc_detail 共用的详情表应原样展示应答中的 nsSize 字节值。
+    EXPECT_NE(output.find("5368709120"), std::string::npos);
+    EXPECT_EQ(output.find("5G"), std::string::npos);
     EXPECT_NE(output.find("4K"), std::string::npos);
     // 旧字段不再属于当前契约：详情表不应出现 using_type 列与 SrcNqnList 表尾。
     EXPECT_EQ(output.find("using_type"), std::string::npos);
@@ -242,6 +247,16 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsUnsupportedType)
                            "ERROR: Invalid type. The value must be alloc_summary or alloc_detail.");
 }
 
+// alloc_summary 不接受 -n：传入 -n 应显式报错，且不进入 IPC 路径。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryRejectsName)
+{
+    ExpectRenderedContains(
+        UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}, {"name", "alloc-space-1"}}),
+        ERR_SUMMARY_REJECTS_NAME);
+    EXPECT_EQ(g_ssuMockLastModuleCode, 0);
+    EXPECT_EQ(g_ssuMockLastOpCode, 0);
+}
+
 // 摘要查询返回空列表时应输出 INFO 提示，并验证实际发出的 module/op code 正确。
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsInfoWhenEmpty)
 {
@@ -252,7 +267,7 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryReturnsInfoWhenEmpty)
 }
 
 // 摘要表正向内容校验：表头列名与各分配的 name/size/strategy 均应出现在输出中。
-// size 由 nameSpaceList[*].nsSize 求和得出，mock 提供 10G/20G 两条分配。
+// size 由 nameSpaceList[*].nsSize 求和得出，并以原始字节值展示。
 TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNameSizeStrategy)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_normal));
@@ -261,32 +276,29 @@ TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsNameSizeStrategy)
     EXPECT_NE(output.find("size"), std::string::npos);
     EXPECT_NE(output.find("strategy"), std::string::npos);
     EXPECT_NE(output.find("alloc-space-1"), std::string::npos);
-    EXPECT_NE(output.find("10G"), std::string::npos);
+    EXPECT_NE(output.find("10737418240"), std::string::npos);
     EXPECT_NE(output.find("Linear"), std::string::npos);
     EXPECT_NE(output.find("alloc-space-2"), std::string::npos);
-    EXPECT_NE(output.find("20G"), std::string::npos);
+    EXPECT_NE(output.find("21474836480"), std::string::npos);
     EXPECT_NE(output.find("Striped"), std::string::npos);
 }
 
-// 查询输出统一以 G 为单位，不再输出 M / K / 纯字节数
-TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryNeverEmitsMOrKOrBareBytes)
+// 非整 GiB 的摘要容量也应原样展示求和后的字节值。
+TEST_F(TestUbseCliSsuCmdReg, DisplaySummaryPrintsRawSize)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_summary_invoke_call_subgib));
     const std::string output = Render(UbseCliRegSsuModule::UbseCliDisplaySsuFunc({{"type", "alloc_summary"}}));
-    // 512MiB 在统一为 G 后应显示为 0G，而非 512M
-    EXPECT_NE(output.find("0G"), std::string::npos);
-    EXPECT_EQ(output.find("512M"), std::string::npos);
-    EXPECT_EQ(output.find("512K"), std::string::npos);
-    EXPECT_EQ(output.find("524288"), std::string::npos);
+    EXPECT_NE(output.find("536870912"), std::string::npos);
+    EXPECT_EQ(output.find("0G"), std::string::npos);
 }
 
-// 详情表格 size 列同样只以 G 展示
-TEST_F(TestUbseCliSsuCmdReg, DisplayDetailNeverEmitsMOrKOrBareBytes)
+// 详情表的 ns_size 应原样展示应答值，包括非整 GiB 容量。
+TEST_F(TestUbseCliSsuCmdReg, DisplayDetailPrintsRawResponseSize)
 {
     MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_alloc_detail_invoke_call_subgib));
     const std::string output = Render(UbseCliRegSsuModule::UbseCliDisplaySsuFunc(DetailParams()));
-    EXPECT_EQ(output.find("512M"), std::string::npos);
-    EXPECT_EQ(output.find("524288"), std::string::npos);
+    EXPECT_NE(output.find("536870912"), std::string::npos);
+    EXPECT_EQ(output.find("0G"), std::string::npos);
 }
 
 // 摘要查询 IPC 返回非零错误码时，应回显含错误码的 Internal error 文案。
