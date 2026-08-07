@@ -37,6 +37,24 @@ heartbeat.timeInterval=2000
 # Threshold for the number of lost standby node heartbeats. The value ranges from 3 to 20. Any invalid value will default to 3.
 heartbeat.lostThreshold=3
 
+[ubse.vip]
+# Whether to enable VIP management. When enabled, the master node binds VIP and announces it to the network.
+# The value can be true or false (default value). Any invalid value will be reset to false.
+# vip.enable=false
+# VIP address with CIDR prefix. Required when vip.enable is true.
+# The format is <ip>/<prefix>, e.g. 192.168.100.200/24. The prefix range is [1, 32].
+# vip.httpServer.listen.ip=192.168.100.200/24
+# HTTP listening port on VIP. The value range is [1024, 65535]. The default value is 10002.
+# vip.httpServer.listen.port=10002
+# Number of gratuitous ARP packets to send after VIP binding (L2 mode only). The value range is [1, 10]. The default value is 5.
+# vip.arpCount=5
+# Interval between gratuitous ARP packets in milliseconds (L2 mode only). The value range is [100, 5000]. The default value is 200.
+# vip.arpInterval=200
+
+[ubse.ssu]
+# Required. Admin Host NVMe Qualified Name, used by Master node to access SSU target for device discovery,
+# namespace management (create/delete), and access control (allow host) operations.
+#ssu.adminNqn=
 ```
 
 ## log日志配置说明
@@ -123,6 +141,118 @@ section取值：[ubse.urma]
 | 序号 | 参数      | 说明                                                   | 取值                                                         | 备注 |
 |------|-----------|--------------------------------------------------------|--------------------------------------------------------------|------|
 | 1    | topo_mode | UBSE在CLOS组网下向URMA UVS下发拓扑时使用的建链模式。1D-FULLMESH组网下该配置不生效。 | 默认值：用#注释<br>取值范围：<br>- non-cross<br>- hccs-cross<br>参数配置取值范围之外或错误值都会被重置为 non-cross。| 仅CLOS组网使用。 |
+
+## VIP配置说明
+
+section取值：[ubse.vip]
+
+VIP（Virtual IP）管理能力用于在主备切换场景下，将对外服务的虚拟 IP 绑定到当前主节点，保证外部访问地址不变。VIP 模块依赖选主能力，仅主节点绑定 VIP 并对外提供 HTTPS 服务，备节点/Agent 节点不绑定。VIP HTTP 服务使用 TCP+TLS 证书通信，开启前需在 `/var/lib/ubse/vip_server_cert/` 目录下部署证书文件（`server.pem`、`trust.pem`、`ca.crl`、`server_key.pem`、`key_pwd.txt`）。物理网卡名称由 K8s 辅助容器写入 `/var/run/ubse/ubse_iface`，UBSE 启动时读取。
+
+> [!NOTE]权限要求
+>
+> VIP 模块通过 fork+exec 执行 `ip addr add/del`（IP 绑定/解绑，需 `CAP_NET_ADMIN`）和 `arping`（发送免费 ARP，需 `CAP_NET_RAW`）命令完成网络操作。
+>
+> 默认安装的 `/usr/lib/systemd/system/ubse.service` 中已包含 `CAP_NET_ADMIN`，但未包含 `CAP_NET_RAW`。验证 VIP 功能前需手动编辑该文件，在 `CapabilityBoundingSet` 和 `AmbientCapabilities` 两项中均添加 `CAP_NET_RAW`：
+>
+>     ```ini
+>     CapabilityBoundingSet=... CAP_NET_ADMIN CAP_NET_RAW ...
+>     AmbientCapabilities=... CAP_NET_ADMIN CAP_NET_RAW ...
+>     ```
+>
+> 修改后执行 `sudo systemctl daemon-reload && sudo systemctl restart ubse` 使配置生效。
+
+配置项说明：
+
+| 序号 | 参数                       | 说明                                                  | 取值                                                                                                                                                               | 备注                                                                                                                                                                                                                                                                                       |
+|------|----------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1    | vip.enable                 | 是否开启 VIP 管理能力。开启后主节点绑定 VIP 并对外通告。 | 默认值：false<br>取值范围：[true，false]<br>如果取值超过范围则取默认值 false。                                                                                                  | -                                                                                                                                                                                                                                                                                          |
+| 2    | vip.httpServer.listen.ip   | VIP 地址及 CIDR 前缀。开启 VIP 时该项必填。           | 默认值：用#注释<br>格式：`<ip>/<prefix>`，例如 `192.168.100.200/24`<br>prefix 取值范围：[1, 32]<br>非法 IP 或 prefix 超范围时启动失败。                                              | - 地址必须为合法 IPv4 地址。<br>- prefix 表示子网掩码长度。                                                                                                                                                                                                                                  |
+| 3    | vip.httpServer.listen.port | VIP HTTP 服务的监听端口。                             | 默认值：10002<br>取值范围：[1024, 65535]<br>如果取值超过范围，则取默认值 10002。                                                                                                  | -                                                                                                                                                                                                                                                                                          |
+| 4    | vip.arpCount               | VIP 绑定后发送的免费 ARP 报文数量（仅 L2 模式生效）。  | 默认值：5<br>取值范围：[1, 10]<br>如果取值超过范围，则取默认值 5。                                                                                                                | - 用于在主备切换后加速网络设备刷新 ARP 缓存。                                                                                                                                                                                                                                                |
+| 5    | vip.arpInterval            | 发送免费 ARP 报文的时间间隔，单位毫秒（仅 L2 模式生效）。 | 默认值：200<br>单位：毫秒<br>取值范围：[100, 5000]<br>如果取值超过范围，则取默认值 200。                                                                                          | -                                                                                                                                                                                                                                                                                          |
+
+## SSU配置说明
+
+section取值：[ubse.ssu]
+
+SSU（Shared Storage Unit）插件用于 UB 存储资源的池化管理，支持命名空间分配/释放、访问权限控制、存储空间挂载/卸载，以及线性编址和条带化（RAID0/RAID5）聚合等能力。该配置段仅在安装 `ubs-engine-ssu` 插件子包后生效。
+
+配置项说明：
+
+| 序号 | 参数         | 说明                                                                                                                                                          | 取值                                                                                               | 备注                                                                                                                                                                                                                                                                                                                                                                                              |
+|------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1    | ssu.adminNqn | 管理 Host 的 NVMe Qualified Name（NQN）。主节点通过该 NQN 访问 SSU target，完成设备发现、命名空间创建/删除以及访问控制（allow host）等管理操作。 | 默认值：用#注释<br>取值范围：有效的 NVMe NQN 字符串，最大长度 69 个字符（含结尾字符'\0'）。 | - 使用 SSU 插件时必填，未配置或配置非法将导致 SSU 管理操作失败。<br>- 该 NQN 需与 SSU target 侧已注册的管理 Host NQN 一致。<br>- 所有节点的配置需保持一致。                                                                                                                                                                                                                                          |
+
+### SSU测试环境配置
+
+测试 SSU 相关功能时，除上述 `[ubse.ssu]` 配置段外，还需要修改插件准入配置、systemd 服务环境变量及设备权限。以下配置仅用于测试环境，**禁止用于生产环境**。
+
+**1. 修改 UBSE 主配置文件**
+
+编辑 `/etc/ubse/ubse.conf`，配置 SSU 管理 NQN、CLOS 组网根节点列表，并关闭 TLS 证书认证（测试环境无证书时）：
+
+```bash
+sudo vi /etc/ubse/ubse.conf
+```
+
+```ini
+[ubse.ssu]
+ssu.adminNqn=nqn.2026-07.com.example:e2e
+
+[ubse.rpc]
+cluster.rootList=192.168.100.100-192.168.100.101
+cert.use=false
+```
+
+> [!NOTE]说明
+>
+> - `ssu.adminNqn` 的值需与 SSU target 侧已注册的管理 Host NQN 保持一致。
+> - `cert.use=false` 关闭 TLS 证书认证后通信不加密，存在安全风险，仅限可信测试环境使用。
+> - `cluster.rootList` 为 CLOS 组网模式下的根节点 IP 列表，同时也是主节点候选列表。
+
+**2. 开启 SSU 插件准入**
+
+编辑 `/etc/ubse/ubse_plugin_admission.conf`，取消 `ssu_plugin` 的注释并设置插件号：
+
+```bash
+sudo vi /etc/ubse/ubse_plugin_admission.conf
+```
+
+```ini
+ssu_plugin=780
+```
+
+**3. 修改 systemd 服务环境变量与设备权限**
+
+SSU 插件通过环境变量 `SSU_NVME_SERVER_IP_LIST` 获取 SSU NVMe target 的 IP:PORT/EID 列表，用于设备发现与建链。同时需要给 `ubse` 用户授予 `/dev/` 和 `/dev/disk/by-id/` 的读写执行权限，以便访问聚合块设备。
+
+编辑 `/usr/lib/systemd/system/ubse.service`，在 `[Service]` 段中添加环境变量与 `ExecStartPre` 钩子：
+
+```bash
+sudo vi /usr/lib/systemd/system/ubse.service
+```
+
+```ini
+[Service]
+Environment=SSU_NVME_SERVER_IP_LIST=192.168.100.100:18080/0123456789ABCDEF,192.168.100.101:18082/1123456789ABCDEF
+Environment=SSU_SRC_EID=0123456789ABCDEF
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /dev/disk/by-id/  &>/dev/null || echo 'Unable to set /dev/disk/by-id/ acl'"
+ExecStartPre=/bin/sh -c "/usr/bin/setfacl -m u:ubse:rwx /dev/  &>/dev/null || echo 'Unable to set /dev/ acl'"
+```
+
+> [!NOTE]说明
+>
+> - `SSU_NVME_SERVER_IP_LIST` 格式为 `IP:PORT/EID`，多条以逗号分隔。其中 `PORT` 对应 SSU target 的监听端口，`EID` 对应 target 的 EID（16 字节十六进制字符串）。
+> - `SSU_SRC_EID` 为本节点（源端）的 EID，用于 SSU 建链时标识自身；取值为 16 字节十六进制字符串，需与 SSU target 侧为本节点登记的 EID 一致。未配置时源端 EID 置零，可能导致 target 侧鉴权失败。
+> - `ExecStartPre` 中的 `setfacl` 命令需要系统已安装 `acl` 包；若未安装，可执行 `sudo dnf install -y acl`。
+> - 修改 systemd 服务文件后，需执行 `sudo systemctl daemon-reload` 重新加载单元配置。
+
+**4. 重启 UBSE 服务使配置生效**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ubse
+```
 
 ## 权限点配置
 
