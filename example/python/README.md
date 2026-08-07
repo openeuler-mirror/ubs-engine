@@ -154,6 +154,8 @@ sudo dnf install -y python3-ubs-engine
 
 ubs engine 默认开启安全通信，需确保成功导入证书，否则集群状态可能异常，证书导入参考：[ubse_cli_user_guide](../../docs/zh/ubse_cli_user_guide.md#证书管理)，或修改配置文件 `/etc/ubse/ubse.conf`，将 `cert.use` 设置为 `false`，关闭安全通信。
 
+> **证书 otherName 传 nodeId**：导入的 server.pem 中 SAN 的 otherName（OID `1.3.6.1.4.1.2011.999.1`，UTF8String）值必须等于本节点 nodeId，否则 TLS 握手被拒。第三方/自建 CA 完整生成示例见 [ubse_security_description.md：证书 otherName OID 传 nodeId 示例](../../docs/zh/ubse_security_description.md#证书-othername-oid-传-nodeid-示例)。
+
 ```shell
 sudo systemctl start ubse
 ```

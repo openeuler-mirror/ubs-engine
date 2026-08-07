@@ -126,6 +126,55 @@ srw-rw---- ubse ubse /run/ubse/ubse.sock
 - UBSE只是证书的使用者，并不提供证书的管理能力(过期检查、更新等)，需要由系统的Owner自行构建证书管理系统
 - 证书的SAN扩展字段otherName（OID 1.3.6.1.4.1.2011.999.1）需要与导入证书所属节点的nodeId保持一致，否则TLS握手会被拒绝
 
+##### 证书 otherName OID 传 nodeId 示例
+
+> 适用于第三方/自建 CA 自行生成节点证书的场景。OID 固定 `1.3.6.1.4.1.2011.999.1`（UTF8String），值必须=本节点 nodeId；引擎握手时用 `VerifyLocalCertOtherName` 比对，不一致拒绝建链。
+
+```bash
+NODE_ID=node1                    # ← 必须等于该节点在集群中的 nodeId
+CA_CERT=shared_ca/CA/cacert.pem  # 全集群共用同一份 CA
+CA_KEY=shared_ca/CA/cakey.pem    # 仅签发机持有
+
+# 1) 生成节点私钥（2048 为最低可接受值，推荐 3072，NIST SP 800-57 建议 2030 年后使用 3072）
+openssl genrsa -out certs_node1/server_key.pem 3072
+
+# 2) openssl 配置：把 nodeId 填入 otherName（关键步骤）
+cat > certs_node1/san.cnf <<EOF
+[ req ]
+distinguished_name = dn
+req_extensions = v3_req
+prompt = no
+[ dn ]
+CN = ubse-server-${NODE_ID}
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = @alt_names
+[ alt_names ]
+otherName.1 = 1.3.6.1.4.1.2011.999.1;UTF8:${NODE_ID}
+DNS.1 = localhost
+EOF
+
+# 3) 生成 CSR（SAN otherName 已携带 nodeId）
+openssl req -new -key certs_node1/server_key.pem -config certs_node1/san.cnf \
+  -out certs_node1/server.csr
+
+# 4) 用 CA 签发（保留 SAN）
+openssl x509 -req -in certs_node1/server.csr -CA "$CA_CERT" -CAkey "$CA_KEY" \
+  -CAcreateserial -days 3650 -sha256 \
+  -extfile certs_node1/san.cnf -extensions v3_req \
+  -out certs_node1/server.pem
+
+# 5) 校验 otherName 已含 nodeId
+openssl x509 -in certs_node1/server.pem -noout -text | grep -A6 "Subject Alternative Name"
+```
+
+- **单行法**（openssl ≥ 1.1.1）：`openssl req -new -key key.pem ... -addext "subjectAltName=otherName:1.3.6.1.4.1.2011.999.1;UTF8:${NODE_ID}"`。
+- **老版本 openssl** 需注册 OID：配置顶部加 `[ new_oids ]` 段 `UBSE_NodeId = 1.3.6.1.4.1.2011.999.1`，再写 `otherName.1 = UBSE_NodeId;UTF8:${NODE_ID}`。
+- 导入：`ubsectl import cert -s certs_node1/server.pem -c shared_ca/CA/cacert.pem -k certs_node1/server_key.pem -l shared_ca/CA/ca.crl`。
+- 约束：每节点各写各的 nodeId，不得复制同一张证书；otherName ≠ 本节点 nodeId 时握手被拒。
+
 **安全风险提示：**
 
 - 不开启的TLS的UB(URMA)通信以及纯TCP通信，没有认证和加密，存在仿冒、消息泄漏等安全风险，请确保UBSE运行的软硬件环境是可信的；
