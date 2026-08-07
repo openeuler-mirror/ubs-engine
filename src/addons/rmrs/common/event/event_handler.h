@@ -38,8 +38,6 @@ private:
     static MpResult ResolveOverCommitMode(bool& isOverCommit, bool useSimplified);
 
     static MpResult HandleOverCommitNodeFault(const std::string& nodeId, bool isSimplified);
-
-    static MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId);
 };
 } // namespace event
 } // namespace mempooling

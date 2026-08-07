@@ -265,7 +265,7 @@ public:
 
     MpResult ProcessBorrowOutNodeFaultParallel(const std::string nodeId, bool forceDeleteMem);
     MpResult FaultHandleInfosCollect(const std::string& faultNodeId, std::vector<BorrowGroupResult>& borrowGroups,
-                                     std::vector<ClusterSnapshotItem>& baseSnapshot);
+                                     std::vector<ClusterSnapshotItem>& baseSnapshot, std::string& nodeinfos);
     std::vector<BorrowGroupResult> GroupBorrowRecordsByNuma(const std::vector<BorrowRecord>& records);
     MpResult GetVmOccupancyForGroup(const std::string& borrowNodeId, uint16_t remoteNumaId,
                                     std::vector<FaultNumaVmInfo>& vmInfos);
@@ -326,6 +326,7 @@ void BorrowIdLevelExecuteResHandler(void* ctx, const UbseByteBuffer& respData, u
 uint32_t GetBorrowedDecisionHandler(const UbseByteBuffer& req, UbseByteBuffer& resp);
 void GetBorrowedDecisionResHandler(void* ctx, const UbseByteBuffer& respData, uint32_t resCode);
 
+MpResult IsAllOtherNodesWorkingOrFault(const std::string& nodeId);
 class MpFaultNodeSubModule : public MpSubModule {
 public:
     MpResult Init() override

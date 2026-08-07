@@ -82,8 +82,8 @@ bool NodeMemoryInfoList::ParseNodeMemoryInfoMap(const JSON_VEC& nodeMemoryInfoLi
     return MEM_POOLING_OK;
 }
 
-bool NodeMemoryInfoList::ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j,
-                                             JSON_MAP& numaMemInfoMap)
+MpResult NodeMemoryInfoList::ParseNumaMemInfoMap(const JSON_VEC& numaMemInfoVec, const int& i, const int& j,
+                                                 JSON_MAP& numaMemInfoMap)
 {
     static const std::vector<std::string> keys = {"numaId",      "socketId",   "memTotal",  "memFree",
                                                   "memUsed",     "vmMemTotal", "vmMemFree", "vmMemUsed",

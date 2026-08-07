@@ -1002,7 +1002,7 @@ MpResult MempoolBorrowModule::MemFree(std::string nodeId)
             << "[MemFree][MemFreeExecute] MemFree strategy and execute failed, ubturbo rmrs error code="
             << migrateBackResult.result << ".";
         if (migrateBackResult.result == MEM_POOLING_RMRS_MIGRATE_FAILED_VM_DELETED) {
-            return MEM_POOLING_MIGRATE_FAILED_VM_DELETED;
+            return MEM_POOLING_FAULT_RETURN_MEM_ERROR;
         }
         return migrateBackResult.result;
     }
@@ -1094,14 +1094,14 @@ MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrow
     MpResult ret = UbseMemGetTopologyInfo(nodeTopology);
     if (ret != 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] Get topo from rack failed!";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     std::string srcNidAndSocketId = srcParam.srcNid + "-" + std::to_string(srcParam.srcSocketId);
     auto it = nodeTopology.find(srcNidAndSocketId);
     if (it == nodeTopology.end()) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowExecute] Can't find " << srcNidAndSocketId << " in nodeTopology";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     std::vector<MemNodeData> foundNodeData = it->second;
     for (const auto& destParam : destParams) {
@@ -1114,7 +1114,7 @@ MpResult MempoolBorrowModule::ValidateBorrowParamSamePlane(const SrcMemoryBorrow
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] destNodeSocket=" << destParam.destNid << "." << destParam.destSocketId
                 << " is not on the same plane with srcNodeSocket=" << srcParam.srcNid << "." << srcParam.srcSocketId;
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
         }
     }
     return MEM_POOLING_OK;
@@ -1126,27 +1126,29 @@ MpResult MempoolBorrowModule::ValidateDestNids(const SrcMemoryBorrowParam& srcPa
     std::unordered_set<std::string> couldBorrowNodeSet;
     auto ret = MpParseGroupProviderConf::Instance().GetBorrowableList(srcParam.srcNid, couldBorrowNodeSet);
     if (ret != MEM_POOLING_OK) {
-        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "[MemBorrow][MemBorrowExecute] GetBorrowableList failed.";
-        return MEM_POOLING_ERROR;
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[MemBorrow][MemBorrowExecute] GetBorrowableList failed, srcNid=" << srcParam.srcNid << " err=" << ret
+            << ".";
+        return MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR;
     }
     for (auto& destParam : destParams) {
         if (couldBorrowNodeSet.find(destParam.destNid) == couldBorrowNodeSet.end()) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] destNid=" << destParam.destNid
                 << " is not borrowable for srcNid=" << srcParam.srcNid;
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
         }
         if (destParam.destNumaNum != 1) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] destNumaNum=" << destParam.destNumaNum << " is not equal to 1.";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
         }
         if (destParam.destNumaId.size() != destParam.destNumaNum || destParam.memSize.size() != destParam.destNumaNum) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] destNumaId_size=" << destParam.destNumaId.size()
                 << "or memSize_size=" << destParam.memSize.size()
                 << "is not equal to destNumaNum=" << destParam.destNumaNum << ".";
-            return MEM_POOLING_ERROR;
+            return MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR;
         }
     }
 
@@ -1163,7 +1165,7 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam& srcPa
     if (srcParam.srcNumaId < 0) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
             << "[MemBorrow][MemBorrowExecute] SrcNumaId is invalid, numaId=" << srcParam.srcNumaId << " less than 0.";
-        return MEM_POOLING_ERROR;
+        return MEM_POOLING_FAULT_BORROW_MEM_ERROR;
     }
     if (MpConfiguration::GetInstance().GetMustSamePlane()) {
         ret = ValidateBorrowParamSamePlane(srcParam, destParams);
@@ -1180,8 +1182,8 @@ MpResult MempoolBorrowModule::MemBorrowExecute(const SrcMemoryBorrowParam& srcPa
         if (ret != MEM_POOLING_OK) {
             UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
                 << "[MemBorrow][MemBorrowExecute] ExecuteSingleBorrow failed, destParam=" << destParam.ToString()
-                << ".";
-            return MEM_POOLING_ERROR;
+                << " err=" << ret << ".";
+            return ret;
         }
     }
 

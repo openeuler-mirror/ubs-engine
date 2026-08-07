@@ -61,18 +61,36 @@ using VmResult = uint32_t;
 /* common错误码定义，全局唯一，记录系统的标准错误返回 */
 /* ********************************************* */
 
-#define MEM_POOLING_ERROR_SIGN_INT (-1)                                   /* 错误, 有符号数-1 */
-#define MEM_POOLING_OK MEM_POOLING_COMMON_ERROR(0)                        /* 正确 */
-#define MEM_POOLING_ERROR MEM_POOLING_COMMON_ERROR(1)                     /* 错误 */
-#define MEM_POOLING_MIGRATE_FAILED_VM_DELETED MEM_POOLING_COMMON_ERROR(2) /* SMAP迁移失败-迁移过程中虚机被删除 */
-#define MEM_POOLING_MIGRATE_FAILED MEM_POOLING_COMMON_ERROR(3)            /* SMAP迁移失败通用错误码 */
-#define MEM_POOLING_RESOURCE_DELETE MEM_POOLING_COMMON_ERROR(4)           /* UBSE删除内存资源失败 */
-#define MEM_POOLING_ERROR_SRCH MEM_POOLING_COMMON_ERROR(5)                /* No such process */
-#define MEM_POOLING_ERROR_EXIST MEM_POOLING_COMMON_ERROR(6)               /* File exists */
-#define MEM_POOLING_ERROR_NOSPC MEM_POOLING_COMMON_ERROR(7)               /* No space left on device */
-#define MEM_POOLING_ERROR_AGAIN MEM_POOLING_COMMON_ERROR(8)               /* Try again */
-#define MEM_POOLING_ERROR_IO MEM_POOLING_COMMON_ERROR(9)                  /* I/O error */
-#define MEM_POOLING_ERROR_BADF MEM_POOLING_COMMON_ERROR(10)               /* Bad file descriptor */
+#define MEM_POOLING_ERROR_SIGN_INT (-1)            /* 错误, 有符号数-1 */
+#define MEM_POOLING_OK MEM_POOLING_COMMON_ERROR(0) /* 正确 */
+/* 节点通信失败 */
+#define MEM_POOLING_FAULT_IPC_ERROR MEM_POOLING_COMMON_ERROR(1)
+
+/* 内存迁移失败*/
+#define MEM_POOLING_FAULT_MIGRATE_ERROR MEM_POOLING_COMMON_ERROR(2)
+
+/* 本地内存不足 */
+#define MEM_POOLING_LACK_LOCAL_MEM_ERROR MEM_POOLING_COMMON_ERROR(3)
+
+/* 借用内存不足*/
+#define MEM_POOLING_FAULT_LACK_REMOTE_MEM_ERROR MEM_POOLING_COMMON_ERROR(4)
+
+/* 资源采集失败 */
+#define MEM_POOLING_FAULT_RESOURCE_COLLECT_ERROR MEM_POOLING_COMMON_ERROR(5)
+
+/* 借用执行失败 */
+#define MEM_POOLING_FAULT_BORROW_MEM_ERROR MEM_POOLING_COMMON_ERROR(6)
+
+/* 归还内存失败 */
+#define MEM_POOLING_FAULT_RETURN_MEM_ERROR MEM_POOLING_COMMON_ERROR(7)
+
+/* 部分成功*/
+#define MEM_POOLING_FAULT_PARTIAL_SUCCESS MEM_POOLING_COMMON_ERROR(8)
+
+/* 迁移超时*/
+#define MEM_POOLING_MIGRATE_TIMEOUT MEM_POOLING_COMMON_ERROR(9)
+
+#define MEM_POOLING_ERROR_BADF MEM_POOLING_COMMON_ERROR(10)                /* Bad file descriptor */
 #define MEM_POOLING_ERROR_CONF_INVALID MEM_POOLING_COMMON_ERROR(11)        /* 非法的配置文件 */
 #define MEM_POOLING_ERROR_NULLPTR MEM_POOLING_COMMON_ERROR(12)             /* 空指针 */
 #define MEM_POOLING_MASTER_EMPTY_VECTOR_ERROR MEM_POOLING_COMMON_ERROR(13) /* 空数组 */
@@ -87,6 +105,16 @@ using VmResult = uint32_t;
 #define MEM_POOLING_RMRS_MIGRATE_FAILED_VM_DELETED MEM_POOLING_COMMON_ERROR(24) /* SMAP迁移失败-迁移过程中虚机被删除 */
 #define MEM_POOLING_PARTIAL_OK MEM_POOLING_COMMON_ERROR(25)                     /* 部分成功 */
 #define MEM_POOLING_HANDLING_FAULT MEM_POOLING_COMMON_ERROR(26)                 /* 处理故障错误码 */
+#define MEM_POOLING_ERROR_IO MEM_POOLING_COMMON_ERROR(27)                       /* I/O error */
+#define MEM_POOLING_MIGRATE_FAILED MEM_POOLING_COMMON_ERROR(28)                 /* SMAP迁移失败通用错误码 */
+#define MEM_POOLING_RESOURCE_DELETE MEM_POOLING_COMMON_ERROR(29)                /* UBSE删除内存资源失败 */
+#define MEM_POOLING_ERROR_SRCH MEM_POOLING_COMMON_ERROR(30)                     /* No such process */
+#define MEM_POOLING_ERROR_EXIST MEM_POOLING_COMMON_ERROR(31)                    /* File exists */
+#define MEM_POOLING_ERROR_NOSPC MEM_POOLING_COMMON_ERROR(32)                    /* No space left on device */
+#define MEM_POOLING_ERROR_AGAIN MEM_POOLING_COMMON_ERROR(33)                    /* Try again */
+
+#define MEM_POOLING_ERROR MEM_POOLING_COMMON_ERROR(99) /* 错误 */
+
 /* **************************************** */
 /* http模块错误码定义                        */
 /* **************************************** */

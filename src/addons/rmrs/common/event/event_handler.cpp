@@ -96,23 +96,6 @@ MpResult EventHandler::ResolveOverCommitMode(bool& isOverCommit, bool useSimplif
     return CheckIsOverCommitMode(isOverCommit);
 }
 
-MpResult EventHandler::IsAllOtherNodesWorkingOrFault(const std::string& nodeId)
-{
-    const auto allNodeInfo = UbseNodeController::GetInstance().GetAllNodes();
-    for (const auto& [nId, nodeInfo] : allNodeInfo) {
-        UBSE_LOGGER_DEBUG(MP_MODULE_NAME, MP_MODULE_CODE)
-            << "[EventHandler] nodeId=" << nId << " in state of " << static_cast<int>(nodeInfo.clusterState) << ".";
-        if (nId != nodeId && nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_WORKING &&
-            nodeInfo.clusterState != UbseNodeClusterState::UBSE_NODE_FAULT) {
-            UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE)
-                << "[FaultManager] Detect " << nId << " in state of " << static_cast<int>(nodeInfo.clusterState)
-                << " instead of working or fault.";
-            return MEM_POOLING_ERROR;
-        }
-    }
-    return MEM_POOLING_OK;
-}
-
 MpResult EventHandler::HandleOverCommitNodeFault(const std::string& nodeId, bool isSimplified)
 {
     NodeType nodeType = NodeType::ABNORMAL;
