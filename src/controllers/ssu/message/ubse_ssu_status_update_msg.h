@@ -23,6 +23,7 @@ using namespace ubse::plugin::service::ssu;
 struct UbseSsuStatusUpdateReq {
     std::string requestName;
     UbseSsuNsState state{UbseSsuNsState::IDLE};
+    std::string devName; // 聚合块设备名称（Linear/Striped场景），agent attach成功时随状态上报，master写入账本
 };
 
 struct UbseSsuStatusUpdateRsp {
@@ -33,7 +34,7 @@ class UbseSsuStatusReqMsg : public ubse::com::UbseRpcMessage {
 public:
     UbseSsuStatusReqMsg() = default;
 
-    UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state);
+    UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state, const std::string &devName = "");
 
     const UbseSsuStatusUpdateReq &GetStatusUpdateReq() const;
 

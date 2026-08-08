@@ -59,6 +59,9 @@ constexpr uint32_t MAX_RETRY_COUNT = 3;
 // 分配总大小的对齐粒度：1GiB
 constexpr uint64_t ONE_GIB = 1024ULL * 1024ULL * 1024ULL;
 
+// 聚合块设备根目录
+constexpr const char *SSU_AGGREGATE_DEV_ROOT = "/dev/ssu/";
+
 // 获取SSU服务单例实例
 UbseSsuServiceImp &UbseSsuServiceImp::GetInstance()
 {
@@ -725,7 +728,7 @@ uint32_t UbseSsuServiceImp::ExecuteFree(const std::string &name, const UbseSsuAl
 }
 
 // agent端发送SSU状态更新RPC请求到master节点
-static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state)
+static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState state, const std::string &devName)
 {
     UbseRoleInfo masterInfo{};
     auto res = UbseGetMasterInfo(masterInfo);
@@ -741,7 +744,7 @@ static uint32_t SendStatusUpdate(const std::string &requestName, UbseSsuNsState 
         return UBSE_SSU_ERROR_RPC_SEND_FAILED;
     }
 
-    UbseSsuStatusReqMsg reqMsg(requestName, state);
+    UbseSsuStatusReqMsg reqMsg(requestName, state, devName);
     UbseSsuSyncRespMsg rspMsg; // 占位，后续通过异步线程返回真正结果
     res = endpoint->UbseRpcSend(masterInfo.nodeId, reqMsg, rspMsg);
     if (res != UBSE_OK) {
@@ -769,13 +772,19 @@ static std::string ResolveNqn(const std::string &nqn, const char *defaultNqn)
 }
 
 // 更改进程状态：master端更新本地账本状态，agent端仅发送状态通知给master
-static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState state, bool isMaster)
+// devName：聚合块设备名称（Linear/Striped场景），attach成功时携带，master端写入账本；通用场景为空
+static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState state, bool isMaster,
+                                    const std::string &devName = "")
 {
     if (isMaster) {
         UbseSsuNsState oldState;
-        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState](UbseSsuLedgerEntry &e) {
+        if (!UbseSsuDebtLedger::GetInstance().Modify(name, [&state, &oldState, &devName](UbseSsuLedgerEntry &e) {
                 oldState = e.state;
                 e.state = state;
+                // 非空才覆盖，保留历史devName（detach回退CREATED等场景不清理）
+                if (!devName.empty()) {
+                    e.devName = devName;
+                }
             })) {
             UBSE_LOG_ERROR << "UpdateStateOrNotify: ledger entry not found, name=" << name
                            << ", state=" << static_cast<int>(state);
@@ -785,7 +794,7 @@ static uint32_t UpdateStateOrNotify(const std::string &name, UbseSsuNsState stat
     }
 
     // agent侧：仅发送状态更新，不维护本地账本
-    auto ret = SendStatusUpdate(name, state);
+    auto ret = SendStatusUpdate(name, state, devName);
     if (ret != UBSE_OK) {
         UBSE_LOG_WARN << "UpdateStateOrNotify: SendStatusUpdate failed, name=" << name
                       << ", state=" << static_cast<int>(state) << ", ret=" << ret;
@@ -989,7 +998,16 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
         for (const auto &nsInfo : verifyResp.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
         }
-        // blockDeviceOptions不为空时，nameSpaceList仅包含已挂载的NS，需补充缺失的devPath
+        // 聚合块设备场景（blockDeviceOptions非空）：devPath恒为/dev/ssu/{devName}，
+        // devName由master账本在verify响应中带回（agent无本地账本，不能取请求参数避免与首次创建不一致）
+        if (blockDeviceOptions != nullptr && !verifyResp.devName.empty()) {
+            if (!IsValidDevName(verifyResp.devName)) {
+                UBSE_LOG_ERROR << "AgentAttach: invalid devName format, name=" << req.name
+                               << ", devName=" << verifyResp.devName;
+                return UBSE_ERR_INVALID_ARG;
+            }
+            devPath = SSU_AGGREGATE_DEV_ROOT + verifyResp.devName;
+        }
         UBSE_LOG_INFO << "AgentAttach: already attached, name=" << req.name;
         return UBSE_ERR_ALREADY_ATTACHED;
     }
@@ -1035,7 +1053,9 @@ static uint32_t AgentAttach(const UbseSsuSpaceReq &req, const std::string &devNa
         }
     }
 
-    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, false);
+    // 聚合块设备场景上报devName，master写入账本供重复挂载回填devPath
+    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, false,
+                        blockDeviceOptions != nullptr ? devName : "");
     UBSE_LOG_INFO << "AgentAttach success: name=" << req.name << ", nsCount=" << nsDevPaths.size();
     return UBSE_OK;
 }
@@ -1477,7 +1497,8 @@ static uint32_t AttachNsAndCreateBlockDevice(const UbseSsuLinearSpaceReq &req,
         return UBSE_SSU_ERROR_BLOCK_DEVICE_CREATE_FAILED;
     }
 
-    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true);
+    // 同步写入聚合块设备名到账本，供重复挂载回填devPath（devPath恒为/dev/ssu/{devName}）
+    UpdateStateOrNotify(req.name, UbseSsuNsState::ATTACHED, true, req.devName);
     return UBSE_OK;
 }
 
@@ -1527,7 +1548,15 @@ uint32_t UbseSsuServiceImp::AttachLinearSpace(const UbseSsuLinearSpaceReq &req, 
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
         }
-        // blockDeviceOptions不为空时，nameSpaceList仅包含已挂载的NS，需补充缺失的devPath
+        // 聚合块设备场景：devPath恒为/dev/ssu/{devName}，从账本取（master重启重建后devName为空，无法回填）
+        if (!entryPtr->devName.empty()) {
+            if (!IsValidDevName(entryPtr->devName)) {
+                UBSE_LOG_ERROR << "AttachLinearSpace: invalid devName in ledger, name=" << req.name
+                               << ", devName=" << entryPtr->devName;
+                return UBSE_ERR_INVALID_ARG;
+            }
+            devPath = SSU_AGGREGATE_DEV_ROOT + entryPtr->devName;
+        }
         return UBSE_ERR_ALREADY_ATTACHED;
     }
 
@@ -1611,7 +1640,15 @@ uint32_t UbseSsuServiceImp::AttachStripedSpace(const UbseSsuStripedSpaceReq &req
         for (const auto &nsInfo : entryPtr->allocResult.nameSpaceList) {
             nsDevPaths.push_back(nsInfo.nsDevPath);
         }
-        // blockDeviceOptions不为空时，nameSpaceList仅包含已挂载的NS，需补充缺失的devPath
+        // 聚合块设备场景：devPath恒为/dev/ssu/{devName}，从账本取（master重启重建后devName为空，无法回填）
+        if (!entryPtr->devName.empty()) {
+            if (!IsValidDevName(entryPtr->devName)) {
+                UBSE_LOG_ERROR << "AttachStripedSpace: invalid devName in ledger, name=" << req.name
+                               << ", devName=" << entryPtr->devName;
+                return UBSE_ERR_INVALID_ARG;
+            }
+            devPath = SSU_AGGREGATE_DEV_ROOT + entryPtr->devName;
+        }
         return UBSE_ERR_ALREADY_ATTACHED;
     }
 

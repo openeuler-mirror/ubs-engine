@@ -209,6 +209,13 @@ static void HandleStatusReceiver(const uint8_t *reqData, uint32_t reqSize, std::
                 return;
             }
             e.state = statusReq.state;
+            // 同步上报的聚合块设备名（attach成功时由agent携带，非空才覆盖，保留历史值）。
+            // 上报值会拼接为/dev/ssu/{devName}路径，需过白名单校验防路径穿越（agent为可信节点，属纵深防御）
+            if (!statusReq.devName.empty() && ubse::ssu::utils::IsValidDevName(statusReq.devName)) {
+                e.devName = statusReq.devName;
+            } else if (!statusReq.devName.empty()) {
+                UBSE_LOG_WARN << "StatusUpdate: invalid devName ignored, name=" << statusReq.requestName;
+            }
             modified = true;
         })) {
         UBSE_LOG_WARN << "StatusUpdate: ledger entry not found: name=" << statusReq.requestName;
@@ -337,6 +344,8 @@ static void HandleAttachDetachVerifyReqReceiver(const uint8_t *reqData, uint32_t
         auto entryPtr = UbseSsuDebtLedger::GetInstance().Get(verifyReq.name);
         if (entryPtr != nullptr) {
             respData.nameSpaceList = entryPtr->allocResult.nameSpaceList;
+            // 聚合块设备场景下devPath恒为/dev/ssu/{devName}，devName由master账本带回（agent无本地账本）
+            respData.devName = entryPtr->devName;
         }
     } else {
         UBSE_LOG_ERROR << "VerifyAttachDetachPrecondition failed, " << FormatRetCode(ret)

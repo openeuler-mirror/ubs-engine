@@ -23,8 +23,9 @@ using namespace ubse::serial;
 
 UBSE_DEFINE_THIS_MODULE("ubse");
 
-UbseSsuStatusReqMsg::UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state)
-    : req_{name, state}
+UbseSsuStatusReqMsg::UbseSsuStatusReqMsg(const std::string &name, const UbseSsuNsState &state,
+                                         const std::string &devName)
+    : req_{name, state, devName}
 {
 }
 
@@ -40,13 +41,13 @@ const UbseSsuStatusUpdateRsp &UbseSsuStatusRspMsg::GetStatusUpdateRsp() const
 
 UbseSerialization &operator<<(UbseSerialization &serializer, const UbseSsuStatusUpdateReq &req)
 {
-    serializer << req.requestName << enum_v(req.state);
+    serializer << req.requestName << enum_v(req.state) << req.devName;
     return serializer;
 }
 
 UbseDeSerialization &operator>>(UbseDeSerialization &deserializer, UbseSsuStatusUpdateReq &req)
 {
-    deserializer >> req.requestName >> enum_v(req.state);
+    deserializer >> req.requestName >> enum_v(req.state) >> req.devName;
     return deserializer;
 }
 
