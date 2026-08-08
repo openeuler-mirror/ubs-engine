@@ -76,6 +76,7 @@ target_link_libraries(ubse PRIVATE
         ubse_node_controller
         ubse_ssu
         ubse_ras
+        mem_controller_adapter
         ubse_vsock_client
         -Wl,--no-whole-archive
 )
