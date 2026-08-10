@@ -1073,12 +1073,20 @@ TEST_F(TestUbseRasHandler, HandleBMCFault5ReportBMCFaultFails)
 {
     auto& handler = UbseRasHandler::GetInstance();
     MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("2", ELECTION_ROLE_STANDBY, 1);
     MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
     MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
     MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    // UBSE_ERROR (10000) >= UBSE_INTERNAL_ERROR_BASE, mapped to IPC_ERROR=1 (retryable)
     MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(ReadRebootTimeoutMs).stubs().will(returnValue(100u));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
     auto res = handler.HandleBMCFault("12345");
-    ASSERT_EQ(res, UBSE_ERROR);
+    // UBSE_ERROR mapped to IPC_ERROR(1), which is retryable, ack is sent with code 1
+    ASSERT_EQ(res, UBSE_OK);
+    // Cleanup global BMC fault state
+    StopBmcFaultTimer("2");
+    ClearBmcFaultState("2");
 }
 
 // ==================== HandleMemoryFault 测试 ====================
@@ -1537,4 +1545,269 @@ TEST_F(TestUbseRasHandler, AddPendingFaultIdMultipleDifferent)
     ASSERT_TRUE(handler.IsPendingFaultExisted("pending_multi_2"));
     handler.DelPendingFaultId("pending_multi_2");
 }
+
+// ==================== IsBmcFaultRetryableCode 测试 ====================
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeBelowRange)
+{
+    ASSERT_FALSE(IsBmcFaultRetryableCode(0));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeIpcError)
+{
+    // code=1 (IPC_ERROR), retryable
+    ASSERT_TRUE(IsBmcFaultRetryableCode(MEM_POOLING_BMC_FAULT_IPC_ERROR_VALUE));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeLackLocalMem)
+{
+    // code=3 (LACK_LOCAL_MEM), not retryable
+    ASSERT_FALSE(IsBmcFaultRetryableCode(MEM_POOLING_BMC_FAULT_LACK_LOCAL_MEM_VALUE));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeLackRemoteMem)
+{
+    // code=4 (LACK_REMOTE_MEM), not retryable
+    ASSERT_FALSE(IsBmcFaultRetryableCode(MEM_POOLING_BMC_FAULT_LACK_REMOTE_MEM_VALUE));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodePartialSuccess)
+{
+    // code=8 (PARTIAL_SUCCESS), retryable
+    ASSERT_TRUE(IsBmcFaultRetryableCode(MEM_POOLING_FAULT_PARTIAL_SUCCESS_VALUE));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeAboveRange)
+{
+    ASSERT_FALSE(IsBmcFaultRetryableCode(9));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultRetryableCodeOtherRetryable)
+{
+    // codes 2,5,6,7 are in range [1,8] and not 3 or 4, so retryable
+    ASSERT_TRUE(IsBmcFaultRetryableCode(2));
+    ASSERT_TRUE(IsBmcFaultRetryableCode(5));
+    ASSERT_TRUE(IsBmcFaultRetryableCode(6));
+    ASSERT_TRUE(IsBmcFaultRetryableCode(7));
+}
+
+// ==================== UpdateBmcFaultState 测试 ====================
+
+TEST_F(TestUbseRasHandler, UpdateBmcFaultStateNewMsgId)
+{
+    ClearBmcFaultState("bmc_test_node");
+    auto ret = UpdateBmcFaultState("bmc_test_node", "msg_new");
+    ASSERT_TRUE(ret);
+    ClearBmcFaultState("bmc_test_node");
+}
+
+TEST_F(TestUbseRasHandler, UpdateBmcFaultStateSameMsgId)
+{
+    ClearBmcFaultState("bmc_test_node2");
+    UpdateBmcFaultState("bmc_test_node2", "msg_same");
+    auto ret = UpdateBmcFaultState("bmc_test_node2", "msg_same");
+    ASSERT_FALSE(ret);
+    ClearBmcFaultState("bmc_test_node2");
+}
+
+TEST_F(TestUbseRasHandler, UpdateBmcFaultStateDifferentMsgId)
+{
+    ClearBmcFaultState("bmc_test_node3");
+    UpdateBmcFaultState("bmc_test_node3", "msg_old");
+    auto ret = UpdateBmcFaultState("bmc_test_node3", "msg_new");
+    ASSERT_TRUE(ret);
+    ClearBmcFaultState("bmc_test_node3");
+}
+
+// ==================== SetBmcFaultLastError / IsBmcFaultFinalAckSent / ClearBmcFaultState 测试 ====================
+
+TEST_F(TestUbseRasHandler, SetBmcFaultLastErrorAndClear)
+{
+    ClearBmcFaultState("bmc_err_node");
+    UpdateBmcFaultState("bmc_err_node", "msg_err");
+    SetBmcFaultLastError("bmc_err_node", 1);
+    // Verify state is set (indirectly through IsBmcFaultFinalAckSent)
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("bmc_err_node"));
+    ClearBmcFaultState("bmc_err_node");
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("bmc_err_node"));
+}
+
+TEST_F(TestUbseRasHandler, IsBmcFaultFinalAckSentWhenNoState)
+{
+    ClearBmcFaultState("bmc_no_state");
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("bmc_no_state"));
+}
+
+// ==================== ReadRebootTimeoutMs 测试 ====================
+
+TEST_F(TestUbseRasHandler, ReadRebootTimeoutMsReturnsDefaultWhenSysfsUnavailable)
+{
+    // sysfs path does not exist in test environment, should return default
+    auto timeout = ReadRebootTimeoutMs();
+    ASSERT_EQ(timeout, REBOOT_TIMEOUT_DEFAULT_MS);
+}
+
+// ==================== StartBmcFaultTimer / StopBmcFaultTimer 测试 ====================
+
+TEST_F(TestUbseRasHandler, StartAndStopBmcFaultTimer)
+{
+    StartBmcFaultTimer("bmc_timer_node", 100);
+    StopBmcFaultTimer("bmc_timer_node");
+    // Should not crash
+}
+
+TEST_F(TestUbseRasHandler, StopBmcFaultTimerWhenNotStarted)
+{
+    StopBmcFaultTimer("bmc_no_timer_node");
+    // Should not crash
+}
+
+TEST_F(TestUbseRasHandler, StartBmcFaultTimerDoesNotDuplicate)
+{
+    StartBmcFaultTimer("bmc_dup_timer_node", 5000);
+    // Second start should be ignored (already joinable)
+    StartBmcFaultTimer("bmc_dup_timer_node", 5000);
+    StopBmcFaultTimer("bmc_dup_timer_node");
+}
+
+// ==================== OnBmcFaultTimerExpired 测试 ====================
+
+TEST_F(TestUbseRasHandler, OnBmcFaultTimerExpiredWithLastError)
+{
+    ClearBmcFaultState("bmc_expire_node");
+    UpdateBmcFaultState("bmc_expire_node", "msg_expire");
+    SetBmcFaultLastError("bmc_expire_node", 1);
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    OnBmcFaultTimerExpired("bmc_expire_node");
+    ASSERT_TRUE(IsBmcFaultFinalAckSent("bmc_expire_node"));
+    ClearBmcFaultState("bmc_expire_node");
+}
+
+TEST_F(TestUbseRasHandler, OnBmcFaultTimerExpiredWithoutLastError)
+{
+    ClearBmcFaultState("bmc_expire_node2");
+    UpdateBmcFaultState("bmc_expire_node2", "msg_expire2");
+    // lastErrorCode defaults to 0, so no ack should be sent
+    OnBmcFaultTimerExpired("bmc_expire_node2");
+    ASSERT_TRUE(IsBmcFaultFinalAckSent("bmc_expire_node2"));
+    ClearBmcFaultState("bmc_expire_node2");
+}
+
+TEST_F(TestUbseRasHandler, OnBmcFaultTimerExpiredWhenStateGone)
+{
+    ClearBmcFaultState("bmc_gone_node");
+    // State does not exist, should not crash
+    OnBmcFaultTimerExpired("bmc_gone_node");
+}
+
+// ==================== HandleBMCFault RMRS 适配测试 ====================
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultRpcFailMapsToIpcError)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("node_rpc", ELECTION_ROLE_STANDBY, 1);
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    // UBSE_ERROR (10000) >= UBSE_INTERNAL_ERROR_BASE → mapped to IPC_ERROR=1 (retryable)
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_ERROR));
+    MOCKER(ReadRebootTimeoutMs).stubs().will(returnValue(100u));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("99999");
+    ASSERT_EQ(res, UBSE_OK);
+    StopBmcFaultTimer("node_rpc");
+    ClearBmcFaultState("node_rpc");
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultNullptrMapsToIpcError)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("node_nullptr", ELECTION_ROLE_STANDBY, 1);
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    // UBSE_ERROR_NULLPTR (10001) >= UBSE_INTERNAL_ERROR_BASE → mapped to IPC_ERROR=1 (retryable)
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_ERROR_NULLPTR));
+    MOCKER(ReadRebootTimeoutMs).stubs().will(returnValue(100u));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("88888");
+    ASSERT_EQ(res, UBSE_OK);
+    StopBmcFaultTimer("node_nullptr");
+    ClearBmcFaultState("node_nullptr");
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultNonRetryableCode)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("node_nonretry", ELECTION_ROLE_STANDBY, 1);
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    // code=3 (LACK_LOCAL_MEM) is non-retryable, ack sent directly
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(3));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("77777");
+    ASSERT_EQ(res, UBSE_OK);
+    ClearBmcFaultState("node_nonretry");
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultFinalAckSentSilent)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("node_silent", ELECTION_ROLE_STANDBY, 1);
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    // Pre-set finalAckSent to true
+    ClearBmcFaultState("node_silent");
+    UpdateBmcFaultState("node_silent", "66666");
+    // Manually set finalAckSent by simulating timer expiry
+    SetBmcFaultLastError("node_silent", 1);
+    // Use OnBmcFaultTimerExpired to set finalAckSent=true
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    OnBmcFaultTimerExpired("node_silent");
+    ASSERT_TRUE(IsBmcFaultFinalAckSent("node_silent"));
+    // Now call HandleBMCFault, should return UBSE_OK (silent)
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_ERROR));
+    auto res = handler.HandleBMCFault("66666");
+    ASSERT_EQ(res, UBSE_OK);
+    ClearBmcFaultState("node_silent");
+}
+
+TEST_F(TestUbseRasHandler, HandleBMCFaultSuccessStopsTimerAndClearsState)
+{
+    auto& handler = UbseRasHandler::GetInstance();
+    MOCKER(IsOnlyOneNodeInCluster).stubs().will(returnValue(false));
+    UbseRoleInfo curInfo("node_success", ELECTION_ROLE_STANDBY, 1);
+    MOCKER(UbseGetCurrentNodeInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(SendSwitchRoleToStandby).stubs().will(returnValue(UBSE_OK));
+    MOCKER(UbseGetMasterInfo).stubs().will(returnValue(UBSE_OK));
+    MOCKER(ReportBMCFaultToMaster).stubs().will(returnValue(UBSE_OK));
+    MOCKER(ReportAckToSysSentry).stubs().will(returnValue(UBSE_OK));
+    auto res = handler.HandleBMCFault("55555");
+    ASSERT_EQ(res, UBSE_OK);
+    // State should be cleared
+    ASSERT_FALSE(IsBmcFaultFinalAckSent("node_success"));
+}
+
+// ==================== ReportBMCFaultToMaster RPC 失败独立返回测试 ====================
+
+TEST_F(TestUbseRasHandler, ReportBMCFaultToMasterWhenRpcFailReturnsRpcError)
+{
+    auto comModule = std::make_shared<UbseComModule>();
+    MOCKER_CPP(&UbseContext::GetModule<UbseComModule>).stubs().will(returnValue(comModule));
+    const auto func = &UbseComModule::RpcSend<UbseRasMessagePtr, UbseRasMessagePtr>;
+    UbseRasMessagePtr response = new (std::nothrow) UbseRasMessage();
+    response->SetResult(UBSE_OK);
+    // RPC fails, should return RPC error directly without checking response
+    MOCKER_CPP(func).stubs().with(_, _, outBound(response), _).will(returnValue(UBSE_ERROR));
+    auto res = ReportBMCFaultToMaster("info", "fault_node", "master_node");
+    // Now returns UBSE_ERROR (RPC error) directly, not response result
+    ASSERT_EQ(res, UBSE_ERROR);
+}
+
 } // namespace ubse::ras::ut
