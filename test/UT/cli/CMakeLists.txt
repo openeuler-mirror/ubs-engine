@@ -1,5 +1,6 @@
 add_library(ubse_cli_ut STATIC
         ${CMAKE_SOURCE_DIR}/src/cli/ssu/ubse_cli_ssu_cmd_reg.cpp
+        ${CMAKE_SOURCE_DIR}/src/cli/ssu/ubse_cli_ssu_error.cpp
         ${CMAKE_SOURCE_DIR}/src/cli/ssu/ubse_cli_ssu_struct.cpp
         ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_node_cmd_reg.cpp
         ${CMAKE_SOURCE_DIR}/src/cli/ubse_cli_mem_cmd_reg.cpp

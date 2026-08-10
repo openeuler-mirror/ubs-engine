@@ -21,6 +21,7 @@
 #include <mockcpp/mockcpp.hpp>
 
 #include "ubse_cli_ssu_cmd_reg.h"
+#include "ubse_cli_ssu_error.h"
 #include "ubse_error.h"
 #include "ubse_ipc_client.h"
 #include "ubse_ipc_common.h"
@@ -73,6 +74,10 @@ const std::string ERR_INVALID_LEVEL = "ERROR: Invalid level. The value must be r
 const std::string ERR_INVALID_CHUNK_SIZE =
     "ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K.";
 const std::string ERR_DESERIALIZATION = "ERROR: Deserialization failed in client.";
+const std::string ERR_ALREADY_ALLOCATED = "ERROR: The SSU allocation already exists.";
+const std::string ERR_ALREADY_ATTACHED = "ERROR: The SSU allocation is already attached.";
+const std::string ERR_NO_NEED_FREE = "ERROR: The SSU allocation does not exist or has already been deleted.";
+const std::string ERR_NO_NEED_DETACH = "ERROR: The SSU allocation is already detached or has not been attached.";
 const std::string INFO_EMPTY = "INFO: No SSU allocation information found.";
 
 // 捕获 UbseCliDisplayResult 写入 stdout 的文本，便于对回显内容做子串断言。
@@ -215,6 +220,16 @@ void TestUbseCliSsuCmdReg::TearDown()
     GlobalMockObject::verify();        // 校验本用例 mock 期望并释放桩资源
     UbseCliModuleRegistry::GetInstance().UbseCliReset();
     UbseCliModuleRegistry::GetInstance().UbseCliGetParseTool().UbseCliReset();
+}
+
+// SSU 对外错误码使用固定英文文案，其他错误码继续保留数字错误码。
+TEST_F(TestUbseCliSsuCmdReg, SsuErrorMessageMapsKnownCodesAndPreservesUnknownCode)
+{
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_ALREADY_ALLOCATED), ERR_ALREADY_ALLOCATED);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_ALREADY_ATTACHED), ERR_ALREADY_ATTACHED);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_NO_NEED_FREE), ERR_NO_NEED_FREE);
+    EXPECT_EQ(GetSsuErrorMessage(UBSE_ERR_NO_NEED_DETACH), ERR_NO_NEED_DETACH);
+    EXPECT_EQ(GetSsuErrorMessage(4321), "ERROR: Internal error with error code 4321.");
 }
 
 // 注册校验：SignUp 后框架应登记 display/create/delete/attach/detach ssu 五条命令。
@@ -732,6 +747,15 @@ TEST_F(TestUbseCliSsuCmdReg, CreateReturnsInternalErrorWithCode)
                            "ERROR: Internal error with error code 1234.");
 }
 
+// 重复分配使用固定业务错误文案，不向用户打印错误码 2000。
+TEST_F(TestUbseCliSsuCmdReg, CreateReturnsAlreadyAllocatedMessageWithoutCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_ALREADY_ALLOCATED));
+    const auto result = UbseCliRegSsuModule::UbseCliCreateSsuFunc(CreateParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_ALREADY_ALLOCATED);
+}
+
 // delete ssu 缺少 -n 应返回 name 必选参数错误。
 TEST_F(TestUbseCliSsuCmdReg, DeleteRejectsMissingName)
 {
@@ -801,6 +825,15 @@ TEST_F(TestUbseCliSsuCmdReg, DeleteReturnsInternalErrorWithCode)
     MOCKER(&ubse_invoke_call).stubs().will(returnValue(2468));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDeleteSsuFunc({{"name", "alloc-space-1"}}),
                            "ERROR: Internal error with error code 2468.");
+}
+
+// 释放不存在或已释放的分配使用固定业务错误文案，不向用户打印错误码 2002。
+TEST_F(TestUbseCliSsuCmdReg, DeleteReturnsNoNeedFreeMessageWithoutCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_NO_NEED_FREE));
+    const auto result = UbseCliRegSsuModule::UbseCliDeleteSsuFunc(DeleteParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_NO_NEED_FREE);
 }
 
 // 摘要查询使用合法的 0 字节请求体，mock 应显式捕获成功。
@@ -1121,6 +1154,75 @@ TEST_F(TestUbseCliSsuCmdReg, AttachReturnsInternalErrorWithCode)
                            "ERROR: Internal error with error code 4321.");
 }
 
+// 普通重复挂载响应携带命名空间路径时，CLI 先输出路径，再输出固定错误文案。
+TEST_F(TestUbseCliSsuCmdReg, AttachAlreadyAttachedPrintsPathsBeforeError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_already_attached));
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), "ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1\n" + ERR_ALREADY_ATTACHED);
+}
+
+// Linear 重复挂载响应携带聚合设备信息时，CLI 按成功格式输出两个字段后再输出错误。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearAlreadyAttachedPrintsPathsBeforeError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_linear_invoke_call_already_attached));
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "ssu-linear.0";
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(),
+              "ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1\ndev_path: /dev/ubse_ssu0\n" + ERR_ALREADY_ATTACHED);
+}
+
+// Striped 重复挂载与 Linear 使用相同的聚合响应布局和输出顺序。
+TEST_F(TestUbseCliSsuCmdReg, AttachStripedAlreadyAttachedPrintsPathsBeforeError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_striped_invoke_call_already_attached));
+    auto params = AttachParams();
+    params["type"] = "Striped";
+    params["dev_name"] = "ssu-striped0";
+    params["level"] = "raid0";
+    params["chunk_size"] = "64K";
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(),
+              "ns_dev_paths: /dev/nvme0n1,/dev/nvme1n1\ndev_path: /dev/ubse_ssu0\n" + ERR_ALREADY_ATTACHED);
+}
+
+// IPC handler 尚未携带重复挂载响应体时，CLI 只输出明确业务错误，不误报反序列化失败。
+TEST_F(TestUbseCliSsuCmdReg, AttachAlreadyAttachedWithoutResponseFallsBackToBusinessError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_already_attached_without_response));
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_ALREADY_ATTACHED);
+    EXPECT_EQ(g_ssuMockLastOpCode, SsuOpCode(UBSE_IPC_SSU_ATTACH_SPACE));
+    EXPECT_TRUE(g_ssuMockLastRequestDeserialized);
+}
+
+// 重复挂载响应体损坏时同样回退到固定业务错误。
+TEST_F(TestUbseCliSsuCmdReg, AttachAlreadyAttachedWithBadResponseFallsBackToBusinessError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_space_invoke_call_bad_already_attached));
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(AttachParams());
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_ALREADY_ATTACHED);
+}
+
+// 聚合重复挂载响应体损坏时同样回退到固定业务错误。
+TEST_F(TestUbseCliSsuCmdReg, AttachLinearAlreadyAttachedWithBadResponseFallsBackToBusinessError)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(invoke(mock_ssu_attach_linear_invoke_call_bad_already_attached));
+    auto params = AttachParams();
+    params["type"] = "Linear";
+    params["dev_name"] = "ssu-linear.0";
+    const auto result = UbseCliRegSsuModule::UbseCliAttachSsuFunc(params);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->UbseCliGetResultStr(), ERR_ALREADY_ATTACHED);
+}
+
 // detach_ssu 缺少 name 或 name 不符合字符、长度约束时，应在本地拒绝请求。
 TEST_F(TestUbseCliSsuCmdReg, DetachRejectsMissingOrInvalidName)
 {
@@ -1285,5 +1387,22 @@ TEST_F(TestUbseCliSsuCmdReg, DetachReturnsInternalErrorWithCode)
     MOCKER(&ubse_invoke_call).stubs().will(returnValue(9876));
     ExpectRenderedContains(UbseCliRegSsuModule::UbseCliDetachSsuFunc(DetachParams()),
                            "ERROR: Internal error with error code 9876.");
+}
+
+// 三类重复卸载均使用固定业务错误文案，不向用户打印错误码 2003。
+TEST_F(TestUbseCliSsuCmdReg, DetachReturnsNoNeedDetachMessageWithoutCode)
+{
+    MOCKER(&ubse_invoke_call).stubs().will(returnValue(UBSE_ERR_NO_NEED_DETACH));
+    const std::vector<std::pair<std::string, std::map<std::string, std::string>>> cases = {
+        {"Space", DetachParams()},
+        {"Linear", {{"name", "alloc-space-1"}, {"type", "Linear"}, {"dev_name", "ssu-linear.0"}}},
+        {"Striped", {{"name", "alloc-space-1"}, {"type", "Striped"}, {"dev_name", "ssu-striped0"}}},
+    };
+    for (const auto& [type, params] : cases) {
+        SCOPED_TRACE("detach type: " + type);
+        const auto result = UbseCliRegSsuModule::UbseCliDetachSsuFunc(params);
+        ASSERT_NE(result, nullptr);
+        EXPECT_EQ(result->UbseCliGetResultStr(), ERR_NO_NEED_DETACH);
+    }
 }
 } // namespace ubse::ut::cli
