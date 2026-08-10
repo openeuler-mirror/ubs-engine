@@ -16,25 +16,7 @@
 """
 from typing import List, Optional, Tuple
 
-from ubse.ipc.ubs_engine_ipc import invoke_call
-from ubse.models.ubs_engine_model_ssu import (
-    UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
-    UBS_SSU_MAX_DEV_PATH_LENGTH,
-    UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
-    UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
-    UbsUbVfe, UbsUbFe,
-)
 from ubse.ffi.ubs_binary_codec import BinaryUnpacker
-from ubs_engine_codes_ssu import (
-    UBSE_SSU_MODULE_CODE,
-    OP_ALLOC_REQ, OP_FREE_REQ,
-    OP_LIST_ALLOC_INFO_REQ, OP_GET_NS_STATS_REQ, OP_GET_CONNECT_INFO_REQ,
-    OP_ADD_ACCESS_PERMISSION_REQ, OP_REMOVE_ACCESS_PERMISSION_REQ,
-    OP_ATTACH_SPACE_REQ, OP_DETACH_SPACE_REQ,
-    OP_ATTACH_LINEAR_SPACE_REQ, OP_DETACH_LINEAR_SPACE_REQ,
-    OP_ATTACH_STRIPED_SPACE_REQ, OP_DETACH_STRIPED_SPACE_REQ,
-    OP_GET_FE_DEVICE_LIST_REQ, OP_FE_DEVICE_ALLOC_REQ, OP_FE_DEVICE_FREE_REQ,
-)
 from ubse.ffi.ubs_engine_binding_ssu import (
     pack_string, pack_connect_info_req,
     pack_alloc_space_req, pack_space_req,
@@ -44,8 +26,29 @@ from ubse.ffi.ubs_engine_binding_ssu import (
     unpack_ns_dev_paths_response,
     unpack_ns_stats_list, unpack_connect_info_list,
     unpack_fe_device_list, unpack_ns_dev_paths,
-    validate_name, validate_dev_name,
-    validate_nqn, validate_fe_device_alloc_params, validate_fe_device_free_params, validate_striped_space_req
+    validate_name, validate_alloc_space_req,
+    validate_nqn, validate_space_req, validate_access_permission,
+    validate_linear_space_req, validate_striped_space_req, validate_detach_striped_space_req,
+    validate_fe_device_alloc_params, validate_fe_device_free_params
+)
+from ubse.ffi.ubs_engine_exceptions import UbsEngineInternalError
+from ubse.ipc.ubs_engine_ipc import invoke_call
+from ubse.ipc.ubs_engine_ipc_codes import (
+    UBSE_SSU_MODULE_CODE,
+    OP_ALLOC_REQ, OP_FREE_REQ,
+    OP_LIST_ALLOC_INFO_REQ, OP_GET_NS_STATS_REQ, OP_GET_CONNECT_INFO_REQ,
+    OP_ADD_ACCESS_PERMISSION_REQ, OP_REMOVE_ACCESS_PERMISSION_REQ,
+    OP_ATTACH_SPACE_REQ, OP_DETACH_SPACE_REQ,
+    OP_ATTACH_LINEAR_SPACE_REQ, OP_DETACH_LINEAR_SPACE_REQ,
+    OP_ATTACH_STRIPED_SPACE_REQ, OP_DETACH_STRIPED_SPACE_REQ,
+    OP_GET_FE_DEVICE_LIST_REQ, OP_FE_DEVICE_ALLOC_REQ, OP_FE_DEVICE_FREE_REQ,
+)
+from ubse.models.ubs_engine_model_ssu import (
+    UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_NQN_LENGTH, UBS_SSU_GUID_LENGTH,
+    UBS_SSU_MAX_DEV_PATH_LENGTH,
+    UbsSsuAllocSpaceReq, UbsSsuSpaceReq, UbsSsuLinearSpaceReq, UbsSsuStripedSpaceReq,
+    UbsSsuAllocResult, UbsSsuConnectInfo, UbsSsuNsStats,
+    UbsUbVfe, UbsUbFe,
 )
 
 
@@ -143,8 +146,7 @@ def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
         重复添加同一Host的访问权限是否成功取决于底层适配器实现(适配器不幂等时重复添加可能报错),
         调用方不应依赖幂等性保证进行重试
     """
-    validate_name(name)
-    validate_nqn(nqn)
+    validate_access_permission(name, nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
     invoke_call(UBSE_SSU_MODULE_CODE, OP_ADD_ACCESS_PERMISSION_REQ, buf)
 
@@ -169,8 +171,7 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
         命名空间已被删除(不在设备缓存中)时, 移除操作幂等跳过;
         重复移除访问权限是否成功取决于底层适配器实现
     """
-    validate_name(name)
-    validate_nqn(nqn)
+    validate_access_permission(name, nqn)
     buf = pack_string(name, UBS_SSU_MAX_NAME_LENGTH) + pack_string(nqn, UBS_SSU_MAX_NQN_LENGTH)
     invoke_call(UBSE_SSU_MODULE_CODE, OP_REMOVE_ACCESS_PERMISSION_REQ, buf)
 
@@ -194,7 +195,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
-    validate_name(req.name)
+    validate_space_req(req)
     request = pack_space_req(req)
     response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_SPACE_REQ, request)
     return unpack_ns_dev_paths_response(response)
@@ -220,7 +221,7 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
         已卸载的空间重复卸载将报错, 不再幂等返回成功
         卸载前需确保没有进程正在使用该存储空间
     """
-    validate_name(req.name)
+    validate_space_req(req)
     request = pack_space_req(req)
     invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_SPACE_REQ, request)
 
@@ -249,8 +250,7 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
         已挂载的空间重复挂载将报错, 不再幂等返回成功
         线性编址模式下, 数据按顺序填充各成员设备
     """
-    validate_name(req.name)
-    validate_dev_name(req.dev_name)
+    validate_linear_space_req(req)
     request = pack_linear_space_req(req)
     response = invoke_call(UBSE_SSU_MODULE_CODE, OP_ATTACH_LINEAR_SPACE_REQ, request)
     u = BinaryUnpacker(response)
@@ -278,8 +278,7 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
     Note:
         已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
-    validate_name(req.name)
-    validate_dev_name(req.dev_name)
+    validate_linear_space_req(req)
     request = pack_linear_space_req(req)
     invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_LINEAR_SPACE_REQ, request)
 
@@ -336,8 +335,7 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
     Note:
         已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
-    validate_name(req.name)
-    validate_dev_name(req.dev_name)
+    validate_detach_striped_space_req(req)
     request = pack_striped_space_req(req)
     invoke_call(UBSE_SSU_MODULE_CODE, OP_DETACH_STRIPED_SPACE_REQ, request)
 
@@ -419,8 +417,8 @@ def ubs_ssu_fe_device_alloc(upi: int, vfe: UbsUbVfe, guid: str) -> str:
     Args:
         upi: 租户隔离标识
         vfe: 要绑定的VFE信息（UbsUbVfe 对象）
-        guid: 总线实例GUID，标识目标虚拟机。
-              长度应为 UBS_SSU_GUID_LENGTH 个字符。
+        guid: 总线实例GUID，标识目标虚拟机，可传空，非空的话长度须为UBS_SSU_GUID_LENGTH
+               为空：ubse内部创建vm busInstance;非空: 绑定指定虚拟机
 
     Returns:
         绑定后更新后的总线实例GUID字符串；若响应数据不足则返回原 guid。

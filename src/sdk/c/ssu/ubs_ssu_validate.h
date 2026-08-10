@@ -24,7 +24,7 @@ uint32_t ubs_ssu_linear_space_attach_req_validate(const ubs_ssu_linear_space_req
 uint32_t ubs_ssu_linear_space_detach_req_validate(const ubs_ssu_linear_space_req_t *req);
 uint32_t ubs_ssu_striped_space_attach_req_validate(const ubs_ssu_striped_space_req_t *req);
 uint32_t ubs_ssu_striped_space_detach_req_validate(const ubs_ssu_striped_space_req_t *req);
-uint32_t ubs_ssu_fe_device_alloc_validate(uint32_t upi,const ubs_ub_vfe_t *vfe);
-uint32_t ubs_ssu_fe_device_free_validate(uint32_t upi,const ubs_ub_vfe_t *vfe);
+uint32_t ubs_ssu_fe_device_alloc_validate(const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid);
+uint32_t ubs_ssu_fe_device_free_validate(const ubs_ub_vfe_t *vfe);
 } // namespace ubs::ssu
 #endif //UBS_ENGINE_UBS_SSU_VALIDATE_H

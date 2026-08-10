@@ -303,9 +303,9 @@ int32_t ubs_ssu_access_permission_remove(const char *name, const char *nqn)
         [name, nqn](ubse_api_buffer_t &buf) { return ubs_ssu_access_permission_remove_pack(name, nqn, buf); }, nullptr);
 }
 
-int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t bus_instance_guid[UBS_SSU_GUID_LENGTH])
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid)
 {
-    auto ret = ubs_ssu_fe_device_alloc_validate(upi, vfe);
+    auto ret = ubs_ssu_fe_device_alloc_validate(vfe, bus_instance_guid);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "param validate failed, ret: " << ret;
         return ret;
@@ -320,7 +320,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t bu
 
 int32_t ubs_ssu_fe_device_free(uint32_t upi,const ubs_ub_vfe_t *vfe)
 {
-    auto ret = ubs_ssu_fe_device_free_validate(upi, vfe);
+    auto ret = ubs_ssu_fe_device_free_validate(vfe);
     if (ret != UBS_SUCCESS) {
         IPC_LOG_ERROR << "param validate failed, ret: " << ret;
         return ret;
@@ -346,44 +346,37 @@ void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t **results, uint32_t res
     *results = nullptr;
 }
 
-void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t *ns_dev_path_cnt)
+void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t ns_dev_path_cnt)
 {
-    if (ns_dev_paths == nullptr || *ns_dev_paths == nullptr || ns_dev_path_cnt == nullptr) {
+    if (ns_dev_paths == nullptr || *ns_dev_paths == nullptr) {
 
         IPC_LOG_ERROR << "Invalid parameters: ns_dev_paths or *ns_dev_paths is nullptr";
         return;
     }
     char **arr = *ns_dev_paths;
-    for (uint32_t i = 0; i < *ns_dev_path_cnt; i++) {
+    for (uint32_t i = 0; i < ns_dev_path_cnt; i++) {
         delete[] arr[i];
     }
     delete[] arr;
     *ns_dev_paths = nullptr;
-    *ns_dev_path_cnt = 0;
 }
 
-void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list, uint32_t *ns_stats_cnt)
+void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list)
 {
     if (ns_stats_list == nullptr || *ns_stats_list == nullptr) {
         return;
     }
     delete[] *ns_stats_list;
     *ns_stats_list = nullptr;
-    if (ns_stats_cnt != nullptr) {
-        *ns_stats_cnt = 0;
-    }
 }
 
-void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint32_t *connect_info_cnt)
+void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list)
 {
     if (connect_info_list == nullptr || *connect_info_list == nullptr) {
         return;
     }
     delete[] *connect_info_list;
     *connect_info_list = nullptr;
-    if (connect_info_cnt != nullptr) {
-        *connect_info_cnt = 0;
-    }
 }
 
 void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result)
@@ -396,13 +389,13 @@ void ubs_ssu_alloc_info_free(ubs_ssu_alloc_result_t **result)
     *result = nullptr; // 置空调用方指针,防止悬挂指针
 }
 
-void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt)
+void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t fe_cnt)
 {
     if (fe_list == nullptr || *fe_list == nullptr) {
         return;
     }
     ubs_ub_fe_t *arr = *fe_list;
-    for (uint32_t i = 0; i < (fe_cnt != nullptr ? *fe_cnt : 0); i++) {
+    for (uint32_t i = 0; i < fe_cnt; i++) {
         if (arr[i].vfe_list != nullptr) {
             delete[] arr[i].vfe_list;
             arr[i].vfe_list = nullptr;
@@ -410,7 +403,4 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt)
     }
     delete[] arr;
     *fe_list = nullptr;
-    if (fe_cnt != nullptr) {
-        *fe_cnt = 0;
-    }
 }
