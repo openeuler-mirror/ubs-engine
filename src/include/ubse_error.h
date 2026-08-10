@@ -107,6 +107,14 @@
 #define UBSE_ERR_NODE_NOT_ACTIVE UBSE_ERROR_DEF(1102)     /* 节点不活跃 */
 #define UBSE_ERR_NODE_NOT_RESPONDING UBSE_ERROR_DEF(1103) /* 节点无响应 */
 
+/* ****************************************************** */
+/* 重复操作错误码定义，全局唯一，范围2000~2099，语义为失败（重复操作一律报错） */
+/* ****************************************************** */
+#define UBSE_ERR_ALREADY_ALLOCATED UBSE_ERROR_DEF(2000) /* 空间已分配，重复分配报错 */
+#define UBSE_ERR_ALREADY_ATTACHED UBSE_ERROR_DEF(2001)  /* 空间已挂载，重复挂载报错 */
+#define UBSE_ERR_NO_NEED_FREE UBSE_ERROR_DEF(2002)      /* 空间不存在或已释放，无需释放报错 */
+#define UBSE_ERR_NO_NEED_DETACH UBSE_ERROR_DEF(2003)    /* 空间已卸载或未挂载，无需卸载报错 */
+
 /* ************************************************************* */
 /*      内部错误码定义，范围[10000,+∞)，以下错误码对外统一返回内部错误     */
 /* ************************************************************* */
@@ -254,6 +262,45 @@
 
 /* ====================== MTI错误码 (11200~11299) ====================== */
 #define UBSE_MTI_ERROR_NOT_EXIST UBSE_INTERNAL_ERROR_DEF(1200) /* MTI查询对象不存在 */
+
+/* ====================== SSU Controller错误码 (11300~11399) ====================== */
+/* ====================== 账本与状态错误 (11300~11309) ====================== */
+#define UBSE_SSU_ERROR_LEDGER_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(1300)     /* 账本记录不存在 */
+#define UBSE_SSU_ERROR_LEDGER_MODIFY_FAILED UBSE_INTERNAL_ERROR_DEF(1301) /* 账本记录更新失败 */
+#define UBSE_SSU_ERROR_STATE_INVALID UBSE_INTERNAL_ERROR_DEF(1302)        /* 命名空间当前状态不允许执行该操作 */
+
+/* ====================== 调度与分配错误 (11310~11319) ====================== */
+#define UBSE_SSU_ERROR_NO_DEVICE UBSE_INTERNAL_ERROR_DEF(1310)          /* 无可用设备 */
+#define UBSE_SSU_ERROR_INSUFFICIENT_SPACE UBSE_INTERNAL_ERROR_DEF(1311) /* 设备可用空间不足 */
+#define UBSE_SSU_ERROR_SCHEDULER_FAILED UBSE_INTERNAL_ERROR_DEF(1312)   /* 调度分配失败 */
+#define UBSE_SSU_ERROR_NS_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1313)   /* 命名空间创建失败 */
+#define UBSE_SSU_ERROR_NS_DELETE_FAILED UBSE_INTERNAL_ERROR_DEF(1314)   /* 命名空间删除失败 */
+#define UBSE_SSU_ERROR_NS_NOT_FOUND UBSE_INTERNAL_ERROR_DEF(1315)       /* 命名空间在设备缓存中不存在 */
+
+/* ====================== 挂载/卸载与聚合块设备错误 (11320~11329) ====================== */
+#define UBSE_SSU_ERROR_ATTACH_FAILED UBSE_INTERNAL_ERROR_DEF(1320)             /* 命名空间挂载失败 */
+#define UBSE_SSU_ERROR_DETACH_FAILED UBSE_INTERNAL_ERROR_DEF(1321)             /* 命名空间卸载失败 */
+#define UBSE_SSU_ERROR_BLOCK_DEVICE_CREATE_FAILED UBSE_INTERNAL_ERROR_DEF(1322) /* 聚合块设备创建失败 */
+#define UBSE_SSU_ERROR_BLOCK_DEVICE_DELETE_FAILED UBSE_INTERNAL_ERROR_DEF(1323) /* 聚合块设备删除失败 */
+#define UBSE_SSU_ERROR_STRATEGY_MISMATCH UBSE_INTERNAL_ERROR_DEF(1324)         /* 分配策略与挂载/卸载策略不匹配 */
+#define UBSE_SSU_ERROR_STRIPED_CONFIG_INVALID UBSE_INTERNAL_ERROR_DEF(1325)    /* 条带化参数非法（RAID级别/chunkSize/NS大小对齐） */
+#define UBSE_SSU_ERROR_ROLLBACK_FAILED UBSE_INTERNAL_ERROR_DEF(1326)           /* 操作失败且回滚未完全收敛 */
+
+/* ====================== 访问权限错误 (11330~11339) ====================== */
+#define UBSE_SSU_ERROR_PERMISSION_ADD_FAILED UBSE_INTERNAL_ERROR_DEF(1330)    /* 添加访问权限失败 */
+#define UBSE_SSU_ERROR_PERMISSION_REMOVE_FAILED UBSE_INTERNAL_ERROR_DEF(1331) /* 移除访问权限失败 */
+
+/* ====================== 通信错误 (11340~11349) ====================== */
+#define UBSE_SSU_ERROR_RPC_SEND_FAILED UBSE_INTERNAL_ERROR_DEF(1340) /* SSU RPC请求发送失败 */
+
+/* ====================== SSU通用错误 (11350~11359) ====================== */
+#define UBSE_SSU_ERROR_DESERIALIZE_FAILED UBSE_INTERNAL_ERROR_DEF(1350)       /* 反序列化失败 */
+#define UBSE_SSU_ERROR_EXECUTOR_NULL UBSE_INTERNAL_ERROR_DEF(1351)            /* 任务执行器为空 */
+#define UBSE_SSU_ERROR_ROLE_INVALID UBSE_INTERNAL_ERROR_DEF(1352)             /* 不支持的节点角色 */
+#define UBSE_SSU_ERROR_NS_CUSTOM_DATA_INVALID UBSE_INTERNAL_ERROR_DEF(1353)   /* 命名空间自定义数据非法 */
+#define UBSE_SSU_ERROR_NS_UUID_INVALID UBSE_INTERNAL_ERROR_DEF(1354)          /* 命名空间UUID非法 */
+#define UBSE_SSU_ERROR_NS_COUNT_MISMATCH UBSE_INTERNAL_ERROR_DEF(1355)        /* 命名空间数量不匹配 */
+#define UBSE_SSU_ERROR_ENDPOINT_REGISTER_FAILED UBSE_INTERNAL_ERROR_DEF(1356) /* RPC端点注册失败 */
 
 /* 公共方法判断错误码 */
 #define UBSE_RESULT_FAIL(ret) (static_cast<uint32_t>(ret) != UBSE_OK)

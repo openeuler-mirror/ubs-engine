@@ -50,6 +50,14 @@ static const ubs_error_info_t* const ubse_error_infos[] = {
     [UBS_ENGINE_ERR_NODE_NOT_EXIST - UBSE_ERR_CODE] =
         &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_NOT_EXIST", "UBSE node does not exist"},
     [UBS_ENGINE_ERR_NODE_FAULT - UBSE_ERR_CODE] = &(ubs_error_info_t){"UBS_ENGINE_ERR_NODE_FAULT", "UBSE node fault"},
+    [UBS_ENGINE_ERR_ALREADY_ALLOCATED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_ENGINE_ERR_ALREADY_ALLOCATED", "Space already allocated, duplicate allocation fails"},
+    [UBS_ENGINE_ERR_ALREADY_ATTACHED - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_ENGINE_ERR_ALREADY_ATTACHED", "Space already attached, duplicate attach fails"},
+    [UBS_ENGINE_ERR_NO_NEED_FREE - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_ENGINE_ERR_NO_NEED_FREE", "Space does not exist or already freed"},
+    [UBS_ENGINE_ERR_NO_NEED_DETACH - UBSE_ERR_CODE] =
+        &(ubs_error_info_t){"UBSE_ENGINE_ERR_NO_NEED_DETACH", "Space already detached or not attached"},
 };
 
 #ifdef __cplusplus

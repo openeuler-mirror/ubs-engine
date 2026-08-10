@@ -84,12 +84,14 @@ def ubs_ssu_space_alloc(req: UbsSsuAllocSpaceReq) -> UbsSsuAllocResult:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
+        UbsEngineExistedError: 存储空间已分配, 重复分配报错
         UbsEngineAllocateError: 算法分配失败
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
         当ns_num为1时, strategy参数不生效
+       空间已分配时重复分配将报错, 不再幂等返回成功
     """
     validate_alloc_space_req(req)
     request = pack_alloc_space_req(req)
@@ -109,11 +111,12 @@ def ubs_ssu_space_free(name: str) -> None:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
+        UbsEngineNotExistError: 存储空间不存在或已释放, 无需释放报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
-        释放操作具有幂等性, 释放不存在的空间应返回成功
+        释放操作不再幂等, 释放不存在的空间将报错
     """
     validate_name(name)
     request = pack_string(name, UBS_SSU_MAX_NAME_LENGTH)
@@ -137,7 +140,8 @@ def ubs_ssu_access_permission_add(name: str, nqn: str) -> None:
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
-        重复添加同一Host的访问权限应返回成功(幂等性保证)
+        重复添加同一Host的访问权限是否成功取决于底层适配器实现(适配器不幂等时重复添加可能报错),
+        调用方不应依赖幂等性保证进行重试
     """
     validate_name(name)
     validate_nqn(nqn)
@@ -162,7 +166,8 @@ def ubs_ssu_access_permission_remove(name: str, nqn: str) -> None:
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
-        移除不存在的访问权限应返回成功(幂等性保证)
+        命名空间已被删除(不在设备缓存中)时, 移除操作幂等跳过;
+        重复移除访问权限是否成功取决于底层适配器实现
     """
     validate_name(name)
     validate_nqn(nqn)
@@ -185,6 +190,7 @@ def ubs_ssu_space_attach(req: UbsSsuSpaceReq) -> List[str]:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
+        UbsEngineExistedError: 空间已挂载, 重复挂载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
     """
@@ -206,10 +212,12 @@ def ubs_ssu_space_detach(req: UbsSsuSpaceReq) -> None:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
+        UbsEngineNotExistError: 空间已卸载或未挂载, 无需卸载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
+        已卸载的空间重复卸载将报错, 不再幂等返回成功
         卸载前需确保没有进程正在使用该存储空间
     """
     validate_name(req.name)
@@ -233,8 +241,13 @@ def ubs_ssu_linear_space_attach(req: UbsSsuLinearSpaceReq) -> Tuple[List[str], s
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
         UbsEngineNotExistError: 存储空间不存在
+        UbsEngineExistedError: 空间已挂载, 重复挂载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
+
+    Note:
+        已挂载的空间重复挂载将报错, 不再幂等返回成功
+        线性编址模式下, 数据按顺序填充各成员设备
     """
     validate_name(req.name)
     validate_dev_name(req.dev_name)
@@ -258,9 +271,12 @@ def ubs_ssu_linear_space_detach(req: UbsSsuLinearSpaceReq) -> None:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
+        UbsEngineNotExistError: 存储空间不存在或已卸载, 无需卸载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
+
+    Note:
+        已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
     validate_name(req.name)
     validate_dev_name(req.dev_name)
@@ -284,10 +300,12 @@ def ubs_ssu_striped_space_attach(req: UbsSsuStripedSpaceReq) -> Tuple[List[str],
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
+        UbsEngineExistedError: 空间已挂载, 重复挂载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
 
     Note:
+        已挂载的空间重复挂载将报错, 不再幂等返回成功
         RAID5至少需要3个成员设备(UBS_SSU_RAID5_MIN_MEMBER_NUM)
     """
     validate_striped_space_req(req)
@@ -311,9 +329,12 @@ def ubs_ssu_striped_space_detach(req: UbsSsuStripedSpaceReq) -> None:
         UbsErrInvalidArg: 参数校验错误
         UbsEngineConnectionError: 连接UBSE服务端失败
         UbsEngineAuthError: UBSE服务端鉴权不通过
-        UbsEngineNotExistError: 存储空间不存在
+        UbsEngineNotExistError: 存储空间不存在或已卸载, 无需卸载报错
         UbsEngineTimeoutError: UBSE服务端处理超时
         UbsEngineInternalError: UBSE服务端内部错误
+
+    Note:
+        已卸载的空间重复卸载将报错, 不再幂等返回成功
     """
     validate_name(req.name)
     validate_dev_name(req.dev_name)

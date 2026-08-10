@@ -28,6 +28,7 @@ using namespace ubse::adapter_plugins::ssu::def;
 
 struct UbseSsuLedgerEntry {
     std::string name;
+    std::string devName; // 聚合块设备名称，attach成功时写入；重启暂时无法恢复，待后续可靠性设计补充本地attach持久化功能
     UbseSsuAllocSpaceReq allocReq;
     UbseSsuNsState state{UbseSsuNsState::IDLE}; // 后续可能改为每个namespace对应状态，先不改
     UbseSsuAllocResult allocResult;
