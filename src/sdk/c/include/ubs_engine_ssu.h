@@ -22,8 +22,6 @@ extern "C" {
 #endif
 
 #define UBS_SSU_MAX_NAME_LENGTH 48          // 请求标识最大48个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_RESULT_NAME_LENGTH 32   // 结果名称最大32个字符, 含结尾字符'\0'
-#define UBS_SSU_MAX_USER_NAME_LENGTH 32     // 使用方进程运行用户名称最大长度, 含结尾字符'\0'
 #define UBS_SSU_MAX_TENANT_LENGTH 17        // 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
 #define UBS_SSU_MAX_NQN_LENGTH 69           // NVMe NQN最大长度69个字符, 含结尾字符'\0'
 #define UBS_SSU_MAX_EID_LENGTH 17           // EID最大长度, 含结尾字符'\0'
@@ -87,7 +85,7 @@ typedef struct {
 } ubs_ssu_namespace_info_t;
 // 分配存储空间结果
 typedef struct {
-    char name[UBS_SSU_MAX_NAME_LENGTH]; // 请求标识, 最大32个字符
+    char name[UBS_SSU_MAX_NAME_LENGTH]; // 请求标识, 最大48个字符
     ubs_ssu_alloc_strategy_t strategy;  // 分配策略
     uint32_t namespace_cnt;             // 命名空间信息数量
     ubs_ssu_namespace_info_t *namespaces; // 命名空间信息列表, 由SDK内部动态分配, 需通过释放接口回收
@@ -189,7 +187,7 @@ void ubs_ssu_alloc_info_list_free(ubs_ssu_alloc_result_t **results, uint32_t res
  * @param ns_dev_paths 命名空间设备路径列表指针
  * @param ns_dev_path_cnt 命名空间设备路径数量
  */
-void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t *ns_dev_path_cnt);
+void ubs_ssu_ns_dev_paths_free(char ***ns_dev_paths, uint32_t ns_dev_path_cnt);
 
 /**
  * @brief 获取存储空间的命名空间统计信息
@@ -214,9 +212,8 @@ int32_t ubs_ssu_ns_stats_get(const char *name, ubs_ssu_ns_stats_t **ns_stats_lis
  * @brief 释放ubs_ssu_ns_stats_get返回的命名空间统计信息列表
  *
  * @param ns_stats_list [IN] ubs_ssu_ns_stats_get返回的列表指针
- * @param ns_stats_cnt [IN] 列表元素数量, 与ubs_ssu_ns_stats_get输出的ns_stats_cnt一致
  */
-void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list, uint32_t *ns_stats_cnt);
+void ubs_ssu_ns_stats_free(ubs_ssu_ns_stats_t **ns_stats_list);
 
 /**
  * @brief 获取存储空间的连接信息
@@ -243,9 +240,8 @@ int32_t ubs_ssu_connect_info_get(const char *name, ubs_ub_vfe_t *vfe, ubs_ssu_co
  * @brief 释放ubs_ssu_connect_info_get返回的连接信息列表
  *
  * @param connect_info_list [IN] ubs_ssu_connect_info_get返回的列表指针
- * @param connect_info_cnt [IN] 列表元素数量, 与ubs_ssu_connect_info_get输出的connect_info_cnt一致
  */
-void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list, uint32_t *connect_info_cnt);
+void ubs_ssu_connect_info_free(ubs_ssu_connect_info_t **connect_info_list);
 
 /**
  * @brief 分配SSU存储空间
@@ -484,7 +480,7 @@ int32_t ubs_ssu_fe_device_list(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  * @param fe_list [IN] ubs_ssu_fe_device_list返回的列表指针
  * @param fe_cnt [IN] 列表元素数量, 与ubs_ssu_fe_device_list输出的fe_cnt一致
  */
-void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
+void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t fe_cnt);
 
 /**
  * @brief 将VFE绑定到虚拟机
@@ -494,16 +490,21 @@ void ubs_ssu_fe_device_list_free(ubs_ub_fe_t **fe_list, uint32_t *fe_cnt);
  * @param upi [IN] 租户隔离标识
  * @param vfe [IN] 要绑定的VFE信息
  * @param bus_instance_guid [IN,OUT] 总线实例GUID, 定长字节数组;
- *                                   调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH 字节
+ *                                   调用方需保证缓冲区至少 UBS_SSU_GUID_LENGTH 字节, 不允许传NULL;
+ *                                   - IN: 全0(UBS_SSU_GUID_LENGTH字节全为0)表示由ubse内部创建
+ *                                          vm busInstance, 并绑定到该VFE;
+ *                                          非全0表示绑定到指定的虚拟机。
+ *                                   - OUT: 操作成功后写入实际绑定的总线实例GUID
+ *                                          (内部创建场景下为新创建的GUID)。
  * @return UBS_SUCCESS:操作成功;
- * UBS_ERR_NULL_POINTER:空指针;
+ * UBS_ERR_NULL_POINTER:空指针(bus_instance_guid为NULL或vfe为NULL);
  * UBS_ENGINE_ERR_CONNECTION_FAILED:连接UBSE服务端失败;
  * UBS_ENGINE_ERR_AUTH_FAILED:UBSE服务端鉴权不通过;
  * UBS_ENGINE_ERR_NOT_EXIST:VFE或虚拟机不存在;
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid);
+int32_t ubs_ssu_fe_device_alloc(uint32_t upi, const ubs_ub_vfe_t *vfe, uint8_t *bus_instance_guid);
 
 /**
  * @brief 释放VFE设备
@@ -520,7 +521,7 @@ int32_t ubs_ssu_fe_device_alloc(uint32_t upi,const ubs_ub_vfe_t *vfe, uint8_t *b
  * UBS_ENGINE_ERR_TIMEOUT:UBSE服务端处理超时;
  * UBS_ENGINE_ERR_INTERNAL:UBSE服务端内部错误
  */
-int32_t ubs_ssu_fe_device_free(uint32_t upi,const ubs_ub_vfe_t *vfe);
+int32_t ubs_ssu_fe_device_free(uint32_t upi, const ubs_ub_vfe_t *vfe);
 
 #ifdef __cplusplus
 }

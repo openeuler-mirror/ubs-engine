@@ -18,6 +18,14 @@
 """
 from typing import List, Optional
 
+from ubse.ffi.ubs_binary_codec import BinaryPacker, BinaryUnpacker, unpack_list
+from ubse.ffi.ubs_engine_exceptions import (
+    UbsEngineExistedError, UbsEngineAllocateError, UbsEngineNotExistError,
+    UbsEngineOutOfRangeError, UbsErrInvalidArg, UbsLengthExceededError,
+    UbsEngineInternalError,
+)
+from ubse.ffi.ubs_error_registry import register_module_errors
+from ubse.ipc.ubs_engine_ipc_codes import (UBSE_SSU_MODULE_CODE)
 from ubse.models.ubs_engine_model_ssu import (
     UBS_SSU_MAX_NAME_LENGTH, UBS_SSU_MAX_TENANT_LENGTH, UBS_SSU_MAX_NQN_LENGTH,
     UBS_SSU_MAX_EID_LENGTH, UBS_SSU_MAX_UUID_LENGTH, UBS_SSU_MAX_DEV_PATH_LENGTH,
@@ -27,47 +35,75 @@ from ubse.models.ubs_engine_model_ssu import (
     UbsSsuAllocResult, UbsSsuNamespaceInfo, UbsSsuConnectInfo, UbsSsuNsStats,
     UbsUbVfe, UbsUbFe,
 )
-from ubse.ipc.ubs_engine_ipc_codes import (UBSE_MODULE_CODE)
-from ubse.ffi.ubs_binary_codec import BinaryPacker, BinaryUnpacker, unpack_list
-
-from ubse.ffi.ubs_error_registry import register_module_errors
-from ubse.ffi.ubs_engine_exceptions import (
-    UbsEngineExistedError, UbsEngineAllocateError, UbsEngineNotExistError,
-    UbsEngineOutOfRangeError, UbsErrInvalidArg, UbsLengthExceededError
-)
 
 _MAX_NAMESPACES = 1024
 _MAX_STATS = 1024
 _MAX_CONNECT_INFO = 1024
 _MAX_FE = 1024
 _MAX_NS_DEV_PATHS = 1024
+_MAX_HOST_NQN = 1024
+
+
 # ====================== 参数校验函数 ======================
 
+def _is_ascii_alnum(ch: str) -> bool:
+    """检查字符是否为 ASCII 字母或数字，避免 Unicode locale 差异。"""
+    return ('a' <= ch <= 'z') or ('A' <= ch <= 'Z') or ('0' <= ch <= '9')
+
+
 def validate_name(name: str) -> None:
-    """校验名称参数是否合法。
+    """校验名称参数是否合法，仅允许 [a-zA-Z0-9_-.:]。
 
     Args:
         name: 待校验的名称
 
     Raises:
-        UbsErrNullPointer: name为空
-        UbsEngineOutOfRangeError: name长度超出限制
+        UbsErrInvalidArg: name为空、长度超出限制或包含非法字符
     """
     if not name:
         raise UbsErrInvalidArg("name is empty")
     if len(name) >= UBS_SSU_MAX_NAME_LENGTH:
         raise UbsErrInvalidArg("name length exceeds maximum allowed")
+    for ch in name:
+        if not (_is_ascii_alnum(ch) or ch == '_' or ch == '-' or ch == '.' or ch == ':'):
+            raise UbsErrInvalidArg(f"name contains invalid character '{ch}'")
+
+
+def _validate_optional_string(s: str, max_len: int, field_name: str) -> None:
+    """校验可选字符串: 允许为空, 非空时长度不超过 max_len-1（含结尾'\0'）。
+
+    Args:
+        s: 待校验的字符串
+        max_len: 缓冲区总容量（含结尾'\0'）
+        field_name: 字段名（用于错误消息）
+
+    Raises:
+        UbsErrInvalidArg: 长度超出限制
+    """
+    if s and len(s) >= max_len:
+        raise UbsErrInvalidArg(f"{field_name} length exceeds maximum allowed")
 
 
 def validate_nqn(nqn: str) -> None:
-    """校验NQN参数是否合法。
+    """校验NQN参数是否合法: 允许为空, 非空时长度不超过限制。
 
     Args:
         nqn: 待校验的NQN
 
     Raises:
-        UbsErrNullPointer: nqn为空
-        UbsEngineOutOfRangeError: nqn长度超出限制
+        UbsErrInvalidArg: nqn长度超出限制
+    """
+    _validate_optional_string(nqn, UBS_SSU_MAX_NQN_LENGTH, "nqn")
+
+
+def validate_nqn_not_empty(nqn: str) -> None:
+    """校验NQN参数是否合法: 不允许为空, 非空时长度不超过限制。
+
+    Args:
+        nqn: 待校验的NQN
+
+    Raises:
+        UbsErrInvalidArg: nqn长度超出限制
     """
     if not nqn:
         raise UbsErrInvalidArg("nqn is empty")
@@ -75,20 +111,80 @@ def validate_nqn(nqn: str) -> None:
         raise UbsErrInvalidArg("nqn length exceeds maximum allowed")
 
 
+def validate_eid(eid: str) -> None:
+    """校验eid参数是否合法: 允许为空, 非空时长度不超过限制。
+
+    Args:
+        eid: 待校验的eid
+
+    Raises:
+        UbsErrInvalidArg: eid长度超出限制
+    """
+    _validate_optional_string(eid, UBS_SSU_MAX_EID_LENGTH, "eid")
+
+
+def validate_tenant(tenant: str) -> None:
+    """校验租户隔离标识参数是否合法: 允许为空, 非空时长度不超过限制, 仅允许 [a-zA-Z0-9_-.:]。
+
+    Args:
+        tenant: 待校验的租户隔离标识
+
+    Raises:
+        UbsErrInvalidArg: tenant长度超出限制或包含非法字符
+    """
+    if not tenant:
+        return
+    if len(tenant) >= UBS_SSU_MAX_TENANT_LENGTH:
+        raise UbsErrInvalidArg("tenant length exceeds maximum allowed")
+    for ch in tenant:
+        if not (_is_ascii_alnum(ch) or ch == '_' or ch == '-' or ch == '.' or ch == ':'):
+            raise UbsErrInvalidArg(f"tenant contains invalid character '{ch}'")
+
+
+def validate_space_req(req: UbsSsuSpaceReq) -> None:
+    """校验空间挂载/卸载请求参数是否合法。
+
+    Args:
+        req: 待校验的请求参数
+
+    Raises:
+        UbsErrInvalidArg: name或eid为空或长度超出限制
+    """
+    validate_name(req.name)
+    validate_nqn(req.nqn)
+    validate_eid(req.src_eid)
+
+
 def validate_dev_name(dev_name: str) -> None:
-    """校验设备名称参数是否合法。
+    """校验设备名称参数是否合法，仅允许 [a-zA-Z0-9_/.-]。
 
     Args:
         dev_name: 待校验的设备名称
 
     Raises:
-        UbsErrNullPointer: dev_name为空
-        UbsEngineOutOfRangeError: dev_name长度超出限制
+        UbsErrInvalidArg: dev_name为空、长度超出限制或包含非法字符
     """
     if not dev_name:
         raise UbsErrInvalidArg("dev_name is empty")
     if len(dev_name) >= UBS_SSU_MAX_DEV_NAME_LENGTH:
         raise UbsErrInvalidArg("dev_name length exceeds maximum allowed")
+    for ch in dev_name:
+        if not (_is_ascii_alnum(ch) or ch == '_' or ch == '/' or ch == '.' or ch == '-'):
+            raise UbsErrInvalidArg(f"dev_name contains invalid character '{ch}'")
+
+
+def validate_access_permission(name: str, nqn: str) -> None:
+    """校验访问权限操作参数是否合法。
+
+    Args:
+       name: 待校验的名称
+       nqn: 待校验的NQN
+
+    Raises:
+       UbsErrInvalidArg: name或nqn为空或长度超出限制
+    """
+    validate_name(name)
+    validate_nqn_not_empty(nqn)
 
 
 def validate_alloc_space_req(req: UbsSsuAllocSpaceReq) -> None:
@@ -98,13 +194,29 @@ def validate_alloc_space_req(req: UbsSsuAllocSpaceReq) -> None:
         req: 待校验的请求参数
 
     Raises:
-        UbsErrNullPointer: name为空
-        UbsEngineOutOfRangeError: name长度超出限制
-        UbsErrInvalidArg: ns_num不大于0
+        UbsErrInvalidArg: 参数校验失败
     """
     validate_name(req.name)
     if req.ns_num == 0:
         raise UbsErrInvalidArg("ns_num must be greater than 0")
+    # ns_size 须为 1G 的整数倍
+    ONE_G = 1024 * 1024 * 1024
+    if req.ns_size == 0 or req.ns_size % ONE_G != 0:
+        raise UbsErrInvalidArg("ns_size must be a multiple of 1G")
+    # 仅条带化策略时, ns_size 须能整除 ns_num
+    if req.strategy == UbsSsuAllocStrategy.STRIPED and req.ns_size % req.ns_num != 0:
+        raise UbsErrInvalidArg("When using striping strategy only, ns_size must be divisible by ns_num")
+    valid_lba_format = {
+        UbsSsuLbaFormat.FORMAT_512, UbsSsuLbaFormat.FORMAT_4K,
+    }
+    if req.lba_format not in valid_lba_format:
+        raise UbsErrInvalidArg("invalid lba format")
+    valid_strategy = {
+        UbsSsuAllocStrategy.STRIPED, UbsSsuAllocStrategy.LINEAR,
+    }
+    if req.strategy not in valid_strategy:
+        raise UbsErrInvalidArg("invalid strategy")
+    validate_tenant(req.tenant)
 
 
 def validate_striped_space_req(req: UbsSsuStripedSpaceReq) -> None:
@@ -119,6 +231,8 @@ def validate_striped_space_req(req: UbsSsuStripedSpaceReq) -> None:
         UbsErrInvalidArg: level或chunk_size无效
     """
     validate_name(req.name)
+    validate_nqn(req.nqn)
+    validate_eid(req.src_eid)
     validate_dev_name(req.dev_name)
     if req.level not in (UbsSsuRaidLevel.RAID0, UbsSsuRaidLevel.RAID5):
         raise UbsErrInvalidArg("invalid raid level")
@@ -129,6 +243,27 @@ def validate_striped_space_req(req: UbsSsuStripedSpaceReq) -> None:
     }
     if req.chunk_size not in valid_chunk_sizes:
         raise UbsErrInvalidArg("invalid chunk size")
+
+
+def validate_linear_space_req(req: UbsSsuLinearSpaceReq) -> None:
+    """校验线性编址空间操作请求参数是否合法。
+
+    Args:
+        req: 待校验的请求参数
+
+    Raises:
+        UbsErrInvalidArg: name或dev_name为空或长度超出限制
+    """
+    validate_name(req.name)
+    validate_nqn(req.nqn)
+    validate_eid(req.src_eid)
+    validate_dev_name(req.dev_name)
+
+
+def validate_detach_striped_space_req(req: UbsSsuStripedSpaceReq) -> None:
+    """校验条带化空间卸载请求参数（复用 linear 校验逻辑，不校验 level/chunk_size）。"""
+    validate_linear_space_req(req)
+
 
 def validate_fe_device_alloc_params(vfe: UbsUbVfe, guid: str) -> None:
     """校验FE设备分配参数是否合法。
@@ -144,6 +279,7 @@ def validate_fe_device_alloc_params(vfe: UbsUbVfe, guid: str) -> None:
     if guid != "" and len(guid) != UBS_SSU_GUID_LENGTH:
         raise UbsErrInvalidArg(f"bus_instance_guid length must be {UBS_SSU_GUID_LENGTH}")
 
+
 def validate_fe_device_free_params(vfe: UbsUbVfe) -> None:
     """校验FE设备释放参数是否合法。
 
@@ -152,7 +288,10 @@ def validate_fe_device_free_params(vfe: UbsUbVfe) -> None:
     """
     if len(vfe.bind_bus_instance_guid) != UBS_SSU_GUID_LENGTH:
         raise UbsErrInvalidArg("invalid vfe.bind_bus_instance_guid")
+
+
 # ====================== 请求打包函数 ======================
+
 
 def pack_guid(guid: str) -> bytes:
     """将GUID字符串打包为32字节定长裸数据(不足补0, 超长截断)。
@@ -359,7 +498,7 @@ def unpack_namespace_info(u: BinaryUnpacker) -> UbsSsuNamespaceInfo:
     Returns:
         解包后的命名空间信息
     """
-    return UbsSsuNamespaceInfo(
+    ns = UbsSsuNamespaceInfo(
         tgt_eid=u.unpack_string(UBS_SSU_MAX_EID_LENGTH),
         tgt_nqn=u.unpack_string(UBS_SSU_MAX_NQN_LENGTH),
         ns_uuid=u.unpack_string(UBS_SSU_MAX_UUID_LENGTH),
@@ -368,6 +507,9 @@ def unpack_namespace_info(u: BinaryUnpacker) -> UbsSsuNamespaceInfo:
         ns_size=u.unpack_uint64(),
         lba_format=UbsSsuLbaFormat(u.unpack_uint32()),
     )
+    ns.allow_host_nqn_list = unpack_list(u, _MAX_HOST_NQN,
+                                         lambda uu: uu.unpack_string(UBS_SSU_MAX_NQN_LENGTH))
+    return ns
 
 
 def unpack_alloc_result_impl(u: BinaryUnpacker) -> UbsSsuAllocResult:
@@ -513,6 +655,7 @@ def unpack_alloc_result_list(response: bytes) -> List[UbsSsuAllocResult]:
     """
     return unpack_list(BinaryUnpacker(response), _MAX_NAMESPACES, unpack_alloc_result_impl)
 
+
 def unpack_ns_dev_paths_response(response: bytes) -> List[str]:
     """从响应中解包命名空间设备路径列表。
 
@@ -592,11 +735,14 @@ def unpack_fe_device_list(response: bytes) -> List[UbsUbFe]:
     """
     return unpack_list(BinaryUnpacker(response), _MAX_FE, unpack_fe)
 
-# TODO 错误码整改
+
 # ====================== SSU 模块错误码注册 ======================
-register_module_errors(UBSE_MODULE_CODE, {
+# 公共错误码(1/32/43等)已在 _COMMON_ERROR_MAP 注册, 此处仅注册SSU专属或需覆盖语义的错误码。
+register_module_errors(UBSE_SSU_MODULE_CODE, {
+    # --- SSU 专属业务错误码 (1000-1099) ---
     1000: ("UBSE_ERR_OUT_OF_RANGE", UbsEngineOutOfRangeError),
     1006: ("UBSE_ERR_EXISTED", UbsEngineExistedError),
     1007: ("UBSE_ERR_NOT_EXIST", UbsEngineNotExistError),
+    1010: ("UBSE_ERR_CREATING", UbsEngineInternalError),  # 命名空间正在创建中, 调用方可稍后重试
     1013: ("UBSE_ERR_ALLOCATE", UbsEngineAllocateError),
 })

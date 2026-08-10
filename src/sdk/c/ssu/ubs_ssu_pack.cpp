@@ -174,7 +174,7 @@ static size_t calc_striped_space_req_size(const ubs_ssu_striped_space_req_t *req
     total += ubse_string_calc_size(req->nqn, UBS_SSU_MAX_NQN_LENGTH - 1);
     total += ubse_string_calc_size(req->src_eid, UBS_SSU_MAX_EID_LENGTH - 1);
     total += ubse_string_calc_size(req->dev_name, UBS_SSU_MAX_DEV_NAME_LENGTH - 1);
-    total += sizeof(uint32_t); // level
+    total += sizeof(uint8_t); // level
     total += sizeof(uint32_t); // chunk_size
     return total;
 }
@@ -502,7 +502,7 @@ ubs_error_t ubs_ssu_striped_space_attach_pack(const ubs_ssu_striped_space_req_t 
         IPC_LOG_ERROR << "pack failed, attr: dev_name, ret: " << ret;
         return ret;
     }
-    ret = packValue(ctx, static_cast<uint32_t>(req->level));
+    ret = packValue(ctx, static_cast<uint8_t>(req->level));
     if (ret != UBS_SUCCESS) {
         free_buffer(buffer);
         IPC_LOG_ERROR << "pack failed, attr: level, ret: " << ret;

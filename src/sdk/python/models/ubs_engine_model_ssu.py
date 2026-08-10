@@ -16,8 +16,6 @@ from typing import List, Optional
 # ====================== SSU 常量定义 ======================
 # 与C头文件ubs_engine_ssu.h保持一致
 UBS_SSU_MAX_NAME_LENGTH = 48  # 请求标识最大48个字符, 含结尾字符'\0'
-UBS_SSU_MAX_RESULT_NAME_LENGTH = 32  # 结果名称最大32个字符, 含结尾字符'\0'
-UBS_SSU_MAX_USER_NAME_LENGTH = 32  # 使用方进程运行用户名称最大长度, 含结尾字符'\0'
 UBS_SSU_MAX_TENANT_LENGTH = 17  # 请求方UPI(租户隔离标识)最大长度, 含结尾字符'\0'
 UBS_SSU_MAX_NQN_LENGTH = 69  # NVMe NQN最大长度69个字符, 含结尾字符'\0'
 UBS_SSU_MAX_EID_LENGTH = 17  # EID最大长度, 含结尾字符'\0'
@@ -77,6 +75,7 @@ class UbsSsuNamespaceInfo:
     ns_dev_path: str = ""  # 命名空间设备路径
     ns_size: int = 0  # 分配的容量, 单位字节
     lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
+    allow_host_nqn_list: List[str] = field(default_factory=list)  # 允许访问的Host NQN列表
 
     def __str__(self):
         return (
@@ -93,6 +92,7 @@ class UbsSsuNamespaceInfo:
             'ns_dev_path': self.ns_dev_path,
             'ns_size': self.ns_size,
             'lba_format': self.lba_format.name,
+            'allow_host_nqn_list': list(self.allow_host_nqn_list),
         }
 
 
@@ -126,7 +126,7 @@ class UbsSsuAllocSpaceReq:
     ns_num: int = 1  # 命名空间数量, 等于1时strategy不生效
     lba_format: UbsSsuLbaFormat = UbsSsuLbaFormat.FORMAT_4K  # LBA格式
     strategy: UbsSsuAllocStrategy = UbsSsuAllocStrategy.STRIPED  # 分配策略
-    tenant: bytes = b''  # 请求方tenant(租户隔离标识)
+    tenant: str = ""  # 请求方tenant(租户隔离标识)
 
 
 @dataclass

@@ -107,6 +107,9 @@ def resolve_error(module_code: int, status_code: int) -> _ErrorEntry:
             return module_map[status_code]
         if status_code in _COMMON_ERROR_MAP:
             return _COMMON_ERROR_MAP[status_code]
+    # 内部错误码 (>=10000) 统一映射为 UbsEngineInternalError
+    if status_code >= 10000:
+        return f"UBSE_INTERNAL_ERROR_{status_code}", UbsEngineInternalError
     return f"UBSE_UNKNOWN_ERROR_{status_code}", UbsEngineInternalError
 
 
