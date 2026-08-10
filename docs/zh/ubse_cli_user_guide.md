@@ -1867,6 +1867,7 @@ ubsectl-ssu create -n <name> -s <size> [-l <lba>] [-m <num>] [-r <strategy>]
 | ERROR: Invalid ns_num. The value must be an integer in range 1-128. | ns_num不在1-128范围内 |
 | ERROR: Invalid lba. The value must be 512B or 4K. | lba格式不合法, 必须为512B或4K |
 | ERROR: Invalid strategy. The value must be Linear or Striped. | strategy格式不合法, 必须为Linear或Striped |
+| ERROR: The SSU allocation already exists. | 指定name的SSU存储空间已分配 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -1923,7 +1924,6 @@ ubsectl-ssu delete -n <name>
 1. ubsectl-ssu只能在root、ubse用户中运行
 2. name必须与创建SSU分配时的name参数一致
 3. 释放前需先执行`ubsectl-ssu detach`卸载该存储空间；存储空间处于已挂载（ATTACHED）状态时不允许释放
-4. 释放操作具有幂等性，释放不存在的存储空间也返回成功
 
 **输出信息说明**
 
@@ -1935,6 +1935,7 @@ ubsectl-ssu delete -n <name>
 | ---------------------------------------------- | ------------------ |
 | ERROR: The option -n or --name is required.    | 缺少必选参数name          |
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
+| ERROR: The SSU allocation does not exist or has already been deleted. | 指定的SSU存储空间不存在或已经删除 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码；例如存储空间仍处于已挂载状态时释放失败 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -1986,6 +1987,7 @@ ubsectl-ssu attach -n <name> [-q <host_nqn>] [-e <src_eid>]
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
 | ERROR: Invalid src_eid. The value must be 1-16 characters. | src_eid格式不合法 |
 | ERROR: The option --dev_name, --level or --chunk_size requires --type. | 未指定type时携带了聚合参数 |
+| ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2036,6 +2038,7 @@ ubsectl-ssu detach -n <name> [-q <host_nqn>]
 | ERROR: Invalid name. The value must be 1-47 characters and contain only letters, digits, '.', ':', '-' or '_'. | name格式不合法 |
 | ERROR: Invalid host_nqn. The value must be 1-68 characters. | host_nqn格式不合法 |
 | ERROR: The option --dev_name requires --type. | 未指定type时携带了聚合设备名称参数 |
+| ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2095,6 +2098,7 @@ ubsectl-ssu attach -t Linear -n <name> -d <dev_name> [-q <host_nqn>] [-e <src_ei
 | ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
 | ERROR: The option --level or --chunk_size is only valid when --type is Striped. | Linear模式携带了条带参数 |
+| ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2152,6 +2156,7 @@ ubsectl-ssu detach -t Linear -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Linear. | Linear模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2218,6 +2223,7 @@ ubsectl-ssu attach -t Striped -n <name> -d <dev_name> -l <level> -c <chunk_size>
 | ERROR: The option -c or --chunk_size is required when --type is Striped. | Striped模式缺少chunk_size |
 | ERROR: Invalid level. The value must be raid0 or raid5. | level取值不合法 |
 | ERROR: Invalid chunk_size. The value must be 4K, 16K, 32K, 64K, 128K, 256K or 512K. | chunk_size取值不合法 |
+| ERROR: The SSU allocation is already attached. | 指定的SSU存储空间已经挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
@@ -2275,6 +2281,7 @@ ubsectl-ssu detach -t Striped -n <name> -d <dev_name> [-q <host_nqn>]
 | ERROR: Invalid type. The value must be Linear or Striped. | type取值不合法 |
 | ERROR: The option -d or --dev_name is required when --type is Striped. | Striped模式缺少dev_name |
 | ERROR: Invalid dev_name. The value must be 1-32 characters and contain only letters, digits, '_', '-' or '.'. | dev_name格式不合法 |
+| ERROR: The SSU allocation is already detached or has not been attached. | 指定的SSU存储空间已经卸载或尚未挂载 |
 | ERROR: Internal error with error code \<code>. | 服务端内部错误，code为具体错误码 |
 | ERROR: Deserialization failed in client.       | 客户端反序列化响应数据失败      |
 | ERROR: Serialization failed in client.         | 客户端序列化请求数据失败       |
