@@ -177,6 +177,10 @@ private:
                                       const UbseCreateBlockDeviceOptions& options,
                                       std::string& devicePath);
 
+    uint32_t DeleteLvmBlockDevice(const std::string& deviceName, const std::string& vgName);
+
+    uint32_t DeleteMdBlockDevice(const std::string& deviceName, const std::string& mdDevicePath);
+
     UbseDlManager dlManager_;
     std::mutex mutex_;
 
