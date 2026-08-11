@@ -27,7 +27,7 @@ struct UbseGlobalLedgerSummaryItem {
     std::string name{};
     uint32_t blockSize{128};
     UbseMemState state{UBSE_MEM_STATE_INIT};
-    std::vector<UbseMemDebtNumaInfo> numaInfos{}; // 导出或导入的numaInfos
+    std::vector<UbseMemDebtNumaInfo> exportNumaInfos{}; // 导出的numaInfos
     uint8_t usrInfo[UBSE_MAX_USR_INFO_LEN]{}; // 调用方私有数据，UBSE只负责保存，get时原样返回
     UbseUdsInfo userInfo{}; // 导出或者导入的udsInfo
     std::vector<UbMemFaultType> faultTypes{}; // memId故障类型与memids一一对应
