@@ -20,6 +20,7 @@
 #include "mempool_borrow_module.h"
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_fault_memid_module.h"
+#include "over_commit_pid_fault_pipeline.h"
 #include "over_commit_storage.h"
 #include "process_mem_pid_manager_def.h"
 #include "rmrs_resource_query.h"
@@ -28,12 +29,22 @@
 namespace mempooling {
 using namespace ubse::mem::controller;
 // 全局 pending 迁移状态表：借用成功但迁移失败的 PID
-constexpr uint64_t KB_TO_B = 1024;
 
 MpResult OverCommitFaultNodeModule::ProcessBorrowOutNodeFault(const std::string& nodeId)
 {
     LOG_DEBUG << "ProcessBorrowOutNodeFault start.";
 
+    // 配置开关: PID粒度故障处理新路径
+    if (MpConfiguration::GetInstance().GetPidFaultHandleEnabled()) {
+        LOG_INFO << "PidFaultHandle enabled, entering PID-granularity path.";
+        auto ret = PidFaultPipeline::ProcessBorrowOutNodeFaultByPid(nodeId);
+        if (ret != MEM_POOLING_OK) {
+            LOG_ERROR << "ProcessBorrowOutNodeFaultByPid failed.";
+        }
+        return ret;
+    }
+
+    // 原有路径: 保持不变
     if (MpConfiguration::GetInstance().GetMpSceneType() == MpSceneType::VIRTUAL_SCENE &&
         MpConfiguration::GetInstance().GetMultiNumaScene() == true) {
         // 多numa场景+虚机场景
@@ -1001,6 +1012,7 @@ MpResult ExecuteBorrowForPid(const PidBorrowContext& ctx, std::string& newBorrow
     srcParam.uid = ctx.uid;
     srcParam.username = ctx.username;
 
+    // 故障借用层入参单位KB（低于4MB下限的取整与KB→字节换算由借用层统一处理）
     std::vector<uint64_t> borrowSizes{ctx.remoteTotalSizeKB};
 
     WaterMark waterMark;
