@@ -956,8 +956,8 @@ MpResult MemBorrowExecutor::GetDebtInfoByNameWithRetry(const std::string& name,
             }
         }
 
-        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE) << "[DebtQuery] borrowId=" << name
-                                                         << " not found in debt info, retry=" << (curRetryTimes + 1);
+        UBSE_LOGGER_WARN(MP_MODULE_NAME, MP_MODULE_CODE)
+            << "[DebtQuery] borrowId=" << name << " not found in debt info, retry=" << (curRetryTimes + 1);
         std::this_thread::sleep_for(std::chrono::seconds(sleepSeconds));
         curRetryTimes++;
     }

@@ -126,8 +126,7 @@ MpResult PidFaultTaskBuilder::BuildTasksForNode(const OverCommitFaultContext& co
     std::vector<uint16_t> effectiveFaultNumaIds;
     for (uint16_t numaId : faultNumaIds) {
         if (pendingNumaSet.count(numaId) > 0) {
-            LOG_INFO << "Node " << borrowInNodeId << " faultNuma=" << numaId
-                     << " pending recovery, skip this round.";
+            LOG_INFO << "Node " << borrowInNodeId << " faultNuma=" << numaId << " pending recovery, skip this round.";
             continue;
         }
         effectiveFaultNumaIds.push_back(numaId);
