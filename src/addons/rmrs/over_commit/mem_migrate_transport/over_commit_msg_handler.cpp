@@ -24,6 +24,7 @@
 #include "over_commit_fault_management_handler.h"
 #include "over_commit_mem_migrate_trans_msg.h"
 #include "over_commit_msg.h"
+#include "over_commit_pid_fault_handler.h"
 #include "over_commit_serializer.h"
 #include "page_file_helper.h"
 #include "set_smap_remote_numa_info_trans_msg.h"
@@ -622,6 +623,20 @@ uint32_t InitOverCommitReg()
     ret = UbseRegRpcService(endpoint, over_commit::OverCommitMsg::GetNumaBindTypeRecvHandler);
     if (ret != MEM_POOLING_OK) {
         UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "GetNumaBindTypeRecvHandler reg failed res: " << ret;
+    }
+
+    // PID粒度故障处理: 借入节点侧PID查询
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_PID_QUERY};
+    ret = UbseRegRpcService(endpoint, over_commit::PidFaultHandler::PidQueryRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "PidQueryRecvHandler reg failed res: " << ret;
+    }
+
+    // PID粒度故障处理: 借入节点侧执行借用→迁移→归还
+    endpoint = {.moduleId = MP_MODULE_CODE, .serviceId = OPCODE_OVER_COMMIT_FAULT_PID_EXECUTE};
+    ret = UbseRegRpcService(endpoint, over_commit::PidFaultHandler::PidExecuteRecvHandler);
+    if (ret != MEM_POOLING_OK) {
+        UBSE_LOGGER_ERROR(MP_MODULE_NAME, MP_MODULE_CODE) << "PidExecuteRecvHandler reg failed res: " << ret;
     }
 
     return ret;
